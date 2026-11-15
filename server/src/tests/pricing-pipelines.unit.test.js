@@ -15,8 +15,10 @@ const END = addDaysToIsoDate(START, 3);
 
 const STEPS_DIR = path.join(__dirname, '..', 'utils', 'pricing', 'steps');
 const allStepFiles = fs.readdirSync(STEPS_DIR).filter((f) => f.endsWith('.js')).map((f) => f.replace(/\.js$/, ''));
-// The steps of `externalSale` (rule 53, PR C) are files of their own, named `external*`; `storedNights` is the NIGHTS of `staySale` (rules 8, 9).
-const stepFiles = allStepFiles.filter((f) => !f.startsWith('external') && f !== 'storedNights');
+// The steps of `externalSale` (rule 53, PR C) are files of their own, named `external*`; `storedNights`, `storedExtraGuests` and
+// `storedTouristTax` are the NIGHTS, EXTRA GUESTS and TOURIST TAX of `staySale` (rules 8, 9).
+const AS_STORED = new Set(['storedNights', 'storedExtraGuests', 'storedTouristTax']);
+const stepFiles = allStepFiles.filter((f) => !f.startsWith('external') && !AS_STORED.has(f));
 
 test('rule 52: stayQuote is built and runs loadStay → clock → nights → extraGuests → extras → … → schedule → settlement', () => {
   assert.equal(stayQuote.steps[0], 'loadStay');

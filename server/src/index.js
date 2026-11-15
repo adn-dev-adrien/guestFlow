@@ -177,6 +177,18 @@ if (process.env.SKIP_MIGRATIONS !== 'true') {
   }
 }
 
+// Rule 8 — once, after the controller can load: the extra guests and the tax each live stay's sale reads as stored.
+if (process.env.SKIP_MIGRATIONS !== 'true') {
+  try {
+    const { written, refused } = require('./utils/pricingStoredFiguresMigration').backfillSaleFiguresOnce(db);
+    if (written.length > 0 || refused.length > 0) {
+      console.log(`[migration:stored-sale-figures] ${written.length} stay(s) recorded; ${refused.length} left to the units (${refused.join(', ') || 'none'})`);
+    }
+  } catch (err) {
+    logErrorMarker(`Stored sale figures backfill failed: ${err.message}`);
+  }
+}
+
 // Rule 74 — the stay-level allocation of every paid bucket no per-line truth describes (needs the platform's tax mode).
 if (process.env.SKIP_MIGRATIONS !== 'true') {
   try {

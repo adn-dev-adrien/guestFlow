@@ -77,6 +77,9 @@ function loadInputs(db, inputs) {
   const sales = app('utils/pricingSalesMigration.js');
   sales.runPricingSalesMigration(db);
   sales.backfillOrderRefsOnce(db);
+  const figures = app('utils/pricingStoredFiguresMigration.js');
+  figures.runPricingStoredFiguresMigration(db);
+  figures.backfillSaleFiguresOnce(db, { force: true });
 }
 
 function ficheOf(id) {

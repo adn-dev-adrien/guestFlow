@@ -250,10 +250,24 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
    > `storedNights` in the place of NIGHTS. The stored nights (`reservation_nights`, the price lock) are the nightly breakdown; no tariff is read.
    > A stay whose stored nights do not price each of its nights (prod copy 2026-11-11: one past stay of 62) is priced by NIGHTS as before. The
    > flag is an option of the server call, never a body field. Proof `pricing-sale-stored-stay`; the replay and the price gate move nothing.
-   > **Pending** — PR-later: EXTRA GUESTS and TOURIST TAX still run in `staySale`, over stored inputs only (the locked tariff's guest tiers and
-   > nights, the frozen tax when the stay froze it). Reading them « as stored » needs stored figures the row does not hold: the in-brut part of
-   > the extra-guest supplement (only the complement part is a column) and an unfrozen stay's tax breakdown (`touristTaxTotal` alone). That is a
-   > schema change with a backfill, measured against the replay; not started. `storedStayPrice` (rule 48) stays the refund input's reader.
+   > **Delivered by PR C** (C43, EXTRA GUESTS and TOURIST TAX; owner 2026-11-15: in 4.2.0 with new columns and a backfill): `staySale` runs
+   > `storedExtraGuests` and `storedTouristTax` in the place of EXTRA GUESTS and TOURIST TAX. Every save that prices a stay stores what the two
+   > units provided — `reservations.storedExtraGuests` (the supplement, its in-brut share inside a platform price and its arrival part) and
+   > `reservations.storedTouristTax` (the tax and its whole detail: base, rate, unit amount, routing, the added guests' part) —, each with the
+   > `basis` it was computed on (`utils/pricing/storedSaleFigures.js`: the stay's own inputs — party, dates, channel, platform price and paid
+   > guests, the frozen tax, what the tax base reads of the lines —, never the settings, the tariff, nor what the save writes back from the
+   > record). A sale reads a record whose basis is its own; a stay with no record, a record computed on other inputs (a row rewritten by a path
+   > that did not price it, the previous release's save, a sale that changes a platform line or a line included in the rate) or a tax record
+   > stating another tax than the row is priced by the unit, as before. The quote carries its records under a symbol (no key of the quote moves).
+   > Backfill (`utils/pricingStoredFiguresMigration.js`, once after boot): each live stay's records are what a sale on it computes today (the
+   > very dry run `extraSale` prices a sale on), nothing else of the row is written. _Measured on a fresh copy of the prod database of
+   > 2026-11-11:_ 55 of 62 stays recorded; the 7 others (3, 4, 8, 14, 22208, 22275, 22280) refuse a sale today (`ARRIVAL_EXTRAS_FROZEN`,
+   > `MID_STAY_EXTRAS_CLOSED`) and keep no record. A sale reads the extra-guest record on 55 and the tax record on 50: on 22270, 22279, 22282,
+   > 22301 and 22304 the row stores no tax (0 €) where the engine of today computes one (the platform's tax mode moved since they were
+   > priced), so their record states another tax than the row and their next sale is priced by TOURIST TAX as today — reading their stored 0 €
+   > would move that sale's figure, the stay edit stays the way to settle it. After a stay edit of each stay, the next sale reads the records on
+   > 55 / 54. Forced again, the backfill writes the same 55 records. The replay, the price gate, the golden and the books move nothing.
+   > Proof `pricing-sale-stored-figures`, `pricing-stored-figures-migration`, `pricing-sale-stored-stay`. `storedStayPrice` (rule 48) stays the refund input's reader.
 9. **Stay validation is not a sale check.** Min/max nights, changeover and capacity are judged by NIGHTS on a
    stay edit. A sale on an existing stay never re-judges them (W1 disappears, it does not get a flag).
    > **Delivered by PR C** (C40): a sale (`performUpdate(…, { sale: <seller> })`, every `extraSale` write) answers no `MIN_NIGHTS`, `MAX_NIGHTS` nor
@@ -458,6 +472,7 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
     > (its plan is that commit rolled back), not through `extraSale` requests — the reasons are rule 90's note; the departure SAS's charges are
     > custom lines of source `sas` at moment `departure`, written with the end-of-stay detail and kept out of the stay's sale (rule 90.2).
     > `planDepartureSas` still reads the detail it writes beside those lines; the recap as a `saleDetail` view stays Pending (rule 32's note).
+    > _2026-11-15 (pass C43):_ `planDepartureSas` as a view over the lines is stopped by a figure move measured on the prod copy — rule 32's note (22281, 22280).
 26. **Free allowances are consumed by a line and stay with it** (ALLOWANCES unit, rule 41). The free bath
     hour, free units (« 2 offerts ») and included hours are a ledger per stay; a line records the allowance
     it consumed (`allowanceUsed`). Removing a line gives its allowance back for **future** sales; it never
@@ -573,6 +588,14 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
     > for every line (the unit price of a non-extinguisher charge, the « carried » rank of a line a mid-stay sale brought, the « Ajustement »),
     > and the recalled arrival lines need the offered ones `arrivalComplementDetailOf` leaves out. The rows would need those columns first, and
     > the SAS departure plans of the replay are the proof; not started in that pass.
+    > _2026-11-15 (pass C43, owner: these rules in 4.2.0 with new columns and a backfill), measured on a fresh copy of the prod database of 2026-11-11 —
+    > why it is stopped, not delivered:_ a view over the lines moves the recap of stays the copy holds. The « reporté » lines of the recap are the
+    > mid-stay entries of the stored detail, and on a stay sold before the true lines (rule 85) such an entry is a PART of a line, not a line: on
+    > 22281 the detail holds 50 € collected at the departure for an article whose one line (50 €) is routed to the plan, so the lines list nothing
+    > at the departure and the recap read from them would lose that 50 € (its end-of-stay total with it); on 22280 the two carried entries come in
+    > the detail's order and the lines in another, so the recap's order would move. Splitting those lines rewrites stored lines (rule 36). The
+    > columns the charges lack (their unit price, the rank, the « Ajustement ») would not change that: the charges are one of three sources of
+    > the recap, the carried entries are the one the lines cannot give. Not started; the recap keeps reading the detail written beside the lines.
 
 ### 3.H Non-regression guarantee
 
@@ -1785,6 +1808,15 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
     > _2026-11-15 (pass C42), why the sale detail does not list them yet:_ no stay of the prod copy holds a departure-charge line (each one stores the detail only, pass 3j), so a
     > switch has no stay to be proved on; and a listed charge would enter the fiche's lines and the SAS's « Déjà payé », whose « Offrir » goes through the line API, which cannot
     > address a departure charge (`notDepartureCharge`). The listing needs that gesture decided with it (the charge's offer is the departure SAS's today).
+    > _2026-11-15 (pass C43, owner: in 4.2.0 with new columns and a backfill), why the readers still read the detail:_ (1) the twenty readers read the stored
+    > detail as ONE list — the charges, the mid-stay entries and the « Ajustement » together — and the mid-stay entries of a stay sold before the true
+    > lines are not lines (22281, rule 32's note): reading the charges from the lines and the rest from the detail is two reads of one list, not one.
+    > (2) The lines a backfill would create for the stays that store a charge in their detail only (22226 on the copy, 30 €) are read by the previous
+    > release as ordinary free lines: 4.0.x sums every row of `reservation_custom_options` into the fiche and its save, so after a helper rollback
+    > (self-update rules 31, 57) its next save would bill the charge a second time in `finalPrice`. That is a figure move under rollback, so no
+    > departure line is backfilled. The same holds for the departure lines a 4.2.0 departure SAS writes (pass 3j): a stay checked out on 4.2.0 then
+    > saved under a rolled-back 4.0.x bills its charges twice — recorded here as a limit of self-update rule 57 (the floor stops the updater, not
+    > the helper's rollback). Not started.
 
 91. **The arrival lines of the sale detail, and the e-mails that list them** _(pass 3i, 2026-11-13; completes rules 31, 37; prerequisite of C23)_.
     `saleDetail` lists everything the arrival complement collects as an arrival line: the tax part it collects (forced there, collected by
@@ -1873,6 +1905,8 @@ All of it is plain CommonJS functions and objects (rule 56).
 | `models/` | `extraSalesModel.js` | C | writes appended lines with moment/status/source/discount, bucket columns, history |
 | `utils/` | `extraSale.js` | C | `quote` / `sell` orchestration (rules 27-30) |
 | `utils/` | `saleDetail.js` | C | the read model of rule 31 |
+| `utils/pricing/` | `storedSaleFigures.js`, `steps/storedExtraGuests.js`, `steps/storedTouristTax.js` | C (PR C) | rule 8: the records a sale reads EXTRA GUESTS and TOURIST TAX from (their keys, their basis, the row check) and the two `staySale` steps that read them |
+| `utils/` | `pricingStoredFiguresMigration.js` | C (PR C) | rule 8: the two record columns and their backfill (once after boot: `index.js`, the replay, the gate's recompute) |
 | `utils/` | `departureChargeLines.js` | C (PR C) | rule 90.2: the departure charges as custom lines — their single writer (`syncDepartureChargeLines`, called by `writeEndOfStayDetail`) and the clause every reader of the custom lines appends (`notDepartureCharge`) |
 | `controllers/` | `reservationsController.js` | T | `calculatePrice`/`createStay`/`applyUpdate` call the loader + COMPOSE; a sold stay's product addition goes to `extraSale`; `beforeArrival`, `orderGrowth`, `exactMergedTotals` removed (PR C) |
 | `controllers/` | `extraSalesController.js` | C | the endpoints of §4.3 |
@@ -1950,6 +1984,11 @@ Columns added to `reservation_options`, `reservation_resources`, `reservation_cu
 Nothing is rebuilt: the primary key `(reservationId, optionId)` / `(reservationId, resourceId)` stays, so a rolled-back release
 still runs its `INSERT … ON CONFLICT(reservationId, optionId)` (self-update rule 31). `lineRef = line:<table>:<lineId>`.
 **Since PR C** (rule 85) the primary key is gone: `(reservationId, optionId|resourceId)` is a non-unique index and `lineId` is the key; the stored line keys `opt:<id>` / `res:<id>` are resolved to the article's first line by `utils/pricing/lineKeys.js` (key scheme of rule 85).
+
+On `reservations` (PR C, rule 8): `storedExtraGuests`, `storedTouristTax` TEXT (JSON `{ v, basis, figures }`) NULL — what EXTRA GUESTS and
+TOURIST TAX gave the stay's last pricing, read by a sale (NULL = not stored: the sale runs the units). Written by every save that prices the
+stay; backfilled once after boot with what a sale on each live stay computes (`pricingStoredFiguresMigration.backfillSaleFiguresOnce`, marker
+`pricing_stored_sale_figures_v1`); the previous release neither reads nor writes them.
 
 On `reservations`: `discountTarget` TEXT DEFAULT `'nights'` (every existing row reads as today); `discountAmountCents` INTEGER NULL (the fixed
 amount of the stay discount, rules 16 and 39; NULL = the discount is the percent; no backfill); `cancellationKeptCents` and
@@ -2030,7 +2069,9 @@ check-in time, a discount target, line moment changes and the tourist tax as its
 
 ### Server unit tests (one file per unit, rule 43)
 - [x] `pricing-nights`, `pricing-extra-guests`, `pricing-tourist-tax` — rules 3, 7-9; the static import-graph test of rule 2
-- [x] `pricing-sale-stored-stay` — rules 8, 9: `staySale` is `stayQuote` with `storedNights` for NIGHTS; the stored nights are the breakdown (the tariff never read), stored nights short of the stay priced by NIGHTS; a sale on a stay under a raised minimum or a new changeover day passes, the stay edit is still refused _(PR C, C40)_
+- [x] `pricing-sale-stored-stay` — rules 8, 9: `staySale` is `stayQuote` with `storedNights`, `storedExtraGuests` and `storedTouristTax` for NIGHTS, EXTRA GUESTS and TOURIST TAX; the stored nights are the breakdown (the tariff never read), stored nights short of the stay priced by NIGHTS; a sale on a stay under a raised minimum or a new changeover day passes, the stay edit is still refused _(PR C, C40, C43)_
+- [x] `pricing-sale-stored-figures` — rule 8: the two records hold every key the units provide; a sale (and its quote) after the tax and extra-guest settings changed keeps them, a stay without records moves; a stay edit re-prices and stores new records the next sale reads; a party rewritten without a pricing and a tax record stating another tax than the row are not read; the quote carries the records under a symbol only _(PR C, C43)_
+- [x] `pricing-stored-figures-migration` — rule 8, §5: the two nullable columns added once; the backfill writes the records of each live stay and no money column, none for a devis or a stay whose sale is refused, runs once, forced again writes the same records; the previous release's save leaves records the next sale no longer reads (self-update rule 31) _(PR C, C43)_
 - [x] `pricing-sale-pipelines` — rule 54: `ficheSale` / `sasSale` / `shopSale` are the `staySale` steps, `salePipelineOf` resolves the three and nothing else, COMPOSE gives the same quote through each and refuses an unknown one, `extraSale` names its source's pipeline on every save it plays (an intake source sells as the fiche, the line gestures run `ficheSale`), a stay edit runs `stayQuote` _(PR C, C42)_
 - [x] `pricing-receipts-single-read` — rule 48: `PaymentLedger.receipts(id).splitReceived` equals the direct read (a pool included), none without a settlement, the allocations read only when asked, the fiche's save plans the same buckets _(PR C, C42)_
 - [x] `pricing-allowances`, `pricing-timed-options` — rules 41, 43 (PR A: the read-only form of today's free units, the early check-in and late check-out options)

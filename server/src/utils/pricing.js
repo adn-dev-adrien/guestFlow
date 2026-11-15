@@ -42,11 +42,11 @@ function isTouristTaxRemittedByOwner(db, propertyId, platformKey) {
 }
 
 // `input.storedStaySale` (rules 8, 9, 54): the quote of a sale on the stored stay, named by its seller (`extraSale` through
-// `performUpdate(…, { sale: 'fiche' | 'sas' | 'shop' })`).
+// `performUpdate(…, { sale: 'fiche' | 'sas' | 'shop' })`); `input.storedSaleFigures` the stay's stored extra guests and tax (rule 8).
 function calculateReservationQuote(input) {
   const stay = pricingInputModel.load(input);
   if (stay.error) return stay;
-  return compose(stay, { sale: (input && input.storedStaySale) || null });
+  return compose(stay, { sale: (input && input.storedStaySale) || null, stored: (input && input.storedSaleFigures) || null });
 }
 
 // The tax figures of a stay (`touristTaxOriginalTotal`, `platformTouristTaxWithheld`) without pricing the rest of it.

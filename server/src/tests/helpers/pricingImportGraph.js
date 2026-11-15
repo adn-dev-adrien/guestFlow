@@ -33,6 +33,8 @@ const RANK = {
   // The backfill derivations of PR B read stored shapes only: after the units they describe.
   legacyCollectAt: 9,
   legacyAllocations: 9,
+  // The records a sale reads EXTRA GUESTS and TOURIST TAX from (rule 8): pure, imports no unit; the stored steps and COMPOSE read it.
+  storedSaleFigures: 10,
   // The orchestration sits above every unit: a step imports the units it calls, the use cases import the steps.
   pipeline: 100,
   pipelines: 200,
@@ -44,6 +46,9 @@ const STEPS = ['loadStay', 'clock', 'nights', 'extraGuests', 'discountLevers', '
 for (const step of STEPS) RANK[`steps/${step}`] = 100;
 // The NIGHTS of `staySale` (rules 8, 9) falls back to the `nights` step on a stay whose stored nights do not cover it: just above the steps.
 RANK['steps/storedNights'] = 101;
+// The EXTRA GUESTS and TOURIST TAX of `staySale` (rule 8) fall back to their steps the same way.
+RANK['steps/storedExtraGuests'] = 101;
+RANK['steps/storedTouristTax'] = 101;
 
 const FOLDERS = ['articles', 'vat', 'refunds'];
 const folderOf = (name) => FOLDERS.find((folder) => name.startsWith(`${folder}/`));

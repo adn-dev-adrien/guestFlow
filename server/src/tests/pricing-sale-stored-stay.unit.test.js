@@ -35,8 +35,9 @@ function stay() {
   return id;
 }
 
-test('rule 52 — staySale is stayQuote with storedNights in the place of NIGHTS, nothing else', () => {
-  assert.deepEqual([...staySale.steps], stayQuote.steps.map((id) => (id === 'nights' ? 'storedNights' : id)));
+test('rule 52 — staySale is stayQuote with the stored nights, extra guests and tax in the place of NIGHTS, EXTRA GUESTS and TOURIST TAX, nothing else', () => {
+  const asStored = { nights: 'storedNights', extraGuests: 'storedExtraGuests', touristTax: 'storedTouristTax' };
+  assert.deepEqual([...staySale.steps], stayQuote.steps.map((id) => asStored[id] || id));
   assert.deepEqual([storedNights.requires, storedNights.provides], [nights.requires, nights.provides]);
 });
 

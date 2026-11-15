@@ -3004,6 +3004,8 @@ require('./utils/vatRegimeMigration').runVatRegimeMigration(db);
 require('./utils/pricingLinesMigration').runPricingLinesMigration(db);
 // PR C: the outside-sale tables, the payment link and e-mail log targets, the true lines (and the schema floor), see pricingSalesMigration.js.
 require('./utils/pricingSalesMigration').runPricingSalesMigration(db);
+// PR C (rule 8): the extra guests and the tax a sale reads as stored; their backfill needs the models and runs from `index.js`.
+require('./utils/pricingStoredFiguresMigration').runPricingStoredFiguresMigration(db);
 
 // ---------- REJEU DU BASELINE ----------
 // Voir la note en tete de fichier : quand la premiere passe de schema.sql s'est interrompue sur

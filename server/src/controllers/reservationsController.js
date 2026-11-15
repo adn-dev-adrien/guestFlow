@@ -12,6 +12,7 @@ const { nextLineId } = require('../utils/lineRowTarget');
 const { keyLines } = require('../utils/pricing/lineKeys');
 const { splitPaidLineSessions } = require('../utils/paidLineSessions');
 const { calculateReservationQuote } = require('../utils/pricing');
+const { storedSaleFiguresOfRow } = require('../utils/pricing/storedSaleFigures');
 const { lineInputRefusal } = require('../utils/lineInputBounds');
 const { stayShapeRefusal } = require('../utils/stayInputShape');
 const { positiveId, scalarQuery } = require('../utils/bodyText');
@@ -2239,8 +2240,8 @@ function applyUpdate(req, res, pastUnlocked, { silent = false, sale = null } = {
     ...windowEngineInputs,
     // The acompte deadline was promised on the booking day: an edit never moves it (rule 4).
     ...scheduleQuoteInputs(db, id),
-    // specs/pricing-components.md §3 rules 8, 54 — a sale reads the stored nights, through its seller's sale pipeline.
-    ...(sale ? { storedStaySale: sale } : {}),
+    // specs/pricing-components.md §3 rules 8, 54 — a sale reads the stored nights, extra guests and tax, through its seller's sale pipeline.
+    ...(sale ? { storedStaySale: sale, storedSaleFigures: storedSaleFiguresOfRow(storedPaymentForQuote) } : {}),
   };
   if (!gateInsurance(res, engineInput, Number(id))) return;
   if (!refuseSessionConflict(res, engineInput.selectedResources, Number(id))) return;

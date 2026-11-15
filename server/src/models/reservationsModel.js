@@ -25,6 +25,7 @@ const { computePaymentStatus } = require('../utils/paymentStatus');
 const { writeTouristTaxSnapshot } = require('../utils/touristTaxFreeze');
 const { generateReservationNumber } = require('../utils/reservationNumber');
 const { isPlatformCollectingTouristTax } = require('../utils/pricing');
+const { saleFiguresOf } = require('../utils/pricing/storedSaleFigures');
 const { create: createCatalogueProvider } = require('./ports/catalogueProvider');
 const { isNamedChannel } = require('../utils/saleChannel');
 const { isCleaningOption } = require('../utils/cleaningOption');
@@ -436,6 +437,18 @@ function createReservationsModel(database, { arrivalComplementEngine = null } = 
       Number(quote.extraGuestComplementCount || 0),
       reservationId,
     );
+  }
+  // specs/pricing-components.md §3 rule 8 — what EXTRA GUESTS and TOURIST TAX gave the save, for a later sale to read as stored.
+  // A quote with no records (a halted quote: no night) clears them, so a sale runs the units.
+  const HAS_SALE_FIGURES = (() => {
+    try { return database.prepare('PRAGMA table_info(reservations)').all().some((c) => c.name === 'storedTouristTax'); } catch { return false; }
+  })();
+  function persistSaleFigures(reservationId, quote) {
+    if (!HAS_SALE_FIGURES || !quote) return;
+    const figures = saleFiguresOf(quote);
+    const text = (record) => (record ? JSON.stringify(record) : null);
+    database.prepare('UPDATE reservations SET storedExtraGuests = ?, storedTouristTax = ? WHERE id = ?')
+      .run(text(figures && figures.extraGuests), text(figures && figures.touristTax), reservationId);
   }
   // Rules 16, 58: the target of the stay discount, written beside the percent. Absent from the payload → what is stored stays.
   const HAS_DISCOUNT_TARGET = (() => {
@@ -2185,6 +2198,7 @@ function createReservationsModel(database, { arrivalComplementEngine = null } = 
       persistBreakfastTime(result.lastInsertRowid, payload);
       persistDiscountTarget(result.lastInsertRowid, payload);
       persistExtraGuestComplement(result.lastInsertRowid, quote);
+      persistSaleFigures(result.lastInsertRowid, quote);
       persistReservationNumber(result.lastInsertRowid, payload);
       persistStayLines(result.lastInsertRowid, quote);
       persistEmailLanguage(result.lastInsertRowid, payload);
@@ -2513,6 +2527,7 @@ function createReservationsModel(database, { arrivalComplementEngine = null } = 
       persistBreakfastTime(reservationId, payload);
       persistDiscountTarget(reservationId, payload);
       if (!keepPricing) persistExtraGuestComplement(reservationId, quote, { complementPaid: Boolean(complementPaid) });
+      if (!keepPricing) persistSaleFigures(reservationId, quote);
       persistReservationNumber(reservationId, payload);
       if (!keepPricing) persistStayLines(reservationId, quote, { journal: true });
       persistEmailLanguage(reservationId, payload);

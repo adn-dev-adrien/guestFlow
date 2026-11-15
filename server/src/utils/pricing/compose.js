@@ -14,6 +14,7 @@ const { roundMoney } = require('./money');
 const { extraGuestNightSeason } = require('./extraGuests');
 const { quoteHeadline, summaryCascade } = require('../quoteHeadline');
 const { stayQuote, salePipelineOf, touristTaxFigure: touristTaxSlice } = require('./pipelines');
+const { SALE_FIGURES, saleFiguresOfContext } = require('./storedSaleFigures');
 
 // The engine's own estimate of the tax, and the amount the platform stated it withheld (null when none): the two figures the
 // fiche prints and the report of the platform's tax reads.
@@ -326,13 +327,17 @@ function haltedQuote({ property, settings, vatRate, vatRegime }) {
 }
 
 // `sale` (rules 8, 9, 54): the stay is not edited, a line is sold on it by the seller it names (`fiche`, `sas`, `shop`) — that seller's sale
-// pipeline, the nights read as stored. A sale naming no known seller is refused rather than priced as a stay edit.
-function compose(input, { sale = null } = {}) {
+// pipeline, the nights, the extra guests and the tax read as stored (`stored`: the stay's records, `storedSaleFigures`). A sale naming no
+// known seller is refused rather than priced as a stay edit. The quote carries the records it was priced with (rule 8), for the save to
+// store: under a symbol, so no reader of the quote's keys sees them.
+function compose(input, { sale = null, stored = null } = {}) {
   const pipeline = sale ? salePipelineOf(sale) : stayQuote;
   if (!pipeline) throw new Error(`SALE_PIPELINE_UNKNOWN ${sale}`);
-  const ctx = pipeline({ input });
+  const ctx = pipeline(sale ? { input, storedSaleFigures: stored || null } : { input });
   if (ctx.halt) return haltedQuote(ctx);
-  return shape(ctx);
+  const quote = shape(ctx);
+  quote[SALE_FIGURES] = saleFiguresOfContext(ctx);
+  return quote;
 }
 
 // The two tax figures of a stay, from the TOURIST TAX slice alone (a stay with no night has none: the halted quote carries neither).

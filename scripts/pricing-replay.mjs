@@ -63,6 +63,10 @@ if (fs.existsSync(path.join(root, 'server/src/utils/pricingLinesMigration.js')))
   lines.backfillStayLevelAllocations(db);
   server('utils/paymentAllocationsSync.js').flushDirty(db);
 }
+// Rule 8 — the stored extra guests and tax of each stay, as `index.js` writes them once the controller can load.
+if (fs.existsSync(path.join(root, 'server/src/utils/pricingStoredFiguresMigration.js'))) {
+  server('utils/pricingStoredFiguresMigration.js').backfillSaleFiguresOnce(db);
+}
 const { capture, canonical, sha } = server('tests/vatRegimeGoldenCapture.js');
 const { optionalPlugin } = server('plugins/sdk/testing.js');
 const { figuresOfStay, fakeRes, recomputeResourceBookings } = require(path.join(root, 'scripts/price-gate/recompute.js'));
