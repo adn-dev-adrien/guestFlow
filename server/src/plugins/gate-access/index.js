@@ -21,6 +21,22 @@ const { createHomeModel, HOME_TABLES_SQL, HOME_TABLES } = require('./homeModel')
 const { buildHomeController } = require('./homeController');
 const { buildHomeRouter } = require('./homeRoutes');
 
+const { rateLimit, ipKeyGenerator } = require('express-rate-limit');
+
+/**
+ * The house's own budget on `/public/v1/home` (readings every 60 s, a long poll always open, ~210 calls an hour):
+ * a bucket of its own, so guests' phones behind the same address never push the house into 429.
+ */
+const buildHomeChannelLimiter = () => rateLimit({
+  keyGenerator: (req) => `home:${ipKeyGenerator(req.ip)}`,
+  windowMs: 15 * 60 * 1000,
+  max: 600,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: { code: 'TOO_MANY_REQUESTS', message: 'Too many requests' } },
+});
+
+
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 const id = 'gate-access';
@@ -99,7 +115,7 @@ function register(ctx) {
   const home = buildHomeController({ model: getHomeModel, selection: () => ctx.core.homeSelection() });
   ctx.mount('/public/v1/home', buildHomeRouter({
     controller: home,
-    limiter: sdk.middleware.publicApiLimiter,
+    limiter: buildHomeChannelLimiter(),
     requireConnector: buildRequireGateConnector(),
     signResponse: buildSignGateResponse(),
   }), { public: true });

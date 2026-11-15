@@ -52,4 +52,26 @@ describe('Domotique — the lights (rules 8, 22)', () => {
     expect(await screen.findByText('Trop de demandes. Réessayer dans quelques minutes.')).toBeInTheDocument();
     expect(screen.getByRole('switch', { name: 'Le chêne' })).not.toBeDisabled();
   });
+
+  it('a new press after a refusal is not wiped by the old message’s timer', async () => {
+    let posts = 0;
+    stubApi(homeRoutes({
+      'POST /home/lights/l1': () => {
+        posts += 1;
+        return posts === 1
+          ? { status: 429, error: { code: 'TOO_MANY_REQUESTS', message: 'Trop de demandes. Réessayer dans quelques minutes.' } }
+          : { id: 9, state: 'pending', on: true };
+      },
+      'GET /home/commands/9': { id: 9, state: 'pending', on: true },
+    }));
+    renderApp('/domotique');
+    fireEvent.click(await screen.findByRole('switch', { name: 'Le chêne' }));
+    await screen.findByText('Trop de demandes. Réessayer dans quelques minutes.');
+    await act(async () => { await vi.advanceTimersByTimeAsync(2000); });
+    fireEvent.click(screen.getByRole('switch', { name: 'Le chêne' }));
+    expect(await screen.findByText('Allumage…')).toBeInTheDocument();
+    await act(async () => { await vi.advanceTimersByTimeAsync(4000); });
+    expect(screen.getByText('Allumage…')).toBeInTheDocument();
+    expect(screen.getByRole('switch', { name: 'Le chêne' })).toHaveAttribute('aria-busy', 'true');
+  });
 });

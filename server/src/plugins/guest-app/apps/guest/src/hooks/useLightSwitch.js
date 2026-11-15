@@ -1,6 +1,6 @@
 /**
  * A guest's taps on the lights (specs/guest-app-home-automation.md rules 8, 22). The switch moves on the press; the
- * command is then followed until the house answers. Done → the page is read again (the state comes from the house);
+ * command is then followed until the house answers. Done → the page is read again (the server shows the confirmed state);
  * refused or expired → the switch goes back and says why, for a few seconds.
  *
  * `{ taps, press(light) }` — `taps[lightId]` is `{ on, pending, message? }` while a tap is in flight or just failed.
@@ -17,10 +17,19 @@ const wait = (ms) => new Promise((resolve) => { setTimeout(resolve, ms); });
 export function useLightSwitch({ onSettled }) {
   const [taps, setTaps] = useState({});
   const alive = useRef(true);
+  /** lightId → the timer that clears a failure's message: a new press cancels it. */
+  const timers = useRef({});
+  const clearTimer = (id) => {
+    if (timers.current[id]) clearTimeout(timers.current[id]);
+    delete timers.current[id];
+  };
   // Set on every mount: React's development double mount runs the cleanup once before the real mount.
   useEffect(() => {
     alive.current = true;
-    return () => { alive.current = false; };
+    return () => {
+      alive.current = false;
+      Object.keys(timers.current).forEach(clearTimer);
+    };
   }, []);
 
   const set = (id, value) => {
@@ -33,11 +42,16 @@ export function useLightSwitch({ onSettled }) {
   };
   const fail = (id, message) => {
     set(id, { pending: false, message });
-    setTimeout(() => set(id, null), MESSAGE_MS);
+    clearTimer(id);
+    timers.current[id] = setTimeout(() => {
+      delete timers.current[id];
+      set(id, null);
+    }, MESSAGE_MS);
   };
 
   const press = useCallback(async (light) => {
     const on = !light.on;
+    clearTimer(light.id);
     set(light.id, { on, pending: true });
     let command;
     try {

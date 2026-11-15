@@ -40,7 +40,8 @@ function validateHomeBlocks(input, catalog, makeId = newItemId) {
 
     const seen = new Set();
     const usedIds = new Set();
-    const items = list.slice(0, max).map((item, ii) => {
+    const items = list.slice(0, max).map((rawItem, ii) => {
+      const item = rawItem && typeof rawItem === 'object' ? rawItem : {};
       const iat = `${at}.items.${ii}`;
       const label = typeof item.label === 'string' ? item.label.trim() : '';
       if (!label) errors[`${iat}.label`] = 'Nom requis.';

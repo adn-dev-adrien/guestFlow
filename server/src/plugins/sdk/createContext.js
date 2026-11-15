@@ -17,7 +17,7 @@ const PROCESSOR_MEMBERS = ['id', 'isReady', 'priceSync', 'priceLive'];
 const CONTRIBUTOR_MEMBERS = ['id', 'priceTypes', 'priceLine'];
 const SAS_COMMIT_MEMBERS = ['step', 'validate', 'complementItems', 'write'];
 const SCHEDULER_MEMBERS = ['slotsForStay', 'validateSessions'];
-const HOME_DATA_MEMBERS = ['channel', 'catalog', 'readings', 'series', 'queueCommand', 'command'];
+const HOME_DATA_MEMBERS = ['channel', 'catalog', 'readings', 'series', 'queueCommand', 'command', 'confirmed'];
 const ISSUER_MEMBERS = ['id', 'isReady', 'issue', 'findCardBatch', 'attach', 'invoiceStatus'];
 const PUSH_CHANNEL_KEY = /^[a-z][a-z0-9-]{0,39}$/;
 

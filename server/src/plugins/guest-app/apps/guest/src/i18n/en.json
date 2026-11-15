@@ -185,6 +185,7 @@
  "smartHome.offlineShort": "Offline",
  "smartHome.offline": "Offline: last known values. The lights can be switched again once the network is back.",
  "smartHome.silent": "No news from the house: last reading {at}.",
+ "smartHome.refreshFailed": "Could not update for now: values from the last read.",
  "smartHome.outside": "Outside",
  "smartHome.minMax": "min {min}° · max {max}°",
  "smartHome.rooms": "Rooms",

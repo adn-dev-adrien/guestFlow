@@ -63,3 +63,12 @@ test('every refusal comes back at once', () => {
   const blocks = withBlock('rooms', { items: [{ label: '', equipmentId: '' }] }).map((b) => (b.kind === 'rain' ? { ...b, equipmentId: null } : b));
   assert.equal(Object.keys(errorsOf(blocks)).length, 3);
 });
+
+test('rule 14 — an item that is not an object is refused field by field, never a crash', () => {
+  const at = GRANJA_BLOCKS.findIndex((b) => b.kind === 'lights');
+  const blocks = GRANJA_BLOCKS.map((b, i) => (i === at ? { ...b, items: [null] } : b));
+  let n = 0;
+  const result = validateHomeBlocks(blocks, CATALOG, () => `item${String(n += 1).padStart(2, '0')}`);
+  assert.equal(result.ok, false);
+  assert.ok(Object.keys(result.errors).some((k) => k.startsWith(`blocks.${at}.items.0`)));
+});

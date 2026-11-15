@@ -62,17 +62,26 @@ function buildHomeController({ model, selection, clock = () => new Date() }) {
       });
       const now = model().collect(clock());
       if (now.length || wait === 0) return answer(now);
+      // A collect that throws from a timer or a wake (tables gone with an uninstall) still answers the house.
+      const collected = () => {
+        try {
+          return model().collect(clock());
+        } catch (err) {
+          console.error('[gate-access] home commands could not be collected:', err.message);
+          return [];
+        }
+      };
 
       let done = false;
       const waiter = {
         flush() {
           if (done) return;
-          const list = model().collect(clock());
+          const list = collected();
           if (!list.length) return;
           finish(list);
         },
       };
-      const timer = setTimeout(() => finish(model().collect(clock())), wait * 1000);
+      const timer = setTimeout(() => finish(collected()), wait * 1000);
       function finish(list) {
         if (done) return;
         done = true;
@@ -110,6 +119,7 @@ function buildHomeController({ model, selection, clock = () => new Date() }) {
           return queued;
         },
         command: (id) => model().command(id, clock()),
+        confirmed: (equipmentIds) => model().confirmed(equipmentIds),
       };
     },
 

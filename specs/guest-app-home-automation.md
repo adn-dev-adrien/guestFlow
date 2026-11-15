@@ -61,8 +61,11 @@ and off the lights the owner gave them. The owner chooses all of it per lodging 
 5. The house pushes **readings** every 60 s (value, unit, measured-at) and **series** every 15 min (the last 24
    hourly buckets of `rain` and of `energy`/`power` for the selected equipments). GuestFlow keeps only the latest
    reading and the latest 24 buckets per pair, overwritten in place: no long-term history of a guest's
-   consumption is ever built.
-6. A reading names an equipment the selection does not hold → dropped, never stored.
+   consumption is ever built. A reading older than the one stored never replaces it (a batch retried after a
+   reconnection), and a measured-at later than its receipt is dated at its receipt: a house clock ahead of ours
+   must not keep a silent house « fresh » (review of 2026-11-15).
+6. A reading or a series names an equipment the selection does not hold, or one gone from the catalogue → dropped,
+   never stored.
 
 ### 3.B What a guest may switch — the boundary lives in Sowel's code
 
@@ -78,7 +81,11 @@ and off the lights the owner gave them. The owner chooses all of it per lodging 
    - the equipment is a light (rule 3's light types), never anything else;
    - the light is on the recipe's **whitelist** (rule 9bis);
    - its issued-at is less than 60 s old;
-   - no more than 20 commands per property per hour.
+   - no more than 20 commands per **light** per hour — the property is GuestFlow's word, so a limit keyed on it
+     would bound nothing (review of 2026-11-15);
+   - its id was not handled in the last hour.
+   The recipe also sends values only for selected pairs that its catalogue describes: the selection is GuestFlow's
+   word too.
    A refused command is reported back with its reason and never retried. Before that, the Sowel `guestflow` plugin
    drops a command whose `propertyId` is not **occupied now** according to the stays it already holds
    (`sowel-stays-in-keys.md`) — a guard against a GuestFlow bug, not against a compromised GuestFlow, since the
@@ -93,10 +100,12 @@ and off the lights the owner gave them. The owner chooses all of it per lodging 
 > guestFlow's side of it — « Pilotable » refused on a light that is not `guestSwitchable` — is rules 7 and 14's tests.
 
 10. GuestFlow applies its own limit before the house's: 6 commands per stay per 10 min (« Trop de demandes.
-    Réessayer dans quelques minutes. »). Two taps within 2 s on the same light count as one.
+    Réessayer dans quelques minutes. »). The same tap twice within 2 s — same light, same value — is one command,
+    and the repeat does not use one of the 6. A tap then its opposite within 2 s are two commands: the guest
+    changed their mind, and the house executes both in order.
 11. **Worst case, accepted by Adrien on 2026-11-15:** an attacker who fully controls GuestFlow can switch **the
     whitelisted lights** (rule 9bis) on or off, at any time — GuestFlow can forge a stay, so the occupancy check
-    does not bind it — at most 20 times an hour per lodging. With no timer, a light switched on stays on until
+    does not bind it — at most 20 times an hour each. With no timer, a light switched on stays on until
     someone switches it off. No other light, and nothing else in the house, can be reached by this channel.
 
 > **Sans test** — a statement of accepted risk, not a behaviour; the boundaries it rests on are rules 7, 9, 9bis
@@ -146,8 +155,9 @@ and off the lights the owner gave them. The owner chooses all of it per lodging 
     report, « Allumé » / « Éteint », or back to its previous state with the reason (« La maison ne répond pas.
     Réessayer dans un instant. », « Trop de demandes… », « Possible uniquement pendant le séjour »). A light that
     is not « Pilotable » shows its state only.
-23. A light's state always comes from the house's readings, whoever switched it (the guest, the owner, a Sowel
-    recipe).
+23. A light's state always comes from the house, whoever switched it (the guest, the owner, a Sowel recipe): its
+    readings, or — until the next reading — the switch the house confirmed after the last one, so the switch never
+    goes back while the lamp is lit (review of 2026-11-15).
 
 **Edge cases:**
 - House offline for days → the module disappears from the home after 6 h (rule 17); Studio says so (rule 15).
@@ -177,7 +187,8 @@ per-lodging configuration, the module and the guest routes. Plugins never import
 points, **SDK 2.28.0**, on the model of `resourceScheduler`:
 
 - `ctx.homeData(provider)` — declared by `gate-access`, one per instance, read as `ctx.core.homeData()`:
-  `channel()`, `catalog()`, `readings(pairs)`, `series(pairs)`, `queueCommand(command)`, `command(id)`.
+  `channel()`, `catalog()`, `readings(pairs)`, `series(pairs)`, `queueCommand(command)`, `command(id)`,
+  `confirmed(equipmentIds)` (the last command the house confirmed per light, rule 23).
 - `ctx.homeSelection(fn)` — declared by `guest-app`, read as `ctx.core.homeSelection()`: `() → [{ equipmentId,
   alias }]`, the union the connector answers the catalogue call with (rule 4).
 
@@ -186,7 +197,7 @@ points, **SDK 2.28.0**, on the model of `resourceScheduler`:
 | plugin | `plugins/gate-access/manifest.json` | T | Description, surfaces, version 1.4.0, changelog entry (name unchanged, see above). |
 | sdk | `plugins/sdk/createContext.js`, `registry.js`, `coreServices.js`, `version.js` | T | `homeData` / `homeSelection` extension points and their `ctx.core` readers; SDK 2.28.0. |
 | plugin | `plugins/gate-access/index.js` | T | Mounts the home router, declares `homeData`, daily purge of old commands; manifest `sdk ^2.28.0`. |
-| routes | `plugins/gate-access/homeRoutes.js` | C | `/public/v1/home`: `ping`, `catalog`, `readings`, `series`, `commands`, `commands/results`; the gate's connector auth + signed answers on the router, behind the core `publicApiLimiter` (600 / 15 min per caller — the channel's ~210 calls an hour fit). |
+| routes | `plugins/gate-access/homeRoutes.js` | C | `/public/v1/home`: `ping`, `catalog`, `readings`, `series`, `commands`, `commands/results`; the gate's connector auth + signed answers on the router, behind a limiter of its own (600 / 15 min per address — the channel's ~210 calls an hour fit), so guests' phones behind the same address never share the house's budget. |
 | utils | `plugins/gate-access/homePayloads.js` | C | Pure: each payload checked field by field, all-or-nothing (`400 INVALID_PAYLOAD` with the field). |
 | controllers | `plugins/gate-access/homeController.js` | C | The six routes; the long poll (in-memory waiters woken by a queued command, 25 s cap); the `homeData` provider. |
 | models | `plugins/gate-access/homeModel.js` | C | The four `home_*` tables plus `home_connector_state`: catalogue upsert and disappearance, readings overwritten with 45 min of samples (trend), series overwritten, unselected pairs dropped (rule 6), commands queued / collected / expired / answered, 2 s dedupe, 7-day purge. |
@@ -246,8 +257,8 @@ gains a « Domotique » line (last catalogue, last readings).
 | Method | Endpoint | Body | Response |
 |---|---|---|---|
 | GET | `/home` | — | `{ updated: 'il y a 1 min', blocks: [...] }` ready to render (rule 18) |
-| POST | `/home/lights/:lightId` | `{ on: boolean }` | `202 { commandId }` · `429 RATE_LIMITED` · `403 NOT_PILOTABLE` |
-| GET | `/home/commands/:id` | — | `{ state: 'pending'\|'done'\|'refused'\|'expired', message, light }` |
+| POST | `/home/lights/:lightId` | `{ on: boolean }` | `202 { data: { id, state, on } }` · `429 TOO_MANY_REQUESTS` · `403 NOT_PILOTABLE` |
+| GET | `/home/commands/:id` | — | `{ data: { id, state: 'pending'\|'done'\|'refused'\|'expired', on, message? } }`; its limit is per stay (300 / 10 min), not per address |
 
 **Studio** (`/api/guest-app`, admin):
 
@@ -307,10 +318,10 @@ the reference: the guest page in its states and the Studio page driving it live.
 
 ## 7. Test plan
 
-Counts at implementation (2026-11-15): server 58 new (`sdk-home-extension-points` 5, `sowel-home-connector` 7,
-`sowel-home-ingest` 8, `sowel-home-commands` 9, `guest-home-view` 9, `guest-home-blocks-validation` 9,
-`guest-home-routes` 11); guest app Vitest 10 (`HomeAutomationPage.render` 6, `.lights` 3,
-`useLightSwitch.strict-mode` 1); studio Vitest 5 (`HomeAutomationPage`). Full server suite 12 596 / 12 596.
+Counts after the review of 2026-11-15: server 63 new (`sdk-home-extension-points` 5, `sowel-home-connector` 7,
+`sowel-home-ingest` 10, `sowel-home-commands` 10, `guest-home-view` 10, `guest-home-blocks-validation` 10,
+`guest-home-routes` 11); guest app Vitest 11 (`HomeAutomationPage.render` 6, `.lights` 4,
+`useLightSwitch.strict-mode` 1); studio Vitest 6 (`HomeAutomationPage`). Full server suite 12 596 / 12 596.
 
 ### Server unit tests (one file per subject)
 - [x] `sowel-home-connector.unit.test.js` — rules 1-2: the home tree refuses a missing secret, a wrong signature,
@@ -325,8 +336,10 @@ Counts at implementation (2026-11-15): server 58 new (`sdk-home-extension-points
       is not `guestSwitchable`.
 
 ### Sowel half (its own repos)
-- [x] Recipe refuses a non-light, a light off the whitelist, an unoccupied property, a command older than 60 s,
-      the 21st command of the hour (rule 9); the catalogue flags exactly the whitelisted lights (rule 9bis).
+- [x] Recipe refuses a non-light, a light off the whitelist, a command older than 60 s, the 21st command of the
+      hour for a light whatever property is named, a command id seen before (rule 9); sends no value outside the
+      catalogue; the catalogue flags exactly the whitelisted lights (rule 9bis). The plugin refuses an unoccupied
+      property after re-reading the stays once.
 
 ### Manual UI verification
 - [x] Studio: configure the Granja with 3 rooms, the station, the meter and the tree light; preview matches.

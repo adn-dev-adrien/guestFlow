@@ -48,6 +48,14 @@ test('rule 23 — a light’s state comes from the house, and only an entrusted 
   assert.deepEqual([salon.on, salon.status, salon.pilotable], [true, 'Allumé', false]);
 });
 
+test('rule 23 — a switch the house confirmed after its last reading is the state; an older one is not', () => {
+  const after = new Date(NOW.getTime() - 10 * 1000).toISOString();
+  const before = new Date(NOW.getTime() - 60 * 60 * 1000).toISOString();
+  const chene = (confirmed) => block(view({ confirmed }), 'lights').items[0];
+  assert.deepEqual([chene([{ equipmentId: 'l-chene', value: 'on', answeredAt: after }]).on, chene([{ equipmentId: 'l-chene', value: 'on', answeredAt: after }]).status], [true, 'Allumé']);
+  assert.equal(chene([{ equipmentId: 'l-chene', value: 'on', answeredAt: before }]).on, false);
+});
+
 test('rule 20 — stale readings are dated and muted; past 6 h they are hidden; the header says when the house last spoke', () => {
   const stale = view({ readings: readingsAt(NOW, 40 * 60 * 1000) });
   assert.equal(block(stale, 'outdoor').state, 'stale');

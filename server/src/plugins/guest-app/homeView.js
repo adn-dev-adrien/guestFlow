@@ -99,7 +99,7 @@ function hourly(series, now) {
   };
 }
 
-function buildHomeView({ blocks, catalog, readings, series, now, lang = 'fr' }) {
+function buildHomeView({ blocks, catalog, readings, series, confirmed = [], now, lang = 'fr' }) {
   const w = wordsOf(lang);
   const byId = new Map(catalog.map((e) => [e.id, e]));
   const present = (equipmentId) => Boolean(byId.get(equipmentId)) && !byId.get(equipmentId).goneAt;
@@ -145,7 +145,13 @@ function buildHomeView({ blocks, catalog, readings, series, now, lang = 'fr' }) 
         shown.push({
           kind: 'lights',
           items: items.map(({ equipmentId, item }) => {
-            const s = read(equipmentId, roles('lights', equipmentId).state);
+            // Rule 23 — a switch the house confirmed after its last state reading is the light's state until the
+            // next reading: the page never shows the switch going back while the lamp is lit.
+            const measured = read(equipmentId, roles('lights', equipmentId).state);
+            const done = confirmed.find((c) => c.equipmentId === equipmentId);
+            const s = done && (!measured || Date.parse(done.answeredAt) > Date.parse(measured.measuredAt))
+              ? { equipmentId, value: done.value, measuredAt: done.answeredAt }
+              : measured;
             const usable = s && freshness(s, now) !== 'unavailable';
             const on = usable && isOn(s.value) ? true : (usable && isOff(s.value) ? false : null);
             return {

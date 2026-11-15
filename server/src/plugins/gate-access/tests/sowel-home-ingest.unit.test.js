@@ -93,6 +93,7 @@ test('rule 5 — series: 24 buckets at most, sorted, overwritten; an unselected 
   const pair = { equipmentId: 'wx', alias: 'rain_1h' };
   const home = await startHome({ selection: () => [pair] });
   t.after(home.close);
+  await home.call('PUT', '/public/v1/home/catalog', { equipments: CATALOG });
   // date-literal-ok: an injected clock — the model reads no « today »
   const buckets = Array.from({ length: 24 }, (_, i) => ({ time: new Date(Date.UTC(2026, 10, 15, i)).toISOString(), value: i / 10 })).reverse();
   const res = await home.call('POST', '/public/v1/home/series', { series: [
@@ -114,4 +115,29 @@ test('a negative rain or energy bucket is refused', async (t) => {
     { equipmentId: 'wx', alias: 'rain_1h', buckets: [{ time: new Date().toISOString(), value: -1 }] },
   ] });
   assert.equal(res.status, 400);
+});
+
+test('rule 5 — a reading older than the stored one never replaces it; a measure from the future is dated at its receipt', () => {
+  const { model } = freshHome();
+  // date-literal-ok: an injected clock — the model reads no « today »
+  model.replaceCatalog(parseCatalog({ equipments: CATALOG }).value, new Date('2026-11-15T10:00:00Z'));
+  const pair = { equipmentId: 't-sejour', alias: 'temperature' };
+  // date-literal-ok: an injected clock — the model reads no « today »
+  const store = (value, measuredAt, now) => model.storeReadings([{ ...pair, value, unit: '°C', measuredAt }], [pair], new Date(now));
+  // date-literal-ok: an injected clock — the model reads no « today »
+  store(21, '2026-11-15T10:10:00.000Z', '2026-11-15T10:10:05Z');
+  // date-literal-ok: an injected clock — the model reads no « today »
+  assert.deepEqual(store(19, '2026-11-15T10:05:00.000Z', '2026-11-15T10:11:00Z'), { stored: 0, dropped: 1 });
+  assert.equal(model.readings([pair])[0].value, 21);
+  // date-literal-ok: an injected clock — the model reads no « today »
+  store(22, '2026-11-15T12:00:00.000Z', '2026-11-15T10:12:00Z');
+  // date-literal-ok: an injected clock — the model reads no « today »
+  assert.equal(model.readings([pair])[0].measuredAt, '2026-11-15T10:12:00.000Z');
+});
+
+test('rule 5 — a series of an equipment gone from the catalogue is dropped', () => {
+  const { model } = freshHome();
+  const pair = { equipmentId: 'wx', alias: 'rain_1h' };
+  // date-literal-ok: an injected clock — the model reads no « today »
+  assert.deepEqual(model.storeSeries([{ ...pair, buckets: [] }], [pair], new Date('2026-11-15T10:00:00Z')), { stored: 0, dropped: 1 });
 });

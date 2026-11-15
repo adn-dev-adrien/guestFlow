@@ -54,8 +54,8 @@ function readingsAt(now, ageMs = 60 * 1000) {
 }
 
 /** A `homeData` provider in memory, with the queue the connector would hold. */
-function fakeHome({ catalog = CATALOG, readings = [], series = [], lastReadingsAt = null } = {}) {
-  const state = { catalog: catalog.map((e) => ({ ...e })), readings, series, lastReadingsAt, commands: [] };
+function fakeHome({ catalog = CATALOG, readings = [], series = [], lastReadingsAt = null, confirmed = [] } = {}) {
+  const state = { catalog: catalog.map((e) => ({ ...e })), readings, series, lastReadingsAt, commands: [], confirmed };
   const pick = (list, pairs) => list.filter((x) => pairs.some((p) => p.equipmentId === x.equipmentId && p.alias === x.alias));
   return {
     state,
@@ -69,6 +69,7 @@ function fakeHome({ catalog = CATALOG, readings = [], series = [], lastReadingsA
       return queued;
     },
     command: (id) => state.commands.find((c) => c.id === id) || null,
+    confirmed: (ids) => state.confirmed.filter((c) => ids.includes(c.equipmentId)),
   };
 }
 

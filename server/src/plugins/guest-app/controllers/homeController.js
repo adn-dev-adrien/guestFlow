@@ -55,6 +55,9 @@ function pickersOf(catalog, blocks) {
     .map(choice)]));
 }
 
+/** Rule 23 — the house's last confirmed command per light read by the page. */
+const confirmedOf = (data, pairs) => data.confirmed([...new Set(pairs.map((p) => p.equipmentId))]);
+
 function buildHomeController({
   homeBlocks, lodgings, homeData = () => sdk.core.homeData(), now = () => new Date(),
 }) {
@@ -71,7 +74,7 @@ function buildHomeController({
     const catalog = data.catalog();
     const pairs = selectionOf([blocks], catalog);
     return buildHomeView({
-      blocks, catalog, readings: data.readings(pairs), series: data.series(pairs), now: now(), lang,
+      blocks, catalog, readings: data.readings(pairs), series: data.series(pairs), confirmed: confirmedOf(data, pairs), now: now(), lang,
     });
   }
 
@@ -154,6 +157,8 @@ function buildHomeController({
         lightId: item.id,
         value: on ? 'on' : 'off',
       });
+      // Rule 10 — the same tap again within 2 s is the same command: it does not use one of the stay's taps.
+      if (queued.deduped) res.locals.homeDeduped = true;
       return res.status(202).json({ data: commandView(queued, languageOf(req, req.guest.stay)) });
     },
 
@@ -215,7 +220,7 @@ function buildHomeController({
       }
       const pairs = selectionOf([blocks], catalog);
       return res.json(buildHomeView({
-        blocks, catalog, readings: data.readings(pairs), series: data.series(pairs), now: now(), lang,
+        blocks, catalog, readings: data.readings(pairs), series: data.series(pairs), confirmed: confirmedOf(data, pairs), now: now(), lang,
       }));
     },
   };

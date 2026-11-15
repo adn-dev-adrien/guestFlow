@@ -115,10 +115,11 @@ function Energy({ block, t }) {
  * The page under its app bar: the hero, the banners, the blocks. Exported for the studio's phone preview, which draws
  * the same thing from the server's preview payload (specs/guest-app-home-automation.md rule 16).
  *
- * Props: `data` (the `/home` payload), `lodging` (`{ name, heroUrl }`), `online`, `taps` and `onPress` (the lights).
+ * Props: `data` (the `/home` payload), `lodging` (`{ name, heroUrl }`), `online`, `taps` and `onPress` (the lights),
+ * `refreshFailed` (the last read again failed while online: the values shown are the previous ones).
  */
 export function SmartHomeBody({
-  data, lodging, online = true, taps = {}, onPress = () => {},
+  data, lodging, online = true, taps = {}, onPress = () => {}, refreshFailed = false,
 }) {
   const t = useT();
   const blocks = data.blocks;
@@ -135,6 +136,7 @@ export function SmartHomeBody({
       <div className="pad sh-body">
         {!online ? <Banner tone="mut" icon="wifiOff">{t('smartHome.offline')}</Banner> : null}
         {online && !data.live && data.updated ? <Banner tone="warn" icon="alert">{t('smartHome.silent', { at: data.updated })}</Banner> : null}
+        {online && refreshFailed ? <Banner tone="mut" icon="alert">{t('smartHome.refreshFailed')}</Banner> : null}
         {blocks.map((block) => {
           if (block.kind === 'rooms') return <Rooms key="rooms" block={block} t={t} />;
           if (block.kind === 'rain') return <Rain key="rain" block={block} t={t} />;
@@ -173,7 +175,7 @@ export default function HomeAutomationPage() {
       <AppBar title={t('smartHome.title')} back="/" />
       {home.error && !data ? <div className="pad"><ErrorAlert error={home.error} onRetry={home.reload} /></div> : null}
       {!data && !home.error ? <div className="pad"><Skeleton lines={6} label={t('common.loading')} /></div> : null}
-      {data ? <SmartHomeBody data={data} lodging={lodging} online={online} taps={taps} onPress={press} /> : null}
+      {data ? <SmartHomeBody data={data} lodging={lodging} online={online} taps={taps} onPress={press} refreshFailed={Boolean(home.error)} /> : null}
     </div>
   );
 }

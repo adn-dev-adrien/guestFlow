@@ -99,7 +99,7 @@ function ListItems({
             {kind === 'lights' ? (
               <Box sx={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', columnGap: 1.5 }}>
                 <FormControlLabel
-                  control={<Checkbox checked={Boolean(item.pilotable)} disabled={!entrusted} onChange={(e) => setItem(ii, { pilotable: e.target.checked })} />}
+                  control={<Checkbox checked={Boolean(item.pilotable)} disabled={!entrusted && !item.pilotable} onChange={(e) => setItem(ii, { pilotable: e.target.checked })} />}
                   label="Pilotable par le voyageur"
                   sx={{ minHeight: 44, mr: 0 }}
                 />
@@ -139,9 +139,15 @@ export default function HomeAutomationPage({ lodging }) {
   const [error, setError] = useState(null);
   const [lang, setLang] = usePreviewLang();
   const seq = useRef(0);
+  /** The draft a save sent: an edit made while it ran is kept, not replaced by the server's answer. */
+  const sent = useRef(null);
 
   const saved = data.data ? data.data.home.blocks : null;
-  useEffect(() => { if (saved) setDraft(saved); }, [data.data]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (!saved) return;
+    setDraft((current) => (sent.current && current !== sent.current ? current : saved));
+    sent.current = null;
+  }, [data.data]); // eslint-disable-line react-hooks/exhaustive-deps
   const dirty = Boolean(draft && saved && !same(draft, saved));
   useDirtyGuard(dirty);
 
@@ -152,7 +158,8 @@ export default function HomeAutomationPage({ lodging }) {
     const timer = setTimeout(() => {
       api.homePreview(id, draft, lang).then(
         (view) => { if (mine === seq.current) { setPreview(view); setErrors({}); setFrozen(false); } },
-        (err) => { if (mine === seq.current) { setErrors(err.errors || {}); setFrozen(Boolean(err.errors)); } },
+        // Any failure freezes the preview: what it shows is no longer the draft.
+        (err) => { if (mine === seq.current) { setErrors(err.errors || {}); setFrozen(true); } },
       );
     }, PREVIEW_DELAY_MS);
     return () => clearTimeout(timer);
@@ -162,10 +169,12 @@ export default function HomeAutomationPage({ lodging }) {
     setBusy(true);
     setError(null);
     try {
+      sent.current = draft;
       const home = await api.saveHome(id, draft);
       data.setData((d) => ({ ...d, home }));
       setErrors({});
     } catch (err) {
+      sent.current = null;
       setError(err.message);
       if (err.errors) setErrors(err.errors);
     } finally {
@@ -200,7 +209,7 @@ export default function HomeAutomationPage({ lodging }) {
       bar={bar}
       preview={(
         <Box sx={{ display: 'grid', gap: 1 }}>
-          {frozen ? <StatusBadge status="error" label={`Aperçu figé : ${nErrors} ${nErrors > 1 ? 'saisies refusées' : 'saisie refusée'}`} wrap /> : null}
+          {frozen ? <StatusBadge status="error" label={nErrors ? `Aperçu figé : ${nErrors} ${nErrors > 1 ? 'saisies refusées' : 'saisie refusée'}` : 'Aperçu figé : serveur injoignable'} wrap /> : null}
           <PhonePreview view={view} title={`Aperçu · ${lodging.name}`} caption="Les vraies mesures, avec les réglages en cours." lang={lang} onLang={setLang} />
         </Box>
       )}

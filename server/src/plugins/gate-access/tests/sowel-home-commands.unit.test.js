@@ -48,7 +48,9 @@ test('rule 9 — the house’s verdict: done, or refused with its reason', () =>
 test('rule 10 — the same tap within 2 s is one command; after 2 s, or the other way, a new one', () => {
   const { model } = freshHome();
   const first = model.queueCommand(COMMAND, at(0));
-  assert.equal(model.queueCommand(COMMAND, at(1)).id, first.id);
+  const again = model.queueCommand(COMMAND, at(1));
+  assert.equal(again.id, first.id);
+  assert.equal(again.deduped, true);
   assert.notEqual(model.queueCommand(COMMAND, at(3)).id, first.id);
   assert.notEqual(model.queueCommand({ ...COMMAND, value: 'off' }, at(3)).id, first.id);
 });
@@ -99,4 +101,15 @@ test('a malformed result refuses the whole call', async (t) => {
   const res = await home.call('POST', '/public/v1/home/commands/results', { results: [{ id: 'x', ok: true }] });
   assert.equal(res.status, 400);
   assert.equal(res.body.error.details.field, 'results.0.id');
+});
+
+test('rule 23 — the last command the house confirmed, per light', () => {
+  const { model } = freshHome();
+  const a = model.queueCommand(COMMAND, at(0));
+  const b = model.queueCommand({ ...COMMAND, value: 'off' }, at(5));
+  const c = model.queueCommand({ ...COMMAND, equipmentId: 'l-salon', lightId: 'light-2' }, at(5));
+  model.collect(at(6));
+  model.storeResults([{ id: a.id, ok: true }, { id: b.id, ok: true }, { id: c.id, ok: false, reason: 'not_entrusted' }], at(7));
+  assert.deepEqual(model.confirmed(['l-chene', 'l-salon']).map((r) => [r.equipmentId, r.value]), [['l-chene', 'off']]);
+  assert.deepEqual(model.confirmed([]), []);
 });

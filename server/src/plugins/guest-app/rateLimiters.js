@@ -54,7 +54,18 @@ function createGuestLimiters() {
       standardHeaders: true,
       legacyHeaders: false,
       skipFailedRequests: true,
+      // A tap the server merged with the one before it (rule 10) gives its hit back.
+      requestWasSuccessful: (req, res) => res.statusCode < 400 && !res.locals.homeDeduped,
       message: tooMany('tooManyLightCommands'),
+    }),
+    // Following a tap's answer, per stay: phones sharing the lodging's wifi do not share one address's budget.
+    homeStatus: rateLimit({
+      keyGenerator: (req) => `guest-stay:${req.guest.stay.id}`,
+      windowMs: Number(process.env.GUEST_HOME_STATUS_RATELIMIT_WINDOW_MS) || 10 * 60 * 1000,
+      max: Number(process.env.GUEST_HOME_STATUS_RATELIMIT_MAX) || 300,
+      standardHeaders: true,
+      legacyHeaders: false,
+      message: tooMany('tooManyRequests'),
     }),
     cardOrder: rateLimit({
       keyGenerator: (req) => `guest-stay:${req.guest.stay.id}`,

@@ -147,7 +147,7 @@ function createHomeModel(db) {
       const wanted = new Set(selection.map((p) => pairKey(p.equipmentId, p.alias)));
       const present = new Set(db.prepare('SELECT equipmentId FROM home_catalog WHERE goneAt IS NULL').all().map((r) => r.equipmentId));
       const at = now.toISOString();
-      const read = db.prepare('SELECT samplesJson FROM home_readings WHERE equipmentId = ? AND alias = ?');
+      const read = db.prepare('SELECT samplesJson, measuredAt FROM home_readings WHERE equipmentId = ? AND alias = ?');
       const write = db.prepare(`
         INSERT INTO home_readings (equipmentId, alias, valueJson, unit, measuredAt, receivedAt, samplesJson)
         VALUES (@equipmentId, @alias, @valueJson, @unit, @measuredAt, @at, @samplesJson)
@@ -159,16 +159,20 @@ function createHomeModel(db) {
         readings.forEach((r) => {
           if (!wanted.has(pairKey(r.equipmentId, r.alias)) || !present.has(r.equipmentId)) return;
           const previous = read.get(r.equipmentId, r.alias);
-          const measuredMs = Date.parse(r.measuredAt);
+          // A house clock ahead of ours would keep a silent house « fresh »: no measure is later than its receipt.
+          const measuredMs = Math.min(Date.parse(r.measuredAt), now.getTime());
+          const measuredAt = new Date(measuredMs).toISOString();
+          // A batch retried after a reconnection never replaces a newer value.
+          if (previous && Date.parse(previous.measuredAt) >= measuredMs) return;
           const samples = (previous ? parse(previous.samplesJson, []) : [])
             .filter(([t]) => measuredMs - Date.parse(t) <= SAMPLE_WINDOW_MS && Date.parse(t) < measuredMs);
-          if (typeof r.value === 'number') samples.push([r.measuredAt, r.value]);
+          if (typeof r.value === 'number') samples.push([measuredAt, r.value]);
           write.run({
             equipmentId: r.equipmentId,
             alias: r.alias,
             valueJson: JSON.stringify(r.value),
             unit: r.unit == null ? null : r.unit,
-            measuredAt: r.measuredAt,
+            measuredAt,
             at,
             samplesJson: JSON.stringify(samples),
           });
@@ -194,6 +198,7 @@ function createHomeModel(db) {
 
     storeSeries(series, selection, now) {
       const wanted = new Set(selection.map((p) => pairKey(p.equipmentId, p.alias)));
+      const present = new Set(db.prepare('SELECT equipmentId FROM home_catalog WHERE goneAt IS NULL').all().map((r) => r.equipmentId));
       const at = now.toISOString();
       const write = db.prepare(`
         INSERT INTO home_series (equipmentId, alias, bucketsJson, updatedAt) VALUES (?, ?, ?, ?)
@@ -202,7 +207,7 @@ function createHomeModel(db) {
       let stored = 0;
       db.transaction(() => {
         series.forEach((s) => {
-          if (!wanted.has(pairKey(s.equipmentId, s.alias))) return;
+          if (!wanted.has(pairKey(s.equipmentId, s.alias)) || !present.has(s.equipmentId)) return;
           write.run(s.equipmentId, s.alias, JSON.stringify(s.buckets), at);
           stored += 1;
         });
@@ -230,7 +235,7 @@ function createHomeModel(db) {
         SELECT * FROM home_commands WHERE stayId = ? AND lightId = ? AND value = ? AND issuedAt >= ?
         ORDER BY id DESC LIMIT 1
       `).get(stayId, lightId, value, new Date(now.getTime() - DEDUPE_MS).toISOString());
-      if (recent) return commandRow(recent);
+      if (recent) return { ...commandRow(recent), deduped: true };
       const id = Number(db.prepare(`
         INSERT INTO home_commands (stayId, propertyId, equipmentId, lightId, value, issuedAt) VALUES (?, ?, ?, ?, ?, ?)
       `).run(stayId, propertyId, equipmentId, lightId, value, now.toISOString()).lastInsertRowid);
@@ -263,6 +268,16 @@ function createHomeModel(db) {
         });
       })();
       return { stored };
+    },
+
+    /** Rule 23 — the last command the house confirmed, per light: newer than its last state reading, it is the state. */
+    confirmed(equipmentIds) {
+      if (!equipmentIds.length) return [];
+      const read = db.prepare(`
+        SELECT equipmentId, value, answeredAt FROM home_commands WHERE state = 'done' AND equipmentId = ?
+        ORDER BY answeredAt DESC, id DESC LIMIT 1
+      `);
+      return [...new Set(equipmentIds)].map((id) => read.get(id)).filter(Boolean);
     },
 
     command(id, now) {

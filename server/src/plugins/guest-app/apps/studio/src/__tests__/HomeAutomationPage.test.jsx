@@ -64,6 +64,19 @@ describe('HomeAutomationPage (rules 12-16)', () => {
     expect(screen.getByText('Non confiée aux voyageurs dans Sowel : consultation seule.')).toBeInTheDocument();
   });
 
+  it('a light saved « Pilotable » then withdrawn in Sowel can still be unticked, never left stuck', async () => {
+    const user = userEvent.setup();
+    api.home.mockResolvedValue({ ...HOME, pickers: { ...PICKERS, lights: [{ id: 'l-chene', label: 'Extérieur › Jardin — Éclairage du chêne' }] } });
+    renderStudio(<HomeAutomationPage lodging={LA_GRANJA} />);
+    await screen.findByText('Reçu de Sowel il y a 1 min.');
+    const box = screen.getByRole('checkbox', { name: 'Pilotable par le voyageur' });
+    expect(box).toBeChecked();
+    expect(box).toBeEnabled();
+    await user.click(box);
+    expect(box).not.toBeChecked();
+    expect(box).toBeDisabled();
+  });
+
   it('the server’s refusals show inline as soon as the draft is refused, and the preview says it is frozen', async () => {
     api.homePreview.mockImplementation(async (id, blocks) => {
       if (blocks[1].items[0].label === '') throw Object.assign(new Error('Aperçu impossible.'), { errors: { 'blocks.1.items.0.label': 'Nom requis.' } });

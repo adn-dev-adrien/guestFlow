@@ -22,7 +22,7 @@ export default function LightSwitch({
       <span className={`bulb${light.on === true ? ' on' : ''}`}><Icon name="light" /></span>
       <span className="tx">
         <b>{light.label}</b>
-        <span className={failed ? 'err' : ''} role={failed ? 'status' : undefined}>{line}</span>
+        <span className={failed ? 'err' : ''} aria-live="polite">{line}</span>
       </span>
       {light.pilotable ? (
         <button
@@ -31,8 +31,10 @@ export default function LightSwitch({
           role="switch"
           aria-checked={shownOn}
           aria-label={light.label}
-          disabled={disabled || pending || light.on === null}
-          onClick={() => onPress(light)}
+          aria-busy={pending}
+          aria-disabled={pending || undefined}
+          disabled={disabled || light.on === null}
+          onClick={() => { if (!pending) onPress(light); }}
         >
           <span className="tr"><span className="kn" /></span>
         </button>

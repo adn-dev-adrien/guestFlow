@@ -185,6 +185,7 @@
  "smartHome.offlineShort": "Hors connexion",
  "smartHome.offline": "Hors connexion : dernières valeurs connues. Les lumières se commandent de nouveau dès le retour du réseau.",
  "smartHome.silent": "Plus de nouvelles de la maison : dernière mesure {at}.",
+ "smartHome.refreshFailed": "Mise à jour impossible pour l’instant : valeurs de la dernière lecture.",
  "smartHome.outside": "Dehors",
  "smartHome.minMax": "min {min}° · max {max}°",
  "smartHome.rooms": "Pièces",

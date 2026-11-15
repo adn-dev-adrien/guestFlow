@@ -48,7 +48,7 @@ function buildPublicRouter({
   const homeRoute = [limiters.read, guestSession.requireSession, requireModule('home', controller.shownKeysOf), guestSession.requireStay];
   router.get('/home', ...homeRoute, home.read);
   router.post('/home/lights/:lightId', ...homeRoute, limiters.homeCommand, home.switchLight);
-  router.get('/home/commands/:id', limiters.status, ...homeRoute.slice(1), home.command);
+  router.get('/home/commands/:id', limiters.read, ...homeRoute.slice(1), limiters.homeStatus, home.command);
   return router;
 }
 

@@ -14,6 +14,7 @@ const provider = () => ({
   readings: () => [],
   series: () => [],
   queueCommand: () => ({}),
+  confirmed: () => [],
   command: () => null,
 });
 
