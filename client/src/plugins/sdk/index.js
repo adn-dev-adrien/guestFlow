@@ -10,7 +10,7 @@ export { default as FormDialog } from '../../components/FormDialog';
 export { default as ConfirmDialog } from '../../components/ConfirmDialog';
 export { default as LoadingState } from '../../components/LoadingState';
 export { default as ErrorAlert } from '../../components/ErrorAlert';
-// sas — the sale lines of a stay, offered / moved / removed from the SAS (specs/pricing-components.md rules 31, 37) — SDK 2.28.0.
+// sas — the sale lines of a stay, offered / moved / removed from the SAS (specs/pricing-components.md rules 31, 37) — SDK 2.29.0.
 export { default as StaySalesSection } from '../../components/StaySalesSection';
 export { default as EmptyState } from '../../components/EmptyState';
 export { default as StatusBadge } from '../../components/StatusBadge';
@@ -75,6 +75,6 @@ export { TENDER_TEXTS } from '../../constants/tenderMethods';
 export { default as usePostalCodeCities } from '../../hooks/usePostalCodeCities';
 // hourly-resources — the client picker ordered by stay (specs/resource-booking-client-picker.md §4.2) — SDK 2.27.0.
 export { default as ClientPickerField } from '../../components/ClientPickerField';
-// hourly-resources — the generic « Proposés à l'arrivée » step and the payment-link block (specs/outside-booking-sas.md rules 35, 39-42) — SDK 2.30.0.
+// hourly-resources — the generic « Proposés à l'arrivée » step and the payment-link block (specs/outside-booking-sas.md rules 35, 39-42) — SDK 2.31.0.
 export { default as SuggestedArticlesStep } from '../../components/SuggestedArticlesStep';
 export { default as SalePaymentLink } from '../../components/SalePaymentLink';

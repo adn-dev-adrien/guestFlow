@@ -158,10 +158,24 @@ const TABLES_SQL = `
   CREATE INDEX IF NOT EXISTS idx_guest_orders_status ON guest_orders(status, deliverAt);
 `;
 
+// specs/guest-app-home-automation.md §5 — one row per lodging and block kind, in the order the guest sees them.
+const HOME_BLOCKS_SQL = `
+  CREATE TABLE IF NOT EXISTS guest_home_blocks (
+    propertyId  INTEGER NOT NULL,
+    kind        TEXT NOT NULL CHECK (kind IN ('outdoor', 'rooms', 'lights', 'rain', 'energy')),
+    position    INTEGER NOT NULL,
+    "on"        INTEGER NOT NULL DEFAULT 0,
+    equipmentId TEXT,
+    itemsJson   TEXT NOT NULL DEFAULT '[]',
+    updatedAt   TEXT NOT NULL,
+    PRIMARY KEY (propertyId, kind)
+  );
+`;
+
 const TABLES = Object.freeze([
   'guest_app_lodgings', 'guest_app_items', 'guest_app_stock_counts', 'guest_app_service_hours', 'guest_app_service_exceptions',
   'guest_sessions', 'guest_stay_links', 'guest_booklet_pages', 'guest_booklet_placements', 'guest_booklet_blocks',
-  'guest_booklet_versions', 'guest_media', 'guest_orders',
+  'guest_booklet_versions', 'guest_media', 'guest_orders', 'guest_home_blocks',
 ]);
 
 // Rule 66 — where an order is collected: the arrival complement (taken before the arrival is marked) or the departure
@@ -226,6 +240,7 @@ const addOfferedInPlace = (db) => {
 
 const MIGRATIONS = Object.freeze([
   { name: 'guest_app_tables_v1', up: (db) => db.exec(TABLES_SQL) },
+  { name: 'guest_home_blocks_v1', up: (db) => db.exec(HOME_BLOCKS_SQL) },
   { name: 'guest_app_orders_collect_at_v2', up: addCollectAt },
   { name: 'guest_app_orders_status_v3', up: rebuildOrdersWithCancelled },
   { name: 'guest_app_items_offered_in_place_v4', up: addOfferedInPlace },

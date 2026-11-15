@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rule 55 (SDK 2.28.0) — the sale service publishes what happened after its transaction commits: `extraSale.sold`,
+// specs/pricing-components.md §3 rule 55 (SDK 2.29.0) — the sale service publishes what happened after its transaction commits: `extraSale.sold`,
 // `extraSale.lineMoved`, `extraSale.lineCancelled` (a save removed lines), `extraSale.refundOwed` (a confirmed lowering of a paid line). A handler that throws
 // is logged and never undoes the sale; a refused sale publishes nothing.
 process.env.DB_PATH = ':memory:';

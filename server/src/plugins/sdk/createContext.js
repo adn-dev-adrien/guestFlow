@@ -19,6 +19,7 @@ const CONTRIBUTOR_MEMBERS = ['id', 'priceTypes', 'priceLine'];
 const SAS_COMMIT_MEMBERS = ['step', 'validate', 'complementItems', 'write'];
 const SCHEDULER_MEMBERS = ['slotsForStay', 'validateSessions'];
 const SLOT_AVAILABILITY_MEMBERS = ['slots', 'validate'];
+const HOME_DATA_MEMBERS = ['channel', 'catalog', 'readings', 'series', 'queueCommand', 'command', 'confirmed'];
 const ISSUER_MEMBERS = ['id', 'isReady', 'issue', 'findCardBatch', 'attach', 'invoiceStatus'];
 const PUSH_CHANNEL_KEY = /^[a-z][a-z0-9-]{0,39}$/;
 
@@ -155,14 +156,14 @@ function createContext(id, { db, settingsModel, dataDir = null } = {}) {
       if (other) throw new Error(`${prefix} a resource scheduler is already declared by ${other.id}`);
       record.resourceScheduler = provider;
     },
-    // SDK 2.28.0 (specs/pricing-components.md rule 49) — the downstream booking an article names (`fulfilment: 'hourly-slot'`):
+    // SDK 2.29.0 (specs/pricing-components.md rule 49) — the downstream booking an article names (`fulfilment: 'hourly-slot'`):
     // `{ reserve(draft, ctx), confirm(hold, line, tx), release(hold, reason) }`. A fulfilment id is declared once (DUPLICATE_FULFILMENT);
     // it is asked only while this plugin is live.
     articleFulfilment(fulfilmentId, adapter) {
       articleFulfilment.register(fulfilmentId, adapter, { owner: id, isLive: () => registry.isLive(id) });
       record.articleFulfilments.push(fulfilmentId);
     },
-    // SDK 2.28.0 (specs/pricing-components.md rule 48) — the SlotAvailabilityProvider: `slots(resourceId, range)` and
+    // SDK 2.29.0 (specs/pricing-components.md rule 48) — the SlotAvailabilityProvider: `slots(resourceId, range)` and
     // `validate(sessions)`, one per instance, handed out as `ctx.core.slotAvailability()`.
     slotAvailability(provider) {
       SLOT_AVAILABILITY_MEMBERS.forEach((m) => {
@@ -215,7 +216,7 @@ function createContext(id, { db, settingsModel, dataDir = null } = {}) {
       if (other) throw new Error(`${prefix} an invoice issuer is already declared by ${other.id}`);
       record.invoiceIssuer = issuer;
     },
-    // `{ kind, label, list }` — a kind of sale context the generic « Proposés à l'arrivée » lists are kept for (the outside-visit spec rule 37, SDK 2.30.0): `kind` names it
+    // `{ kind, label, list }` — a kind of sale context the generic « Proposés à l'arrivée » lists are kept for (the outside-visit spec rule 37, SDK 2.31.0): `kind` names it
     // (`resource`), `label` heads it in Réglages → Articles, `list() → [{ id, label }]` says which contexts of that kind exist now. `property` is the core's own kind. While the
     // plugin is off its kind disappears from the settings page and from `suggestedArticles.resolve`; the stored lists stay.
     suggestionContexts({ kind, label, list } = {}) {
@@ -233,6 +234,24 @@ function createContext(id, { db, settingsModel, dataDir = null } = {}) {
       if (typeof list !== 'function') throw new Error(`${prefix} standaloneSales needs a function`);
       if (record.standaloneSales) throw new Error(`${prefix} standaloneSales is already declared`);
       record.standaloneSales = list;
+    },
+    // SDK 2.28.0 (specs/guest-app-home-automation.md §4.1) — the house's data as the Sowel connector stores it, and the
+    // light commands it relays. One per instance; read as `ctx.core.homeData()`.
+    homeData(provider) {
+      HOME_DATA_MEMBERS.forEach((m) => {
+        if (provider == null || typeof provider[m] !== 'function') throw new Error(`${prefix} home data provider lacks "${m}"`);
+      });
+      const other = registry.all().find((r) => r.id !== id && r.homeData);
+      if (other) throw new Error(`${prefix} a home data provider is already declared by ${other.id}`);
+      record.homeData = provider;
+    },
+    // SDK 2.28.0 (specs/guest-app-home-automation.md rule 4) — () → [{ equipmentId, alias }]: the readings the lodgings
+    // show, the only ones the house is asked to send. One per instance; read as `ctx.core.homeSelection()`.
+    homeSelection(list) {
+      if (typeof list !== 'function') throw new Error(`${prefix} homeSelection needs a function`);
+      const other = registry.all().find((r) => r.id !== id && r.homeSelection);
+      if (other) throw new Error(`${prefix} a home selection is already declared by ${other.id}`);
+      record.homeSelection = list;
     },
     // A commit hook for one of the plugin's arrival SAS steps (rule 6).
     sasCommit(hook) {

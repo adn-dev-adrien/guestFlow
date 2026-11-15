@@ -24,7 +24,7 @@ const EVENTS = Object.freeze([
   // specs/reconciliation-assisted-matching.md rule 31 — { reservationId } after a platform penalty is declared or
   // removed: the bank reconciliation completes a receipt the declaration now covers (SDK 2.9.0).
   'platform-penalty.changed',
-  // specs/pricing-components.md rule 55 (SDK 2.28.0) — published by the sale service after its transaction commits; a handler's failure
+  // specs/pricing-components.md rule 55 (SDK 2.29.0) — published by the sale service after its transaction commits; a handler's failure
   // is logged and never undoes a sale. `{ reservationId, source, lines: [{ ref, label, totalCents, collectAt }] }` after a sale,
   // `{ reservationId, ref, from, to }` after a line's moment moved, `{ reservationId, refs }` after a save removed lines,
   // `{ reservationId, ref, cents }` when lowering a paid line opened a refund owed.
@@ -32,7 +32,7 @@ const EVENTS = Object.freeze([
   'extraSale.lineMoved',
   'extraSale.lineCancelled',
   'extraSale.refundOwed',
-  // specs/pricing-components.md rule 55 (SDK 2.30.0) — `{ saleId, ref, clientId, totalCents, lines: [{ ref, label, totalCents }] }` after a sale with no stay committed.
+  // specs/pricing-components.md rule 55 (SDK 2.31.0) — `{ saleId, ref, clientId, totalCents, lines: [{ ref, label, totalCents }] }` after a sale with no stay committed.
   'standaloneSale.sold',
 ]);
 

@@ -40,6 +40,7 @@ test('the card says configured, last read, keys created and where the secrets li
     keysCreated: 2,
     secretsFile: 'server/.env.local',
     secretNames: ['GATE_API_KEY', 'GATE_SIGNING_SECRET'],
+    home: null,
   });
 });
 

@@ -58,10 +58,10 @@ function emptyRecord(id) {
     // specs/guest-app.md rules 28-31, 35 (SDK 2.26.0) — the hourly slots of a stay, and the slots a plugin holds.
     resourceScheduler: null,
     resourceHolds: null,
-    // specs/pricing-components.md rules 48-49 (SDK 2.28.0) — the ids of the fulfilment adapters, and the slot availability provider.
+    // specs/pricing-components.md rules 48-49 (SDK 2.29.0) — the ids of the fulfilment adapters, and the slot availability provider.
     articleFulfilments: [],
     slotAvailability: null,
-    // the outside-visit spec rule 37 (SDK 2.30.0) — [{ kind, label, list }]: the sale contexts a plugin offers to the « Proposés à l'arrivée » lists.
+    // the outside-visit spec rule 37 (SDK 2.31.0) — [{ kind, label, list }]: the sale contexts a plugin offers to the « Proposés à l'arrivée » lists.
     suggestionContexts: [],
     // specs/guest-app.md rules 35-36 (SDK 2.26.0) — [{ source, paid }]: what a paid basket link does.
     paymentBaskets: [],
@@ -72,6 +72,10 @@ function emptyRecord(id) {
     // most one) and a plugin's sales made outside any stay.
     invoiceIssuer: null,
     standaloneSales: null,
+    // specs/guest-app-home-automation.md §4.1 (SDK 2.28.0) — what the house sends (declared by the Sowel connector)
+    // and which of it the lodgings use (declared by the guest app).
+    homeData: null,
+    homeSelection: null,
   };
 }
 

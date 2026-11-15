@@ -1,7 +1,7 @@
 {
   "id": "guest-app",
   "name": "Application clients",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "L’application « Mon séjour » des clients : livret d’accueil, portail, Soliomap et boutique du séjour.",
   "icon": "door",
   "surfaces": [
@@ -16,7 +16,7 @@
   ],
   "requires": [],
   "guestflow": ">=3.10.0",
-  "sdk": "^2.30.0",
+  "sdk": "^2.31.0",
   "changelog": {
     "1.0.0": [
       "Première version : réglages par logement, code QR de chaque logement (livret seul), lien « Mon séjour » propre à chaque séjour (sas d’arrivée, e-mails, fiche), sessions de séjour, page d’accueil, catalogue de la boutique, créneaux des ressources à l’heure lus dans le planning, horaires du service et heures de livraison, livret d’accueil par logement (pages partagées, publication, recherche, photos), suggestion Soliomap, affiche du code QR, commandes du séjour (sur la note, à 0 € ou par carte, inscrites sur la fiche), commandes clients côté équipe, stock par article (épuisé, alertes), commandes livrées ou à retirer, portail du séjour, Studio lu en direct depuis GuestFlow, manifeste d’installation et service de l’application clients et du Studio, l’application clients « Mon séjour » (téléphone, tablette, ordinateur, hors ligne pour le livret), le Studio du livret et, dans GuestFlow, la section « Application clients » des options et ressources, la page « Commandes clients », la carte du planning et le lien « Mon séjour » de la fiche.",
@@ -69,6 +69,11 @@
       "Demande le SDK 2.26 de GuestFlow."
     ],
     "1.1.0": [
+      "Page « Domotique » (module à activer dans Studio) : températures des pièces, météo, pluie, électricité du logement et lumières confiées aux voyageurs, reçues de Sowel pendant le séjour.",
+      "Studio : écran « Domotique » par logement pour choisir les blocs, les capteurs, les noms et les lumières pilotables, avec l’aperçu des vraies mesures.",
+      "Nécessite le SDK 2.28 de GuestFlow (échange des données de la maison entre plugins)."
+    ],
+    "1.2.0": [
       "Une commande peut être encaissée à l’arrivée ou au départ, et une commande d’un séjour annulé est marquée annulée ; aucune donnée existante n’est modifiée.",
       "Une commande de la boutique forme sa propre ligne du séjour ; les lignes déjà commandées gardent leur prix.",
       "« Mon séjour » s’ouvre dès J-7 : la boutique, le bain nordique et « Mes commandes » sont utilisables avant l’arrivée, avec le lien du séjour.",
@@ -80,7 +85,7 @@
       "Un séjour annulé annule ses commandes ; une commande payée par carte est signalée à rembourser dans le registre des remboursements.",
       "Les e-mails J-7 et J-2 savent si le séjour a une boutique et un bain à programmer, pour ne promettre que ce que le lien donne.",
       "La liste des commandes au sas d’arrivée se replie sans animation quand l’appareil demande de réduire les animations.",
-      "Demande le SDK 2.30 de GuestFlow."
+      "Demande le SDK 2.31 de GuestFlow."
     ]
   }
 }

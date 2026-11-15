@@ -18,7 +18,7 @@ const PLUGIN_INACTIVE = 'PLUGIN_INACTIVE';
 function toError(status, body) {
   if (body && body.error === PLUGIN_INACTIVE) return Object.assign(new Error('Module inactif.'), { status, code: PLUGIN_INACTIVE });
   const message = (body && (typeof body.error === 'string' ? body.error : body.message)) || 'Le serveur ne répond pas correctement.';
-  return Object.assign(new Error(message), { status, code: body && body.code });
+  return Object.assign(new Error(message), { status, code: body && body.code, ...(body && body.errors ? { errors: body.errors } : {}) });
 }
 
 async function request(path, { method = 'GET', body, raw = false } = {}) {
@@ -49,6 +49,10 @@ export const api = {
   lodging: (id) => request(`/lodgings/${enc(id)}`),
   saveLodging: (id, patch) => request(`/lodgings/${enc(id)}`, { method: 'PUT', body: patch }),
   regenerateQr: (id) => request(`/lodgings/${enc(id)}/regenerate-qr`, { method: 'POST' }),
+  // specs/guest-app-home-automation.md rules 12-16.
+  home: (id) => request(`/lodgings/${enc(id)}/home`),
+  saveHome: (id, blocks) => request(`/lodgings/${enc(id)}/home`, { method: 'PUT', body: { blocks } }),
+  homePreview: (id, blocks, lang) => request(`/lodgings/${enc(id)}/home/preview?lang=${enc(lang)}`, { method: 'POST', body: { blocks } }),
   qrPosterUrl: (id) => `${BASE}/lodgings/${enc(id)}/qr-poster.pdf`,
 
   items: (propertyId) => request(`/items?propertyId=${enc(propertyId)}`),

@@ -105,4 +105,8 @@ export const api = {
   orders: () => request('GET', '/orders'),
   orderById: (id) => request('GET', `/orders/${encodeURIComponent(id)}`),
   abandon: (id) => request('POST', `/orders/${encodeURIComponent(id)}/abandon`),
+  // specs/guest-app-home-automation.md §4.3 — the « Domotique » page, a light tap, and that tap's state.
+  home: () => request('GET', '/home'),
+  switchLight: (lightId, on) => request('POST', `/home/lights/${encodeURIComponent(lightId)}`, { body: { on } }),
+  homeCommand: (id) => request('GET', `/home/commands/${encodeURIComponent(id)}`),
 };

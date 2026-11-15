@@ -1,0 +1,900 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Appli séjour — la page « Domotique » : le gîte en direct</title>
+<style>
+:root{
+  --paper:#F5F0E6;--card:#FDFAF3;--ink:#22271F;--ink-soft:#5C6153;--sapin:#2E3B2A;--lichen:#5A6B48;--ocre:#B87B2A;--ocre-ink:#8A5816;
+  --action:#9A6318;--on-action:#fff;--line:#DCD4C2;--chip:#EDE5D4;--ctl:#857D6B;--ok:#2F6A43;--ok-soft:#E6EFE7;--warn:#6F5112;--warn-soft:#F6EDD7;
+  --bad:#A8433A;--bad-soft:#F7E8E5;--glow:rgba(232,180,90,.55);
+  --display:'Marcellus',Georgia,'Times New Roman',serif;--body:'Karla',-apple-system,BlinkMacSystemFont,'Helvetica Neue',Arial,sans-serif;
+  --ease:cubic-bezier(.22,1,.36,1);--spring:cubic-bezier(.32,.72,0,1);
+  /* Studio « Maison » */
+  --m-bg:#F8F5EF;--m-paper:#fff;--m-ink:#27251F;--m-mute:#6E6A5E;--m-fir:#2F5D46;--m-line:#E3DED3;--m-soft:#EEEBE4;
+  --m-serif:'Source Serif 4','Iowan Old Style',Charter,Georgia,serif;--m-sans:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+}
+.night{
+  --paper:#161C16;--card:#1F261E;--ink:#EFE8D6;--ink-soft:#A9AE9C;--sapin:#EFE8D6;--lichen:#9DB087;--ocre:#E8C286;--ocre-ink:#E8C286;
+  --action:#E8C286;--on-action:#161C16;--line:#2E362C;--chip:#273026;--ctl:#727C6C;--ok:#8FCB9F;--ok-soft:#1E3324;--warn:#E8C286;--warn-soft:#3A2F17;
+  --bad:#F0A39B;--bad-soft:#3A1F1C;--glow:rgba(232,194,134,.45);
+}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:#E9E3D6;color:#22271F;font:16px/1.5 var(--body)}
+::selection{background:rgba(184,123,42,.3)}
+button,input,select{font:inherit;color:inherit}
+button{cursor:pointer;-webkit-tap-highlight-color:transparent}
+:focus-visible{outline:2px solid var(--ocre);outline-offset:2px}
+.doc{max-width:1240px;margin:0 auto;padding:44px 24px 90px}
+.eb{font:700 11.5px var(--body);letter-spacing:.32em;text-transform:uppercase;color:var(--ocre-ink);margin:0}
+h1{font:400 clamp(30px,4.4vw,46px)/1.08 var(--display);letter-spacing:-.01em;margin:10px 0 14px;max-width:20ch;text-wrap:balance}
+h2{font:400 26px/1.2 var(--display);margin:0 0 12px;text-wrap:balance}
+h3.sub{font:700 13px var(--body);letter-spacing:.14em;text-transform:uppercase;margin:0 0 8px;color:#3a3f35}
+.lead{font-size:18.5px;max-width:64ch;color:#3a3f35;margin:0}
+p{max-width:66ch}
+.two{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:22px 40px;margin-top:38px}
+@media (max-width:820px){.two{grid-template-columns:minmax(0,1fr)}}
+.panel{background:#F5F0E6;border:1px solid #D5CDBB;border-radius:4px;padding:22px 24px}
+.panel p{margin:0 0 10px}
+.panel ul{margin:6px 0 0;padding-left:20px}
+.panel li{margin:5px 0;max-width:62ch}
+.tag{display:inline-block;font:700 11px var(--body);letter-spacing:.14em;text-transform:uppercase;padding:3px 8px;border-radius:2px;background:#DCD4C2;color:#22271F}
+.tag.ok{background:#E6EFE7;color:#2F6A43}.tag.warn{background:#F6EDD7;color:#6F5112}.tag.bad{background:#F7E8E5;color:#A8433A}
+section{margin-top:64px}
+
+/* ── Flow diagram ─────────────────────────────── */
+.flow{display:grid;grid-template-columns:minmax(0,1fr) 150px minmax(0,1fr) 110px minmax(0,.8fr);gap:0;align-items:stretch;margin-top:18px}
+@media (max-width:900px){.flow{grid-template-columns:minmax(0,1fr)}.flow .arrows{padding:10px 0}.flow .arrows .ar{transform:rotate(90deg);margin:8px auto}}
+.zone{border:1px solid #CFC6B2;border-radius:4px;padding:16px;background:#FDFAF3}
+.zone .zt{font:700 11px var(--body);letter-spacing:.18em;text-transform:uppercase;color:#5C6153;margin:0 0 10px}
+.box{border:1px solid #DCD4C2;border-radius:2px;padding:10px 12px;margin-top:8px;background:#fff}
+.box > b{display:block;font-weight:700}
+.box span{font-size:13.5px;color:#5C6153}
+.box.guard{border-color:#2F6A43;background:#F3F8F3}
+.arrows{display:flex;flex-direction:column;justify-content:center;gap:8px;padding:0 8px;font-size:12.5px;color:#3a3f35;text-align:center}
+.arrows .ar{display:flex;align-items:center;gap:4px;justify-content:center}
+.arrows .ar svg{width:18px;height:18px;flex:none}
+.arrows .never{color:#A8433A;font-weight:700}
+
+/* ── Stage ─────────────────────────────────────── */
+.ctrls{display:flex;flex-wrap:wrap;gap:10px 18px;align-items:center;margin:18px 0 18px}
+.ctrl{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.ctrl > span{font:700 11px var(--body);letter-spacing:.14em;text-transform:uppercase;color:#5C6153}
+.seg{display:inline-flex;flex-wrap:wrap;border:1px solid #857D6B;border-radius:999px;overflow:hidden;background:#FDFAF3}
+.seg button{border:0;background:none;padding:8px 13px;min-height:38px;font:600 13px var(--body);transition:background-color .18s var(--ease),color .18s var(--ease)}
+.seg button:active{transform:scale(.97)}
+.seg button[aria-pressed="true"]{background:#2E3B2A;color:#F5F0E6}
+.bench{display:grid;grid-template-columns:minmax(0,1fr) 404px;gap:36px;align-items:start}
+@media (max-width:1060px){.bench{grid-template-columns:minmax(0,1fr)}.phonewrap{order:-1;position:static!important}}
+.phonewrap{position:sticky;top:18px}
+.hintline{font-size:13.5px;color:#5C6153;margin:12px 4px 0;min-height:42px;max-width:404px}
+.hintline b{color:#22271F}
+
+/* ── Phone ─────────────────────────────────────── */
+.phone{width:394px;max-width:100%;margin:0 auto;height:800px;border-radius:46px;background:#0d100d;padding:10px;box-shadow:0 30px 60px rgba(20,25,20,.28)}
+@media (max-width:480px){.phone{padding:0;border-radius:0;background:none;box-shadow:none;height:740px}.screen{border-radius:14px!important}.doc{padding:26px 14px 70px}}
+.screen{position:relative;height:100%;border-radius:36px;overflow:hidden;overflow:clip;background:var(--paper);color:var(--ink);font-family:var(--body);transition:background-color .3s var(--ease),color .3s var(--ease)}
+.scroll{position:absolute;inset:0;overflow-y:auto;padding-bottom:110px;scrollbar-width:none;overscroll-behavior:contain}
+.scroll::-webkit-scrollbar{display:none}
+.status{position:absolute;top:0;left:0;right:0;height:34px;z-index:40;display:flex;justify-content:space-between;align-items:center;padding:0 30px;font:700 13px var(--body);font-variant-numeric:tabular-nums;color:#fff;pointer-events:none}
+.status.solid{color:var(--ink)}
+.appbar{position:sticky;top:0;z-index:20;display:flex;align-items:center;gap:4px;padding:38px 10px 8px 6px;background:var(--paper);border-bottom:1px solid transparent;transition:border-color .2s}
+.appbar h3{font:400 21px var(--display);margin:0;text-transform:uppercase;letter-spacing:.06em}
+.iconbtn{width:44px;height:44px;border:0;background:none;display:grid;place-items:center;color:var(--sapin);border-radius:2px;flex:none}
+.iconbtn svg{width:22px;height:22px}
+svg.i{fill:none;stroke:currentColor;stroke-width:1.75;stroke-linecap:round;stroke-linejoin:round}
+
+/* photo stand-ins: drawn landscapes, no remote image */
+.hero{position:relative;color:#FBF7EC;overflow:hidden;background:#1d2a1b}
+.hero .land{position:absolute;inset:0;width:100%;height:100%}
+.hero::after{content:"";position:absolute;inset:0;background:linear-gradient(to top,rgba(10,14,10,.80) 0%,rgba(10,14,10,.30) 52%,rgba(10,14,10,.18) 100%)}
+.hero .in{position:relative;z-index:1}
+
+/* home */
+.home-hero{height:280px;display:flex;align-items:flex-end}
+.home-hero .in{padding:0 20px 22px}
+.home-hero .eb{color:#E8C286}
+.home-hero h4{font:400 32px/1.05 var(--display);margin:6px 0 4px;letter-spacing:-.005em}
+.home-hero p{margin:0;font-size:14.5px;opacity:.9}
+.tiles{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;padding:16px}
+.tile{position:relative;min-height:104px;border:1px solid var(--line);border-radius:4px;background:var(--card);padding:14px;text-align:left;display:flex;flex-direction:column;justify-content:space-between;gap:10px;color:var(--ink);transition:transform .12s var(--ease),border-color .2s}
+.tile:active{transform:scale(.97)}
+.tile svg{width:24px;height:24px;color:var(--sapin)}
+.tile b{font:600 15px/1.2 var(--body)}
+.tile small{display:block;font:500 12.5px var(--body);color:var(--ink-soft);font-variant-numeric:tabular-nums;margin-top:2px}
+.tile.home{border-color:var(--sapin)}
+.tile.new::before{content:"";position:absolute;top:12px;right:12px;width:7px;height:7px;border-radius:999px;background:var(--ocre)}
+.note{margin:4px 16px 0;padding:11px 13px;border-radius:4px;background:var(--chip);font-size:13px;color:var(--ink-soft)}
+
+/* maison page */
+.m-hero{min-height:268px;display:flex;align-items:flex-end;margin-top:-1px}
+.m-hero .in{padding:0 20px 20px;width:100%}
+.m-hero .eb{color:#E8C286;display:flex;align-items:center;gap:8px}
+.live-dot{width:7px;height:7px;border-radius:999px;background:#8FCB9F;flex:none;box-shadow:0 0 0 0 rgba(143,203,159,.6);animation:pulse 2.4s var(--ease) infinite}
+.live-dot.muted{background:#C9BFA8;animation:none}
+@keyframes pulse{0%{box-shadow:0 0 0 0 rgba(143,203,159,.55)}70%{box-shadow:0 0 0 9px rgba(143,203,159,0)}100%{box-shadow:0 0 0 0 rgba(143,203,159,0)}}
+.big{display:flex;align-items:flex-start;gap:2px;margin:6px 0 2px}
+.big .v{font:400 84px/0.95 var(--display);letter-spacing:-.03em;font-variant-numeric:tabular-nums}
+.big .u{font:400 30px/1.3 var(--display);opacity:.85}
+.big + .lbl{font:600 13px var(--body);letter-spacing:.06em;opacity:.85;margin:0 0 10px}
+.facts{display:flex;flex-wrap:wrap;gap:6px 14px;font:500 14px var(--body);font-variant-numeric:tabular-nums;opacity:.94;margin:0}
+.facts span{display:inline-flex;align-items:center;gap:5px}
+.facts svg{width:15px;height:15px}
+.rainline{margin:10px 0 0;font:600 14.5px var(--body);display:flex;align-items:center;gap:7px}
+.rainline svg{width:17px;height:17px;color:#E8C286}
+.stale-v{opacity:.62}
+.hero .stale-v{opacity:.78}
+.banner{display:flex;gap:10px;align-items:flex-start;margin:14px 16px 0;padding:11px 13px;border-radius:4px;font-size:13.5px;line-height:1.4}
+.banner svg{width:18px;height:18px;flex:none;margin-top:1px}
+.banner.warn{background:var(--warn-soft);color:var(--warn)}
+.banner.mut{background:var(--chip);color:var(--ink-soft)}
+.sec{padding:22px 16px 0}
+.sec h5{font:400 16px var(--display);text-transform:uppercase;letter-spacing:.08em;margin:0 0 12px;display:flex;justify-content:space-between;align-items:baseline;gap:10px}
+.sec h5 small{font:500 12px var(--body);letter-spacing:0;text-transform:none;color:var(--ink-soft);font-variant-numeric:tabular-nums}
+.rooms{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.room{border:1px solid var(--line);border-radius:4px;background:var(--card);padding:12px 13px 13px;min-width:0}
+.room .n{font:600 13.5px/1.25 var(--body);color:var(--ink-soft);overflow-wrap:anywhere}
+.room .t{display:flex;align-items:baseline;gap:6px;margin-top:6px}
+.room .t b{font:700 28px/1 var(--body);font-variant-numeric:tabular-nums;letter-spacing:-.02em}
+.room .t i{font-style:normal;font:600 15px var(--body);color:var(--ink-soft)}
+.trend{display:inline-grid;place-items:center;width:22px;height:22px;border-radius:999px;background:var(--chip);color:var(--ink-soft);margin-left:auto;align-self:center}
+.trend svg{width:14px;height:14px}
+.trend.up{background:var(--warn-soft);color:var(--warn)}
+.trend.down{background:#E4EDF3;color:#31556E}
+.night .trend.down{background:#1d2a33;color:#9cc0d8}
+.room .h{font:500 12.5px var(--body);color:var(--ink-soft);margin-top:6px;font-variant-numeric:tabular-nums}
+.room.na .t b{font:600 14px var(--body);color:var(--ink-soft);letter-spacing:0}
+.lights{border:1px solid var(--line);border-radius:4px;background:var(--card)}
+.light{display:flex;align-items:center;gap:12px;padding:12px 10px 12px 12px;min-height:68px}
+.light + .light{border-top:1px solid var(--line)}
+.bulb{position:relative;width:42px;height:42px;border-radius:4px;display:grid;place-items:center;background:var(--chip);color:var(--ink-soft);flex:none;transition:background-color .45s var(--ease),color .45s var(--ease),box-shadow .6s var(--ease)}
+.bulb svg{width:22px;height:22px}
+.bulb.on{background:var(--warn-soft);color:var(--ocre-ink);box-shadow:0 0 22px 2px var(--glow)}
+.light .tx{flex:1;min-width:0}
+.light .tx b{display:block;font:600 15px/1.25 var(--body);overflow-wrap:anywhere}
+.light .tx span{display:block;font:500 13px/1.35 var(--body);color:var(--ink-soft);font-variant-numeric:tabular-nums}
+.light .tx span.err{color:var(--bad)}
+.light .tx span.okm{color:var(--ok)}
+.sw{position:relative;width:60px;height:44px;border:0;background:none;padding:0;flex:none;display:grid;place-items:center}
+.sw .tr{width:52px;height:32px;border-radius:999px;background:var(--ctl);position:relative;transition:background-color .25s var(--ease)}
+.sw .kn{position:absolute;top:3px;left:3px;width:26px;height:26px;border-radius:999px;background:#fff;box-shadow:0 2px 5px rgba(0,0,0,.25);transition:transform .32s var(--spring)}
+.sw[aria-checked="true"] .tr{background:var(--action)}
+.sw[aria-checked="true"] .kn{transform:translateX(20px)}
+.sw:active .kn{width:30px}
+.sw[aria-checked="true"]:active .kn{transform:translateX(16px)}
+.sw.busy .tr{background:var(--ocre);opacity:.7}
+.sw:disabled{cursor:not-allowed;opacity:.4}
+.ro{font:600 12px var(--body);color:var(--ink-soft);padding:4px 9px;border-radius:999px;background:var(--chip);flex:none}
+.card{border:1px solid var(--line);border-radius:4px;background:var(--card);padding:14px 14px 12px}
+.kv{display:flex;align-items:baseline;gap:18px;flex-wrap:wrap}
+.kv div b{display:block;font:700 26px/1.05 var(--body);font-variant-numeric:tabular-nums;letter-spacing:-.02em}
+.kv div span{font:500 12.5px var(--body);color:var(--ink-soft)}
+.chart{display:block;width:100%;height:76px;margin-top:12px;overflow:visible}
+.axis{display:flex;justify-content:space-between;font:500 11px var(--body);color:var(--ink-soft);margin-top:5px;font-variant-numeric:tabular-nums}
+.na-line{font:600 14px var(--body);color:var(--ink-soft);padding:6px 0}
+.foot{padding:20px 16px 10px;font-size:12px;color:var(--ink-soft);text-align:center}
+.tabbar{position:absolute;left:0;right:0;bottom:0;height:76px;padding:6px 8px 18px;display:grid;grid-template-columns:repeat(4,1fr);background:var(--card);border-top:1px solid var(--line);z-index:30}
+.tab{display:flex;flex-direction:column;align-items:center;gap:3px;font:600 11px var(--body);color:var(--ink-soft);border:0;background:none;padding-top:6px}
+.tab svg{width:22px;height:22px}
+.tab.cur{color:var(--sapin)}
+.toast{position:absolute;left:14px;right:14px;bottom:90px;z-index:35;padding:12px 14px;border-radius:4px;background:var(--sapin);color:var(--paper);font:600 13.5px/1.35 var(--body);box-shadow:0 12px 32px rgba(22,28,22,.22);transform:translateY(20px);opacity:0;transition:transform .32s var(--spring),opacity .2s;pointer-events:none}
+.toast.show{transform:none;opacity:1}
+.frozen{position:absolute;left:12px;right:12px;top:40px;z-index:45;padding:9px 12px;border-radius:4px;background:#A8433A;color:#fff;font:600 12.5px/1.35 var(--body);box-shadow:0 8px 20px rgba(0,0,0,.2)}
+.frozen[hidden]{display:none}
+.enter{animation:rise .42s var(--ease) both}
+@keyframes rise{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+
+/* ── Studio (theme « Maison ») ─────────────────── */
+.studio{background:var(--m-bg);border:1px solid #D5CDBB;border-radius:6px;font-family:var(--m-sans);color:var(--m-ink);font-size:14px;overflow:hidden}
+.st-bar{position:sticky;top:0;z-index:5;display:flex;align-items:center;gap:8px;padding:10px 12px;background:#fff;border-bottom:1px solid var(--m-line)}
+.st-bar h4{font:600 17px/1.25 var(--m-serif);margin:0;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mb{width:44px;height:44px;border-radius:8px;border:1px solid var(--m-line);background:#fff;display:grid;place-items:center;color:var(--m-ink);flex:none;transition:background-color .15s}
+.mb svg{width:20px;height:20px}
+.mb.save{background:var(--m-fir);border-color:var(--m-fir);color:#fff}
+.mb.save:hover{background:#244A38}
+.mb:disabled{opacity:.45;cursor:not-allowed}
+.mb.ghost{border-color:transparent}
+.st-body{padding:16px;display:grid;gap:12px}
+.chan{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:8px;background:#fff;border:1px solid var(--m-line);font-size:13.5px}
+.chan .dot{width:9px;height:9px;border-radius:999px;background:#3E7D54;flex:none}
+.chan.warn .dot{background:#8F6A1D}.chan.bad .dot{background:#A8433A}
+.chan b{font-weight:600}
+.chan span{color:var(--m-mute)}
+.blk{background:#fff;border:1px solid var(--m-line);border-radius:8px;transition:border-color .2s,opacity .2s}
+.blk.off .blk-b{display:none}
+.blk.off .blk-h .ttl{color:var(--m-mute)}
+.blk.has-err{border-color:#A8433A}
+.blk-h{display:flex;align-items:center;gap:8px;padding:8px 8px 8px 12px;min-height:56px}
+.blk-h .ic{width:32px;height:32px;border-radius:6px;background:var(--m-soft);display:grid;place-items:center;color:var(--m-fir);flex:none}
+.blk-h .ic svg{width:18px;height:18px}
+.blk-h .ttl{flex:1;min-width:0}
+.blk-h .ttl b{display:block;font:600 14.5px var(--m-sans)}
+.blk-h .ttl span{display:block;font-size:12.5px;color:var(--m-mute)}
+.mv{width:36px;height:44px;border:0;background:none;border-radius:6px;display:grid;place-items:center;color:var(--m-mute)}
+.mv:hover:not(:disabled){background:var(--m-soft);color:var(--m-ink)}
+.mv:disabled{opacity:.3;cursor:not-allowed}
+.mv svg{width:18px;height:18px}
+.msw{position:relative;width:52px;height:44px;border:0;background:none;padding:0;display:grid;place-items:center;flex:none}
+.msw .tr{width:40px;height:22px;border-radius:999px;background:#B9B4A8;position:relative;transition:background-color .2s}
+.msw .kn{position:absolute;top:2px;left:2px;width:18px;height:18px;border-radius:999px;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.25);transition:transform .25s var(--spring)}
+.msw[aria-checked="true"] .tr{background:var(--m-fir)}
+.msw[aria-checked="true"] .kn{transform:translateX(18px)}
+.blk-b{padding:4px 12px 14px;display:grid;gap:10px;border-top:1px solid var(--m-line)}
+.fld{display:grid;gap:4px;min-width:0}
+.fld > label,.fld > .lab{font:600 11.5px var(--m-sans);letter-spacing:.06em;text-transform:uppercase;color:var(--m-mute)}
+.inp{width:100%;min-height:44px;padding:9px 11px;border:1px solid #CFC9BD;border-radius:6px;background:#fff;font:14px var(--m-sans);color:var(--m-ink);transition:border-color .15s,box-shadow .15s}
+.inp:focus{outline:none;border-color:var(--m-fir);box-shadow:0 0 0 3px rgba(47,93,70,.18)}
+.inp.err{border-color:#A8433A}
+.inp.err:focus{box-shadow:0 0 0 3px rgba(168,67,58,.18)}
+select.inp{appearance:none;background-image:linear-gradient(45deg,transparent 50%,#6E6A5E 50%),linear-gradient(135deg,#6E6A5E 50%,transparent 50%);background-position:calc(100% - 17px) 19px,calc(100% - 12px) 19px;background-size:5px 5px;background-repeat:no-repeat;padding-right:32px}
+.em{font-size:12.5px;color:#A8433A;min-height:0}
+.em:empty{display:none}
+.hint{font-size:12.5px;color:var(--m-mute)}
+.items{display:grid;gap:8px}
+.item{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.15fr) 44px;gap:8px;align-items:start;padding:10px;border-radius:6px;background:var(--m-bg)}
+.item.light{grid-template-columns:minmax(0,1fr) minmax(0,1.15fr) 44px}
+.item .row2{grid-column:1 / -1;display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.chk{display:inline-flex;align-items:center;gap:8px;min-height:44px;font-size:13.5px;cursor:pointer}
+.chk input{width:18px;height:18px;accent-color:var(--m-fir)}
+.offm{display:inline-flex;align-items:center;gap:8px;font-size:13.5px}
+.offm .inp{width:84px;text-align:right;font-variant-numeric:tabular-nums}
+.del{width:44px;height:44px;border:0;border-radius:6px;background:none;display:grid;place-items:center;color:var(--m-mute);margin-top:18px}
+.del:hover{background:#F7E8E5;color:#A8433A}
+.del svg{width:18px;height:18px}
+.add{justify-self:start;display:inline-flex;align-items:center;gap:6px;min-height:40px;padding:0 12px;border:1px dashed #B9B4A8;border-radius:6px;background:none;font:600 13px var(--m-sans);color:var(--m-fir)}
+.add svg{width:16px;height:16px}
+.add:hover{border-color:var(--m-fir);background:#F2F6F3}
+.savebar{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:8px;font-size:13.5px}
+.savebar.ok{background:#E6EFE7;color:#2F6A43}
+.savebar.bad{background:#F7E8E5;color:#A8433A}
+.savebar[hidden]{display:none}
+@media (max-width:560px){.item,.item.light{grid-template-columns:minmax(0,1fr) 44px}.item .fld.eq{grid-column:1 / 2;grid-row:2}.item .del{grid-row:1 / 3;grid-column:2}}
+
+/* ── Arbitrages ────────────────────────────────── */
+.arb{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;margin-top:16px}
+@media (max-width:820px){.arb{grid-template-columns:minmax(0,1fr)}}
+.arb .panel h3{font:400 20px/1.25 var(--display);margin:0 0 6px}
+.arb .rec{margin-top:10px;font-size:14.5px}
+.arb .rec b{color:#2F6A43}
+.small{font-size:13.5px;color:#5C6153}
+
+@media (prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation:none!important;transition-duration:.01ms!important}
+  .bulb.on{box-shadow:none}
+}
+</style>
+</head>
+<body>
+<div class="doc">
+
+<header>
+  <p class="eb">Appli séjour · spec à valider · 15/11/2026</p>
+  <h1>Une page « Domotique » : le gîte, en direct</h1>
+  <p class="lead">Pendant le séjour, le voyageur voit la chaleur de chaque pièce, le temps dehors, la pluie et ce
+  que le gîte consomme. Il peut aussi allumer et éteindre les lumières qu'on lui confie. Tout se
+  choisit par gîte dans Studio ; Sowel garde une seule liste, celle des lumières confiées aux voyageurs. Et GuestFlow ne détient toujours aucune clé de la maison.</p>
+</header>
+
+<div class="two">
+  <div class="panel">
+    <h3 class="sub">Le constat</h3>
+    <ul>
+      <li>Sowel a déjà tout : thermomètres, station Netatmo et son pluviomètre, compteur Legrand, éclairage du chêne.</li>
+      <li><b>Un jeton Sowel ouvre toute la maison.</b> Il n'existe ni lecture seule, ni restriction à une pièce ou à un
+      équipement. Un jeton rangé dans GuestFlow, application exposée sur Internet, donnerait le portail, le chauffage
+      et la maison du propriétaire à qui pirate GuestFlow.</li>
+      <li>C'est pour ça que le portail marche déjà à l'envers : <b>c'est la maison qui appelle GuestFlow</b>, jamais
+      l'inverse, et le pare-feu de la VM l'impose.</li>
+    </ul>
+  </div>
+  <div class="panel">
+    <h3 class="sub">Ce qu'on propose</h3>
+    <ul>
+      <li>Le même chemin que le portail. Sowel publie un <b>catalogue</b> (noms et pièces, sans valeur), Studio choisit,
+      puis Sowel n'envoie <b>que les mesures choisies</b>, toutes les minutes.</li>
+      <li>Allumer une lumière : GuestFlow pose une demande, la maison vient la chercher. <b>Une recette Sowel</b>
+      refuse tout ce qui n'est pas une lumière cochée une fois dans Sowel comme « confiée aux voyageurs ». Ces limites sont <b>du code</b>,
+      pas des réglages.</li>
+      <li>Une tuile <b>Domotique</b>, visible pendant le séjour seulement, et seulement pour les gîtes équipés.</li>
+    </ul>
+  </div>
+</div>
+
+<section aria-labelledby="try">
+  <p class="eb">À manipuler</p>
+  <h2 id="try">Studio règle, le téléphone répond</h2>
+  <p class="small" style="margin:0">À gauche, la page Studio d'un gîte. Allumer ou couper un bloc, le monter, renommer une pièce,
+  rendre une lumière pilotable : le téléphone suit. Une saisie invalide est refusée et l'aperçu reste figé tant
+  qu'elle n'est pas corrigée. Sur le téléphone, la tuile Domotique mène à la page, et les lumières répondent.</p>
+
+  <div class="ctrls">
+    <div class="ctrl"><span>Lien</span>
+      <div class="seg" data-ctl="mode">
+        <button aria-pressed="true" data-v="stay">Séjour</button><button aria-pressed="false" data-v="pre">Avant l'arrivée</button><button aria-pressed="false" data-v="visitor">Visiteur</button>
+      </div>
+    </div>
+    <div class="ctrl"><span>La maison</span>
+      <div class="seg" data-ctl="scenario">
+        <button aria-pressed="true" data-v="live">Répond</button><button aria-pressed="false" data-v="stale">Un capteur muet</button><button aria-pressed="false" data-v="mute">Muette 40 min</button><button aria-pressed="false" data-v="gone">Muette &gt; 6 h</button><button aria-pressed="false" data-v="offline">Téléphone hors ligne</button>
+      </div>
+    </div>
+    <div class="ctrl"><span>Ambiance</span>
+      <div class="seg" data-ctl="night">
+        <button aria-pressed="true" data-v="night">Nuit</button><button aria-pressed="false" data-v="day">Jour</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="bench">
+    <div class="studio" id="studio" aria-label="Studio — page Domotique du gîte"></div>
+    <div class="phonewrap">
+      <div class="phone"><div class="screen night" id="screen"></div></div>
+      <p class="hintline" id="hint"></p>
+    </div>
+  </div>
+</section>
+
+<section aria-labelledby="how">
+  <p class="eb">Le chemin des données</p>
+  <h2 id="how">La maison parle, GuestFlow n'appelle jamais</h2>
+  <div class="flow">
+    <div class="zone">
+      <p class="zt">Dans la maison (réseau local)</p>
+      <div class="box"><b>Plugin Sowel « guestflow »</b><span>Parle à GuestFlow avec la clé et la signature du portail, déjà en place. Ne touche à rien dans la maison.</span></div>
+      <div class="box guard"><b>Recette « guest-home »</b><span>Lit les capteurs et actionne. N'allume ou n'éteint <b>que les lumières cochées une fois dans Sowel</b>, pas plus de 20 fois par heure et par gîte.</span></div>
+    </div>
+    <div class="arrows">
+      <div class="ar"><svg class="i" viewBox="0 0 24 24"><path d="M5 12h14"/><path d="m13 6 6 6-6 6"/></svg>catalogue · 1 h</div>
+      <div class="ar"><svg class="i" viewBox="0 0 24 24"><path d="M5 12h14"/><path d="m13 6 6 6-6 6"/></svg>mesures · 60 s</div>
+      <div class="ar"><svg class="i" viewBox="0 0 24 24"><path d="M5 12h14"/><path d="m13 6 6 6-6 6"/></svg>vient chercher les demandes</div>
+      <div class="ar never"><svg class="i" viewBox="0 0 24 24"><path d="M19 12H5"/><path d="m11 6-6 6 6 6"/></svg>jamais dans ce sens</div>
+    </div>
+    <div class="zone">
+      <p class="zt">GuestFlow (Internet)</p>
+      <div class="box"><b>Connecteur Sowel (plugin du portail)</b><span>Gagne la domotique. Garde la dernière mesure et 24 h de pluie et de consommation. Rien de plus ancien.</span></div>
+      <div class="box"><b>Studio · page Domotique</b><span>Choisit, par gîte, les blocs, les capteurs, les noms, les lumières pilotables.</span></div>
+    </div>
+    <div class="arrows">
+      <div class="ar"><svg class="i" viewBox="0 0 24 24"><path d="M5 12h14"/><path d="m13 6 6 6-6 6"/></svg>page prête</div>
+      <div class="ar"><svg class="i" viewBox="0 0 24 24"><path d="M19 12H5"/><path d="m11 6-6 6 6 6"/></svg>« allumer »</div>
+    </div>
+    <div class="zone">
+      <p class="zt">Le téléphone du voyageur</p>
+      <div class="box"><b>Appli séjour · Domotique</b><span>Affiche et transmet un appui. Ne calcule rien, ne voit jamais Sowel.</span></div>
+    </div>
+  </div>
+</section>
+
+<div class="two">
+  <div class="panel">
+    <h3 class="sub">Ce qu'on ne fait pas</h3>
+    <ul>
+      <li>Ni chauffage, ni volets, ni portail depuis cette page : <b>seules les lumières</b> s'allument ou s'éteignent.</li>
+      <li>Pas de variation d'intensité ni de couleur, pas de minuterie : un appui allume, un autre éteint.</li>
+      <li>Rien avant l'arrivée ni pour un visiteur venu de l'affiche.</li>
+      <li>Pas d'historique au-delà de 24 h, pas de coût en euros, pas d'alerte envoyée au voyageur.</li>
+      <li>Un seul réglage dans Sowel, fait une fois : la liste des lumières confiées aux voyageurs, comme les portails dans Accès partagés. Aucun secret à saisir. Tout le reste se règle dans Studio.</li>
+    </ul>
+  </div>
+  <div class="panel">
+    <h3 class="sub">Le risque</h3>
+    <p><span class="tag ok">Accepté le 15/11</span> Le pire cas, si GuestFlow était entièrement compromis : <b>allumer ou
+    éteindre les lumières confiées aux voyageurs dans Sowel</b>, à tout moment, 20 fois par heure au plus. Les séjours
+    viennent eux-mêmes de GuestFlow : la vérification « gîte occupé » protège d'un bug, pas d'un pirate. C'est la
+    liste blanche de Sowel qui borne. Rien d'autre de la maison n'est joignable
+    par ce chemin, parce que la recette le refuse dans son code.</p>
+    <p><span class="tag ok">Données</span> Seules les mesures choisies dans Studio quittent la maison. La consommation
+    d'un séjour n'est jamais archivée.</p>
+    <p class="small" style="margin:0">Côté Sowel, le catalogue décrit les capteurs et les lumières de toute la maison
+    (noms et pièces), y compris ceux du logement du propriétaire, pour que Studio puisse les proposer. Leurs
+    <b>valeurs</b> ne sortent que si Studio les choisit.</p>
+  </div>
+</div>
+
+<section aria-labelledby="arb">
+  <p class="eb">Tranché le 15/11</p>
+  <h2 id="arb">Les quatre arbitrages</h2>
+  <div class="arb">
+    <div class="panel"><h3>Le nom</h3><p>La tuile et la page s'appellent <b>« Domotique »</b>.</p></div>
+    <div class="panel"><h3>Les lumières</h3><p><b>Un appui allume, un autre éteint.</b> Pas de minuterie, pas d'extinction automatique.</p></div>
+    <div class="panel"><h3>Le pire cas</h3><p><b>Borné par une liste blanche dans Sowel</b> : seules les lumières confiées aux voyageurs, cochées une fois dans la recette, peuvent recevoir un ordre.</p></div>
+    <div class="panel"><h3>Les secrets</h3><p><b>Ceux du portail</b>, réutilisés. La domotique rejoint le connecteur Sowel existant, sans nouvelle saisie dans Sowel.</p></div>
+  </div>
+</section>
+
+</div>
+
+<script>
+(() => {
+'use strict';
+const NOW_H = 21, NOW_M = 30;
+const I = {
+  back:'<path d="m15 18-6-6 6-6"/>',
+  home:'<path d="M15 21v-8a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v8"/><path d="M3 10a2 2 0 0 1 .709-1.528l7-5.999a2 2 0 0 1 2.582 0l7 5.999A2 2 0 0 1 21 10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>',
+  key:'<circle cx="7.5" cy="15.5" r="5.5"/><path d="m21 2-9.6 9.6"/><path d="m15.5 7.5 3 3L22 7l-3-3"/>',
+  wifi:'<path d="M12 20h.01"/><path d="M2 8.82a15 15 0 0 1 20 0"/><path d="M5 12.859a10 10 0 0 1 14 0"/><path d="M8.5 16.429a5 5 0 0 1 7 0"/>',
+  bag:'<path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4Z"/><path d="M3 6h18"/><path d="M16 10a4 4 0 0 1-8 0"/>',
+  map:'<path d="M14.106 5.553a2 2 0 0 0 1.788 0l3.659-1.83A1 1 0 0 1 21 4.619v12.764a1 1 0 0 1-.553.894l-4.553 2.277a2 2 0 0 1-1.788 0l-4.212-2.106a2 2 0 0 0-1.788 0l-3.659 1.83A1 1 0 0 1 3 19.381V6.618a1 1 0 0 1 .553-.894l4.553-2.277a2 2 0 0 1 1.788 0z"/><path d="M15 5.764v15"/><path d="M9 3.236v15"/>',
+  book:'<path d="M12 7v14"/><path d="M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z"/>',
+  receipt:'<path d="M4 2v20l2-1 2 1 2-1 2 1 2-1 2 1 2-1 2 1V2l-2 1-2-1-2 1-2-1-2 1-2-1-2 1Z"/><path d="M16 8h-6a2 2 0 1 0 0 4h4a2 2 0 1 1 0 4H8"/><path d="M12 17.5v-11"/>',
+  therm:'<path d="M14 4v10.54a4 4 0 1 1-4 0V4a2 2 0 0 1 4 0Z"/>',
+  bulb:'<path d="M15 14c.2-1 .7-1.7 1.5-2.5 1-.9 1.5-2.2 1.5-3.5A6 6 0 0 0 6 8c0 1 .2 2.2 1.5 3.5.7.7 1.3 1.5 1.5 2.5"/><path d="M9 18h6"/><path d="M10 22h4"/>',
+  rain:'<path d="M4 14.899A7 7 0 1 1 15.71 8h1.79a4.5 4.5 0 0 1 2.5 8.242"/><path d="M16 14v6"/><path d="M8 14v6"/><path d="M12 16v6"/>',
+  zap:'<path d="M4 14a1 1 0 0 1-.78-1.63l9.9-10.2a.5.5 0 0 1 .86.46l-1.92 6.02A1 1 0 0 0 13 10h7a1 1 0 0 1 .78 1.63l-9.9 10.2a.5.5 0 0 1-.86-.46l1.92-6.02A1 1 0 0 0 11 14z"/>',
+  sun:'<circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/>',
+  drop:'<path d="M12 22a7 7 0 0 0 7-7c0-2-1-3.9-3-5.5s-3.5-4-4-6.5c-.5 2.5-2 4.9-4 6.5C6 11.1 5 13 5 15a7 7 0 0 0 7 7z"/>',
+  wind:'<path d="M12.8 19.6A2 2 0 1 0 14 16H2"/><path d="M17.5 8a2.5 2.5 0 1 1 2 4H2"/><path d="M9.8 4.4A2 2 0 1 1 11 8H2"/>',
+  up:'<path d="M7 17 17 7"/><path d="M7 7h10v10"/>',
+  down:'<path d="m7 7 10 10"/><path d="M17 7v10H7"/>',
+  flat:'<path d="M5 12h14"/>',
+  cup:'<path d="m18 15-6-6-6 6"/>', cdown:'<path d="m6 9 6 6 6-6"/>',
+  plus:'<path d="M5 12h14"/><path d="M12 5v14"/>',
+  trash:'<path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>',
+  check:'<path d="M20 6 9 17l-5-5"/>', x:'<path d="M18 6 6 18"/><path d="m6 6 12 12"/>',
+  alert:'<circle cx="12" cy="12" r="10"/><path d="M12 8v4"/><path d="M12 16h.01"/>',
+  offline:'<path d="M12 20h.01"/><path d="M8.5 16.429a5 5 0 0 1 7 0"/><path d="M5 12.859a10 10 0 0 1 5.17-2.69"/><path d="M19 12.859a10 10 0 0 0-2.007-1.523"/><path d="M2 8.82a15 15 0 0 1 4.177-2.643"/><path d="M22 8.82a15 15 0 0 0-11.288-3.764"/><path d="m2 2 20 20"/>',
+};
+const ic = (k, cls = 'i') => `<svg class="${cls}" viewBox="0 0 24 24" aria-hidden="true">${I[k]}</svg>`;
+const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+/* ── What Sowel describes (the catalogue) and measures ───────────── */
+const CATALOG = [
+  { id:'wx', name:'Station Netatmo', zone:'Extérieur', kinds:['outdoor','rain'] },
+  { id:'t-sejour', name:'Thermomètre séjour', zone:'La Granja › Séjour', kinds:['temp'] },
+  { id:'t-ch1', name:'Thermomètre chambre', zone:'La Granja › Chambre', kinds:['temp'] },
+  { id:'t-mez', name:'Thermomètre mezzanine', zone:'La Granja › Mezzanine', kinds:['temp'] },
+  { id:'t-sde', name:'Thermomètre salle d’eau', zone:'La Granja › Salle d’eau', kinds:['temp'] },
+  { id:'t-bureau', name:'Module intérieur', zone:'Maison › Bureau', kinds:['temp'] },
+  { id:'m-granja', name:'Sous-compteur La Granja', zone:'La Granja', kinds:['energy'] },
+  { id:'m-main', name:'Compteur général', zone:'Maison', kinds:['energy'] },
+  { id:'l-chene', name:'Éclairage du chêne', zone:'Extérieur › Jardin', kinds:['light'], trusted:true },
+  { id:'l-terrasse', name:'Applique terrasse', zone:'La Granja › Terrasse', kinds:['light'], trusted:true },
+  { id:'l-salon', name:'Lampe salon', zone:'Maison › Salon', kinds:['light'] },
+  { id:'l-pergola', name:'Guirlande pergola', zone:'Extérieur › Pergola', kinds:['light'] },
+];
+const R = {
+  wx:{ t:8.6, min:4.1, max:12.3, hum:82, wind:12, rain1h:0.4, rainToday:2.3,
+       bars:[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0.2,0.6,1.1,0.3,0,0,0.1,0.4,0.4] },
+  't-sejour':{ t:21.4, trend:'up', hum:48 }, 't-ch1':{ t:19.2, trend:'flat', hum:52 },
+  't-mez':{ t:18.6, trend:'down', hum:50 }, 't-sde':{ t:22.1, trend:'up', hum:67 }, 't-bureau':{ t:20.3, trend:'flat', hum:45 },
+  'm-granja':{ w:740, kwh:6.8, curve:[.35,.3,.28,.27,.27,.3,.42,.7,.55,.4,.36,.33,.5,.45,.38,.35,.4,.62,.9,1,.82,.7,.6,.55] },
+  'm-main':{ w:2310, kwh:24.6, curve:[.4,.35,.33,.32,.33,.4,.6,.8,.7,.5,.45,.5,.6,.55,.5,.48,.55,.75,.95,1,.9,.8,.7,.6] },
+};
+const KIND = {
+  outdoor:{ t:'Extérieur', d:'Température, min et max du jour, humidité, vent', icon:'sun', need:'outdoor' },
+  rooms:{ t:'Pièces', d:'Une température par pièce, avec sa tendance', icon:'therm', need:'temp', list:true },
+  lights:{ t:'Éclairage', d:'Les lumières montrées, pilotables ou non', icon:'bulb', need:'light', list:true },
+  rain:{ t:'Pluie', d:'Dernière heure, aujourd’hui, 24 dernières heures', icon:'rain', need:'rain' },
+  energy:{ t:'Électricité', d:'Puissance en ce moment, kWh du jour, courbe 24 h', icon:'zap', need:'energy' },
+};
+
+/* ── State ────────────────────────────────────────────────────────── */
+const clone = (o) => JSON.parse(JSON.stringify(o));
+const SAVED0 = [
+  { kind:'outdoor', on:true, eq:'wx' },
+  { kind:'rooms', on:true, items:[{ label:'Séjour', eq:'t-sejour' },{ label:'Chambre', eq:'t-ch1' },{ label:'Mezzanine', eq:'t-mez' },{ label:'Salle d’eau', eq:'t-sde' }] },
+  { kind:'lights', on:true, items:[{ label:'Le chêne', eq:'l-chene', pilot:true },{ label:'Terrasse', eq:'l-terrasse', pilot:false }] },
+  { kind:'rain', on:true, eq:'wx' },
+  { kind:'energy', on:true, eq:'m-granja' },
+];
+const S = {
+  mode:'stay', scenario:'live', night:true, view:'home',
+  draft: clone(SAVED0), saved: clone(SAVED0), shown: clone(SAVED0),
+  lights:{ 'l-chene':{ on:false }, 'l-terrasse':{ on:true }, 'l-pergola':{ on:false } },
+  cmd:{}, sent:[], flash:'', addErr:{},
+};
+
+/* ── Validation (rule 14 — the server's, mirrored for the mock) ───── */
+function validate(blocks) {
+  const e = {};
+  blocks.forEach((b, bi) => {
+    if (!b.on) return;
+    if (!KIND[b.kind].list) { if (!b.eq) e[`${bi}.eq`] = 'Choisir un équipement.'; return; }
+    if (!b.items.length) e[`${bi}.list`] = b.kind === 'rooms' ? 'Ajouter au moins une pièce, ou couper le bloc.' : 'Ajouter au moins une lumière, ou couper le bloc.';
+    const seen = {};
+    b.items.forEach((it, ii) => {
+      const l = it.label.trim();
+      if (!l) e[`${bi}.${ii}.label`] = 'Nom requis.';
+      else if (l.length > 24) e[`${bi}.${ii}.label`] = `Trop long : ${l.length} caractères sur 24.`;
+      if (!it.eq) e[`${bi}.${ii}.eq`] = 'Choisir un équipement.';
+      else if (seen[it.eq] !== undefined) e[`${bi}.${ii}.eq`] = 'Déjà utilisé dans cette liste.';
+      else seen[it.eq] = ii;
+    });
+  });
+  return e;
+}
+
+/* ── The "server": config + readings + scenario → ready-to-render page (rules 18-20) ── */
+const dec = (v, d = 1) => v.toFixed(d).replace('.', ',');
+const half = (v) => { const r = Math.round(v * 2) / 2; return Number.isInteger(r) ? String(r) : dec(r); };
+function power(w) { return w < 1000 ? `${Math.round(w / 10) * 10} W` : `${dec(w / 1000)} kW`; }
+
+function view() {
+  const sc = S.scenario;
+  const ageOf = (id) => {
+    if (sc === 'mute') return { stale:true, at:'20 h 50' };
+    if (sc === 'stale' && id === 't-mez') return { gone:true };
+    return {};
+  };
+  const blocks = [];
+  for (const b of S.shown) {
+    if (!b.on) continue;
+    if (b.kind === 'outdoor') {
+      const r = R[b.eq], a = ageOf(b.eq);
+      blocks.push({ kind:'outdoor', t:half(r.t), min:half(r.min), max:half(r.max), hum:r.hum, wind:r.wind, stale:a.stale, at:a.at,
+        rain: R.wx.rainToday > 0 ? `${dec(R.wx.rainToday)} mm aujourd’hui` : 'Sec depuis hier 18 h' });
+    } else if (b.kind === 'rooms') {
+      blocks.push({ kind:'rooms', items: b.items.map((it) => {
+        const r = R[it.eq], a = ageOf(it.eq);
+        if (a.gone) return { label:it.label, na:true };
+        return { label:it.label, t:dec(r.t), trend:r.trend, hum:r.hum, stale:a.stale, at:a.at };
+      }) });
+    } else if (b.kind === 'lights') {
+      blocks.push({ kind:'lights', items: b.items.map((it) => {
+        const st = S.lights[it.eq] || { on:false }, c = S.cmd[it.eq];
+        let line = st.on ? 'Allumé' : 'Éteint', cls = '';
+        if (c && c.state === 'pending') line = c.value === 'on' ? 'Allumage…' : 'Extinction…';
+        if (c && c.state === 'refused') { line = c.msg; cls = 'err'; }
+        
+        return { label:it.label, eq:it.eq, on: c && c.state === 'pending' ? c.value === 'on' : st.on, pilot:it.pilot,
+          busy: c && c.state === 'pending', line, cls, disabled: sc === 'offline' };
+      }) });
+    } else if (b.kind === 'rain') {
+      const r = R[b.eq], a = ageOf(b.eq), mx = Math.max(...r.bars) || 1;
+      blocks.push({ kind:'rain', today:dec(r.rainToday), h1:dec(r.rain1h), d24:dec(r.bars.reduce((s, v) => s + v, 0)), bars:r.bars.map((v) => v / mx), stale:a.stale, at:a.at });
+    } else if (b.kind === 'energy') {
+      const r = R[b.eq], a = ageOf(b.eq);
+      blocks.push({ kind:'energy', now:power(r.w), today:dec(r.kwh), curve:r.curve, stale:a.stale, at:a.at });
+    }
+  }
+  const updated = sc === 'mute' ? 'à 20 h 50' : 'il y a 1 min';
+  return { updated, muted: sc === 'mute', offline: sc === 'offline', blocks };
+}
+const homeReady = () => S.mode === 'stay' && S.scenario !== 'gone' && S.shown.some((b) => b.on && (KIND[b.kind].list ? b.items.length : b.eq));
+
+/* ── Phone ───────────────────────────────────────────────────────── */
+const screen = document.getElementById('screen');
+const hint = document.getElementById('hint');
+
+function land(night) {
+  const sky = night ? ['#0f1a24', '#23324a'] : ['#7fa6c4', '#d9c9a4'];
+  return `<svg class="land" viewBox="0 0 400 300" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+    <defs><linearGradient id="sk${night ? 'n' : 'd'}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${sky[0]}"/><stop offset="1" stop-color="${sky[1]}"/></linearGradient></defs>
+    <rect width="400" height="300" fill="url(#sk${night ? 'n' : 'd'})"/>
+    ${night ? '<circle cx="318" cy="62" r="16" fill="#efe6cf" opacity=".9"/>' : '<circle cx="318" cy="70" r="26" fill="#f6dfa4" opacity=".85"/>'}
+    <path d="M0 190 Q80 150 160 175 T320 160 T400 170 V300 H0Z" fill="${night ? '#1b2a1c' : '#5e7a4a'}"/>
+    <path d="M0 225 Q100 195 200 215 T400 205 V300 H0Z" fill="${night ? '#142015' : '#435c35'}"/>
+    <g fill="${night ? '#0e170f' : '#2e4325'}"><path d="M60 230 l18-60 18 60z"/><path d="M84 236 l14-46 14 46z"/><path d="M300 228 l20-70 20 70z"/><path d="M330 232 l13-44 13 44z"/></g>
+    <rect x="168" y="196" width="64" height="34" fill="${night ? '#2a2a22' : '#c9b48c'}"/><path d="M160 198 l40-22 40 22z" fill="${night ? '#3a3127' : '#8a5a3a'}"/>
+    <rect x="186" y="208" width="10" height="10" fill="${night ? '#f2c46b' : '#3c3a33'}" opacity="${night ? .9 : .7}"/><rect x="206" y="208" width="10" height="10" fill="${night ? '#f2c46b' : '#3c3a33'}" opacity="${night ? .75 : .7}"/>
+  </svg>`;
+}
+
+function renderHome() {
+  const ready = homeReady();
+  const ext = S.shown.find((b) => b.kind === 'outdoor' && b.on);
+  const sub = ext ? `${half(R.wx.t)}° dehors` : 'En direct';
+  const tiles = [
+    ['key', 'Portail', 'Code 4821'], ['wifi', 'Wifi', 'Granja-invités'], ['bag', 'Boutique', 'Bain nordique, paniers'],
+    ...(ready ? [['home', 'Domotique', sub, 'maison']] : []),
+    ['map', 'Activités', 'Autour du domaine'], ['book', 'Livret', 'Tout pour le séjour'],
+  ];
+  const note = S.mode !== 'stay'
+    ? `<p class="note">${S.mode === 'pre' ? 'Avant l’arrivée' : 'En visiteur'}, pas de tuile Domotique : la page n’existe que pendant le séjour.</p>`
+    : S.scenario === 'gone' ? '<p class="note">Sans nouvelles de la maison depuis plus de 6 h, la tuile Domotique disparaît d’elle-même. Studio le signale.</p>' : '';
+  return `<div class="scroll">
+    <div class="hero home-hero">${land(S.night)}<div class="in"><p class="eb">Bonsoir</p><h4>La Granja</h4><p>Du 13 au 17 novembre · 4 voyageurs</p></div></div>
+    ${note}
+    <div class="tiles">${tiles.map(([i, t, s, go]) => `<button class="tile ${go ? 'home new' : ''}" ${go ? 'data-go="maison"' : 'data-inert'}>${ic(i)}<span><b>${t}</b><small>${esc(s)}</small></span></button>`).join('')}</div>
+  </div>
+  ${tabbar('home')}`;
+}
+function tabbar(cur) {
+  return `<nav class="tabbar" aria-label="Navigation">${[['home', 'Accueil'], ['book', 'Livret'], ['bag', 'Boutique'], ['receipt', 'Commandes']].map(([i, t], k) => `<button class="tab ${k === 0 ? 'cur' : ''}" ${k === 0 ? 'data-go="home"' : 'data-inert'}>${ic(i)}${t}</button>`).join('')}</nav>`;
+}
+
+function trendIcon(t) { return `<span class="trend ${t}" aria-label="${t === 'up' ? 'en hausse' : t === 'down' ? 'en baisse' : 'stable'}">${ic(t === 'up' ? 'up' : t === 'down' ? 'down' : 'flat')}</span>`; }
+
+function bars(vals) {
+  const w = 300, h = 70, gap = 3, bw = (w - gap * 23) / 24;
+  return `<svg class="chart" viewBox="0 0 ${w} ${h + 4}" preserveAspectRatio="none" role="img" aria-label="Pluie heure par heure sur 24 heures">
+    <line x1="0" y1="${h + .5}" x2="${w}" y2="${h + .5}" stroke="var(--line)"/>
+    ${vals.map((v, i) => { const bh = v > 0 ? Math.max(3, v * h) : 1.5; return `<rect x="${i * (bw + gap)}" y="${h - bh}" width="${bw}" height="${bh}" rx="1" fill="${v > 0 ? (i === 23 ? 'var(--ocre)' : 'var(--lichen)') : 'var(--line)'}"/>`; }).join('')}
+  </svg>`;
+}
+function curve(vals) {
+  const w = 300, h = 70, step = w / (vals.length - 1);
+  const pts = vals.map((v, i) => [i * step, h - v * (h - 6)]);
+  let d = `M${pts[0][0]},${pts[0][1]}`;
+  for (let i = 1; i < pts.length; i++) { const [x0, y0] = pts[i - 1], [x1, y1] = pts[i], cx = (x0 + x1) / 2; d += ` C${cx},${y0} ${cx},${y1} ${x1},${y1}`; }
+  const last = pts[pts.length - 1];
+  return `<svg class="chart" viewBox="0 0 ${w} ${h + 4}" preserveAspectRatio="none" role="img" aria-label="Consommation sur 24 heures">
+    <path d="${d} L${w},${h} L0,${h}Z" fill="var(--lichen)" opacity=".16"/>
+    <path d="${d}" fill="none" stroke="var(--lichen)" stroke-width="2" vector-effect="non-scaling-stroke"/>
+    <circle cx="${last[0]}" cy="${last[1]}" r="3.5" fill="var(--ocre)"/>
+  </svg>`;
+}
+const atTxt = (b) => b.stale && S.scenario !== 'mute' ? ` <small>à ${b.at}</small>` : '';
+
+function renderMaison() {
+  const v = view();
+  const parts = [];
+  let heroDone = false;
+  for (const b of v.blocks) {
+    if (b.kind === 'outdoor' && !heroDone) {
+      heroDone = true;
+      parts.unshift(`<div class="hero m-hero">${land(S.night)}<div class="in">
+        <p class="eb"><span class="live-dot ${v.muted || v.offline ? 'muted' : ''}"></span>${v.offline ? 'Hors connexion' : v.muted ? 'Dernière mesure' : 'En direct'} · ${v.updated}</p>
+        <div class="big ${b.stale ? 'stale-v' : ''}"><span class="v">${b.t}</span><span class="u">°</span></div>
+        <p class="lbl">Dehors${b.stale ? ` · mesuré à ${b.at}` : ''}</p>
+        <p class="facts"><span>min ${b.min}° · max ${b.max}°</span><span>${ic('drop')}${b.hum} %</span><span>${ic('wind')}${b.wind} km/h</span></p>
+        <p class="rainline">${ic('rain')}${b.rain}</p>
+      </div></div>`);
+      continue;
+    }
+    if (b.kind === 'rooms') {
+      parts.push(`<div class="sec"><h5>Pièces</h5><div class="rooms">${b.items.map((r) => r.na
+        ? `<div class="room na"><div class="n">${esc(r.label)}</div><div class="t"><b>Mesure indisponible</b></div></div>`
+        : `<div class="room ${r.stale ? 'stale-v' : ''}"><div class="n">${esc(r.label)}</div><div class="t"><b>${r.t}</b><i>°C</i>${trendIcon(r.trend)}</div><div class="h">Humidité ${r.hum} %</div></div>`).join('')}</div></div>`);
+    }
+    if (b.kind === 'lights') {
+      parts.push(`<div class="sec"><h5>Éclairage</h5><div class="lights">${b.items.map((l) => `<div class="light">
+        <span class="bulb ${l.on ? 'on' : ''}">${ic('bulb')}</span>
+        <span class="tx"><b>${esc(l.label)}</b><span class="${l.cls}">${esc(l.line)}</span></span>
+        ${l.pilot ? `<button class="sw ${l.busy ? 'busy' : ''}" role="switch" aria-checked="${l.on}" aria-label="${esc(l.label)}" data-sw="${l.eq}" ${l.disabled || l.busy ? 'disabled' : ''}><span class="tr"><span class="kn"></span></span></button>` : '<span class="ro">Consultation</span>'}
+      </div>`).join('')}</div></div>`);
+    }
+    if (b.kind === 'rain') {
+      parts.push(`<div class="sec"><h5>Pluie${atTxt(b)}</h5><div class="card ${b.stale ? 'stale-v' : ''}"><div class="kv">
+        <div><b>${b.today} mm</b><span>aujourd’hui</span></div><div><b>${b.h1} mm</b><span>dernière heure</span></div><div><b>${b.d24} mm</b><span>sur 24 h</span></div></div>
+        ${bars(b.bars)}<div class="axis"><span>il y a 24 h</span><span>12 h</span><span>maintenant</span></div></div></div>`);
+    }
+    if (b.kind === 'energy') {
+      parts.push(`<div class="sec"><h5>Électricité${atTxt(b)}</h5><div class="card ${b.stale ? 'stale-v' : ''}"><div class="kv">
+        <div><b>${b.now}</b><span>en ce moment</span></div><div><b>${b.today} kWh</b><span>aujourd’hui</span></div></div>
+        ${curve(b.curve)}<div class="axis"><span>hier ${NOW_H} h</span><span>maintenant</span></div></div></div>`);
+    }
+  }
+  if (!heroDone) parts.unshift(`<div class="hero m-hero" style="min-height:190px">${land(S.night)}<div class="in"><p class="eb"><span class="live-dot ${v.muted || v.offline ? 'muted' : ''}"></span>${v.offline ? 'Hors connexion' : v.muted ? 'Dernière mesure' : 'En direct'} · ${v.updated}</p><div class="big"><span class="v" style="font-size:44px">La Granja</span></div></div></div>`);
+  const banner = v.offline
+    ? `<div class="banner mut">${ic('offline')}<span>Hors connexion : dernières valeurs connues. Les lumières se commandent de nouveau dès le retour du réseau.</span></div>`
+    : v.muted ? `<div class="banner warn">${ic('alert')}<span>La maison ne donne plus de nouvelles depuis 20 h 50. Les valeurs datent de cette heure-là.</span></div>` : '';
+  return `<header class="appbar"><button class="iconbtn" data-go="home" aria-label="Retour à l’accueil">${ic('back')}</button><h3>Domotique</h3></header>
+    <div class="scroll" style="top:90px">${parts.shift()}${banner}${parts.join('')}<p class="foot">Mesures transmises par la maison toutes les minutes.</p></div>
+    ${tabbar('maison')}<div class="toast" id="toast"></div>`;
+}
+
+let lastView = '';
+function renderPhone() {
+  if (S.view === 'maison' && !homeReady()) S.view = 'home';
+  screen.classList.toggle('night', S.night);
+  const focusSw = document.activeElement && document.activeElement.dataset ? document.activeElement.dataset.sw : null;
+  const html = (S.view === 'maison' ? renderMaison() : renderHome())
+    + `<div class="status ${S.view === 'maison' ? 'solid' : ''}"><span>${NOW_H}:${NOW_M}</span><span>${S.scenario === 'offline' ? 'hors ligne' : '5G'}</span></div>`
+    + `<div class="frozen" id="frozen" hidden></div>`;
+  const prev = screen.querySelector('.scroll'), keep = prev && lastView === S.view ? prev.scrollTop : 0;
+  screen.innerHTML = html;
+  if (keep) screen.querySelector('.scroll').scrollTop = keep;
+  if (lastView !== S.view) { const sc = screen.querySelector('.scroll'); if (sc) sc.classList.add('enter'); lastView = S.view; }
+  if (focusSw) { const el = screen.querySelector(`[data-sw="${focusSw}"]`); if (el && !el.disabled) el.focus(); }
+  updateFrozen();
+  if (S.flash) { const t = screen.querySelector('#toast'); if (t) { t.textContent = S.flash; requestAnimationFrame(() => t.classList.add('show')); setTimeout(() => t.classList.remove('show'), 2600); } S.flash = ''; }
+}
+
+/* ── A guest taps a light (rules 7-10, 22) ─────────────────────────── */
+function press(eq) {
+  const st = S.lights[eq];
+  const item = S.shown.find((b) => b.kind === 'lights').items.find((i) => i.eq === eq);
+  const value = st.on ? 'off' : 'on';
+  const nowMs = Date.now();
+  S.sent = S.sent.filter((t) => nowMs - t < 10 * 60 * 1000);
+  if (S.sent.length >= 6) {
+    S.cmd[eq] = { state:'refused', msg:'Trop de demandes. Réessayer dans quelques minutes.' };
+    setHint('<b>Refusé par GuestFlow</b> : 6 demandes au plus en 10 minutes par séjour. La recette Sowel a sa propre limite derrière (20 par heure et par gîte).');
+    renderPhone(); clearLater(eq); return;
+  }
+  S.sent.push(nowMs);
+  S.cmd[eq] = { state:'pending', value };
+  setHint(`Demande posée chez GuestFlow (${S.sent.length}/6 en 10 min). La maison vient la chercher par sa connexion déjà ouverte ; sans réponse en 30 s, la demande expire et n’est jamais exécutée plus tard.`);
+  renderPhone();
+  if (S.scenario === 'mute') {
+    setTimeout(() => { S.cmd[eq] = { state:'refused', msg:'La maison ne répond pas. Réessayer dans un instant.' }; setHint('<b>Expirée</b> : 30 s sans que la maison ne vienne la chercher (accéléré ici). La lumière n’a pas bougé.'); renderPhone(); clearLater(eq); }, 2400);
+    return;
+  }
+  setTimeout(() => {
+    S.lights[eq] = { on: value === 'on' };
+    S.cmd[eq] = null;
+    S.flash = `${item.label} : ${value === 'on' ? 'allumé' : 'éteint'}`;
+    setHint(`La recette Sowel a vérifié : c’est une lumière et La Granja est occupée. ${value === 'on' ? 'Allumé, jusqu’au prochain appui.' : 'Éteint.'}`);
+    renderPhone();
+  }, 1100);
+}
+function clearLater(eq) { setTimeout(() => { if (S.cmd[eq] && S.cmd[eq].state === 'refused') { S.cmd[eq] = null; renderPhone(); } }, 4200); }
+function setHint(h) { hint.innerHTML = h; }
+
+screen.addEventListener('click', (e) => {
+  const sw = e.target.closest('[data-sw]');
+  if (sw && !sw.disabled) { press(sw.dataset.sw); return; }
+  const go = e.target.closest('[data-go]');
+  if (go) { S.view = go.dataset.go; renderPhone(); defaultHint(); return; }
+  if (e.target.closest('[data-inert]')) setHint('Les autres écrans de l’appli ne changent pas : ils sont hors de cette maquette.');
+});
+
+/* ── Studio ──────────────────────────────────────────────────────── */
+const studio = document.getElementById('studio');
+const trusted = (id) => Boolean((CATALOG.find((c) => c.id === id) || {}).trusted);
+const pickable = (need) => CATALOG.filter((c) => c.kinds.includes(need)).sort((a, b) => a.zone.localeCompare(b.zone, 'fr') || a.name.localeCompare(b.name, 'fr'));
+function opts(need, cur) {
+  return `<option value="">Choisir…</option>` + pickable(need).map((c) => `<option value="${c.id}" ${c.id === cur ? 'selected' : ''}>${esc(c.zone)} — ${esc(c.name)}</option>`).join('');
+}
+function chan() {
+  const s = S.scenario;
+  if (s === 'mute') return '<div class="chan warn"><span class="dot"></span><span><b>Plus de nouvelles de Sowel depuis 20 h 50.</b> Les voyageurs voient les dernières valeurs, datées.</span></div>';
+  if (s === 'gone') return '<div class="chan bad"><span class="dot"></span><span><b>Plus de nouvelles de Sowel depuis 14 h 10.</b> La tuile Domotique est masquée chez les voyageurs jusqu’au retour des mesures.</span></div>';
+  return '<div class="chan"><span class="dot"></span><span><b>Reçu de Sowel il y a 1 min.</b> Catalogue : 11 équipements.</span></div>';
+}
+function renderStudio() {
+  const d = S.draft, errs = validate(d);
+  const dirty = JSON.stringify(d) !== JSON.stringify(S.saved);
+  const nErr = Object.keys(errs).length;
+  studio.innerHTML = `
+    <div class="st-bar">
+      <button class="mb ghost" aria-label="Retour" data-inert>${ic('back')}</button>
+      <h4>Domotique — La Granja</h4>
+      <button class="mb save" data-act="save" aria-label="Enregistrer" title="Enregistrer" ${dirty ? '' : 'disabled'}>${ic('check')}</button>
+      <button class="mb" data-act="cancel" aria-label="Annuler" title="Annuler" ${dirty ? '' : 'disabled'}>${ic('x')}</button>
+    </div>
+    <div class="st-body">
+      ${chan()}
+      <div class="savebar ${S.saveMsg && S.saveMsg.ok ? 'ok' : 'bad'}" id="savebar" ${S.saveMsg ? '' : 'hidden'}>${S.saveMsg ? esc(S.saveMsg.t) : ''}</div>
+      ${d.map((b, bi) => blockHtml(b, bi, d.length, errs)).join('')}
+      <p class="hint" style="margin:2px 2px 0">${nErr ? '' : 'Le téléphone à droite montre l’aperçu avec les vraies mesures.'}</p>
+    </div>`;
+}
+function blockHtml(b, bi, n, errs) {
+  const k = KIND[b.kind];
+  const hasErr = Object.keys(errs).some((key) => key.startsWith(`${bi}.`));
+  let body = '';
+  if (!k.list) {
+    body = `<div class="fld"><label for="eq-${bi}">Équipement Sowel</label><select class="inp ${errs[`${bi}.eq`] ? 'err' : ''}" id="eq-${bi}" data-f="eq" data-b="${bi}">${opts(k.need, b.eq)}</select><span class="em" data-err="${bi}.eq">${errs[`${bi}.eq`] || ''}</span></div>`;
+  } else {
+    const max = b.kind === 'rooms' ? 8 : 6;
+    body = `<div class="items">${b.items.map((it, ii) => itemHtml(b, bi, it, ii, errs)).join('')}</div>
+      <span class="em" data-err="${bi}.list">${errs[`${bi}.list`] || ''}</span>
+      <button class="add" data-act="add" data-b="${bi}">${ic('plus')}${b.kind === 'rooms' ? 'Ajouter une pièce' : 'Ajouter une lumière'}</button>
+      <span class="em" data-err="${bi}.add">${S.addErr[bi] || ''}</span>
+      <span class="hint">${b.items.length} sur ${max} au plus.</span>`;
+  }
+  return `<div class="blk ${b.on ? '' : 'off'} ${hasErr ? 'has-err' : ''}" data-blk="${bi}">
+    <div class="blk-h">
+      <span class="ic">${ic(k.icon)}</span>
+      <span class="ttl"><b>${k.t}</b><span>${k.d}</span></span>
+      <button class="mv" data-act="up" data-b="${bi}" aria-label="Monter ${k.t}" ${bi === 0 ? 'disabled' : ''}>${ic('cup')}</button>
+      <button class="mv" data-act="down" data-b="${bi}" aria-label="Descendre ${k.t}" ${bi === n - 1 ? 'disabled' : ''}>${ic('cdown')}</button>
+      <button class="msw" role="switch" aria-checked="${b.on}" aria-label="Afficher ${k.t}" data-act="toggle" data-b="${bi}"><span class="tr"><span class="kn"></span></span></button>
+    </div>
+    <div class="blk-b">${body}</div>
+  </div>`;
+}
+function itemHtml(b, bi, it, ii, errs) {
+  const k = KIND[b.kind], key = `${bi}.${ii}`;
+  const light = b.kind === 'lights';
+  return `<div class="item ${light ? 'light' : ''}">
+    <div class="fld"><label for="lb-${key}">Nom affiché</label><input class="inp ${errs[`${key}.label`] ? 'err' : ''}" id="lb-${key}" value="${esc(it.label)}" data-f="label" data-b="${bi}" data-i="${ii}" autocomplete="off"><span class="em" data-err="${key}.label">${errs[`${key}.label`] || ''}</span></div>
+    <div class="fld eq"><label for="eq-${key}">${light ? 'Lumière' : 'Capteur'}</label><select class="inp ${errs[`${key}.eq`] ? 'err' : ''}" id="eq-${key}" data-f="eq" data-b="${bi}" data-i="${ii}">${opts(k.need, it.eq)}</select><span class="em" data-err="${key}.eq">${errs[`${key}.eq`] || ''}</span></div>
+    <button class="del" data-act="del" data-b="${bi}" data-i="${ii}" aria-label="Retirer ${esc(it.label || 'cet élément')}">${ic('trash')}</button>
+    ${light ? `<div class="row2">
+      <label class="chk"><input type="checkbox" data-f="pilot" data-b="${bi}" data-i="${ii}" ${it.pilot ? 'checked' : ''} ${trusted(it.eq) ? '' : 'disabled'}>Pilotable par le voyageur</label>
+      <span class="hint">${!it.eq ? '' : !trusted(it.eq) ? 'Non confiée aux voyageurs dans Sowel : consultation seule.' : it.pilot ? 'Un appui allume, un autre éteint.' : 'Le voyageur voit seulement si elle est allumée.'}</span>
+    </div>` : ''}
+  </div>`;
+}
+
+/* Apply the draft to the phone when it is valid; freeze the preview when it is not. */
+function syncPreview() {
+  const errs = validate(S.draft);
+  const n = Object.keys(errs).length;
+  if (!n) S.shown = clone(S.draft);
+  renderPhone();
+}
+function updateFrozen() {
+  const n = Object.keys(validate(S.draft)).length;
+  const f = screen.querySelector('#frozen');
+  if (!f) return;
+  f.hidden = !n;
+  f.textContent = n ? `Aperçu figé : ${n} ${n > 1 ? 'saisies refusées' : 'saisie refusée'} dans Studio.` : '';
+}
+function refreshErrors() {
+  const errs = validate(S.draft);
+  studio.querySelectorAll('[data-err]').forEach((el) => { const k = el.dataset.err; if (k.endsWith('.add')) return; el.textContent = errs[k] || ''; });
+  studio.querySelectorAll('[data-f]').forEach((el) => {
+    const key = el.dataset.i !== undefined ? `${el.dataset.b}.${el.dataset.i}.${el.dataset.f}` : `${el.dataset.b}.${el.dataset.f}`;
+    if (el.classList.contains('inp')) el.classList.toggle('err', Boolean(errs[key]));
+  });
+  studio.querySelectorAll('[data-blk]').forEach((el) => el.classList.toggle('has-err', Object.keys(errs).some((k) => k.startsWith(`${el.dataset.blk}.`))));
+  const dirty = JSON.stringify(S.draft) !== JSON.stringify(S.saved);
+  studio.querySelector('[data-act="save"]').disabled = !dirty;
+  studio.querySelector('[data-act="cancel"]').disabled = !dirty;
+}
+
+studio.addEventListener('input', (e) => {
+  const el = e.target; if (!el.dataset.f) return;
+  const b = S.draft[+el.dataset.b];
+  const tgt = el.dataset.i !== undefined ? b.items[+el.dataset.i] : b;
+  if (el.dataset.f === 'pilot') return;
+  tgt[el.dataset.f] = el.value;
+  S.saveMsg = null; const sb = studio.querySelector('#savebar'); if (sb) sb.hidden = true;
+  if (el.tagName === 'SELECT') {
+    if (b.kind === 'lights' && tgt.pilot && !trusted(tgt.eq)) tgt.pilot = false;
+    renderStudio();
+  }
+  else refreshErrors();
+  syncPreview();
+  const errs = validate(S.draft);
+  if (Object.keys(errs).length) setHint(`<b>Refusé</b> : ${Object.values(errs)[0]} L’aperçu garde la dernière configuration valable, et l’enregistrement serait refusé de la même façon par le serveur.`);
+  else defaultHint();
+});
+studio.addEventListener('change', (e) => {
+  const el = e.target; if (el.dataset.f !== 'pilot') return;
+  S.draft[+el.dataset.b].items[+el.dataset.i].pilot = el.checked;
+  S.saveMsg = null; renderStudio(); syncPreview();
+  setHint(el.checked ? 'Pilotable : le voyageur voit un interrupteur. Un appui allume, un autre éteint.' : 'Non pilotable : le voyageur voit seulement si la lumière est allumée.');
+});
+studio.addEventListener('click', (e) => {
+  const btn = e.target.closest('[data-act]'); if (!btn || btn.disabled) return;
+  const act = btn.dataset.act, bi = +btn.dataset.b, d = S.draft;
+  S.addErr = {};
+  if (act === 'toggle') d[bi].on = !d[bi].on;
+  if (act === 'up' && bi > 0) [d[bi - 1], d[bi]] = [d[bi], d[bi - 1]];
+  if (act === 'down' && bi < d.length - 1) [d[bi + 1], d[bi]] = [d[bi], d[bi + 1]];
+  if (act === 'del') d[bi].items.splice(+btn.dataset.i, 1);
+  if (act === 'add') {
+    const max = d[bi].kind === 'rooms' ? 8 : 6;
+    if (d[bi].items.length >= max) { S.addErr[bi] = d[bi].kind === 'rooms' ? 'Refusé : 8 pièces au plus.' : 'Refusé : 6 lumières au plus.'; setHint(`<b>Refusé</b> : ${S.addErr[bi]}`); renderStudio(); return; }
+    d[bi].items.push(d[bi].kind === 'rooms' ? { label:'', eq:'' } : { label:'', eq:'', pilot:false });
+  }
+  if (act === 'save') {
+    const errs = validate(d), n = Object.keys(errs).length;
+    S.saveMsg = n ? { ok:false, t:`Enregistrement refusé : ${n} ${n > 1 ? 'saisies à corriger' : 'saisie à corriger'}.` } : { ok:true, t:'Enregistré. Les voyageurs de La Granja voient cette page dès leur prochaine ouverture.' };
+    if (!n) S.saved = clone(d);
+  }
+  if (act === 'cancel') { S.draft = clone(S.saved); S.saveMsg = null; }
+  renderStudio(); syncPreview();
+  const focusSel = act === 'add' ? studio.querySelector(`[data-blk="${bi}"] .item:last-child input`) : studio.querySelector(`[data-act="${act}"][data-b="${act === 'up' ? bi - 1 : act === 'down' ? bi + 1 : bi}"]`);
+  if (focusSel) focusSel.focus();
+});
+
+/* ── Controls ────────────────────────────────────────────────────── */
+document.querySelectorAll('.seg').forEach((seg) => seg.addEventListener('click', (e) => {
+  const b = e.target.closest('button'); if (!b) return;
+  seg.querySelectorAll('button').forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
+  const ctl = seg.dataset.ctl, v = b.dataset.v;
+  if (ctl === 'mode') S.mode = v;
+  if (ctl === 'scenario') { S.scenario = v; if (v !== 'live' && v !== 'stale' && v !== 'offline') S.cmd = {}; }
+  if (ctl === 'night') S.night = v === 'night';
+  if (ctl !== 'night' && homeReady() && S.view === 'home' && ctl === 'scenario') S.view = 'maison';
+  renderStudio(); renderPhone(); defaultHint();
+}));
+
+function defaultHint() {
+  const m = {
+    live:'Tout est frais. Toucher l’interrupteur du <b>chêne</b> : il bouge à l’appui, la maison confirme. Un second appui l’éteint.',
+    stale:'Le thermomètre de la mezzanine n’a rien envoyé depuis plus de 6 h : sa valeur est masquée, le reste de la page est normal.',
+    mute:'La maison se tait depuis 40 min : les valeurs sont grisées et datées. Une demande d’allumage expire sans rien faire.',
+    gone:'Plus de 6 h sans nouvelles : la tuile Domotique disparaît de l’accueil. Studio le dit en haut de page.',
+    offline:'Le téléphone n’a plus de réseau : dernières valeurs connues, interrupteurs désactivés.',
+  };
+  if (S.mode !== 'stay') { setHint('Avant l’arrivée et en visiteur, la page Domotique n’existe pas : pas de tuile, et l’adresse directe ramène à l’accueil.'); return; }
+  if (S.view === 'home') { setHint(homeReady() ? 'La tuile <b>Domotique</b> apparaît pour un gîte équipé, pendant le séjour. La toucher pour ouvrir la page.' : m[S.scenario]); return; }
+  setHint(m[S.scenario]);
+}
+
+renderStudio();
+renderPhone();
+defaultHint();
+})();
+</script>
+</body>
+</html>
