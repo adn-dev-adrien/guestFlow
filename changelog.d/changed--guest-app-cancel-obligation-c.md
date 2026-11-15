@@ -1,1 +1,1 @@
-- Une commande payée par carte d'un séjour annulé est due au client : elle ouvre une ligne du registre des remboursements (origine « commande non honorée »), une seule par paiement, au lieu d'un indicateur sur le lien de paiement.
+- A card-paid order on a cancelled stay is owed to the guest: it opens a line in the refunds register (origin « commande non honorée »), one per payment, instead of a flag on the payment link.

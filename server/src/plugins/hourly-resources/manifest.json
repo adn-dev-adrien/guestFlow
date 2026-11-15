@@ -158,7 +158,7 @@
       "L’heure offerte vaut le tarif de jour : placée le soir, elle doit le supplément de soirée, qui fait partie du prix de la séance.",
       "Le supplément de soirée de séances placées sur des heures que le séjour détient déjà n’est jamais facturé deux fois au sas d’arrivée.",
       "Une séance dont l'argent est sur une vente hors séjour du cœur n'est plus comptée deux fois dans le journal ni dans le lot de cartes.",
-      "Les ressources à l'heure sont les contextes « Proposés à l'arrivée » des ventes hors séjour (Réglages → Articles).",
+      "Les ressources à l'heure sont les contextes « Proposés à l'arrivée » des ventes hors séjour (Réglages → Options & ressources → Proposés à l’arrivée).",
       "L'heure offerte d'une ligne pas encore vendue vaut le tarif de jour partout : le supplément du soir de cette heure se facture à part (sas d'arrivée ou commande), jamais deux fois.",
       "Le sas d’arrivée d’un client sans séjour devient une petite vente : sa séance, les articles proposés à l’arrivée (boissons…), « Offrir » sur chaque ligne et le reste à payer, calculés par le serveur.",
       "Un paiement partiel laisse un « reste à percevoir » : la carte du planning affiche « Reste … », puis « Payé » ; le reste se règle plus tard, depuis la réservation, en rouvrant l’arrivée ou par un lien de paiement envoyé sur un clic.",

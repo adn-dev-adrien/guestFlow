@@ -6,7 +6,7 @@
 | **Branch** | delivered on `feature/pricing-components-c` (pricing-components **PR C**, its external-sale part, Q9 B) |
 | **Created** | 2026-11-12 |
 | **Author** | Adrien |
-| **Related PR** | pricing-components PR C (link once opened) — target `inte/plugins` |
+| **Related PR** | pricing-components PR C (#1054) — target `master` (`inte/plugins` retired 2026-11-13) |
 | **Target release** | 4.2.0, with PR C |
 | **Plugins** | `hourly-resources` (owner of the screen, of the session line and of the `resource` suggestion contexts), `online-payment` (Qonto invoice and payment link), `accounting-export` (journal) |
 | **Depends on** | [`pricing-components.md`](pricing-components.md) **PR B**, then **PR C**, which carries this spec (the external sale: `externalSale` pipeline, `standalone_sales`, the « Passage » client, rules 53, 74); PR B carries (lines, `payment_allocations`, SETTLEMENT on lines, REFUNDS owed, FULFILMENT port and bath adapter, `saleDetail`, `AccountingOutput`) |
@@ -336,7 +336,7 @@ once on the server by the refonte's components.
     catalogue or is no longer sellable for the caller is dropped silently at read time and never from the stored list.
     The resolver is a pure read; it prices nothing (rule 4 stands: the label and unit come from `describe`).
 37. **The settings home is generic.** The lists live in a core table `suggested_articles` keyed `(contextKind,
-    contextId)`, edited in **Réglages → Articles → « Proposés à l'arrivée »**, one list per context, grouped by kind.
+    contextId)`, edited in **Réglages → Options & ressources → « Proposés à l'arrivée »**, one list per context, grouped by kind.
     A plugin supplies the **contexts** of its kind (`ctx.suggestionContexts({ kind, label, list() → [{ id, label }] })`,
     SDK minor bump); `hourly-resources` supplies its resources, so the per-resource list the owner chose is the
     `resource` rows of this generic table, not a setting of the plugin. With the plugin off, its kind and its
@@ -585,7 +585,7 @@ payer : facture après le solde. », « Envoyer un lien », « Adresse e-mail re
 « Copier le lien », « Lien copié », « Envoyer par e-mail », « Retirer le lien », « Lien envoyé à {e-mail} »,
 « Rien à encaisser. », « Compte des boissons à renseigner avant l'export. ».
 
-**Settings page (Réglages → Articles → « Proposés à l'arrivée »):** one card per context (« Bain nordique »…), articles as reorderable rows (drag, or ↑ / ↓ buttons ≥ 44 px), « Ajouter un article », limit message « 12 articles au plus. »; on `xs` the cards stack and the rows keep their buttons.
+**Settings page (Réglages → Options & ressources → « Proposés à l'arrivée »):** one card per context (« Bain nordique »…), articles as reorderable rows (drag, or ↑ / ↓ buttons ≥ 44 px), « Ajouter un article », limit message « 12 articles au plus. »; on `xs` the cards stack and the rows keep their buttons.
 
 **States:** loading (`LoadingState` in the dialog), load error (`ErrorAlert` + « Réessayer »), quote pending (figures
 dimmed, action disabled), refusal (field in error, message under it, action disabled), committed (dialog closes,
@@ -603,7 +603,7 @@ planning reloads), invoiced (read-only, notes editable), window closed for recep
 number; `prefers-reduced-motion` → no movement.
 
 **Choices of the screens (C38) — what M4 and M5 did not settle, the closest reading taken:**
-- The « Proposés à l'arrivée » lists are reordered with the ↑ / ↓ buttons only (the drag of rule 37 is a second way of the same thing); the page is a core tab of Options & ressources (« Réglages → Articles »).
+- The « Proposés à l'arrivée » lists are reordered with the ↑ / ↓ buttons only (the drag of rule 37 is a second way of the same thing); the page is a core tab of Options & ressources (« Réglages → Options & ressources »).
 - The mini SAS asks nothing of the client (rule 9): no « Client » block; the one e-mail field is the one under « Envoyer un lien » (rule 39). The counter dialog has the M4 « Client » block (name, e-mail, « Enregistrer comme client »).
 - A reopened visit starts on « Pas maintenant » (closing it collects nothing); the first arrival starts on « Encaisser » with the card for the whole reste. The primary action reads « Valider l'arrivée » (first), « Enregistrer » (a change to save), « Créer la facture » (money on the books, no invoice) or « Fermer ».
 - « Envoyer un lien » bills the stored document, so while an article is added and not saved the block is disabled and says « Enregistrer d'abord les articles ajoutés. ». In the counter dialog the link is created in the same click as the sale (« Enregistrer et créer le lien »): M4 drew the link before saving, which the server cannot do.
@@ -657,7 +657,7 @@ number; `prefers-reduced-motion` → no movement.
 - [x] Desktop 1280 px and mobile 390 px: no horizontal scroll, sticky reste, thumb action, 44 px targets _(by E2E, both specs, and `ResourceArrivalDialog.mobile`)_
 - [x] Session paid at booking time + drinks at the counter → reste = drinks only _(server: `visit-legacy-money`; screen: `ResourceArrivalDialog.paid-before`)_
 - [ ] Qonto sandbox: link for the reste, paid after the sas is closed → card « Payé », journal on the payment day; link withdrawn after a line is offered
-- [x] Réglages → Articles → « Proposés à l'arrivée » on desktop and 390 px _(E2E `settings/suggested-articles.spec.js`)_
+- [x] Réglages → Options & ressources → « Proposés à l'arrivée » on desktop and 390 px _(E2E `settings/suggested-articles.spec.js`)_
 - [ ] Reception account: commit inside the window, read-only after `D+1 04:00`
 - [ ] Regression: stay SAS (bath sessions of a stay), booking dialog, planning cards, journal of a past month
 

@@ -1,1 +1,1 @@
-- Colonne `addedOnReopen` (0) sur les trois tables de lignes de réservation : elle marque les lignes qu'un sas rouvert a ajoutées. Aucun montant déplacé.
+- Column `addedOnReopen` (0) on the three reservation line tables: it marks the lines a reopened SAS added. No amount moved.

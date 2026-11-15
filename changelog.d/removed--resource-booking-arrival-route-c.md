@@ -1,1 +1,1 @@
-- **Ancienne arrivée d'une réservation de ressource** (`POST /api/resource-bookings/:id/arrival`, plugin Ressources à l'heure 1.7.0). L'écran d'arrivée passe par les routes de la visite (`/visit`) ; l'ancienne route n'a plus d'appelant et disparaît avec sa fonction serveur.
+- **Old arrival of a resource booking** (`POST /api/resource-bookings/:id/arrival`, « Ressources à l'heure » plugin 1.8.0). The arrival screen goes through the visit routes (`/visit`); the old route has no caller left and is removed along with its server function.

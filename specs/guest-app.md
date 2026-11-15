@@ -2,8 +2,8 @@
 
 | Field | Value |
 |---|---|
-| **Status** | In progress — rules 65-107 are delivered by pass 4 of pricing-components PR C and ship with it in **4.2.0** (`midStayOrderCommit` was removed by C30, 2026-11-13); rules 1-64 Implemented (2026-11-09) — approved 2026-11-04 |
-| **Branch** | `claude/granja-estival-app-spec-77uvgj` (spec) — implementation base `inte/plugins` |
+| **Status** | In progress — rules 65-108 are delivered by pass 4 of pricing-components PR C and ship with it in **4.2.0** (`midStayOrderCommit` was removed by C30, 2026-11-13); rules 1-64 Implemented (2026-11-09) — approved 2026-11-04 |
+| **Branch** | `claude/granja-estival-app-spec-77uvgj` (spec) — implementation base `master` (`inte/plugins` retired 2026-11-13) |
 | **Created** | 2026-11-04 |
 | **Author** | Adrien |
 | **Related PR** | (slice A: link once opened) |
@@ -879,20 +879,17 @@ arrival.** Everything below is judged by the server; the apps render what it off
     what they place beyond the hours not yet placed. Such an order needs no payment when its total is 0 € (rule 25,
     « Réserver »).
     > **Delivered by PR C** (pass 4, C26-C29, C31-C32): server `guest-app` 1.1.0 on `extraSale` / `saleDetail`; tests listed in §7 (`guest-order-*`, `guest-app-arrival-orders`, `guest-app-orders-from-j7`, …).
-83. **The evening supplement of an app session is billed once, with its order.** The order's quote and commit carry
-    the evening supplement of its sessions, computed by `hourly-resources` (the scheduler's `orderSupplement({ stay,
-    sessions, lineGain })`: the evening difference of those sessions minus what the order's line gain already bills
-    above the day rate, rule 30 of the hourly spec) as one line of the order « Bain nordique — supplément soirée »,
-    written on the fiche by the core commit as a charge tagged with the order (`orderChargeKey = 'guest-order:<id>:evening:
-    <resourceId>'`), collected like the rest of the order (card or note).
-    **Reading of 2026-11-10 (audit item 13):** the key travels the fiche's delete-and-reinsert **by the row's own id**
-    (`customOptionId`), never by its label — the SAS's evening supplement and two orders' charges share the words « Bain nordique —
-    supplément soirée », and a line typed with them, a renamed or a reordered row neither loses its key nor takes another's; only a
-    SAS marker without a key still falls back on the label, and the commit tags the row it just wrote, never a SAS line. A charge
-    the operator **offers** at the recap still covers its evening: its amount is kept, only its billing is waived, so the SAS
-    never bills that evening a second time (hourly rule 38). The arrival SAS's recompute of the supplements
-    (hourly rule 32) subtracts what such charges already bill (hourly rule 38), so the same evening is never billed twice,
-    whether the SAS runs before or after the order, re-opened or not.
+83. **The evening supplement of an app session is billed once, with its order.** _(Reworded in PR C, 2026-11-15, end review R3-5: the
+    `orderChargeKey` charge described before was never built — hourly spec rule 38.)_ The order's quote and commit carry the evening supplement
+    of its sessions, computed by `hourly-resources` (the scheduler's `orderSupplement({ resourceId, propertyId, sessions, lineGain })`: the
+    evening difference of those sessions minus what the order's line gain already bills above the day rate, rule 30 of the hourly spec). The
+    order re-quotes with it: the supplement is one more line of the order, « Bain nordique — supplément soirée », a custom line sold by
+    `extraSale` with the rest of the order (`ordersController`, `requestsOf`), so the price the guest accepts and the price written are one, and
+    the line carries the order's `orderRef` like every line of the order. It is collected like the rest of the order (card or note). Being a line
+    of the order, it never travels the fiche by its label: the fiche's save keeps it by its line id (rule 85 of `pricing-components.md`), and the
+    arrival SAS's recompute of the supplements subtracts what the order's supplement lines already bill (hourly rule 38), so the same evening is
+    never billed twice, whether the SAS runs before or after the order, re-opened or not. An offered supplement line still covers its evening:
+    its amount is kept, only its billing is waived.
     > **Delivered by PR C** (pass 4, C26-C29, C31-C32): server `guest-app` 1.1.0 on `extraSale` / `saleDetail`; tests listed in §7 (`guest-order-*`, `guest-app-arrival-orders`, `guest-app-orders-from-j7`, …).
 84. **Each slot says what it costs this stay, now.** The slot payload's `priceLabel` is the server's reading for one
     slot picked alone after the stay's lines: « Compris dans votre séjour » (hours of rule 82),

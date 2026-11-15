@@ -1,1 +1,1 @@
-- Sas d'arrivée : une prestation vendue au sas profite des unités offertes que le séjour n'a pas encore consommées (« 2 offerts »), comme sur la fiche ; la ligne garde ce qu'elle a consommé, et une vente suivante sur la fiche ne la remet plus en cause (specs/pricing-components.md, règles 26 et 41).
+- Arrival SAS: an extra sold in the SAS uses the offered units the stay has not consumed yet (« 2 offerts »), as on the fiche; the line keeps what it consumed, and a later sale on the fiche no longer calls it into question (specs/pricing-components.md, rules 26 and 41).

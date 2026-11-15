@@ -1,1 +1,1 @@
-- Fiche : le détail des ventes d'un séjour reprend les montants enregistrés (lignes et hébergement), au lieu d'un nouveau calcul qui pouvait afficher un autre prix que celui vendu, par exemple 0 € pour un bain facturé 50 € (specs/pricing-components.md, règles 31 et 74).
+- Fiche: a stay's sales detail uses the stored amounts (lines and accommodation), instead of a new calculation that could show a price other than the one sold, for example 0 € for a bath billed 50 € (specs/pricing-components.md, rules 31 and 74).

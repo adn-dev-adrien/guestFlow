@@ -1,1 +1,1 @@
-- **Google Agenda se met à jour quand une prestation est vendue, déplacée ou retirée (pricing refonte, PR B)**: l'événement du séjour n'attend plus la prochaine modification de la fiche.
+- **Google Calendar is updated when an extra is sold, moved or removed (pricing refonte, PR B)**: the stay's event no longer waits for the next edit of the fiche.

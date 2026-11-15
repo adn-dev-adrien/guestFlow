@@ -1,1 +1,1 @@
-- **Les prestations d'une réservation plateforme portent leur moment (pricing refonte, PR B)**: ce que la plateforme a inclus dans son prix et ce qui est encaissé à l'arrivée sont enregistrés à l'import, au lieu d'être devinés plus tard.
+- **A platform booking's extras carry their moment (pricing refonte, PR B)**: what the platform included in its price and what is collected at the arrival are recorded at import, instead of being guessed later.
