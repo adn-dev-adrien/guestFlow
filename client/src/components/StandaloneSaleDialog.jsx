@@ -125,7 +125,7 @@ export default function StandaloneSaleDialog({ open, onClose, onSold }) {
     if (at < 0) return { ...prev, extras: [...prev.extras, { articleRef: article.articleRef, label: article.label, max: article.max, quantity: 1, offered: false }] };
     return { ...prev, extras: prev.extras.map((entry, i) => (i === at ? { ...entry, quantity: entry.quantity + 1 } : entry)) };
   });
-  const search = useCallback((q) => api.getSuggestedArticlesCatalogue({ q }).then((res) => res.articles), []);
+  const search = useCallback((q) => api.getSuggestedArticlesCatalogue({ q }).then((res) => res.groups || []), []);
 
   async function save() {
     setBusy(true);

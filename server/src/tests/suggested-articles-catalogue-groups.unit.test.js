@@ -20,3 +20,12 @@ test('rule 11 — catalogueGroups is the catalogue grouped by category, nothing 
   assert.deepEqual(groups.map((g) => [g.category, g.articles.map((a) => a.label)]), [['Boissons', ['Bière', 'Thé']], ['Restauration', ['Planche']]]);
   assert.deepEqual(groups.flatMap((g) => g.articles), flat);
 });
+
+test('rule 11 (V-1) — the core catalogue route answers the groups beside the flat list, so the counter\'s « Autre article » has its shape', () => {
+  const controller = require('../controllers/suggestedArticlesController');
+  let body = null;
+  controller.catalogue({ query: { q: '' } }, { json: (b) => { body = b; return b; }, status() { return this; } });
+  assert.ok(Array.isArray(body.groups));
+  assert.deepEqual(body.groups, suggested.catalogueGroups({ customerContext: 'external', q: '' }));
+  assert.deepEqual(body.groups.flatMap((g) => g.articles), body.articles);
+});
