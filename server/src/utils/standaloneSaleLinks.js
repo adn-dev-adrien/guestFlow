@@ -186,6 +186,10 @@ function settlePaidLink({ link, paidDate = null, paidAt = null }) {
   });
   const cancelled = sale.status === 'cancelled';
   if (received.surplusCents > 0) {
+    // A durable obligation, not only a figure the document computes: the admin finds it on the document until the refund is made.
+    sales.openObligation({
+      saleId, paymentLinkId: link.id, amountCents: received.surplusCents, reason: cancelled ? 'Lien payé après l’annulation de la vente' : 'Lien payé après un changement du reste',
+    });
     return { effect: 'standalone-sale-refund-owed', saleId, surplusCents: received.surplusCents, cancelled };
   }
   return { effect: 'standalone-sale-settled', saleId };

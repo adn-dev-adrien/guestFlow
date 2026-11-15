@@ -5,7 +5,8 @@
  * Everything here ADDS or REBUILDS a table with the same rows. No amount column is rewritten (rule 36); every backfill reads
  * stored data only and is guarded, so a second run changes nothing. `runPricingSalesMigration(db)` returns what it changed.
  *
- *   T1-T3 `standalone_sales`, `standalone_sale_lines`, `standalone_sale_payments`, `standalone_sale_history`: the sale of an article with no reservation.
+ *   T1-T3 `standalone_sales`, `standalone_sale_lines`, `standalone_sale_payments`, `standalone_sale_history`: the sale of an article with no reservation;
+ *         `standalone_sale_obligations`: the money a document owes back with no line to hold it (a link paid after the reste moved).
  *   T4    `payment_links` rebuilt: `reservationId` nullable, `saleRef` (the link of a sale bills the sale).
  *   T5    `email_log` rebuilt: `reservationId` nullable, `saleRef` (the link e-mail is logged like every other).
  *   T6    `suggested_articles`.        T7  `options.sellableExternally`, `resources.sellableExternally`, `vatClass` on both,
@@ -104,6 +105,22 @@ const TABLES = [
     FOREIGN KEY (saleId) REFERENCES standalone_sales(id) ON DELETE CASCADE
   )`,
   'CREATE INDEX IF NOT EXISTS idx_standalone_sale_history_sale ON standalone_sale_history(saleId)',
+  // Money a document owes back that left no line to hold it (outside-visit spec rule 41): a link paid after the reste moved or the sale was
+  // cancelled. One row per paying link; it stays open until the refund is made.
+  `CREATE TABLE IF NOT EXISTS standalone_sale_obligations (
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    saleId        INTEGER NOT NULL,
+    origin        TEXT NOT NULL CHECK (origin IN ('linkSurplus')),
+    paymentLinkId INTEGER UNIQUE,
+    amountCents   INTEGER NOT NULL CHECK (amountCents > 0),
+    reason        TEXT,
+    createdAt     TEXT NOT NULL DEFAULT (datetime('now')),
+    status        TEXT NOT NULL DEFAULT 'open' CHECK (status IN ('open', 'settled', 'cancelled')),
+    settledAt     TEXT,
+    settledBy     TEXT,
+    FOREIGN KEY (saleId) REFERENCES standalone_sales(id) ON DELETE CASCADE
+  )`,
+  'CREATE INDEX IF NOT EXISTS idx_standalone_sale_obligations_sale ON standalone_sale_obligations(saleId, status)',
   // The external VAT rate of a class, set from the catalogue (owner Q-C11): `vat.rate.<class>.external` of the VAT component.
   `CREATE TABLE IF NOT EXISTS vat_external_rates (
     vatClass TEXT PRIMARY KEY,

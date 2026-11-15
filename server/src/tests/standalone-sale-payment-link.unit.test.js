@@ -92,12 +92,12 @@ test('rule 40 — the same reste reuses the open link, a drifted one withdraws i
   assert.deepEqual([again.link.id, again.link.reused], [first.link.id, true]);
   const offered = standaloneSale.offerLine(id, doc.lines[1].id, { offered: true });
   assert.equal(offered.document.totals.remainingCents, 1300);
+  assert.equal(paymentLinksModel.findById(first.link.id).status, 'cancelled', 'the offer withdrew it at once (end review R2-4)');
+  assert.equal(paymentLinksModel.findById(first.link.id).cancelReason, 'amount-changed');
+  assert.ok(paymentLinksModel.findById(first.link.id).remoteCancelPendingAt, 'its provider side is deactivated after the commit');
   const replaced = await links.mint(id, { now });
   assert.notEqual(replaced.link.id, first.link.id);
   assert.equal(replaced.link.amountCents, 1300);
-  assert.equal(paymentLinksModel.findById(first.link.id).status, 'cancelled');
-  assert.equal(paymentLinksModel.findById(first.link.id).cancelReason, 'amount-changed');
-  assert.ok(cancelled.includes(paymentLinksModel.findById(first.link.id).providerLinkId), 'and deactivated at the provider');
   assert.equal(db.prepare("SELECT COUNT(*) AS n FROM payment_links WHERE saleRef = ? AND status = 'open'").get(`standalone:${id}`).n, 1);
   const stale = await links.mint(id, { now: new Date(now.getTime() + 30 * 3600 * 1000) });
   assert.notEqual(stale.link.id, replaced.link.id, 'less than 24 hours left: replaced rather than reused');

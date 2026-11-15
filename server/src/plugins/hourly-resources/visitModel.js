@@ -205,6 +205,8 @@ function createVisitModel({ db, bookings, now = () => new Date() }) {
       // Whether an invoice can be made now (invoicing rule 2): the server's answer, never guessed by the screen.
       invoiceReady: sdk.coreModule('invoiceIssuers').ready(),
       history: reception ? [] : (document.history || []),
+      // Rule 41 — the money owed back that no line holds (a link paid after the reste moved): the administrator's, never the reception's.
+      refundObligations: reception ? [] : (document.refundObligations || []),
       session: { offeredMinutes: session.line ? session.offeredMinutes : Number(row.offeredMinutes) || 0, editable: Boolean(session.line) },
     };
     if (draft) { payload.quoted = true; payload.refusals = refusals; }

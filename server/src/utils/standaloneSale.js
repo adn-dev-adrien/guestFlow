@@ -213,7 +213,7 @@ function detailOf(ctx, sale, client) {
     },
     vatByRate: ctx.vatByRate,
   });
-  return { ...detail, history: sale ? sales.historyOf(sale.id) : [] };
+  return { ...detail, history: sale ? sales.historyOf(sale.id) : [], refundObligations: sale ? sales.obligationsOf(sale.id) : [] };
 }
 
 function quote(request = {}) {
@@ -380,13 +380,27 @@ function sell(request = {}, { actor = null, now = new Date() } = {}) {
 }
 
 // `refresh` without the version bump of a second write inside the same transaction: the sale's version moves once per request.
+// Rule 40 of the outside-visit spec — an open link that no longer bills the reste (a payment taken, a line added, offered or removed) is withdrawn in
+// the same transaction, so it can never be paid; its provider side is deactivated after the commit by the poll (`remotePending`). A cancelled
+// document withdraws it whatever its amount.
 function refreshInPlace(saleId) {
   const { stored, allocations } = storedOf(saleId);
   const ctx = price({ requests: [], stored, allocations });
   const sale = sales.findSale(saleId);
   const status = sale.status === 'cancelled' ? 'cancelled' : (ctx.settlement.remainingCents === 0 ? 'paid' : 'due');
   sales.updateSale(saleId, { totalCents: ctx.settlement.totalCents, vatJson: JSON.stringify(ctx.vatByRate), status });
+  retireStaleLink(saleId, status === 'cancelled' ? null : ctx.settlement.remainingCents);
   return ctx;
+}
+
+function retireStaleLink(saleId, remainingCents) {
+  const links = require('../models/paymentLinksModel');
+  const open = links.findOpenForSale && links.findOpenForSale(sales.documentRef(saleId));
+  if (!open || (remainingCents != null && Number(open.amountCents) === Number(remainingCents))) return null;
+  const { LINK_REASONS } = require('../constants/paymentLinks');
+  links.cancelIfOpen(open.id, { reason: remainingCents == null ? LINK_REASONS.OPERATOR : LINK_REASONS.AMOUNT_CHANGED, endsAt: new Date() });
+  if (open.providerLinkId) links.cancel(open.id, { remotePending: true });
+  return open.id;
 }
 
 function publishSold(document) {
@@ -471,13 +485,7 @@ function cancel(saleId) {
     for (const row of sales.linesOf(saleId)) if (!row.cancelledAt) sales.updateLine(row.id, { cancelledAt: at });
     sales.updateSale(saleId, { status: 'cancelled', cancelledAt: at });
     sales.addHistory(saleId, 'Vente annulée');
-    // The open link of the document is withdrawn with it; a payment that still arrives on it is booked in full and owed back (rule 41).
-    const links = require('../models/paymentLinksModel');
-    const open = links.findOpenForSale && links.findOpenForSale(sales.documentRef(saleId));
-    if (open) {
-      links.cancelIfOpen(open.id, { reason: require('../constants/paymentLinks').LINK_REASONS.OPERATOR, endsAt: new Date() });
-      if (open.providerLinkId) links.cancel(open.id, { remotePending: true });
-    }
+    // The open link of the document is withdrawn with it (`refreshInPlace`); a payment that still arrives on it is booked in full and owed back (rule 41).
     return null;
   });
 }

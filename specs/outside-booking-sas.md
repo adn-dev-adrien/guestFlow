@@ -358,6 +358,11 @@ once on the server by the refonte's components.
     and replaced (payment-link-lifecycle rule 8 reading). Validity 36 hours (lifecycle rule 6), not the 30 minutes of
     a guest order; the lifecycle pass lapses it. It is withdrawn when the document is cancelled (rules 26-27) and by
     hand with « Retirer le lien » (lifecycle rule 42). Zero or negative reste: 409 `NOTHING_DUE` « Rien à encaisser. ».
+    > _Amended 2026-11-15 (end review R2-4, R3-2):_ the withdrawal happens **at the change itself**, not at the next « Envoyer un lien »: every write
+    > of the document — a payment taken at the counter or by the visit's mini SAS, a line offered, removed or added, the visit's commit — compares
+    > the open link with the new `remainingCents` inside its own transaction and withdraws it (`cancelReason = amount-changed`, a cancelled document
+    > `operator`); the provider deactivates it after the commit (`remoteCancelPendingAt`, the poll). A reste paid in full therefore leaves no link
+    > to pay twice, and the dialog offers « Envoyer un lien » again only when something is due. Test `standalone-sale-stale-link-withdrawn`.
 41. **A link paid after the sas is closed settles the sale.** The link poller's paid effect
     (`applyPaidEffect`, basket branch `standalone-sale`) writes one `standalone_sale_payments` row (method `link`,
     `source = payment-link:<id>`) and its `payment_allocations` through SETTLEMENT, in the same transaction that books
@@ -366,6 +371,10 @@ once on the server by the refonte's components.
     still owed (lines removed or offered meanwhile, document cancelled) is **booked in full and the surplus becomes a
     refund owed** through REFUNDS (rule 25), with an admin alert (lifecycle rule 14 spirit: money received is never
     dropped). A link paid at the deadline follows lifecycle rules 14-15 unchanged.
+    > _Amended 2026-11-15 (end review R2-4):_ the surplus is a **durable row**, not only the figure the document computes: one
+    > `standalone_sale_obligations` row per paying link (`origin = linkSurplus`, its amount and reason, `open` until the refund is made), listed
+    > on the document (`refundObligations`) and on the visit for the administrator only (the reception sees no refund, rule 7). Test
+    > `standalone-sale-stale-link-withdrawn`.
 42. **No e-mail leaves by itself.** « Envoyer un lien » mints and **shows** the link in the dialog with « Copier le
     lien » and « Envoyer par e-mail ». Nothing is mailed by minting. The e-mail leaves only on the operator's explicit
     click on « Envoyer par e-mail » (same posture as a click on the fiche's « Demander le paiement »): template
@@ -525,6 +534,7 @@ check; `CREATE TABLE IF NOT EXISTS`).
 | `email_log` | `saleRef` (and `reservationId` nullable) | TEXT NULL | NULL | rule 42, amended 2026-11-12: the link e-mail is logged like every other |
 | `payment_links` | `saleRef` | TEXT NULL | NULL | the document a link bills (rule 40); `reservationId` becomes nullable for those rows. **`reservationId` is `NOT NULL` today** (`database.js`): the table rebuild is done once, in PR C, which already owes a standalone link target (refonte rule 53), and is verified on a copy of production before merge |
 | `standalone_sale_payments` | `source` | TEXT NULL | NULL | `payment-link:<id>` for rule 41 |
+| — | `standalone_sale_obligations` | `id, saleId (FK CASCADE), origin ('linkSurplus'), paymentLinkId UNIQUE, amountCents > 0, reason, createdAt, status ('open'/'settled'/'cancelled'), settledAt, settledBy` | — | rule 41 amended 2026-11-15: the surplus of a link paid after the reste moved, one row per link (`refund_obligations` has `reservationId NOT NULL`, same reasoning as the payments table) |
 | `email_templates` | `visit_payment_request` | row | seeded FR, EN, `sendMode 'manual'` | rule 42 |
 | `plugin_settings` (`accounting-export`) | `drinksRevenueAccount` | TEXT | `''` | rule 43 |
 

@@ -13,6 +13,8 @@
  *   insertSale(fields) / insertLine(saleId, fields) / updateSale(id, fields) / updateLine(id, fields) / bumpVersion(id)
  *   findSale(id) / linesOf(saleId) / findLine(saleId, lineId) / byOrigin(originRef)
  *   addHistory(saleId, text, actor) / historyOf(saleId)   the words of what was done on the document (outside-visit spec rule 23)
+ *   openObligation({ saleId, paymentLinkId, amountCents, reason }) / obligationsOf(saleId)   money owed back with no line to hold it (rule 41):
+ *                                     one row per paying link (a second call for the same link changes nothing); `obligationsOf` lists the open ones
  *   documentRef(id) / lineRef(lineId)  the names the allocations use
  */
 const database = () => require('../database');
@@ -101,9 +103,17 @@ function addHistory(saleId, text, actor = null) {
 }
 const historyOf = (saleId) => database().prepare('SELECT at, text, actor FROM standalone_sale_history WHERE saleId = ? ORDER BY id').all(Number(saleId));
 
+function openObligation({ saleId, paymentLinkId = null, amountCents, reason = null }) {
+  if (!(Number.isInteger(amountCents) && amountCents > 0)) return null;
+  return database().prepare(`INSERT OR IGNORE INTO standalone_sale_obligations (saleId, origin, paymentLinkId, amountCents, reason)
+    VALUES (?, 'linkSurplus', ?, ?, ?)`).run(Number(saleId), paymentLinkId == null ? null : Number(paymentLinkId), amountCents, reason).changes;
+}
+const obligationsOf = (saleId) => database().prepare("SELECT id, origin, paymentLinkId, amountCents, reason, createdAt FROM standalone_sale_obligations WHERE saleId = ? AND status = 'open' ORDER BY id")
+  .all(Number(saleId));
+
 const byOrigin = (originRef) => database().prepare('SELECT * FROM standalone_sales WHERE originRef = ? ORDER BY id').all(String(originRef));
 
 module.exports = {
   documentRef, lineRef, passageClientId, clientsByEmail, clientById, createClient, catalogueRow, externalRates, setExternalRate,
-  insertSale, updateSale, insertLine, updateLine, bumpVersion, findSale, linesOf, findLine, byOrigin, addHistory, historyOf,
+  insertSale, updateSale, insertLine, updateLine, bumpVersion, findSale, linesOf, findLine, byOrigin, addHistory, historyOf, openObligation, obligationsOf,
 };
