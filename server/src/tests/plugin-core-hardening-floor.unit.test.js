@@ -63,6 +63,10 @@ const HARDENINGS = [
   // specs/outside-booking-sas.md rules 36-37 (SDK 2.30.0) — the generic suggested-articles lists and their sale contexts.
   { feature: 'suggestion contexts and the sale with no stay', sdk: '2.30.0', pattern: /\bctx\.suggestionContexts\(|coreModule\(\s*['"`](suggestedArticles|standaloneSale|standaloneSaleLinks)['"`]/ },
   { feature: 'sale events', sdk: '2.28.0', pattern: /['"]extraSale\.(sold|lineMoved|lineCancelled|refundOwed)['"]/ },
+  // specs/gift-vouchers.md §4.1 — the public key guard, the signed proof of work and the e-mail outside a stay, shared by plugins.
+  { feature: 'public API guard chain', sdk: '2.31.0', pattern: /\.middleware\.(?:publicApi|requirePublicApiKey|visitorContext)\b/ },
+  { feature: 'shared proof of work', sdk: '2.31.0', pattern: /\.proofOfWork\b/ },
+  { feature: 'e-mail outside a stay', sdk: '2.31.0', pattern: /\bctx\.mail\.send\(/ },
 ];
 
 function sourceFiles(dir) {

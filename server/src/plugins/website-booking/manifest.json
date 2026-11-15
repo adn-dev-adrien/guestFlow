@@ -1,7 +1,7 @@
 {
   "id": "website-booking",
   "name": "Réservation depuis le site",
-  "version": "1.8.15",
+  "version": "1.8.16",
   "description": "Le moteur de réservation du site WordPress.",
   "icon": "language",
   "surfaces": [
@@ -13,7 +13,7 @@
   ],
   "requires": [],
   "guestflow": ">=3.10.0",
-  "sdk": "^2.29.0",
+  "sdk": "^2.31.0",
   "changelog": {
     "1.0.0": [
       "Première version publiée en paquet."
@@ -152,6 +152,10 @@
       "Les arrondis en euros et en centimes passent par un calcul commun du cœur : aucun montant ne change.",
       "Le refus d'une arrivée dans le passé lit l'horloge du séjour du cœur : même résultat qu'avant.",
       "Compatible avec GuestFlow 4 (SDK 2.29)."
+      ],
+      "1.8.16": [
+      "Aucun changement visible : la clé d’API du site, le visiteur relayé et la preuve de travail viennent désormais de GuestFlow, qu’un autre module partage.",
+      "Demande le SDK 2.31 de GuestFlow."
     ]
   }
 }

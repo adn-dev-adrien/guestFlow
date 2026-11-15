@@ -936,6 +936,7 @@
   "paymentTenders": [
     "currentCentsOf",
     "methodLabel",
+    "METHODS",
     "settlementFigures",
     "targetFigures",
     "validateSettlement"
@@ -1075,5 +1076,9 @@
     "notHonoured",
     "overpaidBy",
     "partlyOwed"
+  ],
+  "pdfFonts": [
+    "FACES",
+    "registerFaces"
   ]
 }

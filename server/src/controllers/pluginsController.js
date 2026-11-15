@@ -856,6 +856,18 @@ function createController(model = defaultModel, deps = {}) {
     });
   }
 
+  // SDK 2.31.0 — a plugin holding money says why its data cannot be erased yet; one that cannot say does not block.
+  function eraseRefusal(id) {
+    const { refuse } = reg.get(id).data;
+    if (!refuse) return null;
+    try {
+      return refuse(getDb()) || null;
+    } catch (err) {
+      console.error(`[plugin:${id}] erase check failed:`, err && err.message ? err.message : err);
+      return 'Vérification impossible : l’effacement est refusé pour l’instant.';
+    }
+  }
+
   // Rule 12 — one transaction: the plugin's own clean-up, its tables, its settings, its ledger rows.
   function purge(id) {
     const db = getDb();
@@ -1130,6 +1142,8 @@ function createController(model = defaultModel, deps = {}) {
       if (!model.get(entry.id)) return res.status(409).json({ error: 'NOT_INSTALLED' });
       const wantsPurge = req.query && (req.query.purge === '1' || req.query.purge === 'true');
       if (wantsPurge && !erasable(entry.id)) return res.status(409).json({ error: 'NOT_ERASABLE' });
+      const refusal = wantsPurge ? eraseRefusal(entry.id) : null;
+      if (refusal) return res.status(409).json({ error: 'ERASE_REFUSED', message: refusal });
       if (refuseIfRequiredBy(entry, res, { reconciling: Boolean(req.reconciling) })) return undefined;
       if (refuseIfBlocked(entry, res)) return undefined;
       if (wantsPurge) {

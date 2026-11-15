@@ -1,0 +1,23 @@
+{
+  "id": "gift-vouchers",
+  "name": "Bons cadeaux",
+  "version": "1.0.0",
+  "description": "Des bons cadeaux d’un montant libre : créés à la main, imprimables en PDF, vérifiés par leur code.",
+  "icon": "gift",
+  "surfaces": [
+    "La page « Bons cadeaux »",
+    "L’API publique des bons cadeaux : l’offre et la vérification d’un code",
+    "Le PDF du bon cadeau",
+    "L’alerte « Vérification des bons cadeaux suspendue »",
+    "La notification push « Bons cadeaux : vérifications suspendues »"
+  ],
+  "requires": [],
+  "guestflow": ">=3.10.0",
+  "sdk": "^2.31.0",
+  "changelog": {
+    "1.0.0": [
+      "Première version : le registre des bons (numéro, code protégé, montant, solde calculé depuis ses mouvements, validité figée à l’émission), la création d’un bon vendu hors du site, la prolongation, l’annulation, la correction du solde, le code affiché masqué et révélé sur demande, le renvoi du mail, le PDF d’une page avec QR code, l’offre publique avec ses idées chiffrées, la vérification d’un code avec preuve de travail et limites par visiteur.",
+      "Demande le SDK 2.31 de GuestFlow."
+    ]
+  }
+}

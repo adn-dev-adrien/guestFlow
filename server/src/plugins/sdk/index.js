@@ -149,6 +149,8 @@ const CORE_MODULES = Object.freeze({
   paymentTenders: '../../utils/paymentTenders',
   paymentSettlementsModel: '../../models/paymentSettlementsModel',
   paymentSettlementService: '../../utils/paymentSettlementService',
+  // a plugin drawing a document in the look of the devis uses the same embedded faces (SDK 2.31.0)
+  pdfFonts: '../../utils/pdfFonts',
   // hourly-resources, online-payment, accounting-export — the invoice issuer and the sales made outside any stay
   // (specs/resource-booking-pricing-and-invoicing.md rules 1, 14, 20-21, SDK 2.25.0)
   invoiceIssuers: '../../utils/invoiceIssuers',
@@ -179,10 +181,18 @@ module.exports = Object.freeze({
     tariffJournal: (db) => require('../../models/tariffChangeJournalModel').createTariffChangeJournalModel(db),
   }),
   roles: Object.freeze({ ADMIN: require('../../constants/roles').ADMIN }),
-  // The rate limit every /public/v1 tree carries.
+  // SDK 2.31.0 — what every /public/v1 tree carries: the key guard, the visitor the proxy relays, the per-visitor limiter.
+  // `publicApi` is the three in order, for `router.use(...sdk.middleware.publicApi)`.
   middleware: Object.freeze({
+    get requirePublicApiKey() { return require('../../middleware/requirePublicApiKey'); },
+    get visitorContext() { return require('../../middleware/visitorContext'); },
     get publicApiLimiter() { return require('../../middleware/rateLimiters').publicApiLimiter; },
+    get publicApi() {
+      return Object.freeze([this.requirePublicApiKey, this.visitorContext, this.publicApiLimiter]);
+    },
   }),
+  // SDK 2.31.0 — the signed proof-of-work of the public site (utils/proofOfWork.js): issue, verify, solve, the address key.
+  get proofOfWork() { return require('../../utils/proofOfWork'); },
   // Secrets the operator copies into another system live in server/.env.local, never in the database.
   secrets: Object.freeze({
     getOrCreate: (name, byteLength = 32, options) => require('../../utils/localEnv').getOrCreateSecret(name, byteLength, options),

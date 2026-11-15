@@ -26,7 +26,9 @@ const PUSH_CHANNEL_KEY = /^[a-z][a-z0-9-]{0,39}$/;
 const WEB_APP_PATH = /^\/[a-z0-9][a-z0-9-]*$/;
 const RESERVED_WEB_PATHS = Object.freeze(['/api', '/public', '/uploads', '/plugin-assets', '/login', '/assets']);
 
-function createContext(id, { db, settingsModel, dataDir = null } = {}) {
+function createContext(id, {
+  db, settingsModel, dataDir = null, mailService = null,
+} = {}) {
   const record = registry.ensure(id);
   const prefix = `[plugin:${id}]`;
 
@@ -319,9 +321,28 @@ function createContext(id, { db, settingsModel, dataDir = null } = {}) {
     // install hooks). Events sent while it was off were dropped, so it recovers from its own data here
     // (specs/plugin-removal-resilience.md rule 17). Not awaited by the request that switched it on.
     onActivate(fn) { record.onActivate.push(fn); },
-    // { tables: [name], describe(db) → [{ label, count }], purge?(db) } (rule 12).
+    // { tables: [name], describe(db) → [{ label, count }], purge?(db), refuse?(db) } (rule 12). SDK 2.31.0 — `refuse(db)` → a
+    // French sentence when the erasure must not run now (money the plugin still holds), else null: the core answers 409 ERASE_REFUSED.
     data(declaration) { record.data = declaration; },
     isLive: () => registry.isLive(id),
+    // SDK 2.31.0 — one e-mail that belongs to no stay (a receipt, a ticket): `{ to, subject, text, html?, key }`, sent through
+    // the operator's own SMTP settings. `key` names the message in the log (never the address). The e-mail history is keyed by
+    // reservation, so the plugin records the send on its own rows. → `{ messageId }`; throws `EMAIL_NOT_CONFIGURED`.
+    mail: Object.freeze({
+      async send({
+        to, subject, text, html, key,
+      } = {}) {
+        if (typeof to !== 'string' || !to.trim() || typeof subject !== 'string' || !subject.trim() || typeof text !== 'string' || !text.trim()) {
+          throw new Error(`${prefix} mail.send needs to, subject and text`);
+        }
+        const service = mailService ? mailService() : require('../../utils/emailService').createEmailService(require('../../models/settingsModel').decryptedSmtpSettings());
+        const info = await service.send({
+          to, subject, text, ...(html ? { html } : {}),
+        });
+        console.log(prefix, `mail sent${key ? ` (${key})` : ''}`); // eslint-disable-line no-console
+        return { messageId: (info && info.messageId) || null };
+      },
+    }),
     // specs/plugins-phase-4-registry.md rule 15 — the plugin's own directory, kept across updates,
     // removed only by « Effacer aussi ses données ». Created on first read.
     get dataDir() {

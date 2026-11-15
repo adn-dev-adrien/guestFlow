@@ -21,6 +21,7 @@ const BOOKING_INTAKE = 'booking-intake';
 const AIRBNB_INTAKE = 'airbnb-intake';
 const GOOGLE_VACATION_RENTALS = 'google-vacation-rentals';
 const GUEST_APP = 'guest-app';
+const GIFT_VOUCHERS = 'gift-vouchers';
 
 // specs/plugins-phase-4-registry.md rule 2 — each plugin's manifest is its single description; this
 // list only fixes the order the Plugins page shows them in. A version installed from the registry
@@ -28,7 +29,7 @@ const GUEST_APP = 'guest-app';
 const CATALOG_ORDER = [
   HOURLY_RESOURCES, LINEN, WEBSITE_BOOKING, GATE_ACCESS, NEAT, ONLINE_PAYMENT,
   GOOGLE_CALENDAR, ACCOUNTING_EXPORT, SAS, TARIFF_RECIPES, SCHOOL_HOLIDAYS, WEATHER_ALERTS,
-  GITES_DE_FRANCE_INTAKE, BOOKING_INTAKE, AIRBNB_INTAKE, GOOGLE_VACATION_RENTALS, GUEST_APP,
+  GITES_DE_FRANCE_INTAKE, BOOKING_INTAKE, AIRBNB_INTAKE, GOOGLE_VACATION_RENTALS, GUEST_APP, GIFT_VOUCHERS,
 ];
 
 // specs/plugin-removal-resilience.md rule 1 — the catalogue is the manifests that exist: a plugin whose
@@ -97,6 +98,7 @@ const PLUGIN_SETTINGS_PLACES = Object.freeze({
   [AIRBNB_INTAKE]: `${INTEGRATIONS}?tab=${AIRBNB_INTAKE}`,
   [GOOGLE_VACATION_RENTALS]: `${INTEGRATIONS}?tab=${GOOGLE_VACATION_RENTALS}`,
   [GUEST_APP]: `${INTEGRATIONS}?tab=${GUEST_APP}`,
+  [GIFT_VOUCHERS]: `${INTEGRATIONS}?tab=${GIFT_VOUCHERS}`,
 });
 
 // specs/plugin-removal-resilience.md rule 1 — what a page says of the plugin it depends on when this
@@ -107,6 +109,7 @@ const PLUGIN_DISPLAY_NAMES = Object.freeze({
   'airbnb-intake': 'Saisie Airbnb',
   'booking-intake': 'Saisie Booking',
   'gate-access': 'Accès au portail (Sowel)',
+  'gift-vouchers': 'Bons cadeaux',
   'gites-de-france-intake': 'Saisie Gîtes de France',
   'google-calendar': 'Google Agenda',
   'google-vacation-rentals': 'Google Vacation Rentals',

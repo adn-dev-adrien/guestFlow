@@ -314,6 +314,17 @@
           "catalogueGroups"
         ]
       }
+    },
+    {
+      "version": "2.31.0",
+      "modules": [
+        "pdfFonts"
+      ],
+      "names": {
+        "paymentTenders": [
+          "METHODS"
+        ]
+      }
     }
   ]
 }
