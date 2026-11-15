@@ -143,8 +143,7 @@ function buildGuestApi({
       // Loop t1 B-2, AG-4 — what the link paid, less what the register already holds for it (open or closed, e.g. the gap of an order sold below its
       // payment): the money is owed once, the gap never twice and the honoured part never forgotten.
       const link = db().prepare('SELECT amountCents FROM payment_links WHERE id = ?').get(Number(order.paymentLinkId));
-      const held = obligations().listFor(Number(reservationId), {}).filter((row) => Number(row.paymentLinkId) === Number(order.paymentLinkId))
-        .reduce((sum, row) => sum + Number(row.amountCents || 0), 0);
+      const held = Number(db().prepare('SELECT COALESCE(SUM(amountCents), 0) AS cents FROM refund_obligations WHERE paymentLinkId = ?').get(Number(order.paymentLinkId)).cents);
       const cents = (link ? Number(link.amountCents) : Math.round(Number(order.total) * 100)) - held;
       if (cents <= 0) return;
       obligations().open({
