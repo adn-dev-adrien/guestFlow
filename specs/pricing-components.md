@@ -1925,6 +1925,15 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
     The same pass pins the instalment plan of a direct stay on a sale (`preArrivalAmount` = stored plan + the gesture's difference, no row rewritten when
     the plan does not move, S-6) and has the quote refuse what the sale refuses before pricing (`PAYMENT_BEFORE_ARRIVAL`, `STAY_SETTLED`, S-7).
     Tests `sale-breakfast-card-before-arrival`, `sale-installments-pinned`, `sale-quote-payment-refusals`.
+97. **The boot reads the old rows; the live writers stamp their own** _(stabilisation loop t1, D-1, D-2, D-5, D-6, 2026-11-15; completes rules 36, 75)_.
+    (a) S9, the backfill of the refund register from the links, runs once (marker `pricing_obligations_s9_v1`) and skips a link that already holds an
+    obligation of any origin, a link with no stay and a link whose stay is gone: before, every boot added a `basket` twin to the poll's `orderConflict`
+    row (60 € « À rembourser » for a 30 € order, reopened after the refund) and a `withdrawnLink` twin to a devis's `neverBooked` row, and a refunded
+    sale link stopped the server at boot. Settling a withdrawn payment refuses an outside sale's link (409 `SALE_LINK`, the sale settles it) and writes
+    the reason and the register row in one transaction. (b) The fiche's own save (`PUT /api/reservations/:id`) stamps the lines it wrote with the L1
+    derivation at the moment it writes them (`soldAt` = the save, moment, `articleRef`, family, label): before, the next boot stamped them with the
+    booking's date, a line added after a payment re-cut that receipt, and a line's moment changed at the restart. The boot pass keeps reading the
+    rows stored before 4.2.0 and a stay's first lines. Tests `pricing-obligations-backfill-once`, `fiche-lines-stamped-at-save`.
 
 ## 4. Architecture
 
@@ -2016,7 +2025,7 @@ All of it is plain CommonJS functions and objects (rule 56).
 |---|---|---|---|---|
 | POST | `/api/reservations/:id/extras/quote` | `{ requests:[{ articleRef, quantity, persons?, mornings?, sessions?, offered? } \| { articleRef: 'custom', label, amount, quantity? }], payment: 'later'\|'card'\|'cash' }` | `{ lines:[…priced, collectAt, status], buckets:{ arrival, departure, plan }, totalCents, refusals:[] }` | no write |
 | POST | `/api/reservations/:id/extras` | same + `acceptedTotalCents` | `{ saleDetail, paymentLink? }` | 409 `PRICE_CHANGED` if the re-quote differs |
-| PATCH | `/api/reservations/:id/extras/:ref` | `{ collectAt?, offered?, discount?:{percent\|amount}, forceOverpayment? }` (`ref` = `option:<lineId>` / `resource:<lineId>` / `custom:<lineId>`) | `{ saleDetail }` | 409 `LINE_PAID`, 409 `OVERPAID` (rule 23); journaled |
+| PATCH | `/api/reservations/:id/extras/:ref` | `{ collectAt?, offered?, discount?:{percent\|amount}, forceOverpayment? }` (`ref` = `option:<lineId>` / `resource:<lineId>` / `custom:<lineId>`) | `{ saleDetail }` | 409 `LINE_PAID`, 409 `OVERPAID` (rule 23), 409 `MOMENT_NOT_AVAILABLE` for a move to the departure before the arrival (rule 95); journaled. Each `saleDetail.lines[]` carries `moments: ('arrival'\|'departure')[]` and `movable: boolean` (rule 95) |
 | DELETE | `/api/reservations/:id/extras/:ref` | — (same `ref`) | `{ saleDetail }` | an unpaid line taken off the stay through the fiche's save; 409 `LINE_PAID`, 409 `ARRIVAL_EXTRAS_FROZEN`; journaled `lineRemoved` (pass 3g) |
 | GET | `/api/reservations/:id/sale-detail` | — | `saleDetail` | also embedded in `GET /sas` and the fiche payload |
 | PUT | `/api/reservations/:id` (existing) | `discountTarget` added (`nights` default); `discountAmountCents` (positive integer, else none; absent keeps the stored one) | unchanged | rule 16 |
@@ -2191,6 +2200,8 @@ check-in time, a discount target, line moment changes and the tourist tax as its
 - [x] `sale-breakfast-card-before-arrival` — rule 96 (S-4, S-5): the first breakfast at the arrival, a morning paid by card settled on its line
 - [x] `sale-installments-pinned` — rule 96 (S-6): a sale to the arrival rewrites no instalment row of a plan the engine would restate
 - [x] `sale-quote-payment-refusals` — rule 96 (S-7): the quote refuses a payment before the arrival like the sale
+- [x] `pricing-obligations-backfill-once` — rule 97 (D-1, D-5, D-6): S9 once, no twin of a live row, a stay-less link skipped, a sale link not settled as a stay's
+- [x] `fiche-lines-stamped-at-save` — rule 97 (D-2): a fiche-added line stamped by its save, nothing left for the boot
 
 ### Proof
 - [ ] Price gate (rule 68): `price-gate.unit.test.js` green on every commit of A, B and C, with the allowlist reviewed by the owner; `price-gate-anonymity`, `price-gate-anonymise`, `price-gate-figures`, `price-gate-compare`, `price-gate-move-proof` unit tests green

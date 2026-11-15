@@ -1831,6 +1831,8 @@ async function update(req, res) {
     const staleAfterAwait = staleFicheRefusal(id, req.body);
     if (staleAfterAwait) return res.status(staleAfterAwait.status).json(staleAfterAwait.body);
     const result = performUpdate(id, req.body, { unlockPast });
+    // Loop t1 D-2 — a line the operator added on the fiche is stamped as it is written (its sale date is today, never the booking's at the next boot).
+    if (result.status === 200) require('../utils/pricingLinesMigration').stampFicheLines(db, id, new Date().toISOString());
     if (result.status === 200 && stale.length > 0) await retireStaleLinks(id);
     return res.status(result.status).json(result.body);
   } catch (err) {
