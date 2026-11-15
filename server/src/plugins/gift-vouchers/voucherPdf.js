@@ -132,7 +132,8 @@ async function renderVoucherPdf({
   if (voucher.senderName) draw(`${t.from} ${voucher.senderName}`, { font: F.regular, size: 13, color: MUTED, maxLines: 2, gap: 6 });
   if (voucher.message) draw(voucher.message, { font: F.italic, size: 12, maxLines: 5, gap: 10 });
 
-  const footerY = BOX.y + BOX.height - PAD - QR_SIZE;
+  // the « Scanner pour réserver » caption under the QR stays inside the frame
+  const footerY = BOX.y + BOX.height - PAD - QR_SIZE - 14;
   y = Math.max(y + 4, footerY);
   const textWidth = inner - QR_SIZE - 16;
   const caption = y;
