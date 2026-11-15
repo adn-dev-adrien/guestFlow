@@ -439,6 +439,11 @@ read the settlements themselves (`utils/paymentTenders.settlementFigures`).
     with a card (the booking's own), or when the take-back would leave refunds above what stays collected (rule 38 of
     `reservation-refunds.md`). A deleted, purged or lapsed quote gives its hold back (`prepaidSources.releaseFor`).
 
+63. **Never given back in money.** What a prepaid line paid is received money (rule 60) but not refundable money: the refund register
+    (`refundsController.buildRegister`) takes `prepaidCentsOf(settlements)` off what the stay collected, so a cancelled stay's
+    budget (`refundable.budget({ prepaidTtc })`) is the other payments only. The cancellation indemnity therefore comes from the card
+    and the other payments first: 100 € prepaid + 168 € card with a 50 € indemnity owes 118 € in money, a stay paid only by prepaid
+    money owes none. The prepaid part goes back through its plugin's own gesture.
 **Edge cases:**
 - All lines `cash` + internal, no shortfall → same storage as « Caisse interne » + settlement (rule 11).
 - A single line equal to the amount due → accepted; it records the method (« Chèque 122,00 € »).

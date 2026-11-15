@@ -30,6 +30,7 @@ const REFUSALS = Object.freeze({
   VOUCHER_ALREADY_REDEEMED: [409, 'Ce bon a déjà servi : il ne peut plus être annulé.'],
   NO_EMAIL: [409, 'Aucune adresse e-mail sur ce bon.'],
   NO_PAGE_URL: [409, 'L’adresse de la page du bon est à renseigner dans les réglages.'],
+  NO_BOOKING_URL: [409, 'L’adresse de la page de réservation (code QR du PDF) est à renseigner dans les réglages.'],
   BALANCE_BELOW_ZERO: [422, 'Le solde ne peut pas passer sous 0.'],
   BALANCE_ABOVE_ISSUED: [422, 'Le solde ne peut pas dépasser le montant du bon.'],
   MAIL_FAILED: [502, 'Le mail n’est pas parti.'],
@@ -241,7 +242,7 @@ function buildAdminController({
     const plain = readCode(v);
     const url = bookingUrl();
     if (!plain) return res.status(409).json({ error: 'Le code ne peut plus être relu : la clé de chiffrement a changé.', code: 'CODE_UNREADABLE' });
-    if (!url) throw new Refusal('NO_PAGE_URL');
+    if (!url) throw new Refusal('NO_BOOKING_URL');
     const buffer = await renderPdf({
       brand: brand(), bookingUrl: url, language: v.language, voucher: { ...v, code: plain },
     });

@@ -124,6 +124,11 @@ function settlementFigures(settlement) {
   };
 }
 
+/** What the prepaid lines of these settlements carry, in cents (rule 63: never given back in money). */
+function prepaidCentsOf(settlements) {
+  return (settlements || []).reduce((sum, s) => sum + settlementFigures(s).prepaidCents, 0);
+}
+
 // The stay columns a bucket part is worth now. A paid installment and a split note cannot change amount
 // (their amount is not editable once paid, rule 35), so their part keeps the amount it was written with.
 const BUCKET_AMOUNT = {
@@ -282,6 +287,6 @@ const frDate = (iso) => String(iso || '').slice(0, 10).split('-').reverse().join
 module.exports = {
   METHODS, BANK_METHODS, MAX_LINES, toCents,
   PREPAID, NOT_COLLECTED_METHODS, methodLabel, lineLabel, euros: eurosText, frDate,
-  validateSettlement, parseParts, settlementFigures, currentCentsOf, targetFigures, reservationAggregates, bucketSharesOf,
+  validateSettlement, parseParts, settlementFigures, prepaidCentsOf, currentCentsOf, targetFigures, reservationAggregates, bucketSharesOf,
   linesText, settlementText,
 };

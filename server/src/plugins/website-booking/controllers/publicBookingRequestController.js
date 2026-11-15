@@ -237,6 +237,12 @@ function create(req, res) {
   }
 
   const visitor = req.visitor || {};
+  // The code is judged once here, outside the transaction below: a refusal raised inside it would roll back the try the source
+  // just counted, and a guessed code would never run out of tries. Nothing is held by this call.
+  if (prepaidInput) {
+    const judged = prepaidSources.apply(null, prepaidInput, { capCents: 0, visitor, dryRun: true });
+    if (!judged.ok) return refusePrepaid(res, req, judged);
+  }
   if (body.message !== undefined && body.message !== null && typeof body.message !== 'string') {
     return failT(res, req, 422, 'VALIDATION_FAILED', 'requestInvalid', [{ field: 'message', issue: 'must be a string' }]);
   }

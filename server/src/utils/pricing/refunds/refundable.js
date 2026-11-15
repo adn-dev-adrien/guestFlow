@@ -18,13 +18,17 @@ const { isResourceKey } = require('../lineKeys');
  * cancellation requalified and no refund has taken from the indemnity yet; `saleLeftTtc` is the remainder — a paid
  * solde, say — which a refund still reverses as revenue + VAT.
  *
+ * `prepaidTtc` is the part of `collectedTtc` a prepaid instrument paid: it leaves the budget, so the indemnity comes from the other payments first.
+ *
  * Rule 48 reading of 2026-11-02 (audit R15-L1) — the caisse interne has a budget of its own: `cashCollectedTtc`
  * (`cashCollected`) less what it gave back, `cashLeftTtc`, refundable in the caisse interne only. A caisse-interne
  * refund beyond that money gave back book money, which comes off `collectedTtc`.
  * Rule 48 reading of 2026-11-02 (review of PR #926, residual A) — the commissions an avoir requalified (lines keyed
  * `commission`) were withheld by the payment provider, never collected: the indemnity never gives them back.
  */
-function budget({ collectedTtc, cashCollectedTtc = 0, refunds = [] }) {
+function budget({ collectedTtc: receivedTtc, prepaidTtc = 0, cashCollectedTtc = 0, refunds = [] }) {
+  // Mixed-method-payments rule 63 — what a prepaid instrument paid is never given back in money: its plugin gives it back.
+  const collectedTtc = Math.max(0, round2(Number(receivedTtc || 0) - Math.max(0, Number(prepaidTtc || 0))));
   const givenInCash = (refunds || []).filter((r) => isOffBooks(r.method))
     .flatMap((r) => r.lines || []).filter((l) => !isIndemnityLine(l))
     .reduce((sum, l) => sum + Number(l.amountTtc || 0), 0);

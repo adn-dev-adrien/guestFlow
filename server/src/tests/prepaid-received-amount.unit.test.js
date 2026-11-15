@@ -17,6 +17,8 @@ const prepaidSources = require('../utils/prepaidSources');
 const prepaidReceipts = require('../utils/prepaidReceipts');
 const settlementModelOf = (db) => require('../models/paymentSettlementsModel').buildModel(db);
 const devisModel = require('../models/devisModel');
+const { budget: refundBudget } = require('../utils/pricing/refunds/refundable');
+const { createController: createRefundsController } = require('../controllers/refundsController');
 const { migratePaymentSettlementsSchema, allowPrepaidTenders, tendersAllowPrepaid } = require('../utils/paymentSettlementsMigration');
 const { create: createAccountingOutput } = require('../utils/accounting/accountingOutput');
 
@@ -273,4 +275,44 @@ test('the fiche — a settlement shared with a card line is the booking’s own:
   const refused = prepaidReceipts.undoOnStay({ database: db, stayId, source: 'storedCredit', ref: 5 });
   assert.deepEqual([refused.ok, refused.status], [false, 409]);
   assert.equal(settlementModelOf(db).listFor(stayId).length, 1, 'nothing was removed');
+});
+
+// Mixed-method-payments rule 63 — a prepaid line is never refundable in money; the cancellation indemnity comes from the other payments first.
+test('refund budget — 100 € prepaid + 168 € card, indemnity 50 €: 118 € is owed back in money, the prepaid part is not in the register', () => {
+  const left = refundBudget({
+    collectedTtc: 268,
+    prepaidTtc: 100,
+    refunds: [{ id: 1, method: 'retained', totalTtc: 50, lines: [{ lineKey: 'accommodation', bucket: 'accommodation', amountTtc: 50 }] }],
+  });
+  assert.equal(left.collectedTtc, 168);
+  assert.equal(left.indemnityLeftTtc, 50);
+  assert.equal(left.saleLeftTtc, 118);
+});
+
+test('refund budget — a stay paid only by prepaid money owes no money back', () => {
+  const left = refundBudget({ collectedTtc: 100, prepaidTtc: 100, refunds: [] });
+  assert.deepEqual(left, { collectedTtc: 0, indemnityLeftTtc: 0, saleLeftTtc: 0, cashCollectedTtc: 0, cashLeftTtc: 0 });
+});
+
+test('refund register — a cancelled stay paid by a prepaid line and a card offers only the card money', () => {
+  const db = new Database(':memory:');
+  db.exec(SCHEMA);
+  migratePaymentSettlementsSchema(db);
+  db.prepare("INSERT INTO properties (id, name) VALUES (1, 'Gite')").run();
+  db.prepare("INSERT INTO clients (id, firstName, lastName) VALUES (1, 'Jean', 'Dupont')").run();
+  db.prepare(`INSERT INTO reservations (id, kind, propertyId, clientId, startDate, endDate, platform, finalPrice, totalPrice, depositAmount, depositPaid, depositPaidDate, balanceAmount, balancePaid, balancePaidDate)
+    VALUES (10, 'cancelled', 1, 1, '2027-05-10', '2027-05-14', 'direct', 268, 268, 100, 1, '2027-01-02', 168, 1, '2027-01-02')`).run();
+  const settlements = settlementModelOf(db);
+  settlements.insert({
+    reservationId: 10, targetKind: 'bucket', targetKey: 'deposit', paidDate: '2027-01-02', dueCents: 10000, parts: [{ kind: 'deposit', amountCents: 10000 }],
+    lines: [{ method: 'prepaid', amountCents: 10000, source: 'storedCredit', ref: '1', label: 'Crédit' }],
+  });
+  const register = () => createRefundsController({
+    refundsModel: require('../models/refundsModel').createModel(db),
+    reservationsModel: require('../models/reservationsModel').create(db),
+    database: db,
+    vatRateOf: () => 10,
+    storedOverpaymentTtc: () => 0,
+  }).buildRegister(10).payload.collectedTtc;
+  assert.equal(register(), 168, 'the 100 € of prepaid money is not offered back');
 });
