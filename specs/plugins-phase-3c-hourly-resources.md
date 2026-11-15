@@ -637,3 +637,18 @@ euro icon, 12 px), then « Remise en état … ». Same texts, same actions.
 Reading of 2026-11-12 (verification): the booking card's detail block keeps the check-in card's 40 px left gutter, the client's name
 is `body1` 600, and the money line is the check-in card's form (« À encaisser : 30,00 € » / « Payé : 30,00 € », with the booking's
 `totalPrice`).
+
+## Amendment 2026-11-13 — the booking card opens its booking
+
+A click (or Enter / Space) on the planning card of a booking outside a stay (rule 14) opens that booking in Calendrier ›
+Ressources, the same editor a click on it in that grid opens: the card leads to
+`/resource-planning?booking=<id>&resource=<resourceId>&date=<YYYY-MM-DD>`, the page selects the booking's resource and the week
+of its date, waits for that week's bookings, opens the editor and drops the three parameters from the address. A booking no
+longer in that week (deleted, moved) opens nothing and says « Réservation introuvable. »; a session of a stay is never opened as a
+booking (it opens its fiche from its own card). « Arrivée » on the card still opens the arrival SAS, not the editor. The
+reception planning keeps the card inert: that role has no Calendrier › Ressources, like it opens no reservation fiche.
+
+*Why:* the card only showed the booking; changing or cashing it meant leaving the planning, finding the resource and paging to
+its week by hand.
+
+Tests: `PlanningResourceCard.open-booking.test.jsx` (4), `ResourcePlanningPage.open-booking.test.jsx` (3).
