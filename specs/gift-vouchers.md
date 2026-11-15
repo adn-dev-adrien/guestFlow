@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| **Status** | Approved |
+| **Status** | Implemented |
 | **Branch** | `feature/gift-vouchers`, one PR, created once pricing-components PR C is merged |
 | **Created** | 2026-11-15 |
 | **Author** | Adrien |
@@ -434,7 +434,7 @@ Interactive mock-ups: `specs/gift-vouchers-resume.html`.
 - [ ] `gift-voucher-code.unit.test.js` — rules 30, 32, 34: alphabet, length, check character catches
       every single-character substitution and adjacent swap, normalisation, no code in clear in any row,
       HMAC differs with the pepper, 10 000 draws without collision or bias beyond tolerance.
-- [ ] `gift-voucher-rules.unit.test.js` — rules 6-11: bounds, expiry frozen at issue, derived states.
+- [x] `gift-voucher-rules.unit.test.js` (15 tests) — rules 6-11: bounds, expiry frozen at issue, derived states.
 - [x] `gift-voucher-orders.unit.test.js` — rules 2, 13, 15-21, 23 (26 tests): validation and every refusal, proof of
       work spent once, 5 orders per hour, pay without reservation and the return path, token access and its
       one 404, issue only on a paid link, idempotent replay and refund flags, browser return alone issues
@@ -444,13 +444,13 @@ Interactive mock-ups: `specs/gift-vouchers-resume.html`.
       reservation, reuse and replacement, no orphan sweep, the paid effect called with `reservationId` null,
       replay and concurrent reads, a plugin off, a withdrawn link paid late, standalone sales unchanged,
       nothing in the core names the plugin.
-- [ ] `gift-voucher-checks.unit.test.js` — rules 33-35: the three limits, the breaker, a mistyped code
+- [x] `gift-voucher-checks.unit.test.js` (14 tests) — rules 33-35: the three limits, the breaker, a mistyped code
       not counted, a cancelled code answers unknown, nothing typed is stored.
-- [ ] `gift-voucher-admin.unit.test.js` — rules 24-29: manual issue, extend, cancel, adjust bounds,
+- [x] `gift-voucher-admin.unit.test.js` (21 tests) — rules 24-29: manual issue, extend, cancel, adjust bounds,
       reveal audited, reception refused.
-- [ ] `gift-voucher-ideas.unit.test.js` — rule 14: seasons from the quote engine, cache invalidation,
+- [x] `gift-voucher-ideas.unit.test.js` (12 tests) — rule 14: seasons from the quote engine, cache invalidation,
       a bare-amount idea refused by the settings.
-- [ ] `gift-voucher-pdf.unit.test.js` — rule 22: one page, worst-case texts, fragment in the QR.
+- [x] `gift-voucher-pdf.unit.test.js` (6 tests) — rule 22: one page, worst-case texts, fragment in the QR.
 - [x] `src/plugins/gift-vouchers/tests/gift-voucher-redemption.unit.test.js` — rules 36-42 and every edge case of §3, on the real
       core database (19 tests): the hold is the lower of the balance and the stay, two requests for the last cents (one wins,
       the other is told the balance), code refusals, 50 € on an 80,40 € acompte (link of 30,40 €, settlement « Bon cadeau 50 € +
@@ -458,13 +458,15 @@ Interactive mock-ups: `specs/gift-vouchers-resume.html`.
       acompte and part of the solde, release on delete / purge / lapse and never on a converted quote, price and tax and commission
       identical to a card-paid stay, a price change after the voucher, the fiche's payment / bounds / undo, the cancelled stay's
       re-credit (indemnity from the card first), an expired voucher refunded (+3 months), the books counting the money once.
-- [x] `src/tests/prepaid-received-amount.unit.test.js` — the generic core part (13 tests): the CHECK migration keeps every row and is
+- [x] `src/tests/prepaid-received-amount.unit.test.js` — the generic core part (16 tests): the CHECK migration keeps every row and is
       idempotent, the prepaid line is received money but never collected, the accounting export reads the collected share, sources
-      held / released / reduced, `allocate`, the conversion and the fiche's record / undo with a made-up instrument.
-- [x] `src/plugins/website-booking/tests/public-prepaid.unit.test.js` — the opaque `prepaid` field in the booking plugin (3 tests): read, the acompte-first amounts, the projection and the refusal. Not covered by a test: the HTTP booking request and quote carrying the field end to end (the plugin's own and the core's halves are, separately).
+      held / released / reduced, `allocate`, the conversion and the fiche's record / undo with a made-up instrument, and the refund
+      register (rule 63): 100 € prepaid + 168 € card with a 50 € indemnity owes 118 € in money, a stay paid only by prepaid money owes none.
+- [x] `src/plugins/website-booking/tests/public-prepaid.unit.test.js` — the opaque `prepaid` field in the booking plugin (3 tests): read, the acompte-first amounts, the projection and the refusal.
+- [x] `src/plugins/gift-vouchers/tests/gift-voucher-booking-http.unit.test.js` — rules 36-38 end to end over HTTP, on the real `/public/v1` mounts (4 tests): the quote prices the amount applied and « À payer aujourd'hui » and holds nothing; 50 € on an 80,40 € acompte (link of 30,40 €, then a 50 € « Bon cadeau » line and a `redeem`); a voucher covering everything due now (`paymentUrl: null`, confirmed, quote converted); a mistyped code refused and not counted, an unknown one counted, the booking still possible without it. It caught a real defect: the refusal was raised inside the request's transaction, which rolled back the failed try the source had just counted — the booking request now judges the code once before the transaction.
 - [x] `src/plugins/gift-vouchers/tests/wordpress-voucher-field.unit.test.js` — the booking block's field (8 tests): check before any
       call, only a paying request carries the code, the amounts are the server's, `#bon=`, the sentences, the 1.20.0 changelog.
-- [ ] Plugin isolation walk and removal matrix include `gift-vouchers`.
+- [x] Plugin isolation walk and removal matrix include `gift-vouchers` (`gift-voucher-plugin.unit.test.js`, `gift-voucher-sdk.unit.test.js`).
 
 ### Client / WordPress
 - [ ] `plugins/gift-vouchers/__tests__/GiftVouchersPage.list.test.jsx`, `.actions.test.jsx`.
@@ -475,8 +477,8 @@ Interactive mock-ups: `specs/gift-vouchers-resume.html`.
 - [ ] Buy a voucher on the site at 390 px and 1280 px; refuse each invalid amount.
 - [ ] Abandon the payment; pay; reopen the voucher from the e-mail link; print the PDF.
 - [ ] Five wrong codes block the field; a mistyped code does not count.
-- [ ] Book with a voucher at 390 px and 1280 px: each message of the field, the summary lines, « Confirmer la réservation » when nothing is due; then the fiche shows « Bon cadeau » as its own payment line and « Payer par bon cadeau » / « Recréditer le bon » work. **Not done in this session (no browser run of the WordPress block nor of the fiche): to do before the PR.**
-- [ ] Regression: a booking without a voucher is unchanged, request without paying included.
+- [ ] Book with a voucher at 390 px and 1280 px: each message of the field, the summary lines, « Confirmer la réservation » when nothing is due. **Not done: the WordPress block was never run in a browser** (the quote and the request were run over HTTP, see the test above).
+- [x] Browser run (2026-11-15, Playwright, fresh database, 390 px and 1280 px): « Bons cadeaux » page — manual issue with 40-« W » names (they wrap, nothing overflows), detail, « Afficher le code », « Prolonger », PDF opened (page 1 read: one page, the long « Pour » name ellipsised, QR present), « Annuler le bon »; the fiche's card — a wrong code refused inline (« Code inconnu. »), an amount above the balance and an acompte part refused, « Payer par bon cadeau » then « Annuler » with its confirmation, and on a cancelled stay the card says the indemnity keeps the whole voucher part while the refund register offers nothing in money. Found and fixed: the PDF refusal named the wrong setting (it needs the booking page address, now `NO_BOOKING_URL`).- [ ] Regression: a booking without a voucher is unchanged, request without paying included.
 
 ## 8. Out of scope
 
