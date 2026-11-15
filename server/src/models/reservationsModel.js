@@ -2442,7 +2442,7 @@ function createReservationsModel(database, { arrivalComplementEngine = null } = 
       return run();
     },
 
-    updateReservation(reservationId, payload, quote, nightBlocks, nextIcalSyncLocked, { keepPricing = false } = {}) {
+    updateReservation(reservationId, payload, quote, nightBlocks, nextIcalSyncLocked, { keepPricing = false, keepStay = false } = {}) {
       const { propertyId, clientId, startDate, endDate, adults, children, teens, babies,
         singleBeds, doubleBeds, babyBeds, checkInTime, checkOutTime, platform, customPrice,
         depositDueDate, depositPaid, depositPaidDate, balanceDueDate, balancePaid, balancePaidDate, notes,
@@ -2528,15 +2528,17 @@ function createReservationsModel(database, { arrivalComplementEngine = null } = 
       );
       persistBreakfastTime(reservationId, payload);
       persistDiscountTarget(reservationId, payload);
-      if (!keepPricing) persistExtraGuestComplement(reservationId, quote, { complementPaid: Boolean(complementPaid) });
-      if (!keepPricing) persistSaleFigures(reservationId, quote);
+      // `keepStay` (specs/pricing-components.md rule 30): a sale writes its lines and the money they move; the stay's own records stay as stored.
+      const writesStay = !keepPricing && !keepStay;
+      if (writesStay) persistExtraGuestComplement(reservationId, quote, { complementPaid: Boolean(complementPaid) });
+      if (writesStay) persistSaleFigures(reservationId, quote);
       persistReservationNumber(reservationId, payload);
-      if (!keepPricing) persistStayLines(reservationId, quote, { journal: true });
+      if (writesStay) persistStayLines(reservationId, quote, { journal: true });
       persistEmailLanguage(reservationId, payload);
       persistComplementOverrides(reservationId, { complementAmountOverride, endOfStayComplementAmountOverride });
       // Rule 12 — written AFTER the payment flags above, so a save that collects the instalment
       // carrying the tax stamps the freeze in the same breath.
-      if (!keepPricing) writeTouristTaxSnapshot(database, reservationId, quote);
+      if (writesStay) writeTouristTaxSnapshot(database, reservationId, quote);
       if (Number(beforeStay.depositPaid || 0) !== (depositPaid ? 1 : 0)) model.releaseStayBucket(reservationId, 'deposit');
       if (Number(beforeStay.balancePaid || 0) !== (balancePaid ? 1 : 0)) model.releaseStayBucket(reservationId, 'balance');
       // Same ownership release for the complement (specs/single-payment-at-check-in.md rules 8-9):

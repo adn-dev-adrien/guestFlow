@@ -357,8 +357,13 @@ function priceHourly(family, article, request, stay, allowance) {
   const quantity = contributed
     ? roundMoney(sold ? Math.max(request.quantity, contributed.quantity) : contributed.quantity)
     : request.quantity;
+  // A sold line a sale reads frozen (`soldFrozen`, rule 74) keeps the hours it billed — its stored total over its unit price — while it asks no more hours
+  // than it sold.
+  const { locked } = request;
+  const frozenBilled = sold && locked.soldFrozen && Number(locked.unitPrice) > 0 && roundMoney(quantity) <= roundMoney(Number(locked.quantity || 0))
+    ? roundMoney(Number(locked.totalPrice || 0) / Number(locked.unitPrice)) : null;
   const result = priceMerged(null, article, {
-    ...request, quantity, targetBilledUnits: applyPerHourFreeMinutes(roundMoney(quantity), config.freeMinutes),
+    ...request, quantity, targetBilledUnits: frozenBilled != null ? frozenBilled : applyPerHourFreeMinutes(roundMoney(quantity), config.freeMinutes),
   }, stay, allowance);
   return contributed && !result.refusals && result.line !== null ? { ...result, extra: contributed.extra } : result;
 }

@@ -123,9 +123,17 @@ function fulfilmentDrafts(reservationId, lines, now, { heatFromNow = false } = {
 
 const refusalOf = (articleRef, refusal) => ({ articleRef, code: refusal.code, message: refusal.message });
 
-function dryRunFor(reservationId, body, source) {
-  const result = controller().performUpdate(Number(reservationId), structuredClone(body), { dryRun: true, sale: salePipelineOf(source) });
+function dryRunFor(reservationId, body, source, saleBase = null) {
+  const result = controller().performUpdate(Number(reservationId), structuredClone(body), { dryRun: true, sale: salePipelineOf(source), saleBase });
   return result.status === 200 ? result : { refused: { status: result.status, body: result.body } };
+}
+
+// Rule 30 (owner 2026-11-15) — the stored stay as the engine of today prices it, before a gesture: the base the gesture's difference is taken from.
+// The write adds that difference to the stored row (`saleBase`), so the stay moves by its line and nothing else.
+function restatedBase(reservationId, source) {
+  const stored = storedBody(Number(reservationId));
+  if (!stored) return { refused: { status: 404, body: { error: 'Réservation introuvable', code: 'RESERVATION_NOT_FOUND' } } };
+  return dryRunFor(reservationId, { ...stored, restatePricing: true }, source);
 }
 
 const centsOf = (row, field) => toCents(row && row[field]);
@@ -147,6 +155,19 @@ function withCustomLine(body, line) {
   return { ...body, customOptions };
 }
 
+// Rules 13, 74 (owner OD1 « sold lines kept ») — a line the stay already stores is kept whatever the catalogue says today; a NEW line is only sold
+// of an article the lodging offers.
+function unlinkedArticleRefusal(id, lines) {
+  const row = database().prepare('SELECT propertyId FROM reservations WHERE id = ?').get(id);
+  if (!row) return null;
+  const catalogue = require('../models/ports/catalogueProvider').create(database());
+  const options = new Set(catalogue.applicableOptions(row.propertyId).map((option) => Number(option.id)));
+  const resources = new Set(catalogue.applicableResources(row.propertyId).map((resource) => Number(resource.id)));
+  const missing = lines.find((line) => (line.kind === 'resource' ? !resources.has(line.id) : line.kind !== 'custom' && !options.has(line.id)));
+  if (!missing) return null;
+  return refuse(400, 'ARTICLE_NOT_OFFERED', 'Article non proposé pour ce logement.', { articleRef: `${missing.kind === 'resource' ? 'resource' : 'option'}:${missing.id}` });
+}
+
 function pricedRequests(reservationId, lines, { now, source }) {
   const id = Number(reservationId);
   const stored = storedBody(id);
@@ -156,18 +177,22 @@ function pricedRequests(reservationId, lines, { now, source }) {
   if (persons) return { error: persons };
   const { started } = stayStarted(id, now);
   // Both prices are the engine's of today (`restatePricing`): a stay sold at a figure the engine no longer reproduces would otherwise read its whole drift as the
-  // price of the line (guest-app rule 93). The sale is what the lines cost, never what the stay's price moved by.
+  // price of the line (guest-app rule 93). The sale is what the lines cost, never what the stay's price moved by — and what it writes is the stored stay plus
+  // that difference (rule 30, owner 2026-11-15): the quote, the dry runs and the write all pin on `saleBase`.
+  const refusal = unlinkedArticleRefusal(id, lines);
+  if (refusal) return { error: refusal };
   const base = dryRunFor(id, { ...stored, restatePricing: true }, source);
   if (base.refused) return { error: base.refused };
+  const storedRow = reservations().getRow(id);
   let body = stored;
-  let previous = base.row;
+  let previous = storedRow;
   const priced = [];
   const held = (b) => b.options.length + b.resources.length + (b.customOptions || []).length;
   for (const line of lines) {
     const before = held(body);
     body = line.kind === 'custom' ? withCustomLine(body, line) : mergeOrderLines(body, [line], rows, (table) => nextLineId(database(), table));
     const routed = started ? body : withArrivalRouting(body);
-    const next = dryRunFor(id, routed, source);
+    const next = dryRunFor(id, routed, source, base.row);
     if (next.refused) return { error: next.refused };
     priced.push({
       line,
@@ -177,7 +202,9 @@ function pricedRequests(reservationId, lines, { now, source }) {
     previous = next.row;
   }
   const finalBody = started ? body : withArrivalRouting(body);
-  return { stored, body: finalBody, base: base.row, after: previous, priced, started };
+  return {
+    stored, body: finalBody, base: storedRow, saleBase: base.row, after: previous, priced, started,
+  };
 }
 
 // What the stay already holds of the article, said by the server: its lines keep their own price (rule 13), a breakfast completes the stay's own.
@@ -262,7 +289,7 @@ function sell(reservationId, requests, {
         }
       }
       const before = extraSalesModel().lineIds(id);
-      const written = controller().performUpdate(id, result.body, { sale: salePipelineOf(source) });
+      const written = controller().performUpdate(id, result.body, { sale: salePipelineOf(source), saleBase: result.saleBase });
       if (written.status !== 200) { outcome = { status: written.status, body: written.body }; throw ROLLBACK; }
       const moment = result.started ? 'departure' : 'arrival';
       const ref = typeof orderRef === 'function' ? orderRef() : orderRef;
@@ -280,6 +307,7 @@ function sell(reservationId, requests, {
         money = settleCard(id, added, {
           ...paid, source: paid.source || source, ref: paid.ref || ref, started: result.started, now, byKey,
         });
+        if (money.error) { outcome = money.error; throw ROLLBACK; }
       } else if (PAYMENTS[payment]) {
         const settled = settleNow(id, deltaOf(remainderByKey(result.base), remainderByKey(reservations().getRow(id))).byKey, { source, payment, now });
         if (settled.error) { outcome = settled.error; throw ROLLBACK; }
@@ -333,6 +361,10 @@ function settleCard(id, added, {
     left -= take;
   }
   if (!items.length) return { settledCents: 0, overpaidCents: overpaidBy(left, 0) };
+  // Guest-app rules 35, 108 — before the arrival the card money is netted out of the stored arrival complement in the same transaction: the SAS, the
+  // bucket states and a complement link read the row, and the guest is never asked a second time for what the card paid.
+  const base = started ? null : restatedBase(id, source);
+  if (base && base.refused) return { error: base.refused };
   const note = started
     ? reservations().settleMidStayNote(id, { items, cash: false })
     : extraSalesModel().writeCardNote(id, { items });
@@ -344,6 +376,10 @@ function settleCard(id, added, {
       }
       : n));
   db.prepare("UPDATE reservations SET midStaySettledNotes = ?, updatedAt = datetime('now') WHERE id = ?").run(JSON.stringify(notes), id);
+  if (base) {
+    const netted = controller().performUpdate(id, { ...storedBody(id), restatePricing: true }, { sale: salePipelineOf(source), saleBase: base.row });
+    if (netted.status !== 200) return { error: { status: netted.status, body: netted.body } };
+  }
   syncAllocations(db, id);
   return { settledCents: toCents(note.total), overpaidCents: overpaidBy(left, 0) };
 }
@@ -444,10 +480,12 @@ function changeLine(reservationId, ref, patch, { now = new Date(), forceOverpaym
       if (wants.collectAt !== undefined) {
         const refusal = model.momentRefusal(id, line, wants.collectAt, MOMENTS);
         if (refusal) { outcome = refusal; throw ROLLBACK; }
+        const base = restatedBase(id, 'fiche');
+        if (base.refused) { outcome = moveRefusal(base.refused); throw ROLLBACK; }
         const moved = model.moveLine(id, line, wants.collectAt);
         if (moved) {
           movedTo = wants.collectAt;
-          const restated = controller().performUpdate(id, { ...storedBody(id), restatePricing: true }, { sale: 'fiche' });
+          const restated = controller().performUpdate(id, { ...storedBody(id), restatePricing: true }, { sale: 'fiche', saleBase: base.row });
           if (restated.status !== 200) { outcome = moveRefusal(restated); throw ROLLBACK; }
           reservations().addHistoryEntry(id, 'update', [{
             field: 'lineMoment', label: line.label, from: moved.fromLabel, to: moved.toLabel,
@@ -455,12 +493,14 @@ function changeLine(reservationId, ref, patch, { now = new Date(), forceOverpaym
         }
       }
       if (wants.discount !== undefined || wants.offered !== undefined) {
+        const base = restatedBase(id, 'fiche');
+        if (base.refused) { outcome = base.refused; throw ROLLBACK; }
         const lowered = model.lowerLine(id, line, wants);
         if (lowered.error) { outcome = lowered.error; throw ROLLBACK; }
         // The fiche's own save judges it (rule 23, O-10): a paid line lowered is refused 409 OVERPAID until `forceOverpayment`, and the
         // confirmed excess opens the `lineLowered` obligation there — one formula, one place.
         const owedBefore = model.openLoweredCents(id);
-        const restated = controller().performUpdate(id, { ...lowered.body, restatePricing: true, forceOverpayment: Boolean(forceOverpayment) }, { sale: 'fiche' });
+        const restated = controller().performUpdate(id, { ...lowered.body, restatePricing: true, forceOverpayment: Boolean(forceOverpayment) }, { sale: 'fiche', saleBase: base.row });
         if (restated.status !== 200) { outcome = { status: restated.status, body: restated.body }; throw ROLLBACK; }
         model.storeDiscount(line, lowered.discountCents);
         owedCents = model.openLoweredCents(id) - owedBefore;
@@ -493,7 +533,9 @@ function removeLine(reservationId, ref, { now = new Date(), actor = null } = {})
   let outcome = null;
   try {
     db.transaction(() => {
-      const restated = controller().performUpdate(id, { ...model.withoutLine(body, line), restatePricing: true }, { sale: 'fiche' });
+      const base = restatedBase(id, 'fiche');
+      if (base.refused) { outcome = base.refused; throw ROLLBACK; }
+      const restated = controller().performUpdate(id, { ...model.withoutLine(body, line), restatePricing: true }, { sale: 'fiche', saleBase: base.row });
       if (restated.status !== 200) { outcome = { status: restated.status, body: restated.body }; throw ROLLBACK; }
       reservations().addHistoryEntry(id, 'update', [{
         field: 'lineRemoved', label: line.label, from: `${(line.totalCents / 100).toFixed(2).replace('.', ',')} €`, to: `retirée${actor ? ` (${actor})` : ''}`,

@@ -259,6 +259,8 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
    > record). A sale reads a record whose basis is its own; a stay with no record, a record computed on other inputs (a row rewritten by a path
    > that did not price it, the previous release's save, a sale that changes a platform line or a line included in the rate) or a tax record
    > stating another tax than the row is priced by the unit, as before. The quote carries its records under a symbol (no key of the quote moves).
+   > _Amended 2026-11-15 (rule 93):_ what the units give on such a stay is the base of the sale's difference, never written — the stay keeps its
+   > stored tax and price and moves by its line only.
    > Backfill (`utils/pricingStoredFiguresMigration.js`, once after boot): each live stay's records are what a sale on it computes today (the
    > very dry run `extraSale` prices a sale on), nothing else of the row is written. _Measured on a fresh copy of the prod database of
    > 2026-11-11:_ 55 of 62 stays recorded; the 7 others (3, 4, 8, 14, 22208, 22275, 22280) refuse a sale today (`ARRIVAL_EXTRAS_FROZEN`,
@@ -526,6 +528,8 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
     panier »).
     > **Delivered by PR B** (pass 4): `quote` plays the save in a rolled-back transaction, `sell` re-quotes inside its own and answers 409
     > `PRICE_CHANGED`.
+    > _Amended 2026-11-15 (rule 93):_ the quote, its dry runs and the write all pin on the same base, so what the quote says the stay moves by is
+    > exactly what the write adds to the stored row.
 
 ### 3.G The detail, everywhere the same
 
@@ -1862,6 +1866,26 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
     and `within` (called inside the transaction, after the write) for a seller that keeps its own row.
     > **Delivered by PR C** (pass 4, C27-C28). Proof: `extra-sale-order-seller` (this rule), `guest-order-offered-in-place` (guest-app rule 107),
     > `guest-order-card-hold`.
+93. **A gesture on a line moves the stay by that line, and by nothing else** _(owner 2026-11-15, end review R2-1, R2-2, R2-3; completes rules 8,
+    13, 30, 74)_. A sale, an offer, a discount, a move or a removal of a line (every `extraSale` write) adds, changes or removes **its line's**
+    amount; the stay's other stored figures — the nights, the extra guests, the tourist tax and its rate, the platform price, the deadlines, the
+    commissions, the deposit, the balance and the bucket a line does not go to — never move through it, including on a stay the engine of today
+    no longer reproduces (its records do not match, a platform's tax mode moved since, a price agreed by hand). The engine still prices the gesture
+    — the stored stay restated by today's engine is its base (`saleBase`, a `restatePricing` dry run) — and the write is `stored + (after − base)` on
+    the money a line moves (`finalPrice`, `depositAmount`, `balanceAmount`, `complementAmount`, the end-of-stay complement its lines total) and the
+    stored figure on every other one; the stay lines (« Hébergement », « Taxe de séjour »), the nights, the tax snapshot and the two sale records are
+    not written; an engine-derived line the stay does not hold is not written either. The quote announces exactly what the write stores (rule 30).
+    A line already sold is kept whatever the catalogue says today (rules 13, 74, owner OD1 « sold lines kept »): on a sale the engine reads the
+    articles of the stay's stored lines even when the lodging no longer offers them, and an hourly line keeps the hours it billed (its stored total
+    over its unit price) even when free minutes were granted since; a NEW line of an article the lodging no longer offers is refused
+    (400 `ARTICLE_NOT_OFFERED`). Before the arrival, a card order paid at once is netted out of the stored arrival complement in the sale's own
+    transaction (the same pinned save, after the card note), so the SAS, the bucket states and a complement link never ask it again (guest-app rules
+    35, 108). The reading of a stay and its plain save are unchanged.
+    > **Delivered by PR C** (end review, 2026-11-15). _Measured on a fresh copy of the prod database of 2026-11-11:_ one 45 € option sold on each
+    > of the 55 open stays (7 closed) moves `finalPrice` and one bucket by exactly 45 € and nothing else on 55 of 55 (before: 16 moved beyond
+    > the line, 5 refused); the one other column a sale writes is `icalSyncLocked` on an iCal stay (a manual change locks its sync, as every save).
+    > The replay and the price gate move nothing. Proof `pricing-sale-moves-only-its-line`, `guest-app-card-order-before-arrival-netted`,
+    > `pricing-sale-stored-figures` (the fall-back stays now keep their stored tax and price).
 
 ## 4. Architecture
 

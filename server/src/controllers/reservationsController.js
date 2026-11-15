@@ -17,7 +17,9 @@ const { lineInputRefusal } = require('../utils/lineInputBounds');
 const { stayShapeRefusal } = require('../utils/stayInputShape');
 const { positiveId, scalarQuery } = require('../utils/bodyText');
 const { isWrongFieldType, WRONG_FIELD_TYPE } = require('../utils/bodyParserRefusal');
-const { quoteStoredReservation, pricingUnchangedFromStored, pinStoredPricing } = require('../utils/storedReservationQuote');
+const {
+  quoteStoredReservation, pricingUnchangedFromStored, pinStoredPricing, pinSaleDelta,
+} = require('../utils/storedReservationQuote');
 const {
   midStayQuoteInputs, scheduleQuoteInputs, resolvePlatformTakesDeposit, resolvePlatformPayoutDueDays, frozenTouristTaxInputs,
 } = require('../utils/reservationQuoteContext');
@@ -341,6 +343,14 @@ function changeoverErrorPayload(quote) {
 function hasUnstoredAutoOption(storedOptionIds, quote) {
   const stored = new Set(storedOptionIds);
   return (quote.optionLines || []).some((line) => line.autoOptionType && !line.isCustom && !stored.has(Number(line.optionId)));
+}
+
+// Rule 30 (owner 2026-11-15) — a sale writes the lines it sells and the stay's stored ones, never an engine-derived line the stay does not hold (its money
+// is not in the pinned figures either: the base carries it too).
+function withoutUnstoredAutoLines(quote, storedOptionIds) {
+  const stored = new Set(storedOptionIds);
+  const keep = (line) => !(line.autoOptionType && !line.isCustom && !line.newLine && !stored.has(Number(line.optionId)));
+  return { ...quote, optionLines: (quote.optionLines || []).filter(keep) };
 }
 
 // The save writes the extras lines of a stay whose departure is not over (a locked fiche only inside its mid-stay window).
@@ -1871,10 +1881,15 @@ const DRY_RUN = Symbol('dry-run');
 // `sale` (specs/pricing-components.md §3 rules 8, 9, 54): the caller sells, offers, removes or discounts a line of the stored stay (`extraSale`),
 // named by its seller (`fiche`, `sas`, `shop`: that seller's sale pipeline); the nights are read as stored and the stay's shape (minimum /
 // maximum nights, changeover) is not judged. Never a body field: a client cannot ask for it.
-function performUpdate(reservationId, body, { unlockPast = false, dryRun = false, sale = null } = {}) {
+// `saleBase` (rule 30, owner 2026-11-15): the row the same engine gives the stored stay before the sale (a `restatePricing` dry run). The save then
+// writes the stored stay plus what the sale moved — `stored + (after − saleBase)` on the money a line moves, the stored figure on every other one —
+// and leaves the nights, the stay lines, the tax and extra-guest records as they are: a sale never carries the engine's drift into the stay.
+function performUpdate(reservationId, body, {
+  unlockPast = false, dryRun = false, sale = null, saleBase = null,
+} = {}) {
   const res = createResultRecorder();
   if (!dryRun) {
-    applyUpdate({ body, params: { id: reservationId } }, res, Boolean(unlockPast), { sale: sale || null });
+    applyUpdate({ body, params: { id: reservationId } }, res, Boolean(unlockPast), { sale: sale || null, saleBase });
     const result = res.result();
     // specs/payment-link-lifecycle.md rule 32 — every save path (fiche, SAS, plugins, platform intakes): a stay
     // that holds its nights after the save takes them from the unpaid requests it now covers. Never on a dry run.
@@ -1887,7 +1902,7 @@ function performUpdate(reservationId, body, { unlockPast = false, dryRun = false
   let preview = null;
   try {
     db.transaction(() => {
-      applyUpdate({ body: structuredClone(body), params: { id: reservationId } }, res, Boolean(unlockPast), { silent: true, sale: sale || null });
+      applyUpdate({ body: structuredClone(body), params: { id: reservationId } }, res, Boolean(unlockPast), { silent: true, sale: sale || null, saleBase });
       preview = { ...res.result(), row: model.getRow(Number(reservationId)) };
       throw DRY_RUN;
     })();
@@ -2006,7 +2021,7 @@ function withPostedLineIds(pricedLines, postedLines, articleField) {
   });
 }
 
-function applyUpdate(req, res, pastUnlocked, { silent = false, sale = null } = {}) {
+function applyUpdate(req, res, pastUnlocked, { silent = false, sale = null, saleBase = null } = {}) {
   const storedBefore = model.getRow(Number(req.params.id));
   // specs/reservations-backend-mvc.md rule 26 reading (audit R44-C-L3) — a stay that does not exist is refused before any
   // pricing or write: the insert used to reach the lines and fail on their foreign key (500).
@@ -2267,6 +2282,8 @@ function applyUpdate(req, res, pastUnlocked, { silent = false, sale = null } = {
     && pricingUnchangedFromStored(db, storedPaymentForQuote, quote, windowEngineInputs)
     && !(stayIsOpenForLines(id, pastReservationLocked, midStayWindow) && hasUnstoredAutoOption(model.listCarriedOptionIds(id), quote));
   if (keepPricing) quote = pinStoredPricing(quote, storedPaymentForQuote);
+  else if (saleBase) quote = withoutUnstoredAutoLines(pinSaleDelta(quote, storedPaymentForQuote, saleBase), model.listCarriedOptionIds(id));
+  const keepStay = !keepPricing && Boolean(saleBase);
   // Adrien, 2026-10-29: a custom line renamed alone saves its text, nothing is re-priced.
   const renamedLines = customTextChangesOf(id, reservationCustomOptions);
   const customTextChanges = keepPricing ? renamedLines : [];
@@ -2516,7 +2533,7 @@ function applyUpdate(req, res, pastUnlocked, { silent = false, sale = null } = {
     // the very baseline this stores (`resolveArrivalExtrasBaseline` synthesizes it).
     if (midStayWindow && midStayWindow.started) model.captureArrivalExtrasBaseline(id);
     else model.captureArrivalExtrasBaselineIfDue(id);
-    model.updateReservation(id, modelPayload, quote, nightBlocks, nextIcalSyncLocked, { keepPricing });
+    model.updateReservation(id, modelPayload, quote, nightBlocks, nextIcalSyncLocked, { keepPricing, keepStay });
     if (!keepPricing) writePricedLines();
     else if (customTextChanges.length > 0) model.renameCustomOptions(id, customTextChanges);
     const changes = computeAuditChanges(beforeAuditSnapshot, afterAuditSnapshot);
@@ -2544,7 +2561,7 @@ function applyUpdate(req, res, pastUnlocked, { silent = false, sale = null } = {
       const carriedCustomLines = model.deleteCustomOptions(id);
       if (reservationCustomOptions) model.insertCustomOptions(id, quote.optionLines, sasOriginLabels, carriedCustomLines);
     }
-    if (!pastReservationLocked) model.replaceNights(id, quote.nightlyBreakdown);
+    if (!pastReservationLocked && !keepStay) model.replaceNights(id, quote.nightlyBreakdown);
     // specs/tariff-recipes/spec.md §3 rule 62 — the tariff snapshot follows the nights it describes:
     // a night added, or a stay repriced because its arrival moved (rule 57), is stored with the season
     // it was priced under, so the next save replays exactly what this one stored. Rule 66: it also

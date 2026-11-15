@@ -1,7 +1,8 @@
 // specs/pricing-components.md §3 rule 8 — a sale reads the extra guests and the tourist tax as stored: `staySale` runs
 // `storedExtraGuests` / `storedTouristTax` (the records `reservations.storedExtraGuests` / `storedTouristTax` hold) in the place of
 // EXTRA GUESTS and TOURIST TAX. A setting changed since the stay was priced never moves a stay a line is sold on; a stay edit
-// re-prices both; a record computed on other inputs of the stay, or stating another tax than the row, is not read (the units run).
+// re-prices both; a record computed on other inputs of the stay, or stating another tax than the row, is not read (the units run) — and since
+// rule 93 (owner 2026-11-15) the sale still moves the stay by its line only: what the units give is a base, never written.
 process.env.DB_PATH = ':memory:';
 process.env.TZ = 'Europe/Paris';
 const test = require('node:test');
@@ -66,7 +67,7 @@ test('rule 8 — the two records hold what the units provided, each with its bas
   assert.deepEqual([stored.extraGuests.figures.extraGuestSurcharge, stored.touristTax.figures.touristTaxTotal], [20, 18]);
 });
 
-test('rule 8 — a sale after the tax and extra-guest settings changed keeps the stored figures; a stay without records moves', () => {
+test('rules 8, 93 — a sale after the tax and extra-guest settings changed keeps the stored figures, with or without records', () => {
   const recorded = stay();
   const bare = stay();
   backfillSaleFigures(db);
@@ -76,7 +77,7 @@ test('rule 8 — a sale after the tax and extra-guest settings changed keeps the
     sellWine(bare);
   });
   assert.deepEqual(money(recorded), { tax: 18, finalPrice: 445 }, 'the tax and the 20 € supplement as stored, the wine added');
-  assert.deepEqual(money(bare), { tax: 36, finalPrice: 475 }, 'no record: the units run on today\'s settings, as before');
+  assert.deepEqual(money(bare), { tax: 18, finalPrice: 445 }, 'no record: the units run on today\'s settings, yet only the wine is written (rule 93)');
 });
 
 test('rule 8 — a quote of a sale is priced on the records too', () => {
@@ -103,12 +104,12 @@ test('rule 8 — a stay edit re-prices the extra guests and the tax, and stores 
   assert.deepEqual(money(id), { tax: 36, finalPrice: 475 }, 'the next sale reads the edit\'s records');
 });
 
-test('rule 8 — a record computed on other inputs of the stay is not read: a party rewritten without a pricing runs the units', () => {
+test('rules 8, 93 — a record computed on other inputs of the stay is not read: a party rewritten without a pricing runs the units, the stay moves by its line', () => {
   const id = stay();
   backfillSaleFigures(db);
   db.prepare('UPDATE reservations SET adults = 4 WHERE id = ?').run(id);
   sellWine(id);
-  assert.deepEqual(money(id), { tax: 24, finalPrice: 465 }, 'four adults: two extra guests and their tax, as before rule 8');
+  assert.deepEqual(money(id), { tax: 18, finalPrice: 445 }, 'four adults priced as a base only: the stored tax and price plus the wine');
 });
 
 test('rule 8 — a tax record stating another tax than the row is not read', () => {
@@ -119,7 +120,7 @@ test('rule 8 — a tax record stating another tax than the row is not read', () 
   assert.equal(stored.touristTax, null);
   assert.ok(stored.extraGuests, 'the extra-guest record stays readable');
   withSettings(() => sellWine(id));
-  assert.equal(money(id).tax, 36, 'the unit ran on today\'s rate');
+  assert.deepEqual(money(id), { tax: 0, finalPrice: 445 }, 'the unit ran on today\'s rate as a base: the stored 0 € and the wine are written (rule 93)');
 });
 
 test('rule 8 — a stay edit\'s quote carries its records under a symbol, never as a key', () => {

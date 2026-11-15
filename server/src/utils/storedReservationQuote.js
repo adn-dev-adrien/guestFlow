@@ -114,6 +114,24 @@ function pinStoredPricing(quote, stored) {
   return pinned;
 }
 
+// specs/pricing-components.md rule 30 (owner 2026-11-15) — a sale, a line changed or a line removed moves only the money of its line. `base` is the
+// row the same engine gives the stored stay before the gesture: the difference `quote − base` is what the gesture moved, and it is added to what the
+// stay stores. The figures no line moves (the tax, its rate, the discount, the deadlines, the commissions) stay the stored ones, whatever the engine of
+// today would make of them (a platform's tax mode changed since, a stay stored at a figure the engine no longer reproduces).
+const SALE_DELTA_COLUMNS = ['totalPrice', 'finalPrice', 'depositAmount', 'balanceAmount', 'complementAmount'];
+const SALE_STORED_COLUMNS = PRICING_COLUMNS.filter((column) => !SALE_DELTA_COLUMNS.includes(column));
+const cents = (value) => Math.round(Number(value || 0) * 100);
+
+function pinSaleDelta(quote, stored, base) {
+  const pinned = { ...quote };
+  for (const column of SALE_DELTA_COLUMNS) pinned[column] = (cents(stored[column]) + cents(quote[column]) - cents(base[column])) / 100;
+  for (const column of SALE_STORED_COLUMNS) pinned[column] = stored[column];
+  if (quote.complementAmountAuto != null) {
+    pinned.complementAmountAuto = (cents(quote.complementAmountAuto) + cents(stored.complementAmount) - cents(base.complementAmount)) / 100;
+  }
+  return pinned;
+}
+
 module.exports = {
-  quoteStoredReservation, touristTaxFigureOfStoredReservation, pricingUnchangedFromStored, pinStoredPricing,
+  quoteStoredReservation, touristTaxFigureOfStoredReservation, pricingUnchangedFromStored, pinStoredPricing, pinSaleDelta, SALE_DELTA_COLUMNS,
 };

@@ -1042,6 +1042,9 @@ arrival.** Everything below is judged by the server; the apps render what it off
     for any reason (slot taken, stay cancelled, units gone, offered units spent by an order placed meanwhile so that it now costs more than was paid, `PRICE_ROSE`) the order is
     `paid_conflict`, nothing reaches the fiche, the staff is pushed and the money stays an open `orderConflict` refund obligation (`pricing-components.md` rule 75) — never lost, never
     sold above what was paid; a sale that costs less than was paid is committed and the gap is the existing overpayment handling (rule 35). Tests: `guest-app-unpaid-card-order`.
+    > _Amended 2026-11-15 (end review R2-3, `pricing-components.md` rule 93):_ an order paid by card before the arrival is netted out of the stay's stored arrival
+    > complement in the sale's own transaction: the SAS reads « Rien à encaisser », the bucket states and a complement link bill nothing for it — the guest is
+    > never asked again at the door for what the card paid. Test: `guest-app-card-order-before-arrival-netted`.
 
 **Edge cases:**
 - Guest scans the La Granja poster while staying at L'Estiva → La Granja's visitor mode; their own stay opens
