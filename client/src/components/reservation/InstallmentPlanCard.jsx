@@ -63,13 +63,17 @@ function rowLayout({ hasActions, hasError }) {
   };
 }
 
+// Whole euros stay bare (« 334 »), cents get the French comma (« 250,50 ») so the field reads as typed.
+const amountText = (amount) => (Number.isInteger(Number(amount)) ? String(amount) : formatAmountInput(amount));
+const sameCents = (a, b) => Math.round(Number(a) * 100) === Math.round(Number(b) * 100);
+
 function InstallmentRow({ installment, arrivalDate, dateError, amountError, busy, locked, canRequest, onDate, onAmount, onSend, onCopy, onPay }) {
   const paid = installment.status === 'paid';
   const [dateDraft, setDateDraft] = useState(installment.dueDate);
-  const [amountDraft, setAmountDraft] = useState(String(installment.amount));
+  const [amountDraft, setAmountDraft] = useState(amountText(installment.amount));
   // What the server holds wins again once its refusal is gone, or the plan moved under the field.
   useEffect(() => { if (!dateError) setDateDraft(installment.dueDate); }, [installment.dueDate, dateError]);
-  useEffect(() => { if (!amountError) setAmountDraft(String(installment.amount)); }, [installment.amount, amountError]);
+  useEffect(() => { if (!amountError) setAmountDraft(amountText(installment.amount)); }, [installment.amount, amountError]);
 
   const commitDate = (value) => {
     if (!ISO_DAY.test(value) || value === installment.dueDate) return;
@@ -77,9 +81,8 @@ function InstallmentRow({ installment, arrivalDate, dateError, amountError, busy
     onDate(installment, value);
   };
   const commitAmount = () => {
-    const typed = amountDraft.trim().replace(',', '.');
-    if (typed === '') { setAmountDraft(String(installment.amount)); return; }
-    if (typed === String(installment.amount)) return;
+    const typed = amountDraft.replace(/\s/g, '').replace(',', '.');
+    if (typed === '' || sameCents(typed, installment.amount)) { setAmountDraft(amountText(installment.amount)); return; }
     if (amountError && amountError.value === typed) return;
     onAmount(installment, typed);
   };
@@ -141,7 +144,7 @@ function InstallmentRow({ installment, arrivalDate, dateError, amountError, busy
             onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); commitAmount(); } }}
             slotProps={{
               input: { endAdornment: <InputAdornment position="end">€</InputAdornment> },
-              htmlInput: { inputMode: 'numeric', 'aria-label': t.AMOUNT_LABEL(installment.number), 'aria-invalid': amountError ? 'true' : undefined },
+              htmlInput: { inputMode: 'decimal', 'aria-label': t.AMOUNT_LABEL(installment.number), 'aria-invalid': amountError ? 'true' : undefined },
             }}
             sx={{ width: 120, '& input': { textAlign: 'right', fontWeight: 600, fontSize: 16, fontVariantNumeric: 'tabular-nums' } }}
           />

@@ -89,10 +89,13 @@ its due date, after the operator validates it.
      acompte and solde are both paid (`autoGapBetweenDepositAndBalance`).
 9. A paid installment never changes amount or date.
 9a. **Amount typed by hand** (decided 2026-10-27). The amount of an unpaid installment other than
-    the last unpaid one can be typed, in whole euros. The installment becomes **pinned**
+    the last unpaid one can be typed, cents included (« 250,50 »; whole euros only until 2026-11-15,
+    lifted because the iPhone numeric keypad has no comma — the field now opens the decimal one).
+    The installment becomes **pinned**
     (`amountEdited`). What remains — `total − paid − pinned amounts` — is spread by rule 6 over the
     unpaid, non-pinned installments; the last unpaid installment is never pinned and always adjusts.
-    The server refuses (`400`) an amount ≤ 0, or one that leaves less than 1 € per remaining
+    The server refuses (`400`) an amount under 1 € or not a number (spaces typed in the field are dropped by
+    the client, « 1 000,50 » → `1000.50`), or one that leaves less than 1 € per remaining
     non-pinned installment. Rules 7 and 8 respect pins: a recalculation moves only non-pinned
     installments, and a rise is spread over the unpaid non-pinned ones (the last unpaid if none
     other is left). Changing the count (rule 12) clears every pin.
