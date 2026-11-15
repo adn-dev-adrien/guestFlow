@@ -220,9 +220,12 @@ function lowerLine(reservationId, line, wants) {
 // The fiche's body without the one line the operator removes: an article sold twice loses the line named, never the other (rule 85).
 function withoutLine(body, line) {
   if (line.kind === 'option') {
+    // Only the removed line's article leaves the offered list, and only when no other line of it is left: an offered line the body does not
+    // name (an automatic one) stays offered (end-review V-5: removing a line billed an older offered arrival line again, refused as « unoffered »).
     const options = body.options.filter((o) => Number(o.lineId) !== line.lineId);
-    const named = new Set(options.map((o) => Number(o.optionId)));
-    return { ...body, options, offeredOptionIds: (body.offeredOptionIds || []).map(Number).filter((id) => named.has(id)) };
+    const article = Number(line.row.optionId);
+    const articleLeft = options.some((o) => Number(o.optionId) === article);
+    return { ...body, options, offeredOptionIds: (body.offeredOptionIds || []).map(Number).filter((id) => articleLeft || id !== article) };
   }
   if (line.kind === 'resource') return { ...body, resources: body.resources.filter((r) => Number(r.lineId) !== line.lineId) };
   return { ...body, customOptions: body.customOptions.filter((c) => Number(c.customOptionId) !== Number(line.row.id)) };

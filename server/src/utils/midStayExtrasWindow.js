@@ -51,7 +51,8 @@ function aggregateByKey(lines) {
       ? 1
       : Number(line.quantity == null ? 1 : line.quantity);
     const offered = Number(line.offered || 0) === 1 || line.offered === true;
-    const entry = byKey.get(key) || { quantity: 0, total: 0, offeredCount: 0, count: 0, hourly: false, typedCount: null, frozenCount: null };
+    const entry = byKey.get(key) || { quantity: 0, total: 0, offeredCount: 0, count: 0, departureCount: 0, hourly: false, typedCount: null, frozenCount: null };
+    if (line.collectAt === 'departure') entry.departureCount += 1;
     if (line.hourly) entry.hourly = true;
     if (line.typedCount != null) entry.typedCount = Number(line.typedCount);
     // What a submitted line froze; NULL follows the party or the stay, and is never a reduction.
@@ -74,7 +75,7 @@ const isAllOffered = (entry) => entry.count > 0 && entry.offeredCount === entry.
  * amount (the usual case, and exact). Once extended, it is the proportional estimate — baseline amount
  * over the amount per unit — rounded UP to a whole unit, or to 0.01 for an hourly resource. The
  * amount check of `arrivalExtrasViolations` stays the real guard. An offered line present before is
- * frozen at its current quantity. No baseline → nothing is frozen.
+ * frozen at its current quantity, unless every line of its key is collected at the departure (end-review V-5). No baseline → nothing is frozen.
  * `reason` tells the fiche which caption to print.
  * @returns {Object<string, { minQuantity: number, frozen: true, reason: 'arrival'|'offered' }>}
  */
@@ -83,6 +84,9 @@ function arrivalLineFloors(baselineRaw, beforeLines) {
   if (!baseline) return {};
   const floors = {};
   for (const [key, entry] of aggregateByKey(beforeLines)) {
+    // End-review V-5 — a line sold for the departure and offered since is not a line offered at arrival: billing it again or removing it is
+    // the operator undoing a geste on money not collected yet (the window closes once the end-of-stay complement is).
+    if (isAllOffered(entry) && entry.departureCount === entry.count) continue;
     if (isAllOffered(entry)) {
       floors[key] = { minQuantity: entry.quantity, frozen: true, reason: 'offered', ...(entry.typedCount != null ? { minTypedCount: entry.typedCount } : {}) };
       continue;

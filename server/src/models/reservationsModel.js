@@ -3252,16 +3252,19 @@ function createReservationsModel(database, { arrivalComplementEngine = null } = 
     // Extra lines in the shape `midStayExtras` keys them by (custom lines carry their label).
     readExtraLines(reservationId) {
       const lineId = (table) => (hasLineId(database, table) ? 'lineId, ' : '');
-      const options = database.prepare(`SELECT ${lineId('reservation_options')}optionId, totalPrice, offered FROM reservation_options WHERE reservationId = ?`).all(reservationId);
-      const resources = database.prepare(`SELECT ${lineId('reservation_resources')}resourceId, totalPrice, offered FROM reservation_resources WHERE reservationId = ?`).all(reservationId);
-      const customs = database.prepare(`SELECT id, description, amount, offered FROM reservation_custom_options WHERE reservationId = ?${notDepartureCharge(database)}`).all(reservationId);
+      // The moment a line is collected (pricing-components rule 20): a line sold for the departure is not an arrival line (end-review V-5).
+      const moment = (table) => (database.prepare(`PRAGMA table_info(${table})`).all().some((c) => c.name === 'collectAt') ? ', collectAt' : '');
+      const options = database.prepare(`SELECT ${lineId('reservation_options')}optionId, totalPrice, offered${moment('reservation_options')} FROM reservation_options WHERE reservationId = ?`).all(reservationId);
+      const resources = database.prepare(`SELECT ${lineId('reservation_resources')}resourceId, totalPrice, offered${moment('reservation_resources')} FROM reservation_resources WHERE reservationId = ?`).all(reservationId);
+      const customs = database.prepare(`SELECT id, description, amount, offered${moment('reservation_custom_options')} FROM reservation_custom_options WHERE reservationId = ?${notDepartureCharge(database)}`).all(reservationId);
       // Rule 85: a later sale of an article is a line of its own (`lineId` + `lineKey`); the article's first line keeps the legacy key.
       const identified = (table, rows, make) => keyLines(table, rows).map(({ row, key }) => ({
         ...make(row), ...(row.lineId != null ? { lineId: Number(row.lineId) } : {}), ...(key.startsWith('line:') ? { lineKey: key } : {}),
       }));
+      const collectAt = (row) => (row.collectAt ? { collectAt: row.collectAt } : {});
       return [
-        ...identified('reservation_options', options, (o) => ({ optionId: Number(o.optionId), totalPrice: Number(o.totalPrice || 0), offered: Number(o.offered || 0) })),
-        ...identified('reservation_resources', resources, (r) => ({ resourceId: Number(r.resourceId), totalPrice: Number(r.totalPrice || 0), offered: Number(r.offered || 0) })),
+        ...identified('reservation_options', options, (o) => ({ optionId: Number(o.optionId), totalPrice: Number(o.totalPrice || 0), offered: Number(o.offered || 0), ...collectAt(o) })),
+        ...identified('reservation_resources', resources, (r) => ({ resourceId: Number(r.resourceId), totalPrice: Number(r.totalPrice || 0), offered: Number(r.offered || 0), ...collectAt(r) })),
         // A custom line stores its ORIGINAL amount; an offered one is worth 0 like in the engine.
         ...customs.map((c) => ({
           isCustom: true,
@@ -3269,6 +3272,7 @@ function createReservationsModel(database, { arrivalComplementEngine = null } = 
           title: c.description,
           totalPrice: Number(c.offered || 0) === 1 ? 0 : Number(c.amount || 0),
           offered: Number(c.offered || 0),
+          ...collectAt(c),
         })),
       ];
     },
