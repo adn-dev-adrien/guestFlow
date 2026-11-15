@@ -157,7 +157,8 @@ const EXEMPT = {
     'POST /api/users/:id/reset-password',
     'PUT /api/school-holidays/:id/unlock',
   ],
-  'Judged by its own suites: standalone-sale and standalone-sale-passage-client (every field of the sale is refused with a code), suggested-articles (the list, its bound and its references).': [
+  'Judged by its own suites: standalone-sale and standalone-sale-passage-client (every field of the sale is refused with a code), suggested-articles (the list, its bound and its references), standalone-sale-obligation-close (the status refused with a code, the row named in the URL).': [
+    'PATCH /api/standalone-sales/:id/obligations/:oid',
     'POST /api/standalone-sales',
     'POST /api/standalone-sales/quote',
     'POST /api/standalone-sales/:id/payment-link',
