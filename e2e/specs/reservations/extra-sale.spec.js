@@ -7,7 +7,7 @@ import { seedCateringOptions } from '../../fixtures/dbSeed.js';
 import { FAR_YEAR } from '../../fixtures/farYear.js';
 
 for (const [name, size] of [['mobile', { width: 390, height: 844 }], ['desktop', { width: 1280, height: 900 }]]) {
-  test(`extra sale on a saved stay (${name})`, async ({ page }) => {
+  test(`extra sale on a saved stay (${name})`, async ({ page }, testInfo) => {
     await page.setViewportSize(size);
     const property = await createProperty({ name: `Ventes ${name}` });
     seedCateringOptions(property.id);
@@ -36,6 +36,6 @@ for (const [name, size] of [['mobile', { width: 390, height: 844 }], ['desktop',
     await page.getByRole('menuitem', { name: 'À payer au départ' }).click();
     await expect(moment).toHaveText('Au départ');
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
-    await page.screenshot({ path: `${process.env.E2E_SHOT_DIR || '/tmp'}/extra-sale-${name}.png` });
+    await page.screenshot({ path: testInfo.outputPath(`extra-sale-${name}.png`) });
   });
 }

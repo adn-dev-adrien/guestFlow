@@ -229,6 +229,12 @@ export default function FinancePage() {
         ]}
       />
       <Box sx={{ p: { xs: 1.5, sm: 3 }, maxWidth: 1240, mx: 'auto' }}>
+        {/* The day's card carries « Vente hors séjour » on a phone; with a tile open or no dashboard the card is not drawn, so the button stays. */}
+        {phone && (tile || !d) && (
+          <Button variant="outlined" startIcon={<PointOfSaleIcon />} onClick={() => setSaleOpen(true)} sx={{ mb: 1.5, minHeight: 44, width: '100%', textTransform: 'none' }}>
+            Vente hors séjour
+          </Button>
+        )}
         {loadError && <ErrorAlert message={loadError} onRetry={loadDashboard} sx={{ mb: 2 }} />}
         {/* Rule 51 — with no dashboard to show, a refused window keeps its selector: never a dead end. */}
         {!d && (periodRefusal || loadError) && (

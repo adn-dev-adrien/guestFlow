@@ -432,7 +432,6 @@ const api = {
     method: 'POST', body, signal, readOnly: true,
   }),
   commitResourceVisit: (id, body) => request(`/resource-bookings/${id}/visit`, { method: 'POST', body }),
-  payResourceVisit: (id, body) => request(`/resource-bookings/${id}/visit/payment`, { method: 'POST', body }),
   patchResourceVisitLine: (id, lineId, body) => request(`/resource-bookings/${id}/visit/lines/${lineId}`, { method: 'PATCH', body }),
   markResourceNoShow: (id) => request(`/resource-bookings/${id}/no-show`, { method: 'POST' }),
   mintVisitPaymentLink: (id, body = {}) => request(`/resource-bookings/${id}/visit/payment-link`, { method: 'POST', body }),

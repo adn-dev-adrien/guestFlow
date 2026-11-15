@@ -42,6 +42,7 @@ const TEXTS = Object.freeze({
   linkAfterSave: 'Enregistrer d’abord les articles ajoutés.',
   refundTitle: 'Remboursement',
   refundAsk: 'Ligne payée : remboursement à confirmer.',
+  refundAskAmount: (amount) => `Ligne payée : remboursement à confirmer. ${amount} à rembourser.`,
   refunded: 'Marquer remboursé',
   refundedAsk: 'Marquer comme remboursé ?',
   refundedFailed: 'Clôture impossible.',
@@ -234,7 +235,7 @@ export default function ResourceArrivalDialog({ open, bookingId, onClose, onDone
       const res = await api.patchResourceVisitLine(booking.id, line.id, { ...body, version: visit.document.version });
       adopt(res.visit);
     } catch (e) {
-      if (e.code === 'LINE_PAID' && !reception) setRefundAsk({ line, body });
+      if (e.code === 'LINE_PAID' && !reception) setRefundAsk({ line, body, refundCents: Number(e.refundCents) || 0 });
       else setError(e.message);
     } finally {
       setBusyLine(null);
@@ -276,6 +277,19 @@ export default function ResourceArrivalDialog({ open, bookingId, onClose, onDone
   const heading = booking ? `${booking.resourceName || 'Ressource'} · ${dayLabel(booking.date)} · client sans séjour` : '';
   const maxOffered = booking ? toMinutes(booking.endTime) - toMinutes(booking.startTime) : 0;
   const offerRefusal = refusals.find((r) => r.field === 'offeredMinutes');
+
+  const linkBlock = view && (
+    <SalePaymentLink
+      link={view.paymentLink}
+      busy={link.busy}
+      error={link.error}
+      sentTo={link.sentTo}
+      disabled={dirty}
+      onMint={(email) => linkAction(() => api.mintVisitPaymentLink(booking.id, email ? { email } : {}))}
+      onSendEmail={(open) => linkAction(() => api.emailVisitPaymentLink(booking.id, open.id))}
+      onWithdraw={(open) => linkAction(() => api.withdrawVisitPaymentLink(booking.id, open.id))}
+    />
+  );
 
   return (
     <Dialog open={open} onClose={onClose} fullScreen={fullScreen} maxWidth={wide ? 'md' : 'sm'} fullWidth>
@@ -319,6 +333,7 @@ export default function ResourceArrivalDialog({ open, bookingId, onClose, onDone
                 draft={extras}
                 draftLines={draftLines}
                 storedLines={storedExtras}
+                storedGroups={view.groups || []}
                 refusals={refusals}
                 pending={dirty && quote.pending}
                 disabled={readOnly}
@@ -355,9 +370,9 @@ export default function ResourceArrivalDialog({ open, bookingId, onClose, onDone
                   <Alert
                     key={row.id}
                     severity="warning"
-                    action={<Button color="inherit" size="small" disabled={busy} onClick={() => setObligationAsk(row)} sx={{ minHeight: 44, textTransform: 'none' }}>{TEXTS.refunded}</Button>}
+                    action={<Button color="inherit" size="small" disabled={busy} aria-describedby={`obligation-${row.id}`} onClick={() => setObligationAsk(row)} sx={{ minHeight: 44, textTransform: 'none' }}>{TEXTS.refunded}</Button>}
                   >
-                    {row.label}{row.detail ? ` · ${row.detail}` : ''}
+                    <span id={`obligation-${row.id}`}>{row.label}{row.detail ? ` · ${row.detail}` : ''}</span>
                   </Alert>
                 ))}
                 {view.totals.refundUnheldCents > 0 && <Alert severity="warning">{TEXTS.refund(euros(view.totals.refundUnheldCents))}</Alert>}
@@ -388,19 +403,17 @@ export default function ResourceArrivalDialog({ open, bookingId, onClose, onDone
                       ) : (
                         <Typography variant="caption" color="text.secondary">{TEXTS.laterHint}</Typography>
                       )}
-                      <SalePaymentLink
-                        link={view.paymentLink}
-                        busy={link.busy}
-                        error={link.error}
-                        sentTo={link.sentTo}
-                        disabled={dirty}
-                        onMint={(email) => linkAction(() => api.mintVisitPaymentLink(booking.id, email ? { email } : {}))}
-                        onSendEmail={(open) => linkAction(() => api.emailVisitPaymentLink(booking.id, open.id))}
-                        onWithdraw={(open) => linkAction(() => api.withdrawVisitPaymentLink(booking.id, open.id))}
-                      />
+                      {linkBlock}
                       {dirty && view.paymentLink && view.paymentLink.available && <Typography variant="caption" color="text.secondary">{TEXTS.linkAfterSave}</Typography>}
                     </>
                   )}
+                </Box>
+              )}
+
+              {(readOnly || remainingCents <= 0) && !reception && view.paymentLink && view.paymentLink.open && (
+                <Box sx={{ display: 'grid', gap: 1 }}>
+                  <Typography variant="subtitle2">{TEXTS.payment}</Typography>
+                  {linkBlock}
                 </Box>
               )}
 
@@ -448,7 +461,7 @@ export default function ResourceArrivalDialog({ open, bookingId, onClose, onDone
       <ConfirmDialog
         open={Boolean(refundAsk)}
         title={TEXTS.refundTitle}
-        message={TEXTS.refundAsk}
+        message={refundAsk && refundAsk.refundCents > 0 ? TEXTS.refundAskAmount(euros(refundAsk.refundCents)) : TEXTS.refundAsk}
         confirmLabel={TEXTS.confirm}
         onClose={() => setRefundAsk(null)}
         onConfirm={() => { const ask = refundAsk; setRefundAsk(null); changeLine(ask.line, { ...ask.body, confirmRefund: true }); }}
