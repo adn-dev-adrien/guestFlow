@@ -55,6 +55,15 @@ function columnsOf(db) {
   try { return new Set(db.prepare('PRAGMA table_info(reservation_custom_options)').all().map((c) => c.name)); } catch { return new Set(); }
 }
 
+// End review R1-1 — a departure line is deleted under the guard's permit (`departure_line_deletes`, pricingSalesMigration T12): a release that
+// does not know the permit (the previous one rewriting the fiche) is refused by the trigger instead of billing the charge twice.
+function deleteDepartureRow(db, id) {
+  const permitted = Boolean(db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'departure_line_deletes'").get());
+  if (permitted) db.prepare('INSERT OR IGNORE INTO departure_line_deletes (id) VALUES (?)').run(Number(id));
+  db.prepare('DELETE FROM reservation_custom_options WHERE id = ?').run(Number(id));
+  if (permitted) db.prepare('DELETE FROM departure_line_deletes WHERE id = ?').run(Number(id));
+}
+
 /** The departure lines of a stay, in sort order. */
 function departureChargeRows(db, reservationId) {
   if (!hasSasLineKey(db)) return [];
@@ -110,7 +119,7 @@ function syncDepartureChargeLines(db, reservationId, detail, { create = false } 
     changes += 1;
   });
   for (const row of byKey.values()) {
-    db.prepare('DELETE FROM reservation_custom_options WHERE id = ?').run(row.id);
+    deleteDepartureRow(db, row.id);
     changes += 1;
   }
   return changes;

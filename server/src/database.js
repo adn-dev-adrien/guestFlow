@@ -3003,7 +3003,9 @@ require('./utils/vatRegimeMigration').runVatRegimeMigration(db);
 // data, no amount rewritten, a second boot changes nothing. The nettings that need the models run later (`index.js`).
 require('./utils/pricingLinesMigration').runPricingLinesMigration(db);
 // PR C: the outside-sale tables, the payment link and e-mail log targets, the true lines (and the schema floor), see pricingSalesMigration.js.
-require('./utils/pricingSalesMigration').runPricingSalesMigration(db);
+// T10 (the true lines) waits while this release is the target of an update its helper has not verified (self-update rule 31): a rollback then
+// lands on a database the previous release runs; `index.js` runs it once the helper wrote `done`.
+require('./utils/pricingSalesMigration').runPricingSalesMigration(db, { deferTrueLines: require('./utils/updateVerification').thisReleaseAwaitsVerification() });
 // PR C (rule 8): the extra guests and the tax a sale reads as stored; their backfill needs the models and runs from `index.js`.
 require('./utils/pricingStoredFiguresMigration').runPricingStoredFiguresMigration(db);
 

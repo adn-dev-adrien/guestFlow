@@ -15,7 +15,12 @@
  *   T10   `reservation_options` / `reservation_resources` rebuilt WITHOUT the article primary key (rule 85): `lineId` is the key,
  *         `(reservationId, optionId|resourceId)` a non-unique index, rows copied in rowid order, indexes and triggers recreated.
  *         The previous release cannot run its arrival-SAS upsert on them: the SCHEMA FLOOR 4.2.0 is raised in the same
- *         transaction (self-update rule 57).
+ *         transaction (self-update rule 57). It is the one step the previous release cannot run on, so it waits for the update's
+ *         verification (`deferTrueLines`, end review R1-2): a 4.2.0 the helper rolls back leaves a database 4.1.0 runs unchanged;
+ *         `index.js` runs it once the helper has written `done` (`runTrueLinesWhenVerified`).
+ *   T12   the DEPARTURE LINE GUARD (end review R1-1): a trigger refuses to delete a departure charge line (`sasLineKey 'departure:%'`)
+ *         of a stay that still exists unless the deleting code first names the row in `departure_line_deletes`. A previous release
+ *         that rewrites the fiche's custom lines (DELETE + INSERT) therefore fails loudly instead of billing the charges twice.
  *   B1    `orderRef` on the lines of a guest order, where a line names exactly one order.
  *   T11   `reservations.readsSaleLines` (0 on every existing row): the stays the sale-line readers serve (utils/saleLinesReaders.js).
  *
@@ -186,7 +191,8 @@ function rebuildTable(db, table, transform, extraSql = []) {
   db.exec(`DROP TABLE ${table}`);
   db.exec(`ALTER TABLE ${temp} RENAME TO ${table}`);
   for (const sql of [...carried, ...extraSql]) db.exec(sql);
-  if (sequence) db.prepare('UPDATE sqlite_sequence SET seq = MAX(seq, ?) WHERE name = ?').run(sequence.seq, table);
+  // Bound as an integer: a JS number would store the counter as a REAL (`85.0`) — end review R1-5.
+  if (sequence) db.prepare('UPDATE sqlite_sequence SET seq = MAX(seq, ?) WHERE name = ?').run(BigInt(Math.trunc(Number(sequence.seq))), table);
 }
 
 // Runs `work` with foreign keys off (a pragma that is a no-op inside a transaction) and legacy rename semantics, so dropping a
@@ -304,13 +310,41 @@ function backfillOrderRefsOnce(db) {
   return changed;
 }
 
-function runPricingSalesMigration(db) {
+const DEPARTURE_GUARD = 'trg_departure_line_guard';
+const DEPARTURE_GUARD_MESSAGE = 'Lignes de départ enregistrées par GuestFlow 4.2.0 : réinstaller 4.2.0 ou plus récent pour modifier cette fiche.';
+
+/** T12 — the departure line guard and its permit table. Idempotent; on a schema without `sasLineKey` there is no departure line to guard. */
+function guardDepartureLines(db) {
+  if (!hasTable(db, 'reservation_custom_options') || !hasColumn(db, 'reservation_custom_options', 'sasLineKey')) return 0;
+  const existed = Boolean(db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'trigger' AND name = ?").get(DEPARTURE_GUARD));
+  db.exec('CREATE TABLE IF NOT EXISTS departure_line_deletes (id INTEGER PRIMARY KEY)');
+  db.exec(`CREATE TRIGGER IF NOT EXISTS ${DEPARTURE_GUARD} BEFORE DELETE ON reservation_custom_options
+    WHEN COALESCE(OLD.sasLineKey, '') LIKE 'departure:%'
+      AND EXISTS (SELECT 1 FROM reservations WHERE id = OLD.reservationId)
+      AND NOT EXISTS (SELECT 1 FROM departure_line_deletes WHERE id = OLD.id)
+    BEGIN SELECT RAISE(ABORT, '${DEPARTURE_GUARD_MESSAGE.replace(/'/g, "''")}'); END`);
+  return existed ? 0 : 1;
+}
+
+/** T10 once the update that brought it is verified (rule 31) → `{ state: 'ran', tables }`, `{ state: 'awaiting' }` or `{ state: 'done' }` (it already ran). */
+function runTrueLinesWhenVerified(db, { awaiting = () => require('./updateVerification').thisReleaseAwaitsVerification() } = {}) {
+  if (done(db, 'pricing_sales_true_lines_v1')) return { state: 'done' };
+  if (awaiting()) return { state: 'awaiting' };
+  return { state: 'ran', tables: dropArticleKeys(db) };
+}
+
+// `deferTrueLines`: the boot of a release its update helper has not verified yet keeps T10 for later (`runTrueLinesWhenVerified`).
+function runPricingSalesMigration(db, { deferTrueLines = false } = {}) {
   const changes = {};
   changes.tables = createTables(db);
   changes.columns = addColumns(db);
   changes.rebuilt = relaxReservationId(db);
-  changes.trueLines = dropArticleKeys(db);
+  changes.departureGuard = guardDepartureLines(db);
+  changes.trueLines = deferTrueLines ? 0 : dropArticleKeys(db);
+  changes.trueLinesDeferred = Boolean(deferTrueLines) && !done(db, 'pricing_sales_true_lines_v1');
   return changes;
 }
 
-module.exports = { runPricingSalesMigration, backfillOrderRefs, backfillOrderRefsOnce, SCHEMA_FLOOR_VERSION };
+module.exports = {
+  runPricingSalesMigration, runTrueLinesWhenVerified, backfillOrderRefs, backfillOrderRefsOnce, SCHEMA_FLOOR_VERSION, DEPARTURE_GUARD_MESSAGE,
+};

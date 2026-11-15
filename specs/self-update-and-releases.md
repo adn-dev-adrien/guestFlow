@@ -629,6 +629,24 @@ signed-off releases over HTTPS, when the operator asks for it.
     is installed (rule 35), so the install of 4.2.0 itself is guarded by the 4.0.x updater, which knows no floor; and the helper's automatic
     rollback of rule 31 (a boot that fails after its migration) still lands on the previous release, whose only loss is the arrival-SAS commit of
     an option or resource line until roll-forward. Test: `schema-floor.unit.test.js`.
+    > _Amended 2026-11-15 (end review R1-1, R1-2) — what the floor protects, stated honestly._ The floor guards **future installs only**: the
+    > updater refuses to install a target below it. It never stops the two routes that actually put older code on this database — the helper's
+    > automatic rollback (performed by the previous release's helper, rule 35) and a manual repoint of `current` — because neither reads it.
+    > What protects them instead:
+    > - **The automatic rollback.** The one step the previous release cannot run on (the rebuild of the line tables, pricing-components rule
+    >   85, T10) waits until the helper has verified the release: a boot whose `update-status.json` says the swap towards this version is still in
+    >   flight (`swapping` / `restarting`, no error) leaves it for later, and the running process applies it — and raises the floor — as soon as the
+    >   status reads `done` (checked every 3 s, `utils/updateVerification.js`, `runTrueLinesWhenVerified`). A 4.2.0 that fails its verification is
+    >   therefore rolled back onto a database 4.1.0 runs unchanged: every other 4.2.0 step adds a table, a column or a trigger 4.1.0 ignores, or
+    >   relaxes a `NOT NULL`. For those few seconds 4.2.0 runs with the article key, so a second line of an article already on the stay is refused.
+    > - **The departure charges.** A trigger (`trg_departure_line_guard`, T12) refuses to delete a departure charge line of a stay that still
+    >   exists unless the deleting code names it first in `departure_line_deletes`, which only 4.2.0 does: 4.1.0's fiche save (it deletes and
+    >   re-inserts every custom line, and would bill those charges a second time inside `finalPrice`) fails loudly instead.
+    > - **Everything else is unsupported.** Running a release older than 4.2.0 on a database 4.2.0 has served (a manual repoint, a restored older
+    >   release) is not supported once the new tables are used: the old fiche save renumbers the lines and drops their new columns (the
+    >   `line:<table>:<lineId>` keys of the refunds and notes then name lines that no longer exist), re-prices a second line of the same article at
+    >   today's catalogue price, its link lifecycle withdraws an open outside-sale link as an orphan, and its arrival-SAS commit throws. The release
+    >   notes say so. Tests: `pricing-sales-migration-rollback` (v4.1.0's own statements), `schema-floor`.
 
 ---
 

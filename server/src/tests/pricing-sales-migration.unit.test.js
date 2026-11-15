@@ -91,7 +91,9 @@ test('rule 36 and rule 57: a second run changes nothing, and the floor is stored
   const schema = schemaHash(db);
   const data = JSON.stringify(['reservation_options', 'reservation_resources', 'payment_links', 'email_log', 'migrations'].map((t) => db.prepare(`SELECT * FROM ${t} ORDER BY rowid`).all().map((r) => (t === 'migrations' ? r.name : r))));
   const second = runPricingSalesMigration(db);
-  assert.deepEqual(second, { tables: 0, columns: 0, rebuilt: 0, trueLines: 0 });
+  assert.deepEqual(second, {
+    tables: 0, columns: 0, rebuilt: 0, departureGuard: 0, trueLines: 0, trueLinesDeferred: false,
+  });
   assert.equal(schemaHash(db), schema);
   assert.equal(JSON.stringify(['reservation_options', 'reservation_resources', 'payment_links', 'email_log', 'migrations'].map((t) => db.prepare(`SELECT * FROM ${t} ORDER BY rowid`).all().map((r) => (t === 'migrations' ? r.name : r)))), data);
   assert.equal(readSchemaFloor(db), '4.2.0');
