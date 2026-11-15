@@ -164,8 +164,8 @@ function validateAmount({ installments, index, amountEuros, targetCents }) {
   const target = installments[index];
   const cents = Math.round(Number(amountEuros) * 100);
   if (amountEuros === '' || amountEuros === null || amountEuros === undefined || !Number.isFinite(Number(amountEuros))
-    || cents <= 0 || cents % 100 !== 0) {
-    return { error: 'Montant en euros entiers, supérieur à 0.' };
+    || cents <= 0) {
+    return { error: 'Montant supérieur à 0 attendu.' };
   }
   if (isPaid(target)) return { error: dateMessage(target.number, 'déjà payée.') };
   const unpaid = installments.filter((i) => !isPaid(i));

@@ -193,6 +193,24 @@ test('rule 9a — a typed amount is sent on blur; the refusal shows under the ro
   expect(screen.queryByRole('alert')).toBeNull();
 });
 
+test('rule 9a — cents: the field opens the decimal keypad, a comma is sent as a dot, cents read back with a comma', async () => {
+  const user = userEvent.setup();
+  render(<Harness initial={planOf()} />);
+  const field = within(rowOf(1)).getByLabelText('Montant de l’échéance 1');
+  expect(field).toHaveAttribute('inputmode', 'decimal');
+
+  api.putInstallments.mockResolvedValueOnce({ installmentPlan: planOf({ installments: [installment(1, { amount: 250.5, amountEdited: true }), installment(2, { amount: 375.5 }), installment(3, { amount: 375.5, amountEditable: false })] }) });
+  await user.clear(field);
+  await user.type(field, '250,50{Enter}');
+  await waitFor(() => expect(api.putInstallments).toHaveBeenCalledWith(7, { amounts: [{ id: 41, amount: '250.50' }] }));
+  await waitFor(() => expect(within(rowOf(1)).getByLabelText('Montant de l’échéance 1')).toHaveValue('250,50'));
+  expect(within(rowOf(2)).getByLabelText('Montant de l’échéance 2')).toHaveValue('375,50');
+
+  await user.click(within(rowOf(1)).getByLabelText('Montant de l’échéance 1'));
+  await user.tab();
+  expect(api.putInstallments).toHaveBeenCalledTimes(1);
+});
+
 test('no plan yet: one line and a « Créer un échéancier » button, disabled with the reason when money is in', async () => {
   const user = userEvent.setup();
   api.putInstallments.mockResolvedValue({ installmentPlan: planOf() });
