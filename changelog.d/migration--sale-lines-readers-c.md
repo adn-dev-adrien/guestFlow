@@ -1,0 +1,1 @@
+- `reservations.readsSaleLines` (0 par défaut) : à 0 sur tous les séjours existants, à 1 sur les séjours, imports iCal et devis créés ensuite. Aucun montant n'est réécrit ; une version précédente ignore la colonne.

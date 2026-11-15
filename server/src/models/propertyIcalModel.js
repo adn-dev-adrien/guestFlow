@@ -44,6 +44,7 @@ const { removeOrphanIcalPlaceholders, removeOrphanIcalImportClients } = require(
 // partial overlap or a known stay moved onto a closure is imported and flagged in conflict.
 const establishmentClosuresModel = require('./establishmentClosuresModel');
 const { hasLineId } = require('../utils/lineRowTarget');
+const { markReadsSaleLines } = require('../utils/saleLinesReaders');
 
 // specs/ical-import-hardening.md rule 4 — a platform that accepts the connection and never answers
 // used to hold the sync for Node's 5-minute default, and every source queued behind it.
@@ -939,6 +940,7 @@ function createPropertyIcalModel(database, { fetchTimeoutMs = FETCH_TIMEOUT_MS, 
                 event.summary,
               );
               const reservationId = Number(result.lastInsertRowid);
+              markReadsSaleLines(database, reservationId);
               applyPropertyOptionDefaults(reservationId, source.propertyId, {
                 startDate: event.startDate,
                 endDate: event.endDate,
@@ -986,6 +988,7 @@ function createPropertyIcalModel(database, { fetchTimeoutMs = FETCH_TIMEOUT_MS, 
                 event.summary,
               );
               const reservationId = Number(result.lastInsertRowid);
+              markReadsSaleLines(database, reservationId);
               applyPropertyOptionDefaults(reservationId, source.propertyId, {
                 startDate: event.startDate,
                 endDate: event.endDate,

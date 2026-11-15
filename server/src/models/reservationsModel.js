@@ -200,6 +200,7 @@ function readExtraLinesFromDetailed(r) {
 // fiche, puis le SAS départ) impossibles à diagnostiquer depuis l'interface — il a fallu lire la base
 // de production. La trace ne corrige aucun comportement : elle rend le comportement visible.
 const { ARRIVAL_BUCKET_LABELS, historyMoney } = require('../utils/arrivalPaymentHistoryText');
+const { markReadsSaleLines } = require('../utils/saleLinesReaders');
 
 function traceGroupDissolved(database, reservationId, group, bucket) {
   if (!group) return;
@@ -2195,6 +2196,7 @@ function createReservationsModel(database, { arrivalComplementEngine = null } = 
         // complement read « Rien à percevoir » at the SAS until its first re-save.
         Number(quote.complementAmount || 0),
       );
+      markReadsSaleLines(database, result.lastInsertRowid);
       persistBreakfastTime(result.lastInsertRowid, payload);
       persistDiscountTarget(result.lastInsertRowid, payload);
       persistExtraGuestComplement(result.lastInsertRowid, quote);

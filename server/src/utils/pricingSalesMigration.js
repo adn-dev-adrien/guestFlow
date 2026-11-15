@@ -16,6 +16,7 @@
  *         The previous release cannot run its arrival-SAS upsert on them: the SCHEMA FLOOR 4.2.0 is raised in the same
  *         transaction (self-update rule 57).
  *   B1    `orderRef` on the lines of a guest order, where a line names exactly one order.
+ *   T11   `reservations.readsSaleLines` (0 on every existing row): the stays the sale-line readers serve (utils/saleLinesReaders.js).
  *
  * Rollback (self-update rule 31): T1-T3, T6, T7 are new tables or columns ignored by the previous release; T4 and T5 only add a
  * nullable column and relax a constraint, rows with a NULL `reservationId` being invisible to the readers that join reservations;
@@ -141,6 +142,8 @@ function addColumns(db) {
     ['clients', 'isPassage', 'INTEGER NOT NULL DEFAULT 0'],
     ['payment_links', 'saleRef', 'TEXT'],
     ['email_log', 'saleRef', 'TEXT'],
+    // Rules 31, 61, 63, 91 (owner 2026-11-15): the stays the sale-line readers serve — 0 on every stay booked before this version.
+    ['reservations', 'readsSaleLines', 'INTEGER NOT NULL DEFAULT 0'],
   ]) {
     if (!hasTable(db, table) || hasColumn(db, table, name)) continue;
     db.exec(`ALTER TABLE ${table} ADD COLUMN ${name} ${definition}`);
