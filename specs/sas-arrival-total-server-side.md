@@ -312,10 +312,10 @@ change.
   "cautionReceived": true,
   "linenItems": [{ "itemId": 3, "qty": 1, "offered": false }],      // replaces complementItems
   "keptLines": [{ "customOptionId": 41, "offered": false }],         // re-edit only
-  "cleaningAdded": true, "cleaningOffered": false,
-  "bathLinenAdded": false, "bathLinenOffered": false,
+  "cleaningAdded": true,
+  "bathLinenAdded": false,
   "soldOptions": [{ "optionId": 6, "occurrences": [{ "date": "2027-07-11", "time": "08:30" }], "persons": 2 }],
-  "offeredExtras": [{ "kind": "option", "id": 5 }],
+  "offered": [{ "kind": "option", "id": 5 }, { "kind": "upsell", "key": "cleaning" }],  // one « Offrir » input (2026-11-15, pricing-components rule 14)
   "pluginSteps": { "resourceScheduling": { "blocks": [], "resourceIds": [] } },
   // settlement — ignored by the preview
   "arrivalPaymentMode": "card", "arrivalPaymentSplit": false,

@@ -160,7 +160,7 @@ without the core knowing it.
       and `linenItems` too on arrival. The dialog shows the steps when the payload carries them; it no
       longer asks `usePlugin(LINEN)` (gap 5). On departure, `linenItems` is always sent: the « Objets
       manquants » step prices towels and sheets from it;
-    - `POST …/sas/arrival` ignores the towel decision (`bathLinenAdded`, `bathLinenOffered`) and the
+    - `POST …/sas/arrival` ignores the towel decision (`bathLinenAdded`, the `{ kind: 'upsell', key: 'bathLinen' }` ref of `offered`) and the
       bed-linen lines while `linen` is not live. The commit rewrites every SAS-made line, so the
       controller re-sends the bed-linen lines already stored instead of dropping them: no linen money
       recorded earlier is deleted. The core commit is unchanged;

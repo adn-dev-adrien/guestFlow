@@ -80,11 +80,11 @@ test('rule 9 — stay 480 € + complement 50 € → one gesture, 530 € at ar
   const id = stay({ complementAmount: 50, balanceAmount: 480 });
   db.prepare("INSERT INTO reservation_custom_options (reservationId, description, amount, inComplement) VALUES (?, 'Panier', 50, 1)").run(id);
   const customId = db.prepare('SELECT id FROM reservation_custom_options WHERE reservationId = ?').get(id).id;
-  const recap = call('previewArrival', id, { offeredExtras: [] }).body;
+  const recap = call('previewArrival', id, { offered: [] }).body;
   assert.equal(recap.stayDue, 480);
   assert.equal(recap.totalAtArrival, 530);
   assert.equal(recap.unifiable, true);
-  const offered = call('previewArrival', id, { offeredExtras: [{ kind: 'custom', id: customId }] }).body;
+  const offered = call('previewArrival', id, { offered: [{ kind: 'custom', id: customId }] }).body;
   assert.equal(offered.arrivalComplementTotal, 0);
   assert.equal(offered.unifiable, false);
 });

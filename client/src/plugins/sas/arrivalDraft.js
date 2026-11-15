@@ -14,6 +14,7 @@
  */
 
 const EXISTING_REF = /^(option|resource|custom|extraGuests):(\d+)(?::(\d+))?$/;
+const UPSELLS = ['cleaning', 'bathLinen'];
 
 export default function buildArrivalDraft({
   activeKeys = [], missingBed = {}, keptLines = [], cleaningAdded, bathLinenAdded,
@@ -29,8 +30,6 @@ export default function buildArrivalDraft({
     })),
     cleaningAdded: ran('cleaning') ? Boolean(cleaningAdded) : undefined,
     bathLinenAdded: ran('bathLinen') ? Boolean(bathLinenAdded) : undefined,
-    cleaningOffered: offered.has('cleaning'),
-    bathLinenOffered: offered.has('bathLinen'),
     // The array is the WHOLE selection; `undefined` = neither sale step ran.
     soldOptions: (ran('breakfastSale') || ran('cateringAsk'))
       ? soldSelections.map((s) => (s.occurrences
@@ -39,11 +38,15 @@ export default function buildArrivalDraft({
           ? { optionId: s.offer.optionId, persons: s.persons }
           : { optionId: s.offer.optionId, units: s.units })))
       : undefined,
-    // The authoritative offered set of the pre-existing complement lines (absent from it = billed).
-    offeredExtras: [...offered]
-      .map((key) => EXISTING_REF.exec(String(key)))
-      .filter(Boolean)
-      .map(([, kind, id, lineId]) => ({ kind, id: Number(id), ...(lineId ? { lineId: Number(lineId) } : {}) })),
+    // One « Offrir » input (specs/pricing-components.md rule 14): the two upsells, then the authoritative offered set of the
+    // pre-existing complement lines (absent from it = billed).
+    offered: [
+      ...UPSELLS.filter((key) => offered.has(key)).map((key) => ({ kind: 'upsell', key })),
+      ...[...offered]
+        .map((key) => EXISTING_REF.exec(String(key)))
+        .filter(Boolean)
+        .map(([, kind, id, lineId]) => ({ kind, id: Number(id), ...(lineId ? { lineId: Number(lineId) } : {}) })),
+    ],
     pluginSteps,
   };
 }

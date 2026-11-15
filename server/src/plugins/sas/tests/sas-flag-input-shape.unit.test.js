@@ -58,7 +58,7 @@ const NOT_A_TICK = ['false', 'true', '0', '1', '', null, 2, -1, {}, [], [true]];
 
 const ARRIVAL_FLAGS = [
   'cautionReceived', 'stayPaid', 'stayPaidCash', 'complementSettled', 'complementPaidCash', 'arrivalPaymentSplit',
-  'cleaningAdded', 'bathLinenAdded', 'cleaningOffered', 'bathLinenOffered', 'extinguisherSealOkAtArrival',
+  'cleaningAdded', 'bathLinenAdded', 'extinguisherSealOkAtArrival',
 ];
 const DEPARTURE_FLAGS = [
   'cautionReturned', 'complementsSettled', 'complementsPaidCash', 'cleaningCharged', 'cleaningOffered',

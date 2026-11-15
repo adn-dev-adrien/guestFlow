@@ -19,8 +19,11 @@ function refKey(x) {
 
 export function recapFor(payload, draft = {}) {
   const r = payload.reservation || {};
-  const offeredSet = Array.isArray(draft.offeredExtras)
-    ? new Set(draft.offeredExtras.map((x) => `${x.kind}:${Number(x.id)}`)) : null;
+  // One « Offrir » input (pricing-components rule 14): line refs and the two upsell refs.
+  const offeredList = Array.isArray(draft.offered) ? draft.offered : null;
+  const upsellOffered = (key) => Boolean(offeredList && offeredList.some((x) => x.kind === 'upsell' && x.key === key));
+  const offeredSet = offeredList
+    ? new Set(offeredList.filter((x) => x.kind !== 'upsell').map((x) => `${x.kind}:${Number(x.id)}`)) : null;
   const isOffered = (key, stored) => (offeredSet ? offeredSet.has(key) : stored);
   const lines = [];
   let offerDelta = 0;
@@ -62,14 +65,14 @@ export function recapFor(payload, draft = {}) {
   const cleaningKept = draft.cleaningAdded === undefined && sasRow('cleaning');
   if ((draft.cleaningAdded && payload.cleaning?.price) || cleaningKept) {
     const real = round2(payload.cleaning?.price || cleaningKept?.originalTotalPrice || 0);
-    const offered = draft.cleaningAdded === undefined ? Number(cleaningKept.offered || 0) === 1 : Boolean(draft.cleaningOffered);
+    const offered = draft.cleaningAdded === undefined ? Number(cleaningKept.offered || 0) === 1 : upsellOffered('cleaning');
     added.push({ key: 'cleaning', group: 'added', label: 'Ménage', qty: 1, unitPrice: real, real, billed: offered ? 0 : real, offerable: true, offered });
   }
   if (draft.bathLinenAdded && payload.bathLinen?.available) {
     const real = round2(payload.bathLinen.amount);
     added.push({
       key: 'bathLinen', group: 'added', label: payload.bathLinen.label, qty: Number(payload.bathLinen.persons) || 1,
-      unitPrice: round2(payload.bathLinen.unitPrice), real, billed: draft.bathLinenOffered ? 0 : real, offerable: true, offered: Boolean(draft.bathLinenOffered),
+      unitPrice: round2(payload.bathLinen.unitPrice), real, billed: upsellOffered('bathLinen') ? 0 : real, offerable: true, offered: upsellOffered('bathLinen'),
     });
   }
   const offers = [payload.sasSales?.breakfast, ...(payload.sasSales?.catering?.options || [])].filter(Boolean);

@@ -78,9 +78,7 @@ test('arrival SAS: full flow — caution Fait, linen Pas OK reveals the priced i
     soldOptions: undefined,
     cleaningAdded: true,
     bathLinenAdded: undefined,      // step not shown (no offer in this fixture)
-    cleaningOffered: false,
-    bathLinenOffered: false,
-    offeredExtras: [],
+    offered: [],
     departureHandoverNote: '',
     // specs/sas-arrival-total-server-side.md rule 8 — the dialog only says whether « Régler
     // séparément » was chosen; whether one gesture is possible at all is the server's call.

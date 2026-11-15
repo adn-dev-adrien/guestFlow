@@ -1,0 +1,1 @@
+- plugin:sas « Offrir » au sas d'arrivée — le ménage, le linge de toilette et les lignes déjà vendues — est envoyé au serveur comme une seule liste, la même propriété « offerte » que la fiche (`specs/pricing-components.md` règle 14). Rien ne change à l'écran ni dans les montants.

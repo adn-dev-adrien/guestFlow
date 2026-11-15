@@ -81,6 +81,20 @@ function snapshotSas(reservationId) {
 // boundary: `[{ kind, id }]` limited to the three addressable row kinds. `undefined` (the recap had no
 // offerable line, or an older client) means « leave every offered flag as it is ».
 const OFFERABLE_KINDS = new Set(['option', 'resource', 'custom', 'extraGuests']);
+// specs/pricing-components.md §3 rule 14 — ONE « Offrir » input for the arrival SAS, `offered`: the refs of the lines it offers
+// (`{ kind, id, lineId? }`, the authoritative set of the pre-existing complement lines: absent = billed) and the two upsells it bills 0 €
+// while activating their option (`{ kind: 'upsell', key: 'cleaning' | 'bathLinen' }`). Every one is the same stored property, `offered`.
+const UPSELL_KEYS = new Set(['cleaning', 'bathLinen']);
+const isUpsellRef = (x, key) => Boolean(x) && x.kind === 'upsell' && (key ? x.key === key : UPSELL_KEYS.has(String(x.key)));
+function offeredInput(refs) {
+  if (!Array.isArray(refs)) return { cleaningOffered: false, bathLinenOffered: false, offeredExtras: undefined };
+  return {
+    cleaningOffered: refs.some((x) => isUpsellRef(x, 'cleaning')),
+    bathLinenOffered: refs.some((x) => isUpsellRef(x, 'bathLinen')),
+    offeredExtras: normaliseOfferedRefs(refs),
+  };
+}
+
 function normaliseOfferedRefs(refs) {
   if (!Array.isArray(refs)) return undefined;
   return refs
@@ -235,7 +249,7 @@ function withoutLinenDecisions(reservationId, body) {
       }),
     ],
     bathLinenAdded: undefined,
-    bathLinenOffered: false,
+    offered: Array.isArray(body.offered) ? body.offered.filter((x) => !isUpsellRef(x, 'bathLinen')) : body.offered,
   };
 }
 
@@ -295,10 +309,8 @@ function normaliseArrivalDraft(req, reservation) {
       bathLinenAdded: body.bathLinenAdded === undefined ? undefined : Boolean(body.bathLinenAdded),
       // specs/sas-breakfast-and-catering-upsell.md §3.3 — intent; `undefined` = the sale steps never ran.
       soldOptions: Array.isArray(body.soldOptions) ? body.soldOptions : undefined,
-      // specs/sas-offer-complement-lines.md §3.2 rule 8 — the upsell stays activated, billed 0 €.
-      cleaningOffered: Boolean(body.cleaningOffered),
-      bathLinenOffered: Boolean(body.bathLinenOffered),
-      offeredExtras: normaliseOfferedRefs(body.offeredExtras),
+      // specs/sas-offer-complement-lines.md §3.2 rule 8 — the upsell stays activated, billed 0 €; one input (pricing-components rule 14).
+      ...offeredInput(body.offered),
     },
   };
 }

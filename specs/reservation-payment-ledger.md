@@ -864,12 +864,13 @@ tariff would fire on every platform stay (the brut is grossed up by the commissi
     the two SAS read theirs with `Boolean()`, so `stayPaid: "false"` booked the solde and `cautionReturned: "false"`
     returned the caution. Every tick of the arrival SAS (`cautionReceived`, `stayPaid`, `stayPaidCash`,
     `complementSettled`, `complementPaidCash`, `arrivalPaymentSplit`, `cleaningAdded`, `bathLinenAdded`,
-    `cleaningOffered`, `bathLinenOffered`, `extinguisherSealOkAtArrival`, the `offered` of `linenItems` /
+    `extinguisherSealOkAtArrival`, the `offered` of `linenItems` /
     `keptLines`) and of the departure SAS (`cautionReturned`, `complementsSettled`, `complementsPaidCash`,
     `cleaningCharged`, `cleaningOffered`, `extinguisherSealOkAtDeparture`, the `offered` of `missingItems` /
     `storedLines` / `extinguisherCharges`) is absent or one of those four, else 400 `INVALID_PAYMENT_FLAG`
     « Valeur invalide. » with its `field` (`<list>.offered` for a line), on the preview and the commit, before anything
-    is planned or written; `1` / `0` read as `true` / `false`. A reception session is held to it after its silent drop of
+    is planned or written; `1` / `0` read as `true` / `false`. _(2026-11-15, pricing-components rule 14: the arrival upsells'
+    « Offrir » is no longer a tick but a ref of the one `offered` list — `cleaningOffered` / `bathLinenOffered` left the arrival ticks.)_ A reception session is held to it after its silent drop of
     the stay settlement (collect-stay-payment-at-check-in rule 25): a `stayPaid` it sends is still dropped, not judged.
     The neighbouring payment writes already read their inputs strictly (single arrival payment: a `mode` text;
     installments and refunds: method, tenders, date; `/arrival`: `invoice === true`). Tests:

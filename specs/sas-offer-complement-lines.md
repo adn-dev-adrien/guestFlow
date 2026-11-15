@@ -210,9 +210,10 @@ Same endpoints, additive fields (no breaking change):
 
 `POST /api/reservations/:id/sas/arrival`
 - `complementItems[]` gains `offered?: boolean` (bed-linen elements).
-- `cleaningOffered?: boolean`, `bathLinenOffered?: boolean` — the upsell is activated but billed 0 €.
-- `offeredExtras?: [{ kind: 'option'|'resource'|'custom', id: number }]` — authoritative offered set for
-  the pre-existing in-complement extras (absent = leave every flag untouched).
+- `offered?: [{ kind: 'option'|'resource'|'custom'|'extraGuests', id: number, lineId? } | { kind: 'upsell', key: 'cleaning'|'bathLinen' }]`
+  — ONE input since 2026-11-15 (pricing-components rule 14; it replaces `cleaningOffered`, `bathLinenOffered` and `offeredExtras`): an
+  upsell ref activates the upsell billed 0 €; the line refs are the authoritative offered set for the pre-existing in-complement extras
+  (absent list = leave every flag untouched).
 
 `POST /api/reservations/:id/sas/departure`
 - `endOfStayComplementDetail[]` gains `offered?: boolean`.

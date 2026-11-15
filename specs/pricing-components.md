@@ -295,9 +295,13 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
     > **Delivered by PR B** (pass 4): the line API offers a line through the fiche's own save (`PATCH …/extras/:ref { offered }`).
     > **Delivered by PR C** (C21, identity): the SAS no longer deletes and writes its custom lines again — a re-run changes the row it wrote in place and appends the new ones (`addedOnReopen`,
     > reopen-completed-sas rule 4 amended; proof `sas-reopen-appends`), so every SAS line has a `lineId` the line API can offer.
-    > **Pending** — PR-later: the three SAS « offert » payload fields (`cleaningOffered`, `bathLinenOffered`, `offeredExtras`) stay the SAS's batch form of the same stored property (`offered`, catalogue value kept);
-    > the single-line `PATCH …/extras/:ref { offered }` is the fiche's form. They are not merged into one input yet.
-    > _Pass 3f:_ they merge when the SAS writes through the line API (rule 25, Pending): the batch inputs have nothing to be merged into until then.
+    > **Delivered by PR C** (C41, owner 2026-11-15: everything of the refonte in 4.2.0): the three SAS « offert » payload fields (`cleaningOffered`,
+    > `bathLinenOffered`, `offeredExtras`) are ONE input, `offered`: the refs of the lines « Offrir » covers (`{ kind, id, lineId? }`, the same ref
+    > the line API names) and the two upsells (`{ kind: 'upsell', key: 'cleaning' | 'bathLinen' }`), each the same stored property (`offered`,
+    > catalogue value kept). The SAS stays a batch (one list for the run, the authoritative set of its lines; rule 90's one writer), the fiche
+    > sends one line at a time (`PATCH …/extras/:ref { offered }`). The two upsell flags left the arrival ticks (reservation-payment-ledger rule 72).
+    > No figure moves. Proof `sas-offered-one-input` (server), `arrivalDraft` (client).
+    > _Pass 3f (superseded):_ they were to merge when the SAS writes through the line API; rule 90 kept one SAS writer, so the input merges without it.
 
 ### 3.D TOTALS, PLATFORM PRICE, DISCOUNTS, VAT
 

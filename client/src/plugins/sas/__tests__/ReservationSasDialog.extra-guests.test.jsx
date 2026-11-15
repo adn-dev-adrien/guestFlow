@@ -52,7 +52,7 @@ test('offering the added guests drops them from the total and sends their ref', 
   expect(await screen.findByText(/Total : 0,00 €/)).toBeInTheDocument(); // rule 19 — the money follows the server
   clickBtn('Valider et terminer');
   await waitFor(() => expect(api.commitArrivalSas).toHaveBeenCalledTimes(1));
-  expect(api.commitArrivalSas.mock.calls[0][1].offeredExtras).toEqual([{ kind: 'extraGuests', id: 0 }]);
+  expect(api.commitArrivalSas.mock.calls[0][1].offered).toEqual([{ kind: 'extraGuests', id: 0 }]);
 });
 
 test('already offered on the fiche → reopens as « ✓ Offert », undoable', async () => {
