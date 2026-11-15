@@ -1,4 +1,4 @@
-// specs/guest-app.md rules 82, 83, 87 (loop t1 AG-1, AG-3) — the arrival SAS's change of an order's bath: its evening supplement goes with the bath (removed
+// specs/guest-app.md rules 82, 83, 87, 109 (loop t1 AG-1, AG-3) — the arrival SAS's change of an order's bath: its evening supplement goes with the bath (removed
 // with it; a bath that keeps some sessions keeps it whole, so taking one off is refused here), and sessions placed on hours the stay already held are not
 // offered for removal (the stay's own line holds them).
 const fx = require('./guestOrderFixtures');

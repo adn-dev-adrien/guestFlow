@@ -1,4 +1,4 @@
-// specs/pricing-components.md rule 75 (loop t1 B-5) — a refund on the trop-perçu settles the `lineLowered` rows it covers, the part it took of a row as a
+// specs/pricing-components.md rules 75, 98 (loop t1 B-5) — a refund on the trop-perçu settles the `lineLowered` rows it covers, the part it took of a row as a
 // settled row of its own; deleting that refund opens them again, so the register owes what the trop-perçu owes.
 process.env.DB_PATH = ':memory:';
 process.env.TZ = 'Europe/Paris';

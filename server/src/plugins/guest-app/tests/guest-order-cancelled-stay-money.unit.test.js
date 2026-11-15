@@ -1,4 +1,4 @@
-// specs/guest-app.md rules 72, 88, 108 (loop t1 B-2, AG-4, AG-5, AG-6) — the money of a guest order on a cancelled stay is owed once: the cancellation owes what
+// specs/guest-app.md rules 72, 88, 108, 109 (loop t1 B-2, AG-4, AG-5, AG-6) — the money of a guest order on a cancelled stay is owed once: the cancellation owes what
 // the link paid less what the register already holds for it; a payment landing on an order cancelled with its stay is a conflict — never sold, even on a
 // stay restored since — shown « Payée · à rembourser ».
 const fx = require('./guestOrderFixtures');
