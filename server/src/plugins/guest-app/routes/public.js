@@ -45,7 +45,7 @@ function buildPublicRouter({
   router.get('/booklet/search', ...bookletRoute, booklet.search);
   router.get('/booklet/pages/:slug', ...bookletRoute, booklet.page);
   // specs/guest-app-home-automation.md rules 17-22 — the « Domotique » page, a stay session only.
-  const homeRoute = [limiters.read, guestSession.requireSession, requireModule('home', controller.shownKeysOf), guestSession.requireStay];
+  const homeRoute = [limiters.read, guestSession.requireSession, requireModule('home', controller.shownKeysOf), guestSession.requireStayGuest];
   router.get('/home', ...homeRoute, home.read);
   router.post('/home/lights/:lightId', ...homeRoute, limiters.homeCommand, home.switchLight);
   router.get('/home/commands/:id', limiters.read, ...homeRoute.slice(1), limiters.homeStatus, home.command);

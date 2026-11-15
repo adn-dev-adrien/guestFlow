@@ -252,7 +252,7 @@ gains a « Domotique » line (last catalogue, last readings).
 | GET | `/commands?wait=25` | — | `{ commands: [{ id, propertyId, equipmentId, value: 'on'\|'off', issuedAt }] }` (empty after `wait` s) |
 | POST | `/commands/results` | `{ results: [{ id, ok, reason? }] }` | `{ stored }` |
 
-**Guest** (`/public/v1/guest`, `gf_guest` cookie, `requireModule('home')`, `requireStay` on writes):
+**Guest** (`/public/v1/guest`, `gf_guest` cookie, `requireModule('home')`, `requireStayGuest` on every route — the module gate already keeps a pre-arrival session out, since `home` shows in the `stay` mode only):
 
 | Method | Endpoint | Body | Response |
 |---|---|---|---|
