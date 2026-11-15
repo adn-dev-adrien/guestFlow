@@ -45,12 +45,14 @@ function createVisitController({ bookings, visits, invoicing }) {
   }
 
   // Rules 5, 7, 24, 27 — may this user write on the visit now?
-  function writeRefusal(row, req) {
+  // `adminAnyDay`: a gesture that only reduces what the visit exposes (withdrawing its link) is the administrator's on any day (end-review V-8).
+  function writeRefusal(row, req, { adminAnyDay = false } = {}) {
     const reception = isReceptionOnly(req.user);
     const window = visits().windowOf(row);
     if (row.noShowAt) return { status: 409, code: 'BOOKING_NO_SHOW', error: 'Client absent : la visite est close.' };
     if (row.qontoInvoiceId && !row.invoiceCancelledAt) return { status: 409, code: 'BOOKING_INVOICED', error: 'Facturée : nouvelle vente séparée.' };
     if (reception && !window.open) return { status: 409, code: 'ARRIVAL_NOT_TODAY', error: NOT_TODAY };
+    if (!reception && adminAnyDay) return null;
     if (!window.open && !row.arrivedAt) return { status: 409, code: 'ARRIVAL_NOT_TODAY', error: NOT_TODAY };
     return null;
   }
@@ -192,11 +194,12 @@ function createVisitController({ bookings, visits, invoicing }) {
   }
 
   // Rules 7, 39 (end review R3-1) — withdrawing or e-mailing a link is a write of the visit: the reception inside the day window only, nobody on
-  // a no-show or an invoiced visit.
+  // a no-show or an invoiced visit. Withdrawing only reduces exposure: the administrator may do it on any day, a link minted on the day (it lives
+  // 36 h) included (V-8).
   async function withdrawLink(req, res) {
     const { row, refusal } = bookingOf(req);
     if (refusal) return fail(res, refusal);
-    const closed = writeRefusal(row, req);
+    const closed = writeRefusal(row, req, { adminAnyDay: true });
     if (closed) return fail(res, closed);
     const saleId = visits().saleIdOf(row);
     if (!saleId) return res.status(404).json({ error: 'Lien introuvable.', code: 'LINK_NOT_FOUND' });

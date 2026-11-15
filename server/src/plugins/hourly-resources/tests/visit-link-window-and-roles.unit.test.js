@@ -47,3 +47,18 @@ test('rule 40 — the counter collecting the whole reste withdraws the open link
   assert.equal(paid.body.visit.paymentLink.open, null);
   assert.equal(f.db.prepare('SELECT status FROM payment_links WHERE id = ?').get(linkId).status, 'cancelled');
 });
+
+test('rule 7 (end-review V-8) — a link minted on the day with no arrival recorded: the next morning the administrator still withdraws it; nobody e-mails it', async () => {
+  const id = f.book();
+  const minted = await f.call('mintLink', { id, body: { email: 'client@exemple.fr' } });
+  assert.equal(minted.code, 200, JSON.stringify(minted.body));
+  f.setNow(`${NEXT_DAY}T10:00:00Z`);
+  const mailed = await f.call('emailLink', { id, linkId: minted.body.link.id });
+  assert.deepEqual([mailed.code, mailed.body.code], [409, 'ARRIVAL_NOT_TODAY']);
+  const reception = await f.call('withdrawLink', { id, linkId: minted.body.link.id, user: f.RECEPTION });
+  assert.deepEqual([reception.code, reception.body.code], [409, 'ARRIVAL_NOT_TODAY']);
+  const admin = await f.call('withdrawLink', { id, linkId: minted.body.link.id });
+  assert.equal(admin.code, 200, JSON.stringify(admin.body));
+  assert.equal(f.db.prepare('SELECT status FROM payment_links WHERE id = ?').get(minted.body.link.id).status, 'cancelled');
+  f.setNow(`${DAY}T15:00:00Z`);
+});

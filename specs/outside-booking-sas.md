@@ -358,6 +358,10 @@ once on the server by the refonte's components.
     > _Amended 2026-11-15 (end review R3-1, R3-16):_ « Retirer le lien » and « Envoyer par e-mail » are writes of the visit, judged like « Envoyer un
     > lien »: the reception inside the day window only, nobody on a no-show or invoiced visit (409 `ARRIVAL_NOT_TODAY`, `BOOKING_NO_SHOW`,
     > `BOOKING_INVOICED`); a visit that cannot be read answers its own status, never a 500. Test `visit-link-window-and-roles`.
+    > _Amended 2026-11-15 (end-review verification V-8):_ « Retirer le lien » only reduces what the visit exposes, so the **administrator**
+    > withdraws on any day, a visit with no arrival recorded included (a link minted on the day lives 36 h and could otherwise be withdrawn by
+    > nobody the next morning); the reception keeps its day window, and nobody withdraws on a no-show or an invoiced visit. « Envoyer par
+    > e-mail » is unchanged.
 40. **The link bills the reste, once.** It is minted through the core payment-link path (`ensurePaymentLink`'s
     family: `paymentProviders.declared().createLink`, `paymentLinksModel`, `type = 'complement'`-style explicit
     basket with `basket.source = 'standalone-sale'`, `basket.ref = <saleRef>`), with the document's VAT basket from the
