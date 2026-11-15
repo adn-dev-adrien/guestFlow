@@ -24,7 +24,7 @@ function migrated({ deferTrueLines = false } = {}) {
   // v4.1.0's hourly-resources plugin had already given the custom lines their key.
   db.exec('ALTER TABLE reservation_custom_options ADD COLUMN sasLineKey TEXT');
   runPricingSalesMigration(db, { deferTrueLines });
-  db.prepare("INSERT INTO payment_links (reservationId, saleRef, type, amountCents, status, paidAt, basketJson) VALUES (NULL, 'standalone:7', 'complement', 900, 'paid', '2026-11-12', ?)")
+  db.prepare("INSERT INTO payment_links (reservationId, saleRef, type, amountCents, status, paidAt, basketJson) VALUES (NULL, 'standalone:7', 'complement', 900, 'paid', '2026-11-12', ?)") // date-literal-ok — migration or backfill fixture: historical values the code under test copies, never compares with today
     .run(JSON.stringify({ source: 'standalone-sale', saleRef: 'standalone:7', lines: [] }));
   db.prepare("INSERT INTO email_log (templateId, reservationId, saleRef, status, renderedSubject, renderedBody) VALUES (2, NULL, 'standalone:7', 'sent', 's', 'b')").run();
   return db;

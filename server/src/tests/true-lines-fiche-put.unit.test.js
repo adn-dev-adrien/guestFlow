@@ -68,12 +68,12 @@ test('rule 85 — a posted line without a lineId is the first line of its articl
 test('rule 85 — a line the save appends takes no column of a stored line, and the stored lines keep theirs', () => {
   const id = stayWithTwoSales({ startOffset: 29 });
   const [a] = twoLines(id);
-  db.prepare("UPDATE reservation_options SET source = 'shop', collectAt = 'arrival', soldAt = '2030-01-01' WHERE lineId = ?").run(a);
+  db.prepare("UPDATE reservation_options SET source = 'shop', collectAt = 'arrival', soldAt = '2030-01-01' WHERE lineId = ?").run(a); // date-literal-ok — fixture rows written by raw SQL and read back by key, no write path checks them against today
   const body = storedBody(id);
   body.options.push({ optionId: bath, quantity: 1, newLine: true });
   put(id, body);
   const [first, , added] = db.prepare('SELECT lineId, source, collectAt, soldAt FROM reservation_options WHERE reservationId = ? AND optionId = ? ORDER BY lineId').all(id, bath);
-  assert.deepEqual([first.source, first.collectAt, first.soldAt], ['shop', 'arrival', '2030-01-01']);
+  assert.deepEqual([first.source, first.collectAt, first.soldAt], ['shop', 'arrival', '2030-01-01']); // date-literal-ok — fixture rows written by raw SQL and read back by key, no write path checks them against today
   assert.deepEqual([added.collectAt, added.soldAt], [null, null], 'nothing of the first line’s sale columns');
 });
 

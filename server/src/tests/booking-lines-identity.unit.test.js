@@ -30,6 +30,7 @@ const DDL = `
   CREATE TABLE reservation_nights (reservationId INTEGER, date TEXT, seasonLabel TEXT, pricingMode TEXT, price REAL);
   INSERT INTO options (id, title, priceType) VALUES (1, 'A', 'per_stay'), (2, 'B', 'per_stay'), (3, 'C', 'per_stay');
   INSERT INTO resources (id, name, priceType) VALUES (7, 'Spa', 'per_stay'), (8, 'Sauna', 'per_stay');
+  -- date-literal-ok — migration or backfill fixture: historical values the code under test copies, never compares with today
   INSERT INTO reservations (id, createdAt) VALUES (1, '2026-01-01 08:00:00'), (2, '2026-01-02 08:00:00');
 `;
 
@@ -50,7 +51,7 @@ const numbers = (db) => Object.fromEntries(db.prepare('SELECT optionId, lineId F
 test('rule 79: a save keeps the number of an article it still sells, and every column the writer does not know', () => {
   const { db, store } = build();
   store.replaceOptions(1, [opt(1, 10), opt(2, 20)]);
-  db.prepare("UPDATE reservation_options SET collectAt = 'departure', soldAt = '2026-01-01', articleRef = 'option:1', label = 'A', discountCents = 150, vatRate = 5.5 WHERE optionId = 1").run();
+  db.prepare("UPDATE reservation_options SET collectAt = 'departure', soldAt = '2026-01-01', articleRef = 'option:1', label = 'A', discountCents = 150, vatRate = 5.5 WHERE optionId = 1").run(); // date-literal-ok — migration or backfill fixture: historical values the code under test copies, never compares with today
   const [first, second] = options(db);
   store.replaceOptions(1, [opt(1, 12, { quantity: 2, billedUnits: 2 }), opt(2, 20)]);
   const [after1, after2] = options(db);
@@ -96,7 +97,7 @@ test('rule 79: the rows come back in the order of the save, as the old DELETE + 
 });
 
 test('rule 79: a save writes exactly the values the old DELETE + INSERT wrote', () => {
-  const lines = [opt(1, 10, { cardOccurrences: [{ date: '2026-01-06' }], cardPersons: 2, inComplement: 1, acompteContribTtc: 3 }), opt(2, 0, { offered: true }), opt(3, 7, { acompteContribTtc: 2, soldeContribTtc: 5 })];
+  const lines = [opt(1, 10, { cardOccurrences: [{ date: '2026-01-06' }], cardPersons: 2, inComplement: 1, acompteContribTtc: 3 }), opt(2, 0, { offered: true }), opt(3, 7, { acompteContribTtc: 2, soldeContribTtc: 5 })]; // date-literal-ok — migration or backfill fixture: historical values the code under test copies, never compares with today
   const migrated = build();
   migrated.store.replaceOptions(1, [opt(1, 1), opt(3, 1)]);
   migrated.store.replaceOptions(1, lines);
@@ -110,9 +111,9 @@ test('rule 79: a save writes exactly the values the old DELETE + INSERT wrote', 
 
 test('rule 79: resource lines keep their number through the controller\'s sequence (delete, then write each line sold again) and through replaceResources', () => {
   const { db, store } = build();
-  store.replaceResources(1, [res(7, 40, { sessions: [{ date: '2026-01-06' }] }), res(8, 15)]);
+  store.replaceResources(1, [res(7, 40, { sessions: [{ date: '2026-01-06' }] }), res(8, 15)]); // date-literal-ok — migration or backfill fixture: historical values the code under test copies, never compares with today
   const before = db.prepare('SELECT * FROM reservation_resources WHERE reservationId = 1 ORDER BY resourceId').all();
-  db.prepare("UPDATE reservation_resources SET collectAt = 'arrival', soldAt = '2026-01-01' WHERE resourceId = 7").run();
+  db.prepare("UPDATE reservation_resources SET collectAt = 'arrival', soldAt = '2026-01-01' WHERE resourceId = 7").run(); // date-literal-ok — migration or backfill fixture: historical values the code under test copies, never compares with today
   const carried = store.deleteResources(1);
   assert.equal(db.prepare('SELECT COUNT(*) AS n FROM reservation_resources').get().n, 0);
   store.insertResourceLine(1, res(7, 45), 45, 1, 'per_stay', carried.get(7));
@@ -130,14 +131,14 @@ test('rule 79: resource lines keep their number through the controller\'s sequen
 test('rule 79: custom lines take the number and the sale columns of the stored line of the same text, the SAS marker with them; a renamed line is a new line', () => {
   const { db, store } = build();
   store.insertCustomOptions(1, [custom('Tisane', 6), custom('Miel', 4), custom('Tisane', 3)]);
-  db.prepare("UPDATE reservation_custom_options SET sasArrivalOrigin = 1, sasLineKey = 'k1', quantity = 3, collectAt = 'departure', soldAt = '2026-01-03 09:00:00' WHERE description = 'Miel'").run();
+  db.prepare("UPDATE reservation_custom_options SET sasArrivalOrigin = 1, sasLineKey = 'k1', quantity = 3, collectAt = 'departure', soldAt = '2026-01-03 09:00:00' WHERE description = 'Miel'").run(); // date-literal-ok — migration or backfill fixture: historical values the code under test copies, never compares with today
   const before = db.prepare('SELECT * FROM reservation_custom_options ORDER BY id').all();
   store.replaceCustomOptions(1, [custom('Miel', 5), custom('Tisane', 7), custom('Thé', 2)]);
   const after = db.prepare('SELECT * FROM reservation_custom_options ORDER BY sortOrder').all();
   assert.deepEqual(after.map((r) => [r.description, r.amount, r.sortOrder]), [['Miel', 5, 0], ['Tisane', 7, 1], ['Thé', 2, 2]]);
   const [miel, tisane, the] = after;
   assert.equal(miel.lineId, before[1].lineId);
-  assert.deepEqual([miel.sasArrivalOrigin, miel.sasLineKey, miel.quantity, miel.collectAt, miel.soldAt], [1, 'k1', 3, 'departure', '2026-01-03 09:00:00']);
+  assert.deepEqual([miel.sasArrivalOrigin, miel.sasLineKey, miel.quantity, miel.collectAt, miel.soldAt], [1, 'k1', 3, 'departure', '2026-01-03 09:00:00']); // date-literal-ok — migration or backfill fixture: historical values the code under test copies, never compares with today
   assert.equal(tisane.lineId, before[0].lineId, 'the first stored line of that text is taken first');
   assert.ok(the.lineId > Math.max(...before.map((r) => r.lineId)), 'a new text is a new line');
   assert.equal(db.prepare('SELECT COUNT(*) AS n FROM reservation_custom_options').get().n, 3, 'the second « Tisane » is gone');

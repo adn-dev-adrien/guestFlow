@@ -93,7 +93,7 @@ test('rule 75 (O-5) — a payment the provider refunded is opened then settled: 
   assert.equal(openRows(id).length, 0);
   assert.equal(db.prepare('SELECT COUNT(*) AS n FROM reservation_refunds WHERE reservationId = ?').get(id).n, 0, 'no refund of the register: nothing for the journal');
 
-  const devis = Number(db.prepare("INSERT INTO reservations (kind, propertyId, clientId, startDate, endDate, adults, finalPrice, devisStatus) VALUES ('devis', 1, 1, '2031-01-10', '2031-01-12', 1, 100, 'draft')").run().lastInsertRowid);
+  const devis = Number(db.prepare("INSERT INTO reservations (kind, propertyId, clientId, startDate, endDate, adults, finalPrice, devisStatus) VALUES ('devis', 1, 1, '2031-01-10', '2031-01-12', 1, 100, 'draft')").run().lastInsertRowid); // date-literal-ok — fixture rows written by raw SQL and read back by key, no write path checks them against today
   const devisLink = paidLink(devis, 2500);
   db.prepare("UPDATE payment_links SET status = 'cancelled', cancelReason = 'operator' WHERE id = ?").run(devisLink.id);
   await settleWithdrawnPayment(devisLink.id, { database: db, paymentLinksModel: links, outcome: 'refunded' });

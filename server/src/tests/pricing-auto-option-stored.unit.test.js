@@ -41,8 +41,9 @@ function futureStayWithoutLine(extra = {}) {
 
 function pastStayWithoutLine() {
   const id = Number(db.prepare(`INSERT INTO reservations (propertyId, clientId, startDate, endDate, platform, adults, totalPrice, finalPrice, kind, checkInTime, checkOutTime, sourceType)
+    -- date-literal-ok — fixture rows written by raw SQL and read back by key, no write path checks them against today
     VALUES (1, 1, '2026-04-13', '2026-04-16', 'direct', 2, 300, 300, 'reservation', '14:00', '10:00', 'manual')`).run().lastInsertRowid);
-  db.prepare('INSERT INTO reservation_nights (reservationId, date, seasonLabel, pricingMode, price) VALUES (?, ?, ?, ?, 100)').run(id, '2026-04-13', 'Standard', 'fixed');
+  db.prepare('INSERT INTO reservation_nights (reservationId, date, seasonLabel, pricingMode, price) VALUES (?, ?, ?, ?, 100)').run(id, '2026-04-13', 'Standard', 'fixed'); // date-literal-ok — fixture rows written by raw SQL and read back by key, no write path checks them against today
   return id;
 }
 

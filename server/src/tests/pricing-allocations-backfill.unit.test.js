@@ -14,8 +14,8 @@ const STAY = { accommodation: 'line:reservation_stay_lines:7', touristTax: 'line
 const sorted = (rows) => rows.map((r) => `${r.paymentRef}|${r.lineRef}|${r.amountCents}|${r.books}`).sort();
 
 const stay = {
-  depositPaid: 1, depositPaidDate: '2026-03-01', depositAmount: 100,
-  balancePaid: 1, balancePaidDate: '2026-03-20', balanceAmount: 120, touristTaxTotal: 20,
+  depositPaid: 1, depositPaidDate: '2026-03-01', depositAmount: 100, // date-literal-ok — migration or backfill fixture: historical values the code under test copies, never compares with today
+  balancePaid: 1, balancePaidDate: '2026-03-20', balanceAmount: 120, touristTaxTotal: 20, // date-literal-ok — migration or backfill fixture: historical values the code under test copies, never compares with today
 };
 
 test('rule 74: a paid bucket without per-line truth is one stay-level row; the tourist tax rides the balance on its own line', () => {
@@ -27,7 +27,7 @@ test('rule 74: a paid bucket without per-line truth is one stay-level row; the t
 
 test('rule 74: routed to the complement, the tax is booked on the arrival complement and the balance carries none', () => {
   const rows = legacyAllocations({
-    reservation: { ...stay, complementPaid: 1, complementPaidDate: '2026-04-01', complementAmount: 30 },
+    reservation: { ...stay, complementPaid: 1, complementPaidDate: '2026-04-01', complementAmount: 30 }, // date-literal-ok — migration or backfill fixture: historical values the code under test copies, never compares with today
     stayLines: STAY, stayLevel: { taxRoutedToComplement: true },
   });
   assert.deepEqual(sorted(rows), [
@@ -43,13 +43,13 @@ test('rule 74: without the option nothing is added (the per-line truth stays alo
 test('rule 74: a settled bucket is read from its settlement alone, a plan replaces the deposit and the balance', () => {
   const covered = legacyAllocations({
     reservation: stay, stayLines: STAY, stayLevel: { taxRoutedToComplement: false },
-    settlements: [{ id: 5, targetKind: 'bucket', targetKey: 'deposit', paidDate: '2026-03-01', dueCents: 10000, shortfallCents: 0, parts: [{ kind: 'deposit' }], tenders: [] }],
+    settlements: [{ id: 5, targetKind: 'bucket', targetKey: 'deposit', paidDate: '2026-03-01', dueCents: 10000, shortfallCents: 0, parts: [{ kind: 'deposit' }], tenders: [] }], // date-literal-ok — migration or backfill fixture: historical values the code under test copies, never compares with today
   });
   assert.ok(covered.some((r) => r.paymentRef === 'settlement:5'));
   assert.ok(!covered.some((r) => r.paymentRef === 'bucket:deposit'));
   const plan = legacyAllocations({
     reservation: stay, stayLines: STAY, stayLevel: { taxRoutedToComplement: false },
-    installments: [{ id: 1, paid: 1, paidDate: '2026-03-02', amountCents: 6000, paidSplit: null }, { id: 2, paid: 0, paidDate: null, amountCents: 6000, paidSplit: null }],
+    installments: [{ id: 1, paid: 1, paidDate: '2026-03-02', amountCents: 6000, paidSplit: null }, { id: 2, paid: 0, paidDate: null, amountCents: 6000, paidSplit: null }], // date-literal-ok — migration or backfill fixture: historical values the code under test copies, never compares with today
   });
   assert.deepEqual(sorted(plan), ['installment:1|null|6000|1']);
 });
@@ -57,7 +57,7 @@ test('rule 74: a settled bucket is read from its settlement alone, a plan replac
 test('rule 74: a cash bucket is off the books, a settled note without lines is one stay-level row of its total', () => {
   const rows = legacyAllocations({
     reservation: { ...stay, balancePaidCash: 1 }, stayLines: STAY, stayLevel: { taxRoutedToComplement: false },
-    notes: [{ id: 'n1', total: 12.5, paidDate: '2026-03-10', paidCash: 0, lines: [] }],
+    notes: [{ id: 'n1', total: 12.5, paidDate: '2026-03-10', paidCash: 0, lines: [] }], // date-literal-ok — migration or backfill fixture: historical values the code under test copies, never compares with today
   });
   assert.ok(rows.filter((r) => r.paymentRef === 'bucket:balance').every((r) => r.books === 0));
   assert.ok(rows.some((r) => r.paymentRef === 'note:n1' && r.lineRef === null && r.amountCents === 1250 && r.books === 1));

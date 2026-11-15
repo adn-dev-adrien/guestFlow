@@ -15,8 +15,8 @@ test('rule 74 — the cleanup skips the « Passage » client and a client with a
   const passage = sales.passageClientId();
   const buyer = client('Acheteur');
   const orphan = client('Orphelin');
-  sales.insertSale({ soldAt: '2027-03-10T09:00:00.000Z', clientId: passage, status: 'paid', totalCents: 650 });
-  sales.insertSale({ soldAt: '2027-03-10T09:00:00.000Z', clientId: buyer, status: 'paid', totalCents: 1300 });
+  sales.insertSale({ soldAt: '2027-03-10T09:00:00.000Z', clientId: passage, status: 'paid', totalCents: 650 }); // date-literal-ok — fixture rows written by raw SQL and read back by key, no write path checks them against today
+  sales.insertSale({ soldAt: '2027-03-10T09:00:00.000Z', clientId: buyer, status: 'paid', totalCents: 1300 }); // date-literal-ok — fixture rows written by raw SQL and read back by key, no write path checks them against today
   assert.deepEqual(clients.listOrphans().map((row) => row.id), [orphan]);
   assert.match(clients.deletionBlocker(buyer), /ventes hors séjour/);
   assert.match(clients.deletionBlocker(passage), /Passage/);

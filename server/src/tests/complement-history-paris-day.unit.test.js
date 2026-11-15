@@ -13,16 +13,16 @@ const db = require('../database');
 const controller = require('../controllers/reservationsController');
 
 test('rule 50 — an option dropped from the complement counts, whatever the stamp of the edit that dropped it', () => {
-  const id = stayWithCollectedLines(db, { complement: [{ key: OPTION(3), bucket: 'options', cents: 3000 }], balancePaid: false, startDate: '2026-10-29' });
-  db.prepare("INSERT INTO reservation_history (reservationId, eventType, changedFields, createdAt) VALUES (?, 'update', '[]', '2026-10-30 23:30:00')").run(id);
+  const id = stayWithCollectedLines(db, { complement: [{ key: OPTION(3), bucket: 'options', cents: 3000 }], balancePaid: false, startDate: '2026-10-29' }); // date-literal-ok — fixture rows written by raw SQL and read back by key, no write path checks them against today
+  db.prepare("INSERT INTO reservation_history (reservationId, eventType, changedFields, createdAt) VALUES (?, 'update', '[]', '2026-10-30 23:30:00')").run(id); // date-literal-ok — fixture rows written by raw SQL and read back by key, no write path checks them against today
   const row = db.prepare('SELECT * FROM reservations WHERE id = ?').get(id);
   assert.equal(controller.__test.complementLeftOf(id, { complementDetailLines: [], optionLines: [] }, row).options, 30);
 });
 
 test('rule 50 — the tourist tax a legacy complement collected is read from the allocation on the stay\'s tax line', () => {
-  const id = stayWithCollectedLines(db, { complement: [], balancePaid: false, startDate: '2026-10-29' });
+  const id = stayWithCollectedLines(db, { complement: [], balancePaid: false, startDate: '2026-10-29' }); // date-literal-ok — fixture rows written by raw SQL and read back by key, no write path checks them against today
   const split = { taxCents: 1200, accommodationCents: 0, optionsCents: 3000, resourcesCents: 0, lines: [{ key: OPTION(3), label: 'Ligne', bucket: 'options', cents: 3000 }] };
-  db.prepare("UPDATE reservations SET complementPaid = 1, complementPaidDate = '2026-10-31', complementAmount = 42, complementPaidSplit = ?, touristTaxInComplement = 1 WHERE id = ?")
+  db.prepare("UPDATE reservations SET complementPaid = 1, complementPaidDate = '2026-10-31', complementAmount = 42, complementPaidSplit = ?, touristTaxInComplement = 1 WHERE id = ?") // date-literal-ok — fixture rows written by raw SQL and read back by key, no write path checks them against today
     .run(JSON.stringify(split), id);
   db.prepare('UPDATE reservations SET complementCollectedTax = NULL WHERE id = ?').run(id);
   db.prepare("INSERT INTO reservation_stay_lines (reservationId, kind, label, totalCents, vatClass) VALUES (?, 'touristTax', 'Taxe de séjour', 600, 'tourist-tax')").run(id);

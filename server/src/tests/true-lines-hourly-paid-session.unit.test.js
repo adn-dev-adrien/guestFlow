@@ -26,7 +26,7 @@ function stayWithBathLine({ paid }) {
     .run(id, resourceId, JSON.stringify([day]));
   const { lineId } = db.prepare('SELECT lineId FROM reservation_resources WHERE reservationId = ?').get(id);
   if (paid) {
-    db.prepare("INSERT INTO payment_allocations (documentRef, lineRef, amountCents, kind, at, books) VALUES (?, ?, 4000, 'payment', '2030-04-01', 1)")
+    db.prepare("INSERT INTO payment_allocations (documentRef, lineRef, amountCents, kind, at, books) VALUES (?, ?, 4000, 'payment', '2030-04-01', 1)") // date-literal-ok — fixture rows written by raw SQL and read back by key, no write path checks them against today
       .run(`reservation:${id}`, `line:reservation_resources:${lineId}`);
   }
   return { id, lineId };

@@ -20,7 +20,7 @@ let nextId = 300;
 function stay(columns = {}) {
   const id = nextId++;
   const cols = {
-    id, kind: 'reservation', clientId: 1, propertyId: 1, startDate: '2027-07-10', endDate: '2027-07-12', platform: 'direct', adults: 2, complementAmount: 0, ...columns,
+    id, kind: 'reservation', clientId: 1, propertyId: 1, startDate: '2027-07-10', endDate: '2027-07-12', platform: 'direct', adults: 2, complementAmount: 0, ...columns, // date-literal-ok — fixture rows written by raw SQL and read back by key, no write path checks them against today
   };
   const keys = Object.keys(cols);
   db.prepare(`INSERT INTO reservations (${keys.join(', ')}) VALUES (${keys.map(() => '?').join(', ')})`).run(...keys.map((k) => cols[k]));

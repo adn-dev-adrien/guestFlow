@@ -130,7 +130,7 @@ test('rule 72 — the SQL predicate of a scope is the JS one on every means', ()
 
 test('rule 72 — order: after the cancellation, before the avoir, netted by it', () => {
   const refunds = [{ id: 1, method: 'transfer' }, { id: 5, method: 'retained' }, { id: 7, method: 'cash' }];
-  const order = register.order(refunds, '2026-01-01 10:00:00', new Set([1]));
+  const order = register.order(refunds, '2026-01-01 10:00:00', new Set([1])); // date-literal-ok — days handed to a pure function or an injected clock, nothing compares them with the real today
   assert.equal(order.beforeAvoir(refunds[0]), true);
   assert.equal(order.beforeAvoir(refunds[2]), false);
   assert.equal(order.after(refunds[2]), true);

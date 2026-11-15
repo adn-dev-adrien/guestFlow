@@ -82,6 +82,6 @@ test('rule 42: no address, no open link or a disabled template: nothing leaves',
 test('rule 42: no date-driven queue and no cron ever lists it, and the template stays manual in the database', () => {
   const row = db.prepare("SELECT sendMode FROM email_templates WHERE stableKey = 'visit_payment_request'").get();
   assert.equal(row.sendMode, 'manual');
-  const pending = emailLogModel.listPending({ today: '2027-03-10' });
+  const pending = emailLogModel.listPending({ today: '2027-03-10' }); // date-literal-ok — the clock is injected (`today`)
   assert.equal(pending.some((p) => p.stableKey === 'visit_payment_request'), false);
 });

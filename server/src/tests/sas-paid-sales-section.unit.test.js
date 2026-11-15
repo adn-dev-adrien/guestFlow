@@ -61,6 +61,7 @@ test('rules 14, 23 — offering a line paid on a settled stay is refused until c
   const start = addDaysToIsoDate(todayIso(), 40);
   const id = Number(db.prepare(`INSERT INTO reservations (propertyId, clientId, startDate, endDate, platform, adults, totalPrice, finalPrice, kind, checkInTime,
       balanceAmount, balancePaid, balancePaidDate, accommodationSoldeContribTtc)
+    -- date-literal-ok — fixture rows written by raw SQL and read back by key, no write path checks them against today
     VALUES (9401, 9401, ?, ?, 'direct', 2, 300, 340, 'reservation', '15:00', 340, 1, '2026-11-01', 300)`).run(start, addDaysToIsoDate(start, 3)).lastInsertRowid);
   db.prepare(`INSERT INTO reservation_options (reservationId, optionId, quantity, unitPrice, billedUnits, priceType, totalPrice, offered, inComplement, soldeContribTtc)
     VALUES (?, ?, 1, 40, 1, 'per_stay', 40, 0, 0, 40)`).run(id, wine);

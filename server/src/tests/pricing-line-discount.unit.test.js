@@ -71,8 +71,8 @@ test('rule 39 — a line\'s own discount comes off that line only and is a line 
 
 test('rule 59 — a stay discount never covers a paid line, a shop or SAS sale, nor an offered one', () => {
   const facts = {
-    [`opt:${optionA}`]: { source: 'shop', settledCents: 0, soldAt: '2026-11-01', lineId: 1 },
-    [`opt:${optionB}`]: { source: 'fiche', settledCents: 6000, soldAt: '2026-11-01', lineId: 2 },
+    [`opt:${optionA}`]: { source: 'shop', settledCents: 0, soldAt: '2026-11-01', lineId: 1 }, // date-literal-ok — days handed to a pure function or an injected clock, nothing compares them with the real today
+    [`opt:${optionB}`]: { source: 'fiche', settledCents: 6000, soldAt: '2026-11-01', lineId: 2 }, // date-literal-ok — days handed to a pure function or an injected clock, nothing compares them with the real today
   };
   const q = quote({ discountPercent: 50, discountTarget: 'extras', lineFacts: facts });
   assert.equal(q.optionsTotal, 100, 'the shop line and the paid line keep their price');

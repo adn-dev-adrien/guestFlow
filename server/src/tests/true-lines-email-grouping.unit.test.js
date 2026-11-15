@@ -5,7 +5,7 @@ const assert = require('node:assert/strict');
 const { buildContext } = require('../utils/emailContextBuilder');
 
 const input = (over = {}) => ({
-  reservation: { startDate: '2026-07-10', endDate: '2026-07-13', checkInTime: '15:00', checkOutTime: '10:00', adults: 2, teens: 0, children: 0, babies: 0, ...(over.reservation || {}) },
+  reservation: { startDate: '2026-07-10', endDate: '2026-07-13', checkInTime: '15:00', checkOutTime: '10:00', adults: 2, teens: 0, children: 0, babies: 0, ...(over.reservation || {}) }, // date-literal-ok — fixture rows written by raw SQL and read back by key, no write path checks them against today
   client: { firstName: 'Jean', lastName: 'Dupont', email: 'jean@dupont.fr' },
   property: { name: 'Villa A', defaultCheckIn: '15:00', defaultCheckOut: '10:00' },
   options: over.options || [],

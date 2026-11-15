@@ -70,7 +70,7 @@ test('rule 39 — no e-mail: refused with « Adresse e-mail requise. » until on
 test('rule 40 — the link bills the reste computed by SETTLEMENT, in the VAT basket of the unpaid lines, for 36 hours', async () => {
   const doc = sell([line(beer, 3), line(plank, 1)]);
   standaloneSale.pay(doc.document.id, { tenders: [{ method: 'card', amountCents: 1000 }], shortfall: { kind: 'due' } });
-  const now = new Date('2027-03-10T10:00:00.000Z');
+  const now = new Date('2027-03-10T10:00:00.000Z'); // date-literal-ok — the clock is injected (`now`) and the paid instants come from a stubbed provider
   const minted = await links.mint(doc.document.id, { now });
   assert.equal(minted.status, 200);
   assert.equal(minted.link.amountCents, 3350 - 1000, 'the reste, whatever the screen says');
@@ -78,7 +78,7 @@ test('rule 40 — the link bills the reste computed by SETTLEMENT, in the VAT ba
   assert.equal(args.amountCents, 2350);
   assert.equal(args.expectedTotalCents, 2350);
   assert.equal(args.items.length >= 2, true, 'one item per VAT rate group at least');
-  assert.equal(minted.link.expiresAt, '2027-03-11T22:00:00.000Z', '36 hours');
+  assert.equal(minted.link.expiresAt, '2027-03-11T22:00:00.000Z', '36 hours'); // date-literal-ok — the clock is injected (`now`) and the paid instants come from a stubbed provider
   const row = paymentLinksModel.findById(minted.link.id);
   assert.deepEqual([row.reservationId, row.type, row.saleRef, JSON.parse(row.basketJson)], [null, 'complement', `standalone:${doc.document.id}`, { source: 'standalone-sale', ref: `standalone:${doc.document.id}` }]);
 });
@@ -86,7 +86,7 @@ test('rule 40 — the link bills the reste computed by SETTLEMENT, in the VAT ba
 test('rule 40 — the same reste reuses the open link, a drifted one withdraws it and mints a new link; one open link at most', async () => {
   const doc = sell([line(beer, 2), line(plank, 1)]);
   const id = doc.document.id;
-  const now = new Date('2027-03-10T10:00:00.000Z');
+  const now = new Date('2027-03-10T10:00:00.000Z'); // date-literal-ok — the clock is injected (`now`) and the paid instants come from a stubbed provider
   const first = await links.mint(id, { now });
   const again = await links.mint(id, { now: new Date(now.getTime() + 3600 * 1000) });
   assert.deepEqual([again.link.id, again.link.reused], [first.link.id, true]);
@@ -118,16 +118,16 @@ test('rule 41 — a link paid after the sas is closed settles the document throu
   const id = doc.document.id;
   const minted = await links.mint(id);
   const remoteId = paymentLinksModel.findById(minted.link.id).providerLinkId;
-  paid.set(remoteId, '2027-03-12T09:30:00.000Z');
+  paid.set(remoteId, '2027-03-12T09:30:00.000Z'); // date-literal-ok — the clock is injected (`now`) and the paid instants come from a stubbed provider
   const result = await poll();
   assert.equal(result.results.find((r) => r.id === minted.link.id).effect, 'standalone-sale-settled');
   const after = standaloneSale.documentOf(id);
   assert.deepEqual([after.document.status, after.totals.paidCents, after.totals.remainingCents, after.totals.refundOwedCents], ['paid', 1300, 0, 0]);
   const payments = db.prepare('SELECT paidAt, source, tendersJson FROM standalone_sale_payments WHERE saleId = ?').all(id);
-  assert.deepEqual(payments.map((p) => [p.paidAt, p.source, JSON.parse(p.tendersJson)[0].method]), [['2027-03-12', `payment-link:${minted.link.id}`, 'link']]);
+  assert.deepEqual(payments.map((p) => [p.paidAt, p.source, JSON.parse(p.tendersJson)[0].method]), [['2027-03-12', `payment-link:${minted.link.id}`, 'link']]); // date-literal-ok — the clock is injected (`now`) and the paid instants come from a stubbed provider
   assert.equal(paymentLinksModel.findById(minted.link.id).status, 'paid');
   assert.deepEqual(alerts.filter(([linkId]) => linkId === minted.link.id), [], 'a settled link raises no alert');
-  const again = await processPaidLink({ database: db, devisModel: {}, paymentLinksModel, link: paymentLinksModel.findById(minted.link.id), paidPayment: { paymentId: 'x', paidAt: '2027-03-12T09:30:00.000Z' } });
+  const again = await processPaidLink({ database: db, devisModel: {}, paymentLinksModel, link: paymentLinksModel.findById(minted.link.id), paidPayment: { paymentId: 'x', paidAt: '2027-03-12T09:30:00.000Z' } }); // date-literal-ok — the clock is injected (`now`) and the paid instants come from a stubbed provider
   assert.equal(again.effect, 'already-processed', 'idempotent');
 });
 
@@ -136,7 +136,7 @@ test('rule 41 — a link paid above what the document now asks is booked in full
   const id = doc.document.id;
   const minted = await links.mint(id);
   standaloneSale.offerLine(id, doc.lines[1].id, { offered: true });
-  paid.set(paymentLinksModel.findById(minted.link.id).providerLinkId, '2027-03-12T10:00:00.000Z');
+  paid.set(paymentLinksModel.findById(minted.link.id).providerLinkId, '2027-03-12T10:00:00.000Z'); // date-literal-ok — the clock is injected (`now`) and the paid instants come from a stubbed provider
   const before = alerts.length;
   await poll();
   const after = standaloneSale.documentOf(id);
@@ -155,7 +155,7 @@ test('rule 41 — a document cancelled withdraws its open link; paid anyway, the
   const row = paymentLinksModel.findById(minted.link.id);
   assert.deepEqual([row.status, row.cancelReason], ['cancelled', 'operator']);
   assert.ok(row.remoteCancelPendingAt, 'the provider still has to deactivate it');
-  paid.set(row.providerLinkId, '2027-03-13T08:00:00.000Z');
+  paid.set(row.providerLinkId, '2027-03-13T08:00:00.000Z'); // date-literal-ok — the clock is injected (`now`) and the paid instants come from a stubbed provider
   const before = alerts.length;
   await poll();
   const after = standaloneSale.documentOf(id);
@@ -181,8 +181,8 @@ test('rule 40 — « Retirer le lien » withdraws it at the provider, and the li
 
 test('rule 40 — a link lapses at its 36 hours like any other', async () => {
   const doc = sell([line(beer, 1)]);
-  const minted = await links.mint(doc.document.id, { now: new Date('2027-03-01T10:00:00.000Z') });
-  const moved = retireLapsedAndWithdrawn(db, { now: new Date('2027-03-03T00:00:00.000Z'), paymentLinksModel });
+  const minted = await links.mint(doc.document.id, { now: new Date('2027-03-01T10:00:00.000Z') }); // date-literal-ok — the clock is injected (`now`) and the paid instants come from a stubbed provider
+  const moved = retireLapsedAndWithdrawn(db, { now: new Date('2027-03-03T00:00:00.000Z'), paymentLinksModel }); // date-literal-ok — the clock is injected (`now`) and the paid instants come from a stubbed provider
   assert.ok(moved.some((l) => l.id === minted.link.id));
   assert.equal(paymentLinksModel.findById(minted.link.id).status, 'expired');
 });

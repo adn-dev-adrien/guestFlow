@@ -197,20 +197,20 @@ test('rule 44 — an oracle over random stays and instants, the two DST days inc
 // specs/pricing-components.md §3 rule 45 (pass 4): the calendar answers and the SAS window of the call sites moved here.
 test('dayReached and dayPassed answer about a calendar day, with the semantics of the comparisons they replace', () => {
   const { dayReached, dayPassed } = require('../utils/pricing/stayClock');
-  assert.equal(dayReached('2026-08-04', '2026-08-04'), true);
-  assert.equal(dayReached('2026-08-04', '2026-08-03'), false);
-  assert.equal(dayPassed('2026-08-04', '2026-08-04'), false, 'the arrival day itself is not in the past');
-  assert.equal(dayPassed('2026-08-04', '2026-08-05'), true);
-  assert.equal(dayReached('2026-08-04 15:00:00', '2026-08-04T09:00'), true, 'only the day counts');
+  assert.equal(dayReached('2026-08-04', '2026-08-04'), true); // date-literal-ok — the clock is handed to the pure stay-clock functions
+  assert.equal(dayReached('2026-08-04', '2026-08-03'), false); // date-literal-ok — the clock is handed to the pure stay-clock functions
+  assert.equal(dayPassed('2026-08-04', '2026-08-04'), false, 'the arrival day itself is not in the past'); // date-literal-ok — the clock is handed to the pure stay-clock functions
+  assert.equal(dayPassed('2026-08-04', '2026-08-05'), true); // date-literal-ok — the clock is handed to the pure stay-clock functions
+  assert.equal(dayReached('2026-08-04 15:00:00', '2026-08-04T09:00'), true, 'only the day counts'); // date-literal-ok — the clock is handed to the pure stay-clock functions
 });
 
 test('sasWindowState: future before D 00:00, open until D+1 04:00, past after, unusable for a date nobody can read', () => {
   const { sasWindowState } = require('../utils/pricing/stayClock');
-  assert.equal(sasWindowState('2026-08-04', new Date(2026, 7, 3, 23, 59)), 'future');
-  assert.equal(sasWindowState('2026-08-04', new Date(2026, 7, 4, 0, 0)), 'open');
-  assert.equal(sasWindowState('2026-08-04', new Date(2026, 7, 5, 3, 59)), 'open');
-  assert.equal(sasWindowState('2026-08-04', new Date(2026, 7, 5, 4, 0)), 'past');
-  assert.equal(sasWindowState(null, new Date(2026, 7, 4, 12)), 'unusable');
+  assert.equal(sasWindowState('2026-08-04', new Date(2026, 7, 3, 23, 59)), 'future'); // date-literal-ok — the clock is handed to the pure stay-clock functions
+  assert.equal(sasWindowState('2026-08-04', new Date(2026, 7, 4, 0, 0)), 'open'); // date-literal-ok — the clock is handed to the pure stay-clock functions
+  assert.equal(sasWindowState('2026-08-04', new Date(2026, 7, 5, 3, 59)), 'open'); // date-literal-ok — the clock is handed to the pure stay-clock functions
+  assert.equal(sasWindowState('2026-08-04', new Date(2026, 7, 5, 4, 0)), 'past'); // date-literal-ok — the clock is handed to the pure stay-clock functions
+  assert.equal(sasWindowState(null, new Date(2026, 7, 4, 12)), 'unusable'); // date-literal-ok — the clock is handed to the pure stay-clock functions
 });
 
 test('readableTime: H:MM and HH:MM:SS become HH:MM, a non-time is null', () => {
