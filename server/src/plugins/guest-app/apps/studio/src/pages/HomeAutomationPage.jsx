@@ -145,8 +145,9 @@ export default function HomeAutomationPage({ lodging }) {
   const saved = data.data ? data.data.home.blocks : null;
   useEffect(() => {
     if (!saved) return;
-    setDraft((current) => (sent.current && current !== sent.current ? current : saved));
+    const was = sent.current;
     sent.current = null;
+    setDraft((current) => (was && current !== was ? current : saved));
   }, [data.data]); // eslint-disable-line react-hooks/exhaustive-deps
   const dirty = Boolean(draft && saved && !same(draft, saved));
   useDirtyGuard(dirty);
