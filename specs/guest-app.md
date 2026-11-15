@@ -121,7 +121,10 @@ is pushed every order.
    e-mail address), `hasStayApp` true only for the app's own link. It is not a core variable (Adrien, 2026-11-09:
    the core keeps only generic extension points): while the plugin is inactive both are empty, so a template
    writes the app's sentence under `{{#if hasStayApp}}` and keeps its gate paragraph under `{{#if hasGateAccess}}`. (c) The fiche: « Lien Mon séjour »
-   (copy, regenerate) contributed to the reservation page.
+   (copy, regenerate) contributed to the reservation page. When the server refuses the link (409: cancelled stay,
+   lodging outside the app, app address not set) the card stays and states that reason in place of the link
+   (Adrien, 2026-11-13); a new fiche, an unknown stay or a devis (409 with `code: 'NOT_A_STAY'`) shows no card. A
+   finished stay keeps its link (rule 2).
 
 ### 3.B Home
 
@@ -226,7 +229,11 @@ is pushed every order.
     whose target is not available to the session (module off, item not sold here, a shop or bath target for a
     visitor or a pre-arrival session) is not rendered. Reading of 2026-11-10 (audit R36-INJ-L1): the wifi join QR
     escapes every character the `WIFI:` scheme reserves — backslash, `;`, `,`, `:` and `"` — so a password with a
-    backslash joins as typed.
+    backslash joins as typed. Reading of 2026-11-13: the join QR is scanned by **another** phone, and the 68 px
+    thumbnail did not catch. The server draws it at 600 px with a one-module margin; the ticket shows it at
+    104 px with « Toucher pour agrandir », and a tap opens it full screen on white with the network's name and
+    « Scanner avec l'appareil photo d'un autre téléphone » — closed by a tap anywhere, « Fermer » or Escape, the
+    sheet underneath kept (mock-up: `specs/guest-app-wifi-qr-maquette.html`, variant B).
 19. **Languages.** Every text field has FR and EN. The app language is the guest's `clients.emailLanguage`
     for a stay session, else the browser's (`fr` default), switchable from the app bar. A missing EN text
     falls back to FR, flagged in the studio (« 3 textes non traduits »). Reading of 2026-11-10 (audit R36-C-L1): the
@@ -1261,7 +1268,7 @@ shape for every plugin: `{ error: 'PLUGIN_INACTIVE', plugin }`.
 | POST/PUT/DELETE | `…/studio/pages/:id/blocks`, `…/pages/:id/blocks/order`, `…/studio/blocks/:id` | admin | `{ type, data, onlyForPropertyIds? }` · `{ blockIds }` | the block, validated per type (rule 18), rich text sanitised |
 | GET/POST/PUT | `/api/guest-app/studio/media[/:id]` | admin | multipart `file` (JPG / PNG / WEBP, ≤ 10 MB, ≤ 50 MP) + `altFr`, `altEn` | `{ id, url, sizes:{1600,800,400}, width, height, alt }` (WebP, never enlarged) |
 | POST | `/api/guest-app/lodgings/:propertyId/regenerate-qr` | admin | — | the lodging view (never the code); the old code dies at once, its live visitor sessions survive; 409 if the lodging is off |
-| GET | `/api/guest-app/reservations/:id/stay-link` | admin, reception | — | `{ url, qrDataUri, createdAt, validUntil, validUntilLabel }` (« Le lien vaut jusqu’au lun. 9 nov., 12 h. », the window's end), created on first need, `no-store`; 404 unknown reservation, 409 not a live reservation, lodging off or guest host not set (rules 1, 9bis) |
+| GET | `/api/guest-app/reservations/:id/stay-link` | admin, reception | — | `{ url, qrDataUri, createdAt, validUntil, validUntilLabel }` (« Le lien vaut jusqu’au lun. 9 nov., 12 h. », the window's end), created on first need, `no-store`; 404 unknown reservation, 409 not a live reservation (`code: 'NOT_A_STAY'` for a devis), lodging off or guest host not set (rules 1, 9bis) |
 | POST | `/api/guest-app/reservations/:id/stay-link/regenerate` | admin, reception | — | the new link, same shape; the old link, every session opened from it and every lookup session of the stay die at once (rule 54); same 404 / 409 |
 | GET | `/api/guest-app/lodgings/:propertyId/qr-poster.pdf` | admin | — | A4 PDF of `https://<guestHost>/l/<code>`; 409 if the lodging is off or the guest host is not set |
 | GET | `/api/guest-app/orders?status=todo\|all` | admin (reception 403, rule 45) | — | `{ orders:[{ id, reservationId, lodging, guest, lines:[{label,total,totalLabel}], deliverAt, deliverLabel, payment, paymentLabel, status, statusLabel, total, totalLabel, canMarkDelivered }] }` by delivery time, each row also `fulfilment`, `fulfilmentLabel` (« Livraison au logement » / « À retirer »), `markLabel` (« Marquer livrée » / « Marquer retirée »), `pickupPlace?`, a delivered pickup's `statusLabel` « Retirée », a pickup's `deliverLabel` « À retirer ven. 9 oct., 18 h »; `todo` (default) = on the fiche, not delivered; `all` = the last 30 days (rule 45) |
@@ -1442,7 +1449,7 @@ mock-ups load them from Google Fonts only because they are static files).
 | `PaymentChoice` | Two large selectable cards with icon, title, one-line explanation; the selected one gets a sapin border and check. |
 | `OrderTimeline` | Status as a vertical 3-step line: Reçue → En préparation → Livrée (or Payée / Sur votre note), times in `figure`. |
 | `TabBar` / `NavRail` | 4 entries max (rule 11bis decides which); active = filled icon + sapin label + 2 px ocre bar on top. |
-| `BlockRenderer` | One renderer per booklet block; `steps` as a vertical timeline with lichen numerals, `wifi` as a ticket with a perforated edge, `callout` as a soft panel with a left icon, `contact` as a row with « Appeler » / « WhatsApp » buttons, `place` with a static map tile + « Itinéraire ». |
+| `BlockRenderer` | One renderer per booklet block; `steps` as a vertical timeline with lichen numerals, `wifi` as a ticket with a perforated edge (104 px QR, a tap opens it full screen, rule 18), `callout` as a soft panel with a left icon, `contact` as a row with « Appeler » / « WhatsApp » buttons, `place` with a static map tile + « Itinéraire ». |
 
 States, for every list: skeletons in the final layout (no spinner on a blank page), `EmptyState` with an
 illustration-free icon + one sentence + one action, `ErrorAlert` with « Réessayer », offline banner
@@ -1616,7 +1623,8 @@ le nom et le numéro. »
   the generic route unable to write it, a stored own host ignored at boot, the loader never handing GuestFlow's host to
   a web app; the erase naming the booklet pages and photos and deleting the photo files, only once the erase has
   committed (a rolled-back erase keeps them, R36b N5)
-- [x] `…/guest-app-wifi-qr.unit.test.js` (1) — rule 18 reading: the join text read back as typed, backslash included
+- [x] `…/guest-app-wifi-qr.unit.test.js` (2) — rule 18 readings: the join text read back as typed, backslash included;
+  the join QR is a 600 px PNG (2026-11-13)
 - [x] `…/guest-app-delivery-dst.unit.test.js` (2) — rule 41 reading: the next two Paris clock changes, computed from
   today: the first time the lead away, no wall time that does not exist, the times in their real order
 
@@ -1631,6 +1639,8 @@ le nom et le numéro. »
 - [x] `CartPage.payment-choice.test.jsx` (6) — rules 25, 32, 33, 37quater, 41bis: note / card choice and the button's
   server total, card off → note stated, 0 € → « Réserver », a line lowered to the stock left, pickup question, the order
 - [x] `BlockRenderer.blocks.test.jsx` (10) — rules 11ter, 18, 49: every block type, wifi copy / « Pas de wifi », targets
+- [x] `WifiBlock.enlarge.test.jsx` (2) — rule 18 reading of 2026-11-13: a tap on the QR opens it full screen with the
+  network's name, « Fermer » closes it; no QR, nothing to enlarge
 - [x] `AppShell.night.test.jsx` (4) — §6.1, rules 19, 53: day / server night / device dark, the guest's choice kept, EN
 - [x] `session.reexchange.test.jsx` (5) — rules 1, 4, 9, 22: the stay link kept, a dead session reopened once, a stale
   link forgotten, the poster's visitor fallback, « Application indisponible »
@@ -1669,7 +1679,7 @@ le nom et le numéro. »
   reason, the stock group (follow, count, restock line, « Prévenir sous », « En rupture »)
 - [x] `GuestOrdersPage` (7), `PlanningOrderCard` (4) — rules 43-45: by delivery time, « Marquer livrée / retirée »,
   the push deep-link, only the latest read lands; the planning card and the day counter
-- [x] `StayLinkCard` (4), `StockLineWarning` (2), `SasStayAppStep.sas-portal` (7, moved from the SAS folder), the SAS's
+- [x] `StayLinkCard` (6), `StockLineWarning` (2), `SasStayAppStep.sas-portal` (7, moved from the SAS folder), the SAS's
   generic `ReservationSasDialog.portal-lead` (2) — rules 1, 9bis, 37quater
 - [x] `SettingsGuestAppSection` (6, rule 58: GuestFlow's own address said on the field), `itemDraft.unsold` (3), `roles.plugins` (Intégrations follows every plugin that
   contributes to it) — rules 22, 39, 47: the URL field's attributes through `slotProps`, the bound and lead time

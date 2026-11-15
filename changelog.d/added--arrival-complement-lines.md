@@ -1,0 +1,1 @@
+- **Reservation fiche — « Détail » of the arrival complement lists its lines** (option, resource, added guests, tourist tax…), like the end-of-stay complement. `GET /api/reservations/:id` gains `arrivalComplementLines`.

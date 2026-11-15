@@ -44,6 +44,8 @@
  "wifi.network": "Réseau",
  "wifi.password": "Mot de passe",
  "wifi.qr": "QR code pour rejoindre le wifi",
+ "wifi.enlarge": "Toucher pour agrandir",
+ "wifi.scan": "Scanner avec l’appareil photo d’un autre téléphone",
  "wifi.title": "Wifi",
  "contacts.title": "Urgences & contacts",
  "booklet.title": "Le livret",

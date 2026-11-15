@@ -24,6 +24,12 @@ function localHourMinute(date) {
   return `${pad(date.getHours())}:${pad(date.getMinutes())}`;
 }
 
+/** Today and the time of day from ONE clock read, so a request straddling midnight never mixes two days. */
+function localNow() {
+  const now = new Date();
+  return { today: localIsoDate(now), nowTime: localHourMinute(now) };
+}
+
 /**
  * Whether a stay is over: its departure day is behind us, or it is today and the check-out time has passed
  * (specs/calendar-property-parity.md rule 3). A stay with no check-out time ends at its day's end.
@@ -34,4 +40,4 @@ function stayHasEnded({ endDate, checkOutTime }, today, nowTime) {
   return /^\d{2}:\d{2}/.test(String(checkOutTime || '')) && String(checkOutTime).slice(0, 5) <= nowTime;
 }
 
-module.exports = { localIsoDate, todayIso, localHourMinute, stayHasEnded };
+module.exports = { localIsoDate, todayIso, localHourMinute, localNow, stayHasEnded };

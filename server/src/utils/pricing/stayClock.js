@@ -109,6 +109,22 @@ function readableTime(value) {
 const dayReached = (day, todayIso) => String(todayIso).slice(0, 10) >= String(day).slice(0, 10);
 const dayPassed = (day, todayIso) => String(todayIso).slice(0, 10) > String(day).slice(0, 10);
 
+/**
+ * Has the fiche's stay started? — specs/lock-at-arrival-time-and-arrival-complement-lines.md rule 1.
+ * The fiche locks from here, not from midnight of the arrival day: a day before today, or the arrival day once its
+ * `checkInTime` has passed (no or an unreadable `checkInTime` → from 00:00; « 9:00 », « 09h00 » and « 16h » are read), or
+ * earlier once the arrival was marked (the check-in box or the completed arrival SAS: the guest is standing there).
+ * `today` (`YYYY-MM-DD`) and `nowTime` (`HH:MM`) are the Paris clock the caller read once.
+ */
+function hasStayStarted(row, today, nowTime) {
+  const start = row && row.startDate ? String(row.startDate).slice(0, 10) : '';
+  if (!start || !dayReached(start, today)) return false;
+  if (dayPassed(start, today)) return true;
+  if (Number(row.checkInDone || 0) === 1 || Boolean(row.arrivalSasDoneAt)) return true;
+  const match = String(row.checkInTime || '').match(/^(\d{1,2})[:h](\d{2})?/);
+  return !match || `${match[1].padStart(2, '0')}:${match[2] || '00'}` <= nowTime;
+}
+
 // 'YYYY-MM-DD' → local midnight Date, or null when the value isn't a usable ISO day.
 function parseIsoDay(dateIso) {
   const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(dateIso || ''));
@@ -135,4 +151,6 @@ const settingsSchema = [
   { key: 'defaultCheckOut', type: 'string', default: '10:00', scope: 'property', validate: (value) => (TIME_PATTERN.test(String(value)) ? null : 'Heure invalide (HH:MM).') },
 ];
 
-module.exports = { phaseOf, TIME_ZONE, SAS_WINDOW_END_HOUR, settingsSchema, readableTime, dayReached, dayPassed, sasWindowState };
+module.exports = {
+  phaseOf, TIME_ZONE, SAS_WINDOW_END_HOUR, settingsSchema, readableTime, dayReached, dayPassed, hasStayStarted, sasWindowState,
+};

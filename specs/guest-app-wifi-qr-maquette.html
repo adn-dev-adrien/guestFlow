@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Mon séjour — QR du wifi trop petit</title>
+<style>
+:root{--paper:#F5F0E6;--card:#FDFAF3;--ink:#22271F;--soft:#5C6153;--sapin:#2E3B2A;--ocre:#8A5816;--line:#DCD4C2;--chip:#EDE5D4;--ease:cubic-bezier(.32,.72,0,1)}
+*{box-sizing:border-box}body{margin:0;font:15px/1.5 Helvetica,Arial,sans-serif;color:var(--ink);background:#E9E3D6}
+main{max-width:1040px;margin:0 auto;padding:28px 20px 60px;display:grid;gap:22px}
+h1{font:400 28px/1.15 Georgia,serif;color:var(--sapin);margin:0;letter-spacing:-.01em}
+.lead{margin:0;color:var(--soft);max-width:68ch}
+.facts{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px}
+.facts div{background:var(--card);border:1px solid var(--line);border-radius:6px;padding:12px 14px;font-size:14px}
+.facts b{display:block;font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--ocre);margin-bottom:4px}
+.tabs{display:flex;gap:8px;flex-wrap:wrap}
+.tabs button{font:600 14px Helvetica,Arial;border:1px solid var(--line);background:var(--card);border-radius:999px;padding:10px 16px;min-height:44px;cursor:pointer}
+.tabs button[aria-pressed=true]{background:var(--sapin);color:#fff;border-color:var(--sapin)}
+.stage{display:grid;grid-template-columns:minmax(0,380px) minmax(0,1fr);gap:28px;align-items:start}
+@media(max-width:760px){.stage{grid-template-columns:1fr}}
+.phone{position:relative;width:100%;max-width:380px;height:720px;border-radius:38px;border:10px solid #1d211b;background:var(--paper);overflow:hidden;box-shadow:0 20px 50px rgba(0,0,0,.18)}
+.scrim{position:absolute;inset:0;background:rgba(20,24,18,.38)}
+.sheet{position:absolute;left:0;right:0;bottom:0;background:var(--paper);border-radius:14px 14px 0 0;padding:10px 18px 26px;display:grid;gap:14px;max-height:92%;overflow:auto}
+.grab{width:38px;height:5px;border-radius:3px;background:var(--line);margin:0 auto}
+.sheet h3{font:400 22px Georgia,serif;color:var(--sapin);margin:0}
+.wifi{position:relative;border:1px solid var(--line);border-radius:4px;background:var(--card);padding:15px 20px;display:grid;gap:12px}
+.wifi::before,.wifi::after{content:"";position:absolute;top:50%;width:16px;height:16px;border-radius:50%;background:var(--paper);border:1px solid var(--line);transform:translateY(-50%)}
+.wifi::before{left:-9px}.wifi::after{right:-9px}
+.wifi small{display:block;font:700 10.5px Helvetica;letter-spacing:.2em;text-transform:uppercase;color:var(--soft)}
+.wifi b{display:block;font:700 16.5px Helvetica;margin-bottom:8px;word-break:break-all}
+.btn{font:700 11px Helvetica;letter-spacing:.12em;text-transform:uppercase;border:1px solid var(--line);background:transparent;border-radius:4px;min-height:44px;padding:0 12px;cursor:pointer}
+.row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:12px;align-items:center}
+.qr{display:block;background:#fff;border:1px solid var(--line);image-rendering:pixelated}
+.qr.now{width:68px;height:68px;border:4px solid #fff;outline:1px solid var(--line)}
+.qr.thumb{width:104px;height:104px;padding:4px;border-radius:4px;cursor:zoom-in;transition:transform .1s ease-out}
+.qr.thumb:active{transform:scale(.96)}
+.qrA{border-top:1px dashed var(--line);padding-top:14px;display:grid;justify-items:center;gap:6px}
+.qrA img{width:min(240px,100%);height:auto;padding:6px;border-radius:4px}
+.cap{font-size:12.5px;color:var(--soft);text-align:center}
+.tap{font-size:11.5px;color:var(--soft);text-align:center;margin-top:4px}
+.full{position:absolute;inset:0;background:#fff;display:grid;place-items:center;align-content:center;gap:14px;padding:24px;opacity:0;pointer-events:none;transform:scale(.96);transition:opacity .22s var(--ease),transform .32s var(--ease)}
+.full.on{opacity:1;pointer-events:auto;transform:none}
+.full img{width:100%;max-width:320px;image-rendering:pixelated}
+.full .net{font:400 22px Georgia,serif;color:var(--sapin);text-align:center}
+.full .close{position:absolute;top:14px;right:14px}
+@media(prefers-reduced-motion:reduce){.full{transform:none;transition:opacity .15s}}
+.notes{display:grid;gap:12px}
+.notes section{background:var(--card);border:1px solid var(--line);border-radius:6px;padding:14px 16px}
+.notes h2{font:400 18px Georgia,serif;color:var(--sapin);margin:0 0 6px}
+.notes ul{margin:0;padding-left:18px}.notes li{margin:3px 0}
+.pill{display:inline-block;font:700 10px Helvetica;letter-spacing:.14em;text-transform:uppercase;padding:3px 8px;border-radius:99px;background:var(--chip);color:var(--ocre)}
+</style></head><body><main>
+<h1>Mon séjour — QR du wifi trop petit</h1>
+<p class="lead">Le QR qui fait rejoindre le wifi s'affiche en <b>68 px</b>, généré sans taille ni marge précisées. Il se scanne avec le téléphone d'un autre voyageur, souvent à bout de bras : trop petit, il n'accroche pas. Les trois écrans ci-dessous sont manipulables ; le QR est un vrai QR (réseau « Solio-Granja »), à essayer avec un téléphone.</p>
+<div class="facts">
+<div><b>Constat</b>Vignette de 68 × 68 px dans le ticket wifi (accueil et livret).</div>
+<div><b>Ce qu'on propose</b>Un QR bien plus grand, généré net (600 px, marge 1) côté serveur.</div>
+<div><b>Ce qu'on ne fait pas</b>Ni luminosité forcée, ni partage natif du wifi : le navigateur ne le permet pas.</div>
+<div><b>Risque</b>Faible : affichage seul ; le contenu du QR et son échappement (règle 18) ne bougent pas.</div>
+</div>
+<div class="tabs" role="group" aria-label="Variante">
+<button data-v="now" aria-pressed="false">Aujourd'hui</button>
+<button data-v="A" aria-pressed="true">A · QR grand dans le ticket</button>
+<button data-v="B" aria-pressed="false">B · Vignette + plein écran</button>
+</div>
+<div class="stage">
+<div class="phone"><div class="scrim"></div>
+<div class="sheet"><div class="grab"></div><h3>Wifi</h3><div class="wifi" id="ticket"></div></div>
+<div class="full" id="full" role="dialog" aria-label="QR du wifi"><button class="btn close" id="closeFull">Fermer</button>
+<img src="data:image/png;base64,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" alt="QR du wifi"><div class="net">Solio-Granja</div><div class="cap">Scanner avec l'appareil photo d'un autre téléphone</div></div>
+</div>
+<div class="notes">
+<section id="nA"><span class="pill">Recommandée</span><h2>A · QR grand dans le ticket</h2><ul>
+<li>Le QR passe sous le mot de passe, centré, jusqu'à 240 px, avec une ligne pointillée façon talon de ticket.</li>
+<li>Rien à toucher : on tend le téléphone, l'autre scanne.</li>
+<li>Le ticket est plus haut ; dans la feuille Wifi de l'accueil, il tient sans défiler sur un iPhone SE.</li></ul></section>
+<section id="nB"><h2>B · Vignette + plein écran</h2><ul>
+<li>La vignette passe à 104 px (scannable de près) ; un toucher l'ouvre en plein écran sur fond blanc, refermé par « Fermer » ou un toucher.</li>
+<li>Le ticket garde sa forme compacte actuelle.</li>
+<li>Un geste de plus, qu'il faut deviner (« Toucher pour agrandir »).</li></ul></section>
+<section id="nNow"><h2>Aujourd'hui</h2><ul><li>68 px, marge par défaut, image générée en petite résolution puis affichée en pixels nets.</li></ul></section>
+</div></div>
+</main>
+<script>
+const QR=document.querySelector('#full img').src,t=document.getElementById('ticket'),full=document.getElementById('full');
+const creds='<div><small>Réseau</small><b>Solio-Granja</b><small>Mot de passe</small><b>lavande-2026</b><button class="btn" type="button">Copier</button></div>';
+const views={
+ now:'<div class="row">'+creds+'<img class="qr now" src="'+QR+'" alt="QR du wifi"></div>',
+ A:creds+'<div class="qrA"><img class="qr" src="'+QR+'" alt="QR du wifi"><div class="cap">Scanner avec l\'appareil photo d\'un autre téléphone</div></div>',
+ B:'<div class="row">'+creds+'<div><img class="qr thumb" id="thumb" src="'+QR+'" alt="QR du wifi — toucher pour agrandir" tabindex="0" role="button"><div class="tap">Toucher pour agrandir</div></div></div>'};
+function show(v){t.innerHTML=views[v];document.querySelectorAll('.tabs button').forEach(b=>b.setAttribute('aria-pressed',b.dataset.v===v));
+ ['nA','nB','nNow'].forEach(id=>document.getElementById(id).style.opacity=(id==='n'+v||(id==='nNow'&&v==='now'))?1:.45);
+ full.classList.remove('on');const th=document.getElementById('thumb');
+ if(th){const o=()=>full.classList.add('on');th.onclick=o;th.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();o()}}}}
+document.querySelectorAll('.tabs button').forEach(b=>b.onclick=()=>show(b.dataset.v));
+full.onclick=()=>full.classList.remove('on');document.addEventListener('keydown',e=>{if(e.key==='Escape')full.classList.remove('on')});
+t.addEventListener('click',e=>{if(e.target.matches('.btn')){e.target.textContent='Copié';setTimeout(()=>e.target.textContent='Copier',1200)}});
+show('A');
+</script></body></html>

@@ -69,8 +69,8 @@ test('rule 27 — a save lowering the count of an offered line answers ARRIVAL_E
   const start = todayIso();
   const id = Number(db.prepare(`INSERT INTO reservations
       (propertyId, clientId, startDate, endDate, adults, teens, children, babies, platform, totalPrice, discountPercent, finalPrice,
-       depositAmount, balanceAmount, kind, checkInTime, checkOutTime, arrivalExtrasBaseline)
-      VALUES (1, 1, ?, ?, 5, 0, 0, 0, 'direct', 100, 0, 100, 0, 100, 'reservation', '16:00', '10:00', ?)`)
+       depositAmount, balanceAmount, kind, checkInTime, checkOutTime, arrivalExtrasBaseline, checkInDone)
+      VALUES (1, 1, ?, ?, 5, 0, 0, 0, 'direct', 100, 0, 100, 0, 100, 'reservation', '16:00', '10:00', ?, 1)`)
     .run(start, addIsoDays(start, 2), JSON.stringify({ 'opt:37': 0 })).lastInsertRowid);
   for (const day of [0, 1]) {
     db.prepare("INSERT INTO reservation_nights (reservationId, date, seasonLabel, pricingMode, price) VALUES (?, ?, 'Base', 'fixed', 50)")

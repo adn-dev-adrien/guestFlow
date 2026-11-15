@@ -1,7 +1,7 @@
 {
   "id": "hourly-resources",
   "name": "Ressources à l’heure",
-  "version": "1.7.0",
+  "version": "1.8.0",
   "description": "Louer un équipement par créneau : bain nordique, sauna.",
   "icon": "hot-tub",
   "surfaces": [
@@ -142,32 +142,24 @@
       "La TVA d’une réservation de ressource est calculée par le composant TVA du cœur ; à 20 %, le net et la TVA peuvent bouger d’un centime, le total ne change pas.",
       "Demande le SDK 2.27 de GuestFlow."
     ],
-    "1.6.2": [
+    "1.7.0": [
+      "Sur le planning, un clic sur la carte d’une séance hors séjour ouvre cette réservation dans Calendrier › Ressources.",
+      "Demande le SDK 2.27 de GuestFlow."
+    ],
+    "1.8.0": [
       "La première heure offerte par le logement est comptée au tarif de jour, comme sur un séjour, même si elle tombe dans la tranche du soir : pour les nouvelles réservations seulement, une réservation déjà enregistrée garde son prix tant qu’on ne déplace pas son créneau ni son logement.",
       "Le prix propre au logement est lu par le cœur de GuestFlow, un seul endroit pour la grille horaire.",
       "Vendre une heure de bain refuse le créneau déjà pris, au moment même de la vente, avant que la ligne soit écrite.",
       "Une réservation de ressource garde la trace de la vente hors séjour dont elle fait partie et de l’absence du client (colonnes ajoutées, vides pour l’existant).",
       "Les arrondis en euros et en centimes passent par un calcul commun du cœur : aucun montant ne change.",
-      "Compatible avec GuestFlow 4 (SDK 2.29)."
-    ],
-    "1.6.3": [
       "Une séance cochée au planning reste sur la ligne qui la porte quand une ressource a été vendue plusieurs fois.",
       "Le supplément de soirée des séances placées au sas d’arrivée devient une part de la ligne de la séance tant que cette ligne est à percevoir à l’arrivée : il grandit ou diminue avec les séances, les heures vendues ne bougent pas ; une ligne déjà payée ou vendue avec le séjour garde la ligne « supplément soirée » à part, et un séjour qui en a déjà une la garde (jamais facturé deux fois).",
-      "Compatible avec GuestFlow 4 (SDK 2.29)."
-    ],
-    "1.6.4": [
       "La chauffe du bain peut se compter à partir de maintenant plutôt que de l’arrivée, pour les commandes passées une semaine avant ; chaque créneau dit s’il est de jour ou de soirée et son supplément.",
       "L’heure offerte vaut le tarif de jour : placée le soir, elle doit le supplément de soirée, qui fait partie du prix de la séance.",
       "Le supplément de soirée de séances placées sur des heures que le séjour détient déjà n’est jamais facturé deux fois au sas d’arrivée.",
-      "Compatible avec GuestFlow 4 (SDK 2.29)."
-    ],
-    "1.6.5": [
       "Une séance dont l'argent est sur une vente hors séjour du cœur n'est plus comptée deux fois dans le journal ni dans le lot de cartes.",
       "Les ressources à l'heure sont les contextes « Proposés à l'arrivée » des ventes hors séjour (Réglages → Articles).",
       "L'heure offerte d'une ligne pas encore vendue vaut le tarif de jour partout : le supplément du soir de cette heure se facture à part (sas d'arrivée ou commande), jamais deux fois.",
-      "Demande le SDK 2.30 de GuestFlow."
-    ],
-    "1.7.0": [
       "Le sas d’arrivée d’un client sans séjour devient une petite vente : sa séance, les articles proposés à l’arrivée (boissons…), « Offrir » sur chaque ligne et le reste à payer, calculés par le serveur.",
       "Un paiement partiel laisse un « reste à percevoir » : la carte du planning affiche « Reste … », puis « Payé » ; le reste se règle plus tard, depuis la réservation, en rouvrant l’arrivée ou par un lien de paiement envoyé sur un clic.",
       "L’accueil ouvre et rouvre l’arrivée du jour jusqu’à 4 h le lendemain ; une ligne payée et un remboursement restent à l’administrateur.",
