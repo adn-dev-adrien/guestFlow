@@ -8,11 +8,11 @@
  *   allocations(id)    the stay's `payment_allocations` rows, signed cents (rule 74); a stay a statement changed behind the
  *                      application's hooks is rebuilt first, so the read is never late
  *   receipts(id)       `{ allocations, settlements, splitReceived }` — everything received for the stay, in the one read that
- *                      SCHEDULE, SETTLEMENT and REFUNDS share (rule 48): the settlements once, the split each bucket received
- *                      derived from them, the allocations read (and rebuilt when stale) only by a reader that asks for them
+ *                      SCHEDULE, SETTLEMENT and REFUNDS share (rule 48): the split each bucket received, read on the handle; the
+ *                      settlements and the allocations (rebuilt when stale) read once, only by a reader that asks for them
  */
 const { readInstallmentSummary } = require('../../utils/installmentSummary');
-const { splitReceivedOfSettlements, readAmounts } = require('../../utils/splitReceived');
+const { readSplitReceived } = require('../../utils/splitReceived');
 const { flushDirty } = require('../../utils/paymentAllocationsSync');
 
 function allocationsOf(db, id) {
@@ -23,16 +23,21 @@ function allocationsOf(db, id) {
     WHERE documentRef = ? ORDER BY id`).all(`reservation:${Number(id)}`);
 }
 
+// The split is read on the handle alone (no model, no default database: the engine runs on any handle); the settlements and the
+// allocations are read, once, only by a reader that asks for them (the allocations rebuild a stale stay first).
 function receiptsOf(db, id) {
-  const settlements = Number(id) > 0 ? require('../paymentSettlementsModel').buildModel(db).listFor(id) : [];
+  let settlements;
   let allocations;
   return {
+    get settlements() {
+      if (settlements === undefined) settlements = Number(id) > 0 ? require('../paymentSettlementsModel').buildModel(db).listFor(id) : [];
+      return settlements;
+    },
     get allocations() {
       if (allocations === undefined) allocations = allocationsOf(db, id);
       return allocations;
     },
-    settlements,
-    splitReceived: splitReceivedOfSettlements(settlements, () => readAmounts(db, id)),
+    splitReceived: readSplitReceived(db, id),
   };
 }
 

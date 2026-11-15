@@ -1,6 +1,6 @@
 // specs/pricing-components.md §3 rule 48 — `PaymentLedger.receipts(id)` is the one read of what a stay received: SCHEDULE
-// and REFUNDS take the split each bucket received from it (derived from the settlements it read), no second query of the
-// settlement tables; its allocations are read only by a reader that asks for them. Same figures as the direct read.
+// and REFUNDS take the split each bucket received from it; its settlements and allocations are read only by a reader that asks
+// for them (a quote reads neither, and never the default database). Same figures as the direct read.
 process.env.DB_PATH = ':memory:';
 
 const test = require('node:test');
@@ -51,7 +51,7 @@ test('rule 48 — a stay with no settlement receives no split; an unknown or uns
   assert.equal(readSplitReceived(db, stay.id), null);
 });
 
-test('rule 48 — receipts reads the allocations only when they are asked for', () => {
+test('rule 48 — receipts reads the settlements and the allocations only when they are asked for', () => {
   const stay = pooledStay();
   const seen = [];
   const spy = new Proxy(db, {
@@ -62,9 +62,11 @@ test('rule 48 — receipts reads the allocations only when they are asked for', 
     },
   });
   const receipts = paymentLedger.create(spy).receipts(stay.id);
-  assert.ok(!seen.some((sql) => /payment_allocations/.test(sql)), 'the split alone reads no allocation');
+  assert.ok(!seen.some((sql) => /payment_allocations|SELECT \* FROM payment_settlements/.test(sql)), 'the split alone reads neither');
   assert.ok(Array.isArray(receipts.allocations));
+  assert.equal(receipts.settlements.length, 1);
   assert.ok(seen.some((sql) => /payment_allocations/.test(sql)));
+  assert.ok(seen.some((sql) => /SELECT \* FROM payment_settlements/.test(sql)));
 });
 
 test('rule 48 — the fiche reads the same plan whether SCHEDULE reads the receipts or the split directly', async () => {

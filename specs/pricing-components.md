@@ -819,9 +819,9 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
     > **Delivered by PR B** (pass 5): `SlotAvailabilityProvider` (declared by hourly-resources through `ctx.slotAvailability`, handed out as `ctx.core.slotAvailability()`) and `EventPublisher`
     > (`models/ports/eventPublisher.js`, rule 55). **Pending** — PR-later: `StayRepository.stay` / `storedStayPrice` (the sale path of rules 8-9: PR B sells through the fiche's own save, which re-reads the stay), and `PaymentGateway` (the card link is the
     > online-payment plugin's and stays so until the shop's card order, PR C).
-    > **Delivered by PR C** (2026-11-15, owner: everything in 4.2.0): `PaymentLedger.receipts(id)` is the one read of what a stay received — `{ settlements, splitReceived, allocations }`, the split
-    > each bucket received derived from the settlements it read (`splitReceived.splitReceivedOfSettlements`, the same function the direct read `readSplitReceived` runs on its rows), the
-    > allocations read (and rebuilt when stale) only when a reader asks for them. The SCHEDULE step reads the split there (`paymentLedger.receipts(id).splitReceived`, under the conditions it always
+    > **Delivered by PR C** (2026-11-15, owner: everything in 4.2.0): `PaymentLedger.receipts(id)` is the one read of what a stay received — `{ splitReceived, settlements, allocations }`: the split
+    > each bucket received, read on the handle the port is bound to (`readSplitReceived`: no model, no default database, so the engine runs on any handle), and the settlements and the
+    > allocations (rebuilt when stale) read once, only when a reader asks for them. The SCHEDULE step reads the split there (`paymentLedger.receipts(id).splitReceived`, under the conditions it always
     > read it) and hands SETTLEMENT the values it plans from; REFUNDS' input (`refundInputModel`) reads the end-of-stay share received there too; the port's `splitReceived(id)` is that same read.
     > The mid-stay notes SETTLEMENT reads are the stay's stored column (what each note sold and settled), not a read of the payment tables. 0 figure: the gate, the golden test and the books
     > are unchanged. Proof `pricing-receipts-single-read`, `pricing-schedule` (the step asks `receipts`, never `splitReceived`).
