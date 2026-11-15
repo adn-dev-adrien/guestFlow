@@ -1,5 +1,5 @@
 /**
- * SettingsGateAccessSection — « Sowel — portail et domotique », a self-contained card of Réglages →
+ * SettingsGateAccessSection — « Accès portail (Sowel) », a self-contained card of Réglages →
  * Intégrations (specs/gate-access-sowel-connector.md §3.6 rule 29).
  *
  * It configures nothing: the keys live in Sowel, whose `guestflow` plugin reads guestFlow's list
@@ -59,7 +59,7 @@ export default function SettingsGateAccessSection() {
     <Card variant="outlined" sx={{ bgcolor: 'background.paper', mb: 3 }}>
       <CardContent sx={{ p: { xs: 2, sm: 3 } }}>
         <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center', mb: 1.5, flexWrap: 'wrap', rowGap: 1 }}>
-          <Typography variant="sectionHeader">Sowel — portail et domotique</Typography>
+          <Typography variant="sectionHeader">Accès portail (Sowel)</Typography>
           <StatusBadge status={badge.status} label={badge.label} />
         </Stack>
 

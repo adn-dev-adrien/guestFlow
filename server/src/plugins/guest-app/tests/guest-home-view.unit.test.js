@@ -8,6 +8,7 @@ const { validateHomeBlocks } = require('../homeBlocksValidation');
 const { selectionOf } = require('../homeRoles');
 const { CATALOG, GRANJA_BLOCKS, readingsAt } = require('./homeFixtures');
 
+// date-literal-ok: an injected clock — the model reads no « today »
 const NOW = new Date('2026-11-15T20:30:00Z');
 const blocks = () => validateHomeBlocks(GRANJA_BLOCKS, CATALOG, (() => { let n = 0; return () => `item${String(n += 1).padStart(2, '0')}`; })()).blocks;
 const view = (over = {}) => buildHomeView({ blocks: blocks(), catalog: CATALOG, readings: readingsAt(NOW), series: [], now: NOW, lang: 'fr', ...over });
@@ -82,6 +83,7 @@ test('rule 18 — 24 hourly bars ending this hour, scaled on their maximum; a mi
 });
 
 test('rule 13 — a block whose equipment is gone from the catalogue is not shown', () => {
+  // date-literal-ok: an injected clock — the model reads no « today »
   const catalog = CATALOG.map((e) => (e.id === 'm-granja' ? { ...e, goneAt: '2026-11-14T10:00:00.000Z' } : e));
   assert.equal(block(view({ catalog }), 'energy'), undefined);
 });

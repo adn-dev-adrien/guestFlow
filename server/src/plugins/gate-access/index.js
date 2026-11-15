@@ -1,5 +1,5 @@
 /**
- * Sowel — portail et domotique (specs/gate-access-sowel-connector.md, specs/guest-app-home-automation.md; module per
+ * Accès au portail (Sowel) (specs/gate-access-sowel-connector.md, specs/guest-app-home-automation.md; module per
  * specs/plugins-phase-1-sdk.md). Sowel pulls the list of keys and posts the outcomes back; guestFlow
  * shows the stored key in the emails, the SAS and the fiche, and alerts the admins on a failure. On the same
  * key and signature, the house pushes what the guests' « Domotique » page shows and collects their light commands.

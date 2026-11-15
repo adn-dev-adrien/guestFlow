@@ -1,6 +1,6 @@
 {
   "id": "gate-access",
-  "name": "Sowel — portail et domotique",
+  "name": "Accès au portail (Sowel)",
   "version": "1.4.0",
   "description": "Codes et clés du portail envoyés à Sowel ; mesures et lumières de la maison pour la page Domotique de l’appli séjour.",
   "icon": "key",

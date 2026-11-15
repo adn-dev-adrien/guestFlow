@@ -6,6 +6,7 @@ const assert = require('node:assert/strict');
 const { startHome, freshHome } = require('./homeFixtures');
 
 const COMMAND = { stayId: 7, propertyId: 1, equipmentId: 'l-chene', lightId: 'light-1', value: 'on' };
+// date-literal-ok: an injected clock — the model reads no « today »
 const at = (s) => new Date(Date.UTC(2026, 10, 15, 20, 0, s));
 
 test('rule 8 — a queued command is collected once by the house', () => {
@@ -54,8 +55,11 @@ test('rule 10 — the same tap within 2 s is one command; after 2 s, or the othe
 
 test('commands are purged after 7 days', () => {
   const { model, db } = freshHome();
+  // date-literal-ok: an injected clock — the model reads no « today »
   model.queueCommand(COMMAND, new Date('2026-11-01T10:00:00Z'));
+  // date-literal-ok: an injected clock — the model reads no « today »
   model.queueCommand(COMMAND, new Date('2026-11-14T10:00:00Z'));
+  // date-literal-ok: an injected clock — the model reads no « today »
   assert.equal(model.purge(new Date('2026-11-15T10:00:00Z')), 1);
   assert.equal(db.prepare('SELECT COUNT(*) AS n FROM home_commands').get().n, 1);
 });

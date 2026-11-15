@@ -23,10 +23,14 @@ test('rules 3-4 — the catalogue is stored whole and answered with the lodgings
 
 test('rule 13 — an equipment missing from the next catalogue is marked gone, and comes back when listed again', () => {
   const { model } = freshHome();
+  // date-literal-ok: an injected clock — the model reads no « today »
   model.replaceCatalog(parseCatalog({ equipments: CATALOG }).value, new Date('2026-11-15T10:00:00Z'));
+  // date-literal-ok: an injected clock — the model reads no « today »
   model.replaceCatalog(parseCatalog({ equipments: CATALOG.filter((e) => e.id !== 't-sejour') }).value, new Date('2026-11-15T11:00:00Z'));
+  // date-literal-ok: an injected clock — the model reads no « today »
   assert.equal(model.catalog().find((e) => e.id === 't-sejour').goneAt, '2026-11-15T11:00:00.000Z');
   assert.equal(model.channel().equipments, 2);
+  // date-literal-ok: an injected clock — the model reads no « today »
   model.replaceCatalog(parseCatalog({ equipments: CATALOG }).value, new Date('2026-11-15T12:00:00Z'));
   assert.equal(model.catalog().find((e) => e.id === 't-sejour').goneAt, null);
 });
@@ -67,11 +71,14 @@ test('rules 5-6 — only selected pairs of a present equipment are stored; the r
 
 test('rule 5 — a reading overwrites the previous one and keeps 45 minutes of samples for the trend', () => {
   const { model } = freshHome();
+  // date-literal-ok: an injected clock — the model reads no « today »
   model.replaceCatalog(parseCatalog({ equipments: CATALOG }).value, new Date('2026-11-15T10:00:00Z'));
   const pair = { equipmentId: 't-sejour', alias: 'temperature' };
   const push = (minute, value) => model.storeReadings(
+    // date-literal-ok: an injected clock — the model reads no « today »
     [{ ...pair, value, unit: '°C', measuredAt: `2026-11-15T10:${String(minute).padStart(2, '0')}:00.000Z` }],
     [pair],
+    // date-literal-ok: an injected clock — the model reads no « today »
     new Date(`2026-11-15T10:${String(minute).padStart(2, '0')}:05Z`),
   );
   push(0, 19);
@@ -86,6 +93,7 @@ test('rule 5 — series: 24 buckets at most, sorted, overwritten; an unselected 
   const pair = { equipmentId: 'wx', alias: 'rain_1h' };
   const home = await startHome({ selection: () => [pair] });
   t.after(home.close);
+  // date-literal-ok: an injected clock — the model reads no « today »
   const buckets = Array.from({ length: 24 }, (_, i) => ({ time: new Date(Date.UTC(2026, 10, 15, i)).toISOString(), value: i / 10 })).reverse();
   const res = await home.call('POST', '/public/v1/home/series', { series: [
     { ...pair, buckets },

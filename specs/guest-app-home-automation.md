@@ -172,7 +172,7 @@ and off the lights the owner gave them. The owner chooses all of it per lodging 
 
 The **`gate-access`** plugin is GuestFlow's Sowel connector: it gains the `/public/v1/home` tree behind its
 existing `requireConnector` and `signResponse`, stores what the house sends, and exposes it through a new SDK
-extension point. Its manifest is renamed « Sowel — portail et domotique ». The **`guest-app`** plugin owns the
+extension point. Its name stays « Accès au portail (Sowel) »: the console sells it as an option under that name, and renaming a sold option is a commercial decision, not a side effect of this spec (2026-11-15). The **`guest-app`** plugin owns the
 per-lodging configuration, the module and the guest routes. Plugins never import each other: two typed extension
 points, **SDK 2.28.0**, on the model of `resourceScheduler`:
 
@@ -183,7 +183,7 @@ points, **SDK 2.28.0**, on the model of `resourceScheduler`:
 
 | Layer | File | T/C | Responsibility |
 |---|---|---|---|
-| plugin | `plugins/gate-access/manifest.json` | T | Name « Sowel — portail et domotique », surfaces, changelog entry. |
+| plugin | `plugins/gate-access/manifest.json` | T | Description, surfaces, version 1.4.0, changelog entry (name unchanged, see above). |
 | sdk | `plugins/sdk/createContext.js`, `registry.js`, `coreServices.js`, `version.js` | T | `homeData` / `homeSelection` extension points and their `ctx.core` readers; SDK 2.28.0. |
 | plugin | `plugins/gate-access/index.js` | T | Mounts the home router, declares `homeData`, daily purge of old commands; manifest `sdk ^2.28.0`. |
 | routes | `plugins/gate-access/homeRoutes.js` | C | `/public/v1/home`: `ping`, `catalog`, `readings`, `series`, `commands`, `commands/results`; the gate's connector auth + signed answers on the router, behind the core `publicApiLimiter` (600 / 15 min per caller — the channel's ~210 calls an hour fit). |

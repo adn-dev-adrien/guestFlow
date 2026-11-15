@@ -106,7 +106,7 @@ const PLUGIN_DISPLAY_NAMES = Object.freeze({
   'accounting-export': 'Export comptable',
   'airbnb-intake': 'Saisie Airbnb',
   'booking-intake': 'Saisie Booking',
-  'gate-access': 'Sowel — portail et domotique',
+  'gate-access': 'Accès au portail (Sowel)',
   'gites-de-france-intake': 'Saisie Gîtes de France',
   'google-calendar': 'Google Agenda',
   'google-vacation-rentals': 'Google Vacation Rentals',
