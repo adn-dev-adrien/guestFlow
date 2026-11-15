@@ -30,9 +30,11 @@ test('rule 52: stayQuote is built and runs loadStay → clock → nights → ext
   assert.ok(index('schedule') < index('platformPayment') && index('platformPayment') < index('settlement'), 'rule 70: the platform payment follows the schedule');
 });
 
-test('rule 52: every stay step file is in stayQuote; the sale use cases are staySale (rules 8, 9) and externalSale', () => {
+test('rule 52: every stay step file is in stayQuote; the sale use cases are staySale (rules 8, 9) under each seller\'s name (rule 54) and externalSale', () => {
   assert.deepEqual([...stayQuote.steps].sort(), [...stepFiles].sort());
-  assert.deepEqual(Object.keys(require('../utils/pricing/pipelines')), ['stayQuote', 'staySale', 'touristTaxFigure', 'externalSale']);
+  assert.deepEqual(Object.keys(require('../utils/pricing/pipelines')), [
+    'stayQuote', 'staySale', 'ficheSale', 'sasSale', 'shopSale', 'salePipelineOf', 'touristTaxFigure', 'externalSale',
+  ]);
 });
 
 test('rule 3: the tourist-tax slice is the head of stayQuote up to the TOURIST TAX step, nothing else', () => {

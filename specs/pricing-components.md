@@ -924,8 +924,12 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
     un produit » uses `ficheSale`; the SAS `sasSale`; the guest app `shopSale`; the « Vente hors séjour »
     dialog `externalSale`. No caller assembles steps itself.
     > **Delivered by PR C** (C33): `externalSale`, named and chosen by the « Vente hors séjour » endpoint (`pipelines.js`).
-    > **Pending** — PR-later: the named `ficheSale` / `sasSale` pipelines. PR B's sale services call the fiche's own save, so there is no stay-less pipeline to name until `storedStayPrice` exists (rules 8-9);
-    > `stayQuote` stays the pipeline of the fiche and of the intakes.
+    > **Delivered by PR C** (2026-11-15, owner: everything in 4.2.0): `ficheSale`, `sasSale` and `shopSale` are named in `pipelines.js`, each the `staySale` steps (rules 8, 9: `storedNights` in
+    > place of NIGHTS — one sale on a stored stay, whoever sells), and `salePipelineOf(seller)` is the only way to reach one. `extraSale` names its seller's pipeline on every save it plays
+    > (`performUpdate(…, { sale: 'fiche' | 'sas' | 'shop' })` → the engine input's `storedStaySale` → COMPOSE): `quote` / `sell` by their `source` (an `intake` or `devis` source sells as the fiche
+    > does), the line gestures `changeLine` / `removeLine` through `ficheSale` (the SAS dialog calls the same line API). COMPOSE refuses a sale naming no pipeline (`SALE_PIPELINE_UNKNOWN`)
+    > instead of pricing it as a stay edit. `stayQuote` stays the pipeline of the fiche's own save and of the intakes; the arrival SAS's commit is the fiche's save (rule 90.1). 0 figure (the three
+    > pipelines are one list of steps). Proof `pricing-sale-pipelines`, `pipeline-composition`, `pricing-pipelines`.
 55. **Domain events for side effects (observer).** After the sale transaction commits, `extraSale` publishes
     `extraSale.sold`, `extraSale.lineMoved`, `extraSale.lineCancelled`, `extraSale.refundOwed`,
     `standaloneSale.sold` through `EventPublisher` (the existing eventBus, added to `EVENTS`). Observers: the

@@ -72,8 +72,8 @@ test('rule 4: calculateReservationQuote is the loader, COMPOSE and nothing else'
   assert.ok(direct.nights === 3 && direct.totalPrice === 300);
   const source = fs.readFileSync(path.join(__dirname, '..', 'utils', 'pricing.js'), 'utf8');
   const wrapper = source.slice(source.indexOf('function calculateReservationQuote'));
-  // Rules 8, 9: a sale on the stored stay is COMPOSE's `staySale` use case, named by the caller's input.
-  assert.match(wrapper.slice(0, wrapper.indexOf('\n}\n')), /return compose\(stay, \{ sale: Boolean\(input && input\.storedStaySale\) \}\)/);
+  // Rules 8, 9, 54: a sale on the stored stay is the seller's sale pipeline, named by the caller's input.
+  assert.match(wrapper.slice(0, wrapper.indexOf('\n}\n')), /return compose\(stay, \{ sale: \(input && input\.storedStaySale\) \|\| null \}\)/);
   assert.ok(!/priceStay|roundMoney\(|Math\./.test(wrapper.slice(0, wrapper.indexOf('\n}\n'))), 'no arithmetic in the wrapper');
 });
 

@@ -13,7 +13,7 @@
 const { roundMoney } = require('./money');
 const { extraGuestNightSeason } = require('./extraGuests');
 const { quoteHeadline, summaryCascade } = require('../quoteHeadline');
-const { stayQuote, staySale, touristTaxFigure: touristTaxSlice } = require('./pipelines');
+const { stayQuote, salePipelineOf, touristTaxFigure: touristTaxSlice } = require('./pipelines');
 
 // The engine's own estimate of the tax, and the amount the platform stated it withheld (null when none): the two figures the
 // fiche prints and the report of the platform's tax reads.
@@ -325,9 +325,12 @@ function haltedQuote({ property, settings, vatRate, vatRegime }) {
   };
 }
 
-// `sale` (rules 8, 9): the stay is not edited, a line is sold on it — the `staySale` use case, the nights read as stored.
-function compose(input, { sale = false } = {}) {
-  const ctx = (sale ? staySale : stayQuote)({ input });
+// `sale` (rules 8, 9, 54): the stay is not edited, a line is sold on it by the seller it names (`fiche`, `sas`, `shop`) — that seller's sale
+// pipeline, the nights read as stored. A sale naming no known seller is refused rather than priced as a stay edit.
+function compose(input, { sale = null } = {}) {
+  const pipeline = sale ? salePipelineOf(sale) : stayQuote;
+  if (!pipeline) throw new Error(`SALE_PIPELINE_UNKNOWN ${sale}`);
+  const ctx = pipeline({ input });
   if (ctx.halt) return haltedQuote(ctx);
   return shape(ctx);
 }

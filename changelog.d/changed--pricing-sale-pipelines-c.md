@@ -1,0 +1,1 @@
+- **Tarification — un parcours de vente par vendeur** (`specs/pricing-components.md` règle 54). La fiche, le SAS et la boutique de l'appli séjour vendent chacun par leur parcours nommé (`ficheSale`, `sasSale`, `shopSale`), tous trois sur les nuits enregistrées ; une vente qui ne nomme aucun parcours connu est refusée. Aucun montant ne change.

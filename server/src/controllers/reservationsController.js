@@ -1863,13 +1863,13 @@ async function retireStaleLinks(reservationId) {
 // transaction that is rolled back and returns the row it would have stored (`row`), without the
 // `reservation.updated` event. Returns `{ status, body }`.
 const DRY_RUN = Symbol('dry-run');
-// `sale` (specs/pricing-components.md §3 rules 8, 9): the caller sells, offers, removes or discounts a line of the stored stay (`extraSale`);
-// the nights are read as stored and the stay's shape (minimum / maximum nights, changeover) is not judged. Never a body field: a client
-// cannot ask for it.
-function performUpdate(reservationId, body, { unlockPast = false, dryRun = false, sale = false } = {}) {
+// `sale` (specs/pricing-components.md §3 rules 8, 9, 54): the caller sells, offers, removes or discounts a line of the stored stay (`extraSale`),
+// named by its seller (`fiche`, `sas`, `shop`: that seller's sale pipeline); the nights are read as stored and the stay's shape (minimum /
+// maximum nights, changeover) is not judged. Never a body field: a client cannot ask for it.
+function performUpdate(reservationId, body, { unlockPast = false, dryRun = false, sale = null } = {}) {
   const res = createResultRecorder();
   if (!dryRun) {
-    applyUpdate({ body, params: { id: reservationId } }, res, Boolean(unlockPast), { sale: Boolean(sale) });
+    applyUpdate({ body, params: { id: reservationId } }, res, Boolean(unlockPast), { sale: sale || null });
     const result = res.result();
     // specs/payment-link-lifecycle.md rule 32 — every save path (fiche, SAS, plugins, platform intakes): a stay
     // that holds its nights after the save takes them from the unpaid requests it now covers. Never on a dry run.
@@ -1882,7 +1882,7 @@ function performUpdate(reservationId, body, { unlockPast = false, dryRun = false
   let preview = null;
   try {
     db.transaction(() => {
-      applyUpdate({ body: structuredClone(body), params: { id: reservationId } }, res, Boolean(unlockPast), { silent: true, sale: Boolean(sale) });
+      applyUpdate({ body: structuredClone(body), params: { id: reservationId } }, res, Boolean(unlockPast), { silent: true, sale: sale || null });
       preview = { ...res.result(), row: model.getRow(Number(reservationId)) };
       throw DRY_RUN;
     })();
@@ -2001,7 +2001,7 @@ function withPostedLineIds(pricedLines, postedLines, articleField) {
   });
 }
 
-function applyUpdate(req, res, pastUnlocked, { silent = false, sale = false } = {}) {
+function applyUpdate(req, res, pastUnlocked, { silent = false, sale = null } = {}) {
   const storedBefore = model.getRow(Number(req.params.id));
   // specs/reservations-backend-mvc.md rule 26 reading (audit R44-C-L3) — a stay that does not exist is refused before any
   // pricing or write: the insert used to reach the lines and fail on their foreign key (500).
@@ -2239,8 +2239,8 @@ function applyUpdate(req, res, pastUnlocked, { silent = false, sale = false } = 
     ...windowEngineInputs,
     // The acompte deadline was promised on the booking day: an edit never moves it (rule 4).
     ...scheduleQuoteInputs(db, id),
-    // specs/pricing-components.md §3 rule 8 — a sale reads the stored nights (`staySale`).
-    ...(sale ? { storedStaySale: true } : {}),
+    // specs/pricing-components.md §3 rules 8, 54 — a sale reads the stored nights, through its seller's sale pipeline.
+    ...(sale ? { storedStaySale: sale } : {}),
   };
   if (!gateInsurance(res, engineInput, Number(id))) return;
   if (!refuseSessionConflict(res, engineInput.selectedResources, Number(id))) return;

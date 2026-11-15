@@ -41,11 +41,12 @@ function isTouristTaxRemittedByOwner(db, propertyId, platformKey) {
   return touristTaxRemittedByOwner(platformKey, resolveGlobalPlatformTaxRow(db, platformKey));
 }
 
-// `input.storedStaySale` (rules 8, 9): the quote of a sale on the stored stay (`extraSale` through `performUpdate(…, { sale: true })`).
+// `input.storedStaySale` (rules 8, 9, 54): the quote of a sale on the stored stay, named by its seller (`extraSale` through
+// `performUpdate(…, { sale: 'fiche' | 'sas' | 'shop' })`).
 function calculateReservationQuote(input) {
   const stay = pricingInputModel.load(input);
   if (stay.error) return stay;
-  return compose(stay, { sale: Boolean(input && input.storedStaySale) });
+  return compose(stay, { sale: (input && input.storedStaySale) || null });
 }
 
 // The tax figures of a stay (`touristTaxOriginalTotal`, `platformTouristTaxWithheld`) without pricing the rest of it.
