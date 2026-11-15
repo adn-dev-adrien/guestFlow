@@ -271,9 +271,12 @@ function paidSection(detail) {
 // e-mail's order (options and custom lines, resources, added guests, tax, then « Complément d'arrivée »), in the shape the e-mail renders.
 const ARRIVAL_KIND = Object.freeze({ option: 'option', custom: 'option', resource: 'resource', extraGuests: 'extraGuests', touristTax: 'tax', adjustment: 'remainder' });
 const ARRIVAL_RANK = Object.freeze({ option: 0, resource: 1, extraGuests: 2, tax: 3, remainder: 4 });
-function arrivalComplementLines(detail, { addedGuestsTaxLabel = null } = {}) {
+function arrivalComplementLines(detail, { addedGuestsTaxLabel = null, complementPaid = false } = {}) {
   return ((detail && detail.lines) || [])
-    .filter((line) => line.collectAt === 'arrival' && !line.offered && line.totalCents > 0 && ARRIVAL_KIND[line.kind])
+    // A line settled by something other than the complement itself (a card order paid before the arrival, end-review V-6) is not money the
+    // complement collects; once the complement is paid, its lines are what it collected and stay listed.
+    .filter((line) => line.collectAt === 'arrival' && !line.offered && line.totalCents > 0 && ARRIVAL_KIND[line.kind]
+      && (complementPaid || !(Number(line.settledCents || 0) >= line.totalCents)))
     .map((line, index) => ({ line, index, kind: ARRIVAL_KIND[line.kind] }))
     .sort((a, b) => ARRIVAL_RANK[a.kind] - ARRIVAL_RANK[b.kind] || a.index - b.index)
     .map(({ line, kind }) => {

@@ -446,10 +446,11 @@ function arrivalComplementDetailOf(reservationId, now = new Date()) {
   if (!detail) return null;
   const row = reservations().getRow(Number(reservationId));
   const { ADDED_GUESTS_TAX_LABEL } = require('./platformPaidGuests');
+  const paid = Number(row.complementPaid || 0) === 1 ? 1 : 0;
   return {
     amount: detail.buckets.arrival / 100,
-    paid: Number(row.complementPaid || 0) === 1 ? 1 : 0,
-    detail: arrivalComplementLines(detail, { addedGuestsTaxLabel: ADDED_GUESTS_TAX_LABEL }),
+    paid,
+    detail: arrivalComplementLines(detail, { addedGuestsTaxLabel: ADDED_GUESTS_TAX_LABEL, complementPaid: paid === 1 }),
   };
 }
 

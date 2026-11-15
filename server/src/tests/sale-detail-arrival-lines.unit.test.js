@@ -79,6 +79,17 @@ test('rule 91 — the e-mail lines: billed units × unit price, the e-mail order
   ]);
 });
 
+test('rule 91 (end-review V-6) — a line already paid (a card order paid before the arrival) is not listed as to collect', () => {
+  const detail = buildSaleDetail({
+    quote: quote({ complementAmount: 0, preArrivalAmount: 450 }),
+    facts: { 'opt:1': { settledCents: 4000, collectAt: 'arrival', paidAt: '2026-11-10' } },
+    stored: { finalCents: 45000, touristTaxCents: 1200 },
+  });
+  assert.equal(byRef(detail)['opt:1'].status, 'paid');
+  assert.deepEqual(arrivalComplementLines(detail).filter((line) => line.kind === 'option'), []);
+  assert.deepEqual(arrivalComplementLines(detail, { complementPaid: true }).map((line) => line.label), ['Petit déjeuner'], 'a paid complement lists what it collected');
+});
+
 db.prepare("INSERT INTO properties (id, name, maxGuests, depositEnabled) VALUES (9911, 'Arrivées', 8, 0)").run();
 db.prepare("INSERT INTO clients (id, firstName, lastName) VALUES (9911, 'Camille', 'Arrivée')").run();
 db.prepare("INSERT INTO pricing_rules (propertyId, label, pricePerNight) VALUES (9911, 'Standard', 100)").run();

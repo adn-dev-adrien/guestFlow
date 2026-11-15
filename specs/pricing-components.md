@@ -1847,7 +1847,9 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
     mid-stay-extras-to-end-of-stay-complement.md): a line is at the departure when that complement froze its key, whatever the baseline
     says. (Prod copy 2026-11-11: one line moves, a 2 € custom line of stay 12 the arrival complement collected, from departure to arrival.)
     The guest e-mails itemise the arrival complement from the sale detail (`extraSale.arrivalComplementDetailOf`, `saleDetail.arrivalComplementLines`):
-    the arrival lines left to pay, offered and 0 € lines out (a resource whose sessions the free hour covers bills 0 €, stay 22291), in the
+    the arrival lines left to pay, offered and 0 € lines out (a resource whose sessions the free hour covers bills 0 €, stay 22291), and a line
+    settled by something other than the complement out too (a card order paid before the arrival, end-review V-6: the J-2 e-mail said « 0 € »
+    beside a paid « Cidre »; once the complement itself is paid its lines stay listed, they are what it collected), in the
     e-mail's order. Measured on the prod copy of 2026-11-11 before the switch: kind, label, units, unit price and amount identical on 62
     stays of 62. The stored breakdown stays the reading of a stay the engine cannot quote and of a database other than the application's.
     The payment-link baskets are NOT switched: a pre-arrival link bills the plan bucket as one line plus the tax, which the sale detail does
