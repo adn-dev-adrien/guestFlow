@@ -88,7 +88,9 @@ function createVisitController({ bookings, visits, invoicing }) {
     const { refusal } = bookingOf(req);
     if (refusal) return fail(res, refusal);
     const q = typeof req.query.q === 'string' ? req.query.q : '';
-    return res.json({ articles: sdk.coreModule('suggestedArticles').catalogue({ customerContext: 'external', q }) });
+    const suggested = sdk.coreModule('suggestedArticles');
+    // `groups`: the answer as the « Autre article » list shows it, grouped by the server (end review R3-7).
+    return res.json({ articles: suggested.catalogue({ customerContext: 'external', q }), groups: suggested.catalogueGroups({ customerContext: 'external', q }) });
   }
 
   function quote(req, res) {

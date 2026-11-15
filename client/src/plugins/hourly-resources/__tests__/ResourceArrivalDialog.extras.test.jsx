@@ -74,10 +74,13 @@ test('rule 12 — a quantity that is not a number is a hint, nothing is asked of
 });
 
 test('rule 11 — « Autre article » searches the articles sellable with no stay, grouped by category, and adds the chosen one', async () => {
-  api.searchResourceVisitArticles.mockImplementation(async (_id, q) => ({ articles: [
-    { articleRef: 'option:9', label: 'Planche apéritive', unitCents: 1400, max: 10, category: 'Restauration' },
-    { articleRef: 'option:8', label: 'Limonade', unitCents: 400, max: 12, category: 'Boissons' },
-  ].filter((a) => a.label.toLowerCase().includes(q.toLowerCase())) }));
+  api.searchResourceVisitArticles.mockImplementation(async (_id, q) => {
+    const articles = [
+      { articleRef: 'option:9', label: 'Planche apéritive', unitCents: 1400, max: 10, category: 'Restauration' },
+      { articleRef: 'option:8', label: 'Limonade', unitCents: 400, max: 12, category: 'Boissons' },
+    ].filter((a) => a.label.toLowerCase().includes(q.toLowerCase()));
+    return { articles, groups: articles.map((a) => ({ category: a.category, articles: [a] })) };
+  });
   await open();
   fireEvent.click(screen.getByRole('button', { name: 'Autre article' }));
   fireEvent.change(screen.getByRole('textbox', { name: 'Chercher un article' }), { target: { value: 'plan' } });

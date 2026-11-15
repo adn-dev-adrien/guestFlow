@@ -153,6 +153,9 @@ once on the server by the refonte's components.
     booked from the planning, where conflicts are judged). The articles suggested for the resource's context
     come first as one-tap suggestions through the generic « Proposés à l'arrivée » step (rules 35-38, decided Q5);
     the others are reached by search, grouped by catalogue category. An article of another family answers `NEEDS_STAY` and is never listed.
+    > _Amended 2026-11-15 (end review R3-7):_ the « Autre article » search answers grouped by the server (`GET …/visit/articles` →
+    > `groups: [{ category, articles }]`, `suggestedArticles.catalogueGroups`); `SuggestedArticlesStep` renders the groups and groups nothing.
+    > Tests `suggested-articles-catalogue-groups`, `SuggestedArticlesStep.generic`.
 12. **Adding an extra.** A request `{ articleRef, quantity }` is quoted by the `externalSale` pipeline (no nights,
     no tax, no schedule, no clock). Quantity bounds come from the instance's `limits` (default 1 to 99): out of
     bounds → refusal « Quantité : 1 à {max}. ». Before the first commit, the draft groups one article on one line;

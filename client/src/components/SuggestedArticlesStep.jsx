@@ -7,7 +7,7 @@
  *
  * Props:
  *   suggestions   [{ articleRef, label, unitCents, max }] — the chips (the server's `suggestions`)
- *   search        async (q) => [{ articleRef, label, unitCents, max, category }] — the « Autre article » search; absent = no search button
+ *   search        async (q) => [{ category, articles: [{ articleRef, label, unitCents, max }] }] — the « Autre article » search, grouped by the server; absent = no search button
  *   draft         [{ articleRef, label, quantity, max, offered }] — what the operator added and nothing has stored yet (the parent owns it)
  *   draftLines    [{ detail, totalCents, catalogueCents } | null] — the server's quote of each draft entry, in the same order (null while it is pending)
  *   storedLines   [{ id, label, detail, totalCents, catalogueCents, offered, status, statusLabel }] — the extras already on the sale
@@ -136,11 +136,6 @@ export default function SuggestedArticlesStep({
   };
   const choose = (article) => { onAdd(article); setSearching(false); setQuery(''); };
   const empty = draft.length === 0 && storedLines.length === 0;
-  const byCategory = (found || []).reduce((acc, item) => {
-    const key = item.category || '';
-    (acc[key] = acc[key] || []).push(item);
-    return acc;
-  }, {});
 
   return (
     <Box component="section" aria-label={title} sx={{ display: 'grid', gap: 1.25 }}>
@@ -178,10 +173,10 @@ export default function SuggestedArticlesStep({
           {found === null && !searchError && <Box sx={{ display: 'flex', justifyContent: 'center', py: 1 }}><CircularProgress size={20} aria-label="Recherche en cours" /></Box>}
           {searchError && <Typography role="alert" variant="caption" color="error">{TEXTS.searchFailed}</Typography>}
           {found && found.length === 0 && <Typography variant="caption" color="text.secondary">{TEXTS.searchEmpty}</Typography>}
-          {found && Object.keys(byCategory).map((category) => (
+          {found && found.map(({ category, articles }) => (
             <Box key={category || 'none'} sx={{ display: 'grid', gap: 0.5 }}>
               {category && <Typography variant="caption" color="text.secondary" sx={{ textTransform: 'uppercase', letterSpacing: 0.4 }}>{category}</Typography>}
-              {byCategory[category].map((item) => (
+              {articles.map((item) => (
                 <Button key={item.articleRef} onClick={() => choose(item)} sx={{ justifyContent: 'space-between', textTransform: 'none', minHeight: 44, textAlign: 'left' }}>
                   <span>{item.label}</span><Box component="b" sx={{ fontVariantNumeric: 'tabular-nums' }}>{euros(item.unitCents)}</Box>
                 </Button>

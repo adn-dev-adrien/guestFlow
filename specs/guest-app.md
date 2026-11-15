@@ -779,6 +779,8 @@ is pushed every order.
     collected) can be edited from the step (rule 87). Orders taken during the stay (`collectAt = 'departure'`) stay out of
     the arrival step. The step reads at 390 px as a single column, rows wrapping the price under the label.
     > **Delivered by PR C** (pass 4, C26-C29, C31-C32): server `guest-app` 1.1.0 on `extraSale` / `saleDetail`; tests listed in §7 (`guest-order-*`, `guest-app-arrival-orders`, `guest-app-orders-from-j7`, …).
+    > _Amended 2026-11-15 (end review R3-8):_ the fold of the list honours « reduce motion » like its chevron (no height animation). Test
+    > `SasArrivalOrdersStep.reduced-motion`.
 72. **A cancelled stay cancels its orders.** **Amended 2026-11-10 (Adrien, fourth message):** a stay cancelled,
     superseded or deleted ends its sessions (rule 9) and moves every order of it not yet `expired`, `abandoned` or already
     `cancelled` to the new status **`cancelled`** (`cancelledAt`, `cancelReason = 'stay'`), in the plugin's handler of the

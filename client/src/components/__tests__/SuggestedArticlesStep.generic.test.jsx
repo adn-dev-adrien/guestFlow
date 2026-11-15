@@ -73,10 +73,10 @@ test('rule 13 — a stored line keeps its status and its catalogue value struck 
   expect(p.onStoredOffer).toHaveBeenCalledWith(stored[0], false);
 });
 
-test('rule 11 — « Autre article » runs the parent\'s search, groups the answer by category and adds the chosen article; a failing search says so', async () => {
+test('rule 11 — « Autre article » runs the parent\'s search, shows the server\'s groups and adds the chosen article; a failing search says so', async () => {
   const search = vi.fn().mockResolvedValue([
-    { articleRef: 'option:9', label: 'Planche', unitCents: 1400, max: 10, category: 'Restauration' },
-    { articleRef: 'option:3', label: 'Thé', unitCents: 300, max: 10, category: 'Boissons' },
+    { category: 'Restauration', articles: [{ articleRef: 'option:9', label: 'Planche', unitCents: 1400, max: 10 }] },
+    { category: 'Boissons', articles: [{ articleRef: 'option:3', label: 'Thé', unitCents: 300, max: 10 }] },
   ]);
   const p = props({ search });
   render(<SuggestedArticlesStep {...p} />);

@@ -576,6 +576,8 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
     > would change what those guests are shown, so it waits for `saleDetail` to carry the complement's remainder and the tax routing as the complement stores them.
     > The finance pages stay on their monthly SQL aggregate: a per-stay payload there is a performance change with no figure to gain. Reading the payload instead would change what a guest is told to pay. The reader move needs `saleDetail` to
     > carry the complement the stay really collects (one definition of « à l’arrivée ») first. The finance reader is a per-month SQL aggregate (`optionsTotal`, `resourcesTotal`): a per-stay payload there is a performance change, not a reader swap.
+    > _Amended 2026-11-15 (end review R3-6, R2-5):_ each line also carries `discountTotalCents` (its own discount plus its share of the stay's,
+    > summed by the server: the « Remise » chip renders it) and `soldAt`. Test `SaleDetailList.discount`.
 32. **The SAS arrival shows** the arrival lines due, the stay amounts due at the door, the lines already paid
     (« Déjà payé », not offerable), and — when the SAS runs after check-in time — the departure lines sold
     since (rule 20). **The SAS departure shows** the departure lines, the arrival lines left unpaid (recalled,

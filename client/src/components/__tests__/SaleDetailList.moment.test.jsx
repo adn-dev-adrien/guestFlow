@@ -8,7 +8,7 @@ import SaleDetailList from '../SaleDetailList';
 const detail = {
   lines: [
     { ref: 'accommodation', kind: 'accommodation', label: 'Hébergement', quantity: 3, totalCents: 30000, sourceLabel: 'Fiche', status: 'inPlan', statusLabel: 'Dans l’acompte et le solde', discountCents: 0, stayDiscountShareCents: 0 },
-    { ref: 'option:7', kind: 'option', label: 'Bain nordique', quantity: 1, totalCents: 4000, sourceLabel: 'Fiche', status: 'dueAtArrival', statusLabel: 'À payer à l’arrivée', collectAt: 'arrival', momentLabel: 'À l’arrivée', discountCents: 1000, stayDiscountShareCents: 0 },
+    { ref: 'option:7', kind: 'option', label: 'Bain nordique', quantity: 1, totalCents: 4000, sourceLabel: 'Fiche', status: 'dueAtArrival', statusLabel: 'À payer à l’arrivée', collectAt: 'arrival', momentLabel: 'À l’arrivée', discountCents: 1000, stayDiscountShareCents: 0, discountTotalCents: 1000 },
     { ref: 'option:8', kind: 'option', label: 'Panier vin', quantity: 2, totalCents: 5000, sourceLabel: 'Boutique', status: 'paid', statusLabel: 'Payée le 12/11', collectAt: 'departure', momentLabel: 'Au départ', discountCents: 0, stayDiscountShareCents: 0 },
   ],
   totals: { dueCents: 34000 },

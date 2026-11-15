@@ -44,8 +44,8 @@ export default function SaleDetailList({ detail, onChangeMoment, busyRef = null 
         <Stack direction="row" spacing={0.75} sx={{ mt: 0.5, flexWrap: 'wrap', rowGap: 0.5 }}>
           <Chip size="small" variant="outlined" label={line.sourceLabel} />
           <Chip size="small" color={STATUS_COLOR[line.status] || 'default'} variant="outlined" label={line.statusLabel} />
-          {(line.discountCents > 0 || line.stayDiscountShareCents > 0) && (
-            <Chip size="small" variant="outlined" label={`Remise ${euros(line.discountCents + line.stayDiscountShareCents)}`} />
+          {line.discountTotalCents > 0 && (
+            <Chip size="small" variant="outlined" label={`Remise ${euros(line.discountTotalCents)}`} />
           )}
         </Stack>
       </Box>

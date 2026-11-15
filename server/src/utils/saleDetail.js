@@ -121,6 +121,8 @@ function lineOf(raw, { kind, facts, vatClassOf, platformStay }) {
     grossCents: gross,
     discountCents: Number(raw.discountCents || 0),
     stayDiscountShareCents: Number(raw.stayDiscountShareCents || 0),
+    // What the « Remise » chip says: the line's own discount and its share of the stay's, summed here, never by the screen (end review R3-6).
+    discountTotalCents: Number(raw.discountCents || 0) + Number(raw.stayDiscountShareCents || 0),
     offered: Boolean(raw.offered),
     source,
     sourceLabel: SOURCE_LABELS[source] || 'Fiche',

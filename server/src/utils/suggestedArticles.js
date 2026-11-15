@@ -10,6 +10,7 @@
  *                                              (`stay` = `{ persons, nights }`, one of each by default). An article gone from the catalogue is dropped silently. A pure read: the label
  *                                              and the unit price come from the Articles head's `quote` and `describe`, nothing is priced here.
  *   catalogue({ customerContext, q })        → [{ articleRef, label, unitCents, max, category }] every article the caller may sell, filtered by `q` (the « Autre article » search, the settings picker)
+ *   catalogueGroups({ customerContext, q })  → [{ category, articles }] the same, grouped by category in that order (what the « Autre article » list renders)
  *   save(kind, id, articleRefs)              → `{ status: 200, articleRefs } | { status, body }`: at most 12 (400 `TOO_MANY`), each known to the catalogue (400 `ARTICLE_UNKNOWN`),
  *                                              no repeat (400 `ARTICLE_DUPLICATE`), the context listed by a live provider (404 `CONTEXT_UNKNOWN`)
  */
@@ -118,6 +119,18 @@ function catalogue({ customerContext = 'external', q = '' } = {}) {
   return out.sort((a, b) => String(a.category || '').localeCompare(String(b.category || ''), 'fr') || a.label.localeCompare(b.label, 'fr'));
 }
 
+/** The same answer grouped for display, in its order: `[{ category, articles }]` — the screen groups nothing itself (CLAUDE.md §7, end review R3-7). */
+function catalogueGroups(args = {}) {
+  const groups = [];
+  for (const article of catalogue(args)) {
+    const category = article.category || null;
+    const last = groups[groups.length - 1];
+    if (last && last.category === category) last.articles.push(article);
+    else groups.push({ category, articles: [article] });
+  }
+  return groups;
+}
+
 function save(kind, id, articleRefs) {
   const provider = providers().find((p) => p.kind === kind);
   if (!provider || !contextsOf(provider).some((c) => c.id === String(id))) return refuse(404, 'CONTEXT_UNKNOWN', 'Contexte inconnu.');
@@ -148,5 +161,5 @@ function settingsView() {
 }
 
 module.exports = {
-  kinds, resolve, catalogue, save, settingsView, MAX_LISTED,
+  kinds, resolve, catalogue, catalogueGroups, save, settingsView, MAX_LISTED,
 };

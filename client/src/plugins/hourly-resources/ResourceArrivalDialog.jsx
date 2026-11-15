@@ -237,7 +237,7 @@ export default function ResourceArrivalDialog({ open, bookingId, onClose, onDone
     }
   }
 
-  const search = useCallback((q) => api.searchResourceVisitArticles(bookingId, q).then((res) => res.articles), [bookingId]);
+  const search = useCallback((q) => api.searchResourceVisitArticles(bookingId, q).then((res) => res.groups || []), [bookingId]);
   const addExtra = (article) => setExtras((prev) => {
     const at = prev.findIndex((entry) => entry.articleRef === article.articleRef && !entry.offered);
     if (at < 0) return [...prev, { articleRef: article.articleRef, label: article.label, max: article.max, quantity: 1, offered: false }];
