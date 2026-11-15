@@ -88,12 +88,20 @@ and off the lights the owner gave them. The owner chooses all of it per lodging 
    once. It is the security boundary: no command reaches a light outside it, whatever GuestFlow sends. Everything
    else — which lodging shows what, labels, which whitelisted light is « Pilotable » for which lodging — stays in
    Studio.
+
+> **Sans test** — the whitelist is code in the Sowel recipe, tested in `sowel-recipe-guest-home` (`src/index.test.ts`);
+> guestFlow's side of it — « Pilotable » refused on a light that is not `guestSwitchable` — is rules 7 and 14's tests.
+
 10. GuestFlow applies its own limit before the house's: 6 commands per stay per 10 min (« Trop de demandes.
     Réessayer dans quelques minutes. »). Two taps within 2 s on the same light count as one.
 11. **Worst case, accepted by Adrien on 2026-11-15:** an attacker who fully controls GuestFlow can switch **the
     whitelisted lights** (rule 9bis) on or off, at any time — GuestFlow can forge a stay, so the occupancy check
     does not bind it — at most 20 times an hour per lodging. With no timer, a light switched on stays on until
     someone switches it off. No other light, and nothing else in the house, can be reached by this channel.
+
+> **Sans test** — a statement of accepted risk, not a behaviour; the boundaries it rests on are rules 7, 9, 9bis
+> and 10, each tested (here and in the Sowel recipe).
+
 
 ### 3.C Studio — what each lodging shows
 
