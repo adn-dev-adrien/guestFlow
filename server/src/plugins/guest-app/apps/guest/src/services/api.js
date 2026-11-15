@@ -98,6 +98,7 @@ export const api = {
   bookletSearch: (q) => request('GET', '/booklet/search', { query: { q } }),
   shop: () => request('GET', '/shop'),
   slots: (resourceId) => request('GET', `/shop/resources/${encodeURIComponent(resourceId)}/slots`),
+  blocks: (resourceId, hours) => request('GET', `/shop/resources/${encodeURIComponent(resourceId)}/blocks`, { query: { hours } }),
   deliverySlots: (lines) => request('POST', '/shop/delivery-slots', { body: { lines } }),
   quote: (lines, deliverAt) => request('POST', '/orders/quote', { body: { lines, ...(deliverAt ? { deliverAt } : {}) } }),
   // §4.3 — `key` (Idempotency-Key): the same order sent again after a lost answer is not created twice.

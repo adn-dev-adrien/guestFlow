@@ -132,11 +132,11 @@ is pushed every order.
     Boutique · Bain nordique · Soliomap · Livret). A module that is off for the lodging is not rendered (no
     greyed tile).
 11. **Contextual highlight.** One card under the tiles, chosen by the server among: « Le portail est
-    actif » (arrival day), « Un bain nordique ce soir ? » (« aujourd'hui » when the first bookable slot starts before 18 h) + the
-    first bookable hour as the card's line « Premier créneau libre à 20 h » (a slot in state `free` or `evening` remains today on an hourly resource sold in the app while the shop is open, read from the resource planning like the slot picker), « Votre commande est prête » (an order marked delivered in the last hour),
+    actif » (arrival day), « Votre commande est prête » (an order marked delivered in the last hour),
     « Départ demain : les consignes » (eve of departure → booklet page *Départ*). At most one highlight, plus at most one suggestion (rule 15bis), never a marketing carousel. A highlight is only chosen among the lodging's enabled modules. Priority: the order,
-    the gate, the departure, the bath: a bath slot is free on nearly every evening, so ahead of the departure
-    it would keep the instructions from ever showing.
+    the gate, the departure. _(Amended 2026-11-15 by specs/guest-app-bath-home-scheduling.md rule 6: the bath has no
+    highlight any more; the home's bath card says what the stay owns and, as an offer, « Un bain nordique ce soir ? » with
+    « Premier créneau libre à 20 h ».)_
 
 #### Per-lodging configuration — each lodging decides what its guests see
 

@@ -10,6 +10,7 @@ import HeroHeader from '../components/HeroHeader';
 import StayCard from '../components/StayCard';
 import QuickTile from '../components/QuickTile';
 import MomentCard from '../components/MomentCard';
+import BathPlanCard from '../components/BathPlanCard';
 import PhotoCard from '../components/PhotoCard';
 import Icon from '../components/Icon';
 import InstallPrompt from '../components/InstallPrompt';
@@ -74,7 +75,6 @@ export default function HomePage() {
     if (hl.module === 'orders') navigate('/commandes');
     else if (hl.module === 'gate') openGate();
     else if (hl.page) navigate(`/livret/${encodeURIComponent(hl.page)}`);
-    else if (hl.module === 'bath') navigate('/boutique/bain');
   });
   const hlText = hl && (hl.detail || (hl.key === 'gate' && gateState === 'preparing' ? t('hl.gatePreparing') : ''));
 
@@ -119,7 +119,7 @@ export default function HomePage() {
   const highlight = hl ? (
     <MomentCard
       photo={hl.imageUrl || null}
-      fallback={hl.key === 'bath' || hl.key === 'gate' ? 'night' : 'forest'}
+      fallback={hl.key === 'gate' ? 'night' : 'forest'}
       eyebrow={hl.eyebrow || t(`hl.${hl.key}`)}
       title={hl.text}
       text={hlText}
@@ -163,7 +163,17 @@ export default function HomePage() {
     </>
   ) : null;
 
-  const left = <>{tilesBlock}{highlight}<InstallPrompt /></>;
+  // specs/guest-app-bath-home-scheduling.md rules 4-6, Q2 — hours to schedule sit right under the stay card; once scheduled, or as an
+  // offer, the card comes after the tiles.
+  const bathAction = (key, bathCard) => {
+    if (key === 'change') setSheet('contacts');
+    else navigate(`/bain/programmer/${bathCard.resourceId}${key === 'add' ? '?ajout=1' : ''}`);
+  };
+  const bathCards = (me.bath || []).map((c) => ({ c, node: <BathPlanCard key={c.resourceId} card={c} onAction={bathAction} /> }));
+  const bathFirst = bathCards.filter(({ c }) => c.state === 'toSchedule').map(({ node }) => node);
+  const bathAfter = bathCards.filter(({ c }) => c.state !== 'toSchedule').map(({ node }) => node);
+
+  const left = <>{bathFirst}{tilesBlock}{bathAfter}{highlight}<InstallPrompt /></>;
   const right = <>{ongoing}{suggestion}{strip}</>;
 
   return (

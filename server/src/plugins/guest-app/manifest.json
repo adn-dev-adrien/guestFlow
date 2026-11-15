@@ -1,7 +1,7 @@
 {
   "id": "guest-app",
   "name": "Application clients",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "L’application « Mon séjour » des clients : livret d’accueil, portail, Soliomap et boutique du séjour.",
   "icon": "door",
   "surfaces": [
@@ -72,6 +72,12 @@
       "Le sas d’arrivée liste, dans une étape repliable, les commandes de l’application prises avant l’arrivée ; une commande non payée s’y modifie (quantité, article, séance, commande entière), une commande payée reste en lecture.",
       "Un séjour annulé annule ses commandes ; une commande payée par carte est signalée à rembourser dans le registre des remboursements.",
       "Les e-mails J-7 et J-2 savent si le séjour a une boutique et un bain à programmer, pour ne promettre que ce que le lien donne.",
+      "Compatible avec GuestFlow 4 (SDK 2.29)."
+    ],
+    "1.2.0": [
+      "Bain nordique depuis l’accueil : une carte dit les heures offertes ou comprises dans le séjour encore à programmer, les séances à venir ou, sinon, le premier créneau libre ; elle remplace l’ancien encart « Un bain nordique ce soir ? ».",
+      "Nouvel écran de programmation : toutes les heures à la suite le même jour ou réparties sur le séjour (compteur, créneau de trop refusé sur place), heures en plus ajoutées dans le même écran, détail du prix calculé par le serveur (supplément soirée compris), confirmation directe à 0 €.",
+      "Une heure déjà comprise dans le séjour se place à 0 € depuis l’application : elle était refusée comme article non facturé.",
       "Compatible avec GuestFlow 4 (SDK 2.29)."
     ]
   }

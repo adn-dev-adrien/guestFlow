@@ -91,18 +91,22 @@ if (requirePlugins(['hourly-resources'])) {
     assert.deepEqual((await get('?from=2099-07-08&to=2099-07-08')).body.data.days.map((d) => d.date), ['2099-07-08']);
   });
 
-  withSlots('rule 11: the home offers the bath with the first slot still bookable today — « aujourd’hui » before 18 h, « ce soir » after, none once the day is full', async ({ db, get, call, clock }) => {
+  withSlots('rule 11 (specs/guest-app-bath-home-scheduling.md rule 6): the home\'s bath card offers the first slot still bookable today — « aujourd’hui » before 18 h, « ce soir » after, the stay\'s other days once today is full', async ({ db, get, call, clock }) => {
     const stay = addStay(db);
     addBath(db);
     await get();
-    const highlight = async () => (await call('GET', '/public/v1/guest/me')).body.data.highlight;
-    assert.deepEqual(await highlight(), {
-      key: 'bath', text: 'Un bain nordique aujourd’hui ?', detail: 'Premier créneau libre à 12 h', module: 'bath',
-    });
+    const card = async () => {
+      const data = (await call('GET', '/public/v1/guest/me')).body.data;
+      assert.notEqual(data.highlight && data.highlight.key, 'bath', 'no bath highlight beside the card');
+      const [found] = data.bath;
+      return [found.state, found.title, (found.detail || '').split(' · ')[0]];
+    };
+    assert.deepEqual(await card(), ['offer', 'Un bain nordique aujourd’hui ?', 'Premier créneau libre à 12 h']);
     clock.now = paris('2099-07-07', '19:30');
-    assert.deepEqual([(await highlight()).text, (await highlight()).detail], ['Un bain nordique ce soir ?', 'Premier créneau libre à 20 h']);
+    assert.deepEqual(await card(), ['offer', 'Un bain nordique ce soir ?', 'Premier créneau libre à 20 h']);
     sessionOf(db, stay, [{ date: '2099-07-07', start: '20:00', end: '21:00' }, { date: '2099-07-07', start: '21:00', end: '22:00' }]);
-    assert.equal(await highlight(), undefined, 'no bookable slot left today');
+    const [state, title] = await card();
+    assert.deepEqual([state, title], ['scheduled', 'Vos séances'], 'the stay\'s own sessions now fill today: the card lists them');
   });
 
   withSlots('rule 25: the free minutes left come with the slots', async ({ db, get }) => {

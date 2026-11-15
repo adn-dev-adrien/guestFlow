@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| **Status** | Approved |
+| **Status** | Implemented |
 | **Branch** | `feature/guest-app-bath-home-scheduling` _(built on `feature/pricing-components-c`, ships with the pricing refonte in 4.2.0)_ |
 | **Created** | 2026-11-13 |
 | **Author** | Adrien |
@@ -38,10 +38,11 @@ exact amount due (evening supplement, extra hours), computed by the server.
 
 ### 3.A What the guest owns
 
-1. **Owned hours** of a stay, per hourly resource sold in the guest app: the hours of its stay lines not yet placed
-   (`hoursRemaining`, offered and paid alike) plus the offered minutes the stay is granted and no line carries yet
-   (`sold.freeMinutes.left`). Computed by the server only; the app receives `ownedMinutes`, split
-   `{ offered, prepaid }` for the wording.
+1. **Owned hours** of a stay, per hourly resource sold in the guest app: the hours its stay line holds and has not
+   placed (`includedHoursLeft`, the very hours an order places at no charge, guest-app rule 82) plus the offered
+   minutes the stay is granted and no line carries yet (`sold.freeMinutes.left`). Computed by the server only; the app
+   receives `ownedMinutes`, split `offeredMinutes` / `heldMinutes`. A held hour is said « comprise dans le séjour »,
+   never « réglée »: the line may not be paid yet.
 2. **Placed sessions** of the stay that have not ended yet are listed on the card, oldest first.
 3. A stay of a platform keeps the offered hour on the same terms as today (granted by the catalogue's free minutes); this
    spec changes nothing to who is granted what.
@@ -53,14 +54,20 @@ exact amount due (evening supplement, extra hours), computed by the server.
    still bookable before the check-out. Its place (Q2): right under the stay card, above the tiles, while hours are
    to schedule; under the tiles in the two other states.
 5. Its three states (wording in §6):
-   - **To schedule** — owned hours > 0: « 1 h offerte à programmer », « 3 h à programmer · 1 offerte, 2 réglées ».
-     Button « Programmer ».
+   - **To schedule** — owned hours > 0: « 1 h offerte à programmer » (with « En journée, ou en soirée avec 20 € de
+     supplément »), « 3 h à programmer » (with « 1 h offerte, 2 h comprises dans le séjour · À la suite ou réparties sur
+     le séjour »). Button « Programmer ».
    - **Scheduled** — owned hours = 0 and an upcoming session: the sessions (« ven. 14 nov. · 18 h – 19 h »), then two
      buttons stacked full width, same height (44 px) and width: « Ajouter une heure » (filled) and « Changer une
      séance » (outlined, opens the contacts sheet, rule 21).
-   - **Offer** — nothing owned or placed: « 30 € l'heure · 50 € en soirée », button « Réserver ».
-6. While the card shows, the home highlight never takes the `bath` key (`chooseHighlight` skips it): one bath message
-   on the home, never two.
+   - **Offer** — nothing owned or placed: « Un bain nordique pendant le séjour ? » / « 30 € l'heure · 50 € en soirée »,
+     button « Réserver ». When a slot is still bookable today, the offer takes the former highlight's words: « Un bain
+     nordique aujourd'hui ? » before 18:00, « … ce soir ? » from it, with « Premier créneau libre à 20 h » before the
+     prices (`firstSlotToday`, heat-up counted from now).
+6. One bath message on the home, never two. The card shows wherever the former `bath` highlight could (it needs the
+   shop, the highlight led to it), so the `bath` highlight is **removed** from `homeHighlight.js` and its timely words
+   moved into the offer state (rule 5) _(implementation, 2026-11-15: keeping a highlight that can never show would be
+   dead code)_.
 7. From J-7 the card shows like the rest of the app (the app opens seven days before the arrival); the days offered
    stay inside the stay, as for every bath slot of the app.
 
@@ -91,80 +98,84 @@ exact amount due (evening supplement, extra hours), computed by the server.
 
 ### 3.E Price — always the server's
 
-15. Before every commitment the screen shows the server's quote (`POST /guest/bath/plan/quote`), line by line:
-    - owned hours placed in the day band: « Offerte » / « Déjà réglée », 0 €;
+15. Before every commitment the screen shows the server's quote (`POST /orders/quote`, the app's one quote) with the
+    bath line's `breakdown`, line by line:
+    - owned hours: « Comprise dans le séjour · 2 h » / « Offerte · 1 h », 0 €;
     - each owned hour placed in the evening band: « Supplément soirée » = lodger evening rate − lodger day rate
       (today 50 − 30 = **20 €**), less what the sold line already billed above the day rate (`eveningCredit`);
-    - each extra hour at its band (30 € day, 50 € evening).
-    The total does not depend on which owned hour lands on which slot: the server values owned hours at the day rate
+    - the extra hours at their band (30 € day, 50 € evening): « En plus · 1 h ».
+    The breakdown is words only: its parts always add up to the line's total, computed by the existing order pricing
+    (`price()`, `orderSupplement`, rules 81-83). The total does not depend on which owned hour lands on which slot: the server values owned hours at the day rate
     (pricing-components rule 24) and prices the placed sessions on the bands.
 16. The lodger grid is the reference for the supplement (decided 2026-11-13); the external grid is never read on a
     stay.
 
 ### 3.F Commit
 
-17. **Total 0 €** → button « Confirmer mes séances »: the sessions are written on the stay's resource line(s), as the
-    SAS « Planifier » does; nothing is sold.
-18. **Total > 0 €** → button « Confirmer · 20,00 € » leading to the existing payment choice of the app (card first,
-    « sur la note »; specs/guest-app.md). Placement and sale are **one** commit: the evening supplement goes on the
-    session line as its evening component while that line is unpaid and its bucket open, otherwise on a new line of
-    the resource (pricing-components rule 90.3); extra hours are a new resource line with their sessions. A card
-    payment abandoned or refused places nothing (the hold lapses, `bathFulfilment`).
-19. The commit re-judges every slot (`bathFulfilment.confirm`): a slot taken meanwhile refuses the whole commit, and the
-    screen shows the next free slots of that day (« Never a dead end »).
-20. The placement is recorded in the stay history (« Séances de bain programmées depuis l'appli »), and the planning
-    card shows the sessions like any other.
+17. **Total 0 €** → button « Confirmer mes séances »: `POST /orders` with `payment: 'none'`; the held hours' sessions
+    join the stay's line (guest-app rule 82, `placeOnHeld`), the offered minutes price at 0 €; nothing is sold. The 0 €
+    guard (guest-app rule 55, `freeCovers`) counts the held hours as well as the offered minutes _(fix, 2026-11-15:
+    placing a held hour in the day was refused « ne se commande pas dans l'application »)_.
+18. **Total > 0 €** → button « Confirmer · 20 € »: the line goes to the cart (`cart.replace`), whose payment choice is
+    the app's own (card first, « sur la note »; specs/guest-app.md). Placement and sale are **one** order, the existing
+    one: the held hours placed, the evening supplement a line of its own (rules 81-83), the extra hours a new resource
+    line with their sessions. A card payment abandoned or refused places nothing (the order's rules 35-36).
+19. The order re-judges every slot: a slot taken meanwhile refuses the whole order, the screen says the server's
+    sentence and reloads the slots or blocks, so the next free ones show (« Never a dead end »). A quote the server
+    refuses is said the same way, and the button stays closed.
+20. The placement is recorded like every order (« Commande client #N » in the stay history), and the planning card
+    shows the sessions like any other.
 21. Moving or cancelling a placed session from the app is **out of scope** (Q1); the « Scheduled » card's « Changer une
     séance » button opens the contacts sheet.
 
 ## 4. Architecture
 
-Built on `feature/pricing-components-c`: it reuses the lines, components and fulfilment of the refonte.
+Built on `feature/pricing-components-c`. It adds no write path: the quote and the commit are the app's existing
+`POST /orders/quote` and `POST /orders` with one `{ kind: 'resource', id, sessions }` line, so the price has one source
+(the refonte's order pricing) _(implementation, 2026-11-15: the four `/guest/bath/plan` routes first drafted here were
+dropped for that reason)_.
 
 ### 4.1 Server
 
 | Layer | File | Change |
 |---|---|---|
-| plugins / hourly-resources | `scheduler.js` | **new** `blocksForStay({ resourceId, propertyId, stay, now, hours, canIgnite })` — per day, start times of `hours` consecutive bookable slots (built on `slotsForStay`). |
-| plugins / hourly-resources | `schedulingModel.js` | expose the per-resource `hoursRemaining` / `eveningCredit` to the guest app through the plugin's service (no logic change). |
-| plugins / hourly-resources | `index.js` | export the service the guest app calls (`ownedHours`, `blocksForStay`, `placeSessions`). |
-| plugins / guest-app | `bathPlan.js` | **new**, pure: owned minutes (rule 1), card state and wording (rules 4-5), quote lines (rule 15) from the hourly family's prices. |
-| plugins / guest-app | `controllers/bathPlanController.js` | **new**: `GET /guest/bath/plan`, `GET /guest/bath/plan/blocks`, `POST /guest/bath/plan/quote`, `POST /guest/bath/plan`. |
-| plugins / guest-app | `routes/` | mount the four routes behind `guestSession`. |
-| plugins / guest-app | `homeHighlight.js` | `bath` highlight skipped while the card shows (rule 6). |
-| plugins / guest-app | `controllers/ordersController.js` | the commit of rule 18 goes through the existing order write (card hold, « sur la note »), with the placement in the same transaction. |
+| plugins / guest-app | `bathPlan.js` | **new**, pure: `ownedOf` (rule 1), `upcomingSessions` (rule 2), `cardState` / `cardView` (rules 4-6, FR/EN words), `consecutiveBlocks` (rule 10). |
+| plugins / guest-app | `controllers/shopController.js` | **new** `bathCards(guest, at, lang)` (rules 1-6, from `soldFor`, `includedHoursLeft` and `slotsForStay`) and `blocks` (`GET /shop/resources/:id/blocks?hours=N`, rule 10: candidates of `consecutiveBlocks`, each judged whole by `scheduler.validateSessions`). `firstBathSlotToday` removed (rule 6). |
+| plugins / guest-app | `controllers/sessionController.js` | `/me` answers `bath` (the cards) when the lodging shows both the bath and the shop. |
+| plugins / guest-app | `controllers/ordersController.js` | a bath quote line carries `breakdown` (rule 15); `freeCovers` counts the held hours (rule 17). The stored order snapshot never keeps `breakdown`. |
+| plugins / guest-app | `homeHighlight.js` | the `bath` highlight removed (rule 6). |
+| plugins / guest-app | `routes/public.js`, `index.js` | the `blocks` route; `bathCards` wired into the session controller. |
+| plugins / guest-app | `manifest.json` | 1.2.0 and its French changelog. |
 
 ### 4.2 Client (guest app, `server/src/plugins/guest-app/apps/guest/src/`)
 
 | Layer | File | Change |
 |---|---|---|
-| components | `BathPlanCard.jsx` | **new**, specific: the home card, three states (rule 5). |
-| components | `Segmented.jsx` | **new**, generic: two-or-more-way switch (« À la suite » / « Réparties »), reused wherever a mode is chosen. |
-| components | `Stepper.jsx` | reuse the shop's quantity stepper if one exists, else **new** generic. |
-| components | `SlotGrid.jsx` | reused; gains an optional `refusedKey` prop to shake the refused slot. |
-| pages | `BathPlanPage.jsx` | **new**: route `/bain/programmer`; mode, days, slots or blocks, counter, stepper, server quote, sticky button. |
-| pages | `HomePage.jsx` | renders `BathPlanCard` under the stay card. |
-| services | `api.js` | the four calls. |
-| i18n | `fr.json`, `en.json` | the strings of §6. |
+| components | `BathPlanCard.jsx` | **new**, specific: the home card, three states (rule 5), buttons stacked. |
+| components | `Segmented.jsx` | **new**, generic: a two-or-more-way switch with a sliding thumb. |
+| components | `QuantityStepper.jsx` | reused for « Heures en plus ». |
+| components | `SlotGrid.jsx` | optional `refusedKey` (the refused slot shakes); a day chip holding a selected slot carries a dot. |
+| pages | `BathPlanPage.jsx` | **new**, route `/bain/programmer/:id` (`?ajout=1` opens it with one extra hour). |
+| pages | `HomePage.jsx` | renders the cards (Q2 place); the `bath` highlight branch removed. |
+| services | `api.js` | `blocks(resourceId, hours)`. |
+| i18n / styles | `fr.json`, `en.json`, `styles.css` | `bathPlan.*` strings (`hl.bath` removed); `.bathcard`, `.seg`, `.bathplan` rules. |
 
 No change in the GuestFlow admin client: the sessions show on the planning, the fiche and the SAS as today.
 
 ### 4.3 API
 
 ```
-GET  /guest/bath/plan
-  → { resources: [{ id, name, ownedMinutes: { offered, prepaid }, upcoming: [{ date, start, end, label }],
-      state: 'toSchedule'|'scheduled'|'offer', title, detail, priceLabel }] }
-GET  /guest/bath/plan/blocks?resourceId=2&hours=2
-  → { days: [{ date, label, starts: [{ start, end, eveningMinutes }] }] }
-POST /guest/bath/plan/quote   { resourceId, sessions: [{ date, start, end }], extraHours }
-  → { lines: [{ label, amount, amountLabel }], total, totalLabel, unavailable: [...] }
-POST /guest/bath/plan         { resourceId, sessions, extraHours, payment: 'card'|'note'|null }
-  → 200 { placed: [...], orderId? , paymentUrl? } | 409 SLOT_TAKEN { nextSlots } | 400 COUNT_MISMATCH
+GET  /public/v1/guest/me
+  → { …, bath?: [{ resourceId, name, state: 'toSchedule'|'scheduled'|'offer', eyebrow, title, detail,
+       ownedMinutes, offeredMinutes, heldMinutes, maxExtraHours, priceLine, firstSlotToday?,
+       upcoming: [{ date, start, end, label }], actions: [{ key: 'schedule'|'add'|'change', label }] }] }
+GET  /public/v1/guest/shop/resources/:id/blocks?hours=N      (2 ≤ N ≤ 12)
+  → { open: true, hours, days: [{ date, label, starts: [{ start, end, eveningMinutes }] }] }
+  | { open: false, closedReason, days: [] } | 400 INVALID_INPUT | 404 ITEM_NOT_FOUND
+POST /public/v1/guest/orders/quote   (existing) — a bath line now carries
+  breakdown: [{ key: 'held'|'offered'|'evening'|'extra', hours?, label, amount, amountLabel }]
+POST /public/v1/guest/orders         (existing) — unchanged
 ```
-
-`sessions` must hold exactly `owned placed + extraHours` hours, `extraHours ≤ maxQuantity`; the server re-derives
-every amount and ignores any price sent.
 
 ## 5. Data model
 
@@ -184,36 +195,37 @@ The interactive mock-up is the reference: `docs/specs/2026-11-13-guest-app-bath-
   with the counter (« Réparties »), the stepper « Heures en plus », the quote lines, the sticky button with the total.
 - **Refusal**: the over-count slot shakes 2× (reduced motion: no shake, the line alone), the line under the counter
   names the two ways out.
-- **Mobile** (< 900 px): full-screen page, sticky button in the thumb zone. **Desktop** (≥ 900 px): the page opens as the
-  app's centred dialog, slot grid on 4 columns.
-- Strings: card « 1 h offerte à programmer » / « 3 h à programmer » / « 1 offerte, 2 réglées » / « Programmer » /
+- **Mobile** (< 900 px): full-screen page, sticky button in the thumb zone. **Desktop** (≥ 900 px): a page beside the
+  rail like the bath picker, slot grid on 4 columns _(implementation, 2026-11-15: the existing bath picker is a page,
+  not a dialog; the two screens stay alike)_.
+- Strings: card « 1 h offerte à programmer » / « 3 h à programmer » / « 1 h offerte, 2 h comprises dans le séjour » / « Programmer » /
   « Vos séances » / « Ajouter une heure » / « Changer une séance » / « Réserver » ; screen « À la suite » / « Réparties » / « 2 sur 3 placées » /
-  « Heures en plus » / « Supplément soirée » / « Confirmer mes séances » / « Confirmer · 20,00 € ». English in `en.json`.
+  « Heures en plus » / « Supplément soirée » / « Confirmer mes séances » / « Confirmer · 20 € ». English in `en.json` and in `bathPlan.js`.
 
 ## 7. Test plan
 
-Server (`server/src/tests/`, one file per subject):
-- `guest-bath-plan-owned.unit.test.js` — offered only, offered + prepaid, prepaid partly placed, offered already
-  consumed, two lines of one resource.
-- `guest-bath-plan-blocks.unit.test.js` — 2 h and 3 h blocks, a taken slot breaks a block, closing time, stay bounds,
-  heat-up from cold, no day → empty.
-- `guest-bath-plan-quote.unit.test.js` — offered hour in the day = 0 €; in the evening = 20 €; prepaid line sold from
-  an evening session → 0 € (eveningCredit); 1 offered + 1 extra 19-21 h = 50 € whatever the allocation; count
-  mismatch refused; sent prices ignored.
-- `guest-bath-plan-commit.unit.test.js` — 0 € placement writes sessions and history; paid placement = one order with
-  the evening component / new line; slot taken → 409 and nothing written; abandoned card hold places nothing.
-- `guest-home-highlight.unit.test.js` (existing) — `bath` skipped while the card shows.
+Server (`server/src/plugins/guest-app/tests/`, 18 cases):
+- `guest-bath-plan-units.unit.test.js` (6) — owned minutes, sessions to come, the states, the words of each state, the
+  offer's « aujourd'hui / ce soir », the « à la suite » chains.
+- `guest-bath-plan-routes.unit.test.js` (11) — through the real routes and the hourly-resources scheduler: the cards of
+  `/me` (offered only, held hours, scheduled), no bath highlight beside the card, blocks of 2 h (a taken hour breaks
+  them, evening counted), a nonsense `hours` refused, the breakdown (offered in the day 0 €, offered in the evening
+  10 € on the test grid, held hours in the evening, 1 offered + 1 extra in a row whatever the allocation, parts adding
+  up to the total), a 0 € placement of a held hour that sells nothing and turns the card to « scheduled ».
+- Existing suites moved to the card: `guest-app-home` (the bath has no highlight), `guest-app-slots` rule 11 (the card's
+  « aujourd'hui / ce soir »), `guest-app-first-bath-slot-heat` (`firstSlotToday` counts the heat-up from now).
 
-Guest app (Vitest, `apps/guest/src/__tests__/`):
-- `BathPlanCard.states.test.jsx` — the three states and their buttons.
-- `BathPlanPage.modes.test.jsx` — switch hidden at 1 h, blocks vs grid, counter.
-- `BathPlanPage.refusal.test.jsx` — over-count refusal, « ajoutez une heure » raises the stepper.
-- `BathPlanPage.quote.test.jsx` — the button shows the server total, never a client sum.
+Guest app (Vitest, `apps/guest/src/__tests__/`, 10 cases, fixtures in `bathPlanFixtures.jsx`):
+- `BathPlanCard.states.test.jsx` (3) — states, place above or below the tiles, stacked buttons, contacts sheet.
+- `BathPlanPage.modes.test.jsx` (4) — no switch at 1 h, blocks asked with `hours=N`, no block → « Réparties », the
+  over-count refusal and « ajoutez une heure » (the mode stays « Réparties »).
+- `BathPlanPage.quote.test.jsx` (3) — the server total on the button and the cart, the 0 € order sent with
+  `payment: 'none'`, a refused quote said with the button closed.
 
-E2E: one Playwright scenario — a stay with 1 h offered + 1 h paid, « Réparties », one evening slot, total 20 €, « sur la
-note », the planning shows both sessions.
-
-Manual: mobile 390 px (card, both modes, refusal), tablet 900 px, desktop 1280 px (dialog); night register.
+E2E: none. The Playwright suite does not serve the guest app (a separate Vite app); the scenario was played instead in a
+real browser against the guest API on an isolated database (2026-11-15): offered hour in the evening → 20 €, 2 held
+hours 20-22 h → 40 €, a 2 h day block confirmed at 0 € and the card turned to « Vos séances », the over-count refusal,
+390 px and 1280 px, no horizontal scroll.
 
 ## 8. Out of scope
 

@@ -17,6 +17,7 @@ import BookletScreen from './pages/BookletPages';
 import ShopPage from './pages/ShopPage';
 import CartPage from './pages/CartPage';
 import SlotPickerPage from './pages/SlotPickerPage';
+import BathPlanPage from './pages/BathPlanPage';
 import { OrderPage, OrdersPage } from './pages/OrdersPages';
 import LookupPage from './pages/LookupPage';
 import SoliomapPage from './pages/SoliomapPage';
@@ -47,6 +48,7 @@ function Screens() {
       <Route path="/boutique" element={<Guard module="shop"><ShopPage /></Guard>} />
       <Route path="/boutique/bain" element={<Guard module="shop"><SlotPickerPage /></Guard>} />
       <Route path="/boutique/bain/:id" element={<Guard module="shop"><SlotPickerPage /></Guard>} />
+      <Route path="/bain/programmer/:id" element={<Guard module="shop"><BathPlanPage /></Guard>} />
       <Route path="/panier" element={<Guard module="shop"><CartPage /></Guard>} />
       <Route path="/commandes" element={<Guard module="orders"><OrdersPage /></Guard>} />
       <Route path="/commandes/:id" element={<OrderPage />} />
