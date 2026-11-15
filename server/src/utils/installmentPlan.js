@@ -159,14 +159,14 @@ function validateDate({ installments, index, dueDate, today, startDate }) {
   return null;
 }
 
-// Rule 9a — an amount typed by hand, in whole euros, on an unpaid installment other than the last unpaid.
+// Rule 9a — an amount typed by hand, cents allowed and at least 1 €, on an unpaid installment other than the last unpaid.
 function validateAmount({ installments, index, amountEuros, targetCents }) {
   const target = installments[index];
   const cents = Math.round(Number(amountEuros) * 100);
-  if (amountEuros === '' || amountEuros === null || amountEuros === undefined || !Number.isFinite(Number(amountEuros))
-    || cents <= 0) {
-    return { error: 'Montant supérieur à 0 attendu.' };
+  if (amountEuros === '' || amountEuros === null || amountEuros === undefined || !Number.isFinite(Number(amountEuros))) {
+    return { error: 'Montant illisible (ex. 250,50).' };
   }
+  if (cents < MIN_SHARE_CENTS) return { error: 'Montant d’au moins 1 € attendu.' };
   if (isPaid(target)) return { error: dateMessage(target.number, 'déjà payée.') };
   const unpaid = installments.filter((i) => !isPaid(i));
   const lastUnpaid = unpaid[unpaid.length - 1];

@@ -94,7 +94,8 @@ its due date, after the operator validates it.
     The installment becomes **pinned**
     (`amountEdited`). What remains — `total − paid − pinned amounts` — is spread by rule 6 over the
     unpaid, non-pinned installments; the last unpaid installment is never pinned and always adjusts.
-    The server refuses (`400`) an amount ≤ 0 or not a number, or one that leaves less than 1 € per remaining
+    The server refuses (`400`) an amount under 1 € or not a number (spaces typed in the field are dropped by
+    the client, « 1 000,50 » → `1000.50`), or one that leaves less than 1 € per remaining
     non-pinned installment. Rules 7 and 8 respect pins: a recalculation moves only non-pinned
     installments, and a rise is spread over the unpaid non-pinned ones (the last unpaid if none
     other is left). Changing the count (rule 12) clears every pin.

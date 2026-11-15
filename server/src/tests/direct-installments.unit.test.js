@@ -111,12 +111,15 @@ test('rule 9a — an amount with cents is accepted, the cents go to the rest', (
   assert.deepEqual(plan.spreadCents(checked.rest, checked.others.length), [37500, 37575]);
 });
 
-test('rule 9a — refused: zero, not a number, the last unpaid, or no euro left for the others', () => {
+test('rule 9a — refused: under 1 €, unreadable, the last unpaid, or no euro left for the others', () => {
   const rows = [row(1, 33400), row(2, 33400), row(3, 33350)];
   const refuse = (index, amountEuros) => plan.validateAmount({ installments: rows, index, amountEuros, targetCents: 100150 }).error;
-  assert.match(refuse(0, 0), /supérieur à 0/);
-  assert.match(refuse(0, ''), /supérieur à 0/);
-  assert.match(refuse(0, 'abc'), /supérieur à 0/);
+  assert.match(refuse(0, 0), /au moins 1 €/);
+  assert.match(refuse(0, '0.99'), /au moins 1 €/);
+  assert.match(refuse(0, -5), /au moins 1 €/);
+  assert.equal(refuse(0, 1), undefined);
+  assert.match(refuse(0, ''), /illisible/);
+  assert.match(refuse(0, '1,000,50'), /illisible/);
   assert.match(refuse(2, 100), /dernière échéance/);
   assert.equal(refuse(0, 1000), "Laisse moins de 1 € à l'échéance 3.");
   assert.equal(refuse(0, 999), undefined, '2 € are left for two installments: 1 € each');

@@ -81,9 +81,8 @@ function InstallmentRow({ installment, arrivalDate, dateError, amountError, busy
     onDate(installment, value);
   };
   const commitAmount = () => {
-    const typed = amountDraft.trim().replace(',', '.');
-    if (typed === '') { setAmountDraft(amountText(installment.amount)); return; }
-    if (sameCents(typed, installment.amount)) return;
+    const typed = amountDraft.replace(/\s/g, '').replace(',', '.');
+    if (typed === '' || sameCents(typed, installment.amount)) { setAmountDraft(amountText(installment.amount)); return; }
     if (amountError && amountError.value === typed) return;
     onAmount(installment, typed);
   };

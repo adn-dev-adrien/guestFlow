@@ -206,9 +206,21 @@ test('rule 9a — cents: the field opens the decimal keypad, a comma is sent as 
   await waitFor(() => expect(within(rowOf(1)).getByLabelText('Montant de l’échéance 1')).toHaveValue('250,50'));
   expect(within(rowOf(2)).getByLabelText('Montant de l’échéance 2')).toHaveValue('375,50');
 
-  await user.click(within(rowOf(1)).getByLabelText('Montant de l’échéance 1'));
+  await user.clear(within(rowOf(1)).getByLabelText('Montant de l’échéance 1'));
+  await user.type(within(rowOf(1)).getByLabelText('Montant de l’échéance 1'), '250.5');
   await user.tab();
   expect(api.putInstallments).toHaveBeenCalledTimes(1);
+  expect(within(rowOf(1)).getByLabelText('Montant de l’échéance 1')).toHaveValue('250,50');
+});
+
+test('rule 9a — spaces in a typed amount are ignored (« 1 000,50 »)', async () => {
+  const user = userEvent.setup();
+  api.putInstallments.mockResolvedValueOnce({ installmentPlan: planOf() });
+  render(<Harness initial={planOf()} />);
+  const field = within(rowOf(1)).getByLabelText('Montant de l’échéance 1');
+  await user.clear(field);
+  await user.type(field, '1 000,50{Enter}');
+  await waitFor(() => expect(api.putInstallments).toHaveBeenCalledWith(7, { amounts: [{ id: 41, amount: '1000.50' }] }));
 });
 
 test('no plan yet: one line and a « Créer un échéancier » button, disabled with the reason when money is in', async () => {
