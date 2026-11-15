@@ -13,6 +13,7 @@ const { quoteStoredReservation } = require('../utils/storedReservationQuote');
 const { computePaymentStatus, round2 } = require('../utils/paymentStatus');
 const { getMonthBounds } = require('../utils/financeCalcs');
 const { htOfPortion, netFirst } = require('../utils/pricing/vat');
+const financeSaleLines = require('../utils/financeSaleLines');
 const { personNights, unitFromTotal } = require('../utils/pricing/touristTax');
 
 // The column of the platform penalties (specs/reconciliation-assisted-matching.md rule 27). Named in an
@@ -391,6 +392,19 @@ function createFinanceModel(database) {
     return byStay;
   }
 
+  // pricing-components rules 31, 67 (owner 2026-11-15) — a stay the sale-line readers serve shows the HT its sale lines give
+  // (utils/financeSaleLines.js); every other stay keeps `htAmount`. The earnings stay `totalSejour` for every stay. One reader per page read.
+  let saleReader = null;
+  const htOf = (r, portion, rate) => {
+    const fromLines = saleReader ? saleReader.ht(r, portion) : null;
+    return fromLines == null ? htAmount(r, portion, rate) : fromLines;
+  };
+  const withSaleReader = (fn) => function readingSaleLines(...args) {
+    const previous = saleReader;
+    saleReader = previous || financeSaleLines.create(database);
+    try { return fn.apply(this, args); } finally { saleReader = previous; }
+  };
+
   const model = {
     // specs/stay-profile.md rule 22 and specs/finance-dashboard-redesign.md rule 53 — the ONE reading of
     // the tourist tax inside each stay's « total de séjour » (utils/stayTouristTaxInTotal.js): where it
@@ -633,7 +647,7 @@ function createFinanceModel(database) {
       let revenueTotalNights = 0;
       const enriched = reservations.map((r) => {
         const stay = totalSejour(r);
-        const stayHt = htAmount(r, stay, vatOf(r));
+        const stayHt = htOf(r, stay, vatOf(r));
         const settled = isSettled(r);
         const collected = comptaCollected(r);
         const nights = nightsBetween(r.startDate, r.endDate);
@@ -641,7 +655,7 @@ function createFinanceModel(database) {
         revenueTotalHt += stayHt;
         revenueTotalNights += nights;
         totalCollected += collected;
-        totalCollectedHt += htAmount(r, collected, vatOf(r));
+        totalCollectedHt += htOf(r, collected, vatOf(r));
 
         accumulate(byProperty, r, stay, stayHt, nights);
         accumulateChannel(byChannel, r, stay, stayHt, nights);
@@ -672,7 +686,7 @@ function createFinanceModel(database) {
         if (isSettled(r)) continue;
         const remaining = remainingToPay(r);
         totalPending += remaining;
-        totalPendingHt += htAmount(r, remaining, vatOf(r));
+        totalPendingHt += htOf(r, remaining, vatOf(r));
       }
 
       // Exercise cards — the SELECTED fiscal year, independent of the du/au period. Attributed by the
@@ -706,7 +720,7 @@ function createFinanceModel(database) {
       const byMonth = new Map(exerciseMonths(exercise.from, exercise.to).map((m) => [m.month, { ...m, revenue: 0, revenueHt: 0, past: 0, upcoming: 0, nights: 0 }]));
       for (const r of yearRows) {
         const stay = totalSejour(r);
-        const stayHt = htAmount(r, stay, vatOf(r));
+        const stayHt = htOf(r, stay, vatOf(r));
         const nights = nightsBetween(r.startDate, r.endDate);
         yearTotal += stay;
         yearTotalHt += stayHt;
@@ -1385,6 +1399,7 @@ function createFinanceModel(database) {
       return { ok: true, data: { declaredAt } };
     },
   };
+  for (const [name, value] of Object.entries(model)) if (typeof value === 'function') model[name] = withSaleReader(value);
 
   return model;
 }

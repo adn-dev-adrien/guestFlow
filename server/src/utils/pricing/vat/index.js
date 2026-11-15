@@ -74,6 +74,20 @@ function htOfPortion({
   return roundMoney(portion * ratio);
 }
 
+// Strategy « HT share of the lines »: the HT of a TTC portion of a stay is the portion times the share of the stay's sale lines
+// that is revenue net of VAT, each line cut by `vatOf` (rule 61): Σ net of the revenue lines over Σ the TTC of every line, the
+// tourist tax (`kind: 'touristTax'`) weighing in the TTC and bringing no revenue. `lines` = `[{ kind, totalCents, vat: { vatCents } }]`.
+function htOfLines({ portion: ttcPortion, lines }) {
+  const portion = Number(ttcPortion || 0);
+  if (portion <= 0) return 0;
+  const ttcOf = (line) => Math.max(0, Number(line.totalCents || 0));
+  const ttcCents = (lines || []).reduce((sum, line) => sum + ttcOf(line), 0);
+  if (ttcCents <= 0) return 0;
+  const netCents = (lines || []).filter((line) => line.kind !== 'touristTax')
+    .reduce((sum, line) => sum + ttcOf(line) - Math.max(0, Number((line.vat && line.vat.vatCents) || 0)), 0);
+  return roundMoney(portion * (netCents / ttcCents));
+}
+
 // Strategy « net first, in cents » (the Qonto invoice lines): the HT of a TTC amount in cents, and back. Qonto numbers each line itself,
 // so the invoice issuer starts from the HT a line would have and nudges it by a cent or two until Qonto's own totals add up. Both
 // are the float arithmetic the issuer always used, moved here unchanged (rule 64, Q-C8: no issued document moves); `lineTotalCents`
@@ -169,6 +183,7 @@ module.exports = {
   ttcFromNetCents,
   ttcFromNet,
   htOfPortion,
+  htOfLines,
   rateToBasis,
   lineTotalCents,
   htFromTtc,
