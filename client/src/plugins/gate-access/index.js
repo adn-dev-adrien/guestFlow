@@ -1,4 +1,4 @@
-// Accès au portail (Sowel) — client module (specs/plugins-phase-1-sdk.md §3.C).
+// Sowel — portail et domotique — client module (specs/plugins-phase-1-sdk.md §3.C).
 import { lazy } from 'react';
 
 export default {

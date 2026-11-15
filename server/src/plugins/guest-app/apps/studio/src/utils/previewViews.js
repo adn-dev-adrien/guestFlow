@@ -24,6 +24,13 @@ export function homeView({ lodgingName, modules, heroMediaId, media = [], settin
   };
 }
 
+/** « Domotique » (specs/guest-app-home-automation.md rule 16): the server's preview payload under the lodging's photo. */
+export function smartHomeView({ lodgingName, heroMediaId, media = [], data }) {
+  return {
+    view: 'smartHome', lodgingName, heroUrl: heroOf(media, heroMediaId), data,
+  };
+}
+
 /** A booklet page, as the server's draft preview resolved it. */
 export function pageView({ lodgingName, page, nextTitle, modules }) {
   return {

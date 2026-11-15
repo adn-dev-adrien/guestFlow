@@ -46,6 +46,16 @@ function createGuestLimiters() {
       skipFailedRequests: true,
       message: tooMany('tooManyOrders'),
     }),
+    // specs/guest-app-home-automation.md rule 10 — the light taps of a stay: 6 in 10 minutes, a refused one is free.
+    homeCommand: rateLimit({
+      keyGenerator: (req) => `guest-stay:${req.guest.stay.id}`,
+      windowMs: Number(process.env.GUEST_HOME_COMMAND_RATELIMIT_WINDOW_MS) || 10 * 60 * 1000,
+      max: Number(process.env.GUEST_HOME_COMMAND_RATELIMIT_MAX) || 6,
+      standardHeaders: true,
+      legacyHeaders: false,
+      skipFailedRequests: true,
+      message: tooMany('tooManyLightCommands'),
+    }),
     cardOrder: rateLimit({
       keyGenerator: (req) => `guest-stay:${req.guest.stay.id}`,
       skip: (req) => !(req.body && req.body.payment === 'card'),

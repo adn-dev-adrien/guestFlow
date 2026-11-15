@@ -1,5 +1,5 @@
 /**
- * SettingsGateAccessSection — « Accès portail (Sowel) », a self-contained card of Réglages →
+ * SettingsGateAccessSection — « Sowel — portail et domotique », a self-contained card of Réglages →
  * Intégrations (specs/gate-access-sowel-connector.md §3.6 rule 29).
  *
  * It configures nothing: the keys live in Sowel, whose `guestflow` plugin reads guestFlow's list
@@ -59,13 +59,20 @@ export default function SettingsGateAccessSection() {
     <Card variant="outlined" sx={{ bgcolor: 'background.paper', mb: 3 }}>
       <CardContent sx={{ p: { xs: 2, sm: 3 } }}>
         <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center', mb: 1.5, flexWrap: 'wrap', rowGap: 1 }}>
-          <Typography variant="sectionHeader">Accès portail (Sowel)</Typography>
+          <Typography variant="sectionHeader">Sowel — portail et domotique</Typography>
           <StatusBadge status={badge.status} label={badge.label} />
         </Stack>
 
         <Stack spacing={0.25}>
           <SummaryItem label="Dernière lecture" value={formatDateTime(state.lastReadAt)} valuePlaceholder="jamais" />
           <SummaryItem label="Clés créées" value={String(state.keysCreated ?? 0)} />
+          {/* specs/guest-app-home-automation.md rule 15 — the same connector carries the « Domotique » readings. */}
+          {state.home && (state.home.lastReadingsAt || state.home.equipments) ? (
+            <>
+              <SummaryItem label="Domotique — dernières mesures" value={formatDateTime(state.home.lastReadingsAt)} valuePlaceholder="jamais" />
+              <SummaryItem label="Domotique — équipements décrits" value={String(state.home.equipments || 0)} />
+            </>
+          ) : null}
         </Stack>
 
         {secrets ? (

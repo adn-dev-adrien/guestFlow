@@ -3,12 +3,16 @@
 const express = require('express');
 
 function buildAdminRouter({
-  lodgings, items, serviceHours, studio, studioSettings, stayLinks, orders,
+  lodgings, items, serviceHours, studio, studioSettings, stayLinks, orders, home,
 }) {
   const router = express.Router();
   router.get('/lodgings/:propertyId', lodgings.read);
   router.put('/lodgings/:propertyId', lodgings.write);
   router.post('/lodgings/:propertyId/regenerate-qr', lodgings.regenerateQr);
+  // specs/guest-app-home-automation.md rules 12-16.
+  router.get('/lodgings/:propertyId/home', home.studioRead);
+  router.put('/lodgings/:propertyId/home', home.studioWrite);
+  router.post('/lodgings/:propertyId/home/preview', home.studioPreview);
   router.get('/lodgings/:propertyId/qr-poster.pdf', lodgings.qrPoster);
   router.get('/reservations/:id/stay-link', stayLinks.read);
   router.post('/reservations/:id/stay-link/regenerate', stayLinks.regenerate);
