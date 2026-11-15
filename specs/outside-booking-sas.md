@@ -134,6 +134,9 @@ once on the server by the refonte's components.
     for the receipt. A client record is created only when « Enregistrer comme client » is ticked (unticked by
     default; it needs a name). No fuzzy name matching, so no homonym attaches by accident. _(Narrows refonte rule 74
     for this caller.)_
+    > _Amended 2026-11-15 (end review R1-3):_ a client a sale names, and the « Passage » client, are never orphans: the client cleanups (orphan
+    > popup, property delete, iCal sync — `noResourceBookingSql`) leave them, and their own delete is refused (« Ce client a des ventes hors séjour :
+    > suppression impossible. », « Le client « Passage » porte les ventes sans nom : suppression impossible. »). Test `client-deletion-standalone-sales`.
 9. **No identity on screen beyond what exists.** The mini SAS shows the booking's `displayName` (as today) and
    never asks a phone or address, except the optional billing address of the invoice (invoicing rules 25-27).
     > **Delivered by PR C** (C38): the dialog shows `displayName` and asks nothing of the client — no phone, no address but the optional billing address of the invoice; the only e-mail field is the one of « Envoyer un lien » (rule 39); tests `ResourceArrivalDialog.test`, `SalePaymentLink.states`.
@@ -385,6 +388,9 @@ once on the server by the refonte's components.
     e-mail: **amended 2026-11-12 (lead's call, PR C)** — `email_log.reservationId` becomes nullable and the table gains `saleRef`, in the same
     migration as `payment_links` (`pricing_sales_v1`, pricing-components rule 86). The document's history also shows « Lien envoyé à {e-mail} »
     (« Lien copié » is not traced).
+    > _Amended 2026-11-15 (end review R1-4):_ the rolling purge of `email_log` (email-history-rolling-window rule 3) keeps a sale's row like a
+    > stay's: until the retention window (3 days) after the later of its sale day and its send — the row of a failed send is no longer purged as
+    > an orphan the day it was written. Test `email-log-purge-sale-rows`.
 43. **The drinks revenue account is a setting of `accounting-export`** (decided 2026-11-12, Q8 A). The setting
     `drinksRevenueAccount` is empty by default. A journal export (CSV, sales JSON, synthesis) whose period holds a
     line of class `drinks` while the setting is empty is **refused** with 409 `DRINKS_ACCOUNT_REQUIRED` « Compte des

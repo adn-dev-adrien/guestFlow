@@ -80,14 +80,33 @@ function cautionBlocker(database, ids, owner = 'reservation') {
   } catch { return null; }
 }
 
+const hasTable = (database, name) => Boolean(database.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?").get(name));
+const hasColumn = (database, table, name) => database.prepare(`PRAGMA table_info(${table})`).all().some((c) => c.name === name);
+
 /**
  * R36-DB-M1 — the SQL condition « no resource booking names this client » on the clients row `alias`, empty when
  * the plugin table is absent. Every client cleanup (orphan popup, property delete, iCal sync) shares it: a client
  * booked on a resource, paid or not, is no orphan (specs/resource-booking-pricing-and-invoicing.md rule 34).
+ * End review R1-3 (pricing-components rule 74, outside-visit spec §5): nor is a client a sale outside a stay names, nor the shared
+ * « Passage » client — deleting either would leave the sales (their invoice and payment identity) pointing at no one.
  */
 function noResourceBookingSql(database, alias) {
-  const table = database.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'resource_bookings'").get();
-  return table ? ` AND NOT EXISTS (SELECT 1 FROM resource_bookings b WHERE b.clientId = ${alias}.id)` : '';
+  let sql = hasTable(database, 'resource_bookings') ? ` AND NOT EXISTS (SELECT 1 FROM resource_bookings b WHERE b.clientId = ${alias}.id)` : '';
+  if (hasTable(database, 'standalone_sales')) sql += ` AND NOT EXISTS (SELECT 1 FROM standalone_sales s WHERE s.clientId = ${alias}.id)`;
+  if (hasColumn(database, 'clients', 'isPassage')) sql += ` AND COALESCE(${alias}.isPassage, 0) = 0`;
+  return sql;
+}
+
+const SALE_CLIENT_MESSAGE = 'Ce client a des ventes hors séjour : suppression impossible.';
+const PASSAGE_CLIENT_MESSAGE = 'Le client « Passage » porte les ventes sans nom : suppression impossible.';
+
+/** End review R1-3 — the refusal when the client is the shared « Passage » client or owns a sale outside a stay, or null. */
+function standaloneSaleBlocker(database, clientId) {
+  if (hasColumn(database, 'clients', 'isPassage')
+    && database.prepare('SELECT 1 FROM clients WHERE id = ? AND COALESCE(isPassage, 0) = 1').get(Number(clientId))) return PASSAGE_CLIENT_MESSAGE;
+  if (hasTable(database, 'standalone_sales')
+    && database.prepare('SELECT 1 FROM standalone_sales WHERE clientId = ? LIMIT 1').get(Number(clientId))) return SALE_CLIENT_MESSAGE;
+  return null;
 }
 
 /**
@@ -136,5 +155,5 @@ function idsOfOwner(database, column, ownerId) {
 module.exports = {
   MONEY_MESSAGE, CLIENT_MONEY_MESSAGE, PROPERTY_MONEY_MESSAGE, HISTORY_MESSAGES, isHistoryMessage,
   BOOKING_MONEY_MESSAGES, withConvertedDevis, carriesMoney, historyBlocker, idsOfOwner, bookingMoneyBlocker,
-  CAUTION_MESSAGES, cautionBlocker, noResourceBookingSql,
+  CAUTION_MESSAGES, cautionBlocker, noResourceBookingSql, standaloneSaleBlocker,
 };

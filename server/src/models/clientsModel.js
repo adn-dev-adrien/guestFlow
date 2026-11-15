@@ -11,7 +11,7 @@
 
 const {
   carriesMoney, historyBlocker, idsOfOwner, withConvertedDevis, bookingMoneyBlocker, CLIENT_MONEY_MESSAGE,
-  cautionBlocker, noResourceBookingSql,
+  cautionBlocker, noResourceBookingSql, standaloneSaleBlocker,
 } = require('../utils/deletionGuard');
 const { todayIso: localTodayIso, localHourMinute, stayHasEnded } = require('../utils/localDate');
 const db = require('../database');
@@ -402,7 +402,7 @@ function createModel(database) {
   function deletionBlocker(id) {
     const ids = idsOfOwner(database, 'clientId', id);
     if (carriesMoney(database, ids)) return CLIENT_MONEY_MESSAGE;
-    return cautionBlocker(database, ids, 'client') || bookingMoneyBlocker(database, 'clientId', id) || historyBlocker(database, ids, 'client');
+    return standaloneSaleBlocker(database, id) || cautionBlocker(database, ids, 'client') || bookingMoneyBlocker(database, 'clientId', id) || historyBlocker(database, ids, 'client');
   }
 
   function rowIdsToDelete(id) {
