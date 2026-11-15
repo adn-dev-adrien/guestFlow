@@ -11,13 +11,13 @@ test('rule 25 — offering a paid line asks the administrator\'s confirmation, t
   const visit = (await f.call('commit', { id, body: { extras: [f.extra(f.beer, 2)], payment: { tenders: f.card(6300) } } })).body.visit;
   const beer = visit.lines.find((line) => line.label === 'Bière locale');
   const refused = await f.call('patchLine', { id, lineId: beer.id, body: { offered: true } });
-  assert.deepEqual([refused.code, refused.body.code, refused.body.error], [409, 'LINE_PAID', 'Ligne payée : remboursement à confirmer.']);
+  assert.deepEqual([refused.code, refused.body.code, refused.body.error, refused.body.refundCents], [409, 'LINE_PAID', 'Ligne payée : remboursement à confirmer. 13,00 € à rembourser.', 1300]);
   const confirmed = (await f.call('patchLine', { id, lineId: beer.id, body: { offered: true, confirmRefund: true } })).body.visit;
   assert.deepEqual([confirmed.totals.totalCents, confirmed.totals.remainingCents, confirmed.totals.refundOwedCents], [5000, 0, 1300]);
   const reception = (await f.call('getVisit', { id, user: f.RECEPTION })).body;
   assert.ok(!('refundOwedCents' in reception.totals), 'never a refund amount for the reception');
-  // V-4 — no obligation row holds an offered paid line: the whole amount is the unheld part the dialog shows; the reception gets neither.
-  assert.deepEqual([confirmed.totals.refundUnheldCents, confirmed.refundObligations], [1300, []]);
+  // Loop t1 AV-1 — the confirmed lowering opens its register row (`lineLowered`): nothing is left unheld, the « À rembourser » lists show it; the reception gets neither.
+  assert.deepEqual([confirmed.totals.refundUnheldCents, confirmed.refundObligations.map((row) => [row.origin, row.amountCents, row.label])], [0, [['lineLowered', 1300, '13,00 € à rembourser']]]);
   assert.ok(!('refundUnheldCents' in reception.totals));
   assert.deepEqual(reception.refundObligations, []);
 });

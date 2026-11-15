@@ -32,6 +32,7 @@ const LINK_REFUSALS = Object.freeze({
 function createVisitController({ bookings, visits, invoicing }) {
   const fail = (res, result) => res.status(result.status).json({
     error: result.error, ...(result.code ? { code: result.code } : {}), ...(result.refusals ? { refusals: result.refusals } : {}), ...(result.field ? { field: result.field } : {}),
+    ...(result.refundCents ? { refundCents: result.refundCents } : {}),
   });
   const isPlainObject = (value) => value !== null && typeof value === 'object' && !Array.isArray(value);
   const actorOf = (req) => (req.user && (req.user.email || req.user.username || req.user.id)) || null;
@@ -58,23 +59,42 @@ function createVisitController({ bookings, visits, invoicing }) {
   }
 
   // What this caller may do on the visit now, so the screen shows it read-only instead of guessing the rules of rules 5, 7, 24, 27: `{ writable, reason, reception }`.
+  // `withdrawLink` (loop t1 AV-7): the administrator withdraws an open link on any day, the reception inside the day window (V-8).
   const accessOf = (row, req) => {
     const refused = writeRefusal(row, req);
-    return { writable: !refused, reason: refused ? refused.error : null, reception: isReceptionOnly(req.user) };
+    return {
+      writable: !refused, reason: refused ? refused.error : null, reception: isReceptionOnly(req.user), withdrawLink: !writeRefusal(row, req, { adminAnyDay: true }),
+    };
+  };
+
+  // Loop t1 AV-5, AV-6 (reception-role-checkin-only rule 12bis) — the reception sees whether an address is known, never the address, and never the name a
+  // typed address matched.
+  const forCaller = (body, req) => {
+    // Rule 24 (reading of 2026-11-15, loop t1 AV-8) — an invoiced visit offers « Nouvelle vente » on the same client: `newSale.client` seeds the counter's dialog.
+    const invoiced = Boolean(body.invoice && !body.invoice.cancelled);
+    if (!isReceptionOnly(req.user)) {
+      return {
+        ...body, invoiceable: invoicing ? invoicing().invoiceability(body.booking.id) : null, newSale: invoiced && body.document ? { client: body.document.client } : null,
+      };
+    }
+    const link = body.paymentLink ? { ...body.paymentLink, hasEmail: Boolean(body.paymentLink.email), email: null } : body.paymentLink;
+    const client = body.document && body.document.client;
+    const hidden = client && client.kind === 'match' ? { kind: 'match' } : client;
+    return { ...body, paymentLink: link, document: body.document ? { ...body.document, client: hidden } : body.document, invoiceable: null, newSale: null };
   };
 
   const sendView = (res, row, req, extra = {}) => {
     const current = bookings().rawById(row.id);
     const out = visits().view(current, { reception: isReceptionOnly(req.user) });
     if (out.status !== 200) return res.status(out.status).json(out.body);
-    return res.json({ visit: { ...out.body, access: accessOf(current, req) }, ...extra });
+    return res.json({ visit: { ...forCaller(out.body, req), access: accessOf(current, req) }, ...extra });
   };
 
   function getVisit(req, res) {
     const { row, refusal } = bookingOf(req);
     if (refusal) return fail(res, refusal);
     const out = visits().view(row, { reception: isReceptionOnly(req.user) });
-    return res.status(out.status).json(out.status === 200 ? { ...out.body, access: accessOf(row, req) } : out.body);
+    return res.status(out.status).json(out.status === 200 ? { ...forCaller(out.body, req), access: accessOf(row, req) } : out.body);
   }
 
   // The quote body's shape, judged before the model (§4.3): extras a list of objects, flags booleans.
@@ -102,7 +122,7 @@ function createVisitController({ bookings, visits, invoicing }) {
     const shape = draftRefusal(body);
     if (shape) return res.status(400).json({ error: shape, code: 'INVALID_PAYLOAD' });
     const out = visits().view(row, { reception: isReceptionOnly(req.user), draft: body });
-    return res.status(out.status).json(out.status === 200 ? { ...out.body, access: accessOf(row, req) } : out.body);
+    return res.status(out.status).json(out.status === 200 ? { ...forCaller(out.body, req), access: accessOf(row, req) } : out.body);
   }
 
   async function commit(req, res) {
@@ -116,12 +136,19 @@ function createVisitController({ bookings, visits, invoicing }) {
     if (body.invoice !== undefined && typeof body.invoice !== 'boolean') return res.status(400).json({ error: 'Facture : oui ou non.', code: 'INVALID_PAYLOAD' });
     const closed = writeRefusal(row, req);
     if (closed) return fail(res, closed);
-    if (body.billing !== undefined) {
-      const stored = bookings().recordArrivalBilling(row.id, body.billing);
-      if (stored && stored.error) return fail(res, stored);
-    }
-    const result = visits().commit(row, body, { actor: actorOf(req) });
-    if (result.error) return fail(res, result);
+    // Loop t1 AV-3 (reception rule 17) — the invoice and its billing address are the administrator's.
+    if (isReceptionOnly(req.user) && (body.invoice === true || body.billing !== undefined)) return res.status(403).json({ error: 'Facture : réservée à l’administrateur.', code: 'ADMIN_ONLY' });
+    // Loop t1 AV-4 (rule 21) — the billing address is written with the commit, in its transaction: a refused commit (a stale version) writes neither.
+    const result = visits().inTransaction((stop) => {
+      if (body.billing !== undefined) {
+        const stored = bookings().recordArrivalBilling(row.id, body.billing);
+        if (stored && stored.error) stop(stored);
+      }
+      const committed = visits().commit(row, body, { actor: actorOf(req) });
+      if (committed && committed.error) stop(committed);
+      return committed;
+    });
+    if (result && result.error) return fail(res, result);
     let invoice = null;
     if (body.invoice === true) {
       const issued = await invoicing().issue(row.id);
@@ -218,7 +245,8 @@ function createVisitController({ bookings, visits, invoicing }) {
     if (!saleId) return res.status(404).json({ error: 'Lien introuvable.', code: 'LINK_NOT_FOUND' });
     const out = await sdk.coreModule('standaloneSaleLinks').emailLink(saleId, Number(req.params.linkId));
     if (out.status !== 200) return res.status(out.status).json(out.body);
-    return res.json({ sent: out.sent, recipientEmail: out.recipientEmail });
+    // Loop t1 AV-5 — the reception is told the e-mail left, never to which address.
+    return res.json({ sent: out.sent, recipientEmail: isReceptionOnly(req.user) ? null : out.recipientEmail });
   }
 
   return {

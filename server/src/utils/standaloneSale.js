@@ -197,7 +197,21 @@ function price({
 
 const refusalList = (ctx, own) => [...own, ...ctx.refusals.map((r) => ({ articleRef: r.ref, code: r.code, message: r.message })), ...ctx.vatRefusals.map((r) => ({ articleRef: r.ref, code: r.code, message: r.message }))];
 
+// Outside-visit rule 41 (end-review V-4): each open obligation is a row of its own with its words, and `refundUnheldCents` is the part of the
+// owed money no row holds — so a screen shows the rows and that remainder, never the same euros twice.
+function owedOf(ctx, saleId) {
+  const obligations = saleId ? sales.obligationsOf(saleId).map((row) => ({ ...row, label: `${euros(row.amountCents)} à rembourser`, detail: row.reason || null })) : [];
+  const owed = owedOnDocument({
+    dueCents: ctx.settlement.totalCents,
+    paidCents: ctx.settlement.paidCents + ctx.settlement.refundedCents,
+    refundedCents: ctx.settlement.refundedCents + (saleId ? sales.closedObligationCents(saleId) : 0),
+    heldCents: obligations.reduce((sum, row) => sum + row.amountCents, 0),
+  });
+  return { obligations, owed };
+}
+
 function detailOf(ctx, sale, client) {
+  const { obligations, owed } = owedOf(ctx, sale && sale.id);
   const lines = ctx.lines.map((line, index) => (line.ref ? line : { ...line, ref: `draft:${index}`, id: null }));
   const settled = ctx.settlement.lines.map((line, index) => ({ ...line, ref: lines[index].ref }));
   const detail = buildDocumentDetail({
@@ -209,21 +223,13 @@ function detailOf(ctx, sale, client) {
     settlement: {
       ...ctx.settlement,
       lines: settled,
-      refundOwedCents: owedOnDocument({
-        dueCents: ctx.settlement.totalCents,
-        paidCents: ctx.settlement.paidCents + ctx.settlement.refundedCents,
-        refundedCents: ctx.settlement.refundedCents + (sale && sale.id ? sales.closedObligationCents(sale.id) : 0),
-      }).owedCents,
+      refundOwedCents: owed.owedCents,
     },
     vatByRate: ctx.vatByRate,
   });
-  // Outside-visit rule 41 (end-review V-4): each open obligation is a row of its own with its words, and `refundUnheldCents` is the part of the
-  // owed money no row holds (a paid line offered since) — so a screen shows the rows and that remainder, never the same euros twice.
-  const obligations = sale ? sales.obligationsOf(sale.id).map((row) => ({ ...row, label: `${euros(row.amountCents)} à rembourser`, detail: row.reason || null })) : [];
-  const heldCents = obligations.reduce((sum, row) => sum + row.amountCents, 0);
   return {
     ...detail,
-    totals: { ...detail.totals, refundUnheldCents: Math.max(0, detail.totals.refundOwedCents - heldCents) },
+    totals: { ...detail.totals, refundUnheldCents: owed.unheldCents },
     history: sale ? sales.historyOf(sale.id) : [],
     refundObligations: obligations,
   };
@@ -427,7 +433,15 @@ function publishSold(document) {
 }
 
 // One change of a stored document, in its own transaction: the version is compared, the change made, the document refreshed and its version moved.
-function change(saleId, version, work) {
+// Loop t1 B-1, AV-1 (outside-visit rule 25) — money a confirmed lowering leaves owed back is a register row of its own (`lineLowered`), opened in the
+// gesture's transaction: the « À rembourser » lists show it, the invoice waits for it, and « Marquer remboursé » closes it.
+function holdOwedMoney(saleId, reason) {
+  const { stored, allocations } = storedOf(saleId);
+  const { owed } = owedOf(price({ requests: [], stored, allocations }), saleId);
+  if (owed.unheldCents > 0) sales.openObligation({ saleId, origin: 'lineLowered', amountCents: owed.unheldCents, reason });
+}
+
+function change(saleId, version, work, { owedReason = null } = {}) {
   const db = database();
   let outcome = null;
   try {
@@ -438,6 +452,7 @@ function change(saleId, version, work) {
       if (stale) { outcome = stale; throw outcome; }
       const refused = work(sale);
       if (refused) { outcome = refused; throw outcome; }
+      if (owedReason) holdOwedMoney(saleId, typeof owedReason === 'function' ? owedReason() : owedReason);
       refreshInPlace(saleId);
       sales.bumpVersion(saleId);
       outcome = { status: 200 };
@@ -456,29 +471,36 @@ function lineOf(saleId, lineId, { confirmRefund }) {
   const { stored, allocations } = storedOf(saleId);
   const ctx = price({ requests: [], stored, allocations });
   const settled = ctx.settlement.lines.find((line) => line.ref === sales.lineRef(row.id));
-  if (settled && settled.settledCents > 0 && confirmRefund !== true) return { refusal: refuse(409, 'LINE_PAID', 'Ligne payée : remboursement à confirmer.') };
+  // Mock M5 (loop t1 UI-12): the refusal names what the confirmation would owe back, so the dialog can say it.
+  if (settled && settled.settledCents > 0 && confirmRefund !== true) {
+    return { refusal: refuse(409, 'LINE_PAID', `Ligne payée : remboursement à confirmer. ${euros(settled.settledCents)} à rembourser.`, { refundCents: settled.settledCents, label: row.label }) };
+  }
   return { row };
 }
 
 function offerLine(saleId, lineId, { offered = true, confirmRefund = false, version } = {}) {
+  let label = '';
   return change(saleId, version, () => {
     const { row, refusal } = lineOf(saleId, lineId, { confirmRefund: offered ? confirmRefund : true });
     if (refusal) return refusal;
+    label = row.label;
     const catalogue = row.catalogueCents == null ? row.totalCents : row.catalogueCents;
     sales.updateLine(row.id, { offered: offered ? 1 : 0, totalCents: offered ? 0 : catalogue, catalogueCents: catalogue });
     sales.addHistory(saleId, `${row.label} ${offered ? 'offerte' : 'à nouveau payante'}`);
     return null;
-  });
+  }, { owedReason: () => `${label} offerte après paiement` });
 }
 
 function removeLine(saleId, lineId, { confirmRefund = false, version } = {}) {
+  let label = '';
   return change(saleId, version, () => {
     const { row, refusal } = lineOf(saleId, lineId, { confirmRefund });
     if (refusal) return refusal;
+    label = row.label;
     sales.updateLine(row.id, { cancelledAt: new Date().toISOString() });
     sales.addHistory(saleId, `${row.label} retirée`);
     return null;
-  });
+  }, { owedReason: () => `${label} retirée après paiement` });
 }
 
 function pay(saleId, {
@@ -500,7 +522,7 @@ function cancel(saleId) {
     sales.addHistory(saleId, 'Vente annulée');
     // The open link of the document is withdrawn with it (`refreshInPlace`); a payment that still arrives on it is booked in full and owed back (rule 41).
     return null;
-  });
+  }, { owedReason: 'Vente annulée après paiement' });
 }
 
 // The payments of a document, oldest first, each with its tenders: what an invoice states and the card batch reads (the outside-visit spec rule 31).

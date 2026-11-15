@@ -54,12 +54,14 @@ function owedOnLineLowered({ overpaymentCents, alreadyOwedCents = 0 }) {
 }
 
 /**
- * @param {{ dueCents: number, paidCents: number, refundedCents?: number }} args  what the document's lines ask now, what it received,
- *   what was already given back (all in cents)
- * @returns {{ owedCents: number }}
+ * @param {{ dueCents: number, paidCents: number, refundedCents?: number, heldCents?: number }} args  what the document's lines ask now, what it received,
+ *   what was already given back, what the open obligation rows already hold (all in cents)
+ * @returns {{ owedCents: number, unheldCents: number }}
  */
-function owedOnDocument({ dueCents, paidCents, refundedCents = 0 }) {
-  return { owedCents: Math.max(0, whole(paidCents) - whole(refundedCents) - whole(dueCents)) };
+function owedOnDocument({ dueCents, paidCents, refundedCents = 0, heldCents = 0 }) {
+  const owedCents = Math.max(0, whole(paidCents) - whole(refundedCents) - whole(dueCents));
+  // `unheldCents` — the part of it no open obligation row holds yet (loop t1 B-7: the one place this difference is taken).
+  return { owedCents, unheldCents: Math.max(0, owedCents - whole(heldCents)) };
 }
 
 /**

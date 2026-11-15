@@ -55,6 +55,18 @@ function draftLinkOf({ remainingCents = 0, email = '' } = {}) {
   };
 }
 
+// Loop t1 UI-15 — the end of a link's validity as the operator reads it, in Europe/Paris whatever the browser's zone: « 16/11 à 14:30 ».
+function expiresLabelOf(iso) {
+  if (!iso) return null;
+  const date = new Date(/[zZ]|[+-]\d{2}:?\d{2}$/.test(String(iso)) || String(iso).includes('T') ? iso : `${String(iso).replace(' ', 'T')}Z`);
+  if (Number.isNaN(date.getTime())) return null;
+  const parts = new Intl.DateTimeFormat('fr-FR', {
+    timeZone: 'Europe/Paris', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23',
+  }).formatToParts(date);
+  const part = (type) => (parts.find((p) => p.type === type) || {}).value || '';
+  return `${part('day')}/${part('month')} à ${part('hour')}:${part('minute')}`;
+}
+
 function linkOf(saleId, { now = new Date() } = {}) {
   const sale = sales.findSale(saleId);
   const document = standaloneSale.documentOf(saleId);
@@ -69,6 +81,7 @@ function linkOf(saleId, { now = new Date() } = {}) {
     email: email || null,
     open: open ? {
       id: open.id, url: open.url, amountCents: open.amountCents, expiresAt: validityOf(open, now).expiresAt || open.expiresAt || null,
+      expiresLabel: expiresLabelOf(validityOf(open, now).expiresAt || open.expiresAt || null),
     } : null,
   };
 }
@@ -148,7 +161,7 @@ async function mint(saleId, { email = null, now = new Date(), deps = {} } = {}) 
 }
 
 const linkView = (row) => ({
-  id: row.id, url: row.url, amountCents: row.amountCents, expiresAt: row.expiresAt, status: row.status,
+  id: row.id, url: row.url, amountCents: row.amountCents, expiresAt: row.expiresAt, expiresLabel: expiresLabelOf(row.expiresAt), status: row.status,
 });
 
 async function withdraw(saleId, linkId, { now = new Date(), deps = {} } = {}) {
@@ -289,5 +302,6 @@ async function emailLink(saleId, linkId, { deps = {} } = {}) {
 }
 
 module.exports = {
+  expiresLabelOf,
   linkOf, draftLinkOf, mint, withdraw, settlePaidLink, closeObligation, emailLink, basketOf, SOURCE, TEMPLATE_KEY,
 };

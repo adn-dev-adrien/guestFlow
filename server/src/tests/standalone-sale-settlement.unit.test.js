@@ -32,13 +32,15 @@ test('rule 41 — a surplus is filed on no line, counted as received, and what t
   assert.deepEqual(allocateDocumentPayment({ lines: [{ ref: 'line:a', totalCents: 500 }], amountCents: 800 }), [{ lineRef: 'line:a', amountCents: 500 }, { lineRef: null, amountCents: 300 }]);
   const settled = settleDocument({ lines: [{ ref: 'line:a', totalCents: 500, offered: true }], allocations: [{ lineRef: 'line:a', amountCents: 500, kind: 'payment' }, { lineRef: null, amountCents: 300, kind: 'payment' }] });
   assert.deepEqual([settled.totalCents, settled.paidCents, settled.remainingCents], [0, 800, 0]);
-  assert.deepEqual(owedOnDocument({ dueCents: settled.totalCents, paidCents: settled.paidCents }), { owedCents: 800 });
+  assert.deepEqual(owedOnDocument({ dueCents: settled.totalCents, paidCents: settled.paidCents }), { owedCents: 800, unheldCents: 800 });
 });
 
 test('rule 72 — what was given back is not owed twice', () => {
-  assert.deepEqual(owedOnDocument({ dueCents: 500, paidCents: 800, refundedCents: 300 }), { owedCents: 0 });
-  assert.deepEqual(owedOnDocument({ dueCents: 500, paidCents: 800, refundedCents: 100 }), { owedCents: 200 });
-  assert.deepEqual(owedOnDocument({ dueCents: 900, paidCents: 800 }), { owedCents: 0 });
+  assert.deepEqual(owedOnDocument({ dueCents: 500, paidCents: 800, refundedCents: 300 }), { owedCents: 0, unheldCents: 0 });
+  assert.deepEqual(owedOnDocument({ dueCents: 500, paidCents: 800, refundedCents: 100 }), { owedCents: 200, unheldCents: 200 });
+  assert.deepEqual(owedOnDocument({ dueCents: 900, paidCents: 800 }), { owedCents: 0, unheldCents: 0 });
+  // Loop t1 B-7 — what the open obligation rows hold is not the unheld part.
+  assert.deepEqual(owedOnDocument({ dueCents: 500, paidCents: 800, heldCents: 120 }), { owedCents: 300, unheldCents: 180 });
 });
 
 test('rule 74 — a refund given back is a negative allocation: the document\'s paid amount falls, its lines keep what they were covered with', () => {

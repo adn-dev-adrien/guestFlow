@@ -114,7 +114,7 @@ const TABLES = [
   `CREATE TABLE IF NOT EXISTS standalone_sale_obligations (
     id            INTEGER PRIMARY KEY AUTOINCREMENT,
     saleId        INTEGER NOT NULL,
-    origin        TEXT NOT NULL CHECK (origin IN ('linkSurplus')),
+    origin        TEXT NOT NULL CHECK (origin IN ('linkSurplus', 'lineLowered')),
     paymentLinkId INTEGER UNIQUE,
     amountCents   INTEGER NOT NULL CHECK (amountCents > 0),
     reason        TEXT,
@@ -332,12 +332,28 @@ function runTrueLinesWhenVerified(db, { awaiting = () => require('./updateVerifi
   return { state: 'ran', tables: dropArticleKeys(db) };
 }
 
+// Loop t1 B-1 — a paid line of a document lowered (offered, removed, the document cancelled) owes money back with no link: origin `lineLowered`. A table
+// created before that origin existed is rebuilt once with the wider CHECK, its rows and ids kept.
+function widenDocumentObligations(db) {
+  const stored = db.prepare("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'standalone_sale_obligations'").get();
+  if (!stored || stored.sql.includes("'lineLowered'")) return 0;
+  withRebuildPragmas(db, () => db.transaction(() => {
+    rebuildTable(db, 'standalone_sale_obligations', (sql) => {
+      const widened = sql.replace(/origin IN \('linkSurplus'\)/, "origin IN ('linkSurplus', 'lineLowered')");
+      if (widened === sql) throw new Error('PRICING_SALES_UNEXPECTED_DDL: standalone_sale_obligations');
+      return widened;
+    });
+  })());
+  return 1;
+}
+
 // `deferTrueLines`: the boot of a release its update helper has not verified yet keeps T10 for later (`runTrueLinesWhenVerified`).
 function runPricingSalesMigration(db, { deferTrueLines = false } = {}) {
   const changes = {};
   changes.tables = createTables(db);
   changes.columns = addColumns(db);
   changes.rebuilt = relaxReservationId(db);
+  changes.documentObligations = widenDocumentObligations(db);
   changes.departureGuard = guardDepartureLines(db);
   changes.trueLines = deferTrueLines ? 0 : dropArticleKeys(db);
   changes.trueLinesDeferred = Boolean(deferTrueLines) && !done(db, 'pricing_sales_true_lines_v1');

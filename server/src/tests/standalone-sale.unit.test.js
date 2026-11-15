@@ -155,7 +155,8 @@ test('rule 25 — lowering a paid line is refused without the confirmation; conf
   const refused = standaloneSale.offerLine(id, beerLine.id, { offered: true });
   assert.equal(refused.status, 409);
   assert.equal(refused.body.code, 'LINE_PAID');
-  assert.equal(refused.body.error, 'Ligne payée : remboursement à confirmer.');
+  assert.equal(refused.body.error, 'Ligne payée : remboursement à confirmer. 13,00 € à rembourser.');
+  assert.equal(refused.body.refundCents, 1300);
   const confirmed = standaloneSale.offerLine(id, beerLine.id, { offered: true, confirmRefund: true });
   assert.equal(confirmed.document.totals.refundOwedCents, 1300);
   assert.equal(confirmed.document.totals.remainingCents, 0);

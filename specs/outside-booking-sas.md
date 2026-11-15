@@ -418,6 +418,32 @@ once on the server by the refonte's components.
     line of class `drinks` while the setting is empty is **refused** with 409 `DRINKS_ACCOUNT_REQUIRED` « Compte des
     boissons à renseigner avant l'export. » naming the setting's page; an export with no drink line is unaffected.
     The account plan maps `revenue:drinks` to the setting once filled. No default account is invented.
+44. **A paid line lowered on a document is a register row** _(stabilisation loop t1, B-1 / AV-1, 2026-11-15; reading of rule 25)_. Offering or removing a
+    paid line with the confirmation, or cancelling a paid document, opens in the same transaction one `standalone_sale_obligations` row of origin
+    `lineLowered` (no link) for what the document now owes back and no row holds yet (« Bière locale offerte après paiement », « Vente annulée après
+    paiement »). The row is listed and closed like a `linkSurplus` row (rule 41 as amended V-4: the mini SAS, the counter's « À rembourser »,
+    « Marquer remboursé »), so `refundUnheldCents` falls to 0 once it is open and `refundOwedCents` once it is closed. The visit's invoice waits for it:
+    409 `REFUND_OWED` « Remboursement à faire : facture après le remboursement. ». The LINE_PAID refusal names the amount (« Ligne payée : remboursement
+    à confirmer. 13,00 € à rembourser. », `refundCents`, mock M5). _Not delivered:_ the negative journal entry of the money given back (an avoir in
+    `salesOfDocument`) — the journal still books the line's revenue on its day; the owner decides it with the refund path of rule 25.
+    Migration: the table's CHECK is widened (rebuilt once, rows and ids kept). Tests `standalone-sale-paid-line-refund`,
+    `pricing-sales-document-obligations-widened`, `visit-round1-reception-and-refunds`.
+45. **What each caller is served, so the screens rebuild no rule** _(stabilisation loop t1, 2026-11-15)_. The visit payload adds `invoiceable: { ok, code, reason }`
+    (the refusals `POST /:id/invoice` would answer before Qonto, admin; `null` for the reception), `access.withdrawLink` (the administrator on any day,
+    V-8), and `newSale: { client }` on an invoiced visit; for the reception, `paymentLink.email` is `null` with `hasEmail`, a typed address that matches a
+    client answers `document.client = { kind: 'match' }` without the name, `POST …/email` answers `recipientEmail: null`, and `invoice` / `billing` in
+    the commit are refused 403 `ADMIN_ONLY` « Facture : réservée à l’administrateur. » (reception rule 17). The billing address is written inside the
+    commit's transaction (a stale version writes none, rule 21). The booking payload adds `actions.noShow` (rule 27: an administrator, a visit with no
+    stay, from its day on, not arrived nor absent), the sale links `expiresLabel` (« 16/11 à 14:30 », Europe/Paris), the counter list `owedTitle`
+    « À rembourser » and each row's `soldDayLabel` « Vente du 14/11 » (reading of 2026-11-15 of the V-4 amendment: the block of any day sits above the
+    day's list under its own title, each row names its day), `GET /api/standalone-sales/vat-rates` each class's `label`. Every visit line already carries
+    its `vatRate` (rule 10). Tests `visit-round1-reception-and-refunds`, `booking-actions-no-show`, `sale-link-expires-label`,
+    `catalogue-sellable-externally`.
+    > _Reading of rule 24, 2026-11-15 (loop t1 AV-8):_ the mini SAS of an invoiced visit offers « Nouvelle vente » on the document's client, as rule 24
+    > says; the server serves that client (`newSale.client`), the counter's « Vente hors séjour » dialog opens seeded with it.
+46. **The booking's client is the document's** _(stabilisation loop t1, AV-2, 2026-11-15; rule 8 as delivered)_. A client changed on the booking changes the
+    document's `clientId` in the same transaction (the « Passage » client when the booking names none) until the document is invoiced. Test
+    `visit-round1-reception-and-refunds`.
 
 ---
 
@@ -509,6 +535,13 @@ C38 additions to the plugin routes: `GET /:id/visit/articles?q=` → `{ articles
 
 The booking payloads of the plugin (`GET /:id`, `GET /planning-events`, the list) gain `visit: { saleRef, totalCents, paidCents, remainingCents }` when the money is on a document, `noShow`, and `cardState: { state: 'toCollect'\|'remaining'\|'paid'\|'absent', label, remainingCents }` (rule 22: « À encaisser », « Reste 13,00 € », « Payé », « Absent »). The booking dialog's `POST /:id/payment` pays the document's whole reste when the booking has one; `DELETE /:id/payment` answers 409 `SALE_PAYMENT` for document money; `DELETE /:id` cancels the document of an unpaid visit (rule 26) and answers 409 `BOOKING_PAID` when the document holds money.
 
+
+Loop t1 additions (2026-11-15, rules 44-46): every visit payload carries `invoiceable: { ok, code, reason } | null` (admin; `null` for the reception), `newSale: { client: { id, label, kind } } | null`
+(an invoiced visit) and `access.withdrawLink`; for the reception `paymentLink.email` is `null` beside `hasEmail: boolean`, a matched client is `{ kind: 'match' }`; `paymentLink.open.expiresLabel` and the minted
+`link.expiresLabel` (« 16/11 à 14:30 », Europe/Paris); `PATCH /:id/visit/lines/:lineId` 409 `LINE_PAID` carries `refundCents`; `POST /:id/visit` 403 `ADMIN_ONLY` for the reception's `invoice` / `billing`,
+its `invoice` answer may be `{ ok: false, code: 'REFUND_OWED' }`; `POST …/email` answers `recipientEmail: null` to the reception; the booking payloads of `GET /:id` and the booking writes carry
+`actions: { noShow: boolean }`. Core: `GET /api/standalone-sales` rows carry `soldDayLabel`, the answer `owedTitle`; `GET /api/standalone-sales/vat-rates` classes carry `label`; a document's
+`refundObligations[].origin` is `linkSurplus` or `lineLowered`.
 
 Core routes (outside the plugin), authenticated. **The sale core of PR C (C33)**, admin only, the server of the « Vente hors séjour » counter dialog and the service the visit builds on
 (`standaloneSale` SDK module: `quote`, `sell`, `offerLine`, `removeLine`, `pay`, `cancel`, `documentOf`, `paymentsOf`; the request also takes `fulfilments`, the lines a
@@ -632,6 +665,11 @@ number; `prefers-reduced-motion` → no movement.
 ## 7. Test plan
 
 ### Server unit tests (one file per subject)
+- [x] `tests/standalone-sale-paid-line-refund.unit.test.js` — rules 44, 45 (loop t1 B-1, UI-18): a paid line lowered or a paid document cancelled opens one `lineLowered` row, closed by « Marquer remboursé », the counter's owed rows titled and dated
+- [x] `tests/pricing-sales-document-obligations-widened.unit.test.js` — rule 44: the obligations table widened once, rows kept
+- [x] `plugins/hourly-resources/tests/visit-round1-reception-and-refunds.unit.test.js` — rules 44-46 (AV-1 to AV-8, AV-10, AV-11): the row and the invoice refusal, reception privacy, billing in the commit, `invoiceable`, `newSale`, the document's client follows the booking
+- [x] `plugins/hourly-resources/tests/booking-actions-no-show.unit.test.js` — rule 45 (UI-9): `actions.noShow` by day and role
+- [x] `tests/sale-link-expires-label.unit.test.js` — rule 45 (UI-15): the Paris label of a link's end
 - [x] `plugins/hourly-resources/tests/visit-window-and-roles.unit.test.js` — rules 1, 5, 7 (window `D+1 04:00`, reception allowed then read-only, `ADMIN_ONLY`)
 - [x] `plugins/hourly-resources/tests/visit-lines.unit.test.js` — rules 10-12, 14 (session line from the `hourly` family, suggestions, `NEEDS_STAY` never listed, quantity bounds, append after commit)
 - [x] `plugins/hourly-resources/tests/visit-offer.unit.test.js` — rule 13 (whole-line offer on session and extra, offered time kept as component, `waived` refused)

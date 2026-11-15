@@ -22,7 +22,11 @@ const wholeNumber = (value) => (typeof value === 'number' || typeof value === 's
 function createController({ bookings: model, scheduling, planningCards, reservations, invoicing }) {
   // Rule 2 — whether an invoice can be made now: the server's answer, never guessed by the screen.
   const invoiceReady = () => sdk.coreModule('invoiceIssuers').ready();
-  const withReady = (booking) => (booking ? { ...booking, invoiceReady: invoiceReady() } : booking);
+  // Loop t1 UI-9 (outside-visit rule 27) — « Client absent » is offered when the server would take it: an administrator, a visit with no stay, from its day on,
+  // not arrived nor already absent. The screen reads `actions.noShow` and compares no date with the browser's clock.
+  const noShowOffered = (booking, req) => Boolean(req) && !isReceptionOnly(req.user) && !booking.reservationId && !booking.arrived && !booking.noShowAt
+    && sdk.coreModule('sasEditWindow').sasLockReason({ stay: { startDate: booking.date, endDate: booking.date }, side: 'arrival', doneAt: null, now: new Date() }) !== 'future';
+  const withReady = (booking, req = null) => (booking ? { ...booking, invoiceReady: invoiceReady(), actions: { noShow: noShowOffered(booking, req) } } : booking);
   const fail = (res, result) => res.status(result.status).json({ error: result.error, ...(result.code ? { code: result.code } : {}) });
 
   function planningEvents(req, res) {
@@ -56,7 +60,7 @@ function createController({ bookings: model, scheduling, planningCards, reservat
   function getOne(req, res) {
     const booking = model().findById(req.params.id);
     if (!booking) return res.status(404).json({ error: 'Non trouvée' });
-    return res.json(withReady(booking));
+    return res.json(withReady(booking, req));
   }
 
   function create(req, res) {
@@ -92,13 +96,13 @@ function createController({ bookings: model, scheduling, planningCards, reservat
     const body = req.body || {};
     const result = model().recordPayment(req.params.id, { tenders: body.tenders, paidAt: body.paidAt });
     if (result.error) return fail(res, result);
-    return res.json(withReady(model().findById(req.params.id)));
+    return res.json(withReady(model().findById(req.params.id), req));
   }
 
   function clearPayment(req, res) {
     const result = model().clearPayment(req.params.id);
     if (result.error) return fail(res, result);
-    return res.json(withReady(model().findById(req.params.id)));
+    return res.json(withReady(model().findById(req.params.id), req));
   }
 
   // Rules 13-16 — POST /:id/invoice `{ billing? }`: the address typed after a refusal goes with the retry.
@@ -110,7 +114,7 @@ function createController({ bookings: model, scheduling, planningCards, reservat
     }
     const result = await invoicing().issue(req.params.id);
     if (result.error) return fail(res, result);
-    return res.json(withReady(model().findById(req.params.id)));
+    return res.json(withReady(model().findById(req.params.id), req));
   }
 
   // Rules 18-19 — POST /:id/invoice/attach `{ transactionId? }`.
@@ -119,7 +123,7 @@ function createController({ bookings: model, scheduling, planningCards, reservat
     const transactionId = typeof body.transactionId === 'string' && body.transactionId.trim() ? body.transactionId.trim() : null;
     const result = await invoicing().attach(req.params.id, { transactionId });
     if (result.error) return fail(res, result);
-    return res.json(withReady(model().findById(req.params.id)));
+    return res.json(withReady(model().findById(req.params.id), req));
   }
 
   /**

@@ -548,7 +548,18 @@ function createModel(database, { standaloneVatRate = () => 20, now = () => new D
     }
     const billing = payload.billing !== undefined ? billingOf(payload.billing) : { street: existing.billingStreet, postcode: existing.billingPostcode, city: existing.billingCity };
 
-    const write = () => database.prepare(
+    // Loop t1 AV-2 (outside-visit rule 8) — the visit's document names the booking's client: a client changed on the booking is the document's too
+    // (the « Passage » client when the booking names none), until it is invoiced.
+    const clientMoved = clientId !== undefined && Number(clientId || 0) !== Number(existing.clientId || 0);
+    const followClient = () => {
+      const saleId = clientMoved && /^standalone:\d+$/.test(String(existing.saleRef || '')) ? Number(String(existing.saleRef).split(':')[1]) : null;
+      if (!saleId) return;
+      const passage = database.prepare('SELECT id FROM clients WHERE COALESCE(isPassage, 0) = 1 ORDER BY id LIMIT 1').get();
+      database.prepare('UPDATE standalone_sales SET clientId = ?, version = version + 1 WHERE id = ? AND invoiceNumber IS NULL')
+        .run(clientId || (passage ? passage.id : null), saleId);
+    };
+    const write = () => { writeRow(); followClient(); };
+    const writeRow = () => database.prepare(
       "UPDATE resource_bookings SET reservationId=?,clientId=?,clientName=?,clientPhone=?,propertyId=?,date=?,startTime=?,endTime=?,notes=?,totalPrice=?,offeredMinutes=?,billingStreet=?,billingPostcode=?,billingCity=?,freeHourAtDayRate=?,updatedAt=datetime('now') WHERE id=?"
     ).run(
       reservationId !== undefined ? (reservationId || null) : existing.reservationId,
@@ -565,7 +576,7 @@ function createModel(database, { standaloneVatRate = () => 20, now = () => new D
       id,
     );
     const visit = visitsOf(existing);
-    if (!visit || !pricedMoved) write();
+    if (!visit || !pricedMoved) database.transaction(write)();
     else {
       // The outside-visit spec, edge case « booking moved after the arrival » — its session line follows while unpaid, in the same transaction.
       try {
