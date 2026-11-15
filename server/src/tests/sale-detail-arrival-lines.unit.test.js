@@ -82,7 +82,7 @@ test('rule 91 — the e-mail lines: billed units × unit price, the e-mail order
 test('rule 91 (end-review V-6) — a line already paid (a card order paid before the arrival) is not listed as to collect', () => {
   const detail = buildSaleDetail({
     quote: quote({ complementAmount: 0, preArrivalAmount: 450 }),
-    facts: { 'opt:1': { settledCents: 4000, collectAt: 'arrival', paidAt: '2026-11-10' } },
+    facts: { 'opt:1': { settledCents: 4000, collectAt: 'arrival', paidAt: '2026-11-10' } }, // date-literal-ok — days handed to a pure function or an injected clock, nothing compares them with the real today
     stored: { finalCents: 45000, touristTaxCents: 1200 },
   });
   assert.equal(byRef(detail)['opt:1'].status, 'paid');

@@ -42,21 +42,21 @@ test('isWithinSasWindow — a datetime value is read on its day part', () => {
 });
 
 test('sasLockReason — inside the window and never committed → editable (null)', () => {
-  assert.equal(sasLockReason({ stay: { startDate: '2026-08-04' }, side: 'arrival', doneAt: null, now: at(2026, 8, 4, 16) }), null);
-  assert.equal(sasLockReason({ stay: { startDate: '2026-08-04' }, side: 'arrival', doneAt: null, now: at(2026, 8, 5, 2) }), null);
+  assert.equal(sasLockReason({ stay: { startDate: '2026-08-04' }, side: 'arrival', doneAt: null, now: at(2026, 8, 4, 16) }), null); // date-literal-ok — the clock is injected (`now`), never read from the calendar
+  assert.equal(sasLockReason({ stay: { startDate: '2026-08-04' }, side: 'arrival', doneAt: null, now: at(2026, 8, 5, 2) }), null); // date-literal-ok — the clock is injected (`now`), never read from the calendar
 });
 
 test('sasLockReason — before the day → future, after the tail → past', () => {
-  assert.equal(sasLockReason({ stay: { startDate: '2026-08-04' }, side: 'arrival', doneAt: null, now: at(2026, 8, 3, 20) }), 'future');
-  assert.equal(sasLockReason({ stay: { startDate: '2026-08-04' }, side: 'arrival', doneAt: null, now: at(2026, 8, 5, 9) }), 'past');
-  assert.equal(sasLockReason({ stay: { startDate: '2026-08-04' }, side: 'arrival', doneAt: null, now: at(2026, 9, 1, 9) }), 'past');
+  assert.equal(sasLockReason({ stay: { startDate: '2026-08-04' }, side: 'arrival', doneAt: null, now: at(2026, 8, 3, 20) }), 'future'); // date-literal-ok — the clock is injected (`now`), never read from the calendar
+  assert.equal(sasLockReason({ stay: { startDate: '2026-08-04' }, side: 'arrival', doneAt: null, now: at(2026, 8, 5, 9) }), 'past'); // date-literal-ok — the clock is injected (`now`), never read from the calendar
+  assert.equal(sasLockReason({ stay: { startDate: '2026-08-04' }, side: 'arrival', doneAt: null, now: at(2026, 9, 1, 9) }), 'past'); // date-literal-ok — the clock is injected (`now`), never read from the calendar
 });
 
 test('sasLockReason — « done » wins over every date reason', () => {
   const doneAt = '2026-08-04 15:12:00';
-  assert.equal(sasLockReason({ stay: { startDate: '2026-08-04' }, side: 'arrival', doneAt, now: at(2026, 8, 4, 16) }), 'done');
-  assert.equal(sasLockReason({ stay: { startDate: '2026-08-04' }, side: 'arrival', doneAt, now: at(2026, 8, 3, 10) }), 'done');
-  assert.equal(sasLockReason({ stay: { startDate: '2026-08-04' }, side: 'arrival', doneAt, now: at(2026, 8, 9, 10) }), 'done');
+  assert.equal(sasLockReason({ stay: { startDate: '2026-08-04' }, side: 'arrival', doneAt, now: at(2026, 8, 4, 16) }), 'done'); // date-literal-ok — the clock is injected (`now`), never read from the calendar
+  assert.equal(sasLockReason({ stay: { startDate: '2026-08-04' }, side: 'arrival', doneAt, now: at(2026, 8, 3, 10) }), 'done'); // date-literal-ok — the clock is injected (`now`), never read from the calendar
+  assert.equal(sasLockReason({ stay: { startDate: '2026-08-04' }, side: 'arrival', doneAt, now: at(2026, 8, 9, 10) }), 'done'); // date-literal-ok — the clock is injected (`now`), never read from the calendar
 });
 
 test('sasLockReason — an unusable date is locked as past, never editable', () => {

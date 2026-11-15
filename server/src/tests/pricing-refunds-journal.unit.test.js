@@ -19,7 +19,7 @@ test('rule 64: an indemnity given back in two shares books the compensation HT o
 
 test('rule 63: a refund is an avoir with its buckets split at the rate of their lines, the tourist tax apart', () => {
   const entry = buildRefundEntry({
-    id: 7, reservationId: 3, refundDate: '2027-02-01', totalTtc: 115, method: 'transfer', reason: 'x',
+    id: 7, reservationId: 3, refundDate: '2027-02-01', totalTtc: 115, method: 'transfer', reason: 'x', // date-literal-ok — days handed to a pure function or an injected clock, nothing compares them with the real today
     lines: [{ bucket: 'accommodation', vatRate: 10, amountTtc: 110 }, { bucket: 'touristTax', vatRate: 0, amountTtc: 5 }],
   });
   assert.equal(entry.direction, 'refund');
@@ -37,7 +37,7 @@ test('rule 63: a line adjusted for earlier refunds keeps the TTC it was booked o
 });
 
 test('rule 64: the refund that gives back the last of the book money closes each sale account at exactly 0', () => {
-  const sale = { paidDate: '2027-01-05' };
+  const sale = { paidDate: '2027-01-05' }; // date-literal-ok — days handed to a pure function or an injected clock, nothing compares them with the real today
   const legs = (cents) => (map, entry) => { map.set('70600000', { cents: entry === sale ? cents : -cents, role: 'revenue', ratePercent: 10 }); return map; };
   const refundEntry = { kind: 'refund' };
   const deps = {
@@ -46,8 +46,8 @@ test('rule 64: the refund that gives back the last of the book money closes each
     entryOf: () => null,
     addSaleLegs: (map, entry) => legs(10000)(map, entry),
   };
-  const closed = closeStayBooks(refundEntry, { reservationId: 3, refundDate: '2027-02-01' }, deps);
+  const closed = closeStayBooks(refundEntry, { reservationId: 3, refundDate: '2027-02-01' }, deps); // date-literal-ok — days handed to a pure function or an injected clock, nothing compares them with the real today
   assert.deepEqual(closed.closing, [{ account: '70600000', role: 'revenue', ratePercent: 10, amount: 100 }]);
-  const notClosing = closeStayBooks(refundEntry, { reservationId: 3, refundDate: '2027-02-01' }, { ...deps, addSaleLegs: (map) => { map.set('70600000', { cents: 100, role: 'revenue', ratePercent: 10 }); return map; } });
+  const notClosing = closeStayBooks(refundEntry, { reservationId: 3, refundDate: '2027-02-01' }, { ...deps, addSaleLegs: (map) => { map.set('70600000', { cents: 100, role: 'revenue', ratePercent: 10 }); return map; } }); // date-literal-ok — days handed to a pure function or an injected clock, nothing compares them with the real today
   assert.equal(notClosing, refundEntry);
 });

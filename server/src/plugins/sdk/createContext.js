@@ -19,6 +19,7 @@ const CONTRIBUTOR_MEMBERS = ['id', 'priceTypes', 'priceLine'];
 const SAS_COMMIT_MEMBERS = ['step', 'validate', 'complementItems', 'write'];
 const SCHEDULER_MEMBERS = ['slotsForStay', 'validateSessions'];
 const SLOT_AVAILABILITY_MEMBERS = ['slots', 'validate'];
+const HOME_DATA_MEMBERS = ['channel', 'catalog', 'readings', 'series', 'queueCommand', 'command', 'confirmed'];
 const ISSUER_MEMBERS = ['id', 'isReady', 'issue', 'findCardBatch', 'attach', 'invoiceStatus'];
 const PUSH_CHANNEL_KEY = /^[a-z][a-z0-9-]{0,39}$/;
 
@@ -157,14 +158,14 @@ function createContext(id, {
       if (other) throw new Error(`${prefix} a resource scheduler is already declared by ${other.id}`);
       record.resourceScheduler = provider;
     },
-    // SDK 2.28.0 (specs/pricing-components.md rule 49) — the downstream booking an article names (`fulfilment: 'hourly-slot'`):
+    // SDK 2.29.0 (specs/pricing-components.md rule 49) — the downstream booking an article names (`fulfilment: 'hourly-slot'`):
     // `{ reserve(draft, ctx), confirm(hold, line, tx), release(hold, reason) }`. A fulfilment id is declared once (DUPLICATE_FULFILMENT);
     // it is asked only while this plugin is live.
     articleFulfilment(fulfilmentId, adapter) {
       articleFulfilment.register(fulfilmentId, adapter, { owner: id, isLive: () => registry.isLive(id) });
       record.articleFulfilments.push(fulfilmentId);
     },
-    // SDK 2.28.0 (specs/pricing-components.md rule 48) — the SlotAvailabilityProvider: `slots(resourceId, range)` and
+    // SDK 2.29.0 (specs/pricing-components.md rule 48) — the SlotAvailabilityProvider: `slots(resourceId, range)` and
     // `validate(sessions)`, one per instance, handed out as `ctx.core.slotAvailability()`.
     slotAvailability(provider) {
       SLOT_AVAILABILITY_MEMBERS.forEach((m) => {
@@ -200,7 +201,7 @@ function createContext(id, {
       }
       record.paymentBaskets.push({ source, paid, labels: { ...(labels || {}) } });
     },
-    // SDK 2.31.0 (specs/mixed-method-payments.md rule 51) — a prepaid instrument the plugin keeps the balance of: an amount a guest
+    // SDK 2.32.0 (specs/mixed-method-payments.md rule 51) — a prepaid instrument the plugin keeps the balance of: an amount a guest
     // already paid elsewhere (a stored credit) and may use on a booking. `source` names it, and is the `kind` of the booking
     // request's opaque `prepaid` field; `label` is what the stay's payments call it. The core asks the live plugin, never names it:
     //   apply({ devisId, input, capCents, visitor, dryRun }) → { ok: true, heldCents, display } | { ok: false, status, code, message }
@@ -239,7 +240,7 @@ function createContext(id, {
       if (other) throw new Error(`${prefix} an invoice issuer is already declared by ${other.id}`);
       record.invoiceIssuer = issuer;
     },
-    // `{ kind, label, list }` — a kind of sale context the generic « Proposés à l'arrivée » lists are kept for (the outside-visit spec rule 37, SDK 2.30.0): `kind` names it
+    // `{ kind, label, list }` — a kind of sale context the generic « Proposés à l'arrivée » lists are kept for (the outside-visit spec rule 37, SDK 2.31.0): `kind` names it
     // (`resource`), `label` heads it in Réglages → Articles, `list() → [{ id, label }]` says which contexts of that kind exist now. `property` is the core's own kind. While the
     // plugin is off its kind disappears from the settings page and from `suggestedArticles.resolve`; the stored lists stay.
     suggestionContexts({ kind, label, list } = {}) {
@@ -257,6 +258,24 @@ function createContext(id, {
       if (typeof list !== 'function') throw new Error(`${prefix} standaloneSales needs a function`);
       if (record.standaloneSales) throw new Error(`${prefix} standaloneSales is already declared`);
       record.standaloneSales = list;
+    },
+    // SDK 2.28.0 (specs/guest-app-home-automation.md §4.1) — the house's data as the Sowel connector stores it, and the
+    // light commands it relays. One per instance; read as `ctx.core.homeData()`.
+    homeData(provider) {
+      HOME_DATA_MEMBERS.forEach((m) => {
+        if (provider == null || typeof provider[m] !== 'function') throw new Error(`${prefix} home data provider lacks "${m}"`);
+      });
+      const other = registry.all().find((r) => r.id !== id && r.homeData);
+      if (other) throw new Error(`${prefix} a home data provider is already declared by ${other.id}`);
+      record.homeData = provider;
+    },
+    // SDK 2.28.0 (specs/guest-app-home-automation.md rule 4) — () → [{ equipmentId, alias }]: the readings the lodgings
+    // show, the only ones the house is asked to send. One per instance; read as `ctx.core.homeSelection()`.
+    homeSelection(list) {
+      if (typeof list !== 'function') throw new Error(`${prefix} homeSelection needs a function`);
+      const other = registry.all().find((r) => r.id !== id && r.homeSelection);
+      if (other) throw new Error(`${prefix} a home selection is already declared by ${other.id}`);
+      record.homeSelection = list;
     },
     // A commit hook for one of the plugin's arrival SAS steps (rule 6).
     sasCommit(hook) {
@@ -343,11 +362,11 @@ function createContext(id, {
     // install hooks). Events sent while it was off were dropped, so it recovers from its own data here
     // (specs/plugin-removal-resilience.md rule 17). Not awaited by the request that switched it on.
     onActivate(fn) { record.onActivate.push(fn); },
-    // { tables: [name], describe(db) → [{ label, count }], purge?(db), refuse?(db) } (rule 12). SDK 2.31.0 — `refuse(db)` → a
+    // { tables: [name], describe(db) → [{ label, count }], purge?(db), refuse?(db) } (rule 12). SDK 2.32.0 — `refuse(db)` → a
     // French sentence when the erasure must not run now (money the plugin still holds), else null: the core answers 409 ERASE_REFUSED.
     data(declaration) { record.data = declaration; },
     isLive: () => registry.isLive(id),
-    // SDK 2.31.0 — one e-mail that belongs to no stay (a receipt, a ticket): `{ to, subject, text, html?, key }`, sent through
+    // SDK 2.32.0 — one e-mail that belongs to no stay (a receipt, a ticket): `{ to, subject, text, html?, key }`, sent through
     // the operator's own SMTP settings. `key` names the message in the log (never the address). The e-mail history is keyed by
     // reservation, so the plugin records the send on its own rows. → `{ messageId }`; throws `EMAIL_NOT_CONFIGURED`.
     mail: Object.freeze({

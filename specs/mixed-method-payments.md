@@ -407,7 +407,7 @@ read the settlements themselves (`utils/paymentTenders.settlementFigures`).
     month the accountant may already hold keeps its cents. A split stay closes whatever the date (rule 56). Pinned by
     `mixed-method-payments-closing-edges` and the fuzz of the verification (40 stays per order, 0 left a cent).
 
-### 3.15 An amount received in advance from a plugin's prepaid instrument (SDK 2.31.0, 2026-11-15)
+### 3.15 An amount received in advance from a plugin's prepaid instrument (SDK 2.32.0, 2026-11-15)
 
 > The rules below are numbered 59-62 and added at the end, never inserted: a rule number is an identity. They are written for
 > a plugin that keeps a balance (the gift vouchers of `specs/gift-vouchers.md` rules 36-42), and name none: a made-up stored

@@ -63,5 +63,5 @@ test('rule 5 — the plugin declares the `hourly` family next to its price-line 
   assert.match(source, /ctx\.priceLineContributor\(hourlyContributor\)/);
   assert.match(source, /ctx\.articleFamily\('hourly', createHourlyFamily\(hourlyContributor\)\)/);
   const manifest = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'manifest.json'), 'utf8'));
-  assert.ok(semver.gte(semver.minVersion(manifest.sdk), '2.28.0'), 'the range starts at the SDK that has the family');
+  assert.ok(semver.gte(semver.minVersion(manifest.sdk), '2.29.0'), 'the range starts at the SDK that has the family');
 });

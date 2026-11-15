@@ -66,6 +66,13 @@ export default function SettingsGateAccessSection() {
         <Stack spacing={0.25}>
           <SummaryItem label="Dernière lecture" value={formatDateTime(state.lastReadAt)} valuePlaceholder="jamais" />
           <SummaryItem label="Clés créées" value={String(state.keysCreated ?? 0)} />
+          {/* specs/guest-app-home-automation.md rule 15 — the same connector carries the « Domotique » readings. */}
+          {state.home && (state.home.lastReadingsAt || state.home.equipments) ? (
+            <>
+              <SummaryItem label="Domotique — dernières mesures" value={formatDateTime(state.home.lastReadingsAt)} valuePlaceholder="jamais" />
+              <SummaryItem label="Domotique — équipements décrits" value={String(state.home.equipments || 0)} />
+            </>
+          ) : null}
         </Stack>
 
         {secrets ? (

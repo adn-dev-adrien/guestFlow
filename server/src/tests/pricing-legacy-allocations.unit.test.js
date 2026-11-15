@@ -10,8 +10,8 @@ const STAY = { accommodation: 'line:reservation_stay_lines:7', touristTax: 'line
 const sorted = (rows) => rows.map((r) => `${r.paymentRef}|${r.lineRef}|${r.amountCents}|${r.books}`).sort();
 
 const reservation = {
-  depositPaid: 1, depositPaidDate: '2026-03-01', depositAmount: 130, accommodationAcompteContribTtc: 90, touristTaxAcompteContribTtc: 10,
-  balancePaid: 1, balancePaidDate: '2026-03-20', balanceAmount: 130, accommodationSoldeContribTtc: 90, touristTaxSoldeContribTtc: 10,
+  depositPaid: 1, depositPaidDate: '2026-03-01', depositAmount: 130, accommodationAcompteContribTtc: 90, touristTaxAcompteContribTtc: 10, // date-literal-ok — migration or backfill fixture: historical values the code under test copies, never compares with today
+  balancePaid: 1, balancePaidDate: '2026-03-20', balanceAmount: 130, accommodationSoldeContribTtc: 90, touristTaxSoldeContribTtc: 10, // date-literal-ok — migration or backfill fixture: historical values the code under test copies, never compares with today
 };
 
 test('rule 74: a paid deposit and balance whose contribs add up are allocated line by line, the stay lines included', () => {
@@ -21,7 +21,7 @@ test('rule 74: a paid deposit and balance whose contribs add up are allocated li
     'bucket:balance|line:reservation_stay_lines:7|9000|1', 'bucket:balance|line:reservation_stay_lines:8|1000|1',
     'bucket:deposit|line:reservation_options:1|3000|1', 'bucket:deposit|line:reservation_stay_lines:7|9000|1', 'bucket:deposit|line:reservation_stay_lines:8|1000|1',
   ].sort());
-  assert.equal(rows.find((r) => r.paymentRef === 'bucket:deposit').at, '2026-03-01');
+  assert.equal(rows.find((r) => r.paymentRef === 'bucket:deposit').at, '2026-03-01'); // date-literal-ok — migration or backfill fixture: historical values the code under test copies, never compares with today
 });
 
 test('rule 74: contribs that do not add up to the paid entry describe nothing: no row, left to the stay-level backfill', () => {
@@ -51,7 +51,7 @@ test('rule 74: an unpaid bucket allocates nothing', () => {
 });
 
 test('rule 74: a complement is allocated from its frozen split, by line key, when the lines add up', () => {
-  const complement = { complementPaid: 1, complementPaidDate: '2026-04-02', complementAmount: 80, complementPaidCash: 0 };
+  const complement = { complementPaid: 1, complementPaidDate: '2026-04-02', complementAmount: 80, complementPaidCash: 0 }; // date-literal-ok — migration or backfill fixture: historical values the code under test copies, never compares with today
   const split = { accommodationCents: 3000, taxCents: 500, optionsCents: 4500, resourcesCents: 0, lines: [{ key: 'opt:1', cents: 3000 }, { key: 'custom:thé', cents: 1500 }] };
   const rows = legacyAllocations({ reservation: complement, lines: [L1], stayLines: STAY, complementSplit: split });
   assert.deepEqual(sorted(rows), [
@@ -63,23 +63,23 @@ test('rule 74: a complement is allocated from its frozen split, by line key, whe
 
 test('rule 74: an end-of-stay complement and a mid-stay note are allocated from their lines, a note on the books or in the caisse', () => {
   const rows = legacyAllocations({
-    reservation: { endOfStayComplementPaid: 1, endOfStayComplementPaidDate: '2026-05-04', endOfStayComplementAmount: 25, endOfStayComplementPaidCash: 1 },
+    reservation: { endOfStayComplementPaid: 1, endOfStayComplementPaidDate: '2026-05-04', endOfStayComplementAmount: 25, endOfStayComplementPaidCash: 1 }, // date-literal-ok — migration or backfill fixture: historical values the code under test copies, never compares with today
     lines: [L1],
     endOfStayDetail: [{ key: 'opt:1', amount: 25 }],
-    notes: [{ id: 3, total: 12, paidDate: '2026-05-02', paidCash: 0, lines: [{ key: 'opt:1', amount: 12 }] }, { id: 4, total: 9, paidCash: 1, lines: [{ key: 'opt:1', amount: 8 }] }],
+    notes: [{ id: 3, total: 12, paidDate: '2026-05-02', paidCash: 0, lines: [{ key: 'opt:1', amount: 12 }] }, { id: 4, total: 9, paidCash: 1, lines: [{ key: 'opt:1', amount: 8 }] }], // date-literal-ok — migration or backfill fixture: historical values the code under test copies, never compares with today
   });
   assert.deepEqual(sorted(rows), ['bucket:endOfStay|line:reservation_options:1|2500|0', 'note:3|line:reservation_options:1|1200|1'].sort());
 });
 
 test('rule 74: a paid installment is allocated from its frozen split', () => {
   const split = { accommodationCents: 5000, taxCents: 400, optionsCents: 600, resourcesCents: 0, lines: [{ key: 'opt:1', cents: 600 }] };
-  const rows = legacyAllocations({ reservation: {}, lines: [L1], stayLines: STAY, installments: [{ id: 5, paid: 1, paidDate: '2026-06-01', paidSplit: split }, { id: 6, paid: 0, paidSplit: split }] });
+  const rows = legacyAllocations({ reservation: {}, lines: [L1], stayLines: STAY, installments: [{ id: 5, paid: 1, paidDate: '2026-06-01', paidSplit: split }, { id: 6, paid: 0, paidSplit: split }] }); // date-literal-ok — migration or backfill fixture: historical values the code under test copies, never compares with today
   assert.deepEqual(sorted(rows), ['installment:5|line:reservation_options:1|600|1', 'installment:5|line:reservation_stay_lines:7|5000|1', 'installment:5|line:reservation_stay_lines:8|400|1'].sort());
 });
 
 test('rule 74 and D25: a live settlement is read from what it RECEIVED, books and caisse apart, and covers its buckets alone', () => {
   const settlement = {
-    id: 9, targetKind: 'arrivalGroup', targetKey: 'a', paidDate: '2026-07-01', dueCents: 20000, shortfallCents: 5000, parts: [{ kind: 'balance' }, { kind: 'complement' }],
+    id: 9, targetKind: 'arrivalGroup', targetKey: 'a', paidDate: '2026-07-01', dueCents: 20000, shortfallCents: 5000, parts: [{ kind: 'balance' }, { kind: 'complement' }], // date-literal-ok — migration or backfill fixture: historical values the code under test copies, never compares with today
     tenders: [{ amountCents: 4000, internal: 1 }, { amountCents: 11000, internal: 0 }],
   };
   const rows = legacyAllocations({ reservation: { ...reservation, complementPaid: 1, complementAmount: 70 }, lines: [L1, L2], stayLines: STAY, settlements: [settlement] });
@@ -89,7 +89,7 @@ test('rule 74 and D25: a live settlement is read from what it RECEIVED, books an
 });
 
 test('rule 74: a settlement whose bucket was taken back since is stale and counts for nothing', () => {
-  const settlement = { id: 9, targetKind: 'bucket', targetKey: 'balance', paidDate: '2026-07-01', dueCents: 13000, shortfallCents: 0, parts: [{ kind: 'balance' }], tenders: [] };
+  const settlement = { id: 9, targetKind: 'bucket', targetKey: 'balance', paidDate: '2026-07-01', dueCents: 13000, shortfallCents: 0, parts: [{ kind: 'balance' }], tenders: [] }; // date-literal-ok — migration or backfill fixture: historical values the code under test copies, never compares with today
   assert.deepEqual(legacyAllocations({ reservation: { ...reservation, balancePaid: 0 }, lines: [], stayLines: STAY, settlements: [settlement] })
     .filter((r) => r.paymentRef.startsWith('settlement')), []);
 });

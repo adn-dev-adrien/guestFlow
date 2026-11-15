@@ -15,22 +15,22 @@
   ],
   "requires": [],
   "guestflow": ">=3.10.0",
-  "sdk": "^2.31.0",
+  "sdk": "^2.32.0",
   "changelog": {
     "1.2.0": [
       "Un bon se règle sur une réservation : au moment de réserver sur le site (un champ « Bon cadeau », le code vérifié avant tout appel), ou depuis la fiche (« Payer par bon cadeau », annulable).",
       "Le bon paie d’abord l’acompte, puis le solde ; la carte ne règle que le reste, et rien n’est demandé quand le bon couvre tout. Le montant est reçu comme un moyen de paiement : le prix, la taxe de séjour et la commission du séjour ne changent pas, et la banque n’attend pas cette somme.",
       "Le montant d’un bon est retenu dès la demande et rendu si la demande est refusée, supprimée ou jamais payée. Une annulation de séjour propose « Recréditer le bon » ; un bon expiré qui reçoit un remboursement est prolongé de 3 mois.",
-      "Demande le SDK 2.31 de GuestFlow."
+      "Demande le SDK 2.32 de GuestFlow."
     ],
     "1.1.0": [
       "La vente en ligne : la commande depuis le site, son paiement par lien sans réservation, l’émission du bon à la confirmation de la banque, la page du bon et son PDF par un lien personnel, la purge des commandes jamais payées après 7 jours.",
       "Le mail de confirmation part tout seul à l’acheteur (montant, validité, lien du bon, jamais le code) ; s’il échoue, il est réessayé et le bon porte « Mail non parti ».",
-      "Demande le SDK 2.31 de GuestFlow ; la vente en ligne n’est proposée que lorsqu’un paiement en ligne est connecté."
+      "Demande le SDK 2.32 de GuestFlow ; la vente en ligne n’est proposée que lorsqu’un paiement en ligne est connecté."
     ],
     "1.0.0": [
       "Première version : le registre des bons (numéro, code protégé, montant, solde calculé depuis ses mouvements, validité figée à l’émission), la création d’un bon vendu hors du site, la prolongation, l’annulation, la correction du solde, le code affiché masqué et révélé sur demande, le renvoi du mail, le PDF d’une page avec QR code, l’offre publique avec ses idées chiffrées, la vérification d’un code avec preuve de travail et limites par visiteur.",
-      "Demande le SDK 2.31 de GuestFlow."
+      "Demande le SDK 2.32 de GuestFlow."
     ]
   }
 }

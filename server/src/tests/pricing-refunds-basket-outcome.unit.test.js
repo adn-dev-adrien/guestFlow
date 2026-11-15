@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rules 72, 75 (SDK 2.29.0) — what a plugin tells the payment poller about a basket it sold or could not honour comes
+// specs/pricing-components.md §3 rules 72, 75 (SDK 2.30.0) — what a plugin tells the payment poller about a basket it sold or could not honour comes
 // from `utils/pricing/refunds/basketOutcome.js`: the whole payment owed back (origin `orderConflict`), the gap a cheaper sale left, the overpayment itself.
 const test = require('node:test');
 const assert = require('node:assert/strict');

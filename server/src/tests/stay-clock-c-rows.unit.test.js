@@ -12,9 +12,9 @@ const { optionalPlugin, skipWithout } = require('../plugins/sdk/testing');
 
 const { validateStayInput } = optionalPlugin(() => require('../plugins/website-booking/publicInputValidation'));
 
-const ARRIVAL = '2031-06-10';
-const BEFORE = '2031-06-09';
-const AFTER = '2031-06-11';
+const ARRIVAL = '2031-06-10'; // date-literal-ok — the clock is handed to the pure stay-clock predicates
+const BEFORE = '2031-06-09'; // date-literal-ok — the clock is handed to the pure stay-clock predicates
+const AFTER = '2031-06-11'; // date-literal-ok — the clock is handed to the pure stay-clock predicates
 
 test('rule 45 — the day predicates are the comparisons they replace: reached from the arrival day on, passed from the day after', () => {
   assert.deepEqual([BEFORE, ARRIVAL, AFTER].map((today) => stayClock.dayReached(ARRIVAL, today)), [false, true, true]);
@@ -43,7 +43,7 @@ test('rule 45 — the platform price check skips a stay from its arrival day on'
 });
 
 test('rule 45 — the public form refuses an arrival in the past, not on the day itself', { skip: skipWithout(['website-booking']) }, () => {
-  const body = (startDate) => ({ propertyId: 1, startDate, endDate: '2031-06-14', adults: 2, children: 0, babies: 0 });
+  const body = (startDate) => ({ propertyId: 1, startDate, endDate: '2031-06-14', adults: 2, children: 0, babies: 0 }); // date-literal-ok — the clock is handed to the pure stay-clock predicates
   const refused = (today, startDate) => (validateStayInput(body(startDate), { todayIso: today }).errors || []).some((e) => e.field === 'startDate' && e.issue === 'must not be in the past');
   assert.equal(refused(ARRIVAL, BEFORE), true);
   assert.equal(refused(ARRIVAL, ARRIVAL), false);

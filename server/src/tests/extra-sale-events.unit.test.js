@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rule 55 (SDK 2.28.0) — the sale service publishes what happened after its transaction commits: `extraSale.sold`,
+// specs/pricing-components.md §3 rule 55 (SDK 2.29.0) — the sale service publishes what happened after its transaction commits: `extraSale.sold`,
 // `extraSale.lineMoved`, `extraSale.lineCancelled` (a save removed lines), `extraSale.refundOwed` (a confirmed lowering of a paid line). A handler that throws
 // is logged and never undoes the sale; a refused sale publishes nothing.
 process.env.DB_PATH = ':memory:';
@@ -91,6 +91,7 @@ test('rule 55 — lowering a paid line, once confirmed, publishes extraSale.refu
   const start = addDaysToIsoDate(todayIso(), 40);
   const id = Number(db.prepare(`INSERT INTO reservations (propertyId, clientId, startDate, endDate, platform, adults, totalPrice, finalPrice, kind, checkInTime,
       balanceAmount, balancePaid, balancePaidDate, accommodationSoldeContribTtc)
+    -- date-literal-ok — fixture rows written by raw SQL and read back by key, no write path checks them against today
     VALUES (9261, 9261, ?, ?, 'direct', 2, 300, 340, 'reservation', '15:00', 340, 1, '2026-11-01', 300)`).run(start, addDaysToIsoDate(start, 3)).lastInsertRowid);
   db.prepare(`INSERT INTO reservation_options (reservationId, optionId, quantity, unitPrice, billedUnits, priceType, totalPrice, offered, inComplement, soldeContribTtc)
     VALUES (?, ?, 1, 40, 1, 'per_stay', 40, 0, 0, 40)`).run(id, bath);

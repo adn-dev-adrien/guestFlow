@@ -14,7 +14,7 @@
   ],
   "requires": [],
   "guestflow": ">=3.18.0",
-  "sdk": "^2.30.0",
+  "sdk": "^2.32.0",
   "changelog": {
     "1.0.0": [
       "Première version publiée en paquet."
@@ -168,11 +168,11 @@
       "Retirer le lien de paiement d’une visite ou l’envoyer par e-mail suit les règles des autres gestes : l’accueil le jour de la séance seulement, personne sur une visite close (client absent, facturée). Un paiement qui solde le reste retire le lien encore ouvert, et un lien payé malgré tout est gardé comme remboursement dû, visible par l’administrateur.",
       "Un remboursement dû sur une visite s’affiche dans l’arrivée pour l’administrateur, avec « Marquer remboursé » ; l’accueil ne le voit pas.",
       "L’administrateur peut retirer le lien de paiement d’une visite le lendemain de la séance, même sans arrivée enregistrée.",
-      "Demande le SDK 2.30 de GuestFlow."
+      "Demande le SDK 2.31 de GuestFlow."
     ],
     "1.8.1": [
       "Aucun changement visible : GuestFlow sait désormais qu'une part d'un paiement peut avoir été reçue d'avance (un bon cadeau), ce que ce module lit sans le compter à part.",
-      "Compatible avec GuestFlow 4 (SDK 2.31)."
+      "Compatible avec GuestFlow 4 (SDK 2.32)."
     ]
   }
 }

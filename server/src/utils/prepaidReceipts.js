@@ -1,5 +1,5 @@
 /**
- * Money a stay received in advance from a plugin's prepaid instrument (SDK 2.31.0, specs/mixed-method-payments.md rule 51),
+ * Money a stay received in advance from a plugin's prepaid instrument (SDK 2.32.0, specs/mixed-method-payments.md rule 51),
  * written where every reader of the stay's money already looks: a settlement whose tender line has the method `prepaid`
  * (`paymentTenders.PREPAID`). The stay's price, tourist tax, commission and statistics are those of the same stay paid by card:
  * the line only says HOW a part of its acompte or solde was received.

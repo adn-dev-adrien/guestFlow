@@ -31,7 +31,7 @@ async function textOf(quote, { language = 'fr', vatRegime = quote.vatRegime } = 
   };
   try {
     const full = {
-      id: 1, kind: 'devis', startDate: '2027-07-01', endDate: '2027-07-04', adults: 2, children: 0, babies: 0, finalPrice: quote.finalPrice,
+      id: 1, kind: 'devis', startDate: '2027-07-01', endDate: '2027-07-04', adults: 2, children: 0, babies: 0, finalPrice: quote.finalPrice, // date-literal-ok — quote stay handed to the pure PDF builder
       totalPrice: quote.finalPrice, touristTaxTotal: 6, pdfLanguage: language, vatRegime, client: {}, options: [], resources: [],
     };
     await generateDevisPdf(full, {}, quote);

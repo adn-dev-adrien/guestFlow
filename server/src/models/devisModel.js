@@ -1332,7 +1332,7 @@ function createModel(database) {
     const refusal = removeRefusal(id);
     if (refusal) return refusal;
     database.prepare("DELETE FROM reservations WHERE id = ? AND kind = 'devis'").run(Number(id));
-    // SDK 2.31.0 — what a plugin's prepaid instrument held for this quote goes back to it.
+    // SDK 2.32.0 — what a plugin's prepaid instrument held for this quote goes back to it.
     require('../utils/prepaidSources').releaseFor(Number(id), 'deleted');
     return { ok: true, data: { success: true } };
   }

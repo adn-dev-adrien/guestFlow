@@ -4,7 +4,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const { allocateDiscount, coveredLines } = require('../utils/pricing/discounts');
 
-const line = (ref, totalCents, extra = {}) => ({ ref, totalCents, source: 'fiche', soldAt: '2026-11-01', id: Number(String(ref).replace(/\D/g, '')) || 0, ...extra });
+const line = (ref, totalCents, extra = {}) => ({ ref, totalCents, source: 'fiche', soldAt: '2026-11-01', id: Number(String(ref).replace(/\D/g, '')) || 0, ...extra }); // date-literal-ok — days handed to a pure function or an injected clock, nothing compares them with the real today
 
 test('rule 16 — the target nights keeps the euro formula and the fixed amount comes off the accommodation, never below 0', () => {
   assert.equal(allocateDiscount({ discount: { percent: 10, target: 'nights' }, accommodation: 200 }).accommodation, 180);
@@ -26,11 +26,11 @@ test('rule 40 — extras: D = round(Σ target × p / 100), split in proportion, 
 });
 
 test('rule 40 — all: the accommodation is part of the target and wins a tie, then the lines by soldAt then id', () => {
-  const result = allocateDiscount({ discount: { amount: 0.01, target: 'all' }, accommodation: 10, lines: [line('z9', 1000, { soldAt: '2026-11-03', id: 9 }), line('a1', 1000, { soldAt: '2026-11-02', id: 1 })] });
+  const result = allocateDiscount({ discount: { amount: 0.01, target: 'all' }, accommodation: 10, lines: [line('z9', 1000, { soldAt: '2026-11-03', id: 9 }), line('a1', 1000, { soldAt: '2026-11-02', id: 1 })] }); // date-literal-ok — days handed to a pure function or an injected clock, nothing compares them with the real today
   assert.equal(result.discountCents, 1);
   assert.equal(result.accommodation, 9.99, 'three equal items, one cent: the accommodation takes it');
   assert.deepEqual(result.lines.map((l) => l.shareCents), [0, 0]);
-  const tieOnLines = allocateDiscount({ discount: { amount: 0.01, target: 'extras' }, lines: [line('z9', 1000, { soldAt: '2026-11-03', id: 9 }), line('a1', 1000, { soldAt: '2026-11-02', id: 1 })] });
+  const tieOnLines = allocateDiscount({ discount: { amount: 0.01, target: 'extras' }, lines: [line('z9', 1000, { soldAt: '2026-11-03', id: 9 }), line('a1', 1000, { soldAt: '2026-11-02', id: 1 })] }); // date-literal-ok — days handed to a pure function or an injected clock, nothing compares them with the real today
   assert.deepEqual(tieOnLines.lines.map((l) => [l.ref, l.shareCents]), [['a1', 1], ['z9', 0]], 'the earlier soldAt takes the cent');
 });
 

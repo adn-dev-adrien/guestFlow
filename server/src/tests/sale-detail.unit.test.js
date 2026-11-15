@@ -31,7 +31,7 @@ test('rule 31 — the payload carries the stay lines first, then the sold lines 
 });
 
 test('rule 21 — a line whose allocations cover its due amount reads « Payée le jj/mm »', () => {
-  const detail = buildSaleDetail({ quote: quote(), facts: { 'opt:1': { lineId: 3, table: 'option', settledCents: 4000, paidAt: '2026-11-12' } } });
+  const detail = buildSaleDetail({ quote: quote(), facts: { 'opt:1': { lineId: 3, table: 'option', settledCents: 4000, paidAt: '2026-11-12' } } }); // date-literal-ok — days handed to a pure function or an injected clock, nothing compares them with the real today
   const paid = detail.lines.find((l) => l.label === 'Bain nordique');
   assert.deepEqual([paid.status, paid.statusLabel], ['paid', 'Payée le 12/11']);
   assert.equal(detail.totals.settledCents, 4000);

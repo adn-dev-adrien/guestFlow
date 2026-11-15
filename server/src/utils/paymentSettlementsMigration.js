@@ -34,7 +34,7 @@ const SETTLEMENTS_DDL = `
   CREATE INDEX IF NOT EXISTS idx_payment_tenders_settlement ON payment_tenders(settlementId);
 `;
 
-// SDK 2.31.0 — the tender lines of a plugin's prepaid instrument (specs/mixed-method-payments.md rule 51): `method` gains
+// SDK 2.32.0 — the tender lines of a plugin's prepaid instrument (specs/mixed-method-payments.md rule 51): `method` gains
 // `'prepaid'` and the line carries the plugin's `source`, its own `ref` and the `label` it was given. SQLite cannot widen a CHECK
 // in place, so a table written before is rebuilt inside one transaction (create new, copy every row and value, swap). Idempotent:
 // a table whose CHECK already allows `'prepaid'` is left alone. Returns the number of rows carried over, or null.

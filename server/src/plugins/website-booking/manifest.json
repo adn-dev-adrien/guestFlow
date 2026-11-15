@@ -13,7 +13,7 @@
   ],
   "requires": [],
   "guestflow": ">=3.10.0",
-  "sdk": "^2.31.0",
+  "sdk": "^2.32.0",
   "changelog": {
     "1.0.0": [
       "Première version publiée en paquet."
@@ -151,16 +151,16 @@
       "Le prix d’une assurance annulation à tarif fixe est calculé par le même moteur que les autres prestations.",
       "Les arrondis en euros et en centimes passent par un calcul commun du cœur : aucun montant ne change.",
       "Le refus d'une arrivée dans le passé lit l'horloge du séjour du cœur : même résultat qu'avant.",
-      "Compatible avec GuestFlow 4 (SDK 2.29)."
-      ],
-      "1.8.16": [
+      "Compatible avec GuestFlow 4 (SDK 2.30)."
+    ],
+    "1.8.16": [
       "Aucun changement visible : la clé d’API du site, le visiteur relayé et la preuve de travail viennent désormais de GuestFlow, qu’un autre module partage.",
-      "Demande le SDK 2.31 de GuestFlow."
+      "Demande le SDK 2.32 de GuestFlow."
     ],
     "1.9.0": [
       "Un moyen de paiement déjà versé (le bon cadeau) peut accompagner la demande : le devis le retient, le prix à payer aujourd’hui est calculé par GuestFlow, et sans rien à payer la réservation est confirmée tout de suite.",
       "Le devis du site annonce, tant qu’un tel moyen est proposé, de quoi afficher le champ de saisie.",
-      "Demande le SDK 2.31 de GuestFlow."
+      "Demande le SDK 2.32 de GuestFlow."
     ]
   }
 }

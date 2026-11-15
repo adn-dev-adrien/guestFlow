@@ -39,11 +39,11 @@ test('rule 63: the gross-up grosses a stay up only in the two historical shapes'
 
 test('rules 63 and 65: a part of a bucket is prorated in TTC first from the split day, in HT and VAT apart before', () => {
   const bucket = { ht: 90.91, vat: 9.09, ratePercent: 10 };
-  assert.deepEqual(bookedBucketSplit({ fraction: 0.5, paidDate: '2027-01-10' }, bucket), { ht: 45.45, vat: 4.55 });
-  assert.deepEqual(bookedBucketSplit({ fraction: 0.5, paidDate: '2026-10-10' }, bucket), { ht: 45.46, vat: 4.55 });
-  assert.deepEqual(bookedBucketSplit({ fraction: 1, paidDate: '2027-01-10' }, bucket), { ht: 90.91, vat: 9.09 });
-  assert.deepEqual(bookedBucketSplit({ fraction: 0.5, paidDate: '2026-10-10' }, bucket, '2026-10-01'), { ht: 45.45, vat: 4.55 });
-  assert.equal(TTC_SPLIT_FALLBACK, '2026-11-01');
+  assert.deepEqual(bookedBucketSplit({ fraction: 0.5, paidDate: '2027-01-10' }, bucket), { ht: 45.45, vat: 4.55 }); // date-literal-ok — the split date and the paid dates are inputs of a pure function
+  assert.deepEqual(bookedBucketSplit({ fraction: 0.5, paidDate: '2026-10-10' }, bucket), { ht: 45.46, vat: 4.55 }); // date-literal-ok — the split date and the paid dates are inputs of a pure function
+  assert.deepEqual(bookedBucketSplit({ fraction: 1, paidDate: '2027-01-10' }, bucket), { ht: 90.91, vat: 9.09 }); // date-literal-ok — the split date and the paid dates are inputs of a pure function
+  assert.deepEqual(bookedBucketSplit({ fraction: 0.5, paidDate: '2026-10-10' }, bucket, '2026-10-01'), { ht: 45.45, vat: 4.55 }); // date-literal-ok — the split date and the paid dates are inputs of a pure function
+  assert.equal(TTC_SPLIT_FALLBACK, '2026-11-01'); // date-literal-ok — the split date and the paid dates are inputs of a pure function
 });
 
 test('rule 65: the net of a TTC amount goes through the VAT component, 0 % leaving it whole', () => {

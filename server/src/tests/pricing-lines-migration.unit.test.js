@@ -75,12 +75,17 @@ function seed(db) {
     INSERT INTO options (id, title, priceType, showsPlanningCard) VALUES (1, 'Petit-déjeuner', 'per_person', 1), (2, 'Bois', 'per_stay', 0), (3, 'Bain', 'per_hour', 0);
     INSERT INTO resources (id, name, priceType) VALUES (5, 'Spa', 'per_stay');
     INSERT INTO reservations (id, kind, platform, createdAt, finalPrice, touristTaxTotal, arrivalExtrasBaseline) VALUES
+      -- date-literal-ok — migration or backfill fixture: historical values the code under test copies, never compares with today
       (10, 'reservation', 'direct', '2026-01-05 10:00:00', 400, 12, '{"opt:2":20}'),
+      -- date-literal-ok — migration or backfill fixture: historical values the code under test copies, never compares with today
       (11, 'reservation', 'Booking.com', '2026-02-05 10:00:00', 300, 0, NULL),
+      -- date-literal-ok — migration or backfill fixture: historical values the code under test copies, never compares with today
       (12, 'cancelled', 'Site', '2026-03-05 10:00:00', 150, 5, NULL);
     INSERT INTO reservation_options (reservationId, optionId, quantity, unitPrice, billedUnits, priceType, totalPrice, offered, inComplement, cardOccurrences) VALUES
+      -- date-literal-ok — migration or backfill fixture: historical values the code under test copies, never compares with today
       (10, 2, 1, 20, 1, 'per_stay', 35, 0, 1, NULL), (10, 1, 2, 10, 2, 'per_person', 20, 0, 0, '[{"date":"2026-01-06"}]'), (11, 3, 1, 15, 1, 'per_hour', 15, 0, 0, NULL);
     INSERT INTO reservation_resources (reservationId, resourceId, quantity, unitPrice, billedUnits, priceType, totalPrice, inComplement) VALUES (10, 5, 1, 40, 1, 'per_stay', 40, 1);
+    -- date-literal-ok — migration or backfill fixture: historical values the code under test copies, never compares with today
     INSERT INTO reservation_custom_options (reservationId, description, amount, inComplement, createdAt) VALUES (10, 'Tisane', 6, 1, '2026-01-07 09:00:00'), (11, 'Miel', 4, 0, '2026-02-06 09:00:00');
   `);
 }
@@ -167,13 +172,13 @@ test('rules 37 and 74: every line gets its moment, its snapshot of what was sold
   runPricingLinesMigration(db);
   const option = (reservationId, optionId) => db.prepare('SELECT collectAt, collectAtDefault, soldAt, articleRef, family, label, source, discountCents FROM reservation_options WHERE reservationId = ? AND optionId = ?').get(reservationId, optionId);
   // Stay 10 is direct with a baseline: `opt:2` (35) is above its 20 → departure, the spa and the tisane are not in it at all; the breakfast is a planning card.
-  assert.deepEqual(option(10, 2), { collectAt: 'departure', collectAtDefault: 'departure', soldAt: '2026-01-05 10:00:00', articleRef: 'option:2', family: 'fixed', label: 'Bois', source: 'fiche', discountCents: 0 });
-  assert.deepEqual(option(10, 1), { collectAt: 'plan', collectAtDefault: 'plan', soldAt: '2026-01-05 10:00:00', articleRef: 'option:1', family: 'perUnit', label: 'Petit-déjeuner', source: 'fiche', discountCents: 0 });
+  assert.deepEqual(option(10, 2), { collectAt: 'departure', collectAtDefault: 'departure', soldAt: '2026-01-05 10:00:00', articleRef: 'option:2', family: 'fixed', label: 'Bois', source: 'fiche', discountCents: 0 }); // date-literal-ok — migration or backfill fixture: historical values the code under test copies, never compares with today
+  assert.deepEqual(option(10, 1), { collectAt: 'plan', collectAtDefault: 'plan', soldAt: '2026-01-05 10:00:00', articleRef: 'option:1', family: 'perUnit', label: 'Petit-déjeuner', source: 'fiche', discountCents: 0 }); // date-literal-ok — migration or backfill fixture: historical values the code under test copies, never compares with today
   // Stay 11 is a platform sale, outside the complement: inside the platform's price. an option stored `per_hour` (a resource price type, rule 47 reading of L6) reads as `fixed`.
-  assert.deepEqual(option(11, 3), { collectAt: 'platform', collectAtDefault: 'platform', soldAt: '2026-02-05 10:00:00', articleRef: 'option:3', family: 'fixed', label: 'Bain', source: 'fiche', discountCents: 0 });
+  assert.deepEqual(option(11, 3), { collectAt: 'platform', collectAtDefault: 'platform', soldAt: '2026-02-05 10:00:00', articleRef: 'option:3', family: 'fixed', label: 'Bain', source: 'fiche', discountCents: 0 }); // date-literal-ok — migration or backfill fixture: historical values the code under test copies, never compares with today
   assert.deepEqual(db.prepare('SELECT collectAt, articleRef, family, label FROM reservation_resources WHERE reservationId = 10').get(), { collectAt: 'departure', articleRef: 'resource:5', family: 'fixed', label: 'Spa' });
   const custom = db.prepare('SELECT lineId, collectAt, soldAt, articleRef, family, label FROM reservation_custom_options WHERE reservationId = 10').get();
-  assert.deepEqual(custom, { lineId: custom.lineId, collectAt: 'departure', soldAt: '2026-01-07 09:00:00', articleRef: `custom:${custom.lineId}`, family: null, label: 'Tisane' });
+  assert.deepEqual(custom, { lineId: custom.lineId, collectAt: 'departure', soldAt: '2026-01-07 09:00:00', articleRef: `custom:${custom.lineId}`, family: null, label: 'Tisane' }); // date-literal-ok — migration or backfill fixture: historical values the code under test copies, never compares with today
 });
 
 test('rule 91: on a stay whose end-of-stay complement is collected, the moment follows what that complement froze, not the baseline', () => {
@@ -197,13 +202,14 @@ test('rule 74: each stay holds its accommodation line (the final price less its 
     '10 accommodation 29900 accommodation', '10 touristTax 1200 outOfScope', '11 accommodation 28100 accommodation',
     '12 accommodation 15000 accommodation', '12 touristTax 500 outOfScope',
   ]);
-  assert.deepEqual(lines[0], { reservationId: 10, kind: 'accommodation', label: 'Hébergement', totalCents: 29900, vatClass: 'accommodation', soldAt: '2026-01-05 10:00:00' });
+  assert.deepEqual(lines[0], { reservationId: 10, kind: 'accommodation', label: 'Hébergement', totalCents: 29900, vatClass: 'accommodation', soldAt: '2026-01-05 10:00:00' }); // date-literal-ok — migration or backfill fixture: historical values the code under test copies, never compares with today
 });
 
 test('rule 14 of reservation-refunds and rule 74: the refund columns are backfilled from stored data and a refund is a negative allocation', () => {
   const db = oldDatabase();
   seed(db);
   db.exec(`
+    -- date-literal-ok — migration or backfill fixture: historical values the code under test copies, never compares with today
     INSERT INTO reservation_refunds (id, reservationId, refundDate, method, totalTtc) VALUES (1, 10, '2026-02-01', 'transfer', 25), (2, 12, '2026-03-10', 'retained', 90), (3, 10, '2026-02-03', 'internal', 5);
     INSERT INTO reservation_refund_lines (refundId, lineKey, label, bucket, amountTtc) VALUES
       (1, 'opt:2', 'Bois', 'options', 20), (1, NULL, 'Geste', 'accommodation', 5), (2, 'accommodation', 'Acompte', 'indemnity', 90),
@@ -237,7 +243,9 @@ test('rule 78: the compensation points at the avoir it mirrors', () => {
   const db = oldDatabase();
   seed(db);
   db.exec(`
+    -- date-literal-ok — migration or backfill fixture: historical values the code under test copies, never compares with today
     INSERT INTO reservation_refunds (id, reservationId, refundDate, method, totalTtc) VALUES (7, 12, '2026-03-10', 'retained', 90.0);
+    -- date-literal-ok — migration or backfill fixture: historical values the code under test copies, never compares with today
     INSERT INTO cancellation_compensations (reservationId, origin, receivedAmount, receivedDate) VALUES (12, 'retained_deposit', 90, '2026-03-10'), (12, 'retained_deposit', 80, '2026-03-10'), (12, 'platform', 90, '2026-03-10');
   `);
   runPricingLinesMigration(db);
@@ -249,7 +257,9 @@ test('rule 75: a basket money owed back opens an obligation, a link refunded by 
   seed(db);
   db.exec(`
     INSERT INTO payment_links (id, reservationId, amountCents, paidAt, cancelReason, basketJson) VALUES
+      -- date-literal-ok — migration or backfill fixture: historical values the code under test copies, never compares with today
       (1, 10, 4000, '2026-02-01', NULL, '{"source":"shop","refundOwed":true}'), (2, 10, 5000, '2026-02-02', NULL, '{"source":"shop","refundOwed":true,"refundCents":1200}'),
+      -- date-literal-ok — migration or backfill fixture: historical values the code under test copies, never compares with today
       (3, 11, 3000, '2026-02-03', 'refunded', NULL), (4, 11, 2000, '2026-02-04', NULL, '{"source":"shop"}');
   `);
   runPricingLinesMigration(db);
@@ -264,15 +274,17 @@ test('rule 74: a paid bucket whose contribs describe it is allocated line by lin
   const db = oldDatabase();
   seed(db);
   db.exec(`
+    -- date-literal-ok — migration or backfill fixture: historical values the code under test copies, never compares with today
     UPDATE reservations SET balancePaid = 1, balancePaidDate = '2026-02-20', balanceAmount = 130, accommodationSoldeContribTtc = 90, touristTaxSoldeContribTtc = 10 WHERE id = 10;
     UPDATE reservation_options SET soldeContribTtc = 20 WHERE reservationId = 10 AND optionId = 1;
     UPDATE reservation_custom_options SET soldeContribTtc = 10 WHERE reservationId = 10;
+    -- date-literal-ok — migration or backfill fixture: historical values the code under test copies, never compares with today
     UPDATE reservations SET depositPaid = 1, depositPaidDate = '2026-01-10', depositAmount = 999 WHERE id = 10;
   `);
   runPricingLinesMigration(db);
   const rows = db.prepare("SELECT paymentRef, lineRef, amountCents, at, books FROM payment_allocations WHERE kind = 'payment' ORDER BY lineRef").all();
   assert.equal(rows.length, 4);
-  assert.ok(rows.every((r) => r.paymentRef === 'bucket:balance' && r.at === '2026-02-20' && r.books === 1));
+  assert.ok(rows.every((r) => r.paymentRef === 'bucket:balance' && r.at === '2026-02-20' && r.books === 1)); // date-literal-ok — migration or backfill fixture: historical values the code under test copies, never compares with today
   assert.equal(rows.reduce((sum, r) => sum + r.amountCents, 0), 13000);
   assert.ok(!db.prepare("SELECT 1 FROM payment_allocations WHERE paymentRef = 'bucket:deposit'").get(), 'a deposit whose contribs do not add up has no per-line truth');
   db.prepare('UPDATE reservation_options SET soldeContribTtc = 1 WHERE reservationId = 10 AND optionId = 1').run();
@@ -283,6 +295,7 @@ test('rule 74: deleting a stay deletes its allocations, its stay lines and its o
   const db = oldDatabase();
   seed(db);
   db.exec(`
+    -- date-literal-ok — migration or backfill fixture: historical values the code under test copies, never compares with today
     UPDATE reservations SET balancePaid = 1, balancePaidDate = '2026-02-20', balanceAmount = 10, accommodationSoldeContribTtc = 10 WHERE id = 11;
     INSERT INTO payment_links (id, reservationId, amountCents, basketJson) VALUES (1, 11, 1000, '{"refundOwed":true}');
   `);

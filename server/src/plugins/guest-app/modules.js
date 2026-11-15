@@ -15,6 +15,8 @@ const MODULES = Object.freeze([
   { key: 'booklet', on: true, label: { fr: 'Livret', en: 'Booklet' } },
   { key: 'orders', on: true, label: { fr: 'Mes commandes', en: 'My orders' } },
   { key: 'contacts', on: false, label: { fr: 'Urgences & contacts', en: 'Emergency & contacts' } },
+  // specs/guest-app-home-automation.md rule 17 — off until the operator configures it in Studio.
+  { key: 'home', on: false, label: { fr: 'Domotique', en: 'Smart home' } },
 ]);
 
 const MODULE_KEYS = Object.freeze(MODULES.map((m) => m.key));
@@ -30,6 +32,7 @@ const MODES_OF = Object.freeze({
   shop: ['stay', 'preArrival'],
   bath: ['stay', 'preArrival'],
   orders: ['stay', 'preArrival'],
+  home: ['stay'],
 });
 
 // `gate`: the plugin is live; the window is the mode's — a stay session lives exactly in the gate window
@@ -41,6 +44,7 @@ const PREREQUISITES = Object.freeze({
   bath: (facts) => Number(facts.soldHourlyResources) > 0,
   soliomap: (facts) => Boolean(facts.soliomapUrl),
   contacts: (facts) => Number(facts.contactCount) > 0,
+  home: (facts) => Boolean(facts.homeReady),
 });
 
 const defaultModules = () => MODULES.map(({ key, on }, order) => ({ key, on, order }));

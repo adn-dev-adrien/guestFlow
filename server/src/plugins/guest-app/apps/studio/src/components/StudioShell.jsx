@@ -19,6 +19,7 @@ import HomeWorkOutlinedIcon from '@mui/icons-material/HomeWorkOutlined';
 import MenuBookOutlinedIcon from '@mui/icons-material/MenuBookOutlined';
 import ShoppingBagOutlinedIcon from '@mui/icons-material/ShoppingBagOutlined';
 import ScheduleIcon from '@mui/icons-material/Schedule';
+import ThermostatOutlinedIcon from '@mui/icons-material/ThermostatOutlined';
 import SettingsOutlinedIcon from '@mui/icons-material/SettingsOutlined';
 import PhotoLibraryOutlinedIcon from '@mui/icons-material/PhotoLibraryOutlined';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
@@ -32,6 +33,7 @@ const LODGING_SCREENS = [
   { key: 'infos', label: 'Infos du logement', icon: <HomeWorkOutlinedIcon fontSize="small" /> },
   { key: 'livret', label: 'Livret', icon: <MenuBookOutlinedIcon fontSize="small" /> },
   { key: 'boutique', label: 'Boutique', icon: <ShoppingBagOutlinedIcon fontSize="small" /> },
+  { key: 'domotique', label: 'Domotique', icon: <ThermostatOutlinedIcon fontSize="small" /> },
 ];
 const SHARED_SCREENS = [
   { path: '/reglages/service', label: 'Service', icon: <ScheduleIcon fontSize="small" /> },

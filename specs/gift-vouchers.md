@@ -111,7 +111,7 @@ code types it while booking dates, and the voucher's balance pays for the stay, 
     validates every field again and answers the order id and a public token.
 16. Paying mints a payment link **with no reservation**, labelled « Bon cadeau de <montant> » (the
     voucher number does not exist before the payment: it is drawn at issuance), through the core's
-    link of a plugin basket with no stay (`core.payments.saleLink`, SDK 2.31.0). It sits on the same
+    link of a plugin basket with no stay (`core.payments.saleLink`, SDK 2.32.0). It sits on the same
     `payment_links` row and the same `saleRef` column as the standalone sale of pricing-components
     PR C — `saleRef = giftVoucher:<orderId>` — but not on its sale document, which prices articles:
     a voucher is not an article. The link lives 30 minutes; asking again hands back the open link
@@ -292,12 +292,12 @@ code types it while booking dates, and the voucher's balance pays for the stay, 
 |---|---|---|---|
 | `plugins/sdk/` | `index.js`, `createContext.js` | T | Export the public API guard chain (`middleware.publicApi`), moved out of `website-booking`; `ctx.mail.send({ to, subject, text, html, key })` for an e-mail not tied to a stay, logged in the e-mail history; SDK minor recorded in `coreModuleHistory.json` |
 | `plugins/website-booking/` | `requirePublicApiKey.js`, `visitorContext` | T | Re-exported from the SDK; behaviour unchanged |
-| `utils/`, `controllers/` | `paymentRequestService.js` (`ensureSaleLink`), `basketPayments.js` (`saleLink`), `paymentsController.js`, `plugins/sdk/coreServices.js` | C/T | `core.payments.saleLink({ source, ref, title, amountCents }, { redirectUrl })` (SDK 2.31.0): the link of a plugin's basket with no stay, billed to `<source>:<ref>` in the existing `payment_links.saleRef`; PR C's `saleRef` column and no-orphan rules are consumed as delivered |
+| `utils/`, `controllers/` | `paymentRequestService.js` (`ensureSaleLink`), `basketPayments.js` (`saleLink`), `paymentsController.js`, `plugins/sdk/coreServices.js` | C/T | `core.payments.saleLink({ source, ref, title, amountCents }, { redirectUrl })` (SDK 2.32.0): the link of a plugin's basket with no stay, billed to `<source>:<ref>` in the existing `payment_links.saleRef`; PR C's `saleRef` column and no-orphan rules are consumed as delivered |
 | `utils/` | `paymentPollRunner.js` (`applyPaidEffect`) | T | A paid link whose `saleRef` is a plugin's basket source goes to `ctx.paymentBasket`'s `paid` with `reservationId: null` (stays and `standalone-sale` links unchanged) |
 | `utils/`, `models/`, `schema.sql` | `paymentTenders.js`, `paymentSettlementsModel.js`, `paymentSettlementsMigration.js` | T | The received-in-advance amount is a tender line of the method `prepaid` with its `source`, `ref` and `label`: the CHECK of `payment_tenders.method` is widened and the three columns added by an idempotent table rebuild (`changelog.d/migration--gift-vouchers-tender-method.md`); `settlementFigures` gains `prepaidCents` and `collectedCents` (mixed-method-payments rules 59-60) |
 | `utils/` | `prepaidSources.js`, `prepaidReceipts.js` (SDK modules) | C | What a quote holds, what it takes off the public payment, the settlements written at conversion and by the fiche, the confirmation without a link (rules 59-62) |
 | `utils/`, `controllers/`, `models/` | `paymentPollRunner.js`, `publicPaymentController.js`, `devisModel.js`, `reservationLedger.js`, `accountingOutput.js`, `financeDashboardModel.js` | T | The reduced amount and the conversion hook, the pay route's reduction and no-link path, the release on delete, the ledger line « Bon cadeau » (no « Modifier »), the journals reading `collectedCents` |
-| `plugins/sdk/` | `createContext.js`, `registry.js`, `index.js`, `coreModules.json`, `coreModuleHistory.json` | T | `ctx.prepaid({ source, label, apply, held, settle, release })` and the two modules, all at the 2.31.0 entry (no new minor) |
+| `plugins/sdk/` | `createContext.js`, `registry.js`, `index.js`, `coreModules.json`, `coreModuleHistory.json` | T | `ctx.prepaid({ source, label, apply, held, settle, release })` and the two modules, all at the 2.32.0 entry (no new minor) |
 | `plugins/website-booking/` | `publicPrepaid.js`, `publicBookingRequestController.js`, `publicQuoteController.js` | T | Passes the opaque `prepaid` field of the request and of the quote to the live source, in the request's own transaction; knows nothing of vouchers; the quote lists `payment.prepaidKinds` while a plugin takes one |
 
 **Notes:**

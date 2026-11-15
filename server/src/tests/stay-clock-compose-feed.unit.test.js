@@ -31,7 +31,7 @@ test('the baseline follows the clock: started and not marked → due; not starte
   assert.notEqual(startedUnmarked.resolveArrivalExtrasBaseline(1), null);
   assert.equal(startedUnmarked.arrivalBaselineNotDue(1), false);
 
-  const futureMarked = createReservationsModel(modelDb({ startDate: day(3), endDate: day(5), checkInDone: 1, arrivalSasDoneAt: '2026-01-01 10:00:00' }));
+  const futureMarked = createReservationsModel(modelDb({ startDate: day(3), endDate: day(5), checkInDone: 1, arrivalSasDoneAt: '2026-01-01 10:00:00' })); // date-literal-ok — fixture rows written by raw SQL and read back by key, no write path checks them against today
   assert.equal(futureMarked.resolveArrivalExtrasBaseline(1), null);
   assert.equal(futureMarked.arrivalBaselineNotDue(1), true);
 });

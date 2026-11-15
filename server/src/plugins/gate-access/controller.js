@@ -16,6 +16,7 @@ function buildController({
   pushService = null,
   clock = () => new Date(),
   publicUrl = () => '',
+  homeChannel = () => null,
 } = {}) {
   return {
     /** GET /public/v1/gate/keys — rules 2-8. A successful read is stamped. */
@@ -58,6 +59,7 @@ function buildController({
         keysCreated: model().countCreated(),
         secretsFile: 'server/.env.local',
         secretNames: ['GATE_API_KEY', 'GATE_SIGNING_SECRET'],
+        home: homeChannel(),
       });
     },
 

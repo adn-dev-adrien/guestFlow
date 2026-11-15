@@ -1,5 +1,5 @@
 /**
- * The `hourly-slot` fulfilment adapter (specs/pricing-components.md §3 rule 49, SDK 2.28.0): a resource sold by the hour and placed on a
+ * The `hourly-slot` fulfilment adapter (specs/pricing-components.md §3 rule 49, SDK 2.29.0): a resource sold by the hour and placed on a
  * planning takes a slot, and a sale of it is refused when the slot is taken.
  *
  *   reserve(draft)         validates the sessions against the planning (stays' sessions, standalone bookings, the holds other plugins

@@ -20,6 +20,7 @@ let nextId = 700;
 function stay() {
   const id = nextId++;
   db.prepare(`INSERT INTO reservations (id, kind, clientId, propertyId, startDate, endDate, platform, adults, complementAmount)
+    -- date-literal-ok — fixture rows written by raw SQL and read back by key, no write path checks them against today
     VALUES (?, 'reservation', 1, 1, '2027-07-10', '2027-07-12', 'direct', 2, 0)`).run(id);
   return id;
 }
@@ -82,9 +83,9 @@ test('an option the reopened SAS appended is flagged too, an existing one is not
   const kept = Number(db.prepare("INSERT INTO options (title, price, priceType) VALUES ('Ménage fictif', 40, 'per_stay')").run().lastInsertRowid);
   const added = Number(db.prepare("INSERT INTO options (title, price, priceType) VALUES ('Linge fictif', 8, 'per_stay')").run().lastInsertRowid);
   const insert = db.prepare("INSERT INTO reservation_options (reservationId, optionId, quantity, unitPrice, billedUnits, priceType, totalPrice, inComplement, sasArrivalOrigin, soldAt) VALUES (?, ?, 1, 10, 1, 'flat', 10, 1, 1, ?)");
-  insert.run(id, kept, '2027-07-10T08:00:00.000Z');
+  insert.run(id, kept, '2027-07-10T08:00:00.000Z'); // date-literal-ok — fixture rows written by raw SQL and read back by key, no write path checks them against today
   insert.run(id, added, null);
-  const labels = require('../models/extraSalesModel').stampSasLines(id, '2027-07-10T09:00:00.000Z', { reopened: true });
+  const labels = require('../models/extraSalesModel').stampSasLines(id, '2027-07-10T09:00:00.000Z', { reopened: true }); // date-literal-ok — fixture rows written by raw SQL and read back by key, no write path checks them against today
   assert.deepEqual(labels, ['Linge fictif']);
   const flags = db.prepare('SELECT optionId, addedOnReopen FROM reservation_options WHERE reservationId = ? ORDER BY optionId').all(id);
   assert.deepEqual(flags.map((f) => [f.optionId, f.addedOnReopen]), [[kept, 0], [added, 1]]);

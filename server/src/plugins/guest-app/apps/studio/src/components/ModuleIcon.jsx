@@ -7,10 +7,11 @@ import PlaceOutlinedIcon from '@mui/icons-material/PlaceOutlined';
 import MenuBookOutlinedIcon from '@mui/icons-material/MenuBookOutlined';
 import ReceiptLongOutlinedIcon from '@mui/icons-material/ReceiptLongOutlined';
 import PhoneOutlinedIcon from '@mui/icons-material/PhoneOutlined';
+import ThermostatOutlinedIcon from '@mui/icons-material/ThermostatOutlined';
 
 const ICONS = {
   gate: FenceIcon, wifi: WifiIcon, shop: ShoppingBagOutlinedIcon, bath: HotTubOutlinedIcon, soliomap: PlaceOutlinedIcon,
-  booklet: MenuBookOutlinedIcon, orders: ReceiptLongOutlinedIcon, contacts: PhoneOutlinedIcon,
+  booklet: MenuBookOutlinedIcon, orders: ReceiptLongOutlinedIcon, contacts: PhoneOutlinedIcon, home: ThermostatOutlinedIcon,
 };
 
 export default function ModuleIcon({ module }) {

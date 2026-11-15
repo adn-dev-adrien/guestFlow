@@ -45,7 +45,7 @@ function helperWrites(model, phase, errorCode = '') {
   const script = fs.readFileSync(HELPER, 'utf8');
   const body = script.slice(script.indexOf('now_iso()'), script.indexOf('running_version()'));
   execFileSync('bash', ['-c', `${body}\nwrite_status "$1" "$2"`, 'helper', phase, errorCode], {
-    env: { ...process.env, STATUS_FILE: model.paths.statusFile, FROM_VERSION: '4.1.0', TARGET: '4.2.0', STARTED_AT: '2026-11-20T09:00:00Z', LOG_FILE: '/dev/null' },
+    env: { ...process.env, STATUS_FILE: model.paths.statusFile, FROM_VERSION: '4.1.0', TARGET: '4.2.0', STARTED_AT: '2026-11-20T09:00:00Z', LOG_FILE: '/dev/null' }, // date-literal-ok — a status-file timestamp handed to a child process
   });
 }
 

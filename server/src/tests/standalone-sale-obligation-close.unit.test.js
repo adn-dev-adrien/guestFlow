@@ -21,9 +21,9 @@ function owingSale() {
   const sold = standaloneSale.sell({ lines: [{ articleRef: `option:${beer}`, quantity: 2 }], customer: { email: 'client@exemple.fr' } }).document;
   const id = sold.document.id;
   standaloneSale.pay(id, { tenders: [{ method: 'cash', amountCents: 1300 }] });
-  const link = db.prepare("INSERT INTO payment_links (reservationId, saleRef, type, amountCents, status, paidAt) VALUES (NULL, ?, 'complement', 1300, 'paid', '2026-11-15')")
+  const link = db.prepare("INSERT INTO payment_links (reservationId, saleRef, type, amountCents, status, paidAt) VALUES (NULL, ?, 'complement', 1300, 'paid', '2026-11-15')") // date-literal-ok — fixture rows written by raw SQL and read back by key, no write path checks them against today
     .run(sales.documentRef(id)).lastInsertRowid;
-  assert.equal(links.settlePaidLink({ link: { id: Number(link), saleRef: sales.documentRef(id), amountCents: 1300 }, paidDate: '2026-11-15' }).effect, 'standalone-sale-refund-owed');
+  assert.equal(links.settlePaidLink({ link: { id: Number(link), saleRef: sales.documentRef(id), amountCents: 1300 }, paidDate: '2026-11-15' }).effect, 'standalone-sale-refund-owed'); // date-literal-ok — fixture rows written by raw SQL and read back by key, no write path checks them against today
   return id;
 }
 const call = (method, req) => {
@@ -35,12 +35,12 @@ const call = (method, req) => {
 
 test('V-4 — the open obligation is served with its words, on the document and on the counter list whatever the day; nothing is counted twice', () => {
   const id = owingSale();
-  db.prepare("UPDATE standalone_sales SET soldAt = '2026-01-02T10:00:00.000Z' WHERE id = ?").run(id);
+  db.prepare("UPDATE standalone_sales SET soldAt = '2026-01-02T10:00:00.000Z' WHERE id = ?").run(id); // date-literal-ok — fixture rows written by raw SQL and read back by key, no write path checks them against today
   const doc = standaloneSale.documentOf(id);
   assert.equal(doc.totals.refundOwedCents, 1300);
   assert.equal(doc.totals.refundUnheldCents, 0, 'the row holds the whole surplus');
   assert.deepEqual(doc.refundObligations.map((r) => [r.amountCents, r.label, r.detail]), [[1300, '13,00 € à rembourser', 'Lien payé après un changement du reste']]);
-  const list = call('list', { query: { day: '2026-11-15' } }).body;
+  const list = call('list', { query: { day: '2026-11-15' } }).body; // date-literal-ok — fixture rows written by raw SQL and read back by key, no write path checks them against today
   assert.equal(list.sales.some((row) => row.id === id), false, 'not sold that day');
   const owed = list.owed.find((row) => row.id === id);
   assert.deepEqual(owed.refundObligations.map((r) => [r.amountCents, r.label]), [[1300, '13,00 € à rembourser']]);

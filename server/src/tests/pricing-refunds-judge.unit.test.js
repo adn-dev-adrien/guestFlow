@@ -99,7 +99,7 @@ test('rule 72 — the last book payment date comes from the paid buckets', () =>
 // ── rule 72, PR B: one take-back guard, the judge under its contract name ─────────────────────────────────────────────────
 
 test('rule 72 — takeBackRefusal: refused only when the gesture lowered what the books collected below the book refunds', () => {
-  const refunds = [{ id: 4, method: 'transfer', totalTtc: 60, refundDate: '2026-08-10' }, { id: 5, method: 'internal', totalTtc: 99, refundDate: '2026-08-11' }];
+  const refunds = [{ id: 4, method: 'transfer', totalTtc: 60, refundDate: '2026-08-10' }, { id: 5, method: 'internal', totalTtc: 99, refundDate: '2026-08-11' }]; // date-literal-ok — days handed to a pure function or an injected clock, nothing compares them with the real today
   const refusal = judge.takeBackRefusal({ beforeCents: 10000, afterCents: 3000, refunds });
   assert.equal(refusal.status, 409);
   assert.equal(refusal.body.code, 'REFUND_BLOCKS_UNTICK');

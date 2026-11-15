@@ -86,7 +86,7 @@ test('rule 37 — the operator moves an unpaid line, both values are journaled; 
   assert.match(entry.changedFields, /à payer à l’arrivée \(horloge\)/);
   assert.equal(extraSale.changeLine(id, ref, { collectAt: 'bogus' }).body.code, 'INVALID_MOMENT');
   const lineId = Number(ref.split(':')[1]);
-  db.prepare("INSERT INTO payment_allocations (paymentRef, documentRef, lineRef, amountCents, kind, at, books, origin) VALUES ('cash:1', ?, ?, 2500, 'payment', '2026-11-12', 1, 'live')")
+  db.prepare("INSERT INTO payment_allocations (paymentRef, documentRef, lineRef, amountCents, kind, at, books, origin) VALUES ('cash:1', ?, ?, 2500, 'payment', '2026-11-12', 1, 'live')") // date-literal-ok — fixture rows written by raw SQL and read back by key, no write path checks them against today
     .run(`reservation:${id}`, `line:reservation_options:${lineId}`);
   assert.equal(extraSale.changeLine(id, ref, { collectAt: 'arrival' }).body.code, 'LINE_PAID');
 });

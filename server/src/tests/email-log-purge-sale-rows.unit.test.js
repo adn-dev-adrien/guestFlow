@@ -20,11 +20,11 @@ const log = (saleId, sentAt) => {
 const left = () => db.prepare('SELECT saleRef FROM email_log WHERE saleRef IS NOT NULL ORDER BY id').all().map((r) => r.saleRef);
 
 test('rule 42 — a sale\'s e-mail sent today survives the purge; one past the window after its sale and send is purged', () => {
-  const recent = sale('2027-03-10T09:00:00.000Z');
-  const old = sale('2027-02-01T09:00:00.000Z');
-  log(recent, '2027-03-10 09:05:00');
-  log(old, '2027-02-01 09:05:00');
-  model.purgeRealizedStays('2027-03-10');
+  const recent = sale('2027-03-10T09:00:00.000Z'); // date-literal-ok — fixture rows written by raw SQL and read back by key, no write path checks them against today
+  const old = sale('2027-02-01T09:00:00.000Z'); // date-literal-ok — fixture rows written by raw SQL and read back by key, no write path checks them against today
+  log(recent, '2027-03-10 09:05:00'); // date-literal-ok — fixture rows written by raw SQL and read back by key, no write path checks them against today
+  log(old, '2027-02-01 09:05:00'); // date-literal-ok — fixture rows written by raw SQL and read back by key, no write path checks them against today
+  model.purgeRealizedStays('2027-03-10'); // date-literal-ok — fixture rows written by raw SQL and read back by key, no write path checks them against today
   assert.deepEqual(left(), [`standalone:${recent}`], `kept ${STAY_RETENTION_DAYS} days, the old one gone`);
   model.purgeRealizedStays(`2027-03-${10 + STAY_RETENTION_DAYS}`);
   assert.deepEqual(left(), [`standalone:${recent}`], 'still inside the window on its last day');

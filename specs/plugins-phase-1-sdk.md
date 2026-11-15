@@ -634,7 +634,7 @@ Optional: a plugin that declares nothing reads « Actif ».
     `plugin-core-hardening-floor` holds it); hourly-resources and accounting-export range `^2.27.0`; `coreModuleHistory.json`
     records 2.27.0 (`vat`). Tests: `article-family-sdk.unit.test.js`, `plugin-core-hardening-floor.unit.test.js`,
     `sdk-v2-plugin-ranges.unit.test.js`.
-51. *(Added 2026-11-12, specs/pricing-components.md rules 10, 27, 31, 44-49, SDK 2.28.0.)* **A plugin sells through the same services as the
+51. *(Added 2026-11-12, specs/pricing-components.md rules 10, 27, 31, 44-49, SDK 2.29.0.)* **A plugin sells through the same services as the
     core, and declares the booking an article needs.** `coreModule('extraSale')` hands out the sale service (`quote`, `sell`,
     `changeLine`, `saleDetailOf`, `departureSalesOf`), `coreModule('saleDetail')` its read model, `coreModule('articles')` the head's reads
     (`read` prices one candidate line for a stay with no free unit spent, `unitsPerQuantity` the billed units of one quantity),
@@ -647,29 +647,31 @@ Optional: a plugin that declares nothing reads « Actif ».
     `ctx.core.slotAvailability()`. `ctx.core.reservations.fromPlatform(reservationId, intake, { label, client, reuseByEmail })` is the platform booking port
     (`update` is the same save fed with a patch). Four events join `ctx.events.on` — `extraSale.sold`, `extraSale.lineMoved`, `extraSale.lineCancelled`,
     `extraSale.refundOwed` — published after the sale commits (a plugin may not emit them); google-calendar 1.3.0 listens to the first three. hourly-resources 1.6.0, sas 1.10.0
-    and google-calendar 1.3.0 range `^2.28.0`; a plugin calling `ctx.articleFulfilment(` or
-    `ctx.slotAvailability(` asks for it (the hardening floor list holds both); `coreModuleHistory.json` records 2.28.0. Tests:
+    and google-calendar 1.3.0 range `^2.29.0`; a plugin calling `ctx.articleFulfilment(` or
+    `ctx.slotAvailability(` asks for it (the hardening floor list holds both); `coreModuleHistory.json` records 2.29.0. Tests:
     `article-fulfilment-contract`, `bath-fulfilment-contract`, `extra-sale-sas`, `plugin-core-hardening-floor`, `plugins-sdk-core-module-floor`.
-52. *(Added 2026-11-12, specs/pricing-components.md rule 38, SDK 2.29.0.)* **A plugin rounds through the shared money helpers.** `coreModule('money')`
+52. *(Added 2026-11-12, specs/pricing-components.md rule 38, SDK 2.30.0.)* **A plugin rounds through the shared money helpers.** `coreModule('money')`
     hands out the exact variants of `money.js`: `roundMoney`, `roundMoneyOrZero`, `roundMoneyStrict`, `toCents`, `toCentsOrZero`, `toCentsStrict`,
     `fromCentsStrict`, `parseFrenchCents`, `parseFrenchEuros` and `eurosWithSpaces`. Each reproduces one of the private copies the plugins held, so no
     figure moves; the variant is picked by what the copy did with a blank or a non-number, never swapped for `roundMoney`. airbnb-intake, booking-intake,
     gites-de-france-intake, google-calendar, google-vacation-rentals, hourly-resources, online-payment, sas, tariff-recipes, website-booking and
-    accounting-export range `^2.29.0`; the hardening floor list holds the module (`shared money helpers`), `coreModuleHistory.json` records 2.29.0.
+    accounting-export range `^2.30.0`; the hardening floor list holds the module (`shared money helpers`), `coreModuleHistory.json` records 2.30.0.
     `coreModule('stayClock')` also hands out `dayReached(day, today)` / `dayPassed(day, today)` (the day comparisons the intakes and the public form used to write
     inline), `coreModule('platformPayment')` the reads of what a platform pays out (`acompteNet`, `grossOf`, `payoutWithPenalty`), and
     `ctx.core.reservations.platformCommission({ basis: 'rentOnly', rent, netRent })` the rent-only commission of Gîtes de France (the statement basis is unchanged).
     Tests: `pricing-money-variants`, `plugin-core-hardening-floor`, `plugins-sdk-core-module-floor`.
 53. *(Added 2026-11-15, end review R3-3, R3-10, R3-11; specs/pricing-components.md rules 53, 74, 86, specs/outside-booking-sas.md rules 35-42,
-    SDK 2.30.0.)* **A plugin sells outside a stay, and suggests articles, through the core.** SDK 2.30.0 adds `coreModule('standaloneSale')`
+    SDK 2.31.0.)* **A plugin sells outside a stay, and suggests articles, through the core.** SDK 2.31.0 adds `coreModule('standaloneSale')`
     (quote / sell / offerLine / removeLine / pay / cancel / receive / documentOf / paymentsOf of a document with no reservation),
     `coreModule('standaloneSaleLinks')` (linkOf / draftLinkOf / mint / withdraw / emailLink of its payment link), `coreModule('suggestedArticles')`
     (the articles suggested for a sale context), `saleDetail.buildDocumentDetail`, the context hook `ctx.suggestionContexts({ kind, label, list })`, the
     event `standaloneSale.sold` (after the commit, an observer), and the client exports `SuggestedArticlesStep` and `SalePaymentLink`
-    (`client/src/plugins/sdk/index.js`; `StaySalesSection` is SDK 2.28.0's). guest-app and hourly-resources range `^2.30.0`.
+    (`client/src/plugins/sdk/index.js`; `StaySalesSection` is SDK 2.29.0's). guest-app and hourly-resources range `^2.31.0`.
     **The SDK history records what each shipped minor exposed:** v4.1.0 shipped SDK 2.27.0 without `vat`, `accountingOutput`, `legacyBucketSplit`,
-    `refundJournal`, `csvJournal`, `salesJson` and `synthesisExporter`, so `coreModuleHistory.json` records them under 2.28.0, the first minor
-    that ships them (no in-tree plugin ranges below `^2.29.0` for them).
+    `refundJournal`, `csvJournal`, `salesJson` and `synthesisExporter`, and SDK 2.28.0 (the home-data extension points,
+    specs/guest-app-home-automation.md, merged first) did not add them either, so `coreModuleHistory.json` records them under 2.29.0, the first
+    minor that ships them (no in-tree plugin ranges below `^2.30.0` for them). This branch's minors were renumbered 2.28 → 2.29, 2.29 → 2.30,
+    2.30 → 2.31 on 2026-11-15 when master's 2.28.0 landed first.
     **The SDK 2.26.0 shape of `coreModule('midStayOrderCommit')` still works:** `priceOrder(id, lines, { pending })` is accepted and `pending` is an
     explicit no-op since guest-app rule 108 (a card order awaiting its payment reserves nothing; the first call that passes some is logged once);
     `commitOrder` answers `excessCents` (its 2.26.0 name) beside `overpaidCents`, the same cents. Removing either is a MAJOR.

@@ -5,7 +5,7 @@ const { compareFigures, allowlistProblems, SCOPES } = require('./helpers/priceGa
 const { classifyReplay, expectProblems, nonAdditiveDifference, valueDifferences } = require('../../../scripts/price-gate/replayExpect');
 
 const entry = (over = {}) => ({
-  reservationId: 7, field: 'total.final', old: 1000, corrected: 999, reason: 'listed', rule: 'rule 3', defect: 'D1', approvedBy: 'Adrien', approvedAt: '2026-11-12', ...over,
+  reservationId: 7, field: 'total.final', old: 1000, corrected: 999, reason: 'listed', rule: 'rule 3', defect: 'D1', approvedBy: 'Adrien', approvedAt: '2026-11-12', ...over, // date-literal-ok — a captured approval date of the fixed price-gate fixture
 });
 const expected = { 7: { 'total.final': 1000 } };
 const actual = { 7: { 'total.final': 999 } };

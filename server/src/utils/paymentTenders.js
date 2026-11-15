@@ -24,7 +24,7 @@ const BANK_METHODS = new Set(['card', 'cheque', 'transfer']);
 const MAX_LINES = 4;
 const SHORTFALL_KINDS = new Set(['due', 'waived']);
 
-// SDK 2.31.0 — money a plugin's prepaid instrument already holds (a stored credit, a prepaid card): never typed by the operator, so not in
+// SDK 2.32.0 — money a plugin's prepaid instrument already holds (a stored credit, a prepaid card): never typed by the operator, so not in
 // `METHODS`, and never collected at the bank or the till — the instrument's sale was the encaissement. The tender line carries
 // the plugin's `source`, its own `ref` and the `label` the plugin gave it when the line was written.
 const PREPAID = 'prepaid';

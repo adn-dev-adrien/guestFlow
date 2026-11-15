@@ -1,5 +1,5 @@
 /**
- * The opaque `prepaid` field of the public quote and booking request (SDK 2.31.0, specs/mixed-method-payments.md rule 51). This
+ * The opaque `prepaid` field of the public quote and booking request (SDK 2.32.0, specs/mixed-method-payments.md rule 51). This
  * plugin knows nothing of what it names: the core asks the live plugin that owns the `kind` (`ctx.prepaid`) what the amount is
  * worth on this stay, and this file only shapes what the page shows — the amount applied and « À payer aujourd'hui », both
  * computed here, never by the site.

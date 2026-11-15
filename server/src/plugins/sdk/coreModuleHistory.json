@@ -259,7 +259,7 @@
       }
     },
     {
-      "version": "2.28.0",
+      "version": "2.29.0",
       "modules": [
         "vat",
         "accountingOutput",
@@ -277,7 +277,7 @@
       "names": {}
     },
     {
-      "version": "2.29.0",
+      "version": "2.30.0",
       "modules": [
         "money",
         "platformPayment",
@@ -300,7 +300,7 @@
       }
     },
     {
-      "version": "2.30.0",
+      "version": "2.31.0",
       "modules": [
         "standaloneSale",
         "standaloneSaleLinks",
@@ -316,7 +316,7 @@
       }
     },
     {
-      "version": "2.31.0",
+      "version": "2.32.0",
       "modules": [
         "pdfFonts",
         "prepaidReceipts",
