@@ -58,7 +58,7 @@ function buildModel(database) {
   const attachTenders = (rows) => {
     if (rows.length === 0) return rows;
     const ids = rows.map((r) => r.id);
-    const tenders = database.prepare(`SELECT settlementId, position, method, amountCents, internal FROM payment_tenders
+    const tenders = database.prepare(`SELECT settlementId, position, method, amountCents, internal, source, ref, label FROM payment_tenders
       WHERE settlementId IN (${ids.map(() => '?').join(',')}) ORDER BY settlementId, position`).all(...ids);
     return rows.map((r) => ({
       ...r,
@@ -83,8 +83,8 @@ function buildModel(database) {
 
   const writeLines = (settlementId, lines) => {
     database.prepare('DELETE FROM payment_tenders WHERE settlementId = ?').run(settlementId);
-    const insert = database.prepare('INSERT INTO payment_tenders (settlementId, position, method, amountCents, internal) VALUES (?, ?, ?, ?, ?)');
-    lines.forEach((l, i) => insert.run(settlementId, i + 1, l.method, l.amountCents, l.internal ? 1 : 0));
+    const insert = database.prepare('INSERT INTO payment_tenders (settlementId, position, method, amountCents, internal, source, ref, label) VALUES (?, ?, ?, ?, ?, ?, ?, ?)');
+    lines.forEach((l, i) => insert.run(settlementId, i + 1, l.method, l.amountCents, l.internal ? 1 : 0, l.source || null, l.ref == null ? null : String(l.ref), l.label || null));
   };
 
   // Whether the target's own caisse-interne flag is set: such a target is off the books whole, so only its

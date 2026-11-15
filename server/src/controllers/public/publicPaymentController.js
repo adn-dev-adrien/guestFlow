@@ -19,6 +19,11 @@ const paymentProviders = require('../../utils/paymentProviders');
 const { retireOpenLink } = require('../../utils/paymentLinkDeactivation');
 const { ensurePaymentLink } = require('../../utils/paymentRequestService');
 const { processPaidLink, retryPendingCancellations } = require('../../utils/paymentPollRunner');
+const prepaidSources = require('../../utils/prepaidSources');
+const prepaidReceipts = require('../../utils/prepaidReceipts');
+const { paidDayOf } = require('../../utils/stayPaymentRecorder');
+const { closedDatesRefusal } = require('../../utils/closedStayDates');
+const { datesTakenRefusal } = require('../../utils/datesTaken');
 const { buildPaymentEffectDeps } = require('../../utils/paymentEffectDeps');
 const { fullPaymentCents, fullPaymentComponents } = require('../../utils/devisQuote');
 const { resolvePublicPaymentMode, depositPaymentCents, depositPaymentComponents } = require('../../utils/publicPaymentMode');
@@ -127,6 +132,24 @@ async function pay(req, res) {
   // by a later emailed link); 'full' charges the whole stay. The client never chooses.
   const mode = resolvePublicPaymentMode(db, row.propertyId, depositPaymentCents(db, id, row));
   const linkType = mode === 'deposit' ? 'deposit' : 'full';
+  // SDK 2.31.0 (specs/gift-vouchers.md rule 38) — prepaid money held for this quote pays the earliest amounts first: the link is
+  // minted for what the mode still asks, and when that is nothing the quote is confirmed at once, with no link.
+  const fullNow = () => fullPaymentCents({ database: db, devisModel, calc: calculateReservationQuote }, id, row);
+  let prepaidReduction = 0;
+  if (prepaidSources.heldCentsFor(id) > 0) {
+    const askedCents = mode === 'deposit' ? depositPaymentCents(db, id, row) : fullNow();
+    prepaidReduction = prepaidSources.reductionCents(id, askedCents);
+    if (askedCents - prepaidReduction <= 0) {
+      // The guards a link mint applies (closed nights, nights a stay holds): nothing is minted here, so they are judged here.
+      const refusal = closedDatesRefusal(db, id) || datesTakenRefusal(db, id);
+      if (refusal) return visitorRefusal(res, req, refusal) || res.status(refusal.httpStatus || 409).json({ error: refusal.error, message: refusal.message });
+      const confirmed = await prepaidReceipts.confirmWithoutLink({
+        database: db, devisModel, devisId: id, mode, paidDate: paidDayOf(new Date().toISOString()),
+      });
+      if (!confirmed.ok) return failT(res, req, 409, 'BOOKING_REQUEST_FAILED', 'quoteRefused', [{ field: 'devis', issue: String(confirmed.error || '') }]);
+      return ok(res, { paymentUrl: null, amountCents: 0, currency: 'EUR', status: 'paid', paymentMode: mode, confirmed: true });
+    }
+  }
 
   // If the property's mode flipped between the quote and this pay, retire an open link of the OTHER
   // public type so the guest can't pay the stale one and we don't leave a dangling open link.
@@ -148,12 +171,12 @@ async function pay(req, res) {
       // full = tax-inclusive stay total (unless the tax is collected on arrival).
       resolveAmountCents: (_id, _type, r) => (mode === 'deposit'
         ? depositPaymentCents(db, id, r)
-        : fullPaymentCents({ database: db, devisModel, calc: calculateReservationQuote }, id, r)),
+        : fullPaymentCents({ database: db, devisModel, calc: calculateReservationQuote }, id, r)) - prepaidReduction,
       // VAT basket so the Qonto/Mollie page shows the real TVA while charging exactly the resolved total
       // (specs/payment-links-vat.md). Deposit is accommodation-only (single taxable line).
-      resolveItems: (_id, _type, r) => (mode === 'deposit'
+      resolveItems: (_id, _type, r) => prepaidSources.reduceComponents(mode === 'deposit'
         ? depositPaymentComponents(db, id, r)
-        : fullPaymentComponents({ database: db, devisModel, calc: calculateReservationQuote }, id, r)),
+        : fullPaymentComponents({ database: db, devisModel, calc: calculateReservationQuote }, id, r), prepaidReduction),
       provider,
       redirectUrl: redirectUrl || undefined,
       origin: 'public-payment',

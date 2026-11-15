@@ -885,3 +885,19 @@ msgstr "GuestFlow gift voucher"
 #: blocks/gift-voucher, includes/class-gf-blocks.php (specs/gift-vouchers.md)
 msgid "Le formulaire d’achat s’affiche ici sur le site."
 msgstr "The purchase form appears here on the site."
+
+#: includes/class-gf-blocks.php
+msgid "Appliquer"
+msgstr "Apply"
+
+#: includes/class-gf-blocks.php
+msgid "Retirer le bon"
+msgstr "Remove the voucher"
+
+#: includes/class-gf-blocks.php
+msgid "À payer aujourd’hui"
+msgstr "To pay today"
+
+#: includes/class-gf-blocks.php
+msgid "Confirmer la réservation"
+msgstr "Confirm the booking"

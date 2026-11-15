@@ -1,7 +1,7 @@
 {
   "id": "sas",
   "name": "Arrivée et départ guidés",
-  "version": "1.11.0",
+  "version": "1.11.1",
   "description": "Le sas pas à pas de l’accueil et du départ.",
   "icon": "door",
   "surfaces": [
@@ -182,6 +182,10 @@
       "Un sas rouvert modifie ses lignes sur place et ajoute les nouvelles, qui portent la pastille « Ajoutée à la réouverture » ; les totaux ne changent pas.",
       "« Offrir » au sas d’arrivée (ménage, linge de toilette, lignes déjà vendues) passe par une seule liste, la même propriété « offerte » que la fiche ; rien ne change à l’écran ni dans les montants.",
       "Compatible avec GuestFlow 4 (SDK 2.29)."
+    ],
+    "1.11.1": [
+      "Aucun changement visible : GuestFlow sait désormais qu'une part d'un paiement peut avoir été reçue d'avance (un bon cadeau), ce que ce module lit sans le compter à part.",
+      "Compatible avec GuestFlow 4 (SDK 2.31)."
     ]
   }
 }

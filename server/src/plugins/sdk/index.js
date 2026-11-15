@@ -151,6 +151,9 @@ const CORE_MODULES = Object.freeze({
   paymentSettlementService: '../../utils/paymentSettlementService',
   // a plugin drawing a document in the look of the devis uses the same embedded faces (SDK 2.31.0)
   pdfFonts: '../../utils/pdfFonts',
+  // a plugin's prepaid instrument: what a quote holds of it, and the money a stay received from it (SDK 2.31.0)
+  prepaidSources: '../../utils/prepaidSources',
+  prepaidReceipts: '../../utils/prepaidReceipts',
   // hourly-resources, online-payment, accounting-export — the invoice issuer and the sales made outside any stay
   // (specs/resource-booking-pricing-and-invoicing.md rules 1, 14, 20-21, SDK 2.25.0)
   invoiceIssuers: '../../utils/invoiceIssuers',

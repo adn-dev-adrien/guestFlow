@@ -10,6 +10,8 @@ export default {
       { path: '/bons-cadeaux', Component: lazy(() => import('./GiftVouchersPage')), roles: ['admin'] },
       { path: '/parametres/bons-cadeaux', Component: lazy(() => import('./GiftVoucherSettings')), roles: ['admin'] },
     ],
+    // Rules 40-41 — « Payer par bon cadeau » on a confirmed stay, « Recréditer le bon » on a cancelled one.
+    'reservation.cards': [{ key: 'voucher', order: 20, Component: lazy(() => import('./ReservationVoucherCard')) }],
     'nav.items': [{ path: '/bons-cadeaux', label: 'Bons cadeaux', Icon: CardGiftcardOutlinedIcon, after: '/planning' }],
     'settings.menu': [{
       path: '/parametres/bons-cadeaux', label: 'Bons cadeaux', Icon: CardGiftcardOutlinedIcon, after: '/settings/emails',

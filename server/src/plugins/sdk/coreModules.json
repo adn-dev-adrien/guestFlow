@@ -935,8 +935,10 @@
   ],
   "paymentTenders": [
     "currentCentsOf",
+    "lineLabel",
     "methodLabel",
     "METHODS",
+    "PREPAID",
     "settlementFigures",
     "targetFigures",
     "validateSettlement"
@@ -1080,5 +1082,26 @@
   "pdfFonts": [
     "FACES",
     "registerFaces"
+  ],
+  "prepaidSources": [
+    "apply",
+    "byKind",
+    "heldCentsFor",
+    "heldFor",
+    "labelOf",
+    "liveSources",
+    "reduceComponents",
+    "reductionCents",
+    "releaseFor"
+  ],
+  "prepaidReceipts": [
+    "allocate",
+    "confirmWithoutLink",
+    "owedCentsOn",
+    "owedOnStay",
+    "receivedOn",
+    "recordOnStay",
+    "settleAtConversion",
+    "undoOnStay"
   ]
 }

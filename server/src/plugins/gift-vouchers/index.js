@@ -19,6 +19,8 @@ const { createProof } = require('./proof');
 const { createReceipt } = require('./receipt');
 const { createOrderPaid, SOURCE } = require('./orderPaid');
 const { renderVoucherPdf } = require('./voucherPdf');
+const { createRedemption, SOURCE: PREPAID_SOURCE, LABEL: PREPAID_LABEL } = require('./redemption');
+const { buildStayController } = require('./controllers/stayController');
 const { buildAdminController } = require('./controllers/adminController');
 const { buildPublicCheckController } = require('./controllers/publicCheckController');
 const { buildPublicOrdersController } = require('./controllers/publicOrdersController');
@@ -30,6 +32,7 @@ const PEPPER_NAME = 'GIFT_VOUCHER_PEPPER';
 const PUSH_CHANNEL = 'gift-voucher-checks';
 const DAY_MS = 24 * 60 * 60 * 1000;
 const RECEIPT_RETRY_MS = 15 * 60 * 1000;
+const HOLD_CHECK_MS = 60 * 60 * 1000;
 const ERASE_REFUSAL = 'Des bons ont encore un solde : les annuler ou attendre leur expiration avant d’effacer les données.';
 const PAUSED_ITEM = Object.freeze({
   title: 'Vérification des bons cadeaux suspendue',
@@ -86,7 +89,7 @@ function userNameFrom(db) {
 function buildGiftVouchersApi({
   db, pepper, encrypt, decrypt, settingsStore = () => memorySettings(), now = () => new Date(), quote, pow, powSecret, guard,
   sendMail, paymentMethods, userName = userNameFrom(db), companyName, pageUrl, bookingUrl, termsVersionId = () => null, onlineSaleAvailable = () => false,
-  payments, siteOrigin = () => '', limiters = {},
+  payments, siteOrigin = () => '', limiters = {}, isConverted = () => false, stayOf = () => null, collectedCents = () => 0, receipts = null,
   randomBytes, onCheckLimitsTrip = () => {}, transaction = (fn) => db.transaction(fn)(),
 }) {
   const get = (key) => settingsStore().get(key);
@@ -116,13 +119,19 @@ function buildGiftVouchersApi({
   const check = buildPublicCheckController({
     vouchers, checks, limits: checkLimits, pepper, proof, ipOf, now, respond,
   });
+  const redemption = createRedemption({
+    db, vouchers, movements, checks, limits: checkLimits, pepper, ipOf: (visitor) => pow.ipKeyOf(visitor.ip) || 'unknown', now, transaction,
+  });
+  const stays = buildStayController({
+    vouchers, movements, redemption, pepper, transaction, stayOf, collectedCents, receipts, now,
+  });
   const offer = buildPublicOrdersController({
     ideas, limits, termsVersionId, available: onlineSaleAvailable, brand: companyName, respond, orders, vouchers, proof, pepper, ipOf, payments, siteOrigin,
     decrypt, renderPdf: renderVoucherPdf, bookingUrl, now,
   });
 
   return {
-    adminRouter: buildAdminRouter({ admin }),
+    adminRouter: buildAdminRouter({ admin, stays }),
     publicRouter: buildPublicRouter({
       guard, offer, check, limiters,
     }),
@@ -141,6 +150,9 @@ function buildGiftVouchersApi({
     purgeStaleOrders: () => orders.purgeStalePending(),
     retryReceipts: () => receipt.retryPending(),
     purgeOldChecks: () => checks.purgeOld(),
+    releaseLapsedHolds: () => redemption.releaseLapsed({ isConverted }),
+    redemption,
+    stays,
     attention: { handler: (req, res) => res.json({ paused: checkLimits.isPaused() }), summarize: summarizeChecks },
   };
 }
@@ -180,6 +192,18 @@ function register(ctx) {
       refreshLink: (linkId) => sdk.core.payments.refreshBasketLink(linkId),
     },
     siteOrigin,
+    stayOf: (id) => sdk.coreModule('reservationsModel').getRow(Number(id)) || null,
+    isConverted: (devisId) => {
+      const quote = sdk.coreModule('reservationsModel').getRow(Number(devisId));
+      return Boolean(quote && (quote.kind !== 'devis' || quote.convertedReservationId));
+    },
+    collectedCents: (stay) => Math.round(sdk.coreModule('reservationSettlement').comptaCollected(stay) * 100),
+    receipts: {
+      receivedOn: (stayId) => sdk.coreModule('prepaidReceipts').receivedOn(ctx.db, stayId, PREPAID_SOURCE),
+      owedCentsOn: (stayId) => sdk.coreModule('prepaidReceipts').owedCentsOn(ctx.db, stayId),
+      recordOnStay: (args) => sdk.coreModule('prepaidReceipts').recordOnStay({ database: ctx.db, ...args }),
+      undoOnStay: (args) => sdk.coreModule('prepaidReceipts').undoOnStay({ database: ctx.db, ...args }),
+    },
     limiters: {
       payStart: sdk.coreModule('rateLimiters').paymentStartLimiter,
       status: sdk.coreModule('rateLimiters').paymentStatusLimiter,
@@ -215,6 +239,15 @@ function register(ctx) {
     summarize: (payload) => summarizeChecks(payload),
   });
   ctx.paymentBasket({ source: SOURCE, paid: (event) => api().orderPaid(event) });
+  // Rules 36-39 — the voucher as a means of payment on a booking: the core holds, prices and settles through these four calls.
+  ctx.prepaid({
+    source: PREPAID_SOURCE,
+    label: PREPAID_LABEL,
+    apply: (args) => api().redemption.apply(args),
+    held: (devisId) => api().redemption.held(devisId),
+    settle: (args) => api().redemption.settle(args),
+    release: (args) => api().redemption.release(args),
+  });
   ctx.events.on('pricing.changed', () => { if (built) built.ideas.invalidate(); });
 
   ctx.jobs.every({
@@ -222,6 +255,9 @@ function register(ctx) {
   });
   ctx.jobs.every({
     name: 'receipts-retry', intervalMs: RECEIPT_RETRY_MS, bootDelayMs: 240 * 1000, run: async () => { await api().retryReceipts(); },
+  });
+  ctx.jobs.every({
+    name: 'holds-release', intervalMs: HOLD_CHECK_MS, bootDelayMs: 270 * 1000, run: async () => { api().releaseLapsedHolds(); },
   });
   ctx.jobs.every({
     name: 'checks-purge', intervalMs: DAY_MS, bootDelayMs: 330 * 1000, run: async () => { api().purgeOldChecks(); },

@@ -1,7 +1,7 @@
 {
   "id": "google-vacation-rentals",
   "name": "Google Vacation Rentals",
-  "version": "1.0.7",
+  "version": "1.0.8",
   "description": "Envoie à Google les prix du site et les disponibilités de chaque logement.",
   "icon": "travel-explore",
   "surfaces": [
@@ -45,6 +45,10 @@
     "1.0.7": [
       "Les arrondis en euros et en centimes passent par un calcul commun du cœur : aucun montant ne change.",
       "Compatible avec GuestFlow 4 (SDK 2.29)."
+    ],
+    "1.0.8": [
+      "Aucun changement visible : GuestFlow sait désormais qu'une part d'un paiement peut avoir été reçue d'avance (un bon cadeau), ce que ce module lit sans le compter à part.",
+      "Compatible avec GuestFlow 4 (SDK 2.31)."
     ]
   }
 }

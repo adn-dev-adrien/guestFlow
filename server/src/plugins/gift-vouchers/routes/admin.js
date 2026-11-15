@@ -2,8 +2,13 @@
 
 const express = require('express');
 
-function buildAdminRouter({ admin }) {
+function buildAdminRouter({ admin, stays }) {
   const router = express.Router();
+  // A voucher on a fiche (rules 40-41): declared before `/:id`, which would read « stays » as a voucher.
+  router.get('/stays/:reservationId', stays.read);
+  router.post('/stays/:reservationId/pay', stays.pay);
+  router.post('/stays/:reservationId/recredit', stays.recredit);
+  router.delete('/stays/:reservationId/payments/:ref', stays.undo);
   router.get('/', admin.list);
   router.post('/', admin.create);
   router.get('/:id', admin.read);

@@ -68,6 +68,7 @@ const HARDENINGS = [
   { feature: 'shared proof of work', sdk: '2.31.0', pattern: /\.proofOfWork\b/ },
   // specs/gift-vouchers.md rules 16-17 — a payment link with no stay, settled by the plugin that minted it.
   { feature: 'payment link with no stay', sdk: '2.31.0', pattern: /\bpayments\.saleLink\b/ },
+  { feature: 'prepaid instruments', sdk: '2.31.0', pattern: /\bctx\.prepaid\(/ },
   { feature: 'e-mail outside a stay', sdk: '2.31.0', pattern: /\bctx\.mail\.send\(/ },
 ];
 

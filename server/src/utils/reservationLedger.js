@@ -21,7 +21,7 @@ const { END_OF_STAY_BEFORE_CHECKOUT_CAPTION } = require('./endOfStayCheckout');
 const { saleChannel } = require('./saleChannel');
 const { platformDisplay } = require('./platformDisplay');
 const { localIsoDate, localHourMinute } = require('./localDate');
-const { METHODS: TENDER_METHODS, methodLabel, targetFigures, currentCentsOf } = require('./paymentTenders');
+const { METHODS: TENDER_METHODS, PREPAID, lineLabel, targetFigures, currentCentsOf } = require('./paymentTenders');
 const { roundedToCents: cents } = require('./pricing/money');
 const { netOfCommission } = require('./pricing/platformPayment');
 
@@ -954,9 +954,10 @@ function decorateSplitRows(rows, { stay = null, settlements, canAct, stayYear, i
         paidDate: s.paidDate,
         // The row's state already says « Perçu le … · plusieurs moyens »: the first block is named for what it lists.
         label: i === 0 ? 'Moyens de paiement' : `Reste perçu le ${shortDate(s.paidDate, stayYear)}`,
-        lines: s.tenders.map((t) => ({ label: `${methodLabel(t.method)} ${formatEuros(t.amountCents / 100)}`, internal: Number(t.internal) === 1 })),
+        lines: s.tenders.map((t) => ({ label: `${lineLabel(t)} ${formatEuros(t.amountCents / 100)}`, internal: Number(t.internal) === 1 })),
         shortfall,
-        edit: canAct ? {
+        // A prepaid line is the plugin's: its undo is the plugin's gesture, never the split form's « Modifier ».
+        edit: canAct && !s.tenders.some((t) => t.method === PREPAID) ? {
           dueCents: s.dueCents,
           tenders: s.tenders.map((t) => ({ method: t.method, amountCents: t.amountCents, internal: Number(t.internal) === 1 })),
           shortfallKind: s.shortfallKind || null,

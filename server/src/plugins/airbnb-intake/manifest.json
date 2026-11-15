@@ -1,7 +1,7 @@
 {
   "id": "airbnb-intake",
   "name": "Saisie Airbnb",
-  "version": "1.1.11",
+  "version": "1.1.12",
   "description": "Remplit les fiches Airbnb depuis le mail « Réservation confirmée ».",
   "icon": "mail",
   "surfaces": [
@@ -83,6 +83,10 @@
       "Les arrondis en euros et en centimes passent par un calcul commun du cœur : aucun montant ne change.",
       "Un séjour déjà commencé est refusé d'après l'horloge du séjour du cœur : même résultat qu'avant.",
       "Compatible avec GuestFlow 4 (SDK 2.29)."
+    ],
+    "1.1.12": [
+      "Aucun changement visible : GuestFlow sait désormais qu'une part d'un paiement peut avoir été reçue d'avance (un bon cadeau), ce que ce module lit sans le compter à part.",
+      "Compatible avec GuestFlow 4 (SDK 2.31)."
     ]
   }
 }

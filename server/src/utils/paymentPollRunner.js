@@ -126,12 +126,17 @@ function applyPaidEffect({ database, devisModel, link, checkConflict, paidDate =
     // An already converted devis is compared with the stay it became, which the fiche may have re-priced.
     const priced = effect === 'already-converted' && convertedRow && convertedRow.kind === 'reservation' ? convertedRow : row;
     const hasSplit = priced.depositAmount != null && priced.balanceAmount != null;
-    const expectedCents = hasSplit ? linkAmountCents(link.type, priced) : null;
+    // SDK 2.31.0 (specs/gift-vouchers.md rule 38) — a quote that holds prepaid money was charged what the mode asks LESS that money.
+    const prepaidReduction = hasSplit && effect === 'converted' ? prepaidReductionOf(link, priced) : 0;
+    const expectedCents = hasSplit ? linkAmountCents(link.type, priced) - prepaidReduction : null;
+    const settlePrepaid = () => settlePrepaidOf({ database, link, stayId: reservationId, paidDate });
     if (expectedCents != null && link.amountCents != null && Number(link.amountCents) !== expectedCents) {
       const booked = bookPaidAfterAmountChange({ database, recordPayment }, link, { paidDay: paidDate });
+      if (prepaidReduction > 0) settlePrepaid();
       return { effect: booked.effect, reservationId, conflict, closed, justConverted: effect === 'converted', amountMismatch: mismatchOf(link, priced, database, paidDate) };
     }
     recordPayment({ reservationId, bucket: isFull ? 'full' : 'deposit', paidDate });
+    if (prepaidReduction > 0) settlePrepaid();
     return { effect, reservationId, conflict, closed };
   }
 
@@ -170,6 +175,23 @@ function applyPaidEffect({ database, devisModel, link, checkConflict, paidDate =
     return { effect: 'balance-marked' };
   }
   return { effect: 'noop' };
+}
+
+// What the prepaid money held for the link's quote takes off the link's own amount (`publicPaymentController.pay` minted it so).
+function prepaidReductionOf(link, stay) {
+  const held = require('./prepaidSources').heldCentsFor(link.reservationId);
+  return held > 0 ? Math.min(held, linkAmountCents(link.type, stay)) : 0;
+}
+
+// Redeems the held money and writes its settlements; the payment itself stays recorded whatever happens here.
+function settlePrepaidOf({ database, link, stayId, paidDate }) {
+  try {
+    require('./prepaidReceipts').settleAtConversion({
+      database, devisId: link.reservationId, stayId, linkType: link.type, linkCents: Number(link.amountCents), paidDate,
+    });
+  } catch (err) {
+    console.error('[payments] could not record the prepaid money of a paid link:', err && err.message); // eslint-disable-line no-console
+  }
 }
 
 function basketOfLink(database, link) {

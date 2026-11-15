@@ -57,7 +57,7 @@ final class GF_Blocks
         wp_register_script('gf-pow', GF_BOOKING_URL . 'assets/pow.js', [], $this->asset_ver('assets/pow.js'), true);
 
         // The voucher code: normalisation, grouping and the check character, shared by the gift voucher
-        // block and (later) the booking engine's code field (specs/gift-vouchers.md rules 30 and 34).
+        // block and the booking engine's code field (specs/gift-vouchers.md rules 30 and 34).
         wp_register_script('gf-voucher-code', GF_BOOKING_URL . 'assets/voucher-code.js', ['gf-runtime'], $this->asset_ver('assets/voucher-code.js'), true);
 
         foreach (self::BLOCKS as $name) {
@@ -71,7 +71,7 @@ final class GF_Blocks
             wp_register_script(
                 "guestflow-{$name}-view",
                 GF_BOOKING_URL . "blocks/{$name}/view.js",
-                $name === 'booking' ? ['gf-runtime', 'gf-pow'] : ($name === 'gift-voucher' ? ['gf-runtime', 'gf-voucher-code', 'gf-pow'] : ['gf-runtime']),
+                $name === 'booking' ? ['gf-runtime', 'gf-voucher-code', 'gf-pow'] : ($name === 'gift-voucher' ? ['gf-runtime', 'gf-voucher-code', 'gf-pow'] : ['gf-runtime']),
                 $this->asset_ver("blocks/{$name}/view.js"),
                 true
             );
@@ -250,6 +250,17 @@ final class GF_Blocks
                 'payDepositAmount' => __('Payer l’acompte %s', 'guestflow-booking'),
                 'sendRequestNoPay' => __('Envoyer une demande sans payer', 'guestflow-booking'),
                 'requestNoPayHint' => __('Une question avant de vous engager ? Envoyez une demande : aucun paiement tant que nous n’avons pas répondu.', 'guestflow-booking'),
+                // « Bon cadeau » on the booking engine (specs/gift-vouchers.md rules 36-38).
+                'voucherApply'    => __('Appliquer', 'guestflow-booking'),
+                'voucherRemove'   => __('Retirer le bon', 'guestflow-booking'),
+                'voucherLength'   => __('Le code compte %d caractères.', 'guestflow-booking'),
+                'voucherMistyped' => __('Code mal recopié : vérifier chaque caractère.', 'guestflow-booking'),
+                'voucherUnknown'  => __('Code inconnu. Encore %d essais.', 'guestflow-booking'),
+                'voucherExpired'  => __('Ce bon a expiré le %s.', 'guestflow-booking'),
+                'voucherExhausted' => __('Ce bon est entièrement utilisé.', 'guestflow-booking'),
+                'voucherTooMany'  => __('Trop d’essais. Nouvelle saisie possible dans 15 minutes.', 'guestflow-booking'),
+                'payToday'        => __('À payer aujourd’hui', 'guestflow-booking'),
+                'confirmBooking'  => __('Confirmer la réservation', 'guestflow-booking'),
                 // Gift voucher tunnel (specs/gift-vouchers.md §6).
                 'gvTitle'         => __('Offrir un séjour', 'guestflow-booking'),
                 'gvIntro'         => __('Un montant au choix, valable %d mois, à utiliser en une ou plusieurs fois.', 'guestflow-booking'),

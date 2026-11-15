@@ -222,6 +222,16 @@ button.gf-cal-day.gf-shake { animation: gf-shake .32s cubic-bezier(.36, .07, .19
 .gf-summary-line { display: flex; justify-content: space-between; gap: .75rem; padding: .15rem 0; }
 .gf-summary-line > span:last-child { white-space: nowrap; }
 .gf-summary-total { font-weight: 700; border-top: 1px solid var(--gfb-border); margin-top: .35rem; padding-top: .35rem; }
+/* « Bon cadeau » on the booking engine (specs/gift-vouchers.md rules 36-38): one field, its button, the server's refusal under it. */
+.gf-voucher { margin: 1rem 0; }
+.gf-voucher[hidden] { display: none; }
+.gf-voucher-row { display: flex; gap: .5rem; align-items: stretch; flex-wrap: wrap; }
+.gf-voucher-row .gf-input { flex: 1 1 14rem; min-width: 0; font-variant-numeric: tabular-nums; letter-spacing: .04em; }
+.gf-voucher-row .gf-voucher-apply { min-height: 44px; }
+.gf-voucher-remove { background: none; border: 0; padding: .5rem; min-height: 44px; cursor: pointer; color: inherit; text-decoration: underline; }
+.gf-voucher-remove[hidden] { display: none; }
+.gf-summary-voucher span:last-child { color: var(--gfb-fill); }
+@media (max-width: 600px) { .gf-voucher-row .gf-voucher-apply { flex: 1 1 100%; } }
 .gf-inline-warn { color: var(--gfb-warn); background: var(--gfb-warn-soft); border: 1px solid var(--gfb-warn-soft); border-radius: 6px; padding: .5rem .75rem; margin: .5rem 0; }
 .gf-success { color: var(--gfb-ok); background: var(--gfb-ok-soft); border: 1px solid var(--gfb-ok-soft); border-radius: 8px; padding: 1rem; }
 /* The primary action. `.gf-btn` is never styled bare: the Solio site has its own `.gf-btn`

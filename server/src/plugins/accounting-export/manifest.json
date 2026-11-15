@@ -1,7 +1,7 @@
 {
   "id": "accounting-export",
   "name": "Export comptable",
-  "version": "1.3.0",
+  "version": "1.3.1",
   "description": "Écritures, plan comptable et export pour le cabinet comptable.",
   "icon": "book",
   "surfaces": [
@@ -175,6 +175,10 @@
       "Nouveau réglage « Compte des boissons » : sans lui, un export dont la période contient une boisson est refusé plutôt que passé sur un compte faux.",
       "Sur un séjour réservé une fois GuestFlow 4.2 installé, chaque encaissement est ventilé sur les lignes vendues du séjour et sa TVA calculée une fois par classe et par taux ; un avoir de ce séjour aussi. Les séjours réservés avant gardent leurs écritures, mois déclarés compris.",
       "Compatible avec GuestFlow 4 (SDK 2.30)."
+    ],
+    "1.3.1": [
+      "Un montant reçu d'avance (un bon cadeau) n'est plus compté comme un encaissement : l'écriture d'un séjour payé en partie par bon ne prend que la part réellement encaissée.",
+      "Compatible avec GuestFlow 4 (SDK 2.31)."
     ]
   }
 }

@@ -16,7 +16,11 @@ const SRC = path.join(__dirname, '..');
 test('SDK 2.31.0: the version is bumped by a minor and the history records what it added', () => {
   assert.equal(SDK_VERSION, '2.31.0');
   const entry = HISTORY.added.find((a) => a.version === '2.31.0');
-  assert.deepEqual(entry, { version: '2.31.0', modules: ['pdfFonts'], names: { paymentTenders: ['METHODS'] } });
+  assert.deepEqual(entry, {
+    version: '2.31.0',
+    modules: ['pdfFonts', 'prepaidReceipts', 'prepaidSources'],
+    names: { paymentTenders: ['lineLabel', 'METHODS', 'PREPAID'] },
+  });
 });
 
 test('SDK 2.31.0: middleware.publicApi is the key guard, the visitor context and the per-visitor limiter, in that order', () => {
@@ -103,7 +107,8 @@ test('SDK 2.31.0: the payment methods come from the core list, never copied by a
 });
 
 test('SDK 2.31.0: nothing the core gained for the plugin names it — no « voucher » in the SDK, the guards, the mail or the fonts', () => {
-  ['plugins/sdk/index.js', 'plugins/sdk/createContext.js', 'middleware/requirePublicApiKey.js', 'middleware/visitorContext.js', 'utils/proofOfWork.js', 'utils/pdfFonts.js']
+  ['plugins/sdk/index.js', 'plugins/sdk/createContext.js', 'middleware/requirePublicApiKey.js', 'middleware/visitorContext.js', 'utils/proofOfWork.js', 'utils/pdfFonts.js',
+    'utils/prepaidSources.js', 'utils/prepaidReceipts.js', 'plugins/website-booking/publicPrepaid.js']
     .forEach((file) => assert.equal(/voucher|bon cadeau/i.test(fs.readFileSync(path.join(SRC, file), 'utf8')), false, file));
   const controller = fs.readFileSync(path.join(SRC, 'controllers/pluginsController.js'), 'utf8');
   assert.equal(/voucher/i.test(controller), false);

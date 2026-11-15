@@ -553,9 +553,12 @@ CREATE TABLE IF NOT EXISTS payment_tenders (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     settlementId INTEGER NOT NULL REFERENCES payment_settlements(id) ON DELETE CASCADE,
     position INTEGER NOT NULL,
-    method TEXT NOT NULL CHECK (method IN ('card','cash','cheque','transfer','holidayVoucher','other')),
+    method TEXT NOT NULL CHECK (method IN ('card','cash','cheque','transfer','holidayVoucher','other','prepaid')),
     amountCents INTEGER NOT NULL CHECK (amountCents > 0),
-    internal INTEGER NOT NULL DEFAULT 0 CHECK (internal IN (0,1) AND (internal = 0 OR method = 'cash'))
+    internal INTEGER NOT NULL DEFAULT 0 CHECK (internal IN (0,1) AND (internal = 0 OR method = 'cash')),
+    source TEXT,
+    ref TEXT,
+    label TEXT
   );
 
 CREATE TABLE IF NOT EXISTS resource_properties (

@@ -65,6 +65,8 @@ function emptyRecord(id) {
     suggestionContexts: [],
     // specs/guest-app.md rules 35-36 (SDK 2.26.0) — [{ source, paid }]: what a paid basket link does.
     paymentBaskets: [],
+    // specs/gift-vouchers.md rules 36-42 (SDK 2.31.0) — [{ source, label, apply, held, settle, release }]: the prepaid instruments a plugin keeps the balance of.
+    prepaidSources: [],
     // specs/plugins-phase-1-sdk.md rule 48, specs/guest-app.md rules 47, 52 (SDK 2.26.0) — [{ key, path, host, handler }]:
     // a web app the plugin serves itself, at a path of its own or on a host of its own.
     webApps: [],

@@ -207,25 +207,35 @@ code types it while booking dates, and the voucher's balance pays for the stay, 
     the transaction that creates the draft devis, writes a `hold` of `min(balance, total of the stay)`
     for that devis. One voucher per online request.
 37. A held amount is unavailable to any other request. The hold is released (`release` movement) when
-    the devis is refused, deleted or expires unpaid, by the same paths that retire its payment link.
+    the devis is deleted (the operator's delete, the 30-day purge of untouched requests) or lapses unpaid
+    (an hourly job gives back the holds of a quote still unconverted 72 hours later — longer than a
+    payment link lives, so a link paid at the last minute still finds its hold). A devis has no « refused »
+    state in the code base: deletion is the only refusal.
 38. **The voucher pays the earliest amounts due first**: the acompte, then the solde. « À payer
     aujourd'hui » is what the chosen mode (acompte or total) still asks after the voucher; the card link
-    is minted for that amount. When nothing is due now, no link is minted: the request confirms at once
-    and the devis converts to a reservation by the same function a paid link calls.
+    is minted for that amount (its VAT basket reduced the stay line first, and the amount-mismatch guard of
+    the paid link expects that reduced amount). When nothing is due now, no link is minted: the payment
+    step confirms at once and the devis converts to a reservation through the same effect a paid link has.
+    The hold may exceed what the mode asks (300 € on a 268 € stay in acompte mode): the solde is then
+    paid by the voucher too — whole, or in part with a « Reste à percevoir » (mixed-method-payments rule 16).
 39. At conversion the hold becomes a `redeem` movement and the reservation carries the voucher amount as
     **money received, method « Bon cadeau »**, dated that day, visible as its own line in the fiche's
     payments. The stay's price, tourist tax, commission and statistics are those of the same stay paid
     by card (Q1, resolved).
 40. **On a fiche**, « Payer par bon cadeau » (admin) takes a code and an amount up to the balance and
-    what the stay still owes, and writes the same `redeem` and the same received amount. Undoing it
+    what the stay still owes — its acompte and solde, the stay's price; the arrival complement and the end
+    of stay keep their own gestures — and writes the same `redeem` and the same received amount (acompte
+    first, whole or not at all; then the solde, a part being a reste à percevoir). Undoing it
     writes a `refund` movement and removes the received amount. Cancelling the reservation offers
     « Recréditer le bon » for the voucher part, never a refund in money; the cancellation indemnity is
     taken from the card and other payments first.
 41. A voucher that expires while held or redeemed is not taken back: expiry stops new uses only. A
     `refund` on an expired voucher re-credits it and extends it by 3 months from that day.
 42. The books count a voucher's money once: when it was collected (the voucher's sale). The « Bon
-    cadeau » amount received by a stay is not a second encaissement and is never expected at the bank
-    (open question Q3 settles accounts and VAT).
+    cadeau » amount received by a stay is not a second encaissement and is never expected at the bank:
+    the tender line is `prepaid`, which is no bank method and whose `collectedCents` the accounting export
+    and the finance dashboard's encaissements leave out (mixed-method-payments rule 60). The stay still
+    counts it as received (what it owes, « Perçu »). Open question Q3 settles accounts and VAT.
 
 **Edge cases:**
 - Amount `19,99`, `2000,01`, `12,345`, `abc`, empty → refused inline, each with its own sentence.
@@ -272,8 +282,9 @@ code types it while booking dates, and the voucher's balance pays for the stay, 
 | utils | `ideas.js` | Price guidance from the quote engine, cached (rule 14) |
 | utils | `voucherPdf.js` | pdfkit A4 voucher + QR |
 | utils | `rateLimiters.js` | Per-visitor limits and the global breaker |
-| utils | `redemption.js` | hold / release / redeem / refund in one transaction each |
-| jobs | in `index.js` | Purge pending orders (daily), retry receipts (15 min), purge checks (daily) |
+| utils | `redemption.js` | The plugin's side of `ctx.prepaid` (`apply` holds, `held`, `settle` releases then redeems, `release`), the lapsed-hold job, and `refund` (re-credit, +3 months on an expired voucher) |
+| controllers | `controllers/stayController.js` | The fiche's payload, « Payer par bon cadeau », its undo and « Recréditer le bon » |
+| jobs | in `index.js` | Purge pending orders (daily), retry receipts (15 min), release lapsed holds (hourly), purge checks (daily) |
 
 **Core additions — generic, none names vouchers:**
 
@@ -283,9 +294,11 @@ code types it while booking dates, and the voucher's balance pays for the stay, 
 | `plugins/website-booking/` | `requirePublicApiKey.js`, `visitorContext` | T | Re-exported from the SDK; behaviour unchanged |
 | `utils/`, `controllers/` | `paymentRequestService.js` (`ensureSaleLink`), `basketPayments.js` (`saleLink`), `paymentsController.js`, `plugins/sdk/coreServices.js` | C/T | `core.payments.saleLink({ source, ref, title, amountCents }, { redirectUrl })` (SDK 2.31.0): the link of a plugin's basket with no stay, billed to `<source>:<ref>` in the existing `payment_links.saleRef`; PR C's `saleRef` column and no-orphan rules are consumed as delivered |
 | `utils/` | `paymentPollRunner.js` (`applyPaidEffect`) | T | A paid link whose `saleRef` is a plugin's basket source goes to `ctx.paymentBasket`'s `paid` with `reservationId: null` (stays and `standalone-sale` links unchanged) |
-| `utils/`, `models/` | received-in-advance amount on a reservation | C/T | A generic « amount received from a plugin source » the schedule, the public payment amount, the ledger, the refund register, the export and the reconciliation read. Its exact shape is fixed in the implementation plan, on top of PR C's settlement and allocation components |
-| `plugins/sdk/` | `createContext.js`, `coreModuleHistory.json` | T | `ctx.paymentBasket` documents `reservationId: null`; no new module name, so the 2.31.0 history entry is unchanged |
-| `plugins/website-booking/` | `publicBookingRequestController.js` | T | Passes an opaque `prepaid` field of the request to a registered hook; knows nothing of vouchers |
+| `utils/`, `models/`, `schema.sql` | `paymentTenders.js`, `paymentSettlementsModel.js`, `paymentSettlementsMigration.js` | T | The received-in-advance amount is a tender line of the method `prepaid` with its `source`, `ref` and `label`: the CHECK of `payment_tenders.method` is widened and the three columns added by an idempotent table rebuild (`changelog.d/migration--gift-vouchers-tender-method.md`); `settlementFigures` gains `prepaidCents` and `collectedCents` (mixed-method-payments rules 59-60) |
+| `utils/` | `prepaidSources.js`, `prepaidReceipts.js` (SDK modules) | C | What a quote holds, what it takes off the public payment, the settlements written at conversion and by the fiche, the confirmation without a link (rules 59-62) |
+| `utils/`, `controllers/`, `models/` | `paymentPollRunner.js`, `publicPaymentController.js`, `devisModel.js`, `reservationLedger.js`, `accountingOutput.js`, `financeDashboardModel.js` | T | The reduced amount and the conversion hook, the pay route's reduction and no-link path, the release on delete, the ledger line « Bon cadeau » (no « Modifier »), the journals reading `collectedCents` |
+| `plugins/sdk/` | `createContext.js`, `registry.js`, `index.js`, `coreModules.json`, `coreModuleHistory.json` | T | `ctx.prepaid({ source, label, apply, held, settle, release })` and the two modules, all at the 2.31.0 entry (no new minor) |
+| `plugins/website-booking/` | `publicPrepaid.js`, `publicBookingRequestController.js`, `publicQuoteController.js` | T | Passes the opaque `prepaid` field of the request and of the quote to the live source, in the request's own transaction; knows nothing of vouchers; the quote lists `payment.prepaidKinds` while a plugin takes one |
 
 **Notes:**
 - Depends on pricing-components **PR C merged** (link without reservation, standalone sale). Building
@@ -303,7 +316,7 @@ code types it while booking dates, and the voucher's balance pays for the stay, 
 | plugin | `plugins/gift-vouchers/GiftVoucherDetail.jsx`, `GiftVoucherActionDialogs.jsx` | C | The detail (side panel on `lg`, dialog below) and its « Prolonger » / « Corriger le solde » dialogs |
 | plugin | `plugins/gift-vouchers/giftVouchersApi.js`, `giftVoucherTexts.js`, `giftVoucherFormat.js` | C | `/api/gift-vouchers/*` calls, French copy and state maps, cents ↔ euros display |
 | core (client) | `constants/plugins.js`, `plugins/sdk/index.js` | M | `GIFT_VOUCHERS` id; no payment-method list on the client: the admin list payload carries `paymentMethods` |
-| plugin | `plugins/gift-vouchers/ReservationVoucherCard.jsx` | C | « Payer par bon cadeau » in the `reservation.cards` slot |
+| plugin | `plugins/gift-vouchers/ReservationVoucherCard.jsx` | C | « Payer par bon cadeau », its undo and « Recréditer le bon » in the `reservation.cards` slot; renders what `GET /api/gift-vouchers/stays/:id` shapes |
 
 | Category | Components | Notes |
 |---|---|---|
@@ -319,7 +332,7 @@ code types it while booking dates, and the voucher's balance pays for the stay, 
 | `includes/class-gf-rest-proxy.php` | T | Proxy routes for `gift-vouchers/{offer,orders,orders/:id/pay,orders/:id,check}` and the PDF stream; the pay route forwards the token and a same-site `returnPath` only |
 | `includes/class-gf-shortcodes.php`, `class-gf-blocks.php` | T | `[guestflow_gift_voucher]`, `[guestflow_gift_voucher_button]`, block registration |
 | `assets/voucher-code.js` | C | Normalise, group and pre-check a code — used by both blocks |
-| `blocks/booking/view.js` | T | One « Bon cadeau » field at the payment step, sent as `prepaid`; rendered only when `offer.available` |
+| `blocks/booking/view.js` | T | One « Bon cadeau » field at the payment step (code normalised and check-verified by `GF.voucherCode`, `#bon=` of the QR prefilled), sent as `prepaid` with the quote and with a paying request; rendered only while the quote lists `payment.prepaidKinds`; shows the server's `− applied` and « À payer aujourd'hui » |
 | `assets/style.css` | T | Voucher card and code field, on the existing `--gfb-*` tokens |
 
 The Solio header button and the « Bon cadeau » page are site content (WordPress on the site host), not
@@ -347,12 +360,22 @@ Admin — session, admin role, `requirePlugin`:
 | POST | `/api/gift-vouchers` | manual issue (rule 24) | `201` voucher |
 | POST | `/api/gift-vouchers/:id/{extend,cancel,adjust,resend,reveal}` | per action | voucher, or `{ code }` for `reveal` |
 | GET | `/api/gift-vouchers/:id/pdf` | — | `application/pdf` |
-| POST | `/api/reservations/:id/gift-voucher` | `{ code, amountCents }` | ledger payload |
-| DELETE | `/api/reservations/:id/gift-voucher/:movementId` | — | ledger payload |
+| GET | `/api/gift-vouchers/stays/:reservationId` | — | `{ reservationId, kind, canPay, owedCents, lines:[{ ref, label, amountCents, paidDate, buckets, undoable }], recredit?:{ voucherCents, recreditCents, keptCents } }` (`recredit` on a cancelled stay) |
+| POST | `/api/gift-vouchers/stays/:reservationId/pay` | `{ code, amountCents }` | the same payload; 400/404/409 with `{ error, message }` |
+| DELETE | `/api/gift-vouchers/stays/:reservationId/payments/:ref` | — | the same payload |
+| POST | `/api/gift-vouchers/stays/:reservationId/recredit` | — | the same payload |
 
-The booking request gains `prepaid: { kind: 'giftVoucher', code }` to `POST /public/v1/booking-requests`; an unknown
-`kind` or an inactive plugin → 400 `PREPAID_UNAVAILABLE`. Additions only: `/public/v1/**` keeps every
-existing field (a Y release).
+The fiche's routes live under the plugin's own tree (`/api/gift-vouchers/stays/…`), not under `/api/reservations`: a plugin owns no path outside its mounts.
+
+The booking request and the quote gain `prepaid: { kind: 'giftVoucher', code }` (`POST /public/v1/booking-requests`,
+`POST /public/v1/quote`); an unknown `kind` or an inactive plugin → 400 `PREPAID_UNAVAILABLE`. On the request, a refused code
+answers its own status and code (`VOUCHER_CODE_MISTYPED` 400, `VOUCHER_UNKNOWN` 404 with `triesLeft`, `VOUCHER_EXPIRED` /
+`VOUCHER_EXHAUSTED` 409, `VOUCHER_BALANCE_CHANGED` 409 with `balanceCents`, the check limits 429 + `Retry-After`) and creates
+nothing; the response carries `prepaid: { label, appliedCents, dueTodayCents, balanceLeftCents }`. On the quote, a refused
+code never fails the quote: `payment.prepaid` is `{ refused: { code, message, … } }` or the same block as the request's, and
+`payment.prepaidKinds: [{ kind, label }]` is present while a plugin takes a prepaid means of payment (the field the page
+shows). `POST /booking-requests/:id/pay` answers `{ paymentUrl: null, amountCents: 0, confirmed: true }` when nothing is due.
+Additions only: `/public/v1/**` keeps every existing field (a Y release).
 
 ---
 
@@ -370,8 +393,11 @@ Plugin tables, created by plugin migrations (`plugin:gift-vouchers:*`), no core 
   `reservationId`, `devisId`, `actor`, `note`, `idempotencyKey` UNIQUE, `createdAt`.
 - `gift_voucher_checks` — `id`, `visitorHash`, `outcome`, `createdAt`.
 
-The generic received-in-advance amount is a core schema change specified in the plan; it adds a
-table, never alters `payment_tenders` or the buckets.
+The generic received-in-advance amount is a tender line, not a table (decided at implementation, 2026-11-15, as the plan
+asked for the reconciliation, the export and the ledger to read it where they already read a payment): `payment_tenders`
+gains the method `'prepaid'` and the nullable columns `source`, `ref`, `label` (a rebuild of that one table, rows kept —
+`changelog.d/migration--gift-vouchers-tender-method.md`); the buckets are untouched. The settlement of a stay paid with a voucher
+and a card holds two lines (`Bon cadeau` and `CB`), so the reconciliation expects the card line only.
 
 **Data impact:** none on existing records. New secret in `.env.local` (the pepper): losing it makes
 every issued code unverifiable — it joins the backup of `.env.local` documented in
@@ -425,17 +451,31 @@ Interactive mock-ups: `specs/gift-vouchers-resume.html`.
 - [ ] `gift-voucher-ideas.unit.test.js` — rule 14: seasons from the quote engine, cache invalidation,
       a bare-amount idea refused by the settings.
 - [ ] `gift-voucher-pdf.unit.test.js` — rule 22: one page, worst-case texts, fragment in the QR.
-- [ ] `gift-voucher-redemption.unit.test.js` — rules 36-42 and every edge case of §3.
+- [x] `src/plugins/gift-vouchers/tests/gift-voucher-redemption.unit.test.js` — rules 36-42 and every edge case of §3, on the real
+      core database (19 tests): the hold is the lower of the balance and the stay, two requests for the last cents (one wins,
+      the other is told the balance), code refusals, 50 € on an 80,40 € acompte (link of 30,40 €, settlement « Bon cadeau 50 € +
+      CB 30,40 € »), a full-mode property, nothing due (no link, converted at once, 300 € on 268 € leaves 32 €), a voucher worth the
+      acompte and part of the solde, release on delete / purge / lapse and never on a converted quote, price and tax and commission
+      identical to a card-paid stay, a price change after the voucher, the fiche's payment / bounds / undo, the cancelled stay's
+      re-credit (indemnity from the card first), an expired voucher refunded (+3 months), the books counting the money once.
+- [x] `src/tests/prepaid-received-amount.unit.test.js` — the generic core part (13 tests): the CHECK migration keeps every row and is
+      idempotent, the prepaid line is received money but never collected, the accounting export reads the collected share, sources
+      held / released / reduced, `allocate`, the conversion and the fiche's record / undo with a made-up instrument.
+- [x] `src/plugins/website-booking/tests/public-prepaid.unit.test.js` — the opaque `prepaid` field in the booking plugin (3 tests): read, the acompte-first amounts, the projection and the refusal. Not covered by a test: the HTTP booking request and quote carrying the field end to end (the plugin's own and the core's halves are, separately).
+- [x] `src/plugins/gift-vouchers/tests/wordpress-voucher-field.unit.test.js` — the booking block's field (8 tests): check before any
+      call, only a paying request carries the code, the amounts are the server's, `#bon=`, the sentences, the 1.20.0 changelog.
 - [ ] Plugin isolation walk and removal matrix include `gift-vouchers`.
 
 ### Client / WordPress
 - [ ] `plugins/gift-vouchers/__tests__/GiftVouchersPage.list.test.jsx`, `.actions.test.jsx`.
+- [x] `plugins/gift-vouchers/__tests__/ReservationVoucherCard.stay.test.jsx` — the fiche's card (8 tests): inline refusals before any call, pay, the server's refusal, undo after a confirmation, re-credit, nothing rendered where there is nothing to show.
 - [ ] E2E: buy with the sandbox provider → voucher page → code accepted at booking.
 
 ### Manual UI verification
 - [ ] Buy a voucher on the site at 390 px and 1280 px; refuse each invalid amount.
 - [ ] Abandon the payment; pay; reopen the voucher from the e-mail link; print the PDF.
 - [ ] Five wrong codes block the field; a mistyped code does not count.
+- [ ] Book with a voucher at 390 px and 1280 px: each message of the field, the summary lines, « Confirmer la réservation » when nothing is due; then the fiche shows « Bon cadeau » as its own payment line and « Payer par bon cadeau » / « Recréditer le bon » work. **Not done in this session (no browser run of the WordPress block nor of the fiche): to do before the PR.**
 - [ ] Regression: a booking without a voucher is unchanged, request without paying included.
 
 ## 8. Out of scope

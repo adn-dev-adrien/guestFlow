@@ -318,11 +318,15 @@
     {
       "version": "2.31.0",
       "modules": [
-        "pdfFonts"
+        "pdfFonts",
+        "prepaidReceipts",
+        "prepaidSources"
       ],
       "names": {
         "paymentTenders": [
-          "METHODS"
+          "lineLabel",
+          "METHODS",
+          "PREPAID"
         ]
       }
     }

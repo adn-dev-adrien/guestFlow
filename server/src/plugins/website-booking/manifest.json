@@ -1,7 +1,7 @@
 {
   "id": "website-booking",
   "name": "Réservation depuis le site",
-  "version": "1.8.16",
+  "version": "1.9.0",
   "description": "Le moteur de réservation du site WordPress.",
   "icon": "language",
   "surfaces": [
@@ -155,6 +155,11 @@
       ],
       "1.8.16": [
       "Aucun changement visible : la clé d’API du site, le visiteur relayé et la preuve de travail viennent désormais de GuestFlow, qu’un autre module partage.",
+      "Demande le SDK 2.31 de GuestFlow."
+    ],
+    "1.9.0": [
+      "Un moyen de paiement déjà versé (le bon cadeau) peut accompagner la demande : le devis le retient, le prix à payer aujourd’hui est calculé par GuestFlow, et sans rien à payer la réservation est confirmée tout de suite.",
+      "Le devis du site annonce, tant qu’un tel moyen est proposé, de quoi afficher le champ de saisie.",
       "Demande le SDK 2.31 de GuestFlow."
     ]
   }

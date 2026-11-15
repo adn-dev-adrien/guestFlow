@@ -893,6 +893,82 @@
     var summary = GF.el('div', { class: 'gf-summary', 'aria-live': 'polite' });
     var warn = GF.el('div', { 'aria-live': 'polite' });
 
+    // ---- « Bon cadeau » (GuestFlow specs/gift-vouchers.md rules 36-38) ----
+    // A means of payment beside the card, offered only while the quote says a GuestFlow plugin takes one
+    // (`payment.prepaidKinds`). The code is normalised and its check character verified here, so a mistyped
+    // code never costs a call; GuestFlow re-checks it and prices what it is worth — the amounts shown are its.
+    var VC = GF.voucherCode;
+    var voucher = { kind: null, code: '', label: '' };
+    var voucherInput = null;
+    var voucherNotice = GF.el('div', { 'aria-live': 'polite' });
+    var voucherBox = GF.el('div', { class: 'gf-voucher', hidden: 'hidden' });
+    // The QR of a voucher PDF carries the code in the URL fragment, which browsers never send to a server.
+    var voucherFromUrl = (/[#&]bon=([^&]+)/.exec(window.location.hash || '') || [])[1] || '';
+    function voucherPrepaid() {
+      return voucher.kind && voucher.code ? { kind: voucher.kind, code: voucher.code } : null;
+    }
+    function voucherMessage(key, arg) {
+      voucherNotice.innerHTML = '';
+      if (key) voucherNotice.appendChild(GF.el('div', { class: 'gf-inline-warn gf-voucher-msg' }, GF.t(key, arg)));
+    }
+    function applyVoucher() {
+      var normalised = VC.normalise(voucherInput.value);
+      if (!normalised) { clearVoucher(); return; }
+      if (normalised.length !== VC.CODE_LENGTH) { voucherMessage('voucherLength', VC.CODE_LENGTH); return; }
+      if (!VC.hasValidCheck(normalised)) { voucherMessage('voucherMistyped'); return; }
+      voucherMessage(null);
+      voucher.code = normalised;
+      recompute();
+    }
+    function clearVoucher() {
+      voucher.code = '';
+      voucherInput.value = '';
+      voucherMessage(null);
+      recompute();
+    }
+    function paintVoucher(kinds) {
+      if (voucher.kind || !kinds || !kinds.length) return;
+      voucher.kind = kinds[0].kind;
+      voucher.label = kinds[0].label;
+      voucherInput = GF.el('input', {
+        type: 'text', class: 'gf-input', autocomplete: 'off', autocapitalize: 'characters', spellcheck: 'false', maxlength: '24', id: 'gf-voucher-code',
+        onInput: function () { voucherInput.value = VC.format(VC.normalise(voucherInput.value)); },
+        onKeydown: function (e) { if (e.key === 'Enter') { e.preventDefault(); applyVoucher(); } },
+      });
+      voucherBox.hidden = false;
+      voucherBox.appendChild(GF.el('label', { for: 'gf-voucher-code', class: 'gf-label' }, voucher.label));
+      voucherBox.appendChild(GF.el('div', { class: 'gf-voucher-row' },
+        voucherInput,
+        GF.el('button', { type: 'button', class: 'gf-btn gf-btn-alt gf-voucher-apply', onClick: applyVoucher }, GF.t('voucherApply')),
+        GF.el('button', { type: 'button', class: 'gf-link gf-voucher-remove', hidden: 'hidden', onClick: clearVoucher }, GF.t('voucherRemove'))));
+      voucherBox.appendChild(voucherNotice);
+      if (voucherFromUrl) {
+        voucherInput.value = VC.format(VC.normalise(decodeURIComponent(voucherFromUrl)));
+        voucherFromUrl = '';
+        applyVoucher();
+      }
+    }
+    // What GuestFlow said of the typed code: its refusal on the field, or the amounts on the summary.
+    function voucherOutcome(q) {
+      var prepaid = q.payment && q.payment.prepaid;
+      var remove = voucherBox.querySelector('.gf-voucher-remove');
+      if (remove) remove.hidden = !(prepaid && !prepaid.refused);
+      if (!prepaid || !prepaid.refused) { voucherMessage(null); return; }
+      var r = prepaid.refused;
+      voucher.code = '';
+      var texts = {
+        VOUCHER_UNKNOWN: ['voucherUnknown', r.triesLeft != null ? r.triesLeft : 0],
+        VOUCHER_EXPIRED: ['voucherExpired', r.expiresOn ? GF.date(r.expiresOn + 'T00:00:00') : ''],
+        VOUCHER_EXHAUSTED: ['voucherExhausted'],
+        VOUCHER_CHECKS_EXCEEDED: ['voucherTooMany'],
+        VOUCHER_CHECKS_PAUSED: ['voucherTooMany'],
+        VOUCHER_CODE_MISTYPED: ['voucherMistyped'],
+      };
+      var known = texts[r.code];
+      voucherMessage(known ? known[0] : null, known ? known[1] : undefined);
+      if (!known) voucherNotice.appendChild(GF.el('div', { class: 'gf-inline-warn gf-voucher-msg' }, r.message || GF.t('genericError')));
+    }
+
     // Contact + message + honeypot. The keyboard each field opens, and what autofill puts in it.
     f.firstName = GF.el('input', { type: 'text', autocomplete: 'given-name', enterkeyhint: 'next', maxlength: '100' });
     f.lastName = GF.el('input', { type: 'text', autocomplete: 'family-name', enterkeyhint: 'next', maxlength: '100' });
@@ -988,6 +1064,9 @@
     // With two actions the primary says what is paid now (specs/booking-drawer-friction.md rule 2):
     // « Payer 642,80 € », or the acompte.
     function payLabel(q) {
+      var prepaid = q && q.payment && q.payment.prepaid && !q.payment.prepaid.refused ? q.payment.prepaid : null;
+      if (prepaid && prepaid.dueTodayCents === 0) return GF.t('confirmBooking');
+      if (prepaid) return GF.t('payAmount', GF.euro(prepaid.dueTodayCents / 100));
       var depositMode = q && q.payment && q.payment.mode === 'deposit' && q.deposit && q.deposit.amount;
       if (!offerRequest) return depositMode ? GF.t('payDeposit') : GF.t('payOnline');
       if (depositMode) return GF.t('payDepositAmount', GF.euro(q.deposit.amount));
@@ -1072,7 +1151,7 @@
       GF.el('h3', { class: 'gf-booking-name' }, detail.name || ''),
       // The party decides the price and the capacity, so it is asked before the dates
       // (specs/booking-drawer-friction.md rule 7).
-      guestsBox, calBox, datesRow, timesRow, supplementsBox, insuranceBox, summary, warn, contact, cgvBox, altHint, f.submit, f.submitAlt, feedback, barAnchor, bar
+      guestsBox, calBox, datesRow, timesRow, supplementsBox, insuranceBox, summary, voucherBox, warn, contact, cgvBox, altHint, f.submit, f.submitAlt, feedback, barAnchor, bar
     );
     // Every direct child is an engine element (specs/wordpress-plugin.md rule 29): it carries the
     // colour tokens wherever the Solio drawer moves it, and the stylesheet never reaches the site's
@@ -1173,7 +1252,7 @@
       }
       summary.innerHTML = '';
       summary.appendChild(GF.el('div', { class: 'gf-loading' }, GF.t('loading')));
-      GF.api('POST', '/quote', stay).then(function (res) {
+      GF.api('POST', '/quote', voucherPrepaid() ? Object.assign({}, stay, { prepaid: voucherPrepaid() }) : stay).then(function (res) {
         var datesKey = stay.startDate + '|' + stay.endDate;
         if (res.status < 200 || res.status >= 300 || !res.body || !res.body.data) {
           trackOnce('booking-unavailable', datesKey + '|error', { reason: 'error' });
@@ -1261,6 +1340,8 @@
 
     function drawSummary(q) {
       applyOptionLimits(q);
+      paintVoucher(q.payment && q.payment.prepaidKinds);
+      if (voucher.kind) voucherOutcome(q);
       summary.innerHTML = '';
       function sline(label, value, cls) { return GF.el('div', { class: 'gf-summary-line ' + (cls || '') }, GF.el('span', {}, label), GF.el('span', {}, value)); }
       // Shown only when the summary is the card of a wide block (rule 33).
@@ -1297,6 +1378,12 @@
           var balLabel = q.balance.dueDate ? GF.t('balanceDueBefore', q.balance.dueDate) : GF.t('balance');
           summary.appendChild(sline(balLabel, GF.euro(q.balance.amount)));
         }
+      }
+      // « Bon cadeau ····3NPC − 150,00 € » then what is left to pay now: both priced by GuestFlow.
+      var prepaid = q.payment && q.payment.prepaid && !q.payment.prepaid.refused ? q.payment.prepaid : null;
+      if (prepaid) {
+        summary.appendChild(sline(prepaid.label, '− ' + GF.euro(prepaid.appliedCents / 100), 'gf-summary-voucher'));
+        summary.appendChild(sline(GF.t('payToday'), GF.euro(prepaid.dueTodayCents / 100), 'gf-summary-total'));
       }
       var total = q.totalStayPrice != null ? q.totalStayPrice : q.finalPrice;
       var nightsText = q.nights + ' ' + GF.t(q.nights === 1 ? 'night' : 'nights');
@@ -1472,6 +1559,8 @@
         _hp: f.hp.value,
       });
       if (terms) body.termsVersion = terms.version;
+      // Only a payment uses the voucher: a request sent without paying holds nothing.
+      if (mode !== 'request' && paysNow() && voucherPrepaid()) body.prepaid = voucherPrepaid();
       // The quote this drawer already created: only its token lets GuestFlow answer with that quote's
       // id and payment link (specs/public-request-abuse-and-grouping.md rule 20).
       if (pendingRequest && pendingRequest.token) body.publicToken = pendingRequest.token;
@@ -1591,6 +1680,12 @@
           feedback.appendChild(GF.el('div', { class: 'gf-loading' }, GF.t('redirectingPayment')));
           GF.track('booking-pay', { lodging: lodging });
           window.location.href = res.body.data.paymentUrl;
+          return;
+        }
+        // Nothing due now (a voucher covered what was asked): no payment page, GuestFlow confirmed the stay at once. The same
+        // page, with its return address, shows the confirmation the way it does after a payment.
+        if (res.status >= 200 && res.status < 300 && res.body && res.body.data && res.body.data.confirmed === true) {
+          window.location.href = returnPath;
           return;
         }
         paymentError(res);

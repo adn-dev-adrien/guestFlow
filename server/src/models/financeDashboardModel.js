@@ -509,7 +509,7 @@ function createDashboardModel(database, finance) {
         const label = s.targetKind === 'midStayNote' ? 'Note en séjour'
           : s.targetKind === 'installment' ? 'Échéance'
             : s.targetKind === 'arrivalGroup' ? 'Paiement unique' : (SPLIT_LABEL[s.targetKey] || 'Paiement');
-        add(s.paidDate, 'split', `${label} · plusieurs moyens`, settlementFigures(s).booksCents / 100);
+        add(s.paidDate, 'split', `${label} · plusieurs moyens`, settlementFigures(s).collectedCents / 100);
       }
       const adjustment = arrivalPaymentAdjustment(r).net;
       if (adjustment) add((parseGroup(r.arrivalPaymentGroup) || {}).at, 'adjustment', adjustment > 0 ? 'Pourboire à l\'arrivée' : 'Réduction à l\'arrivée', adjustment);

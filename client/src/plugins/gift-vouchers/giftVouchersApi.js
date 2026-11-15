@@ -32,6 +32,11 @@ const giftVouchersApi = {
     window.open(url, '_blank', 'noopener');
     setTimeout(() => URL.revokeObjectURL(url), 60000);
   },
+  // A voucher on a fiche (rules 40-41): what the card shows, the payment, its undo, the re-credit of a cancelled stay.
+  getStay: (reservationId) => call(`/stays/${reservationId}`),
+  payStay: (reservationId, { code, amountCents }) => call(`/stays/${reservationId}/pay`, { method: 'POST', body: { code, amountCents } }),
+  undoStayPayment: (reservationId, ref) => call(`/stays/${reservationId}/payments/${ref}`, { method: 'DELETE' }),
+  recreditStay: (reservationId) => call(`/stays/${reservationId}/recredit`, { method: 'POST', body: {} }),
   getSettings: () => api.getPluginSettings(PLUGIN_ID),
   saveSettings: (values) => api.savePluginSettings(PLUGIN_ID, values),
   getProperties: () => api.getProperties(),

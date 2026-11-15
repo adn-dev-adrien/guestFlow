@@ -1,7 +1,7 @@
 {
   "id": "hourly-resources",
   "name": "Ressources à l’heure",
-  "version": "1.8.0",
+  "version": "1.8.1",
   "description": "Louer un équipement par créneau : bain nordique, sauna.",
   "icon": "hot-tub",
   "surfaces": [
@@ -169,6 +169,10 @@
       "Un remboursement dû sur une visite s’affiche dans l’arrivée pour l’administrateur, avec « Marquer remboursé » ; l’accueil ne le voit pas.",
       "L’administrateur peut retirer le lien de paiement d’une visite le lendemain de la séance, même sans arrivée enregistrée.",
       "Demande le SDK 2.30 de GuestFlow."
+    ],
+    "1.8.1": [
+      "Aucun changement visible : GuestFlow sait désormais qu'une part d'un paiement peut avoir été reçue d'avance (un bon cadeau), ce que ce module lit sans le compter à part.",
+      "Compatible avec GuestFlow 4 (SDK 2.31)."
     ]
   }
 }

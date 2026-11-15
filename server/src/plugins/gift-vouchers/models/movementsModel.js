@@ -21,6 +21,13 @@ function createMovementsModel(db, { now = () => new Date() } = {}) {
 
   const hasKind = (voucherId, kind) => Boolean(db.prepare('SELECT 1 FROM gift_voucher_movements WHERE voucherId = ? AND kind = ? LIMIT 1').get(Number(voucherId), kind));
 
+  const byId = (id) => db.prepare('SELECT * FROM gift_voucher_movements WHERE id = ?').get(Number(id)) || null;
+
+  /** The movements written for a stay, oldest first. */
+  const listByReservation = (reservationId) => db.prepare('SELECT * FROM gift_voucher_movements WHERE reservationId = ? ORDER BY id').all(Number(reservationId));
+
+  const countKindOn = (reservationId, kind) => db.prepare('SELECT COUNT(*) AS n FROM gift_voucher_movements WHERE reservationId = ? AND kind = ?').get(Number(reservationId), kind).n;
+
   const byKey = (key) => db.prepare('SELECT * FROM gift_voucher_movements WHERE idempotencyKey = ?').get(String(key)) || null;
 
   /** → `{ movement, replayed }`; throws an error whose `code` is the refusal of `rules.movementRefusal`. */
@@ -44,7 +51,7 @@ function createMovementsModel(db, { now = () => new Date() } = {}) {
   }).immediate;
 
   return {
-    append, balanceOf, list, hasKind, byKey,
+    append, balanceOf, list, hasKind, byKey, byId, listByReservation, countKindOn,
   };
 }
 

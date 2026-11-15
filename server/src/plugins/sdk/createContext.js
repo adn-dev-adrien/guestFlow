@@ -200,6 +200,27 @@ function createContext(id, {
       }
       record.paymentBaskets.push({ source, paid, labels: { ...(labels || {}) } });
     },
+    // SDK 2.31.0 (specs/mixed-method-payments.md rule 51) — a prepaid instrument the plugin keeps the balance of: an amount a guest
+    // already paid elsewhere (a stored credit) and may use on a booking. `source` names it, and is the `kind` of the booking
+    // request's opaque `prepaid` field; `label` is what the stay's payments call it. The core asks the live plugin, never names it:
+    //   apply({ devisId, input, capCents, visitor, dryRun }) → { ok: true, heldCents, display } | { ok: false, status, code, message }
+    //     holds what `input` is worth on a new quote (never above `capCents`), in the caller's transaction; `dryRun` only prices it;
+    //   held(devisId) → { amountCents, display } | null;
+    //   settle({ devisId, reservationId, amountCents, paidDate }) → { ref } | null  the quote became a stay and uses `amountCents`;
+    //   release({ devisId, reason })  the quote was refused, deleted or lapsed unpaid.
+    // One plugin per `source`. What it received on a stay is written with the core module `prepaidReceipts`.
+    prepaid({
+      source, label, apply, held, settle, release,
+    } = {}) {
+      if (!/^[a-z][a-zA-Z0-9-]{0,39}$/.test(String(source || ''))) throw new Error(`${prefix} a prepaid source needs a source like "storedCredit"`);
+      if (typeof label !== 'string' || !label.trim()) throw new Error(`${prefix} prepaid source "${source}" needs a label`);
+      if ([apply, held, settle, release].some((fn) => typeof fn !== 'function')) throw new Error(`${prefix} prepaid source "${source}" needs apply, held, settle and release`);
+      const other = registry.all().find((r) => (r.prepaidSources || []).some((b) => b.source === source));
+      if (other) throw new Error(`${prefix} the prepaid source "${source}" is already declared by ${other.id}`);
+      record.prepaidSources.push({
+        source, label: label.trim(), apply, held, settle, release,
+      });
+    },
     // (resource, { properties }) → { lines?: [{ label, value }], footer?: string } | null — what the plugin
     // adds to a resource's card on Options & ressources while it is live (specs/options-resources-ux.md
     // rule 19). Synchronous, no I/O; a plugin declares one.
