@@ -560,6 +560,11 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
     > a 409 `OVERPAID` opens « Ligne déjà payée : l’offrir rend X au client » with the server's `overpaymentTtc`, « Offrir · X à rembourser » asks again with `forceOverpayment`, and the section then announces « À rembourser (depuis la fiche) : X ».
     > A stay not over-paid takes the offer at once (the money stays credited to the stay, rule 23). Proof `sas-paid-sales-section`, `StaySalesSection.offer-paid`, `ReservationSasDialog.departure-paid-sales`.
     > **Pending** — PR-later: the departure recap's due lines (« À percevoir au départ », the recalled arrival lines) are still the plan's own lines from the stored end-of-stay detail, not `saleDetail` lines: that needs `planDepartureSas` as a view over the lines (rule 25, Pending). _Pass 3j:_ the charges are lines now (rule 90.2), the recap still reads the detail written beside them.
+    > _2026-11-15 (pass C40-C41, owner: everything in 4.2.0), why it is still open:_ a view over the lines means the departure plan run as its write
+    > rolled back (`writeEndOfStayDetail` with the lines created) and its recap read from the rows; the rows do not carry what the recap prints
+    > for every line (the unit price of a non-extinguisher charge, the « carried » rank of a line a mid-stay sale brought, the « Ajustement »),
+    > and the recalled arrival lines need the offered ones `arrivalComplementDetailOf` leaves out. The rows would need those columns first, and
+    > the SAS departure plans of the replay are the proof; not started in that pass.
 
 ### 3.H Non-regression guarantee
 
