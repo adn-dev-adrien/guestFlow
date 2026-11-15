@@ -168,6 +168,14 @@ function unlinkedArticleRefusal(id, lines) {
   return refuse(400, 'ARTICLE_NOT_OFFERED', 'Article non proposé pour ce logement.', { articleRef: `${missing.kind === 'resource' ? 'resource' : 'option'}:${missing.id}` });
 }
 
+// End-review V-7 — a stay whose arrival complement was typed by hand (`complementAmountOverride`) keeps that figure whatever its lines: money a gesture
+// moves in the arrival complement would land nowhere (no bucket takes it). Such a gesture is refused until the hand-typed complement is cleared.
+const COMPLEMENT_PINNED = 'Complément d’arrivée saisi à la main : le retirer d’abord.';
+function complementPinnedRefusal(id) {
+  const row = database().prepare('SELECT complementAmountOverride FROM reservations WHERE id = ?').get(Number(id));
+  return row && row.complementAmountOverride != null ? refuse(409, 'COMPLEMENT_OVERRIDDEN', COMPLEMENT_PINNED) : null;
+}
+
 function pricedRequests(reservationId, lines, { now, source }) {
   const id = Number(reservationId);
   const stored = storedBody(id);
@@ -176,6 +184,8 @@ function pricedRequests(reservationId, lines, { now, source }) {
   const persons = personsRefusal(stored, lines, rows);
   if (persons) return { error: persons };
   const { started } = stayStarted(id, now);
+  const pinned = started ? null : complementPinnedRefusal(id);
+  if (pinned) return { error: pinned };
   // Both prices are the engine's of today (`restatePricing`): a stay sold at a figure the engine no longer reproduces would otherwise read its whole drift as the
   // price of the line (guest-app rule 93). The sale is what the lines cost, never what the stay's price moved by — and what it writes is the stored stay plus
   // that difference (rule 30, owner 2026-11-15): the quote, the dry runs and the write all pin on `saleBase`.
@@ -479,7 +489,8 @@ function changeLine(reservationId, ref, patch, { now = new Date(), forceOverpaym
   try {
     db.transaction(() => {
       if (wants.collectAt !== undefined) {
-        const refusal = model.momentRefusal(id, line, wants.collectAt, MOMENTS);
+        const refusal = model.momentRefusal(id, line, wants.collectAt, MOMENTS)
+          || (wants.collectAt === 'arrival' || line.collectAt === 'arrival' ? complementPinnedRefusal(id) : null);
         if (refusal) { outcome = refusal; throw ROLLBACK; }
         const base = restatedBase(id, 'fiche');
         if (base.refused) { outcome = moveRefusal(base.refused); throw ROLLBACK; }
@@ -494,6 +505,8 @@ function changeLine(reservationId, ref, patch, { now = new Date(), forceOverpaym
         }
       }
       if (wants.discount !== undefined || wants.offered !== undefined) {
+        const pinned = line.collectAt === 'arrival' ? complementPinnedRefusal(id) : null;
+        if (pinned) { outcome = pinned; throw ROLLBACK; }
         const base = restatedBase(id, 'fiche');
         if (base.refused) { outcome = base.refused; throw ROLLBACK; }
         const lowered = model.lowerLine(id, line, wants);
@@ -530,6 +543,8 @@ function removeLine(reservationId, ref, { now = new Date(), actor = null } = {})
   if (line.settledCents > 0) return refuse(409, 'LINE_PAID', 'Ligne déjà payée : elle peut être offerte, pas retirée.');
   const body = storedBody(id);
   if (!body) return refuse(404, 'RESERVATION_NOT_FOUND', 'Réservation introuvable');
+  const pinned = line.collectAt === 'arrival' ? complementPinnedRefusal(id) : null;
+  if (pinned) return pinned;
   const db = database();
   let outcome = null;
   try {

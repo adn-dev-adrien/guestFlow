@@ -1894,7 +1894,11 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
     at 0 €; its stored `billedUnits` cannot say it, a free hour also stores 1 unit at 0 €); a NEW line of an article the lodging no longer offers is refused
     (400 `ARTICLE_NOT_OFFERED`). Before the arrival, a card order paid at once is netted out of the stored arrival complement in the sale's own
     transaction (the same pinned save, after the card note), so the SAS, the bucket states and a complement link never ask it again (guest-app rules
-    35, 108). The reading of a stay and its plain save are unchanged.
+    35, 108). The reading of a stay and its plain save are unchanged. A stay whose arrival complement was typed by hand
+    (`complementAmountOverride`) keeps that figure, so the money of a gesture in the arrival complement would land in no bucket: before the
+    arrival a sale, and on an arrival line an offer, a discount, a move in or out of the arrival or a removal, is refused 409
+    `COMPLEMENT_OVERRIDDEN` « Complément d’arrivée saisi à la main : le retirer d’abord. » (end-review V-7; one stay in the prod copy has
+    such a figure, 22275, past and closed). Test `sale-complement-override-refused`.
     > **Delivered by PR C** (end review, 2026-11-15). _Measured on a fresh copy of the prod database of 2026-11-11:_ one 45 € option sold on each
     > of the 55 open stays (7 closed) moves `finalPrice` and one bucket by exactly 45 € and nothing else on 55 of 55 (before: 16 moved beyond
     > the line, 5 refused); the one other column a sale writes is `icalSyncLocked` on an iCal stay (a manual change locks its sync, as every save).
