@@ -245,11 +245,21 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
    la taxe de séjour » action. Selling, offering, removing, discounting a line or paying an extra never calls
    them: the sale path reads the **stored stay price** (`storedStayPrice(reservation)`: nights,
    accommodation, extra guests, tax as stored).
-   > **Pending** — PR-later: `storedStayPrice` and a sale path that never calls the nights units. PR B sells through the fiche's own save (`performUpdate`), which re-reads the stay: a sale
-   > prices the stored nights (the price lock) but still runs the units of a stay edit. Moving it needs the `StayRepository.stay` port (rule 48, PR C) and the line identity of rule 13.
+   > **Delivered by PR C** (C40, NIGHTS; owner 2026-11-15, everything of the refonte in 4.2.0): every `extraSale` write — sell, quote, offer,
+   > discount, move, remove — runs `performUpdate(…, { sale: true })`, whose quote is the `staySale` use case: `stayQuote` with the step
+   > `storedNights` in the place of NIGHTS. The stored nights (`reservation_nights`, the price lock) are the nightly breakdown; no tariff is read.
+   > A stay whose stored nights do not price each of its nights (prod copy 2026-11-11: one past stay of 62) is priced by NIGHTS as before. The
+   > flag is an option of the server call, never a body field. Proof `pricing-sale-stored-stay`; the replay and the price gate move nothing.
+   > **Pending** — PR-later: EXTRA GUESTS and TOURIST TAX still run in `staySale`, over stored inputs only (the locked tariff's guest tiers and
+   > nights, the frozen tax when the stay froze it). Reading them « as stored » needs stored figures the row does not hold: the in-brut part of
+   > the extra-guest supplement (only the complement part is a column) and an unfrozen stay's tax breakdown (`touristTaxTotal` alone). That is a
+   > schema change with a backfill, measured against the replay; not started. `storedStayPrice` (rule 48) stays the refund input's reader.
 9. **Stay validation is not a sale check.** Min/max nights, changeover and capacity are judged by NIGHTS on a
    stay edit. A sale on an existing stay never re-judges them (W1 disappears, it does not get a flag).
-   > **Pending** — PR-later: same cause as rule 8 — the sale runs the fiche's save, which still judges min / max nights, changeover and capacity.
+   > **Delivered by PR C** (C40): a sale (`performUpdate(…, { sale: true })`, every `extraSale` write) answers no `MIN_NIGHTS`, `MAX_NIGHTS` nor
+   > changeover refusal — `storedNights` reports no breach and the controller does not judge them on a sale; capacity, availability and the cots
+   > are judged only when the save moves the party or the dates, which a sale never does. The stay edit keeps every refusal. Proof
+   > `pricing-sale-stored-stay` (a stay under a raised minimum and a new changeover day takes a sale; its edit is still refused).
 
 ### 3.C EXTRAS and ALLOWANCES
 
@@ -1976,6 +1986,7 @@ check-in time, a discount target, line moment changes and the tourist tax as its
 
 ### Server unit tests (one file per unit, rule 43)
 - [x] `pricing-nights`, `pricing-extra-guests`, `pricing-tourist-tax` — rules 3, 7-9; the static import-graph test of rule 2
+- [x] `pricing-sale-stored-stay` — rules 8, 9: `staySale` is `stayQuote` with `storedNights` for NIGHTS; the stored nights are the breakdown (the tariff never read), stored nights short of the stay priced by NIGHTS; a sale on a stay under a raised minimum or a new changeover day passes, the stay edit is still refused _(PR C, C40)_
 - [x] `pricing-allowances`, `pricing-timed-options` — rules 41, 43 (PR A: the read-only form of today's free units, the early check-in and late check-out options)
 - [x] `pricing-extras`, hourly `hourly-tariff` — rules 10-14, 24, 26 (PR B: free hour stays with its line; evening supplement identical from shop, SAS, fiche) _(PR B: `hourly-booking-free-hour`, `pricing-allowance-ledger`; the evening component is PR C)_
 - [x] `pricing-stored-lines` — rule 72: the four stored-line parsers SETTLEMENT and REFUNDS share
@@ -1994,7 +2005,7 @@ check-in time, a discount target, line moment changes and the tourist tax as its
 - [x] `platform-intake-port`, `platform-intake-replay` — rule 71 (PR A: SDK contract unchanged, adapter, replay of the stored intakes at 0 diff; PR B: `fromPlatform`, the moment of each intake line); booking-intake, airbnb-intake and gites-de-france-intake suites green unchanged
 - [x] `article-family-contract` — every registered family, core and `hourly`, through the same cases (rule 57)
 - [x] `article-fulfilment-contract` — run against the bath adapter: hold, overlap refused, heat-up honoured, confirm in the sale transaction, rollback leaves no booking, release frees the slot (rule 57) _(PR B: `article-fulfilment-contract`, plugin `bath-fulfilment-contract`)_
-- [x] `pipeline-composition` — every use case builds; a missing `requires` throws at build; `externalSale` never calls nights, tax, clock or schedule; `stayQuote` output equals the pre-refactor engine (rule 52)
+- [x] `pipeline-composition`, `pricing-pipelines` — every use case builds (`stayQuote`, `staySale`, `externalSale`); a missing `requires` throws at build; `externalSale` never calls nights, tax, clock or schedule; `stayQuote` output equals the pre-refactor engine (rule 52)
 - [x] `settings-provider`, `pricing-settings-wiring` — resolution article → property → global → default with NULL as a value; each component's schema validates; the adapters return today's column values and no unit reads a property row (rule 50)
 - [x] `standalone-sale` — rule 53: priced by the same families, external VAT, recorded, journal row through `standaloneSales` _(PR C, C33-C34, C38: with `standalone-sale-visit-vat`, `standalone-sale-settlement`, `standalone-sale-passage-client`, `standalone-sale-counter-routes`; the screens' Vitest suites `StandaloneSaleDialog.counter`, `StandaloneSalesTodayCard.list`, `ExternalSaleFields.fields`)_
 - [x] `extra-sale-events` — rule 55: events published after commit only; an observer failure never undoes a sale

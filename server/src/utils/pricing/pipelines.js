@@ -5,7 +5,9 @@
  * platformGross → touristTax → platformPrice → discounts → vat → totals → inComplement → schedule → platformPayment →
  * settlement → netTotals. The order follows the engine's own dependencies: the tourist tax needs the platform pin and
  * the pre-arrival extras, the platform price needs the reversed tax, the platform payment follows the schedule
- * (rule 70). `ficheSale`, `sasSale` and `shopSale` are not built in PR A. `externalSale` (rule 53, PR C): loadCatalogue → externalExtras →
+ * (rule 70). `staySale` (rules 8, 9, PR C): `stayQuote` with `storedNights` in place of `nights` — a sale on a stay (the fiche's
+ * « Ajouter un produit », the SAS's sold options, the guest-app shop, an offer, a removal, a line discount, all through `extraSale`) prices
+ * the nights as stored and judges no minimum, maximum or changeover. `ficheSale`, `sasSale` and `shopSale` are that one use case. `externalSale` (rule 53, PR C): loadCatalogue → externalExtras →
  * externalVat → externalTotals → externalPayment, the sale of an article with no stay (the « Vente hors séjour » counter, the outside visit). The
  * line discounts of rule 39 are not a step of it: « Offrir » is the one gesture (rule 14).
  */
@@ -13,6 +15,7 @@ const { buildPipeline } = require('./pipeline');
 const loadStay = require('./steps/loadStay');
 const clock = require('./steps/clock');
 const nights = require('./steps/nights');
+const storedNights = require('./steps/storedNights');
 const extraGuests = require('./steps/extraGuests');
 const discountLevers = require('./steps/discountLevers');
 const extras = require('./steps/extras');
@@ -104,8 +107,13 @@ const externalPayment = require('./steps/externalPayment');
  * externalPayment: settlement
  */
 
-const stayQuote = buildPipeline(
-  [loadStay, clock, nights, extraGuests, discountLevers, extras, midStay, platformGross, touristTax, platformPrice, discounts, vat, totals, inComplement, schedule, platformPayment, settlement, netTotals],
+const STAY_STEPS = [loadStay, clock, nights, extraGuests, discountLevers, extras, midStay, platformGross, touristTax, platformPrice, discounts, vat, totals, inComplement, schedule, platformPayment, settlement, netTotals];
+const STEPS_BY_ID = Object.fromEntries(STAY_STEPS.map((step) => [step.id, step]));
+const stayQuote = buildPipeline(STAY_STEPS, { initial: ['input'] });
+
+// Rules 8, 9 — the sale on a stored stay: the same steps, the nights read as stored (never NIGHTS' tariff nor its judgments).
+const staySale = buildPipeline(
+  stayQuote.steps.map((id) => (id === 'nights' ? storedNights : STEPS_BY_ID[id])),
   { initial: ['input'] },
 );
 
@@ -122,4 +130,4 @@ const externalSale = buildPipeline(
   { initial: ['input'] },
 );
 
-module.exports = { stayQuote, touristTaxFigure, externalSale };
+module.exports = { stayQuote, staySale, touristTaxFigure, externalSale };

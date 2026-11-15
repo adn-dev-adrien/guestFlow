@@ -13,7 +13,8 @@
  * A request is `{ articleRef: 'option:<id>' | 'resource:<id>', quantity, persons?, mornings?, time?, sessions? }`, or a line that is no article —
  * linen pieces, a plugin's supplement — `{ articleRef: 'custom', label, amount, quantity? }` (`amount` = the line's TTC total in euros). A sale is priced and
  * written exactly as the operator's « Enregistrer » writes it: the stored stay rebuilt as the fiche's PUT body, the requested lines added,
- * then `performUpdate` — the engine, the free allowances, the price lock, the arrival floors and the session conflicts are the fiche's own.
+ * then `performUpdate(…, { sale: true })` — the engine, the free allowances, the price lock, the arrival floors and the session conflicts are the
+ * fiche's own, the nights read as stored and the stay's shape not judged (rules 8, 9: the `staySale` use case).
  * `quote` plays that save inside a rolled-back transaction; `sell` re-quotes inside its own and answers 409 `PRICE_CHANGED` when the price is
  * no longer the one accepted (rule 30). A stay that has not started takes the new line in its arrival complement (`inComplement`, rule 19);
  * a started one routes it by the extras baseline to the departure (rule 20). The line is stamped with its source, its moment and the
@@ -120,7 +121,7 @@ function fulfilmentDrafts(reservationId, lines, now, { heatFromNow = false } = {
 const refusalOf = (articleRef, refusal) => ({ articleRef, code: refusal.code, message: refusal.message });
 
 function dryRunFor(reservationId, body) {
-  const result = controller().performUpdate(Number(reservationId), structuredClone(body), { dryRun: true });
+  const result = controller().performUpdate(Number(reservationId), structuredClone(body), { dryRun: true, sale: true });
   return result.status === 200 ? result : { refused: { status: result.status, body: result.body } };
 }
 
@@ -258,7 +259,7 @@ function sell(reservationId, requests, {
         }
       }
       const before = extraSalesModel().lineIds(id);
-      const written = controller().performUpdate(id, result.body);
+      const written = controller().performUpdate(id, result.body, { sale: true });
       if (written.status !== 200) { outcome = { status: written.status, body: written.body }; throw ROLLBACK; }
       const moment = result.started ? 'departure' : 'arrival';
       const ref = typeof orderRef === 'function' ? orderRef() : orderRef;
@@ -443,7 +444,7 @@ function changeLine(reservationId, ref, patch, { now = new Date(), forceOverpaym
         const moved = model.moveLine(id, line, wants.collectAt);
         if (moved) {
           movedTo = wants.collectAt;
-          const restated = controller().performUpdate(id, { ...storedBody(id), restatePricing: true });
+          const restated = controller().performUpdate(id, { ...storedBody(id), restatePricing: true }, { sale: true });
           if (restated.status !== 200) { outcome = moveRefusal(restated); throw ROLLBACK; }
           reservations().addHistoryEntry(id, 'update', [{
             field: 'lineMoment', label: line.label, from: moved.fromLabel, to: moved.toLabel,
@@ -456,7 +457,7 @@ function changeLine(reservationId, ref, patch, { now = new Date(), forceOverpaym
         // The fiche's own save judges it (rule 23, O-10): a paid line lowered is refused 409 OVERPAID until `forceOverpayment`, and the
         // confirmed excess opens the `lineLowered` obligation there — one formula, one place.
         const owedBefore = model.openLoweredCents(id);
-        const restated = controller().performUpdate(id, { ...lowered.body, restatePricing: true, forceOverpayment: Boolean(forceOverpayment) });
+        const restated = controller().performUpdate(id, { ...lowered.body, restatePricing: true, forceOverpayment: Boolean(forceOverpayment) }, { sale: true });
         if (restated.status !== 200) { outcome = { status: restated.status, body: restated.body }; throw ROLLBACK; }
         model.storeDiscount(line, lowered.discountCents);
         owedCents = model.openLoweredCents(id) - owedBefore;
@@ -489,7 +490,7 @@ function removeLine(reservationId, ref, { now = new Date(), actor = null } = {})
   let outcome = null;
   try {
     db.transaction(() => {
-      const restated = controller().performUpdate(id, { ...model.withoutLine(body, line), restatePricing: true });
+      const restated = controller().performUpdate(id, { ...model.withoutLine(body, line), restatePricing: true }, { sale: true });
       if (restated.status !== 200) { outcome = { status: restated.status, body: restated.body }; throw ROLLBACK; }
       reservations().addHistoryEntry(id, 'update', [{
         field: 'lineRemoved', label: line.label, from: `${(line.totalCents / 100).toFixed(2).replace('.', ',')} €`, to: `retirée${actor ? ` (${actor})` : ''}`,

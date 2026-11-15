@@ -13,7 +13,7 @@
 const { roundMoney } = require('./money');
 const { extraGuestNightSeason } = require('./extraGuests');
 const { quoteHeadline, summaryCascade } = require('../quoteHeadline');
-const { stayQuote, touristTaxFigure: touristTaxSlice } = require('./pipelines');
+const { stayQuote, staySale, touristTaxFigure: touristTaxSlice } = require('./pipelines');
 
 // The engine's own estimate of the tax, and the amount the platform stated it withheld (null when none): the two figures the
 // fiche prints and the report of the platform's tax reads.
@@ -325,8 +325,9 @@ function haltedQuote({ property, settings, vatRate, vatRegime }) {
   };
 }
 
-function compose(input) {
-  const ctx = stayQuote({ input });
+// `sale` (rules 8, 9): the stay is not edited, a line is sold on it — the `staySale` use case, the nights read as stored.
+function compose(input, { sale = false } = {}) {
+  const ctx = (sale ? staySale : stayQuote)({ input });
   if (ctx.halt) return haltedQuote(ctx);
   return shape(ctx);
 }

@@ -1863,10 +1863,13 @@ async function retireStaleLinks(reservationId) {
 // transaction that is rolled back and returns the row it would have stored (`row`), without the
 // `reservation.updated` event. Returns `{ status, body }`.
 const DRY_RUN = Symbol('dry-run');
-function performUpdate(reservationId, body, { unlockPast = false, dryRun = false } = {}) {
+// `sale` (specs/pricing-components.md §3 rules 8, 9): the caller sells, offers, removes or discounts a line of the stored stay (`extraSale`);
+// the nights are read as stored and the stay's shape (minimum / maximum nights, changeover) is not judged. Never a body field: a client
+// cannot ask for it.
+function performUpdate(reservationId, body, { unlockPast = false, dryRun = false, sale = false } = {}) {
   const res = createResultRecorder();
   if (!dryRun) {
-    applyUpdate({ body, params: { id: reservationId } }, res, Boolean(unlockPast));
+    applyUpdate({ body, params: { id: reservationId } }, res, Boolean(unlockPast), { sale: Boolean(sale) });
     const result = res.result();
     // specs/payment-link-lifecycle.md rule 32 — every save path (fiche, SAS, plugins, platform intakes): a stay
     // that holds its nights after the save takes them from the unpaid requests it now covers. Never on a dry run.
@@ -1879,7 +1882,7 @@ function performUpdate(reservationId, body, { unlockPast = false, dryRun = false
   let preview = null;
   try {
     db.transaction(() => {
-      applyUpdate({ body: structuredClone(body), params: { id: reservationId } }, res, Boolean(unlockPast), { silent: true });
+      applyUpdate({ body: structuredClone(body), params: { id: reservationId } }, res, Boolean(unlockPast), { silent: true, sale: Boolean(sale) });
       preview = { ...res.result(), row: model.getRow(Number(reservationId)) };
       throw DRY_RUN;
     })();
@@ -1998,7 +2001,7 @@ function withPostedLineIds(pricedLines, postedLines, articleField) {
   });
 }
 
-function applyUpdate(req, res, pastUnlocked, { silent = false } = {}) {
+function applyUpdate(req, res, pastUnlocked, { silent = false, sale = false } = {}) {
   const storedBefore = model.getRow(Number(req.params.id));
   // specs/reservations-backend-mvc.md rule 26 reading (audit R44-C-L3) — a stay that does not exist is refused before any
   // pricing or write: the insert used to reach the lines and fail on their foreign key (500).
@@ -2236,6 +2239,8 @@ function applyUpdate(req, res, pastUnlocked, { silent = false } = {}) {
     ...windowEngineInputs,
     // The acompte deadline was promised on the booking day: an edit never moves it (rule 4).
     ...scheduleQuoteInputs(db, id),
+    // specs/pricing-components.md §3 rule 8 — a sale reads the stored nights (`staySale`).
+    ...(sale ? { storedStaySale: true } : {}),
   };
   if (!gateInsurance(res, engineInput, Number(id))) return;
   if (!refuseSessionConflict(res, engineInput.selectedResources, Number(id))) return;
@@ -2381,16 +2386,17 @@ function applyUpdate(req, res, pastUnlocked, { silent = false } = {}) {
     }
   }
 
-  if (quote.minNightsBreached && !forceMinNights && !pastReservationLocked) {
+  // Rule 9 of specs/pricing-components.md — a sale never re-judges the stay's shape (`staySale` reports no breach either).
+  if (quote.minNightsBreached && !forceMinNights && !pastReservationLocked && !sale) {
     return res.status(409).json({
       error: `Cette réservation comporte ${quote.nights} nuit(s), inférieur au minimum requis (${quote.requiredMinNights}).`,
       code: 'MIN_NIGHTS', requiredMinNights: quote.requiredMinNights, nights: quote.nights, minNightsRules: quote.minNightsRules,
     });
   }
-  if (quote.maxNightsBreached && !forceMaxNights && !pastReservationLocked) {
+  if (quote.maxNightsBreached && !forceMaxNights && !pastReservationLocked && !sale) {
     return res.status(409).json(maxNightsErrorPayload(quote));
   }
-  if (quote.changeoverBreached && !forceChangeover && !pastReservationLocked) {
+  if (quote.changeoverBreached && !forceChangeover && !pastReservationLocked && !sale) {
     return res.status(409).json(changeoverErrorPayload(quote));
   }
   // Rule 23 (owner O-10) — a paid line lowered is refused until the operator confirms; the confirmed excess is then owed back.

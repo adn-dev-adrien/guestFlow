@@ -41,10 +41,11 @@ function isTouristTaxRemittedByOwner(db, propertyId, platformKey) {
   return touristTaxRemittedByOwner(platformKey, resolveGlobalPlatformTaxRow(db, platformKey));
 }
 
+// `input.storedStaySale` (rules 8, 9): the quote of a sale on the stored stay (`extraSale` through `performUpdate(…, { sale: true })`).
 function calculateReservationQuote(input) {
   const stay = pricingInputModel.load(input);
   if (stay.error) return stay;
-  return compose(stay);
+  return compose(stay, { sale: Boolean(input && input.storedStaySale) });
 }
 
 // The tax figures of a stay (`touristTaxOriginalTotal`, `platformTouristTaxWithheld`) without pricing the rest of it.

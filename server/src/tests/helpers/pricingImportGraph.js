@@ -42,6 +42,8 @@ const STEPS = ['loadStay', 'clock', 'nights', 'extraGuests', 'discountLevers', '
   'platformPrice', 'discounts', 'vat', 'totals', 'inComplement', 'schedule', 'platformPayment', 'settlement', 'netTotals',
   'externalCatalogue', 'externalExtras', 'externalVat', 'externalTotals', 'externalPayment'];
 for (const step of STEPS) RANK[`steps/${step}`] = 100;
+// The NIGHTS of `staySale` (rules 8, 9) falls back to the `nights` step on a stay whose stored nights do not cover it: just above the steps.
+RANK['steps/storedNights'] = 101;
 
 const FOLDERS = ['articles', 'vat', 'refunds'];
 const folderOf = (name) => FOLDERS.find((folder) => name.startsWith(`${folder}/`));

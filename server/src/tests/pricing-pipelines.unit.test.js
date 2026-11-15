@@ -15,8 +15,8 @@ const END = addDaysToIsoDate(START, 3);
 
 const STEPS_DIR = path.join(__dirname, '..', 'utils', 'pricing', 'steps');
 const allStepFiles = fs.readdirSync(STEPS_DIR).filter((f) => f.endsWith('.js')).map((f) => f.replace(/\.js$/, ''));
-// The steps of `externalSale` (rule 53, PR C) are files of their own, named `external*`.
-const stepFiles = allStepFiles.filter((f) => !f.startsWith('external'));
+// The steps of `externalSale` (rule 53, PR C) are files of their own, named `external*`; `storedNights` is the NIGHTS of `staySale` (rules 8, 9).
+const stepFiles = allStepFiles.filter((f) => !f.startsWith('external') && f !== 'storedNights');
 
 test('rule 52: stayQuote is built and runs loadStay → clock → nights → extraGuests → extras → … → schedule → settlement', () => {
   assert.equal(stayQuote.steps[0], 'loadStay');
@@ -30,9 +30,9 @@ test('rule 52: stayQuote is built and runs loadStay → clock → nights → ext
   assert.ok(index('schedule') < index('platformPayment') && index('platformPayment') < index('settlement'), 'rule 70: the platform payment follows the schedule');
 });
 
-test('rule 52: every stay step file is in stayQuote, and the only sale use case built is externalSale (ficheSale, sasSale, shopSale are not)', () => {
+test('rule 52: every stay step file is in stayQuote; the sale use cases are staySale (rules 8, 9) and externalSale', () => {
   assert.deepEqual([...stayQuote.steps].sort(), [...stepFiles].sort());
-  assert.deepEqual(Object.keys(require('../utils/pricing/pipelines')), ['stayQuote', 'touristTaxFigure', 'externalSale']);
+  assert.deepEqual(Object.keys(require('../utils/pricing/pipelines')), ['stayQuote', 'staySale', 'touristTaxFigure', 'externalSale']);
 });
 
 test('rule 3: the tourist-tax slice is the head of stayQuote up to the TOURIST TAX step, nothing else', () => {
