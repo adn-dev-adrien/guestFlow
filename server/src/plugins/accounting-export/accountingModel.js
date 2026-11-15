@@ -43,8 +43,9 @@ const {
 
 // The entry builders and the sale entries are the core's `AccountingOutput`; this model reads the stored data they need.
 const {
-  buildEntry, buildInstallmentEntry, buildEndOfStayEntry, bookedShareOf, scaleEntry, addSaleLegs, saleEntries,
+  buildEntry, buildInstallmentEntry, buildEndOfStayEntry, bookedShareOf, scaleEntry, addSaleLegs, saleEntries, receiptCutOf, cutRefund,
 } = createAccountingOutput({ accountPlan });
+const extraSale = sdk.coreModule('extraSale');
 const { DEFAULT_COMMISSION_ACCOUNT, PLATFORM_PENALTY_ACCOUNT } = accountPlan;
 
 // `settings` — the export's account and VAT settings (./settings), bound to `database` by default.
@@ -86,6 +87,11 @@ function createAccountingModel(database, { settings = createAccountSettings(data
   const platformGrossCol = hasReservationColumn('platformGrossAmount')
     ? 'r.platformGrossAmount'
     : 'NULL AS platformGrossAmount';
+  // pricing-components rules 61-63 (owner 2026-11-15) — the stays booked once 4.2.0 is installed cut their receipts over their sale lines.
+  const readsSaleLinesCol = hasReservationColumn('readsSaleLines') ? 'r.readsSaleLines' : '0 AS readsSaleLines';
+  const saleLinesOf = (row) => {
+    try { return (extraSale.saleDetailOf(row.id) || {}).lines || []; } catch { return []; }
+  };
   const surchargeCol = hasReservationColumn('extraGuestComplementSurcharge')
     ? 'r.extraGuestComplementSurcharge'
     : '0 AS extraGuestComplementSurcharge';
@@ -163,7 +169,9 @@ function createAccountingModel(database, { settings = createAccountSettings(data
     const whole = buildEntry(row, kind, buildPerLineData(database, row), context, taxContextOf(row));
     // specs/mixed-method-payments.md rule 26 — a bucket paid with several methods booked only its share.
     const bookedShare = bookedShareOf(settlementsStore.listFor(row.id), kind, row);
-    const entry = whole && bookedShare !== 1 ? scaleEntry(whole, bookedShare, null) : whole;
+    const scaled = whole && bookedShare !== 1 ? scaleEntry(whole, bookedShare, null) : whole;
+    // The avoir mirrors what the receipt booked: the same sale-line cut on a stay the readers serve.
+    const entry = scaled ? receiptCutOf(row, { saleLinesOf }, salesRegime)(scaled) : scaled;
     const splitFrom = readTtcSplitFrom(database);
     for (const bucket of (entry && entry.buckets) || []) {
       const { ht, vat } = bookedBucketSplit(entry, bucket, splitFrom);
@@ -195,7 +203,7 @@ function createAccountingModel(database, { settings = createAccountSettings(data
                  r.finalPrice, r.clientGrossAmount, r.platformCommissionAmount, r.acompteCommissionAmount,
                  r.totalPrice, r.touristTaxTotal,
                  r.touristTaxInComplement,
-                 ${addedGuestsTaxCol}, ${surchargeCol}, ${platformGrossCol}, ${bookedEntryCols},
+                 ${addedGuestsTaxCol}, ${surchargeCol}, ${platformGrossCol}, ${bookedEntryCols}, ${readsSaleLinesCol},
                  r.accommodationAcompteContribTtc, r.accommodationSoldeContribTtc,
                  r.touristTaxAcompteContribTtc, r.touristTaxSoldeContribTtc,
                  ${installmentCols},
@@ -231,6 +239,7 @@ function createAccountingModel(database, { settings = createAccountSettings(data
         tipAccount: () => settings.read().tipAccount,
         regimeOf: (row) => vatRegimeModel.forRow(database, row),
         perLineData: (row) => buildPerLineData(database, row),
+        saleLinesOf,
         taxContextOf,
         settlementsOf: (id) => settlementsStore.listFor(id),
         installmentsOf: (id) => (hasInstallments
@@ -247,7 +256,7 @@ function createAccountingModel(database, { settings = createAccountSettings(data
     // specs/payment-schedule-and-cancellation.md rule 55 — a requalification avoir netted of the stay's earlier refunds
     // mirrors their split: read only for such an avoir, so every other entry stays byte-identical.
     const adjusted = row.method === 'retained' && (row.lines || []).some(isAdjustedLine);
-    return buildRefundEntry(row, {
+    const entry = buildRefundEntry(row, {
       indemnity: indemnity ? {
         account: indemnity.account,
         vatRatePercent: vatRegimeModel.forRow(database, { id: row.reservationId }).regime === 'not_subject' ? 0 : indemnity.vatRatePercent,
@@ -257,6 +266,13 @@ function createAccountingModel(database, { settings = createAccountSettings(data
       solde: adjusted ? bookedSplitsOf(row.reservationId, 'balance') : null,
       deposit: row.method === 'retained' ? bookedSplitsOf(row.reservationId, 'deposit') : null,
     });
+    // pricing-components rule 61 (owner 2026-11-15) — the avoir of a stay the sale-line readers serve is cut by `vatOf`.
+    return entry && stayReadsSaleLines(row.reservationId) ? cutRefund(entry, { regime: vatRegimeModel.forRow(database, { id: row.reservationId }) }) : entry;
+  };
+  const stayReadsSaleLines = (reservationId) => {
+    if (!hasReservationColumn('readsSaleLines')) return false;
+    const stay = database.prepare('SELECT readsSaleLines FROM reservations WHERE id = ?').get(Number(reservationId));
+    return Boolean(stay && Number(stay.readsSaleLines) === 1);
   };
   // The stay's refunds on the books before `row`, in the order they were made.
   const earlierRefundsOf = (row) => refunds.listByReservation(row.reservationId)

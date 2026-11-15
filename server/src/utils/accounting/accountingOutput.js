@@ -18,6 +18,8 @@ const { settlementFigures, targetFigures, currentCentsOf } = require('../payment
 const { netFirst } = require('../pricing/vat');
 const { create: createJournalLines } = require('./journalLines');
 const { isResourceKey } = require('../pricing/lineKeys');
+const { readsSaleLines } = require('../saleLinesReaders');
+const { cutReceipt, cutRefund } = require('./receiptLineCut');
 const {
   computeBucketTtcsFromContribs, computeTaxTtcForKind, soldeCaptureMatches, legacyGrossUp, parseComplementPaidSplit,
   parsePaidSplit, bucketFromTtc, netOfTtc, nz, round2, CONTRIB_RESIDUE_TOLERANCE_TTC,
@@ -883,8 +885,21 @@ function createAccountingOutput({ accountPlan }) {
         }
       }
       // Pure-tax entries are dropped (see `buildEntry`).
-      return entries.filter(Boolean);
+      // Rules 61-63 (owner 2026-11-15) — a stay booked once 4.2.0 is installed cuts each receipt over its sale lines, once per
+      // (class, rate) group; a stay booked before keeps the cut its months were exported with.
+      return entries.filter(Boolean).map(receiptCutOf(row, readModels, salesRegime));
     });
+  }
+
+  // The cut a stay's receipts take: the sale-line cut on a stay the readers serve, the entry as built otherwise.
+  function receiptCutOf(row, readModels, regime) {
+    if (!readsSaleLines(row)) return (entry) => entry;
+    let saleLines = null;
+    const linesOf = () => {
+      if (saleLines === null) saleLines = (readModels.saleLinesOf && readModels.saleLinesOf(row)) || [];
+      return saleLines;
+    };
+    return (entry) => cutReceipt(entry, { regime, saleLines: linesOf() });
   }
 
   return {
@@ -901,6 +916,8 @@ function createAccountingOutput({ accountPlan }) {
     addSaleLegs,
     scaleEntry,
     saleEntries,
+    receiptCutOf,
+    cutRefund,
   };
 }
 
