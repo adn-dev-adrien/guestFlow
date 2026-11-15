@@ -1,7 +1,7 @@
 /**
  * SlotGrid — the bath's days and slots (§6.4, rules 28-31, 78, 84): a chip for every day of the stay (a day with nothing
  * bookable is greyed, its reason said, and cannot be picked), the bath's opening as a thin bar of the chosen day, then the slots of the chosen day, two columns, time range and price. Only bookable slots exist here
- * (`free`, `evening` with its gold dot and « tarif soirée »); taken, past, heating and staff slots are never
+ * (`free`, `evening` with its gold dot; the rate's wording is the server's `priceLabel`); taken, past, heating and staff slots are never
  * drawn — the server does not even send them.
  *
  * Props: `days` ([{ date, label, available, reasonLabel, openingBands, slots:[{ start, end, state, band, priceLabel }] }]), `day` (selected date),

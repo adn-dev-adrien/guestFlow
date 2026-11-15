@@ -109,6 +109,8 @@ test('rule 74 — saving sends the lines, the customer, the total the operator s
   const { onSold } = mount();
   await addBeer();
   await addBeer();
+  // The tender lines restart when the total moves: typing before the quote of two beers is back would be wiped.
+  await waitFor(() => expect(screen.getByTestId('sale-total')).toHaveTextContent('13,00 €'));
   const amount = await screen.findByRole('textbox', { name: 'Montant CB' });
   fireEvent.change(amount, { target: { value: '5' } });
   expect(await screen.findByRole('button', { name: /Reste à percevoir/ })).toBeInTheDocument();

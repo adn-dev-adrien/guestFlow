@@ -7,14 +7,14 @@
  * a missing rate, the range): its refusals come back as `errors`; nothing is validated here but what the operator typed being a readable number.
  *
  * Props:
- *   value      { sellableExternally: bool, vatClass: string ('' = the class of its kind), externalVatRate: string }
+ *   value      { sellableExternally: bool, vatClass: string ('' = the class of its kind), externalVatRate: string | null } (null = untouched: the class's own rate shows; a string, even empty, is what the operator typed)
  *   onChange   (patch) => void   `{ sellableExternally }`, `{ vatClass }` or `{ externalVatRate }`
  *   classes    [{ vatClass, externalRate | null }] — `GET /api/standalone-sales/vat-rates`
  *   defaultClass  the class used when `vatClass` is empty (`options` or `resources`)
  *   errors     { sellableExternally?, vatClass?, externalVatRate? } — the server's messages
  *   disabled   boolean
  */
-import React from 'react';
+import React, { useId } from 'react';
 import { Box, FormControl, FormControlLabel, FormHelperText, InputLabel, MenuItem, Select, Switch, TextField, Typography } from '@mui/material';
 
 export const VAT_CLASS_LABELS = Object.freeze({
@@ -34,6 +34,7 @@ export default function ExternalSaleFields({
 }) {
   const effective = value.vatClass || defaultClass;
   const known = classes.find((c) => c.vatClass === effective);
+  const labelId = useId();
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
       <Box>
@@ -46,12 +47,12 @@ export default function ExternalSaleFields({
       </Box>
       <Box sx={{ display: 'grid', gap: 2, gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, minmax(0, 1fr))' } }}>
         <FormControl fullWidth disabled={disabled} error={Boolean(errors.vatClass)}>
-          <InputLabel id="external-vat-class">{TEXTS.vatClass}</InputLabel>
+          <InputLabel id={labelId}>{TEXTS.vatClass}</InputLabel>
           <Select
-            labelId="external-vat-class"
+            labelId={labelId}
             label={TEXTS.vatClass}
             value={effective}
-            onChange={(e) => onChange({ vatClass: e.target.value, externalVatRate: '' })}
+            onChange={(e) => onChange({ vatClass: e.target.value, externalVatRate: null })}
           >
             {Object.entries(VAT_CLASS_LABELS).map(([key, label]) => <MenuItem key={key} value={key}>{label}</MenuItem>)}
           </Select>
@@ -59,7 +60,7 @@ export default function ExternalSaleFields({
         </FormControl>
         <TextField
           label={TEXTS.rate}
-          value={value.externalVatRate !== '' && value.externalVatRate != null ? value.externalVatRate : (known && known.externalRate != null ? String(known.externalRate).replace('.', ',') : '')}
+          value={value.externalVatRate != null ? value.externalVatRate : (known && known.externalRate != null ? String(known.externalRate).replace('.', ',') : '')}
           onChange={(e) => onChange({ externalVatRate: e.target.value })}
           disabled={disabled}
           error={Boolean(errors.externalVatRate)}

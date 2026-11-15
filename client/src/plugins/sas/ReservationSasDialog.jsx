@@ -1678,7 +1678,7 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
               <Typography variant="sectionHeader">
                 {stayStep ? 'Récapitulatif — à percevoir' : 'Récapitulatif — complément à percevoir'}
               </Typography>
-              <StaySalesSection section={data?.staySales} onCollectNow={mode === 'arrival' && !sasLock ? collectSalesNow : null} onOffer={sasLock ? null : offerPaidSale} />
+              <StaySalesSection section={data?.staySales} onCollectNow={mode === 'arrival' && !sasLock ? collectSalesNow : null} onOffer={mode === 'departure' && !sasLock ? offerPaidSale : null} />
               {stayStep && !unifiedPayment && (
                 <>
                   <Typography variant="body1" sx={{ fontWeight: 600, fontVariantNumeric: 'tabular-nums', ...previewDim }}>Séjour : {shown(stayDue)}</Typography>

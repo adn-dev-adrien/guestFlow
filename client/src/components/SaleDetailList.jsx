@@ -71,16 +71,18 @@ export default function SaleDetailList({ detail, onChangeMoment, busyRef = null 
   );
 
   return (
-    <Box component="ul" aria-label="Détail des ventes" sx={{ listStyle: 'none', m: 0, p: 0 }}>
-      {blocks.map((block) => (block.group ? (
-        <Box component="li" key={block.group.id} sx={{ listStyle: 'none' }}>
-          <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 1, alignItems: 'baseline', pt: 1.25 }}>
-            <Typography variant="body2" sx={{ fontWeight: 600, minWidth: 0, overflowWrap: 'anywhere' }}>{block.group.title}</Typography>
-            <Typography variant="body2" sx={{ fontWeight: 700, fontVariantNumeric: 'tabular-nums', flexShrink: 0 }}>{euros(block.group.totalCents)}</Typography>
+    <Box>
+      <Box component="ul" aria-label="Détail des ventes" sx={{ listStyle: 'none', m: 0, p: 0 }}>
+        {blocks.map((block) => (block.group ? (
+          <Box component="li" key={block.group.id} sx={{ listStyle: 'none' }}>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 1, alignItems: 'baseline', pt: 1.25 }}>
+              <Typography variant="body2" sx={{ fontWeight: 600, minWidth: 0, overflowWrap: 'anywhere' }}>{block.group.title}</Typography>
+              <Typography variant="body2" sx={{ fontWeight: 700, fontVariantNumeric: 'tabular-nums', flexShrink: 0 }}>{euros(block.group.totalCents)}</Typography>
+            </Box>
+            <Box component="ul" aria-label={block.group.label} sx={{ listStyle: 'none', m: 0, p: 0 }}>{block.lines.map((line) => row(line, true))}</Box>
           </Box>
-          <Box component="ul" aria-label={block.group.label} sx={{ listStyle: 'none', m: 0, p: 0 }}>{block.lines.map((line) => row(line, true))}</Box>
-        </Box>
-      ) : row(block.line, false)))}
+        ) : row(block.line, false)))}
+      </Box>
       <Menu anchorEl={menu && menu.anchor} open={Boolean(menu)} onClose={() => setMenu(null)}>
         {MOMENT_CHOICES.map((choice) => (
           <MenuItem

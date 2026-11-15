@@ -203,8 +203,9 @@ test('rule 9a — cents: the field opens the decimal keypad, a comma is sent as 
   await user.clear(field);
   await user.type(field, '250,50{Enter}');
   await waitFor(() => expect(api.putInstallments).toHaveBeenCalledWith(7, { amounts: [{ id: 41, amount: '250.50' }] }));
-  await waitFor(() => expect(within(rowOf(1)).getByLabelText('Montant de l’échéance 1')).toHaveValue('250,50'));
-  expect(within(rowOf(2)).getByLabelText('Montant de l’échéance 2')).toHaveValue('375,50');
+  // The typed text already reads « 250,50 »: only row 2 proves the server's plan came back.
+  await waitFor(() => expect(within(rowOf(2)).getByLabelText('Montant de l’échéance 2')).toHaveValue('375,50'));
+  expect(within(rowOf(1)).getByLabelText('Montant de l’échéance 1')).toHaveValue('250,50');
 
   await user.clear(within(rowOf(1)).getByLabelText('Montant de l’échéance 1'));
   await user.type(within(rowOf(1)).getByLabelText('Montant de l’échéance 1'), '250.5');

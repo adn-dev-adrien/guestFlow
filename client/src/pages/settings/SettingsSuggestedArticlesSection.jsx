@@ -30,6 +30,7 @@ const TEXTS = Object.freeze({
   empty: 'Aucune liste à régler.',
   none: 'Aucun article proposé.',
   add: 'Ajouter un article',
+  closeSearch: 'Fermer',
   search: 'Chercher un article',
   noMatch: 'Aucun article ne correspond.',
   limit: '12 articles au plus.',
@@ -114,7 +115,7 @@ function ContextCard({ context, kind, articles, onChange }) {
                 {a.label}
               </Button>
             ))}
-            <Box><Button size="small" onClick={() => { setAdding(false); setQuery(''); }} sx={{ minHeight: 44, textTransform: 'none' }}>Fermer</Button></Box>
+            <Box><Button size="small" onClick={() => { setAdding(false); setQuery(''); }} sx={{ minHeight: 44, textTransform: 'none' }}>{TEXTS.closeSearch}</Button></Box>
           </Box>
         )}
       </CardContent>

@@ -72,10 +72,10 @@ export default function StandaloneSalesTodayCard({ refreshKey = 0, reloadKey = 0
               <Alert
                 key={`${sale.id}-${row.id}`}
                 severity="warning"
-                action={<Button color="inherit" size="small" onClick={() => setAsk({ sale, row })} sx={{ minHeight: 44, textTransform: 'none' }}>{TEXTS.refunded}</Button>}
+                action={<Button color="inherit" size="small" aria-describedby={`owed-${sale.id}-${row.id}`} onClick={() => setAsk({ sale, row })} sx={{ minHeight: 44, textTransform: 'none' }}>{TEXTS.refunded}</Button>}
                 sx={{ '& .MuiAlert-message': { minWidth: 0, overflowWrap: 'anywhere' } }}
               >
-                <Typography variant="body2" sx={{ fontWeight: 600 }}>{TEXTS.sale(sale.id, sale.clientLabel)}</Typography>
+                <Typography id={`owed-${sale.id}-${row.id}`} variant="body2" sx={{ fontWeight: 600 }}>{TEXTS.sale(sale.id, sale.clientLabel)}</Typography>
                 <Typography variant="caption">{[row.label, row.detail].filter(Boolean).join(' · ')}</Typography>
               </Alert>
             )))}

@@ -11,6 +11,7 @@
  *   draft         [{ articleRef, label, quantity, max, offered }] — what the operator added and nothing has stored yet (the parent owns it)
  *   draftLines    [{ detail, totalCents, catalogueCents } | null] — the server's quote of each draft entry, in the same order (null while it is pending)
  *   storedLines   [{ id, label, detail, totalCents, catalogueCents, offered, status, statusLabel }] — the extras already on the sale
+ *   storedGroups  [{ id, title, totalCents, refs[] }] — the articles sold on several lines (the server's `groups`): they read under one title with their total, each line under it by its `groupLabel`
  *   refusals      [{ field, code, error }] — the server's refusals; `field` is the article reference of a draft entry
  *   pending       boolean — a quote is in flight (figures dimmed)
  *   disabled      boolean — nothing can be changed (read-only visit)
@@ -110,7 +111,7 @@ function Row({ name, detail, line, children, refusal, fresh }) {
 }
 
 export default function SuggestedArticlesStep({
-  suggestions = [], search = null, draft = [], draftLines = [], storedLines = [], refusals = [], pending = false, disabled = false, busyId = null,
+  suggestions = [], search = null, draft = [], draftLines = [], storedLines = [], storedGroups = [], refusals = [], pending = false, disabled = false, busyId = null,
   onAdd, onDraftChange, onDraftRemove, onStoredOffer, onStoredRemove, title = TEXTS.title,
 }) {
   const [searching, setSearching] = useState(false);
@@ -136,9 +137,18 @@ export default function SuggestedArticlesStep({
   };
   const choose = (article) => { onAdd(article); setSearching(false); setQuery(''); };
   const empty = draft.length === 0 && storedLines.length === 0;
+  const storedBlocks = [];
+  const placedGroups = new Set();
+  storedLines.forEach((line) => {
+    const group = storedGroups.find((g) => g.refs.includes(line.ref));
+    if (!group) { storedBlocks.push({ lines: [line] }); return; }
+    if (placedGroups.has(group.id)) return;
+    placedGroups.add(group.id);
+    storedBlocks.push({ group, lines: storedLines.filter((l) => group.refs.includes(l.ref)) });
+  });
 
   return (
-    <Box component="section" aria-label={title} sx={{ display: 'grid', gap: 1.25 }}>
+    <Box component="section" sx={{ display: 'grid', gap: 1.25 }}>
       <Typography variant="subtitle2">{title}</Typography>
       {(suggestions.length > 0 || search) && (
         <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
@@ -189,19 +199,29 @@ export default function SuggestedArticlesStep({
         <Typography variant="caption" color="text.secondary">{TEXTS.empty}</Typography>
       ) : (
         <Box component="ul" aria-label={title} sx={{ listStyle: 'none', m: 0, p: 0, opacity: pending ? 0.6 : 1, transition: 'opacity 120ms' }}>
-          {storedLines.map((line) => (
-            <Row key={`stored-${line.id}`} name={line.label} detail={[line.detail, line.statusLabel].filter(Boolean).join(' · ')} line={line}>
-              <Box sx={{ display: 'flex', gap: 0.75 }}>
-                {line.status !== 'cancelled' && (
-                  <Button size="small" variant={line.offered ? 'contained' : 'outlined'} aria-pressed={line.offered} disabled={disabled || busyId === line.id} onClick={() => onStoredOffer(line, !line.offered)} sx={{ minHeight: 44, minWidth: 44, textTransform: 'none' }}>
-                    {line.offered ? TEXTS.offered : TEXTS.offer}
-                  </Button>
-                )}
-                {onStoredRemove && line.status !== 'cancelled' && (
-                  <Button size="small" color="error" disabled={disabled || busyId === line.id} onClick={() => onStoredRemove(line)} sx={{ minHeight: 44, minWidth: 44, textTransform: 'none' }}>{TEXTS.remove}</Button>
-                )}
-              </Box>
-            </Row>
+          {storedBlocks.map((entry) => (
+            <React.Fragment key={entry.group ? `group-${entry.group.id}` : `stored-${entry.lines[0].id}`}>
+              {entry.group && (
+                <Box component="li" sx={{ listStyle: 'none', display: 'flex', justifyContent: 'space-between', gap: 1, alignItems: 'baseline', pt: 1.25 }}>
+                  <Typography variant="body2" sx={{ fontWeight: 600, minWidth: 0, overflowWrap: 'anywhere' }}>{entry.group.title}</Typography>
+                  <Typography variant="body2" sx={{ fontWeight: 700, fontVariantNumeric: 'tabular-nums', flexShrink: 0 }}>{euros(entry.group.totalCents)}</Typography>
+                </Box>
+              )}
+              {entry.lines.map((line) => (
+              <Row key={`stored-${line.id}`} name={entry.group && line.groupLabel ? line.groupLabel : line.label} detail={[line.detail, line.statusLabel].filter(Boolean).join(' · ')} line={line}>
+                <Box sx={{ display: 'flex', gap: 0.75 }}>
+                  {line.status !== 'cancelled' && (
+                    <Button size="small" variant={line.offered ? 'contained' : 'outlined'} aria-pressed={line.offered} disabled={disabled || busyId === line.id} onClick={() => onStoredOffer(line, !line.offered)} sx={{ minHeight: 44, minWidth: 44, textTransform: 'none' }}>
+                      {line.offered ? TEXTS.offered : TEXTS.offer}
+                    </Button>
+                  )}
+                  {onStoredRemove && line.status !== 'cancelled' && (
+                    <Button size="small" color="error" disabled={disabled || busyId === line.id} onClick={() => onStoredRemove(line)} sx={{ minHeight: 44, minWidth: 44, textTransform: 'none' }}>{TEXTS.remove}</Button>
+                  )}
+                </Box>
+              </Row>
+              ))}
+            </React.Fragment>
           ))}
           {draft.map((entry, index) => {
             const line = draftLines[index] || null;

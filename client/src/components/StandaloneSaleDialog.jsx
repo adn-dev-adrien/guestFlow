@@ -40,6 +40,8 @@ const TEXTS = Object.freeze({
   now: 'Encaisser maintenant',
   link: 'Envoyer un lien',
   linkAfter: 'Le lien se crée à l’enregistrement.',
+  emailRequired: 'Adresse e-mail requise.',
+  passage: 'Passage',
   save: 'Enregistrer la vente',
   saveAndCollect: (amount) => `Enregistrer la vente · encaisser ${amount}`,
   saveAndLink: 'Enregistrer et créer le lien',
@@ -110,10 +112,12 @@ export default function StandaloneSaleDialog({ open, onClose, onSold }) {
   const draftLines = priced.length === accepted.length ? draft.extras.map((entry) => (refusedRefs.has(entry.articleRef) ? null : priced[at++])) : draft.extras.map(() => null);
 
   const remainingCents = document ? document.totals.remainingCents : 0;
-  const payNow = draft.mode === 'now' && remainingCents > 0;
   const linkState = quote ? quote.paymentLink : null;
   const linkOffered = Boolean(linkState) && linkState.reason !== 'PROVIDER_NOT_READY' && remainingCents > 0;
-  const linkMode = draft.mode === 'link' && linkOffered;
+  // A quote that stops offering the link (provider no longer ready) brings the sale back to « now »: the tender lines drawn are the ones collected.
+  const mode = linkOffered ? draft.mode : 'now';
+  const payNow = mode === 'now' && remainingCents > 0;
+  const linkMode = mode === 'link';
   const nameMissing = draft.register && !draft.name.trim();
   const customerKind = quote ? quote.customer.kind : 'passage';
   const ready = Boolean(document) && draft.extras.length > 0 && preview.fresh && refusals.length === 0 && !emailBad && !nameMissing && !busy
@@ -251,7 +255,7 @@ export default function StandaloneSaleDialog({ open, onClose, onSold }) {
           ) : (
             <>
               <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', flexWrap: 'wrap' }}>
-                <Chip size="small" variant="outlined" label={quote ? quote.customer.label : 'Passage'} />
+                <Chip size="small" variant="outlined" label={quote ? quote.customer.label : TEXTS.passage} />
                 <Typography variant="caption" color="text.secondary">{draft.name.trim() || draft.email.trim() ? TEXTS.passageNamed : TEXTS.passageAnonymous}</Typography>
               </Box>
               <FormControlLabel
@@ -273,12 +277,12 @@ export default function StandaloneSaleDialog({ open, onClose, onSold }) {
           ) : (
             <>
               {linkOffered && (
-                <ToggleButtonGroup exclusive size="small" value={draft.mode} onChange={(_, next) => { if (next) { patch({ mode: next }); setPayment(null); } }} aria-label={TEXTS.payment}>
+                <ToggleButtonGroup exclusive size="small" value={mode} onChange={(_, next) => { if (next) { patch({ mode: next }); setPayment(null); } }} aria-label={TEXTS.payment}>
                   <ToggleButton value="now" sx={{ minHeight: 44, px: 2 }}>{TEXTS.now}</ToggleButton>
                   <ToggleButton value="link" sx={{ minHeight: 44, px: 2 }}>{TEXTS.link}</ToggleButton>
                 </ToggleButtonGroup>
               )}
-              {draft.mode === 'now' || !linkOffered ? (
+              {mode === 'now' ? (
                 <TenderLines
                   key={remainingCents}
                   dueCents={remainingCents}
@@ -290,7 +294,7 @@ export default function StandaloneSaleDialog({ open, onClose, onSold }) {
               ) : (
                 <>
                   <Typography variant="caption" color="text.secondary">{TEXTS.linkAfter}</Typography>
-                  {linkState.reason === 'NO_EMAIL' && <Typography variant="caption" color="error">Adresse e-mail requise.</Typography>}
+                  {linkState.reason === 'NO_EMAIL' && <Typography variant="caption" color="error">{TEXTS.emailRequired}</Typography>}
                 </>
               )}
             </>
