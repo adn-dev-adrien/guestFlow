@@ -16,6 +16,9 @@ final class GF_Rest_Proxy
     private const TERMS_CURRENT_TTL = 60;
 
     private const NS = 'guestflow/v1';
+    // The public offer carries `available`, which flips when a payment provider is connected: a short
+    // copy, like the terms.
+    private const VOUCHER_OFFER_TTL = 60;
     private static ?GF_Rest_Proxy $instance = null;
 
     public static function instance(): GF_Rest_Proxy
@@ -32,6 +35,7 @@ final class GF_Rest_Proxy
         // ONE place, before any handler runs, rather than a line repeated in eleven of them: a route
         // added later would otherwise ask GuestFlow in the wrong language and nothing would say so.
         add_filter('rest_pre_dispatch', [$this, 'adopt_request_language'], 10, 3);
+        add_filter('rest_pre_serve_request', [$this, 'serve_voucher_pdf'], 10, 3);
     }
 
     /**
@@ -132,6 +136,40 @@ final class GF_Rest_Proxy
             'methods'             => 'GET',
             'permission_callback' => $public,
             'callback'            => [$this, 'get_payment_status'],
+        ]);
+
+        // Gift vouchers (specs/gift-vouchers.md §4.3): a fixed list of upstream paths. An id is an integer,
+        // a token base64url; nothing else the browser sends reaches an upstream URL. Reads of an order are
+        // never cached — they carry a capability token.
+        register_rest_route(self::NS, '/gift-vouchers/offer', [
+            'methods'             => 'GET',
+            'permission_callback' => $public,
+            'callback'            => [$this, 'get_voucher_offer'],
+        ]);
+        register_rest_route(self::NS, '/gift-vouchers/check', [
+            'methods'             => 'POST',
+            'permission_callback' => [$this, 'verify_nonce'],
+            'callback'            => [$this, 'post_voucher_check'],
+        ]);
+        register_rest_route(self::NS, '/gift-vouchers/orders', [
+            'methods'             => 'POST',
+            'permission_callback' => [$this, 'verify_nonce'],
+            'callback'            => [$this, 'post_voucher_order'],
+        ]);
+        register_rest_route(self::NS, '/gift-vouchers/orders/(?P<id>\d+)/pay', [
+            'methods'             => 'POST',
+            'permission_callback' => [$this, 'verify_nonce'],
+            'callback'            => [$this, 'post_voucher_pay'],
+        ]);
+        register_rest_route(self::NS, '/gift-vouchers/orders/(?P<id>\d+)/pdf', [
+            'methods'             => 'GET',
+            'permission_callback' => $public,
+            'callback'            => [$this, 'get_voucher_pdf'],
+        ]);
+        register_rest_route(self::NS, '/gift-vouchers/orders/(?P<id>\d+)', [
+            'methods'             => 'GET',
+            'permission_callback' => $public,
+            'callback'            => [$this, 'get_voucher_order'],
         ]);
     }
 
@@ -250,6 +288,137 @@ final class GF_Rest_Proxy
         }
         $res = GF_Api_Client::instance()->get("/booking-requests/{$id}/status", $query);
         return $this->relay($res);
+    }
+
+    // ----- gift vouchers -----
+
+    public function get_voucher_offer(WP_REST_Request $request): WP_REST_Response
+    {
+        return $this->proxy_get('/gift-vouchers/offer', [], self::VOUCHER_OFFER_TTL);
+    }
+
+    public function post_voucher_check(WP_REST_Request $request): WP_REST_Response
+    {
+        $body = (array) $request->get_json_params();
+        return $this->relay(GF_Api_Client::instance()->post('/gift-vouchers/check', $this->voucher_fields($body, ['code' => 'string'])));
+    }
+
+    public function post_voucher_order(WP_REST_Request $request): WP_REST_Response
+    {
+        $body = (array) $request->get_json_params();
+        $forward = $this->voucher_fields($body, [
+            'amountCents'     => 'int',
+            'recipientName'   => 'string',
+            'senderName'      => 'string',
+            'message'         => 'string',
+            'email'           => 'string',
+            'termsVersionId'  => 'int',
+            'language'        => 'string',
+        ]);
+        return $this->relay(GF_Api_Client::instance()->post('/gift-vouchers/orders', $forward));
+    }
+
+    public function post_voucher_pay(WP_REST_Request $request): WP_REST_Response
+    {
+        $id = (int) $request['id'];
+        $body = (array) $request->get_json_params();
+        $token = isset($body['token']) && is_string($body['token']) ? $body['token'] : '';
+        if (!$this->is_token($token)) {
+            return $this->voucher_not_found();
+        }
+        $forward = ['token' => $token];
+        // Only a return address on this very site: GuestFlow allowlists it again, this one stops a
+        // foreign address from ever leaving the server.
+        $return = isset($body['returnUrl']) && is_string($body['returnUrl']) ? esc_url_raw($body['returnUrl']) : '';
+        if ($return !== '' && wp_parse_url($return, PHP_URL_HOST) === wp_parse_url(home_url(), PHP_URL_HOST)) {
+            $forward['returnUrl'] = $return;
+        }
+        return $this->relay(GF_Api_Client::instance()->post("/gift-vouchers/orders/{$id}/pay", $forward));
+    }
+
+    public function get_voucher_order(WP_REST_Request $request): WP_REST_Response
+    {
+        $id = (int) $request['id'];
+        $token = (string) $request->get_param('token');
+        if (!$this->is_token($token)) {
+            return $this->voucher_not_found();
+        }
+        $response = $this->relay(GF_Api_Client::instance()->get("/gift-vouchers/orders/{$id}", ['token' => $token]));
+        $response->header('Cache-Control', 'no-store');
+        return $response;
+    }
+
+    public function get_voucher_pdf(WP_REST_Request $request): WP_REST_Response
+    {
+        $id = (int) $request['id'];
+        $token = (string) $request->get_param('token');
+        if (!$this->is_token($token)) {
+            return $this->voucher_not_found();
+        }
+        $res = GF_Api_Client::instance()->get_raw("/gift-vouchers/orders/{$id}/pdf", ['token' => $token]);
+        if (($res['type'] ?? '') !== 'application/pdf') {
+            return $this->relay($res);
+        }
+        $response = new WP_REST_Response($res['body'], 200);
+        $response->header('Content-Type', 'application/pdf');
+        $response->header('Content-Disposition', 'inline; filename="bon-cadeau.pdf"');
+        $response->header('Cache-Control', 'private, no-store');
+        $response->header('X-Content-Type-Options', 'nosniff');
+        return $response;
+    }
+
+    /** Sends the PDF bytes as they are: the REST server would otherwise JSON-encode them. */
+    public function serve_voucher_pdf($served, $result, $request)
+    {
+        if ($served || !($result instanceof WP_REST_Response) || !($request instanceof WP_REST_Request)) {
+            return $served;
+        }
+        $headers = $result->get_headers();
+        if ($result->get_status() === 200 && is_string($result->get_data())
+            && ($headers['Content-Type'] ?? '') === 'application/pdf'
+            && strpos((string) $request->get_route(), '/' . self::NS . '/gift-vouchers/orders/') === 0) {
+            echo $result->get_data(); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- a PDF file, not markup
+            return true;
+        }
+        return $served;
+    }
+
+    /** Picks the named fields of a body, each cast to its type: nothing else is forwarded. */
+    private function voucher_fields(array $body, array $types): array
+    {
+        $out = [];
+        foreach ($types as $name => $type) {
+            if (!array_key_exists($name, $body)) {
+                continue;
+            }
+            if ($type === 'int' && is_numeric($body[$name])) {
+                $out[$name] = (int) $body[$name];
+            } elseif ($type === 'string' && is_string($body[$name])) {
+                $out[$name] = $body[$name];
+            }
+        }
+        // The proof of work of the request, relayed untouched: GuestFlow verifies it.
+        if (isset($body['challenge']) && is_array($body['challenge'])) {
+            $out['challenge'] = $body['challenge'];
+        }
+        if (isset($body['nonce']) && is_string($body['nonce'])) {
+            $out['nonce'] = $body['nonce'];
+        }
+        return $out;
+    }
+
+    /** The capability token of an order: 24 random bytes as base64url, so 32 characters; bounds leave room. */
+    private function is_token(string $token): bool
+    {
+        return (bool) preg_match('/^[A-Za-z0-9_-]{16,128}$/', $token);
+    }
+
+    private function voucher_not_found(): WP_REST_Response
+    {
+        return new WP_REST_Response(
+            ['error' => ['code' => 'VOUCHER_ORDER_NOT_FOUND', 'message' => __('Bon introuvable.', 'guestflow-booking')]],
+            404
+        );
     }
 
     // ----- helpers -----

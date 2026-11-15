@@ -701,3 +701,187 @@ msgstr "Extra guest(s) ×%d"
 #: includes/class-gf-blocks.php:178
 msgid "Prix de base pour %d voyageurs, supplément au-delà"
 msgstr "Base price for %d guests, supplement beyond"
+
+#: blocks/gift-voucher, includes/class-gf-blocks.php (specs/gift-vouchers.md)
+msgid "Offrir un séjour"
+msgstr "Give a stay"
+
+#: blocks/gift-voucher, includes/class-gf-blocks.php (specs/gift-vouchers.md)
+msgid "Un montant au choix, valable %d mois, à utiliser en une ou plusieurs fois."
+msgstr "An amount of your choice, valid for %d months, to use in one or several bookings."
+
+#: blocks/gift-voucher, includes/class-gf-blocks.php (specs/gift-vouchers.md)
+msgid "Montant"
+msgstr "Amount"
+
+#: blocks/gift-voucher, includes/class-gf-blocks.php (specs/gift-vouchers.md)
+msgid "De %s à %s."
+msgstr "From %s to %s."
+
+#: blocks/gift-voucher, includes/class-gf-blocks.php (specs/gift-vouchers.md)
+msgid "Indiquer un montant."
+msgstr "Enter an amount."
+
+#: blocks/gift-voucher, includes/class-gf-blocks.php (specs/gift-vouchers.md)
+msgid "Montant en euros, deux décimales au plus."
+msgstr "Amount in euros, two decimals at most."
+
+#: blocks/gift-voucher, includes/class-gf-blocks.php (specs/gift-vouchers.md)
+msgid "Montant minimum : %s."
+msgstr "Minimum amount: %s."
+
+#: blocks/gift-voucher, includes/class-gf-blocks.php (specs/gift-vouchers.md)
+msgid "Montant maximum : %s."
+msgstr "Maximum amount: %s."
+
+#: blocks/gift-voucher, includes/class-gf-blocks.php (specs/gift-vouchers.md)
+msgid "Pour se repérer"
+msgstr "For guidance"
+
+#: blocks/gift-voucher, includes/class-gf-blocks.php (specs/gift-vouchers.md)
+msgid "Prix indicatifs, susceptibles d’évoluer."
+msgstr "Indicative prices, subject to change."
+
+#: blocks/gift-voucher, includes/class-gf-blocks.php (specs/gift-vouchers.md)
+msgid "(facultatif)"
+msgstr "(optional)"
+
+#: blocks/gift-voucher, includes/class-gf-blocks.php (specs/gift-vouchers.md)
+msgid "Pour"
+msgstr "For"
+
+#: blocks/gift-voucher, includes/class-gf-blocks.php (specs/gift-vouchers.md)
+msgid "De la part de"
+msgstr "From"
+
+#: blocks/gift-voucher, includes/class-gf-blocks.php (specs/gift-vouchers.md)
+msgid "de la part de"
+msgstr "from"
+
+#: blocks/gift-voucher, includes/class-gf-blocks.php (specs/gift-vouchers.md)
+msgid "Un mot"
+msgstr "A message"
+
+#: blocks/gift-voucher, includes/class-gf-blocks.php (specs/gift-vouchers.md)
+msgid "E-mail de réception du bon"
+msgstr "E-mail to receive the voucher"
+
+#: blocks/gift-voucher, includes/class-gf-blocks.php (specs/gift-vouchers.md)
+msgid "Indiquer l’adresse où recevoir le bon."
+msgstr "Enter the address to receive the voucher."
+
+#: blocks/gift-voucher, includes/class-gf-blocks.php (specs/gift-vouchers.md)
+msgid "J’accepte les "
+msgstr "I accept the "
+
+#: blocks/gift-voucher, includes/class-gf-blocks.php (specs/gift-vouchers.md)
+msgid "conditions de vente"
+msgstr "terms of sale"
+
+#: blocks/gift-voucher, includes/class-gf-blocks.php (specs/gift-vouchers.md)
+msgid " des bons cadeaux."
+msgstr " for gift vouchers."
+
+#: blocks/gift-voucher, includes/class-gf-blocks.php (specs/gift-vouchers.md)
+msgid "Les conditions de vente doivent être acceptées."
+msgstr "The terms of sale must be accepted."
+
+#: blocks/gift-voucher, includes/class-gf-blocks.php (specs/gift-vouchers.md)
+msgid "Payer"
+msgstr "Pay"
+
+#: blocks/gift-voucher, includes/class-gf-blocks.php (specs/gift-vouchers.md)
+msgid "Vente en ligne bientôt disponible."
+msgstr "Online sales coming soon."
+
+#: blocks/gift-voucher, includes/class-gf-blocks.php (specs/gift-vouchers.md)
+msgid "Aperçu du bon"
+msgstr "Voucher preview"
+
+#: blocks/gift-voucher, includes/class-gf-blocks.php (specs/gift-vouchers.md)
+msgid "Bon cadeau"
+msgstr "Gift voucher"
+
+#: blocks/gift-voucher, includes/class-gf-blocks.php (specs/gift-vouchers.md)
+msgid "Code"
+msgstr "Code"
+
+#: blocks/gift-voucher, includes/class-gf-blocks.php (specs/gift-vouchers.md)
+msgid "délivré après le paiement"
+msgstr "issued after payment"
+
+#: blocks/gift-voucher, includes/class-gf-blocks.php (specs/gift-vouchers.md)
+msgid "Valable %d mois à compter du paiement, sur une réservation directe, en une ou plusieurs fois. Ni repris ni échangé contre de l’argent."
+msgstr "Valid for %d months from payment, on a direct booking, in one or several bookings. Not refundable or exchangeable for cash."
+
+#: blocks/gift-voucher, includes/class-gf-blocks.php (specs/gift-vouchers.md)
+msgid "Valable jusqu’au %s sur une réservation directe, en une ou plusieurs fois. Ni repris ni échangé contre de l’argent."
+msgstr "Valid until %s on a direct booking, in one or several bookings. Not refundable or exchangeable for cash."
+
+#: blocks/gift-voucher, includes/class-gf-blocks.php (specs/gift-vouchers.md)
+msgid "Paiement non abouti. Aucun bon n’a été émis."
+msgstr "Payment unsuccessful. No voucher has been issued."
+
+#: blocks/gift-voucher, includes/class-gf-blocks.php (specs/gift-vouchers.md)
+msgid "Confirmation du paiement en cours…"
+msgstr "Confirming your payment…"
+
+#: blocks/gift-voucher, includes/class-gf-blocks.php (specs/gift-vouchers.md)
+msgid "Paiement en attente. Si le paiement vient d’être effectué, patienter quelques instants puis recharger cette page."
+msgstr "Payment pending. If the payment has just been made, wait a few moments then reload this page."
+
+#: blocks/gift-voucher, includes/class-gf-blocks.php (specs/gift-vouchers.md)
+msgid "Ce lien ne correspond à aucun bon."
+msgstr "This link does not match any voucher."
+
+#: blocks/gift-voucher, includes/class-gf-blocks.php (specs/gift-vouchers.md)
+msgid "Le bon est prêt"
+msgstr "The voucher is ready"
+
+#: blocks/gift-voucher, includes/class-gf-blocks.php (specs/gift-vouchers.md)
+msgid "Télécharger le PDF"
+msgstr "Download the PDF"
+
+#: blocks/gift-voucher, includes/class-gf-blocks.php (specs/gift-vouchers.md)
+msgid "Imprimer"
+msgstr "Print"
+
+#: blocks/gift-voucher, includes/class-gf-blocks.php (specs/gift-vouchers.md)
+msgid "Le bénéficiaire saisit le code au moment de réserver ses dates."
+msgstr "The recipient enters the code when booking their dates."
+
+#: blocks/gift-voucher, includes/class-gf-blocks.php (specs/gift-vouchers.md)
+msgid "Cette page reste accessible depuis le lien reçu par e-mail."
+msgstr "This page stays available from the link received by e-mail."
+
+#: blocks/gift-voucher, includes/class-gf-blocks.php (specs/gift-vouchers.md)
+msgid "Ce bon a expiré le %s."
+msgstr "This voucher expired on %s."
+
+#: blocks/gift-voucher, includes/class-gf-blocks.php (specs/gift-vouchers.md)
+msgid "Ce bon est entièrement utilisé."
+msgstr "This voucher has been fully used."
+
+#: blocks/gift-voucher, includes/class-gf-blocks.php (specs/gift-vouchers.md)
+msgid "Ce bon a été annulé."
+msgstr "This voucher has been cancelled."
+
+#: blocks/gift-voucher, includes/class-gf-blocks.php (specs/gift-vouchers.md)
+msgid "Solde : %s"
+msgstr "Balance: %s"
+
+#: blocks/gift-voucher, includes/class-gf-blocks.php (specs/gift-vouchers.md)
+msgid "Trop de demandes. Réessayer dans quelques minutes."
+msgstr "Too many requests. Try again in a few minutes."
+
+#: blocks/gift-voucher, includes/class-gf-blocks.php (specs/gift-vouchers.md)
+msgid "Bon introuvable."
+msgstr "Voucher not found."
+
+#: blocks/gift-voucher, includes/class-gf-blocks.php (specs/gift-vouchers.md)
+msgid "Bon cadeau GuestFlow"
+msgstr "GuestFlow gift voucher"
+
+#: blocks/gift-voucher, includes/class-gf-blocks.php (specs/gift-vouchers.md)
+msgid "Le formulaire d’achat s’affiche ici sur le site."
+msgstr "The purchase form appears here on the site."

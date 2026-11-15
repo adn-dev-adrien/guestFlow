@@ -29,6 +29,36 @@ final class GF_Shortcodes
     public function boot(): void
     {
         add_shortcode('guestflow_cgv', [$this, 'render_cgv']);
+        add_shortcode('guestflow_gift_voucher', [$this, 'render_gift_voucher']);
+        add_shortcode('guestflow_gift_voucher_button', [$this, 'render_gift_voucher_button']);
+    }
+
+    /** [guestflow_gift_voucher] — the purchase tunnel, the same block a page can hold (specs/gift-vouchers.md rule 12). */
+    public function render_gift_voucher(): string
+    {
+        return render_block(['blockName' => 'guestflow/gift-voucher', 'attrs' => [], 'innerBlocks' => [], 'innerHTML' => '', 'innerContent' => []]);
+    }
+
+    /**
+     * [guestflow_gift_voucher_button url="…" label="…"] — a link-button with a gift icon, to sit next to « Réserver ».
+     * `url` is the page holding the tunnel; without it the page holding the block is used, and with neither
+     * nothing is printed (a button to nowhere is worse than none).
+     *
+     * @param array|string $atts
+     */
+    public function render_gift_voucher_button($atts = []): string
+    {
+        $atts = shortcode_atts(['url' => '', 'label' => '', 'class' => ''], (array) $atts, 'guestflow_gift_voucher_button');
+        $url = $atts['url'] !== '' ? $atts['url'] : GF_Settings::instance()->get_gift_voucher_page_url();
+        if ($url === '') {
+            return '';
+        }
+        $label = $atts['label'] !== '' ? $atts['label'] : __('Bon cadeau', 'guestflow-booking');
+        wp_enqueue_style('guestflow-style');
+        $icon = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">'
+            . '<rect x="3.5" y="9" width="17" height="11.5" rx="1"/><path d="M2.5 9h19V6h-19zM12 6v14.5M12 6c-1.2-2.6-5-3-5-.6C7 6.6 9.6 6 12 6zm0 0c1.2-2.6 5-3 5-.6C17 6.6 14.4 6 12 6z"/></svg>';
+        return '<a class="gf-gv-button' . ($atts['class'] !== '' ? ' ' . esc_attr($atts['class']) : '') . '" href="' . esc_url($url) . '">'
+            . $icon . '<span>' . esc_html($label) . '</span></a>';
     }
 
     public function render_cgv(): string

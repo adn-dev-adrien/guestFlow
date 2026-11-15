@@ -14,11 +14,16 @@ const encryption = sdk.coreModule('encryption');
 
 const PEPPER = 'test-pepper';
 const POW_SECRET = 'test-pow-secret';
-const METHODS = ['card', 'cash', 'cheque', 'transfer', 'holidayVoucher', 'other'];
+const METHODS = [
+  { value: 'card', label: 'CB' }, { value: 'cash', label: 'Espèces' }, { value: 'cheque', label: 'Chèque' },
+  { value: 'transfer', label: 'Virement' }, { value: 'holidayVoucher', label: 'Chèques-vacances' }, { value: 'other', label: 'Autre' },
+];
 
 function freshDb() {
   const db = new Database(':memory:');
   applyPluginSchema(db, 'gift-vouchers');
+  db.exec("CREATE TABLE users (id INTEGER PRIMARY KEY, firstName TEXT, lastName TEXT, email TEXT)");
+  db.prepare('INSERT INTO users (id, firstName, lastName, email) VALUES (7, ?, ?, ?)').run('Adrien', 'Test', 'adrien@example.test');
   return db;
 }
 

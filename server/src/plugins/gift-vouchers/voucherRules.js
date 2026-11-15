@@ -17,7 +17,7 @@ const SIGN = Object.freeze({
   issue: 1, release: 1, refund: 1, hold: -1, redeem: -1, cancel: -1, adjust: 0, extend: null, reveal: null, mail: null,
 });
 
-const STATES = Object.freeze(['pending', 'active', 'exhausted', 'expired', 'cancelled']);
+const STATES = Object.freeze(['pending', 'active', 'started', 'exhausted', 'expired', 'cancelled']);
 
 /** The Paris calendar day of an instant: the shop's day, whatever the server's zone (rules 7, 25). */
 const parisDate = (instant) => new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Paris', year: 'numeric', month: '2-digit', day: '2-digit' }).format(instant);
@@ -57,18 +57,20 @@ const expiryFor = (issueDate, validityMonths = DEFAULT_VALIDITY_MONTHS) => addMo
 const balanceOf = (movements) => movements.reduce((sum, m) => sum + (MONEY_KINDS.includes(m.kind) ? Number(m.amountCents) : 0), 0);
 
 /**
- * Rule 10 — the five states. Only `cancelled` and an order with no voucher yet (`pending`) are stored; `exhausted`
- * and `expired` are read from the ledger and the date. An exhausted voucher is never reported expired.
+ * Rule 10 — the six states. Only `cancelled` and an order with no voucher yet (`pending`) are stored; `started`
+ * (usable, balance below the issued amount), `exhausted` and `expired` are read from the ledger and the date.
+ * An exhausted voucher is never reported expired.
  */
 function stateOf({ voucher, balanceCents, today }) {
   if (!voucher) return 'pending';
   if (voucher.cancelledAt) return 'cancelled';
   if (balanceCents <= 0) return 'exhausted';
-  return today > voucher.expiresOn ? 'expired' : 'active';
+  if (today > voucher.expiresOn) return 'expired';
+  return balanceCents < voucher.amountCents ? 'started' : 'active';
 }
 
 /** Whether a voucher in `state` can still pay for something now (rule 8). */
-const isUsable = (state) => state === 'active';
+const isUsable = (state) => state === 'active' || state === 'started';
 
 /**
  * Rules 28, 31 — whether a movement keeps the ledger sound: the right sign for its kind, and a balance that stays in

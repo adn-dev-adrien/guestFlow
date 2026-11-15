@@ -31,6 +31,7 @@ final class GF_Settings
     private const PAGE_MARKERS = [
         'booking' => '<!-- wp:guestflow/booking',
         'cgv'     => '[guestflow_cgv]',
+        'gift_voucher' => '<!-- wp:guestflow/gift-voucher',
     ];
     /**
      * A page whose content holds one of these is not the generic page of `$kind`: a booking block
@@ -111,6 +112,13 @@ final class GF_Settings
         }
         $detected = $this->detected_page('booking');
         return $detected ? (string) get_permalink($detected) : '';
+    }
+
+    /** The page holding the gift voucher block, in the language of this request; '' when there is none. */
+    public function get_gift_voucher_page_url(): string
+    {
+        $detected = $this->detected_page('gift_voucher');
+        return $detected ? self::in_current_language((string) get_permalink($detected)) : '';
     }
 
     /** The oldest published page whose content holds the block or shortcode of `$kind` (and none of its exclusions), or 0. */

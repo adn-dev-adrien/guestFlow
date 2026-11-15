@@ -67,9 +67,22 @@ function tableHasRows(db) {
 /** The home's « À traiter » item while the public checks are paused (rule 33). */
 const summarizeChecks = (payload) => (payload && payload.paused ? { count: 1, ...PAUSED_ITEM, severity: 'warning' } : null);
 
+/** A user's display name from the core `users` table (a read); null when there is no such user or table. */
+function userNameFrom(db) {
+  return (id) => {
+    try {
+      const row = db.prepare('SELECT firstName, lastName, email FROM users WHERE id = ?').get(id);
+      if (!row) return null;
+      return [row.firstName, row.lastName].filter(Boolean).join(' ').trim() || row.email || null;
+    } catch {
+      return null;
+    }
+  };
+}
+
 function buildGiftVouchersApi({
   db, pepper, encrypt, decrypt, settingsStore = () => memorySettings(), now = () => new Date(), quote, pow, powSecret, guard,
-  sendMail, paymentMethods, companyName, pageUrl, bookingUrl, termsVersionId = () => null, onlineSaleAvailable = () => false,
+  sendMail, paymentMethods, userName = userNameFrom(db), companyName, pageUrl, bookingUrl, termsVersionId = () => null, onlineSaleAvailable = () => false,
   randomBytes, onCheckLimitsTrip = () => {}, transaction = (fn) => db.transaction(fn)(),
 }) {
   const get = (key) => settingsStore().get(key);
@@ -89,7 +102,7 @@ function buildGiftVouchersApi({
   const ipOf = (req) => pow.ipKeyOf(req.visitor && req.visitor.ip ? req.visitor.ip : req.ip) || 'unknown';
 
   const admin = buildAdminController({
-    vouchers, orders, movements, issuance, transaction, limits, paymentMethods, decrypt, sendMail, renderPdf: renderVoucherPdf,
+    vouchers, orders, movements, issuance, transaction, limits, paymentMethods, userName, decrypt, sendMail, renderPdf: renderVoucherPdf,
     settingsGet: get, brand: companyName, pageUrl, bookingUrl, now,
   });
   const check = buildPublicCheckController({
@@ -145,7 +158,7 @@ function register(ctx) {
     powSecret: () => sdk.secrets.getOrCreate(sdk.proofOfWork.SECRET_NAME, 32),
     guard: sdk.middleware.publicApi,
     sendMail: (mail) => ctx.mail.send(mail),
-    paymentMethods: () => sdk.coreModule('paymentTenders').METHODS.map((m) => m.value),
+    paymentMethods: () => sdk.coreModule('paymentTenders').METHODS.map(({ value, label }) => ({ value, label })),
     companyName: () => String(settingsModel().read().companyName || '').trim() || 'GuestFlow',
     pageUrl,
     bookingUrl: () => String(ctx.settings.get('bookingUrl') || '').trim() || siteOrigin(),

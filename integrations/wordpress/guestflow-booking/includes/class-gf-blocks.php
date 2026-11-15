@@ -13,7 +13,7 @@ if (!defined('ABSPATH')) {
 final class GF_Blocks
 {
     private static ?GF_Blocks $instance = null;
-    private const BLOCKS = ['calendar', 'booking', 'properties'];
+    private const BLOCKS = ['calendar', 'booking', 'properties', 'gift-voucher'];
 
     public static function instance(): GF_Blocks
     {
@@ -56,6 +56,10 @@ final class GF_Blocks
         // rule 2): solved in a Web Worker (assets/pow-worker.js), this copy only as the page's fallback.
         wp_register_script('gf-pow', GF_BOOKING_URL . 'assets/pow.js', [], $this->asset_ver('assets/pow.js'), true);
 
+        // The voucher code: normalisation, grouping and the check character, shared by the gift voucher
+        // block and (later) the booking engine's code field (specs/gift-vouchers.md rules 30 and 34).
+        wp_register_script('gf-voucher-code', GF_BOOKING_URL . 'assets/voucher-code.js', ['gf-runtime'], $this->asset_ver('assets/voucher-code.js'), true);
+
         foreach (self::BLOCKS as $name) {
             wp_register_script(
                 "guestflow-{$name}-editor",
@@ -67,7 +71,7 @@ final class GF_Blocks
             wp_register_script(
                 "guestflow-{$name}-view",
                 GF_BOOKING_URL . "blocks/{$name}/view.js",
-                $name === 'booking' ? ['gf-runtime', 'gf-pow'] : ['gf-runtime'],
+                $name === 'booking' ? ['gf-runtime', 'gf-pow'] : ($name === 'gift-voucher' ? ['gf-runtime', 'gf-voucher-code', 'gf-pow'] : ['gf-runtime']),
                 $this->asset_ver("blocks/{$name}/view.js"),
                 true
             );
@@ -99,6 +103,7 @@ final class GF_Blocks
             // DATES with. Amounts are deliberately not included: rule 10 keeps « 1 234,56 € » in
             // both languages, because the quote PDF attached to the confirmation already writes it
             // that way to English guests (specs/site-english-version.md rules 10 + 24).
+            'giftVoucherPageUrl' => esc_url_raw($s->get_gift_voucher_page_url()),
             'lang'              => GF_Language::current(),
             'locale'            => GF_Language::locale(),
             'i18n'              => [
@@ -245,6 +250,53 @@ final class GF_Blocks
                 'payDepositAmount' => __('Payer l’acompte %s', 'guestflow-booking'),
                 'sendRequestNoPay' => __('Envoyer une demande sans payer', 'guestflow-booking'),
                 'requestNoPayHint' => __('Une question avant de vous engager ? Envoyez une demande : aucun paiement tant que nous n’avons pas répondu.', 'guestflow-booking'),
+                // Gift voucher tunnel (specs/gift-vouchers.md §6).
+                'gvTitle'         => __('Offrir un séjour', 'guestflow-booking'),
+                'gvIntro'         => __('Un montant au choix, valable %d mois, à utiliser en une ou plusieurs fois.', 'guestflow-booking'),
+                'gvAmount'        => __('Montant', 'guestflow-booking'),
+                'gvAmountRange'   => __('De %s à %s.', 'guestflow-booking'),
+                'gvAmountEmpty'   => __('Indiquer un montant.', 'guestflow-booking'),
+                'gvAmountFormat'  => __('Montant en euros, deux décimales au plus.', 'guestflow-booking'),
+                'gvAmountMin'     => __('Montant minimum : %s.', 'guestflow-booking'),
+                'gvAmountMax'     => __('Montant maximum : %s.', 'guestflow-booking'),
+                'gvIdeas'         => __('Pour se repérer', 'guestflow-booking'),
+                'gvIdeasNote'     => __('Prix indicatifs, susceptibles d’évoluer.', 'guestflow-booking'),
+                'gvOptional'      => __('(facultatif)', 'guestflow-booking'),
+                'gvRecipient'     => __('Pour', 'guestflow-booking'),
+                'gvSender'        => __('De la part de', 'guestflow-booking'),
+                'gvWord'          => __('Un mot', 'guestflow-booking'),
+                'gvEmail'         => __('E-mail de réception du bon', 'guestflow-booking'),
+                'gvEmailEmpty'    => __('Indiquer l’adresse où recevoir le bon.', 'guestflow-booking'),
+                'gvTermsBefore'   => __('J’accepte les ', 'guestflow-booking'),
+                'gvTermsLink'     => __('conditions de vente', 'guestflow-booking'),
+                'gvTermsAfter'    => __(' des bons cadeaux.', 'guestflow-booking'),
+                'gvTermsRequired' => __('Les conditions de vente doivent être acceptées.', 'guestflow-booking'),
+                'gvPay'           => __('Payer %s', 'guestflow-booking'),
+                'gvPayBare'       => __('Payer', 'guestflow-booking'),
+                'gvSoon'          => __('Vente en ligne bientôt disponible.', 'guestflow-booking'),
+                'gvPreview'       => __('Aperçu du bon', 'guestflow-booking'),
+                'gvVoucher'       => __('Bon cadeau', 'guestflow-booking'),
+                'gvForLine'       => __('Pour', 'guestflow-booking'),
+                'gvFromLine'      => __('de la part de', 'guestflow-booking'),
+                'gvFromLineFirst' => __('De la part de', 'guestflow-booking'),
+                'gvCode'          => __('Code', 'guestflow-booking'),
+                'gvCodeAfterPay'  => __('délivré après le paiement', 'guestflow-booking'),
+                'gvConditionsPreview' => __('Valable %d mois à compter du paiement, sur une réservation directe, en une ou plusieurs fois. Ni repris ni échangé contre de l’argent.', 'guestflow-booking'),
+                'gvConditionsUntil' => __('Valable jusqu’au %s sur une réservation directe, en une ou plusieurs fois. Ni repris ni échangé contre de l’argent.', 'guestflow-booking'),
+                'gvPaymentFailed' => __('Paiement non abouti. Aucun bon n’a été émis.', 'guestflow-booking'),
+                'gvConfirming'    => __('Confirmation du paiement en cours…', 'guestflow-booking'),
+                'gvStillPending'  => __('Paiement en attente. Si le paiement vient d’être effectué, patienter quelques instants puis recharger cette page.', 'guestflow-booking'),
+                'gvNotFound'      => __('Ce lien ne correspond à aucun bon.', 'guestflow-booking'),
+                'gvReady'         => __('Le bon est prêt', 'guestflow-booking'),
+                'gvDownload'      => __('Télécharger le PDF', 'guestflow-booking'),
+                'gvPrint'         => __('Imprimer', 'guestflow-booking'),
+                'gvHowTo'         => __('Le bénéficiaire saisit le code au moment de réserver ses dates.', 'guestflow-booking'),
+                'gvLinkStays'     => __('Cette page reste accessible depuis le lien reçu par e-mail.', 'guestflow-booking'),
+                'gvExpired'       => __('Ce bon a expiré le %s.', 'guestflow-booking'),
+                'gvExhausted'     => __('Ce bon est entièrement utilisé.', 'guestflow-booking'),
+                'gvCancelled'     => __('Ce bon a été annulé.', 'guestflow-booking'),
+                'gvBalance'       => __('Solde : %s', 'guestflow-booking'),
+                'gvTooMany'       => __('Trop de demandes. Réessayer dans quelques minutes.', 'guestflow-booking'),
             ],
         ];
     }

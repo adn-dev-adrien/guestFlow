@@ -77,9 +77,11 @@ code types it while booking dates, and the voucher's balance pays for the stay, 
    is never paid out in money and never gives change.
 9. A voucher is usable on **direct reservations only** (the website tunnel and a fiche whose platform is
    in direct mode — read from the platform's mode, never from its name).
-10. States: `pending` (order created, payment not confirmed — no code exists yet), `active`,
-    `exhausted` (balance 0), `expired`, `cancelled`. `expired` and `exhausted` are derived at read time
-    from the expiry date and the ledger; only `pending`, `active` and `cancelled` are stored.
+10. States: `pending` (order created, payment not confirmed — no code exists yet), `active`
+    (untouched), `started` (usable, balance below the issued amount), `exhausted` (balance 0), `expired`,
+    `cancelled`. `started`, `expired` and `exhausted` are derived at read time from the expiry date and the
+    ledger, never stored; only `pending`, `active` and `cancelled` are stored. `active` and `started` are both
+    usable (rule 8), and the public check answers `usable: true` for either.
 11. The balance is **always** the sum of the voucher's movements (rule 31). No column stores a balance
     that could drift from the ledger.
 
@@ -243,6 +245,7 @@ code types it while booking dates, and the voucher's balance pays for the stay, 
 | controllers | `controllers/publicOrdersController.js` | Offer, order, pay, status, voucher view, PDF |
 | controllers | `controllers/publicCheckController.js` | Code check (rules 33-35) |
 | controllers | `controllers/adminController.js` | List, detail, manual issue, extend, cancel, adjust, reveal, resend |
+| utils | `movementView.js` | Shapes a ledger row for the screen: French label, Paris day, author name |
 | models | `models/vouchersModel.js`, `models/ordersModel.js`, `models/movementsModel.js`, `models/checksModel.js` | DB access; `movementsModel` is the only writer of balances |
 | utils | `code.js` | Draw, normalise, check character, HMAC, encrypt/decrypt — pure, injected randomness |
 | utils | `voucherRules.js` | Amount bounds, expiry, derived state, what a redeem may take — pure |
@@ -274,7 +277,10 @@ code types it while booking dates, and the voucher's balance pays for the stay, 
 | plugin | `plugins/gift-vouchers/index.js` | C | `routes`, `nav.items`, `settings.menu` contributions |
 | plugin | `plugins/gift-vouchers/GiftVouchersPage.jsx` | C | List + detail, `PageActionBar` |
 | plugin | `plugins/gift-vouchers/GiftVoucherDialog.jsx` | C | « Nouveau bon » and the detail's actions |
-| plugin | `plugins/gift-vouchers/GiftVoucherSettings.jsx` | C | Validity, bounds, ideas, e-mail template |
+| plugin | `plugins/gift-vouchers/GiftVoucherSettings.jsx` | C | Settings route `/parametres/bons-cadeaux` (`settings.menu`, after « Emails & notifications »): validity, bounds, ideas, e-mail template |
+| plugin | `plugins/gift-vouchers/GiftVoucherDetail.jsx`, `GiftVoucherActionDialogs.jsx` | C | The detail (side panel on `lg`, dialog below) and its « Prolonger » / « Corriger le solde » dialogs |
+| plugin | `plugins/gift-vouchers/giftVouchersApi.js`, `giftVoucherTexts.js`, `giftVoucherFormat.js` | C | `/api/gift-vouchers/*` calls, French copy and state maps, cents ↔ euros display |
+| core (client) | `constants/plugins.js`, `plugins/sdk/index.js` | M | `GIFT_VOUCHERS` id; no payment-method list on the client: the admin list payload carries `paymentMethods` |
 | plugin | `plugins/gift-vouchers/ReservationVoucherCard.jsx` | C | « Payer par bon cadeau » in the `reservation.cards` slot |
 
 | Category | Components | Notes |
@@ -314,8 +320,8 @@ Admin — session, admin role, `requirePlugin`:
 
 | Method | Endpoint | Request | Response |
 |---|---|---|---|
-| GET | `/api/gift-vouchers?q=&state=` | — | `{ items:[…], outstandingCents }` |
-| GET | `/api/gift-vouchers/:id` | — | voucher + `movements[]`, code masked |
+| GET | `/api/gift-vouchers?q=&state=` | `state` ∈ pending, active, started, exhausted, expired, cancelled | `{ items:[…], outstandingCents, paymentMethods:[{ value, label }] }` — `paymentMethods` is the core list, for the « Payé par » select of « Nouveau bon » |
+| GET | `/api/gift-vouchers/:id` | — | voucher + code masked + `movements:[{ id, kind, label, amountCents, date, actorName, reservationId, note }]` — `label` in French (« Émission », « Prolongé jusqu’au 15/01/2029 », « Solde corrigé : <motif> »…), `date` the Paris day (`YYYY-MM-DD`), `actorName` the user's display name, « Site » or « Automatique »; `note` is null for `extend`/`adjust` (already in the label) |
 | POST | `/api/gift-vouchers` | manual issue (rule 24) | `201` voucher |
 | POST | `/api/gift-vouchers/:id/{extend,cancel,adjust,resend,reveal}` | per action | voucher, or `{ code }` for `reveal` |
 | GET | `/api/gift-vouchers/:id/pdf` | — | `application/pdf` |

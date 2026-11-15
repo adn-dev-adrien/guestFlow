@@ -3,7 +3,7 @@ Contributors: adrien
 Tags: booking, availability, quote, gutenberg
 Requires at least: 6.4
 Requires PHP: 8.0
-Stable tag: 1.19.1
+Stable tag: 1.20.0
 License: GPLv2 or later
 
 Affiche les disponibilités, calcule des devis et envoie des demandes de réservation vers GuestFlow via son API publique.
@@ -36,6 +36,12 @@ Non. Elle est lue uniquement côté serveur (constante `wp-config` ou option mas
 Non. Elle crée un devis « brouillon » côté GuestFlow, que l'administrateur revoit puis convertit éventuellement en réservation.
 
 == Changelog ==
+
+= 1.20.0 =
+* Bons cadeaux : un bloc « GuestFlow — Bon cadeau » (et le shortcode `[guestflow_gift_voucher]`) pour acheter un bon : montant libre dans les bornes de GuestFlow, repères de prix, « Pour » / « De la part de », un mot, e-mail, conditions de vente, aperçu du bon en direct, puis paiement en ligne et page du bon (PDF, impression) au retour. Tant que GuestFlow ne propose pas la vente en ligne, le formulaire s'affiche avec « Vente en ligne bientôt disponible. ».
+* Le shortcode `[guestflow_gift_voucher_button url="…"]` affiche un bouton « Bon cadeau » à placer à côté de « Réserver ».
+* Le code d'un bon (16 caractères, dernier caractère de contrôle) est normalisé et pré-vérifié côté navigateur avant d'être envoyé à GuestFlow, qui le revérifie.
+* Demande GuestFlow avec le plugin « Bons cadeaux » actif ; sans lui, le bloc affiche « Réservation temporairement indisponible. ».
 
 = 1.19.1 =
 * Moteur de réservation : des dates déjà prises (arrivées par un lien, ou réservées depuis l'ouverture de la page) sont refusées dans le calendrier, comme un séjour trop court : aucun total n'est affiché, l'étape suivante du tiroir reste fermée, et le calendrier relit ses nuits prises. Même chose pour des horaires que les séjours voisins ne permettent pas.

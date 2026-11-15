@@ -70,6 +70,8 @@ const PLUGIN_PAGES = Object.freeze({
   '/school-holidays': [SCHOOL_HOLIDAYS],
   '/parametres/recettes': [TARIFF_RECIPES],
   '/commandes-app': [GUEST_APP],
+  '/bons-cadeaux': [GIFT_VOUCHERS],
+  '/parametres/bons-cadeaux': [GIFT_VOUCHERS],
   '/settings/integrations': [WEBSITE_BOOKING, GOOGLE_CALENDAR, NEAT, WEATHER_ALERTS, GATE_ACCESS, GITES_DE_FRANCE_INTAKE, BOOKING_INTAKE, AIRBNB_INTAKE, GOOGLE_VACATION_RENTALS, GUEST_APP],
 });
 
@@ -98,7 +100,7 @@ const PLUGIN_SETTINGS_PLACES = Object.freeze({
   [AIRBNB_INTAKE]: `${INTEGRATIONS}?tab=${AIRBNB_INTAKE}`,
   [GOOGLE_VACATION_RENTALS]: `${INTEGRATIONS}?tab=${GOOGLE_VACATION_RENTALS}`,
   [GUEST_APP]: `${INTEGRATIONS}?tab=${GUEST_APP}`,
-  [GIFT_VOUCHERS]: `${INTEGRATIONS}?tab=${GIFT_VOUCHERS}`,
+  [GIFT_VOUCHERS]: '/parametres/bons-cadeaux',
 });
 
 // specs/plugin-removal-resilience.md rule 1 — what a page says of the plugin it depends on when this

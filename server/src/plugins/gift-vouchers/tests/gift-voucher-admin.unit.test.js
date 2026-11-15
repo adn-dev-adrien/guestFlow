@@ -27,7 +27,8 @@ test('rule 24: a voucher sold by hand is issued at once — amount, names, messa
   const v = created.body;
   assert.deepEqual([v.number, v.state, v.amountCents, v.balanceCents, v.expiresOn, v.source, v.paymentMethod], ['BC-2026-0001', 'active', 15000, 15000, '2028-05-15', 'manual', 'cheque']);
   assert.deepEqual([v.recipientName, v.senderName, v.message, v.buyerEmail], ['Marie', 'Paul', 'Joyeux anniversaire', 'paul@example.test']);
-  assert.deepEqual(v.movements.map((m) => [m.kind, m.amountCents, m.actor]), [['issue', 15000, 'user:7']]);
+  assert.deepEqual(v.movements.map((m) => [m.kind, m.label, m.amountCents, m.date, m.actorName]), [['issue', 'Émission', 15000, '2026-11-15', 'Adrien Test']]);
+  assert.equal(Object.keys(v.movements[0]).sort().join(), 'actorName,amountCents,date,id,kind,label,note,reservationId');
 }));
 
 test('rule 24: the date of a sale outside the site sets the expiry; a date in the future is refused', () => withAdmin(async ({ server }) => {
@@ -42,7 +43,8 @@ test('rule 24: the date of a sale outside the site sets the expiry; a date in th
 
 test('rule 24: the way it was paid is one of the core payment methods, read from the core', () => withAdmin(async ({ server }) => {
   const core = fx.sdk.coreModule('paymentTenders').METHODS.map((m) => m.value);
-  assert.deepEqual(fx.METHODS, core);
+  assert.deepEqual(fx.METHODS.map((m) => m.value), core);
+  assert.deepEqual(fx.METHODS, fx.sdk.coreModule('paymentTenders').METHODS.map(({ value, label }) => ({ value, label })));
   for (const method of core) assert.equal((await server.call('POST', '/api/gift-vouchers', { amountCents: 2000, paymentMethod: method })).status, 201, method);
   for (const method of ['bitcoin', '', null, undefined, ['card'], { a: 1 }]) {
     assert.equal((await server.call('POST', '/api/gift-vouchers', { amountCents: 2000, paymentMethod: method })).body.code, 'PAYMENT_METHOD_INVALID', JSON.stringify(method));
@@ -95,6 +97,8 @@ test('rule 24: the list — searchable by number, e-mail or name, filtered by st
   assert.deepEqual(await ids('state=cancelled'), [b.id]);
   assert.deepEqual(await ids('state=exhausted'), [c.id]);
   assert.deepEqual(await ids('state=active'), [a.id]);
+  assert.deepEqual(await ids('state=started'), []);
+  assert.deepEqual(all.paymentMethods, fx.METHODS, 'the list hands over the « Payé par » choices');
   assert.equal((await server.call('GET', '/api/gift-vouchers?state=bogus')).status, 400);
   assert.deepEqual(Object.keys(all.items[0]).filter((k) => /code/i.test(k)), [], 'the list carries no code');
 }));
@@ -146,7 +150,7 @@ test('rule 27: cancel sets the state, writes a cancel movement of minus the bala
   assert.equal(res.status, 200);
   assert.deepEqual([res.body.state, res.body.balanceCents, res.body.canCancel], ['cancelled', 0, false]);
   const cancel = res.body.movements.find((m) => m.kind === 'cancel');
-  assert.deepEqual([cancel.amountCents, cancel.actor], [-10000, 'user:7']);
+  assert.deepEqual([cancel.amountCents, cancel.label, cancel.actorName], [-10000, 'Annulé', 'Adrien Test']);
   assert.deepEqual((await server.call('POST', url(v.id, '/cancel'), {})).body.code, 'VOUCHER_CANCELLED');
 }));
 
@@ -173,7 +177,7 @@ test('rule 28: adjust needs a reason, writes a signed movement, and never takes 
   const down = await adjust({ amountCents: -4000, reason: 'Erreur de saisie' });
   assert.equal(down.status, 200);
   assert.equal(down.body.balanceCents, 6000);
-  assert.deepEqual(down.body.movements.filter((m) => m.kind === 'adjust').map((m) => [m.amountCents, m.note, m.actor]), [[-4000, 'Erreur de saisie', 'user:7']]);
+  assert.deepEqual(down.body.movements.filter((m) => m.kind === 'adjust').map((m) => [m.amountCents, m.label, m.note, m.actorName]), [[-4000, 'Solde corrigé : Erreur de saisie', null, 'Adrien Test']]);
   assert.equal((await adjust({ amountCents: -6001, reason: 'trop' })).body.code, 'BALANCE_BELOW_ZERO');
   assert.equal((await adjust({ amountCents: 4001, reason: 'trop haut' })).body.code, 'BALANCE_ABOVE_ISSUED');
   assert.equal((await adjust({ amountCents: 4000, reason: 'retour' })).body.balanceCents, 10000);
@@ -281,3 +285,40 @@ test('rule 29: the reception sees nothing of the plugin — no role entry is dec
   assert.equal(answer({ id: 3, roles: ['accountant'] }, 'GET', '/gift-vouchers'), 403);
   assert.equal(answer({ id: 1, roles: ['admin'] }, 'GET', '/gift-vouchers'), 200);
 });
+
+test('rule 10: a voucher partly used reads « started » — in the list, its filter and the detail — and stays usable', () => withAdmin(async ({ server, api }) => {
+  const a = await fx.issueManual(server, { amountCents: 10000 });
+  const b = await fx.issueManual(server, { amountCents: 5000 });
+  api.movements.append({
+    voucherId: a.id, kind: 'redeem', amountCents: -2500, actor: 'system', idempotencyKey: 'started-1',
+  });
+  const ids = async (query) => (await server.call('GET', `/api/gift-vouchers?${query}`)).body.items.map((i) => i.id);
+  assert.deepEqual(await ids('state=started'), [a.id]);
+  assert.deepEqual(await ids('state=active'), [b.id]);
+  assert.equal((await server.call('GET', url(a.id))).body.state, 'started');
+}));
+
+test('§4.3: the movements come shaped — French label, Paris day, author name, no raw actor', () => withAdmin(async ({ server, api, clock }) => {
+  const v = await fx.issueManual(server, { amountCents: 10000 });
+  clock.at = new Date('2026-11-15T23:30:00Z');
+  await server.call('POST', url(v.id, '/extend'), { expiresOn: '2029-01-15' });
+  await server.call('POST', url(v.id, '/reveal'), {});
+  await server.call('POST', url(v.id, '/adjust'), { amountCents: -1000, reason: 'Erreur' });
+  api.movements.append({
+    voucherId: v.id, kind: 'redeem', amountCents: -500, actor: 'system', reservationId: 12, idempotencyKey: 'shape-1',
+  });
+  api.movements.append({
+    voucherId: v.id, kind: 'hold', amountCents: -100, actor: 'public', idempotencyKey: 'shape-2',
+  });
+  const { movements } = (await server.call('GET', url(v.id))).body;
+  assert.deepEqual(movements.map((m) => [m.label, m.actorName, m.date]), [
+    ['Émission', 'Adrien Test', '2026-11-15'],
+    ['Prolongé jusqu’au 15/01/2029', 'Adrien Test', '2026-11-16'],
+    ['Code affiché', 'Adrien Test', '2026-11-16'],
+    ['Solde corrigé : Erreur', 'Adrien Test', '2026-11-16'],
+    ['Utilisé sur une fiche', 'Automatique', '2026-11-16'],
+    ['Réservé sur une fiche', 'Site', '2026-11-16'],
+  ]);
+  assert.equal(movements[4].reservationId, 12);
+  assert.ok(movements.every((m) => !('actor' in m) && !('createdAt' in m)));
+}));

@@ -62,21 +62,24 @@ test('rule 7: the validity setting accepts 1 to 120 whole months and nothing els
   ['0', '121', '-1', '1.5', 'abc', '', [], {}].forEach((v) => assert.notEqual(validate(v), null, JSON.stringify(v)));
 });
 
-test('rule 10: pending without a voucher; cancelled from its date; exhausted from its balance; expired the day after its expiry; else active', () => {
-  const v = { cancelledAt: null, expiresOn: '2027-01-31' };
+test('rule 10: pending without a voucher; cancelled from its date; exhausted from its balance; expired the day after its expiry; else started (balance below the issued amount) or active', () => {
+  const v = { cancelledAt: null, expiresOn: '2027-01-31', amountCents: 1000 };
   const state = (voucher, balanceCents, today) => rules.stateOf({ voucher, balanceCents, today });
   assert.equal(state(null, 0, '2026-11-15'), 'pending');
   assert.equal(state(v, 1000, '2026-11-15'), 'active');
   assert.equal(state(v, 1000, '2027-01-31'), 'active', 'valid through its expiry day');
+  assert.equal(state(v, 400, '2026-11-15'), 'started');
+  assert.equal(state(v, 400, '2027-02-01'), 'expired', 'a started voucher still expires');
+  assert.equal(state(v, 0, '2026-11-15'), 'exhausted');
   assert.equal(state(v, 1000, '2027-02-01'), 'expired');
   assert.equal(state(v, 0, '2026-11-15'), 'exhausted');
   assert.equal(state(v, 0, '2027-02-01'), 'exhausted', 'a used-up voucher is never reported expired');
   assert.equal(state({ ...v, cancelledAt: '2026-11-16T10:00:00Z' }, 500, '2026-11-17'), 'cancelled');
-  assert.deepEqual(rules.STATES, ['pending', 'active', 'exhausted', 'expired', 'cancelled']);
+  assert.deepEqual(rules.STATES, ['pending', 'active', 'started', 'exhausted', 'expired', 'cancelled']);
 });
 
-test('rule 8: only an active voucher can pay', () => {
-  assert.deepEqual(rules.STATES.filter(rules.isUsable), ['active']);
+test('rule 8: only an active or started voucher can pay', () => {
+  assert.deepEqual(rules.STATES.filter(rules.isUsable), ['active', 'started']);
 });
 
 test('rule 11: the balance is the sum of the money movements — extend, reveal and mail carry none', () => {

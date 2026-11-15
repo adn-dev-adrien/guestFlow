@@ -8,6 +8,7 @@ const crypto = require('crypto');
 const code = require('../code');
 const rules = require('../voucherRules');
 const { renderMail } = require('../mailTemplate');
+const { presentMovement } = require('../movementView');
 
 const MAX_NAME = 40;
 const MAX_MESSAGE = 200;
@@ -52,7 +53,7 @@ function optionalText(value, max) {
 }
 
 function buildAdminController({
-  vouchers, orders, movements, issuance, transaction, limits, paymentMethods, decrypt, sendMail, renderPdf,
+  vouchers, orders, movements, issuance, transaction, limits, paymentMethods, userName = () => null, decrypt, sendMail, renderPdf,
   settingsGet, brand, pageUrl, bookingUrl, now = () => new Date(),
 }) {
   const today = () => rules.parisDate(now());
@@ -117,7 +118,7 @@ function buildAdminController({
       message: v.message,
       codeMasked: plain ? code.mask(plain) : null,
       canCancel: !v.cancelledAt && !movements.hasKind(v.id, 'redeem'),
-      movements: movements.list(v.id),
+      movements: movements.list(v.id).map((m) => presentMovement(m, userName)),
     };
   };
 
@@ -131,7 +132,7 @@ function buildAdminController({
       .filter(({ row, v }) => (!state || row.state === state)
         && (!q || [v.number, v.email, v.senderName, v.recipientName].some((field) => String(field || '').toLowerCase().includes(q))))
       .map(({ row }) => row);
-    return res.json({ items, outstandingCents });
+    return res.json({ items, outstandingCents, paymentMethods: paymentMethods() });
   });
 
   const read = guarded((req, res) => res.json(detail(find(req))));
@@ -142,7 +143,7 @@ function buildAdminController({
     if (!amount.ok) throw new Refusal(amount.code);
     const email = optionalText(body.email, 254);
     if (email && !EMAIL.test(email)) throw new Refusal('EMAIL_INVALID');
-    if (typeof body.paymentMethod !== 'string' || !paymentMethods().includes(body.paymentMethod)) throw new Refusal('PAYMENT_METHOD_INVALID');
+    if (typeof body.paymentMethod !== 'string' || !paymentMethods().some((m) => m.value === body.paymentMethod)) throw new Refusal('PAYMENT_METHOD_INVALID');
     let issueDate = today();
     if (body.date !== undefined && body.date !== null) {
       if (typeof body.date !== 'string' || !rules.isIsoDate(body.date)) throw new Refusal('DATE_INVALID');
