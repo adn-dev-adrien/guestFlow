@@ -17,6 +17,7 @@ const { isDeepStrictEqual } = require('node:util');
 const { calculateReservationQuote, calculateTouristTaxFigure } = require('./pricing');
 const { buildReservationEngineInput } = require('./reservationEngineInput');
 const quotePostProcessors = require('./quotePostProcessors');
+const { toCents } = require('./pricing/money');
 const { midStayQuoteInputs, resolvePlatformTakesDeposit, resolvePlatformPayoutDueDays } = require('./reservationQuoteContext');
 
 function storedEngineInput(db, reservation, overrides = {}) {
@@ -120,14 +121,13 @@ function pinStoredPricing(quote, stored) {
 // today would make of them (a platform's tax mode changed since, a stay stored at a figure the engine no longer reproduces).
 const SALE_DELTA_COLUMNS = ['totalPrice', 'finalPrice', 'depositAmount', 'balanceAmount', 'complementAmount'];
 const SALE_STORED_COLUMNS = PRICING_COLUMNS.filter((column) => !SALE_DELTA_COLUMNS.includes(column));
-const cents = (value) => Math.round(Number(value || 0) * 100);
 
 function pinSaleDelta(quote, stored, base) {
   const pinned = { ...quote };
-  for (const column of SALE_DELTA_COLUMNS) pinned[column] = (cents(stored[column]) + cents(quote[column]) - cents(base[column])) / 100;
+  for (const column of SALE_DELTA_COLUMNS) pinned[column] = (toCents(stored[column]) + toCents(quote[column]) - toCents(base[column])) / 100;
   for (const column of SALE_STORED_COLUMNS) pinned[column] = stored[column];
   if (quote.complementAmountAuto != null) {
-    pinned.complementAmountAuto = (cents(quote.complementAmountAuto) + cents(stored.complementAmount) - cents(base.complementAmount)) / 100;
+    pinned.complementAmountAuto = (toCents(quote.complementAmountAuto) + toCents(stored.complementAmount) - toCents(base.complementAmount)) / 100;
   }
   return pinned;
 }

@@ -48,6 +48,7 @@ function byKeyOf(answered) {
   return byKey;
 }
 
+const SDK_2_26_OVERPAID = 'excessCents';
 let pendingWarned = false;
 function priceOrder(reservationId, lines, options = {}) {
   if (!pendingWarned && options && Array.isArray(options.pending) && options.pending.length) {
@@ -65,8 +66,10 @@ function commitOrder(reservationId, {
   if (!/^[a-z][a-zA-Z0-9-]{0,39}$/.test(String(source || ''))) throw new Error('commitOrder needs the caller\'s source');
   if (ref === undefined || ref === null || String(ref) === '') throw new Error('commitOrder needs the order\'s ref');
   if (!history || typeof history !== 'object' || !history.field || !history.label || !history.text) throw new Error('commitOrder needs a history entry { field, label, text }');
+  // The 2.26.0 name of the overpaid cents is an alias of extraSale's figure, never a figure of its own.
   const shaped = (sold) => ({
-    status: 200, byKey: byKeyOf(sold.lines), total: sold.totalCents / 100, settledCents: sold.settledCents || 0, excessCents: sold.overpaidCents || 0, overpaidCents: sold.overpaidCents || 0,
+    status: 200, byKey: byKeyOf(sold.lines), total: sold.totalCents / 100, settledCents: sold.settledCents || 0, overpaidCents: sold.overpaidCents || 0,
+    [SDK_2_26_OVERPAID]: sold.overpaidCents || 0,
   });
   const outcome = extraSale.sell(reservationId, lines.map(requestOf), {
     source: 'shop',

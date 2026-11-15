@@ -309,6 +309,9 @@
       "names": {
         "saleDetail": [
           "buildDocumentDetail"
+        ],
+        "suggestedArticles": [
+          "catalogueGroups"
         ]
       }
     }

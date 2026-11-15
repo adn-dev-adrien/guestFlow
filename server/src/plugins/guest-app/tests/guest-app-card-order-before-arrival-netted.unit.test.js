@@ -1,5 +1,5 @@
 // specs/guest-app.md rules 35, 108 and specs/pricing-components.md rules 21, 31, 93 — a card order paid before the arrival is netted out of the
-// stored arrival complement in the sale's own transaction: the bucket states, the SAS's « Rien à encaisser » and a complement link read the row,
+// stored arrival complement in the sale's own transaction: the bucket states (the SAS's « Rien à encaisser ») and a complement link read the row,
 // so the guest is never asked a second time at the door for what the card already paid (end review R2-3).
 const test = require('node:test');
 const assert = require('node:assert/strict');
@@ -10,8 +10,6 @@ const { addOption, db, fakeProvider, openOrdering, seedStay, sell } = fx;
 const paymentLinksModel = require('../../../models/paymentLinksModel');
 const reservationsModel = require('../../../models/reservationsModel');
 const { bucketStates } = require('../../../utils/reservationSettlement');
-const { nothingToCollect } = require('../../sas/nothingToCollect');
-const { isDirectChannel } = require('../../../utils/platformNameFormat');
 
 addOption({ id: 9610, title: 'Cidre carte', price: 6 });
 sell('option', 9610);
@@ -32,6 +30,6 @@ test('rule 108 — a card order paid two days before the arrival leaves nothing 
     assert.deepEqual(row, { finalPrice: 312, complementAmount: 0, complementPaid: 0 }, 'the 12 € are in the price and out of the arrival complement');
     const full = reservationsModel.getByIdWithDetails(stay);
     assert.equal(bucketStates(full).complement.amount, 0);
-    assert.equal(nothingToCollect(full, { bucketStates, isDirectChannel }), true, 'the SAS has nothing to collect');
+    assert.equal(bucketStates(full).complement.applicable, false, 'nothing for the SAS to collect');
   } finally { await ctx.close(); }
 });
