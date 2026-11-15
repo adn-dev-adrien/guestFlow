@@ -257,8 +257,16 @@ once on the server by the refonte's components.
     > booking, one document, one invoice, and the hourly watch (attachment, mark, cancelled in Qonto) keeps working per booking with the
     > issuer contract unchanged; the document's invoice columns are not written. The session's parts go as items at the line's frozen
     > rate, its deductions (free minutes, offered time) as one discount, each extra as one item at its rate; Qonto's total must equal
-    > the document's (`expectedTotalCents`). A visit whose session was paid on the booking (rule 34) is invoiced from the booking as
-    > before: its extras' document is not invoiced from the visit.
+    > the document's (`expectedTotalCents`). ~~A visit whose session was paid on the booking (rule 34) is invoiced from the booking as
+    > before: its extras' document is not invoiced from the visit.~~ (superseded 2026-11-15, below)
+    > **Reading of 2026-11-15 (owner).** A visit is ONE invoice. When the session was paid on the booking (rule 34) and the drinks or
+    > extras are on the visit's document, the invoice covers the whole visit: the session's parts (from the booking, at the rate frozen
+    > with its payment, its deductions as the discount) and every money line of the document, Qonto's total equal to the visit's
+    > (session + document). It is issued once everything is settled: the document's reste at 0, the session's own payment naming a
+    > method and on the books (`NO_METHOD`, `INTERNAL_CASH`), its tariff unchanged since that payment (`TARIFF_CHANGED`), dated the
+    > last payment day. A visit with no document — or a document holding no money line of its own (only offered lines) — keeps the
+    > booking's invoice exactly as before. The invoice and attachment columns stay on the booking (one booking, one invoice); the
+    > card attachment follows the booking's payment as before. **Delivered by PR C**; test `visit-invoice-whole-visit`.
 32. **The card batch counts each visit once.** `ctx.standaloneSales` lists the document's card part per payment
     day from the core `standalone_sales` reader; the plugin's own `bookingsModel.standaloneSales` skips every
     booking whose money is on a document (rule 34), so no session is counted twice.
@@ -595,6 +603,7 @@ number; `prefers-reduced-motion` → no movement.
 - [x] `plugins/hourly-resources/tests/visit-legacy-money.unit.test.js` — rule 34 (paid before: session « Payée », extras on a new document, journal unchanged)
 - [x] `plugins/hourly-resources/tests/visit-card-batch-once.unit.test.js` — rule 32 (no double listing)
 - [x] `plugins/hourly-resources/tests/visit-invoice-document.unit.test.js` — rule 31 (all lines, `REMAINING_DUE`, money guard)
+- [x] `plugins/hourly-resources/tests/visit-invoice-whole-visit.unit.test.js` — rule 31, reading of 2026-11-15 (a session paid on the booking and the document's extras: one invoice; no document: the booking's invoice unchanged)
 - [x] `tests/standalone-sale-visit-vat.unit.test.js` — rules 28-29, 33 (external context, rate frozen at sale, franchise, no tourist tax)
 - [x] `plugins/accounting-export/tests/standalone-visit-journal.unit.test.js` — rule 30 (per payment day, caisse interne out, offered out, `revenue:drinks`)
 - [x] `tests/suggested-articles.unit.test.js` — rules 36-37 (context key, order, `external` / `hosted` sellability filter, dropped when sold out of the catalogue, `ARTICLE_UNKNOWN`, 12 max, plugin off hides its kind, rows kept)

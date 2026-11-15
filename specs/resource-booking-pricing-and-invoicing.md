@@ -358,6 +358,8 @@ Rules are numbered once and never renumbered (new rules go at the end).
     dialog's payment pays the document's whole reste, « Retirer le paiement » answers 409 `SALE_PAYMENT`, « Supprimer » cancels the
     document of an unpaid visit and is refused (409 `BOOKING_PAID`) once it holds money, and a moved slot re-prices the session line
     only while it is unpaid. A booking paid before its document keeps rules 11-12, 21, 35 and 44 unchanged for that money.
+    Its invoice (owner, 2026-11-15; `outside-booking-sas.md` rule 31): once that booking's document holds a money line, the one invoice
+    covers the session and the document's lines, after everything is settled; with no such line, rules 13-14 and 36 unchanged.
     Tests: `visit-remaining-and-payment.unit.test.js`, `visit-legacy-money.unit.test.js`, `visit-refund-cancel-noshow.unit.test.js` (plugin).
 
 **Edge cases:**

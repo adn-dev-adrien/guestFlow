@@ -172,7 +172,7 @@
       "Un paiement partiel laisse un « reste à percevoir » : la carte du planning affiche « Reste … », puis « Payé » ; le reste se règle plus tard, depuis la réservation, en rouvrant l’arrivée ou par un lien de paiement envoyé sur un clic.",
       "L’accueil ouvre et rouvre l’arrivée du jour jusqu’à 4 h le lendemain ; une ligne payée et un remboursement restent à l’administrateur.",
       "« Client absent » ferme la visite sans arrivée : les lignes non payées sont retirées, l’argent déjà pris est gardé.",
-      "La facture Qonto reprend toutes les lignes payées de la visite, une fois le reste soldé ; une séance payée avant cette version garde son paiement et sa facture.",
+      "La facture Qonto reprend toutes les lignes payées de la visite, une fois le reste soldé ; une séance payée sur la réservation garde son paiement, et si des boissons ou des articles sont vendus à l’arrivée, une seule facture couvre la séance et ces articles.",
       "Demande le SDK 2.30 de GuestFlow."
     ]
   }
