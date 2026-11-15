@@ -444,6 +444,14 @@ once on the server by the refonte's components.
 46. **The booking's client is the document's** _(stabilisation loop t1, AV-2, 2026-11-15; rule 8 as delivered)_. A client changed on the booking changes the
     document's `clientId` in the same transaction (the « Passage » client when the booking names none) until the document is invoiced. Test
     `visit-round1-reception-and-refunds`.
+47. **A visit's money is held where it lives** _(stabilisation loop t1, B-3, D-3, D-4, 2026-11-15; completes rules 28, 34 and plugins-phase-3c rule 17)_.
+    (a) One outside rate per class: the rate typed on the catalogue for the `resources` class wins over the plugin's « TVA des ventes hors séjour »
+    for the booking dialog's payment, the booking journal and the invoice basis too, as the core's settings provider reads it (before: the booking
+    dialog booked 20 % while the mini SAS sold the same session at 10 %). (b) A booking whose document holds a payment, an open obligation or an
+    invoice refuses a forced delete of its resource, lodging or client (409, invoicing rule 34), as a booking paid on itself does. (c) The purge
+    warning of the plugin names the visits' money on their documents (« 1 visite hors séjour, 63,00 € encaissés sur leur vente, dont 13,00 € à
+    rembourser : la vente reste dans « Ventes hors séjour » »), and the counter lists a document whose booking is gone (its « Ventes du jour » and
+    « À rembourser »). Tests `outside-vat-rate-one-home`, `visit-money-blocks-deletion`, `visit-money-survives-purge`.
 
 ---
 
@@ -670,6 +678,7 @@ number; `prefers-reduced-motion` → no movement.
 - [x] `plugins/hourly-resources/tests/visit-round1-reception-and-refunds.unit.test.js` — rules 44-46 (AV-1 to AV-8, AV-10, AV-11): the row and the invoice refusal, reception privacy, billing in the commit, `invoiceable`, `newSale`, the document's client follows the booking
 - [x] `plugins/hourly-resources/tests/booking-actions-no-show.unit.test.js` — rule 45 (UI-9): `actions.noShow` by day and role
 - [x] `tests/sale-link-expires-label.unit.test.js` — rule 45 (UI-15): the Paris label of a link's end
+- [x] `plugins/hourly-resources/tests/outside-vat-rate-one-home.unit.test.js`, `visit-money-blocks-deletion.unit.test.js`, `visit-money-survives-purge.unit.test.js` — rule 47 (B-3, D-3, D-4)
 - [x] `plugins/hourly-resources/tests/visit-window-and-roles.unit.test.js` — rules 1, 5, 7 (window `D+1 04:00`, reception allowed then read-only, `ADMIN_ONLY`)
 - [x] `plugins/hourly-resources/tests/visit-lines.unit.test.js` — rules 10-12, 14 (session line from the `hourly` family, suggestions, `NEEDS_STAY` never listed, quantity bounds, append after commit)
 - [x] `plugins/hourly-resources/tests/visit-offer.unit.test.js` — rule 13 (whole-line offer on session and extra, offered time kept as component, `waived` refused)

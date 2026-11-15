@@ -119,13 +119,21 @@ const closeObligation = (obligationId, { status, by = null }) => database().prep
 const closedObligationCents = (saleId) => Number(database().prepare("SELECT COALESCE(SUM(amountCents), 0) AS cents FROM standalone_sale_obligations WHERE saleId = ? AND status != 'open'")
   .get(Number(saleId)).cents);
 // The counter's documents (no origin) that still owe money back, any day: the « À rembourser » block of the counter card.
+// Loop t1 D-3, D-4 — a document whose origin booking is gone (deleted, or the hourly plugin purged) is the counter's: no other screen reaches it.
+function counterOwnedSql(alias = 's') {
+  const bookings = database().prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'resource_bookings'").get();
+  const orphan = bookings
+    ? `(${alias}.originRef LIKE 'resource-booking:%' AND NOT EXISTS (SELECT 1 FROM resource_bookings b WHERE 'resource-booking:' || b.id = ${alias}.originRef))`
+    : `${alias}.originRef LIKE 'resource-booking:%'`;
+  return `(${alias}.originRef IS NULL OR ${orphan})`;
+}
 const counterSalesOwing = () => database().prepare(`SELECT DISTINCT s.id FROM standalone_sales s JOIN standalone_sale_obligations o ON o.saleId = s.id
-  WHERE o.status = 'open' AND s.originRef IS NULL ORDER BY s.id DESC`).all().map((row) => row.id);
+  WHERE o.status = 'open' AND ${counterOwnedSql('s')} ORDER BY s.id DESC`).all().map((row) => row.id);
 
 const byOrigin = (originRef) => database().prepare('SELECT * FROM standalone_sales WHERE originRef = ? ORDER BY id').all(String(originRef));
 
 module.exports = {
   documentRef, lineRef, passageClientId, clientsByEmail, clientById, createClient, catalogueRow, externalRates, setExternalRate,
   insertSale, updateSale, insertLine, updateLine, bumpVersion, findSale, linesOf, findLine, byOrigin, addHistory, historyOf, openObligation, obligationsOf,
-  findObligation, closeObligation, closedObligationCents, counterSalesOwing,
+  findObligation, closeObligation, closedObligationCents, counterSalesOwing, counterOwnedSql,
 };

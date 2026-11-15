@@ -1440,7 +1440,7 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
     > `register.refundsTotalSql` / `refundLinesTotalSql` / `indemnityOfRefundSql` / `stayRefundLinesSumSql`; `refundsController` asks `judge.overpaymentRefusal` and
     > `refundable.capCashToLines`; `cancelReservation` reads `cancellation.cancellationFigures`; the payment poll and the notifier build the double-payment
     > effect and the owed amounts through `owed.js` (`doublePaymentEffect`, `duplicatePayment`, `fullOverDeposit`, `duplicateOnSolde`, `flagRefundOwed`, `owedOnLinkPayment`).
-    > The `refunds` allow-list keeps the guest app's three sites; `midStayOrderCommit`'s three went with the file (C30, 2026-11-13). Tests: `pricing-refunds-schedule-excess`, `refunds-poller-owed`.
+    > The `refunds` allow-list is empty since C39 (`fixtures/no-duplicate-formulas/refunds.json` = `[]`); `midStayOrderCommit`'s three sites went with the file (C30, 2026-11-13); the document's owed and unheld amounts joined `owedOnDocument` (loop t1 B-7, B-8). Tests: `pricing-refunds-schedule-excess`, `refunds-poller-owed`.
     > _(The price gate's refund figures and the synthetic refund stays were delivered by PR A: `price-gate-synthetic`.)_
 
 ### 3.P Delivery cadence of PR A (owner, 2026-11-11)
@@ -1934,6 +1934,9 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
     derivation at the moment it writes them (`soldAt` = the save, moment, `articleRef`, family, label): before, the next boot stamped them with the
     booking's date, a line added after a payment re-cut that receipt, and a line's moment changed at the restart. The boot pass keeps reading the
     rows stored before 4.2.0 and a stay's first lines. Tests `pricing-obligations-backfill-once`, `fiche-lines-stamped-at-save`.
+98. **A refund deleted gives back what it settled** _(stabilisation loop t1, B-5, 2026-11-15; completes rule 75)_. A refund on the trop-perçu settles
+    the open `lineLowered` rows oldest first, the part it takes of a row as a settled row of its own (`settledBy = refund:<id>`); deleting the refund
+    opens those rows again, so the SAS's « À rembourser (depuis la fiche) » owes what the trop-perçu owes. Test `refund-deleted-reopens-obligations`.
 
 ## 4. Architecture
 
@@ -2005,14 +2008,29 @@ All of it is plain CommonJS functions and objects (rule 56).
 
 ### 4.2 Client side
 
+_Rewritten 2026-11-15 (stabilisation loop t1, UI-3) to the files PR B and PR C shipped. T = touched, C = created._
+
 | Layer | File | T/C | Responsibility |
 |---|---|---|---|
-| `components/` | `SaleDetailList.js` | C | generic: renders `saleDetail` lines with source, status and discount chips (`StatusBadge`), grouped by article; a « Moment » menu on unpaid lines — used by the fiche, both SAS and the devis view |
-| `pages/` | `ReservationPage.js` | T | « Ajouter un produit » on a sold stay → quote dialog (`FormDialog`) → POST; discount field gains the target selector « Nuits / Articles / Tout » |
-| `plugins/sas/` | `ReservationSasDialog.jsx` | T | recaps render `SaleDetailList`; section « Ventes du séjour — au départ » (rule 20) |
-| `plugins/guest-app/` | `SasArrivalOrdersStep.jsx` | T (PR C) | reads `saleDetail` lines of `source = 'shop'` |
-| `apps/guest/` | cart / order views | — | unchanged UI; labels from the server |
-| `components/` | `StandaloneSaleDialog.js` | C (PR C) | « Vente hors séjour »: articles, quantity, payment (tender or link); reuses `FormDialog`, `SaleDetailList` |
+| `components/` | `SaleDetailList.jsx` | C | generic: renders `saleDetail` lines with source, status and discount chips (`StatusBadge`), grouped by article (`groups`); the « Moment » menu of a line the server serves `movable` (rule 95) — the fiche, both SAS, the devis view |
+| `components/` | `AddProductDialog.jsx` | C | « Ajouter un produit » (`FormDialog`): product, quantity, the server's price and moment, sells at the accepted price (`payment: 'later'`) |
+| `components/` | `ExtraSalesPanel.jsx` | C | « Ventes du séjour » of a saved stay: `SaleDetailList` + `AddProductDialog`, the moment menu |
+| `components/` | `StaySalesSection.jsx` | C | the SAS sections « Ventes du séjour — au départ » and « Déjà payé » (rule 32), « Percevoir maintenant » / « Offrir »; SDK client export (2.29.0) |
+| `components/` | `SuggestedArticlesStep.jsx` | C | « Proposés à l'arrivée »: suggestion chips, « Autre article » search, steppers; SDK client export (2.31.0) |
+| `components/` | `SalePaymentLink.jsx` | C | the payment-link block of a sale outside a stay (mint, copy, e-mail on click, withdraw); SDK client export (2.31.0) |
+| `components/` | `StandaloneSaleDialog.jsx` | C | « Vente hors séjour »: articles, quantity, client, payment (tenders or link); reuses `FormDialog`, `SaleDetailList`, `TenderLines` |
+| `components/` | `StandaloneSalesTodayCard.jsx` | C | « Ventes hors séjour · aujourd'hui » of Suivi financier, its « À rembourser » block and « Nouvelle vente » |
+| `components/` | `ExternalSaleFields.jsx` | C | « Vendable hors séjour » and the class VAT rate on the article forms |
+| `components/` | `TenderLines.jsx`, `PricingSummary.jsx`, `reservation/FinanceSection.jsx`, `reservation/RefundDialog.jsx` | T | the tender lines of a document; the « Réduction sur » selector (Nuits / Articles / Tout); the open refund obligations; « Carte » as a refund means |
+| `hooks/` | `useExternalVatRates.js` | C | the class rates of `GET /api/standalone-sales/vat-rates` |
+| `constants/` | `extraSale.js` | C | the selector and moment words |
+| `utils/` | `applyQuoteToForm.js`, `arrivalLineKey.js`, `bookingFormHydration.js` | T | the fiche form reads the line keys of rule 85 and the later lines (`hydrateLaterLines`) |
+| `pages/` | `ReservationPage.jsx`, `FinancePage.jsx`, `PlanningPage.jsx`, `OptionsResourcesPage.jsx`, `options/*`, `settings/SettingsSuggestedArticlesSection.jsx` | T / C | the fiche panel; the « Vente hors séjour » bar icon of Suivi financier (rule 88: a `PageActionBar` action); the visit dialog on the planning; the article forms; the « Proposés à l'arrivée » settings tab |
+| `plugins/sas/` | `ReservationSasDialog.jsx`, `arrivalDraft.js`, `departureDraft.js` | T | recaps render `SaleDetailList` / `StaySalesSection` |
+| `plugins/guest-app/` | `SasArrivalOrdersStep.jsx`, `guestAppApi.js`, `index.js` | C / T | the SAS step « Commandes Mon séjour » (rules 71, 87) |
+| `plugins/hourly-resources/` | `ResourceArrivalDialog.jsx`, `useVisitQuote.js`, `ResourceBookingDialog.jsx`, `BookingPaymentFields.jsx`, `PlanningResourceCard.jsx`, `planningDays.js` | T / C | the visit's mini SAS (outside-booking-sas §6) |
+| `plugins/sdk/` | `index.js` | T | the client exports `StaySalesSection`, `SuggestedArticlesStep`, `SalePaymentLink` |
+| `apps/guest/` (guest-app plugin) | `PaymentChoice.jsx`, `SlotGrid.jsx`, `DeliveryTimeChips.jsx`, `CartBody.jsx`, `OrderCard.jsx`, `BreakfastSheet.jsx`, `useCart.jsx`, `HomePage.jsx`, `SlotPickerPage.jsx` | T | card first and preselected (guest-app rule 86), the slot grid's greyed days and opening bar, the delivery chips; labels from the server |
 
 **Component reuse:** consumed `FormDialog`, `StatusBadge`, `PageActionBar`, `ConfirmDialog`; created
 `SaleDetailList` (three screens and the guest app read the same payload); nothing specific.
@@ -2122,25 +2140,28 @@ The owner validates on [`pricing-components-resume.html`](pricing-components-res
 diagram (owner components and their units, the stay clock consulted by all) and a simulator whose clock control drives the STAY CLOCK component (its `phaseOf` output is shown) relative to the arrival date and
 check-in time, a discount target, line moment changes and the tourist tax as its own block.
 
-- **Fiche:** the « Options et articles » block lists lines grouped by article with source, status and
-  discount chips. « Ajouter un produit » on a sold stay opens a `FormDialog` (article, quantity, « Payer
-  maintenant (lien carte) » / « À payer ») with the server quote live. An unpaid line has a « Moment » menu
-  (« À l'arrivée », « Au départ »). A paid line's « Offrir » / « Retirer » asks confirmation and announces
-  « 13,00 € à rembourser ». The discount field has a target selector « Nuits », « Articles », « Tout ».
-  Mobile (`xs`): the dialog is full screen, lines stack label / quantity × unit / status, the moment menu is
-  a full-width select.
-- **SAS arrivée:** « À percevoir maintenant » (arrival lines + stay due), « Déjà payé » (not offerable) and,
-  after check-in time, « Ventes du séjour — au départ » with « Percevoir maintenant » and « Passer à
-  l'arrivée ». **SAS départ:** « À percevoir au départ » (departure lines + recalled unpaid arrival lines)
-  and « Déjà payé ». Same `SaleDetailList`, same wording.
-  _(Delivered by PR B, pass 5: the arrival SAS recap opens with `StaySalesSection`, the server's `staySales` block — « Ventes du séjour — au départ », its lines with their status and what is
-  still due, nothing summed on the client; it wraps long labels on `xs`. Skills loaded for it: `apple-design`, `impeccable`. **Pending** — PR-later: « Percevoir maintenant » / « Passer à l'arrivée » on those
-  lines, « Déjà payé » and the departure SAS section: they need the SAS to write its lines through `extraSale` (rule 25).)_
+_Rewritten 2026-11-15 (stabilisation loop t1, UI-3) to what shipped._
+
+- **Fiche:** « Ventes du séjour » (`ExtraSalesPanel`) lists the lines grouped by article with source, status and discount chips (`SaleDetailList`).
+  « Ajouter un produit » on a sold stay opens a `FormDialog` (article, quantity) with the server quote live; the sale is written « À payer »
+  (`payment: 'later'`). A line the server serves `movable` has a « Moment » menu listing its `moments` (« À l'arrivée », « Au départ » once the stay
+  has started, rule 95). The discount field has a target selector « Nuits », « Articles », « Tout ». Mobile (`xs`): the dialog is full screen,
+  lines stack label / quantity × unit / status, the moment button is full width.
+- **SAS arrivée:** « À percevoir maintenant » (arrival lines + stay due), « Déjà payé » (offers nothing, rule 32) and, after check-in time,
+  « Ventes du séjour — au départ » (`StaySalesSection`) with « Percevoir maintenant » on each line still to collect (C25, mock M3; « Passer à
+  l'arrivée » was dropped by M3). **SAS départ:** « À percevoir au départ » and « Déjà payé », with « Offrir » on a paid line (the lowered money
+  then owed back, rule 23). Same `SaleDetailList` / `StaySalesSection`, same wording.
+- **Suivi financier:** the bar gains the « Vente hors séjour » icon (rule 88) and the card « Ventes hors
+  séjour · aujourd'hui » with its « À rembourser » block.
+- **Guest app** (`apps/guest/`): « Payer par carte » first and preselected (guest-app rule 86), the slot grid greys the days outside the stay and
+  shows the opening hours, the delivery chips; every label from the server.
 - Copy (French, impersonal, short): « Payée par carte le {date} », « À payer à l'arrivée », « À payer au
   départ », « Comprise dans le prix plateforme », « Dans l'acompte et le solde », « Offerte », « Remise
   −{x} € », « Fiche », « Boutique », « SAS », « Séjour soldé : vente séparée », « Prix modifié — relire le
   panier », « Ventes du séjour — au départ ».
-- No `PageActionBar` change.
+- _Out of scope of PR C (moved 2026-11-15):_ a « Payer maintenant (lien carte) » choice in the fiche's « Ajouter un produit » dialog, and « Offrir » /
+  « Retirer » on a paid line of the fiche's panel (the server's `PATCH /extras/:ref { offered }` and its `OVERPAID` confirmation exist; the SAS
+  sections carry the gesture).
 
 ## 7. Test plan
 
@@ -2200,8 +2221,10 @@ check-in time, a discount target, line moment changes and the tourist tax as its
 - [x] `sale-breakfast-card-before-arrival` — rule 96 (S-4, S-5): the first breakfast at the arrival, a morning paid by card settled on its line
 - [x] `sale-installments-pinned` — rule 96 (S-6): a sale to the arrival rewrites no instalment row of a plan the engine would restate
 - [x] `sale-quote-payment-refusals` — rule 96 (S-7): the quote refuses a payment before the arrival like the sale
+- [x] Named after the fact (stabilisation loop t1, P-4, 2026-11-15) — the suites PR B and PR C added without a line here: `no-duplicate-formulas-pr-b-empty` (rule 66, the allow-lists empty), `pricing-discount-amount-persisted` (rule 39), `pricing-line-lowered-obligation` (rule 23), `pricing-refund-nettings` (rule 78, S6), `pricing-refunds-basket-outcome`, `pricing-refunds-overpayment-postes`, `pricing-settlement-schedule-excess` (rules 72, 75, 76), `pricing-sale-offered-hour-billed-again` (rule 93, V-2), `pricing-sales-catalogue` (rule 53), `pricing-sales-migration-sequence` (rule 85, R1-5), `pricing-stay-lines-live` (rule 79), `refund-card-means`, `refund-history-entries` (rule 75), `standalone-sales-no-provider-column` (rule 86, R3-9), `stay-clock-compose-feed` (rule 45); client (Vitest) `SaleDetailList.groups`, `StandaloneSaleDialog.other-article`, `StaySalesSection.collect-now`, `StaySalesSection.render`, `SasArrivalOrdersStep.orders`, `ReservationSasDialog.arrival-orders`, `ReservationSasDialog.collect-now`, `arrivalLineKey.line-keys`, `bookingFormHydration.later-lines`
 - [x] `pricing-obligations-backfill-once` — rule 97 (D-1, D-5, D-6): S9 once, no twin of a live row, a stay-less link skipped, a sale link not settled as a stay's
 - [x] `fiche-lines-stamped-at-save` — rule 97 (D-2): a fiche-added line stamped by its save, nothing left for the boot
+- [x] `refund-deleted-reopens-obligations` — rule 98 (B-5)
 
 ### Proof
 - [ ] Price gate (rule 68): `price-gate.unit.test.js` green on every commit of A, B and C, with the allowlist reviewed by the owner; `price-gate-anonymity`, `price-gate-anonymise`, `price-gate-figures`, `price-gate-compare`, `price-gate-move-proof` unit tests green

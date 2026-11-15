@@ -71,7 +71,7 @@ module.exports = {
   // « Ventes du jour » (owner M4): the counter's sales of a Paris day, newest first.
   list(req, res) {
     const day = typeof req.query.day === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(req.query.day) ? req.query.day : parisDay(new Date());
-    const rows = require('../database').prepare('SELECT id, soldAt FROM standalone_sales WHERE originRef IS NULL ORDER BY id DESC LIMIT 300').all()
+    const rows = require('../database').prepare(`SELECT s.id, s.soldAt FROM standalone_sales s WHERE ${sales.counterOwnedSql('s')} ORDER BY s.id DESC LIMIT 300`).all()
       .filter((row) => row.soldAt && parisDay(new Date(row.soldAt)) === day);
     // Rule 41 (V-4) — the counter's documents that still owe money back, whatever their day: « À rembourser » until the refund is made.
     const owed = sales.counterSalesOwing().map((id) => saleRow(standaloneSale.documentOf(id)));

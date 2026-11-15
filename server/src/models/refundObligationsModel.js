@@ -11,6 +11,7 @@
  *   openFor(reservationId)    → the open rows, oldest first
  *   openAmountFor(reservationId, origin) → Σ cents of the open rows of one origin
  *   close(id, { status, by, now }) → the closed row, or null when it is not open
+ *   settleLoweredBy(reservationId, refundId, cents) / reopenSettledBy(reservationId, refundId)   a refund on the trop-perçu settles the `lineLowered` rows; deleted, it reopens them
  */
 const ORIGINS = ['basket', 'duplicatePayment', 'withdrawnLink', 'lineLowered', 'orderConflict', 'neverBooked'];
 const CLOSED = ['settled', 'cancelled'];
@@ -59,6 +60,13 @@ function buildModel(database) {
   }
 
   // A refund opened on the trop-perçu gives the money back: the `lineLowered` rows it covers are settled, oldest first.
+  // Loop t1 B-5 — a refund deleted gives back what it settled: the rows it closed are open again.
+  function reopenSettledBy(reservationId, refundId) {
+    if (!ready()) return 0;
+    return database.prepare(`UPDATE refund_obligations SET status = 'open', settledAt = NULL, settledBy = NULL
+      WHERE reservationId = ? AND status = 'settled' AND settledBy = ?`).run(Number(reservationId), `refund:${Number(refundId)}`).changes;
+  }
+
   function settleLoweredBy(reservationId, refundId, cents) {
     if (!ready()) return;
     let left = cents;
@@ -68,7 +76,10 @@ function buildModel(database) {
         close(row.id, { status: 'settled', by: `refund:${refundId}` });
         left -= row.amountCents;
       } else {
+        // The part given back is a settled row of its own, so a deleted refund can give it back (loop t1 B-5).
         database.prepare('UPDATE refund_obligations SET amountCents = ? WHERE id = ?').run(row.amountCents - left, row.id);
+        const part = open({ reservationId: row.reservationId, origin: 'lineLowered', lineRef: row.lineRef, amountCents: left, reason: row.reason });
+        if (part) close(part.id, { status: 'settled', by: `refund:${refundId}` });
         left = 0;
       }
     }
@@ -80,6 +91,7 @@ function buildModel(database) {
     close,
     trimLowered,
     settleLoweredBy,
+    reopenSettledBy,
     findById,
     openThenSettle(input, by = 'provider') {
       const row = open(input);

@@ -20,4 +20,16 @@ function standaloneVatRateOf(settings) {
   return validateRate(raw) ? DEFAULT_STANDALONE_VAT_RATE : Number(raw);
 }
 
-module.exports = { SETTINGS, standaloneVatRateOf, validateRate, DEFAULT_STANDALONE_VAT_RATE };
+// Loop t1 B-3 — the rate typed on the catalogue for the `resources` class (`vat_external_rates`) wins over the plugin's setting, as the core's settings
+// provider reads it: one rate for a session paid in the booking dialog and one sold at the visit's mini SAS.
+function outsideVatRateOf(db, fallback) {
+  try {
+    const row = db.prepare("SELECT rate FROM vat_external_rates WHERE vatClass = 'resources'").get();
+    if (row && Number.isFinite(Number(row.rate))) return Number(row.rate);
+  } catch { /* a schema without the table: the plugin's setting */ }
+  return fallback();
+}
+
+module.exports = {
+  outsideVatRateOf, SETTINGS, standaloneVatRateOf, validateRate, DEFAULT_STANDALONE_VAT_RATE,
+};

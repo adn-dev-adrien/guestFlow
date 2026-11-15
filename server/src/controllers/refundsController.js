@@ -199,6 +199,7 @@ function createRefundsController(deps = {}) {
       if (refusal) return res.status(409).json(refusal);
       const removed = refundsModel.remove(id, refundId);
       if (!removed) return res.status(404).json({ error: 'Remboursement non trouvé' });
+      require('../models/refundObligationsModel').reopenSettledBy(id, refundId);
       recordRefundDeletion(id, target);
       const refreshed = buildRegister(id);
       if (!refreshed) return res.status(404).json({ error: 'Réservation non trouvée' });
