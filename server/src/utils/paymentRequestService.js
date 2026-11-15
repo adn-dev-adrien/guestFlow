@@ -162,6 +162,59 @@ async function mintBasketLink(deps, id, basket) {
   return { id: row.id, type: 'complement', amountCents, url: link.url, status: link.status, providerLinkId: link.id, expiresAt: row.expiresAt, reused: false };
 }
 
+// SDK 2.31.0 — a basket with no stay: one link at the exact amount, labelled by the plugin, billed to its own `saleRef` (`<source>:<ref>`) so no stay-orphan
+// rule withdraws it. An open link of the same amount with time left is handed back; any other is retired first, so only the newest can be paid.
+// `deps`: { paymentLinksModel, provider, redirectUrl?, now? } — `sale`: { source, ref, title, amountCents }.
+const SALE_LINK_REUSE_MINUTES = 5;
+function ensureSaleLink(deps, sale) {
+  const refusal = saleRefusal(sale);
+  if (refusal) return Promise.reject(refusal);
+  return withLinkLock(`sale:${sale.source}:${sale.ref}`, () => mintSaleLink(deps, sale));
+}
+
+function saleRefusal(sale) {
+  const sound = sale && typeof sale.source === 'string' && sale.source && sale.ref != null && String(sale.ref) !== ''
+    && typeof sale.title === 'string' && sale.title.trim() && Number.isInteger(sale.amountCents) && sale.amountCents > 0;
+  return sound ? null : { ...BASKET_REQUIRED };
+}
+
+async function mintSaleLink(deps, sale) {
+  const { paymentLinksModel, provider } = deps;
+  const saleRef = `${sale.source}:${sale.ref}`;
+  const now = mintClock(deps);
+  const open = paymentLinksModel.findOpenForSale(saleRef);
+  if (open && open.url) {
+    const remainingMs = new Date(open.expiresAt).getTime() - now.getTime();
+    if (Number(open.amountCents) === sale.amountCents && remainingMs >= SALE_LINK_REUSE_MINUTES * 60 * 1000) {
+      return {
+        id: open.id, amountCents: open.amountCents, url: open.url, status: open.status, expiresAt: open.expiresAt, reused: true,
+      };
+    }
+    await require('./paymentLinkDeactivation').retireOpenLink(open, {
+      paymentLinksModel, provider, now, reason: Number(open.amountCents) === sale.amountCents ? LINK_REASONS.VALIDITY : LINK_REASONS.AMOUNT_CHANGED,
+    });
+  }
+  const linkArgs = { title: sale.title.trim(), amountCents: sale.amountCents };
+  if (deps.redirectUrl) linkArgs.redirectUrl = deps.redirectUrl;
+  const link = await provider.createLink(linkArgs, { origin: deps.origin || 'basket' });
+  const row = paymentLinksModel.create({
+    reservationId: null,
+    type: 'complement',
+    amountCents: sale.amountCents,
+    provider: provider.id,
+    providerLinkId: link.id,
+    url: link.url,
+    status: link.status,
+    createdAt: now.toISOString().replace('T', ' ').slice(0, 19),
+    expiresAt: new Date(now.getTime() + BASKET_LINK_MINUTES * 60 * 1000).toISOString(),
+    basket: { source: sale.source, ref: String(sale.ref) },
+    saleRef,
+  });
+  return {
+    id: row.id, amountCents: sale.amountCents, url: link.url, status: link.status, expiresAt: row.expiresAt, reused: false,
+  };
+}
+
 // specs/payment-link-lifecycle.md rule 63 — the same lock for an installment plan's creation or resize: a stay link
 // minted at that moment waits for the plan (then finds 0 to bill), or the plan waits for it (then retires it).
 function withStayLinkLock(database, id, work) {
@@ -571,7 +624,7 @@ async function sendPaymentRequest(deps, id, requestedType) {
 }
 
 module.exports = {
-  ensurePaymentLink, withStayLinkLock, sendPaymentRequest, ensureInstallmentLink, sendInstallmentRequest, resolveRequestType, LINK_TYPES, LINK_TITLES, REQUEST_TEMPLATES,
+  ensurePaymentLink, ensureSaleLink, withStayLinkLock, sendPaymentRequest, ensureInstallmentLink, sendInstallmentRequest, resolveRequestType, LINK_TYPES, LINK_TITLES, REQUEST_TEMPLATES,
   BASKET_LINK_MINUTES,
   __test: { storeUnlessNightsLost },
 };

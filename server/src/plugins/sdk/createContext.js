@@ -185,7 +185,8 @@ function createContext(id, {
     // SDK 2.26.0 (specs/guest-app.md rules 35-36) — the baskets a plugin bills through a `complement` link
     // (`ctx.core.payments.basketLink(...)`): `paid({ reservationId, ref, amountCents, paidDate, paidAt, providerPaymentId })`
     // runs, synchronously, when such a link is paid — on time or late — and answers `{ effect }`; `refundOwed: true`
-    // marks money the stay keeps nothing for. One plugin per `source`.
+    // marks money the stay keeps nothing for. One plugin per `source`. A link minted with `core.payments.saleLink(...)` has no stay:
+    // `reservationId` is then null and `ref` is the plugin's own.
     paymentBasket({ source, paid, labels } = {}) {
       if (!/^[a-z][a-zA-Z0-9-]{0,39}$/.test(String(source || ''))) throw new Error(`${prefix} a payment basket needs a source like "shopOrder"`);
       if (typeof paid !== 'function') throw new Error(`${prefix} payment basket "${source}" needs a paid function`);

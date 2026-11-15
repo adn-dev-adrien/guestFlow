@@ -32,6 +32,10 @@ function createVouchersModel(db) {
 
   const find = (id) => db.prepare(`${SELECT} WHERE v.id = ?`).get(Number(id)) || null;
   const findByCodeHash = (hash) => db.prepare(`${SELECT} WHERE v.codeHash = ?`).get(String(hash)) || null;
+  const findByOrderId = (orderId) => db.prepare(`${SELECT} WHERE v.orderId = ?`).get(Number(orderId)) || null;
+  /** Rule 23 — the vouchers sold on the site whose receipt has not left, issued between `since` and `before` (ISO instants). */
+  const awaitingMail = ({ since, before }) => db.prepare(`${SELECT} WHERE o.source = 'site' AND o.email != '' AND v.mailSentAt IS NULL AND v.cancelledAt IS NULL
+    AND v.issuedAt >= ? AND v.issuedAt <= ? ORDER BY v.id`).all(since, before);
   const listAll = () => db.prepare(`${SELECT} ORDER BY v.id DESC`).all();
 
   const setCancelled = (id, at) => db.prepare('UPDATE gift_vouchers SET cancelledAt = ? WHERE id = ? AND cancelledAt IS NULL').run(at, Number(id)).changes;
@@ -42,7 +46,7 @@ function createVouchersModel(db) {
   const withBalance = () => db.prepare(`SELECT COUNT(*) AS n FROM (${SELECT}) WHERE balanceCents > 0`).get().n;
 
   return {
-    nextNumber, insert, find, findByCodeHash, listAll, setCancelled, setExpiry, setMail, count, withBalance,
+    nextNumber, insert, find, findByOrderId, awaitingMail, findByCodeHash, listAll, setCancelled, setExpiry, setMail, count, withBalance,
   };
 }
 

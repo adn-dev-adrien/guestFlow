@@ -39,6 +39,7 @@ Non. Elle crée un devis « brouillon » côté GuestFlow, que l'administrateur 
 
 = 1.20.0 =
 * Bons cadeaux : un bloc « GuestFlow — Bon cadeau » (et le shortcode `[guestflow_gift_voucher]`) pour acheter un bon : montant libre dans les bornes de GuestFlow, repères de prix, « Pour » / « De la part de », un mot, e-mail, conditions de vente, aperçu du bon en direct, puis paiement en ligne et page du bon (PDF, impression) au retour. Tant que GuestFlow ne propose pas la vente en ligne, le formulaire s'affiche avec « Vente en ligne bientôt disponible. ».
+* Après le paiement, le visiteur revient sur la page du formulaire : le bloc transmet le chemin de la page, GuestFlow le rattache à l'adresse du site.
 * Le shortcode `[guestflow_gift_voucher_button url="…"]` affiche un bouton « Bon cadeau » à placer à côté de « Réserver ».
 * Le code d'un bon (16 caractères, dernier caractère de contrôle) est normalisé et pré-vérifié côté navigateur avant d'être envoyé à GuestFlow, qui le revérifie.
 * Demande GuestFlow avec le plugin « Bons cadeaux » actif ; sans lui, le bloc affiche « Réservation temporairement indisponible. ».

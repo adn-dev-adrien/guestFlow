@@ -16,6 +16,8 @@ const { createIssuance } = require('./issuance');
 const { createIdeas } = require('./ideas');
 const { createCheckLimits } = require('./rateLimiters');
 const { createProof } = require('./proof');
+const { createReceipt } = require('./receipt');
+const { createOrderPaid, SOURCE } = require('./orderPaid');
 const { renderVoucherPdf } = require('./voucherPdf');
 const { buildAdminController } = require('./controllers/adminController');
 const { buildPublicCheckController } = require('./controllers/publicCheckController');
@@ -27,6 +29,7 @@ const id = 'gift-vouchers';
 const PEPPER_NAME = 'GIFT_VOUCHER_PEPPER';
 const PUSH_CHANNEL = 'gift-voucher-checks';
 const DAY_MS = 24 * 60 * 60 * 1000;
+const RECEIPT_RETRY_MS = 15 * 60 * 1000;
 const ERASE_REFUSAL = 'Des bons ont encore un solde : les annuler ou attendre leur expiration avant d’effacer les données.';
 const PAUSED_ITEM = Object.freeze({
   title: 'Vérification des bons cadeaux suspendue',
@@ -83,6 +86,7 @@ function userNameFrom(db) {
 function buildGiftVouchersApi({
   db, pepper, encrypt, decrypt, settingsStore = () => memorySettings(), now = () => new Date(), quote, pow, powSecret, guard,
   sendMail, paymentMethods, userName = userNameFrom(db), companyName, pageUrl, bookingUrl, termsVersionId = () => null, onlineSaleAvailable = () => false,
+  payments, siteOrigin = () => '', limiters = {},
   randomBytes, onCheckLimitsTrip = () => {}, transaction = (fn) => db.transaction(fn)(),
 }) {
   const get = (key) => settingsStore().get(key);
@@ -101,29 +105,41 @@ function buildGiftVouchersApi({
   const respond = sdk.coreModule('publicHttp');
   const ipOf = (req) => pow.ipKeyOf(req.visitor && req.visitor.ip ? req.visitor.ip : req.ip) || 'unknown';
 
+  const receipt = createReceipt({
+    vouchers, orders, movements, transaction, sendMail, settingsGet: get, pageUrl, now,
+  });
+  const proof = createProof({ pow, secret: powSecret });
   const admin = buildAdminController({
-    vouchers, orders, movements, issuance, transaction, limits, paymentMethods, userName, decrypt, sendMail, renderPdf: renderVoucherPdf,
-    settingsGet: get, brand: companyName, pageUrl, bookingUrl, now,
+    vouchers, orders, movements, issuance, transaction, limits, paymentMethods, userName, decrypt, receipt, renderPdf: renderVoucherPdf,
+    brand: companyName, bookingUrl, now,
   });
   const check = buildPublicCheckController({
-    vouchers, checks, limits: checkLimits, pepper, proof: createProof({ pow, secret: powSecret }), ipOf, now, respond,
+    vouchers, checks, limits: checkLimits, pepper, proof, ipOf, now, respond,
   });
   const offer = buildPublicOrdersController({
-    ideas, limits, termsVersionId, available: onlineSaleAvailable, respond,
+    ideas, limits, termsVersionId, available: onlineSaleAvailable, brand: companyName, respond, orders, vouchers, proof, pepper, ipOf, payments, siteOrigin,
+    decrypt, renderPdf: renderVoucherPdf, bookingUrl, now,
   });
 
   return {
     adminRouter: buildAdminRouter({ admin }),
-    publicRouter: buildPublicRouter({ guard, offer, check }),
+    publicRouter: buildPublicRouter({
+      guard, offer, check, limiters,
+    }),
     vouchers,
     orders,
     movements,
     checks,
     issuance,
+    receipt,
+    orderPaid: createOrderPaid({
+      orders, movements, issuance, limits, receipt,
+    }),
     ideas,
     checkLimits,
     limits,
     purgeStaleOrders: () => orders.purgeStalePending(),
+    retryReceipts: () => receipt.retryPending(),
     purgeOldChecks: () => checks.purgeOld(),
     attention: { handler: (req, res) => res.json({ paused: checkLimits.isPaused() }), summarize: summarizeChecks },
   };
@@ -159,6 +175,16 @@ function register(ctx) {
     guard: sdk.middleware.publicApi,
     sendMail: (mail) => ctx.mail.send(mail),
     paymentMethods: () => sdk.coreModule('paymentTenders').METHODS.map(({ value, label }) => ({ value, label })),
+    payments: {
+      saleLink: (sale, options) => sdk.core.payments.saleLink({ source: SOURCE, ...sale }, options),
+      refreshLink: (linkId) => sdk.core.payments.refreshBasketLink(linkId),
+    },
+    siteOrigin,
+    limiters: {
+      payStart: sdk.coreModule('rateLimiters').paymentStartLimiter,
+      status: sdk.coreModule('rateLimiters').paymentStatusLimiter,
+    },
+    onlineSaleAvailable: () => Boolean(sdk.coreModule('paymentProviders').active()),
     companyName: () => String(settingsModel().read().companyName || '').trim() || 'GuestFlow',
     pageUrl,
     bookingUrl: () => String(ctx.settings.get('bookingUrl') || '').trim() || siteOrigin(),
@@ -188,10 +214,14 @@ function register(ctx) {
     handler: (req, res) => api().attention.handler(req, res),
     summarize: (payload) => summarizeChecks(payload),
   });
+  ctx.paymentBasket({ source: SOURCE, paid: (event) => api().orderPaid(event) });
   ctx.events.on('pricing.changed', () => { if (built) built.ideas.invalidate(); });
 
   ctx.jobs.every({
     name: 'pending-orders-purge', intervalMs: DAY_MS, bootDelayMs: 300 * 1000, run: async () => { api().purgeStaleOrders(); },
+  });
+  ctx.jobs.every({
+    name: 'receipts-retry', intervalMs: RECEIPT_RETRY_MS, bootDelayMs: 240 * 1000, run: async () => { await api().retryReceipts(); },
   });
   ctx.jobs.every({
     name: 'checks-purge', intervalMs: DAY_MS, bootDelayMs: 330 * 1000, run: async () => { api().purgeOldChecks(); },

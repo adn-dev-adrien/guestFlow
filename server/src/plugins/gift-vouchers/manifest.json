@@ -1,12 +1,13 @@
 {
   "id": "gift-vouchers",
   "name": "Bons cadeaux",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Des bons cadeaux d’un montant libre : créés à la main, imprimables en PDF, vérifiés par leur code.",
   "icon": "gift",
   "surfaces": [
     "La page « Bons cadeaux »",
-    "L’API publique des bons cadeaux : l’offre et la vérification d’un code",
+    "L’API publique des bons cadeaux : l’offre, la commande, son paiement, la page du bon et la vérification d’un code",
+    "Le mail envoyé à l’acheteur quand son bon est émis",
     "Le PDF du bon cadeau",
     "L’alerte « Vérification des bons cadeaux suspendue »",
     "La notification push « Bons cadeaux : vérifications suspendues »"
@@ -15,6 +16,11 @@
   "guestflow": ">=3.10.0",
   "sdk": "^2.31.0",
   "changelog": {
+    "1.1.0": [
+      "La vente en ligne : la commande depuis le site, son paiement par lien sans réservation, l’émission du bon à la confirmation de la banque, la page du bon et son PDF par un lien personnel, la purge des commandes jamais payées après 7 jours.",
+      "Le mail de confirmation part tout seul à l’acheteur (montant, validité, lien du bon, jamais le code) ; s’il échoue, il est réessayé et le bon porte « Mail non parti ».",
+      "Demande le SDK 2.31 de GuestFlow ; la vente en ligne n’est proposée que lorsqu’un paiement en ligne est connecté."
+    ],
     "1.0.0": [
       "Première version : le registre des bons (numéro, code protégé, montant, solde calculé depuis ses mouvements, validité figée à l’émission), la création d’un bon vendu hors du site, la prolongation, l’annulation, la correction du solde, le code affiché masqué et révélé sur demande, le renvoi du mail, le PDF d’une page avec QR code, l’offre publique avec ses idées chiffrées, la vérification d’un code avec preuve de travail et limites par visiteur.",
       "Demande le SDK 2.31 de GuestFlow."

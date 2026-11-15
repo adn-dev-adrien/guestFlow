@@ -45,7 +45,7 @@ const withPepper = (value, fn) => {
   try { return fn(); } finally { if (saved === undefined) delete process.env[gv.PEPPER_NAME]; else process.env[gv.PEPPER_NAME] = saved; }
 };
 
-test('rule 1: the plugin is in the catalogue, its manifest is valid and names no requirement yet', () => {
+test('rule 1: the plugin is in the catalogue, its manifest is valid and names no requirement: the online sale reads the payment provider live (rule 2)', () => {
   assert.ok(PLUGIN_IDS.includes('gift-vouchers'));
   const manifest = readSourceManifest('gift-vouchers');
   assert.equal(findPlugin('gift-vouchers').name, 'Bons cadeaux');
@@ -61,7 +61,7 @@ test('rule 3: nothing in the plugin names an establishment, a property or a plat
   [/solio/i, /estiva/i, /granja/i, /booking\.com/i, /airbnb/i, /lodgify/i].forEach((word) => assert.equal(word.test(text), false, String(word)));
 });
 
-test('rules 1, 4: it mounts one public tree and one admin tree, declares its settings, two jobs, a push channel and the home item', () => {
+test('rules 1, 4: it mounts one public tree and one admin tree, declares its settings, three jobs, a push channel, its payment basket and the home item', () => {
   const calls = { mounts: [], settings: [], jobs: [], attention: [], channels: [], events: [] };
   const noop = new Proxy(function noop() {}, { get: () => noop, apply: () => noop });
   const ctx = new Proxy({}, {
@@ -81,7 +81,7 @@ test('rules 1, 4: it mounts one public tree and one admin tree, declares its set
   withPepper(undefined, () => gv.register(ctx));
   assert.deepEqual(calls.mounts, [['/public/v1/gift-vouchers', true], ['/api/gift-vouchers', false]]);
   assert.deepEqual(calls.settings, ['validityMonths', 'minAmountCents', 'maxAmountCents', 'ideas', 'pageUrl', 'bookingUrl', 'mailSubjectFr', 'mailBodyFr', 'mailSubjectEn', 'mailBodyEn']);
-  assert.deepEqual(calls.jobs, ['pending-orders-purge', 'checks-purge']);
+  assert.deepEqual(calls.jobs, ['pending-orders-purge', 'receipts-retry', 'checks-purge']);
   assert.deepEqual(calls.attention, ['gift-voucher-checks']);
   assert.deepEqual(calls.channels, ['gift-voucher-checks']);
   assert.deepEqual(calls.events, ['pricing.changed']);

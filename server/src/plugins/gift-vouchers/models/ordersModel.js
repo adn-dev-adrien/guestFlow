@@ -33,6 +33,21 @@ function createOrdersModel(db, { now = () => new Date() } = {}) {
 
   const find = (id) => db.prepare('SELECT * FROM gift_voucher_orders WHERE id = ?').get(Number(id)) || null;
 
+  /** Rule 21 — the order behind `id` when `token` is its token, else null (a wrong token and an unknown id are the same answer). */
+  function findByToken(id, token) {
+    const order = find(id);
+    if (!order || !order.publicTokenHash || typeof token !== 'string' || !token) return null;
+    const given = Buffer.from(hashToken(token), 'hex');
+    const stored = Buffer.from(order.publicTokenHash, 'hex');
+    return given.length === stored.length && crypto.timingSafeEqual(given, stored) ? order : null;
+  }
+
+  const setLink = (id, linkId) => db.prepare('UPDATE gift_voucher_orders SET linkId = ? WHERE id = ?').run(Number(linkId), Number(id));
+
+  /** Rule 15 — the orders a visitor started in the last `windowMs`. */
+  const countSince = (visitorHash, windowMs) => db.prepare('SELECT COUNT(*) AS n FROM gift_voucher_orders WHERE visitorHash = ? AND createdAt >= ?')
+    .get(String(visitorHash), new Date(now().getTime() - windowMs).toISOString()).n;
+
   const markIssued = (id) => db.prepare("UPDATE gift_voucher_orders SET state = 'issued' WHERE id = ?").run(Number(id));
 
   /** The order's token, for a link the buyer asks again; null when the key changed and it no longer decrypts. */
@@ -49,7 +64,7 @@ function createOrdersModel(db, { now = () => new Date() } = {}) {
   }
 
   return {
-    create, find, markIssued, tokenOf, purgeStalePending,
+    create, find, findByToken, setLink, countSince, markIssued, tokenOf, purgeStalePending,
   };
 }
 

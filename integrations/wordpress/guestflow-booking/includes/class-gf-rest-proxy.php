@@ -327,11 +327,10 @@ final class GF_Rest_Proxy
             return $this->voucher_not_found();
         }
         $forward = ['token' => $token];
-        // Only a return address on this very site: GuestFlow allowlists it again, this one stops a
-        // foreign address from ever leaving the server.
-        $return = isset($body['returnUrl']) && is_string($body['returnUrl']) ? esc_url_raw($body['returnUrl']) : '';
-        if ($return !== '' && wp_parse_url($return, PHP_URL_HOST) === wp_parse_url(home_url(), PHP_URL_HOST)) {
-            $forward['returnUrl'] = $return;
+        // Only a path of this very site: GuestFlow builds the address from its own site origin and allowlists it again.
+        $return = isset($body['returnPath']) && is_string($body['returnPath']) ? $body['returnPath'] : '';
+        if ($return !== '' && $return[0] === '/' && strpos($return, '//') !== 0 && strlen($return) <= 200) {
+            $forward['returnPath'] = $return;
         }
         return $this->relay(GF_Api_Client::instance()->post("/gift-vouchers/orders/{$id}/pay", $forward));
     }

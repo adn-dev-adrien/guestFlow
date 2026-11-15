@@ -7,7 +7,6 @@
 const crypto = require('crypto');
 const code = require('../code');
 const rules = require('../voucherRules');
-const { renderMail } = require('../mailTemplate');
 const { presentMovement } = require('../movementView');
 
 const MAX_NAME = 40;
@@ -53,8 +52,8 @@ function optionalText(value, max) {
 }
 
 function buildAdminController({
-  vouchers, orders, movements, issuance, transaction, limits, paymentMethods, userName = () => null, decrypt, sendMail, renderPdf,
-  settingsGet, brand, pageUrl, bookingUrl, now = () => new Date(),
+  vouchers, orders, movements, issuance, transaction, limits, paymentMethods, userName = () => null, decrypt, receipt, renderPdf,
+  brand, bookingUrl, now = () => new Date(),
 }) {
   const today = () => rules.parisDate(now());
   const actorOf = (req) => `user:${req.user && req.user.id ? req.user.id : 'unknown'}`;
@@ -233,24 +232,7 @@ function buildAdminController({
 
   const resend = guarded(async (req, res) => {
     const v = live(find(req));
-    if (!v.email) throw new Refusal('NO_EMAIL');
-    const base = pageUrl();
-    const token = orders.tokenOf(v.orderId);
-    if (!base || !token) throw new Refusal('NO_PAGE_URL');
-    const link = `${base.replace(/#.*$/, '')}${base.includes('?') ? '&' : '?'}gf_voucher=${v.orderId}&gf_token=${token}`;
-    const mail = renderMail({ voucher: v, link, language: v.language }, settingsGet);
-    try {
-      await sendMail({ to: v.email, ...mail, key: `gift-voucher:${v.id}` });
-    } catch (error) {
-      vouchers.setMail(v.id, { error: String(error && error.message ? error.message : error).slice(0, 200) });
-      throw new Refusal('MAIL_FAILED');
-    }
-    transaction(() => {
-      vouchers.setMail(v.id, { sentAt: now().toISOString() });
-      movements.append({
-        voucherId: v.id, kind: 'mail', actor: actorOf(req), idempotencyKey: key('mail', v.id),
-      });
-    });
+    await receipt.deliver(v, { actor: actorOf(req), idempotencyKey: receipt.manualKey(v.id) });
     return res.json(detail(vouchers.find(v.id)));
   });
 

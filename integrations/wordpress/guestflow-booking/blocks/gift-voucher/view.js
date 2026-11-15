@@ -350,7 +350,7 @@
       setBusy(true, GF.t('preparingPayment'));
       GF.api('POST', '/gift-vouchers/orders/' + orderId + '/pay', {
         token: orderToken,
-        returnUrl: window.location.origin + window.location.pathname,
+        returnPath: window.location.pathname,
       }).then(function (res) {
         var url = res.status >= 200 && res.status < 300 && res.body && res.body.data && res.body.data.paymentUrl;
         var safe = false;

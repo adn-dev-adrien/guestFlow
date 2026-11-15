@@ -117,3 +117,9 @@ test('SDK 2.31.0: ctx.data accepts a refuse(db) and the core answers 409 ERASE_R
   assert.equal(registry.get('probe-erase').data.refuse(null), 'Encore des soldes.');
   registry.reset();
 });
+
+test('SDK 2.31.0: core.payments.saleLink mints a link with no stay for a plugin’s basket — the paid effect is ctx.paymentBasket’s (src/tests/gift-voucher-sale-link.unit.test.js)', () => {
+  assert.equal(typeof sdk.core.payments.saleLink, 'function');
+  assert.deepEqual(Object.keys(sdk.core.payments).sort(), ['basketLink', 'refreshBasketLink', 'saleLink', 'withdrawBasketLink']);
+  assert.equal(HISTORY.added.filter((a) => a.version === '2.31.0').length, 1, 'recorded in the 2.31.0 entry, not a new minor');
+});

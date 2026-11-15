@@ -114,7 +114,7 @@ test('rule 14: an amount the form could not accept (below the minimum, above the
   assert.equal(await priceIdea(stay, { quote: dear, today: '2026-11-15', bounds: api.limits() }), null);
 }));
 
-test('rule 14: GET /offer answers the bounds, the validity, the priced ideas and the terms version — with no online sale yet, available is false', () => withIdeas({
+test('rule 14: GET /offer answers the bounds, the validity, the priced ideas and the terms version — the brand is the company name, and with no online payment configured available is false', () => withIdeas({
   settings: { ideas: JSON.stringify([stay]), minAmountCents: '3000', validityMonths: '12' },
   deps: { quote: seasonalQuote(), termsVersionId: () => 4 },
 }, async ({ server }) => {
@@ -123,6 +123,7 @@ test('rule 14: GET /offer answers the bounds, the validity, the priced ideas and
   assert.equal(res.headers.get('cache-control'), 'no-store');
   assert.deepEqual(res.body.data, {
     available: false,
+    brand: 'Domaine Solio',
     minAmountCents: 3000,
     maxAmountCents: 200000,
     validityMonths: 12,

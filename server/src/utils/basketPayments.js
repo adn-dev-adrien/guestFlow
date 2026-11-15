@@ -4,6 +4,7 @@
  * owning plugin's (`ctx.paymentBasket`, settled by `paymentPollRunner.applyPaidEffect`).
  *
  *   basketLink(reservationId, basket, { redirectUrl }) → { linkId, url, amountCents, expiresAt }   throws { httpStatus, error, message }
+ *   saleLink({ source, ref, title, amountCents }, { redirectUrl }) → { linkId, url, amountCents, expiresAt, reused }   a basket with no stay (SDK 2.31.0)
  *   refreshBasketLink(linkId)  → the link's status after an on-demand read of the provider (`open`, `paid`, …), or null
  *   withdrawBasketLink(linkId) → the link's status once withdrawn (`cancelled`), `paid` when the guest paid meanwhile
  */
@@ -15,6 +16,13 @@ const paymentProviders = () => require('./paymentProviders');
 async function basketLink(reservationId, basket, { redirectUrl = null } = {}) {
   const link = await paymentsController().ensureBasketLinkFor(Number(reservationId), basket, { redirectUrl });
   return { linkId: link.id, url: link.url, amountCents: link.amountCents, expiresAt: link.expiresAt };
+}
+
+async function saleLink(sale, { redirectUrl = null } = {}) {
+  const link = await paymentsController().ensureSaleLinkFor(sale, { redirectUrl });
+  return {
+    linkId: link.id, url: link.url, amountCents: link.amountCents, expiresAt: link.expiresAt, reused: Boolean(link.reused),
+  };
 }
 
 const deps = () => ({ ...require('./paymentEffectDeps').buildPaymentEffectDeps() });
@@ -61,4 +69,4 @@ async function withdrawBasketLink(linkId) {
   return now ? now.status : null;
 }
 
-module.exports = { basketLink, refreshBasketLink, withdrawBasketLink };
+module.exports = { basketLink, saleLink, refreshBasketLink, withdrawBasketLink };

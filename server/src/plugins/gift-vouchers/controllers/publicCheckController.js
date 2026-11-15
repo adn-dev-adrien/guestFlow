@@ -5,9 +5,9 @@
  * hash, the outcome and the time — never the typed code.
  */
 
-const crypto = require('crypto');
 const code = require('../code');
 const rules = require('../voucherRules');
+const { visitorHashOf } = require('../visitorHash');
 
 const MESSAGES = Object.freeze({
   CHALLENGE_INVALID: { fr: 'Vérification impossible, recommencer.', en: 'Verification failed, please try again.' },
@@ -23,7 +23,7 @@ const MESSAGES = Object.freeze({
 function buildPublicCheckController({
   vouchers, checks, limits, pepper, proof, ipOf, now = () => new Date(), respond,
 }) {
-  const visitorHashOf = (req) => crypto.createHmac('sha256', pepper()).update(`visitor:${ipOf(req)}`).digest('hex');
+  const visitorHashFor = (req) => visitorHashOf(pepper(), ipOf(req));
   const langOf = (req) => (req.body && req.body.lang === 'en') || (req.query && req.query.lang === 'en') ? 'en' : 'fr';
   const refuse = (req, res, status, errorCode, extra = {}, headers = {}) => {
     Object.entries(headers).forEach(([k, v]) => res.set(k, String(v)));
@@ -34,7 +34,7 @@ function buildPublicCheckController({
     const body = req.body && typeof req.body === 'object' && !Array.isArray(req.body) ? req.body : {};
     if (typeof body.code !== 'string' || body.code.length > 64) return refuse(req, res, 400, 'VOUCHER_CODE_MISTYPED');
     if (!proof(req).ok) return refuse(req, res, 403, 'CHALLENGE_INVALID');
-    const visitorHash = visitorHashOf(req);
+    const visitorHash = visitorHashFor(req);
     const limited = limits.refusal(visitorHash);
     if (limited) return refuse(req, res, 429, limited.code, {}, { 'Retry-After': limited.retryAfterSeconds });
 
