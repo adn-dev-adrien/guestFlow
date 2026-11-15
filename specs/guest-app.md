@@ -976,7 +976,7 @@ arrival.** Everything below is judged by the server; the apps render what it off
     > **Delivered by PR C** (pass 4, C26-C29, C31-C32): server `guest-app` 1.2.0 on `extraSale` / `saleDetail`; tests listed in §7 (`guest-order-*`, `guest-app-arrival-orders`, `guest-app-orders-from-j7`, …).
 93. **An order never re-prices the stay** (third pass, 2026-11-10). Reference rule: `pricing-components.md` rules 8 and 9. The order's
     write adds its own lines and nothing else; the nights, the tourist tax, the payout, the deposit and the installments are not
-    rewritten. The guard `pinOrderGrowth` / `orderGrowth` is retired with the save-path sale. *Test:* `extra-sale-parity`.
+    rewritten. The guard `pinOrderGrowth` / `orderGrowth` is retired with the save-path sale. *Test:* `guest-order-never-reprices-stay` (named `extra-sale-parity` until 2026-11-15, rule 109 e).
     > **Delivered by PR C** (pass 4, C26-C29, C31-C32): server `guest-app` 1.2.0 on `extraSale` / `saleDetail`; tests listed in §7 (`guest-order-*`, `guest-app-arrival-orders`, `guest-app-orders-from-j7`, …).
 94. ~~**A stay whose arrival complement carries an operator's adjustment orders on site.**~~ **Dropped 2026-11-12 (owner, Q-C4).** An
     order is accepted and added to the complement; the operator's adjustment stays on its own line. The number stays an identity.
@@ -1018,7 +1018,7 @@ arrival.** Everything below is judged by the server; the apps render what it off
     > **Delivered by PR C** (pass 4, C26-C29, C31-C32): server `guest-app` 1.2.0 on `extraSale` / `saleDetail`; tests listed in §7 (`guest-order-*`, `guest-app-arrival-orders`, `guest-app-orders-from-j7`, …).
 105. **A line held inside the platform price is a line fact** (PR C). An order line the platform price already contains carries
     `collectAt = 'platform'` (`pricing-components.md` rule 17); the guest app reads that fact, never the platform's name or a routing
-    guess. *Test:* `guest-app-held-in-stay-price`.
+    guess. *Test:* `guest-order-platform-bath` (named `guest-app-held-in-stay-price` until 2026-11-15, rule 109 e).
     > **Delivered by PR C** (pass 4, C26-C29, C31-C32): server `guest-app` 1.2.0 on `extraSale` / `saleDetail`; tests listed in §7 (`guest-order-*`, `guest-app-arrival-orders`, `guest-app-orders-from-j7`, …).
 106. **The collected split is net of card orders** (PR C). The arrival detail, the collected split and the SAS recap are net of the
     card-paid lines: `pricing-components.md` rule 21 (paid is stored on the line, `settledCents` = Σ allocations).
@@ -1044,6 +1044,22 @@ arrival.** Everything below is judged by the server; the apps render what it off
     > _Amended 2026-11-15 (end review R2-3, `pricing-components.md` rule 93):_ an order paid by card before the arrival is netted out of the stay's stored arrival
     > complement in the sale's own transaction: the SAS reads « Rien à encaisser », the bucket states and a complement link bill nothing for it — the guest is
     > never asked again at the door for what the card paid. Test: `guest-app-card-order-before-arrival-netted`.
+109. **The money of an order on a cancelled stay, and the SAS's change of a bath** _(stabilisation loop t1, 2026-11-15; readings of rules 72, 87, 88, 92,
+    93, 105, 108)_. (a) **Rule 88 as delivered:** no `basketJson.refundOwed` flag and no « à rembourser (séjour annulé) » history line were built; the
+    cancellation opens one `orderConflict` row (`pricing-components.md` rule 75) for what the order's link paid **less what the register already holds
+    for that link, open or closed** (an order sold below its payment already left its gap owed, rule 108 d): the gap is never owed twice and the honoured
+    part never forgotten (before: 0 € opened while the gap row was open, the whole payment again once it was closed). The same money also stays a
+    collected line of the cancelled stay's refund dialog (`reservation-refunds.md`); which of the two is its home is the owner's open question (loop t1 B-2).
+    (b) A payment that lands on an order cancelled with its stay — the stay restored since or not — is a conflict (`paid_conflict`, staff pushed, « Payée
+    · à rembourser », the money an `orderConflict` row): it is never sold on the fiche (before: sold already paid while the order stayed `cancelled`).
+    (c) **Rule 87, reading:** the step's edit closes at the check-in hour (rule 104: from then on a sale is the departure's, so a re-sold line could not
+    stay in the arrival complement); a guest who arrives after that hour has the order edited on the fiche. (d) The SAS removes an order's evening
+    supplement (a custom line of its own, rules 83 and hourly 38 — **rule 92's « component of the session line » is superseded**, the supplement is a
+    line `« <bain> — supplément soirée »` carrying the order's `orderRef`) together with its bath; a bath that keeps some sessions keeps its supplement
+    whole, so taking one session of a supplemented bath off is refused here (409 `ORDER_NOT_EDITABLE` « Supplément soirée : retirer le bain entier, ou
+    modifier sur la fiche. »). A bath whose sessions sit partly on hours the stay already held (rule 82) is shown not removable and its change refused:
+    those sessions are on the stay's own line. (e) Test names: rule 93's proof is `guest-order-never-reprices-stay`, rule 105's `guest-order-platform-bath`.
+    Tests `guest-order-cancelled-stay-money`, `guest-order-arrival-amend-bath`.
 
 **Edge cases:**
 - Guest scans the La Granja poster while staying at L'Estiva → La Granja's visitor mode; their own stay opens
@@ -1527,6 +1543,9 @@ le nom et le numéro. »
 ## 7. Test plan
 
 ### Server unit tests (one file per subject)
+- [x] `guest-order-cancelled-stay-money` — rule 109 a-b (loop t1 B-2, AG-4, AG-5, AG-6): the cancellation owes the link less the register; a payment on a cancelled order is a conflict
+- [x] `guest-order-arrival-amend-bath` — rule 109 d (AG-1, AG-3): the supplement goes with its bath; a bath on held hours is not changed from the SAS
+- [x] `guest-app-fulfilment` — rule 41ter: the pickup push names the day of a slot past midnight
 - [x] `plugins/guest-app/tests/guest-app-current-stay.unit.test.js` (15) — rules 2, 4, 5, 6, 9 (window edges and
   DST, what the link opens before J-7 / from J-7 / in the window / after, cancelled, a pre-arrival link session
   ending at H-3, a lookup session moving on by itself)

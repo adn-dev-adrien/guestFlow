@@ -140,8 +140,13 @@ function buildGuestApi({
     if (stay && stay.kind === 'reservation') return [];
     const moved = orders().cancelForStay(reservationId, { now: now() });
     moved.filter((order) => order.payment === 'card' && order.paymentLinkId && ['paid', 'delivered'].includes(order.status)).forEach((order) => {
-      const cents = Math.round(Number(order.total) * 100);
-      if (cents <= 0 || obligations().openFor(reservationId).some((row) => Number(row.paymentLinkId) === Number(order.paymentLinkId))) return;
+      // Loop t1 B-2, AG-4 — what the link paid, less what the register already holds for it (open or closed, e.g. the gap of an order sold below its
+      // payment): the money is owed once, the gap never twice and the honoured part never forgotten.
+      const link = db().prepare('SELECT amountCents FROM payment_links WHERE id = ?').get(Number(order.paymentLinkId));
+      const held = obligations().listFor(Number(reservationId), {}).filter((row) => Number(row.paymentLinkId) === Number(order.paymentLinkId))
+        .reduce((sum, row) => sum + Number(row.amountCents || 0), 0);
+      const cents = (link ? Number(link.amountCents) : Math.round(Number(order.total) * 100)) - held;
+      if (cents <= 0) return;
       obligations().open({
         reservationId: Number(reservationId), origin: 'orderConflict', paymentLinkId: Number(order.paymentLinkId), amountCents: cents,
         reason: `séjour annulé : commande client #${order.id} à rembourser`,
