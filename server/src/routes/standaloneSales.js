@@ -14,5 +14,6 @@ router.post('/', controller.sell);
 router.post('/:id/payment-link', controller.mintLink);
 router.delete('/:id/payment-link/:linkId', controller.withdrawLink);
 router.post('/:id/payment-link/:linkId/email', controller.emailLink);
+router.patch('/:id/obligations/:oid', controller.closeObligation);
 
 module.exports = router;

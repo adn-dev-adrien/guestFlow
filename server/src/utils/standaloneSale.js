@@ -209,11 +209,24 @@ function detailOf(ctx, sale, client) {
     settlement: {
       ...ctx.settlement,
       lines: settled,
-      refundOwedCents: owedOnDocument({ dueCents: ctx.settlement.totalCents, paidCents: ctx.settlement.paidCents + ctx.settlement.refundedCents, refundedCents: ctx.settlement.refundedCents }).owedCents,
+      refundOwedCents: owedOnDocument({
+        dueCents: ctx.settlement.totalCents,
+        paidCents: ctx.settlement.paidCents + ctx.settlement.refundedCents,
+        refundedCents: ctx.settlement.refundedCents + (sale && sale.id ? sales.closedObligationCents(sale.id) : 0),
+      }).owedCents,
     },
     vatByRate: ctx.vatByRate,
   });
-  return { ...detail, history: sale ? sales.historyOf(sale.id) : [], refundObligations: sale ? sales.obligationsOf(sale.id) : [] };
+  // Outside-visit rule 41 (end-review V-4): each open obligation is a row of its own with its words, and `refundUnheldCents` is the part of the
+  // owed money no row holds (a paid line offered since) — so a screen shows the rows and that remainder, never the same euros twice.
+  const obligations = sale ? sales.obligationsOf(sale.id).map((row) => ({ ...row, label: `${euros(row.amountCents)} à rembourser`, detail: row.reason || null })) : [];
+  const heldCents = obligations.reduce((sum, row) => sum + row.amountCents, 0);
+  return {
+    ...detail,
+    totals: { ...detail.totals, refundUnheldCents: Math.max(0, detail.totals.refundOwedCents - heldCents) },
+    history: sale ? sales.historyOf(sale.id) : [],
+    refundObligations: obligations,
+  };
 }
 
 function quote(request = {}) {

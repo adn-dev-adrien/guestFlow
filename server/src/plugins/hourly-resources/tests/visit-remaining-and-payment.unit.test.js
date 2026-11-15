@@ -12,7 +12,7 @@ test('rules 4, 15 — the totals come from the server: total, paid and remaining
   const id = f.book();
   const quoted = (await f.call('quote', { id, body: { extras: [f.extra(f.beer, 2)] } })).body;
   assert.deepEqual(quoted.totals, {
-    totalCents: 6300, paidCents: 0, remainingCents: 6300, refundOwedCents: 0,
+    totalCents: 6300, paidCents: 0, remainingCents: 6300, refundOwedCents: 0, refundUnheldCents: 0,
   });
   assert.deepEqual(quoted.vatByRate, [{ rate: 20, vatCents: 1050 }]);
 });

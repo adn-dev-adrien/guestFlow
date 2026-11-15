@@ -166,6 +166,7 @@
       "« Client absent » ferme la visite sans arrivée : les lignes non payées sont retirées, l’argent déjà pris est gardé.",
       "La facture Qonto reprend toutes les lignes payées de la visite, une fois le reste soldé ; une séance payée sur la réservation garde son paiement, et si des boissons ou des articles sont vendus à l’arrivée, une seule facture couvre la séance et ces articles.",
       "Retirer le lien de paiement d’une visite ou l’envoyer par e-mail suit les règles des autres gestes : l’accueil le jour de la séance seulement, personne sur une visite close (client absent, facturée). Un paiement qui solde le reste retire le lien encore ouvert, et un lien payé malgré tout est gardé comme remboursement dû, visible par l’administrateur.",
+      "Un remboursement dû sur une visite s’affiche dans l’arrivée pour l’administrateur, avec « Marquer remboursé » ; l’accueil ne le voit pas.",
       "Demande le SDK 2.30 de GuestFlow."
     ]
   }

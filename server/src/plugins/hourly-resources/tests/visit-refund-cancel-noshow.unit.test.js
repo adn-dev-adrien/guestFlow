@@ -16,6 +16,10 @@ test('rule 25 — offering a paid line asks the administrator\'s confirmation, t
   assert.deepEqual([confirmed.totals.totalCents, confirmed.totals.remainingCents, confirmed.totals.refundOwedCents], [5000, 0, 1300]);
   const reception = (await f.call('getVisit', { id, user: f.RECEPTION })).body;
   assert.ok(!('refundOwedCents' in reception.totals), 'never a refund amount for the reception');
+  // V-4 — no obligation row holds an offered paid line: the whole amount is the unheld part the dialog shows; the reception gets neither.
+  assert.deepEqual([confirmed.totals.refundUnheldCents, confirmed.refundObligations], [1300, []]);
+  assert.ok(!('refundUnheldCents' in reception.totals));
+  assert.deepEqual(reception.refundObligations, []);
 });
 
 test('rule 25 — removing an unpaid line is free; a paid one needs the confirmation', async () => {

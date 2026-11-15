@@ -76,7 +76,7 @@ test('rule 25 — a paid line asks the confirmation of the refund; « Confirmer 
   api.getResourceVisit.mockResolvedValue(storedVisit());
   const error = Object.assign(new Error('Ligne payée : remboursement à confirmer.'), { code: 'LINE_PAID', status: 409 });
   api.patchResourceVisitLine.mockRejectedValueOnce(error).mockResolvedValueOnce({ visit: storedVisit({
-    totals: { totalCents: 800, paidCents: 12000, remainingCents: 0, refundOwedCents: 1500 },
+    totals: { totalCents: 800, paidCents: 12000, remainingCents: 0, refundOwedCents: 1500, refundUnheldCents: 1500 },
   }) });
   render(<ResourceArrivalDialog open bookingId={5} onClose={() => {}} onDone={() => {}} />);
   fireEvent.click((await screen.findAllByRole('button', { name: 'Offrir' }))[0]);

@@ -43,7 +43,7 @@ test('rule 2 — a visit\'s document is a core row: readable with the plugin off
     ['session', 'Séance', 'paid', 'Jour · 10:00–11:00 · 1 h × 50,00 €'], ['extra', 'Bière', 'paid', '1 × 6,50 €'],
   ]);
   assert.deepEqual(document.totals, {
-    totalCents: 5650, paidCents: 5650, remainingCents: 0, refundOwedCents: 0,
+    totalCents: 5650, paidCents: 5650, remainingCents: 0, refundOwedCents: 0, refundUnheldCents: 0,
   });
   assert.equal(document.document.originRef, 'resource-booking:1');
 });

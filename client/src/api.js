@@ -448,6 +448,7 @@ const api = {
   mintStandaloneSaleLink: (id, body = {}) => request(`/standalone-sales/${id}/payment-link`, { method: 'POST', body }),
   withdrawStandaloneSaleLink: (id, linkId) => request(`/standalone-sales/${id}/payment-link/${linkId}`, { method: 'DELETE' }),
   emailStandaloneSaleLink: (id, linkId) => request(`/standalone-sales/${id}/payment-link/${linkId}/email`, { method: 'POST' }),
+  closeStandaloneSaleObligation: (id, obligationId, status = 'settled') => request(`/standalone-sales/${id}/obligations/${obligationId}`, { method: 'PATCH', body: { status } }),
   // specs/outside-booking-sas.md rules 36-37 — the « Proposés à l'arrivée » lists and the articles that can join them.
   getSuggestedArticlesSettings: () => request('/settings/suggested-articles'),
   saveSuggestedArticles: (kind, id, articleRefs) => request(`/settings/suggested-articles/${encodeURIComponent(kind)}/${encodeURIComponent(id)}`, { method: 'PUT', body: { articleRefs } }),

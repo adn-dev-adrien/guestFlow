@@ -384,6 +384,18 @@ once on the server by the refonte's components.
     > `standalone_sale_obligations` row per paying link (`origin = linkSurplus`, its amount and reason, `open` until the refund is made), listed
     > on the document (`refundObligations`) and on the visit for the administrator only (the reception sees no refund, rule 7). Test
     > `standalone-sale-stale-link-withdrawn`.
+    > _Amended 2026-11-15 (end-review verification V-4):_ the row is **shown and closed** like a stay's « À rembourser » row
+    > (pricing-components rule 75). Each open row is served with its words (`label` « 13,00 € à rembourser », `detail` = its reason) and
+    > `totals.refundUnheldCents` is the part of `refundOwedCents` no row holds (a paid line offered since), so a screen shows the rows and
+    > that remainder, never the same euros twice. The mini SAS shows each row as a warning with « Marquer remboursé »; the counter card
+    > « Ventes hors séjour · aujourd'hui » lists, above the day, « À rembourser »: the counter's documents of any day with an open row
+    > (`GET /api/standalone-sales` → `owed`), each with the same action. The action asks a confirmation, then
+    > `PATCH /api/standalone-sales/:id/obligations/:oid { status: 'settled' | 'cancelled' }` (admin only: the reception's allowlist does not
+    > reach `/api/standalone-sales`) closes an open row once (400 `OBLIGATION_INVALID_STATUS`, 404 `SALE_NOT_FOUND` / `OBLIGATION_NOT_FOUND`,
+    > 409 `OBLIGATION_ALREADY_CLOSED`), writes « 13,00 € remboursés » (or « 13,00 € : rien à rembourser ») in the document's history and answers
+    > `{ document, sale, paymentLink }`; a closed row is money resolved outside the document, so `refundOwedCents` stops counting it. The
+    > reception's visit payload carries neither the rows nor `refundUnheldCents`. Tests `standalone-sale-obligation-close`,
+    > `visit-refund-cancel-noshow`, client `StandaloneSalesTodayCard.obligations`, `ResourceArrivalDialog.obligations`.
 42. **No e-mail leaves by itself.** « Envoyer un lien » mints and **shows** the link in the dialog with « Copier le
     lien » and « Envoyer par e-mail ». Nothing is mailed by minting. The e-mail leaves only on the operator's explicit
     click on « Envoyer par e-mail » (same posture as a click on the fiche's « Demander le paiement »): template
@@ -511,7 +523,7 @@ groups: [{ id, label, count, title, totalCents, refs }], totals: { totalCents, p
 (`offerLine(saleId, lineId, { offered, confirmRefund, version })` → 409 `LINE_PAID` « Ligne payée : remboursement à confirmer. »; `removeLine`; `pay(saleId, { tenders, shortfall, paidAt, version, source })`; `cancel(saleId)`),
 the roles (`ADMIN_ONLY`, the window) being the visit controller's (C37).
 
-C38 additions to the core routes of the counter (admin): `GET /api/standalone-sales?day=YYYY-MM-DD` → `{ day, sales: [{ id, ref, clientLabel, lines: ['Bière locale × 2'], totalCents, remainingCents, statusLabel: 'Payée' | 'Reste 5,00 €' | 'Offerte' | 'Annulée', tone: 'paid' | 'due' | 'off' }] }` (« Ventes du jour », the Paris day, newest first); the quote answers `paymentLink` (the block of the draft: `draftLinkOf`) and the sale answers `{ document, sale, paymentLink }` (`sale` = the day's row in the counter's words); `POST /api/standalone-sales/:id/payment-link { email? }` → `{ document, sale, paymentLink, link }`, `DELETE …/payment-link/:linkId` → `{ document, sale, paymentLink }`, `POST …/payment-link/:linkId/email` → `{ sent, recipientEmail }` (rules 39-42, the e-mail on the click only). `GET /api/suggested-articles/catalogue?customerContext=&q=` → `{ articles: [{ articleRef, label, unitCents, max, category }], groups: [{ category, articles }] }` (« Autre article » renders `groups`, like the visit's search); `GET /api/settings/suggested-articles` also names each listed article (`contexts[].articles: [{ articleRef, label }]`).
+C38 additions to the core routes of the counter (admin): `GET /api/standalone-sales?day=YYYY-MM-DD` → `{ day, sales: [{ id, ref, clientLabel, lines: ['Bière locale × 2'], totalCents, remainingCents, statusLabel: 'Payée' | 'Reste 5,00 €' | 'Offerte' | 'Annulée', tone: 'paid' | 'due' | 'off', refundObligations: [{ id, amountCents, label, detail }] }], owed: [same rows] }` (« Ventes du jour », the Paris day, newest first; `owed` = the counter's documents of any day with an open obligation, rule 41 amended V-4); `PATCH /api/standalone-sales/:id/obligations/:oid { status: 'settled' | 'cancelled' }` → `{ document, sale, paymentLink }` (« Marquer remboursé », rule 41); the quote answers `paymentLink` (the block of the draft: `draftLinkOf`) and the sale answers `{ document, sale, paymentLink }` (`sale` = the day's row in the counter's words); `POST /api/standalone-sales/:id/payment-link { email? }` → `{ document, sale, paymentLink, link }`, `DELETE …/payment-link/:linkId` → `{ document, sale, paymentLink }`, `POST …/payment-link/:linkId/email` → `{ sent, recipientEmail }` (rules 39-42, the e-mail on the click only). `GET /api/suggested-articles/catalogue?customerContext=&q=` → `{ articles: [{ articleRef, label, unitCents, max, category }], groups: [{ category, articles }] }` (« Autre article » renders `groups`, like the visit's search); `GET /api/settings/suggested-articles` also names each listed article (`contexts[].articles: [{ articleRef, label }]`).
 
 Core routes (outside the plugin), authenticated:
 

@@ -111,9 +111,20 @@ function openObligation({ saleId, paymentLinkId = null, amountCents, reason = nu
 const obligationsOf = (saleId) => database().prepare("SELECT id, origin, paymentLinkId, amountCents, reason, createdAt FROM standalone_sale_obligations WHERE saleId = ? AND status = 'open' ORDER BY id")
   .all(Number(saleId));
 
+const findObligation = (saleId, obligationId) => database().prepare('SELECT * FROM standalone_sale_obligations WHERE saleId = ? AND id = ?').get(Number(saleId), Number(obligationId)) || null;
+const closeObligation = (obligationId, { status, by = null }) => database().prepare("UPDATE standalone_sale_obligations SET status = ?, settledAt = datetime('now'), settledBy = ? WHERE id = ? AND status = 'open'")
+  .run(String(status), by, Number(obligationId)).changes;
+// What the closed rows resolved outside the document (the refund made from the provider's space or by hand, or nothing owed after all).
+const closedObligationCents = (saleId) => Number(database().prepare("SELECT COALESCE(SUM(amountCents), 0) AS cents FROM standalone_sale_obligations WHERE saleId = ? AND status != 'open'")
+  .get(Number(saleId)).cents);
+// The counter's documents (no origin) that still owe money back, any day: the « À rembourser » block of the counter card.
+const counterSalesOwing = () => database().prepare(`SELECT DISTINCT s.id FROM standalone_sales s JOIN standalone_sale_obligations o ON o.saleId = s.id
+  WHERE o.status = 'open' AND s.originRef IS NULL ORDER BY s.id DESC`).all().map((row) => row.id);
+
 const byOrigin = (originRef) => database().prepare('SELECT * FROM standalone_sales WHERE originRef = ? ORDER BY id').all(String(originRef));
 
 module.exports = {
   documentRef, lineRef, passageClientId, clientsByEmail, clientById, createClient, catalogueRow, externalRates, setExternalRate,
   insertSale, updateSale, insertLine, updateLine, bumpVersion, findSale, linesOf, findLine, byOrigin, addHistory, historyOf, openObligation, obligationsOf,
+  findObligation, closeObligation, closedObligationCents, counterSalesOwing,
 };

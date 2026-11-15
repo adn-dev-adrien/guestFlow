@@ -184,7 +184,7 @@ function createVisitModel({ db, bookings, now = () => new Date() }) {
       draft: line.id == null && line.source !== 'paidElsewhere',
     }));
     // Rule 7 — the reception sees the door money only: never a refund amount (reception-role-checkin-only rule 12bis).
-    if (reception) delete totals.refundOwedCents;
+    if (reception) { delete totals.refundOwedCents; delete totals.refundUnheldCents; }
     const payload = {
       booking: bookingView(row, { reception }),
       document: {

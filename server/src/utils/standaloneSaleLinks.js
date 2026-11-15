@@ -195,6 +195,27 @@ function settlePaidLink({ link, paidDate = null, paidAt = null }) {
   return { effect: 'standalone-sale-settled', saleId };
 }
 
+const OBLIGATION_STATUSES = ['settled', 'cancelled'];
+
+/**
+ * Closes an open obligation of a document (outside-visit rule 41, end-review V-4): `settled` = the money went back (from the provider's space or by hand),
+ * `cancelled` = nothing was owed after all — the close action of the stay's « À rembourser » rows (pricing-components rule 75), for a sale. Only an
+ * open row closes (409 otherwise); the document's history says so, and the document stops claiming that money.
+ */
+function closeObligation(saleId, obligationId, status, { actor = null } = {}) {
+  if (!OBLIGATION_STATUSES.includes(status)) return refuse(400, 'OBLIGATION_INVALID_STATUS', 'Statut invalide.');
+  if (!sales.findSale(saleId)) return refuse(404, 'SALE_NOT_FOUND', 'Vente introuvable.');
+  const row = sales.findObligation(saleId, obligationId);
+  if (!row) return refuse(404, 'OBLIGATION_NOT_FOUND', 'Remboursement à faire introuvable.');
+  if (row.status !== 'open') return refuse(409, 'OBLIGATION_ALREADY_CLOSED', 'Déjà clos.');
+  database().transaction(() => {
+    sales.closeObligation(row.id, { status, by: actor || 'operator' });
+    const { euros } = require('./paymentTenders');
+    sales.addHistory(saleId, status === 'settled' ? `${euros(row.amountCents)} remboursés` : `${euros(row.amountCents)} : rien à rembourser`, actor);
+  }).immediate();
+  return { status: 200, document: standaloneSale.documentOf(saleId) };
+}
+
 function recipientOf(sale) {
   const client = sale.clientId ? sales.clientById(sale.clientId) : null;
   const named = client && !client.isPassage ? client.firstName : '';
@@ -268,5 +289,5 @@ async function emailLink(saleId, linkId, { deps = {} } = {}) {
 }
 
 module.exports = {
-  linkOf, draftLinkOf, mint, withdraw, settlePaidLink, emailLink, basketOf, SOURCE, TEMPLATE_KEY,
+  linkOf, draftLinkOf, mint, withdraw, settlePaidLink, closeObligation, emailLink, basketOf, SOURCE, TEMPLATE_KEY,
 };

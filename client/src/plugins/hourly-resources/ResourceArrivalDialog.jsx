@@ -42,6 +42,9 @@ const TEXTS = Object.freeze({
   linkAfterSave: 'Enregistrer d’abord les articles ajoutés.',
   refundTitle: 'Remboursement',
   refundAsk: 'Ligne payée : remboursement à confirmer.',
+  refunded: 'Marquer remboursé',
+  refundedAsk: 'Marquer comme remboursé ?',
+  refundedFailed: 'Clôture impossible.',
   confirm: 'Confirmer',
   validate: 'Valider l’arrivée',
   save: 'Enregistrer',
@@ -109,6 +112,7 @@ export default function ResourceArrivalDialog({ open, bookingId, onClose, onDone
   const [error, setError] = useState(null);
   const [invoiceOutcome, setInvoiceOutcome] = useState(null);
   const [refundAsk, setRefundAsk] = useState(null);
+  const [obligationAsk, setObligationAsk] = useState(null);
   const [link, setLink] = useState({ busy: false, error: null, sentTo: null });
 
   const load = useCallback(() => {
@@ -237,6 +241,20 @@ export default function ResourceArrivalDialog({ open, bookingId, onClose, onDone
     }
   }
 
+  // Rule 41 (V-4) — « Marquer remboursé » closes an open obligation of the document; the visit is read again.
+  async function closeObligation(row) {
+    setBusy(true);
+    setError(null);
+    try {
+      await api.closeStandaloneSaleObligation(visit.document.id, row.id, 'settled');
+      await load();
+    } catch (e) {
+      setError(e.message || TEXTS.refundedFailed);
+    } finally {
+      setBusy(false);
+    }
+  }
+
   const search = useCallback((q) => api.searchResourceVisitArticles(bookingId, q).then((res) => res.groups || []), [bookingId]);
   const addExtra = (article) => setExtras((prev) => {
     const at = prev.findIndex((entry) => entry.articleRef === article.articleRef && !entry.offered);
@@ -333,7 +351,16 @@ export default function ResourceArrivalDialog({ open, bookingId, onClose, onDone
                 {(view.vatByRate || []).filter((row) => row.vatCents > 0).map((row) => (
                   <Typography key={row.rate} variant="caption" color="text.secondary" sx={{ fontVariantNumeric: 'tabular-nums' }}>{TEXTS.vat(String(row.rate).replace('.', ','), euros(row.vatCents))}</Typography>
                 ))}
-                {view.totals.refundOwedCents > 0 && <Alert severity="warning">{TEXTS.refund(euros(view.totals.refundOwedCents))}</Alert>}
+                {(visit.refundObligations || []).map((row) => (
+                  <Alert
+                    key={row.id}
+                    severity="warning"
+                    action={<Button color="inherit" size="small" disabled={busy} onClick={() => setObligationAsk(row)} sx={{ minHeight: 44, textTransform: 'none' }}>{TEXTS.refunded}</Button>}
+                  >
+                    {row.label}{row.detail ? ` · ${row.detail}` : ''}
+                  </Alert>
+                ))}
+                {view.totals.refundUnheldCents > 0 && <Alert severity="warning">{TEXTS.refund(euros(view.totals.refundUnheldCents))}</Alert>}
               </Box>
 
               {!readOnly && (
@@ -425,6 +452,15 @@ export default function ResourceArrivalDialog({ open, bookingId, onClose, onDone
         confirmLabel={TEXTS.confirm}
         onClose={() => setRefundAsk(null)}
         onConfirm={() => { const ask = refundAsk; setRefundAsk(null); changeLine(ask.line, { ...ask.body, confirmRefund: true }); }}
+      />
+      <ConfirmDialog
+        open={Boolean(obligationAsk)}
+        title={TEXTS.refundedAsk}
+        message={obligationAsk ? [obligationAsk.label, obligationAsk.detail].filter(Boolean).join(' · ') : ''}
+        confirmLabel={TEXTS.refunded}
+        confirmColor="primary"
+        onClose={() => setObligationAsk(null)}
+        onConfirm={() => { const row = obligationAsk; setObligationAsk(null); closeObligation(row); }}
       />
     </Dialog>
   );

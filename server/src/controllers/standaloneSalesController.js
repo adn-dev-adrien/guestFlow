@@ -3,7 +3,9 @@
  *
  *   POST /api/standalone-sales/quote   { lines, customer?, saleId?, payment? }                      priced, nothing written
  *   GET  /api/standalone-sales/vat-rates                                                              { classes: [{ vatClass, externalRate | null }] }
- *   GET  /api/standalone-sales?day=    { day, sales: [{ id, ref, clientLabel, lines, totalCents, remainingCents, statusLabel, tone }] }   « Ventes du jour »
+ *   GET  /api/standalone-sales?day=    { day, sales: [{ id, ref, clientLabel, lines, totalCents, remainingCents, statusLabel, tone, refundObligations }], owed: [same] }   « Ventes du jour »
+ *                                      + the counter's documents with an open obligation, any day (`owed`, rule 41)
+ *   PATCH /api/standalone-sales/:id/obligations/:oid  { status: 'settled' | 'cancelled' } → { document, sale, paymentLink }   (rule 41, « Marquer remboursé »)
  *   POST /api/standalone-sales/:id/payment-link  { email? } → { document, sale, paymentLink, link }   (outside-visit rules 39-40)
  *   DELETE /api/standalone-sales/:id/payment-link/:linkId → { document, paymentLink };  POST .../:linkId/email → { sent, recipientEmail }   (rules 41-42, on the click only)
  *   POST /api/standalone-sales         { lines, customer?, payment?, acceptedTotalCents? }          the sale; 409 PRICE_CHANGED when the price moved
@@ -33,6 +35,7 @@ function saleRow(document) {
     remainingCents: totals.remainingCents,
     statusLabel,
     tone,
+    refundObligations: document.refundObligations.map(({ id, amountCents, label, detail }) => ({ id, amountCents, label, detail })),
   };
 }
 
@@ -51,7 +54,9 @@ module.exports = {
     const day = typeof req.query.day === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(req.query.day) ? req.query.day : parisDay(new Date());
     const rows = require('../database').prepare('SELECT id, soldAt FROM standalone_sales WHERE originRef IS NULL ORDER BY id DESC LIMIT 300').all()
       .filter((row) => row.soldAt && parisDay(new Date(row.soldAt)) === day);
-    return res.json({ day, sales: rows.map((row) => saleRow(standaloneSale.documentOf(row.id))) });
+    // Rule 41 (V-4) — the counter's documents that still owe money back, whatever their day: « À rembourser » until the refund is made.
+    const owed = sales.counterSalesOwing().map((id) => saleRow(standaloneSale.documentOf(id)));
+    return res.json({ day, sales: rows.map((row) => saleRow(standaloneSale.documentOf(row.id))), owed });
   },
 
   // The link block of a counter sale that is not written yet answers from its draft reste and the typed e-mail (rule 39).
@@ -96,6 +101,15 @@ module.exports = {
 
   async withdrawLink(req, res) {
     const result = await standaloneSaleLinks.withdraw(Number(req.params.id), Number(req.params.linkId));
+    if (result.status !== 200) return res.status(result.status).json(result.body);
+    return res.json(withLink(result.document));
+  },
+
+  // Outside-visit rule 41 (end-review V-4): « Marquer remboursé » on a document's open obligation — the counter's and the visit's (admin only).
+  closeObligation(req, res) {
+    const result = standaloneSaleLinks.closeObligation(Number(req.params.id), Number(req.params.oid), String((req.body && req.body.status) || ''), {
+      actor: req.user ? req.user.email || String(req.user.id) : null,
+    });
     if (result.status !== 200) return res.status(result.status).json(result.body);
     return res.json(withLink(result.document));
   },
