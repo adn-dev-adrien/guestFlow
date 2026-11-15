@@ -541,12 +541,15 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
     > **Delivered by PR C** (pass 3i, rule 91): the e-mails. Their one money list, the arrival complement, reads the sale detail (`reservationEmailGraph.loadArrivalComplementDetail` →
     > `extraSale.arrivalComplementDetailOf`); their other extras tokens (`optionsList`, `resourcesList`, the nordic-bath sentences) name articles and carry no amount. The context's inline
     > list stays the reading of a database the sale detail does not run on (a preview on a minimal schema), as rule 91 says.
-    > **Pending** — PR-later: the finance pages' extras readers and the payment-link baskets keep their own readers (they read the same stored lines; they do not yet read the payload).
-    > _2026-11-15 (pass C42, owner: everything in 4.2.0), measured on a fresh copy of the prod database of 2026-11-11, why neither switches without a figure moving:_ the finance pages do not
-    > show the sale. Their stay figure (`financeModel.totalSejour`) is what the operator earns — the buckets net of the platform commission and penalty, the caisse interne out, the
-    > door reduction, the tip and the refunds — and it differs from the sale (`finalPrice` + tax, what `saleDetail` sums) on 48 of the 62 stays; their HT is the HT share of a PORTION
-    > of the stay (collected, pending, the exercise's months: `htOfPortion`), which no per-line VAT output cuts. Reading `saleDetail` there would replace earnings by sales on those 48
-    > stays. The payment-link baskets: rule 91's dated note (3 stays of the copy would see their link change).
+    > **Delivered by PR C** (C43, rules 31 and 67). _Owner, 2026-11-15:_ « Brancher quand même », then « il faut éviter de toucher les anciens séjours ou les séjours déjà réservés. Mais si c'est pour une correction d'erreur je suis d'accord pour le faire ». Reading: the sale-line readers serve the stays booked once 4.2.0 is installed (`reservations.readsSaleLines`, `utils/saleLinesReaders.js`: 0 on every stay the migration finds, 1 on a stay, an iCal import or a devis the application creates, carried between a devis and its reservation); a stay booked before keeps today's figures for its whole life — its next links, its receipts, its declared months. A rounding or presentation difference on such a stay is not an error and is not corrected.
+    > The finance pages read a served stay's sale lines for its HT (`utils/financeSaleLines.js`, one reader per page read): the HT of a TTC portion (the stay, what was
+    > collected, what is pending, the exercise's months) is the share of the lines net of their `vatOf` VAT (`vat.htOfLines`), the tourist tax weighing in the TTC only and
+    > the « Complément d'arrivée » left out — never gross sales. **The earnings stay `totalSejour` for every stay (stopped, 2026-11-15, C43):** read off the lines less the
+    > ledger's deductions, they are WRONG on a stay reduced after it was paid — the lines bill the reduced sale and the trop-perçu refund takes it off again (the proof
+    > `trop-percu-refund-books`, reservation-refunds rule 36: 465,60 € paid, reduced, 110,40 € refunded would read 244,80 € instead of 355,20 €); and on the prod copy the sale
+    > detail of two legacy stays misplaces a line's moment (22281 +50,00 €, 22336 +60,40 € counted twice). The buckets the money came in by, net of the ledger, stay the
+    > earnings. Measured on a fresh copy of the prod database of 2026-11-11: no stay is served (all booked before), the replay moves nothing; simulated with every stay
+    > served, the HT of 16 stays moves by one cent (one cut per group instead of the stay-price ratio). Proof `finance-ht-sale-lines`, `sale-lines-readers-cut`.
     > _Pass 3h, measured on a copy of the prod database (2026-11-11), 59 stays from 2026-01-01:_ the amount an e-mail or a payment link asks
     > equals `saleDetail`'s arrival bucket on 59 of 59, and the LINES it lists equal the payload's arrival lines on 50. On 9 they differ
     > (12, 22209, 22224, 22226, 22275, 22278, 22291, 22324, 22336): a complement adjusted with no line behind it (« Complément d'arrivée »), the
@@ -1020,15 +1023,11 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
       (`drinks`, `wellness`…) by setting an article's `vatClass`.
     - TOTALS aggregates `vat.vatOf` output; the payment-link items, the refund lines, the accounting output and
       the finance pages read the same output instead of re-splitting a TTC amount.
-    > **Delivered by PR B** (pass 4, C16): DISCOUNTS and the line allocation emit tagged amounts through `vatOf`. **Delivered by PR C** (C33): the external sale's lines are tagged `external` and cut by the VAT component. **Pending** — PR-later: the refund lines, the accounting output and the finance pages reading the `vatOf` output instead of re-splitting a TTC amount (the books stay byte-identical: `accounting-output-replay`).
-    > _2026-11-15 (pass C42, owner: everything in 4.2.0), measured on a fresh copy of the prod database of 2026-11-11 — why the readers do not switch:_ (1) the books are written per RECEIPT (a bucket collected on a
-    > day, its TTC cut once), the sale detail per LINE GROUP (one cut per (class, rate) group of the whole stay). Summed over every month of the journal, the VAT the books carry differs
-    > from the Σ of the sale detail's line VAT on 20 of the 51 stays the journal holds — most by what is not collected yet, and on fully booked stays by the rounding of the cut: cutting
-    > once on the stay's price vs once per group differs by one cent on 16 of 62 stays (1, 6, 11, 22198, 22205, 22214, 22224, 22225, 22226, 22242, 22270, 22272, 22280, 22281, 22291,
-    > 22301). A receipt read through the line VAT needs each receipt allocated to lines with its own cut (rule 51's line allocation), which moves those exported cents (declared months).
-    > (2) Routing today's per-receipt cuts through `vatOf` unchanged (one tagged amount per bucket) is the « VAT first » cut where the books use « net first »: 0 of the 62 stays' stored
-    > buckets and 0 of the 2 refund lines of the copy differ, but the golden month `csv/2027-09` moves its commission VAT by a cent (rule 65's note), which is the owner's open question,
-    > not a reader swap. (3) The finance pages: rule 31's dated note (earnings, not sales; the HT of a portion).
+    > **Delivered by PR B** (pass 4, C16): DISCOUNTS and the line allocation emit tagged amounts through `vatOf`. **Delivered by PR C** (C33): the external sale's lines are tagged `external` and cut by the VAT component. **Delivered by PR C** (C43, on the stays booked once 4.2.0 is installed): the receipts (rule 63), the avoirs (`receiptLineCut.cutRefund`: one `vatOf` cut per (bucket, rate) group), the commission's VAT (`splitTtc`) and the finance pages' HT (rule 31) read the VAT component's output; the payment-link items cut each line at its own rate (rule 91).
+    > _Owner, 2026-11-15:_ « Brancher quand même », then « il faut éviter de toucher les anciens séjours ou les séjours déjà réservés. Mais si c'est pour une correction d'erreur je suis d'accord pour le faire ». Reading: the sale-line readers serve the stays booked once 4.2.0 is installed (`reservations.readsSaleLines`, `utils/saleLinesReaders.js`: 0 on every stay the migration finds, 1 on a stay, an iCal import or a devis the application creates, carried between a devis and its reservation); a stay booked before keeps today's figures for its whole life — its next links, its receipts, its declared months. A rounding or presentation difference on such a stay is not an error and is not corrected.
+    > A stay booked before keeps the cuts its months were exported with (the 16 one-cent cuts measured by pass C42 are rounding, not errors). Measured on a fresh copy of the
+    > prod database of 2026-11-11: the replay (every CSV month, sales JSON, synthesis, refund) moves nothing. Simulated with every stay served: the CSV rows of the months
+    > 2026-03 to 2026-07 keep their amounts but one (2026-04: 624,54 / 62,46 → 624,55 / 62,45, the VAT-first cut), the entries lose their `fraction` (folded into cents).
 62. **VAT is computed per (vatClass, rate, customerContext) group per document, never per article.**
     _(decision 2026-11-11.)_ For one document (a stay quote, a sale, an export bucket), the amounts of a group
     are summed, the VAT is rounded **once** on the group (`round(ttc × rate / (100 + rate))`, half up, in
@@ -1078,12 +1077,14 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
     > returns its neutral role lines `{ role, side, amountCents, vatRate?, vatCents?, account? }` (roles `customer`, `revenue:<class>`, `vat:<rate>`,
     > `touristTax`, `commission`, `commissionVat`, `penalty`; `account` only when the entry itself pins one). The CSV journal maps those lines to its
     > accounts and columns and no longer computes a split or a residue; `addSaleLegs` (and so `closeStayBooks`) reads the roles, not the CSV ventilation.
-    > Every month of the golden database stays byte-identical (`accounting-output-replay`). **Pending** — PR-later: the read models fed with the sale lines and their
-    > VAT output (rule 61) and `storedStayPrice` instead of the stored buckets: the entries keep today's buckets, `taxTtc` and `commission` until the line
-    > allocation of rule 51 lands.
-    > _2026-11-15 (pass C42), why still open:_ an entry is one receipt (a bucket on its payment day), not a sale; fed by the sale lines it would cut its VAT per line group, and the
-    > measurement under rule 61 (20 of 51 stays of the prod copy's journal, 16 one-cent cuts on fully booked stays) is that move on declared months. No new column is missing; the
-    > per-receipt line allocation with its own cut is, and it is a figure change for the owner to approve.
+    > Every month of the golden database stays byte-identical (`accounting-output-replay`). **Delivered by PR C** (C43): on a stay booked once 4.2.0 is installed,
+    > `utils/accounting/receiptLineCut.js` cuts every receipt of `saleEntries` (deposit, balance, complement, installment, end-of-stay complement, note, a settlement's share):
+    > its revenue (TTC less its tourist tax, in cents) is allocated to the families its stored split names (contribs, paid split, stored money — the per-receipt line
+    > allocation the ledger already freezes), inside a family to the VAT classes of the stay's sale lines (`saleLinesOf`, the sale detail through the SDK's `extraSale`),
+    > and `vatOf` cuts the receipt once per (class, rate) group; `fraction` is folded (1), so no residue reaches the last credit. The refund mirror (`bookedSplitsOf`) reads
+    > the same cut. Not a per-receipt reading of `payment_allocations`: on the prod copy 65 of their 104 rows are stay-level (no line), so a line split read from them would
+    > be partial. _Owner, 2026-11-15:_ « Brancher quand même », then « il faut éviter de toucher les anciens séjours ou les séjours déjà réservés. Mais si c'est pour une correction d'erreur je suis d'accord pour le faire ». Reading: the sale-line readers serve the stays booked once 4.2.0 is installed (`reservations.readsSaleLines`, `utils/saleLinesReaders.js`: 0 on every stay the migration finds, 1 on a stay, an iCal import or a devis the application creates, carried between a devis and its reservation); a stay booked before keeps today's figures for its whole life — its next links, its receipts, its declared months. A rounding or presentation difference on such a stay is not an error and is not corrected.
+    > Proof `accounting-receipt-line-cut`; `accounting-output-replay` and the golden `csv/*` unchanged (their stays are booked before).
 
 64. **Today's accounting reads, and where each moves.**
 
@@ -1140,6 +1141,8 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
     > the refund journal, `touristTax` and the devis PDF keep `vat.netFirst`. Their platform-commission entries are VAT 20 %, and merging the
     > cuts would move the commission VAT of the CSV months by a cent (golden `csv/2027-09`): a figure outside every listed class, so it waits for
     > the owner's call (open question). The TOTALS `vatByRate` / `breakdown` readers: `saleDetail` reads the VAT component's per-rate rows (rule 31).
+    > _2026-11-15 (C43), owner reading under rule 61:_ the commission of a stay booked once 4.2.0 is installed is cut « VAT first » (`receiptLineCut`); the golden month
+    > `csv/2027-09` is a stay booked before, and its cent is rounding, not an error: it keeps « net first » and does not move. The open question is closed that way.
     > **Delivered by PR C** (mock M1, approved 2026-11-12; class C-E8 approved 2026-11-13): the fiche prints one line per rate with its base and the devis PDF a « Récapitulatif TVA » table (`docs/rapports/2026-11-12-m1-tva-par-taux.html`).
 66. **Guards against re-introduction** (`server/src/tests/no-duplicate-formulas.unit.test.js`, static, part of
     the server suite):
@@ -1177,7 +1180,7 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
     replay of the pricing pipeline is allowed only where today's code replays the engine (finance projections
     of unsold periods), and it calls the same `stayQuote` pipeline, never a copy.
     > **Delivered by PR B** (passes 3-5): `saleDetail`, the refund postes (`postesLeft`) and the allocations read stored lines and settlements, the SAS departure section reads `saleDetail`.
-    > **Pending** — PR-later: the finance pages and the payment-link baskets (they still read the stored columns). _2026-11-15 (pass C42):_ why, measured, under rules 31 and 91.
+    > **Delivered by PR C** (C43, on the stays booked once 4.2.0 is installed): the finance pages (rule 31: the HT; the earnings stay the buckets net of the ledger) and the payment-link baskets (rule 91) read the sale detail; a stay booked before reads its stored columns, by the owner's reading of 2026-11-15 under rule 31.
 
 
 ### 3.M Price non-regression gate and delivery pipeline (owner, 2026-11-11)
@@ -1835,14 +1838,13 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
     stays of 62. The stored breakdown stays the reading of a stay the engine cannot quote and of a database other than the application's.
     The payment-link baskets are NOT switched: a pre-arrival link bills the plan bucket as one line plus the tax, which the sale detail does
     not split into acompte and solde; see `ecarts-cp3i` (pass 3i).
-    > **Pending** — PR-later (lead, pass 3j): the payment-link baskets stay on their own items. Reason: a pre-arrival link bills the plan
-    > bucket as one line plus the tax, split into acompte and solde by the instalment schedule; the sale detail lists lines, not that
-    > split, so switching the baskets would change what an issued link names before the sale detail can say which part of a line an
-    > instalment collects.
-    > _2026-11-15 (pass C42, owner: everything in 4.2.0), measured on a fresh copy of the prod database of 2026-11-11:_ the reason holds and has stays: 3 stays hold an acompte or a solde still to bill
-    > AND lines sold into the plan (22270, 22306, 22308); their next link would trade « Solde séjour » / « Paiement séjour » plus the tax for item lines whose sum is not the bucket
-    > (the bucket is a share of the stay set by the schedule, not a set of lines). The 16 links of the copy (13 `full`, 3 `balance`) are such buckets. The guest-order basket (`complement`,
-    > guest-app rule 35) already bills explicit lines.
+    > **Delivered by PR C** (C43, the baskets). _Owner, 2026-11-15:_ « Brancher quand même », then « il faut éviter de toucher les anciens séjours ou les séjours déjà réservés. Mais si c'est pour une correction d'erreur je suis d'accord pour le faire ». Reading: the sale-line readers serve the stays booked once 4.2.0 is installed (`reservations.readsSaleLines`, `utils/saleLinesReaders.js`: 0 on every stay the migration finds, 1 on a stay, an iCal import or a devis the application creates, carried between a devis and its reservation); a stay booked before keeps today's figures for its whole life — its next links, its receipts, its declared months. A rounding or presentation difference on such a stay is not an error and is not corrected.
+    > A link minted for a served stay (`paymentsController.onSaleLines` → `storedLinkComponents.saleLineComponents`) shares the taxable part of its bucket (acompte, solde,
+    > full payment, an installment) over the lines the sale detail collects in the plan and still owes, by largest remainder, each at its own rate (`buildVatItems` takes a
+    > component's `vatRatePercent`), titled « Solde séjour — Ménage »; the amount never moves and the tax stays its own line. One line to share over (the accommodation
+    > alone) keeps today's basket. A link already minted is a stored record and is never altered; a devis keeps the engine's basket. Measured on a fresh copy of the prod
+    > database of 2026-11-11: no stay is served, the 266 `link/*` artefacts do not move (22270, 22306, 22308 keep their next link). Simulated with every stay served:
+    > 13 stays' baskets would name their lines (39 artefacts), 22270 and 22308 would not (one line to share). Proof `payment-link-basket-sale-lines`.
     > **Delivered by PR C** (pass 3i). Proof: `sale-detail-arrival-lines`, `pricing-legacy-collect-at`, `pricing-lines-migration`.
 
 92. **A sale can say its units are already in place** _(pass 4, 2026-11-13; owner answers of the day; completes rules 26 and 41)_. A request of
@@ -1979,6 +1981,9 @@ Columns added to `reservation_options`, `reservation_resources`, `reservation_cu
 | `fulfilmentRef` | TEXT | NULL | `hourly-slot:<hold id>` (rule 49) |
 | `components` | TEXT (JSON) | NULL | the parts of the price (base / evening / free) |
 
+_On `reservations` (C43, owner 2026-11-15):_ `readsSaleLines` INTEGER NOT NULL DEFAULT 0 — 1 on a stay booked once 4.2.0 is installed, the stays the sale-line readers of rules 31, 61, 63, 67 and 91 serve; 0 on every stay the migration finds.
+
+
 **Line identity (rule 79).** The three line tables get `lineId INTEGER` (unique index; numbered from `line_id_sequence` by an
 `AFTER INSERT` trigger, so a row inserted by the previous release is numbered too; the rows already there take their rowid).
 Nothing is rebuilt: the primary key `(reservationId, optionId)` / `(reservationId, resourceId)` stays, so a rolled-back release
@@ -2073,6 +2078,10 @@ check-in time, a discount target, line moment changes and the tourist tax as its
 - [x] `pricing-sale-stored-figures` — rule 8: the two records hold every key the units provide; a sale (and its quote) after the tax and extra-guest settings changed keeps them, a stay without records moves; a stay edit re-prices and stores new records the next sale reads; a party rewritten without a pricing and a tax record stating another tax than the row are not read; the quote carries the records under a symbol only _(PR C, C43)_
 - [x] `pricing-stored-figures-migration` — rule 8, §5: the two nullable columns added once; the backfill writes the records of each live stay and no money column, none for a devis or a stay whose sale is refused, runs once, forced again writes the same records; the previous release's save leaves records the next sale no longer reads (self-update rule 31) _(PR C, C43)_
 - [x] `pricing-sale-pipelines` — rule 54: `ficheSale` / `sasSale` / `shopSale` are the `staySale` steps, `salePipelineOf` resolves the three and nothing else, COMPOSE gives the same quote through each and refuses an unknown one, `extraSale` names its source's pipeline on every save it plays (an intake source sells as the fiche, the line gestures run `ficheSale`), a stay edit runs `stayQuote` _(PR C, C42)_
+- [x] `sale-lines-readers-cut` — rules 31, 61, 63, 67, 91 (owner 2026-11-15): the migration's 0 on every stay found and on a row written without the column, 1 on a stay the application books, a hand-built schema left as it is _(PR C, C43)_
+- [x] `payment-link-basket-sale-lines` — rule 91: the bucket shared over the plan lines still owed for its exact amount, one line keeps the basket, each share at its line's rate, a stay booked before keeps its basket _(PR C, C43)_
+- [x] `accounting-receipt-line-cut` — rules 61-63: a receipt books exactly its revenue (fraction folded, no residue), the sale lines' classes share a family, the commission cut VAT first, an avoir cut per group, a stay booked before keeps its entries _(PR C, C43)_
+- [x] `finance-ht-sale-lines` — rules 31, 67: the HT share of the lines (tax in the TTC only, « Complément d'arrivée » out), no earnings read off the lines (rule 36's double refund), a stay booked before / a devis / a cancelled stay keep today's HT _(PR C, C43)_
 - [x] `pricing-receipts-single-read` — rule 48: `PaymentLedger.receipts(id).splitReceived` equals the direct read (a pool included), none without a settlement, the allocations read only when asked, the fiche's save plans the same buckets _(PR C, C42)_
 - [x] `pricing-allowances`, `pricing-timed-options` — rules 41, 43 (PR A: the read-only form of today's free units, the early check-in and late check-out options)
 - [x] `pricing-extras`, hourly `hourly-tariff` — rules 10-14, 24, 26 (PR B: free hour stays with its line; evening supplement identical from shop, SAS, fiche) _(PR B: `hourly-booking-free-hour`, `pricing-allowance-ledger`; the evening component is PR C)_
