@@ -26,6 +26,7 @@ const AMOUNT_COLUMN = {
 const { toCentsOrZero: toCents } = require('./pricing/money');
 
 function parseParts(raw) {
+  if (Array.isArray(raw)) return raw;
   try {
     const parsed = JSON.parse(raw || '[]');
     return Array.isArray(parsed) ? parsed : [];
@@ -70,6 +71,25 @@ function readSplitReceived(db, reservationId) {
   } catch {
     return null;
   }
+  return splitReceivedOf(rows, () => readAmounts(db, reservationId));
+}
+
+/**
+ * The same reading over settlements already read (`paymentSettlementsModel.listFor`: `parts[]` and `tenders[]`), the form
+ * the PaymentLedger port's `receipts` hands out (specs/pricing-components.md §3 rule 48: one read of what was received).
+ * `readRow()` returns the stay's four bucket columns, read only when a settlement paid several buckets at once.
+ */
+function splitReceivedOfSettlements(settlements, readRow) {
+  return splitReceivedOf((settlements || []).map((s) => ({
+    targetKind: s.targetKind,
+    targetKey: s.targetKey,
+    parts: s.parts,
+    receivedCents: (s.tenders || []).reduce((sum, t) => sum + (Number(t.amountCents) || 0), 0),
+  })), readRow);
+}
+
+// One row per settlement `{ targetKind, targetKey, parts, receivedCents }`, oldest first.
+function splitReceivedOf(rows, readRow) {
   if (!rows || rows.length === 0) return null;
   const byTarget = new Map();
   for (const r of rows) {
@@ -87,7 +107,7 @@ function readSplitReceived(db, reservationId) {
     }
     const buckets = parts.filter((p) => BUCKETS.has(p.kind));
     if (buckets.length === 0) continue;
-    if (buckets.length > 1 && row === undefined) row = readAmounts(db, reservationId);
+    if (buckets.length > 1 && row === undefined) row = readRow();
     const shares = buckets.length > 1 ? attribute(buckets, receivedCents, row) : { [buckets[0].kind]: receivedCents };
     for (const [kind, share] of Object.entries(shares)) out[kind] = (toCents(out[kind]) + share) / 100;
     const stored = row ? Object.fromEntries(buckets.map((p) => [p.kind, toCents(row[AMOUNT_COLUMN[p.kind]]) / 100])) : null;
@@ -111,4 +131,4 @@ function unreceivedOf(received, bucket, amountOf) {
   return Math.max(0, worth - toCents(pool.received)) / 100;
 }
 
-module.exports = { readSplitReceived, unreceivedOf };
+module.exports = { readSplitReceived, splitReceivedOfSettlements, readAmounts, unreceivedOf };

@@ -3,15 +3,16 @@
  *
  * Contract (plain functions over today's reads; `create(db)` binds them to a database):
  *   installments(id)   the installment plan summary `{ count, scheduled, paid, allPaid }`, null without a plan
- *   splitReceived(id)  what each bucket paid with several methods actually received, null without a split
+ *   splitReceived(id)  what each bucket paid with several methods actually received, null without a split (`receipts(id).splitReceived`)
  *   refunds(id)        `{ book, withCash }` — book-money refunds vs everything including the caisse interne
  *   allocations(id)    the stay's `payment_allocations` rows, signed cents (rule 74); a stay a statement changed behind the
  *                      application's hooks is rebuilt first, so the read is never late
- *   receipts(id)       `{ allocations, settlements }` — everything received for the stay, in the one read that REFUNDS and
- *                      SETTLEMENT share (rule 48)
+ *   receipts(id)       `{ allocations, settlements, splitReceived }` — everything received for the stay, in the one read that
+ *                      SCHEDULE, SETTLEMENT and REFUNDS share (rule 48): the settlements once, the split each bucket received
+ *                      derived from them, the allocations read (and rebuilt when stale) only by a reader that asks for them
  */
 const { readInstallmentSummary } = require('../../utils/installmentSummary');
-const { readSplitReceived } = require('../../utils/splitReceived');
+const { splitReceivedOfSettlements, readAmounts } = require('../../utils/splitReceived');
 const { flushDirty } = require('../../utils/paymentAllocationsSync');
 
 function allocationsOf(db, id) {
@@ -22,15 +23,25 @@ function allocationsOf(db, id) {
     WHERE documentRef = ? ORDER BY id`).all(`reservation:${Number(id)}`);
 }
 
+function receiptsOf(db, id) {
+  const settlements = Number(id) > 0 ? require('../paymentSettlementsModel').buildModel(db).listFor(id) : [];
+  let allocations;
+  return {
+    get allocations() {
+      if (allocations === undefined) allocations = allocationsOf(db, id);
+      return allocations;
+    },
+    settlements,
+    splitReceived: splitReceivedOfSettlements(settlements, () => readAmounts(db, id)),
+  };
+}
+
 function create(db) {
   return {
     allocations: (id) => allocationsOf(db, id),
-    receipts: (id) => ({
-      allocations: allocationsOf(db, id),
-      settlements: require('../paymentSettlementsModel').buildModel(db).listFor(id),
-    }),
+    receipts: (id) => receiptsOf(db, id),
     installments: (id) => readInstallmentSummary(db, id),
-    splitReceived: (id) => readSplitReceived(db, id),
+    splitReceived: (id) => receiptsOf(db, id).splitReceived,
     refunds: (id) => require('../refundsModel').createModel(db).totalsByReservation(id),
   };
 }

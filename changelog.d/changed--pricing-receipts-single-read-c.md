@@ -1,0 +1,1 @@
+- **Tarification — une seule lecture de l'encaissé** (`specs/pricing-components.md` règle 48). L'échéancier et les remboursements lisent ce qu'un séjour a reçu (règlements, part reçue par échéance) en une seule lecture ; les répartitions de paiement ne sont relues que si elles sont demandées. Aucun montant ne change.

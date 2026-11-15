@@ -11,7 +11,6 @@ const paymentLedger = require('./ports/paymentLedger');
 const stayRepository = require('./ports/stayRepository');
 const { parseParts } = require('../utils/paymentTenders');
 const { storedMidStayLines } = require('../utils/midStayExtras');
-const { readSplitReceived } = require('../utils/splitReceived');
 const { toCents } = require('../utils/pricing/money');
 const { postesLeftOf } = require('../utils/pricing/refunds/overpayment');
 const { extraLineKey } = require('../utils/pricing/storedLines');
@@ -47,7 +46,7 @@ function departureOwnCents(db, row) {
   const paid = Number(row.endOfStayComplementPaid || 0) === 1 || Number(row.endOfStayComplementPaidCash || 0) === 1;
   const amount = toCents(row.endOfStayComplementAmount);
   if (!paid || amount <= 0) return 0;
-  const received = readSplitReceived(db, row.id);
+  const received = paymentLedger.create(db).receipts(row.id).splitReceived;
   const collected = received && received.endOfStayComplement != null ? Math.min(toCents(received.endOfStayComplement), amount) : amount;
   const inPrice = storedMidStayLines(row.endOfStayComplementDetail).reduce((sum, line) => sum + toCents(line.amount), 0);
   return Math.max(0, collected - Math.round((inPrice * collected) / amount));
