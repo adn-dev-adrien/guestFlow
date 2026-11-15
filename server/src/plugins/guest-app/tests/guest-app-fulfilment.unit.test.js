@@ -98,7 +98,8 @@ withShop('rule 41ter: picked up — « Prête … à …. Lieu de retrait : … 
   assert.match(en.promise, /^Ready (today|tomorrow|on .+) at \d{1,2}:\d{2}\. Pick-up point: À l’accueil, maison principale$/);
   await new Promise((resolve) => { setImmediate(resolve); });
   const push = pushes.find((p) => p.payload.title === `Commande client #${orderId}`);
-  assert.match(push.payload.body, /2 × Panier de bois à retirer \d{1,2} h( \d{2})? \(sur la note\)$/);
+  // A slot past midnight (an evening run) names its day: « à retirer lun. 16 nov. 0 h ».
+  assert.match(push.payload.body, /2 × Panier de bois à retirer (\S+ \d{1,2} \S+ )?\d{1,2} h( \d{2})? \(sur la note\)$/);
   const row = (await call('GET', '/api/guest-app/orders')).body.orders.find((o) => o.id === orderId);
   assert.deepEqual([row.fulfilment, row.fulfilmentLabel, row.markLabel, row.pickupPlace], ['pickup', 'À retirer', 'Marquer retirée', 'À l’accueil, maison principale']);
   assert.match(row.deliverLabel, /^À retirer /);

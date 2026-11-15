@@ -55,7 +55,7 @@ function optionRows(db, lines) {
     .map((row) => [Number(row.id), row]));
 }
 
-function withBreakfast(body, line) {
+function withBreakfast(body, line, nextLineId = () => null) {
   const options = body.options.slice();
   const index = options.findIndex((o) => Number(o.optionId) === Number(line.id));
   const stored = index >= 0 ? normalizeOccurrences(options[index].cardOccurrences || []) : [];
@@ -72,7 +72,8 @@ function withBreakfast(body, line) {
     const quantity = Math.max(Number(options[index].quantity) || 0, merged.length);
     options[index] = { ...options[index], quantity, cardOccurrences: merged };
   } else {
-    options.push({ optionId: Number(line.id), quantity: merged.length, cardOccurrences: merged, cardPersons: Number(line.persons) });
+    // The stay's first breakfast line is a new line like any sale's (rule 96): numbered, routed by the seller (the arrival complement before the arrival).
+    options.push(appendedLine(nextLineId, { optionId: Number(line.id), quantity: merged.length, cardOccurrences: merged, cardPersons: Number(line.persons) }));
   }
   return { ...body, options };
 }
@@ -164,7 +165,7 @@ function personsRefusal(body, lines, rows) {
 function mergeOrderLines(body, lines, rows = new Map(), nextLineId = () => null) {
   return (lines || []).reduce((next, line) => {
     if (line.kind === 'resource') return withResource(next, line, () => nextLineId('reservation_resources'));
-    if (line.kind === 'breakfast') return withBreakfast(next, line);
+    if (line.kind === 'breakfast') return withBreakfast(next, line, () => nextLineId('reservation_options'));
     return withOption(next, line, rows.get(Number(line.id)), () => nextLineId('reservation_options'));
   }, { ...body, options: (body.options || []).slice(), resources: (body.resources || []).slice() });
 }

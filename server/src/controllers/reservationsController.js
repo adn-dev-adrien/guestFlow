@@ -1903,7 +1903,7 @@ function performUpdate(reservationId, body, {
   try {
     db.transaction(() => {
       applyUpdate({ body: structuredClone(body), params: { id: reservationId } }, res, Boolean(unlockPast), { silent: true, sale: sale || null, saleBase });
-      preview = { ...res.result(), row: model.getRow(Number(reservationId)) };
+      preview = { ...res.result(), row: { ...model.getRow(Number(reservationId)), ...(res.enginePreArrivalAmount != null ? { preArrivalAmount: res.enginePreArrivalAmount } : {}) } };
       throw DRY_RUN;
     })();
   } catch (err) {
@@ -2281,6 +2281,8 @@ function applyUpdate(req, res, pastUnlocked, { silent = false, sale = null, sale
     && !complementOverrideMoved(req.body.complementAmountOverride, storedPaymentForQuote.complementAmountOverride)
     && pricingUnchangedFromStored(db, storedPaymentForQuote, quote, windowEngineInputs)
     && !(stayIsOpenForLines(id, pastReservationLocked, midStayWindow) && hasUnstoredAutoOption(model.listCarriedOptionIds(id), quote));
+  // The plan the engine gives this save, before any pin: a dry run's base carries it, so a gesture's plan moves by its line only (pinSaleDelta).
+  res.enginePreArrivalAmount = quote.preArrivalAmount;
   if (keepPricing) quote = pinStoredPricing(quote, storedPaymentForQuote);
   else if (saleBase) quote = withoutUnstoredAutoLines(pinSaleDelta(quote, storedPaymentForQuote, saleBase), model.listCarriedOptionIds(id));
   const stayPinned = !keepPricing && Boolean(saleBase);
@@ -2547,8 +2549,10 @@ function applyUpdate(req, res, pastUnlocked, { silent = false, sale = null, sale
     if (changes.length > 0) model.addHistoryEntry(id, 'update', changes);
   };
   const writePricedLines = () => {
-    // specs/direct-installments.md rules 7, 8, 13 — the plan follows the new total.
-    installments.syncAfterSave(id, quote);
+    // specs/direct-installments.md rules 7, 8, 13 — the plan follows the new total. A line gesture that leaves the plan where it stands
+    // writes no instalment row (pricing-components rule 93).
+    const planCents = () => db.prepare('SELECT COALESCE(SUM(amountCents), 0) AS cents FROM reservation_installments WHERE reservationId = ?').get(id).cents;
+    if (!(saleBase && Math.round(Number(quote.preArrivalAmount || 0) * 100) === planCents())) installments.syncAfterSave(id, quote);
 
     // Nights are never rewritten on a locked fiche, but its extras are while the window is open.
     const writesExtras = !pastReservationLocked || Boolean(midStayWindow);

@@ -66,13 +66,17 @@ test('rule 55 — a refused sale publishes nothing', async () => {
 });
 
 test('rule 55 — moving a line publishes extraSale.lineMoved with both moments', async () => {
+  // Rule 95: a started stay (its sale goes to the departure), the operator brings the line to the arrival.
   const id = stay();
+  db.prepare('UPDATE reservations SET startDate = ?, endDate = ?, checkInDone = 1, balanceDueDate = ? WHERE id = ?')
+    .run(addDaysToIsoDate(todayIso(), -1), addDaysToIsoDate(todayIso(), 2), addDaysToIsoDate(todayIso(), -1), id);
   const sold = extraSale.sell(id, request);
+  assert.equal(sold.status, 200, JSON.stringify(sold.body));
   const ref = sold.saleDetail.lines.find((l) => l.label === 'Bain nordique').ref;
   seen.length = 0;
-  assert.equal(extraSale.changeLine(id, ref, { collectAt: 'departure' }).status, 200);
+  assert.equal(extraSale.changeLine(id, ref, { collectAt: 'arrival' }).status, 200);
   await settle();
-  assert.deepEqual(only('extraSale.lineMoved'), [{ reservationId: id, ref, from: 'arrival', to: 'departure' }]);
+  assert.deepEqual(only('extraSale.lineMoved'), [{ reservationId: id, ref, from: 'departure', to: 'arrival' }]);
 });
 
 test('rule 55 — a save that removes a line publishes extraSale.lineCancelled', async () => {

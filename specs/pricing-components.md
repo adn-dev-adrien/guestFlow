@@ -1905,6 +1905,27 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
     > The replay and the price gate move nothing. Proof `pricing-sale-moves-only-its-line`, `guest-app-card-order-before-arrival-netted`,
     > `pricing-sale-stored-figures` (the fall-back stays now keep their stored tax and price).
 
+94. **A custom line sold twice under one label is two lines** _(stabilisation loop t1, S-1, S-2, 2026-11-15; completes rules 13, 25, 29)_. A custom line has no
+    article: the engine, the notes, the allocations and the line discounts name it by its normalised label (`custom:<label>`, `extraLineKey`). A sale
+    (`extraSale.sell`, any source) that appends a custom line whose label the stay already holds writes it under a numbered label — « Bière locale (2) »,
+    then « (3) » — so its discount, its payment and its removal stay its own (before: a 2 € discount on the unpaid second line took 4 €, the paid one read
+    « À payer », the paid one was removable). A card sale of a custom line paid before the arrival (the guest app's evening supplement) settles it under
+    that key (before: `no such column: resourceId`, the card money on no stay). The fiche's own form, which may type one label twice, keeps the aggregated
+    reading it always had. Test `sale-custom-line-identity`.
+95. **Before the arrival, a line is moved to the arrival only** _(stabilisation loop t1, S-3, 2026-11-15; completes rules 20, 37)_. The extras baseline
+    that carves a line out to the departure is a started stay's: one laid before the arrival carved every later pre-arrival sale out to the departure, then
+    vanished at the boot repair and left the moved line in no stored bucket. Before the stay clock reaches the arrival, `changeLine { collectAt: 'departure' }`
+    is refused 409 `MOMENT_NOT_AVAILABLE` « Avant l’arrivée, une vente se paie à l’arrivée. », a move to the arrival only re-routes the line (no baseline),
+    and `saleDetail` serves each line's `moments` (`['arrival']` before the arrival, `['arrival', 'departure']` once started, `[]` for an offered, paid or
+    platform line) and `movable`, which the screens render instead of rebuilding the rule (UI-11). Test `sale-move-before-arrival`.
+96. **A breakfast sold before the arrival is collected at the arrival, card money included** _(stabilisation loop t1, S-4, S-5, 2026-11-15; completes
+    rules 19, 29, 85)_. The stay's first breakfast line is a new line like any sale's (numbered, routed to the arrival complement before the arrival —
+    before, it fell in the plan or the complement depending on the plan's state). A later morning keeps merging into that line (rule 85), and a card
+    payment of it before the arrival settles the line by what it grew (before: `settledCents 0`, the whole payment owed back and the morning asked again).
+    The same pass pins the instalment plan of a direct stay on a sale (`preArrivalAmount` = stored plan + the gesture's difference, no row rewritten when
+    the plan does not move, S-6) and has the quote refuse what the sale refuses before pricing (`PAYMENT_BEFORE_ARRIVAL`, `STAY_SETTLED`, S-7).
+    Tests `sale-breakfast-card-before-arrival`, `sale-installments-pinned`, `sale-quote-payment-refusals`.
+
 ## 4. Architecture
 
 > **Fat backend, thin frontend.** Every amount, status, discount share and grouping in this spec is computed
@@ -2165,6 +2186,11 @@ check-in time, a discount target, line moment changes and the tourist tax as its
 - [x] `sas-departure-charge-lines-readers` — rule 90.2: no statement of the server reads `reservation_custom_options` without leaving the departure lines out, or a listed reason _(PR C, pass 3j)_
 - [x] `sale-detail-arrival-lines` — rule 91: the tax part, the added guests and « Complément d'arrivée » as arrival lines, the e-mail lines (units × unit price, order, nothing offered nor at 0 €), the e-mail read from the sale detail equal to the stored breakdown _(PR C, pass 3i)_
 - [ ] Regression tests named after each review defect (D1-D9) on the rebuilt guest app (PR C)
+- [x] `sale-custom-line-identity` — rule 94 (loop t1 S-1, S-2): a custom line paid by card before the arrival settles; a second sale of one label is numbered, its discount and removal its own
+- [x] `sale-move-before-arrival` — rule 95 (S-3): a move to the departure before the arrival is refused, no baseline, `moments` served
+- [x] `sale-breakfast-card-before-arrival` — rule 96 (S-4, S-5): the first breakfast at the arrival, a morning paid by card settled on its line
+- [x] `sale-installments-pinned` — rule 96 (S-6): a sale to the arrival rewrites no instalment row of a plan the engine would restate
+- [x] `sale-quote-payment-refusals` — rule 96 (S-7): the quote refuses a payment before the arrival like the sale
 
 ### Proof
 - [ ] Price gate (rule 68): `price-gate.unit.test.js` green on every commit of A, B and C, with the allowlist reviewed by the owner; `price-gate-anonymity`, `price-gate-anonymise`, `price-gate-figures`, `price-gate-compare`, `price-gate-move-proof` unit tests green

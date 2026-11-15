@@ -9,7 +9,7 @@
  * recaps and the e-mails render it and sum nothing (CLAUDE.md §6.0).
  *
  *   lines[]   { ref, kind, label, quantity, totalCents (what is due), grossCents, discountCents (own), stayDiscountShareCents,
- *               source, sourceLabel, addedOnReopen, collectAt, momentLabel, settledCents, paidAt, status, statusLabel, vat: { rate, vatCents, netCents } }
+ *               source, sourceLabel, addedOnReopen, collectAt, momentLabel, moments[], movable, settledCents, paidAt, status, statusLabel, vat: { rate, vatCents, netCents } }
  *             « Hébergement » and « Taxe de séjour » first, then the options, the resources and the custom lines
  *   groups[]  { id, label, count, title, totalCents, refs[] } — the articles sold on several lines (rules 13, 85), for display: a same-price group reads
  *             « Bière locale — 3 × 6,50 € (2 lignes) », otherwise « Bière locale — 3 : 1 × 6,50 € + 2 × 7,00 € », an hourly resource « N séances »;
@@ -89,7 +89,14 @@ function groupsOf(lines) {
   }));
 }
 
-function lineOf(raw, { kind, facts, vatClassOf, platformStay }) {
+// Rules 37, 95 — the moments a line can be moved to, said by the server (the screen offers them and rebuilds no rule): none for an offered, paid or platform
+// line; before the arrival, the arrival only (a stay not started carves nothing out to the departure).
+function momentsOf(line, phase) {
+  if (!['option', 'resource', 'custom'].includes(line.kind) || line.offered || line.status === 'paid' || line.status === 'platform') return [];
+  return phase === 'before' ? ['arrival'] : ['arrival', 'departure'];
+}
+
+function lineOf(raw, { kind, facts, vatClassOf, platformStay, phase = null }) {
   const key = extraLineKey(raw);
   const fact = facts[key] || null;
   const quotedGross = toCents(raw.grossTotalPrice != null ? raw.grossTotalPrice : (raw.originalTotalPrice && raw.offered ? raw.originalTotalPrice : raw.totalPrice));
@@ -105,7 +112,7 @@ function lineOf(raw, { kind, facts, vatClassOf, platformStay }) {
   const quantity = raw.displayCount != null ? raw.displayCount : (raw.quantity != null ? raw.quantity : 1);
   const label = String(raw.title || raw.name || raw.description || 'Prestation').trim() || 'Prestation';
   const source = (fact && fact.source) || 'fiche';
-  return {
+  const line = {
     ref: fact && fact.table && fact.lineId != null ? `${fact.table}:${fact.lineId}` : key,
     key,
     kind,
@@ -135,6 +142,9 @@ function lineOf(raw, { kind, facts, vatClassOf, platformStay }) {
     ...statusOf({ offered: Boolean(raw.offered), includedInPlatform, dueCents: due, settledCents, collectAt, paidAt: fact && fact.paidAt }),
     vatClass: vatClassOf ? vatClassOf(raw, kind) : null,
   };
+  line.moments = momentsOf(line, phase);
+  line.movable = line.moments.some((moment) => moment !== line.collectAt);
+  return line;
 }
 
 function buildSaleDetail({ quote, facts = {}, phase = null, vatClassOf = null, platformStay = false, stored = null } = {}) {
@@ -142,8 +152,8 @@ function buildSaleDetail({ quote, facts = {}, phase = null, vatClassOf = null, p
   const options = q.optionLines || [];
   const resources = q.resourceLines || [];
   const extraLines = [
-    ...options.map((line) => lineOf(line, { kind: line.isCustom ? 'custom' : 'option', facts, vatClassOf, platformStay })),
-    ...resources.map((line) => lineOf(line, { kind: 'resource', facts, vatClassOf, platformStay })),
+    ...options.map((line) => lineOf(line, { kind: line.isCustom ? 'custom' : 'option', facts, vatClassOf, platformStay, phase })),
+    ...resources.map((line) => lineOf(line, { kind: 'resource', facts, vatClassOf, platformStay, phase })),
   ];
   const extrasCents = extraLines.reduce((sum, line) => sum + line.totalCents, 0);
   // Rule 91 — the guests added after a platform's price was entered are billed like a line of their own, at the arrival.
