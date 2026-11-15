@@ -1886,7 +1886,9 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
     not written; an engine-derived line the stay does not hold is not written either. The quote announces exactly what the write stores (rule 30).
     A line already sold is kept whatever the catalogue says today (rules 13, 74, owner OD1 « sold lines kept »): on a sale the engine reads the
     articles of the stay's stored lines even when the lodging no longer offers them, and an hourly line keeps the hours it billed (its stored total
-    over its unit price) even when free minutes were granted since; a NEW line of an article the lodging no longer offers is refused
+    over its unit price) even when free minutes were granted since — a reading that only holds for a billed total: an offered line (stored at 0 €), or
+    one the request offers or bills again, is judged by the engine, so an hour offered then billed again is billed again (end-review V-2: it stayed
+    at 0 €; its stored `billedUnits` cannot say it, a free hour also stores 1 unit at 0 €); a NEW line of an article the lodging no longer offers is refused
     (400 `ARTICLE_NOT_OFFERED`). Before the arrival, a card order paid at once is netted out of the stored arrival complement in the sale's own
     transaction (the same pinned save, after the card note), so the SAS, the bucket states and a complement link never ask it again (guest-app rules
     35, 108). The reading of a stay and its plain save are unchanged.
