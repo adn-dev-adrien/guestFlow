@@ -245,8 +245,10 @@ function createUpdateStateModel(paths = resolvePaths()) {
     let status = readStatus();
 
     // We are the proof the helper was waiting for. If it never got to write the outcome, write it.
+    // `concludedBy: 'boot'` says the verdict is ours, not the helper's: the helper's own write replaces the whole file without it, which is
+    // how a step waiting for the helper's verification tells the two apart (utils/updateVerification.js).
     const verdict = concludeAbandonedSwap(status, runningVersion);
-    if (verdict) status = writeStatus({ phase: verdict });
+    if (verdict) status = writeStatus({ phase: verdict, concludedBy: 'boot' });
 
     if (!isTerminal(status.phase) || status.phase === 'idle') {
       // A non-terminal phase at boot means the process died mid-update: the helper is either still

@@ -1637,7 +1637,8 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
     the rebuilt tables; this is blocked by the schema floor of `self-update-and-releases.md` (its last rule), not by a shim.
     > **Delivered by PR C** (C1, schema): the rebuild of `reservation_options` / `reservation_resources` without the article key (`utils/pricingSalesMigration.js`, `pricing_sales_true_lines_v1`), the schema floor `4.2.0` raised in the same transaction; proof `pricing-sales-migration` (rows, rowids and order identical, twice = 0) and `pricing-sales-migration-rollback`. The writers that append a second line and the readers keyed by `optionId`: delivered by slice d (below).
     > _Amended 2026-11-15 (end review R1-1, R1-2):_ the floor guards future installs only. The rebuild waits for the update's verification (a
-    > boot whose update helper has not written `done` leaves it to the running process), so the helper's automatic rollback lands on a database
+    > boot whose update helper has not written `done` leaves it to the running process — the boot's own `done` of self-update rule 30b does not
+    > count, end-review V-3), so the helper's automatic rollback lands on a database
     > 4.1.0 runs; the departure charge lines of rule 90.2 are guarded by a trigger the previous release's fiche save cannot pass; any other run of
     > an older release on a database 4.2.0 has served is unsupported (`self-update-and-releases.md` rule 57 lists what it would misread).
     **Line key scheme** _(lead, 2026-11-13; pass 3c)_. A line is named by `line:<table>:<lineId>` (`lineRef`, rule 79). The keys of the data that

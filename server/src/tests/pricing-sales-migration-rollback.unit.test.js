@@ -65,11 +65,11 @@ test('rule 31 (R1-2): booted as an unverified update, T10 waits — the rollback
   assert.throws(() => db.prepare(OLD_ARRIVAL_UPSERT).run(), /ON CONFLICT clause does not match any PRIMARY KEY or UNIQUE constraint/, 'once verified, v4.1.0 can no longer run there');
 });
 
-test('rule 31: the status file decides — the swap in flight towards this version waits, anything else runs', () => {
+test('rule 31: the status file decides — the swap in flight towards this version waits (a rollback too), anything else runs', () => {
   const swap = { phase: 'restarting', targetVersion: '4.2.0', errorCode: null };
   assert.equal(awaitingVerification({ status: swap, version: '4.2.0' }), true);
   assert.equal(awaitingVerification({ status: { ...swap, phase: 'done' }, version: '4.2.0' }), false);
-  assert.equal(awaitingVerification({ status: { ...swap, errorCode: 'HEALTHCHECK_TIMEOUT' }, version: '4.2.0' }), false);
+  assert.equal(awaitingVerification({ status: { ...swap, phase: 'swapping', errorCode: 'HEALTHCHECK_TIMEOUT' }, version: '4.2.0' }), true, 'the helper is rolling it back');
   assert.equal(awaitingVerification({ status: swap, version: '4.1.0' }), false);
   assert.equal(awaitingVerification({ status: { phase: 'idle' }, version: '4.2.0' }), false);
 });
