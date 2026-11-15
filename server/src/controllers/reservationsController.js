@@ -2283,7 +2283,7 @@ function applyUpdate(req, res, pastUnlocked, { silent = false, sale = null, sale
     && !(stayIsOpenForLines(id, pastReservationLocked, midStayWindow) && hasUnstoredAutoOption(model.listCarriedOptionIds(id), quote));
   if (keepPricing) quote = pinStoredPricing(quote, storedPaymentForQuote);
   else if (saleBase) quote = withoutUnstoredAutoLines(pinSaleDelta(quote, storedPaymentForQuote, saleBase), model.listCarriedOptionIds(id));
-  const keepStay = !keepPricing && Boolean(saleBase);
+  const stayPinned = !keepPricing && Boolean(saleBase);
   // Adrien, 2026-10-29: a custom line renamed alone saves its text, nothing is re-priced.
   const renamedLines = customTextChangesOf(id, reservationCustomOptions);
   const customTextChanges = keepPricing ? renamedLines : [];
@@ -2533,7 +2533,7 @@ function applyUpdate(req, res, pastUnlocked, { silent = false, sale = null, sale
     // the very baseline this stores (`resolveArrivalExtrasBaseline` synthesizes it).
     if (midStayWindow && midStayWindow.started) model.captureArrivalExtrasBaseline(id);
     else model.captureArrivalExtrasBaselineIfDue(id);
-    model.updateReservation(id, modelPayload, quote, nightBlocks, nextIcalSyncLocked, { keepPricing, keepStay });
+    model.updateReservation(id, modelPayload, quote, nightBlocks, nextIcalSyncLocked, { keepPricing, stayPinned });
     if (!keepPricing) writePricedLines();
     else if (customTextChanges.length > 0) model.renameCustomOptions(id, customTextChanges);
     const changes = computeAuditChanges(beforeAuditSnapshot, afterAuditSnapshot);
@@ -2561,7 +2561,7 @@ function applyUpdate(req, res, pastUnlocked, { silent = false, sale = null, sale
       const carriedCustomLines = model.deleteCustomOptions(id);
       if (reservationCustomOptions) model.insertCustomOptions(id, quote.optionLines, sasOriginLabels, carriedCustomLines);
     }
-    if (!pastReservationLocked && !keepStay) model.replaceNights(id, quote.nightlyBreakdown);
+    if (!pastReservationLocked && !stayPinned) model.replaceNights(id, quote.nightlyBreakdown);
     // specs/tariff-recipes/spec.md §3 rule 62 — the tariff snapshot follows the nights it describes:
     // a night added, or a stay repriced because its arrival moved (rule 57), is stored with the season
     // it was priced under, so the next save replays exactly what this one stored. Rule 66: it also

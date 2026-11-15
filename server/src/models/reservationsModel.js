@@ -2442,7 +2442,7 @@ function createReservationsModel(database, { arrivalComplementEngine = null } = 
       return run();
     },
 
-    updateReservation(reservationId, payload, quote, nightBlocks, nextIcalSyncLocked, { keepPricing = false, keepStay = false } = {}) {
+    updateReservation(reservationId, payload, quote, nightBlocks, nextIcalSyncLocked, { keepPricing = false, stayPinned = false } = {}) {
       const { propertyId, clientId, startDate, endDate, adults, children, teens, babies,
         singleBeds, doubleBeds, babyBeds, checkInTime, checkOutTime, platform, customPrice,
         depositDueDate, depositPaid, depositPaidDate, balanceDueDate, balancePaid, balancePaidDate, notes,
@@ -2528,8 +2528,8 @@ function createReservationsModel(database, { arrivalComplementEngine = null } = 
       );
       persistBreakfastTime(reservationId, payload);
       persistDiscountTarget(reservationId, payload);
-      // `keepStay` (specs/pricing-components.md rule 30): a sale writes its lines and the money they move; the stay's own records stay as stored.
-      const writesStay = !keepPricing && !keepStay;
+      // `stayPinned` (specs/pricing-components.md rule 30): a sale writes its lines and the money they move; the stay's own records stay as stored.
+      const writesStay = !keepPricing && !stayPinned;
       if (writesStay) persistExtraGuestComplement(reservationId, quote, { complementPaid: Boolean(complementPaid) });
       if (writesStay) persistSaleFigures(reservationId, quote);
       persistReservationNumber(reservationId, payload);
