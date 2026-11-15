@@ -17,6 +17,7 @@ import EmptyState from '../components/EmptyState';
 import ErrorAlert from '../components/ErrorAlert';
 import Banner from '../components/Banner';
 import Skeleton from '../components/Skeleton';
+import { newKey } from '../components/CartBody';
 import { NeedNetwork, cartInfo, useShop } from './ShopPage';
 import { useCart } from '../hooks/useCart';
 import { useSession } from '../hooks/useSession';
@@ -29,11 +30,6 @@ import { clockLabel } from '../utils/format';
 
 const sameSession = (a, b) => a.date === b.date && a.start === b.start && a.end === b.end;
 const keyOf = (s) => `${s.date}|${s.start}|${s.end}`;
-
-function newKey() {
-  if (globalThis.crypto && typeof globalThis.crypto.randomUUID === 'function') return globalThis.crypto.randomUUID();
-  return `${Date.now()}-${Math.random().toString(36).slice(2)}`;
-}
 
 /** Rule 10 — the starts of one session of N hours, by day: day chips, then one chip per start. */
 function Blocks({ days, day, onDay, picked, onPick }) {
@@ -136,7 +132,8 @@ export default function BathPlanPage() {
   };
 
   const ready = Boolean(quote) && !quoting && !unavailable.length && placedHours >= Math.max(1, extra) && placedHours <= target;
-  const leftToPlace = Math.max(0, ownedHours - Math.max(0, placedHours - extra));
+  // The order places the held hours first, then the offered minutes, and buys only what is placed beyond them.
+  const leftToPlace = Math.max(0, ownedHours - placedHours);
 
   const confirm = async () => {
     if (!ready) return;
@@ -190,8 +187,9 @@ export default function BathPlanPage() {
         <div className="counter"><span>{t('bathPlan.chosen')}</span><b>{t('bathPlan.count', { n: picked.length, total: target })}</b></div>
         {refused ? (
           <p className="refuse" role="alert">
-            {t('bathPlan.full', { n: target })}
-            {extra < maxExtra ? <> <button type="button" onClick={addAndTake}>{t('bathPlan.addOne')}</button>.</> : '.'}
+            {extra < maxExtra
+              ? <>{t('bathPlan.full', { n: target })} <button type="button" onClick={addAndTake}>{t('bathPlan.addOne')}</button>.</>
+              : t('bathPlan.fullMax', { n: target })}
           </p>
         ) : null}
       </>

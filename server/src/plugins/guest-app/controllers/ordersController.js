@@ -109,6 +109,7 @@ const minutesOf = (time) => {
   const [h, m] = String(time || '').split(':').map(Number);
   return h * 60 + m;
 };
+const clockOf = (minutes) => `${String(Math.floor(minutes / 60)).padStart(2, '0')}:${String(minutes % 60).padStart(2, '0')}`;
 const sessionsHours = (sessions) => sessions.reduce((sum, s) => sum + Math.max(0, minutesOf(s.end) - minutesOf(s.start)), 0) / 60;
 
 
@@ -240,7 +241,18 @@ function buildOrdersController({
     const rest = [];
     ordered.forEach((s) => {
       const hours = sessionsHours([s]);
-      if (hours <= room + 1e-9) { placed.push(s); room -= hours; } else rest.push(s);
+      if (hours <= room + 1e-9) { placed.push(s); room -= hours; return; }
+      // A session longer than the hours still held (one « à la suite » block): its first hours are placed on the stay's line, the rest is sold as a
+      // line of its own (pricing-components rules 13, 85). The two halves touch: one continuous bath, no turnover between them.
+      const heldMinutes = Math.floor(room) * 60;
+      if (heldMinutes > 0) {
+        const cut = clockOf(minutesOf(s.start) + heldMinutes);
+        placed.push({ ...s, end: cut });
+        rest.push({ ...s, start: cut });
+        room -= heldMinutes / 60;
+        return;
+      }
+      rest.push(s);
     });
     const out = [];
     if (placed.length) out.push({ articleRef: `resource:${line.id}`, quantity: sessionsHours(placed), sessions: placed, placeOnHeld: true });

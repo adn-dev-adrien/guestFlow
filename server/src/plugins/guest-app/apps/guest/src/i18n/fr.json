@@ -190,6 +190,7 @@
  "bathPlan.chosen": "Séances choisies",
  "bathPlan.count": "{n} sur {total}",
  "bathPlan.full": "{n} sur {n} déjà choisies — retirez-en une ou",
+ "bathPlan.fullMax": "{n} sur {n} déjà choisies — retirez-en une.",
  "bathPlan.addOne": "ajoutez une heure",
  "bathPlan.extra": "Heures en plus",
  "bathPlan.due": "À régler",

@@ -63,7 +63,8 @@ exact amount due (evening supplement, extra hours), computed by the server.
    - **Offer** — nothing owned or placed: « Un bain nordique pendant le séjour ? » / « 30 € l'heure · 50 € en soirée »,
      button « Réserver ». When a slot is still bookable today, the offer takes the former highlight's words: « Un bain
      nordique aujourd'hui ? » before 18:00, « … ce soir ? » from it, with « Premier créneau libre à 20 h » before the
-     prices (`firstSlotToday`, heat-up counted from now).
+     prices (`firstSlotToday`, heat-up counted from now). No rate can be read when no slot is left to book: the card
+     then shows no price line rather than « 0 € l'heure » (review of 2026-11-15).
 6. One bath message on the home, never two. The card shows wherever the former `bath` highlight could (it needs the
    shop, the highlight led to it), so the `bath` highlight is **removed** from `homeHighlight.js` and its timely words
    moved into the offer state (rule 5) _(implementation, 2026-11-15: keeping a highlight that can never show would be
@@ -80,11 +81,16 @@ exact amount due (evening supplement, extra hours), computed by the server.
 10. **À la suite** = one session of `N + extra` consecutive hours on one day. The server lists, per day, the start times
     where that many consecutive slots are all bookable (same judgement as one slot: availability, heat-up, turnover,
     service hours, stay bounds). A day without one is not shown; when no day has one, the screen says so and offers
-    « Réparties ».
+    « Réparties ». When the block is longer than the hours the stay holds, the order places its first hours on the
+    stay's line and sells the rest as a line of its own (guest-app rule 82): 2 held hours + 1 more from 11:00 to 14:00
+    cost 30 €, not 90 €. The two halves touch and make one continuous bath, with no turnover between them (Adrien,
+    2026-11-15, after the review found the whole block sold).
 11. **Réparties** = `N + extra` sessions of one hour, chosen freely on any days of the stay, several on one day allowed.
     A counter « 2 sur 3 placées » follows the selection. Tapping a slot once the count is reached is refused in place:
     the slot shakes and the line under the counter says « 3 sur 3 déjà choisies — retirez-en une ou ajoutez une
-    heure ». Placing fewer than owned is allowed: the rest stays « à programmer ».
+    heure »; when the extra hours are already at their maximum the line stops at « retirez-en une. » (review of
+    2026-11-15). Placing fewer than owned is allowed: the rest stays « à programmer », counted as the owned hours less
+    the hours placed, because the order places the held hours first and buys only what goes beyond them.
 12. Slots are those of `slotsForStay` (only `free` and `evening` states), so the evening ones keep their gold dot and
     « tarif soirée ».
 
@@ -204,14 +210,14 @@ The interactive mock-up is the reference: `docs/specs/2026-11-13-guest-app-bath-
 
 ## 7. Test plan
 
-Server (`server/src/plugins/guest-app/tests/`, 18 cases):
+Server (`server/src/plugins/guest-app/tests/`, 20 cases):
 - `guest-bath-plan-units.unit.test.js` (6) — owned minutes, sessions to come, the states, the words of each state, the
   offer's « aujourd'hui / ce soir », the « à la suite » chains.
-- `guest-bath-plan-routes.unit.test.js` (11) — through the real routes and the hourly-resources scheduler: the cards of
+- `guest-bath-plan-routes.unit.test.js` (13) — through the real routes and the hourly-resources scheduler: the cards of
   `/me` (offered only, held hours, scheduled), no bath highlight beside the card, blocks of 2 h (a taken hour breaks
   them, evening counted), a nonsense `hours` refused, the breakdown (offered in the day 0 €, offered in the evening
   10 € on the test grid, held hours in the evening, 1 offered + 1 extra in a row whatever the allocation, parts adding
-  up to the total), a 0 € placement of a held hour that sells nothing and turns the card to « scheduled ».
+  up to the total), a 0 € placement of a held hour that sells nothing and turns the card to « scheduled »; 2 held hours + 1 more in one 3 h block with a 15-minute turnover (30 €, the held line takes 11-13, a line of its own sells 13-14).
 - Existing suites moved to the card: `guest-app-home` (the bath has no highlight), `guest-app-slots` rule 11 (the card's
   « aujourd'hui / ce soir »), `guest-app-first-bath-slot-heat` (`firstSlotToday` counts the heat-up from now).
 

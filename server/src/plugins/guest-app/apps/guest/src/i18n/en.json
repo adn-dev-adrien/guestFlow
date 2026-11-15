@@ -190,6 +190,7 @@
  "bathPlan.chosen": "Sessions chosen",
  "bathPlan.count": "{n} of {total}",
  "bathPlan.full": "{n} of {n} already chosen — remove one or",
+ "bathPlan.fullMax": "{n} of {n} already chosen — remove one.",
  "bathPlan.addOne": "add an hour",
  "bathPlan.extra": "Extra hours",
  "bathPlan.due": "To pay",

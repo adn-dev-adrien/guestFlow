@@ -868,7 +868,10 @@ arrival.** Everything below is judged by the server; the apps render what it off
     nothing but their evening supplement (rule 81). Beyond those hours, the free minutes left (rule 25), then the
     lodging's price. `midStayOrderCommit.withResource` follows: an order's sessions raise the line's quantity only by
     what they place beyond the hours not yet placed. Such an order needs no payment when its total is 0 € (rule 25,
-    « Réserver »).
+    « Réserver »). One session longer than the hours not yet placed (an « à la suite » block,
+    `guest-app-bath-home-scheduling.md` rule 10) is cut where those hours run out: its first hours join the stay's line,
+    the rest is sold as a line of its own; the two halves touch and make one continuous bath, with no turnover between
+    them (review of 2026-11-15: before, the whole block was sold and the held hours stayed unplaced).
     > **Delivered by PR C** (pass 4, C26-C29, C31-C32): server `guest-app` 1.1.0 on `extraSale` / `saleDetail`; tests listed in §7 (`guest-order-*`, `guest-app-arrival-orders`, `guest-app-orders-from-j7`, …).
 83. **The evening supplement of an app session is billed once, with its order.** The order's quote and commit carry
     the evening supplement of its sessions, computed by `hourly-resources` (the scheduler's `orderSupplement({ stay,

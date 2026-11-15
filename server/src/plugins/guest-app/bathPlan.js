@@ -95,8 +95,9 @@ function cardView({
   const state = cardState({ ownedMinutes: owned.totalMinutes, upcoming, bookable });
   if (!state) return null;
   const W = WORDS[lang] || WORDS.fr;
-  const evening = rates.evening > rates.day ? rates.evening : 0;
-  const prices = W.perHour(priceLabel(rates.day), evening ? priceLabel(evening) : null);
+  const evening = rates.day > 0 && rates.evening > rates.day ? rates.evening : 0;
+  // No bookable slot left to read a rate from: no price line rather than « 0 € l’heure ».
+  const prices = rates.day > 0 ? W.perHour(priceLabel(rates.day), evening ? priceLabel(evening) : null) : null;
   const base = {
     resourceId: Number(resource.id),
     name: resource.name,
@@ -141,7 +142,7 @@ function cardView({
     return {
       ...base,
       title: firstSlotToday < EVENING ? W.offerToday : W.offerTonight,
-      detail: `${W.firstSlot(clockLabel(firstSlotToday, lang))} · ${prices}`,
+      detail: [W.firstSlot(clockLabel(firstSlotToday, lang)), prices].filter(Boolean).join(' · '),
       firstSlotToday,
       actions: [{ key: 'add', label: W.book }],
     };

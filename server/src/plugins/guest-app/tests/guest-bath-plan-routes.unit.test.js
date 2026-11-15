@@ -133,3 +133,30 @@ withBath('rules 17-18 — the order stores no breakdown, and placing held hours 
   const [card] = (await meOf(call)).bath;
   assert.equal(card.state, 'scheduled', 'the card follows: nothing left to schedule');
 });
+
+// Review of 2026-11-15 — one « à la suite » block longer than the hours the stay holds: the held hours are placed, only the hours beyond are sold,
+// and the two halves make one continuous bath (no turnover between them, with the production's 15 minutes of reset).
+const withTurnover = async (minutes, fn) => {
+  db.prepare('UPDATE resources SET turnoverMinutes = ? WHERE id = ?').run(minutes, BATH);
+  try { await fn(); } finally { db.prepare('UPDATE resources SET turnoverMinutes = 0 WHERE id = ?').run(BATH); }
+};
+
+withBath('rule 10 — 2 held hours + 1 more in one 3 h block: 30 €, not 90 €', async ({ stayId, call }) => withTurnover(15, async () => {
+  hold(stayId, 2);
+  const q = await quoteOf(call, [{ date: isoPlus(6), start: '11:00', end: '14:00' }]);
+  assert.equal(q.total, 30);
+  assert.deepEqual(parts(q), [['held', 0], ['extra', 30]]);
+  assert.equal(sum(q), q.total);
+}));
+
+withBath('rule 10 — the 3 h block placed: the held line takes 11-13, a line of its own sells 13-14, nothing left to schedule', async ({ stayId, call }) => withTurnover(15, async () => {
+  hold(stayId, 2);
+  const lines = [{ kind: 'resource', id: BATH, sessions: [{ date: isoPlus(6), start: '11:00', end: '14:00' }] }];
+  const placed = await call('POST', '/public/v1/guest/orders', { lines, payment: 'note' });
+  assert.equal(placed.status, 200, JSON.stringify(placed.body));
+  const rows = db.prepare('SELECT quantity, totalPrice, sessions FROM reservation_resources WHERE reservationId = ? ORDER BY rowid').all(stayId);
+  assert.deepEqual(rows.map((r) => [r.quantity, JSON.parse(r.sessions).map((s) => `${s.start}-${s.end}`)]), [[2, ['11:00-13:00']], [1, ['13:00-14:00']]]);
+  assert.equal(rows[1].totalPrice, 30, 'only the hour beyond the held ones is sold');
+  const [card] = (await meOf(call)).bath;
+  assert.equal(card.state, 'scheduled');
+}));

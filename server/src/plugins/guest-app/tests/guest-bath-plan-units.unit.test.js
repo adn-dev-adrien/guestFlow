@@ -22,10 +22,14 @@ test('rule 1 — owned = the held hours, then the offered minutes, in minutes', 
 
 test('rule 2 — the sessions to come of the resource only, ended ones dropped, in time order', () => {
   const lines = [
+    // date-literal-ok: a pure function; `now` is passed in, nothing compares with today.
     { resourceId: 2, sessions: [{ date: '2026-11-16', start: '20:00', end: '21:00' }, { date: '2026-11-15', start: '09:00', end: '10:00' }] },
+    // date-literal-ok: a pure function; `now` is passed in, nothing compares with today.
     { resourceId: 2, sessions: [{ date: '2026-11-15', start: '18:00', end: '19:00' }] },
+    // date-literal-ok: a pure function; `now` is passed in, nothing compares with today.
     { resourceId: 9, sessions: [{ date: '2026-11-15', start: '18:00', end: '19:00' }] },
   ];
+  // date-literal-ok: a pure function; `now` is passed in, nothing compares with today.
   assert.deepEqual(upcomingSessions(lines, 2, '2026-11-15T12:00').map((s) => `${s.date} ${s.start}`), ['2026-11-15 18:00', '2026-11-16 20:00']);
 });
 
@@ -43,7 +47,9 @@ test('rule 5 — the words of each state', () => {
   assert.deepEqual([three.title, three.detail], ['3 h à programmer', '1 h offerte, 2 h comprises dans le séjour · À la suite ou réparties sur le séjour']);
   const held = view({ owned: ownedOf({ freeMinutesLeft: 0, heldHours: 1 }) });
   assert.equal(held.title, '1 h à programmer', 'an hour held by the stay is not called offered');
+  // date-literal-ok: a pure function; `now` is passed in, nothing compares with today.
   const scheduled = view({ owned: ownedOf({}), upcoming: [{ date: '2026-11-15', start: '18:00', end: '19:00' }] });
+  // date-literal-ok: a pure function; `now` is passed in, nothing compares with today.
   assert.deepEqual([scheduled.title, scheduled.upcoming[0].label, scheduled.actions.map((a) => a.label)], ['Vos séances', '2026-11-15 18:00-19:00', ['Ajouter une heure', 'Changer une séance']]);
   const offer = view({ owned: ownedOf({}) });
   assert.deepEqual([offer.title, offer.detail, offer.actions[0].label], ['Un bain nordique pendant le séjour ?', '30 € l’heure · 50 € en soirée', 'Réserver']);
@@ -64,7 +70,10 @@ test('rule 6 — the offer with a slot still free today takes the former highlig
 
 test('rule 10 — « à la suite »: starts of N chained slots, a gap breaks the chain, the evening minutes counted', () => {
   const day = (date, starts) => ({ date, slots: starts.map((h) => ({ start: `${h}:00`, end: `${h + 1}:00`, band: h >= 20 ? 'evening' : 'day' })) });
+  // date-literal-ok: a pure function; `now` is passed in, nothing compares with today.
   const out = consecutiveBlocks([day('2026-11-15', [17, 18, 20, 21]), day('2026-11-16', [11])], 2);
+  // date-literal-ok: a pure function; `now` is passed in, nothing compares with today.
   assert.deepEqual(out, [{ date: '2026-11-15', starts: [{ start: '17:00', end: '19:00', eveningMinutes: 0 }, { start: '20:00', end: '22:00', eveningMinutes: 120 }] }]);
+  // date-literal-ok: a pure function; `now` is passed in, nothing compares with today.
   assert.deepEqual(consecutiveBlocks([day('2026-11-15', [17, 18, 20, 21])], 3), [], 'no three hours in a row: no day');
 });
