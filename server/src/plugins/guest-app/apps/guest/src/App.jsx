@@ -20,6 +20,7 @@ import SlotPickerPage from './pages/SlotPickerPage';
 import { OrderPage, OrdersPage } from './pages/OrdersPages';
 import LookupPage from './pages/LookupPage';
 import SoliomapPage from './pages/SoliomapPage';
+import HomeAutomationPage from './pages/HomeAutomationPage';
 import EntryPage from './pages/EntryPage';
 import { FailedScreen, UnavailableScreen, UnknownCodeScreen } from './pages/GateScreens';
 
@@ -52,6 +53,7 @@ function Screens() {
       <Route path="/commandes/:id" element={<OrderPage />} />
       <Route path="/commande/:id" element={<OrderPage />} />
       <Route path="/activites" element={<Guard module="soliomap"><SoliomapPage /></Guard>} />
+      <Route path="/domotique" element={<Guard module="home"><HomeAutomationPage /></Guard>} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );

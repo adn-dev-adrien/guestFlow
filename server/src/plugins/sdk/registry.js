@@ -67,6 +67,10 @@ function emptyRecord(id) {
     // most one) and a plugin's sales made outside any stay.
     invoiceIssuer: null,
     standaloneSales: null,
+    // specs/guest-app-home-automation.md §4.1 (SDK 2.28.0) — what the house sends (declared by the Sowel connector)
+    // and which of it the lodgings use (declared by the guest app).
+    homeData: null,
+    homeSelection: null,
   };
 }
 

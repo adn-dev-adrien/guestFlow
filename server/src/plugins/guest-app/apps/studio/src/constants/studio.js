@@ -13,6 +13,7 @@ export const MODULES = Object.freeze({
   booklet: { label: { fr: 'Livret', en: 'Guide' }, icon: 'booklet', hint: 'Les pages publiées du livret de ce logement.' },
   orders: { label: { fr: 'Mes commandes', en: 'My orders' }, icon: 'orders', hint: 'Un onglet « Commandes » et, sur l’accueil, les commandes en cours. Pas de tuile.' },
   contacts: { label: { fr: 'Urgences', en: 'Emergencies' }, icon: 'contacts', hint: 'Les contacts d’urgence des Infos du logement.' },
+  home: { label: { fr: 'Domotique', en: 'Smart home' }, icon: 'home', hint: 'Les mesures et lumières de l’écran Domotique, pendant le séjour, tant que Sowel envoie ses mesures.' },
 });
 
 /** The modules that never make a home tile (rule 11bis: `orders` is a tab). */
@@ -58,3 +59,17 @@ export const GUESTFLOW_LINKS = Object.freeze({
 });
 
 export const DEFAULT_HERO_LABEL = 'Vue aérienne du domaine (par défaut)';
+
+/** specs/guest-app-home-automation.md rule 12 — the « Domotique » blocks, as the studio names them. */
+export const HOME_BLOCKS = Object.freeze({
+  outdoor: { title: 'Extérieur', description: 'Température, minimum et maximum du jour, humidité, vent.', picker: 'Station météo' },
+  rooms: { title: 'Pièces', description: 'Une température par pièce, avec sa tendance.', picker: 'Thermomètre', add: 'Ajouter une pièce', max: 8 },
+  lights: { title: 'Éclairage', description: 'Les lumières montrées, pilotables ou non.', picker: 'Lumière', add: 'Ajouter une lumière', max: 6 },
+  rain: { title: 'Pluie', description: 'Dernière heure, aujourd’hui, 24 dernières heures.', picker: 'Pluviomètre' },
+  energy: { title: 'Électricité', description: 'Puissance en ce moment, kWh du jour, courbe sur 24 h.', picker: 'Compteur' },
+});
+
+/** Rule 15 — the channel's state as a badge. */
+export const HOME_CHANNEL_STATUS = Object.freeze({
+  ok: 'success', never: 'neutral', silent: 'warning', gone: 'error', off: 'error',
+});

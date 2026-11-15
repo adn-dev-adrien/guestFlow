@@ -17,6 +17,7 @@ const PROCESSOR_MEMBERS = ['id', 'isReady', 'priceSync', 'priceLive'];
 const CONTRIBUTOR_MEMBERS = ['id', 'priceTypes', 'priceLine'];
 const SAS_COMMIT_MEMBERS = ['step', 'validate', 'complementItems', 'write'];
 const SCHEDULER_MEMBERS = ['slotsForStay', 'validateSessions'];
+const HOME_DATA_MEMBERS = ['channel', 'catalog', 'readings', 'series', 'queueCommand', 'command', 'confirmed'];
 const ISSUER_MEMBERS = ['id', 'isReady', 'issue', 'findCardBatch', 'attach', 'invoiceStatus'];
 const PUSH_CHANNEL_KEY = /^[a-z][a-z0-9-]{0,39}$/;
 
@@ -201,6 +202,24 @@ function createContext(id, { db, settingsModel, dataDir = null } = {}) {
       if (typeof list !== 'function') throw new Error(`${prefix} standaloneSales needs a function`);
       if (record.standaloneSales) throw new Error(`${prefix} standaloneSales is already declared`);
       record.standaloneSales = list;
+    },
+    // SDK 2.28.0 (specs/guest-app-home-automation.md §4.1) — the house's data as the Sowel connector stores it, and the
+    // light commands it relays. One per instance; read as `ctx.core.homeData()`.
+    homeData(provider) {
+      HOME_DATA_MEMBERS.forEach((m) => {
+        if (provider == null || typeof provider[m] !== 'function') throw new Error(`${prefix} home data provider lacks "${m}"`);
+      });
+      const other = registry.all().find((r) => r.id !== id && r.homeData);
+      if (other) throw new Error(`${prefix} a home data provider is already declared by ${other.id}`);
+      record.homeData = provider;
+    },
+    // SDK 2.28.0 (specs/guest-app-home-automation.md rule 4) — () → [{ equipmentId, alias }]: the readings the lodgings
+    // show, the only ones the house is asked to send. One per instance; read as `ctx.core.homeSelection()`.
+    homeSelection(list) {
+      if (typeof list !== 'function') throw new Error(`${prefix} homeSelection needs a function`);
+      const other = registry.all().find((r) => r.id !== id && r.homeSelection);
+      if (other) throw new Error(`${prefix} a home selection is already declared by ${other.id}`);
+      record.homeSelection = list;
     },
     // A commit hook for one of the plugin's arrival SAS steps (rule 6).
     sasCommit(hook) {

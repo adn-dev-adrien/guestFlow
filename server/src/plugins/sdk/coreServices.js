@@ -136,6 +136,26 @@ function resourceHolds({ resourceId, from, to }) {
     });
 }
 
+// SDK 2.28.0 (specs/guest-app-home-automation.md §4.1) — the live connector's home data, or null: without it the guest
+// app shows no « Domotique » page.
+function homeData() {
+  const record = registry().all().find((r) => r.homeData && registry().isLive(r.id));
+  return record ? record.homeData : null;
+}
+
+// SDK 2.28.0 (rule 4) — the readings the lodgings use. No live declarer, or one that fails → nothing is asked for.
+function homeSelection() {
+  const record = registry().all().find((r) => r.homeSelection && registry().isLive(r.id));
+  if (!record) return [];
+  try {
+    const list = record.homeSelection();
+    return Array.isArray(list) ? list : [];
+  } catch (err) {
+    console.error(`[plugin:${record.id}] home selection failed:`, err && err.message); // eslint-disable-line no-console
+    return [];
+  }
+}
+
 module.exports = Object.freeze({
   reservations: Object.freeze({
     getByIdWithDetails: (id) => reservations().getByIdWithDetails(id),
@@ -169,6 +189,8 @@ module.exports = Object.freeze({
   }),
   resourceScheduler,
   resourceHolds,
+  homeData,
+  homeSelection,
   // SDK 2.26.0 (specs/guest-app.md rules 33, 35, 36) — the card payment of a plugin's basket (a guest order): a
   // `complement` link at the basket's exact total, read on demand, withdrawn; its paid effect is `ctx.paymentBasket`'s.
   payments: Object.freeze({

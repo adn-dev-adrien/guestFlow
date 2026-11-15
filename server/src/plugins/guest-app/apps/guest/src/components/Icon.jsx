@@ -5,9 +5,9 @@
  * carries the label.
  */
 import {
-  ArrowLeft, ArrowUpRight, Bath, BookOpen, Check, ChevronRight, Clock, CloudOff, Copy, CreditCard, Fence, Gift, House,
-  Info, Mail, MapPin, MessageCircle, Minus, Moon, Phone, Plus, QrCode, ReceiptText, Search, Share, ShoppingBag, Sun,
-  Trash2, TriangleAlert, Wifi, WifiOff, X,
+  ArrowDownRight, ArrowLeft, ArrowRight, ArrowUpRight, Bath, BookOpen, Check, ChevronRight, Clock, CloudOff, CloudRain, Copy,
+  CreditCard, Droplet, Fence, Gift, House, Info, Lightbulb, Mail, MapPin, MessageCircle, Minus, Moon, Phone, Plus, QrCode,
+  ReceiptText, Search, Share, ShoppingBag, Sun, Thermometer, Trash2, TriangleAlert, Wifi, WifiOff, Wind, X, Zap,
 } from 'lucide-react';
 
 export const ICONS = Object.freeze({
@@ -45,6 +45,16 @@ export const ICONS = Object.freeze({
   pin: MapPin,
   share: Share,
   qr: QrCode,
+  // specs/guest-app-home-automation.md — the « Domotique » page.
+  smartHome: Thermometer,
+  light: Lightbulb,
+  rain: CloudRain,
+  power: Zap,
+  humidity: Droplet,
+  wind: Wind,
+  trendUp: ArrowUpRight,
+  trendDown: ArrowDownRight,
+  trendFlat: ArrowRight,
 });
 
 export default function Icon({ name, className }) {
