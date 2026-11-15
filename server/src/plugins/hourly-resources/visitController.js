@@ -174,8 +174,11 @@ function createVisitController({ bookings, visits, invoicing }) {
     if (closed) return fail(res, closed);
     const typed = typeof body.email === 'string' ? body.email.trim() : '';
     if (typed && !EMAIL.test(typed)) return res.status(400).json({ error: 'Adresse e-mail invalide.', code: 'EMAIL_INVALID' });
-    // Refused before anything is written: the reasons the link block already shows (rule 39).
-    const block = visits().view(row, { reception: isReceptionOnly(req.user) }).body.paymentLink;
+    // Refused before anything is written: the reasons the link block already shows (rule 39). A view that cannot be read is answered as such,
+    // never as a 500 (end review R3-16).
+    const viewed = visits().view(row, { reception: isReceptionOnly(req.user) });
+    if (viewed.status !== 200) return res.status(viewed.status).json(viewed.body);
+    const block = viewed.body.paymentLink || { reason: 'NOTHING_DUE' };
     const reason = block.reason === 'NO_EMAIL' && typed ? null : block.reason;
     if (reason) return res.status(409).json({ error: LINK_REFUSALS[reason], code: reason });
     const saleId = visits().inTransaction((stop) => visits().ensureDocument(row, { actor: actorOf(req), stop, draft: { customer: { email: body.email || undefined } } }));
@@ -186,9 +189,13 @@ function createVisitController({ bookings, visits, invoicing }) {
     return sendView(res, row, req, { link: minted.link });
   }
 
+  // Rules 7, 39 (end review R3-1) — withdrawing or e-mailing a link is a write of the visit: the reception inside the day window only, nobody on
+  // a no-show or an invoiced visit.
   async function withdrawLink(req, res) {
     const { row, refusal } = bookingOf(req);
     if (refusal) return fail(res, refusal);
+    const closed = writeRefusal(row, req);
+    if (closed) return fail(res, closed);
     const saleId = visits().saleIdOf(row);
     if (!saleId) return res.status(404).json({ error: 'Lien introuvable.', code: 'LINK_NOT_FOUND' });
     const out = await sdk.coreModule('standaloneSaleLinks').withdraw(saleId, Number(req.params.linkId));
@@ -200,6 +207,8 @@ function createVisitController({ bookings, visits, invoicing }) {
   async function emailLink(req, res) {
     const { row, refusal } = bookingOf(req);
     if (refusal) return fail(res, refusal);
+    const closed = writeRefusal(row, req);
+    if (closed) return fail(res, closed);
     const saleId = visits().saleIdOf(row);
     if (!saleId) return res.status(404).json({ error: 'Lien introuvable.', code: 'LINK_NOT_FOUND' });
     const out = await sdk.coreModule('standaloneSaleLinks').emailLink(saleId, Number(req.params.linkId));

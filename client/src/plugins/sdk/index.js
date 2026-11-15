@@ -10,6 +10,7 @@ export { default as FormDialog } from '../../components/FormDialog';
 export { default as ConfirmDialog } from '../../components/ConfirmDialog';
 export { default as LoadingState } from '../../components/LoadingState';
 export { default as ErrorAlert } from '../../components/ErrorAlert';
+// sas — the sale lines of a stay, offered / moved / removed from the SAS (specs/pricing-components.md rules 31, 37) — SDK 2.28.0.
 export { default as StaySalesSection } from '../../components/StaySalesSection';
 export { default as EmptyState } from '../../components/EmptyState';
 export { default as StatusBadge } from '../../components/StatusBadge';

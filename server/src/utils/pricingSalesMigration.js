@@ -55,7 +55,6 @@ const TABLES = [
     cancelledAt       TEXT,
     noShowAt          TEXT,
     billingStreet     TEXT, billingPostcode TEXT, billingCity TEXT, billingCountry TEXT,
-    qontoClientId     TEXT, qontoClientIdentity TEXT, qontoInvoiceId TEXT,
     invoiceNumber     TEXT, invoiceIssuedAt TEXT, invoiceVatRate REAL, invoiceTotal REAL,
     invoiceMarkedPaid INTEGER NOT NULL DEFAULT 0, invoiceMarkPending INTEGER NOT NULL DEFAULT 0, invoiceCancelledAt TEXT,
     attachmentState   TEXT, attachmentTransactionId TEXT, attachmentId TEXT,

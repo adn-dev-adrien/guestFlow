@@ -660,6 +660,20 @@ Optional: a plugin that declares nothing reads « Actif ».
     inline), `coreModule('platformPayment')` the reads of what a platform pays out (`acompteNet`, `grossOf`, `payoutWithPenalty`), and
     `ctx.core.reservations.platformCommission({ basis: 'rentOnly', rent, netRent })` the rent-only commission of Gîtes de France (the statement basis is unchanged).
     Tests: `pricing-money-variants`, `plugin-core-hardening-floor`, `plugins-sdk-core-module-floor`.
+53. *(Added 2026-11-15, end review R3-3, R3-10, R3-11; specs/pricing-components.md rules 53, 74, 86, specs/outside-booking-sas.md rules 35-42,
+    SDK 2.30.0.)* **A plugin sells outside a stay, and suggests articles, through the core.** SDK 2.30.0 adds `coreModule('standaloneSale')`
+    (quote / sell / offerLine / removeLine / pay / cancel / receive / documentOf / paymentsOf of a document with no reservation),
+    `coreModule('standaloneSaleLinks')` (linkOf / draftLinkOf / mint / withdraw / emailLink of its payment link), `coreModule('suggestedArticles')`
+    (the articles suggested for a sale context), `saleDetail.buildDocumentDetail`, the context hook `ctx.suggestionContexts({ kind, label, list })`, the
+    event `standaloneSale.sold` (after the commit, an observer), and the client exports `SuggestedArticlesStep` and `SalePaymentLink`
+    (`client/src/plugins/sdk/index.js`; `StaySalesSection` is SDK 2.28.0's). guest-app and hourly-resources range `^2.30.0`.
+    **The SDK history records what each shipped minor exposed:** v4.1.0 shipped SDK 2.27.0 without `vat`, `accountingOutput`, `legacyBucketSplit`,
+    `refundJournal`, `csvJournal`, `salesJson` and `synthesisExporter`, so `coreModuleHistory.json` records them under 2.28.0, the first minor
+    that ships them (no in-tree plugin ranges below `^2.29.0` for them).
+    **The SDK 2.26.0 shape of `coreModule('midStayOrderCommit')` still works:** `priceOrder(id, lines, { pending })` is accepted and `pending` is an
+    explicit no-op since guest-app rule 108 (a card order awaiting its payment reserves nothing; the first call that passes some is logged once);
+    `commitOrder` answers `excessCents` (its 2.26.0 name) beside `overpaidCents`, the same cents. Removing either is a MAJOR.
+    Tests: `mid-stay-order-sdk-2-26-shape`, `plugins-sdk-core-module-floor`, `plugins-sdk-history-shipped-minors`.
 
 **Edge cases:**
 - **A plugin throws during `register`.** Rule 4 applies: the other plugins and the core boot. The Plugins

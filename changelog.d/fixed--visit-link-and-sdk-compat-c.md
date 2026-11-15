@@ -1,0 +1,1 @@
+- plugin:hourly-resources Withdrawing or e-mailing a visit's payment link follows the rules of the other gestures: the reception on the day of the session only, nobody on a closed visit (no-show, invoiced); a payment that settles the remainder withdraws the open link (`specs/outside-booking-sas.md` rules 7, 39, 40).

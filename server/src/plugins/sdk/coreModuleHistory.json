@@ -259,7 +259,7 @@
       }
     },
     {
-      "version": "2.27.0",
+      "version": "2.28.0",
       "modules": [
         "vat",
         "accountingOutput",
@@ -267,13 +267,7 @@
         "refundJournal",
         "csvJournal",
         "salesJson",
-        "synthesisExporter"
-      ],
-      "names": {}
-    },
-    {
-      "version": "2.28.0",
-      "modules": [
+        "synthesisExporter",
         "extraSale",
         "saleDetail",
         "articles",

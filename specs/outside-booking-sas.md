@@ -352,6 +352,9 @@ once on the server by the refonte's components.
     client's, or the one typed on the visit. Without a ready provider the action is not shown. Without an e-mail it is
     **shown disabled** with « Adresse e-mail requise. » and an « E-mail » field under it; typing a valid address
     enables it. Admin and reception (inside the window, rule 7) may use it.
+    > _Amended 2026-11-15 (end review R3-1, R3-16):_ « Retirer le lien » and « Envoyer par e-mail » are writes of the visit, judged like « Envoyer un
+    > lien »: the reception inside the day window only, nobody on a no-show or invoiced visit (409 `ARRIVAL_NOT_TODAY`, `BOOKING_NO_SHOW`,
+    > `BOOKING_INVOICED`); a visit that cannot be read answers its own status, never a 500. Test `visit-link-window-and-roles`.
 40. **The link bills the reste, once.** It is minted through the core payment-link path (`ensurePaymentLink`'s
     family: `paymentProviders.declared().createLink`, `paymentLinksModel`, `type = 'complement'`-style explicit
     basket with `basket.source = 'standalone-sale'`, `basket.ref = <saleRef>`), with the document's VAT basket from the
@@ -528,7 +531,7 @@ check; `CREATE TABLE IF NOT EXISTS`).
 | `standalone_sales` | `clientId` | INTEGER NULL | NULL | rule 8 (if PR C does not already add it for rule 74) |
 | `standalone_sales` | `originRef` | TEXT NULL | NULL | `resource-booking:<id>`; NULL for a counter sale |
 | `standalone_sales` | `version` | INTEGER | 0 | bumped on every write (concurrent commit, rule 21) |
-| `standalone_sales` | invoice + attachment columns | as on `resource_bookings` (invoicing §5) | NULL | rule 31 |
+| `standalone_sales` | invoice + attachment columns | as on `resource_bookings` (invoicing §5), provider-neutral: no `qonto*` column (end review R3-9 — the invoice of a visit stays on `resource_bookings` in `hourly-resources`; a core table names no provider) | NULL | rule 31 |
 | `standalone_sale_lines` | `offered` | INTEGER | 0 | rule 13 |
 | `standalone_sale_lines` | `catalogueCents` | INTEGER NULL | NULL | value kept for the struck display |
 | `standalone_sale_lines` | `components`, `vatClass`, `family`, `soldAt`, `source`, `cancelledAt` | TEXT | NULL | the rule-74 snapshot (if PR C stores fewer) |
