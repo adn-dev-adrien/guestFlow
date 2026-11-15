@@ -246,7 +246,7 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
    them: the sale path reads the **stored stay price** (`storedStayPrice(reservation)`: nights,
    accommodation, extra guests, tax as stored).
    > **Delivered by PR C** (C40, NIGHTS; owner 2026-11-15, everything of the refonte in 4.2.0): every `extraSale` write — sell, quote, offer,
-   > discount, move, remove — runs `performUpdate(…, { sale: true })`, whose quote is the `staySale` use case: `stayQuote` with the step
+   > discount, move, remove — runs `performUpdate(…, { sale: <seller> })` (rule 54, since C42: `'fiche'`, `'sas'` or `'shop'`), whose quote is the `staySale` use case: `stayQuote` with the step
    > `storedNights` in the place of NIGHTS. The stored nights (`reservation_nights`, the price lock) are the nightly breakdown; no tariff is read.
    > A stay whose stored nights do not price each of its nights (prod copy 2026-11-11: one past stay of 62) is priced by NIGHTS as before. The
    > flag is an option of the server call, never a body field. Proof `pricing-sale-stored-stay`; the replay and the price gate move nothing.
@@ -256,7 +256,7 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
    > schema change with a backfill, measured against the replay; not started. `storedStayPrice` (rule 48) stays the refund input's reader.
 9. **Stay validation is not a sale check.** Min/max nights, changeover and capacity are judged by NIGHTS on a
    stay edit. A sale on an existing stay never re-judges them (W1 disappears, it does not get a flag).
-   > **Delivered by PR C** (C40): a sale (`performUpdate(…, { sale: true })`, every `extraSale` write) answers no `MIN_NIGHTS`, `MAX_NIGHTS` nor
+   > **Delivered by PR C** (C40): a sale (`performUpdate(…, { sale: <seller> })`, every `extraSale` write) answers no `MIN_NIGHTS`, `MAX_NIGHTS` nor
    > changeover refusal — `storedNights` reports no breach and the controller does not judge them on a sale; capacity, availability and the cots
    > are judged only when the save moves the party or the dates, which a sale never does. The stay edit keeps every refusal. Proof
    > `pricing-sale-stored-stay` (a stay under a raised minimum and a new changeover day takes a sale; its edit is still refused).
@@ -523,7 +523,15 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
     > **Delivered by PR B** (pass 4): `utils/saleDetail.js` (`lines`, `buckets`, `totals`, VAT per line); served by `GET …/sale-detail`.
     > **Delivered by PR B** (pass 5): the SAS read serves `staySales`, the departure section of rule 32 (`extraSale.departureSalesOf`; reception sees none).
     > **Delivered by PR C** (C23, fiche): `GET /api/reservations/:id` embeds `saleDetail` (admin view; the reception view, finance-stripped, has none), the payload `GET …/sale-detail` serves (proof `sale-detail-embedded`).
-    > **Pending** — PR-later: the e-mail contexts, the finance pages' extras readers and the payment-link baskets keep their own readers (they read the same stored lines; they do not yet read the payload).
+    > **Delivered by PR C** (pass 3i, rule 91): the e-mails. Their one money list, the arrival complement, reads the sale detail (`reservationEmailGraph.loadArrivalComplementDetail` →
+    > `extraSale.arrivalComplementDetailOf`); their other extras tokens (`optionsList`, `resourcesList`, the nordic-bath sentences) name articles and carry no amount. The context's inline
+    > list stays the reading of a database the sale detail does not run on (a preview on a minimal schema), as rule 91 says.
+    > **Pending** — PR-later: the finance pages' extras readers and the payment-link baskets keep their own readers (they read the same stored lines; they do not yet read the payload).
+    > _2026-11-15 (pass C42, owner: everything in 4.2.0), measured on a fresh copy of the prod database of 2026-11-11, why neither switches without a figure moving:_ the finance pages do not
+    > show the sale. Their stay figure (`financeModel.totalSejour`) is what the operator earns — the buckets net of the platform commission and penalty, the caisse interne out, the
+    > door reduction, the tip and the refunds — and it differs from the sale (`finalPrice` + tax, what `saleDetail` sums) on 48 of the 62 stays; their HT is the HT share of a PORTION
+    > of the stay (collected, pending, the exercise's months: `htOfPortion`), which no per-line VAT output cuts. Reading `saleDetail` there would replace earnings by sales on those 48
+    > stays. The payment-link baskets: rule 91's dated note (3 stays of the copy would see their link change).
     > _Pass 3h, measured on a copy of the prod database (2026-11-11), 59 stays from 2026-01-01:_ the amount an e-mail or a payment link asks
     > equals `saleDetail`'s arrival bucket on 59 of 59, and the LINES it lists equal the payload's arrival lines on 50. On 9 they differ
     > (12, 22209, 22224, 22226, 22275, 22278, 22291, 22324, 22336): a complement adjusted with no line behind it (« Complément d'arrivée »), the
@@ -990,6 +998,14 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
     - TOTALS aggregates `vat.vatOf` output; the payment-link items, the refund lines, the accounting output and
       the finance pages read the same output instead of re-splitting a TTC amount.
     > **Delivered by PR B** (pass 4, C16): DISCOUNTS and the line allocation emit tagged amounts through `vatOf`. **Delivered by PR C** (C33): the external sale's lines are tagged `external` and cut by the VAT component. **Pending** — PR-later: the refund lines, the accounting output and the finance pages reading the `vatOf` output instead of re-splitting a TTC amount (the books stay byte-identical: `accounting-output-replay`).
+    > _2026-11-15 (pass C42, owner: everything in 4.2.0), measured on a fresh copy of the prod database of 2026-11-11 — why the readers do not switch:_ (1) the books are written per RECEIPT (a bucket collected on a
+    > day, its TTC cut once), the sale detail per LINE GROUP (one cut per (class, rate) group of the whole stay). Summed over every month of the journal, the VAT the books carry differs
+    > from the Σ of the sale detail's line VAT on 20 of the 51 stays the journal holds — most by what is not collected yet, and on fully booked stays by the rounding of the cut: cutting
+    > once on the stay's price vs once per group differs by one cent on 16 of 62 stays (1, 6, 11, 22198, 22205, 22214, 22224, 22225, 22226, 22242, 22270, 22272, 22280, 22281, 22291,
+    > 22301). A receipt read through the line VAT needs each receipt allocated to lines with its own cut (rule 51's line allocation), which moves those exported cents (declared months).
+    > (2) Routing today's per-receipt cuts through `vatOf` unchanged (one tagged amount per bucket) is the « VAT first » cut where the books use « net first »: 0 of the 62 stays' stored
+    > buckets and 0 of the 2 refund lines of the copy differ, but the golden month `csv/2027-09` moves its commission VAT by a cent (rule 65's note), which is the owner's open question,
+    > not a reader swap. (3) The finance pages: rule 31's dated note (earnings, not sales; the HT of a portion).
 62. **VAT is computed per (vatClass, rate, customerContext) group per document, never per article.**
     _(decision 2026-11-11.)_ For one document (a stay quote, a sale, an export bucket), the amounts of a group
     are summed, the VAT is rounded **once** on the group (`round(ttc × rate / (100 + rate))`, half up, in
@@ -1042,6 +1058,9 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
     > Every month of the golden database stays byte-identical (`accounting-output-replay`). **Pending** — PR-later: the read models fed with the sale lines and their
     > VAT output (rule 61) and `storedStayPrice` instead of the stored buckets: the entries keep today's buckets, `taxTtc` and `commission` until the line
     > allocation of rule 51 lands.
+    > _2026-11-15 (pass C42), why still open:_ an entry is one receipt (a bucket on its payment day), not a sale; fed by the sale lines it would cut its VAT per line group, and the
+    > measurement under rule 61 (20 of 51 stays of the prod copy's journal, 16 one-cent cuts on fully booked stays) is that move on declared months. No new column is missing; the
+    > per-receipt line allocation with its own cut is, and it is a figure change for the owner to approve.
 
 64. **Today's accounting reads, and where each moves.**
 
@@ -1135,7 +1154,7 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
     replay of the pricing pipeline is allowed only where today's code replays the engine (finance projections
     of unsold periods), and it calls the same `stayQuote` pipeline, never a copy.
     > **Delivered by PR B** (passes 3-5): `saleDetail`, the refund postes (`postesLeft`) and the allocations read stored lines and settlements, the SAS departure section reads `saleDetail`.
-    > **Pending** — PR-later: the finance pages and the payment-link baskets (they still read the stored columns).
+    > **Pending** — PR-later: the finance pages and the payment-link baskets (they still read the stored columns). _2026-11-15 (pass C42):_ why, measured, under rules 31 and 91.
 
 
 ### 3.M Price non-regression gate and delivery pipeline (owner, 2026-11-11)
@@ -1763,6 +1782,9 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
     > `sas-departure-charge-lines-readers` (no statement reads `reservation_custom_options` without leaving them out, or a reason).
     > **Pending** — PR-later: the readers reading the charges from the lines instead of the detail (the sale detail listing them as
     > departure lines with their line keys); today the lines carry the charges' identity and the detail their amounts, written together.
+    > _2026-11-15 (pass C42), why the sale detail does not list them yet:_ no stay of the prod copy holds a departure-charge line (each one stores the detail only, pass 3j), so a
+    > switch has no stay to be proved on; and a listed charge would enter the fiche's lines and the SAS's « Déjà payé », whose « Offrir » goes through the line API, which cannot
+    > address a departure charge (`notDepartureCharge`). The listing needs that gesture decided with it (the charge's offer is the departure SAS's today).
 
 91. **The arrival lines of the sale detail, and the e-mails that list them** _(pass 3i, 2026-11-13; completes rules 31, 37; prerequisite of C23)_.
     `saleDetail` lists everything the arrival complement collects as an arrival line: the tax part it collects (forced there, collected by
@@ -1785,6 +1807,10 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
     > bucket as one line plus the tax, split into acompte and solde by the instalment schedule; the sale detail lists lines, not that
     > split, so switching the baskets would change what an issued link names before the sale detail can say which part of a line an
     > instalment collects.
+    > _2026-11-15 (pass C42, owner: everything in 4.2.0), measured on a fresh copy of the prod database of 2026-11-11:_ the reason holds and has stays: 3 stays hold an acompte or a solde still to bill
+    > AND lines sold into the plan (22270, 22306, 22308); their next link would trade « Solde séjour » / « Paiement séjour » plus the tax for item lines whose sum is not the bucket
+    > (the bucket is a share of the stay set by the schedule, not a set of lines). The 16 links of the copy (13 `full`, 3 `balance`) are such buckets. The guest-order basket (`complement`,
+    > guest-app rule 35) already bills explicit lines.
     > **Delivered by PR C** (pass 3i). Proof: `sale-detail-arrival-lines`, `pricing-legacy-collect-at`, `pricing-lines-migration`.
 
 92. **A sale can say its units are already in place** _(pass 4, 2026-11-13; owner answers of the day; completes rules 26 and 41)_. A request of
@@ -2005,6 +2031,8 @@ check-in time, a discount target, line moment changes and the tourist tax as its
 ### Server unit tests (one file per unit, rule 43)
 - [x] `pricing-nights`, `pricing-extra-guests`, `pricing-tourist-tax` — rules 3, 7-9; the static import-graph test of rule 2
 - [x] `pricing-sale-stored-stay` — rules 8, 9: `staySale` is `stayQuote` with `storedNights` for NIGHTS; the stored nights are the breakdown (the tariff never read), stored nights short of the stay priced by NIGHTS; a sale on a stay under a raised minimum or a new changeover day passes, the stay edit is still refused _(PR C, C40)_
+- [x] `pricing-sale-pipelines` — rule 54: `ficheSale` / `sasSale` / `shopSale` are the `staySale` steps, `salePipelineOf` resolves the three and nothing else, COMPOSE gives the same quote through each and refuses an unknown one, `extraSale` names its source's pipeline on every save it plays (an intake source sells as the fiche, the line gestures run `ficheSale`), a stay edit runs `stayQuote` _(PR C, C42)_
+- [x] `pricing-receipts-single-read` — rule 48: `PaymentLedger.receipts(id).splitReceived` equals the direct read (a pool included), none without a settlement, the allocations read only when asked, the fiche's save plans the same buckets _(PR C, C42)_
 - [x] `pricing-allowances`, `pricing-timed-options` — rules 41, 43 (PR A: the read-only form of today's free units, the early check-in and late check-out options)
 - [x] `pricing-extras`, hourly `hourly-tariff` — rules 10-14, 24, 26 (PR B: free hour stays with its line; evening supplement identical from shop, SAS, fiche) _(PR B: `hourly-booking-free-hour`, `pricing-allowance-ledger`; the evening component is PR C)_
 - [x] `pricing-stored-lines` — rule 72: the four stored-line parsers SETTLEMENT and REFUNDS share
