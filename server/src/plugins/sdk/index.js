@@ -82,7 +82,7 @@ const CORE_MODULES = Object.freeze({
   complementAllocation: '../../utils/complementAllocation', // the stored ventilation of an adjusted complement
   csv: '../../utils/csv', // the generic CSV writer the sales export serialises with
   settingsValidation: '../../utils/settingsValidation', // the VAT-rate validator of the account plan
-  vat: '../../utils/pricing/vat', // the VAT component: the one place a TTC amount is split (pricing-components rule 61, SDK 2.27.0)
+  vat: '../../utils/pricing/vat', // the VAT component: the one place a TTC amount is split (pricing-components rule 61, SDK 2.29.0 — plugins-phase-1-sdk rule 53)
   vatRegimeModel: '../../models/vatRegimeModel', // the VAT rate and regime of each sale: the journal reads them per reservation (vat-optional-mode rule 8, SDK 2.8.0)
   // sas, hourly-resources, website-booking — one sale service, its read model and the head's price read (pricing-components rules 10, 27, 31, SDK 2.29.0)
   extraSale: '../../utils/extraSale', // quote / sell / changeLine, the sale detail and the departure section of the SAS
@@ -154,8 +154,8 @@ const CORE_MODULES = Object.freeze({
   invoiceIssuers: '../../utils/invoiceIssuers',
   standaloneSales: '../../utils/standaloneSales',
   // accounting-export — the journal is the core's AccountingOutput; the plugin keeps its routes, account plan and settings
-  // (specs/pricing-components.md rule 63, SDK 2.27.0)
-  accountingOutput: '../../utils/accounting/accountingOutput', // the journal entries of a period, built from the read models (pricing-components rule 63, SDK 2.27.0)
+  // (specs/pricing-components.md rule 63, SDK 2.29.0 — plugins-phase-1-sdk rule 53)
+  accountingOutput: '../../utils/accounting/accountingOutput', // the journal entries of a period, built from the read models (pricing-components rule 63, SDK 2.29.0)
   legacyBucketSplit: '../../utils/accounting/legacyBucketSplit', // the legacy derivation of the buckets an entry books from stored money (rule 63)
   refundJournal: '../../utils/pricing/refunds/journal', // the avoir, requalification and closing entries of a refund (rules 63-64)
   csvJournal: '../../utils/accounting/exporters/csvJournal', // the CSV journal exporter (rule 63)

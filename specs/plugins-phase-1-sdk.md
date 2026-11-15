@@ -634,6 +634,9 @@ Optional: a plugin that declares nothing reads « Actif ».
     `plugin-core-hardening-floor` holds it); hourly-resources and accounting-export range `^2.27.0`; `coreModuleHistory.json`
     records 2.27.0 (`vat`). Tests: `article-family-sdk.unit.test.js`, `plugin-core-hardening-floor.unit.test.js`,
     `sdk-v2-plugin-ranges.unit.test.js`.
+    > _Amended 2026-11-15 (stabilisation loop t1, AS-3, AS-4; rule 53):_ v4.1.0 shipped SDK 2.27.0 without `vat` nor `ctx.articleFamily`; both are
+    > first shipped by 2.29.0, which `coreModuleHistory.json` records, the hardening floor holds (`ctx.articleFamily(` asks `^2.29.0`) and the SDK's
+    > comments say. The in-tree plugins that use them range `^2.30.0` or `^2.31.0`.
 51. *(Added 2026-11-12, specs/pricing-components.md rules 10, 27, 31, 44-49, SDK 2.29.0.)* **A plugin sells through the same services as the
     core, and declares the booking an article needs.** `coreModule('extraSale')` hands out the sale service (`quote`, `sell`,
     `changeLine`, `saleDetailOf`, `departureSalesOf`), `coreModule('saleDetail')` its read model, `coreModule('articles')` the head's reads

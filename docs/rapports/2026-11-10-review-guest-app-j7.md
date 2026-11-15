@@ -1,6 +1,6 @@
 # Review — feature/guest-app-from-j7 @ 2ca4566c (« Mon séjour » from J-7, rules 65-89)
 
-Worktree `/Users/adrien/Documents/workspace/guestflow-dev/worktrees/gf-feat-guest-app-j7`, base `778fdb38` (inte/plugins at R41). The tree was clean before and after the review. Experiments ran in `scratchpad/rv-guest-app-j7/` (a `git archive` copy for mutants, probe DB copies, scripts `p1`-`p12.mjs`). Shadow N=6 ran with `NODE_ENV=test GUESTFLOW_DISABLE_OUTBOUND=1`. It sent 0 mails, logged 0 TypeError / ReferenceError / unhandled, and is stopped.
+Worktree the `gf-feat-guest-app-j7` worktree, base `778fdb38` (inte/plugins at R41). The tree was clean before and after the review. Experiments ran in `scratchpad/rv-guest-app-j7/` (a `git archive` copy for mutants, probe DB copies, scripts `p1`-`p12.mjs`). Shadow N=6 ran with `NODE_ENV=test GUESTFLOW_DISABLE_OUTBOUND=1`. It sent 0 mails, logged 0 TypeError / ReferenceError / unhandled, and is stopped.
 
 ## Gates
 | Gate | Result |

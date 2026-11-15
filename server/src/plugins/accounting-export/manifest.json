@@ -174,7 +174,7 @@
       "Les ventes hors séjour du cœur entrent au journal le jour de leur paiement, par classe de produit et par taux de TVA ; la caisse interne et les lignes offertes n'y sont jamais.",
       "Nouveau réglage « Compte des boissons » : sans lui, un export dont la période contient une boisson est refusé plutôt que passé sur un compte faux.",
       "Sur un séjour réservé une fois GuestFlow 4.2 installé, chaque encaissement est ventilé sur les lignes vendues du séjour et sa TVA calculée une fois par classe et par taux ; un avoir de ce séjour aussi. Les séjours réservés avant gardent leurs écritures, mois déclarés compris.",
-      "Compatible avec GuestFlow 4 (SDK 2.31)."
+      "Compatible avec GuestFlow 4 (SDK 2.30)."
     ]
   }
 }

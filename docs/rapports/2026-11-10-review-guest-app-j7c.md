@@ -1,7 +1,7 @@
 # Re-review #3: feature/guest-app-from-j7 @ 6c1931c7 (third pass)
 
 ## Setup
-- **Worktree:** `/Users/adrien/Documents/workspace/guestflow-dev/worktrees/gf-feat-guest-app-j7`. HEAD is `6c1931c7` and equals `origin/feature/guest-app-from-j7`. The tree was clean before and after.
+- **Worktree:** the `gf-feat-guest-app-j7` worktree. HEAD is `6c1931c7` and equals `origin/feature/guest-app-from-j7`. The tree was clean before and after.
 - **Experiments:** everything is in `scratchpad/rv-guest-app-j7c/`:
   - `mut/`: `git archive HEAD`, used for the mutants;
   - `deep.js`: an in-process probe with the real plugin boot. It snapshots the whole `reservations` row and every table keyed by `reservationId` before and after `commitOrder`, in note mode or card mode;

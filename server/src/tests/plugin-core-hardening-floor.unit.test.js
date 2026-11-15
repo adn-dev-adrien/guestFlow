@@ -55,7 +55,8 @@ const HARDENINGS = [
   // specs/resource-booking-pricing-and-invoicing.md rules 1, 14, 20-21 — the invoice issuer and the sales outside a stay.
   { feature: 'invoice issuer and sales outside a stay', sdk: '2.25.0', pattern: /coreModule\(\s*['"`](invoiceIssuers|standaloneSales)['"`]|ctx\.(invoiceIssuer|standaloneSales)\(/ },
   // specs/plugins-phase-1-sdk.md rule 50 (specs/pricing-components.md rules 5, 47) — a pricing family for the Articles head.
-  { feature: 'article families', sdk: '2.27.0', pattern: /\bctx\.articleFamily\(/ },
+  // Loop t1 AS-3 — v4.1.0 (SDK 2.27.0) shipped no `ctx.articleFamily`: the first minor that ships it is 2.29.0 (plugins-phase-1-sdk rule 53).
+  { feature: 'article families', sdk: '2.29.0', pattern: /\bctx\.articleFamily\(/ },
   { feature: 'article fulfilment', sdk: '2.29.0', pattern: /\bctx\.articleFulfilment\(/ },
   { feature: 'slot availability', sdk: '2.29.0', pattern: /\bctx\.slotAvailability\(/ },
   // specs/plugins-phase-1-sdk.md rule 52 (specs/pricing-components.md rule 38) — the shared money helpers.
