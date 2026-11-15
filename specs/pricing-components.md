@@ -1089,6 +1089,9 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
     > the same cut. Not a per-receipt reading of `payment_allocations`: on the prod copy 65 of their 104 rows are stay-level (no line), so a line split read from them would
     > be partial. _Owner, 2026-11-15:_ « Brancher quand même », then « il faut éviter de toucher les anciens séjours ou les séjours déjà réservés. Mais si c'est pour une correction d'erreur je suis d'accord pour le faire ». Reading: the sale-line readers serve the stays booked once 4.2.0 is installed (`reservations.readsSaleLines`, `utils/saleLinesReaders.js`: 0 on every stay the migration finds, 1 on a stay, an iCal import or a devis the application creates, carried between a devis and its reservation); a stay booked before keeps today's figures for its whole life — its next links, its receipts, its declared months. A rounding or presentation difference on such a stay is not an error and is not corrected.
     > Proof `accounting-receipt-line-cut`; `accounting-output-replay` and the golden `csv/*` unchanged (their stays are booked before).
+    > _Amended 2026-11-15 (end review R2-5):_ a receipt is cut over the lines **sold by its payment day** (`soldAt` of the line, local day,
+    > against the receipt's `paidDate`; a line with no `soldAt` — sold before PR B — always counts): a line sold after a receipt never re-cuts it, so a
+    > declared month never moves. Proof `accounting-receipt-cut-sold-by-payment-day`; the sale detail lines carry `soldAt`.
 
 64. **Today's accounting reads, and where each moves.**
 

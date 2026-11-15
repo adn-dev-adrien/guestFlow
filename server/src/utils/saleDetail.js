@@ -129,6 +129,7 @@ function lineOf(raw, { kind, facts, vatClassOf, platformStay }) {
     momentLabel: MOMENT_LABELS[collectAt] || '',
     settledCents,
     paidAt: (fact && fact.paidAt) || null,
+    soldAt: (fact && fact.soldAt) || null,
     ...statusOf({ offered: Boolean(raw.offered), includedInPlatform, dueCents: due, settledCents, collectAt, paidAt: fact && fact.paidAt }),
     vatClass: vatClassOf ? vatClassOf(raw, kind) : null,
   };

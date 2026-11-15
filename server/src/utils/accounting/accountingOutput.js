@@ -20,6 +20,7 @@ const { create: createJournalLines } = require('./journalLines');
 const { isResourceKey } = require('../pricing/lineKeys');
 const { readsSaleLines } = require('../saleLinesReaders');
 const { cutReceipt, cutRefund } = require('./receiptLineCut');
+const { localIsoDate } = require('../localDate');
 const {
   computeBucketTtcsFromContribs, computeTaxTtcForKind, soldeCaptureMatches, legacyGrossUp, parseComplementPaidSplit,
   parsePaidSplit, bucketFromTtc, netOfTtc, nz, round2, CONTRIB_RESIDUE_TOLERANCE_TTC,
@@ -892,6 +893,7 @@ function createAccountingOutput({ accountPlan }) {
   }
 
   // The cut a stay's receipts take: the sale-line cut on a stay the readers serve, the entry as built otherwise.
+  // Rules 61-63 (end review R2-5) — a receipt is cut over the lines sold by its payment day: a line sold after it never re-cuts a month already declared.
   function receiptCutOf(row, readModels, regime) {
     if (!readsSaleLines(row)) return (entry) => entry;
     let saleLines = null;
@@ -899,7 +901,8 @@ function createAccountingOutput({ accountPlan }) {
       if (saleLines === null) saleLines = (readModels.saleLinesOf && readModels.saleLinesOf(row)) || [];
       return saleLines;
     };
-    return (entry) => cutReceipt(entry, { regime, saleLines: linesOf() });
+    const soldBy = (day) => (line) => !day || !line.soldAt || localIsoDate(new Date(line.soldAt)) <= String(day).slice(0, 10);
+    return (entry) => cutReceipt(entry, { regime, saleLines: linesOf().filter(soldBy(entry && entry.paidDate)) });
   }
 
   return {
