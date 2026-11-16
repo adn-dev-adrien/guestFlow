@@ -52,7 +52,13 @@ const linenLive = () => registry.isLive('linen');
 const REFUSED = Symbol('refused');
 // reception-role-checkin-only rule 18 — a paid-line refusal names no amount to reception (refund money is not door money).
 const RECEPTION_PAID_LINE_REFUSAL = 'Ligne déjà payée : à voir avec l’administrateur.';
-const paidLineAnswer = (req, body) => (isReceptionOnly(req.user) ? { error: RECEPTION_PAID_LINE_REFUSAL, code: body.code } : body);
+// Loop t8 A8-2 — the recap keys of the lines it refused (`overpaymentKeys`) are no money: they stay, so the dialog puts exactly those back.
+const paidLineAnswer = (req, body) => (isReceptionOnly(req.user)
+  ? { error: RECEPTION_PAID_LINE_REFUSAL, code: body.code, ...(Array.isArray(body.overpaymentKeys) ? { overpaymentKeys: body.overpaymentKeys } : {}) }
+  : body);
+// Loop t8 A8-1 — and the reverse gesture: for reception, an offered paid line whose money is owed back is locked offered (`offerLocked`) in
+// the recap, and a commit that bills it again is refused with the same answer. The refund decision is the administrator's.
+const receptionPlanOptions = (req) => (isReceptionOnly(req.user) ? { lockOwedPaidLines: true } : {});
 function refusedOrDone(req, res, commit) {
   try {
     return commit();
@@ -489,7 +495,7 @@ function previewArrival(req, res) {
   if (arrivalLock) return res.status(403).json({ error: 'SAS_LOCKED', reason: arrivalLock });
   const draft = normaliseArrivalDraft(req, reservation);
   if (draft.refusal) return res.status(draft.refusal.status).json(draft.refusal.body);
-  const plan = reservationsModel.planArrivalSas(Number(req.params.id), draft.input);
+  const plan = reservationsModel.planArrivalSas(Number(req.params.id), draft.input, receptionPlanOptions(req));
   const grows = arrivalGrowthRefusal(plan);
   if (grows) return res.status(grows.status).json(grows.body);
   return res.json(arrivalRecapFor(req, reservation, plan));
@@ -656,7 +662,7 @@ function commitArrival(req, res) {
   // specs/sas-arrival-total-server-side.md rules 8-9 — whether ONE gesture may settle both sides is
   // decided here, on the planned total, never by the dialog: it only says whether the operator chose
   // « Régler séparément ».
-  const arrivalPlan = reservationsModel.planArrivalSas(Number(req.params.id), draft.input);
+  const arrivalPlan = reservationsModel.planArrivalSas(Number(req.params.id), draft.input, receptionPlanOptions(req));
   const grows = arrivalGrowthRefusal(arrivalPlan);
   if (grows) return res.status(grows.status).json(grows.body);
   const recap = arrivalRecapFor(req, reservation, arrivalPlan);
@@ -754,6 +760,7 @@ function commitArrival(req, res) {
     groupArrivalPayment: settlement.grouped,
     pluginWrites: draft.plugins.writes,
     forceOverpayment: !isReceptionOnly(req.user) && req.body.forceOverpayment === true,
+    holdOwedLines: isReceptionOnly(req.user),
   }));
   if (complementAmount === REFUSED) return res;
   recordSasHistory(Number(req.params.id), 'sas_arrival', beforeSas);
@@ -830,7 +837,7 @@ function previewDeparture(req, res) {
   if (departureLock) return res.status(403).json({ error: 'SAS_LOCKED', reason: departureLock });
   const draft = normaliseDepartureDraft(req, reservation);
   if (draft.refusal) return res.status(draft.refusal.status).json(draft.refusal.body);
-  const plan = reservationsModel.planDepartureSas(Number(req.params.id), draft.input);
+  const plan = reservationsModel.planDepartureSas(Number(req.params.id), draft.input, receptionPlanOptions(req));
   const grows = departureGrowthRefusal(plan);
   if (grows) return res.status(grows.status).json(grows.body);
   return res.json(departureRecapFor(reservation, plan));
@@ -850,7 +857,7 @@ function commitDeparture(req, res) {
   } = draft.body;
   const id = Number(req.params.id);
   // Rule 25 — the recap the response carries is the plan this commit executes.
-  const plan = reservationsModel.planDepartureSas(id, draft.input);
+  const plan = reservationsModel.planDepartureSas(id, draft.input, receptionPlanOptions(req));
   const grows = departureGrowthRefusal(plan);
   if (grows) return res.status(grows.status).json(grows.body);
   const takeBack = refusalToTakeBack(id, departureTakeBackFlags(reservationsModel.getRow(id) || {}, { complementsSettled, complementsPaidCash }));
@@ -886,6 +893,7 @@ function commitDeparture(req, res) {
     complementsSettled: complementsSettled === undefined ? undefined : Boolean(complementsSettled),
     complementsPaidCash: splitPrepared ? splitPrepared.allInternal : Boolean(complementsPaidCash),
     forceOverpayment: !isReceptionOnly(req.user) && req.body.forceOverpayment === true,
+    holdOwedLines: isReceptionOnly(req.user),
   }));
   if (departed === REFUSED) return res;
   // Rules 22-23 — the total the recap showed is compared, never used: the commit went through on its

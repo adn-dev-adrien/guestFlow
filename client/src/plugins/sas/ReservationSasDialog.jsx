@@ -931,7 +931,12 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
     try {
       return await send(body);
     } catch (e) {
-      // Reception is answered no amount (reception-role-checkin-only rule 18): there is nothing to confirm, the refusal is shown as is.
+      // Reception is answered no amount (reception-role-checkin-only rule 18): there is nothing to confirm, the refusal is shown as is —
+      // and the lines it names are put back to billed, as « Garder » does (loop t8 A8-2), so the next « Valider » goes through.
+      if (e?.code === 'OVERPAID' && e.overpaymentTtc === undefined && Array.isArray(e.overpaymentKeys) && e.overpaymentKeys.length > 0) {
+        const refused = e.overpaymentKeys;
+        setOffered((prev) => new Set([...prev].filter((key) => !refused.includes(key))));
+      }
       if (e?.code !== 'OVERPAID' || e.overpaymentTtc === undefined) throw e;
       const amount = formatCurrency(Number(e.overpaymentTtc) || 0);
       const ok = await confirm({

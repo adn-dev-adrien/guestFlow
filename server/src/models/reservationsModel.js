@@ -3128,7 +3128,7 @@ function createReservationsModel(database, { arrivalComplementEngine = null } = 
      * `cleaningAdded` / `bathLinenAdded` (tri-state), `cleaningOffered` / `bathLinenOffered`,
      * `soldOptions` (intent, or undefined), `offeredExtras` (authoritative refs, or undefined).
      */
-    planArrivalSas(reservationId, input = {}, { withExistingLines = true } = {}) {
+    planArrivalSas(reservationId, input = {}, { withExistingLines = true, lockOwedPaidLines = false } = {}) {
       const {
         complementItems = [], cleaningAdded, bathLinenAdded, cleaningOffered, bathLinenOffered, soldOptions, offeredExtras,
       } = input;
@@ -3173,6 +3173,9 @@ function createReservationsModel(database, { arrivalComplementEngine = null } = 
       // Rule 108 (loop t7 D7-1) — an offered paid line whose money a refund gave back is not put back: the dialog shows it offered, no toggle.
       const refundedKeys = withExistingLines && HAS_MID_STAY_NOTES
         ? new Set(require('../utils/paidLineJudgment').refundedLoweredLines(database, reservationId).map((line) => line.key)) : new Set();
+      // Reception-role-checkin-only rule 18 (loop t8 A8-1) — for reception, an offered paid line whose money is owed back stays offered too.
+      const owedKeys = lockOwedPaidLines && withExistingLines && HAS_MID_STAY_NOTES
+        ? new Set(Object.keys(require('../utils/paidLineJudgment').owedBackByKey(database, reservationId))) : new Set();
       for (const x of extras) {
         // A line the fiche stamped at the arrival (the excess of a settled plan, loop t3 T3-4) is collected there whatever its routing flag.
         if ((Number(x.inComplement) !== 1 && x.collectAt !== 'arrival') || Number(x.sasArrivalOrigin || 0) === 1) continue;
@@ -3198,7 +3201,8 @@ function createReservationsModel(database, { arrivalComplementEngine = null } = 
           key, group: 'existing', label: String(x.title || x.name || 'Prestation'),
           qty: Number(x.billedUnits || x.quantity || 1), unitPrice: round2(x.unitPrice),
           real, billed: offered ? 0 : real, offerable: true, offered,
-          ...(storedOffered && refundedKeys.size && refundedKeys.has(noteKeyOf(x)) ? { offerLocked: true } : {}),
+          ...(storedOffered && (refundedKeys.size || owedKeys.size) && (refundedKeys.has(noteKeyOf(x)) || owedKeys.has(noteKeyOf(x)))
+            ? { offerLocked: true } : {}),
         });
       }
       const extraGuestsReal = round2(r.extraGuestComplementSurcharge);
@@ -3983,6 +3987,8 @@ function createReservationsModel(database, { arrivalComplementEngine = null } = 
       pluginWrites = [],
       // Loop t6 S6-4 — the operator confirmed the trop-perçu of a paid line offered on the recap (409 OVERPAID first).
       forceOverpayment = false,
+      // Reception-role-checkin-only rule 18 (loop t8 A8-1) — a reception commit never bills again a paid line whose money is owed back.
+      holdOwedLines = false,
     } = {}) {
       // Clamp drink/food counts to non-negative integers (authoritative server-side validation).
       // The SAS controller refuses a bad count first; a direct caller gets a throw, never an Infinity stored
@@ -4294,7 +4300,7 @@ function createReservationsModel(database, { arrivalComplementEngine = null } = 
 
         moveFinalPriceBy(reservationId, billedBefore);
 
-        const paidLineRefusal = paidLines.finish({ forced: forceOverpayment === true });
+        const paidLineRefusal = paidLines.finish({ forced: forceOverpayment === true, holdOwed: holdOwedLines === true });
         if (paidLineRefusal) throw Object.assign(new Error(paidLineRefusal.body.error), { refusal: paidLineRefusal });
         return database.prepare('SELECT complementAmount FROM reservations WHERE id = ?').get(reservationId).complementAmount;
       });
@@ -4441,7 +4447,7 @@ function createReservationsModel(database, { arrivalComplementEngine = null } = 
      * `offeredArrivalExtras` (authoritative refs, honoured only while the arrival is recalled).
      * `withLines: false` skips the itemised recalled lines (the commit never renders them).
      */
-    planDepartureSas(reservationId, input = {}, { withLines = true } = {}) {
+    planDepartureSas(reservationId, input = {}, { withLines = true, lockOwedPaidLines = false } = {}) {
       const {
         endOfStayComplementDetail = null, extinguisherSealOkAtDeparture, extinguisherCharges, offeredArrivalExtras,
       } = input;
@@ -4547,6 +4553,10 @@ function createReservationsModel(database, { arrivalComplementEngine = null } = 
           // Rule 108 (loop t7 D7-1) — the recalled line whose money a refund gave back stays offered, no toggle.
           const refundedKeys = HAS_MID_STAY_NOTES
             ? new Set(require('../utils/paidLineJudgment').refundedLoweredLines(database, reservationId).map((line) => line.key)) : new Set();
+          // Reception-role-checkin-only rule 18 (loop t8 A8-1) — for reception, a recalled paid line whose money is owed back stays offered too.
+          if (lockOwedPaidLines && HAS_MID_STAY_NOTES) {
+            for (const key of Object.keys(require('../utils/paidLineJudgment').owedBackByKey(database, reservationId))) refundedKeys.add(key);
+          }
           const refundedRef = (ref) => Boolean(ref && ref.lineId != null && refundedKeys.size
             && refundedKeys.has(ref.kind === 'custom' ? null : require('./extraSalesModel').keyOfLine(reservationId, ref.kind, ref.lineId)));
           recalledLines = model.buildArrivalComplementDetail(reservationId, { includeOffered: true, withLineIds: true }).detail.map((l) => {
@@ -4605,6 +4615,7 @@ function createReservationsModel(database, { arrivalComplementEngine = null } = 
       // including the ones the arrival SAS wrote).
       offeredArrivalExtras,
       forceOverpayment = false,
+      holdOwedLines = false,
     } = {}) {
       const paidLines = require('../utils/paidLineJudgment').begin(database, reservationId);
       const tx = database.transaction(() => {
@@ -4692,7 +4703,7 @@ function createReservationsModel(database, { arrivalComplementEngine = null } = 
         // planning coche = dashboard « Parti » (checkOutDone). Same forward-only, never-auto-untick rule
         // as the arrival flags above.
         database.prepare("UPDATE reservations SET checkOutDone = 1, updatedAt = datetime('now') WHERE id = ?").run(reservationId);
-        const paidLineRefusal = paidLines.finish({ forced: forceOverpayment === true });
+        const paidLineRefusal = paidLines.finish({ forced: forceOverpayment === true, holdOwed: holdOwedLines === true });
         if (paidLineRefusal) throw Object.assign(new Error(paidLineRefusal.body.error), { refusal: paidLineRefusal });
       });
       runNamingPaidOffers(tx, reservationId, offeredArrivalExtras);

@@ -194,6 +194,8 @@
       "Décocher « Offert » au sas d’arrivée sur une ligne déjà payée la remet à facturer comme sur la fiche : le montant à rembourser s’annule, le solde non réglé redemande ce qui en avait été déduit.",
       "« Séjour à régler » affiche le solde que le sas laissera une fois ses gestes faits (une ligne payée remise à facturer le relève) et c’est ce montant qui est marqué payé ; un récapitulatif dépassé est refusé et relu.",
       "Offrir au sas d’arrivée une ligne déjà payée déduit son montant du solde non réglé, comme depuis la fiche : plus de montant à rembourser quand le solde l’absorbe.",
+      "Accueil : une ligne payée offerte dont le montant reste à rembourser au client reste offerte au sas, sans bouton ; la remettre à facturer est refusé, c’est à l’administrateur.",
+      "Accueil : quand le sas refuse une ligne déjà payée, cette ligne seule est remise à facturer et « Valider » passe ensuite.",
       "Demande GuestFlow 4.2 (SDK 2.31)."
     ]
   }

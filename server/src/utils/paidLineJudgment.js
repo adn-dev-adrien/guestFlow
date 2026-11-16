@@ -14,7 +14,8 @@
  *                                         beyond the total and not refunded yet (`lineDiscounts`: those a save carries, not stored yet)
  *   wayBack(db, reservationId, opts) / reopenedCredit(db, reservationId, opts) → `{ settle() }`: a write that bills a paid line again or frees
  *                                         its money (rules 109, 118), a refund on the trop-perçu deleted (rule 119), follows rule 104's credit
- *   begin(db, reservationId)            → `{ finish({ overpaid, forced, lineDiscounts }) }`, taken before the write; `finish`, called after the
+ *   owedBackByKey(db, reservationId)    → { [key]: cents } the paid lines whose freed money is owed back now (open `lineLowered`)
+ *   begin(db, reservationId)            → `{ finish({ overpaid, forced, lineDiscounts, holdOwed }) }`, taken before the write; `finish`, called after the
  *                                         write inside the same transaction, answers the refusal that rolls it back, or null (`overpaid`: the
  *                                         save is about to answer the trop-perçu formula's 409 OVERPAID — only a removal is refused before it;
  *                                         `forced`: the operator confirmed; `lineDiscounts`: the line discounts the save carries, stored after it):
@@ -23,6 +24,8 @@
  *     - 409 `LINE_REFUNDED` (« Ligne remboursée : la revendre comme une nouvelle ligne. ») — the write makes a note's key claim again money a
  *       refund on the trop-perçu already gave back (a paid line offered, its excess refunded, then un-offered or un-discounted): the guest
  *       would keep the line AND the money (loop t7 D7-1, rule 108). Taken before the overpaid branch: it is no trop-perçu to confirm.
+ *     - 409 `LINE_OWED` — only with `holdOwed` (a reception-only requester, reception-role-checkin-only rule 18): the write bills again a
+ *       paid line whose freed money is owed back now (`owedBackByKey`), which would close the administrator's refund decision.
  *     - 409 `OVERPAID` — the write freed note money (a paid line offered, discounted or lowered) and the stay absorbed less of it than it grew
  *       (rule 104 credits it to what is still due first). A note is money the ESTABLISHMENT collected (cash, card terminal, online link), on a
  *       platform stay too (loop t5 A5-1: the platform collected none of it, reservation-refunds rule 38 is about the platform's money): what
@@ -36,6 +39,8 @@ const { readComplementPaidSplit } = require('./complementPaidSplit');
 
 const PAID_LINE_REMOVED = 'Ligne déjà payée : elle peut être offerte, pas retirée.';
 const LINE_REFUNDED = 'Ligne remboursée : la revendre comme une nouvelle ligne.';
+// Reception-only: the rule-18 answer itself, no amount and no refund word (reception-role-checkin-only rule 18).
+const LINE_OWED = 'Ligne déjà payée : à voir avec l’administrateur.';
 const eurosText = (cents) => `${(cents / 100).toFixed(2).replace('.', ',')} €`;
 
 const TABLES = { option: 'reservation_options', resource: 'reservation_resources', custom: 'reservation_custom_options' };
@@ -155,6 +160,13 @@ function refundedLoweredLines(db, reservationId) {
     .map(([key]) => ({ key, table: facts[key].table, lineId: Number(facts[key].lineId) }));
 }
 
+// reception-role-checkin-only rule 18 (loop t8 A8-1) — the paid lines whose freed money is owed back right now (an open `lineLowered`
+// obligation): putting one back to billed would close that refund decision, which is the administrator's. Read-only. → { [key]: cents }
+function owedBackByKey(db, reservationId) {
+  const id = Number(reservationId);
+  return openLoweredCents(db, id) > 0 ? noteExcessByKey(db, id) : {};
+}
+
 // What the stay owes back on lowered paid lines, in the register (rule 23): held at `cents`.
 function holdLowered(db, reservationId, cents) {
   const obligations = require('../models/refundObligationsModel');
@@ -171,14 +183,22 @@ function begin(db, reservationId) {
   const before = {
     unabsorbed: unabsorbedCents(row), owed: openLoweredCents(db, id), unclaimed: unclaimedCents(notes, facts), refunded: refundedClaimedCents(db, row),
   };
+  const owedBack = before.owed > 0 ? noteExcessByKey(db, id) : {};
   return {
-    finish({ overpaid = false, forced = false, lineDiscounts = null } = {}) {
+    finish({ overpaid = false, forced = false, lineDiscounts = null, holdOwed = false } = {}) {
       const removed = paidLines.find(({ table, lineId }) => !db.prepare(`SELECT 1 FROM ${TABLES[table]} WHERE lineId = ? AND reservationId = ?`).get(lineId, id));
       if (removed) return { status: 409, body: { error: PAID_LINE_REMOVED, code: 'LINE_PAID' } };
       const after = db.prepare('SELECT * FROM reservations WHERE id = ?').get(id);
       const unclaimedAfter = unclaimedCents(claimsByKeyCents(after), factsWith(db, id, lineDiscounts));
       // Rule 108 — a note claiming again what a refund gave back: the line is sold anew, never put back.
       if (unclaimedAfter < before.unclaimed && unclaimedAfter < before.refunded) return { status: 409, body: { error: LINE_REFUNDED, code: 'LINE_REFUNDED' } };
+      // Reception-role-checkin-only rule 18 (loop t8 A8-1) — a reception write never bills again a paid line whose money is owed back.
+      if (holdOwed) {
+        const excessAfter = noteExcessByKey(db, id);
+        if (Object.entries(owedBack).some(([key, cents]) => (excessAfter[key] || 0) < cents)) {
+          return { status: 409, body: { error: LINE_OWED, code: 'LINE_OWED' } };
+        }
+      }
       // A trop-perçu the save is about to ask confirmation of (409 OVERPAID) is that refusal's: once confirmed, it is owed back.
       if (overpaid) return null;
       const freed = unclaimedAfter - before.unclaimed;
@@ -332,5 +352,5 @@ function reopenedCredit(db, reservationId, { quoteOf, midStay = null } = {}) {
 
 module.exports = {
   begin, wayBack, reopenedCredit, notesOnKey, noteExcessCents, noteExcessByKey, refundedLoweredLines, refundedLoweredCents, platformComplementClaims,
-  PAID_LINE_REMOVED, LINE_REFUNDED,
+  owedBackByKey, PAID_LINE_REMOVED, LINE_REFUNDED,
 };
