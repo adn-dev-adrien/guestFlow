@@ -46,7 +46,12 @@ function uuidKey(...parts) {
 // line whose TTC falls between two roundings) gets a « Arrondi de TVA » line of a cent or two; when even that cannot
 // reach it, `null`: the caller refuses before Qonto numbers anything. The money guard of `createClientInvoice` still
 // checks Qonto's own figure.
-const { netFirstCents, ttcFromNetCents: ttcOf } = sdk.coreModule('vat');
+const { netFirstCents, ttcFromNetCents: ttcOf, vatOf } = sdk.coreModule('vat');
+// Rule 62 — the VAT of one (class, rate) group, cut once by the VAT component on the group's TTC: the core's `groupVatCents`, read through `vatOf`
+// (SDK 2.29) so the plugin keeps its SDK floor.
+const groupVatCents = (ttcCents, rate) => (ttcCents > 0
+  ? vatOf([{ amountCents: ttcCents, vatClass: 'external', customerContext: 'external' }], { regime: null, settings: { get: () => rate } }).totals.vatCents
+  : 0);
 const NUDGE = [0, -1, 1, -2, 2, -3, 3];
 const ROUNDING_TITLE = 'Arrondi de TVA';
 
@@ -75,8 +80,84 @@ function solveLines(lines, expectedTotalCents) {
   return best ? lines.map((l, i) => ({ ...l, amountCents: best.chosen[i] })) : null;
 }
 
+/**
+ * Loop t4 B4-4 (pricing-components rule 62, outside-visit rule 56 e) — the lines of ONE (class, rate) group sent so that Qonto's per-line VAT adds up to the
+ * VAT the journal cuts once on the group: their HT sum is `htCents` and their TTC sum `ttcCents`. Each line moves by at most three cents of HT off its
+ * own price (`width` more when Qonto's per-line VAT can reach the group's cut no other way — at a low rate a line's VAT moves a cent only every 1 / rate
+ * cents of HT), the fewest cents of TTC moved first; a dynamic walk over the (HT, TTC) sums reached — their difference, the VAT, spans a few cents — so
+ * a long basket stays cheap. `null` when unreachable.
+ */
+function solveGroup(lines, { htCents, ttcCents }, { width = 0 } = {}) {
+  let states = new Map([['0|0', {
+    ht: 0, ttc: 0, cost: 0, chosen: [],
+  }]]);
+  const nudges = width ? Array.from({ length: 2 * width + 1 }, (_, i) => i - width) : NUDGE;
+  lines.forEach((line) => {
+    const base = netFirstCents(line.amountCents, line.vatRate);
+    const next = new Map();
+    for (const state of states.values()) {
+      for (const d of nudges) {
+        const ht = base + d;
+        if (!keepsSign(line.amountCents, ht)) continue;
+        const ttc = ttcOf(ht, line.vatRate);
+        const key = `${state.ht + ht}|${state.ttc + ttc}`;
+        const cost = state.cost + Math.abs(ttc - line.amountCents) * 10 + Math.abs(d);
+        const known = next.get(key);
+        if (!known || cost < known.cost) {
+          next.set(key, {
+            ht: state.ht + ht, ttc: state.ttc + ttc, cost, chosen: [...state.chosen, ht],
+          });
+        }
+      }
+    }
+    states = next;
+  });
+  const found = states.get(`${htCents}|${ttcCents}`);
+  return found ? lines.map((line, i) => ({ ...line, amountCents: found.chosen[i] })) : null;
+}
+
+// The lines of a group within three cents; else moved further, the least TTC moved winning; else an « Arrondi de TVA » line of a cent or two at the
+// group's rate.
+function solveGroupWithRounding(lines, target, { noNegative }) {
+  const rate = lines[0].vatRate;
+  const solved = solveGroup(lines, target) || solveGroup(lines, target, { width: Math.ceil(100 / Math.max(Number(rate) || 0, 1)) + 1 });
+  if (solved) return solved;
+  for (const cent of noNegative ? [1, 2] : [1, -1, 2, -2]) {
+    const withRounding = solveGroup([...lines, { title: ROUNDING_TITLE, amountCents: ttcOf(cent, rate), vatRate: rate }], target);
+    if (withRounding) return withRounding;
+  }
+  return null;
+}
+
+// Lines that name their `vatGroup` (a sale document's, rule 62): each group reaches the HT and TTC of the group's single VAT cut. The group key leaves
+// the wire; the lines keep their order, a group's rounding line after its last line.
+function toExcludingVatByGroup(lines, { noNegative }) {
+  const groups = new Map();
+  lines.forEach((line, index) => {
+    const group = groups.get(line.vatGroup) || [];
+    group.push({ line, index });
+    groups.set(line.vatGroup, group);
+  });
+  const out = [];
+  for (const members of groups.values()) {
+    const ttcCents = members.reduce((sum, { line }) => sum + line.amountCents, 0);
+    const target = { ttcCents, htCents: ttcCents - groupVatCents(ttcCents, members[0].line.vatRate) };
+    const solved = solveGroupWithRounding(members.map(({ line }) => line), target, { noNegative });
+    if (!solved) return null;
+    solved.forEach((line, i) => out.push({ at: i < members.length ? members[i].index : members[members.length - 1].index + 0.5, line }));
+  }
+  return out.sort((a, b) => a.at - b.at).map(({ line }) => {
+    const { vatGroup, ...wire } = line;
+    return wire;
+  });
+}
+
 // `noNegative` (the folded fallback, sent after Qonto refused a negative line): the rounding line is positive too.
 function toExcludingVat(lines, expectedTotalCents, { noNegative = false } = {}) {
+  const grouped = lines.length > 0 && lines.every((l) => l.vatGroup != null);
+  if (grouped && expectedTotalCents != null && lines.reduce((sum, l) => sum + l.amountCents, 0) === expectedTotalCents) {
+    return toExcludingVatByGroup(lines, { noNegative });
+  }
   if (expectedTotalCents == null || lines.length === 0) {
     return lines.map((l) => ({ ...l, amountCents: netFirstCents(l.amountCents, l.vatRate) }));
   }
@@ -91,21 +172,28 @@ function toExcludingVat(lines, expectedTotalCents, { noNegative = false } = {}) 
 }
 
 function wireItems(items, discount, expectedTotalCents = null) {
-  const lines = items.map((it) => ({ title: it.title, ...(it.description ? { description: it.description } : {}), amountCents: it.amountCents, vatRate: it.vatRate }));
+  const group = (it) => (it.vatGroup != null ? { vatGroup: it.vatGroup } : {});
+  const lines = items.map((it) => ({
+    title: it.title, ...(it.description ? { description: it.description } : {}), amountCents: it.amountCents, vatRate: it.vatRate, ...group(it),
+  }));
   const all = !discount || !discount.amountCents
     ? lines
-    : [...lines, { title: discount.title, amountCents: -Math.abs(discount.amountCents), vatRate: discount.vatRate }];
+    : [...lines, {
+      title: discount.title, amountCents: -Math.abs(discount.amountCents), vatRate: discount.vatRate, ...group(discount),
+    }];
   return toExcludingVat(all, expectedTotalCents);
 }
 
 // Q3 — when Qonto refuses a negative line, the discount is folded into the lines, largest first, and named in their
 // description: the total is the same, the reader still sees what was offered. Rule 48 — a line the discount covers
 // whole is left out (never a 0 € line), the cents land on the positive lines only; none left = `null` (refused).
+// Loop t4 B4-4 — a discount that names its VAT group folds into that group's lines only, so each group keeps the TTC its VAT is cut on.
 function foldedItems(items, discount, expectedTotalCents = null) {
   let left = Math.abs(discount.amountCents);
   const folded = [...items]
     .sort((a, b) => b.amountCents - a.amountCents)
     .map((it) => {
+      if (discount.vatGroup != null && it.vatGroup !== discount.vatGroup) return it;
       const cut = Math.min(left, it.amountCents);
       left -= cut;
       return cut > 0

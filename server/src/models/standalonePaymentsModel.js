@@ -12,16 +12,16 @@
  *   recordRefund({ saleId, obligationId, at, rows })   the money a `lineLowered` row gave back, as refund allocations (negative, `kind = 'refund'`,
  *                                 `refundId` = the row, `paymentRef` `standalone-refund:<row>` and `…:internal` off the books) — loop t1 B-1, rule 49;
  *                                 which line a cent leaves is decided by the caller (`standaloneSale.writeObligationRefund`)
- *   recordKept({ saleId, obligationId, at, amountCents })   a link surplus kept as a tip (rules 50, 55, loop t3 B3-2): one negative `payment` allocation on no
- *                                 line, `paymentRef` `standalone-kept:<row>`, `refundId` = the row — the money leaves the document's unallocated money (SETTLEMENT's
- *                                 `paidCents` falls), the journal books the tip from the closed row
+ *   recordKept({ saleId, obligationId, at, rows })   an open row closed « rien à rembourser », kept as a tip (rules 50, 55, 56, loop t3 B3-2, t4 B4-1): negative
+ *                                 `payment` allocations on the rows the caller picked (`rowsLeaving`: no line for a link surplus, the lowered line first for a
+ *                                 `lineLowered` row), `paymentRef` `standalone-kept:<row>` (`…:internal` off the books), `refundId` = the row — the money leaves
+ *                                 the document (SETTLEMENT's `paidCents` falls); the journal books the line's part as an avoir and the booked part as a tip
  *   recordTransfer({ saleId, at, rows })   money a lowered line held moved onto a line still due (loop t2 B2-3, outside-visit rule 52): signed `payment`
  *                                 allocations under one `standalone-transfer:<sale>:<n>` ref (`…:internal` off the books), dated the day of the change; which
  *                                 line gives and which takes is SETTLEMENT's (`refileDocumentExcess`)
  *   documentsPaidBetween(from, to)  every document with money moved in the window (a payment, a refund, a transfer, a kept surplus) and what the journal reads
  */
 const sales = require('./standaloneSalesModel');
-const { localIsoDate } = require('../utils/localDate');
 
 const { documentRef } = sales;
 
@@ -55,12 +55,17 @@ function recordRefund({ saleId, obligationId, at, rows }) {
   }
 }
 
+const KEPT = 'standalone-kept:';
+
 function recordKept({
-  saleId, obligationId, at, amountCents,
+  saleId, obligationId, at, rows,
 }) {
-  if (!(amountCents > 0)) return;
-  database().prepare(`INSERT INTO payment_allocations (paymentRef, documentRef, lineRef, amountCents, kind, at, refundId, books, origin)
-    VALUES (?, ?, NULL, ?, 'payment', ?, ?, 1, 'live')`).run(`standalone-kept:${Number(obligationId)}`, documentRef(saleId), -amountCents, at, Number(obligationId));
+  const insert = database().prepare(`INSERT INTO payment_allocations (paymentRef, documentRef, lineRef, amountCents, kind, at, refundId, books, origin)
+    VALUES (?, ?, ?, ?, 'payment', ?, ?, ?, 'live')`);
+  for (const row of rows) {
+    if (!(row.amountCents > 0)) continue;
+    insert.run(`${KEPT}${Number(obligationId)}${row.internal ? ':internal' : ''}`, documentRef(saleId), row.lineRef || null, -row.amountCents, at, Number(obligationId), row.internal ? 0 : 1);
+  }
 }
 
 const TRANSFER = 'standalone-transfer:';
@@ -87,23 +92,37 @@ function allocationsOf(saleId) {
   return database().prepare('SELECT paymentRef, lineRef, amountCents, kind, books, at, refundId FROM payment_allocations WHERE documentRef = ? ORDER BY id').all(documentRef(saleId));
 }
 
-// The local day a row closed on (`settledAt` is SQLite's UTC `datetime('now')`).
-const closedDay = (settledAt) => (settledAt ? localIsoDate(new Date(`${String(settledAt).replace(' ', 'T')}Z`)) : null);
+// Loop t4 B4-1 (rule 56 a) — the money kept from a closed row, read from its kept allocations: `[{ id, amountCents (booked, the tip), day, rows }]`,
+// `rows` its legs on a line (`{ lineRef, amountCents, books, at }`, positive) — the avoir of that day.
+function keptOf(allocations) {
+  const byRow = new Map();
+  for (const row of allocations.filter((r) => String(r.paymentRef || '').startsWith(KEPT))) {
+    const kept = byRow.get(row.refundId) || {
+      id: Number(row.refundId), amountCents: 0, day: row.at, rows: [],
+    };
+    byRow.set(row.refundId, kept);
+    if (Number(row.books) === 1) kept.amountCents += Math.abs(Number(row.amountCents));
+    if (row.lineRef != null) {
+      kept.rows.push({
+        lineRef: row.lineRef, amountCents: Math.abs(Number(row.amountCents)), books: Number(row.books), at: row.at,
+      });
+    }
+  }
+  return [...byRow.values()];
+}
 
 /**
  * The documents that moved money between two days (inclusive) — a payment taken, money given back (rule 49), a link surplus kept (rule 50) — each with
  * everything the journal reads: its frozen lines, ALL its payments (the VAT of a day is cut cumulatively) with their allocations, its refunds, its kept
  * surpluses and its client. `[{ sale, lines: [{ ref, vatClass, vatRate }], payments, refunds: [{ lineRef, amountCents, books, at }], transfers: [{ lineRef, amountCents (signed),
- * books, at }], kept: [{ id, amountCents, day }], client }]`.
+ * books, at }], kept: [{ id, amountCents, day, rows }], client }]`.
  */
 function documentsPaidBetween(from, to) {
   const db = database();
-  const kept = sales.keptSurpluses().map((row) => ({ ...row, day: closedDay(row.settledAt) }));
   const ids = [...new Set([
     ...db.prepare('SELECT DISTINCT saleId FROM standalone_sale_payments WHERE paidAt >= ? AND paidAt <= ?').all(from, to).map((row) => row.saleId),
     ...db.prepare(`SELECT DISTINCT CAST(substr(documentRef, 12) AS INTEGER) AS saleId FROM payment_allocations
-      WHERE documentRef LIKE 'standalone:%' AND (kind = 'refund' OR paymentRef LIKE '${TRANSFER}%') AND at >= ? AND at <= ?`).all(from, to).map((row) => row.saleId),
-    ...kept.filter((row) => row.day && row.day >= from && row.day <= to).map((row) => row.saleId),
+      WHERE documentRef LIKE 'standalone:%' AND (kind = 'refund' OR paymentRef LIKE '${TRANSFER}%' OR paymentRef LIKE '${KEPT}%') AND at >= ? AND at <= ?`).all(from, to).map((row) => row.saleId),
   ])].sort((a, b) => a - b).filter((saleId) => sales.findSale(saleId));
   return ids.map((saleId) => {
     const sale = sales.findSale(saleId);
@@ -125,7 +144,7 @@ function documentsPaidBetween(from, to) {
       transfers: allocations.filter((row) => String(row.paymentRef || '').startsWith(TRANSFER)).map((row) => ({
         lineRef: row.lineRef, amountCents: Number(row.amountCents), books: Number(row.books), at: row.at,
       })),
-      kept: kept.filter((row) => row.saleId === saleId && row.day).map((row) => ({ id: row.id, amountCents: Number(row.amountCents), day: row.day })),
+      kept: keptOf(allocations),
       client,
     };
   });

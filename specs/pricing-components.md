@@ -1059,6 +1059,9 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
     - Consequence: there is **no switch** to per-article rounding and therefore no expected diff for it in PR B.
       A document whose articles get new classes splits into more groups naturally; with today's settings
       (three classes, one rate) nothing moves.
+    > _Reading of 2026-11-16 (stabilisation loop t4 B4-4):_ a sale document's Qonto invoice follows this rule too. Qonto computes VAT per item, so
+    > each item names its (class, rate) group and the issuer sends a group's items with the VAT cut once on the group's TTC (`vat.groupVatCents`, the
+    > cut the journal of a standalone document uses): the invoice and the journal state the same VAT per group (outside-booking-sas rule 56 e).
 63. **`AccountingOutput` — one generic journal, format adapters.** `accountingOutput.journalEntries({ from,
     to }, readModels)` reads **only** the read models — sale lines with their VAT output (rule 61), stay-level
     amounts (`storedStayPrice`), settlements, receipts, tenders, refunds and refund lines, compensations,

@@ -35,7 +35,7 @@ const journal = (id, from = TODAY, to = TODAY) => standaloneSales.list({ from, t
 function kept(id, from, to) {
   const net = {};
   for (const sale of standaloneSales.list({ from, to }).filter((s) => String(s.key).startsWith(`standalone:${id}:`))) {
-    for (const g of sale.groups) {
+    for (const g of sale.groups || []) {
       const sign = sale.role === 'refund' ? -1 : 1;
       net[g.vatClass] = net[g.vatClass] || [0, 0];
       net[g.vatClass][0] += sign * g.ttcCents;
@@ -45,7 +45,7 @@ function kept(id, from, to) {
   return Object.fromEntries(Object.entries(net).filter(([, v]) => v[0] || v[1]));
 }
 
-test('B2-1 — two rows settled out of order: the plank row refunds the plank, the beers row closed « rien à rembourser » keeps the beers', () => {
+test('B2-1 — two rows settled out of order: the plank row refunds the plank, the beers row closed « rien à rembourser » keeps the beers\' money as a tip', () => {
   const sold = sell([{ method: 'card', amountCents: 2700 }]);
   const { id } = sold.document;
   const [beers, plank] = sold.lines;
@@ -57,7 +57,9 @@ test('B2-1 — two rows settled out of order: the plank row refunds the plank, t
   assert.deepEqual(db.prepare("SELECT lineRef, amountCents FROM payment_allocations WHERE documentRef = ? AND kind = 'refund'").all(sales.documentRef(id)),
     [{ lineRef: plank.ref, amountCents: -1400 }]);
   assert.equal(links.closeObligation(id, beersRow.id, 'cancelled').status, 200);
-  assert.deepEqual(kept(id, TODAY, TODAY), { drinks: [1300, 217] }, 'the beers kept, at 20 %');
+  // Loop t4 B4-1 (owner 2026-11-16, rule 56 a) — the money kept is a tip: the beers leave the books (no VAT on money no invoice states), the tip is 13 €.
+  assert.deepEqual(kept(id, TODAY, TODAY), {}, 'no revenue left: the beers\' 13 € left their line');
+  assert.deepEqual(standaloneSales.list({ from: TODAY, to: TODAY }).filter((s) => String(s.key).startsWith(`standalone:${id}:`) && s.role === 'tip').map((s) => s.booksCents), [1300]);
 });
 
 test('B2-2 — offered then payable again: the row is no longer owed, the counter and the invoice stop waiting for it', () => {

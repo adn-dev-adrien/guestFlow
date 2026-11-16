@@ -8,7 +8,7 @@
  *   pay(saleId, { tenders, shortfall, paidAt, version, actor, source })      a payment on the reste, allocated by SETTLEMENT (rules 16-19)
  *   cancel(saleId)                                                           every line cancelled; money already taken stays and is owed back (rules 26, 41)
  *   writeObligationRefund(saleId, obligation, { day })                       an open row marked refunded: its refund allocations (rules 49, 55)
- *   writeKeptSurplus(saleId, obligation, { day })                            a link surplus kept (« rien à rembourser »): its kept allocation (rules 50, 55)
+ *   writeKept(saleId, obligation, { day })                                   an open row closed « rien à rembourser »: its kept allocations, a tip (rules 50, 55, 56)
  *   documentOf(saleId, { paidElsewhere })                → the saleDetail payload of the document, or null
  *   paymentsOf(saleId)                                   → `[{ id, paidAt, receivedCents, tenders, source }]`, oldest first
  *
@@ -201,19 +201,36 @@ const refusalList = (ctx, own) => [...own, ...ctx.refusals.map((r) => ({ article
 
 // Outside-visit rule 41 (end-review V-4): each open obligation is a row of its own with its words, and `refundUnheldCents` is the part of the
 // owed money no row holds — so a screen shows the rows and that remainder, never the same euros twice.
-function owedOf(ctx, saleId) {
-  const obligations = saleId ? sales.obligationsOf(saleId).map((row) => ({ ...row, label: `${euros(row.amountCents)} à rembourser`, detail: row.reason || null })) : [];
+// Loop t4 B4-2 (rule 56 b) — a closed row leaves the document through its allocations (a refund, or the money kept), so what the document owes back is
+// read on its lines and its money only: no closed row is subtracted a second time, forever, wherever its line's money went since.
+// `amounts` (the quote, rule 56 d): the open rows at the amounts the plan of the draft gives them, a row planned to nothing left out.
+function owedOf(ctx, saleId, amounts = null) {
+  const stored = saleId ? sales.obligationsOf(saleId) : [];
+  const planned = amounts ? stored.map((row) => ({ ...row, amountCents: (amounts.find((a) => a.id === row.id) || row).amountCents })).filter((row) => row.amountCents > 0) : stored;
+  const obligations = planned.map((row) => ({ ...row, label: `${euros(row.amountCents)} à rembourser`, detail: row.reason || null }));
   const owed = owedOnDocument({
     dueCents: ctx.settlement.totalCents,
     paidCents: ctx.settlement.paidCents + ctx.settlement.refundedCents,
-    refundedCents: ctx.settlement.refundedCents + (saleId ? sales.closedObligationCents(saleId) : 0),
+    refundedCents: ctx.settlement.refundedCents,
     heldCents: obligations.reduce((sum, row) => sum + row.amountCents, 0),
   });
   return { obligations, owed };
 }
 
-function detailOf(ctx, sale, client) {
-  const { obligations, owed } = owedOf(ctx, sale && sale.id);
+// Loop t4 B4-5 (rule 56 c) — the caisse-interne money the document still holds, net of what was given back, kept or moved: what keeps an invoice
+// refused (`INTERNAL_CASH`), judged on the money held and no longer on the tenders of a payment whose money left.
+function internalHeldOf(allocations) {
+  const byRef = new Map();
+  for (const row of allocations || []) {
+    if (Number(row.books) !== 0) continue;
+    const key = row.lineRef == null ? '' : row.lineRef;
+    byRef.set(key, (byRef.get(key) || 0) + Math.round(Number(row.amountCents || 0)));
+  }
+  return [...byRef.values()].reduce((sum, cents) => sum + Math.max(0, cents), 0);
+}
+
+function detailOf(ctx, sale, client, { amounts = null, allocations = [] } = {}) {
+  const { obligations, owed } = owedOf(ctx, sale && sale.id, amounts);
   const lines = ctx.lines.map((line, index) => (line.ref ? line : { ...line, ref: `draft:${index}`, id: null }));
   const settled = ctx.settlement.lines.map((line, index) => ({ ...line, ref: lines[index].ref }));
   const detail = buildDocumentDetail({
@@ -231,7 +248,7 @@ function detailOf(ctx, sale, client) {
   });
   return {
     ...detail,
-    totals: { ...detail.totals, refundUnheldCents: owed.unheldCents },
+    totals: { ...detail.totals, refundUnheldCents: owed.unheldCents, internalHeldCents: internalHeldOf(allocations) },
     history: sale ? sales.historyOf(sale.id) : [],
     refundObligations: obligations,
   };
@@ -244,15 +261,17 @@ function quote(request = {}) {
   const customer = resolveCustomer(body.customer || (sale ? { clientId: sale.clientId } : null), { write: false });
   if (customer.error) return customer.error;
   const { requests, refusals } = requestsOf(body.lines, { families: body.families });
-  const ctx = price({
-    requests, fulfilments: body.fulfilments, stored, allocations,
+  // Loop t4 B4-6 (rule 56 d) — the preview is the plan the commit runs (rules 52-55), nothing written: the unallocated money and a lowered line's
+  // money pay the new lines, and the open rows are shown at the amounts that plan leaves them.
+  const plan = planOf(sale ? sale.id : null, {
+    stored, allocations, requests, fulfilments: body.fulfilments,
   });
   const client = sale ? clientView(sale) : { id: customer.clientId, label: customer.label, kind: customer.kind };
   return {
     status: 200,
-    document: detailOf(ctx, sale, client),
+    document: detailOf(plan.ctx, sale, client, { amounts: sale ? plan.step.amounts : null, allocations: plan.after }),
     customer: { clientId: customer.clientId, label: customer.label, kind: customer.kind },
-    refusals: refusalList(ctx, refusals),
+    refusals: refusalList(plan.ctx, refusals),
     quoted: true,
   };
 }
@@ -260,7 +279,7 @@ function quote(request = {}) {
 const documentOf = (saleId, { paidElsewhere = [] } = {}) => {
   const { sale, stored, allocations } = storedOf(saleId, { paidElsewhere });
   if (!sale) return null;
-  return detailOf(price({ requests: [], stored, allocations }), sale, clientView(sale));
+  return detailOf(price({ requests: [], stored, allocations }), sale, clientView(sale), { allocations });
 };
 
 const versionRefusal = (sale, version) => (version !== undefined && version !== null && Number(version) !== Number(sale.version)
@@ -449,10 +468,20 @@ function publishSold(document) {
  * with what the document owes back; a confirmed lowering (`lowered`: `{ reason, lineRef }`, `lineRef` null for the whole document) opens what no row
  * holds yet (loop t1 B-1, AV-1, rule 25): the « À rembourser » lists show it, the invoice waits for it, and « Marquer remboursé » closes it.
  */
-function planOf(saleId, { stored, allocations }, lowered = null) {
-  const moved = refileDocumentExcess({ lines: price({ requests: [], stored, allocations }).lines, allocations });
+function planOf(saleId, {
+  stored, allocations, requests = [], fulfilments = [],
+}, lowered = null) {
+  const named = (lines) => lines.map((line, index) => ({ ...line, ref: line.ref || `draft:${index}` }));
+  const moved = refileDocumentExcess({
+    lines: named(price({
+      requests, fulfilments, stored, allocations,
+    }).lines),
+    allocations,
+  });
   const after = [...allocations, ...moved.map((row) => ({ ...row, kind: 'payment' }))];
-  const ctx = price({ requests: [], stored, allocations: after });
+  const ctx = price({
+    requests, fulfilments, stored, allocations: after,
+  });
   const { obligations, owed } = owedOf(ctx, saleId);
   const step = documentRowsInStep({
     rows: obligations.map((row) => ({ ...row, unallocated: row.origin === 'linkSurplus' })),
@@ -461,7 +490,9 @@ function planOf(saleId, { stored, allocations }, lowered = null) {
     unallocatedCents: unallocatedOf(after).cents,
     open: lowered ? { lineRef: lowered.lineRef || null } : null,
   });
-  return { moved, obligations, step };
+  return {
+    moved, obligations, step, ctx, after,
+  };
 }
 
 /**
@@ -577,13 +608,25 @@ function cancel(saleId) {
  * journal books them as the document's avoir that day (`accounting/standaloneDocuments.js`), so the revenue and the VAT of the money given back leave
  * the books; SETTLEMENT reads them as refunded.
  */
-function writeObligationRefund(saleId, obligation, { day = todayIso() } = {}) {
+// Which money a closed row takes off the document (REFUNDS' `refundRowsOfDocument`): its own line first, then the excess no other open row names (B4-3).
+function rowsLeaving(saleId, obligation) {
   const { stored, allocations } = storedOf(saleId);
   const ctx = price({ requests: [], stored, allocations });
-  const rows = refundRowsOfDocument({
-    lines: ctx.settlement.lines, allocations, amountCents: Number(obligation.amountCents), lineRef: obligation.lineRef || null, unallocated: obligation.origin === 'linkSurplus',
+  const reserved = sales.obligationsOf(saleId).filter((row) => row.id !== obligation.id && row.origin !== 'linkSurplus');
+  return refundRowsOfDocument({
+    lines: ctx.settlement.lines,
+    allocations,
+    amountCents: Number(obligation.amountCents),
+    lineRef: obligation.lineRef || null,
+    unallocated: obligation.origin === 'linkSurplus',
+    reserved,
   });
-  payments.recordRefund({ saleId, obligationId: obligation.id, at: day, rows });
+}
+
+function writeObligationRefund(saleId, obligation, { day = todayIso() } = {}) {
+  payments.recordRefund({
+    saleId, obligationId: obligation.id, at: day, rows: rowsLeaving(saleId, obligation),
+  });
   refreshInPlace(saleId);
   sales.bumpVersion(saleId);
 }
@@ -591,10 +634,13 @@ function writeObligationRefund(saleId, obligation, { day = todayIso() } = {}) {
 /**
  * Loop t3 B3-2 (rule 55, owner rule 50) — a link surplus closed « rien à rembourser » is money the business keeps: it leaves the document's unallocated
  * money as a « kept » allocation (`payments.recordKept`), so it can no longer pay a line sold later; the journal books it as the tip of rule 50.
+ * Loop t4 B4-1, B4-2 (owner 2026-11-16, rule 56 a) — a `lineLowered` row closed « rien à rembourser » is kept the same way: negative `payment` allocations
+ * on the lines the money leaves (the same rows a refund would take), so the line's revenue and VAT leave the books on the close day and the money kept is
+ * a tip; what the document owes then follows its lines.
  */
-function writeKeptSurplus(saleId, obligation, { day = todayIso() } = {}) {
+function writeKept(saleId, obligation, { day = todayIso() } = {}) {
   payments.recordKept({
-    saleId, obligationId: obligation.id, at: day, amountCents: Number(obligation.amountCents),
+    saleId, obligationId: obligation.id, at: day, rows: rowsLeaving(saleId, obligation),
   });
   refreshInPlace(saleId);
   sales.bumpVersion(saleId);
@@ -606,5 +652,5 @@ const paymentsOf = (saleId) => payments.paymentsOf(saleId).map((row) => ({
 }));
 
 module.exports = {
-  quote, sell, offerLine, removeLine, pay, cancel, receive, documentOf, paymentsOf, takePayment, writeObligationRefund, writeKeptSurplus, MAX_QUANTITY,
+  quote, sell, offerLine, removeLine, pay, cancel, receive, documentOf, paymentsOf, takePayment, writeObligationRefund, writeKept, MAX_QUANTITY,
 };

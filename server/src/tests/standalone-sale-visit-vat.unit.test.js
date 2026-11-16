@@ -46,5 +46,5 @@ test('rule 28 — franchise mode: no VAT, whatever the class rate', () => {
 test('rule 33 — an external sale calls no stay step: no nights, no tourist tax, no schedule, no clock', () => {
   assert.deepEqual([...externalSale.steps].filter((id) => /night|tax|schedule|clock|platform|midStay/i.test(id)), []);
   const quote = standaloneSale.quote({ lines: [line(beer, 1)] });
-  assert.deepEqual(Object.keys(quote.document.totals).sort(), ['paidCents', 'refundOwedCents', 'refundUnheldCents', 'remainingCents', 'totalCents']);
+  assert.deepEqual(Object.keys(quote.document.totals).sort(), ['internalHeldCents', 'paidCents', 'refundOwedCents', 'refundUnheldCents', 'remainingCents', 'totalCents']);
 });

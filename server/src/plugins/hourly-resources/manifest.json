@@ -182,6 +182,7 @@
       "Le sas d’arrivée lit les suppléments de soirée des commandes par la clé de leur bain : un second supplément, numéroté « (2) », n’est plus facturé une seconde fois.",
       "Au paiement immédiat, l’arrivée et la réservation attendent la réponse du serveur sur la facture avant d’enregistrer, et affichent « Facture non vérifiée pour ce paiement. » avec « Réessayer » si elle échoue ; « Caisse interne » et les autres refus viennent du serveur.",
       "Au paiement immédiat, un refus ou un échec de la vente de l’arrivée ne s’affiche qu’une fois, sans second message ni second « Réessayer » pour le paiement saisi.",
+      "Vente d’une visite : une ligne payée puis offerte ou retirée, close « rien à rembourser », devient un pourboire et quitte le chiffre d’affaires ; la facture n’est refusée « Caisse interne » que tant que la visite garde de l’argent de la caisse interne ; pendant la saisie, « À rembourser » montre le montant que l’enregistrement laissera.",
       "Demande le SDK 2.31 de GuestFlow."
     ]
   }

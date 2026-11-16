@@ -15,14 +15,13 @@
  * avoir per refund day (`role: 'refund'`, key `…:<day>:refund`), its groups the TTC and VAT that leave the books, the VAT cut on the cumulative TTC like a payment's.
  * Loop t1 B-6 (rule 50, owner 2026-11-16): `kept[i]` = `{ id, amountCents, day }` (a link surplus closed « rien à rembourser ») → one tip
  * (`role: 'tip'`, key `…:<day>:tip:<id>`, no group), booked like a stay's tip. A document with neither lists exactly what it listed before.
+ * Loop t4 B4-1 (rule 56 a, owner 2026-11-16): `kept[i].rows` = `{ lineRef, amountCents, books, at }` — a `lineLowered` row closed « rien à rembourser » keeps
+ * money a line held: those legs leave the line in that day's avoir (its revenue and VAT off the books, like a refund) and the booked part is the tip, so
+ * the journal nets per (class, rate) exactly the paid lines the invoice states.
  * Loop t2 B2-3 (rule 52): `transfers[i]` = `{ lineRef, amountCents (signed), books, at }` (money a lowered line held, filed on a line still due) → on its day,
  * the line it leaves in that day's avoir and the line it pays in that day's sale, no money received: the earlier days stay as they were booked.
  */
-const { vatOf } = require('../pricing/vat');
-
-const vatCentsOf = (ttcCents, rate) => (ttcCents > 0
-  ? vatOf([{ amountCents: ttcCents, vatClass: 'external', customerContext: 'external' }], { regime: null, settings: { get: () => rate } }).totals.vatCents
-  : 0);
+const { groupVatCents: vatCentsOf } = require('../pricing/vat');
 
 function salesOfDocument({
   sale, lines, payments, refunds = [], transfers = [], kept = [], client,
@@ -47,6 +46,7 @@ function salesOfDocument({
     addTo(groups, lineOf.get(row.lineRef), row);
   };
   for (const refund of refunds) leave(refund);
+  for (const row of kept) for (const leg of row.rows || []) leave(leg);
   for (const row of transfers) {
     if (Number(row.amountCents) < 0) { leave(row); continue; }
     const day = byDay.get(row.at) || { groups: new Map(), receivedCents: 0, cardCents: 0 };
@@ -103,7 +103,7 @@ function salesOfDocument({
     }
   }
   // Rule 49 (owner 2026-11-16) — a link surplus kept is a tip, on the day it was kept: no line, no VAT.
-  for (const row of kept) {
+  for (const row of kept.filter((r) => Number(r.amountCents) > 0)) {
     out.push({
       key: `standalone:${sale.id}:${row.day}:tip:${row.id}`,
       date: row.day,

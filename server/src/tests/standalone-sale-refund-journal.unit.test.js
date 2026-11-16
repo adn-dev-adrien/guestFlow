@@ -87,7 +87,7 @@ test('rule 49 — a line paid partly in the caisse interne gives back its booked
   assert.deepEqual(groupsOf(avoir), [['catering', 100, 9]]);
 });
 
-test('rule 49 — a row closed « rien à rembourser » writes no refund: the line keeps the money it was paid', () => {
+test('rule 56 a (loop t4 B4-1, owner 2026-11-16) — a row closed « rien à rembourser » writes no refund: the money is kept, its line\'s revenue leaves, a tip comes in', () => {
   const sold = paidSale();
   const { id } = sold.document;
   standaloneSale.offerLine(id, sold.lines[0].id, { offered: true, confirmRefund: true });
@@ -95,5 +95,5 @@ test('rule 49 — a row closed « rien à rembourser » writes no refund: the li
   assert.equal(links.closeObligation(id, row.id, 'cancelled').status, 200);
   assert.deepEqual(refundRows(id), []);
   assert.equal(standaloneSale.documentOf(id).totals.refundOwedCents, 0);
-  assert.equal(entriesOf(id).filter((sale) => sale.role).length, 0);
+  assert.deepEqual(entriesOf(id).filter((sale) => sale.role).map((sale) => [sale.role, sale.booksCents]), [['refund', 1300], ['tip', 1300]]);
 });

@@ -220,6 +220,8 @@ const OBLIGATION_STATUSES = ['settled', 'cancelled'];
  * `linkSurplus` row `cancelled` is money kept, booked as a tip on the day it is closed (« 13,00 € gardés en pourboire »).
  * Loop t3 B3-2 (rule 55): a `linkSurplus` row closed either way takes its money off the document's unallocated money — `settled` as a refund on no line,
  * `cancelled` as a kept allocation — so it can never pay a line sold later.
+ * Loop t4 B4-1, B4-2 (owner 2026-11-16, rule 56 a): a `lineLowered` row closed « rien à rembourser » is a tip too — kept allocations on the lines its money
+ * leaves (« 13,00 € gardés en pourboire »), its line's revenue and VAT off the books that day.
  */
 function closeObligation(saleId, obligationId, status, { actor = null } = {}) {
   if (!OBLIGATION_STATUSES.includes(status)) return refuse(400, 'OBLIGATION_INVALID_STATUS', 'Statut invalide.');
@@ -230,11 +232,9 @@ function closeObligation(saleId, obligationId, status, { actor = null } = {}) {
   database().transaction(() => {
     sales.closeObligation(row.id, { status, by: actor || 'operator' });
     if (status === 'settled') standaloneSale.writeObligationRefund(saleId, row);
-    else if (row.origin === 'linkSurplus') standaloneSale.writeKeptSurplus(saleId, row);
+    else standaloneSale.writeKept(saleId, row);
     const { euros } = require('./paymentTenders');
-    let words = `${euros(row.amountCents)} remboursés`;
-    if (status === 'cancelled') words = row.origin === 'linkSurplus' ? `${euros(row.amountCents)} gardés en pourboire` : `${euros(row.amountCents)} : rien à rembourser`;
-    sales.addHistory(saleId, words, actor);
+    sales.addHistory(saleId, status === 'settled' ? `${euros(row.amountCents)} remboursés` : `${euros(row.amountCents)} gardés en pourboire`, actor);
   }).immediate();
   return { status: 200, document: standaloneSale.documentOf(saleId) };
 }
