@@ -199,7 +199,7 @@ function refundable({ finalPrice, touristTaxTotal, vatRate, options = [], resour
     // particular, and a paid solde is one sum the lines share. The excess comes off the lines paid at arrival first,
     // the money a cancelled stay is the least likely to have collected, then off the lines whose own collection is
     // unknown, the lines capped at what they collected last.
-    // Loop t6 S6-6 (guest-app 110b) — an arrival line a note paid (a card order before the arrival) did collect: it is not ranked as money the
+    // Loop t6 S6-6 (guest-app rule 110 b) — an arrival line a note paid (a card order before the arrival) did collect: it is not ranked as money the
     // stay is the least likely to hold (`notePaidKeys`, the keys the stay's notes paid). Only a key one line holds: lines sharing a key share
     // its collected money, which the arrival rank keeps from being offered twice.
     const keyCount = perLine.reduce((counts, line) => counts.set(line.key, (counts.get(line.key) || 0) + 1), new Map());
