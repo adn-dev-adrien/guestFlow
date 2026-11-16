@@ -15,7 +15,9 @@
  *   addHistory(saleId, text, actor) / historyOf(saleId)   the words of what was done on the document (outside-visit spec rule 23)
  *   openObligation({ saleId, paymentLinkId, amountCents, reason, origin }) / obligationsOf(saleId)   money owed back with no line to hold it (rule 41):
  *                                     one row per paying link (a second call for the same link changes nothing), `lineLowered` for a paid line lowered
- *                                     (no link, one row per lowering); `obligationsOf` lists the open ones
+ *                                     (no link, one row per lowering, `lineRef` the line lowered — loop t2 B2-1); `obligationsOf` lists the open ones
+ *   resizeObligation(id, amountCents) an open `lineLowered` row kept in step with what the document owes (loop t2 B2-2): 0 closes it `cancelled`
+ *                                     by `system` — no longer owed, so neither money given back nor money kept (`closedObligationCents` skips it)
  *   keptSurpluses()                   the link surpluses closed « rien à rembourser », kept as tips (rule 50)
  *   documentRef(id) / lineRef(lineId)  the names the allocations use
  */
@@ -105,13 +107,21 @@ function addHistory(saleId, text, actor = null) {
 }
 const historyOf = (saleId) => database().prepare('SELECT at, text, actor FROM standalone_sale_history WHERE saleId = ? ORDER BY id').all(Number(saleId));
 
-function openObligation({ saleId, paymentLinkId = null, amountCents, reason = null, origin = 'linkSurplus' }) {
+function openObligation({
+  saleId, paymentLinkId = null, amountCents, reason = null, origin = 'linkSurplus', lineRef: line = null,
+}) {
   if (!(Number.isInteger(amountCents) && amountCents > 0)) return null;
-  return database().prepare(`INSERT OR IGNORE INTO standalone_sale_obligations (saleId, origin, paymentLinkId, amountCents, reason)
-    VALUES (?, ?, ?, ?, ?)`).run(Number(saleId), origin, paymentLinkId == null ? null : Number(paymentLinkId), amountCents, reason).changes;
+  return database().prepare(`INSERT OR IGNORE INTO standalone_sale_obligations (saleId, origin, paymentLinkId, amountCents, reason, lineRef)
+    VALUES (?, ?, ?, ?, ?, ?)`).run(Number(saleId), origin, paymentLinkId == null ? null : Number(paymentLinkId), amountCents, reason, line).changes;
 }
-const obligationsOf = (saleId) => database().prepare("SELECT id, origin, paymentLinkId, amountCents, reason, createdAt FROM standalone_sale_obligations WHERE saleId = ? AND status = 'open' ORDER BY id")
+const obligationsOf = (saleId) => database().prepare("SELECT id, origin, paymentLinkId, amountCents, reason, lineRef, createdAt FROM standalone_sale_obligations WHERE saleId = ? AND status = 'open' ORDER BY id")
   .all(Number(saleId));
+function resizeObligation(obligationId, amountCents) {
+  const db = database();
+  if (amountCents > 0) return db.prepare("UPDATE standalone_sale_obligations SET amountCents = ? WHERE id = ? AND status = 'open'").run(amountCents, Number(obligationId)).changes;
+  return db.prepare("UPDATE standalone_sale_obligations SET status = 'cancelled', settledAt = datetime('now'), settledBy = 'system' WHERE id = ? AND status = 'open'")
+    .run(Number(obligationId)).changes;
+}
 
 const findObligation = (saleId, obligationId) => database().prepare('SELECT * FROM standalone_sale_obligations WHERE saleId = ? AND id = ?').get(Number(saleId), Number(obligationId)) || null;
 const closeObligation = (obligationId, { status, by = null }) => database().prepare("UPDATE standalone_sale_obligations SET status = ?, settledAt = datetime('now'), settledBy = ? WHERE id = ? AND status = 'open'")
@@ -119,7 +129,7 @@ const closeObligation = (obligationId, { status, by = null }) => database().prep
 // What the closed rows resolved outside the document (the refund made from the provider's space or by hand, or nothing owed after all). A row whose
 // refund was written as refund allocations (loop t1 B-1, outside-visit rule 49) is counted there, by SETTLEMENT, never here a second time.
 const closedObligationCents = (saleId) => Number(database().prepare(`SELECT COALESCE(SUM(o.amountCents), 0) AS cents FROM standalone_sale_obligations o
-  WHERE o.saleId = ? AND o.status != 'open'
+  WHERE o.saleId = ? AND o.status != 'open' AND COALESCE(o.settledBy, '') != 'system'
     AND NOT EXISTS (SELECT 1 FROM payment_allocations a WHERE a.documentRef = 'standalone:' || o.saleId AND a.kind = 'refund' AND a.refundId = o.id)`)
   .get(Number(saleId)).cents);
 // Outside-visit rule 50 (owner 2026-11-16, loop t1 B-6) — a link surplus closed « rien à rembourser » is money kept: a tip. `[{ id, saleId, amountCents, settledAt }]`.
@@ -142,5 +152,5 @@ const byOrigin = (originRef) => database().prepare('SELECT * FROM standalone_sal
 module.exports = {
   documentRef, lineRef, passageClientId, clientsByEmail, clientById, createClient, catalogueRow, externalRates, setExternalRate,
   insertSale, updateSale, insertLine, updateLine, bumpVersion, findSale, linesOf, findLine, byOrigin, addHistory, historyOf, openObligation, obligationsOf,
-  findObligation, closeObligation, closedObligationCents, keptSurpluses, counterSalesOwing, counterOwnedSql,
+  resizeObligation, findObligation, closeObligation, closedObligationCents, keptSurpluses, counterSalesOwing, counterOwnedSql,
 };

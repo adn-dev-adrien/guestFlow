@@ -15,6 +15,8 @@
  * avoir per refund day (`role: 'refund'`, key `…:<day>:refund`), its groups the TTC and VAT that leave the books, the VAT cut on the cumulative TTC like a payment's.
  * Loop t1 B-6 (rule 50, owner 2026-11-16): `kept[i]` = `{ id, amountCents, day }` (a link surplus closed « rien à rembourser ») → one tip
  * (`role: 'tip'`, key `…:<day>:tip:<id>`, no group), booked like a stay's tip. A document with neither lists exactly what it listed before.
+ * Loop t2 B2-3 (rule 51): `transfers[i]` = `{ lineRef, amountCents (signed), books, at }` (money a lowered line held, filed on a line still due) → on its day,
+ * the line it leaves in that day's avoir and the line it pays in that day's sale, no money received: the earlier days stay as they were booked.
  */
 const { vatOf } = require('../pricing/vat');
 
@@ -23,7 +25,7 @@ const vatCentsOf = (ttcCents, rate) => (ttcCents > 0
   : 0);
 
 function salesOfDocument({
-  sale, lines, payments, refunds = [], kept = [], client,
+  sale, lines, payments, refunds = [], transfers = [], kept = [], client,
 }) {
   const lineOf = new Map(lines.map((line) => [line.ref, line]));
   const cumulative = new Map();
@@ -39,10 +41,17 @@ function salesOfDocument({
   }
   // Rule 48 — the money given back, per day, on the lines it left (the caisse interne and what no line held stay off the books).
   const refundDays = new Map();
-  for (const refund of refunds) {
-    const groups = refundDays.get(refund.at) || new Map();
-    refundDays.set(refund.at, groups);
-    addTo(groups, lineOf.get(refund.lineRef), refund);
+  const leave = (row) => {
+    const groups = refundDays.get(row.at) || new Map();
+    refundDays.set(row.at, groups);
+    addTo(groups, lineOf.get(row.lineRef), row);
+  };
+  for (const refund of refunds) leave(refund);
+  for (const row of transfers) {
+    if (Number(row.amountCents) < 0) { leave(row); continue; }
+    const day = byDay.get(row.at) || { groups: new Map(), receivedCents: 0, cardCents: 0 };
+    byDay.set(row.at, day);
+    addTo(day.groups, lineOf.get(row.lineRef), row);
   }
   const invoiceNumber = sale.invoiceNumber && !sale.invoiceCancelledAt ? sale.invoiceNumber : null;
   // The VAT of a group is cut on its cumulative TTC, oldest day first and, on one day, the payments before the money given back.
