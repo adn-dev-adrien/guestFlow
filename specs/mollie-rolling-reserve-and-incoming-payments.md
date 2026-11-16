@@ -276,7 +276,7 @@ Mollie tranches, later any staged payment) and `TransactionRef` (generic: Qonto,
 
 | Method | Endpoint | Response | Notes |
 |---|---|---|---|
-| GET | `/api/finance/incoming[?recent=1]` | `{ totals: { amount, clients, nextDate }, kinds: [{ key, label, count }], clients: [{ clientId, name, totalCents, nextDate, late, stays: [{ reservationId, label, items: [{ kind, label, amountCents, expectedDate, receivedDate, state, stateLabel, refs: { qonto, mollieSettlement, molliePayment } }] }] }] }` | Admin + accounting role. |
+| GET | `/api/finance/incoming[?recent=1]` | `{ totals: { amount, amountCents, clients, nextDate, nextDateLabel }, kinds: [{ key, label, count }], clients: [{ clientId, name, totalCents, nextDate, nextDateLabel, late, stays: [{ reservationId, label, startDate, endDate, items: [{ key, kind, label, icon, natureLabel, natureDetail, amountCents, expectedDate, receivedDate, dateLabel, state, stateLabel, tone, refs: { qonto, mollieSettlement, molliePayment } }] }] }] }` | Admin + accounting role (`enforceRoleAccess`: accountant `GET /finance/incoming`). |
 | GET | `/api/finance/dashboard` | `tiles.incoming: { amount, clients, nextDate }` | Added field. |
 | GET | `/api/reservations/:id` (ledger) | rows gain `bankTranches[]`, summary gains `schedule` | Additive. |
 | POST | `/api/plugins/online-payment/mollie/test` | `{ ok, settlements, error? }` | Never returns the token. |
@@ -356,3 +356,31 @@ See the summary page for the interactive mock-ups (fiche, tile + table, settings
   Until measured: copy button only.
 - Q4: Does Mollie release a reserve inside the regular settlement of the day (grouped) or alone? Both are
   handled (rules 9–10); the measured case was alone.
+
+## 10. Implementation progress
+
+### Server (2026-11-16)
+
+- [x] Rules 1-7 — `molliePaymentSplits.js` (split, since-date, refunds, validation), `payment_link_splits` filled the first time a paid link is seen (every compute of the reconciliation, the ledger and the incoming table).
+- [x] Rules 8-13 — `expectedReceipts.js` (`#immediat` / `#retenue`), `matcher.js` (`classify` Mollie by name, `mollieProposals`, `settlementProposal`), `ficheWriter` untouched (the controller skips the write for a tranche), `qontoReference`, late reserve attention (`mollie-reserve-late`).
+- [x] Rules 14-17 — `mollieClient.js`, `mollieSettlements.js`, `mollieConnection.js`, `POST /api/plugins/online-payment/mollie/test`.
+- [x] Rules 18-20 — `ctx.ledgerBankTranches` → ledger rows `bankTranches[]` and `ledger.schedule` (`utils/pluginLedgerTranches.js`), the fiche's reconciliation card lists the two receipts.
+- [x] Rules 21-27 — `utils/incomingPayments.js`, `models/incomingPaymentsModel.js`, `GET /api/finance/incoming`, `tiles.incoming`, detail `incoming`; `ctx.incomingPayments`.
+- [x] Rules 28-31 — `ctx.journalEntries`, `mollieJournal.js`, accounting-export settings, entries, clearing balance and unattached credits in `GET /api/accounting/sales`.
+- [x] SDK 2.29.0, `online-payment` 1.8.0, `accounting-export` 1.3.0, `reconciliation_v3`.
+- [ ] Rule 1, second half — the on-site card payments recorded with Tap to Pay (setting « CB sur place via Tap to Pay (Mollie) depuis »): not built. Their receipts are the stay's settlement lines and the standalone sales, which have no payment link and no row in `payment_link_splits` (§5 keys it by `paymentLinkId`); they need their own spec section before a split can be stored for them. No setting is declared for it until then.
+- [ ] Client (another session).
+
+### Readings that settled what the rules left open
+
+- **Windows (rule 4).** « Window [0, +8] / [−3, +10] » is read as the days after the expected date during which the tranche is still on time: past `expected + 8` (immediate) or `expected + 10` (reserve) without a credit it is `en retard`. A credit is a candidate from the day of the payment (never before it); a reserve from `expected − 3`. A credit above its window is never refused for it: the amount decides.
+- **Fees (rule 5).** A tranche is reconciled when its credit is short of it by at most the estimated fees of the whole payment (`1,4 % + 0,25 €` setting `reconciliationAcquiringFee`), never above it.
+- **Settlement costs and reserve lines (rule 16).** Read from `periods.<year>.<month>.revenue|costs[]`: the `rollingreserve` lines are a release when their gross is positive and a hold when negative; every other costs line is a cost. Where Mollie takes its fees is still Q5: a settlement whose credit is short of its tranches by its `costsCents` is explained by them.
+- **« Versement plateforme » (rule 23).** Listed once the guest has left (`endDate <= today`): its due date is the end date plus the platform's payout delay, its amount the solde net of the platform's commission and penalties — the same figures as « En retard ».
+- **« Reçus récemment » (rule 24)** — instalments paid by transfer or cheque (a card instalment is a Mollie tranche), platform payouts marked received, Mollie tranches reconciled.
+- **Roles (§4.3).** The accountant reads `GET /api/finance/incoming`; the dashboard and its detail endpoints stay admin-only.
+- **Invoice-number pairing (rule 16, third key).** A Mollie payment paired by a Qonto invoice number is stored as `sale:<number>` in `mollie_settlement_payments.paymentLinkId`: known to GuestFlow, but it has no tranche to allocate (see the Tap to Pay line above).
+
+### Tests (server)
+
+84 new tests in 9 files: `mollie-payment-split` (10), `mollie-reconciliation-matching` (16), `mollie-settlements` (8), `mollie-settings-validation` (9), `mollie-ledger-tranches` (6), `mollie-incoming-payments` (5), `mollie-journal-entries` (5) under `server/src/plugins/online-payment/tests/`; `accounting-mollie-journal` (11) under `server/src/plugins/accounting-export/tests/`; `incoming-payments` (14) under `server/src/tests/`. Existing suites adjusted: the route census, the env-name list, the VAT golden (`tiles.incoming`), the dashboard payload pin, the accounting settings key lists, the hardening floor. Full server suite: green. The old acquirer test of rule 15 was removed (replaced by rule 9).

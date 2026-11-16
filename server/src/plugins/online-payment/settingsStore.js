@@ -12,6 +12,8 @@
  */
 
 const sdk = require('../sdk');
+const { DEFAULT_RATE_PERCENT, DEFAULT_HOLD_DAYS, rateMessage, holdMessage, sinceMessage } = require('./reconciliation/molliePaymentSplits');
+const { tokenMessage } = require('./mollieConnection');
 
 const KEYS = Object.freeze([
   'qontoAccessTokenEncrypted',
@@ -96,6 +98,19 @@ const reconciliationDeclared = (settings) => [
   { key: 'reconciliationAutoConfirmed', validate: () => 'Réglé par la lecture du compte.' },
   { key: 'reconciliationLastReadAt', validate: () => 'Réglé par la lecture du compte.' },
   { key: 'reconciliationLastError', validate: () => 'Réglé par la lecture du compte.' },
+];
+
+// The Mollie reserve and the optional Mollie account (specs/mollie-rolling-reserve-and-incoming-payments.md rules 2-3,
+// 14-15). The refusals are the server's word: a refused value keeps the stored one. The token is a secret (encrypted at
+// rest, read back only as `mollieAccessTokenSet`); the last two are written by the reader only.
+const mollieDeclared = () => [
+  { key: 'mollieReservePercent', default: String(DEFAULT_RATE_PERCENT), validate: rateMessage },
+  { key: 'mollieReserveHoldDays', default: String(DEFAULT_HOLD_DAYS), validate: holdMessage },
+  { key: 'mollieReserveSince', validate: (v) => sinceMessage(v, sdk.coreModule('reservationHelpers').getTodayIsoDate()) },
+  { key: 'mollieAccessToken', secret: true, validate: tokenMessage },
+  { key: 'mollieProfileId', validate: (v) => (v == null || String(v).trim() === '' || /^pfl_[A-Za-z0-9]{1,40}$/.test(String(v).trim()) ? null : 'Identifiant de profil Mollie invalide (pfl_…).') },
+  { key: 'mollieLastRead', validate: () => 'Réglé par la lecture du compte.' },
+  { key: 'mollieLastError', validate: () => 'Réglé par la lecture du compte.' },
 ];
 
 /**
@@ -225,4 +240,4 @@ const current = () => {
   return bound;
 };
 
-module.exports = { KEYS, SECRET_KEYS, DECLARED, reconciliationDeclared, createSettingsStore, bind, current };
+module.exports = { KEYS, SECRET_KEYS, DECLARED, reconciliationDeclared, mollieDeclared, createSettingsStore, bind, current };

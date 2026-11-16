@@ -4,7 +4,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const Database = require('better-sqlite3');
 const { day } = require('../reconciliation/dates');
-const { up } = require('../reconciliation/schema');
+const { up, upV3 } = require('../reconciliation/schema');
 const { createBankTransactionsModel } = require('../reconciliation/bankTransactionsModel');
 const { readTransactions } = require('../reconciliation/transactionsReader');
 const { USER, addReservation, credit, build, reset, row, dayAt } = require('./reconciliationFixture');
@@ -47,6 +47,7 @@ test('rule 41 — the todo count and the amount received are the server\'s', () 
 test('rule 42 — a read that hits the page cap fails instead of moving lastReadAt past unread credits', async () => {
   const db = new Database(':memory:');
   up(db);
+  upV3(db);
   const model = createBankTransactionsModel(db);
   const store = new Map();
   const settings = { get: (k) => store.get(k) || '', set: (k, v) => store.set(k, v) };

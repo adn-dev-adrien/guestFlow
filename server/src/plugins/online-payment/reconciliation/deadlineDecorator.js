@@ -15,7 +15,7 @@ const isInstallment = (item) => String(item.ledgerKey).startsWith('installment-'
 
 /** The receipts a row is late on, earliest first. */
 function receiptsOf(row, items) {
-  const mine = items.filter((i) => i.reservation.id === row.reservationId);
+  const mine = items.filter((i) => i.reservation.id === row.reservationId && !i.mollie);
   const keys = [];
   if (row.state === 'installment_overdue' || (row.installmentsDue || 0) > 0) {
     return mine.filter(isInstallment).filter((i) => i.state !== 'reconciled').slice(0, Math.max(1, row.installmentsDue || 1));

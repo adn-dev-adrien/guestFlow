@@ -4,7 +4,8 @@
  */
 
 const TABLES = ['bank_transactions', 'bank_reconciliation_lines', 'bank_reconciliation_fiche_writes',
-  'bank_reconciliation_discards', 'bank_transactions_outside'];
+  'bank_reconciliation_discards', 'bank_transactions_outside', 'payment_link_splits', 'mollie_settlements',
+  'mollie_settlement_payments'];
 
 function up(db) {
   db.exec(`
@@ -52,4 +53,56 @@ function upV2(db) {
   if (!columns.has('groupId')) db.exec('ALTER TABLE bank_reconciliation_lines ADD COLUMN groupId TEXT');
 }
 
-module.exports = { TABLES, up, upV2 };
+const hasTable = (db, name) => Boolean(db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?").get(name));
+
+/**
+ * `reconciliation_v3` (specs/mollie-rolling-reserve-and-incoming-payments.md §5) — the split of a Mollie payment, the
+ * settlements read from Mollie, the Qonto transaction id, and the reconciliation lines of a paid link moved onto its
+ * immediate tranche (rule 8). Idempotent: a rerun finds nothing to rewrite.
+ */
+function upV3(db) {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS payment_link_splits (
+      paymentLinkId TEXT PRIMARY KEY,
+      reservationId INTEGER NOT NULL, ledgerKey TEXT NOT NULL,
+      grossCents INTEGER NOT NULL, immediateCents INTEGER NOT NULL, reserveCents INTEGER NOT NULL,
+      ratePercent REAL NOT NULL, holdDays INTEGER NOT NULL,
+      paidAt TEXT NOT NULL, molliePaymentId TEXT, refundedCents INTEGER NOT NULL DEFAULT 0,
+      createdAt TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_payment_link_splits_res ON payment_link_splits (reservationId);
+    CREATE TABLE IF NOT EXISTS mollie_settlements (
+      id TEXT PRIMARY KEY, reference TEXT NOT NULL, settledAt TEXT,
+      amountCents INTEGER NOT NULL DEFAULT 0, costsCents INTEGER NOT NULL DEFAULT 0,
+      reserveHeldCents INTEGER NOT NULL DEFAULT 0, reserveReleasedCents INTEGER NOT NULL DEFAULT 0,
+      fetchedAt TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_mollie_settlements_ref ON mollie_settlements (reference);
+    CREATE TABLE IF NOT EXISTS mollie_settlement_payments (
+      settlementId TEXT NOT NULL, molliePaymentId TEXT NOT NULL,
+      amountCents INTEGER NOT NULL, paidAt TEXT, description TEXT, paymentLinkId TEXT,
+      PRIMARY KEY (settlementId, molliePaymentId)
+    );
+  `);
+  const columns = new Set(db.prepare('PRAGMA table_info(bank_transactions)').all().map((c) => c.name));
+  if (!columns.has('qontoReference')) db.exec('ALTER TABLE bank_transactions ADD COLUMN qontoReference TEXT');
+  if (!hasTable(db, 'payment_links')) return;
+  const { linkLedgerKey } = require('./molliePaymentSplits');
+  const numbers = hasTable(db, 'reservation_installments')
+    ? new Map(db.prepare('SELECT id, number FROM reservation_installments').all().map((i) => [Number(i.id), Number(i.number)]))
+    : new Map();
+  const hasBasket = db.prepare('PRAGMA table_info(payment_links)').all().some((c) => c.name === 'basketJson');
+  const hasInstallmentId = db.prepare('PRAGMA table_info(payment_links)').all().some((c) => c.name === 'installmentId');
+  const links = db.prepare(`SELECT id, reservationId, type${hasBasket ? ', basketJson' : ''}${hasInstallmentId ? ', installmentId' : ''}
+    FROM payment_links WHERE status = 'paid'`).all();
+  const rewrite = ['bank_reconciliation_lines', 'bank_reconciliation_discards']
+    .map((table) => db.prepare(`UPDATE OR IGNORE ${table} SET ledgerKey = ledgerKey || '#immediat' WHERE reservationId = ? AND ledgerKey = ?`));
+  db.transaction(() => {
+    links.forEach((link) => {
+      const key = linkLedgerKey(link, (id) => numbers.get(Number(id)) ?? null);
+      if (key) rewrite.forEach((statement) => statement.run(Number(link.reservationId), key));
+    });
+  })();
+}
+
+module.exports = { TABLES, up, upV2, upV3 };

@@ -10,6 +10,7 @@ const flag = (v) => Number(v || 0) === 1 || v === true;
 const cents = (n) => Math.round((Number(n) || 0) * 100);
 const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
 const { day } = require('./dates');
+const { afterRefund, expectedDates, trancheKey, LATE_AFTER_DAYS } = require('./molliePaymentSplits');
 
 /**
  * Rule 46 — what a platform that took an acompte already paid out for it: the acompte net of its own
@@ -42,21 +43,50 @@ const reservationBrief = (row) => ({
   createdAt: day(row.createdAt),
 });
 
+const TRANCHE_WORDS = { immediat: 'versement immédiat', retenue: 'retenue Mollie' };
+
+/**
+ * specs/mollie-rolling-reserve-and-incoming-payments.md rules 7-8 — a paid link is two expected receipts, its immediate
+ * share and its reserve, keyed `<ledgerKey>#immediat` and `<ledgerKey>#retenue`. A refund (rule 6) cuts the immediate
+ * share first; a tranche left at 0 expects nothing. The guest still owes one échéance: the receipts are the bank's side.
+ */
+function trancheReceipts({ split, ledgerKey, label, brief, platform }) {
+  const left = afterRefund(split);
+  const dates = expectedDates({ paidAt: split.paidAt, holdDays: split.holdDays });
+  const paidDay = day(split.paidAt);
+  return [['immediat', left.immediateCents], ['retenue', left.reserveCents]].filter(([, cents]) => cents > 0).map(([tranche, cents]) => ({
+    reservationId: brief.id, ledgerKey: trancheKey(ledgerKey, tranche), baseKey: ledgerKey,
+    label: `${label} · ${TRANCHE_WORDS[tranche]}`, channel: 'mollie', platform,
+    expectedCents: cents, grossCents: cents, payoutRecorded: true,
+    expectedDate: dates[tranche], dueDate: dates[tranche], paid: true, paidDate: paidDay, linkPaidAt: paidDay,
+    mollie: {
+      tranche, paymentLinkId: String(split.paymentLinkId), paymentGrossCents: split.grossCents, ratePercent: split.ratePercent,
+      holdDays: split.holdDays, lateAfterDays: LATE_AFTER_DAYS[tranche], molliePaymentId: split.molliePaymentId || null,
+    },
+    reservation: brief,
+  }));
+}
+
 /**
  * specs/plugins-phase-1-sdk.md rule 47 (guest-app rule 35) — a paid link billing a plugin's own basket (a guest
  * order) lands on the account like any link payment: its whole amount, whatever part is flagged « à rembourser »
  * (that money leaves later, as a refund). On a platform stay as on a direct one: the guest paid GuestFlow, not
  * the platform.
  */
-function basketReceipts(row, links, brief, platform) {
-  return links.filter((l) => l.status === 'paid' && l.basketJson && Number(l.amountCents) > 0).map((l) => ({
-    reservationId: row.id, ledgerKey: `basket-${l.id}`, label: `Paiement en ligne (lien ${l.id})`,
-    channel: 'link', platform,
-    expectedCents: Number(l.amountCents), grossCents: Number(l.amountCents), payoutRecorded: true,
-    expectedDate: day(l.paidAt), dueDate: day(l.paidAt), paid: true, paidDate: day(l.paidAt),
-    linkPaidAt: day(l.paidAt),
-    reservation: brief,
-  }));
+function basketReceipts(row, links, brief, platform, splitFor) {
+  return links.filter((l) => l.status === 'paid' && l.basketJson && Number(l.amountCents) > 0).flatMap((l) => {
+    const split = splitFor(l);
+    const label = `Paiement en ligne (lien ${l.id})`;
+    if (split) return trancheReceipts({ split, ledgerKey: `basket-${l.id}`, label, brief, platform });
+    return [{
+      reservationId: row.id, ledgerKey: `basket-${l.id}`, label,
+      channel: 'link', platform,
+      expectedCents: Number(l.amountCents), grossCents: Number(l.amountCents), payoutRecorded: true,
+      expectedDate: day(l.paidAt), dueDate: day(l.paidAt), paid: true, paidDate: day(l.paidAt),
+      linkPaidAt: day(l.paidAt),
+      reservation: brief,
+    }];
+  });
 }
 
 /**
@@ -68,17 +98,18 @@ function basketReceipts(row, links, brief, platform) {
  * @param {object[]} [deps.installments] the reservation's installments (specs/direct-installments.md rule 38)
  * @param {object[]} [deps.settlements] the reservation's split payments (specs/mixed-method-payments.md rule 28)
  * @param {Function} [deps.settlementFigures] the core's reading of one settlement
+ * @param {Function} [deps.splitFor] `(link) → stored Mollie split | null` (specs/mollie-rolling-reserve-and-incoming-payments.md rule 8)
  * @param {string} deps.today
  * @returns {object[]} receipts
  */
-function receiptsOfReservation(row, { buildLedger, parseGroup, links, installments = [], settlements = [], settlementFigures = null, today }) {
+function receiptsOfReservation(row, { buildLedger, parseGroup, links, installments = [], settlements = [], settlementFigures = null, splitFor = () => null, today }) {
   const ledger = buildLedger({ row, links, today });
   const brief = reservationBrief(row);
   const platform = String(row.platform || 'direct');
   const isPlatform = platform.trim().toLowerCase() !== 'direct';
   const out = [];
   const isPaid = (r) => String(r.state).startsWith('paid');
-  const baskets = basketReceipts(row, links, brief, platform);
+  const baskets = basketReceipts(row, links, brief, platform, splitFor);
 
   if (isPlatform) {
     const balance = ledger.rows.find((r) => r.key === 'balance');
@@ -129,6 +160,11 @@ function receiptsOfReservation(row, { buildLedger, parseGroup, links, installmen
     if (paid && ['cash', 'internal'].includes(String(i.paidMethod))) return;
     if (paid && splitInstallments.has(String(i.id))) return;
     const paidLink = links.find((l) => l.status === 'paid' && l.type === 'installment' && Number(l.installmentId) === Number(i.id));
+    const split = paidLink ? splitFor(paidLink) : null;
+    if (split) {
+      out.push(...trancheReceipts({ split, ledgerKey: `installment-${i.number}`, label: `Échéance ${i.number}/${installments.length}`, brief, platform }));
+      return;
+    }
     out.push({
       reservationId: row.id, ledgerKey: `installment-${i.number}`, installmentId: i.id,
       label: `Échéance ${i.number}/${installments.length}`,
@@ -152,6 +188,11 @@ function receiptsOfReservation(row, { buildLedger, parseGroup, links, installmen
     const paidLink = link ? links.find((l) => l.status === 'paid' && ['deposit', 'balance', 'full', 'complement'].includes(String(l.type))
       && ((r.key === 'balance' && ['balance', 'full'].includes(String(l.type))) || String(l.type) === r.key)) : null;
     const due = meta.dueDate ? day(row[meta.dueDate]) : null;
+    const split = paidLink ? splitFor(paidLink) : null;
+    if (split) {
+      out.push(...trancheReceipts({ split, ledgerKey: r.key, label: r.label, brief, platform }));
+      return;
+    }
     out.push({
       reservationId: row.id, ledgerKey: r.key, label: r.label,
       channel: paidLink ? 'link' : 'direct', platform,
@@ -201,25 +242,25 @@ function installmentsReader(db, listInstallments) {
 }
 
 /** Rule 2 — every in-scope reservation with its receipts. */
-function expectedReceipts({ db, startDate, today, buildLedger, parseGroup, listLinks, listInstallments }) {
+function expectedReceipts({ db, startDate, today, buildLedger, parseGroup, listLinks, listInstallments, splitFor }) {
   const rows = db.prepare(`${RESERVATION_SQL} ORDER BY r.endDate, r.id`).all(startDate);
   const installmentsOf = installmentsReader(db, listInstallments);
   const { settlementsOf, settlementFigures } = settlementsReader(db);
   const receipts = [];
   rows.forEach((row) => {
-    receiptsOfReservation(row, { buildLedger, parseGroup, links: listLinks(row.id), installments: installmentsOf(row.id), settlements: settlementsOf(row.id), settlementFigures, today })
+    receiptsOfReservation(row, { buildLedger, parseGroup, links: listLinks(row.id), installments: installmentsOf(row.id), settlements: settlementsOf(row.id), settlementFigures, splitFor, today })
       .forEach((rc) => receipts.push(rc));
   });
   return receipts;
 }
 
 /** The receipts of one reservation, scope included (the fiche's block). */
-function expectedReceiptsOfReservation({ db, reservationId, startDate, today, buildLedger, parseGroup, listLinks, listInstallments }) {
+function expectedReceiptsOfReservation({ db, reservationId, startDate, today, buildLedger, parseGroup, listLinks, listInstallments, splitFor }) {
   const row = db.prepare(`${RESERVATION_SQL} AND r.id = ?`).get(startDate, Number(reservationId));
   if (!row) return null;
   const installmentsOf = installmentsReader(db, listInstallments);
   const { settlementsOf, settlementFigures } = settlementsReader(db);
-  return receiptsOfReservation(row, { buildLedger, parseGroup, links: listLinks(row.id), installments: installmentsOf(row.id), settlements: settlementsOf(row.id), settlementFigures, today });
+  return receiptsOfReservation(row, { buildLedger, parseGroup, links: listLinks(row.id), installments: installmentsOf(row.id), settlements: settlementsOf(row.id), settlementFigures, splitFor, today });
 }
 
 module.exports = { expectedReceipts, expectedReceiptsOfReservation, receiptsOfReservation, reservationBrief, platformAcompteNet };

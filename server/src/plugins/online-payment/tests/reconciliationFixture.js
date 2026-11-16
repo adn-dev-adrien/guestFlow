@@ -10,7 +10,9 @@ console.log = () => {};
 const db = require('../../../database');
 console.log = silent;
 
-const { up, upV2 } = require('../reconciliation/schema');
+const { up, upV2, upV3 } = require('../reconciliation/schema');
+const { createSplitsModel } = require('../reconciliation/molliePaymentSplits');
+const { createSettlementsModel } = require('../reconciliation/mollieSettlements');
 const { createBankTransactionsModel } = require('../reconciliation/bankTransactionsModel');
 const { createReconciliationModel } = require('../reconciliation/reconciliationModel');
 const { createFicheWriter } = require('../reconciliation/ficheWriter');
@@ -26,6 +28,7 @@ const { addDaysToIsoDate } = require('../../../utils/devisHelpers');
 
 up(db);
 upV2(db);
+upV3(db);
 db.prepare("INSERT OR IGNORE INTO properties (id, name) VALUES (1, 'Gîte')").run();
 db.prepare("INSERT OR IGNORE INTO clients (id, firstName, lastName, email) VALUES (1, 'Jean', 'Dupont', 'jean@x.fr')").run();
 db.prepare("INSERT OR IGNORE INTO clients (id, firstName, lastName, email) VALUES (2, 'Lucia', 'Rossi', 'lucia@x.fr')").run();
@@ -61,15 +64,16 @@ function credit(id, cents, over = {}) {
   };
 }
 
-function build({ connected = true, qontoConfigured = true, startDate = dayAt(-22), mark = applyPaymentMark, withQonto, read } = {}) {
-  const store = new Map([['reconciliationBankAccountId', 'acc-1'], ['reconciliationStartDate', startDate]]);
+function build({ connected = true, qontoConfigured = true, startDate = dayAt(-22), mark = applyPaymentMark, withQonto, read, mollie = null, settings: extraSettings = {} } = {}) {
+  const store = new Map([['reconciliationBankAccountId', 'acc-1'], ['reconciliationStartDate', startDate], ...Object.entries(extraSettings)]);
   const settings = { get: (k) => store.get(k) || '', set: (k, v) => store.set(k, v) };
   const transactions = createBankTransactionsModel(db);
   const model = createReconciliationModel(db);
   const writer = createFicheWriter({ model, applyPaymentMark: mark, computePlatformCommission, reservations, installments: require('../../../models/installmentsModel').buildModel(db), takeBackRefusal });
   const calls = { qonto: 0, read: 0 };
   const controller = createReconciliationController({
-    db, settings, transactions, model, writer,
+    db, settings, transactions, model, writer, mollie,
+    splits: createSplitsModel(db), mollieSettlements: createSettlementsModel(db),
     read: read || (async () => { calls.read += 1; return { ok: true }; }),
     connected: () => connected,
     qontoConfigured: typeof qontoConfigured === 'function' ? qontoConfigured : () => qontoConfigured,
@@ -83,7 +87,8 @@ function build({ connected = true, qontoConfigured = true, startDate = dayAt(-22
 }
 
 function reset() {
-  ['bank_reconciliation_lines', 'bank_reconciliation_fiche_writes', 'bank_reconciliation_discards', 'bank_transactions_outside', 'bank_transactions']
+  ['bank_reconciliation_lines', 'bank_reconciliation_fiche_writes', 'bank_reconciliation_discards', 'bank_transactions_outside', 'bank_transactions',
+    'payment_link_splits', 'mollie_settlements', 'mollie_settlement_payments']
     .forEach((t) => db.prepare(`DELETE FROM ${t}`).run());
   db.prepare('DELETE FROM reservation_history').run();
   db.prepare('DELETE FROM payment_links WHERE reservationId >= 100').run();

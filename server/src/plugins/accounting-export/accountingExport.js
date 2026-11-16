@@ -66,7 +66,7 @@ const {
   PLATFORM_PENALTY_ACCOUNT,
   planMapper,
 } = require('./accountPlan');
-const { TTC_SPLIT_FALLBACK } = require('./settings');
+const { TTC_SPLIT_FALLBACK, MOLLIE_DEFAULTS } = require('./settings');
 
 // Header order is fixed and aligned with the accountant's example file. The trailing space
 // after `Mois` is intentional (it's in the example header byte-for-byte) — DO NOT trim it.
@@ -535,6 +535,30 @@ function standaloneEntryToRows(entry) {
   return rows;
 }
 
+// specs/mollie-rolling-reserve-and-incoming-payments.md rule 28 — the Mollie journal, in its own journal code:
+//   - a paid link: D clearing account / C the client's account, for the gross Mollie now owes;
+//   - a reconciled credit: D bank / C clearing account, the libellé naming Mollie's settlement and Qonto's transaction;
+//   - a settlement's costs: D fee account / C clearing account.
+// Every entry is two lines of the same amount, so it balances to the cent.
+function mollieEntryToRows(entry, plan = {}) {
+  const { day, month, year } = splitIsoDate(entry.paidDate);
+  const accounts = { ...MOLLIE_DEFAULTS, ...plan };
+  const amount = round2(entry.amount);
+  const clearing = String(accounts.mollieClearingAccount);
+  const journal = String(accounts.mollieJournalCode);
+  const clientAccount = buildClientAccount(entry.client && entry.client.lastName);
+  const [debitAccount, creditAccount, creditRole] = {
+    link: [clearing, clientAccount, 'client'],
+    credit: [String(accounts.mollieBankAccount), clearing, 'mollieClearing'],
+    cost: [String(accounts.mollieFeeAccount), clearing, 'mollieClearing'],
+  }[entry.mollieKind];
+  const libelle = entry.mollieKind === 'link' ? libelleFor(entry) : [entry.libelle, entry.settlementReference, entry.qontoReference].filter(Boolean).join(' ');
+  return [
+    tagRow(zerofyMoneyColumns([day, month, year, journal, '', libelle, debitAccount, amount, '', '', '', '']), 'mollieDebit'),
+    tagRow(zerofyMoneyColumns([day, month, year, journal, '', libelle, creditAccount, '', amount, '', '', '']), creditRole),
+  ];
+}
+
 // Column positions of the journal code and the account in a row (CSV_HEADERS).
 const JOURNAL_COLUMN = 3;
 const ACCOUNT_COLUMN = 6;
@@ -544,6 +568,7 @@ const ACCOUNT_COLUMN = 6;
  * rule 27). Without a plan, or with the defaults, the rows are exactly the engine's.
  */
 function entryToRows(entry, plan) {
+  if (entry && entry.direction === 'mollie') return mollieEntryToRows(entry, plan);
   const rows = rowsAtDefaults(entry, (plan && plan.ttcSplitFrom) || TTC_SPLIT_FALLBACK);
   if (!plan) return rows;
   const mapper = planMapper(plan);
@@ -598,6 +623,7 @@ function entryToStructured(entry, plan) {
   const isDiscount = entry.direction === 'discount';
   const isTip = entry.direction === 'tip';
   const isPenalty = entry.direction === 'penalty';
+  const isMollie = entry.direction === 'mollie';
   const platformInfo = (entry.platform && entry.platform !== 'direct' && !isRefund && !isCompensation
     && !isDiscount && !isTip && !isPenalty)
     ? {
@@ -655,7 +681,7 @@ function entryToStructured(entry, plan) {
     // specs/cancellation-compensation.md §6.3 — « compensation » renders as an indemnity card.
     direction: isRefund ? 'refund'
       : (isCompensation ? 'compensation'
-        : (isDiscount ? 'discount' : (isTip ? 'tip' : (isPenalty ? 'penalty' : 'sale')))),
+        : (isDiscount ? 'discount' : (isTip ? 'tip' : (isPenalty ? 'penalty' : (isMollie ? 'mollie' : 'sale'))))),
     // specs/resource-booking-pricing-and-invoicing.md rule 22 — a sale made outside any stay, and its Qonto invoice.
     standalone: entry.direction === 'standalone' ? { label: entry.standaloneLabel || '', invoiceNumber: entry.piece || null } : null,
     compensationId: entry.compensationId != null ? entry.compensationId : null,

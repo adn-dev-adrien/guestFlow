@@ -1,18 +1,20 @@
 {
   "id": "online-payment",
   "name": "Paiement en ligne (Qonto)",
-  "version": "1.7.6",
-  "description": "Liens de paiement envoyés aux voyageurs, et rapprochement des virements du compte Qonto avec les fiches.",
+  "version": "1.8.0",
+  "description": "Liens de paiement envoyés aux voyageurs, et rapprochement des virements du compte Qonto avec les fiches, retenue Mollie comprise.",
   "icon": "payments",
   "surfaces": [
     "Paramètres › Paiements en ligne",
     "Les boutons « Envoyer la demande de paiement / de solde »",
     "Suivi financier › Rapprochement bancaire",
-    "Fiche de réservation › Rapprochement bancaire"
+    "Fiche de réservation › Rapprochement bancaire",
+    "Suivi financier › Versements à venir",
+    "Paramètres › Paiements en ligne › Compte Mollie et retenue"
   ],
   "requires": [],
   "guestflow": ">=3.18.0",
-  "sdk": "^2.26.0",
+  "sdk": "^2.29.0",
   "changelog": {
     "1.0.0": [
       "Première version publiée en paquet."
@@ -159,6 +161,14 @@
     "1.7.6": [
       "Rapprochement bancaire : sans connexion Qonto, la page l'indique sans erreur dans la console.",
       "Demande le SDK 2.26 de GuestFlow."
+    ],
+    "1.8.0": [
+      "Un lien payé par carte attend deux versements sur le compte : le versement immédiat et la retenue Mollie (20 % par défaut, 90 jours), chacun avec sa date prévue puis sa date réelle.",
+      "Rapprochement : un versement de « Stichting Mollie Payments » se rattache à ces tranches, même groupé ; les frais Mollie ne créent plus d'écart sur la fiche.",
+      "Compte Mollie facultatif (jeton d'accès avancé, lecture seule) : les versements groupés sont détaillés paiement par paiement.",
+      "Chaque virement rapproché montre sa référence Qonto, le règlement Mollie et le paiement Mollie.",
+      "Accueil : « Retenue Mollie non reçue » quand une retenue dépasse sa date. Fiche et Suivi financier : les sommes attendues sur le compte.",
+      "Demande le SDK 2.29 de GuestFlow."
     ]
   }
 }

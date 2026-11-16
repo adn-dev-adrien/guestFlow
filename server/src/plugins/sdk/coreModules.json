@@ -951,5 +951,8 @@
   ],
   "standaloneSales": [
     "list"
+  ],
+  "journalEntries": [
+    "list"
   ]
 }

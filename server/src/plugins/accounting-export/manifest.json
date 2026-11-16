@@ -1,7 +1,7 @@
 {
   "id": "accounting-export",
   "name": "Export comptable",
-  "version": "1.2.5",
+  "version": "1.3.0",
   "description": "Écritures, plan comptable et export pour le cabinet comptable.",
   "icon": "book",
   "surfaces": [
@@ -10,7 +10,7 @@
   ],
   "requires": [],
   "guestflow": ">=3.18.0",
-  "sdk": "^2.27.0",
+  "sdk": "^2.29.0",
   "changelog": {
     "1.0.0": [
       "Première version publiée en paquet."
@@ -161,6 +161,12 @@
     "1.2.5": [
       "La TVA d’un compartiment est calculée par le composant TVA du cœur ; aucune écriture ne change.",
       "Demande le SDK 2.27 de GuestFlow."
+    ],
+    "1.3.0": [
+      "Journal Mollie : chaque lien payé par carte débite le compte d'attente Mollie (46720000) et crédite le client ; chaque versement Mollie rapproché débite la banque et le crédite, avec la référence du règlement et celle de Qonto.",
+      "Réglages : code journal, compte d'attente, compte de banque, compte de frais, et « Exporter les versements Mollie reçus ».",
+      "La page d'export montre le solde du compte d'attente en fin de mois et les versements Mollie non rattachés, qui ne produisent aucune écriture.",
+      "Demande le SDK 2.29 de GuestFlow."
     ]
   }
 }
