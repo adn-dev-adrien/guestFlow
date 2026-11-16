@@ -65,12 +65,17 @@ function documentInvoiceRefusal(row, money, issuer, { basis = null } = {}) {
 
 function createInvoicing({ bookings, visits = null, issuers = () => sdk.coreModule('invoiceIssuers').current(), now = () => new Date(), logger = console }) {
   // Rule 14 — one item per money line of the breakdown; the deductions go as one discount.
+  // Loop t5 B5-2 (pricing-components rule 62, outside-visit rule 56 e) — the journal books the booking as ONE line, its HT the net of its TTC: every item
+  // and the discount name the `booking:` group, so the issuer sends them with that VAT (20 € − 15 € at 10 % → 0,45, not Qonto's per-line 0,46).
   function requestOf(basis) {
     const { row, breakdown, who } = basis;
     const rate = breakdown.vat ? breakdown.vat.rate : 0;
+    const vatGroup = `booking:session|${rate}`;
     const positive = breakdown.lines.filter((l) => l.amount > 0);
     const negative = breakdown.lines.filter((l) => l.amount < 0);
-    const items = positive.map((l) => ({ title: `${basis.resource.name || 'Ressource'} · ${l.label}`, description: l.detail, amountCents: cents(l.amount), vatRate: rate }));
+    const items = positive.map((l) => ({
+      title: `${basis.resource.name || 'Ressource'} · ${l.label}`, description: l.detail, amountCents: cents(l.amount), vatRate: rate, vatGroup,
+    }));
     const discountCents = negative.reduce((sum, l) => sum + cents(-l.amount), 0);
     return {
       idempotencyKey: `resource-booking:${row.id}:invoice:${row.invoiceCancelledAt ? Date.parse(row.invoiceCancelledAt) || 1 : 0}`,
@@ -78,7 +83,9 @@ function createInvoicing({ bookings, visits = null, issuers = () => sdk.coreModu
       issueDate: row.payment.paidAt,
       performanceDate: row.date,
       items,
-      discount: discountCents > 0 ? { title: negative.map((l) => l.label).join(' + '), amountCents: discountCents, vatRate: rate } : null,
+      discount: discountCents > 0 ? {
+        title: negative.map((l) => l.label).join(' + '), amountCents: discountCents, vatRate: rate, vatGroup,
+      } : null,
       expectedTotalCents: cents(row.totalPrice),
       paid: true,
     };

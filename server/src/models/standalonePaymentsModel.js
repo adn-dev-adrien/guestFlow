@@ -104,7 +104,7 @@ function keptOf(allocations) {
     if (Number(row.books) === 1) kept.amountCents += Math.abs(Number(row.amountCents));
     if (row.lineRef != null) {
       kept.rows.push({
-        lineRef: row.lineRef, amountCents: Math.abs(Number(row.amountCents)), books: Number(row.books), at: row.at,
+        lineRef: row.lineRef, amountCents: Math.abs(Number(row.amountCents)), books: Number(row.books), at: row.at, seq: row.id,
       });
     }
   }
@@ -126,7 +126,9 @@ function documentsPaidBetween(from, to) {
   ])].sort((a, b) => a - b).filter((saleId) => sales.findSale(saleId));
   return ids.map((saleId) => {
     const sale = sales.findSale(saleId);
-    const allocations = allocationsOf(saleId);
+    // Loop t5 B5-1 — with each row's id: the order the money was written in, which the journal cuts the VAT in.
+    const allocations = database().prepare('SELECT id, paymentRef, lineRef, amountCents, kind, books, at, refundId FROM payment_allocations WHERE documentRef = ? ORDER BY id')
+      .all(documentRef(saleId));
     const payments = paymentsOf(saleId).map((payment) => ({
       id: payment.id,
       paidAt: payment.paidAt,
@@ -139,10 +141,10 @@ function documentsPaidBetween(from, to) {
       lines: sales.linesOf(saleId).map((line) => ({ ref: sales.lineRef(line.id), vatClass: line.vatClass, vatRate: Number(line.vatRate || 0) })),
       payments,
       refunds: allocations.filter((row) => row.kind === 'refund').map((row) => ({
-        lineRef: row.lineRef, amountCents: Math.abs(Number(row.amountCents)), books: Number(row.books), at: row.at,
+        lineRef: row.lineRef, amountCents: Math.abs(Number(row.amountCents)), books: Number(row.books), at: row.at, seq: row.id,
       })),
       transfers: allocations.filter((row) => String(row.paymentRef || '').startsWith(TRANSFER)).map((row) => ({
-        lineRef: row.lineRef, amountCents: Number(row.amountCents), books: Number(row.books), at: row.at,
+        lineRef: row.lineRef, amountCents: Number(row.amountCents), books: Number(row.books), at: row.at, seq: row.id,
       })),
       kept: keptOf(allocations),
       client,

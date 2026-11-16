@@ -628,6 +628,32 @@ once on the server by the refonte's components.
     _Reading 2026-11-16 (loop t5, UI5-2, UI5-3):_ « Réessayer » on a failed draft also re-sends the payment's answer, so the second message never
     follows the first; the failed-draft alert spans the whole grid (UI5-1). While a draft is typed and a row is open, « Marquer remboursé » is
     disabled with « Enregistrer d’abord les articles ajoutés. » shown under the rows.
+57. **A month already exported never moves; every invoice states the VAT its own journal declares** _(stabilisation loop t5, B5-1 to B5-3,
+    2026-11-16; completes rules 30, 56 e; pricing-components rule 62)_.
+    (a) **The document journal cuts the VAT in the order the money was written.** A payment may be dated (« Date du paiement », no minimum). The journal
+    cut each group's VAT on its cumulative TTC in the order of the payment DAYS, so a payment recorded on 10 November and dated 20 September re-cut the
+    entry of 5 October, already exported (3 beers at 6,50 € paid in thirds: October moved from 1,09 € to 1,08 € of VAT). The cut now follows the order
+    of writing (the `payment_allocations` row ids: payments, refunds, kept rows and transfers alike): each movement takes the cut its group had left
+    when it was recorded, so a back-dated payment books its own day (1,08 € on 20 September) and no entry written before it moves; the document's whole
+    VAT is still one cut on its whole TTC. Chosen over refusing a date before the last paid day: a stay accepts a back-dated payment and never re-cuts
+    a day already declared (pricing-components rule 99), so the document follows the same rule. With no back-dated payment the entries are the ones
+    the days' order gave.
+    (b) **A booking's invoice states the booking journal's VAT.** The journal books a booking sold outside a stay (and a session paid on the booking
+    before its document) as ONE line whose HT is the net of its TTC (`netOfTtc`, net first). Its invoice's items and discount now name the group
+    `booking:session|<rate>` (resource-booking rule 14), and the issuer sends a `booking:` group — this one, or a document's session paid on the booking
+    (rule 56 e) — with that cut instead of `groupVatCents`. Before, Qonto's per-line VAT of a booking drifted a cent from the books (20 € − 15 €
+    « 1 h offerte » at 10 %: 0,46 € invoiced, 0,45 € declared; 156 of 606 realistic breakdowns), and a document's session took the sale cut where the
+    two cuts part (10,05 € at 20 %: 1,68 € against the booking's 1,67 €). Amends rule 56 e's « items with no group are sent exactly as before » for
+    bookings; a stay's invoice still names no group. Nothing stored moves: an invoice already issued stays as Qonto numbered it.
+    (c) **The folded fallback reaches what the ungrouped solver reached.** When Qonto refuses a negative line (Q3) the discount folds into its group,
+    and no line may be negative. A group whose cut no single line carries then needs the lines moved further AND an « Arrondi de TVA » line (14,00 € −
+    11,69 € at 20 %: 1,89 € HT + 0,03 €), or a rounding line large enough to carry a cent of VAT itself (5,50 € − 1,95 € at 5,5 %: no line under
+    0,10 € HT carries VAT there); the issuer tries the rounding line with the lines within three cents, then moved further, then a wider rounding line.
+    Before, 333 of ≈ 6 000 discounted baskets were `ISSUER_AMOUNT_UNREACHABLE` on the fold although the ungrouped solver invoiced them; now none, the VAT
+    per rate still the journal's.
+    Tests `standalone-journal-backdated-payment` (with the reviewer's multi-day fuzz, bounded: back-dated payments and links up to 40 days, no past
+    day but the back-dated one rewritten), `invoice-issuer-folded-rounding` (4 000-basket fuzz against the ungrouped solver),
+    `booking-invoice-vat-booking-journal` (the 606-breakdown sweep widened, wire and fold).
 
 ---
 
@@ -649,11 +675,11 @@ once on the server by the refonte's components.
 | `utils/` | `standaloneSaleLinks.js` | C | mints / reuses / withdraws the reste link through the payment-provider path (rule 40); the paid effect of the `standalone-sale` basket (rule 41); sends the manual e-mail on click (rule 42) |
 | `utils/` | `defaultEmailTemplatesRegistry.js` | T | seeds `visit_payment_request`, `sendMode: 'manual'` (rule 42) |
 | plugin `accounting-export` | `settings` + exporters | T | `drinksRevenueAccount` and the `DRINKS_ACCOUNT_REQUIRED` guard (rule 43) |
-| `models/` | `standalonePaymentsModel.js` | C | writes `standalone_sale_payments` and their allocations (`payment_allocations`) inside the sale transaction; `recordRefund` writes a `lineLowered` row's refund allocations (rule 48); `recordTransfer` writes the transfer of rule 52; `documentsPaidBetween` lists the documents with a payment, a refund, a transfer or a kept surplus in the window |
+| `models/` | `standalonePaymentsModel.js` | C | writes `standalone_sale_payments` and their allocations (`payment_allocations`) inside the sale transaction; `recordRefund` writes a `lineLowered` row's refund allocations (rule 48); `recordTransfer` writes the transfer of rule 52; `documentsPaidBetween` lists the documents with a payment, a refund, a transfer or a kept surplus in the window, each allocation with its row id (loop t5, rule 57 a) |
 | `controllers/` | `standaloneSalesController.js` (from PR C) | T | the counter dialog's routes (§4.3): `GET /` (« Ventes du jour »), the quote's and the sale's `paymentLink` block, the three link routes of a counter sale (C38); exposes the actions above to the SDK |
 | `utils/` | `saleDetail.js` (from PR B) | T | `saleDetail({ documentRef })` for a standalone document: lines, statuses, `totals { totalCents, paidCents, remainingCents, refundOwedCents }` from SETTLEMENT and REFUNDS |
 | `utils/pricing/` | `settlement.js`, `refunds/owed.js` | T | SETTLEMENT and REFUNDS take a standalone document as input (no stay-level parts) — no new formula, rule 4; loop t2: `refileDocumentExcess` (SETTLEMENT, rule 52), `documentRowsInStep` and `refundRowsOfDocument` (REFUNDS, rules 53, 49) |
-| `utils/accounting/` | read model of standalone documents | T | lines + VAT output + allocations as `standalone` entries (rule 30); `standaloneDocuments.salesOfDocument` adds the refund day's avoir (rule 48) and the kept surplus's tip (rule 49), and books a transfer of rule 52 on its day (the avoir of the line it leaves, the sale of the line it pays); `journalLines` mirrors the avoir and books the tip; `exporters/salesJson` renders them as a « Remboursement » and a tip card |
+| `utils/accounting/` | read model of standalone documents | T | lines + VAT output + allocations as `standalone` entries (rule 30); `standaloneDocuments.salesOfDocument` adds the refund day's avoir (rule 48) and the kept surplus's tip (rule 49), and books a transfer of rule 52 on its day (the avoir of the line it leaves, the sale of the line it pays); `journalLines` mirrors the avoir and books the tip; `exporters/salesJson` renders them as a « Remboursement » and a tip card; loop t5: the VAT of a group is cut in the order the money was written (rule 57 a) |
 | `utils/` | `standaloneSale.js`, `standaloneSaleLinks.js` | T | `writeObligationRefund` (rule 48), called by `closeObligation` on a `lineLowered` row `settled`; a `linkSurplus` row `cancelled` is written « gardés en pourboire » (rule 49) |
 | `models/` | `standaloneSalesModel.js` | T | loop t4: `closedObligationCents` and `keptSurpluses` removed — a closed row leaves the document through its allocations (rule 56 b); `recordKept` (`standalonePaymentsModel`) writes the kept rows of any row, the journal reads the tips from them (rule 56 a) |
 | plugin `accounting-export` | `accountingModel.js` | T | a kept surplus's tip on the plan's tip account, named « Pourboire » (rule 49) |
@@ -664,8 +690,8 @@ once on the server by the refonte's components.
 | plugin | `plugins/hourly-resources/visitController.js` | C | `GET /:id/visit`, `POST /:id/visit/quote`, `POST /:id/visit` (commit), `POST /:id/visit/payment`, `PATCH /:id/visit/lines/:lineId`, `POST /:id/no-show`, the payment-link routes (rules 39-42); window and role guards (rules 5, 7) |
 | plugin | `plugins/hourly-resources/visitModel.js` | C | links a booking to its document (`saleRef`), builds the session `fulfilment` line from the booking (the plugin's hourly pricing) and the `paidElsewhere` session of rule 34, the client of rule 8, the window of rule 5; `view`, `commit`, `pay`, `patchLine`, `noShow`, `ensureDocument`, `moneyOf`, `repriceSession`, `cancelDocument` |
 | plugin | `plugins/hourly-resources/bookingsModel.js` | T | `enrich` adds `visit`, `noShow`, `cardState`; `recordArrival` and `recordPayment` pay the document of a booking that has one; `clearPayment` refuses document money; `update` re-prices an unpaid session line when the slot moves; `standaloneSales` lists only the money on the booking's own columns (rule 32); `remove` cancels the document (rule 26) |
-| plugin | `plugins/hourly-resources/invoicing.js` | T | invoice basis = the document's lines when the session is on a document (rule 31, `issueDocument`, `documentRequestOf`, `REMAINING_DUE`); `draftInvoiceability` judges the commit of a draft with a payment typed (rule 54), on `visitModel.draftMoneyOf`; served by `visitController.quote` and `controller.preview`; loop t4: `INTERNAL_CASH` on `totals.internalHeldCents`, each item names its `vatGroup` (rule 56 c, e) |
-| plugin `online-payment` | `invoiceIssuer.js` | T | loop t4 (rule 56 e): items naming a `vatGroup` are solved per group to the group's single VAT cut (`groupVatCents` of the VAT component) |
+| plugin | `plugins/hourly-resources/invoicing.js` | T | invoice basis = the document's lines when the session is on a document (rule 31, `issueDocument`, `documentRequestOf`, `REMAINING_DUE`); `draftInvoiceability` judges the commit of a draft with a payment typed (rule 54), on `visitModel.draftMoneyOf`; served by `visitController.quote` and `controller.preview`; loop t4: `INTERNAL_CASH` on `totals.internalHeldCents`, each item names its `vatGroup` (rule 56 c, e); loop t5: a booking's own invoice names the group `booking:session|<rate>` (rule 57 b) |
+| plugin `online-payment` | `invoiceIssuer.js` | T | loop t4 (rule 56 e): items naming a `vatGroup` are solved per group to the group's single VAT cut (`groupVatCents` of the VAT component); loop t5: a `booking:` group takes the booking journal's cut (net of the TTC), the folded fallback widens its rounding line (rule 57 b, c) |
 | plugin | `plugins/hourly-resources/planningCardsModel.js` | T | `bookingCardState`: « À encaisser », « Reste {x} », « Payé », « Absent » from the server's figures (rule 22) |
 | plugin | `plugins/hourly-resources/routes.js` | T | mounts the visit routes before `/:id`; the old `POST /:id/arrival` is removed with `controller.arrival` and `bookingsModel.recordArrival` (C38: no caller left once the screens use the visit routes) |
 | plugin | `plugins/hourly-resources/index.js` (`suggestionContexts`) | T | declares kind `resource` and lists the resources as contexts (rule 37); **no per-resource article list in the plugin's settings** |
@@ -860,6 +886,7 @@ number; `prefers-reduced-motion` → no movement.
 - [x] `tests/standalone-sale-kept-surplus-tip.unit.test.js` — rule 49 (B-6): a link surplus kept is a tip on the day it is kept, on the tip account; refunded, it books nothing
 - [x] (loop t4, rule 56) `tests/standalone-sale-kept-lowered-line.unit.test.js` (5), `tests/standalone-sale-cancel-refund-order.unit.test.js` (4), `tests/standalone-sale-quote-plan.unit.test.js` (2), `tests/standalone-sale-money-conservation.unit.test.js` (1, 300 sequences × 12 steps), `plugins/hourly-resources/tests/visit-invoice-internal-held.unit.test.js` (2), `plugins/online-payment/tests/invoice-issuer-vat-per-group.unit.test.js` (5)
 - [x] `tests/standalone-sale-kept-surplus-paris-day.unit.test.js` — rule 50 (loop t4): a surplus kept at 00:30 Paris is a tip of that Paris day
+- [x] (loop t5, rule 57) `tests/standalone-journal-backdated-payment.unit.test.js` (3, incl. 25 lives × 20 steps), `plugins/online-payment/tests/invoice-issuer-folded-rounding.unit.test.js` (3, incl. 4 000 baskets), `plugins/hourly-resources/tests/booking-invoice-vat-booking-journal.unit.test.js` (4, incl. ≈ 1 700 breakdowns)
 - [x] `plugins/hourly-resources/tests/visit-round1-reception-and-refunds.unit.test.js` — rules 44-46 (AV-1 to AV-8, AV-10, AV-11): the row and the invoice refusal, reception privacy, billing in the commit, `invoiceable`, `newSale`, the document's client follows the booking
 - [x] `plugins/hourly-resources/tests/booking-actions-no-show.unit.test.js` — rule 45 (UI-9): `actions.noShow` by day and role
 - [x] `tests/sale-link-expires-label.unit.test.js` — rule 45 (UI-15): the Paris label of a link's end
@@ -973,6 +1000,9 @@ All nine were decided by the owner on **2026-11-12**. Nothing is open.
   closed « rien »), `rowsLeaving` (reserved rows), `owedOf` without `closedObligationCents`, `internalHeldOf`, `quote` on `planOf`; REFUNDS'
   `refundRowsOfDocument` `reserved`; `standalonePaymentsModel.recordKept` rows and `keptOf`; the journal's kept legs; the VAT component's `groupVatCents`;
   the Qonto issuer's per-group solve; `invoicing` `INTERNAL_CASH` on the money held. Client: the arrival dialog renders the quote's rows while dirty.
+- 2026-11-16 — stabilisation loop t5 (books): rule 57 delivered (B5-1 to B5-3). Server: `standaloneDocuments.salesOfDocument` cuts in the order of writing
+  (`documentsPaidBetween` hands the allocation ids), the Qonto issuer's `booking:` cut and widened folded rounding, `invoicing.requestOf` names the
+  booking group. Tests: 10 server (3 files).
 - **Delivery (Q9 B).** There is no separate « PR D ». The work lands in refonte PR C, in its external-sale part,
   after PR B. Order: PR B → PR C (external sale + this spec). Consequences to handle in that PR, not before:
   1. _(done 2026-11-12, commit C0)_ `pricing-components.md` PR C row and §8/ordering text gain « mini SAS of an outside visit

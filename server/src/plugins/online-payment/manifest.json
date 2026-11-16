@@ -165,7 +165,8 @@
       "Le rapprochement bancaire lit les montants d'une plateforme dans le calcul commun du cœur : aucun montant ne change.",
       "La TVA des lignes de facture Qonto est coupée par le composant TVA du cœur : mêmes montants que les factures déjà émises.",
       "La facture Qonto d’une vente hors séjour indique la même TVA que la comptabilité, calculée une fois par taux et par type d’article.",
-      "Compatible avec GuestFlow 4 (SDK 2.30)."
+      "Compatible avec GuestFlow 4 (SDK 2.30).",
+      "Quand Qonto refuse une ligne de remise, la facture repliée reste possible avec une ligne « Arrondi de TVA » au lieu d’être refusée, et la TVA d’une séance payée sur la réservation est celle de son journal."
     ]
   }
 }
