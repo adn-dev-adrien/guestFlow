@@ -58,6 +58,8 @@ const HARDENINGS = [
   // Loop t1 AS-3 — v4.1.0 (SDK 2.27.0) shipped no `ctx.articleFamily`: the first minor that ships it is 2.29.0 (plugins-phase-1-sdk rule 53).
   { feature: 'article families', sdk: '2.29.0', pattern: /\bctx\.articleFamily\(/ },
   { feature: 'article fulfilment', sdk: '2.29.0', pattern: /\bctx\.articleFulfilment\(/ },
+  // specs/plugins-phase-1-sdk.md rule 55 (specs/guest-app.md rule 110 b reading of 2026-11-16, loop t2 AG2-2).
+  { feature: 'lines given back by the refund register', sdk: '2.31.0', pattern: /coreModule\(\s*['"`]refundGivenBack['"`]/ },
   { feature: 'slot availability', sdk: '2.29.0', pattern: /\bctx\.slotAvailability\(/ },
   // specs/plugins-phase-1-sdk.md rule 52 (specs/pricing-components.md rule 38) — the shared money helpers.
   { feature: 'shared money helpers', sdk: '2.30.0', pattern: /coreModule\(\s*['"`]money['"`]/ },

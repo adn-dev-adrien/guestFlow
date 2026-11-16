@@ -54,11 +54,17 @@ function buildArrivalOrdersController({
 
   /**
    * Rule 110 a (owner, 2026-11-16) — the stay is live, its arrival is not validated (not marked, SAS not committed) and its complement is not
-   * collected, whatever the hour: a guest who arrives after the check-in time still has the order changed at the door.
+   * collected, whatever the hour: a guest who arrives after the check-in time still has the order changed at the door. Never after the
+   * stay's departure day (owner, 2026-11-16, loop t2): an arrival never validated does not keep the order open once the stay is over.
    */
+  const pastDeparture = (reservationId) => {
+    const stay = stays().byId(reservationId);
+    return Boolean(stay && stay.endDate) && parisDate(now()) > String(stay.endDate);
+  };
   const editableStay = (reservationId) => sale().collectionOf(reservationId, now()) !== 'closed'
     && !stays().arrivalMarked(reservationId)
-    && stays().arrivalComplementState(reservationId) !== 'collected';
+    && stays().arrivalComplementState(reservationId) !== 'collected'
+    && !pastDeparture(reservationId);
 
   /** The article's own per-order bound (rules 37, 37quater): `maxQuantity` of what the shop sells, else what the order holds. */
   function boundOf(line, sold) {

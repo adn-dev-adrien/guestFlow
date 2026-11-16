@@ -24,6 +24,7 @@ const PAYMENT_LABELS = Object.freeze({ card: 'Carte', note: 'Sur la note', none:
 // Rules 72, 73, 75 — an order taken before the arrival is settled at the arrival; its stay may be gone or moved.
 const ARRIVAL_PAYMENT_LABEL = 'À régler à l’arrivée';
 const STAY_CANCELLED_LABEL = 'Séjour annulé';
+const REFUNDED_LABEL = 'Remboursée';
 const OUTSIDE_STAY_LABEL = 'Hors des dates du séjour : à replanifier';
 // Audit item 12 — an order that will never be collected (cancelled, its stay gone) owes nothing: it never reads « À régler à l'arrivée ».
 const NOTHING_TO_COLLECT_LABEL = 'Rien à percevoir';
@@ -44,7 +45,10 @@ const markLabel = (order) => (isPickup(order) ? 'Marquer retirée' : 'Marquer li
 
 const addDays = (ymd, days) => new Date(Date.parse(`${ymd}T12:00:00Z`) + days * DAY_MS).toISOString().slice(0, 10);
 
-function buildOrdersAdminController({ orders, stays, lodgings, now }) {
+// Rule 110 b reading (owner, 2026-11-16, loop t2 AG2-2) — the order's lines given back from the cancellation's refund dialog.
+const coreGivenBack = (order) => sdk.coreModule('refundGivenBack').refGivenBack(order.reservationId, `order:${Number(order.id)}:`);
+
+function buildOrdersAdminController({ orders, stays, lodgings, now, givenBack = coreGivenBack }) {
   const lodgingNames = new Map();
   const lodgingName = (propertyId) => {
     if (!lodgingNames.has(propertyId)) {
@@ -56,10 +60,14 @@ function buildOrdersAdminController({ orders, stays, lodgings, now }) {
 
   const isGone = (stay) => !stay || stay.kind !== 'reservation';
 
-  // Rules 72, 88 — a cancelled order of a stay gone reads « Séjour annulé »; one that was paid by card is « Payée · à rembourser ».
+  // Rules 72, 88 — a cancelled order of a stay gone reads « Séjour annulé »; one that was paid by card is « Payée · à rembourser »,
+  // and « Remboursée » once the cancellation's refund dialog gave its lines back (rule 110 b reading of 2026-11-16).
   function statusLabelOf(order, { gone, standing }) {
     if (order.status === 'cancelled') {
-      if (order.cancelReason === 'stay') return order.payment === 'card' && order.paidAt ? 'Payée · à rembourser' : STAY_CANCELLED_LABEL;
+      if (order.cancelReason === 'stay') {
+        if (!(order.payment === 'card' && order.paidAt)) return STAY_CANCELLED_LABEL;
+        return givenBack(order) ? REFUNDED_LABEL : 'Payée · à rembourser';
+      }
       return STAFF_STATUS.cancelled;
     }
     if (gone && standing) return STAY_CANCELLED_LABEL;
