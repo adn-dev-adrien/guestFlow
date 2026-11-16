@@ -13,6 +13,7 @@
 const { toCents } = require('./pricing/money');
 const { settledByKey, extraLineKey } = require('./pricing/storedLines');
 const { parseNotes } = require('./midStayExtras');
+const { isDirectChannel } = require('./platformNameFormat');
 const { noteExcessCents, platformComplementClaims } = require('./paidLineJudgment');
 
 const netOf = (fact) => (fact ? Math.max(0, Number(fact.storedCents || 0) - Number(fact.discountCents || 0)) : 0);
@@ -35,12 +36,15 @@ function growthCents(charged, facts) {
 // Loop t7 B7-3 (rule 112) — the cash a « caisse interne » refund on the trop-perçu already gave back: the `lineLowered` rows it settled. That cash
 // left the till; what stays freed is the money the other means brought, so the second refund of a mixed excess defaults to them, never to the till.
 // Loop t8 B8-2 — only its note part (`noteCents`): a caisse-interne refund of the stay's own trop-perçu took no note's cash.
-function cashReturnedCents(db, id) {
+// Loop t9 D9-1 — read as `refundedClaimedCents` reads: on a platform stay no trop-perçu opens a lowered row, so every settled cent is claimed
+// money (a note or the arrival complement) and counts whole; there the note part alone would miss the complement's cash already given back.
+function cashReturnedCents(db, row) {
   const ready = db.prepare("SELECT COUNT(*) AS n FROM sqlite_master WHERE type = 'table' AND name IN ('refund_obligations', 'reservation_refunds')").get().n === 2;
   if (!ready) return 0;
-  return Number(db.prepare(`SELECT COALESCE(SUM(o.noteCents), 0) AS cents FROM refund_obligations o
+  const column = isDirectChannel(row.platform) ? 'o.noteCents' : 'o.amountCents';
+  return Number(db.prepare(`SELECT COALESCE(SUM(${column}), 0) AS cents FROM refund_obligations o
     JOIN reservation_refunds r ON o.settledBy = 'refund:' || r.id
-    WHERE o.reservationId = ? AND o.origin = 'lineLowered' AND o.status = 'settled' AND r.method = 'internal'`).get(id).cents);
+    WHERE o.reservationId = ? AND o.origin = 'lineLowered' AND o.status = 'settled' AND r.method = 'internal'`).get(row.id).cents);
 }
 
 function cashNoteExcessCents(db, reservationId, { quote = null } = {}) {
@@ -67,7 +71,7 @@ function cashNoteExcessCents(db, reservationId, { quote = null } = {}) {
   const charged = quote ? chargedByQuote(quote) : null;
   const chargedOn = charged ? (key) => charged[key] || 0 : (key) => netOf(facts[key]);
   const cash = Math.max(0, Object.entries(paidByKey).reduce((sum, [key, paid]) => sum + Math.min(cashByKey[key] || 0, Math.max(0, paid - chargedOn(key))), 0)
-    - cashReturnedCents(db, id));
+    - cashReturnedCents(db, row));
   return charged ? Math.max(0, cash - growthCents(charged, facts)) : Math.min(cash, noteExcessCents(db, id));
 }
 

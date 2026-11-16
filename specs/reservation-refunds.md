@@ -676,6 +676,8 @@ and the monthly accounting export carries a **reversed journal entry (avoir)** d
 > - Rules 42 and 44 read the trop-perçu as Σ allocations − line totals; only a free line of origin `overpayment`
 >   lowers it (rule 76). History entries `refund` and `refundDeleted` are written (map M-6).
 > - `refund_nettings` records, once at the cancellation, the refunds a requalification avoir netted (rule 78).
+> - Reading of 2026-11-16 (pricing-components rules 119, 120, loop t9 D9-2/D9-3): deleting a refund, reopening the obligations it settled and
+>   the credit it gives back are one transaction; a `lineLowered` obligation is not closed by the close action (409 `OBLIGATION_REFUND_ONLY`).
 > - Delivered (pass 3): the close action is `PATCH /api/reservations/:id/refund-obligations/:oid`; the refund dialog offers
 >   « Carte » with an optional provider reference (no refund API is called); every reader of the register states its scope
 >   (`given`, `journal`, `turnover`, `commune`) through `refunds.totals` / `scopeSql`; the un-tick and the correction of a split payment

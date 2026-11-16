@@ -1536,6 +1536,7 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
     code (PR C).
     The close action is `PATCH /api/reservations/:id/refund-obligations/:oid` `{ status: 'settled' | 'cancelled' }` (409 on a row
     already closed, 404 on another stay's); a basket row also clears its link's `refundOwed` flag, and the stay's history says so.
+    A `lineLowered` row never closes there: 409 `OBLIGATION_REFUND_ONLY` (rule 120, loop t9 D9-2).
     The ledger gives the open rows a « Marquer remboursé » action (the server words the row, the client renders it); a
     `lineLowered` row has none of its own, the « Trop-perçu » row being its face.
     > **Delivered by PR B** (pass 3, UI): `FinanceSection` renders the server's `closeObligation` action (confirm, `PATCH`, re-read; Vitest `FinanceSection.obligation`), `RefundDialog` offers « Carte » with the provider reference (`RefundDialog.card-means`); checked in headless Chromium at 390 and 1280 px (no horizontal scroll, 44 px button, row gone after closing).
@@ -2355,6 +2356,13 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
     un-offer refused `LINE_REFUNDED` although nobody refunded it, and a cash note's freed 20 defaulted to a transfer; now: the jam absorbed,
     5 owed, the un-offer accepted, « Caisse interne ». Rows settled before the column existed keep their reading (the migration stamps them
     whole); the 2026-11-11 copy holds no settled `lineLowered` row: no stay moves. Test `refund-solde-money-not-note-credit`.
+    > _Reading of 2026-11-16 (loop t9, D9-1, D9-4):_ `cashReturnedCents` (the cash part of rule 112) reads what a caisse-interne refund gave
+    > back of the CLAIMED money, as `refundedClaimedCents` does: the note part on a direct stay, every settled cent on a platform stay (no
+    > trop-perçu opens a lowered row there, so it is all note or arrival-complement money, rule 116). Booking: beer 30 in the complement
+    > collected « caisse interne » offered and refunded through the till, then a card-note breakfast 60 offered → 60 € trop-perçu, no
+    > « Caisse interne » part (before: 30 cash + 30 rest, the till's 30 € counted twice). The column and its backfill are one transaction:
+    > a stop between the ALTER and the UPDATE can no longer leave the old settled rows at 0. Tests `platform-complement-cash-refunded-once`,
+    > `obligation-note-cents-migration-atomic`.
 116. **A platform stay's collected arrival complement is the establishment's money** _(stabilisation loop t8, B8-5 OLD, B8-6, 2026-11-16;
     completes rules 23, 104-108, 111 and reservation-refunds rules 34, 38)_. On a platform stay the guest pays the platform its share, but the
     arrival complement is collected by the establishment (a link, a transfer, the caisse interne), and no trop-perçu formula reads it
@@ -2402,6 +2410,18 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
     the plain reopen. On the copy (r8b, 13 stays): both orders agree except stay 14, whose SALE does not credit an open obligation (a stay
     booked before 4.2.0 whose engine figure differs from the stored one, observation O8-1 — the sale path, not the deletion), and 22209's
     known 0,60 €. Test `refund-deleted-note-credit`; `sale-note-credit-after-refund` reads the new outcome.
+    > _Reading of 2026-11-16 (loop t9, D9-3):_ the deletion of the refund row, the reopen of the rows it settled, the credit written to the
+    > buckets and the `refundDeleted` history entry are ONE transaction: a failure on the way leaves the refund and its settled rows (with their
+    > `noteCents`) as they were — never a row settled by a refund that no longer exists. Test `refund-deletion-one-transaction`.
+120. **A lowered paid line's obligation closes through a refund only** _(stabilisation loop t9, D9-2, 2026-11-16; completes rules 75, 108,
+    110, 115)_. A `lineLowered` row is the trop-perçu (rule 75, the same money with one face: the ledger gives it no « Marquer remboursé »).
+    `PATCH /refund-obligations/:oid` refuses it, settled or cancelled, with 409 `OBLIGATION_REFUND_ONLY` (« Se rembourse depuis le
+    trop-perçu. »): it is settled by a refund opened on the trop-perçu, which stamps its note part (rule 115), and cancelled by the system as
+    the excess shrinks (`trimLowered`). Stamping `noteCents = amountCents` on a hand close was set aside: a lowered row can hold the stay's own
+    trop-perçu (rule 115), and the trop-perçu would still ask for the money said given back. Before, a hand-settled row read as nothing
+    refunded: the beer (30 €, card note) offered, its row closed by hand, then put back to billed was accepted while the guest kept the 30 €,
+    and the trop-perçu still showed 30 € to refund. Rows hand-settled by earlier builds keep the migration's whole stamp. The prod copy holds
+    no `lineLowered` row: no stay moves. Other origins still close by hand. Test `lowered-obligation-refund-only`.
 
 ## 4. Architecture
 
@@ -2756,6 +2776,10 @@ _Rewritten 2026-11-15 (stabilisation loop t1, UI-3) to what shipped._
 - [x] `platform-collected-complement-lowered` — rule 116 (loop t8, B8-5, B8-6): Booking complement collected before the arrival, a line offered / discounted → 409 OVERPAID, owed, refunded on 70600010; « caisse interne »; removal LINE_PAID; the way back and LINE_REFUNDED; direct stays not claimed; later sales after a pre-arrival discount; the floor's own reduction still refused — Σ balanced (8)
 - [x] `sas-arrival-paid-line-stay-step` — rules 117, 118 (loop t8, S8-1, S8-2): « Offert » unticked → the recap's « Séjour » and `stayPayment` are the plan's (+30 €), marked paid = shown; a stale `displayedStayDue` → 409 `STAY_DUE_CHANGED`, nothing written; « Pas maintenant » asks it again; the SAS offering the paid line ends like the line API at the same hour, no 409, nothing owed (4)
 - [x] `refund-deleted-note-credit` — rule 119 (loop t8, S8-3): both orders of « refund deleted » and « line sold » end the same during the stay (direct, Booking) and before the arrival; with nothing to pay the whole money is owed back (4)
+- [x] `platform-complement-cash-refunded-once` — rules 112, 115 reading (loop t9, D9-1): Booking complement cash refunded through the till, then a card-note line offered → no « Caisse interne » part (1)
+- [x] `lowered-obligation-refund-only` — rule 120 (loop t9, D9-2): a `lineLowered` row refused by the close action (settled and cancelled), the trop-perçu still 30; refunded through the trop-perçu → LINE_REFUNDED on the way back; another origin still closes (3)
+- [x] `refund-deletion-one-transaction` — rule 119 reading (loop t9, D9-3): an error injected in the reopen keeps the refund, its settled row and its `noteCents`, no history; without it the row reopens (2)
+- [x] `obligation-note-cents-migration-atomic` — rule 115 reading (loop t9, D9-4): ALTER + backfill once, idempotent; a failing backfill leaves no column and the next run does both (2)
 - [x] `stay-note-refund-money-conservation` — rules 104, 106-112 (loop t7): random sequences of notes by card / cash, unpaid sales, offers, refunds as proposed, refunds deleted; after every step Σ buckets + notes − owed − refunded = total, booked avoirs ≤ booked note money, no note money refunded on the accommodation (6 seeds × 12 steps)
 
 ### Client Vitest suites (named 2026-11-16, stabilisation loop t2 P2-2)

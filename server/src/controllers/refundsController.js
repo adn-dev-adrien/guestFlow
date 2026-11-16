@@ -217,22 +217,25 @@ function createRefundsController(deps = {}) {
       const nettedIds = register && String(register.reservation.kind) === 'cancelled' ? refundsModel.nettedRefundIds(id) : null;
       const refusal = register && refundDeletionRefusal(target, refunds, register.reservation, nettedIds);
       if (refusal) return res.status(409).json(refusal);
-      const removed = refundsModel.remove(id, refundId);
-      if (!removed) return res.status(404).json({ error: 'Remboursement non trouvé' });
-      // Pricing-components rule 119 (loop t8 S8-3) — the money the deleted refund gave back is note credit again: what the stay still asks
-      // absorbs it first (rule 104), only the rest is owed back, as if the refund had never been made — whatever was sold since.
-      const credit = stayDatabase && register && String(register.reservation.kind) === 'reservation'
-        ? reopenedCredit(stayDatabase, id, {
-          quoteOf: (r) => require('../utils/storedReservationQuote').quoteStoredReservation(stayDatabase, r),
-          midStay: (lines) => reservationsModel.syncMidStayComplement(id, lines),
-        })
-        : null;
-      const reopen = () => {
+      // Loop t9 D9-3 — the deletion, the reopen of what it settled and the rule-119 credit are one write: a failure on the way leaves the
+      // refund in place, never a settled obligation pointing at a refund that no longer exists.
+      const deleteRefund = () => {
+        if (!refundsModel.remove(id, refundId)) return false;
+        // Pricing-components rule 119 (loop t8 S8-3) — the money the deleted refund gave back is note credit again: what the stay still asks
+        // absorbs it first (rule 104), only the rest is owed back, as if the refund had never been made — whatever was sold since.
+        const credit = stayDatabase && register && String(register.reservation.kind) === 'reservation'
+          ? reopenedCredit(stayDatabase, id, {
+            quoteOf: (r) => require('../utils/storedReservationQuote').quoteStoredReservation(stayDatabase, r),
+            midStay: (lines) => reservationsModel.syncMidStayComplement(id, lines),
+          })
+          : null;
         require('../models/refundObligationsModel').reopenSettledBy(id, refundId);
         if (credit) credit.settle();
+        recordRefundDeletion(id, target);
+        return true;
       };
-      if (credit) stayDatabase.transaction(reopen)(); else reopen();
-      recordRefundDeletion(id, target);
+      const removed = stayDatabase ? stayDatabase.transaction(deleteRefund)() : deleteRefund();
+      if (!removed) return res.status(404).json({ error: 'Remboursement non trouvé' });
       const refreshed = buildRegister(id);
       if (!refreshed) return res.status(404).json({ error: 'Réservation non trouvée' });
       return res.json(refreshed.payload);

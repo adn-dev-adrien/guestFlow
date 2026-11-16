@@ -4,7 +4,8 @@
  *   PATCH /api/reservations/:id/refund-obligations/:oid   { status: 'settled' | 'cancelled' }
  *
  * `settled`: the money went back (the operator refunded it from the provider's space or by hand); `cancelled`: nothing was owed
- * after all. Only an open row closes (409 otherwise); a basket's link stops claiming a refund, and the stay's history says so.
+ * after all. Only an open row closes (409 otherwise); a basket's link stops claiming a refund, and the stay's history says so. A
+ * `lineLowered` row never closes here (409 `OBLIGATION_REFUND_ONLY`, rule 120): a refund on the trop-perçu settles it.
  * Admin-only through the standard role guard, like the refunds.
  */
 const obligationsModel = require('../models/refundObligationsModel');
@@ -21,6 +22,12 @@ function closeObligation(req, res) {
   const row = obligationsModel.findById(obligationId);
   if (!row || Number(row.reservationId) !== reservationId) return res.status(404).json({ error: 'Remboursement à faire introuvable.', code: 'OBLIGATION_NOT_FOUND' });
   if (row.status !== 'open') return res.status(409).json({ error: 'Déjà clos.', code: 'OBLIGATION_ALREADY_CLOSED' });
+  // Pricing-components rule 120 (loop t9 D9-2) — a lowered paid line's row is the trop-perçu (rule 75, « the same money, one face »): it
+  // closes through a refund on the trop-perçu, which stamps its note part (rule 115), or as the excess shrinks. Closed by hand, it would read
+  // as never refunded and the trop-perçu would still ask for it.
+  if (row.origin === 'lineLowered') {
+    return res.status(409).json({ error: 'Se rembourse depuis le trop-perçu.', code: 'OBLIGATION_REFUND_ONLY' });
+  }
   const by = 'operator';
   database.transaction(() => {
     obligationsModel.close(obligationId, { status, by });
