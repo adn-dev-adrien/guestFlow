@@ -40,3 +40,13 @@ test('rule 20: the specs that switch a plugin off run in « plugin-toggles », a
     assert.ok(!matches(ignore, `/repo/e2e/specs/${file}`), `${file} stays in the main project`);
   }
 });
+
+// Reading of 2026-11-16 (stabilisation loop t3, P3-4): the support access request is a banner of every admin page until it is answered — filed beside
+// the main project, it moved the tab strip mobile/page-tabs measures in the viewport.
+test('rule 20: the support access flow runs in « support-access », after the plugin toggles, never in the main project', () => {
+  const file = '/repo/e2e/specs/account-security/support-access.spec.js';
+  assert.ok(matches(project('chromium').testIgnore, file), 'the support flow is not left to the main project');
+  assert.ok(matches(project('support-access').testMatch, file));
+  assert.deepEqual(project('support-access').dependencies, ['plugin-toggles']);
+  assert.ok(!matches(project('chromium').testIgnore, '/repo/e2e/specs/account-security/hosting-h2.spec.js'), 'the rest of hosting-h2 stays in the main project');
+});

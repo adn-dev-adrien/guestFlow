@@ -56,17 +56,16 @@ test('switching to a plugin tab never leaves the page without tabs', async ({ pa
   await page.evaluate(() => {
     window.__tabCounts = new Set();
     window.__tabYs = new Set();
-    // The strip is measured inside its own sticky bar, not in the viewport: a banner of the whole app mounting above the page (the
-    // support access request another parallel test files, seen pushing the bar 238 px down mid-switch) moves the bar, never the strip
-    // within it. A strip outside any bar is recorded as such and fails the count below.
-    // A Y counts once it held for two consecutive frames: a single-frame reading is a sampling artefact, a bar that really jumps
-    // stays in the layout for more than one frame and is caught.
+    // The strip is measured in the viewport: a bar that moves on the screen is caught, whatever moved it. The support access request, a
+    // banner of the whole app that once pushed the bar 238 px down mid-switch, is filed in a project of its own (e2e/projects.js).
+    // specs/e2e-playwright-smoke-suite.md rule 20 — never beside this spec.
+    // A Y counts once it held for two consecutive frames: a single-frame reading is a sampling artefact, a bar that really jumps stays in
+    // the layout for more than one frame and is caught.
     let previous = null;
     const sample = () => {
       const tabs = document.querySelectorAll('[role=tab]');
       window.__tabCounts.add(tabs.length);
-      const bar = tabs.length ? tabs[0].closest('[data-sticky-bar]') : null;
-      const y = !tabs.length ? null : (bar ? Math.round(tabs[0].getBoundingClientRect().y - bar.getBoundingClientRect().y) : 'outside the bar');
+      const y = tabs.length ? Math.round(tabs[0].getBoundingClientRect().y) : null;
       if (y !== null && y === previous) window.__tabYs.add(y);
       previous = y;
       requestAnimationFrame(sample);

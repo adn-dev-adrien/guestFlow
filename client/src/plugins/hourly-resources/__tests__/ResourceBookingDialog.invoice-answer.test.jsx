@@ -1,0 +1,89 @@
+// specs/outside-booking-sas.md rule 54 (reading 2026-11-16, loop t3 UI3-4, UI3-5) — at « Payé maintenant » the booking dialog saves only once the
+// server has answered for the payment typed (never a save carrying no invoice because the answer was still on its way); a failed answer shows
+// « Facture non vérifiée pour ce paiement. » with « Réessayer »; « Caisse interne » and the other refusals are the server's words.
+import React from 'react';
+import { vi } from 'vitest';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { localIsoDate } from '../localDate';
+
+vi.mock('../../../api', () => ({
+  __esModule: true,
+  default: {
+    getOccupiedSlots: vi.fn().mockResolvedValue({ occupiedSlots: [] }),
+    getClientPicker: vi.fn().mockResolvedValue({ options: [] }),
+    getProperties: vi.fn().mockResolvedValue([]),
+    previewResourceBooking: vi.fn(),
+    recordResourceBookingPayment: vi.fn(),
+    issueResourceBookingInvoice: vi.fn(),
+  },
+}));
+vi.mock('../../../hooks/usePostalCodeCities', () => ({ default: () => [] }));
+
+import api from '../../../api';
+import ResourceBookingDialog from '../ResourceBookingDialog';
+
+const RESOURCE = {
+  id: 3, name: 'Bain fictif', isComplex: 1, priceType: 'per_hour', openTime: '08:00', closeTime: '22:00', slotDuration: 30, minimumUsageMinutes: 60,
+};
+const PRICE = { total: 50, pricing: 'banded', rateGrid: 'external', durationMinutes: 60, freeMinutesApplied: 0, lines: [], vat: null, invoiceReady: true };
+const OK = { ok: true, code: null, reason: null };
+
+async function fillNewBooking() {
+  fireEvent.mouseDown(screen.getAllByRole('combobox')[0]);
+  fireEvent.click(await screen.findByRole('option', { name: '17:00' }));
+  fireEvent.mouseDown(screen.getAllByRole('combobox')[1]);
+  fireEvent.click(await screen.findByRole('option', { name: '18:00' }));
+  fireEvent.change(screen.getByRole('textbox', { name: /Nom du client/ }), { target: { value: 'Alex Exemple' } });
+  await waitFor(() => expect(screen.getByRole('button', { name: 'Maintenant' })).toBeEnabled());
+  fireEvent.click(screen.getByRole('button', { name: 'Maintenant' }));
+}
+const openDialog = () => render(<ResourceBookingDialog open resource={RESOURCE} initialDate={localIsoDate()} booking={null} onClose={() => {}} onSave={vi.fn()} onDelete={() => {}} />);
+const saveButton = () => screen.getByRole('button', { name: /^Enregistrer/ });
+
+beforeEach(() => { vi.clearAllMocks(); });
+
+test('UI3-4 — while the answer for the payment typed is on its way, the save waits', async () => {
+  let release;
+  api.previewResourceBooking.mockImplementation(async (draft) => {
+    if (!draft.payment) return PRICE;
+    return new Promise((resolve) => { release = () => resolve({ ...PRICE, invoiceable: OK }); });
+  });
+  openDialog();
+  await fillNewBooking();
+  await waitFor(() => expect(release).toBeTypeOf('function'));
+  expect(saveButton()).toBeDisabled();
+  release();
+  expect(await screen.findByText('Créer la facture dans Qonto')).toBeInTheDocument();
+  await waitFor(() => expect(screen.getByRole('button', { name: 'Enregistrer et facturer' })).toBeEnabled());
+});
+
+test('UI3-4 — a failed answer is shown with « Réessayer »; the retry offers the invoice', async () => {
+  let fail = true;
+  api.previewResourceBooking.mockImplementation(async (draft) => {
+    if (!draft.payment) return PRICE;
+    if (fail) throw Object.assign(new Error('Service indisponible'), { status: 503 });
+    return { ...PRICE, invoiceable: OK };
+  });
+  openDialog();
+  await fillNewBooking();
+  expect(await screen.findByText('Facture non vérifiée pour ce paiement.')).toBeInTheDocument();
+  expect(saveButton()).toBeDisabled();
+  fail = false;
+  fireEvent.click(screen.getByRole('button', { name: 'Réessayer' }));
+  expect(await screen.findByText('Créer la facture dans Qonto')).toBeInTheDocument();
+  expect(screen.queryByText('Facture non vérifiée pour ce paiement.')).toBeNull();
+});
+
+test('UI3-5 — « Caisse interne » is the server\'s INTERNAL_CASH, and another refusal prints its reason', async () => {
+  let invoiceable = { ok: false, code: 'INTERNAL_CASH', reason: 'Caisse interne : hors comptabilité.', silent: false };
+  api.previewResourceBooking.mockImplementation(async (draft) => (draft.payment ? { ...PRICE, invoiceable } : PRICE));
+  const view = openDialog();
+  await fillNewBooking();
+  expect(await screen.findByText(/^Caisse interne : hors comptabilité, pas de facture/)).toBeInTheDocument();
+  view.unmount();
+  invoiceable = { ok: false, code: 'TENDERS_INVALID', reason: 'Le paiement dépasse le montant dû.', silent: false };
+  openDialog();
+  await fillNewBooking();
+  expect(await screen.findByText('Le paiement dépasse le montant dû.')).toBeInTheDocument();
+  expect(screen.queryByText('La facture se propose une fois le paiement saisi.')).toBeNull();
+});

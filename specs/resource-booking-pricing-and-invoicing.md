@@ -412,7 +412,7 @@ Rules are numbered once and never renumbered (new rules go at the end).
 | plugin | `plugins/hourly-resources/BookingPaymentFields.jsx` | C | `TenderLines` (one CB line of the total by default) + payment date. |
 | plugin | `plugins/hourly-resources/SettingsSection.jsx` | C | « TVA des ventes hors séjour » card of Réglages › Intégrations. |
 | plugin | `plugins/hourly-resources/PlanningResourceCard.jsx` | T | « À encaisser » chip and « Arrivée » button on a booking outside a stay. |
-| plugin | `plugins/hourly-resources/BookingInvoiceBlock.jsx` | C | Invoice state, number, attachment state, retry. |
+| plugin | `plugins/hourly-resources/BookingInvoiceBlock.jsx` | C | Invoice state, number, attachment state, retry; before issue, the server's refusal `reason` for the payment typed (`reason`, outside-booking-sas rule 54 reading 2026-11-16). |
 | component | `components/TenderLines` (via client SDK) | — | Consumed as is for the payment (rule 11); no fork. |
 | plugin | `plugins/hourly-resources/ResourcePlanningPage.jsx` | T | Card of a booking shows « Payé CB · F-2026-0142 » / « À encaisser » and « Arrivée ». |
 | plugin | `plugins/hourly-resources/ResourceArrivalDialog.jsx` | C | Rules 28–33: the one-screen arrival SAS (recap, offered time, payment, invoice) — since C38 the mini SAS of the visit (`outside-booking-sas.md` §4.2), on the `/visit` routes. |

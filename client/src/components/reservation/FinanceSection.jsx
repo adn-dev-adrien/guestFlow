@@ -279,7 +279,7 @@ export default function FinanceSection() {
   const {
     formSectionCardSx, formSectionContentSx, sectionGridSx,
     form, updateForm, pricingQuote, accommodationBasePriceDisplay, isPlatformSale,
-    isDevisMode, reservationId, editingReservationId, isReservationLocked, refreshToCurrentPricing,
+    isDevisMode, reservationId, editingReservationId, isReservationLocked, formReadOnly = false, refreshToCurrentPricing,
     saveThenRun, reloadReservationFinance,
     midStayNoteOpen, setMidStayNoteOpen, midStayNote,
     refundableLines = [], refundCollectedTtc = 0,
@@ -1126,6 +1126,7 @@ export default function FinanceSection() {
                           label="Réduction sur"
                           value={form.discountTarget || 'nights'}
                           onChange={(e) => updateForm({ discountTarget: e.target.value })}
+                          disabled={formReadOnly}
                           fullWidth
                           size="small"
                           helperText="Les ventes ajoutées plus tard ne sont pas couvertes."

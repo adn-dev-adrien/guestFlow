@@ -1992,6 +1992,12 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
     form is applied, the fiche is busy: its fields are read-only (the disabled fieldset of a closed fiche, `aria-busy`), « Enregistrer » is
     disabled and shows its spinner, and the clean baseline is taken from the form the re-read applied, never from the one it replaces. A save
     therefore never sends a form older than the last server version. Vitest `ReservationPage.extra-sales-panel`.
+    _Reading 2026-11-16 (loop t3, UI3-1 to UI3-3):_ « read-only » covers every control, not only the native ones the disabled fieldset reaches: the
+    MUI selects (« Logement », « Heure d'arrivée », « Heure de départ », « Plateforme », « Réduction sur ») read the fiche's read-only flag, and the
+    busy fieldset is `inert` — before, « Plateforme » could change during the re-read and the change was dropped, or absorbed into the clean baseline
+    (shown, never saved). The summary keeps the last quote on screen until the re-read's own quote lands (it never blanks on a sale). A re-read
+    that fails keeps the page — the sale is stored — read-only under « Fiche non relue après la vente. » with « Réessayer », instead of replacing the
+    fiche with the load error. Vitest `ReservationPage.quiet-reread`.
 102. **One moment per gesture: the stay clock decides the lock, the sale, the baseline, the SAS and the change of an order** _(stabilisation loop t2,
     N-1 to N-6, 2026-11-16; amends rule 20's first bullet, completes rules 44, 45, 93, 94, guest-app rules 82, 110 a)_. Before, two clocks answered
     « has this stay started? »: the fiche lock (`hasStayStarted`: the check-in hour, or the arrival marked or the arrival SAS committed) and the sale
@@ -2099,7 +2105,7 @@ _Rewritten 2026-11-15 (stabilisation loop t1, UI-3) to the files PR B and PR C s
 |---|---|---|---|
 | `components/` | `SaleDetailList.jsx` | C | generic: renders `saleDetail` lines with source, status and discount chips (`StatusBadge`), grouped by article (`groups`); the « Moment » menu of a line the server serves `movable` (rule 95) — the fiche, both SAS, the devis view |
 | `components/` | `AddProductDialog.jsx` | C | « Ajouter un produit » (`FormDialog`): product, quantity, the server's price and moment, sells at the accepted price (`payment: 'later'`) |
-| `components/` | `ExtraSalesPanel.jsx` | C | « Ventes du séjour » of a saved stay: `SaleDetailList` + `AddProductDialog`, the moment menu; seeded with the fiche's `saleDetail` (`initialDetail`), `locked` (closed fiche or closed mid-stay window), `heldReason` (writes held on a dirty fiche), `onChanged` (the fiche's quiet re-read), an error with « Réessayer » when it reads alone (rule 100) |
+| `components/` | `ExtraSalesPanel.jsx` | C | « Ventes du séjour » of a saved stay: `SaleDetailList` + `AddProductDialog`, the moment menu; seeded with the fiche's `saleDetail` (`initialDetail`), `locked` (closed fiche or closed mid-stay window), `heldReason` (writes held on a dirty fiche), `onChanged` (the fiche's quiet re-read), an error with « Réessayer » when it reads alone (rule 101) |
 | `components/` | `StaySalesSection.jsx` | C | the SAS sections « Ventes du séjour — au départ » and « Déjà payé » (rule 32), « Percevoir maintenant » / « Offrir »; SDK client export (2.29.0) |
 | `components/` | `SuggestedArticlesStep.jsx` | C | « Proposés à l'arrivée »: suggestion chips, « Autre article » search, steppers; SDK client export (2.31.0) |
 | `components/` | `SalePaymentLink.jsx` | C | the payment-link block of a sale outside a stay (mint, copy, e-mail on click, withdraw); SDK client export (2.31.0) |
@@ -2235,10 +2241,12 @@ _Rewritten 2026-11-15 (stabilisation loop t1, UI-3) to what shipped._
   « Ajouter un produit » on a sold stay opens a `FormDialog` (article, quantity) with the server quote live; the sale is written « À payer »
   (`payment: 'later'`). A line the server serves `movable` has a « Moment » menu listing its `moments` (« À l'arrivée », « Au départ » once the stay
   has started, rule 95). The discount field has a target selector « Nuits », « Articles », « Tout ». Mobile (`xs`): the dialog is full screen,
-  lines stack label / quantity × unit / status, the moment button is full width. _Reading of 2026-11-16 (loop t2, rule 100):_ a started stay keeps
+  lines stack label / quantity × unit / status, the moment button is full width. _Reading of 2026-11-16 (loop t2, rule 101):_ a started stay keeps
   the panel's actions while the server's mid-stay window is open; a write re-reads the fiche without its loading screen; a fiche with unsaved edits
   holds the panel's writes with « Enregistrer d'abord les modifications. »; a failed read of the panel shows « Ventes du séjour indisponibles. » with
-  « Réessayer ».
+  « Réessayer ». While the re-read is in flight the fiche is busy: every field read-only, the selects (« Logement », the hours, « Plateforme »,
+  « Réduction sur ») included, « Enregistrer » disabled with its spinner, the summary still showing the last quote; a re-read that fails keeps the
+  page, read-only, under « Fiche non relue après la vente. » with « Réessayer » (_reading of 2026-11-16, loop t3_).
 - **SAS arrivée:** « À percevoir maintenant » (arrival lines + stay due), « Déjà payé » (offers nothing, rule 32) and, after check-in time,
   « Ventes du séjour — au départ » (`StaySalesSection`) with « Percevoir maintenant » on each line still to collect (C25, mock M3; « Passer à
   l'arrivée » was dropped by M3). **SAS départ:** « À percevoir au départ » and « Déjà payé », with « Offrir » on a paid line (the lowered money
@@ -2326,7 +2334,8 @@ _Rewritten 2026-11-15 (stabilisation loop t1, UI-3) to what shipped._
 - [x] `fiche-save-keeps-first-lines-booking-date` — rule 100 (D2-1): a notes-only save leaves a stay's first lines on the booking date and a receipt of yesterday frozen with them; a line the save adds is sold today
 
 ### Client Vitest suites (named 2026-11-16, stabilisation loop t2 P2-2)
-- [x] `ReservationPage.extra-sales-panel` — rule 100 (UI2-1 to UI2-4): a started stay with the window open sells and moves its lines, a collected departure does not, the fiche's `saleDetail` read once, a dirty fiche holds the writes and keeps the typed note, a write on a clean fiche re-reads without the loading screen
+- [x] `ReservationPage.extra-sales-panel` — rule 101 (UI2-1 to UI2-4): a started stay with the window open sells and moves its lines, a collected departure does not, the fiche's `saleDetail` read once, a dirty fiche holds the writes and keeps the typed note, a write on a clean fiche re-reads without the loading screen, and while the re-read is in flight the fiche is busy (fields read-only, « Enregistrer » disabled)
+- [x] `ReservationPage.quiet-reread` — rule 101 (loop t3 UI3-1 to UI3-3): the selects refuse to open during the re-read, before and after its form lands; the summary keeps the last quote and the quote is asked again; a failed re-read keeps the page read-only with « Réessayer », and the retry brings the form back
 - [x] `ExtraSalesPanel.fiche-reload` — rules 27, 30: every accepted write asks the fiche to re-read, a refused one does not; a locked panel offers no action; a failed read shows « Réessayer »
 - [x] `SaleDetailList.moment`, `SaleDetailList.groups`, `SaleDetailList.discount` — rules 13, 31, 95: the moment menu lists the line's `moments`, the groups, the discount chips
 - [x] `StaySalesSection.accessibility` — rules 31, 32: the SAS sections' accessible names and targets

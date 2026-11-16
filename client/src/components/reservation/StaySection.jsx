@@ -18,7 +18,7 @@ export default function StaySection() {
     form, updateForm, isDevisMode,
     properties, selectedProp, handleReservationPropertyChange,
     miniCalendarStart, setMiniCalendarStart, miniVisibleDays, reservations,
-    editingReservationId, handleMiniDateClick, centerMiniCalendarOnRange, isReservationLocked,
+    editingReservationId, handleMiniDateClick, centerMiniCalendarOnRange, isReservationLocked, formReadOnly,
     arrivalMin, arrivalMax, departureMin, departureMax, handleManualDateInputChange,
     datesUnavailableForProperty, datesUnavailableMessage, stayDatesHint, minNightsState, minNightsWarning,
     liveTimeConflictState, liveTimeConflictMessage, defaultCheckInTime, defaultCheckOutTime,
@@ -34,7 +34,7 @@ export default function StaySection() {
           {/* minmax(0, …) + minWidth 0: a long property name ellipsises instead of widening the page
               (specs/review-2026-10-18-reservations.md rule 7). */}
           <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'minmax(0, 1fr)', md: isDevisMode ? 'minmax(0, 1fr)' : 'repeat(2, minmax(0, 1fr))' }, gap: 2 }}>
-            <FormControl fullWidth sx={{ minWidth: 0 }}>
+            <FormControl fullWidth disabled={formReadOnly} sx={{ minWidth: 0 }}>
               <InputLabel id="stay-property-label">Logement</InputLabel>
               <Select
                 labelId="stay-property-label"
@@ -109,7 +109,7 @@ export default function StaySection() {
 
           <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, minmax(0, 1fr))' }, gap: 2 }}>
             <Box>
-              <FormControl fullWidth error={Boolean(liveTimeConflictState.arrivalMessage)}>
+              <FormControl fullWidth disabled={formReadOnly} error={Boolean(liveTimeConflictState.arrivalMessage)}>
                 <InputLabel id="stay-check-in-time-label">{`Heure d'arrivée (défaut ${defaultCheckInTime})`}</InputLabel>
                 <Select
                   labelId="stay-check-in-time-label"
@@ -122,7 +122,7 @@ export default function StaySection() {
               </FormControl>
             </Box>
             <Box>
-              <FormControl fullWidth error={Boolean(liveTimeConflictState.departureMessage)}>
+              <FormControl fullWidth disabled={formReadOnly} error={Boolean(liveTimeConflictState.departureMessage)}>
                 <InputLabel id="stay-check-out-time-label">{`Heure de départ (défaut ${defaultCheckOutTime})`}</InputLabel>
                 <Select
                   labelId="stay-check-out-time-label"

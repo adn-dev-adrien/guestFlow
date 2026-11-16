@@ -140,6 +140,11 @@ or mutable state.
     > other global-state projects (`bank-reconciliation`, `laundry-schedule`, `vat-regime` and its chain) depend on `plugin-toggles`, so the
     > toggles still run before them, as when they were in `chromium`: `online-payment` reads a database where no provider is connected, which
     > `bank-reconciliation` ends (seen in the first parallel run of the new layout).
+    > _Reading of 2026-11-16 (pricing-components stabilisation loop t3, P3-4):_ a support access request is global state too — it is a banner
+    > of every admin page until it is answered. Filed by `account-security/hosting-h2.spec.js` beside the main project, it pushed the tab strip
+    > of `mobile/page-tabs` 238 px down mid-measure. The support flow is its own spec, `account-security/support-access.spec.js`, in the
+    > project `support-access` after `plugin-toggles`; `page-tabs` measures the strip in the viewport again, so a bar that moves on the screen
+    > is caught whatever moved it.
 21. **The server log is an artifact** (2026-10-29 audit R3). The `webServer` of the main project sends the
     server's stdout/stderr to `playwright-server.log` (`GUESTFLOW_E2E_SERVER_LOG` overrides the path) instead of
     a pipe nobody reads, and the failure upload of `e2e.yml` ships it with `playwright-report/`, so a screenshot

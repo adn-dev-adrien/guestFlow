@@ -537,6 +537,14 @@ once on the server by the refonte's components.
     `INTERNAL_CASH`, `ISSUER_UNAVAILABLE`…), or on a booking paid on its own columns. The dialogs show the checkbox iff `ok`, ask it again when the payment
     or the draft changes, and the arrival waits for the answer before its commit; they no longer read the tenders to decide it. Tests
     `visit-draft-invoiceable`, `ResourceArrivalDialog.invoice-from-server`, `ResourceBookingDialog.invoice-from-server`.
+    _Reading 2026-11-16 (loop t3, UI3-4, UI3-5):_ both dialogs wait for that answer — the booking dialog's « Enregistrer » too (before, a save made
+    while it was on its way carried no invoice) — and keep the latest one on screen while a newer one is asked (no caption ↔ checkbox flip on each
+    keystroke). A failed answer shows « Facture non vérifiée pour ce paiement. » with « Réessayer » (before, the arrival's « Valider » stayed disabled
+    with no word); a refusal of the whole request is shown as such. The answer carries `silent` like the stored visit's `invoiceable` (rule 48):
+    « Caisse interne : hors comptabilité, pas de facture » is printed for the server's `INTERNAL_CASH`, never decided from the tenders, any other
+    refusal that is not silent prints the server's `reason` under « Facture » (« La facture se propose une fois le paiement saisi. » stays for a
+    payment not typed yet), and a silent one shows nothing. Tests `visit-draft-invoice-reason`, `ResourceArrivalDialog.invoice-answer`,
+    `ResourceBookingDialog.invoice-answer`.
 55. **One money model for a document: every cent on a line or on no line** _(stabilisation loop t3, B3-1, B3-2, B3-3, 2026-11-16; completes rules 41,
     44, 49, 50, 52, 53 and refonte rules 72, 74, 75)_. Every cent a document received sits either on one of its lines or **on no line** — its
     *unallocated money*: a link paid above the reste (rule 41), net of what was given back or kept from it (`payment_allocations` with `lineRef` NULL).
@@ -827,6 +835,7 @@ number; `prefers-reduced-motion` → no movement.
 - [x] (C38) `components/__tests__/StandaloneSaleDialog.counter.test.jsx`, `StandaloneSalesTodayCard.list.test.jsx`, `ExternalSaleFields.fields.test.jsx`; `plugins/hourly-resources/__tests__/ResourceBookingDialog.no-show.test.jsx`; `PlanningResourceCard.test.jsx` gains the « Reste » and « Absent » cases; `SuggestedArticlesStep.worst-case.test.jsx` — the break-ui pass (a 120-character label, an emoji-first label, 99, 1, none, a thousand results)
 - [x] (loop t2, rule 51) `ResourceBookingDialog.no-show.test.jsx` (rewritten on the row's `actions`, no second read, 5), `PlanningResourceCard.test.jsx` and `PlanningResourceCard.open-booking.test.jsx` (« Arrivée » on `actions.arrive`), `ResourceArrivalDialog.invoice-reason.test.jsx` (2), `pages/options/__tests__/externalSaleForm.emptied-rate.test.js` (1); named after the fact (P2-2): `ResourceArrivalDialog.withdraw-link.test.jsx` — rule 45 (`access.withdrawLink`)
 - [x] (loop t2, rules 49 reading, 52-54) server `standalone-sale-lowered-line-in-step` (6), `pricing-refunds-document-rows` (6), plugin `visit-draft-invoiceable` (4); client `ResourceArrivalDialog.invoice-from-server.test.jsx` (2), `ResourceBookingDialog.invoice-from-server.test.jsx` (2); the arrival suites' quote fixtures answer `invoiceable` for a payment typed
+- [x] (loop t3, rule 54 reading) plugin `visit-draft-invoice-reason` (3); client `ResourceArrivalDialog.invoice-answer.test.jsx` (4), `ResourceBookingDialog.invoice-answer.test.jsx` (3)
 - [x] (loop t1, rule 48) `plugins/hourly-resources/__tests__/ResourceBookingDialog.no-show.test.jsx` (rewritten on `actions.noShow`, 4), `ResourceArrivalDialog.invoiceable.test.jsx` (3), `ResourceArrivalDialog.vat-rate.test.jsx` (2), `ResourceArrivalDialog.new-sale.test.jsx` (2); `components/__tests__/SalePaymentLink.expires-label.test.jsx` (3), `StandaloneSalesTodayCard.owed-day.test.jsx` (2), `ExternalSaleFields.server-labels.test.jsx` (2)
 
 ### E2E

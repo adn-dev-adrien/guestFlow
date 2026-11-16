@@ -13,6 +13,11 @@ const paymentLinksModel = require('../../../models/paymentLinksModel');
 const refundsController = require('../../../controllers/refundsController');
 const { localIsoDate } = require('../../../utils/localDate');
 const { refGivenBack } = require('../../../utils/refundGivenBack');
+const { wallClockToDate } = require('../../../utils/stayWindow');
+
+// The clock is pinned to noon of the Paris day (loop t3 P6): a `paidAt` read from the wall clock between 00:00 and 01:00 Paris falls on the previous
+// UTC day, the window that broke a sibling suite in round 2.
+const pinNoon = (t) => t.mock.timers.enable({ apis: ['Date'], now: wallClockToDate(fx.isoPlus(0), '12:00') });
 
 const CIDER = addOption({ id: 813, title: 'Cidre', price: 6 });
 sell('option', CIDER);
@@ -29,7 +34,8 @@ function refund(stayId, amountTtc) {
   return sent;
 }
 
-test('rule 110 b reading — « Payée · à rembourser » until the dialog gives the order back, « Remboursée » after; a part given back is not enough', async () => {
+test('rule 110 b reading — « Payée · à rembourser » until the dialog gives the order back, « Remboursée » after; a part given back is not enough', async (t) => {
+  pinNoon(t);
   const stayId = seedStay({ start: 5, end: 9, checkedIn: 0 });
   const card = fakeProvider();
   const { call, api, close } = await openOrdering(stayId, { card, guestHost: 'sejour.example.test' });
