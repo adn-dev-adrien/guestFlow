@@ -105,4 +105,4 @@ function pinStoredPricing(quote, stored) {
   return pinned;
 }
 
-module.exports = { quoteStoredReservation, pricingUnchangedFromStored, pinStoredPricing };
+module.exports = { quoteStoredReservation, pricingUnchangedFromStored, pinStoredPricing, pricedProjection };
