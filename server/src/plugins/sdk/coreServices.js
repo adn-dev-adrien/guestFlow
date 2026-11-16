@@ -209,7 +209,7 @@ module.exports = Object.freeze({
   // `complement` link at the basket's exact total, read on demand, withdrawn; its paid effect is `ctx.paymentBasket`'s.
   payments: Object.freeze({
     basketLink: (reservationId, basket, options) => basketPayments().basketLink(reservationId, basket, options),
-    // SDK 2.32.0 — the same with no stay: `({ source, ref, title, amountCents }, { redirectUrl })`; the link is billed to `<source>:<ref>`
+    // SDK 2.32.0 — the same with no stay: `({ source, ref, title, amountCents, validityMinutes? }, { redirectUrl })` (`validityMinutes`, 1 to 1440, the link's own life, 30 when absent); the link is billed to `<source>:<ref>`
     // and its paid effect is `ctx.paymentBasket`'s, called with `reservationId: null`.
     saleLink: (sale, options) => basketPayments().saleLink(sale, options),
     refreshBasketLink: (linkId) => basketPayments().refreshBasketLink(linkId),

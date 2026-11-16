@@ -25,10 +25,10 @@ function createVouchersModel(db) {
   }
 
   const insert = ({
-    orderId, number, codeHash, codeEncrypted, amountCents, issuedAt, expiresOn,
+    orderId, number, codeHash, codeEncrypted, amountCents, issuedAt, expiresOn, vatRatePercent,
   }) => Number(db.prepare(`
-    INSERT INTO gift_vouchers (orderId, number, codeHash, codeEncrypted, amountCents, issuedAt, expiresOn) VALUES (?, ?, ?, ?, ?, ?, ?)
-  `).run(orderId, number, codeHash, codeEncrypted, amountCents, issuedAt, expiresOn).lastInsertRowid);
+    INSERT INTO gift_vouchers (orderId, number, codeHash, codeEncrypted, amountCents, issuedAt, expiresOn, vatRatePercent) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(orderId, number, codeHash, codeEncrypted, amountCents, issuedAt, expiresOn, vatRatePercent).lastInsertRowid);
 
   const find = (id) => db.prepare(`${SELECT} WHERE v.id = ?`).get(Number(id)) || null;
   const findByCodeHash = (hash) => db.prepare(`${SELECT} WHERE v.codeHash = ?`).get(String(hash)) || null;
@@ -36,6 +36,8 @@ function createVouchersModel(db) {
   /** Rule 23 — the vouchers sold on the site whose receipt has not left, issued between `since` and `before` (ISO instants). */
   const awaitingMail = ({ since, before }) => db.prepare(`${SELECT} WHERE o.source = 'site' AND o.email != '' AND v.mailSentAt IS NULL AND v.cancelledAt IS NULL
     AND v.issuedAt >= ? AND v.issuedAt <= ? ORDER BY v.id`).all(since, before);
+  /** Rule 44 — the vouchers issued between two ISO instants, oldest first: the sales of a period of the books. */
+  const issuedBetween = ({ since, before }) => db.prepare(`${SELECT} WHERE v.issuedAt >= ? AND v.issuedAt < ? ORDER BY v.issuedAt, v.id`).all(since, before);
   const listAll = () => db.prepare(`${SELECT} ORDER BY v.id DESC`).all();
 
   const setCancelled = (id, at) => db.prepare('UPDATE gift_vouchers SET cancelledAt = ? WHERE id = ? AND cancelledAt IS NULL').run(at, Number(id)).changes;
@@ -46,7 +48,7 @@ function createVouchersModel(db) {
   const withBalance = () => db.prepare(`SELECT COUNT(*) AS n FROM (${SELECT}) WHERE balanceCents > 0`).get().n;
 
   return {
-    nextNumber, insert, find, findByOrderId, awaitingMail, findByCodeHash, listAll, setCancelled, setExpiry, setMail, count, withBalance,
+    nextNumber, insert, find, findByOrderId, awaitingMail, findByCodeHash, issuedBetween, listAll, setCancelled, setExpiry, setMail, count, withBalance,
   };
 }
 

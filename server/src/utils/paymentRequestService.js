@@ -164,8 +164,11 @@ async function mintBasketLink(deps, id, basket) {
 
 // SDK 2.32.0 — a basket with no stay: one link at the exact amount, labelled by the plugin, billed to its own `saleRef` (`<source>:<ref>`) so no stay-orphan
 // rule withdraws it. An open link of the same amount with time left is handed back; any other is retired first, so only the newest can be paid.
-// `deps`: { paymentLinksModel, provider, redirectUrl?, now? } — `sale`: { source, ref, title, amountCents }.
+// `deps`: { paymentLinksModel, provider, redirectUrl?, now? } — `sale`: { source, ref, title, amountCents, validityMinutes? }.
+// `validityMinutes` (1 to 1440) is the sale's own life for its link, 30 minutes when absent; a sale that states it holds the end as a hard bound: its open
+// link is handed back until it lapses (never replaced by a longer one), where the default hands back a link only while 5 minutes remain.
 const SALE_LINK_REUSE_MINUTES = 5;
+const SALE_LINK_MAX_MINUTES = 24 * 60;
 function ensureSaleLink(deps, sale) {
   const refusal = saleRefusal(sale);
   if (refusal) return Promise.reject(refusal);
@@ -174,7 +177,8 @@ function ensureSaleLink(deps, sale) {
 
 function saleRefusal(sale) {
   const sound = sale && typeof sale.source === 'string' && sale.source && sale.ref != null && String(sale.ref) !== ''
-    && typeof sale.title === 'string' && sale.title.trim() && Number.isInteger(sale.amountCents) && sale.amountCents > 0;
+    && typeof sale.title === 'string' && sale.title.trim() && Number.isInteger(sale.amountCents) && sale.amountCents > 0
+    && (sale.validityMinutes === undefined || (Number.isInteger(sale.validityMinutes) && sale.validityMinutes >= 1 && sale.validityMinutes <= SALE_LINK_MAX_MINUTES));
   return sound ? null : { ...BASKET_REQUIRED };
 }
 
@@ -182,10 +186,12 @@ async function mintSaleLink(deps, sale) {
   const { paymentLinksModel, provider } = deps;
   const saleRef = `${sale.source}:${sale.ref}`;
   const now = mintClock(deps);
+  const validityMinutes = sale.validityMinutes === undefined ? BASKET_LINK_MINUTES : sale.validityMinutes;
+  const reuseMinutes = sale.validityMinutes === undefined ? SALE_LINK_REUSE_MINUTES : 0;
   const open = paymentLinksModel.findOpenForSale(saleRef);
   if (open && open.url) {
     const remainingMs = new Date(open.expiresAt).getTime() - now.getTime();
-    if (Number(open.amountCents) === sale.amountCents && remainingMs >= SALE_LINK_REUSE_MINUTES * 60 * 1000) {
+    if (Number(open.amountCents) === sale.amountCents && remainingMs > 0 && remainingMs >= reuseMinutes * 60 * 1000) {
       return {
         id: open.id, amountCents: open.amountCents, url: open.url, status: open.status, expiresAt: open.expiresAt, reused: true,
       };
@@ -206,7 +212,7 @@ async function mintSaleLink(deps, sale) {
     url: link.url,
     status: link.status,
     createdAt: now.toISOString().replace('T', ' ').slice(0, 19),
-    expiresAt: new Date(now.getTime() + BASKET_LINK_MINUTES * 60 * 1000).toISOString(),
+    expiresAt: new Date(now.getTime() + validityMinutes * 60 * 1000).toISOString(),
     basket: { source: sale.source, ref: String(sale.ref) },
     saleRef,
   });

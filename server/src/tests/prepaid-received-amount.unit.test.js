@@ -116,6 +116,26 @@ test('the accounting export books the collected part of a settlement only', { sk
   assert.ok(Math.abs(booked.share - 3040 / 8040) < 1e-9, 'the entries of the bucket are prorated to what was collected');
 });
 
+test('rule 64 — no VAT twice: the stay’s entry carries only what the card collected, so the VAT of the prepaid part is the one its own sale declared', { skip: skipWithout(['accounting-export']) }, () => {
+  const output = createAccountingOutput({ accountPlan: require('../plugins/accounting-export/accountPlan') });
+  const settlement = {
+    id: 1, targetKind: 'bucket', targetKey: 'deposit', parts: [{ kind: 'deposit', amountCents: 8040 }], shortfallCents: 0,
+    tenders: [{ method: 'prepaid', amountCents: 5000, internal: 0 }, { method: 'card', amountCents: 3040, internal: 0 }],
+  };
+  const { share } = output.bookedFigures(settlement, { receivedFactor: 1, waivedFactor: 1, currentCents: 8040 });
+  const entry = {
+    kind: 'sale', direction: 'sale', encaissementTtc: 80.4, encaissementNetTtc: 80.4, taxTtc: 0, fraction: 1, commission: null,
+  };
+  const scaled = output.scaleEntry(entry, share, settlement);
+  assert.equal(scaled.encaissementTtc, 30.4, 'the stay books the card’s 30,40 €, not the 80,40 € it received');
+  assert.equal(scaled.encaissementNetTtc, 30.4);
+  const vatOf = (ttcCents, ratePercent) => ttcCents - Math.round((ttcCents * 10000) / (10000 + ratePercent * 100));
+  const stayVat = vatOf(Math.round(scaled.encaissementTtc * 100), 10);
+  const prepaidVat = vatOf(5000, 10);
+  assert.deepEqual([stayVat, prepaidVat], [276, 455]);
+  assert.equal(stayVat + prepaidVat, 731, 'the two entries together declare the VAT of the 80,40 € once (rounding to the cent aside)');
+});
+
 // ---- a made-up instrument, to prove the core never names one --------------------------------------------------------------
 
 function liveSource(overrides = {}) {

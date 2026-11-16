@@ -7,6 +7,7 @@ const DEFAULT_MIN_CENTS = 2000;
 const DEFAULT_MAX_CENTS = 200000;
 const DEFAULT_VALIDITY_MONTHS = 18;
 const MAX_VALIDITY_MONTHS = 120;
+const DEFAULT_VAT_PERCENT = 10;
 
 const MONEY_KINDS = Object.freeze(['issue', 'hold', 'release', 'redeem', 'refund', 'adjust', 'cancel']);
 const NOTE_KINDS = Object.freeze(['extend', 'reveal', 'mail']);
@@ -40,6 +41,30 @@ function checkAmountCents(value, { minAmountCents = DEFAULT_MIN_CENTS, maxAmount
   if (value < minAmountCents || value > maxAmountCents) return { ok: false, code: 'VOUCHER_AMOUNT_OUT_OF_BOUNDS' };
   return { ok: true, cents: value };
 }
+
+/**
+ * Rule 43 — the VAT rate a text or a number states, in percent: from 0 to 100, at most two decimals, `,` or `.`.
+ * → `{ ok: true, percent }` or `{ ok: false, message }` (the sentence the operator reads).
+ */
+function checkVatRate(value) {
+  const raw = (typeof value === 'number' ? String(value) : typeof value === 'string' ? value : '').trim().replace(/\s/g, '').replace(',', '.');
+  if (raw === '') return { ok: false, message: 'Saisir un taux (0 si les bons ne portent pas de TVA).' };
+  if (!/^\d+(\.\d+)?$/.test(raw)) return { ok: false, message: 'Saisir un nombre, par exemple 10 ou 5,5.' };
+  if (!/^\d+(\.\d{1,2})?$/.test(raw)) return { ok: false, message: 'Deux décimales au plus.' };
+  const percent = Number(raw);
+  if (percent > 100) return { ok: false, message: 'Saisir un taux entre 0 et 100 %.' };
+  return { ok: true, percent };
+}
+
+/** Rule 43 — a TTC amount cut into HT and VAT at `percent`, to the cent: HT = round(TTC / (1 + rate)), VAT = TTC − HT. */
+function vatSplit(amountCents, percent) {
+  const basisPoints = Math.round(Number(percent) * 100);
+  const htCents = Math.round((amountCents * 10000) / (10000 + basisPoints));
+  return { ratePercent: Number(percent), htCents, vatCents: amountCents - htCents };
+}
+
+/** `10 %`, `5,5 %` — the rate as the French read it. */
+const formatPercent = (percent) => `${String(Number(percent)).replace('.', ',')} %`;
 
 /** Rule 7 — the issue date plus `months`, a 31st landing on the last day of a shorter month. */
 function addMonths(isoDate, months) {
@@ -99,6 +124,7 @@ module.exports = {
   DEFAULT_MAX_CENTS,
   DEFAULT_VALIDITY_MONTHS,
   MAX_VALIDITY_MONTHS,
+  DEFAULT_VAT_PERCENT,
   MONEY_KINDS,
   KINDS,
   STATES,
@@ -108,6 +134,9 @@ module.exports = {
   formatEuros,
   formatFrDate,
   checkAmountCents,
+  checkVatRate,
+  vatSplit,
+  formatPercent,
   addMonths,
   expiryFor,
   balanceOf,

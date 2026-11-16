@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Bons cadeaux — paiement obligatoire, lien d'une heure, TVA</title>
+<style>
+:root{
+  --paper:#F5F0E6;--card:#FDFAF3;--ink:#22271F;--ink-soft:#5C6153;--sapin:#2E3B2A;--lichen:#5A6B48;
+  --action:#9A6318;--action-strong:#7F5112;--line:#DCD4C2;--ctl:#857D6B;--chip:#EDE5D4;
+  --ok:#2F6A43;--ok-soft:#E6EFE7;--warn:#6F5112;--warn-soft:#F6EDD7;--err:#A8433A;--err-soft:#F7E8E5;
+  --display:'Marcellus',Georgia,'Times New Roman',serif;
+  --body:'Karla',-apple-system,'Helvetica Neue',Helvetica,Arial,sans-serif;
+  --mono:ui-monospace,'SF Mono',Menlo,Consolas,monospace;
+  --out:cubic-bezier(.22,1,.36,1);
+}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:#E9E3D6;color:var(--ink);font:17px/1.55 var(--body)}
+:focus-visible{outline:2px solid var(--action);outline-offset:2px}
+button,input,select{font:inherit;color:inherit}
+button{cursor:pointer;-webkit-tap-highlight-color:transparent;touch-action:manipulation}
+.doc{max-width:1120px;margin:0 auto;padding:48px 24px 96px}
+h1{font:400 clamp(30px,4.4vw,44px)/1.08 var(--display);letter-spacing:-.015em;margin:0 0 16px;max-width:22ch;text-wrap:balance}
+h2{font:400 28px/1.15 var(--display);letter-spacing:-.01em;margin:64px 0 14px;text-wrap:balance}
+h3{font:700 15px/1.3 var(--body);letter-spacing:.02em;margin:0 0 6px}
+p{margin:0 0 12px;max-width:68ch}
+.lead{font-size:19px;color:#3a3f35;max-width:62ch}
+.cols{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:32px;margin-top:20px}
+.cols>div{border-top:1px solid var(--ctl);padding-top:14px}
+.cols p{font-size:16px;color:#3a3f35}
+ul.plain{margin:8px 0 0;padding-left:20px;max-width:68ch}
+ul.plain li{margin:6px 0}
+.num{font-variant-numeric:tabular-nums}
+.tag{display:inline-block;font:700 11.5px var(--body);letter-spacing:.06em;padding:2px 8px;border-radius:2px;background:var(--chip)}
+.tag.ok{background:var(--ok-soft);color:var(--ok)}.tag.warn{background:var(--warn-soft);color:var(--warn)}.tag.err{background:var(--err-soft);color:var(--err)}
+.arb>div{display:grid;grid-template-columns:28px minmax(0,1fr);gap:8px 14px;padding:18px 0;border-bottom:1px solid #D5CDBB}
+.arb .n{font:400 22px var(--display);color:var(--action-strong)}
+.arb p{margin:0 0 6px;font-size:16px}
+.arb .reco{color:var(--ok);font-weight:700}
+
+.stage{margin-top:22px;background:#DDD6C6;border-radius:6px;padding:16px}
+.bar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between;margin-bottom:14px}
+.seg{display:inline-flex;border:1px solid var(--ctl);border-radius:999px;overflow:hidden;background:var(--card)}
+.seg button{border:0;background:none;padding:9px 16px;min-height:44px;font:700 14px var(--body);transition:background .18s var(--out),color .18s var(--out)}
+.seg button[aria-pressed="true"]{background:var(--sapin);color:var(--paper)}
+.frame{margin:0 auto;background:var(--paper);border-radius:4px;box-shadow:0 18px 40px rgba(22,28,22,.18);overflow:hidden;transition:max-width .35s var(--out)}
+.frame.mobile{max-width:400px}.frame.desktop{max-width:100%}
+.note{font-size:14px;color:var(--ink-soft);margin:12px 2px 0;max-width:none}
+.site-h{display:flex;align-items:center;justify-content:space-between;background:var(--sapin);color:#fff;padding:12px 18px}
+.logo{font:400 21px var(--display);letter-spacing:.04em}
+.app-h{display:flex;align-items:center;gap:12px;background:#fff;border-bottom:1px solid var(--line);padding:12px 18px;font:400 20px var(--display);color:var(--sapin)}
+.view{padding:26px 22px 34px}
+.mobile .view{padding:20px 16px 28px}
+.vt{font:400 26px/1.15 var(--display);margin:0 0 6px}
+.vs{color:var(--ink-soft);font-size:16px;margin:0 0 18px}
+.two{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:36px;align-items:start}
+.mobile .two{grid-template-columns:minmax(0,1fr);gap:22px}
+@media (max-width:860px){.two{grid-template-columns:minmax(0,1fr);gap:22px}.cols{grid-template-columns:minmax(0,1fr);gap:18px}}
+
+label.l{display:block;font:700 14px var(--body);margin-bottom:6px}
+.in{width:100%;min-height:48px;padding:10px 12px;border:1px solid var(--ctl);border-radius:2px;background:#fff;font-size:17px}
+.in[aria-invalid="true"]{border-color:var(--err);box-shadow:0 0 0 1px var(--err)}
+.suffix{position:relative}.suffix .in{padding-right:44px}.suffix span{position:absolute;right:14px;top:50%;transform:translateY(-50%);color:var(--ink-soft);font-weight:700}
+.err{color:var(--err);font-size:14px;margin:6px 0 0;min-height:20px}
+.hint{color:var(--ink-soft);font-size:14px;margin:6px 0 0}
+.btn{display:inline-flex;align-items:center;justify-content:center;min-height:48px;padding:0 20px;border-radius:2px;border:1px solid var(--ctl);background:var(--card);font:700 14px var(--body);letter-spacing:.06em;transition:transform .1s ease-out,background .18s var(--out)}
+.btn:active{transform:scale(.97)}
+.btn.fill{background:var(--action);border-color:var(--action);color:#fff}
+.btn.green{background:var(--sapin);border-color:var(--sapin);color:#fff}
+.btn[disabled]{opacity:.45;cursor:not-allowed;transform:none}
+.row{display:flex;flex-wrap:wrap;gap:10px}
+.mobile .row .btn{flex:1 1 100%}
+
+.panel{background:var(--card);border:1px solid var(--line);border-radius:4px;padding:18px}
+.clock{font:400 44px/1 var(--display);font-variant-numeric:tabular-nums;letter-spacing:.02em}
+.meter{height:6px;background:var(--chip);border-radius:3px;overflow:hidden;margin:12px 0 4px}
+.meter i{display:block;height:100%;background:var(--action);transition:width .4s var(--out)}
+.state{display:flex;gap:10px;align-items:center;margin:0 0 10px}
+.voucher{border:1.5px solid var(--sapin);border-radius:10px;padding:18px;text-align:center;background:#fff}
+.voucher .amt{font:400 34px var(--display);margin:4px 0}
+.voucher code{font:700 17px var(--mono);letter-spacing:.06em}
+.log{margin:14px 0 0;padding:0;list-style:none;font-size:14px;color:var(--ink-soft)}
+.log li{padding:6px 0;border-top:1px dashed var(--line);display:flex;gap:10px}
+.log b{color:var(--ink);font-variant-numeric:tabular-nums;min-width:52px}
+.ops{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 12px}
+.ops .btn{min-height:40px;padding:0 14px;font-size:13px}
+
+.ledger{width:100%;border-collapse:collapse;font-size:15px}
+.ledger td{padding:9px 0;border-bottom:1px solid var(--line)}
+.ledger td:last-child{text-align:right;font-variant-numeric:tabular-nums;font-weight:700}
+.ledger tr.total td{border-bottom:0;border-top:1.5px solid var(--ink);font-size:17px}
+.mail{background:#fff;border:1px solid var(--line);border-radius:4px;padding:16px;font-size:15px}
+.mail .sub{font-weight:700;margin-bottom:8px}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+<main class="doc">
+<p class="tag ok">Tranché · 16/11/2026</p>
+<h1>Bons cadeaux : payé ou rien, lien d'une heure, TVA réglable</h1>
+<p class="lead">Trois ajustements demandés sur la PR #1055. Ce document montre ce qui change, à manipuler ; les trois arbitrages sont tranchés (voir le bas de page).</p>
+
+<div class="cols">
+  <div><h3>Payé ou rien</h3><p>Aucun bon n'existe tant que l'argent n'est pas reçu. En ligne, c'est la banque qui le confirme ; au comptoir, l'opérateur doit déjà dire comment le bon a été payé, sinon il est refusé (en place).</p></div>
+  <div><h3>Lien d'une heure</h3><p>Le lien de paiement vit <b>60 minutes</b> (30 aujourd'hui). Passé ce délai, il est retiré chez Qonto ; la commande impayée est gardée <b>7 jours en coulisse</b>, invisible dans la liste des bons, puis supprimée.</p></div>
+  <div><h3>TVA réglable</h3><p>Un réglage « TVA des bons cadeaux », <b>10 %</b> par défaut. Le taux est figé sur le bon le jour de la vente ; l'export comptable passe la vente HT + TVA à ce taux.</p></div>
+</div>
+
+<h2>1. L'achat sur le site, minute par minute</h2>
+<p>Avancer le temps ou faire payer le client : le bon n'apparaît qu'au paiement confirmé, et le lien disparaît à 60 minutes.</p>
+<div class="stage">
+  <div class="bar">
+    <div class="seg" role="group" aria-label="Format">
+      <button type="button" data-frame="f1" data-size="desktop" aria-pressed="true">Ordinateur</button>
+      <button type="button" data-frame="f1" data-size="mobile" aria-pressed="false">Téléphone</button>
+    </div>
+    <div class="ops" style="margin:0">
+      <button class="btn" type="button" id="t15">+15 min</button>
+      <button class="btn" type="button" id="t59">Aller à 59 min</button>
+      <button class="btn green" type="button" id="pay">Le client paie</button>
+      <button class="btn" type="button" id="reset">Recommencer</button>
+    </div>
+  </div>
+  <div class="frame desktop" id="f1">
+    <div class="site-h"><span class="logo">SOLIO</span></div>
+    <div class="view two">
+      <section>
+        <p class="vt">Bon cadeau</p>
+        <div id="buyer"></div>
+      </section>
+      <section class="panel" aria-live="polite">
+        <h3>Côté GuestFlow</h3>
+        <div id="ops"></div>
+        <ul class="log" id="log"></ul>
+      </section>
+    </div>
+  </div>
+  <p class="note">Le délai part du clic sur « Payer ». Un client qui revient sur la page avant la fin retrouve le même lien ; après, il recommence depuis le formulaire.</p>
+</div>
+
+<h2>2. Le réglage de la TVA</h2>
+<p>Dans Paramètres → Bons cadeaux. Essayer <b>5,5</b>, <b>20</b>, <b>abc</b>, <b>120</b> ou <b>10,555</b> : le calcul suit, et la saisie invalide est refusée avec sa phrase.</p>
+<div class="stage">
+  <div class="bar">
+    <div class="seg" role="group" aria-label="Format">
+      <button type="button" data-frame="f2" data-size="desktop" aria-pressed="true">Ordinateur</button>
+      <button type="button" data-frame="f2" data-size="mobile" aria-pressed="false">Téléphone</button>
+    </div>
+  </div>
+  <div class="frame desktop" id="f2">
+    <div class="app-h">GuestFlow · Paramètres · Bons cadeaux</div>
+    <div class="view two">
+      <section>
+        <label class="l" for="vat">TVA des bons cadeaux</label>
+        <div class="suffix"><input class="in num" id="vat" inputmode="decimal" value="10" aria-describedby="vatErr vatHint"><span>%</span></div>
+        <p class="err" id="vatErr" role="alert"></p>
+        <p class="hint" id="vatHint">S'applique aux bons vendus à partir de l'enregistrement. Un bon déjà vendu garde son taux.</p>
+        <label class="l" for="amt" style="margin-top:18px">Exemple : montant d'un bon</label>
+        <div class="suffix"><input class="in num" id="amt" inputmode="decimal" value="150"><span>€</span></div>
+        <p class="err" id="amtErr" role="alert"></p>
+        <div class="row" style="margin-top:8px"><button class="btn green" type="button" id="save">Enregistrer</button></div>
+        <p class="hint" id="saved" aria-live="polite"></p>
+      </section>
+      <section>
+        <h3>Écriture de la vente (export comptable)</h3>
+        <table class="ledger">
+          <tr><td>Bon cadeau BC-2026-0008 — HT</td><td id="ht">136,36 €</td></tr>
+          <tr><td id="vatLabel">TVA 10 %</td><td id="tva">13,64 €</td></tr>
+          <tr class="total"><td>Encaissé (TTC)</td><td id="ttc">150,00 €</td></tr>
+        </table>
+        <h3 style="margin-top:22px">Reçu envoyé à l'acheteur</h3>
+        <div class="mail">
+          <div class="sub">Votre bon cadeau Solio</div>
+          Merci pour votre achat. Montant du bon : <b id="mTtc">150,00 €</b>, dont TVA <span id="mRate">10 %</span> : <span id="mTva">13,64 €</span>.<br>
+          Valable jusqu'au 16/05/2028. Le bon s'affiche et s'imprime depuis ce lien.
+        </div>
+      </section>
+    </div>
+  </div>
+  <p class="note">Les chiffres de cette maquette sont calculés dans la page pour la démonstration ; dans GuestFlow, c'est le serveur qui calcule et arrondit au centime.</p>
+</div>
+
+<h2>Ce qu'on ne fait pas</h2>
+<ul class="plain">
+  <li>Pas de relance d'un acheteur qui n'a pas payé : sa commande reste 7 jours en coulisse, invisible, puis disparaît, sans mail.</li>
+  <li>Pas de nouveau taux appliqué aux bons déjà vendus : un bon garde le taux de son jour de vente.</li>
+  <li>Pas de TVA affichée sur le bon imprimé (c'est un cadeau) : elle figure sur le reçu de l'acheteur et dans l'export.</li>
+</ul>
+
+<h2>Risque</h2>
+<p>La TVA payée à la vente du bon ne doit pas être comptée une deuxième fois quand le bon paie un séjour. Si le comptable confirme un « bon à usage unique » (TVA due à la vente), l'écriture du séjour doit retirer la part déjà taxée. C'est l'arbitrage 3.</p>
+
+<h2>Arbitrages tranchés le 16/11/2026</h2>
+<div class="arb">
+  <div><span class="n">1</span><div><p><b>Paiement fait dans l'heure, confirmé par la banque après le retrait du lien</b> (le client paie à 59 min, Qonto confirme à 61 min).</p><p class="reco">Tranché : le bon est émis quand même, le client a payé un lien encore valide.</p></div></div>
+  <div><span class="n">2</span><div><p><b>Commande impayée après une heure</b>.</p><p class="reco">Tranché : gardée 7 jours en coulisse, invisible, puis supprimée (comportement actuel). Seul le lien est retiré chez Qonto.</p></div></div>
+  <div><span class="n">3</span><div><p><b>Séjour payé par un bon : sa TVA</b>.</p><p class="reco">Tranché : l'export du séjour ne compte que la part encaissée par carte ou autre moyen ; la TVA de la part payée par bon, déjà déclarée à la vente, n'est pas comptée deux fois.</p><p>À confirmer par le comptable (question Q3 de la spec).</p></div></div>
+</div>
+</main>
+
+<script>
+(function(){
+  const $=(id)=>document.getElementById(id);
+  document.querySelectorAll('[data-frame]').forEach((b)=>b.addEventListener('click',()=>{
+    const f=$(b.dataset.frame);f.className='frame '+b.dataset.size;
+    b.parentElement.querySelectorAll('button').forEach((x)=>x.setAttribute('aria-pressed',String(x===b)));
+  }));
+  const eur=(c)=>(c/100).toLocaleString('fr-FR',{minimumFractionDigits:2,maximumFractionDigits:2})+' €';
+
+  // 1. purchase timeline
+  const LIFE=60;let t=null,state='form',log=[];
+  const stamp=()=>t===null?'—':(t<10?'0':'')+t+' min';
+  function add(msg){log.unshift([stamp(),msg]);}
+  function render(){
+    const buyer=$('buyer'),ops=$('ops');
+    $('t15').disabled=$('t59').disabled=$('pay').disabled=state!=='pending';
+    if(state==='form'){
+      buyer.innerHTML='<p class="vs">Montant : <b>150,00 €</b> · Pour Marie · De la part de Paul</p><button class="btn fill" type="button" id="go">Payer 150,00 €</button>';
+      $('go').onclick=()=>{state='pending';t=0;add('Commande créée, lien Qonto de 150,00 € valable 1 h.');render();};
+      ops.innerHTML='<p class="state"><span class="tag">Rien</span></p><p class="hint">Aucune commande, aucun bon.</p>';
+    } else if(state==='pending'){
+      const left=LIFE-t;
+      buyer.innerHTML='<p class="vs">Page de paiement Qonto ouverte.</p><p class="hint">Si le client revient sur le site :</p><p><b>Paiement en attente.</b> Le lien reste valable <span class="num">'+left+' min</span>.</p>';
+      ops.innerHTML='<p class="state"><span class="tag warn">Commande en attente</span></p><div class="clock">'+String(left).padStart(2,'0')+':00</div><div class="meter"><i style="width:'+(left/LIFE*100)+'%"></i></div><p class="hint">Invisible dans la liste des bons. Aucun code tiré.</p>';
+    } else if(state==='paid'){
+      buyer.innerHTML='<div class="voucher"><div>Bon cadeau</div><div class="amt">150,00 €</div><div>Pour Marie · De la part de Paul</div><p style="margin:10px 0 4px"><code>BZHY-Z78M-6VC9-ETVE</code></p><div class="hint">Valable jusqu\'au 16/05/2028</div></div>';
+      ops.innerHTML='<p class="state"><span class="tag ok">Bon actif</span></p><p>BC-2026-0008 · 150,00 € · TVA 10 % : 13,64 €</p><p class="hint">Reçu envoyé à l\'acheteur.</p>';
+    } else {
+      buyer.innerHTML='<p><b>Le lien de paiement a expiré.</b></p><p class="vs">Aucun paiement n\'a été pris. Recommencer pour obtenir un nouveau lien.</p><button class="btn" type="button" id="again">Recommencer</button>';
+      $('again').onclick=reset;
+      ops.innerHTML='<p class="state"><span class="tag">Rien</span></p><p class="hint">Lien retiré chez Qonto. Commande gardée 7 jours en coulisse, invisible dans la liste des bons.</p>';
+    }
+    $('log').innerHTML=log.map(([a,b])=>'<li><b>'+a+'</b><span>'+b+'</span></li>').join('');
+  }
+  function advance(to){
+    if(state!=='pending')return;t=Math.min(to,LIFE);
+    if(t>=LIFE){state='expired';add('Lien retiré chez Qonto ; commande gardée 7 jours en coulisse, invisible.');}
+    render();
+  }
+  function reset(){state='form';t=null;log=[];render();}
+  $('t15').onclick=()=>advance(t+15);
+  $('t59').onclick=()=>advance(59);
+  $('pay').onclick=()=>{if(state!=='pending')return;add('Qonto confirme le paiement : bon BC-2026-0008 émis, code tiré.');add('Reçu envoyé à l\'acheteur.');state='paid';render();};
+  $('reset').onclick=reset;
+  render();
+
+  // 2. VAT setting
+  let savedRate=10;
+  function parse(v){return v.trim().replace(/\s/g,'').replace(',','.');}
+  function vatCheck(){
+    const raw=parse($('vat').value);
+    if(raw==='')return {err:'Saisir un taux (0 si les bons ne portent pas de TVA).'};
+    if(!/^\d+(\.\d+)?$/.test(raw))return {err:'Saisir un nombre, par exemple 10 ou 5,5.'};
+    if(!/^\d+(\.\d{1,2})?$/.test(raw))return {err:'Deux décimales au plus.'};
+    const r=Number(raw);if(r>100)return {err:'Saisir un taux entre 0 et 100 %.'};
+    return {rate:r};
+  }
+  function amtCheck(){
+    const raw=parse($('amt').value);
+    if(!/^\d+(\.\d{1,2})?$/.test(raw))return {err:'Saisir un montant en euros, deux décimales au plus.'};
+    return {cents:Math.round(Number(raw)*100)};
+  }
+  function vatRender(){
+    const v=vatCheck(),a=amtCheck();
+    $('vat').setAttribute('aria-invalid',String(!!v.err));$('vatErr').textContent=v.err||'';
+    $('amt').setAttribute('aria-invalid',String(!!a.err));$('amtErr').textContent=a.err||'';
+    $('save').disabled=!!v.err;
+    if(v.err||a.err)return;
+    const ht=Math.round(a.cents/(1+v.rate/100)),tva=a.cents-ht,label=v.rate.toLocaleString('fr-FR')+' %';
+    $('ht').textContent=eur(ht);$('tva').textContent=eur(tva);$('ttc').textContent=eur(a.cents);
+    $('vatLabel').textContent='TVA '+label;$('mTtc').textContent=eur(a.cents);$('mRate').textContent=label;$('mTva').textContent=eur(tva);
+    $('saved').textContent=v.rate===savedRate?'':'Modifié, pas encore enregistré.';
+  }
+  $('vat').addEventListener('input',vatRender);$('amt').addEventListener('input',vatRender);
+  $('save').onclick=()=>{const v=vatCheck();if(v.err)return;savedRate=v.rate;$('saved').textContent='Enregistré : les prochains bons vendus porteront '+v.rate.toLocaleString('fr-FR')+' %.';};
+  vatRender();
+})();
+</script>
+</body>
+</html>

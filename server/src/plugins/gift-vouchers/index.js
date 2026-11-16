@@ -17,6 +17,7 @@ const { createIdeas } = require('./ideas');
 const { createCheckLimits } = require('./rateLimiters');
 const { createProof } = require('./proof');
 const { createReceipt } = require('./receipt');
+const { createBooks } = require('./books');
 const { createOrderPaid, SOURCE } = require('./orderPaid');
 const { renderVoucherPdf } = require('./voucherPdf');
 const { createRedemption, SOURCE: PREPAID_SOURCE, LABEL: PREPAID_LABEL } = require('./redemption');
@@ -99,7 +100,7 @@ function buildGiftVouchersApi({
   const movements = createMovementsModel(db, { now });
   const checks = createChecksModel(db, { now });
   const issuance = createIssuance({
-    db, vouchers, orders, movements, pepper, encrypt, now, randomBytes,
+    db, vouchers, orders, movements, pepper, encrypt, now, randomBytes, vatRatePercent: () => settings.vatRateOf(get),
   });
   const checkLimits = createCheckLimits({ checks, now, onTrip: onCheckLimitsTrip });
   const ideas = createIdeas({
@@ -111,6 +112,7 @@ function buildGiftVouchersApi({
   const receipt = createReceipt({
     vouchers, orders, movements, transaction, sendMail, settingsGet: get, pageUrl, now,
   });
+  const books = createBooks({ vouchers });
   const proof = createProof({ pow, secret: powSecret });
   const admin = buildAdminController({
     vouchers, orders, movements, issuance, transaction, limits, paymentMethods, userName, decrypt, receipt, renderPdf: renderVoucherPdf,
@@ -147,6 +149,7 @@ function buildGiftVouchersApi({
     ideas,
     checkLimits,
     limits,
+    salesBetween: (window) => books.salesBetween(window),
     purgeStaleOrders: () => orders.purgeStalePending(),
     retryReceipts: () => receipt.retryPending(),
     purgeOldChecks: () => checks.purgeOld(),
@@ -239,6 +242,8 @@ function register(ctx) {
     summarize: (payload) => summarizeChecks(payload),
   });
   ctx.paymentBasket({ source: SOURCE, paid: (event) => api().orderPaid(event) });
+  // Rules 43-44 — each voucher sold is a sale of the books, HT + VAT at its frozen rate.
+  ctx.standaloneSales((window) => (tableHasRows(ctx.db) ? api().salesBetween(window) : []));
   // Rules 36-39 — the voucher as a means of payment on a booking: the core holds, prices and settles through these four calls.
   ctx.prepaid({
     source: PREPAID_SOURCE,

@@ -230,6 +230,79 @@ test('rule 17: a link withdrawn then paid anyway is still the plugin’s to sett
   assert.equal(vouchers().length, before + 1);
 });
 
+const mintHour = (order, amountCents = 15000) => sdk.core.payments.saleLink(
+  {
+    source: SOURCE, ref: order.id, title: `Bon cadeau de ${amountCents / 100} €`, amountCents, validityMinutes: 60,
+  },
+  { redirectUrl: `https://site.example.test/bon?gf_voucher=${order.id}` },
+);
+const providerIdOf = (linkId) => db.prepare('SELECT providerLinkId FROM payment_links WHERE id = ?').get(linkId).providerLinkId;
+const lapse = (linkId) => {
+  db.prepare('UPDATE payment_links SET expiresAt = ? WHERE id = ?').run(new Date(Date.now() - 60 * 1000).toISOString(), linkId);
+  return retireLapsedAndWithdrawn(db, { now: new Date() });
+};
+
+test('rule 16 (one hour): a sale states its own link life — 60 minutes, handed back until it lapses, and never longer than a day', async () => {
+  liveOwner(api.orderPaid);
+  const order = newOrder();
+  const first = await mintHour(order);
+  const minutes = (Date.parse(paymentLinksModel.findById(first.linkId).expiresAt) - Date.now()) / 60000;
+  assert.ok(minutes > 59 && minutes <= 60, `${minutes} minutes`);
+  db.prepare('UPDATE payment_links SET expiresAt = ? WHERE id = ?').run(new Date(Date.now() + 2 * 60 * 1000).toISOString(), first.linkId);
+  const again = await mintHour(order);
+  assert.deepEqual([again.linkId, again.reused], [first.linkId, true], 'two minutes from its end the same link is still the buyer’s: the hour is a hard bound, not a rolling one');
+  for (const validityMinutes of [0, 1441, 1.5, '60', -5]) {
+    // eslint-disable-next-line no-await-in-loop
+    await assert.rejects(sdk.core.payments.saleLink({ source: SOURCE, ref: order.id, title: 'x', amountCents: 100, validityMinutes }), (e) => e.error === 'BASKET_REQUIRED');
+  }
+});
+
+test('rule 16 (one hour): past the hour the link is lapsed by the lifecycle pass and deactivated at the provider by the poll — nothing is issued, the order stays', async () => {
+  liveOwner(api.orderPaid);
+  const order = newOrder();
+  const link = await mintHour(order);
+  assert.equal(lapse(link.linkId).some((l) => l.id === link.linkId), true);
+  assert.equal(paymentLinksModel.findById(link.linkId).status, 'expired');
+  assert.equal(await sdk.core.payments.refreshBasketLink(link.linkId), 'expired');
+  const before = cancelled.length;
+  await retryPendingCancellations({
+    database: db, devisModel: {}, paymentLinksModel, provider, notifyPaidAfterCancel: async () => {}, only: link.linkId,
+  });
+  assert.deepEqual(cancelled.slice(before), [providerIdOf(link.linkId)], 'the link is withdrawn at the provider');
+  assert.equal(paymentLinksModel.findById(link.linkId).remoteCancelPendingAt, null, 'nothing left to deactivate');
+  assert.equal(vouchers().filter((v) => v.orderId === order.id).length, 0);
+  assert.equal(api.orders.find(order.id).state, 'pending', 'the order is kept (and purged after 7 days)');
+});
+
+test('rule 16 (one hour): an on-demand read of a sale link past its end lapses it on the spot; before its end it stays open', async () => {
+  liveOwner(api.orderPaid);
+  const order = newOrder();
+  const link = await mintHour(order);
+  assert.equal(await sdk.core.payments.refreshBasketLink(link.linkId), 'open');
+  db.prepare('UPDATE payment_links SET expiresAt = ? WHERE id = ?').run(new Date(Date.now() - 1000).toISOString(), link.linkId);
+  assert.equal(await sdk.core.payments.refreshBasketLink(link.linkId), 'expired');
+  assert.ok(paymentLinksModel.findById(link.linkId).remoteCancelPendingAt, 'its deactivation is owed to the poll');
+});
+
+test('rule 45: paid at 59 minutes, confirmed at 61 — the link was withdrawn meanwhile and the voucher is issued all the same, never flagged to refund', async () => {
+  liveOwner(api.orderPaid);
+  const order = newOrder();
+  const link = await mintHour(order);
+  lapse(link.linkId);
+  paidAt.set(providerIdOf(link.linkId), '2026-11-15T10:59:00Z');
+  const before = vouchers().length;
+  const { results } = await retryPendingCancellations({
+    database: db, devisModel: {}, paymentLinksModel, provider, notifyPaidAfterCancel: async () => {}, only: link.linkId,
+  });
+  assert.equal(results.length, 1);
+  assert.equal(vouchers().length, before + 1);
+  assert.equal(api.orders.find(order.id).state, 'issued');
+  assert.equal(paymentLinksModel.findById(link.linkId).status, 'paid');
+  assert.equal(/refundOwed/.test(db.prepare('SELECT basketJson FROM payment_links WHERE id = ?').get(link.linkId).basketJson || ''), false);
+  const status = await api.orderPaid({ ref: String(order.id), linkId: link.linkId, amountCents: 15000 });
+  assert.equal(status.effect, 'voucher-already-issued', 'a replay issues nothing more');
+});
+
 test('SDK 2.32.0: a sale of the standalone-sale family still settles on its own document — only another source goes to a plugin', () => {
   liveOwner(api.orderPaid);
   const sale = paymentLinksModel.create({

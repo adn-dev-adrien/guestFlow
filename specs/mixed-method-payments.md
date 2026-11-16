@@ -444,6 +444,15 @@ read the settlements themselves (`utils/paymentTenders.settlementFigures`).
     budget (`refundable.budget({ prepaidTtc })`) is the other payments only. The cancellation indemnity therefore comes from the card
     and the other payments first: 100 € prepaid + 168 € card with a 50 € indemnity owes 118 € in money, a stay paid only by prepaid
     money owes none. The prepaid part goes back through its plugin's own gesture.
+64. **A prepaid part declares no VAT on the stay (Adrien, 2026-11-16).** The VAT of the money a prepaid instrument took in was declared when that
+    instrument was sold (its plugin lists the sale with `ctx.standaloneSales`, at the VAT rate it froze). The stay's export entries are
+    scaled to the share the collected part carries (`bookedFigures` → `scaleEntry`: `booksCents` = `collectedCents`, rule 60), so the stay's
+    HT and VAT are those of what the card, cash or transfer collected only — the VAT of the prepaid part is not counted a second time.
+    Nothing names an instrument: the rule holds for every `prepaid` line, and a plugin whose instrument carries no VAT at its sale is
+    that plugin's to declare in its own sale.
+65. **To be confirmed by the accountant.** The treatment of rule 64 assumes the instrument's VAT is due at its sale (single-purpose voucher). If the
+    accountant decides the VAT is due when the instrument is used, the sale lists no VAT (rate 0 in the plugin's setting) and the stay's
+    export is the place to restore it: that decision is not taken here.
 **Edge cases:**
 - All lines `cash` + internal, no shortfall → same storage as « Caisse interne » + settlement (rule 11).
 - A single line equal to the amount due → accepted; it records the method (« Chèque 122,00 € »).

@@ -295,6 +295,8 @@ final class GF_Blocks
                 'gvConditionsPreview' => __('Valable %d mois à compter du paiement, sur une réservation directe, en une ou plusieurs fois. Ni repris ni échangé contre de l’argent.', 'guestflow-booking'),
                 'gvConditionsUntil' => __('Valable jusqu’au %s sur une réservation directe, en une ou plusieurs fois. Ni repris ni échangé contre de l’argent.', 'guestflow-booking'),
                 'gvPaymentFailed' => __('Paiement non abouti. Aucun bon n’a été émis.', 'guestflow-booking'),
+                'gvLinkExpired'   => __('Le lien de paiement a expiré. Aucun paiement n’a été pris.', 'guestflow-booking'),
+                'gvRestart'       => __('Recommencer', 'guestflow-booking'),
                 'gvConfirming'    => __('Confirmation du paiement en cours…', 'guestflow-booking'),
                 'gvStillPending'  => __('Paiement en attente. Si le paiement vient d’être effectué, patienter quelques instants puis recharger cette page.', 'guestflow-booking'),
                 'gvNotFound'      => __('Ce lien ne correspond à aucun bon.', 'guestflow-booking'),

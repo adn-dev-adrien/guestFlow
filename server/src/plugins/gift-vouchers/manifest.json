@@ -1,7 +1,7 @@
 {
   "id": "gift-vouchers",
   "name": "Bons cadeaux",
-  "version": "1.2.0",
+  "version": "1.3.0",
   "description": "Des bons cadeaux d’un montant libre : créés à la main, imprimables en PDF, vérifiés par leur code.",
   "icon": "gift",
   "surfaces": [
@@ -17,6 +17,12 @@
   "guestflow": ">=3.10.0",
   "sdk": "^2.32.0",
   "changelog": {
+    "1.3.0": [
+      "Le lien de paiement d’un bon dure une heure (30 minutes avant) ; passé ce délai il est retiré chez le prestataire et la page de retour propose de recommencer. Un paiement fait dans l’heure mais confirmé après émet quand même le bon.",
+      "Une commande jamais payée reste 7 jours en coulisse, invisible, puis disparaît.",
+      "Un réglage « TVA des bons cadeaux » (10 % par défaut, de 0 à 100 %, deux décimales au plus) : le taux est figé sur chaque bon à sa vente, le reçu de l’acheteur indique la TVA (variable {vat}), la fiche du bon montre HT et TVA, et la vente entre dans l’export comptable en HT + TVA.",
+      "Demande le SDK 2.32 de GuestFlow."
+    ],
     "1.2.0": [
       "Un bon se règle sur une réservation : au moment de réserver sur le site (un champ « Bon cadeau », le code vérifié avant tout appel), ou depuis la fiche (« Payer par bon cadeau », annulable).",
       "Le bon paie d’abord l’acompte, puis le solde ; la carte ne règle que le reste, et rien n’est demandé quand le bon couvre tout. Le montant est reçu comme un moyen de paiement : le prix, la taxe de séjour et la commission du séjour ne changent pas, et la banque n’attend pas cette somme.",

@@ -116,6 +116,7 @@ function buildAdminController({
     return {
       ...summary(v),
       message: v.message,
+      vat: rules.vatSplit(v.amountCents, v.vatRatePercent),
       codeMasked: plain ? code.mask(plain) : null,
       canCancel: !v.cancelledAt && !movements.hasKind(v.id, 'redeem'),
       movements: movements.list(v.id).map((m) => presentMovement(m, userName)),

@@ -5,7 +5,7 @@
  * (`GF.api`, `GF.el`, `GF.t`), the proof-of-work worker and the field styles.
  *
  *   loading → form ─(pay)→ [redirect to the hosted payment page]
- *   ?gf_voucher=<id>&gf_token=<t> → waiting (poll) → voucher | failed | still pending
+ *   ?gf_voucher=<id>&gf_token=<t> → waiting (poll) → voucher | failed | link expired (« Recommencer ») | still pending
  *
  * No money logic lives here: the bounds, the priced ideas, the validity and the voucher come from
  * GuestFlow. The one rule the client repeats is the amount's shape, as a hint before a request is
@@ -341,6 +341,7 @@
       var code = err && err.code;
       var text = (err && typeof err.message === 'string' && err.message) || GF.errorMessage(res);
       if (code === 'VOUCHER_AMOUNT_OUT_OF_BOUNDS') { setError('amount', text); amountInput.focus(); return; }
+      if (code === 'PAYMENT_LINK_EXPIRED') { pending = null; showAlert(text); return; }
       if (code === 'EMAIL_INVALID') { setError('email', text); emailInput.focus(); return; }
       if (code === 'TERMS_REQUIRED') { setError('terms', text); termsInput.focus(); return; }
       showAlert(res.status === 429 ? (text || GF.t('gvTooMany')) : text);
@@ -467,11 +468,26 @@
 
     function stop(className, key) { say(GF.el('div', { class: className, role: 'status' }, GF.t(key))); }
 
+    // The payment link lived its hour: nothing was paid, the form starts again on the page the visitor left.
+    function expired() {
+      var again = GF.el('button', { type: 'button', class: 'gf-btn gf-btn-alt' }, GF.t('gvRestart'));
+      again.addEventListener('click', function () {
+        var url = new URL(window.location.href);
+        url.searchParams.delete('gf_voucher');
+        url.searchParams.delete('gf_token');
+        window.location.assign(url.toString());
+      });
+      say(GF.el('div', {},
+        GF.el('div', { class: 'gf-inline-warn', role: 'status' }, GF.t('gvLinkExpired')),
+        again));
+    }
+
     function poll() {
       GF.api('GET', '/gift-vouchers/orders/' + orderId + '?token=' + encodeURIComponent(token)).then(function (res) {
         if (res.status === 404) { stop('gf-inline-warn', 'gvNotFound'); return; }
         var order = (res.body && res.body.data) || {};
         if (order.voucher) { voucherPage(order); return; }
+        if (order.state === 'link-expired') { expired(); return; }
         if (order.state === 'cancelled' || order.state === 'expired' || order.state === 'failed') { stop('gf-inline-warn', 'gvPaymentFailed'); return; }
         waiting();
         tries += 1;

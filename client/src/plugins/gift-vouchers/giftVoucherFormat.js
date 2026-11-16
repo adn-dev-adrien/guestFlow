@@ -12,4 +12,13 @@ export function eurosToCents(text) {
   return Math.round(Number(clean) * 100);
 }
 
+// UX hint only, shown while typing: the server judges the rate again on save and its sentence wins.
+export function vatRateHint(text, T) {
+  const raw = String(text).trim().replace(/\s/g, '').replace(',', '.');
+  if (raw === '') return T.empty;
+  if (!/^\d+(\.\d+)?$/.test(raw)) return T.notNumber;
+  if (!/^\d+(\.\d{1,2})?$/.test(raw)) return T.decimals;
+  return Number(raw) > 100 ? T.range : null;
+}
+
 export const centsToEuros = (cents) => String(Number(cents) / 100).replace('.', ',');

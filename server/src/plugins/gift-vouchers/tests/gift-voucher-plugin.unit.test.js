@@ -81,7 +81,7 @@ test('rules 1, 4: it mounts one public tree and one admin tree, declares its set
   });
   withPepper(undefined, () => gv.register(ctx));
   assert.deepEqual(calls.mounts, [['/public/v1/gift-vouchers', true], ['/api/gift-vouchers', false]]);
-  assert.deepEqual(calls.settings, ['validityMonths', 'minAmountCents', 'maxAmountCents', 'ideas', 'pageUrl', 'bookingUrl', 'mailSubjectFr', 'mailBodyFr', 'mailSubjectEn', 'mailBodyEn']);
+  assert.deepEqual(calls.settings, ['validityMonths', 'minAmountCents', 'maxAmountCents', 'vatRatePercent', 'ideas', 'pageUrl', 'bookingUrl', 'mailSubjectFr', 'mailBodyFr', 'mailSubjectEn', 'mailBodyEn']);
   assert.deepEqual(calls.jobs, ['pending-orders-purge', 'receipts-retry', 'holds-release', 'checks-purge']);
   assert.deepEqual(calls.prepaid, [['giftVoucher', 'Bon cadeau']]);
   assert.deepEqual(calls.attention, ['gift-voucher-checks']);

@@ -1,6 +1,6 @@
 /**
  * The plugin's settings (specs/gift-vouchers.md rules 6, 7, 14, 22, 23), each with the check `PUT /api/plugins/:id/settings` runs.
- * `pageUrl` is the site page holding the voucher (the link of the e-mail); `bookingUrl` the booking page the PDF's QR code opens.
+ * `vatRatePercent` (rule 43) is the VAT of the vouchers sold from the moment it is saved. `pageUrl` is the site page holding the voucher (the link of the e-mail); `bookingUrl` the booking page the PDF's QR code opens.
  * Both fall back to the site's origin.
  */
 
@@ -12,14 +12,14 @@ const MAX_NIGHTS = 60;
 const MAX_GUESTS = 30;
 const MAX_SUBJECT = 150;
 const MAX_BODY = 5000;
-const PLACEHOLDERS = Object.freeze(['amount', 'expiry', 'link', 'recipientName', 'senderName', 'number']);
+const PLACEHOLDERS = Object.freeze(['amount', 'vat', 'expiry', 'link', 'recipientName', 'senderName', 'number']);
 const IDEA_KEYS = Object.freeze(['label', 'propertyId', 'nights', 'guests']);
 
 const DEFAULT_MAIL = Object.freeze({
   mailSubjectFr: 'Le bon cadeau de {amount} est prêt',
-  mailBodyFr: 'Bonjour,\n\nLe paiement est bien reçu : le bon cadeau {number} de {amount} est prêt. Il est valable jusqu’au {expiry}.\n\nLe bon, avec son code, s’ouvre et s’imprime ici : {link}\n\nBelle journée.',
+  mailBodyFr: 'Bonjour,\n\nLe paiement est bien reçu : le bon cadeau {number} est prêt.\n\nMontant : {amount}{vat}. Il est valable jusqu’au {expiry}.\n\nLe bon, avec son code, s’ouvre et s’imprime ici : {link}\n\nBelle journée.',
   mailSubjectEn: 'The {amount} gift voucher is ready',
-  mailBodyEn: 'Hello,\n\nThe payment has been received: gift voucher {number} for {amount} is ready. It is valid until {expiry}.\n\nThe voucher and its code can be opened and printed here: {link}\n\nKind regards.',
+  mailBodyEn: 'Hello,\n\nThe payment has been received: gift voucher {number} is ready.\n\nAmount: {amount}{vat}. It is valid until {expiry}.\n\nThe voucher and its code can be opened and printed here: {link}\n\nKind regards.',
 });
 
 const isPositiveInt = (v) => Number.isInteger(v) && v > 0;
@@ -91,6 +91,7 @@ const DECLARED = Object.freeze([
     default: String(rules.DEFAULT_MAX_CENTS),
     validate: (v) => intError(v, { min: 100, max: 10000000, message: 'Montant maximal invalide (en centimes, au plus 100 000 €).' }),
   },
+  { key: 'vatRatePercent', default: String(rules.DEFAULT_VAT_PERCENT), validate: (v) => { const r = rules.checkVatRate(v); return r.ok ? null : r.message; } },
   { key: 'ideas', default: '[]', validate: ideasError },
   { key: 'pageUrl', default: '', validate: httpsUrlError },
   { key: 'bookingUrl', default: '', validate: httpsUrlError },
@@ -113,9 +114,15 @@ function limitsOf(get) {
   };
 }
 
+/** Rule 43 — the VAT rate in force for the next voucher sold; an unreadable value falls back to the default. */
+function vatRateOf(get) {
+  const read = rules.checkVatRate(get('vatRatePercent'));
+  return read.ok ? read.percent : rules.DEFAULT_VAT_PERCENT;
+}
+
 /** The stored ideas, as a list; an unreadable value is no idea at all. */
 const ideasOf = (get) => (ideasError(get('ideas')) ? [] : parseIdeas(get('ideas')));
 
 module.exports = {
-  DECLARED, PLACEHOLDERS, DEFAULT_MAIL, MAX_IDEAS, ideasError, ideasOf, limitsOf, parseIdeas,
+  DECLARED, PLACEHOLDERS, DEFAULT_MAIL, MAX_IDEAS, ideasError, ideasOf, limitsOf, parseIdeas, vatRateOf,
 };

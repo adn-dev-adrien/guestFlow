@@ -12,12 +12,21 @@ const escapeHtml = (s) => String(s).replace(/[&<>"']/g, (c) => ({
 
 const fill = (template, values, format) => String(template).replace(/\{([^{}]*)\}/g, (match, name) => (PLACEHOLDERS.includes(name) ? format(name, values[name] ?? '') : match));
 
+/** « , dont TVA 10 % : 13,64 € » — the tail of the amount's sentence, empty when the voucher carries no VAT. */
+function vatSentence(voucher, language) {
+  if (!(Number(voucher.vatRatePercent) > 0)) return '';
+  const { vatCents } = rules.vatSplit(voucher.amountCents, voucher.vatRatePercent);
+  if (language === 'en') return `, including VAT ${String(Number(voucher.vatRatePercent))}%: ${rules.formatEuros(vatCents)}`;
+  return `, dont TVA ${rules.formatPercent(voucher.vatRatePercent)} : ${rules.formatEuros(vatCents)}`;
+}
+
 /** → `{ subject, text, html }`. `get(key)` reads the plugin's settings. */
 function renderMail({ voucher, link, language }, get) {
   const lang = language === 'en' ? 'En' : 'Fr';
   const values = {
     amount: rules.formatEuros(voucher.amountCents),
     expiry: language === 'en' ? voucher.expiresOn : rules.formatFrDate(voucher.expiresOn),
+    vat: vatSentence(voucher, language),
     link,
     recipientName: voucher.recipientName || '',
     senderName: voucher.senderName || '',

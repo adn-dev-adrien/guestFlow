@@ -12,7 +12,7 @@ vi.mock('../giftVouchersApi', () => ({
 }));
 
 const stored = {
-  validityMonths: '18', minAmountCents: '2000', maxAmountCents: '200000', pageUrl: '', bookingUrl: '',
+  validityMonths: '18', vatRatePercent: '10', minAmountCents: '2000', maxAmountCents: '200000', pageUrl: '', bookingUrl: '',
   ideas: JSON.stringify([{ label: 'Week-end', propertyId: 7, nights: 2, guests: 2 }]),
   mailSubjectFr: 'Objet', mailBodyFr: 'Corps', mailSubjectEn: 'Subject', mailBodyEn: 'Body',
 };

@@ -15,15 +15,17 @@ const IP = '10.0.0.1';
 function paymentsStub(over = {}) {
   const asked = [];
   const refreshed = [];
+  const link = { status: 'open' };
   return {
     asked,
     refreshed,
+    link,
     saleLink: async (sale, options) => {
       asked.push({ sale, options });
       if (over.fail) throw over.fail;
       return { linkId: 40 + asked.length, url: `https://pay.example.test/${asked.length}`, amountCents: sale.amountCents };
     },
-    refreshLink: async (linkId) => { refreshed.push(linkId); return 'open'; },
+    refreshLink: async (linkId) => { refreshed.push(linkId); return link.status; },
   };
 }
 
@@ -166,7 +168,9 @@ test('rule 16: paying mints a link with no reservation for the exact amount, lab
   assert.deepEqual(res.body.data, { paymentUrl: 'https://pay.example.test/1' });
   assert.equal(payments.asked.length, 1);
   const { sale, options } = payments.asked[0];
-  assert.deepEqual(sale, { ref: orderId, title: 'Bon cadeau de 150,50 €', amountCents: 15050 });
+  assert.deepEqual(sale, {
+    ref: orderId, title: 'Bon cadeau de 150,50 €', amountCents: 15050, validityMinutes: 60,
+  });
   assert.equal('reservationId' in sale, false);
   assert.equal(options.redirectUrl, `https://site.example.test/bon-cadeau/?gf_voucher=${orderId}&gf_token=${token}`);
   assert.equal(db.prepare('SELECT linkId FROM gift_voucher_orders WHERE id = ?').get(orderId).linkId, 41);
@@ -446,4 +450,75 @@ test('rule 2: the offer says the online sale is available only when a payment ca
   assert.deepEqual([on.available, on.brand, on.termsVersionId], [true, 'Domaine Solio', 4]);
   state.available = false;
   assert.equal((await server.call('GET', '/public/v1/gift-vouchers/offer')).body.data.available, false);
+}));
+
+test('rule 16: the payment link lives one hour — asking again before its end hands the same link back, so the buyer who comes back keeps it', () => withShop(async ({ placed, pay, payments }) => {
+  const { orderId, token } = await placed();
+  await pay(orderId, { token });
+  await pay(orderId, { token });
+  assert.deepEqual(payments.asked.map((a) => a.sale.validityMinutes), [60, 60], 'every ask states the hour; the core hands back the open link');
+  assert.deepEqual(payments.refreshed, [41], 'the second ask read the first link, still open');
+}));
+
+test('rule 16: past its hour the link is gone — no new link is minted, the page says so, and the order is not a voucher', () => withShop(async ({
+  placed, pay, view, payments, state, db, server,
+}) => {
+  const { orderId, token } = await placed();
+  await pay(orderId, { token });
+  assert.equal((await view(orderId, token)).body.data.state, 'pending');
+  payments.link.status = 'expired';
+  const read = await view(orderId, token);
+  assert.deepEqual([read.status, read.body.data], [200, { state: 'link-expired' }]);
+  const again = await pay(orderId, { token });
+  assert.deepEqual([again.status, again.body.error.code], [409, 'PAYMENT_LINK_EXPIRED']);
+  assert.equal(again.body.error.message, 'Le lien de paiement a expiré. Aucun paiement n’a été pris.');
+  assert.equal(payments.asked.length, 1, 'nothing was minted again');
+  assert.equal(rows(db, 'gift_vouchers').length, 0);
+  assert.equal(rows(db, 'gift_voucher_orders').length, 1, 'the order stays, invisible');
+  assert.deepEqual((await server.call('GET', '/api/gift-vouchers')).body.items, []);
+  state.available = true;
+}));
+
+test('rule 16: a link withdrawn for any reason reads the same way, a link paid meanwhile reads « pending » and cannot be paid again', () => withShop(async ({
+  placed, pay, view, payments,
+}) => {
+  const { orderId, token } = await placed();
+  await pay(orderId, { token });
+  payments.link.status = 'cancelled';
+  assert.equal((await view(orderId, token)).body.data.state, 'link-expired');
+  payments.link.status = 'paid';
+  assert.equal((await view(orderId, token)).body.data.state, 'pending', 'confirmed by the bank, the voucher is being issued');
+  const again = await pay(orderId, { token });
+  assert.deepEqual([again.status, again.body.error.code], [409, 'PAYMENT_PENDING']);
+}));
+
+test('rule 45: a payment made while the link was valid and confirmed after it was withdrawn still issues the voucher — never « à rembourser »', () => withShop(async ({
+  placed, pay, view, paid, payments, db,
+}) => {
+  const { orderId, token } = await placed();
+  await pay(orderId, { token });
+  payments.link.status = 'expired';
+  assert.equal((await view(orderId, token)).body.data.state, 'link-expired');
+  const outcome = paid(orderId, 41);
+  assert.deepEqual(outcome, { effect: 'voucher-issued' });
+  assert.equal(rows(db, 'gift_vouchers').length, 1);
+  payments.link.status = 'paid';
+  const page = await view(orderId, token);
+  assert.equal(page.body.data.state, 'active');
+  assert.equal(page.body.data.voucher.amountCents, 15000);
+}));
+
+test('rule 18: an order whose link lapsed unpaid stays invisible for 7 days, then goes; its issued sibling never does', () => withShop(async ({
+  placed, pay, payments, clock, api, db,
+}) => {
+  const { orderId, token } = await placed();
+  await pay(orderId, { token });
+  payments.link.status = 'expired';
+  clock.at = new Date(clock.at.getTime() + 1 * HOUR + 60 * 1000);
+  assert.equal(api.purgeStaleOrders(), 0, 'one hour after: the link is gone, the order is kept');
+  clock.at = new Date(clock.at.getTime() + 6 * DAY);
+  assert.equal(api.purgeStaleOrders(), 0, 'six days later still');
+  clock.at = new Date(clock.at.getTime() + 1 * DAY);
+  assert.equal(api.purgeStaleOrders(), 1);
+  assert.equal(rows(db, 'gift_voucher_orders').length, 0);
 }));

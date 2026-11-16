@@ -14,6 +14,8 @@ const MAX_EMAIL = 254;
 const MAX_RETURN_PATH = 200;
 const ORDERS_PER_HOUR = 5;
 const HOUR_MS = 60 * 60 * 1000;
+const LINK_MINUTES = 60;
+const DEAD_LINK = new Set(['expired', 'cancelled']);
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 const STATUS = Object.freeze({
@@ -23,6 +25,7 @@ const STATUS = Object.freeze({
   ONLINE_SALE_UNAVAILABLE: 409,
   VOUCHER_ALREADY_ISSUED: 409,
   PAYMENT_PENDING: 409,
+  PAYMENT_LINK_EXPIRED: 409,
   PAYMENT_PROVIDER_ERROR: 502,
 });
 
@@ -39,6 +42,7 @@ const MESSAGES = Object.freeze({
   VOUCHER_ORDER_NOT_FOUND: { fr: 'Bon introuvable.', en: 'Voucher not found.' },
   VOUCHER_ALREADY_ISSUED: { fr: 'Ce bon est déjà payé.', en: 'This voucher is already paid.' },
   PAYMENT_PENDING: { fr: 'Un paiement est en cours de confirmation.', en: 'A payment is being confirmed.' },
+  PAYMENT_LINK_EXPIRED: { fr: 'Le lien de paiement a expiré. Aucun paiement n’a été pris.', en: 'The payment link has expired. No payment was taken.' },
   PAYMENT_PROVIDER_ERROR: { fr: 'Le paiement n’a pas pu être préparé, réessayer.', en: 'The payment could not be prepared, please try again.' },
 });
 
@@ -147,10 +151,15 @@ function buildPublicOrdersController({
     const order = orderOf(req, body.token);
     if (!available()) throw new Refusal('ONLINE_SALE_UNAVAILABLE');
     if (order.state === 'issued') throw new Refusal('VOUCHER_ALREADY_ISSUED');
+    if (order.linkId) {
+      const known = await payments.refreshLink(order.linkId);
+      if (DEAD_LINK.has(known)) throw new Refusal('PAYMENT_LINK_EXPIRED');
+      if (known === 'paid') throw new Refusal('PAYMENT_PENDING');
+    }
     let link;
     try {
       link = await payments.saleLink({
-        ref: order.id, title: `Bon cadeau de ${rules.formatEuros(order.amountCents)}`, amountCents: order.amountCents,
+        ref: order.id, title: `Bon cadeau de ${rules.formatEuros(order.amountCents)}`, amountCents: order.amountCents, validityMinutes: LINK_MINUTES,
       }, { redirectUrl: returnUrlOf(order, body.token, body.returnPath) });
     } catch (error) {
       if (error && error.error === 'LINK_ALREADY_PAID') throw new Refusal('PAYMENT_PENDING');
@@ -161,16 +170,20 @@ function buildPublicOrdersController({
     return respond.ok(res, { paymentUrl: link.url });
   });
 
-  /** Rule 20 — the order's state and, once the bank confirmed, the voucher. Reading it asks the bank again while it is pending. */
+  /**
+ * Rule 20 — the order's state and, once the bank confirmed, the voucher. Reading it asks the bank again while it is pending; a link that
+ * lapsed unpaid (rule 16, one hour) answers `link-expired`, and a payment confirmed after that still issues the voucher (rule 45).
+ */
   const status = guarded(async (req, res) => {
     let order = orderOf(req, req.query.token);
+    let linkStatus = null;
     if (order.state === 'pending' && order.linkId) {
-      await payments.refreshLink(order.linkId);
+      linkStatus = await payments.refreshLink(order.linkId);
       order = orders.find(order.id);
     }
     res.set('Cache-Control', 'no-store');
     const voucher = vouchers.findByOrderId(order.id);
-    if (!voucher) return respond.ok(res, { state: 'pending' });
+    if (!voucher) return respond.ok(res, { state: DEAD_LINK.has(linkStatus) ? 'link-expired' : 'pending' });
     const state = rules.stateOf({ voucher, balanceCents: voucher.balanceCents, today: rules.parisDate(now()) });
     const plain = state === 'cancelled' ? null : readCode(voucher);
     return respond.ok(res, {

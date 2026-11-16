@@ -4,14 +4,16 @@
  * owning plugin's (`ctx.paymentBasket`, settled by `paymentPollRunner.applyPaidEffect`).
  *
  *   basketLink(reservationId, basket, { redirectUrl }) → { linkId, url, amountCents, expiresAt }   throws { httpStatus, error, message }
- *   saleLink({ source, ref, title, amountCents }, { redirectUrl }) → { linkId, url, amountCents, expiresAt, reused }   a basket with no stay (SDK 2.32.0)
- *   refreshBasketLink(linkId)  → the link's status after an on-demand read of the provider (`open`, `paid`, …), or null
+ *   saleLink({ source, ref, title, amountCents, validityMinutes? }, { redirectUrl }) → { linkId, url, amountCents, expiresAt, reused }   a basket with no stay (SDK 2.32.0)
+ *   refreshBasketLink(linkId)  → the link's status after an on-demand read of the provider (`open`, `paid`, …), or null; a sale link
+ *                                past its end is lapsed on the spot (`expired`), its deactivation owed to the poll
  *   withdrawBasketLink(linkId) → the link's status once withdrawn (`cancelled`), `paid` when the guest paid meanwhile
  */
 
 const paymentsController = () => require('../controllers/paymentsController');
 const paymentLinksModel = () => require('../models/paymentLinksModel');
 const paymentProviders = () => require('./paymentProviders');
+const { LINK_REASONS } = require('../constants/paymentLinks');
 
 async function basketLink(reservationId, basket, { redirectUrl = null } = {}) {
   const link = await paymentsController().ensureBasketLinkFor(Number(reservationId), basket, { redirectUrl });
@@ -44,7 +46,14 @@ async function refreshBasketLink(linkId) {
       }
     } catch { /* best effort: the poll reads it later */ }
   }
-  const now = links.findById(Number(linkId));
+  let now = links.findById(Number(linkId));
+  if (now && now.saleRef && now.status === 'open') {
+    const endMs = links.knownExpiryMs(now.expiresAt);
+    if (endMs != null && endMs <= Date.now()) {
+      links.lapseIfOpen(now.id, { reason: LINK_REASONS.VALIDITY });
+      now = links.findById(Number(linkId));
+    }
+  }
   return now ? now.status : null;
 }
 

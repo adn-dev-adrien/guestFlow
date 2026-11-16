@@ -1,6 +1,6 @@
 /**
  * Issuing a voucher: one transaction that draws the code, writes the voucher and its `issue` movement and closes the
- * order (specs/gift-vouchers.md rules 17, 24, 30-32). The code is shown by the caller once; only its hash and its
+ * order (specs/gift-vouchers.md rules 17, 24, 30-32, 43). The VAT rate in force is frozen on the voucher with its expiry. The code is shown by the caller once; only its hash and its
  * encrypted copy are stored.
  */
 
@@ -8,7 +8,7 @@ const code = require('./code');
 const rules = require('./voucherRules');
 
 function createIssuance({
-  db, vouchers, orders, movements, pepper, encrypt, now = () => new Date(), randomBytes,
+  db, vouchers, orders, movements, pepper, encrypt, now = () => new Date(), randomBytes, vatRatePercent = () => rules.DEFAULT_VAT_PERCENT,
 }) {
   /**
    * The order is already created; `idempotencyKey` makes a replay (a link paid twice, a replayed webhook) issue nothing
@@ -34,6 +34,7 @@ function createIssuance({
       amountCents: order.amountCents,
       issuedAt: issuedAt.toISOString(),
       expiresOn: rules.expiryFor(today, validityMonths),
+      vatRatePercent: vatRatePercent(),
     });
     movements.append({
       voucherId, kind: 'issue', amountCents: order.amountCents, actor, idempotencyKey,

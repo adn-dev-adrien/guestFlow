@@ -31,7 +31,7 @@ export const TEXTS = Object.freeze({
   columns: { number: 'Bon', from: 'De la part de', to: 'Pour', issued: 'Émis le', state: 'État', balance: 'Solde', expiry: 'Expire le' },
   detail: {
     code: 'Code', reveal: 'Afficher le code', hide: 'Masquer le code', expiry: 'Valable jusqu’au', balance: 'Solde',
-    from: 'De la part de', to: 'Pour', email: 'E-mail', message: 'Message', movements: 'Mouvements', close: 'Fermer',
+    from: 'De la part de', to: 'Pour', email: 'E-mail', vat: 'TVA', message: 'Message', movements: 'Mouvements', close: 'Fermer',
     resend: 'Renvoyer le mail', pdf: 'Télécharger le PDF', extend: 'Prolonger', cancel: 'Annuler le bon', adjust: 'Corriger le solde',
     cancelNotAllowed: 'Ce bon a déjà servi : il ne peut plus être annulé.',
     noEmail: 'Aucune adresse e-mail sur ce bon.',
@@ -93,6 +93,11 @@ export const SETTINGS_TEXTS = Object.freeze({
   saved: 'Réglages enregistrés.',
   loadError: 'Les réglages n’ont pas pu être chargés.',
   validity: { title: 'Validité et montants', months: 'Validité (mois)', min: 'Montant minimal (€)', max: 'Montant maximal (€)' },
+  vat: {
+    title: 'TVA', rate: 'TVA des bons cadeaux', unit: '%', help: 'S’applique aux bons vendus à partir de l’enregistrement. Un bon déjà vendu garde son taux.',
+    empty: 'Saisir un taux (0 si les bons ne portent pas de TVA).', notNumber: 'Saisir un nombre, par exemple 10 ou 5,5.',
+    decimals: 'Deux décimales au plus.', range: 'Saisir un taux entre 0 et 100 %.',
+  },
   pages: {
     title: 'Adresses',
     pageUrl: 'Page du bon sur le site',
@@ -107,7 +112,7 @@ export const SETTINGS_TEXTS = Object.freeze({
   },
   mail: {
     title: 'Mail du bon',
-    help: 'Mots disponibles : {amount}, {expiry}, {link}, {recipientName}, {senderName}, {number}.',
+    help: 'Mots disponibles : {amount}, {vat}, {expiry}, {link}, {recipientName}, {senderName}, {number}.',
     subjectFr: 'Objet (français)', bodyFr: 'Message (français)', subjectEn: 'Objet (anglais)', bodyEn: 'Message (anglais)',
   },
 });

@@ -76,8 +76,12 @@ const TABLES_SQL = `
 
 const TABLES = Object.freeze(['gift_voucher_orders', 'gift_vouchers', 'gift_voucher_movements', 'gift_voucher_checks']);
 
+// Rule 43 — the VAT rate frozen on a voucher when it is sold; the vouchers sold before it existed were sold at 10 %.
+const VAT_SQL = 'ALTER TABLE gift_vouchers ADD COLUMN vatRatePercent REAL NOT NULL DEFAULT 10';
+
 const MIGRATIONS = Object.freeze([
   { name: 'gift_vouchers_tables_v1', up: (db) => db.exec(TABLES_SQL) },
+  { name: 'gift_vouchers_vat_v1', up: (db) => db.exec(VAT_SQL) },
 ]);
 
 module.exports = { MIGRATIONS, TABLES };

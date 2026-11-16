@@ -6,7 +6,7 @@
  */
 import React, { useCallback, useEffect, useState } from 'react';
 import {
-  Box, Button, Card, CardContent, IconButton, MenuItem, Stack, TextField, Tooltip, Typography,
+  Box, Button, Card, CardContent, IconButton, InputAdornment, MenuItem, Stack, TextField, Tooltip, Typography,
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutlined';
@@ -14,7 +14,7 @@ import {
   ErrorAlert, HelpedTextField, LoadingState, PageActionBar, useToast,
 } from '../sdk';
 import giftVouchersApi from './giftVouchersApi';
-import { centsToEuros, eurosToCents } from './giftVoucherFormat';
+import { centsToEuros, eurosToCents, vatRateHint } from './giftVoucherFormat';
 import { SETTINGS_TEXTS as T } from './giftVoucherTexts';
 
 const MAX_IDEAS = 6;
@@ -32,6 +32,7 @@ function parseIdeas(raw) {
 function draftOf(values) {
   return {
     validityMonths: String(values.validityMonths ?? ''),
+    vatRatePercent: String(values.vatRatePercent ?? '').replace('.', ','),
     minAmount: centsToEuros(values.minAmountCents),
     maxAmount: centsToEuros(values.maxAmountCents),
     pageUrl: values.pageUrl || '',
@@ -45,6 +46,7 @@ function payloadOf(draft) {
   const toCents = (text) => { const c = eurosToCents(text); return c === null ? text : String(c); };
   return {
     validityMonths: draft.validityMonths,
+    vatRatePercent: draft.vatRatePercent,
     minAmountCents: toCents(draft.minAmount),
     maxAmountCents: toCents(draft.maxAmount),
     pageUrl: draft.pageUrl,
@@ -58,7 +60,7 @@ function payloadOf(draft) {
 
 // The server's message for a key, shown on the field it names.
 const ERROR_FIELDS = {
-  validityMonths: 'validityMonths', minAmountCents: 'minAmount', maxAmountCents: 'maxAmount', ideas: 'ideas', pageUrl: 'pageUrl', bookingUrl: 'bookingUrl',
+  validityMonths: 'validityMonths', vatRatePercent: 'vatRatePercent', minAmountCents: 'minAmount', maxAmountCents: 'maxAmount', ideas: 'ideas', pageUrl: 'pageUrl', bookingUrl: 'bookingUrl',
 };
 
 function IdeaRow({
@@ -130,6 +132,7 @@ export default function GiftVoucherSettings() {
   }, []);
   useEffect(load, [load]);
 
+  const vatHint = draft ? vatRateHint(draft.vatRatePercent, T.vat) : null;
   const dirty = Boolean(draft) && JSON.stringify(draft) !== JSON.stringify(saved);
   const set = (key) => (event) => {
     setDraft((d) => ({ ...d, [key]: event.target.value }));
@@ -167,7 +170,7 @@ export default function GiftVoucherSettings() {
 
   const bar = (
     <PageActionBar
-      title={T.title} onSave={save} saveDisabled={!dirty} saveBusy={busy} onCancel={() => { setDraft(saved); setErrors({}); }} cancelDisabled={!dirty}
+      title={T.title} onSave={save} saveDisabled={!dirty || Boolean(vatHint)} saveBusy={busy} onCancel={() => { setDraft(saved); setErrors({}); }} cancelDisabled={!dirty}
     />
   );
 
@@ -187,6 +190,16 @@ export default function GiftVoucherSettings() {
             {field('validityMonths', T.validity.months, { type: 'number', slotProps: { htmlInput: { min: 1, inputMode: 'numeric' } } })}
             {field('minAmount', T.validity.min, { slotProps: { htmlInput: { inputMode: 'decimal' } } })}
             {field('maxAmount', T.validity.max, { slotProps: { htmlInput: { inputMode: 'decimal' } } })}
+          </Box>
+        </Section>
+
+        <Section title={T.vat.title}>
+          <Box sx={{ maxWidth: 280 }}>
+            <TextField
+              label={T.vat.rate} value={draft.vatRatePercent} onChange={set('vatRatePercent')} size="small" fullWidth
+              error={Boolean(vatHint || errors.vatRatePercent)} helperText={vatHint || errors.vatRatePercent || T.vat.help}
+              slotProps={{ htmlInput: { inputMode: 'decimal', 'aria-invalid': Boolean(vatHint) }, input: { endAdornment: <InputAdornment position="end">{T.vat.unit}</InputAdornment> } }}
+            />
           </Box>
         </Section>
 

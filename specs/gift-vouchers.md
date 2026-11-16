@@ -114,8 +114,16 @@ code types it while booking dates, and the voucher's balance pays for the stay, 
     link of a plugin basket with no stay (`core.payments.saleLink`, SDK 2.32.0). It sits on the same
     `payment_links` row and the same `saleRef` column as the standalone sale of pricing-components
     PR C — `saleRef = giftVoucher:<orderId>` — but not on its sale document, which prices articles:
-    a voucher is not an article. The link lives 30 minutes; asking again hands back the open link
-    while it has 5 minutes left, otherwise the old one is retired and a new one minted. The visitor
+    a voucher is not an article. **The link lives one hour** (Adrien, 2026-11-16): the plugin asks the core for
+    `validityMinutes: 60`, a generic parameter of `saleLink` (1 to 1440, 30 when absent, which keeps the 30-minute
+    link and its 5-minute reuse margin for every other caller). A sale that states its own life holds the end as a
+    hard bound: asking again hands back the open link until it lapses, so the buyer who comes back before the hour
+    keeps the same link and no link outlives the hour. **Past the hour the link is withdrawn**: the core's lifecycle
+    pass lapses it (`expired`, reason `validity`), the poll deactivates it at the provider (Qonto links have no
+    expiry of their own, the deactivation is the withdrawal) and an on-demand read of a lapsed sale link lapses it
+    on the spot. Asking to pay such an order again is refused `409 PAYMENT_LINK_EXPIRED` (« Le lien de paiement a
+    expiré. Aucun paiement n'a été pris. ») and the voucher page answers `state: 'link-expired'`; the WordPress
+    block shows that sentence with « Recommencer » (the form starts again, a new order). The visitor
     is redirected to the hosted page and returns to the page they left (`returnPath`, a path of the
     site; the server builds the address from the site origin) with
     `?gf_voucher=<orderId>&gf_token=<token>`.
@@ -127,9 +135,11 @@ code types it while booking dates, and the voucher's balance pays for the stay, 
     (`reservationId` null); a second link of an already issued order, an amount that is not the
     order's, or an order that is gone are money flagged « à rembourser » on the link, never a voucher.
     The status read of the voucher page asks the bank again while the order is pending (the same
-    on-demand read as a booking's), so the page does not wait for the poll.
-18. An order whose link expires or is abandoned stays `pending` and is deleted after 7 days by a job. It
-    never shows in the operator's list.
+    on-demand read as a booking's), so the page does not wait for the poll. A voucher is issued **only** on a
+    payment the bank confirmed — until then nothing exists, not even for an order whose link lapsed (rule 45).
+18. An order whose link expires or is abandoned stays `pending` and is deleted after 7 days by a job
+    (decided 2026-11-16: kept behind the scenes, not deleted with its link — the order simply has no live link
+    any more). It never shows in the operator's list.
 19. The terms accepted at purchase are recorded by the plugin on the order (version id of the terms,
     date, visitor IP hash): `terms_acceptances` requires a reservation and is not touched.
 
@@ -235,12 +245,42 @@ code types it while booking dates, and the voucher's balance pays for the stay, 
     cadeau » amount received by a stay is not a second encaissement and is never expected at the bank:
     the tender line is `prepaid`, which is no bank method and whose `collectedCents` the accounting export
     and the finance dashboard's encaissements leave out (mixed-method-payments rule 60). The stay still
-    counts it as received (what it owes, « Perçu »). Open question Q3 settles accounts and VAT.
+    counts it as received (what it owes, « Perçu »). The voucher's own sale is in the books (rules 43-44) and the stay's
+    export entry carries only the part the card collected, so the VAT of the prepaid part is declared once, at the
+    voucher's sale (`mixed-method-payments.md` rule 64). Q3 is resolved on that footing (2026-11-16), pending the accountant.
+
+### 3.H Payment, VAT and the books (Adrien, 2026-11-16)
+
+43. **VAT of a voucher.** Setting `vatRatePercent` (« TVA des bons cadeaux »): 10 by default, from 0 to 100, at most two
+    decimals, `,` or `.` accepted. Refusals, each with its own sentence: empty (« Saisir un taux (0 si les bons ne portent pas
+    de TVA). »), not a number (« Saisir un nombre, par exemple 10 ou 5,5. »), more than two decimals (« Deux décimales au plus. »),
+    above 100 (« Saisir un taux entre 0 et 100 %. »). The rate is **frozen on the voucher when it is sold** (`gift_vouchers.vatRatePercent`,
+    written by the issuance, so by hand and on the site alike — a site voucher is sold when the bank confirms): a later change
+    applies to the vouchers sold from then on only. The server cuts the TTC amount: HT = round(TTC / (1 + rate)), VAT = TTC − HT, to
+    the cent (150 € at 10 % → 136,36 + 13,64; at 5,5 % → 142,18 + 7,82). It is shown in the operator's detail (`vat: { ratePercent,
+    htCents, vatCents }`) and in the receipt e-mail — the template variable `{vat}` is « , dont TVA 10 % : 13,64 € » (empty at 0 %),
+    placed by default after the amount — and **never on the printed voucher** nor on the buyer's voucher page. The vouchers that
+    existed before the setting were sold at 10 % (migration backfill).
+44. **The sale in the books.** Each voucher is a sale made outside any stay: the plugin lists it with `ctx.standaloneSales` — one
+    per voucher, on the Paris day it was issued, `totalCents = booksCents` = the amount, at its frozen rate, label « Bon cadeau
+    BC-… » — and the journal books it as HT + VAT (debit the client, credit « Activité diverse » for the HT and the VAT account of
+    its rate). A card taken by hand (« Nouveau bon », method `card`) counts as an on-site card sale for the card-batch
+    reconciliation; the site's online payment does not (it reaches the bank as a payment-link payout). A cancelled voucher stays in
+    the books of its sale: giving the money back is the operator's and the accountant's (rule 27).
+45. **Late confirmation.** A payment made while the link was valid and confirmed by the bank after it was withdrawn (paid at 59
+    minutes, confirmed at 61) **issues the voucher normally**: the core's poll reads a lapsed link before deactivating it and a
+    withdrawn link it finds paid goes through the same paid path as any other (`processPaidLink`, then `ctx.paymentBasket`), so
+    the money is never flagged « à rembourser » for that reason and a replay issues nothing more (rule 17).
+46. **Paid or nothing.** No voucher exists before its money is received: on the site, only a bank-confirmed payment issues it
+    (rules 17, 45); by hand, « Nouveau bon » refuses a voucher with no payment method (`PAYMENT_METHOD_INVALID`, rule 24).
 
 **Edge cases:**
 - Amount `19,99`, `2000,01`, `12,345`, `abc`, empty → refused inline, each with its own sentence.
 - The buyer closes the tab on the payment page → the order stays `pending`; when the bank confirms, the
   voucher is issued and the e-mail carries the link.
+- The buyer comes back after the hour → « Le lien de paiement a expiré. Aucun paiement n'a été pris. » and « Recommencer »; had the
+  payment gone through at the last minute, the voucher is issued when the bank confirms (rule 45).
+- VAT rate `abc`, `10,555`, `120`, empty → refused with its own sentence, nothing saved.
 - The buyer pays, the webhook never comes → the poll issues the voucher.
 - Two visitors apply the same code at the same second → one `hold` wins (`BEGIN IMMEDIATE`), the other
   is told the balance left.
@@ -266,7 +306,7 @@ code types it while booking dates, and the voucher's balance pays for the stay, 
 | Layer | File | Responsibility |
 |---|---|---|
 | entry | `index.js`, `manifest.json` | `register(ctx)`: migrations, settings, mounts, jobs, events, hooks |
-| schema | `migrations.js` | The four tables of §5 |
+| schema | `migrations.js` | The four tables of §5, then `gift_vouchers_vat_v1` (the frozen VAT rate) |
 | routes | `routes/public.js` | `/public/v1/gift-vouchers/*` behind key, visitor context, limiters |
 | routes | `routes/admin.js` | `/api/gift-vouchers/*` (admin role) |
 | controllers | `controllers/publicOrdersController.js` | Offer, order, pay, status (voucher view), PDF |
@@ -278,7 +318,8 @@ code types it while booking dates, and the voucher's balance pays for the stay, 
 | utils | `movementView.js` | Shapes a ledger row for the screen: French label, Paris day, author name |
 | models | `models/vouchersModel.js`, `models/ordersModel.js`, `models/movementsModel.js`, `models/checksModel.js` | DB access; `movementsModel` is the only writer of balances |
 | utils | `code.js` | Draw, normalise, check character, HMAC, encrypt/decrypt — pure, injected randomness |
-| utils | `voucherRules.js` | Amount bounds, expiry, derived state, what a redeem may take — pure |
+| utils | `voucherRules.js` | Amount bounds, expiry, derived state, what a redeem may take, the VAT rate check and the HT / VAT cut — pure |
+| utils | `books.js` | The vouchers sold, as the standalone sales the journal reads (rule 44); declared with `ctx.standaloneSales` in `index.js` |
 | utils | `ideas.js` | Price guidance from the quote engine, cached (rule 14) |
 | utils | `voucherPdf.js` | pdfkit A4 voucher + QR |
 | utils | `rateLimiters.js` | Per-visitor limits and the global breaker |
@@ -292,7 +333,7 @@ code types it while booking dates, and the voucher's balance pays for the stay, 
 |---|---|---|---|
 | `plugins/sdk/` | `index.js`, `createContext.js` | T | Export the public API guard chain (`middleware.publicApi`), moved out of `website-booking`; `ctx.mail.send({ to, subject, text, html, key })` for an e-mail not tied to a stay, logged in the e-mail history; SDK minor recorded in `coreModuleHistory.json` |
 | `plugins/website-booking/` | `requirePublicApiKey.js`, `visitorContext` | T | Re-exported from the SDK; behaviour unchanged |
-| `utils/`, `controllers/` | `paymentRequestService.js` (`ensureSaleLink`), `basketPayments.js` (`saleLink`), `paymentsController.js`, `plugins/sdk/coreServices.js` | C/T | `core.payments.saleLink({ source, ref, title, amountCents }, { redirectUrl })` (SDK 2.32.0): the link of a plugin's basket with no stay, billed to `<source>:<ref>` in the existing `payment_links.saleRef`; PR C's `saleRef` column and no-orphan rules are consumed as delivered |
+| `utils/`, `controllers/` | `paymentRequestService.js` (`ensureSaleLink`: the `validityMinutes` of the link, a hard bound when stated), `basketPayments.js` (`saleLink`; `refreshBasketLink` lapses a sale link past its end), `paymentsController.js`, `plugins/sdk/coreServices.js` | C/T | `core.payments.saleLink({ source, ref, title, amountCents }, { redirectUrl })` (SDK 2.32.0): the link of a plugin's basket with no stay, billed to `<source>:<ref>` in the existing `payment_links.saleRef`; PR C's `saleRef` column and no-orphan rules are consumed as delivered |
 | `utils/` | `paymentPollRunner.js` (`applyPaidEffect`) | T | A paid link whose `saleRef` is a plugin's basket source goes to `ctx.paymentBasket`'s `paid` with `reservationId: null` (stays and `standalone-sale` links unchanged) |
 | `utils/`, `models/`, `schema.sql` | `paymentTenders.js`, `paymentSettlementsModel.js`, `paymentSettlementsMigration.js` | T | The received-in-advance amount is a tender line of the method `prepaid` with its `source`, `ref` and `label`: the CHECK of `payment_tenders.method` is widened and the three columns added by an idempotent table rebuild (`changelog.d/migration--gift-vouchers-tender-method.md`); `settlementFigures` gains `prepaidCents` and `collectedCents` (mixed-method-payments rules 59-60) |
 | `utils/` | `prepaidSources.js`, `prepaidReceipts.js` (SDK modules) | C | What a quote holds, what it takes off the public payment, the settlements written at conversion and by the fiche, the confirmation without a link (rules 59-62) |
@@ -312,7 +353,7 @@ code types it while booking dates, and the voucher's balance pays for the stay, 
 | plugin | `plugins/gift-vouchers/index.js` | C | `routes`, `nav.items`, `settings.menu` contributions |
 | plugin | `plugins/gift-vouchers/GiftVouchersPage.jsx` | C | List + detail, `PageActionBar` |
 | plugin | `plugins/gift-vouchers/GiftVoucherDialog.jsx` | C | « Nouveau bon » and the detail's actions |
-| plugin | `plugins/gift-vouchers/GiftVoucherSettings.jsx` | C | Settings route `/parametres/bons-cadeaux` (`settings.menu`, after « Emails & notifications »): validity, bounds, ideas, e-mail template |
+| plugin | `plugins/gift-vouchers/GiftVoucherSettings.jsx` | C | Settings route `/parametres/bons-cadeaux` (`settings.menu`, after « Emails & notifications »): validity, VAT rate (the four refusals shown while typing as a UX hint, the server judging again), bounds, ideas, e-mail template |
 | plugin | `plugins/gift-vouchers/GiftVoucherDetail.jsx`, `GiftVoucherActionDialogs.jsx` | C | The detail (side panel on `lg`, dialog below) and its « Prolonger » / « Corriger le solde » dialogs |
 | plugin | `plugins/gift-vouchers/giftVouchersApi.js`, `giftVoucherTexts.js`, `giftVoucherFormat.js` | C | `/api/gift-vouchers/*` calls, French copy and state maps, cents ↔ euros display |
 | core (client) | `constants/plugins.js`, `plugins/sdk/index.js` | M | `GIFT_VOUCHERS` id; no payment-method list on the client: the admin list payload carries `paymentMethods` |
@@ -346,8 +387,8 @@ Public — API key + visitor context; `POST` also need a solved proof-of-work un
 |---|---|---|---|---|
 | GET | `/public/v1/gift-vouchers/offer` | — | `{ available, brand, minAmountCents, maxAmountCents, validityMonths, ideas:[{ label, amounts:[{ label, amountCents }] }], termsVersionId }` | Cached |
 | POST | `/public/v1/gift-vouchers/orders` | `{ amountCents, recipientName?, senderName?, message?, email, termsVersionId, language, challenge, nonce }` | `201 { orderId, token }` | 403 `CHALLENGE_INVALID`; 400 `VOUCHER_AMOUNT_OUT_OF_BOUNDS`, `AMOUNT_INVALID`, `EMAIL_INVALID`, `TERMS_REQUIRED` (the version id is not the current one), `FIELD_INVALID`, `BODY_INVALID`; 429 `TOO_MANY_ORDERS` + `Retry-After` (5 per visitor per hour, counted on stored orders) |
-| POST | `/public/v1/gift-vouchers/orders/:id/pay` | `{ token, returnPath? }` | `{ paymentUrl }` | No proof-of-work; `paymentStartLimiter`; 404 `VOUCHER_ORDER_NOT_FOUND`; 409 `ONLINE_SALE_UNAVAILABLE`, `VOUCHER_ALREADY_ISSUED`, `PAYMENT_PENDING`; 502 `PAYMENT_PROVIDER_ERROR` |
-| GET | `/public/v1/gift-vouchers/orders/:id?token=` | — | `{ state, voucher?: { number, brand, amountCents, balanceCents, expiresOn, recipientName, senderName, message, code } }` | `state` `pending` (no `voucher`) or the voucher's state; `code` null once cancelled; 404 on a wrong token or an unknown id (same answer); `paymentStatusLimiter` |
+| POST | `/public/v1/gift-vouchers/orders/:id/pay` | `{ token, returnPath? }` | `{ paymentUrl }` | No proof-of-work; `paymentStartLimiter`; 404 `VOUCHER_ORDER_NOT_FOUND`; 409 `ONLINE_SALE_UNAVAILABLE`, `VOUCHER_ALREADY_ISSUED`, `PAYMENT_PENDING`, `PAYMENT_LINK_EXPIRED` (the order's link lapsed, rule 16); 502 `PAYMENT_PROVIDER_ERROR` |
+| GET | `/public/v1/gift-vouchers/orders/:id?token=` | — | `{ state, voucher?: { number, brand, amountCents, balanceCents, expiresOn, recipientName, senderName, message, code } }` | `state` `pending` (no `voucher`), `link-expired` (no `voucher`: the one-hour link lapsed unpaid, rule 16) or the voucher's state; `code` null once cancelled; 404 on a wrong token or an unknown id (same answer); `paymentStatusLimiter` |
 | GET | `/public/v1/gift-vouchers/orders/:id/pdf?token=` | — | `application/pdf` | 404 while pending or cancelled; `?lang=` overrides the order's language |
 | POST | `/public/v1/gift-vouchers/check` | `{ code }` | `{ usable, balanceCents?, expiresOn?, reason? }` | 400 `VOUCHER_CODE_MISTYPED`, 404 `VOUCHER_UNKNOWN`, 429 `VOUCHER_CHECKS_EXCEEDED` / `VOUCHER_CHECKS_PAUSED` |
 
@@ -356,7 +397,7 @@ Admin — session, admin role, `requirePlugin`:
 | Method | Endpoint | Request | Response |
 |---|---|---|---|
 | GET | `/api/gift-vouchers?q=&state=` | `state` ∈ pending, active, started, exhausted, expired, cancelled | `{ items:[…], outstandingCents, paymentMethods:[{ value, label }] }` — `paymentMethods` is the core list, for the « Payé par » select of « Nouveau bon » |
-| GET | `/api/gift-vouchers/:id` | — | voucher + code masked + `movements:[{ id, kind, label, amountCents, date, actorName, reservationId, note }]` — `label` in French (« Émission », « Prolongé jusqu’au 15/01/2029 », « Solde corrigé : <motif> »…), `date` the Paris day (`YYYY-MM-DD`), `actorName` the user's display name, « Site » or « Automatique »; `note` is null for `extend`/`adjust` (already in the label) |
+| GET | `/api/gift-vouchers/:id` | — | voucher + `vat:{ ratePercent, htCents, vatCents }` (rule 43) + code masked + `movements:[{ id, kind, label, amountCents, date, actorName, reservationId, note }]` — `label` in French (« Émission », « Prolongé jusqu’au 15/01/2029 », « Solde corrigé : <motif> »…), `date` the Paris day (`YYYY-MM-DD`), `actorName` the user's display name, « Site » or « Automatique »; `note` is null for `extend`/`adjust` (already in the label) |
 | POST | `/api/gift-vouchers` | manual issue (rule 24) | `201` voucher |
 | POST | `/api/gift-vouchers/:id/{extend,cancel,adjust,resend,reveal}` | per action | voucher, or `{ code }` for `reveal` |
 | GET | `/api/gift-vouchers/:id/pdf` | — | `application/pdf` |
@@ -388,7 +429,9 @@ Plugin tables, created by plugin migrations (`plugin:gift-vouchers:*`), no core 
   (`site` | `manual`), `paymentMethod` (manual only), `linkId` (nullable), `state`, `createdAt`,
   `createdBy`.
 - `gift_vouchers` — `id`, `orderId` UNIQUE, `number` UNIQUE, `codeHash` UNIQUE, `codeEncrypted`,
-  `amountCents`, `issuedAt`, `expiresOn`, `cancelledAt`, `mailSentAt`, `mailError`.
+  `amountCents`, `issuedAt`, `expiresOn`, `cancelledAt`, `mailSentAt`, `mailError`, `vatRatePercent` (REAL, the rate
+  frozen at the sale, rule 43; added by migration `gift_vouchers_vat_v1` with `DEFAULT 10`, which backfills the vouchers
+  sold before it — `changelog.d/migration--gift-vouchers-vat.md`).
 - `gift_voucher_movements` — `id`, `voucherId`, `kind`, `amountCents` (signed, 0 for non-money kinds),
   `reservationId`, `devisId`, `actor`, `note`, `idempotencyKey` UNIQUE, `createdAt`.
 - `gift_voucher_checks` — `id`, `visitorHash`, `outcome`, `createdAt`.
@@ -435,15 +478,17 @@ Interactive mock-ups: `specs/gift-vouchers-resume.html`.
       every single-character substitution and adjacent swap, normalisation, no code in clear in any row,
       HMAC differs with the pepper, 10 000 draws without collision or bias beyond tolerance.
 - [x] `gift-voucher-rules.unit.test.js` (15 tests) — rules 6-11: bounds, expiry frozen at issue, derived states.
-- [x] `gift-voucher-orders.unit.test.js` — rules 2, 13, 15-21, 23 (26 tests): validation and every refusal, proof of
+- [x] `gift-voucher-orders.unit.test.js` — rules 2, 13, 15-21, 23, 45 (31 tests, 5 added 2026-11-16: the hour's `validityMinutes`, a lapsed link refused and read `link-expired`, a withdrawn or paid link, a late confirmation issuing, the 7-day purge of such an order): validation and every refusal, proof of
       work spent once, 5 orders per hour, pay without reservation and the return path, token access and its
       one 404, issue only on a paid link, idempotent replay and refund flags, browser return alone issues
       nothing, voucher page and PDF, pending purge, receipt sent once without the code, failed send flagged
       and retried, no automatic mail for a voucher sold by hand.
-- [x] `src/tests/gift-voucher-sale-link.unit.test.js` — rules 16-17 on the real core (12 tests): the link with no
+- [x] `src/tests/gift-voucher-sale-link.unit.test.js` — rules 16-17, 45 on the real core (16 tests, 4 added 2026-11-16: a 60-minute link handed back until it lapses, lapsed then deactivated at the provider, the on-demand read lapsing it, paid at 59 and confirmed at 61 issuing the voucher): the link with no
       reservation, reuse and replacement, no orphan sweep, the paid effect called with `reservationId` null,
       replay and concurrent reads, a plugin off, a withdrawn link paid late, standalone sales unchanged,
       nothing in the core names the plugin.
+- [x] `src/plugins/gift-vouchers/tests/gift-voucher-vat.unit.test.js` — rules 43-44 (11 tests): the setting and each refusal, HT / VAT to the cent (150 € at 10 % and 5,5 %), the rate frozen by hand and on the site, the receipt variable in both languages and at 0 %, nothing on the printed voucher, the backfill migration, the sales the journal reads and their HT + VAT rows.
+- [x] `src/tests/prepaid-received-amount.unit.test.js` — rule 64 of `mixed-method-payments.md`: the stay's entry carries the collected 30,40 € only, the VAT of the prepaid 50 € is the voucher sale's (17 tests).
 - [x] `gift-voucher-checks.unit.test.js` (14 tests) — rules 33-35: the three limits, the breaker, a mistyped code
       not counted, a cancelled code answers unknown, nothing typed is stored.
 - [x] `gift-voucher-admin.unit.test.js` (21 tests) — rules 24-29: manual issue, extend, cancel, adjust bounds,
@@ -469,6 +514,7 @@ Interactive mock-ups: `specs/gift-vouchers-resume.html`.
 - [x] Plugin isolation walk and removal matrix include `gift-vouchers` (`gift-voucher-plugin.unit.test.js`, `gift-voucher-sdk.unit.test.js`).
 
 ### Client / WordPress
+- [x] `plugins/gift-vouchers/__tests__/GiftVoucherSettings.vat.test.jsx` — the « TVA des bons cadeaux » field (7 tests): the stored rate and its hint, each refusal with its sentence and Save disabled, a comma saved as typed, the server's sentence on the field.
 - [ ] `plugins/gift-vouchers/__tests__/GiftVouchersPage.list.test.jsx`, `.actions.test.jsx`.
 - [x] `plugins/gift-vouchers/__tests__/ReservationVoucherCard.stay.test.jsx` — the fiche's card (8 tests): inline refusals before any call, pay, the server's refusal, undo after a confirmation, re-credit, nothing rendered where there is nothing to show.
 - [ ] E2E: buy with the sandbox provider → voucher page → code accepted at booking.
@@ -492,11 +538,17 @@ Interactive mock-ups: `specs/gift-vouchers-resume.html`.
 
 ## 9. Open questions
 
-- **Q3 — Books and VAT.** Is the sale a single-purpose voucher (VAT due at the sale) or a multi-purpose
-  one (due when used)? Which account holds the outstanding balance? To be answered by the accountant
-  before the first sale; rule 42 holds either way.
 - **Q4 — Withdrawal right.** Does the 14-day right apply to an unused voucher bought online? The terms
   of sale must say so; rule 27 already lets the operator cancel and refund an unused voucher.
+
+**Resolved (Adrien, 2026-11-16):**
+
+- **Q3 — Books and VAT: VAT is due at the sale** (a single-purpose voucher), at a rate the operator configures, 10 % by default,
+  frozen on each voucher (rule 43). The sale enters the export as HT + VAT (rule 44) and a stay paid by a voucher books only
+  the card part (rule 42, `mixed-method-payments.md` rule 64), so the voucher's VAT is never counted twice. **To be confirmed
+  by the accountant** before the first real sale; the account holding the outstanding balance of unused vouchers is still his call.
+- A voucher must be paid, and nothing exists until it is (rule 46); the online link lives one hour (rule 16); a payment confirmed
+  after the withdrawal still issues (rule 45); an unpaid order is kept 7 days behind the scenes (rule 18).
 
 **Resolved (Adrien, 2026-11-15):**
 
