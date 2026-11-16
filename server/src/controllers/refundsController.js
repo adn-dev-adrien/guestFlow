@@ -176,28 +176,34 @@ function createRefundsController(deps = {}) {
 
       // Owner O-6 — only a refund opened on the trop-perçu lowers it; the origin is what says so.
       if (req.body && req.body.fromOverpayment === true) validated.refund.origin = 'overpayment';
-      const refundId = refundsModel.create(id, validated.refund);
-      recordRefundHistory(id, validated.refund, refundId);
-      if (validated.refund.origin === 'overpayment') {
-        // Loop t8 B8-2 — the note money freed and not given back yet goes first: the rest is the stay's own trop-perçu (a solde line lowered).
-        const noteCents = stayDatabase && reservation.midStaySettledNotes ? noteExcessCents(stayDatabase, id, null, { notesOnly: true }) : 0;
-        require('../models/refundObligationsModel').settleLoweredBy(id, refundId, Math.round(validated.refund.totalTtc * 100), { noteCents });
-      } else if (cancelled) {
-        // Loop t6 S6-1 (pricing-components rule 106 d) — on a cancelled stay the cancellation dialog gives a note-paid line's money back on the
-        // line itself: what it gives back on a line a note paid settles the `lineLowered` obligation held for that money. Loop t7 D7-2 — only on
-        // the line it was held for: a key settles at most its note money beyond what the line charges now (`noteExcessByKey`), less what earlier
-        // refunds on that key settled; a refund on a line still charged in full (another order) settles nothing.
-        const obligations = require('../models/refundObligationsModel');
-        const excess = stayDatabase ? noteExcessByKey(stayDatabase, id) : {};
-        const given = new Map();
-        for (const l of validated.refund.lines) {
-          if (l.lineKey && excess[l.lineKey] > 0) given.set(l.lineKey, (given.get(l.lineKey) || 0) + Math.round(Number(l.amountTtc || 0) * 100));
+      // Loop t9 (D9-3 follow-up) — the refund, its history entry and the `lineLowered` rows it settles (with their `noteCents`) are one write:
+      // a failure on the way leaves no refund without its settlement, nor a row settled by a refund that was never written.
+      const writeRefund = () => {
+        const refundId = refundsModel.create(id, validated.refund);
+        recordRefundHistory(id, validated.refund, refundId);
+        if (validated.refund.origin === 'overpayment') {
+          // Loop t8 B8-2 — the note money freed and not given back yet goes first: the rest is the stay's own trop-perçu (a solde line lowered).
+          const noteCents = stayDatabase && reservation.midStaySettledNotes ? noteExcessCents(stayDatabase, id, null, { notesOnly: true }) : 0;
+          require('../models/refundObligationsModel').settleLoweredBy(id, refundId, Math.round(validated.refund.totalTtc * 100), { noteCents });
+        } else if (cancelled) {
+          // Loop t6 S6-1 (pricing-components rule 106 d) — on a cancelled stay the cancellation dialog gives a note-paid line's money back on the
+          // line itself: what it gives back on a line a note paid settles the `lineLowered` obligation held for that money. Loop t7 D7-2 — only on
+          // the line it was held for: a key settles at most its note money beyond what the line charges now (`noteExcessByKey`), less what earlier
+          // refunds on that key settled; a refund on a line still charged in full (another order) settles nothing.
+          const obligations = require('../models/refundObligationsModel');
+          const excess = stayDatabase ? noteExcessByKey(stayDatabase, id) : {};
+          const given = new Map();
+          for (const l of validated.refund.lines) {
+            if (l.lineKey && excess[l.lineKey] > 0) given.set(l.lineKey, (given.get(l.lineKey) || 0) + Math.round(Number(l.amountTtc || 0) * 100));
+          }
+          for (const [key, cents] of given) {
+            const settles = Math.min(cents, excess[key] - obligations.settledLoweredOn(id, key));
+            if (settles > 0) obligations.settleLoweredBy(id, refundId, settles, { lineRef: key, noteCents: settles });
+          }
         }
-        for (const [key, cents] of given) {
-          const settles = Math.min(cents, excess[key] - obligations.settledLoweredOn(id, key));
-          if (settles > 0) obligations.settleLoweredBy(id, refundId, settles, { lineRef: key, noteCents: settles });
-        }
-      }
+        return refundId;
+      };
+      const refundId = stayDatabase ? stayDatabase.transaction(writeRefund)() : writeRefund();
       const refreshed = buildRegister(id);
       return res.status(201).json({
         refund: refundsModel.getById(refundId),

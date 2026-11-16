@@ -2412,7 +2412,9 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
     known 0,60 €. Test `refund-deleted-note-credit`; `sale-note-credit-after-refund` reads the new outcome.
     > _Reading of 2026-11-16 (loop t9, D9-3):_ the deletion of the refund row, the reopen of the rows it settled, the credit written to the
     > buckets and the `refundDeleted` history entry are ONE transaction: a failure on the way leaves the refund and its settled rows (with their
-    > `noteCents`) as they were — never a row settled by a refund that no longer exists. Test `refund-deletion-one-transaction`.
+    > `noteCents`) as they were — never a row settled by a refund that no longer exists. Test `refund-deletion-one-transaction`. The same holds
+    > at creation: the refund, its `refund` history entry and the `lineLowered` rows it settles (with their `noteCents`, trop-perçu and
+    > cancelled-stay paths) are one transaction — a failure leaves no refund and the row open. Test `refund-creation-one-transaction`.
 120. **A lowered paid line's obligation closes through a refund only** _(stabilisation loop t9, D9-2, 2026-11-16; completes rules 75, 108,
     110, 115)_. A `lineLowered` row is the trop-perçu (rule 75, the same money with one face: the ledger gives it no « Marquer remboursé »).
     `PATCH /refund-obligations/:oid` refuses it, settled or cancelled, with 409 `OBLIGATION_REFUND_ONLY` (« Se rembourse depuis le
@@ -2779,6 +2781,7 @@ _Rewritten 2026-11-15 (stabilisation loop t1, UI-3) to what shipped._
 - [x] `platform-complement-cash-refunded-once` — rules 112, 115 reading (loop t9, D9-1): Booking complement cash refunded through the till, then a card-note line offered → no « Caisse interne » part (1)
 - [x] `lowered-obligation-refund-only` — rule 120 (loop t9, D9-2): a `lineLowered` row refused by the close action (settled and cancelled), the trop-perçu still 30; refunded through the trop-perçu → LINE_REFUNDED on the way back; another origin still closes (3)
 - [x] `refund-deletion-one-transaction` — rule 119 reading (loop t9, D9-3): an error injected in the reopen keeps the refund, its settled row and its `noteCents`, no history; without it the row reopens (2)
+- [x] `refund-creation-one-transaction` — rule 119 reading (loop t9, D9-3 follow-up): an error injected in the settlement leaves no refund, no history, the row open and the trop-perçu 30; without it the row is settled and stamped (2)
 - [x] `obligation-note-cents-migration-atomic` — rule 115 reading (loop t9, D9-4): ALTER + backfill once, idempotent; a failing backfill leaves no column and the next run does both (2)
 - [x] `stay-note-refund-money-conservation` — rules 104, 106-112 (loop t7): random sequences of notes by card / cash, unpaid sales, offers, refunds as proposed, refunds deleted; after every step Σ buckets + notes − owed − refunded = total, booked avoirs ≤ booked note money, no note money refunded on the accommodation (6 seeds × 12 steps)
 
