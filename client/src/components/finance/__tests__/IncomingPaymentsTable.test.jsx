@@ -10,25 +10,30 @@ import IncomingPaymentsTable from '../IncomingPaymentsTable';
 
 const item = (key, kind, icon, extra = {}) => ({
   key, kind, label: kind, icon, natureLabel: 'Retenue Mollie', natureDetail: '20 % retenus pendant 90 jours · Solde',
+  // date-literal-ok: fixture data drawn as given; nothing compares it with today
   amountCents: 14648, expectedDate: '2027-02-11', receivedDate: null, dateLabel: 'jeu. 11/02', state: 'upcoming',
   stateLabel: 'Dans 3 mois', tone: 'neutral', refs: { qonto: null, mollieSettlement: null, molliePayment: null }, ...extra,
 });
 
 const DATA = {
+  // date-literal-ok: fixture data drawn as given; nothing compares it with today
   totals: { amount: 640.14, amountCents: 64014, clients: 3, nextDate: '2026-11-10', nextDateLabel: 'mar. 10/11' },
   kinds: [
     { key: 'mollieReserve', label: 'Retenue Mollie', count: 2 },
     { key: 'installment', label: 'Échéance', count: 2 },
   ],
   clients: [
+    // date-literal-ok: fixture data drawn as given; nothing compares it with today
     { clientId: 2, name: 'Lucia Rossi', totalCents: 19680, nextDate: '2026-11-10', nextDateLabel: 'mar. 10/11', late: true, stays: [
       { reservationId: 102, label: 'Gîte · 07/10 → 12/10/2026', items: [
         item('mollie:102|balance#retenue', 'mollieReserve', 'hourglass', { amountCents: 19680, dateLabel: 'mar. 10/11', state: 'late', stateLabel: 'En retard de 6 j', tone: 'error' }),
       ] },
     ] },
+    // date-literal-ok: fixture data drawn as given; nothing compares it with today
     { clientId: 1, name: 'Jean Dupont', totalCents: 14648, nextDate: '2027-02-11', nextDateLabel: 'jeu. 11/02', late: false, stays: [
       { reservationId: 101, label: 'Cabane · 01/11 → 05/11/2026', items: [item('mollie:101|balance#retenue', 'mollieReserve', 'hourglass')] },
     ] },
+    // date-literal-ok: fixture data drawn as given; nothing compares it with today
     { clientId: 3, name: 'Anna Roux', totalCents: 29686, nextDate: '2026-12-01', nextDateLabel: 'mar. 01/12', late: false, stays: [
       { reservationId: 201, label: 'Gîte · 10/12 → 14/12/2026', items: [item('inst:201|2', 'installment', 'calendar', { natureLabel: 'Échéance 2 sur 4', natureDetail: 'Solde', amountCents: 10000, dateLabel: 'mar. 01/12', stateLabel: 'Dans 15 jours' })] },
       { reservationId: 202, label: 'Cabane · 20/12 → 22/12/2026', items: [item('inst:202|1', 'installment', 'calendar', { natureLabel: 'Échéance 1 sur 2', natureDetail: 'Acompte', amountCents: 19686, dateLabel: 'jeu. 03/12', stateLabel: 'Dans 17 jours' })] },

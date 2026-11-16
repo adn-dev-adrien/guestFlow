@@ -11,6 +11,7 @@ import { JournalEntryCard, groupEntries } from '../AccountingPage';
 import MollieClearingCard from '../MollieClearingCard';
 
 const CREDIT = {
+  // date-literal-ok: fixture data drawn as given; nothing compares it with today
   reservationId: null, kind: 'mollie', direction: 'mollie', day: 13, month: 11, year: 2026, paidDate: '2026-11-13',
   libelle: 'VERSEMENT MOLLIE T19274230.2610.01 solio-6791-1-transaction-019d1b2f-0001', encaissementTtc: 585.92,
   finalPrice: 0, stayShare: null, balanced: true, client: { firstName: '', lastName: '' },
@@ -36,10 +37,12 @@ test('two Mollie credits of the same day keep distinct keys', () => {
 });
 
 const MOLLIE = {
+  // date-literal-ok: fixture data drawn as given; nothing compares it with today
   clearing: { account: '46720000', asOf: '2026-11-30', balance: 343.28, clients: [
     { reservationId: 102, clientName: 'Lucia Rossi', balanceCents: 19680, balance: 196.8 },
     { reservationId: 101, clientName: 'Jean Dupont', balanceCents: 14648, balance: 146.48 },
   ] },
+  // date-literal-ok: fixture data drawn as given; nothing compares it with today
   unattached: [{ date: '2026-11-18', amountCents: 62478, amount: 624.78, qontoReference: 'solio-6791-1-transaction-01a2c4e8', settlementReference: 'T19274230.2611.07', counterparty: 'Stichting Mollie Payments' }],
 };
 

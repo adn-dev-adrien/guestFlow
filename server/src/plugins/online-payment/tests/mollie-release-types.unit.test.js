@@ -15,7 +15,8 @@ const amount = (value) => ({ value, currency: 'EUR' });
 const apiTx = (id, type, createdAt, result, initial, context) => ({
   id, type, createdAt, resultAmount: amount(result), initialAmount: amount(initial), deductions: null, context,
 });
-// Balance transaction timestamps only order the rows: an offset in days from a fixed origin, nothing compared with today.
+// date-literal-ok: balance transaction timestamps only order the rows (offsets from a fixed origin), nothing compares them with today
+// date-literal-ok: fixture data drawn as given; nothing compares it with today
 const at = (offset) => new Date(Date.UTC(2030, 0, 1 + offset, 5)).toISOString();
 
 test('rule 10 — every rolling-reserve release type and a captured payment are composed with their payment id', () => {

@@ -23,6 +23,7 @@ import api from '../../../api';
 
 const SALE = { id: null, saleKey: 'resource-booking:41', saleLabel: 'Bain nordique du 05/11', hasClient: false, clientName: 'Bain nordique du 05/11', propertyName: '', platform: 'direct' };
 const payload = (items) => ({
+  // date-literal-ok: fixture data drawn as given; nothing compares it with today
   lastReadAt: '2026-11-10T08:00:00.000Z', lastError: null, startDate: '2026-10-01', counts: COUNTS, view: 'todo', items, credits: [], filter: null, bulk: BULK,
 });
 const renderPage = () => render(<MemoryRouter><DialogProvider><ReconciliationPage /></DialogProvider></MemoryRouter>);
@@ -34,6 +35,7 @@ test('« Écarter » on the proposal of a sale outside a stay discards reservati
     key: '0|sale:resource-booking:41#immediat', ledgerKey: 'sale:resource-booking:41#immediat', reservation: SALE,
     proposal: { id: 'tx-1:0|sale:resource-booking:41#immediat', confidence: 'sur', confidenceLabel: 'sûr', reason: 'Versement Mollie', source: 'mollie',
       allocations: [{ reservationId: 0, ledgerKey: 'sale:resource-booking:41#immediat', amountCents: 1120 }], amountCents: 1120,
+      // date-literal-ok: fixture data drawn as given; nothing compares it with today
       bank: { transactionId: 'tx-1', amountCents: 1120, date: '2026-11-10', dateLabel: '10/11', counterparty: 'Stichting Mollie Payments', reference: '', remainingCents: 1120 }, alsoCovers: [] },
   });
   api.getReconciliation.mockResolvedValue(payload([sale]));

@@ -13,7 +13,9 @@ import MollieReserveAlert from '../MollieReserveAlert';
 import pluginModule from '../index';
 
 const ATTENTION = { key: 'mollie-reserve-late', severity: 'todo', count: 2, title: 'Retenue Mollie non reçue', detail: '2 fiches · la plus ancienne attendue le 08/11' };
+// date-literal-ok: fixture data drawn as given; nothing compares it with today
 const OLDEST = { reservationId: 101, saleKey: null, clientName: 'Jean Dupont', amountCents: 14648, expectedDate: '2026-11-08', expectedDateLabel: '08/11', line: 'Jean Dupont · 146,48 € · attendue le 08/11' };
+// date-literal-ok: fixture data drawn as given; nothing compares it with today
 const NEWER = { reservationId: 102, saleKey: null, clientName: 'Lucia Rossi', amountCents: 19680, expectedDate: '2026-11-10', expectedDateLabel: '10/11', line: 'Lucia Rossi · 196,80 € · attendue le 10/11' };
 
 const renderAlert = () => render(

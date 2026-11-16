@@ -9,10 +9,12 @@ import IncomingPaymentsTable from '../IncomingPaymentsTable';
 
 const item = (key) => ({
   key, kind: 'mollieTransit', label: 'Mollie en transit', icon: 'hourglass', natureLabel: 'Paiement carte · 80 %', natureDetail: '',
+  // date-literal-ok: fixture data drawn as given; nothing compares it with today
   amountCents: 1120, expectedDate: '2026-11-09', receivedDate: null, dateLabel: 'lun. 09/11', state: 'upcoming', stateLabel: 'Dans 2 jours', tone: 'neutral',
   refs: { qonto: null, mollieSettlement: null, molliePayment: null },
 });
 const block = (saleKey) => ({
+  // date-literal-ok: fixture data drawn as given; nothing compares it with today
   clientId: null, name: 'Bain nordique', totalCents: 1120, nextDate: '2026-11-09', nextDateLabel: 'lun. 09/11', late: false,
   stays: [{ reservationId: null, saleKey, label: 'Bain nordique', startDate: null, endDate: null, items: [item(`mollie:${saleKey}`)] }],
 });

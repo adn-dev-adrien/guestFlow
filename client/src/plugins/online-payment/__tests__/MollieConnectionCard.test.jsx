@@ -82,7 +82,9 @@ test('rule 15: a test the server answers with a 400 shows its refusal', async ()
 test('rule 17: the last read and the last failure are shown in words', async () => {
   api.getPluginSettings.mockResolvedValue({
     mollieAccessTokenSet: true, mollieProfileId: '',
+    // date-literal-ok: fixture data drawn as given; nothing compares it with today
     mollieLastRead: JSON.stringify({ at: '2026-11-16T09:00:00.000Z', settlements: 3, unknownPayments: 1 }),
+    // date-literal-ok: fixture data drawn as given; nothing compares it with today
     mollieLastError: JSON.stringify({ at: '2026-11-16T10:00:00.000Z', message: 'Mollie ne répond pas' }),
   });
   renderCard();

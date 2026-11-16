@@ -18,8 +18,10 @@ const renderCard = () => render(<DialogProvider><ReconciliationSettingsCard conn
 
 beforeEach(() => {
   vi.clearAllMocks();
+  // date-literal-ok: fixture data drawn as given; nothing compares it with today
   api.getToday.mockResolvedValue({ today: '2026-11-16' });
   api.getReconciliationBankAccounts.mockResolvedValue([]);
+  // date-literal-ok: fixture data drawn as given; nothing compares it with today
   api.getPluginSettings.mockResolvedValue({ reconciliationStartDate: '2026-10-01', mollieReservePercent: '20', mollieReserveHoldDays: '90', mollieReserveSince: '' });
   api.savePluginSettings.mockResolvedValue({});
 });

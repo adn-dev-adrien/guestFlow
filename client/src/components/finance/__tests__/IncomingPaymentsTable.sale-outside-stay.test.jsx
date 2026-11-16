@@ -9,13 +9,16 @@ import IncomingPaymentsTable from '../IncomingPaymentsTable';
 
 const item = (key, extra = {}) => ({
   key, kind: 'mollieTransit', label: 'Mollie en transit', icon: 'hourglass', natureLabel: 'Paiement carte · 80 %', natureDetail: 'Versement immédiat de Mollie',
+  // date-literal-ok: fixture data drawn as given; nothing compares it with today
   amountCents: 1120, expectedDate: '2026-11-09', receivedDate: null, dateLabel: 'lun. 09/11', state: 'upcoming', stateLabel: 'Dans 2 jours', tone: 'neutral',
   refs: { qonto: null, mollieSettlement: null, molliePayment: null }, ...extra,
 });
 const sale = (extra = {}) => ({ reservationId: null, saleKey: 'resource-booking:41', label: 'Bain nordique du 05/11', startDate: null, endDate: null, items: [item('mollie:sale:41')], ...extra });
 const data = (stays) => ({
+  // date-literal-ok: fixture data drawn as given; nothing compares it with today
   totals: { amount: 11.2, amountCents: 1120, clients: 1, nextDate: '2026-11-09', nextDateLabel: 'lun. 09/11' },
   kinds: [{ key: 'mollieTransit', label: 'Mollie en transit', count: 1 }],
+  // date-literal-ok: fixture data drawn as given; nothing compares it with today
   clients: [{ clientId: null, name: 'Marc Exemple', totalCents: 1120, nextDate: '2026-11-09', nextDateLabel: 'lun. 09/11', late: false, stays }],
 });
 const renderTable = (stays) => {

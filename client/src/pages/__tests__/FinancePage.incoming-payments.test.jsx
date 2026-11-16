@@ -19,17 +19,21 @@ import { DASHBOARD } from './financePageFixtures';
 
 const ITEM = {
   key: 'mollie:101|balance#retenue', kind: 'mollieReserve', label: 'Retenue Mollie', icon: 'hourglass', natureLabel: 'Retenue Mollie',
+  // date-literal-ok: fixture data drawn as given; nothing compares it with today
   natureDetail: '20 % retenus pendant 90 jours · Solde', amountCents: 14648, expectedDate: '2027-02-11', receivedDate: null,
   dateLabel: 'jeu. 11/02', state: 'upcoming', stateLabel: 'Dans 3 mois', tone: 'neutral', refs: { qonto: null, mollieSettlement: null, molliePayment: null },
 };
 const INCOMING = {
+  // date-literal-ok: fixture data drawn as given; nothing compares it with today
   totals: { amount: 146.48, amountCents: 14648, clients: 1, nextDate: '2027-02-11', nextDateLabel: 'jeu. 11/02' },
   kinds: [{ key: 'mollieReserve', label: 'Retenue Mollie', count: 1 }],
+  // date-literal-ok: fixture data drawn as given; nothing compares it with today
   clients: [{ clientId: 1, name: 'Jean Dupont', totalCents: 14648, nextDate: '2027-02-11', nextDateLabel: 'jeu. 11/02', late: false,
     stays: [{ reservationId: 101, label: 'Cabane · 01/11 → 05/11/2026', items: [ITEM] }] }],
 };
 const RECENT = { ...INCOMING, totals: { ...INCOMING.totals, nextDate: null, nextDateLabel: null }, clients: [{ ...INCOMING.clients[0], stays: [{ ...INCOMING.clients[0].stays[0], items: [{ ...ITEM, state: 'received', tone: 'success', stateLabel: 'Reçu le 30/10' }] }] }] };
 
+// date-literal-ok: fixture data drawn as given; nothing compares it with today
 const WITH_TILE = { ...DASHBOARD, tiles: { ...DASHBOARD.tiles, incoming: { amount: 146.48, clients: 1, nextDate: '2027-02-11', nextDateLabel: 'jeu. 11/02' } } };
 
 function renderPage() {

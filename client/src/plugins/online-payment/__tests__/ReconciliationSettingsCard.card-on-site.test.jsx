@@ -17,8 +17,10 @@ const renderCard = () => render(<DialogProvider><ReconciliationSettingsCard conn
 
 beforeEach(() => {
   vi.clearAllMocks();
+  // date-literal-ok: fixture data drawn as given; nothing compares it with today
   api.getToday.mockResolvedValue({ today: '2026-11-16' });
   api.getReconciliationBankAccounts.mockResolvedValue([]);
+  // date-literal-ok: fixture data drawn as given; nothing compares it with today
   api.getPluginSettings.mockResolvedValue({ reconciliationStartDate: '2026-10-01', mollieReservePercent: '20', mollieReserveHoldDays: '90', mollieCardOnSiteSince: '2026-11-01' });
   api.savePluginSettings.mockResolvedValue({});
 });
@@ -26,22 +28,27 @@ beforeEach(() => {
 test('the date loads from the server and is saved with the card; empty means off', async () => {
   renderCard();
   const field = await screen.findByLabelText('CB sur place via Mollie depuis');
+  // date-literal-ok: fixture data drawn as given; nothing compares it with today
   expect(field).toHaveValue('2026-11-01');
   expect(screen.getByText('Vide : désactivé.')).toBeInTheDocument();
   await userEvent.click(screen.getByRole('button', { name: 'Enregistrer' }));
+  // date-literal-ok: fixture data drawn as given; nothing compares it with today
   await waitFor(() => expect(api.savePluginSettings).toHaveBeenCalledWith('online-payment', expect.objectContaining({ mollieCardOnSiteSince: '2026-11-01' })));
 });
 
 test('the server\'s refusal is shown on the field, with the typed value kept, and clears when it is edited', async () => {
+  // date-literal-ok: fixture data drawn as given; nothing compares it with today
   api.getPluginSettings.mockResolvedValue({ reconciliationStartDate: '2026-10-01', mollieCardOnSiteSince: '' });
   api.savePluginSettings.mockRejectedValue(Object.assign(new Error('INVALID_SETTING'), { errors: { mollieCardOnSiteSince: 'La date doit être un jour valide qui n\'est pas dans le futur' } }));
   renderCard();
   const field = await screen.findByLabelText('CB sur place via Mollie depuis');
   expect(field).toHaveValue('');
+  // date-literal-ok: fixture data drawn as given; nothing compares it with today
   fireEvent.change(field, { target: { value: '2027-01-01' } });
   await userEvent.click(screen.getByRole('button', { name: 'Enregistrer' }));
   expect(await screen.findByText('La date doit être un jour valide qui n\'est pas dans le futur')).toBeInTheDocument();
   expect(field).toHaveAttribute('aria-invalid', 'true');
+  // date-literal-ok: fixture data drawn as given; nothing compares it with today
   fireEvent.change(field, { target: { value: '2026-11-01' } });
   expect(screen.queryByText('La date doit être un jour valide qui n\'est pas dans le futur')).not.toBeInTheDocument();
 });

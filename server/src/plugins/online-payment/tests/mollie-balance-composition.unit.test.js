@@ -81,13 +81,21 @@ test('rules 5 and 16 — the settlements measured on the live account: amount = 
 
 // date-literal-ok: the balance of the live account, measured 2026-11-16 (ids are fictitious)
 const MEASURED = [
+  // date-literal-ok: fixture data drawn as given; nothing compares it with today
   apiTx('bt_01', 'outgoing-transfer', at('2026-11-10', '05:11:00'), '-11.20', '-11.20', null, { settlementId: 'stl_aaaa11', transferId: 'trf_a' }),
+  // date-literal-ok: fixture data drawn as given; nothing compares it with today
   apiTx('bt_02', 'payment', at('2026-11-09', '16:10:00'), '11.20', '14.00', '-2.80', { paymentId: 'tr_gruatA', paymentDescription: 'F-2026-013' }),
+  // date-literal-ok: fixture data drawn as given; nothing compares it with today
   apiTx('bt_03', 'outgoing-transfer', at('2026-10-29', '05:10:00'), '-585.92', '-585.92', null, { settlementId: 'stl_bbbb22' }),
+  // date-literal-ok: fixture data drawn as given; nothing compares it with today
   apiTx('bt_04', 'payment', at('2026-10-28', '17:57:00'), '585.92', '732.40', '-146.48', { paymentId: 'tr_linkB', paymentDescription: 'qonto-payment-b' }),
+  // date-literal-ok: fixture data drawn as given; nothing compares it with today
   apiTx('bt_05', 'outgoing-transfer', at('2026-03-23', '05:16:00'), '-39.36', '-39.36', null, { settlementId: 'stl_cccc33' }),
+  // date-literal-ok: fixture data drawn as given; nothing compares it with today
   apiTx('bt_06', 'api-payment-rolling-reserve-release', at('2026-03-20', '12:26:00'), '39.36', '39.36', null, { paymentId: 'tr_invD', paymentDescription: 'F-2025-016' }),
+  // date-literal-ok: fixture data drawn as given; nothing compares it with today
   apiTx('bt_07', 'outgoing-transfer', at('2025-12-23', '05:15:00'), '-157.44', '-157.44', null, { settlementId: 'stl_dddd44' }),
+  // date-literal-ok: fixture data drawn as given; nothing compares it with today
   apiTx('bt_08', 'payment', at('2025-12-22', '12:26:00'), '157.44', '196.80', '-39.36', { paymentId: 'tr_invD', paymentDescription: 'F-2025-016' }),
 ];
 

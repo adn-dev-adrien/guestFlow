@@ -7,6 +7,7 @@ import { vi } from 'vitest';
 import MollieClearingCard from '../MollieClearingCard';
 
 const MOLLIE = {
+  // date-literal-ok: fixture data drawn as given; nothing compares it with today
   clearing: { account: '46720000', asOf: '2026-11-30', balance: 50.4, clients: [
     { reservationId: 7, saleKey: null, clientName: 'Claire Martin', balance: 39.36 },
     { reservationId: null, saleKey: 'resource-booking:41', clientName: 'Bain nordique du 05/11', balance: 5.52 },

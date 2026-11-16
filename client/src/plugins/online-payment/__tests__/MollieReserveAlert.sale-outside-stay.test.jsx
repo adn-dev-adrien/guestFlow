@@ -11,6 +11,7 @@ import api from '../../../api';
 import MollieReserveAlert from '../MollieReserveAlert';
 
 const ATTENTION = { key: 'mollie-reserve-late', severity: 'todo', count: 1, title: 'Retenue Mollie non reçue', detail: '1 retenue attendue' };
+// date-literal-ok: fixture data drawn as given; nothing compares it with today
 const SALE = { reservationId: null, saleKey: 'resource-booking:41', saleLabel: 'Bain nordique du 05/11', clientName: 'Bain nordique du 05/11', amountCents: 280, expectedDate: '2026-11-10', expectedDateLabel: '10/11', line: 'Bain nordique du 05/11 · 2,80 € · attendue le 10/11' };
 
 test('a late reserve of a sale outside a stay is listed by its label and is not a link', async () => {

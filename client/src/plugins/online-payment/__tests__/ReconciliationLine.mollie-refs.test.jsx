@@ -7,6 +7,7 @@ import ReconciliationLine from '../ReconciliationLine';
 import { BankRefs } from '../ReconciliationLine';
 
 const BANK = {
+  // date-literal-ok: fixture data drawn as given; nothing compares it with today
   transactionId: 'c1', amountCents: 58592, date: '2026-11-13', dateLabel: '13/11', counterparty: 'Stichting Mollie Payments',
   reference: 'REF T19274230.2610.01', allocatedCents: 58592, auto: false, alsoCovers: [],
   refs: { qonto: 'solio-6791-1-transaction-019d1b2f-0001', mollieSettlement: 'T19274230.2610.01', molliePayment: 'tr_7UhSN1zuXS' },
