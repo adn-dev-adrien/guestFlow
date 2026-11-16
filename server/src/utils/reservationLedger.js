@@ -47,6 +47,10 @@ function shortDate(iso, stayYear) {
 }
 
 const cents = (n) => Math.round(round2(n) * 100);
+// specs/platform-statement-after-payout.md rule 4 — the transfer a received payout stands for, read from the stored
+// row only: the live quote of a fiche being edited must not move what already came in.
+const storedPlatformNet = (r) => round2(Number(r.depositAmount || 0) + Number(r.balanceAmount || 0)
+  - Number(r.acompteCommissionAmount || 0) - Number(r.platformCommissionAmount || 0));
 const flag = (v) => Number(v || 0) === 1 || v === true;
 
 // Edge case « Devis » — the devis does not store an acompte override yet: an edit would be lost.
@@ -510,10 +514,17 @@ function buildLedger({
           state: 'paid', tone: 'done',
           stateLabel: paidLabel(ota ? 'Reçu' : 'Perçu', r.balancePaidDate, ota ? platformName : originOf('balance', r.balancePaidCash)),
           action: undo(`Annuler la réception du versement du ${shortDate(r.balancePaidDate, stayYear)} ? L'écriture comptable correspondante disparaît.${groupNote('balance')}`, 'Annuler le versement'),
-          amountEdit: {
-            editable: false, mode: 'locked', min: null, max: null,
-            reason: `Versement reçu le ${shortDate(r.balancePaidDate, stayYear)} : annuler la réception pour corriger les montants.`,
-          },
+          // specs/platform-statement-after-payout.md rules 1, 3 — the statement stays correctable once received; the
+          // panel shows the transfer it must be read against.
+          amountEdit: cancelled
+            ? { editable: false, mode: 'none', min: null, max: null, reason: null }
+            : {
+              editable: true, mode: 'statement', min: null, max: null, reason: null,
+              received: (() => {
+                const net = payout != null ? payout : storedPlatformNet(r);
+                return { date: r.balancePaidDate || null, net, label: `Virement reçu le ${shortDate(r.balancePaidDate, stayYear)} : ${formatEuros(net)}` };
+              })(),
+            },
         };
         detail.warnings.push(...futureWarning(r.balancePaidDate));
       } else {

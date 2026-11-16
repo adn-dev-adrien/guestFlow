@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Relevé plateforme corrigeable après le versement — résumé</title>
+<style>
+  :root {
+    --primary: #2F5D46; --primary-dark: #244a37; --honey: #C99038;
+    --paper: #F8F5EF; --card: #FFFFFF; --ink: #27251F; --muted: #6E6A5E; --line: #E4DED2;
+    --success: #3E7D54; --success-bg: #E6EFE7; --warning: #8F6A1D; --warning-bg: #F6EDD7;
+    --error: #A8433A; --error-bg: #F7E8E5; --info: #31556E; --info-bg: #E4EDF3;
+    --radius: 14px;
+    --serif: "Source Serif 4", "Iowan Old Style", "Palatino Linotype", Georgia, serif;
+    --sans: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--paper); color: var(--ink); font: 16px/1.55 var(--sans); }
+  main { max-width: 860px; margin: 0 auto; padding: 40px 20px 80px; }
+  h1, h2 { font-family: var(--serif); font-weight: 600; letter-spacing: -0.01em; }
+  h1 { font-size: clamp(1.6rem, 4vw, 2.1rem); line-height: 1.15; margin: 0 0 8px; }
+  h2 { font-size: 1.2rem; margin: 40px 0 12px; }
+  .lede { color: var(--muted); margin: 0 0 28px; max-width: 62ch; }
+  .meta { font-size: .85rem; color: var(--muted); margin-bottom: 18px; }
+  p, li { max-width: 68ch; }
+  .num { font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 20px; }
+  .grid2 { display: grid; gap: 16px; grid-template-columns: 1fr 1fr; }
+  @media (max-width: 640px) { .grid2 { grid-template-columns: 1fr; } }
+  .k { font-size: .78rem; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin: 0 0 6px; }
+  ul.tight { padding-left: 1.1em; margin: 0; } ul.tight li { margin: 4px 0; }
+
+  /* --- demo --- */
+  .seg { display: inline-flex; background: #EFEAE0; border-radius: 999px; padding: 3px; margin-bottom: 14px; }
+  .seg button { border: 0; background: transparent; font: inherit; font-size: .9rem; padding: 8px 16px; min-height: 40px; border-radius: 999px; color: var(--muted); cursor: pointer; }
+  .seg button[aria-pressed="true"] { background: var(--card); color: var(--ink); box-shadow: 0 1px 2px rgba(0,0,0,.08); }
+  .fiche { padding: 0; overflow: hidden; }
+  .fiche-head { padding: 14px 20px; border-bottom: 1px solid var(--line); display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+  .fiche-head strong { font-family: var(--serif); font-weight: 600; }
+  .lockbar { background: var(--warning-bg); color: var(--warning); font-size: .88rem; padding: 10px 20px; }
+  .row { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 12px; padding: 14px 20px; border-top: 1px solid var(--line); }
+  .row:first-of-type { border-top: 0; }
+  .row .label { font-weight: 600; }
+  .row .state { font-size: .86rem; color: var(--muted); }
+  .chip { display: inline-block; font-size: .78rem; padding: 2px 8px; border-radius: 999px; margin-left: 6px; }
+  .chip.ok { background: var(--success-bg); color: var(--success); }
+  .chip.warn { background: var(--warning-bg); color: var(--warning); }
+  .amount { font: inherit; font-weight: 600; border: 1px solid var(--line); background: var(--card); border-radius: 10px; padding: 8px 12px; min-height: 44px; cursor: pointer; display: inline-flex; gap: 8px; align-items: center; color: var(--ink); }
+  .amount:hover { border-color: var(--primary); }
+  .amount:active { transform: scale(.97); }
+  .amount:focus-visible, .seg button:focus-visible, .btn:focus-visible, input:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+  .amount svg { width: 16px; height: 16px; }
+  .detail { font-size: .85rem; color: var(--muted); grid-column: 1 / -1; margin-top: -6px; }
+  .panel-wrap { display: grid; grid-template-rows: 0fr; transition: grid-template-rows 280ms cubic-bezier(.2,.8,.2,1); }
+  .panel-wrap.open { grid-template-rows: 1fr; }
+  .panel-wrap > div { overflow: hidden; }
+  .panel { margin: 0 20px 16px; border: 1px solid var(--line); border-radius: 12px; padding: 16px; background: #FCFBF8; }
+  .panel.lock { color: var(--warning); background: var(--warning-bg); border-color: transparent; font-size: .92rem; }
+  .readonly { font-size: .92rem; color: var(--info); background: var(--info-bg); border-radius: 8px; padding: 8px 12px; margin-bottom: 14px; }
+  .field { display: grid; grid-template-columns: 1fr 160px; align-items: center; gap: 10px; margin: 10px 0; }
+  .field label { font-size: .92rem; }
+  .field .inline { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  input[type="text"] { font: inherit; font-variant-numeric: tabular-nums; width: 100%; min-height: 44px; padding: 8px 12px; border: 1px solid #CFC8B9; border-radius: 10px; text-align: right; background: #fff; }
+  input[aria-invalid="true"] { border-color: var(--error); }
+  .linkbtn { border: 0; background: none; color: var(--primary); font: inherit; font-size: .88rem; cursor: pointer; padding: 10px 0; min-height: 44px; text-decoration: underline; text-underline-offset: 3px; }
+  .net { margin-top: 12px; padding: 10px 12px; border-radius: 8px; font-size: .92rem; }
+  .net.ok { background: var(--success-bg); color: var(--success); }
+  .net.ko { background: var(--warning-bg); color: var(--warning); }
+  .books { font-size: .88rem; color: var(--muted); margin-top: 10px; }
+  .actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 14px; }
+  .btn { font: inherit; font-size: .92rem; border-radius: 10px; min-height: 44px; padding: 8px 18px; cursor: pointer; border: 1px solid var(--line); background: var(--card); color: var(--ink); }
+  .btn.primary { background: var(--primary); border-color: var(--primary); color: #fff; }
+  .btn.primary:hover:not(:disabled) { background: var(--primary-dark); }
+  .btn:disabled { opacity: .45; cursor: not-allowed; }
+  .btn:active:not(:disabled) { transform: scale(.97); }
+  .toast { margin: 0 20px 16px; padding: 10px 12px; border-radius: 8px; font-size: .9rem; }
+  .toast.err { background: var(--error-bg); color: var(--error); }
+  .toast.ok { background: var(--success-bg); color: var(--success); }
+  @media (max-width: 560px) {
+    .field { grid-template-columns: 1fr; gap: 4px; }
+    .actions { flex-direction: column-reverse; } .actions .btn { width: 100%; }
+    .row { grid-template-columns: 1fr; } .row .amount { justify-self: start; }
+  }
+  table.books-t { width: 100%; border-collapse: collapse; font-size: .9rem; }
+  table.books-t th, table.books-t td { text-align: left; padding: 8px 6px; border-bottom: 1px solid var(--line); }
+  table.books-t td.r, table.books-t th.r { text-align: right; }
+  .changed { background: var(--warning-bg); transition: background 600ms; }
+  .history { font-size: .88rem; color: var(--muted); padding: 12px 20px; border-top: 1px solid var(--line); }
+  .q { border-left: 3px solid var(--honey); padding: 4px 0 4px 14px; margin: 14px 0; }
+  @media (prefers-reduced-motion: reduce) {
+    .panel-wrap { transition: none; } .amount:active, .btn:active { transform: none; } .changed { transition: none; }
+  }
+</style>
+</head>
+<body>
+<main>
+  <div class="meta">Spec <code>specs/platform-statement-after-payout.md</code> · approuvée le 16/11/2026</div>
+  <h1>Corriger le relevé d’une plateforme après le versement</h1>
+  <p class="lede">La fiche 202605014 est payée, mais « À vérifier » la signale sans fin : il manque le montant payé par le client. Aujourd’hui, aucun chemin ne permet de le saisir.</p>
+
+  <div class="grid2">
+    <div class="card">
+      <p class="k">Constat</p>
+      <ul class="tight">
+        <li>Le panneau « Paiement plateforme » ne s’ouvre que si le versement n’est <strong>pas</strong> reçu.</li>
+        <li>Un séjour terminé est verrouillé : le montant affiche un cadenas.</li>
+        <li>Déverrouiller ne suffit pas : saisir le brut change le prix final, ce que la fiche déverrouillée refuse.</li>
+        <li>Le seul détour, « Annuler le versement », touche à l’argent reçu pour corriger un libellé comptable.</li>
+      </ul>
+    </div>
+    <div class="card">
+      <p class="k">Proposition</p>
+      <ul class="tight">
+        <li>Le relevé s’ouvre sur toute ligne plateforme, reçue ou non, fiche verrouillée ou non.</li>
+        <li>Sur une ligne reçue, c’est une <strong>re-ventilation</strong>. Si le net s’écarte du virement, la saisie passe avec un avertissement et l’écart reste affiché sur la ligne.</li>
+        <li>Écrit tout de suite, sans « Enregistrer » ni déverrouillage, tracé dans l’historique.</li>
+        <li>Même date d’encaissement, net bancaire inchangé ; le rapprochement reste valable.</li>
+      </ul>
+    </div>
+  </div>
+
+  <h2>Essayer sur la fiche 202605014</h2>
+  <p>Clique sur le montant du solde. Essaie 215 puis « Calculer la commission », ou une commission fausse pour voir l’avertissement.</p>
+  <div class="seg" role="group" aria-label="Version">
+    <button type="button" data-mode="before" aria-pressed="false">Aujourd’hui (4.1.0)</button>
+    <button type="button" data-mode="after" aria-pressed="true">Après la spec</button>
+  </div>
+
+  <div class="card fiche" id="fiche">
+    <div class="fiche-head">
+      <strong>Amandine Maisonnette · 202605014</strong>
+      <span class="state">Abracadaroom · 10 → 11/10/2026</span>
+    </div>
+    <div class="lockbar">Séjour passé : fiche verrouillée. Les statuts de paiement restent modifiables.</div>
+
+    <div class="row">
+      <div>
+        <div class="label">Solde</div>
+        <div class="state">Reçu le 05/06 · Abracadaroom <span class="chip" id="chip"></span></div>
+      </div>
+      <button class="amount num" id="amountBtn" type="button" aria-expanded="false" aria-controls="panelWrap">
+        <span id="amountTxt">171,14 €</span>
+        <svg id="amountIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"></svg>
+      </button>
+      <div class="detail num" id="rowDetail">Aucune commission saisie</div>
+    </div>
+    <div class="panel-wrap" id="panelWrap"><div id="panelSlot"></div></div>
+    <div id="toastSlot"></div>
+
+    <div class="row">
+      <div>
+        <div class="label">Complément d’arrivée</div>
+        <div class="state">Perçu le 10/10 · options 70,00 € + taxe de séjour 5,86 €</div>
+      </div>
+      <span class="num" style="font-weight:600;padding:8px 12px">75,86 €</span>
+    </div>
+    <div class="row">
+      <div class="label">Prix final <span class="state">(hors taxe de séjour)</span></div>
+      <span class="num" id="finalTxt" style="font-weight:600;padding:8px 12px">241,14 €</span>
+    </div>
+    <div class="history" id="history" hidden></div>
+  </div>
+
+  <h2>Ce que lit la comptabilité (écriture du 05/06)</h2>
+  <div class="card">
+    <table class="books-t">
+      <thead><tr><th>Compte</th><th class="r">Débit</th><th class="r">Crédit</th></tr></thead>
+      <tbody>
+        <tr id="bNet"><td>Banque / plateforme (net)</td><td class="r num" id="bNetV">171,14 €</td><td></td></tr>
+        <tr id="bComm"><td>Commission plateforme</td><td class="r num" id="bCommV">—</td><td></td></tr>
+        <tr id="bCa"><td>Hébergement 70600000</td><td></td><td class="r num" id="bCaV">171,14 €</td></tr>
+      </tbody>
+    </table>
+    <p class="books" style="margin-bottom:0">Sans écart, le net reste celui du virement : seuls le chiffre d’affaires et la commission changent. Avec un écart, la compta suit le relevé saisi et la ligne affiche la différence avec le virement réel. Si juin est déjà chez le comptable, c’est la ventilation de ce mois qui change.</p>
+  </div>
+
+  <h2>Ce qu’on ne fait pas</h2>
+  <ul class="tight">
+    <li>Corriger le montant reçu lui-même : cela reste « Annuler le versement ».</li>
+    <li>Recalculer une taxe de séjour déjà perçue ou déclarée à partir du nouveau prix.</li>
+    <li>Corriger en masse toutes les lignes de « À vérifier ».</li>
+  </ul>
+
+  <h2>Risque</h2>
+  <p>La correction contourne volontairement le gel du prix des fiches déverrouillées. Le garde-fou qui le remplace : seuls le brut, la commission et le prix final peuvent bouger. Si la taxe, le complément, les options ou une date devaient changer, le serveur refuse. Un net différent du virement est accepté (arbitrage Q1) : c’est le prix de la souplesse, et la puce « écart » sur la ligne est là pour qu’il ne passe pas inaperçu.</p>
+
+  <h2>Arbitrages tranchés le 16/11</h2>
+  <div class="q"><strong>Q1 — Net différent du virement :</strong> accepté avec un avertissement, écart affiché sur la ligne.</div>
+  <div class="q"><strong>Q2 — Lignes non reçues sur une fiche verrouillée :</strong> incluses, sans comparaison au virement.</div>
+</main>
+
+<script>
+(() => {
+  const NET = 171.14, ARRIVAL_EXTRAS = 70;
+  const fmt = (n) => n.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €';
+  const parse = (s) => { const v = Number(String(s).replace(/\s|€/g, '').replace(',', '.')); return s === '' || !Number.isFinite(v) ? null : v; };
+  const r2 = (n) => Math.round(n * 100) / 100;
+  const LOCK = '<rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/>';
+  const PEN = '<path d="M4 20h4L19 9l-4-4L4 16v4z"/>';
+
+  let mode = 'after';
+  let stored = { gross: null, commission: null };
+  let open = false;
+  let draft = { gross: '', commission: '' };
+
+  const $ = (id) => document.getElementById(id);
+
+  function renderRow() {
+    $('amountTxt').textContent = fmt(stored.gross ?? NET);
+    $('amountIcon').innerHTML = mode === 'before' ? LOCK : PEN;
+    $('rowDetail').textContent = stored.commission != null
+      ? `Brut ${fmt(stored.gross)} · commission ${fmt(stored.commission)} · net ${fmt(r2(stored.gross - stored.commission))}`
+      : 'Aucune commission saisie';
+    const chip = $('chip');
+    if (stored.gross != null && stored.gap) { chip.className = 'chip warn'; chip.textContent = `écart : ${fmt(Math.abs(stored.gap))}`; }
+    else if (stored.gross != null) { chip.className = 'chip ok'; chip.textContent = '✓ cohérent avec le virement'; }
+    else { chip.className = 'chip warn'; chip.textContent = 'À vérifier : brut manquant'; }
+    $('finalTxt').textContent = fmt(r2((stored.gross ?? NET) + ARRIVAL_EXTRAS));
+    $('bCommV').textContent = stored.commission != null ? fmt(stored.commission) : '—';
+    $('bCaV').textContent = fmt(stored.gross ?? NET);
+    $('bNetV').textContent = fmt(stored.gross != null ? r2(stored.gross - stored.commission) : NET);
+  }
+
+  function netOf() {
+    const g = parse(draft.gross), c = parse(draft.commission);
+    if (g == null || c == null) return null;
+    return r2(g - c);
+  }
+
+  function renderPanel() {
+    const slot = $('panelSlot');
+    $('panelWrap').classList.toggle('open', open);
+    $('amountBtn').setAttribute('aria-expanded', String(open));
+    if (!open) return;
+    if (mode === 'before') {
+      slot.innerHTML = '<div class="panel lock">Versement reçu le 05/06 : annuler la réception pour corriger les montants.<br>Et une fois déverrouillée, la fiche refuse : « Fiche déverrouillée : le prix final doit rester à 241,14 € ».</div>';
+      return;
+    }
+    const net = netOf();
+    const gross = parse(draft.gross);
+    const gap = net != null && Math.abs(net - NET) > 0.005;
+    const commInvalid = net != null && parse(draft.commission) < 0;
+    let netHtml = '';
+    if (net != null) {
+      netHtml = gap
+        ? `<div class="net ko" role="status">Net : ${fmt(net)} — le virement reçu est de ${fmt(NET)} (écart ${fmt(Math.abs(r2(net - NET)))}). Le relevé sera enregistré avec cet écart.</div>`
+        : `<div class="net ok" role="status">Net : ${fmt(net)} — identique au virement ✓</div>`;
+    }
+    slot.innerHTML = `
+      <div class="panel">
+        <div class="readonly num">Virement reçu le 05/06 : ${fmt(NET)}</div>
+        <div class="field">
+          <label for="fGross">Montant total payé par le client</label>
+          <input id="fGross" type="text" inputmode="decimal" value="${draft.gross}" placeholder="0,00">
+        </div>
+        <div class="field">
+          <label for="fComm">Commission solde (€)</label>
+          <div class="inline">
+            <input id="fComm" type="text" inputmode="decimal" value="${draft.commission}" placeholder="0,00" aria-invalid="${gap || commInvalid}">
+          </div>
+        </div>
+        <button class="linkbtn" id="compute" type="button" ${gross == null ? 'disabled' : ''}>Calculer la commission</button>
+        ${netHtml}
+        <div class="actions">
+          <button class="btn" id="cancel" type="button">Annuler</button>
+          <button class="btn primary" id="validate" type="button" ${net == null ? 'disabled' : ''}>Valider</button>
+        </div>
+      </div>`;
+    const keepCaret = (id, key) => {
+      const el = $(id);
+      el.addEventListener('input', () => {
+        const pos = el.selectionStart; draft[key] = el.value; renderPanel();
+        const again = $(id); again.focus(); again.setSelectionRange(pos, pos);
+      });
+    };
+    keepCaret('fGross', 'gross'); keepCaret('fComm', 'commission');
+    $('compute').addEventListener('click', () => {
+      const g = parse(draft.gross); if (g == null) return;
+      draft.commission = String(r2(g - NET)).replace('.', ','); renderPanel();
+    });
+    $('cancel').addEventListener('click', () => { open = false; renderPanel(); });
+    $('validate').addEventListener('click', submit);
+  }
+
+  function toast(kind, text) {
+    $('toastSlot').innerHTML = `<div class="toast ${kind}" role="status">${text}</div>`;
+  }
+
+  function submit() {
+    const g = parse(draft.gross), c = parse(draft.commission), net = netOf();
+    if (net == null) return;
+    stored = { gross: g, commission: c, gap: r2(net - NET) };
+    open = false;
+    toast('ok', stored.gap ? `Relevé enregistré avec un écart de ${fmt(Math.abs(stored.gap))} sur le virement.` : 'Relevé enregistré. La ligne disparaît de « À vérifier ».');
+    const h = $('history'); h.hidden = false;
+    h.innerHTML = `<strong>Historique</strong> · 16/11 · Relevé plateforme corrigé — Montant payé par le client : vide → ${fmt(g)} · Commission solde : vide → ${fmt(c)} · Prix final : 241,14 € → ${fmt(r2(g + ARRIVAL_EXTRAS))}`;
+    ['bComm', 'bCa'].forEach((id) => { const el = $(id); el.classList.add('changed'); setTimeout(() => el.classList.remove('changed'), 1400); });
+    renderRow(); renderPanel();
+  }
+
+  $('amountBtn').addEventListener('click', () => {
+    open = !open; $('toastSlot').innerHTML = '';
+    if (open && mode === 'after' && stored.gross == null && draft.gross === '') draft = { gross: '', commission: '' };
+    renderPanel();
+    if (open && mode === 'after') $('fGross').focus();
+  });
+  document.querySelectorAll('.seg button').forEach((b) => b.addEventListener('click', () => {
+    mode = b.dataset.mode;
+    document.querySelectorAll('.seg button').forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
+    open = false; stored = { gross: null, commission: null }; draft = { gross: '', commission: '' };
+    $('toastSlot').innerHTML = ''; $('history').hidden = true;
+    renderRow(); renderPanel();
+  }));
+  renderRow(); renderPanel();
+})();
+</script>
+</body>
+</html>

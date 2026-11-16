@@ -174,7 +174,9 @@ test('rule 24 — a platform row replaces the solde: « Versement <plateforme> �
   const r = rowOf(received, 'balance');
   assert.equal(r.stateLabel, 'Reçu le 23/10 · Booking');
   assert.equal(r.detail.reconciliation.label, '✓ cohérent avec le virement', 'rule 26 — the reconciliation chip is on the row');
-  assert.equal(r.amountEdit.editable, false);
+  // specs/platform-statement-after-payout.md rules 1, 3 — the received payout keeps its statement open, with the transfer.
+  assert.equal(r.amountEdit.mode, 'statement');
+  assert.deepEqual([r.amountEdit.received.date, r.amountEdit.received.net], ['2026-10-23', 829.42]);
 
   const withDeposit = buildLedger({
     row: { ...row, platform: 'Airbnb', depositAmount: 300, balanceAmount: 687.39, acompteCommissionAmount: 46.5 },

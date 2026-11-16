@@ -477,6 +477,9 @@ const api = {
   createReservation: (data) => request('/reservations', { method: 'POST', body: data }),
   updateReservation: (id, data) => request(`/reservations/${id}`, { method: 'PUT', body: data }),
   markPayment: (id, data) => request(`/reservations/${id}/payment`, { method: 'PATCH', body: data }),
+  // specs/platform-statement-after-payout.md §4.3 — the platform statement on a received payout or a locked fiche.
+  previewPlatformStatement: (id, statement) => request(`/reservations/${id}/platform-statement/preview`, { method: 'POST', body: statement, readOnly: true }),
+  updatePlatformStatement: (id, statement) => request(`/reservations/${id}/platform-statement`, { method: 'PATCH', body: statement }),
   // specs/single-payment-from-the-fiche.md §4.3 — the stay and the complement collected as ONE
   // payment, at a date the operator chooses. `mode` is 'card' | 'cash' | 'undo'.
   // specs/mixed-method-payments.md — `extra` carries `{ expectedAmountCents, tenders, shortfall }` with mode 'split'.

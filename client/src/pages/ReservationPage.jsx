@@ -3104,6 +3104,11 @@ export default function ReservationPage() {
       cautionAmount: res.cautionAmount,
       platformPayoutAmount: res.platformPayoutAmount == null ? '' : res.platformPayoutAmount,
       platformCommissionAmount: res.platformCommissionAmount == null ? '' : res.platformCommissionAmount,
+      // specs/platform-statement-after-payout.md rule 5 — the statement written by its own PATCH, and the solde it moved.
+      platformGrossAmount: res.platformGrossAmount == null || res.platformGrossAmount === '' ? '' : res.platformGrossAmount,
+      platformTouristTaxAmount: res.platformTouristTaxAmount == null ? '' : res.platformTouristTaxAmount,
+      acompteCommissionAmount: res.acompteCommissionAmount == null ? '' : res.acompteCommissionAmount,
+      balanceAmount: Number(res.balanceAmount || 0),
       // Rule 35 — undoing a received acompte freezes it server-side: the form must carry it on.
       depositAmountOverride: res.depositAmountOverride === '' || res.depositAmountOverride == null ? '' : Number(res.depositAmountOverride),
       endOfStayComplementAmountOverride: res.endOfStayComplementAmountOverride == null ? '' : res.endOfStayComplementAmountOverride,
