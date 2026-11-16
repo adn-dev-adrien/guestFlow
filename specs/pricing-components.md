@@ -1963,6 +1963,15 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
     moment, article, family and label). Before, a notes-only save dated every first line of the stay with the save: a receipt dated between the booking
     and that save (a transfer ticked with its own date) was frozen without them (rule 99) — 13,00 € of options cut over no options line, for good.
     Test `fiche-save-keeps-first-lines-booking-date`.
+101. **« Ventes du séjour » on the fiche: sells while the server's window is open, never over typed edits** _(stabilisation loop t2, UI2-1 to UI2-4,
+    2026-11-16; completes rules 27, 31, 37)_. The panel's actions (« Ajouter un produit », the « Moment » menu) are offered on a saved stay unless the
+    fiche is closed (cancelled, superseded) or the stay has started and the server's mid-stay window is closed (`editLock.locked` and not
+    `editLock.extrasEditable`: its departure collected) — a started stay sells, which is the main case of rule 27 (a basket sold during the stay, routed
+    to the departure). A write of the panel re-reads the fiche so a later save keeps the line (rule 30); a fiche holding unsaved edits therefore holds
+    the panel's writes, focusable and inert with « Enregistrer d'abord les modifications. » (the reason under the title, in the tooltip and the
+    accessible name), as « Annuler le séjour » and « Supprimer » are; on a clean fiche the re-read keeps the page on screen (no loading screen, the
+    scroll and the administrator's unlock kept). The panel renders the `saleDetail` the fiche read (`GET /api/reservations/:id`, refreshed by every
+    finance re-read) and asks `GET …/sale-detail` only when the fiche carries none. Vitest `ReservationPage.extra-sales-panel`.
 
 ## 4. Architecture
 
@@ -2041,12 +2050,12 @@ _Rewritten 2026-11-15 (stabilisation loop t1, UI-3) to the files PR B and PR C s
 |---|---|---|---|
 | `components/` | `SaleDetailList.jsx` | C | generic: renders `saleDetail` lines with source, status and discount chips (`StatusBadge`), grouped by article (`groups`); the « Moment » menu of a line the server serves `movable` (rule 95) — the fiche, both SAS, the devis view |
 | `components/` | `AddProductDialog.jsx` | C | « Ajouter un produit » (`FormDialog`): product, quantity, the server's price and moment, sells at the accepted price (`payment: 'later'`) |
-| `components/` | `ExtraSalesPanel.jsx` | C | « Ventes du séjour » of a saved stay: `SaleDetailList` + `AddProductDialog`, the moment menu |
+| `components/` | `ExtraSalesPanel.jsx` | C | « Ventes du séjour » of a saved stay: `SaleDetailList` + `AddProductDialog`, the moment menu; seeded with the fiche's `saleDetail` (`initialDetail`), `locked` (closed fiche or closed mid-stay window), `heldReason` (writes held on a dirty fiche), `onChanged` (the fiche's quiet re-read), an error with « Réessayer » when it reads alone (rule 100) |
 | `components/` | `StaySalesSection.jsx` | C | the SAS sections « Ventes du séjour — au départ » and « Déjà payé » (rule 32), « Percevoir maintenant » / « Offrir »; SDK client export (2.29.0) |
 | `components/` | `SuggestedArticlesStep.jsx` | C | « Proposés à l'arrivée »: suggestion chips, « Autre article » search, steppers; SDK client export (2.31.0) |
 | `components/` | `SalePaymentLink.jsx` | C | the payment-link block of a sale outside a stay (mint, copy, e-mail on click, withdraw); SDK client export (2.31.0) |
 | `components/` | `StandaloneSaleDialog.jsx` | C | « Vente hors séjour »: articles, quantity, client, payment (tenders or link); reuses `FormDialog`, `SaleDetailList`, `TenderLines` |
-| `components/` | `StandaloneSalesTodayCard.jsx` | C | « Ventes hors séjour · aujourd'hui » of Suivi financier, its « À rembourser » block and « Nouvelle vente » |
+| `components/` | `StandaloneSalesTodayCard.jsx` | C | « Ventes hors séjour · aujourd'hui » of Suivi financier, its « À rembourser » block and « Vente hors séjour » (only when given `onNewSale`: on a phone the page carries the button) |
 | `components/` | `ExternalSaleFields.jsx` | C | « Vendable hors séjour » and the class VAT rate on the article forms |
 | `components/` | `TenderLines.jsx`, `PricingSummary.jsx`, `reservation/FinanceSection.jsx`, `reservation/RefundDialog.jsx` | T | the tender lines of a document; the « Réduction sur » selector (Nuits / Articles / Tout); the open refund obligations; « Carte » as a refund means |
 | `hooks/` | `useExternalVatRates.js` | C | the class rates of `GET /api/standalone-sales/vat-rates` |
@@ -2177,13 +2186,18 @@ _Rewritten 2026-11-15 (stabilisation loop t1, UI-3) to what shipped._
   « Ajouter un produit » on a sold stay opens a `FormDialog` (article, quantity) with the server quote live; the sale is written « À payer »
   (`payment: 'later'`). A line the server serves `movable` has a « Moment » menu listing its `moments` (« À l'arrivée », « Au départ » once the stay
   has started, rule 95). The discount field has a target selector « Nuits », « Articles », « Tout ». Mobile (`xs`): the dialog is full screen,
-  lines stack label / quantity × unit / status, the moment button is full width.
+  lines stack label / quantity × unit / status, the moment button is full width. _Reading of 2026-11-16 (loop t2, rule 100):_ a started stay keeps
+  the panel's actions while the server's mid-stay window is open; a write re-reads the fiche without its loading screen; a fiche with unsaved edits
+  holds the panel's writes with « Enregistrer d'abord les modifications. »; a failed read of the panel shows « Ventes du séjour indisponibles. » with
+  « Réessayer ».
 - **SAS arrivée:** « À percevoir maintenant » (arrival lines + stay due), « Déjà payé » (offers nothing, rule 32) and, after check-in time,
   « Ventes du séjour — au départ » (`StaySalesSection`) with « Percevoir maintenant » on each line still to collect (C25, mock M3; « Passer à
   l'arrivée » was dropped by M3). **SAS départ:** « À percevoir au départ » and « Déjà payé », with « Offrir » on a paid line (the lowered money
   then owed back, rule 23). Same `SaleDetailList` / `StaySalesSection`, same wording.
 - **Suivi financier:** the bar gains the « Vente hors séjour » icon (rule 88) and the card « Ventes hors
-  séjour · aujourd'hui » with its « À rembourser » block.
+  séjour · aujourd'hui » with its « À rembourser » block. Mobile (`xs`, loop t1 UI-17 and t2 UI2-9): the bar drops the icon and the page shows one
+  full-width « Vente hors séjour » button at its top from the first frame, whatever the dashboard's state; the day's card then shows no button of its
+  own, so nothing moves when the dashboard arrives.
 - **Guest app** (`apps/guest/`): « Payer par carte » first and preselected (guest-app rule 86), the slot grid greys the days outside the stay and
   shows the opening hours, the delivery chips; every label from the server.
 - Copy (French, impersonal, short): « Payée par carte le {date} », « À payer à l'arrivée », « À payer au
@@ -2258,6 +2272,16 @@ _Rewritten 2026-11-15 (stabilisation loop t1, UI-3) to what shipped._
 - [x] `refund-deleted-reopens-obligations` — rule 98 (B-5)
 - [x] `accounting-receipt-split-frozen-at-payment` — rule 99 (B-4): a payment day frozen with the lines sold by it, today's row following the lines, a stay booked before never frozen, the receipt's cut kept when a paid line is removed
 - [x] `fiche-save-keeps-first-lines-booking-date` — rule 100 (D2-1): a notes-only save leaves a stay's first lines on the booking date and a receipt of yesterday frozen with them; a line the save adds is sold today
+
+### Client Vitest suites (named 2026-11-16, stabilisation loop t2 P2-2)
+- [x] `ReservationPage.extra-sales-panel` — rule 100 (UI2-1 to UI2-4): a started stay with the window open sells and moves its lines, a collected departure does not, the fiche's `saleDetail` read once, a dirty fiche holds the writes and keeps the typed note, a write on a clean fiche re-reads without the loading screen
+- [x] `ExtraSalesPanel.fiche-reload` — rules 27, 30: every accepted write asks the fiche to re-read, a refused one does not; a locked panel offers no action; a failed read shows « Réessayer »
+- [x] `SaleDetailList.moment`, `SaleDetailList.groups`, `SaleDetailList.discount` — rules 13, 31, 95: the moment menu lists the line's `moments`, the groups, the discount chips
+- [x] `StaySalesSection.accessibility` — rules 31, 32: the SAS sections' accessible names and targets
+- [x] `SuggestedArticlesStep.stored-groups` — rule 13: the stored groups placed as the server serves them
+- [x] `StandaloneSaleDialog.link-lost` — rule 53: a link the server no longer holds is said, never re-minted silently
+- [x] `FinancePage.phone-sale-button` — rule 88 (UI-17, UI2-9): on a phone one « Vente hors séjour » button at the top, drawn while the dashboard loads and when it is refused
+- [x] `StandaloneSalesTodayCard.no-button` — rule 88 (UI2-9): without `onNewSale` the day's card draws no button
 
 ### Proof
 - [ ] Price gate (rule 68): `price-gate.unit.test.js` green on every commit of A, B and C, with the allowlist reviewed by the owner; `price-gate-anonymity`, `price-gate-anonymise`, `price-gate-figures`, `price-gate-compare`, `price-gate-move-proof` unit tests green

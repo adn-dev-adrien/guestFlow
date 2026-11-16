@@ -9,7 +9,8 @@
  * Specific: it composes the generic components. Full screen on a phone with the « Reste à payer » kept at the top and « Valider l'arrivée » last under the thumb;
  * two columns from `lg` (lines and picker left, recap and payment right).
  *
- * Whether the money on the books can be invoiced now is the server's `invoiceable` ({ ok, code, reason }, admin only): « Créer la facture » iff `ok`, its `reason` otherwise.
+ * Whether the money on the books can be invoiced now is the server's `invoiceable` ({ ok, code, reason, silent }, admin only): « Créer la facture » iff `ok`, its `reason`
+ * otherwise — unless `silent`, or while a draft or a payment is typed (the reason reads the stored visit).
  * Each line names its VAT rate (`line.vatRate`). An invoiced visit offers « Nouvelle vente » on its client (`newSale.client`, rule 24): the counter's dialog seeded with it.
  *
  * Props: open, bookingId, onClose, onDone (called after a successful commit)
@@ -184,7 +185,9 @@ export default function ResourceArrivalDialog({ open, bookingId, onClose, onDone
   // Money already on the books, invoiceable now: the server's `invoiceable` (invoicing rules 13, 44; loop t1 UI-10 / AV-11). It reads the stored visit, so a draft waits for its save.
   const invoiceable = visit && !reception ? visit.invoiceable : null;
   const invoiceStored = !dirty && Boolean(invoiceable && invoiceable.ok);
-  const invoiceReason = !invoiced && !invoiceOutcome && !invoiceOffered && invoiceable && !invoiceable.ok ? invoiceable.reason : null;
+  // Loop t2 UI2-5 — the reason is the STORED visit's: it is shown only while nothing is typed (no draft, no payment being taken, whose save answers
+  // its own invoice), and never for a refusal the server marks `silent` (no Qonto, nothing to invoice, no payment yet).
+  const invoiceReason = !invoiced && !invoiceOutcome && !hasChanges && invoiceable && !invoiceable.ok && !invoiceable.silent ? invoiceable.reason : null;
   const wantsInvoice = invoiceOffered && invoiceChecked && qontoReady;
   const commitMode = !invoiceOutcome && (!booking || !booking.arrived || hasChanges);
   const primaryLabel = invoiceOutcome ? TEXTS.makeInvoice : (!booking || !booking.arrived ? TEXTS.validate : (hasChanges ? TEXTS.save : (invoiceStored ? TEXTS.makeInvoice : TEXTS.close)));

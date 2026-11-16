@@ -1,0 +1,7 @@
+- « Ventes du séjour » on the fiche of a started stay sells again and moves its lines while the mid-stay window is open; only a closed fiche or a stay whose departure is collected takes the panel's actions away (specs/pricing-components.md rules 27, 37).
+- A fiche with unsaved edits holds the panel's writes (« Enregistrer d'abord les modifications. ») instead of re-reading the stay and silently dropping the typed edits; after a write on a clean fiche the page re-reads without its loading screen, keeping the scroll and the administrator's unlock.
+- The panel renders the `saleDetail` the fiche already read, as the fiche's payload intended: no second request on opening (rule 31).
+- The outside-visit dialog no longer shows a stored invoice reason that does not apply: none without Qonto or with nothing to invoice (`invoiceable.silent`), and none while a payment or a draft is being typed (specs/outside-booking-sas.md rule 48).
+- The resource planning rows and cards carry `actions` (`noShow`, `arrive`) judged on the server's clock, and « Client absent » answers the booking with them: « Arrivée » no longer compares the session's day with the browser's clock, and the booking dialog no longer reads the booking a second time (rules 6, 27).
+- An external VAT rate emptied in an article form is refused with the field named instead of being ignored (rule 11).
+- On a phone, « Vente hors séjour » is one button at the top of Suivi financier from the first frame; it no longer jumps down to the day's card when the dashboard arrives (specs/pricing-components.md rule 88).

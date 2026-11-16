@@ -205,6 +205,8 @@ const PLANNING_EVENT_KEEP = [
   'arrived',
   'noShowAt',
   'cardState',
+  // Loop t2 UI2-6, UI2-7 — what the caller may do on the visit now (`{ noShow, arrive }`, booleans the server judged for this caller).
+  'actions',
 ];
 
 function toReceptionPlanningEvent(event) {

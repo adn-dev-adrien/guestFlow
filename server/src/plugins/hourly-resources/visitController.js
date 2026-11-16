@@ -29,7 +29,7 @@ const LINK_REFUSALS = Object.freeze({
   NO_EMAIL: 'Adresse e-mail requise.',
 });
 
-function createVisitController({ bookings, visits, invoicing }) {
+function createVisitController({ bookings, visits, invoicing, bookingPayload = (booking) => booking }) {
   const fail = (res, result) => res.status(result.status).json({
     error: result.error, ...(result.code ? { code: result.code } : {}), ...(result.refusals ? { refusals: result.refusals } : {}), ...(result.field ? { field: result.field } : {}),
     ...(result.refundCents ? { refundCents: result.refundCents } : {}),
@@ -192,7 +192,8 @@ function createVisitController({ bookings, visits, invoicing }) {
     if (isReceptionOnly(req.user)) return res.status(403).json({ error: 'Client absent : réservé à l’administrateur.', code: 'ADMIN_ONLY' });
     const result = await visits().noShow(row);
     if (result.error) return fail(res, result);
-    return res.json({ booking: bookings().findById(row.id) });
+    // Loop t2 UI2-6 — the booking as the other routes answer it, `actions` included: the screen reads what is still offered without a second request.
+    return res.json({ booking: bookingPayload(bookings().findById(row.id), req) });
   }
 
   // Rules 39-40 — the link is minted on the document of the visit (born here when it has none); its amount is SETTLEMENT's reste, never the request's.

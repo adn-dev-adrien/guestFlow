@@ -5,7 +5,7 @@
  * day whose document still owes money back (`owed`, outside-visit rule 41), each naming its sale's day (`soldDayLabel`, « Vente du 14/11 ») and carrying
  * « Marquer remboursé » (confirmed, then the card is read again).
  *
- * Props: refreshKey — bumped by the page's refresh action; onNewSale — opens the dialog; reloadKey — bumped after a sale
+ * Props: refreshKey — bumped by the page's refresh action; onNewSale — opens the dialog (omitted: no button, the page carries its own); reloadKey — bumped after a sale
  */
 import React, { useCallback, useEffect, useState } from 'react';
 import { Alert, Box, Button, Card, CardContent, Typography } from '@mui/material';
@@ -61,7 +61,7 @@ export default function StandaloneSalesTodayCard({ refreshKey = 0, reloadKey = 0
       <CardContent sx={{ display: 'grid', gap: 1.25, p: { xs: 1.5, sm: 2 }, '&:last-child': { pb: { xs: 1.5, sm: 2 } } }}>
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
           <Typography variant="sectionHeader">{TEXTS.title}</Typography>
-          <Button variant="outlined" onClick={onNewSale} sx={{ minHeight: 44, textTransform: 'none' }}>{TEXTS.action}</Button>
+          {onNewSale && <Button variant="outlined" onClick={onNewSale} sx={{ minHeight: 44, textTransform: 'none' }}>{TEXTS.action}</Button>}
         </Box>
         {state.error && <ErrorAlert message={TEXTS.failed} onRetry={load} />}
         {state.owed.length > 0 && (

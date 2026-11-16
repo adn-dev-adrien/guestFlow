@@ -35,6 +35,8 @@ import { localIsoToday } from '../utils/isoDay';
 import useServerToday from '../hooks/useServerToday';
 
 const DETAIL_ID = 'finance-detail';
+// « Vente hors séjour » (specs/pricing-components.md rule 53): the bar's tooltip on a desktop, the page's button on a phone.
+const NEW_SALE_LABEL = 'Vente hors séjour';
 const percent = (x) => (x == null ? '—' : `${Math.round(x * 100)} %`);
 const shortDate = (iso) => (iso ? new Date(`${String(iso).slice(0, 10)}T12:00:00`).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' }) : '');
 const FORMAT = { amount: formatCurrencyRounded, perNight: perNightAmount, percent, date: shortDate };
@@ -222,17 +224,18 @@ export default function FinancePage() {
     <Box>
       <PageActionBar
         title="Suivi financier"
-        // On a phone the bar keeps its one icon (the shell gives it to the top bar, shell rule 23): « Vente hors séjour » is the day's card button there.
+        // On a phone the bar keeps its one icon (the shell gives it to the top bar, shell rule 23): « Vente hors séjour » is the page's own button there.
         actionsBefore={[
-          ...(phone ? [] : [{ icon: <PointOfSaleIcon />, tooltip: 'Vente hors séjour', onClick: () => setSaleOpen(true), color: 'success' }]),
+          ...(phone ? [] : [{ icon: <PointOfSaleIcon />, tooltip: NEW_SALE_LABEL, onClick: () => setSaleOpen(true), color: 'success' }]),
           { icon: <SyncIcon />, tooltip: 'Actualiser', onClick: refreshAll, color: 'info' },
         ]}
       />
       <Box sx={{ p: { xs: 1.5, sm: 3 }, maxWidth: 1240, mx: 'auto' }}>
-        {/* The day's card carries « Vente hors séjour » on a phone; with a tile open or no dashboard the card is not drawn, so the button stays. */}
-        {phone && (tile || !d) && (
+        {/* Loop t2 UI2-9 — on a phone « Vente hors séjour » is one button at the top of the page, whatever the dashboard's state: drawn from the first
+            frame, never moved when the dashboard arrives (the day's card then shows no button of its own). */}
+        {phone && (
           <Button variant="outlined" startIcon={<PointOfSaleIcon />} onClick={() => setSaleOpen(true)} sx={{ mb: 1.5, minHeight: 44, width: '100%', textTransform: 'none' }}>
-            Vente hors séjour
+            {NEW_SALE_LABEL}
           </Button>
         )}
         {loadError && <ErrorAlert message={loadError} onRetry={loadDashboard} sx={{ mb: 2 }} />}
@@ -444,7 +447,7 @@ export default function FinancePage() {
                 <BookingPaceCard propertyId={params.propertyId} refreshKey={paceRefresh} />
               </Grid>
               <Grid size={12}>
-                <StandaloneSalesTodayCard refreshKey={paceRefresh} reloadKey={salesReload} onNewSale={() => setSaleOpen(true)} />
+                <StandaloneSalesTodayCard refreshKey={paceRefresh} reloadKey={salesReload} onNewSale={phone ? undefined : () => setSaleOpen(true)} />
               </Grid>
               <Grid size={12}>
                 <FinanceDataChecksCard fiscalYear={d.fiscalYear.key} propertyId={params.propertyId} refreshKey={paceRefresh} />

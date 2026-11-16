@@ -63,7 +63,7 @@ function register(ctx) {
   const reservations = sdk.coreModule('reservationsModel');
   const invoicing = lazy(() => createInvoicing({ bookings, visits }));
   const controller = lazy(() => createController({ bookings, scheduling, planningCards, reservations, invoicing }));
-  const visitController = lazy(() => createVisitController({ bookings, visits, invoicing }));
+  const visitController = lazy(() => createVisitController({ bookings, visits, invoicing, bookingPayload: (booking, req) => controller().bookingPayload(booking, req) }));
 
   // Rules 20-21 — the sales made outside any stay, for the journal and the card batch.
   ctx.standaloneSales((window) => (hasTable(ctx.db, 'resource_bookings') ? bookings().standaloneSales(window) : []));
