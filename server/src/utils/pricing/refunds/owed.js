@@ -73,14 +73,25 @@ const excessByLine = (lines) => new Map((lines || []).map((line) => [line.ref, M
  * Loop t2 B2-2 (outside-visit rule 53) — the open `lineLowered` rows of a document, in step with what it owes now: a row names the line it was opened for
  * and holds at most what that line still holds beyond what it asks; the rows together hold at most `owedCents` (the newest cut first). A lowering
  * (`open`) opens what no row holds yet, at most the excess of its line (`open.lineRef`, null for the whole document cancelled).
- * @param {{ rows: Array<{ id: number, lineRef: (string|null), amountCents: number }>, lines: Array<{ ref: string, dueCents: number, settledCents: number }>,
- *   owedCents: number, open?: ({ lineRef: (string|null) }|null) }} args  `rows` oldest first; `owedCents` = what the document owes back less the other open rows
+ * Loop t3 B3-1 (outside-visit rule 55) — every open row of the document is kept in step, a link surplus too: a row marked `unallocated` (a `linkSurplus`)
+ * holds at most the money still filed on no line (`unallocatedCents`, once rule 52 has filed it on the lines still due).
+ * @param {{ rows: Array<{ id: number, lineRef: (string|null), unallocated?: boolean, amountCents: number }>, lines: Array<{ ref: string, dueCents: number,
+ *   settledCents: number }>, owedCents: number, unallocatedCents?: number, open?: ({ lineRef: (string|null) }|null) }} args  `rows` oldest first; `owedCents` =
+ *   what the document owes back
  * @returns {{ amounts: Array<{ id: number, amountCents: number }>, openCents: number }} each row's amount now (0 = no longer owed), and what to open
  */
-function documentRowsInStep({ rows, lines, owedCents, open = null }) {
+function documentRowsInStep({
+  rows, lines, owedCents, unallocatedCents = 0, open = null,
+}) {
   const left = excessByLine(lines);
+  let unallocatedLeft = Math.max(0, whole(unallocatedCents));
   const amounts = (rows || []).map((row) => {
     const amount = whole(row.amountCents);
+    if (row.unallocated) {
+      const kept = Math.min(amount, unallocatedLeft);
+      unallocatedLeft -= kept;
+      return { id: row.id, amountCents: kept };
+    }
     if (row.lineRef == null) return { id: row.id, amountCents: amount };
     const kept = Math.min(amount, left.get(row.lineRef) || 0);
     left.set(row.lineRef, (left.get(row.lineRef) || 0) - kept);
@@ -103,14 +114,23 @@ function documentRowsInStep({ rows, lines, owedCents, open = null }) {
  * Loop t2 B2-1, B2-4 (outside-visit rule 49) — the refund rows of a `lineLowered` row marked refunded: taken first on the line the row was opened for, then
  * on the other lines holding more than they ask, in sale order; on each line its booked part before its caisse-interne part; what no line holds goes on
  * no line. `allocations` are the document's rows (`{ lineRef, amountCents, books }`), `lines` its settled lines.
+ * Loop t3 B3-2 (outside-visit rule 55) — a `linkSurplus` row (`unallocated: true`) gives back the money filed on no line first: one refund row on no line
+ * (off the books, the surplus never was revenue), then, if the document holds less there, the lines as above.
  * @returns {Array<{ lineRef: (string|null), amountCents: number, internal: boolean }>}
  */
-function refundRowsOfDocument({ lines, allocations = [], amountCents, lineRef = null }) {
+function refundRowsOfDocument({
+  lines, allocations = [], amountCents, lineRef = null, unallocated = false,
+}) {
   const excess = excessByLine(lines);
   const bookedOn = (ref) => (allocations || []).filter((row) => row.lineRef === ref && Number(row.books) === 1).reduce((sum, row) => sum + whole(Number(row.amountCents)), 0);
   const order = [...(lines || [])].sort((a, b) => (a.ref === lineRef ? -1 : 0) - (b.ref === lineRef ? -1 : 0));
   let left = whole(amountCents);
   const rows = [];
+  if (unallocated) {
+    const held = Math.max(0, (allocations || []).filter((row) => row.lineRef == null).reduce((sum, row) => sum + whole(Number(row.amountCents)), 0));
+    const take = Math.min(left, held);
+    if (take > 0) { rows.push({ lineRef: null, amountCents: take, internal: false }); left -= take; }
+  }
   for (const line of order) {
     if (left <= 0) break;
     const take = Math.min(left, excess.get(line.ref) || 0);

@@ -592,6 +592,14 @@ function settledOnLines(lines, allocations) {
   return lines.map((line) => Math.max(0, byRef.get(line.ref) || 0));
 }
 
+// The money of a document filed on no line, net (`cents`), and its part on the books (`bookedCents`), never negative.
+function unallocatedOf(allocations) {
+  const rows = (allocations || []).filter((row) => row.lineRef == null);
+  const cents = Math.max(0, rows.reduce((sum, row) => sum + Math.round(Number(row.amountCents || 0)), 0));
+  const booked = rows.filter((row) => Number(row.books) === 1).reduce((sum, row) => sum + Math.round(Number(row.amountCents || 0)), 0);
+  return { cents, bookedCents: Math.min(cents, Math.max(0, booked)) };
+}
+
 function allocateDocumentPayment({ lines, allocations = [], amountCents }) {
   const settled = settledOnLines(lines, allocations);
   const out = [];
@@ -611,12 +619,19 @@ function allocateDocumentPayment({ lines, allocations = [], amountCents }) {
  * allocations })` → `[{ lineRef, amountCents, books }]`, the signed allocation rows of the move (negative on the line that holds more than it asks,
  * positive on the line it now pays), one row per (line, books), the lines in sale order on both sides, each line's booked part before its
  * caisse-interne part. Nothing moves when no line holds an excess or no line asks.
+ * Loop t3 B3-1 (outside-visit rule 55) — the money filed on no line (a link paid above the reste, net of what was given back or kept from it) is the
+ * first giver, `lineRef: null`: unallocated money pays the lines still due before anything is owed back.
  */
 function refileDocumentExcess({ lines, allocations = [] }) {
   const settled = settledOnLines(lines, allocations);
   const bookedOn = (ref) => (allocations || []).filter((row) => row.lineRef === ref && Number(row.books) === 1)
     .reduce((sum, row) => sum + Math.round(Number(row.amountCents || 0)), 0);
+  // The unallocated money gives first: it was never any line's, so a line sold or made payable again takes it before the money of a lowered line
+  // (whose confirmed row the operator was already told about) moves.
+  const unallocated = unallocatedOf(allocations);
   const givers = [];
+  if (unallocated.bookedCents > 0) givers.push({ ref: null, books: 1, cents: unallocated.bookedCents });
+  if (unallocated.cents - unallocated.bookedCents > 0) givers.push({ ref: null, books: 0, cents: unallocated.cents - unallocated.bookedCents });
   const takers = [];
   lines.forEach((line, index) => {
     const gap = settled[index] - dueOf(line);
@@ -673,6 +688,7 @@ module.exports = {
   arrivalBaselineOf,
   allocateDocumentPayment,
   refileDocumentExcess,
+  unallocatedOf,
   settleDocument,
   scheduleExcess,
   PLATFORM_RESERVATION,

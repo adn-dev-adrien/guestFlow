@@ -12,6 +12,9 @@
  *   recordRefund({ saleId, obligationId, at, rows })   the money a `lineLowered` row gave back, as refund allocations (negative, `kind = 'refund'`,
  *                                 `refundId` = the row, `paymentRef` `standalone-refund:<row>` and `…:internal` off the books) — loop t1 B-1, rule 49;
  *                                 which line a cent leaves is decided by the caller (`standaloneSale.writeObligationRefund`)
+ *   recordKept({ saleId, obligationId, at, amountCents })   a link surplus kept as a tip (rules 50, 55, loop t3 B3-2): one negative `payment` allocation on no
+ *                                 line, `paymentRef` `standalone-kept:<row>`, `refundId` = the row — the money leaves the document's unallocated money (SETTLEMENT's
+ *                                 `paidCents` falls), the journal books the tip from the closed row
  *   recordTransfer({ saleId, at, rows })   money a lowered line held moved onto a line still due (loop t2 B2-3, outside-visit rule 52): signed `payment`
  *                                 allocations under one `standalone-transfer:<sale>:<n>` ref (`…:internal` off the books), dated the day of the change; which
  *                                 line gives and which takes is SETTLEMENT's (`refileDocumentExcess`)
@@ -50,6 +53,14 @@ function recordRefund({ saleId, obligationId, at, rows }) {
     if (!(row.amountCents > 0)) continue;
     insert.run(row.internal ? `${refundRef(obligationId)}:internal` : refundRef(obligationId), documentRef(saleId), row.lineRef || null, -row.amountCents, at, Number(obligationId), row.internal ? 0 : 1);
   }
+}
+
+function recordKept({
+  saleId, obligationId, at, amountCents,
+}) {
+  if (!(amountCents > 0)) return;
+  database().prepare(`INSERT INTO payment_allocations (paymentRef, documentRef, lineRef, amountCents, kind, at, refundId, books, origin)
+    VALUES (?, ?, NULL, ?, 'payment', ?, ?, 1, 'live')`).run(`standalone-kept:${Number(obligationId)}`, documentRef(saleId), -amountCents, at, Number(obligationId));
 }
 
 const TRANSFER = 'standalone-transfer:';
@@ -121,5 +132,5 @@ function documentsPaidBetween(from, to) {
 }
 
 module.exports = {
-  record, recordRefund, recordTransfer, paymentsOf, allocationsOf, paymentRef, documentsPaidBetween,
+  record, recordRefund, recordKept, recordTransfer, paymentsOf, allocationsOf, paymentRef, documentsPaidBetween,
 };

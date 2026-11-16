@@ -1534,6 +1534,9 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
     > trop-perçu: the register and the trop-perçu never disagree. Measured: a paid 40 € line offered, then 40 € refunded on the accommodation, trop-perçu 40 €
     > and row 40 € before and after; a paid line discounted 10 €, then 10 € refunded on that line, 10 € and 10 €. Test `refund-on-lowered-line-o6`.
     > On a sale document the rows follow what is owed after every change (outside-booking-sas rule 53).
+    > _Reading of 2026-11-16 (loop t3 B3-1, B3-2):_ on a sale document, money on no line is one more bucket of rule 74: a link surplus row is bounded by it
+    > and closed by a refund allocation (« remboursé ») or a kept allocation (« rien à rembourser », the tip), so every cent received is on a line, on no
+    > line, given back or kept — never two of them (outside-booking-sas rule 55).
 76. **One trop-perçu formula for every stay** _(owner O-6, O-7 b, Q16)_. The trop-perçu is the Σ of the stay's
     allocations (rule 74) minus its line totals, for every stay: legacy stays read allocations backfilled from the
     stored contribs, splits and settlements, stay-level through `legacyBucketSplit` where no per-line truth exists
