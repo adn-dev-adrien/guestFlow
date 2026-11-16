@@ -49,6 +49,14 @@ Nothing counts as « sold during the stay » before the guest has actually arriv
    end-of-stay, cash or not) and no settled mid-stay note. Those stays are still pre-arrival, so a
    stale baseline is exactly what misfiles their extras. Money-safe by construction — every excluded
    condition is a case where something has already been collected against that baseline.
+   > **Amended 2026-11-16** (stabilisation loop t4, D4-2, D4-3; [pricing-components.md](pricing-components.md) rules 102 a and
+   > 103 b). The repair runs on every boot, and since rule 102 a save made once the stay clock has started (the check-in hour
+   > passed, nothing ticked yet) lays a baseline of the stay's own. Clearing it at a restart sent the departure part of a line
+   > that grew above it out of every bucket (306 + 0 + 45 = 351 € on a final price of 363 €). So the repair now also requires
+   > that the **stay clock has not started** at the boot's `now` (`stayClockModel.phaseForReservation`, the one clock) — before
+   > the arrival day, or on it before the check-in hour — and it never clears a baseline that carved a line out to the departure
+   > (a line stamped `collectAt = 'departure'`, rule 103 b): that baseline is the line's bucket. Written once in
+   > `complementDataRepairs.clearPreArrivalBaselines(db, { now })`, called by `database.js`.
 
 **Edge cases:**
 - **Walk-in / stay recorded after the fact** (created while already running): no baseline until the
@@ -124,6 +132,10 @@ touched).
       valve and the arrival-detail carving keep their PR #486 tests, green and untouched.
 - [x] `reservations-mid-stay-sync.unit.test.js` (20) — capture cases realigned on the arrival signal.
 - [x] Full server suite green: **3636 pass**.
+- [x] `arrival-baseline-boot-repair-clock.unit.test.js` (6, new 2026-11-16, loop t4 D4-2/D4-3) — rule 3 as amended: a stay not
+      started loses its baseline; one that carved a line out to the departure (or holds a departure charge stamped there)
+      keeps it; on the arrival day the baseline is cleared before the check-in hour and kept after; a clock-started stay
+      whose plan line grew keeps every euro in a bucket across a restart.
 
 ### Migration
 - [x] Replayed on a copy of the operator's base: 0 legitimate baseline touched; a row forced into the
