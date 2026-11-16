@@ -49,7 +49,9 @@ function documentInvoiceRefusal(row, money, issuer, { basis = null } = {}) {
   if (money.document && money.document.totals && money.document.totals.refundOwedCents > 0) {
     return { status: 409, code: 'REFUND_OWED', error: 'Remboursement à faire : facture après le remboursement.' };
   }
-  if (money.payments.some((payment) => payment.tenders.some((t) => t.internal))) return { status: 400, code: 'INTERNAL_CASH', error: 'Caisse interne : hors comptabilité.' };
+  // Loop t4 B4-5 (rule 56 c) — judged on the caisse-interne money the document still holds (the core's `internalHeldCents`), not on the tenders of a
+  // payment whose internal money was given back since.
+  if (money.document.totals.internalHeldCents > 0) return { status: 400, code: 'INTERNAL_CASH', error: 'Caisse interne : hors comptabilité.' };
   if (paidElsewhereLine(money)) {
     if (!row.payment || !row.payment.tenders.length) return { status: 400, code: 'NO_METHOD', error: 'Moyen de paiement non saisi : retirer le paiement puis l’enregistrer à nouveau.' };
     if (!row.payment.onTheBooks) return { status: 400, code: 'INTERNAL_CASH', error: 'Caisse interne : hors comptabilité.' };
@@ -84,22 +86,30 @@ function createInvoicing({ bookings, visits = null, issuers = () => sdk.coreModu
 
   // Rule 31 of the outside-visit spec — one item per money line of the document: the session's parts at its rate (its deductions as one discount),
   // each extra at its own rate. Offered and cancelled lines carry no money and are not sent.
+  // Loop t4 B4-4 (pricing-components rule 62, outside-visit rule 56 e) — each item names its (class, rate) group, so the issuer sends a group's items with
+  // the VAT the journal cuts once on the group; a session paid on the booking is a group of its own (its journal is the booking's).
   function documentRequestOf(basis, money) {
     const { row, who } = basis;
     const lines = money.document.lines.filter((line) => line.status === 'paid' && line.totalCents > 0);
     const items = [];
     let discount = null;
     for (const line of lines) {
+      const vatRate = Number(line.vatRate || 0);
+      const vatGroup = `${line.source === 'paidElsewhere' ? 'booking:' : ''}${line.vatClass}|${vatRate}`;
       const parts = line.components && line.components.length ? line.components : null;
       if (!parts) {
-        items.push({ title: line.label, description: line.detail || '', amountCents: line.totalCents, vatRate: Number(line.vatRate || 0) });
+        items.push({
+          title: line.label, description: line.detail || '', amountCents: line.totalCents, vatRate, vatGroup,
+        });
         continue;
       }
-      parts.filter((part) => part.amountCents > 0).forEach((part) => items.push({ title: `${line.label} · ${part.label}`, description: part.detail || '', amountCents: part.amountCents, vatRate: Number(line.vatRate || 0) }));
+      parts.filter((part) => part.amountCents > 0).forEach((part) => items.push({
+        title: `${line.label} · ${part.label}`, description: part.detail || '', amountCents: part.amountCents, vatRate, vatGroup,
+      }));
       const deductions = parts.filter((part) => part.amountCents < 0);
       if (deductions.length) {
         discount = {
-          title: deductions.map((part) => part.label).join(' + '), amountCents: -deductions.reduce((sum, part) => sum + part.amountCents, 0), vatRate: Number(line.vatRate || 0),
+          title: deductions.map((part) => part.label).join(' + '), amountCents: -deductions.reduce((sum, part) => sum + part.amountCents, 0), vatRate, vatGroup,
         };
       }
     }
@@ -200,7 +210,11 @@ function createInvoicing({ bookings, visits = null, issuers = () => sdk.coreModu
     if (!checked.ok) return { ok: false, code: 'TENDERS_INVALID', reason: checked.error, silent: false };
     let refusal;
     if (money) {
-      const after = { ...money, remainingCents: checked.shortfallKind === 'due' ? checked.shortfallCents : 0, payments: [...money.payments, { tenders: checked.lines }] };
+      const typedInternal = checked.lines.filter((line) => line.internal).reduce((sum, line) => sum + line.amountCents, 0);
+      const document = { ...money.document, totals: { ...money.document.totals, internalHeldCents: money.document.totals.internalHeldCents + typedInternal } };
+      const after = {
+        ...money, document, remainingCents: checked.shortfallKind === 'due' ? checked.shortfallCents : 0, payments: [...money.payments, { tenders: checked.lines }],
+      };
       refusal = documentInvoiceRefusal(bookings().findById(raw.id), after, issuers(), { basis: bookings().invoiceBasis(raw.id) });
     } else {
       const lines = checked.lines;

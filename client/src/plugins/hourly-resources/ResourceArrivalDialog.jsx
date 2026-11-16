@@ -389,11 +389,11 @@ export default function ResourceArrivalDialog({ open, bookingId, onClose, onDone
                 {(view.vatByRate || []).filter((row) => row.vatCents > 0).map((row) => (
                   <Typography key={row.rate} variant="caption" color="text.secondary" sx={{ fontVariantNumeric: 'tabular-nums' }}>{TEXTS.vat(String(row.rate).replace('.', ','), euros(row.vatCents))}</Typography>
                 ))}
-                {(visit.refundObligations || []).map((row) => (
+                {(view.refundObligations || []).map((row) => (
                   <Alert
                     key={row.id}
                     severity="warning"
-                    action={<Button color="inherit" size="small" disabled={busy} aria-describedby={`obligation-${row.id}`} onClick={() => setObligationAsk(row)} sx={{ minHeight: 44, textTransform: 'none' }}>{TEXTS.refunded}</Button>}
+                    action={<Button color="inherit" size="small" disabled={busy || dirty} aria-describedby={`obligation-${row.id}`} onClick={() => setObligationAsk(row)} sx={{ minHeight: 44, textTransform: 'none' }}>{TEXTS.refunded}</Button>}
                   >
                     <span id={`obligation-${row.id}`}>{row.label}{row.detail ? ` · ${row.detail}` : ''}</span>
                   </Alert>

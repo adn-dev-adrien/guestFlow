@@ -116,14 +116,21 @@ function documentRowsInStep({
  * no line. `allocations` are the document's rows (`{ lineRef, amountCents, books }`), `lines` its settled lines.
  * Loop t3 B3-2 (outside-visit rule 55) — a `linkSurplus` row (`unallocated: true`) gives back the money filed on no line first: one refund row on no line
  * (off the books, the surplus never was revenue), then, if the document holds less there, the lines as above.
+ * Loop t4 B4-3 (outside-visit rule 56) — `reserved` are the other open rows of the document (`{ lineRef, amountCents }`): after its own line, a row takes
+ * the excess no other row names, in sale order, and only then what another row holds. A whole document cancelled (`lineRef` NULL) no longer takes the
+ * offered beers' money its own row was opened for. The same rows say which money a row closed « rien à rembourser » keeps (rule 56 a).
  * @returns {Array<{ lineRef: (string|null), amountCents: number, internal: boolean }>}
  */
 function refundRowsOfDocument({
-  lines, allocations = [], amountCents, lineRef = null, unallocated = false,
+  lines, allocations = [], amountCents, lineRef = null, unallocated = false, reserved = [],
 }) {
   const excess = excessByLine(lines);
-  const bookedOn = (ref) => (allocations || []).filter((row) => row.lineRef === ref && Number(row.books) === 1).reduce((sum, row) => sum + whole(Number(row.amountCents)), 0);
-  const order = [...(lines || [])].sort((a, b) => (a.ref === lineRef ? -1 : 0) - (b.ref === lineRef ? -1 : 0));
+  const bookedLeft = new Map((lines || []).map((line) => [line.ref, Math.max(0, (allocations || [])
+    .filter((row) => row.lineRef === line.ref && Number(row.books) === 1).reduce((sum, row) => sum + whole(Number(row.amountCents)), 0))]));
+  const named = new Map();
+  for (const row of reserved || []) {
+    if (row && row.lineRef != null && row.lineRef !== lineRef) named.set(row.lineRef, (named.get(row.lineRef) || 0) + Math.max(0, whole(row.amountCents)));
+  }
   let left = whole(amountCents);
   const rows = [];
   if (unallocated) {
@@ -131,14 +138,19 @@ function refundRowsOfDocument({
     const take = Math.min(left, held);
     if (take > 0) { rows.push({ lineRef: null, amountCents: take, internal: false }); left -= take; }
   }
-  for (const line of order) {
-    if (left <= 0) break;
-    const take = Math.min(left, excess.get(line.ref) || 0);
-    if (!(take > 0)) continue;
-    const booked = Math.min(take, Math.max(0, bookedOn(line.ref)));
+  const takeFrom = (line, most) => {
+    const take = Math.min(left, most, excess.get(line.ref) || 0);
+    if (!(take > 0)) return;
+    const booked = Math.min(take, bookedLeft.get(line.ref) || 0);
     rows.push({ lineRef: line.ref, amountCents: booked, internal: false }, { lineRef: line.ref, amountCents: take - booked, internal: true });
+    excess.set(line.ref, excess.get(line.ref) - take);
+    bookedLeft.set(line.ref, (bookedLeft.get(line.ref) || 0) - booked);
     left -= take;
-  }
+  };
+  const own = (lines || []).find((line) => lineRef != null && line.ref === lineRef);
+  if (own) takeFrom(own, Infinity);
+  for (const line of lines || []) if (line !== own) takeFrom(line, Math.max(0, (excess.get(line.ref) || 0) - (named.get(line.ref) || 0)));
+  for (const line of lines || []) if (line !== own) takeFrom(line, Infinity);
   if (left > 0) rows.push({ lineRef: null, amountCents: left, internal: false });
   return rows;
 }

@@ -7,6 +7,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const db = require('../database');
 const standaloneSale = require('../utils/standaloneSale');
+const links = require('../utils/standaloneSaleLinks');
 const sales = require('../models/standaloneSalesModel');
 
 const option = (title, price, vatClass) => Number(db.prepare("INSERT INTO options (title, price, priceType, sellableExternally, vatClass) VALUES (?, ?, 'per_stay', 1, ?)")
@@ -28,7 +29,8 @@ test('B-1 — offering the paid beers opens one 13 € row; the counter lists th
   assert.deepEqual([offered.document.totals.refundOwedCents, offered.document.totals.refundUnheldCents], [1300, 0]);
   assert.ok(sales.counterSalesOwing().includes(id));
   const [row] = sales.obligationsOf(id);
-  sales.closeObligation(row.id, { status: 'settled', by: 'test' });
+  // Loop t4 B4-2 — the close writes the money given back (rule 49): no closed row is subtracted on its own any more.
+  assert.equal(links.closeObligation(id, row.id, 'settled').status, 200);
   const after = standaloneSale.documentOf(id);
   assert.deepEqual([after.totals.refundOwedCents, after.refundObligations.length], [0, 0]);
   assert.ok(!sales.counterSalesOwing().includes(id));

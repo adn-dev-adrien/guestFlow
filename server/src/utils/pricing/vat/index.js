@@ -171,7 +171,16 @@ function vatOf(taggedAmounts, { regime = null, settings = null } = {}) {
   };
 }
 
+// Rule 62 (loop t4 B4-4) — the VAT of one (class, rate) group of a document, cut ONCE on the group's TTC: what the journal books for a sale document and
+// what its Qonto invoice must state for the items of that group (`invoiceIssuer` per-group targets). 0 on a group with no money.
+function groupVatCents(ttcCents, rate) {
+  return ttcCents > 0
+    ? vatOf([{ amountCents: ttcCents, vatClass: 'external', customerContext: 'external' }], { regime: null, settings: { get: () => rate } }).totals.vatCents
+    : 0;
+}
+
 module.exports = {
+  groupVatCents,
   settingsSchema,
   VAT_CLASSES,
   ARTICLE_VAT_CLASSES,
