@@ -1,11 +1,12 @@
 // @ts-check
 // specs/hosting-h2-account-security.md §7 E2E — the forgotten password through the dev mail
 // catcher (rules 1-4), turning on the authenticator app and logging in with a computed code
-// (rules 6-7, 32-33, 38-45), changing the app (rules 47-48), and the support flow with a locally signed link (rules 12-16).
+// (rules 6-7, 32-33, 38-45) and changing the app (rules 47-48). The support flow (rules 12-16) is `support-access.spec.js`: its request is a
+// banner of the whole app, so it runs in a project of its own (specs/e2e-playwright-smoke-suite.md rule 20).
 import { test, expect } from '@playwright/test';
 import fixtures from '../../fixtures/accountSecurity.js';
 
-const { seedAccount, lastMailTo, codeFor, writeSupportRequest, openAccessId, supportLinkPath } = fixtures;
+const { seedAccount, lastMailTo, codeFor } = fixtures;
 
 test.use({ storageState: { cookies: [], origins: [] } });
 
@@ -125,35 +126,4 @@ test('rules 47-48 — « Changer d’appli » asks the password and a code, and 
   await page.getByLabel('Code à 6 chiffres').fill(codeFor(next, new Date(Date.now() + 30_000)));
   await expect(page.getByText('Désactivée', { exact: true })).toBeVisible();
   await expect(page.getByText('Validation en deux étapes désactivée.')).toBeVisible();
-});
-
-test('rules 12-16 + 20 — the support asks, the admin accepts, a signed link opens a traced support session', async ({ page, browser }) => {
-  const account = seedAccount('support');
-  writeSupportRequest('Vérifier la synchronisation Booking');
-  await login(page, account);
-  await expect(page.getByText('Le support demande l’accès : Vérifier la synchronisation Booking')).toBeVisible({ timeout: 15_000 });
-  await page.getByRole('button', { name: 'Autoriser 24 h' }).click();
-  await expect(page.getByText('Accès du support autorisé 24 h.')).toBeVisible();
-
-  const supportContext = await browser.newContext({ storageState: { cookies: [], origins: [] } });
-  const support = await supportContext.newPage();
-  const linkPath = supportLinkPath(openAccessId());
-  await support.goto(linkPath);
-  await expect(support.getByTestId('support-session-bar')).toContainText('Session support — jusqu’au');
-  await support.goto('/planning');
-  await expect(support.getByTestId('support-session-bar')).toBeVisible();
-
-  const replay = await (await browser.newContext({ storageState: { cookies: [], origins: [] } })).newPage();
-  await replay.goto(linkPath);
-  await expect(replay.getByText('Lien support invalide ou expiré.')).toBeVisible();
-
-  await page.goto('/parametres/acces-support');
-  await page.getByRole('button', { name: /Journal/ }).first().click();
-  // Rule 23: the minute's reads, the page included, read as one « Consultation : … » line.
-  await expect(page.getByText(/^Consultation : .*Planning/).first()).toBeVisible();
-  await expect(page.getByText('/api/', { exact: false })).toHaveCount(0);
-  await page.getByRole('button', { name: 'Révoquer' }).click();
-  await page.getByRole('dialog').getByRole('button', { name: 'Révoquer' }).click();
-  await expect(page.getByText('Accès révoqué.')).toBeVisible();
-  await supportContext.close();
 });
