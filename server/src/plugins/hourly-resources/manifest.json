@@ -169,6 +169,7 @@
       "Un remboursement dû sur une visite s’affiche dans l’arrivée pour l’administrateur, avec « Marquer remboursé » ; l’accueil ne le voit pas.",
       "L’administrateur peut retirer le lien de paiement d’une visite le lendemain de la séance, même sans arrivée enregistrée.",
       "Offrir ou retirer une ligne payée d’une visite, avec confirmation, inscrit la somme dans « À rembourser » (bouton « Marquer remboursé ») ; la facture attend ce remboursement.",
+      "Un lien de paiement payé au-delà du reste règle d’abord les lignes encore dues de la visite ; seul ce qui reste est « À rembourser ». Une fois remboursé ou gardé en pourboire, cet argent ne paie plus une ligne ajoutée ensuite, et la confirmation d’une ligne payée annonce la somme réellement à rendre.",
       "L’accueil ne voit plus l’adresse e-mail du client ni le nom d’un client reconnu, et ne peut plus demander la facture ni saisir l’adresse de facturation.",
       "L’adresse de facturation n’est enregistrée qu’avec l’arrivée acceptée ; changer le client d’une réservation change celui de sa vente.",
       "Le serveur dit si « Client absent », « Créer la facture » et « Retirer le lien » sont possibles, et ouvre une nouvelle vente sur le même client après la facture.",

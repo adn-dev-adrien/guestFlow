@@ -430,6 +430,8 @@ once on the server by the refonte's components.
     2026-11-16 by rule 49; reference corrected 2026-11-16, loop t2 B2-6)
     Migration: the table's CHECK is widened (rebuilt once, rows and ids kept). Tests `standalone-sale-paid-line-refund`,
     `pricing-sales-document-obligations-widened`, `visit-round1-reception-and-refunds`.
+    > _Reading of 2026-11-16 (loop t3 B3-3):_ the amount the LINE_PAID refusal names is what the confirmed lowering would open (rule 55 d), not what
+    > the line holds; a lowering that opens nothing asks nothing.
 45. **What each caller is served, so the screens rebuild no rule** _(stabilisation loop t1, 2026-11-15)_. The visit payload adds `invoiceable: { ok, code, reason }`
     (the refusals `POST /:id/invoice` would answer before Qonto, admin; `null` for the reception), `access.withdrawLink` (the administrator on any day,
     V-8), and `newSale: { client }` on an invoiced visit; for the reception, `paymentLink.email` is `null` with `hasEmail`, a typed address that matches a
@@ -489,6 +491,8 @@ once on the server by the refonte's components.
     > was the beers' at 20 %). Which line a cent leaves is REFUNDS' `refundRowsOfDocument` (refonte rule 72), no longer computed in `standaloneSale`.
     > Migration: one nullable column, NULL on the existing rows (they read as before: sale order). Tests `standalone-sale-lowered-line-in-step`,
     > `pricing-refunds-document-rows`.
+    > _Reading of 2026-11-16 (loop t3 B3-2):_ a `linkSurplus` row closed `settled` now writes its refund on no line (rule 55 c): still off the journal,
+    > but the money leaves the document, so it cannot pay a line sold later.
 50. **A link surplus kept is a tip** _(owner decision 2026-11-16, stabilisation loop t1 B-6; completes rules 30, 41)_. A `linkSurplus` row closed
     « rien à rembourser » (`status: 'cancelled'`) is money the business keeps. The history says « 13,00 € gardés en pourboire », and the journal books it
     like a stay's tip: one entry on the day the row was closed (`standaloneSales.list` row `role: 'tip'`, key `standalone:<id>:<day>:tip:<row>`; entry kind
@@ -524,6 +528,7 @@ once on the server by the refonte's components.
     lowering owes the money again). A confirmed lowering opens what no row holds yet, at most its line's excess. Before, a beer offered then made payable
     again left its 13 € row open (the counter listed it, the invoice waited `REFUND_OWED`, and « Marquer remboursé » wrote 13 € on no line).
     Test `standalone-sale-lowered-line-in-step`.
+    > _Reading of 2026-11-16 (loop t3 B3-1):_ the open `linkSurplus` rows are kept in step too, each bounded by the unallocated money (rule 55 b).
 54. **« Créer la facture dans Qonto » at « Payé maintenant » is served** _(stabilisation loop t2, B2-7, 2026-11-16; CLAUDE.md §6.0; completes rules 45, 48 and
     invoicing rules 13, 44, 45)_. With a payment typed, the arrival's quote (`POST …/visit/quote` with `payment: { tenders, shortfall?, paidAt }`) and the
     booking dialog's preview (`POST /api/resource-bookings/preview` with `payment`) answer `invoiceable: { ok, code, reason }` for the commit of that draft
@@ -532,6 +537,29 @@ once on the server by the refonte's components.
     `INTERNAL_CASH`, `ISSUER_UNAVAILABLE`…), or on a booking paid on its own columns. The dialogs show the checkbox iff `ok`, ask it again when the payment
     or the draft changes, and the arrival waits for the answer before its commit; they no longer read the tenders to decide it. Tests
     `visit-draft-invoiceable`, `ResourceArrivalDialog.invoice-from-server`, `ResourceBookingDialog.invoice-from-server`.
+55. **One money model for a document: every cent on a line or on no line** _(stabilisation loop t3, B3-1, B3-2, B3-3, 2026-11-16; completes rules 41,
+    44, 49, 50, 52, 53 and refonte rules 72, 74, 75)_. Every cent a document received sits either on one of its lines or **on no line** — its
+    *unallocated money*: a link paid above the reste (rule 41), net of what was given back or kept from it (`payment_allocations` with `lineRef` NULL).
+    (a) **The unallocated money pays first.** After every change of a stored document (rule 52), the unallocated money is the FIRST giver of
+    SETTLEMENT's `refileDocumentExcess`: it is filed on the lines still due (a transfer `lineRef` NULL → the line, dated the day of the change, booked
+    that day in the sale like rule 52's legs; the leg leaving no line puts nothing in the avoir), before a lowered line's money moves. Only what is left
+    on no line is a link surplus. (b) **The `linkSurplus` row follows it.** Its row opens in the payment's transaction (`receive`) and is kept in step
+    with the other rows (REFUNDS' `documentRowsInStep`, rule 53 widened to every open row): a `linkSurplus` row holds at most the unallocated money
+    left, every row together at most what the document owes back, the newest cut first; a row cut to nothing is closed `cancelled` by `system` and is
+    **no tip** (rule 50 reads only rows the operator closed). Before, a beer made payable again after a late 14 € link stayed due under a « 13,00 €
+    à rembourser » row (13 € consumed, never asked, never booked; invoice refused `REFUND_OWED`). (c) **Closing a link surplus takes its money off the
+    document.** « Marquer remboursé » writes it as a refund on no line (`kind = 'refund'`, `refundId` = the row, `paymentRef` `standalone-refund:<row>`;
+    REFUNDS' `refundRowsOfDocument` with `unallocated`), off the journal since the surplus never was revenue — this replaces rule 49's « a
+    `linkSurplus` row closed `settled` writes nothing ». « Rien à rembourser » writes a **kept** allocation: one negative `payment` allocation on no line
+    (`paymentRef` `standalone-kept:<row>`, `refundId` = the row), so SETTLEMENT's `paidCents` falls by the tip; the journal still books the tip from the
+    closed row (rule 50). Either way the closed row is counted once (`closedObligationCents` skips a row any allocation names), and a line sold later is
+    asked in full: before, the 13 € given back or tipped kept paying it (« Payé » with nothing received, the beer never booked). (d) **The LINE_PAID
+    refusal names what the confirmation opens** (rule 44's mock M5, reading of 2026-11-16). `refundCents` is the row the confirmed lowering would open:
+    the plan of rule 52-53 run on the document as the change would leave it. A paid line whose money pays the lines still due opens nothing, so the
+    lowering is applied with no question (the money « passe sur le reste »); a line holding 13 € on a document whose plank asks 7 € names 6 €. Before,
+    the dialog asked to give back 13 € the confirmed change then filed on the plank, with no row to record it. In every case the journal nets, per
+    class and rate, exactly the paid lines the Qonto invoice states (rule 31). Tests `standalone-sale-unallocated-money`,
+    `standalone-sale-line-paid-refund-amount`.
 
 ---
 

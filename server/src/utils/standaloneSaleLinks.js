@@ -194,15 +194,17 @@ function settlePaidLink({ link, paidDate = null, paidAt = null }) {
   const source = `payment-link:${link.id}`;
   const already = database().prepare('SELECT 1 FROM standalone_sale_payments WHERE saleId = ? AND source = ?').get(saleId, source);
   if (already) return { effect: 'already-processed' };
-  const received = standaloneSale.receive(saleId, {
-    method: 'link', amountCents: Number(link.amountCents), paidAt: paidDate || (paidAt ? String(paidAt).slice(0, 10) : null), source,
-  });
   const cancelled = sale.status === 'cancelled';
+  // A durable obligation, not only a figure the document computes: the admin finds it on the document until the refund is made. It opens in the
+  // payment's transaction and follows the document from then on (loop t3 B3-1, rule 55).
+  const received = standaloneSale.receive(saleId, {
+    method: 'link',
+    amountCents: Number(link.amountCents),
+    paidAt: paidDate || (paidAt ? String(paidAt).slice(0, 10) : null),
+    source,
+    surplus: { paymentLinkId: link.id, reason: cancelled ? 'Lien payé après l’annulation de la vente' : 'Lien payé après un changement du reste' },
+  });
   if (received.surplusCents > 0) {
-    // A durable obligation, not only a figure the document computes: the admin finds it on the document until the refund is made.
-    sales.openObligation({
-      saleId, paymentLinkId: link.id, amountCents: received.surplusCents, reason: cancelled ? 'Lien payé après l’annulation de la vente' : 'Lien payé après un changement du reste',
-    });
     return { effect: 'standalone-sale-refund-owed', saleId, surplusCents: received.surplusCents, cancelled };
   }
   return { effect: 'standalone-sale-settled', saleId };
@@ -216,6 +218,8 @@ const OBLIGATION_STATUSES = ['settled', 'cancelled'];
  * open row closes (409 otherwise); the document's history says so, and the document stops claiming that money.
  * Loop t1 B-1 (rule 49): a `lineLowered` row `settled` writes its refund allocations, the journal's avoir. Loop t1 B-6 (rule 50, owner 2026-11-16): a
  * `linkSurplus` row `cancelled` is money kept, booked as a tip on the day it is closed (« 13,00 € gardés en pourboire »).
+ * Loop t3 B3-2 (rule 55): a `linkSurplus` row closed either way takes its money off the document's unallocated money — `settled` as a refund on no line,
+ * `cancelled` as a kept allocation — so it can never pay a line sold later.
  */
 function closeObligation(saleId, obligationId, status, { actor = null } = {}) {
   if (!OBLIGATION_STATUSES.includes(status)) return refuse(400, 'OBLIGATION_INVALID_STATUS', 'Statut invalide.');
@@ -225,7 +229,8 @@ function closeObligation(saleId, obligationId, status, { actor = null } = {}) {
   if (row.status !== 'open') return refuse(409, 'OBLIGATION_ALREADY_CLOSED', 'Déjà clos.');
   database().transaction(() => {
     sales.closeObligation(row.id, { status, by: actor || 'operator' });
-    if (status === 'settled' && row.origin === 'lineLowered') standaloneSale.writeObligationRefund(saleId, row);
+    if (status === 'settled') standaloneSale.writeObligationRefund(saleId, row);
+    else if (row.origin === 'linkSurplus') standaloneSale.writeKeptSurplus(saleId, row);
     const { euros } = require('./paymentTenders');
     let words = `${euros(row.amountCents)} remboursés`;
     if (status === 'cancelled') words = row.origin === 'linkSurplus' ? `${euros(row.amountCents)} gardés en pourboire` : `${euros(row.amountCents)} : rien à rembourser`;

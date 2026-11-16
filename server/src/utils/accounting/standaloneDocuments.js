@@ -84,7 +84,8 @@ function salesOfDocument({
         invoiceNumber,
       });
     }
-    if (refundDays.has(day)) {
+    // Loop t3 B3-1, B3-2 (rule 55) — money that leaves no line (a link surplus given back, or filed on a line) puts nothing in the day's avoir.
+    if (refundDays.has(day) && refundDays.get(day).size) {
       const groups = cut(refundDays.get(day), -1);
       out.push({
         key: `standalone:${sale.id}:${day}:refund`,

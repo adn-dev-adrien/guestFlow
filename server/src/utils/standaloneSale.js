@@ -7,7 +7,8 @@
  *   removeLine(saleId, lineId, { confirmRefund, version, actor })            a line taken off (an unpaid one freely, a paid one with the confirmation, rule 25)
  *   pay(saleId, { tenders, shortfall, paidAt, version, actor, source })      a payment on the reste, allocated by SETTLEMENT (rules 16-19)
  *   cancel(saleId)                                                           every line cancelled; money already taken stays and is owed back (rules 26, 41)
- *   writeObligationRefund(saleId, obligation, { day })                       a `lineLowered` row marked refunded: its refund allocations (rule 49)
+ *   writeObligationRefund(saleId, obligation, { day })                       an open row marked refunded: its refund allocations (rules 49, 55)
+ *   writeKeptSurplus(saleId, obligation, { day })                            a link surplus kept (« rien à rembourser »): its kept allocation (rules 50, 55)
  *   documentOf(saleId, { paidElsewhere })                → the saleDetail payload of the document, or null
  *   paymentsOf(saleId)                                   → `[{ id, paidAt, receivedCents, tenders, source }]`, oldest first
  *
@@ -28,7 +29,7 @@
  */
 const { toCents } = require('./pricing/money');
 const { externalSale } = require('./pricing/pipelines');
-const { allocateDocumentPayment, refileDocumentExcess } = require('./pricing/settlement');
+const { allocateDocumentPayment, refileDocumentExcess, unallocatedOf } = require('./pricing/settlement');
 const { owedOnDocument, documentRowsInStep, refundRowsOfDocument } = require('./pricing/refunds/owed');
 const articles = require('./pricing/articles');
 const { buildDocumentDetail } = require('./saleDetail');
@@ -296,7 +297,7 @@ function takePayment(saleId, { tenders, shortfall, paidAt, source = null, actor 
  * by SETTLEMENT in sale order, whatever the document became meanwhile. What no line asks any more is filed on no line and is owed back (`surplusCents`).
  */
 function receive(saleId, {
-  method, amountCents, paidAt, source = null,
+  method, amountCents, paidAt, source = null, surplus = null,
 }) {
   const db = database();
   let outcome = null;
@@ -314,9 +315,17 @@ function receive(saleId, {
       allocations: walk.map((row) => ({ ...row, internal: false })),
     });
     sales.addHistory(saleId, `${euros(amountCents)} encaissés : ${methodLabel(method)}`);
+    const surplusCents = walk.filter((row) => row.lineRef == null).reduce((sum, row) => sum + row.amountCents, 0);
+    // Loop t3 B3-1 (rule 55) — the surplus is the document's unallocated money: its row opens here and follows the document like every other row.
+    if (surplusCents > 0 && surplus) {
+      sales.openObligation({
+        saleId, paymentLinkId: surplus.paymentLinkId, amountCents: surplusCents, reason: surplus.reason,
+      });
+    }
+    reconcile(saleId);
     refreshInPlace(saleId);
     sales.bumpVersion(saleId);
-    outcome = { paymentId, surplusCents: walk.filter((row) => row.lineRef == null).reduce((sum, row) => sum + row.amountCents, 0) };
+    outcome = { paymentId, surplusCents };
   })();
   return outcome;
 }
@@ -440,22 +449,30 @@ function publishSold(document) {
  * with what the document owes back; a confirmed lowering (`lowered`: `{ reason, lineRef }`, `lineRef` null for the whole document) opens what no row
  * holds yet (loop t1 B-1, AV-1, rule 25): the « À rembourser » lists show it, the invoice waits for it, and « Marquer remboursé » closes it.
  */
-function reconcile(saleId, lowered = null) {
-  let { stored, allocations } = storedOf(saleId);
+function planOf(saleId, { stored, allocations }, lowered = null) {
   const moved = refileDocumentExcess({ lines: price({ requests: [], stored, allocations }).lines, allocations });
-  if (moved.length) {
-    payments.recordTransfer({ saleId, at: todayIso(), rows: moved });
-    ({ stored, allocations } = storedOf(saleId));
-  }
-  const ctx = price({ requests: [], stored, allocations });
+  const after = [...allocations, ...moved.map((row) => ({ ...row, kind: 'payment' }))];
+  const ctx = price({ requests: [], stored, allocations: after });
   const { obligations, owed } = owedOf(ctx, saleId);
-  const rows = obligations.filter((row) => row.origin === 'lineLowered');
-  const othersCents = obligations.filter((row) => row.origin !== 'lineLowered').reduce((sum, row) => sum + row.amountCents, 0);
   const step = documentRowsInStep({
-    rows, lines: ctx.settlement.lines, owedCents: owed.owedCents - othersCents, open: lowered ? { lineRef: lowered.lineRef || null } : null,
+    rows: obligations.map((row) => ({ ...row, unallocated: row.origin === 'linkSurplus' })),
+    lines: ctx.settlement.lines,
+    owedCents: owed.owedCents,
+    unallocatedCents: unallocatedOf(after).cents,
+    open: lowered ? { lineRef: lowered.lineRef || null } : null,
   });
+  return { moved, obligations, step };
+}
+
+/**
+ * Loop t3 B3-1 (rule 55) — the plan covers every open row: a `linkSurplus` row holds at most the money still on no line once rule 52 has filed it on the
+ * lines still due, so a line made payable again or sold after a late link is paid by that money and its row shrinks (closed by `system` at 0).
+ */
+function reconcile(saleId, lowered = null) {
+  const { moved, obligations, step } = planOf(saleId, storedOf(saleId), lowered);
+  if (moved.length) payments.recordTransfer({ saleId, at: todayIso(), rows: moved });
   for (const row of step.amounts) {
-    const before = rows.find((r) => r.id === row.id);
+    const before = obligations.find((r) => r.id === row.id);
     if (before && before.amountCents !== row.amountCents) sales.resizeObligation(row.id, row.amountCents);
   }
   if (lowered && step.openCents > 0) {
@@ -490,15 +507,18 @@ function change(saleId, version, work, { lowered = null } = {}) {
 }
 
 // Rule 25 — lowering a line the document already collected owes money back: refused unless the caller confirmed it.
-function lineOf(saleId, lineId, { confirmRefund }) {
+// Mock M5 (loop t1 UI-12), loop t3 B3-3 (rule 55): the refusal names what the confirmed change would really open — the plan of `reconcile` run on the
+// document as the change would leave it (`lowerTo`: the line offered or removed), after the line's money paid the lines still due. Nothing to open, no question.
+function lineOf(saleId, lineId, { confirmRefund, lowerTo = null }) {
   const row = sales.findLine(saleId, lineId);
   if (!row || row.cancelledAt) return { refusal: refuse(404, 'LINE_NOT_FOUND', 'Ligne introuvable.') };
+  if (confirmRefund === true || !lowerTo) return { row };
   const { stored, allocations } = storedOf(saleId);
-  const ctx = price({ requests: [], stored, allocations });
-  const settled = ctx.settlement.lines.find((line) => line.ref === sales.lineRef(row.id));
-  // Mock M5 (loop t1 UI-12): the refusal names what the confirmation would owe back, so the dialog can say it.
-  if (settled && settled.settledCents > 0 && confirmRefund !== true) {
-    return { refusal: refuse(409, 'LINE_PAID', `Ligne payée : remboursement à confirmer. ${euros(settled.settledCents)} à rembourser.`, { refundCents: settled.settledCents, label: row.label }) };
+  const ref = sales.lineRef(row.id);
+  const lowered = stored.map((line) => (line.ref === ref ? { ...line, ...lowerTo } : line));
+  const { step } = planOf(saleId, { stored: lowered, allocations }, { lineRef: ref });
+  if (step.openCents > 0) {
+    return { refusal: refuse(409, 'LINE_PAID', `Ligne payée : remboursement à confirmer. ${euros(step.openCents)} à rembourser.`, { refundCents: step.openCents, label: row.label }) };
   }
   return { row };
 }
@@ -506,7 +526,7 @@ function lineOf(saleId, lineId, { confirmRefund }) {
 function offerLine(saleId, lineId, { offered = true, confirmRefund = false, version } = {}) {
   let label = '';
   return change(saleId, version, () => {
-    const { row, refusal } = lineOf(saleId, lineId, { confirmRefund: offered ? confirmRefund : true });
+    const { row, refusal } = lineOf(saleId, lineId, { confirmRefund: offered ? confirmRefund : true, lowerTo: { offered: true, totalCents: 0 } });
     if (refusal) return refusal;
     label = row.label;
     const catalogue = row.catalogueCents == null ? row.totalCents : row.catalogueCents;
@@ -519,7 +539,7 @@ function offerLine(saleId, lineId, { offered = true, confirmRefund = false, vers
 function removeLine(saleId, lineId, { confirmRefund = false, version } = {}) {
   let label = '';
   return change(saleId, version, () => {
-    const { row, refusal } = lineOf(saleId, lineId, { confirmRefund });
+    const { row, refusal } = lineOf(saleId, lineId, { confirmRefund, lowerTo: { cancelled: true } });
     if (refusal) return refusal;
     label = row.label;
     sales.updateLine(row.id, { cancelledAt: new Date().toISOString() });
@@ -561,9 +581,21 @@ function writeObligationRefund(saleId, obligation, { day = todayIso() } = {}) {
   const { stored, allocations } = storedOf(saleId);
   const ctx = price({ requests: [], stored, allocations });
   const rows = refundRowsOfDocument({
-    lines: ctx.settlement.lines, allocations, amountCents: Number(obligation.amountCents), lineRef: obligation.lineRef || null,
+    lines: ctx.settlement.lines, allocations, amountCents: Number(obligation.amountCents), lineRef: obligation.lineRef || null, unallocated: obligation.origin === 'linkSurplus',
   });
   payments.recordRefund({ saleId, obligationId: obligation.id, at: day, rows });
+  refreshInPlace(saleId);
+  sales.bumpVersion(saleId);
+}
+
+/**
+ * Loop t3 B3-2 (rule 55, owner rule 50) — a link surplus closed « rien à rembourser » is money the business keeps: it leaves the document's unallocated
+ * money as a « kept » allocation (`payments.recordKept`), so it can no longer pay a line sold later; the journal books it as the tip of rule 50.
+ */
+function writeKeptSurplus(saleId, obligation, { day = todayIso() } = {}) {
+  payments.recordKept({
+    saleId, obligationId: obligation.id, at: day, amountCents: Number(obligation.amountCents),
+  });
   refreshInPlace(saleId);
   sales.bumpVersion(saleId);
 }
@@ -574,5 +606,5 @@ const paymentsOf = (saleId) => payments.paymentsOf(saleId).map((row) => ({
 }));
 
 module.exports = {
-  quote, sell, offerLine, removeLine, pay, cancel, receive, documentOf, paymentsOf, takePayment, writeObligationRefund, MAX_QUANTITY,
+  quote, sell, offerLine, removeLine, pay, cancel, receive, documentOf, paymentsOf, takePayment, writeObligationRefund, writeKeptSurplus, MAX_QUANTITY,
 };
