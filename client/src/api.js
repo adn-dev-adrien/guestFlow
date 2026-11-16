@@ -342,6 +342,8 @@ const api = {
   previewPlatformPenalty: (reservationId, payload) => request(`/reservations/${reservationId}/platform-penalties/preview`, { method: 'POST', body: payload }),
   declarePlatformPenalty: (reservationId, payload) => request(`/reservations/${reservationId}/platform-penalties`, { method: 'POST', body: payload }),
   removePlatformPenalty: (reservationId, penaltyId) => request(`/reservations/${reservationId}/platform-penalties/${penaltyId}`, { method: 'DELETE' }),
+  // specs/mollie-rolling-reserve-and-incoming-payments.md rule 15 — « Tester » on the optional Mollie account (the typed token, else the stored one).
+  testMollieConnection: (token) => request('/plugins/online-payment/mollie/test', { method: 'POST', body: token ? { token } : {} }),
   getReconciliationBankAccounts: () => request('/payments/reconciliation/bank-accounts'),
   getPluginSettings: (id) => request(`/plugins/${encodeURIComponent(id)}/settings`),
   savePluginSettings: (id, payload) => request(`/plugins/${encodeURIComponent(id)}/settings`, { method: 'PUT', body: payload }),
@@ -510,6 +512,8 @@ const api = {
   // Omitted → the server answers on the current exercise.
   // specs/finance-dashboard-redesign.md §4.3 — the Suivi financier and the table behind each tile.
   getFinanceDashboard: (params = {}) => request(`/finance/dashboard?${financeQuery(params)}`),
+  // specs/mollie-rolling-reserve-and-incoming-payments.md rules 21-26 — what the bank is still to receive, by client.
+  getIncomingPayments: ({ recent = false } = {}) => request(`/finance/incoming${recent ? '?recent=1' : ''}`),
   getFinanceDashboardDetail: (tile, params = {}) => request(`/finance/dashboard/detail/${encodeURIComponent(tile)}?${financeQuery(params)}`),
   // specs/stay-profile.md §4.3 — the « Profil des séjours »: same window and logement parameters as the dashboard.
   getFinanceStayProfile: (params = {}) => request(`/finance/stay-profile?${financeQuery(params)}`),
