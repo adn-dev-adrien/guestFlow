@@ -24,12 +24,12 @@ const RECEIVED = {
   key: 'balance', label: 'Versement Abracadaroom', amount: 171.14, state: 'paid', tone: 'done', stateLabel: 'Reçu le 05/06 · Abracadaroom',
   action: null,
   amountEdit: {
-    editable: true, mode: 'statement', min: null, max: null, reason: null,
-    received: { date: '2026-06-05', net: 171.14, label: 'Virement reçu le 05/06 : 171,14 €' },
+    editable: true, mode: 'statement', min: null, max: null, reason: null, correctable: true,
+    received: { date: '2026-06-05', net: 171.14, label: 'Virement reçu le 05/06 (€)' },
   },
   detail: null,
 };
-const UNRECEIVED = { ...RECEIVED, state: 'due', tone: 'due', amountEdit: { editable: true, mode: 'statement', min: null, max: null, reason: null } };
+const UNRECEIVED = { ...RECEIVED, state: 'due', tone: 'due', amountEdit: { editable: true, mode: 'statement', min: null, max: null, reason: null, correctable: true } };
 
 function renderFinance({ row = RECEIVED, ...overrides } = {}) {
   const ctx = makeMockContext({
@@ -63,9 +63,10 @@ beforeEach(() => {
   api.previewPlatformStatement.mockResolvedValue({ netGap: 0, netLabel: { tone: 'done', label: 'Net : 171,14 € — identique au virement ✓' } });
 });
 
-test('rules 1, 3 — a received payout on a locked fiche opens the statement with the transfer', async () => {
+test('rules 1, 3, 8 — a received payout on a locked fiche opens the statement with its transfer, prefilled and editable', async () => {
   renderFinance();
-  expect(screen.getByText('Virement reçu le 05/06 : 171,14 €')).toBeInTheDocument();
+  expect(screen.getByLabelText('Virement reçu le 05/06 (€)')).toHaveValue('171,14');
+  expect(screen.getByLabelText('Virement reçu le 05/06 (€)')).not.toBeDisabled();
   expect(screen.getByLabelText('Montant total payé par le client')).not.toBeDisabled();
   expect(screen.queryByText(/déverrouiller la fiche/)).not.toBeInTheDocument();
 });
@@ -109,7 +110,7 @@ test('rule 11 — an unreceived payout on a locked fiche writes at once too, wit
   api.updatePlatformStatement.mockResolvedValueOnce({ netGap: 0, netLabel: null, changed: ['platformGrossAmount'] });
   api.previewPlatformStatement.mockResolvedValue({ netGap: 0, netLabel: null });
   renderFinance({ row: UNRECEIVED });
-  expect(screen.queryByText(/Virement reçu le/)).not.toBeInTheDocument();
+  expect(screen.queryByLabelText(/Virement reçu le/)).not.toBeInTheDocument();
   typeGross('215');
   fireEvent.click(screen.getByRole('button', { name: 'Valider' }));
   await waitFor(() => expect(api.updatePlatformStatement).toHaveBeenCalled());
@@ -127,4 +128,34 @@ test('a modified locked fiche must be saved or reverted before the statement is 
   renderFinance({ fichePristine: false });
   expect(screen.getByLabelText('Montant total payé par le client')).toBeDisabled();
   expect(screen.getByText(/Fiche modifiée : enregistrer ou annuler/)).toBeInTheDocument();
+});
+
+test('review H1 — a received solde of a direct-sale channel (not correctable) keeps the lock on a locked fiche', () => {
+  const frozen = { ...RECEIVED, amountEdit: { editable: false, mode: 'locked', min: null, max: null, reason: 'Versement reçu le 05/06 : annuler la réception pour corriger les montants.' } };
+  const ctx = makeMockContext({
+    ledger: { rows: [frozen], closing: null }, editingReservationId: 22211, isReservationLocked: true,
+    form: { platform: 'Lodgify', platformPayoutAmount: '' }, pricingQuote: {},
+  });
+  render(
+    <DialogProvider>
+      <ReservationFormProvider value={ctx}>
+        <FinanceSection />
+      </ReservationFormProvider>
+    </DialogProvider>,
+  );
+  fireEvent.click(screen.getByRole('button', { name: /Montant figé/ }));
+  expect(screen.queryByLabelText('Montant total payé par le client')).not.toBeInTheDocument();
+  expect(api.previewPlatformStatement).not.toHaveBeenCalled();
+});
+
+test('review M1 — « Calculer la commission » reads the transfer typed in the panel', async () => {
+  renderFinance();
+  typeGross('215');
+  const transfer = screen.getByLabelText('Virement reçu le 05/06 (€)');
+  transfer.focus();
+  fireEvent.change(transfer, { target: { value: '170' } });
+  fireEvent.blur(transfer);
+  api.computePlatformCommission.mockResolvedValueOnce({ commission: 45 });
+  fireEvent.click(screen.getByRole('button', { name: /Calculer la commission/i }));
+  await waitFor(() => expect(api.computePlatformCommission).toHaveBeenCalledWith(expect.objectContaining({ gross: 215, payout: 170 })));
 });

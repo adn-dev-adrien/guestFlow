@@ -8,6 +8,8 @@ const { saleChannel } = require('../utils/saleChannel');
 const { captureBucketSplit } = require('../utils/forceItemContribsCapture');
 const correction = require('../utils/platformStatementCorrection');
 const { formatEuros } = require('../utils/reservationLedger');
+const { hasStayStarted } = require('../utils/arrivalMoment');
+const { localNow } = require('../utils/localDate');
 
 const HISTORY_LABELS = {
   platformGrossAmount: 'Montant total payé par le client',
@@ -43,27 +45,45 @@ function createPlatformStatementModel(database) {
     if (stored.kind !== 'reservation' || stored.cancelledAt) {
       return fail(400, 'Séjour annulé ou hors réservation : aucun relevé à corriger.', { code: 'NOT_A_PLATFORM_STAY' });
     }
-    if (!saleChannel(stored.platform).namedChannel) {
-      return fail(400, 'Réservation directe : il n’y a pas de relevé de plateforme.', { code: 'NOT_A_PLATFORM_STAY' });
+    // A channel counted as a direct sale is paid by the guest, not settled by a platform: its received solde is money,
+    // not a statement (review H1).
+    if (!saleChannel(stored.platform).platformSale) {
+      return fail(400, 'Vente directe : il n’y a pas de relevé de plateforme.', { code: 'NOT_A_PLATFORM_STAY' });
+    }
+    const received = flag(stored.balancePaid) || flag(stored.balancePaidCash);
+    // Rule 11 — the endpoint serves what the fiche save cannot: a received payout or a started (locked) stay.
+    const now = localNow();
+    if (!received && !hasStayStarted(stored, now.today, now.nowTime)) {
+      return fail(409, 'Séjour à venir : saisir le relevé dans la fiche puis enregistrer.', { code: 'STATEMENT_THROUGH_FICHE' });
+    }
+    const plan = database.prepare('SELECT COUNT(*) AS n FROM reservation_installments WHERE reservationId = ?').get(stored.id);
+    if (plan && plan.n > 0) {
+      return fail(409, 'Séjour avec échéancier : le relevé se corrige depuis la fiche.', { code: 'STATEMENT_WITH_PLAN' });
     }
     const parsed = correction.parseStatement(body, stored);
     if (!parsed.ok) return fail(400, parsed.error, { code: 'INVALID_STATEMENT' });
+    // The transfer is the mark's business until the payout is received (rule 8).
+    if (!received) delete parsed.statement.platformPayoutAmount;
 
     const before = quoteStoredReservation(database, stored);
     const after = quoteStoredReservation(database, { ...stored, ...parsed.statement });
     if (!before || before.error || !after || after.error) {
       return fail(409, 'Le séjour ne peut pas être rejoué : déverrouiller la fiche pour corriger le relevé.', { code: 'STATEMENT_WOULD_REPRICE', moved: [] });
     }
+    if (correction.driftedWithoutGross(stored, parsed.statement, before)) {
+      return fail(409, 'Le tarif du séjour a changé depuis la vente : saisir le montant total payé par le client.', { code: 'STATEMENT_WOULD_REPRICE', moved: [] });
+    }
+    const clamped = correction.clampedCommission(parsed.statement, after);
+    if (clamped) return fail(400, `${clamped} dépasse le montant de son échéance.`, { code: 'INVALID_STATEMENT' });
     const moved = correction.movedFigures(before, after);
     if (moved.length > 0) {
       return fail(409, `Ce relevé modifierait aussi ${moved.join(', ')} : déverrouiller la fiche pour corriger le séjour.`, { code: 'STATEMENT_WOULD_REPRICE', moved });
     }
 
-    const received = flag(stored.balancePaid) || flag(stored.balancePaidCash);
-    const transfer = correction.netReceived(stored);
+    const transfer = correction.netReceived(stored, parsed.statement);
     const next = correction.nextColumns(stored, parsed.statement, after);
-    // Rule 8 — the transfer as it came in is kept before the statement changes what the stored net reads.
-    if (received && blank(stored.platformPayoutAmount)) next.platformPayoutAmount = transfer;
+    // Rule 8 — the transfer the panel showed (typed, or prefilled with what the stay carried) is kept.
+    if (received) next.platformPayoutAmount = transfer;
 
     const changes = Object.keys(next).filter((column) => !unchanged(column, stored[column], next[column]));
     const outcome = {

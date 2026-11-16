@@ -14,8 +14,10 @@ const { round2 } = require('./reservationSettlement');
 
 const HALF_CENT = 0.005;
 
-// The fields of the statement, as the fiche's « Paiement plateforme » sends them.
-const STATEMENT_FIELDS = ['platformGrossAmount', 'platformTouristTaxAmount', 'platformCommissionAmount', 'acompteCommissionAmount'];
+// The fields of the statement, as the fiche's « Paiement plateforme » sends them, plus the transfer received
+// (rule 8: only on a received payout, where the panel shows it prefilled and editable).
+const STATEMENT_FIELDS = ['platformGrossAmount', 'platformTouristTaxAmount', 'platformCommissionAmount', 'acompteCommissionAmount', 'platformPayoutAmount'];
+const COMMISSION_FIELDS = ['platformCommissionAmount', 'acompteCommissionAmount'];
 
 // What a statement may never move (rule 7), with the words the refusal uses.
 const PROTECTED_FIGURES = [
@@ -62,8 +64,10 @@ function parseStatement(body = {}, stored = {}) {
 const preArrivalOf = (row) => round2(Number(row.depositAmount || 0) + Number(row.balanceAmount || 0));
 const commissionsOf = (row) => round2(Number(row.platformCommissionAmount || 0) + Number(row.acompteCommissionAmount || 0));
 
-/** The transfer already received (rule 4): the typed « Virement reçu », else the stored pre-arrival net. */
-function netReceived(stored) {
+/** The transfer received (rule 4): the one typed in the panel, else the stored « Virement reçu », else the stored net. */
+function netReceived(stored, statement = {}) {
+  const typed = statement.platformPayoutAmount;
+  if (typed != null) return round2(typed);
   const payout = stored.platformPayoutAmount;
   if (payout !== '' && payout != null && Number.isFinite(Number(payout))) return round2(payout);
   return round2(preArrivalOf(stored) - commissionsOf(stored));
@@ -82,11 +86,31 @@ function movedFigures(before, after) {
 }
 
 /**
+ * Rule 7bis — without a brut the replay prices the stay from today's tariff: when it no longer finds the pre-arrival
+ * amount the stay carries (a catalogue edited, nights moved since), writing its buckets would re-price a sold stay.
+ */
+function driftedWithoutGross(stored, statement, before) {
+  const merged = { ...stored, ...statement };
+  const hasGross = !(merged.platformGrossAmount === '' || merged.platformGrossAmount == null);
+  if (hasGross) return false;
+  return Math.abs(round2(Number(before.depositAmount || 0) + Number(before.balanceAmount || 0)) - preArrivalOf(stored)) >= HALF_CENT;
+}
+
+/** Rule 3 (validation) — a commission the engine had to cut to its échéance: the label of the field, else null. */
+function clampedCommission(statement, after) {
+  const labels = { platformCommissionAmount: 'La commission solde', acompteCommissionAmount: 'La commission acompte' };
+  const field = COMMISSION_FIELDS.find((key) => statement[key] != null
+    && Math.abs(round2(statement[key]) - round2(after[key])) >= HALF_CENT);
+  return field ? labels[field] : null;
+}
+
+/**
  * The columns to write: the statement, the buckets and commissions of the `after` replay, and the final price
  * moved by exactly what the pre-arrival buckets moved (rule 6).
  */
 function nextColumns(stored, statement, after) {
-  const next = { ...statement };
+  const { platformPayoutAmount, ...figures } = statement;
+  const next = { ...figures };
   for (const column of STATEMENT_COLUMNS) next[column] = round2(after[column]);
   next.finalPrice = round2(Number(stored.finalPrice || 0) + preArrivalOf(next) - preArrivalOf(stored));
   return next;
@@ -115,4 +139,5 @@ function netLabelOf(next, received, formatEuros) {
 
 module.exports = {
   STATEMENT_FIELDS, parseStatement, netReceived, movedFigures, nextColumns, netGapOf, netLabelOf,
+  driftedWithoutGross, clampedCommission,
 };

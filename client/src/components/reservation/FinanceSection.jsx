@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import { Box, Card, CardContent, Typography, Stack, Divider, Grid, TextField, Button, Switch, FormControlLabel, Tooltip, IconButton } from '@mui/material';
 import { alpha } from '@mui/material/styles';
 import api from '../../api';
@@ -563,12 +563,18 @@ export default function FinanceSection() {
     // Review of #727 (M1) — on a past, locked fiche the amounts and the split are read-only; only the
     // marks stay. The complement detail still unfolds.
     // specs/platform-statement-after-payout.md rule 1 — the platform's statement stays open on a locked fiche.
-    if (isReservationLocked && mode !== 'complement' && mode !== 'statement') { setPanel({ key: row.key, kind: 'locked', reason: LOCKED_AMOUNT_REASON }); return; }
+    if (isReservationLocked && mode !== 'complement' && !(mode === 'statement' && row.amountEdit?.correctable)) { setPanel({ key: row.key, kind: 'locked', reason: LOCKED_AMOUNT_REASON }); return; }
     if (mode === 'complement') { toggleFold(row.key); return; }
     if (mode === 'statement') { setPanel({ key: row.key, kind: 'statement' }); return; }
     if (mode === 'locked') { setPanel({ key: row.key, kind: 'locked' }); return; }
     setPanel({ key: row.key, kind: 'edit' });
   };
+
+  // Stable across renders, so the editor's preview only runs when its figures change (review L3).
+  const previewStatement = useCallback(
+    (statement) => api.previewPlatformStatement(editingReservationId, statement),
+    [editingReservationId],
+  );
 
   const writeStatement = async (statement) => {
     try {
@@ -919,7 +925,7 @@ export default function FinanceSection() {
       // specs/platform-statement-after-payout.md rules 5, 11 — a received payout or a locked fiche writes the
       // statement at once through its own PATCH; otherwise it is a draft saved with the fiche, as before.
       const received = row.amountEdit?.received || null;
-      const writesNow = Boolean(editingReservationId) && (Boolean(received) || isReservationLocked);
+      const writesNow = Boolean(editingReservationId) && Boolean(row.amountEdit?.correctable) && (Boolean(received) || isReservationLocked);
       return (
         <PlatformStatementEditor
           form={form}
@@ -928,7 +934,7 @@ export default function FinanceSection() {
           locked={writesNow ? !fichePristine : isReservationLocked}
           lockedReason={writesNow && !fichePristine ? STATEMENT_DIRTY_REASON : null}
           received={received}
-          preview={writesNow ? (statement) => api.previewPlatformStatement(editingReservationId, statement) : null}
+          preview={writesNow ? previewStatement : null}
           computeCommission={api.computePlatformCommission}
           onError={showError}
           onApply={writesNow ? (patch) => writeStatement(patch) : (patch) => { updateForm(patch); close(); }}

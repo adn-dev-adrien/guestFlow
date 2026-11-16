@@ -142,7 +142,7 @@ test('past platform stay: « Marquer reçu » records the transfer without savin
   // specs/platform-statement-after-payout.md rules 1, 3 — the received payout of a locked fiche still opens its
   // statement, with the transfer it stands for; nothing is written until « Valider ».
   await payout.getByRole('button', { name: /Modifier le montant/ }).click();
-  await expect(payout.getByText(/^Virement reçu le .* : 250,00/)).toBeVisible();
+  await expect(payout.getByLabel(/^Virement reçu le .* \(€\)$/)).toHaveValue('250,00');
   await expect(payout.getByLabel(/^(Montant total payé par le client|Total séjour facturé par la plateforme)$/)).toBeEnabled();
   await payout.getByRole('button', { name: 'Annuler' }).click();
   expect(puts).toEqual([]);

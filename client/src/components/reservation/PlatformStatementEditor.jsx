@@ -13,7 +13,8 @@
  *   locked: past-locked fiche
  *   onApply(patch), onCancel()
  *   computeCommission(figures) → { commission } — « Calculer la commission » (server)
- *   received: { net, label } | null — the payout already received (specs/platform-statement-after-payout.md rule 3)
+ *   received: { net, label } | null — the payout already received: its transfer is a field, prefilled, editable
+ *     (specs/platform-statement-after-payout.md rules 3, 8)
  *   preview(statement) → { netLabel } — the server's net against the transfer, nothing written (rules 3-4, 7);
  *     null when the statement is a draft saved with the fiche
  *   lockedReason: why the fields are disabled, shown under them
@@ -38,11 +39,14 @@ export default function PlatformStatementEditor({
     platformTouristTaxAmount: form.platformTouristTaxAmount ?? '',
     acompteCommissionAmount: form.acompteCommissionAmount ?? '',
     platformCommissionAmount: form.platformCommissionAmount ?? '',
+    ...(received ? { platformPayoutAmount: received.net } : {}),
   });
   const set = (patch) => setDraft((d) => ({ ...d, ...patch }));
   // The server's reading of the typed statement: { tone, label } or a refusal it would answer.
   const [check, setCheck] = useState(null);
   useEffect(() => {
+    // A reading of the previous figures is never shown against the new ones (review L3).
+    setCheck(null);
     if (!preview || locked) return undefined;
     let live = true;
     const timer = setTimeout(async () => {
@@ -70,8 +74,8 @@ export default function PlatformStatementEditor({
       ? 'Taxe de séjour comprise — la plateforme la reverse avec le virement.'
       : "L'hébergement s'ajuste automatiquement (brut − options). La taxe de séjour est encaissée à l'arrivée.";
   const engineTouristTax = Number(pricingQuote?.touristTaxOriginalTotal || 0);
-  // The transfer the commission is computed from: the one typed, else the one received (rule 3).
-  const payoutForCompute = blank(form.platformPayoutAmount) ? (received ? received.net : '') : form.platformPayoutAmount;
+  // The transfer the commission is computed from: the panel's own field on a received payout (rule 3), else the fiche's.
+  const payoutForCompute = received ? draft.platformPayoutAmount : form.platformPayoutAmount;
   const canCompute = !blank(draft.platformGrossAmount) && !blank(payoutForCompute) && !locked;
 
   const compute = async () => {
@@ -101,9 +105,14 @@ export default function PlatformStatementEditor({
       onKeyDown={(e) => { if (e.key === 'Escape') { e.preventDefault(); onCancel(); } }}
     >
       {received && (
-        <Alert severity="info" icon={false} sx={{ gridColumn: '1 / -1', py: 0, fontVariantNumeric: 'tabular-nums' }}>
-          {received.label}
-        </Alert>
+        <ArithmeticTextField
+          label={received.label}
+          value={draft.platformPayoutAmount}
+          onCommit={(v) => set({ platformPayoutAmount: v })}
+          size="small"
+          helperText="Total versé par la plateforme pour ce séjour, tel qu’il est arrivé sur le compte."
+          disabled={locked}
+        />
       )}
       <ArithmeticTextField
         label={grossLabel}

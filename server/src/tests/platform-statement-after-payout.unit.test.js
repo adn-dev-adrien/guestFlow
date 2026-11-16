@@ -84,7 +84,7 @@ test('rules 1, 3 — a received platform solde opens the statement with the tran
   assert.equal(balance.amountEdit.mode, 'statement');
   assert.equal(balance.amountEdit.editable, true);
   assert.deepEqual([balance.amountEdit.received.date, balance.amountEdit.received.net], [row.balancePaidDate, row.balanceAmount]);
-  assert.match(balance.amountEdit.received.label, /^Virement reçu le \d{2}\/\d{2}(\/\d{4})? : /);
+  assert.match(balance.amountEdit.received.label, /^Virement reçu le \d{2}\/\d{2}(\/\d{4})? \(€\)$/);
 });
 
 test('rule 7 — a statement that would move the tourist tax is refused, nothing written', () => {
@@ -121,6 +121,7 @@ test('rule 12 and validation — direct, cancelled, negative or over-commissione
   db.prepare('UPDATE reservations SET cancelledAt = ? WHERE id = ?').run(inDays(-1), cancelled);
   assert.equal(patch(cancelled, { platformGrossAmount: 300 }).body.code, 'NOT_A_PLATFORM_STAY');
   const id = createStay({ platform: 'Booking' });
+  moveToPast(id);
   assert.equal(patch(id, { platformGrossAmount: -1 }).statusCode, 400);
   assert.equal(patch(id, { platformGrossAmount: 100, platformCommissionAmount: 150 }).body.code, 'INVALID_STATEMENT');
   assert.equal(patch(id, {}).body.code, 'INVALID_STATEMENT');
@@ -136,4 +137,70 @@ test('pure — the transfer, the final price by the pre-arrival difference, the 
   assert.deepEqual([next.balanceAmount, next.platformCommissionAmount, next.finalPrice], [215, 43.86, 285]);
   assert.equal(correction.netGapOf(next, 171.14), 0);
   assert.equal(correction.netGapOf({ ...next, platformCommissionAmount: 40 }, 171.14), 3.86);
+});
+
+test('review H1 — a channel counted as a direct sale keeps its received solde frozen', async () => {
+  db.prepare("INSERT INTO platforms (name, countsAsDirect) VALUES ('Ventedirecte', 1)").run();
+  require('../utils/platformNameFormat').refreshDirectChannels(db);
+  const id = createStay({ platform: 'Ventedirecte' });
+  const row = rowOf(id);
+  assert.equal(mark(id, { balancePaid: true, balancePaidDate: inDays(-60), expectedAmountCents: Math.round(row.balanceAmount * 100) }).statusCode, 200);
+  moveToPast(id);
+  assert.equal(patch(id, { platformGrossAmount: row.balanceAmount + 100 }).body.code, 'NOT_A_PLATFORM_STAY');
+  assert.equal(rowOf(id).balanceAmount, row.balanceAmount);
+  const quote = await liveQuote(id, { balancePaid: true });
+  const balance = quote.ledger.rows.find((r) => r.key === 'balance');
+  assert.notEqual(balance.amountEdit.mode, 'statement');
+  assert.equal(balance.amountEdit.correctable, undefined);
+});
+
+test('review M1 — the transfer typed in the panel is the one stored and compared', () => {
+  const id = receivedNetStay();
+  const before = rowOf(id);
+  const res = patch(id, { platformGrossAmount: before.balanceAmount, platformCommissionAmount: 45, platformPayoutAmount: before.balanceAmount - 45 });
+  assert.equal(res.statusCode, 200, JSON.stringify(res.body));
+  assert.equal(res.body.netGap, 0);
+  assert.equal(rowOf(id).platformPayoutAmount, before.balanceAmount - 45);
+});
+
+test('review M2 — without a brut, a stay the replay no longer prices as stored is refused', () => {
+  const id = receivedNetStay();
+  db.prepare('UPDATE reservations SET balanceAmount = balanceAmount - 50, finalPrice = finalPrice - 50 WHERE id = ?').run(id);
+  const before = rowOf(id);
+  const res = patch(id, { platformCommissionAmount: 30 });
+  assert.equal(res.statusCode, 409, JSON.stringify(res.body));
+  assert.equal(res.body.code, 'STATEMENT_WOULD_REPRICE');
+  assert.equal(rowOf(id).balanceAmount, before.balanceAmount);
+  assert.equal(patch(id, { platformGrossAmount: before.balanceAmount, platformCommissionAmount: 30 }).statusCode, 200, 'a brut pins the stay');
+});
+
+test('review M3 — a commission above its échéance is refused, not cut', () => {
+  const id = receivedNetStay();
+  const before = rowOf(id);
+  const res = patch(id, { platformGrossAmount: before.balanceAmount, platformCommissionAmount: before.balanceAmount + 10 });
+  assert.equal(res.statusCode, 400);
+  const fine = createStay({ platform: 'Booking' });
+  moveToPast(fine);
+  const commissionOver = patch(fine, { platformGrossAmount: 100, platformCommissionAmount: 100 });
+  assert.equal(commissionOver.statusCode, 200, JSON.stringify(commissionOver.body));
+});
+
+test('review L4 — a stay to come and unreceived, or a stay with a plan, goes through the fiche', () => {
+  const future = createStay({ platform: 'Booking' });
+  assert.equal(patch(future, { platformGrossAmount: 400 }).body.code, 'STATEMENT_THROUGH_FICHE');
+  const planned = createStay({ platform: 'Booking' });
+  moveToPast(planned);
+  db.prepare('INSERT INTO reservation_installments (reservationId, number, dueDate, amountCents) VALUES (?, 1, ?, 10000)').run(planned, inDays(-50));
+  assert.equal(patch(planned, { platformGrossAmount: 400 }).body.code, 'STATEMENT_WITH_PLAN');
+});
+
+test('review L1 — the history formats the statement as money', () => {
+  const { buildHistoryRows } = require('../utils/reservationAudit');
+  const { changes } = buildHistoryRows([
+    { field: 'platformGrossAmount', label: 'Montant total payé par le client', from: null, to: 215 },
+    { field: 'platformCommissionAmount', label: 'Commission solde', from: null, to: 43.86 },
+  ]);
+  const printed = JSON.stringify(changes);
+  assert.match(printed, /"toText":"215 €"/);
+  assert.match(printed, /43,86/);
 });

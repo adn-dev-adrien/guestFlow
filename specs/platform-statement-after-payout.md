@@ -42,7 +42,9 @@ when the typed figures do not give the transfer, the operator is warned, not blo
 
 ## 3. Functional rules
 
-1. **The statement opens on every platform payout row.** On a platform reservation (a named channel), clicking the
+1. **The statement opens on every platform payout row.** On a platform **sale** (a named channel not counted as a
+   direct sale — `saleChannel(platform).platformSale`; review H1, 2026-11-16: a channel with « compté comme vente
+   directe » is paid by the guest, so its received solde stays frozen like a direct one), clicking the
    amount of the solde / « Versement » row opens the « Relevé plateforme » panel, including when the payout is
    received and when the fiche is locked; the padlock is no longer shown on that row. The panel already carries the
    acompte commission of a platform that takes one, so the acompte row keeps its own amount editor unchanged, as do
@@ -51,18 +53,21 @@ when the typed figures do not give the transfer, the operator is warned, not blo
    and « Calculer la commission » button unchanged (platform-payment-entry, platform-per-echeance-commission,
    platform-tourist-tax-out-of-the-commission).
 3. **A received row shows what came in.** When the row is received, the ledger gives the panel
-   `amountEdit.received = { date, net, label }` and the panel prints the label read-only: « Virement reçu le 05/06 :
-   171,14 € ». Under the fields it prints the server's reading of the typed statement (a preview, nothing written,
+   `amountEdit.received = { date, net, label }` and the panel shows a field « Virement reçu le 05/06 (€) », prefilled
+   with `net` and editable (review M1, 2026-11-16: the stored net is only the transfer when the fiche already carried
+   it — a stay priced at our tariff would otherwise get a transfer that never came in; the operator confirms or types
+   the real one). Helper: « Total versé par la plateforme pour ce séjour, tel qu’il est arrivé sur le compte. ». Under
+   the fields it prints the server's reading of the typed statement (a preview, nothing written,
    §4.3): « Net : 171,14 € — identique au virement ✓ » in the success tone, or the gap of rule 4. « Calculer la
-   commission » computes from the typed « Virement reçu », else from this received net. A statement the preview
+   commission » computes from that field on a received payout, else from the fiche's « Virement reçu ». A statement the preview
    refuses (rule 7, invalid money) shows the refusal in the error tone and disables « Valider ».
 4. **Received ⇒ a gap is accepted, with a warning** (Q1, 2026-11-16). On a received row, a statement whose net
    differs from the net received by more than half a cent is **accepted**. Before « Valider » the panel shows the
    gap in the warning tone: « Net : 168,20 € — le virement reçu est de 171,14 € (écart 2,94 €). Le relevé sera
    enregistré avec cet écart. » and « Valider » stays enabled. After the write the row carries the existing
    reconciliation chip « écart : 2,94 € » ([reservation-payment-ledger.md](reservation-payment-ledger.md) rule 26),
-   which stays until the statement or the transfer is corrected. The net received is `platformPayoutAmount` when
-   stored, otherwise the stored net (pre-arrival amount of the row minus its stored commission). The server never
+   which stays until the statement or the transfer is corrected. The net received is the transfer typed in the panel,
+   else `platformPayoutAmount` when stored, else the stored net (pre-arrival amount minus its stored commissions). The server never
    refuses on this gap; the response carries `netGap` (signed, euros) and the worded `netLabel`, and the toast after
    « Valider » reads « Relevé enregistré avec un écart sur le virement. » instead of « Relevé enregistré. ».
 5. **Written immediately, outside the fiche save.** « Valider » posts the statement to its own endpoint (§4.3) and
@@ -80,9 +85,16 @@ when the typed figures do not give the transfer, the operator is warned, not blo
    occupancy. If the re-quote with the new statement would move any of these, the server refuses (409
    `STATEMENT_WOULD_REPRICE`) with « Ce relevé modifierait aussi <ce qui bouge> : déverrouiller la fiche pour
    corriger le séjour. »
-8. **The transfer is recorded.** On a received row whose `platformPayoutAmount` is empty, the correction stores the
-   net received there (the transfer as it was before the correction), so the reconciliation chip compares the new
-   statement with the real transfer: « ✓ cohérent avec le virement » or « écart : … » (rule 4).
+   **7bis (review M2, 2026-11-16).** Without a brut (none stored, none typed) the replay prices the accommodation
+   from today's tariff: when its pre-arrival amount differs from the stored one (a catalogue edited, nights moved
+   since), the server refuses (409 `STATEMENT_WOULD_REPRICE`) « Le tarif du séjour a changé depuis la vente : saisir
+   le montant total payé par le client. » — a brut pins the stay and lifts the refusal.
+   **7ter (review M3).** A commission above its échéance is refused (400 `INVALID_STATEMENT`, « La commission solde
+   dépasse le montant de son échéance. »), never cut silently by the engine's clamp.
+8. **The transfer is recorded.** On a received row the correction stores the transfer of rule 4 (the field of the
+   panel) in `platformPayoutAmount`, so the reconciliation chip compares the new statement with it: « ✓ cohérent avec
+   le virement » or « écart : … ». On an unreceived row a `platformPayoutAmount` in the body is ignored — the transfer
+   is the business of « Marquer reçu ».
 9. **The books follow, on the same date.** The encaissement keeps its date (05/06 in the real case); its entry is
    re-split: turnover on the brut (accommodation / options as today), the commission booked, and the net = brut −
    commission, as the books already read a platform stay. With no gap (rule 4) that net is the transfer, unchanged.
@@ -94,7 +106,11 @@ when the typed figures do not give the transfer, the operator is warned, not blo
     changed fields with before/after; the history renders it as « Relevé plateforme corrigé ».
 11. **Not received ⇒ the existing flow, through the endpoint when locked.** On an unreceived platform row of an
     unlocked fiche the panel keeps today's draft flow (« Valider » into the form, then « Enregistrer »). On a locked
-    fiche it posts to the endpoint with rules 6-7, without rule 4 (nothing has come in yet).
+    fiche it posts to the endpoint with rules 6-7, without rule 4 (nothing has come in yet). The endpoint itself refuses
+    what the fiche save must handle (review L4): an unreceived stay not started yet (409 `STATEMENT_THROUGH_FICHE`,
+    « Séjour à venir : saisir le relevé dans la fiche puis enregistrer. ») and a stay with an installment plan (409
+    `STATEMENT_WITH_PLAN`). The ledger marks the rows the endpoint accepts with `amountEdit.correctable: true` — the
+    only ones that open on a locked fiche.
 12. **Cancelled stays are out.** A cancelled reservation keeps `mode: 'none'` on its rows: nothing to correct.
 13. **The « À vérifier » line clears by itself** once `platformGrossAmount` is stored (finance-data-checks rule 8
     unchanged).
@@ -110,7 +126,8 @@ when the typed figures do not give the transfer, the operator is warned, not blo
 | `models/` | `platformStatementModel.js` | N | Replays the stored stay twice (`quoteStoredReservation`: as stored, with the typed statement), applies rules 4, 6-8 in one transaction, re-captures the solde's frozen split when it had one (`captureBucketSplit`), writes the history row (rule 10). |
 | `utils/` | `platformStatementCorrection.js` | N | Pure: statement parsing and validation, net received (rule 4), the figures the statement would move (rule 7), the columns to write (final price moved by the pre-arrival difference only, immune to engine drift), the signed gap and its sentence. |
 | `utils/` | `storedReservationQuote.js` | T | Exports `pricedProjection` (line and night comparison of rule 7). |
-| `utils/` | `reservationLedger.js` | T | Received platform payout row: `amountEdit.mode = 'statement'` (was `locked`), with `received: { date, net, label }` read from the stored row. |
+| `utils/` | `reservationLedger.js` | T | Received platform-sale payout row: `amountEdit.mode = 'statement'` (was `locked`), with `received: { date, net, label }` read from the stored row; `correctable: true` on platform-sale payout rows. |
+| `utils/` | `reservationAudit.js` | T | The five statement columns print as money in the history (review L1). |
 
 No change to `savePriceGuards` (D21 stays for the fiche save), nor to the accounting models: they already read
 the stored buckets and commission.
@@ -120,7 +137,7 @@ the stored buckets and commission.
 | Layer | File | New / Touched | Responsibility |
 |---|---|---|---|
 | `components/` | `reservation/FinanceSection.jsx` | T | `onAmountClick`: a row in `statement` mode opens the panel even when locked; when the row is received or the fiche locked, the panel previews through the server and « Valider » PATCHes, toasts, then `reloadReservationFinance()`; a modified fiche disables it (rule 5). |
-| `components/` | `reservation/PlatformStatementEditor.jsx` | T | Specific (existing). Optional `received`, `preview`, `lockedReason` props: the received line, the server's net sentence (debounced 250 ms), « Valider » disabled on a refusal only. |
+| `components/` | `reservation/PlatformStatementEditor.jsx` | T | Specific (existing). Optional `received`, `preview`, `lockedReason` props: the « Virement reçu » field, the server's net sentence (debounced 250 ms, cleared as soon as the figures change), « Valider » disabled on a refusal only. |
 | `components/` | `reservation/ReservationHistoryPanel.jsx` | T | `platform_statement` → « Relevé plateforme corrigé ». |
 | `pages/` | `ReservationPage.jsx` | T | `reloadReservationFinance` re-reads the statement fields and the solde the PATCH wrote. |
 | `services` | `api.js` | T | `previewPlatformStatement(id, body)`, `updatePlatformStatement(id, body)`. |
@@ -139,9 +156,11 @@ No new generic component: the panel is the existing platform-specific editor.
 - 200 → `{ netGap, netLabel, changed }`: `netGap` signed euros (0 when the statement gives the transfer, and on an
   unreceived payout), `netLabel` `{ tone: 'done' | 'warning', label }` or `null` when nothing was received,
   `changed` the columns written. The client then re-reads the fiche (`GET /api/reservations/:id`).
-- 400 `NOT_A_PLATFORM_STAY` (direct channel, cancelled, not a reservation), 400 `INVALID_STATEMENT` (negative
-  money, commissions above the brut, empty body).
-- 409 `STATEMENT_WOULD_REPRICE` (rule 7), with `moved: ['la taxe de séjour', …]` (the words of the refusal).
+- Body: the four statement fields, plus `platformPayoutAmount` on a received payout (rule 8).
+- 400 `NOT_A_PLATFORM_STAY` (direct channel or channel counted as a direct sale, cancelled, not a reservation),
+  400 `INVALID_STATEMENT` (negative money, commissions above the brut or above their échéance, empty body).
+- 409 `STATEMENT_WOULD_REPRICE` (rules 7, 7bis), with `moved: ['la taxe de séjour', …]` (empty for 7bis);
+  409 `STATEMENT_THROUGH_FICHE`, 409 `STATEMENT_WITH_PLAN` (rule 11).
 - 403 for the reception role; 404 for an unknown stay.
 
 `POST /api/reservations/:id/platform-statement/preview` — same body, same answers, nothing written.
@@ -159,7 +178,7 @@ the panel under the row (same place as today's unreceived statement):
 ```
 Solde · Reçu le 05/06 · Abracadaroom                       171,14 €  ✎
 ┌──────────────────────────────────────────────────────────────────┐
-│ Virement reçu le 05/06 : 171,14 €                                │
+│ Virement reçu le 05/06 (€)        [ 171,14 ]                     │
 │ Montant total payé par le client  [ 215,00 € ]                   │
 │ Commission solde (€)              [  43,86   ] Calculer la comm. │
 │ Net : 171,14 € — identique au virement ✓                         │
@@ -175,7 +194,7 @@ Solde · Reçu le 05/06 · Abracadaroom                       171,14 €  ✎
 
 ### Server unit tests
 
-`server/src/tests/platform-statement-after-payout.unit.test.js` (8):
+`server/src/tests/platform-statement-after-payout.unit.test.js` (14):
 - rules 4, 6, 8, 10 — received solde, brut + commission keeping the net: written, final price moved by the brut only,
   transfer stored, marks / tax / complement untouched, history row;
 - rule 4 (Q1) — a net different from the transfer is written, `netGap` returned, the ledger row shows « écart »;
@@ -184,12 +203,19 @@ Solde · Reçu le 05/06 · Abracadaroom                       171,14 €  ✎
 - rule 7 — a statement that would move a not-yet-frozen percentage tax → 409 `STATEMENT_WOULD_REPRICE`, nothing written;
 - rule 11 — a locked unreceived solde is written without the transfer comparison;
 - rule 12 and validation — direct, cancelled, negative, over-commissioned, empty → refused;
-- pure — transfer, final price by the pre-arrival difference (the 202605014 replay: 215 → 285), signed gap.
+- pure — transfer, final price by the pre-arrival difference (the 202605014 replay: 215 → 285), signed gap;
+- review H1 — a channel counted as a direct sale: refused, its received solde stays locked, not correctable;
+- review M1 — the transfer typed in the panel is stored and compared;
+- review M2 — no brut and a stored pre-arrival the replay no longer finds → 409; a brut lifts it;
+- review M3 — a commission above its échéance → 400;
+- review L4 — a stay to come and unreceived → 409 `STATEMENT_THROUGH_FICHE`; a plan → 409 `STATEMENT_WITH_PLAN`;
+- review L1 — the history prints the statement as money.
 
 ### Client tests
 
-`client/src/components/reservation/__tests__/FinanceSection.platform-statement-after-payout.test.jsx` (8): the
-received row opens on a locked fiche with its transfer line; « Calculer la commission » reads the received net; the
+`client/src/components/reservation/__tests__/FinanceSection.platform-statement-after-payout.test.jsx` (10): the
+received row opens on a locked fiche with its transfer field prefilled; a direct-sale channel's frozen solde keeps the
+lock; « Calculer la commission » reads the transfer typed in the panel; the
 gap warning keeps « Valider » enabled; a refusal disables it; « Valider » PATCHes and reloads; an unreceived row on a
 locked fiche writes at once; on an unlocked fiche it stays a draft; a modified fiche disables the fields.
 
