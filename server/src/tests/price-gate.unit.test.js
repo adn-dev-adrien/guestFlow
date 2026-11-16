@@ -10,6 +10,7 @@ process.env.DB_PATH = ':memory:';
 process.env.TZ = 'Europe/Paris';
 
 const test = require('node:test');
+const { skipWithout } = require('../plugins/sdk/testing');
 const { mock } = test;
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
@@ -19,7 +20,8 @@ const { compareFigures, allowlistProblems } = require('./helpers/priceGateCompar
 const DIR = process.env.PRICE_GATE_FIXTURE_DIR || path.join(__dirname, 'fixtures', 'price-gate');
 const read = (name) => JSON.parse(fs.readFileSync(path.join(DIR, name), 'utf8'));
 const captured = ['inputs.json', 'expected.json'].every((name) => fs.existsSync(path.join(DIR, name)));
-const SKIP = captured ? false : 'price-gate fixture absent (inputs.json / expected.json are captured on the price-gate-baseline tag: node scripts/price-gate/buildFixture.mjs <copy.db> --out server/src/tests/fixtures/price-gate/)';
+// loop t1 AS-2 — the fixture holds `resource_bookings` rows, a table of the hourly-resources plugin: skipped in the cell that removes it.
+const SKIP = skipWithout(['hourly-resources']) || (captured ? false : 'price-gate fixture absent (inputs.json / expected.json are captured on the price-gate-baseline tag: node scripts/price-gate/buildFixture.mjs <copy.db> --out server/src/tests/fixtures/price-gate/)');
 
 const allowlist = JSON.parse(fs.readFileSync(path.join(__dirname, 'fixtures', 'price-gate', 'allowlist.json'), 'utf8'));
 
@@ -31,7 +33,7 @@ let recomputed = null;
 let recomputedBookings = null;
 let recomputedGrids = null;
 let expected = null;
-if (captured) {
+if (!SKIP) {
   const inputs = read('inputs.json');
   expected = read('expected.json');
   const { freezeClock } = require('./vatRegimeGoldenFixture');

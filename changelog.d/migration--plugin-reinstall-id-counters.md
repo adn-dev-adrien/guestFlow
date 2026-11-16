@@ -1,0 +1,1 @@
+- Migration: `guest-app` (`guest_orders_counter_floor_v5`) and `hourly-resources` (`resource_bookings_counter_floor_v7`) raise their id counter above the ids still cited by `orderRef` / `originRef`, so a plugin erased then reinstalled never reuses an order or booking id that stay lines or sales still name. No-op on an existing install.
