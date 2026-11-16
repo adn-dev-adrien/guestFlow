@@ -1,5 +1,5 @@
-// specs/guest-app.md rules 72, 88, 108, 109 (loop t1 B-2, AG-4, AG-5, AG-6) — the money of a guest order on a cancelled stay is owed once: the cancellation owes what
-// the link paid less what the register already holds for it; a payment landing on an order cancelled with its stay is a conflict — never sold, even on a
+// specs/guest-app.md rules 72, 88, 108, 109, 110 (loop t1 B-2, AG-4, AG-5, AG-6) — the money of a guest order on a cancelled stay is owed once: the cancellation
+// opens no register row (rule 110 b, the refund dialog is its home) and leaves the gap row of a sale below its payment alone; a payment landing on an order cancelled with its stay is a conflict — never sold, even on a
 // stay restored since — shown « Payée · à rembourser ».
 const fx = require('./guestOrderFixtures');
 
@@ -39,7 +39,7 @@ async function pay(card, link) {
   });
 }
 
-withStay('B-2, AG-4 — an order sold below its payment leaves a 3 € gap row; the cancellation owes the 15 € honoured, never the gap again', async ({ stayId, card, call, api }) => {
+withStay('B-2, AG-4 — an order sold below its payment leaves a 3 € gap row; the cancellation adds none (rule 110 b: the honoured 15 € are the refund dialog\'s)', async ({ stayId, card, call, api }) => {
   const { link } = await order(call, 3);
   db.prepare('UPDATE property_option_prices SET price = 5 WHERE optionId = ?').run(PEAR);
   db.prepare('UPDATE options SET price = 5 WHERE id = ?').run(PEAR);
@@ -47,9 +47,9 @@ withStay('B-2, AG-4 — an order sold below its payment leaves a 3 € gap row; 
   assert.deepEqual(owedOf(stayId), [{ amountCents: 300, status: 'open' }], 'the gap of a sale below its payment');
   setKind(stayId, 'cancelled');
   api.cancelOrdersOf(stayId);
-  assert.deepEqual(owedOf(stayId).map((r) => r.amountCents), [300, 1500], 'the honoured part, once');
+  assert.deepEqual(owedOf(stayId).map((r) => r.amountCents), [300], 'the gap only');
   api.cancelOrdersOf(stayId);
-  assert.equal(owedOf(stayId).length, 2);
+  assert.equal(owedOf(stayId).length, 1);
   db.prepare('UPDATE options SET price = 6 WHERE id = ?').run(PEAR);
 });
 

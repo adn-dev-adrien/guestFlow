@@ -2,7 +2,8 @@
  * extraSale — the one write path for an extra on a stay that exists (specs/pricing-components.md §3 rules 27-30, 39, 37, 23).
  *
  *   quote(reservationId, requests, { payment, now, source })  → { status: 200, lines, buckets, totalCents, refusals } | { status, body }   writes nothing
- *   sell(reservationId, requests, { source, payment, actor, now, acceptedTotalCents })  → { status: 200, saleDetail } | { status, body }
+ *   sell(reservationId, requests, { source, payment, actor, now, acceptedTotalCents, atArrival })  → { status: 200, saleDetail } | { status, body }
+ *        `atArrival`: an unpaid re-sale routed to the arrival complement whatever the clock (guest-app rule 110 a, the SAS's change of an order)
  *   changeLine(reservationId, ref, patch, { now, forceOverpayment })  → { status: 200, saleDetail } | { status, body }
  *   removeLine(reservationId, ref, { now, actor })  → { status: 200, saleDetail } | { status, body }   an unpaid line taken off the stay
  *   collectionOf(reservationId, now)  → `arrival` | `departure` | `closed`: where a sale taken now is collected (rules 20, 104)
@@ -186,14 +187,16 @@ function complementPinnedRefusal(id) {
   return row && row.complementAmountOverride != null ? refuse(409, 'COMPLEMENT_OVERRIDDEN', COMPLEMENT_PINNED) : null;
 }
 
-function pricedRequests(reservationId, lines, { now, source }) {
+function pricedRequests(reservationId, lines, { now, source, atArrival = false }) {
   const id = Number(reservationId);
   const stored = storedBody(id);
   if (!stored) return { error: refuse(404, 'RESERVATION_NOT_FOUND', 'Réservation introuvable') };
   const rows = optionRows(database(), lines);
   const persons = personsRefusal(stored, lines, rows);
   if (persons) return { error: persons };
-  const { started } = stayStarted(id, now);
+  // guest-app rule 110 a — an order taken before the arrival, changed at the arrival SAS before the arrival is validated, is re-sold into the
+  // arrival complement whatever the hour: the guest settles it at the door, never at the departure.
+  const started = atArrival ? false : stayStarted(id, now).started;
   const pinned = started ? null : complementPinnedRefusal(id);
   if (pinned) return { error: pinned };
   // Both prices are the engine's of today (`restatePricing`): a stay sold at a figure the engine no longer reproduces would otherwise read its whole drift as the
@@ -274,6 +277,7 @@ function quote(reservationId, requests, {
 
 function sell(reservationId, requests, {
   source = 'fiche', payment = 'later', actor = null, now = new Date(), acceptedTotalCents = null, orderRef = null, paid = null, within = null, history = null,
+  atArrival = false,
 } = {}) {
   if (!SOURCES.includes(source)) return refuse(400, 'INVALID_SOURCE', 'Origine de vente inconnue.');
   if (!(payment in PAYMENTS)) return refuse(400, 'PAYMENT_MODE_UNSUPPORTED', 'Mode de paiement inconnu.');
@@ -286,7 +290,7 @@ function sell(reservationId, requests, {
   try {
     db.transaction(() => {
       if (PAYMENTS[payment] && departureCollected(id)) { outcome = refuse(409, 'STAY_SETTLED', 'Séjour soldé : vente séparée.'); throw ROLLBACK; }
-      const result = pricedRequests(id, parsed.lines, { now, source });
+      const result = pricedRequests(id, parsed.lines, { now, source, atArrival: atArrival && !PAYMENTS[payment] && !paid });
       if (result.error) { outcome = result.error; throw ROLLBACK; }
       if (PAYMENTS[payment] && !result.started && !paid) {
         outcome = refuse(409, 'PAYMENT_BEFORE_ARRIVAL', 'Avant l’arrivée, le paiement se prend au SAS.');
