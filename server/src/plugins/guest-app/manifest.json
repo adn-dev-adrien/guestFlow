@@ -85,11 +85,11 @@
       "Un séjour annulé annule ses commandes ; une commande payée par carte se rembourse depuis le remboursement de l’annulation, où elle figure parmi les lignes encaissées.",
       "Les e-mails J-7 et J-2 savent si le séjour a une boutique et un bain à programmer, pour ne promettre que ce que le lien donne.",
       "La liste des commandes au sas d’arrivée se replie sans animation quand l’appareil demande de réduire les animations.",
-      "Demande le SDK 2.31 de GuestFlow.",
       "Une commande payée par carte d’un séjour annulé est due une seule fois : le registre « À rembourser » ne la répète pas.",
       "Un paiement qui arrive sur une commande annulée avec son séjour, même rétabli depuis, n’est jamais vendu sur la fiche : « Payée · à rembourser », l’équipe est prévenue.",
       "Au sas d’arrivée, retirer un bain retire aussi son supplément de soirée ; un bain placé sur des heures que le séjour détenait déjà se modifie sur la fiche.",
-      "Au sas d’arrivée, une commande prise avant l’arrivée se modifie tant que l’arrivée n’est pas validée, quelle que soit l’heure ; ce qui reste se règle à l’arrivée."
+      "Au sas d’arrivée, une commande prise avant l’arrivée se modifie tant que l’arrivée n’est pas validée, quelle que soit l’heure ; ce qui reste se règle à l’arrivée.",
+      "Demande le SDK 2.31 de GuestFlow."
     ]
   }
 }
