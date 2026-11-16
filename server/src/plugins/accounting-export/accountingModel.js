@@ -92,6 +92,15 @@ function createAccountingModel(database, { settings = createAccountSettings(data
   const saleLinesOf = (row) => {
     try { return (extraSale.saleDetailOf(row.id) || {}).lines || []; } catch { return []; }
   };
+  // Rule 99 (loop t1 B-4) — the lines each payment day of the stay was frozen with (`receipt_line_splits`, written by the core when the money
+  // is taken), read from the injected database; a core without the table, or a day without a row, reads none.
+  const hasFrozenSplits = hasTable(database, 'receipt_line_splits');
+  const frozenSplitsOf = (row) => {
+    if (!hasFrozenSplits) return new Map();
+    const parsed = (raw) => { try { const lines = JSON.parse(raw); return Array.isArray(lines) ? lines : null; } catch { return null; } };
+    return new Map(database.prepare('SELECT paidDate, linesJson FROM receipt_line_splits WHERE reservationId = ?').all(Number(row.id))
+      .map((split) => [split.paidDate, parsed(split.linesJson)]).filter(([, lines]) => lines));
+  };
   const surchargeCol = hasReservationColumn('extraGuestComplementSurcharge')
     ? 'r.extraGuestComplementSurcharge'
     : '0 AS extraGuestComplementSurcharge';
@@ -171,7 +180,7 @@ function createAccountingModel(database, { settings = createAccountSettings(data
     const bookedShare = bookedShareOf(settlementsStore.listFor(row.id), kind, row);
     const scaled = whole && bookedShare !== 1 ? scaleEntry(whole, bookedShare, null) : whole;
     // The avoir mirrors what the receipt booked: the same sale-line cut on a stay the readers serve.
-    const entry = scaled ? receiptCutOf(row, { saleLinesOf }, salesRegime)(scaled) : scaled;
+    const entry = scaled ? receiptCutOf(row, { saleLinesOf, frozenSplitsOf }, salesRegime)(scaled) : scaled;
     const splitFrom = readTtcSplitFrom(database);
     for (const bucket of (entry && entry.buckets) || []) {
       const { ht, vat } = bookedBucketSplit(entry, bucket, splitFrom);
@@ -240,6 +249,7 @@ function createAccountingModel(database, { settings = createAccountSettings(data
         regimeOf: (row) => vatRegimeModel.forRow(database, row),
         perLineData: (row) => buildPerLineData(database, row),
         saleLinesOf,
+        frozenSplitsOf,
         taxContextOf,
         settlementsOf: (id) => settlementsStore.listFor(id),
         installmentsOf: (id) => (hasInstallments
@@ -378,9 +388,12 @@ function createAccountingModel(database, { settings = createAccountSettings(data
       const mm = String(month).padStart(2, '0');
       const yyyy = String(year);
       const last = new Date(Date.UTC(Number(yyyy), Number(mm), 0)).getUTCDate();
+      // Outside-visit rule 49 — a kept link surplus lands on the plan's tip account, named like a stay's tip.
+      const tipAccount = String(settings.read().tipAccount || accountPlan.TIP_ACCOUNT);
       return sdk.coreModule('standaloneSales').list({ from: `${yyyy}-${mm}-01`, to: `${yyyy}-${mm}-${String(last).padStart(2, '0')}` })
         .filter((sale) => sale.booksCents > 0)
-        .map(buildStandaloneEntry);
+        .map(buildStandaloneEntry)
+        .map((entry) => (entry.standaloneRole === 'tip' ? { ...entry, tipAccount, accountLabels: { [tipAccount]: 'Pourboire' } } : entry));
     },
   };
 }

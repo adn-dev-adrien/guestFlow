@@ -62,12 +62,12 @@ test('V-4 — « Marquer remboursé » closes the row once; the document and the
   assert.equal(call('list', {}).body.owed.some((r) => r.id === id), false);
 });
 
-test('V-4 — « rien à rembourser » closes it as cancelled', () => {
+test('V-4 — « rien à rembourser » closes it as cancelled; a link surplus kept is a tip (rule 49, owner 2026-11-16)', () => {
   const id = owingSale();
   const [row] = standaloneSale.documentOf(id).refundObligations;
   const closed = call('closeObligation', { params: { id: String(id), oid: String(row.id) }, body: { status: 'cancelled' } });
   assert.equal(closed.status, 200);
-  assert.equal(closed.body.document.history.at(-1).text, '13,00 € : rien à rembourser');
+  assert.equal(closed.body.document.history.at(-1).text, '13,00 € gardés en pourboire');
   assert.equal(closed.body.document.totals.refundOwedCents, 0);
 });
 

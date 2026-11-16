@@ -188,8 +188,9 @@ function create({ accountPlan }) {
   }
 
   // A document of the core (rule 74): one revenue line per VAT class and one VAT line per rate, from the TTC the payments of the day allocated
-  // to its lines on the books; the rounding cent lands on the last credit like every other entry.
-  function documentLines(entry) {
+  // to its lines on the books; the rounding cent lands on the last credit like every other entry. Its avoir (outside-visit rule 48) is the same
+  // lines with the sides mirrored, as a stay's refund mirrors its receipt.
+  function documentLines(entry, { mirrored = false } = {}) {
     const ttc = round2(entry.encaissementTtc);
     const revenue = [];
     const vatByRate = new Map();
@@ -202,11 +203,16 @@ function create({ accountPlan }) {
     }
     const vats = [...vatByRate.entries()].map(([rate, amount]) => ({ rate, amount }));
     absorbResidue([...revenue, ...vats], ttc);
+    if (mirrored) {
+      return [line('customer', 'credit', ttc), ...revenue.map((r) => revenueOf({ ...r, side: 'debit' })), ...vats.map((v) => vatOf(v, 'debit'))];
+    }
     return [line('customer', 'debit', ttc), ...revenue.map(revenueOf), ...vats.map((v) => vatOf(v, 'credit'))];
   }
 
   function standaloneLines(entry) {
-    if (Array.isArray(entry.groups)) return documentLines(entry);
+    // Outside-visit rule 49 — a link surplus kept is a tip, booked like a stay's.
+    if (entry.standaloneRole === 'tip') return tipLines(entry);
+    if (Array.isArray(entry.groups)) return documentLines(entry, { mirrored: entry.standaloneRole === 'refund' });
     const ttc = round2(entry.encaissementTtc);
     const rate = entry.vatRatePercent === null || entry.vatRatePercent === undefined ? 0 : Number(entry.vatRatePercent);
     const ht = netOfTtc(ttc, rate);

@@ -23,8 +23,10 @@
  *         that rewrites the fiche's custom lines (DELETE + INSERT) therefore fails loudly instead of billing the charges twice.
  *   B1    `orderRef` on the lines of a guest order, where a line names exactly one order.
  *   T11   `reservations.readsSaleLines` (0 on every existing row): the stays the sale-line readers serve (utils/saleLinesReaders.js).
+ *   T13   `receipt_line_splits` (empty): the sale lines each payment day of a stay the readers serve is cut over, frozen when the money
+ *         is taken (rule 99, utils/receiptLineSplits.js); a day with no row keeps the cut over the current lines.
  *
- * Rollback (self-update rule 31): T1-T3, T6, T7 are new tables or columns ignored by the previous release; T4 and T5 only add a
+ * Rollback (self-update rule 31): T1-T3, T6, T7, T13 are new tables or columns ignored by the previous release; T4 and T5 only add a
  * nullable column and relax a constraint, rows with a NULL `reservationId` being invisible to the readers that join reservations;
  * T10 is blocked by the floor, not by a shim.
  */
@@ -129,6 +131,14 @@ const TABLES = [
   `CREATE TABLE IF NOT EXISTS vat_external_rates (
     vatClass TEXT PRIMARY KEY,
     rate     REAL NOT NULL CHECK (rate >= 0 AND rate < 100)
+  )`,
+  // Rule 99 (loop t1 B-4) — the sale lines a stay's receipts of one payment day are cut over, frozen with the money (utils/receiptLineSplits.js).
+  `CREATE TABLE IF NOT EXISTS receipt_line_splits (
+    reservationId INTEGER NOT NULL REFERENCES reservations(id) ON DELETE CASCADE,
+    paidDate      TEXT NOT NULL,
+    linesJson     TEXT NOT NULL,
+    frozenAt      TEXT NOT NULL,
+    PRIMARY KEY (reservationId, paidDate)
   )`,
   `CREATE TABLE IF NOT EXISTS suggested_articles (
     id          INTEGER PRIMARY KEY AUTOINCREMENT,

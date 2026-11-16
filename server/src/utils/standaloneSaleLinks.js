@@ -214,6 +214,8 @@ const OBLIGATION_STATUSES = ['settled', 'cancelled'];
  * Closes an open obligation of a document (outside-visit rule 41, end-review V-4): `settled` = the money went back (from the provider's space or by hand),
  * `cancelled` = nothing was owed after all — the close action of the stay's « À rembourser » rows (pricing-components rule 75), for a sale. Only an
  * open row closes (409 otherwise); the document's history says so, and the document stops claiming that money.
+ * Loop t1 B-1 (rule 48): a `lineLowered` row `settled` writes its refund allocations, the journal's avoir. Loop t1 B-6 (rule 49, owner 2026-11-16): a
+ * `linkSurplus` row `cancelled` is money kept, booked as a tip on the day it is closed (« 13,00 € gardés en pourboire »).
  */
 function closeObligation(saleId, obligationId, status, { actor = null } = {}) {
   if (!OBLIGATION_STATUSES.includes(status)) return refuse(400, 'OBLIGATION_INVALID_STATUS', 'Statut invalide.');
@@ -223,8 +225,11 @@ function closeObligation(saleId, obligationId, status, { actor = null } = {}) {
   if (row.status !== 'open') return refuse(409, 'OBLIGATION_ALREADY_CLOSED', 'Déjà clos.');
   database().transaction(() => {
     sales.closeObligation(row.id, { status, by: actor || 'operator' });
+    if (status === 'settled' && row.origin === 'lineLowered') standaloneSale.writeObligationRefund(saleId, row);
     const { euros } = require('./paymentTenders');
-    sales.addHistory(saleId, status === 'settled' ? `${euros(row.amountCents)} remboursés` : `${euros(row.amountCents)} : rien à rembourser`, actor);
+    let words = `${euros(row.amountCents)} remboursés`;
+    if (status === 'cancelled') words = row.origin === 'linkSurplus' ? `${euros(row.amountCents)} gardés en pourboire` : `${euros(row.amountCents)} : rien à rembourser`;
+    sales.addHistory(saleId, words, actor);
   }).immediate();
   return { status: 200, document: standaloneSale.documentOf(saleId) };
 }

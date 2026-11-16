@@ -7,6 +7,7 @@
  *   removeLine(saleId, lineId, { confirmRefund, version, actor })            a line taken off (an unpaid one freely, a paid one with the confirmation, rule 25)
  *   pay(saleId, { tenders, shortfall, paidAt, version, actor, source })      a payment on the reste, allocated by SETTLEMENT (rules 16-19)
  *   cancel(saleId)                                                           every line cancelled; money already taken stays and is owed back (rules 26, 41)
+ *   writeObligationRefund(saleId, obligation, { day })                       a `lineLowered` row marked refunded: its refund allocations (rule 48)
  *   documentOf(saleId, { paidElsewhere })                → the saleDetail payload of the document, or null
  *   paymentsOf(saleId)                                   → `[{ id, paidAt, receivedCents, tenders, source }]`, oldest first
  *
@@ -525,11 +526,38 @@ function cancel(saleId) {
   }, { owedReason: 'Vente annulée après paiement' });
 }
 
+/**
+ * Loop t1 B-1 (outside-visit rule 48) — « Marquer remboursé » on a `lineLowered` row: the money given back is written as refund allocations (rule 74:
+ * a refund is a negative allocation), in the caller's transaction, on the lines that hold more than they now ask (an offered, removed or cancelled
+ * line), in sale order, each line's booked part before its caisse-interne part, dated the day of the refund; what no line holds goes on no line. The
+ * journal books them as the document's avoir that day (`accounting/standaloneDocuments.js`), so the revenue and the VAT of the money given back leave
+ * the books; SETTLEMENT reads them as refunded.
+ */
+function writeObligationRefund(saleId, obligation, { day = todayIso() } = {}) {
+  const { stored, allocations } = storedOf(saleId);
+  const ctx = price({ requests: [], stored, allocations });
+  const heldBy = (ref, books) => allocations.filter((row) => row.lineRef === ref && Number(row.books) === books).reduce((sum, row) => sum + Number(row.amountCents), 0);
+  let left = Number(obligation.amountCents);
+  const rows = [];
+  for (const line of ctx.settlement.lines) {
+    if (left <= 0) break;
+    const take = Math.min(left, Math.max(0, line.settledCents - line.dueCents));
+    if (!(take > 0)) continue;
+    const booked = Math.min(take, Math.max(0, heldBy(line.ref, 1)));
+    rows.push({ lineRef: line.ref, amountCents: booked, internal: false }, { lineRef: line.ref, amountCents: take - booked, internal: true });
+    left -= take;
+  }
+  if (left > 0) rows.push({ lineRef: null, amountCents: left, internal: false });
+  payments.recordRefund({ saleId, obligationId: obligation.id, at: day, rows });
+  refreshInPlace(saleId);
+  sales.bumpVersion(saleId);
+}
+
 // The payments of a document, oldest first, each with its tenders: what an invoice states and the card batch reads (the outside-visit spec rule 31).
 const paymentsOf = (saleId) => payments.paymentsOf(saleId).map((row) => ({
   id: row.id, paidAt: row.paidAt, receivedCents: Number(row.receivedCents), tenders: row.tenders, source: row.source || null,
 }));
 
 module.exports = {
-  quote, sell, offerLine, removeLine, pay, cancel, receive, documentOf, paymentsOf, takePayment, MAX_QUANTITY,
+  quote, sell, offerLine, removeLine, pay, cancel, receive, documentOf, paymentsOf, takePayment, writeObligationRefund, MAX_QUANTITY,
 };
