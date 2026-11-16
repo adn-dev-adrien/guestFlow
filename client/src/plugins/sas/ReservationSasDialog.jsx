@@ -1107,7 +1107,7 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
         key={`${l.group}${l.key || i}`}
         text={lineText(l)}
         offered={l.offerable && l.key ? isOffered(l.key) : false}
-        onToggle={l.offerable && l.key ? () => toggleOffered(l.key) : undefined}
+        onToggle={l.offerable && l.key && !l.offerLocked ? () => toggleOffered(l.key) : undefined}
       />
     );
     const ownLines = recap.lines.filter((l) => l.group !== 'recalled');
@@ -1729,7 +1729,7 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
                       key={`d${l.key || i}`}
                       text={recapLineText(l)}
                       offered={l.offerable && l.key ? isOffered(l.key) : false}
-                      onToggle={l.offerable && l.key ? () => toggleOffered(l.key) : undefined}
+                      onToggle={l.offerable && l.key && !l.offerLocked ? () => toggleOffered(l.key) : undefined}
                     />
                   ))
                   : recap.existingTotal > 0 && <Typography variant="body2">Déjà dû : <strong>{shown(recap.existingTotal)}</strong></Typography>}
@@ -1739,7 +1739,7 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
                     prefix="+ "
                     text={recapLineText(l)}
                     offered={l.offerable && l.key ? isOffered(l.key) : false}
-                    onToggle={l.offerable && l.key ? () => toggleOffered(l.key) : undefined}
+                    onToggle={l.offerable && l.key && !l.offerLocked ? () => toggleOffered(l.key) : undefined}
                   />
                 ))}
               </Box>

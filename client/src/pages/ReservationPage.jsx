@@ -455,6 +455,8 @@ export default function ReservationPage() {
   // specs/mid-stay-extras-on-locked-fiche.md rule 13 — the lock as the server decided it: whether the
   // fiche is locked, whether its extras are still editable, and the floor of each line sold at arrival.
   const [editLock, setEditLock] = useState(null);
+  // specs/pricing-components.md rule 108 — the server's `refundedLoweredLines`, by line key.
+  const [refundedLoweredKeys, setRefundedLoweredKeys] = useState(() => new Set());
   const [isIcalImportedBlankPrice, setIsIcalImportedBlankPrice] = useState(false);
   const [isIcalSource, setIsIcalSource] = useState(false);
   const [unsavedDialogOpen, setUnsavedDialogOpen] = useState(false);
@@ -1005,6 +1007,7 @@ export default function ReservationPage() {
           setDatesTaken(res.datesTaken || null);
           setExistingReservationLocked(Boolean(res.editLock?.locked));
           setEditLock(res.editLock || null);
+          setRefundedLoweredKeys(new Set((res.refundedLoweredLines || []).map((line) => line.key)));
           setStoredSaleDetail(res.saleDetail || null);
           if (!quiet) setPastUnlocked(false);
           const loaded = current(await loadPropertyContext(res.propertyId, props, isCurrentLoad));
@@ -3590,6 +3593,12 @@ export default function ReservationPage() {
   const salesPanelLocked = Boolean(isClosedFiche || (editLock?.locked && !editLock?.extrasEditable));
   const arrivalLines = extrasWindowOpen ? (editLock.arrivalLines || {}) : NO_ARRIVAL_LINES;
   const frozenCustomOptionIds = extrasWindowOpen ? (editLock.frozenCustomOptionIds || []) : NO_FROZEN_CUSTOM_IDS;
+  // specs/pricing-components.md rule 108 — the server names the offered paid lines whose money a refund gave back; they are not put back.
+  const isRefundedOfferedLine = (kind, line) => {
+    if (!refundedLoweredKeys.size) return false;
+    if (kind === 'custom') return refundedLoweredKeys.has(`custom:${String(line.description || line.title || '').trim().toLowerCase().replace(/\s+/g, ' ')}`);
+    return refundedLoweredKeys.has(kind === 'option' ? optionLineKey(line.optionId, line) : resourceLineKey(line.resourceId, line));
+  };
   const isFrozenArrivalLine = (kind, line) => {
     if (kind === 'custom') return line.customOptionId != null && frozenCustomOptionIds.includes(Number(line.customOptionId));
     return Boolean(arrivalLines[kind === 'option' ? optionLineKey(line.optionId, line) : resourceLineKey(line.resourceId, line)]);
@@ -3978,6 +3987,7 @@ export default function ReservationPage() {
       touristTaxInComplementLocked={Boolean(taxInComplementLockedReason) && !form.touristTaxInComplement}
       routingLocked={extrasWindowOpen}
       isFrozenLine={isFrozenArrivalLine}
+      isRefundedLine={isRefundedOfferedLine}
       isTouristTaxFrozen={isTouristTaxFrozen}
       onRefreshTouristTax={() => setTouristTaxRefreshRequested(true)}
     />

@@ -11,7 +11,9 @@
  *   openFor(reservationId)    → the open rows, oldest first
  *   openAmountFor(reservationId, origin) → Σ cents of the open rows of one origin
  *   close(id, { status, by, now }) → the closed row, or null when it is not open
- *   settleLoweredBy(reservationId, refundId, cents) / reopenSettledBy(reservationId, refundId)   a refund on the trop-perçu settles the `lineLowered` rows; deleted, it reopens them
+ *   settleLoweredBy(reservationId, refundId, cents, { lineRef }) / reopenSettledBy(reservationId, refundId)   a refund on the trop-perçu settles the `lineLowered` rows; deleted, it reopens them
+ *                             (`lineRef`: the line key a refund on a line gave the money back on — stamped on the settled rows, loop t7 D7-2)
+ *   settledLoweredOn(reservationId, lineRef) → Σ cents of the `lineLowered` rows settled by refunds given back on that line key
  */
 const ORIGINS = ['basket', 'duplicatePayment', 'withdrawnLink', 'lineLowered', 'orderConflict', 'neverBooked'];
 const CLOSED = ['settled', 'cancelled'];
@@ -67,18 +69,19 @@ function buildModel(database) {
       WHERE reservationId = ? AND status = 'settled' AND settledBy = ?`).run(Number(reservationId), `refund:${Number(refundId)}`).changes;
   }
 
-  function settleLoweredBy(reservationId, refundId, cents) {
+  function settleLoweredBy(reservationId, refundId, cents, { lineRef = null } = {}) {
     if (!ready()) return;
     let left = cents;
     for (const row of database.prepare("SELECT * FROM refund_obligations WHERE reservationId = ? AND origin = 'lineLowered' AND status = 'open' ORDER BY id").all(Number(reservationId))) {
       if (left <= 0) break;
       if (row.amountCents <= left) {
+        if (lineRef) database.prepare('UPDATE refund_obligations SET lineRef = ? WHERE id = ?').run(lineRef, row.id);
         close(row.id, { status: 'settled', by: `refund:${refundId}` });
         left -= row.amountCents;
       } else {
         // The part given back is a settled row of its own, so a deleted refund can give it back (loop t1 B-5).
         database.prepare('UPDATE refund_obligations SET amountCents = ? WHERE id = ?').run(row.amountCents - left, row.id);
-        const part = open({ reservationId: row.reservationId, origin: 'lineLowered', lineRef: row.lineRef, amountCents: left, reason: row.reason });
+        const part = open({ reservationId: row.reservationId, origin: 'lineLowered', lineRef: lineRef || row.lineRef, amountCents: left, reason: row.reason });
         if (part) close(part.id, { status: 'settled', by: `refund:${refundId}` });
         left = 0;
       }
@@ -93,6 +96,8 @@ function buildModel(database) {
     settleLoweredBy,
     reopenSettledBy,
     findById,
+    settledLoweredOn: (reservationId, lineRef) => (ready()
+      ? Number(database.prepare("SELECT COALESCE(SUM(amountCents), 0) AS n FROM refund_obligations WHERE reservationId = ? AND origin = 'lineLowered' AND status = 'settled' AND lineRef = ?").get(Number(reservationId), String(lineRef)).n) : 0),
     openThenSettle(input, by = 'provider') {
       const row = open(input);
       return row ? close(row.id, { status: 'settled', by }) : null;

@@ -14,6 +14,9 @@
  *                                         `forced`: the operator confirmed; `lineDiscounts`: the line discounts the save carries, stored after it):
  *     - 409 `LINE_PAID` (« elle peut être offerte, pas retirée ») — a line a note pays left the stay. Its money stays credited until a refund
  *       (rule 23), and a later line of the same article would otherwise inherit the note's key and read as paid (S5-4).
+ *     - 409 `LINE_REFUNDED` (« Ligne remboursée : la revendre comme une nouvelle ligne. ») — the write makes a note's key claim again money a
+ *       refund on the trop-perçu already gave back (a paid line offered, its excess refunded, then un-offered or un-discounted): the guest
+ *       would keep the line AND the money (loop t7 D7-1, rule 108). Taken before the overpaid branch: it is no trop-perçu to confirm.
  *     - 409 `OVERPAID` — the write freed note money (a paid line offered, discounted or lowered) and the stay absorbed less of it than it grew
  *       (rule 104 credits it to what is still due first). A note is money the ESTABLISHMENT collected (cash, card terminal, online link), on a
  *       platform stay too (loop t5 A5-1: the platform collected none of it, reservation-refunds rule 38 is about the platform's money): what
@@ -24,6 +27,7 @@ const { settledByKey } = require('./pricing/storedLines');
 const { parseNotes } = require('./midStayExtras');
 
 const PAID_LINE_REMOVED = 'Ligne déjà payée : elle peut être offerte, pas retirée.';
+const LINE_REFUNDED = 'Ligne remboursée : la revendre comme une nouvelle ligne.';
 const eurosText = (cents) => `${(cents / 100).toFixed(2).replace('.', ',')} €`;
 
 const TABLES = { option: 'reservation_options', resource: 'reservation_resources', custom: 'reservation_custom_options' };
@@ -53,6 +57,7 @@ function loweredCents(db, reservationId, status) {
     .get(Number(reservationId), status).cents);
 }
 const openLoweredCents = (db, reservationId) => loweredCents(db, reservationId, 'open');
+const refundedLoweredCents = (db, reservationId) => loweredCents(db, reservationId, 'settled');
 
 const lineFactsOf = (db, id) => require('../models/ports/stayRepository').create(db).lineFacts(id);
 const netOf = (fact) => (fact ? Math.max(0, Number(fact.storedCents || 0) - Number(fact.discountCents || 0)) : 0);
@@ -78,8 +83,39 @@ function noteExcessCents(db, reservationId, lineDiscounts = null) {
   if (!row || !Object.keys(notes).length) return 0;
   // Loop t6 D6-1 — a refund on the trop-perçu gave part of that money back already (the `lineLowered` rows it settled): the notes and the
   // buckets still count it as received, so it comes off here, or a second lowering would owe it back a second time.
-  const refunded = loweredCents(db, id, 'settled');
+  const refunded = refundedLoweredCents(db, id);
   return Math.max(0, Math.min(unabsorbedCents(row), unclaimedCents(notes, factsWith(db, id, lineDiscounts))) - refunded);
+}
+
+// Loop t7 D7-2 (rule 106 d) — per line key a note paid, the note money beyond what the line charges now: what a refund on that line can give
+// back of the `lineLowered` obligation. A key whose line still charges what its note paid owes nothing back, whatever a refund gives on it.
+function noteExcessByKey(db, reservationId) {
+  const id = Number(reservationId);
+  const row = db.prepare('SELECT midStaySettledNotes FROM reservations WHERE id = ?').get(id);
+  const notes = row ? notesByKeyCents(row) : {};
+  if (!Object.keys(notes).length) return {};
+  const facts = lineFactsOf(db, id);
+  const out = {};
+  for (const [key, paid] of Object.entries(notes)) if (paid - netOf(facts[key]) > 0) out[key] = paid - netOf(facts[key]);
+  return out;
+}
+
+// Rule 108 (loop t7 D7-1) — the lowered paid lines whose excess a refund already gave back: putting one back at its price would make its note
+// claim that money again, so the judgment refuses it (409 `LINE_REFUNDED`) and the fiche and the SAS do not offer the gesture. A line is listed
+// when the note money no line claims, less its own excess, falls below what the refunds on the trop-perçu settled. Read-only.
+//   → [{ key, table: 'option' | 'resource' | 'custom', lineId }]
+function refundedLoweredLines(db, reservationId) {
+  const id = Number(reservationId);
+  const row = db.prepare('SELECT midStaySettledNotes FROM reservations WHERE id = ?').get(id);
+  const notes = row ? notesByKeyCents(row) : {};
+  if (!Object.keys(notes).length) return [];
+  const refunded = refundedLoweredCents(db, id);
+  if (refunded <= 0) return [];
+  const facts = lineFactsOf(db, id);
+  const unclaimed = unclaimedCents(notes, facts);
+  return Object.entries(notes)
+    .filter(([key, paid]) => facts[key] && paid - netOf(facts[key]) > 0 && unclaimed - (paid - netOf(facts[key])) < refunded)
+    .map(([key]) => ({ key, table: facts[key].table, lineId: Number(facts[key].lineId) }));
 }
 
 // What the stay owes back on lowered paid lines, in the register (rule 23): held at `cents`.
@@ -95,15 +131,20 @@ function begin(db, reservationId) {
   if (!row || !Object.keys(notes).length) return { finish: () => null };
   const facts = lineFactsOf(db, id);
   const paidLines = Object.keys(notes).filter((key) => facts[key]).map((key) => ({ key, table: facts[key].table, lineId: Number(facts[key].lineId) }));
-  const before = { unabsorbed: unabsorbedCents(row), owed: openLoweredCents(db, id), unclaimed: unclaimedCents(notes, facts) };
+  const before = {
+    unabsorbed: unabsorbedCents(row), owed: openLoweredCents(db, id), unclaimed: unclaimedCents(notes, facts), refunded: refundedLoweredCents(db, id),
+  };
   return {
     finish({ overpaid = false, forced = false, lineDiscounts = null } = {}) {
       const removed = paidLines.find(({ table, lineId }) => !db.prepare(`SELECT 1 FROM ${TABLES[table]} WHERE lineId = ? AND reservationId = ?`).get(lineId, id));
       if (removed) return { status: 409, body: { error: PAID_LINE_REMOVED, code: 'LINE_PAID' } };
+      const after = db.prepare('SELECT * FROM reservations WHERE id = ?').get(id);
+      const unclaimedAfter = unclaimedCents(notesByKeyCents(after), factsWith(db, id, lineDiscounts));
+      // Rule 108 — a note claiming again what a refund gave back: the line is sold anew, never put back.
+      if (unclaimedAfter < before.unclaimed && unclaimedAfter < before.refunded) return { status: 409, body: { error: LINE_REFUNDED, code: 'LINE_REFUNDED' } };
       // A trop-perçu the save is about to ask confirmation of (409 OVERPAID) is that refusal's: once confirmed, it is owed back.
       if (overpaid) return null;
-      const after = db.prepare('SELECT * FROM reservations WHERE id = ?').get(id);
-      const freed = unclaimedCents(notesByKeyCents(after), factsWith(db, id, lineDiscounts)) - before.unclaimed;
+      const freed = unclaimedAfter - before.unclaimed;
       if (freed <= 0) return null;
       const owed = openLoweredCents(db, id);
       const gap = Math.min(freed, unabsorbedCents(after) - before.unabsorbed - (owed - before.owed));
@@ -123,5 +164,5 @@ function begin(db, reservationId) {
 }
 
 module.exports = {
-  begin, notesOnKey, noteExcessCents, PAID_LINE_REMOVED,
+  begin, notesOnKey, noteExcessCents, noteExcessByKey, refundedLoweredLines, PAID_LINE_REMOVED, LINE_REFUNDED,
 };

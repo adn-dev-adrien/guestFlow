@@ -17,6 +17,7 @@ const database = require('../database');
 const vatRegimeModel = require('../models/vatRegimeModel');
 const { lineAllocationsContext } = require('../models/refundInputModel');
 const { collectedAfterArrival } = require('../utils/pricing/refunds/collected');
+const { noteExcessByKey } = require('../utils/paidLineJudgment');
 const {
   buildRefundableLines, validateRefundPayload, cancelledRefundBudget, collectedByLine, collectedLinesGone, refundDeletionRefusal, lastBookPaymentDateOf, capCashToLines, overpaymentRefusal,
 } = require('../utils/refunds');
@@ -181,11 +182,19 @@ function createRefundsController(deps = {}) {
         require('../models/refundObligationsModel').settleLoweredBy(id, refundId, Math.round(validated.refund.totalTtc * 100));
       } else if (cancelled) {
         // Loop t6 S6-1 (pricing-components rule 106 d) — on a cancelled stay the cancellation dialog gives a note-paid line's money back on the
-        // line itself: what it gives back on the lines a note paid settles the `lineLowered` obligation held for that money.
-        const notePaid = collectedAfterArrival(reservation);
-        const onNoteLines = validated.refund.lines.filter((l) => l.lineKey && notePaid.has(l.lineKey))
-          .reduce((sum, l) => sum + Math.round(Number(l.amountTtc || 0) * 100), 0);
-        if (onNoteLines > 0) require('../models/refundObligationsModel').settleLoweredBy(id, refundId, onNoteLines);
+        // line itself: what it gives back on a line a note paid settles the `lineLowered` obligation held for that money. Loop t7 D7-2 — only on
+        // the line it was held for: a key settles at most its note money beyond what the line charges now (`noteExcessByKey`), less what earlier
+        // refunds on that key settled; a refund on a line still charged in full (another order) settles nothing.
+        const obligations = require('../models/refundObligationsModel');
+        const excess = stayDatabase && reservation.midStaySettledNotes ? noteExcessByKey(stayDatabase, id) : {};
+        const given = new Map();
+        for (const l of validated.refund.lines) {
+          if (l.lineKey && excess[l.lineKey] > 0) given.set(l.lineKey, (given.get(l.lineKey) || 0) + Math.round(Number(l.amountTtc || 0) * 100));
+        }
+        for (const [key, cents] of given) {
+          const settles = Math.min(cents, excess[key] - obligations.settledLoweredOn(id, key));
+          if (settles > 0) obligations.settleLoweredBy(id, refundId, settles, { lineRef: key });
+        }
       }
       const refreshed = buildRegister(id);
       return res.status(201).json({

@@ -1114,6 +1114,8 @@ function getById(req, res) {
     depositDisabledLockedReason: depositDisabledLockedReasonOf(reservation.id),
     // guest-app rule 113 a (loop t6 A6-2) — the notes the fiche can neither adjust nor put back to the departure: { [noteId]: reason }.
     midStayNoteLocks: midStayNoteLocks(reservation.midStaySettledNotes),
+    // specs/pricing-components.md rule 108 (loop t7 D7-1) — the offered paid lines whose money a refund gave back: the fiche does not offer to put them back.
+    refundedLoweredLines: paidLineJudgment.refundedLoweredLines(db, reservation.id),
     // specs/force-item-to-complement.md rule 20 — null while « Taxe de séjour en complément » can be switched on.
     touristTaxInComplementLockedReason: taxInComplementLockedReason(db, model.getRow(reservation.id)),
     // specs/plugins-phase-3b-neat.md rule 12 — what live plugins show on this stay (Neat: the

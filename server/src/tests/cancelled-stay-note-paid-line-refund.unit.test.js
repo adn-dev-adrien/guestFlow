@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rule 106 d, specs/guest-app.md rule 110 b (stabilisation loop t6, S6-1 cancelled variant and S6-6, 2026-11-16) — a platform
+// specs/pricing-components.md §3 rule 106 d, specs/guest-app.md rule 110 b (stabilisation loop t6, S6-1 cancelled variant and S6-6, 2026-11-16; loop t7 D7-2) — a platform
 // stay whose card app order was paid before the arrival, then cancelled: the cancellation's refund dialog offers the order on its own line (it is
 // money the establishment collected, never the least likely to have been), and giving it back there settles the `lineLowered` obligation an
 // offer of that line had opened. Before: on 13 of 38 platform stays of the 2026-11-11 copy the order sat inside « Hébergement », and on 23 the
@@ -7,7 +7,7 @@ process.env.DB_PATH = ':memory:';
 process.env.TZ = 'Europe/Paris';
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { db, stay, row, beer, todayIso, addDaysToIsoDate } = require('./saleRound1Fixtures');
+const { db, stay, row, beer, breakfast, todayIso, addDaysToIsoDate } = require('./saleRound1Fixtures');
 const extraSale = require('../utils/extraSale');
 const ctrl = require('../controllers/reservationsController');
 const refundsController = require('../controllers/refundsController');
@@ -18,7 +18,7 @@ const respond = () => ({ statusCode: 200, body: null, status(s) { this.statusCod
 const owed = (id) => Number(db.prepare("SELECT COALESCE(SUM(amountCents), 0) AS c FROM refund_obligations WHERE reservationId = ? AND origin = 'lineLowered' AND status = 'open'").get(id).c);
 
 // A Booking stay, the platform's solde paid, 30 € of beer ordered and paid by card in the app three days before the arrival (yesterday: the refund is dated today).
-function orderedBeer({ offer = false } = {}) {
+function orderedBeer({ offer = false, alsoBreakfast = false } = {}) {
   const id = stay(2);
   db.prepare("UPDATE reservations SET platform = 'Booking' WHERE id = ?").run(id);
   ctrl.performUpdate(id, { ...storedBody(id), restatePricing: true });
@@ -28,6 +28,11 @@ function orderedBeer({ offer = false } = {}) {
   const quote = extraSale.quote(id, asked, { now, source: 'shop' });
   const sold = extraSale.sell(id, asked, { now, source: 'shop', paid: { amountCents: quote.totalCents, ref: 'p' }, orderRef: 'order:9' });
   assert.equal(sold.status, 200, JSON.stringify(sold.body));
+  if (alsoBreakfast) {
+    const morning = [{ articleRef: `option:${breakfast}`, quantity: 1 }];
+    const breakfastQuote = extraSale.quote(id, morning, { now, source: 'shop' });
+    assert.equal(extraSale.sell(id, morning, { now, source: 'shop', paid: { amountCents: breakfastQuote.totalCents, ref: 'p2' }, orderRef: 'order:10' }).status, 200);
+  }
   if (offer) {
     const line = extraSale.saleDetailOf(id, now).lines.find((l) => l.articleKey === `option:${beer}`);
     assert.equal(extraSale.changeLine(id, line.ref, { offered: true }, { now, forceOverpayment: true }).status, 200);
@@ -57,7 +62,30 @@ test('S6-1 — the order offered then the stay cancelled: refunding the line set
   assert.equal(owed(id), 0);
   const gone = respond();
   refundsController.remove({ params: { id: String(id), refundId: String(res.body.refund.id) } }, gone);
-  if (gone.statusCode === 200) assert.equal(owed(id), 3000, 'a deleted refund gives the obligation back');
+  assert.equal(gone.statusCode, 200, JSON.stringify(gone.body));
+  assert.equal(owed(id), 3000, 'a deleted refund gives the obligation back');
+});
+
+// Loop t7 D7-2 — the refund settles the obligation of the line it gives money back on, never another's.
+test('D7-2 — two card orders, the beer offered then the stay cancelled: a refund on the BREAKFAST settles nothing; the beer\'s refund settles its 30 €', () => {
+  const id = orderedBeer({ offer: true, alsoBreakfast: true });
+  assert.equal(owed(id), 3000);
+  const breakfastLine = register(id).refundableLines.find((l) => l.key === `opt:${breakfast}`);
+  assert.ok(breakfastLine && breakfastLine.refundableTtc > 0, JSON.stringify(register(id).refundableLines));
+  const onBreakfast = respond();
+  refundsController.create({ params: { id: String(id) }, body: { refundDate: todayIso(), method: 'card', reason: 'Annulation', lines: [{ key: breakfastLine.key, amountTtc: breakfastLine.refundableTtc }] } }, onBreakfast);
+  assert.equal(onBreakfast.statusCode, 201, JSON.stringify(onBreakfast.body));
+  assert.equal(owed(id), 3000, 'the beer is still owed back');
+  const onBeer = respond();
+  refundsController.create({ params: { id: String(id) }, body: { refundDate: todayIso(), method: 'card', reason: 'Annulation', lines: [{ key: beerLine(id).key, amountTtc: 30 }] } }, onBeer);
+  assert.equal(onBeer.statusCode, 201, JSON.stringify(onBeer.body));
+  assert.equal(owed(id), 0);
+  assert.deepEqual(db.prepare("SELECT lineRef, amountCents, settledBy FROM refund_obligations WHERE reservationId = ? AND status = 'settled'").all(id),
+    [{ lineRef: `opt:${beer}`, amountCents: 3000, settledBy: `refund:${onBeer.body.refund.id}` }]);
+  const gone = respond();
+  refundsController.remove({ params: { id: String(id), refundId: String(onBeer.body.refund.id) } }, gone);
+  assert.equal(gone.statusCode, 200, JSON.stringify(gone.body));
+  assert.equal(owed(id), 3000, 'deleted, the beer\'s refund reopens its obligation');
 });
 
 test('S6-6 — when the budget is short, an arrival line a note paid is not the first capped: the accommodation gives way, not the order', () => {
