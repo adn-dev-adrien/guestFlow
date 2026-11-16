@@ -71,8 +71,9 @@ test.describe('phone (390 px)', () => {
     await page.getByTestId('sticky-total-bar').click({ timeout: 15_000 });
     const sheet = page.getByRole('dialog', { name: 'Résumé tarifaire' });
     await expect(sheet.getByTestId('platform-price-alert')).toContainText('Prix Booking à vérifier');
-    const link = await sheet.getByRole('link', { name: 'Voir la grille' }).boundingBox();
-    expect(link && link.height).toBeGreaterThanOrEqual(44);
+    // The sheet may still be settling when the alert shows (43.99997 px measured once under a parallel run): poll the target's settled height.
+    const link = sheet.getByRole('link', { name: 'Voir la grille' });
+    await expect.poll(async () => (await link.boundingBox())?.height ?? 0).toBeGreaterThanOrEqual(44);
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
   });
 });
