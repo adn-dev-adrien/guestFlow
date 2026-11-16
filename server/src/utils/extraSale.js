@@ -634,7 +634,7 @@ function changeLineAt(reservationId, ref, patch, { now = new Date(), forceOverpa
         const unclaimedBefore = unabsorbedCents(id);
         const restated = controller().performUpdate(id, { ...lowered.body, restatePricing: true, forceOverpayment: Boolean(forceOverpayment) }, { sale: 'fiche', saleBase: base.row, unpaidLine: !lowered.paidLine, now });
         if (restated.status !== 200) { outcome = { status: restated.status, body: restated.body }; throw ROLLBACK; }
-        model.storeDiscount(line, lowered.discountCents);
+        model.storeDiscount(line, lowered.discountCents, { arrivalOpen: arrivalOpenAtAt(id, now) });
         owedCents = model.openLoweredCents(id) - owedBefore;
         // Rule 104 — the money a paid line gives back comes off what the stay still asks; on a platform stay with nothing left to ask
         // there is no trop-perçu to confirm (reservation-refunds rule 38), so the gesture is refused rather than leave it credited nowhere.

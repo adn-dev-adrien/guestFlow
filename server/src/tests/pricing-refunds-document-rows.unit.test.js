@@ -65,3 +65,14 @@ test('refundRowsOfDocument — the row\'s own line first, its booked part before
     { lineRef: null, amountCents: 300, internal: false },
   ]);
 });
+
+// Loop t5 D5-4 (2026-11-16) — the unnamed excess and the rest of the same line come out as one row per (line, caisse): two rows with the same
+// key made `recordRefund` / `recordKept` write two allocations under one key, and the unique index refused the close every time.
+test('refundRowsOfDocument — one row per line and caisse when the unnamed excess and the named rest of a line are both taken', () => {
+  const lines = [{ ref: BEER, dueCents: 0, settledCents: 1300 }, { ref: PLANK, dueCents: 1000, settledCents: 0 }];
+  const allocations = [{ lineRef: BEER, amountCents: 1300, books: 1 }];
+  const rows = refundRowsOfDocument({ lines, allocations, amountCents: 1000, reserved: [{ lineRef: BEER, amountCents: 600 }] });
+  assert.deepEqual(rows, [{ lineRef: BEER, amountCents: 1000, internal: false }, { lineRef: BEER, amountCents: 0, internal: true }]);
+  const keys = rows.map((row) => `${row.lineRef}:${row.internal}`);
+  assert.equal(new Set(keys).size, keys.length);
+});

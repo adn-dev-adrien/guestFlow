@@ -101,12 +101,17 @@ function repairFrozenComplements(db) {
 // sent the departure part of a grown line out of every bucket. So only a stay the clock has NOT started at `now` loses its baseline, and
 // never one that carved a line out to the departure (a line stamped `collectAt = 'departure'`, rule 103 b) — that baseline is the line's
 // bucket. Money-safe by construction: a stay that collected anything, ticked or committed its arrival SAS is excluded.
+// Loop t5 D5-2 — nor one whose arrival complement is overridden: the third reason `unmarkArrival` keeps a false start (S4-2), so a restart
+// never undoes what the untick kept. Loop t5 D5-3 — a stay whose stored dates the clock cannot read keeps its baseline (logged): the boot
+// never fails on one row.
 function clearPreArrivalBaselines(db, { now = new Date() } = {}) {
   const stamped = ['reservation_options', 'reservation_resources', 'reservation_custom_options']
     .filter((table) => db.prepare(`PRAGMA table_info(${table})`).all().some((c) => c.name === 'collectAt'));
   const keepsDepartureLines = stamped
     .map((table) => `AND NOT EXISTS (SELECT 1 FROM ${table} l WHERE l.reservationId = reservations.id AND l.collectAt = 'departure')`)
     .join('\n      ');
+  const overridden = db.prepare('PRAGMA table_info(reservations)').all().some((c) => c.name === 'complementAmountOverride')
+    ? 'AND complementAmountOverride IS NULL' : '';
   const candidates = db.prepare(`
     SELECT id FROM reservations
     WHERE arrivalExtrasBaseline IS NOT NULL
@@ -117,14 +122,22 @@ function clearPreArrivalBaselines(db, { now = new Date() } = {}) {
       AND COALESCE(endOfStayComplementPaid, 0) = 0
       AND COALESCE(endOfStayComplementPaidCash, 0) = 0
       AND COALESCE(midStaySettledNotes, '') IN ('', '[]')
+      ${overridden}
       ${keepsDepartureLines}
   `).all().map((row) => Number(row.id));
   if (!candidates.length) return [];
   const clock = require('../models/stayClockModel').create(db);
   const clear = db.prepare('UPDATE reservations SET arrivalExtrasBaseline = NULL WHERE id = ?');
   const cleared = candidates.filter((id) => {
-    const phase = clock.phaseForReservation(id, now);
-    return phase && !phase.started;
+    try {
+      const phase = clock.phaseForReservation(id, now);
+      return phase && !phase.started;
+    } catch (err) {
+      if (err.code !== 'STAY_CLOCK_INVALID') throw err;
+      // eslint-disable-next-line no-console
+      console.warn(`[arrival-baseline-repair] reservation ${id}: unreadable stay dates, baseline kept (${err.message})`);
+      return false;
+    }
   });
   db.transaction(() => cleared.forEach((id) => clear.run(id)))();
   return cleared;

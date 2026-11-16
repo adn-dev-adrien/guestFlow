@@ -1,0 +1,4 @@
+- Selling an extra: a discount given back on an arrival line after a kept false start (ticked then unticked before the check-in hour) stays at the departure; before, the arrival baseline was raised and the given-back money left every bucket once the arrival was ticked.
+- Startup repair of arrival baselines: a stay whose arrival complement is overridden keeps its baseline across a restart, and a stay whose stored dates cannot be read is skipped and logged instead of stopping the server.
+- Outside visits: closing a lowered-line refund row no longer fails when it takes money twice from the same line; the refund rows are merged per line.
+- A stay's per-line paid amounts are rebuilt before they are read when a payment was changed outside the application's hooks.

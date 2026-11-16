@@ -495,6 +495,9 @@ once on the server by the refonte's components.
     > but the money leaves the document, so it cannot pay a line sold later.
     > _Reading of 2026-11-16 (loop t4 B4-1, B4-3, owner):_ a `lineLowered` row closed « rien à rembourser » no longer writes nothing: it writes kept
     > allocations and is a tip (rule 56 a); a row takes its own line first, then the excess no other open row names (rule 56 b).
+    > _Reading of 2026-11-16 (loop t5 D5-4):_ `refundRowsOfDocument` returns at most one row per (line, caisse): when a row takes a line's unnamed
+    > excess and then what another row names on the same line, the two parts are one row, so the allocations written from them never collide on the
+    > allocation key (before: the close was refused 500 every time). Test `pricing-refunds-document-rows`.
 50. **A link surplus kept is a tip** _(owner decision 2026-11-16, stabilisation loop t1 B-6; completes rules 30, 41)_. A `linkSurplus` row closed
     « rien à rembourser » (`status: 'cancelled'`) is money the business keeps. The history says « 13,00 € gardés en pourboire », and the journal books it
     like a stay's tip: one entry on the day the row was closed (`standaloneSales.list` row `role: 'tip'`, key `standalone:<id>:<day>:tip:<row>`; entry kind
@@ -505,6 +508,8 @@ once on the server by the refonte's components.
     > _Reading 2026-11-16 (loop t4):_ the day of the tip is the Paris day of the application's clock when the row is closed: `settledAt` is written
     > from it (in SQLite's UTC text form), never from SQLite's own clock, so the tip and its kept allocation share one day at any hour. Test
     > `standalone-sale-kept-surplus-paris-day`.
+    > _Reading 2026-11-16 (loop t5 D5-5):_ the tip and avoir days are the `at` of the allocations the close writes; `settledAt` is the row's displayed
+    > stamp, which no reader decides money by.
 51. **Every booking payload carries its actions; the invoice reason is the stored visit's** _(stabilisation loop t2, UI2-5 to UI2-8, 2026-11-16;
     completes rules 6, 11, 27, 45, 48)_. (a) Every booking payload carries `actions: { noShow, arrive }` for its caller: the booking read, the rows of
     `GET /api/resource-bookings` (the booking dialog opens on them) and of `GET /api/resource-bookings/planning-events` (the planning cards; the

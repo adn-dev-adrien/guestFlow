@@ -45,3 +45,38 @@ test('D4-1 — a line wholly at the arrival: a discount comes off the arrival ba
   assert.equal(extraSale.changeLine(id, ref, { discount: { amount: 0 } }, { now: at(id, '18:00') }).status, 200);
   assert.equal(baseline(id)[KEY], 45);
 });
+
+// Loop t5 D5-1 (2026-11-16) — a kept false start (ticked before the check-in hour, a paid note taken, unticked before the hour) is not an open
+// arrival: the one judge (`extraSale.arrivalOpenAt`) says so, and the restate routes a given-back discount to the departure. Raising the baseline
+// there made the 10 € leave every bucket once the arrival was ticked for real.
+test('D5-1 — a kept false start: a discount given back before the hour stays at the departure, no money leaves the buckets', () => {
+  const controller = require('../controllers/reservationsController');
+  const { withNow } = require('../utils/localDate');
+  const tick = (id, checkInDone, now) => withNow(now, () => {
+    let status = 200;
+    controller.updatePayment({ params: { id: String(id) }, body: { checkInDone }, query: {}, user: { id: 1, role: 'admin' } },
+      { status(s) { status = s; return this; }, json() { return this; } });
+    return status;
+  });
+  const gap = (id) => {
+    const r = row(id);
+    const notes = JSON.parse(r.midStaySettledNotes || '[]').reduce((sum, n) => sum + Math.round(Number(n.total || 0) * 100), 0);
+    const c = (v) => Math.round(Number(v || 0) * 100);
+    return c(r.finalPrice) - c(r.depositAmount) - c(r.balanceAmount) - c(r.complementAmount) - c(r.endOfStayComplementAmount) - notes;
+  };
+  const { id, ref } = soldPanier();
+  const unbucketed = gap(id);
+  assert.equal(tick(id, true, at(id, '09:00')), 200);
+  assert.equal(extraSale.sell(id, [{ articleRef: `option:${beer}`, quantity: 1 }], { now: at(id, '09:10'), payment: 'cash' }).status, 200);
+  assert.equal(tick(id, false, at(id, '09:30')), 200);
+  assert.deepEqual(baseline(id), { [KEY]: 45 });
+  assert.equal(extraSale.changeLine(id, ref, { discount: { amount: 10 } }, { now: at(id, '10:00') }).status, 200);
+  assert.equal(baseline(id)[KEY], 35);
+  assert.equal(extraSale.changeLine(id, ref, { discount: { amount: 0 } }, { now: at(id, '10:30') }).status, 200);
+  assert.equal(baseline(id)[KEY], 35);
+  assert.deepEqual(money(id), [3500, 1000]);
+  assert.equal(tick(id, true, at(id, '15:30')), 200);
+  assert.equal(extraSale.sell(id, [{ articleRef: `option:${beer}`, quantity: 1 }], { now: at(id, '16:00') }).status, 200);
+  assert.deepEqual(money(id), [3500, 1600]);
+  assert.equal(gap(id), unbucketed);
+});

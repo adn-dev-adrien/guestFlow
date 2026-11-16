@@ -870,6 +870,9 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
     > read it) and hands SETTLEMENT the values it plans from; REFUNDS' input (`refundInputModel`) reads the end-of-stay share received there too; the port's `splitReceived(id)` is that same read.
     > The mid-stay notes SETTLEMENT reads are the stay's stored column (what each note sold and settled), not a read of the payment tables. 0 figure: the gate, the golden test and the books
     > are unchanged. Proof `pricing-receipts-single-read`, `pricing-schedule` (the step asks `receipts`, never `splitReceived`).
+    > _Reading of 2026-11-16 (loop t5 D5-6):_ « the read is never late » holds for `StayRepository.lineFacts` too: it rebuilds a stay a write behind
+    > the hooks left marked (`payment_allocations_dirty`, e.g. a platform statement corrected) before it sums each line's allocations, the same flush as
+    > `PaymentLedger.allocations`. Test `stay-line-facts-never-late`.
 49. **Articles with a downstream booking (fulfilment port).** An article may name a fulfilment adapter
     (`fulfilment: 'hourly-slot'`). `ArticleFulfilment` is a plain object `{ id, reserve(draft, ctx) → hold
     {id, expiresAt}, confirm(hold, line, tx), release(hold, reason) }`, registered through
@@ -2100,6 +2103,13 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
     > departure is the line's `departureCents` in `saleDetail`: « Ventes du séjour — au départ » lists it, the arrival lists the rest. Tests
     > `sale-departure-part-of-arrival-line`, `sale-undiscount-open-arrival-then-sale` (S4-1: discount 10 then 0 at the open arrival, ticked, a sale: the
     > departure takes only the sale).
+    > _Loop t5 (2026-11-16):_ (d) **« open » is the one judge** (D5-1): `fitArrivalBaseline` raises a key only when `extraSale.arrivalOpenAt` says
+    > the arrival is open at the gesture's `now` (the caller hands it to `storeDiscount`). A **kept false start** (ticked before the hour, a paid note
+    > taken, unticked before the hour: the baseline stays and the stay's sales are already the departure's) is not open: its restate routes a given-back
+    > discount to the departure, and the baseline stays where the discount put it (before: raised, the 10 € left every bucket once the arrival was
+    > ticked). Test `sale-discount-given-back-baseline`. (b) **The boot repair keeps the three reasons of the untick** (D5-2): it never clears the
+    > baseline of a stay whose arrival complement is overridden (S4-2), and a stay whose stored dates the clock cannot read keeps its baseline, logged,
+    > instead of failing the boot (D5-3). Test `arrival-baseline-boot-repair-clock`.
 104. **A paid line lowered: its money stays credited to the stay** _(stabilisation loop t4, S4-3, 2026-11-16; completes rules 23, 29; amends
     mid-stay-notes rule 13)_. A line paid now (cash, card terminal: one settled note naming it, rule 29) then offered or discounted left the note's
     money above what its key now carries, and the mid-stay split clamped it away: on stay 22336 (solde paid, 60,40 € arrival complement due) a 45 € line
@@ -2427,8 +2437,8 @@ _Rewritten 2026-11-15 (stabilisation loop t1, UI-3) to what shipped._
 - [x] `sale-false-start-undone` — rule 103 b: unticked before the hour, the carved lines and their money back at the arrival; past the hour or once collected, the start stands
 - [x] `sale-open-arrival-offered-line` — rule 103 c (T3-2): an offered arrival line billed again, discounted and removed at the open arrival; frozen once validated
 - [x] `sale-discounted-line-baseline` — rule 103 d (T3-8): a discounted arrival line does not freeze the started stay; a discounted line moves with its net amount
-- [x] `sale-discount-given-back-baseline` — rule 103 d (loop t4, D4-1): a discount removed or reduced before or at the open arrival gives the money back to the arrival, never billed again at the departure (5)
-- [x] `arrival-baseline-boot-repair-clock` — rule 103 b (loop t4, D4-2, D4-3): the boot repair clears only the baseline of a stay the clock has not started, never one that carved a line out (6)
+- [x] `sale-discount-given-back-baseline` — rule 103 d (loop t4, D4-1): a discount removed or reduced before or at the open arrival gives the money back to the arrival, never billed again at the departure; a kept false start keeps the given-back money at the departure (loop t5, D5-1) (6)
+- [x] `arrival-baseline-boot-repair-clock` — rule 103 b (loop t4, D4-2, D4-3): the boot repair clears only the baseline of a stay the clock has not started, never one that carved a line out, nor one whose complement is overridden; an unreadable stored date never fails the boot (loop t5, D5-2, D5-3) (8)
 - [x] `sas-arrival-recap-lists-what-it-collects` — rule 103 e (T3-3): a moved line not listed, a discounted line at its net amount
 - [x] `fiche-line-stamped-where-money-goes` — rule 103 f (T3-4): a fiche line beyond a settled plan reads « À payer à l’arrivée » and the SAS lists it; a fiche line of a started stay reads « À payer au départ »
 - [x] `sale-detail-plan-bucket-stored` — rule 103 g (T3-5)
@@ -2440,6 +2450,7 @@ _Rewritten 2026-11-15 (stabilisation loop t1, UI-3) to what shipped._
 - [x] `sale-plan-line-move-before-arrival` — rule 95 (loop t4, S4-5): a plan line of a stay carved out early is not moved to the departure before the arrival; a line stamped there goes and comes back (2)
 - [x] `sale-departure-part-of-arrival-line` — rule 103 d (loop t4, S4-6): a discount given back after the validated arrival is listed at the departure and stays there after the next sale (2)
 - [x] `sale-undiscount-open-arrival-then-sale` — rule 103 d (loop t4, S4-1): discount 10 then 0 at the open arrival, ticked, a sale: the departure takes only the sale
+- [x] `stay-line-facts-never-late` — rule 48 (loop t5, D5-6): the line facts of a stay left marked are rebuilt before they are read (1)
 
 ### Client Vitest suites (named 2026-11-16, stabilisation loop t2 P2-2)
 - [x] `ReservationPage.extra-sales-panel` — rule 101 (UI2-1 to UI2-4): a started stay with the window open sells and moves its lines, a collected departure does not, the fiche's `saleDetail` read once, a dirty fiche holds the writes and keeps the typed note, a write on a clean fiche re-reads without the loading screen, and while the re-read is in flight the fiche is busy (fields read-only, « Enregistrer » disabled)

@@ -119,6 +119,7 @@ function documentRowsInStep({
  * Loop t4 B4-3 (outside-visit rule 56) — `reserved` are the other open rows of the document (`{ lineRef, amountCents }`): after its own line, a row takes
  * the excess no other row names, in sale order, and only then what another row holds. A whole document cancelled (`lineRef` NULL) no longer takes the
  * offered beers' money its own row was opened for. The same rows say which money a row closed « rien à rembourser » keeps (rule 56 a).
+ * Loop t5 D5-4 — at most one row per (lineRef, internal).
  * @returns {Array<{ lineRef: (string|null), amountCents: number, internal: boolean }>}
  */
 function refundRowsOfDocument({
@@ -152,7 +153,15 @@ function refundRowsOfDocument({
   for (const line of lines || []) if (line !== own) takeFrom(line, Math.max(0, (excess.get(line.ref) || 0) - (named.get(line.ref) || 0)));
   for (const line of lines || []) if (line !== own) takeFrom(line, Infinity);
   if (left > 0) rows.push({ lineRef: null, amountCents: left, internal: false });
-  return rows;
+  // Loop t5 D5-4 — the passes can take from the same line twice (its unnamed excess, then the rest): one row per (line, caisse), in the order
+  // first taken, so the allocations written from them never collide on `idx_payment_allocations_key`.
+  const merged = new Map();
+  for (const row of rows) {
+    const key = `${row.lineRef}\u0000${row.internal}`;
+    if (merged.has(key)) merged.get(key).amountCents += row.amountCents;
+    else merged.set(key, { ...row });
+  }
+  return [...merged.values()];
 }
 
 /**
