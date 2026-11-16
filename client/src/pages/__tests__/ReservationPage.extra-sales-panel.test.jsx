@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rules 27, 31, 37 (loop t2 UI2-1, UI2-2, UI2-3, UI2-4) — « Ventes du séjour » on the real fiche:
+// specs/pricing-components.md rule 100 (§3 rules 27, 31, 37; loop t2 UI2-1, UI2-2, UI2-3, UI2-4) — « Ventes du séjour » on the real fiche:
 // a started stay whose mid-stay window is open still sells and moves its lines; a closed window does not; a fiche with typed,
 // unsaved edits holds the panel's writes (« Enregistrer d'abord les modifications. ») instead of re-reading and dropping them;
 // after a write on a clean fiche the page re-reads quietly; the panel renders the fiche's own `saleDetail` without a second request.
