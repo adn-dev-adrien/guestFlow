@@ -181,6 +181,7 @@
       "« Créer la facture dans Qonto » au paiement immédiat est proposé quand le serveur, interrogé avec le paiement saisi, répond que la facture peut être faite : ni l’arrivée ni la réservation ne le devinent plus d’après les moyens de paiement.",
       "Le sas d’arrivée lit les suppléments de soirée des commandes par la clé de leur bain : un second supplément, numéroté « (2) », n’est plus facturé une seconde fois.",
       "Au paiement immédiat, l’arrivée et la réservation attendent la réponse du serveur sur la facture avant d’enregistrer, et affichent « Facture non vérifiée pour ce paiement. » avec « Réessayer » si elle échoue ; « Caisse interne » et les autres refus viennent du serveur.",
+      "Au paiement immédiat, un refus ou un échec de la vente de l’arrivée ne s’affiche qu’une fois, sans second message ni second « Réessayer » pour le paiement saisi.",
       "Demande le SDK 2.31 de GuestFlow."
     ]
   }

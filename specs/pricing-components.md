@@ -1998,6 +1998,10 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
     (shown, never saved). The summary keeps the last quote on screen until the re-read's own quote lands (it never blanks on a sale). A re-read
     that fails keeps the page — the sale is stored — read-only under « Fiche non relue après la vente. » with « Réessayer », instead of replacing the
     fiche with the load error. Vitest `ReservationPage.quiet-reread`.
+    _Reading 2026-11-16 (loop t4, UI4-2):_ « read-only until a retry succeeds » holds for the controls the disabled fieldset does not reach: after a
+    failed re-read the fieldset stays `inert` (the error and its « Réessayer » sit above it), and the mini-planning strip is locked like a locked
+    stay's (`formReadOnly`, a closed fiche included) — before, a click on one of its days moved the arrival and the departure of the « read-only »
+    fiche, and « Réessayer » then dropped them silently. Vitest `ReservationPage.quiet-reread`.
 102. **One moment per gesture: the stay clock decides the lock, the sale, the baseline, the SAS and the change of an order** _(stabilisation loop t2,
     N-1 to N-6, 2026-11-16; amends rule 20's first bullet, completes rules 44, 45, 93, 94, guest-app rules 82, 110 a)_. Before, two clocks answered
     « has this stay started? »: the fiche lock (`hasStayStarted`: the check-in hour, or the arrival marked or the arrival SAS committed) and the sale

@@ -1,6 +1,7 @@
 // specs/outside-booking-sas.md rule 54 (reading 2026-11-16, loop t3 UI3-4, UI3-5) — at « Payé maintenant » the arrival reads the server's answer for
 // the payment typed: a failed answer shows « Facture non vérifiée pour ce paiement. » with « Réessayer » (the commit waits for it, never silently);
 // « Caisse interne » is the server's `INTERNAL_CASH`, and any other refusal prints the server's reason.
+// Reading 2026-11-16 (loop t4 UI4-3): the payment request carries the draft, so a refusal or failure of the draft itself is shown once.
 import React from 'react';
 import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import { vi } from 'vitest';
@@ -66,4 +67,29 @@ test('UI3-5 — a silent refusal shows no « Facture » block', async () => {
   await new Promise((resolve) => { setTimeout(resolve, 200); });
   expect(screen.queryByText('Qonto non connecté.')).toBeNull();
   expect(screen.queryByText('Créer la facture dans Qonto')).toBeNull();
+});
+
+const refuseExtras = (error) => async (id, body) => {
+  if ((body.extras || []).length > 0) throw error;
+  return answering({ ok: true, code: null, reason: null })(id, body);
+};
+
+test('UI4-3 — a refusal of the draft itself is shown once, not again for the payment typed', async () => {
+  api.quoteResourceVisit.mockImplementation(refuseExtras(Object.assign(new Error('Article retiré du catalogue.'), { status: 409 })));
+  openDialog();
+  fireEvent.click(await screen.findByRole('button', { name: /Bière locale/ }));
+  await waitFor(() => expect(api.quoteResourceVisit.mock.calls.filter(([, body]) => body.payment && (body.extras || []).length > 0).length).toBeGreaterThan(0));
+  expect(await screen.findByText('Article retiré du catalogue.')).toBeInTheDocument();
+  await new Promise((resolve) => { setTimeout(resolve, 200); });
+  expect(screen.getAllByText('Article retiré du catalogue.')).toHaveLength(1);
+});
+
+test('UI4-3 — a failed draft shows one error with one « Réessayer », not a second one for the payment', async () => {
+  api.quoteResourceVisit.mockImplementation(refuseExtras(Object.assign(new Error('Service indisponible'), { status: 503 })));
+  openDialog();
+  fireEvent.click(await screen.findByRole('button', { name: /Bière locale/ }));
+  expect(await screen.findByText('Service indisponible')).toBeInTheDocument();
+  await new Promise((resolve) => { setTimeout(resolve, 200); });
+  expect(screen.queryByText('Facture non vérifiée pour ce paiement.')).toBeNull();
+  expect(screen.getAllByRole('button', { name: 'Réessayer' })).toHaveLength(1);
 });

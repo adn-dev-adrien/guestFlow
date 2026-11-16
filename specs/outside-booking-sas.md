@@ -545,6 +545,11 @@ once on the server by the refonte's components.
     refusal that is not silent prints the server's `reason` under « Facture » (« La facture se propose une fois le paiement saisi. » stays for a
     payment not typed yet), and a silent one shows nothing. Tests `visit-draft-invoice-reason`, `ResourceArrivalDialog.invoice-answer`,
     `ResourceBookingDialog.invoice-answer`.
+    _Reading 2026-11-16 (loop t4, UI4-3):_ the payment's request carries the draft, so a refusal of the draft itself or a failure comes back on both
+    requests; it is shown once. The arrival shows the payment answer's refusal or « Facture non vérifiée pour ce paiement. » only while the draft's
+    own answer is neither refused nor failed (before: the same red message twice, or two « Réessayer »). The booking dialog already shows one: a
+    refused draft has no price, hence no payment preview, and a failed one keeps its last price without a second message. Tests
+    `ResourceArrivalDialog.invoice-answer`, `ResourceBookingDialog.invoice-answer`.
 55. **One money model for a document: every cent on a line or on no line** _(stabilisation loop t3, B3-1, B3-2, B3-3, 2026-11-16; completes rules 41,
     44, 49, 50, 52, 53 and refonte rules 72, 74, 75)_. Every cent a document received sits either on one of its lines or **on no line** — its
     *unallocated money*: a link paid above the reste (rule 41), net of what was given back or kept from it (`payment_allocations` with `lineRef` NULL).
