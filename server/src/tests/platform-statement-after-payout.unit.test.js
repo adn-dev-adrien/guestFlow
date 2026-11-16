@@ -9,6 +9,8 @@ const { db, inDays, createStay, rowOf, liveQuote, mark } = require('./ledgerFixt
 const statementController = require('../controllers/platformStatementController');
 const correction = require('../utils/platformStatementCorrection');
 const { formatEuros } = require('../utils/reservationLedger');
+const { skipWithout, optionalPlugin } = require('../plugins/sdk/testing');
+const { create: createAccountingModel } = optionalPlugin(() => require('../plugins/accounting-export/accountingModel'));
 
 function call(handler, id, body) {
   const res = { statusCode: 200, body: null, status(c) { this.statusCode = c; return this; }, json(b) { this.body = b; return this; } };
@@ -205,8 +207,7 @@ test('review L1 — the history formats the statement as money', () => {
   assert.match(printed, /43,86/);
 });
 
-test('rule 9 — the encaissement keeps its date: turnover on the brut, the commission booked, the net unchanged', () => {
-  const { create: createAccountingModel } = require('../plugins/accounting-export/accountingModel');
+test('rule 9 — the encaissement keeps its date: turnover on the brut, the commission booked, the net unchanged', { skip: skipWithout(['accounting-export']) }, () => {
   const id = receivedNetStay();
   const before = rowOf(id);
   assert.equal(patch(id, { platformGrossAmount: before.balanceAmount + 75, platformCommissionAmount: 75 }).statusCode, 200);
