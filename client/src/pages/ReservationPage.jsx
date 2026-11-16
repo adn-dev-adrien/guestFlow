@@ -264,6 +264,11 @@ export default function ReservationPage() {
   const [pluginBlocks, setPluginBlocks] = useState({});
   // Bumped by a plugin banner that changed the reservation server-side: re-runs the page load.
   const [reloadToken, setReloadToken] = useState(0);
+  // specs/pricing-components.md rule 27 — a re-read after a write of « Ventes du séjour » keeps the page on screen (no spinner, no lost
+  // scroll, the admin unlock kept): the fiche is clean then, since the panel holds its writes while it is dirty.
+  const quietReloadRef = useRef(false);
+  // Rule 31 — the sale detail the fiche read with the stay: the panel renders it without a second request.
+  const [storedSaleDetail, setStoredSaleDetail] = useState(null);
   // The `updatedAt` this fiche was built on, sent back on save: the server refuses a save made on an
   // older version instead of reverting what an import, a mail or another tab wrote meanwhile.
   const loadedUpdatedAtRef = useRef(null);
@@ -921,9 +926,11 @@ export default function ReservationPage() {
       if (!isCurrentLoad()) throw STALE_LOAD;
       return value;
     };
+    const quiet = quietReloadRef.current;
+    quietReloadRef.current = false;
     const initPage = async () => {
       try {
-        setLoading(true);
+        if (!quiet) { setLoading(true); setStoredSaleDetail(null); }
         // A (re)load takes its clean baseline again, from what it loads (see the baseline effect).
         setInitialSnapshot(null);
         setLoadedSnapshot(null);
@@ -976,7 +983,8 @@ export default function ReservationPage() {
           setDatesTaken(res.datesTaken || null);
           setExistingReservationLocked(Boolean(res.editLock?.locked));
           setEditLock(res.editLock || null);
-          setPastUnlocked(false);
+          setStoredSaleDetail(res.saleDetail || null);
+          if (!quiet) setPastUnlocked(false);
           const loaded = current(await loadPropertyContext(res.propertyId, props, isCurrentLoad));
           const catalogueOptions = addFrozenOptions(loaded.options, res.frozenOptions);
           setFrozenResources(Array.isArray(res.frozenResources) ? res.frozenResources : []);
@@ -3079,6 +3087,7 @@ export default function ReservationPage() {
     setPluginBlocks(res.pluginBlocks || {});
     setStoredHeadline(res.storedHeadline || null);
     setStoredSummary(res.storedSummary || null);
+    setStoredSaleDetail(res.saleDetail || null);
     setStoredDepositDisabledLockedReason(res.depositDisabledLockedReason || null);
     setStoredTaxInComplementLockedReason(res.touristTaxInComplementLockedReason || null);
     setConvertToDevisLockedReason(res.convertToDevisLockedReason || null);
@@ -3540,6 +3549,9 @@ export default function ReservationPage() {
   const pastNewReservation = Boolean(!reservationId && !isDevisMode && form.startDate && form.startDate < todayIso);
   const lockedSectionSx = isReservationLocked ? { opacity: 0.55, pointerEvents: 'none' } : undefined;
   const extrasWindowOpen = Boolean(isReservationLocked && editLock?.extrasEditable);
+  // Rules 27, 37 — a started stay still sells while the server keeps its mid-stay window open (`extrasEditable`); only a closed fiche or
+  // a closed window takes « Ajouter un produit » and the « Moment » menu away.
+  const salesPanelLocked = Boolean(isClosedFiche || (editLock?.locked && !editLock?.extrasEditable));
   const arrivalLines = extrasWindowOpen ? (editLock.arrivalLines || {}) : NO_ARRIVAL_LINES;
   const frozenCustomOptionIds = extrasWindowOpen ? (editLock.frozenCustomOptionIds || []) : NO_FROZEN_CUSTOM_IDS;
   const isFrozenArrivalLine = (kind, line) => {
@@ -4187,8 +4199,10 @@ export default function ReservationPage() {
           {editingReservationId && (
             <ExtraSalesPanel
               reservationId={editingReservationId}
-              locked={isClosedFiche || isReservationLocked}
-              onChanged={() => setReloadToken((token) => token + 1)}
+              locked={salesPanelLocked}
+              heldReason={isDirty ? SAVE_FIRST_REASON : null}
+              initialDetail={storedSaleDetail}
+              onChanged={() => { quietReloadRef.current = true; setReloadToken((token) => token + 1); }}
               articles={propertyOptions
                 .filter((option) => Number(option.autoEnabled || 0) !== 1)
                 .map((option) => ({ articleRef: `option:${option.id}`, label: option.title }))}

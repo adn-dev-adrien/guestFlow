@@ -10,3 +10,11 @@ export const MOMENT_LABELS = Object.freeze({
   arrival: 'À payer à l’arrivée',
   departure: 'À payer au départ',
 });
+
+// « Ventes du séjour » on the fiche (ExtraSalesPanel).
+export const EXTRA_SALES_PANEL_TEXTS = Object.freeze({
+  title: 'Ventes du séjour',
+  add: 'Ajouter un produit',
+  loadFailed: 'Ventes du séjour indisponibles.',
+  changeRefused: 'Changement refusé.',
+});
