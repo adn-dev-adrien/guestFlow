@@ -139,9 +139,13 @@ test('past platform stay: « Marquer reçu » records the transfer without savin
   expect(after.platformPayoutAmount).toBe(250);
   expect([after.balanceAmount, after.finalPrice]).toEqual([before.balanceAmount, before.finalPrice]);
   expect(puts).toEqual([]);
-  // The amounts of a locked fiche are read-only.
-  await payout.getByRole('button', { name: /Montant figé|Modifier le montant/ }).click();
-  await expect(payout.getByText(/Versement reçu le|déverrouiller la fiche/)).toBeVisible();
+  // specs/platform-statement-after-payout.md rules 1, 3 — the received payout of a locked fiche still opens its
+  // statement, with the transfer it stands for; nothing is written until « Valider ».
+  await payout.getByRole('button', { name: /Modifier le montant/ }).click();
+  await expect(payout.getByLabel(/^Virement reçu le .* \(€\)$/)).toHaveValue('250,00');
+  await expect(payout.getByLabel(/^(Montant total payé par le client|Total séjour facturé par la plateforme)$/)).toBeEnabled();
+  await payout.getByRole('button', { name: 'Annuler' }).click();
+  expect(puts).toEqual([]);
 });
 
 // Review of #727 (B2, M3, H2) — a stay whose stored amount drifted from today's engine: the fiche shows

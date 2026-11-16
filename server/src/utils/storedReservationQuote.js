@@ -141,5 +141,5 @@ function pinSaleDelta(quote, stored, base) {
 }
 
 module.exports = {
-  quoteStoredReservation, touristTaxFigureOfStoredReservation, pricingUnchangedFromStored, pinStoredPricing, pinSaleDelta, SALE_DELTA_COLUMNS,
+  quoteStoredReservation, touristTaxFigureOfStoredReservation, pricingUnchangedFromStored, pinStoredPricing, pinSaleDelta, SALE_DELTA_COLUMNS, pricedProjection,
 };

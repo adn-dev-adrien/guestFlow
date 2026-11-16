@@ -28,6 +28,8 @@ const HISTORY_EVENT_TITLES = {
   public_update: 'Demande mise à jour depuis le site',
   sas_arrival: 'SAS arrivée',
   sas_departure: 'SAS départ',
+  // specs/platform-statement-after-payout.md rule 10.
+  platform_statement: 'Relevé plateforme corrigé',
   // specs/terms-acceptance-record.md rule 20.
   terms_accepted: 'CGV acceptées en ligne',
   // specs/plugins-phase-3a-online-payment.md rule 3: money received, accounting split missing.

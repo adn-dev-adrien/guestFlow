@@ -191,6 +191,12 @@ const HISTORY_FIELD_FORMATS = {
   cautionReturnedDate: 'date',
   totalPrice: 'money',
   customPrice: 'money',
+  // specs/platform-statement-after-payout.md rule 10 — the statement a « Relevé plateforme corrigé » row lists.
+  platformGrossAmount: 'money',
+  platformTouristTaxAmount: 'money',
+  platformCommissionAmount: 'money',
+  acompteCommissionAmount: 'money',
+  platformPayoutAmount: 'money',
   touristTaxRate: 'money',
   touristTaxTotal: 'money',
   finalPrice: 'money',
