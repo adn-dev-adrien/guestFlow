@@ -112,6 +112,7 @@ const mollieDeclared = () => [
   { key: 'mollieProfileId', validate: (v) => (v == null || String(v).trim() === '' || /^pfl_[A-Za-z0-9]{1,40}$/.test(String(v).trim()) ? null : 'Identifiant de profil Mollie invalide (pfl_…).') },
   { key: 'mollieLastRead', validate: () => 'Réglé par la lecture du compte.' },
   { key: 'mollieLastError', validate: () => 'Réglé par la lecture du compte.' },
+  { key: 'mollieBalance', validate: () => 'Réglé par la lecture du compte.' },
 ];
 
 /**

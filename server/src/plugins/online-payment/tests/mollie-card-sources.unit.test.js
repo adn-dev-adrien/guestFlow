@@ -49,7 +49,7 @@ test('rule 1 — the measured Gruat case: 14,00 € paid on invoice F-2026-013 i
   transactions.upsertMany(credits, { bankAccountId: 'acc-1' });
   assert.deepEqual(itemsOf(controller).filter((i) => i.mollie), [], 'no Mollie token read yet: nothing is known of this payment');
 
-  assert.deepEqual(await readSettlement([gruatPayment()], credits), { read: 1, unknownPayments: 0 });
+  assert.deepEqual(await readSettlement([gruatPayment()], credits), { read: 1, unknownPayments: 0, balances: false });
   const stored = createSplitsModel(db).forSource('invoice', 'F-2026-013');
   assert.deepEqual([stored.grossCents, stored.immediateCents, stored.reserveCents, stored.molliePaymentId, stored.reservationId, stored.ledgerKey],
     [1400, 1120, 280, 'tr_gruat', null, SALE_KEY]);
@@ -62,7 +62,7 @@ test('rule 1 — the measured Gruat case: 14,00 € paid on invoice F-2026-013 i
   assert.equal(reserve.expectedDate, dayAt(-11 + 4 + 90));
   assert.deepEqual([immediate.reservation.id, immediate.reservation.saleKey, immediate.reservation.clientName], [null, 'resource-booking:41', 'Marc Gruat']);
   assert.equal(immediate.proposal.confidence, 'sur', 'the settlement names the payment: exact');
-  assert.match(immediate.proposal.reason, /T19274230\.2611\.01/);
+  assert.match(immediate.proposal.reason, /19274230\.2611\.01/);
 
   const confirmed = controller.confirm({ transactionId: 'c1', allocations: [{ reservationId: 0, ledgerKey: `${SALE_KEY}#immediat`, amountCents: 1120 }], user: { id: 1 } });
   assert.equal(confirmed.status, 201);

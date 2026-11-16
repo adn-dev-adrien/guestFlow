@@ -150,9 +150,11 @@ function createReconciliationController({ db, settings, transactions, model, wri
     });
 
     // Rule 4 — the reserve counts from the immediate tranche's real bank date once it is reconciled.
+    // Rule 5 — the fees Mollie read from its settlements replace the estimate (the formula is only for a payment not read yet).
+    const realFees = mollieSettlements && typeof mollieSettlements.realFees === 'function' ? mollieSettlements.realFees() : new Map();
     const receipts = baseReceipts.map((r) => {
       if (!r.mollie) return r;
-      const fee = feeOf(cfg, r.mollie.paymentGrossCents);
+      const fee = realFees.has(r.mollie.splitId) ? realFees.get(r.mollie.splitId) : feeOf(cfg, r.mollie.paymentGrossCents);
       if (r.mollie.tranche !== 'retenue') return { ...r, feeCents: fee };
       const immediate = (linesByReceipt.get(`${r.reservationId}|${r.baseKey}#immediat`) || []).map((l) => day(l.settledAt)).filter(Boolean).sort().pop();
       const at = immediate ? addDaysIso(immediate, r.mollie.holdDays) : r.expectedDate;
@@ -665,11 +667,13 @@ function createReconciliationController({ db, settings, transactions, model, wri
     discard({ transactionId, reservationId, ledgerKey }) {
       if (!connected()) return notConnected();
       // A garbage row here is inert but permanent.
-      const id = typeof reservationId === 'string' && /^[1-9]\d*$/.test(reservationId) ? Number(reservationId) : reservationId;
-      if (!isName(transactionId) || !isName(ledgerKey) || !Number.isSafeInteger(id) || id <= 0) return wrongShape();
+      // Reservation id 0 is a sale outside a stay (rule 1): it has no reservation row, its receipt is the proof it exists.
+      const id = typeof reservationId === 'string' && /^(0|[1-9]\d*)$/.test(reservationId) ? Number(reservationId) : reservationId;
+      if (!isName(transactionId) || !isName(ledgerKey) || !Number.isSafeInteger(id) || id < 0) return wrongShape();
       // Rule 68 reading (audit R42-EXT-L1) — a stay or a credit that names nothing is refused, nothing stored: a pair kept
       // for a stay id not yet given hid that stay's proposal once it was created.
-      if (!db.prepare('SELECT 1 FROM reservations WHERE id = ?').get(id)) return unknownReservation();
+      const known = id === 0 ? compute().receiptsByKey.has(`0|${ledgerKey}`) : Boolean(db.prepare('SELECT 1 FROM reservations WHERE id = ?').get(id));
+      if (!known) return unknownReservation();
       if (!transactions.get(transactionId)) return unknownTransaction();
       const txIdsOf = (p) => (p.parts ? p.parts.map((x) => x.transactionId) : [p.transactionId]);
       const shown = Object.values(compute().byTransaction).map((slot) => slot.proposal)

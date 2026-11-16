@@ -5,7 +5,7 @@
 
 const TABLES = ['bank_transactions', 'bank_reconciliation_lines', 'bank_reconciliation_fiche_writes',
   'bank_reconciliation_discards', 'bank_transactions_outside', 'mollie_payment_splits', 'mollie_settlements',
-  'mollie_settlement_payments'];
+  'mollie_settlement_payments', 'mollie_balance_transactions'];
 
 function up(db) {
   db.exec(`
@@ -77,14 +77,22 @@ function upV3(db) {
       id TEXT PRIMARY KEY, reference TEXT NOT NULL, settledAt TEXT,
       amountCents INTEGER NOT NULL DEFAULT 0, costsCents INTEGER NOT NULL DEFAULT 0,
       reserveHeldCents INTEGER NOT NULL DEFAULT 0, reserveReleasedCents INTEGER NOT NULL DEFAULT 0,
+      source TEXT NOT NULL DEFAULT 'payments',
       fetchedAt TEXT NOT NULL
     );
     CREATE INDEX IF NOT EXISTS idx_mollie_settlements_ref ON mollie_settlements (reference);
     CREATE TABLE IF NOT EXISTS mollie_settlement_payments (
       settlementId TEXT NOT NULL, molliePaymentId TEXT NOT NULL,
       amountCents INTEGER NOT NULL, paidAt TEXT, description TEXT, splitId TEXT,
-      PRIMARY KEY (settlementId, molliePaymentId)
+      kind TEXT NOT NULL DEFAULT 'immediate', grossCents INTEGER, reserveCents INTEGER, feeCents INTEGER,
+      PRIMARY KEY (settlementId, molliePaymentId, kind)
     );
+    CREATE TABLE IF NOT EXISTS mollie_balance_transactions (
+      id TEXT PRIMARY KEY, type TEXT NOT NULL, createdAt TEXT NOT NULL,
+      resultCents INTEGER NOT NULL, initialCents INTEGER NOT NULL, deductionsCents INTEGER NOT NULL DEFAULT 0,
+      settlementId TEXT, paymentId TEXT, description TEXT
+    );
+    CREATE INDEX IF NOT EXISTS idx_mollie_balance_transactions_at ON mollie_balance_transactions (createdAt);
   `);
   const columns = new Set(db.prepare('PRAGMA table_info(bank_transactions)').all().map((c) => c.name));
   if (!columns.has('qontoReference')) db.exec('ALTER TABLE bank_transactions ADD COLUMN qontoReference TEXT');

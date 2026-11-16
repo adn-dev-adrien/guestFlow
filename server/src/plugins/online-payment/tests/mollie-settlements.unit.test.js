@@ -33,31 +33,34 @@ const client = (table) => {
 };
 test.afterEach(() => { delete process.env.MOLLIE_API_BASE; });
 
+// Measured on the live account (2026-11-16): the reference has no « T », the reserve lines are told by their description
+// (method null), and a « Fee Discount » cost cancels the card cost.
+const line = (description, value, method = null) => ({ description, method, amountGross: { value } });
 const SETTLEMENT = {
-  id: 'stl_a1', reference: 'T19274230.2611.01', settledAt: SETTLED_AT, amount: { value: '11.20', currency: 'EUR' },
-  periods: { 2026: { '11': { revenue: [{ description: 'Cartes', method: 'creditcard', amountGross: { value: '14.00' } }], costs: [
-    { description: 'Frais', method: 'creditcard', amountGross: { value: '0.45' } },
-    { description: 'Retenue', method: 'rollingreserve', amountGross: { value: '-2.80' } },
-    { description: 'Libération', method: 'rollingreserve', amountGross: { value: '39.36' } },
-  ] } } },
+  id: 'stl_a1', reference: '19274230.2611.01', settledAt: SETTLED_AT, amount: { value: '11.20', currency: 'EUR' },
+  periods: { 2026: { '11': {
+    revenue: [line('Cards - Online - Cartes Bancaires Consumer', '14.0000', 'creditcard'), line('Rolling Reserve Reservation', '-2.8000')],
+    costs: [line('Cards - Online - Cartes Bancaires Consumer', '0.4460', 'creditcard'), line('Fee Discount', '-0.4460'), line('Rounding differences', '0.0000')],
+  } } },
 };
 
 test('rule 16 — the reference of a Qonto credit names the settlement: « REF T… » without its prefix', () => {
   assert.equal(settlementReferenceOf({ reference: 'REF T19274230.2611.01' }), 'T19274230.2611.01');
   assert.equal(settlementReferenceOf({ reference: 'T19274230.2512.01' }), 'T19274230.2512.01');
+  assert.equal(settlementReferenceOf({ reference: '19274230.2512.01' }), '19274230.2512.01');
   assert.equal(settlementReferenceOf({ reference: 'Paiements-En-Personne-12-10-2026' }), null);
   assert.equal(isMollieCredit({ counterpartyName: 'Stichting Mollie Payments' }), true);
 });
 
 test('rule 16 — the read-only client asks Mollie for the settlement by reference, its payments, its costs and its reserve lines', async () => {
   const { client: mollie, calls } = client({
-    '/v2/settlements/T19274230.2611.01': json(200, SETTLEMENT),
+    '/v2/settlements/19274230.2611.01': json(200, SETTLEMENT),
     '/v2/settlements/stl_a1/payments': json(200, { _embedded: { payments: [
       { id: 'tr_1', amount: { value: '14.00' }, amountRefunded: { value: '0.00' }, description: 'F-2026-013', paidAt: PAID_AT, settlementId: 'stl_a1', metadata: null },
     ] }, _links: { next: null } }),
   });
-  const settlement = await mollie.getSettlement('T19274230.2611.01');
-  assert.deepEqual(settlement, { id: 'stl_a1', reference: 'T19274230.2611.01', settledAt: SETTLED_AT, amountCents: 1120, costsCents: 45, reserveHeldCents: 280, reserveReleasedCents: 3936 });
+  const settlement = await mollie.getSettlement('19274230.2611.01');
+  assert.deepEqual(settlement, { id: 'stl_a1', reference: '19274230.2611.01', settledAt: SETTLED_AT, amountCents: 1120, costsCents: 0, reserveHeldCents: 280, reserveReleasedCents: 0 });
   const payments = await mollie.listSettlementPayments('stl_a1', { profileId: 'pfl_x' });
   assert.deepEqual(payments, [{ id: 'tr_1', amountCents: 1400, refundedCents: 0, description: 'F-2026-013', paidAt: PAID_AT, settlementId: 'stl_a1', paymentLinkId: null }]);
   assert.ok(calls.every((c) => c.headers.Authorization === `Bearer ${TOKEN}`));
@@ -88,7 +91,7 @@ test('rule 16 — a settlement is read once: its payments are attached to their 
   const splits = createSplitsModel(db);
   splits.sync({ settings: { get: (k) => ({ reconciliationStartDate: dayAt(-60) }[k] || '') } });
   const { client: mollie, calls } = client({
-    '/v2/settlements/T19274230.2611.01': json(200, SETTLEMENT),
+    '/v2/settlements/19274230.2611.01': json(200, SETTLEMENT),
     '/v2/settlements/stl_a1/payments': json(200, { _embedded: { payments: [
       { id: 'tr_9', amount: { value: '14.00' }, amountRefunded: { value: '2.00' }, description: 'qonto-pay-1', paidAt: PAID_AT },
     ] } }),
@@ -96,21 +99,21 @@ test('rule 16 — a settlement is read once: its payments are attached to their 
   const credits = [mollieCredit('c1', 1120, 4, { reference: 'REF T19274230.2611.01' })];
   const links = db.prepare("SELECT * FROM payment_links WHERE status = 'paid'").all();
   const first = await syncSettlements({ client: mollie, model: settlements, splits, credits, links });
-  assert.deepEqual(first, { read: 1, unknownPayments: 0 });
+  assert.deepEqual(first, { read: 1, unknownPayments: 0, balances: false });
   assert.equal(splits.forLink(link.id).molliePaymentId, 'tr_9');
   assert.equal(splits.forLink(link.id).refundedCents, 200, 'what Mollie says was refunded');
-  const detail = settlements.byReference().get('T19274230.2611.01');
-  assert.equal(detail.costsCents, 45);
+  const detail = settlements.byReference().get('19274230.2611.01');
+  assert.equal(detail.costsCents, 0, 'the fee discount cancels the card cost (rule 5)');
   assert.equal(detail.payments[0].splitId, `link:${link.id}`);
   const callsAfterFirst = calls.length;
-  assert.deepEqual(await syncSettlements({ client: mollie, model: settlements, splits, credits, links }), { read: 0, unknownPayments: 0 });
+  assert.deepEqual(await syncSettlements({ client: mollie, model: settlements, splits, credits, links }), { read: 0, unknownPayments: 0, balances: false });
   assert.equal(calls.length, callsAfterFirst, 'nothing is asked twice');
 });
 
 test('rule 16 — a payment paired with a Qonto invoice number is known (stored as an invoice), a payment nobody knows is counted', async () => {
   const settlements = createSettlementsModel(db);
   const { client: mollie } = client({
-    '/v2/settlements/T19274230.2611.07': json(200, { id: 'stl_b2', reference: 'T19274230.2611.07', amount: { value: '25.00' } }),
+    '/v2/settlements/19274230.2611.07': json(200, { id: 'stl_b2', reference: '19274230.2611.07', amount: { value: '25.00' } }),
     '/v2/settlements/stl_b2/payments': json(200, { _embedded: { payments: [
       { id: 'tr_sale', amount: { value: '14.00' }, description: 'F-2026-013' },
       { id: 'tr_who', amount: { value: '11.00' }, description: 'unknown' },
@@ -118,8 +121,8 @@ test('rule 16 — a payment paired with a Qonto invoice number is known (stored 
   });
   const credits = [mollieCredit('c1', 2000, 4, { reference: 'REF T19274230.2611.07' })];
   const result = await syncSettlements({ client: mollie, model: settlements, splits: createSplitsModel(db), settings: { get: () => '' }, credits, links: [], invoiceSources: new Map([['F-2026-013', { sourceType: 'invoice', sourceKey: 'F-2026-013', reservationId: null, ledgerKey: 'sale:s1' }]]) });
-  assert.deepEqual(result, { read: 1, unknownPayments: 1 });
-  assert.deepEqual(settlements.byReference().get('T19274230.2611.07').payments.map((p) => p.splitId).sort(), ['invoice:F-2026-013', null]);
+  assert.deepEqual(result, { read: 1, unknownPayments: 1, balances: false });
+  assert.deepEqual(settlements.byReference().get('19274230.2611.07').payments.map((p) => p.splitId).sort(), ['invoice:F-2026-013', null]);
 });
 
 test('rule 17 — a Mollie failure never blocks the reconciliation: the error is kept in words, the amounts rule still applies', async () => {

@@ -15,7 +15,8 @@
  *   recent:             boolean — the « Reçus ces 30 derniers jours » switch
  *   onRecentChange:     (boolean) → void
  *   onOpenReservation:  (reservationId) → void — a client with one stay opens it from the block's header; a client
- *                       with several stays opens each stay from its own lines
+ *                       with several stays opens each stay from its own lines. A sale outside a stay
+ *                       (`reservationId` null, `saleKey` set) opens nothing
  *
  * Responsive: a line is one row (date | nature | amount | state) from 720 px of block width (container query),
  * otherwise nature on top, then date + amount + state. The header is a ≥ 44 px tap target.
@@ -109,6 +110,8 @@ function Line({ item, stayLabel, onOpen }) {
 
 function ClientBlock({ client, items, filtered, recent, onOpenReservation }) {
   const single = client.stays.length === 1;
+  // A sale outside a stay (`reservationId` null) has no fiche to open: its header and lines are plain text.
+  const openable = single && client.stays[0].reservationId != null;
   const visible = items.length;
   const head = (
     <>
@@ -124,7 +127,7 @@ function ClientBlock({ client, items, filtered, recent, onOpenReservation }) {
           {recent ? `${visible} reçu${visible > 1 ? 's' : ''}` : `${visible} à venir`}
         </Typography>
       </Box>
-      {single && (
+      {openable && (
         <Box component="span" sx={{ display: 'inline-flex', alignItems: 'center', color: 'primary.main', fontWeight: 600, fontSize: 13, whiteSpace: 'nowrap' }}>
           Ouvrir la fiche<ChevronRightIcon sx={{ fontSize: 18 }} />
         </Box>
@@ -140,7 +143,7 @@ function ClientBlock({ client, items, filtered, recent, onOpenReservation }) {
       data-late={client.late ? 'true' : undefined}
       sx={{ border: '1px solid', borderColor: client.late ? 'error.main' : 'divider', borderRadius: 2, overflow: 'hidden', containerType: 'inline-size', bgcolor: 'background.paper' }}
     >
-      {single ? (
+      {openable ? (
         <ButtonBase onClick={() => onOpenReservation(client.stays[0].reservationId)} aria-label={`Ouvrir la fiche : ${client.name}`} sx={headSx}>{head}</ButtonBase>
       ) : (
         <Box sx={headSx}>{head}</Box>
@@ -151,7 +154,7 @@ function ClientBlock({ client, items, filtered, recent, onOpenReservation }) {
             key={item.key}
             item={item}
             stayLabel={single ? '' : stay.label}
-            onOpen={single ? null : () => onOpenReservation(stay.reservationId)}
+            onOpen={single || stay.reservationId == null ? null : () => onOpenReservation(stay.reservationId)}
           />
         ))}
       </Box>

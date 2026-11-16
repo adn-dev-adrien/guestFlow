@@ -9,7 +9,7 @@
  */
 
 const { day } = require('./dates');
-const { settlementReferenceOf } = require('./mollieSettlements');
+const { settlementReferenceOf, normalizeReference } = require('./mollieSettlements');
 
 const inWindow = (date, from, to) => Boolean(date) && date >= from && date <= to;
 
@@ -60,7 +60,7 @@ function mollieJournal(data, { from, to }, settlements = new Map()) {
     const reference = settlementReferenceOf(tx);
     const base = { date: day(tx.settledAt), settlementReference: reference, qontoReference: tx.qontoReference || String(tx.id) };
     credits.push({ kind: 'credit', ...base, amountCents: booked.cents, perReservation: booked.perReservation, libelle: 'VERSEMENT MOLLIE' });
-    const settlement = reference ? settlements.get(reference) : null;
+    const settlement = reference ? settlements.get(normalizeReference(reference)) : null;
     if (settlement && Number(settlement.costsCents) > 0) costs.push({ kind: 'cost', ...base, amountCents: Number(settlement.costsCents), libelle: 'FRAIS MOLLIE' });
   });
 

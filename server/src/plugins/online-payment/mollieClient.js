@@ -72,14 +72,16 @@ function buildMollieClient({ token, fetchImpl = globalThis.fetch, retry = {}, ti
 
   const get = (path) => withRetry(() => once(path.startsWith('http') ? path : `${base}${path}`), retryOptions);
 
-  // A page of a list, then `_links.next` until the end (bounded).
-  async function listAll(path, embeddedKey) {
+  // A page of a list, then `_links.next` until the end (bounded) or until `stop` says a page reached what is already known.
+  async function listAll(path, embeddedKey, stop = null) {
     const out = [];
     let url = path;
     for (let page = 0; url && page < MAX_PAGES; page += 1) {
       // eslint-disable-next-line no-await-in-loop
       const body = await get(url);
-      out.push(...((body._embedded || {})[embeddedKey] || []));
+      const items = (body._embedded || {})[embeddedKey] || [];
+      out.push(...items);
+      if (stop && items.some(stop)) break;
       url = body._links && body._links.next && body._links.next.href ? body._links.next.href : null;
     }
     return out;
@@ -115,6 +117,23 @@ function buildMollieClient({ token, fetchImpl = globalThis.fetch, retry = {}, ti
       const list = await listAll(`/v2/payments${query({ limit: PAGE_SIZE, profileId })}`, 'payments');
       return list.map(readPayment);
     },
+    /**
+     * Rule 16 — `GET /v2/balances/primary/transactions`, newest first: every transaction of the primary balance, up to a
+     * page that holds one `isKnown` says is already stored (so a re-read costs one page).
+     */
+    async listBalanceTransactions({ isKnown = null } = {}) {
+      const list = await listAll(`/v2/balances/primary/transactions${query({ limit: PAGE_SIZE })}`, 'balance_transactions',
+        isKnown ? (t) => isKnown(t.id) : null);
+      return list.map(readBalanceTransaction);
+    },
+    /** `GET /v2/balances/primary` — what Mollie still holds (`pendingAmount`) and what is ready to be paid out. */
+    async getBalance() {
+      const b = await get('/v2/balances/primary');
+      return {
+        pendingCents: centsOf(b.pendingAmount), availableCents: centsOf(b.availableAmount),
+        transferFrequency: b.transferFrequency || null, transferThresholdCents: centsOf(b.transferThreshold),
+      };
+    },
     async getPayment(id) {
       return readPayment(await get(`/v2/payments/${encodeURIComponent(id)}`));
     },
@@ -136,8 +155,33 @@ function readPayment(p) {
 }
 
 /**
- * Rule 16 — what a settlement carries: its amount, its costs, and the reserve held or released (the `rollingreserve`
- * method lines of `periods.<year>.<month>.revenue|costs[]`, a positive gross being a release, a negative one a hold).
+ * Rule 16 — one line of the primary balance. A `payment` carries the share Mollie made available (`resultCents`), the gross
+ * (`initialCents`) and what it kept (`deductionsCents`, ≥ 0: the reserve and the fees); a reserve release carries the
+ * payment it frees; an `outgoing-transfer` names the settlement that paid the bank.
+ */
+function readBalanceTransaction(t) {
+  const context = t.context || {};
+  return {
+    id: t.id, type: String(t.type || ''), createdAt: t.createdAt || null,
+    resultCents: centsOf(t.resultAmount), initialCents: centsOf(t.initialAmount), deductionsCents: Math.abs(centsOf(t.deductions)),
+    settlementId: context.settlementId || null, paymentId: context.paymentId || null, description: String(context.paymentDescription || ''),
+  };
+}
+
+const RESERVE_LINE = /rolling\s*reserve/i;
+/** « Rolling Reserve Reservation » (a hold, negative) or « Rolling Reserve Release » (a release, positive); the method is null. */
+function reserveLineKind(line, cents) {
+  const text = `${line.description || ''} ${line.method || ''}`;
+  if (!RESERVE_LINE.test(text) && String(line.method || '').toLowerCase() !== 'rollingreserve') return null;
+  if (/release/i.test(text)) return 'release';
+  if (/reserv|hold/i.test(text)) return 'hold';
+  return cents >= 0 ? 'release' : 'hold';
+}
+
+/**
+ * Rule 16 — what a settlement carries: its amount (= Σ revenue − Σ costs), its costs and the reserve held or released,
+ * read from `periods.<year>.<month>.revenue|costs[]`. The reserve lines are told by their description (measured: the method
+ * is null); the costs are signed, so « Fee Discount » cancels the card cost it discounts.
  */
 function readSettlement(s) {
   let costs = 0;
@@ -145,10 +189,12 @@ function readSettlement(s) {
   let released = 0;
   Object.values(s.periods || {}).forEach((year) => Object.values(year || {}).forEach((month) => {
     ['revenue', 'costs'].forEach((section) => ((month && month[section]) || []).forEach((line) => {
-      const gross = centsOf(line.amountGross || line.amountNet);
-      if (String(line.method || '').toLowerCase() === 'rollingreserve') {
-        if (gross >= 0) released += gross; else held += -gross;
-      } else if (section === 'costs') costs += Math.abs(gross);
+      const cents = centsOf(line.amountGross || line.amountNet);
+      const reserve = reserveLineKind(line, cents);
+      if (reserve === 'release') released += Math.abs(cents);
+      else if (reserve === 'hold') held += Math.abs(cents);
+      // Costs are signed: « Fee Discount » is a negative cost that cancels the card cost (rule 5).
+      else if (section === 'costs') costs += cents;
     }));
   }));
   return {
@@ -157,4 +203,4 @@ function readSettlement(s) {
   };
 }
 
-module.exports = { buildMollieClient, explainError, centsOf, readSettlement, readPayment, RESTRICTED_TOKEN_FRAGMENT };
+module.exports = { buildMollieClient, explainError, centsOf, readSettlement, readPayment, readBalanceTransaction, RESTRICTED_TOKEN_FRAGMENT };

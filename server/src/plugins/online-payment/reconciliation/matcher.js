@@ -8,7 +8,7 @@
  */
 
 const { euros } = require('./receiptStates');
-const { settlementReferenceOf } = require('./mollieSettlements');
+const { settlementReferenceOf, normalizeReference } = require('./mollieSettlements');
 const { addDays, RESERVE_EARLY_DAYS } = require('./molliePaymentSplits');
 
 const CONFIDENCE_RANK = { sur: 3, probable: 2, verifier: 1 };
@@ -261,11 +261,39 @@ function mollieReachable(receipt, settled) {
 const mollieProposal = (tx, items, confidence, reason, extra = {}) => proposal(tx, items, confidence, 'mollie', reason, extra);
 
 /**
+ * Rule 10 — a settlement composed from Mollie's balance transactions names, per payment, the share it paid: the immediate
+ * share of a `payment`, the reserve of a release. Each is allocated exactly, so the proposal is « sûr » even grouped,
+ * whatever the reserve rate or the fees. Nothing to propose when a tranche is not open or the sum is not the credit.
+ */
+function compositionProposal(tx, detail, open) {
+  const known = detail.payments.filter((p) => p.splitId);
+  const unknown = detail.payments.length - known.length;
+  const allocations = [];
+  for (const p of known) {
+    const tranche = p.kind === 'release' ? 'retenue' : 'immediat';
+    const receipt = open.find((r) => r.mollie.splitId === p.splitId && r.mollie.tranche === tranche);
+    if (!receipt) return null;
+    allocations.push({ receipt, allocCents: Math.min(Number(p.amountCents), receipt.openCents) });
+  }
+  if (allocations.length === 0) return null;
+  const sum = allocations.reduce((t, a) => t + a.allocCents, 0);
+  if (sum > tx.remainingCents || (unknown === 0 && sum !== tx.remainingCents)) return null;
+  const grouped = allocations.length > 1 ? `Versement groupé Mollie ${detail.reference} : ${allocations.length} tranches` : `Versement Mollie ${detail.reference}`;
+  if (unknown > 0) {
+    return mollieProposal(tx, allocations, 'probable',
+      `${grouped} · ${unknown} paiement${unknown > 1 ? 's' : ''} Mollie inconnu${unknown > 1 ? 's' : ''} de GuestFlow`, { unknownPayments: unknown, settlement: detail.reference });
+  }
+  return mollieProposal(tx, allocations, 'sur', grouped, { settlement: detail.reference, feeCents: 0 });
+}
+
+/**
  * Rule 10 — the settlement the credit's reference names decides: the immediate tranches of the payments it paid, plus
- * the reserves it declares released. « sûr » when that explains the credit to the cent (or to the estimated fees),
- * even grouped; a payment GuestFlow does not know turns it into « probable » for the part GuestFlow knows.
+ * the reserves it declares released. « sûr » when that explains the credit to the cent, even grouped; a payment GuestFlow
+ * does not know turns it into « probable » for the part GuestFlow knows. The fees are the settlement's own costs (rule 5):
+ * the estimate is only for a credit without a settlement.
  */
 function settlementProposal(tx, detail, open) {
+  if (detail.source === 'balance') return compositionProposal(tx, detail, open);
   const splitIds = new Set(detail.payments.filter((p) => p.splitId).map((p) => String(p.splitId)));
   const unknown = detail.payments.filter((p) => !p.splitId).length;
   const immediates = open.filter((r) => r.mollie.tranche === 'immediat' && splitIds.has(r.mollie.splitId));
@@ -276,16 +304,15 @@ function settlementProposal(tx, detail, open) {
   const chosen = [...immediates, ...released];
   if (chosen.length === 0) return null;
   const sum = chosen.reduce((t, r) => t + r.openCents, 0);
-  if (sum > tx.remainingCents + feeEstimate(chosen)) return null;
+  const costs = Math.max(0, Number(detail.costsCents) || 0);
+  if (sum > tx.remainingCents + costs) return null;
   const gap = sum - tx.remainingCents;
   const grouped = chosen.length > 1 ? `Versement groupé Mollie ${detail.reference} : ${chosen.length} tranches` : `Versement Mollie ${detail.reference}`;
   if (unknown > 0) {
     return mollieProposal(tx, chosen.map((r) => ({ receipt: r, allocCents: r.openCents })), 'probable',
       `${grouped} · ${unknown} paiement${unknown > 1 ? 's' : ''} Mollie inconnu${unknown > 1 ? 's' : ''} de GuestFlow`, { unknownPayments: unknown, settlement: detail.reference });
   }
-  const costs = Number(detail.costsCents) || 0;
-  const explained = gap === 0 || gap === costs || (gap > 0 && gap <= feeEstimate(chosen));
-  if (!explained) return null;
+  if (gap !== 0 && gap !== costs) return null;
   const note = gap > 0 ? ` · frais Mollie : ${euros(gap)}` : '';
   return mollieProposal(tx, chosen.map((r, i) => ({ receipt: r, allocCents: r.openCents - (i === 0 ? Math.max(0, gap) : 0) })), 'sur',
     `${grouped}${note}`, { settlement: detail.reference, feeCents: Math.max(0, gap) });
@@ -301,7 +328,7 @@ function mollieProposals(tx, receipts, settings) {
   const settled = day(tx.settledAt);
   const open = receipts.filter((r) => r.channel === 'mollie' && r.openCents > 0 && mollieReachable(r, settled));
   if (open.length === 0) return [];
-  const detail = (settings.settlements || new Map()).get(settlementReferenceOf(tx));
+  const detail = (settings.settlements || new Map()).get(normalizeReference(settlementReferenceOf(tx)));
   if (detail) {
     const fromSettlement = settlementProposal(tx, detail, open);
     if (fromSettlement) return [fromSettlement];

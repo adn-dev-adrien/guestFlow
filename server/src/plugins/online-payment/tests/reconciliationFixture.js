@@ -88,7 +88,7 @@ function build({ connected = true, qontoConfigured = true, startDate = dayAt(-22
 
 function reset() {
   ['bank_reconciliation_lines', 'bank_reconciliation_fiche_writes', 'bank_reconciliation_discards', 'bank_transactions_outside', 'bank_transactions',
-    'mollie_payment_splits', 'mollie_settlements', 'mollie_settlement_payments']
+    'mollie_payment_splits', 'mollie_settlements', 'mollie_settlement_payments', 'mollie_balance_transactions']
     .forEach((t) => db.prepare(`DELETE FROM ${t}`).run());
   db.prepare('DELETE FROM reservation_history').run();
   db.prepare('DELETE FROM payment_links WHERE reservationId >= 100').run();

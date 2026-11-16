@@ -196,6 +196,25 @@ function createSplitsModel(db) {
     },
 
     forSource,
+    /** Rule 16 — the split a Mollie payment already turned out to be. */
+    byMolliePayment(molliePaymentId) {
+      return db.prepare('SELECT * FROM mollie_payment_splits WHERE molliePaymentId = ? ORDER BY paidAt LIMIT 1').get(String(molliePaymentId)) || null;
+    },
+    /**
+     * Rule 4 (measured, 2026-11-16) — the reserve Mollie really held replaces the one computed from the rate: the balance
+     * transaction of the payment states it. The immediate share absorbs the difference; a reserve above the gross is no reserve.
+     * @param {string} splitId  `<sourceType>:<sourceKey>`
+     * @returns {number} 1 when the stored split changed
+     */
+    correctReserve(splitId, reserveCents) {
+      const text = String(splitId);
+      const cut = text.indexOf(':');
+      const stored = cut < 0 ? null : forSource(text.slice(0, cut), text.slice(cut + 1));
+      const reserve = Math.round(Number(reserveCents));
+      if (!stored || !Number.isFinite(reserve) || reserve < 0 || reserve > Number(stored.grossCents) || reserve === Number(stored.reserveCents)) return 0;
+      return db.prepare('UPDATE mollie_payment_splits SET reserveCents = ?, immediateCents = ? WHERE sourceType = ? AND sourceKey = ?')
+        .run(reserve, Number(stored.grossCents) - reserve, stored.sourceType, stored.sourceKey).changes;
+    },
     forLink(linkId) {
       return forSource(SOURCE_TYPES.link, linkId);
     },

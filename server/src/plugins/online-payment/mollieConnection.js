@@ -18,6 +18,12 @@ const tokenMessage = (value) => {
   return String(value).trim().startsWith(TOKEN_PREFIX) ? null : NOT_A_TOKEN;
 };
 
+/** Rule 14 — what Mollie still holds, as the card shows it: `pendingAmount` of the primary balance (the reserves not released yet). */
+const balanceView = (stored) => (stored ? {
+  pendingCents: Number(stored.pendingCents) || 0, pendingAmount: (Number(stored.pendingCents) || 0) / 100,
+  availableCents: Number(stored.availableCents) || 0, at: stored.at || null,
+} : null);
+
 /**
  * @param {object} deps
  * @param {{ get(key): string, set(key, value): void }} deps.settings  ctx.settings
@@ -43,6 +49,7 @@ function createMollieConnection({ settings, db, settlements, buildClient = ({ to
         profileId: String(settings.get('mollieProfileId') || ''),
         lastRead: parse(settings.get('mollieLastRead')),
         lastError: parse(settings.get('mollieLastError')),
+        balance: balanceView(parse(settings.get('mollieBalance'))),
         settlements: settlements.count(),
       };
     },
@@ -54,11 +61,18 @@ function createMollieConnection({ settings, db, settlements, buildClient = ({ to
     async sync({ credits, splits }) {
       const at = now().toISOString();
       try {
+        const client = buildClient({ token: token() });
+        if (typeof client.getBalance === 'function') {
+          try {
+            const balance = await client.getBalance();
+            settings.set('mollieBalance', JSON.stringify({ at, pendingCents: balance.pendingCents, availableCents: balance.availableCents }));
+          } catch { /* `balances.read` is optional: the card just shows no pending amount */ }
+        }
         const result = await syncSettlements({
-          client: buildClient({ token: token() }), model: settlements, splits, settings, credits, links: paidLinks(),
+          client, model: settlements, splits, settings, credits, links: paidLinks(),
           invoiceSources: invoices(), profileId: String(settings.get('mollieProfileId') || ''), now: now(),
         });
-        settings.set('mollieLastRead', JSON.stringify({ at, settlements: result.read, unknownPayments: result.unknownPayments }));
+        settings.set('mollieLastRead', JSON.stringify({ at, settlements: result.read, unknownPayments: result.unknownPayments, balances: result.balances }));
         settings.set('mollieLastError', '');
         return { ok: true, ...result };
       } catch (err) {

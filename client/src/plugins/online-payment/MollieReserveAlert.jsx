@@ -11,6 +11,9 @@ import { useNavigate } from 'react-router';
 import { api, AttentionCard } from '../sdk';
 import { money } from './reconciliationShared';
 
+// A sale outside a stay (`reservation.id` null, `saleKey` set) has no fiche: its line is read-only.
+const ficheOf = (item) => (item.reservation.id == null ? null : `/reservations/${item.reservation.id}`);
+
 export default function MollieReserveAlert({ attention }) {
   const navigate = useNavigate();
   const [items, setItems] = useState(null);
@@ -28,17 +31,23 @@ export default function MollieReserveAlert({ attention }) {
     <AttentionCard attention={attention} actions={[{ label: 'Ouvrir le rapprochement', onClick: () => navigate('/finance/rapprochement'), primary: true }]}>
       {items.length > 0 && (
         <Stack divider={<Divider flexItem />} spacing={0.5}>
-          {items.slice(0, 8).map((item) => (
+          {items.slice(0, 8).map((item) => {
+            const to = ficheOf(item);
+            return (
             <Box
-              key={item.key} role="button" tabIndex={0}
-              onClick={() => navigate(`/reservations/${item.reservation.id}`)}
-              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') navigate(`/reservations/${item.reservation.id}`); }}
-              sx={{ py: 0.75, cursor: 'pointer', minHeight: 44 }}
+              key={item.key}
+              {...(to ? {
+                role: 'button', tabIndex: 0,
+                onClick: () => navigate(to),
+                onKeyDown: (e) => { if (e.key === 'Enter' || e.key === ' ') navigate(to); },
+              } : {})}
+              sx={{ py: 0.75, minHeight: 44, cursor: to ? 'pointer' : 'default' }}
             >
-              <Typography variant="body2" sx={{ fontWeight: 600 }}>{item.reservation.clientName || 'Client'} · {money(item.expectedCents)}</Typography>
+              <Typography variant="body2" sx={{ fontWeight: 600 }}>{item.reservation.clientName || item.reservation.saleLabel || 'Client'} · {money(item.expectedCents)}</Typography>
               <Typography variant="caption" color="text.secondary">{item.fixText || `${item.label} · attendue vers le ${item.mollie.expectedDateLabel}`}</Typography>
             </Box>
-          ))}
+            );
+          })}
         </Stack>
       )}
     </AttentionCard>
