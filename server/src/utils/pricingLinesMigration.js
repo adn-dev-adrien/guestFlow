@@ -165,8 +165,9 @@ function directChannelNames(db) {
   return names;
 }
 
-// `only` = { reservationId, soldAt }: the fiche's own save stamps the lines it wrote, at the moment it wrote them, with the same derivation (loop t1 D-2) —
-// the boot pass is then only the reading of the rows stored before 4.2.0 and of a stay's first lines (sold when the stay was booked).
+// `only` = { reservationId, soldAt, before }: the fiche's own save stamps the lines it wrote, at the moment it wrote them, with the same derivation (loop t1 D-2).
+// A line the stay already held before the save (`before`, the `<kind>:<lineId>` set) was not sold by it: a stay's first lines keep the booking's date, exactly
+// what the boot pass would write (loop t2 D2-1) — a receipt dated between the booking and that save must find them sold.
 function backfillLineColumns(db, only = null) {
   if (!LINE_TABLES.every((table) => hasTable(db, table) && columnsOf(db, table).has('collectAt'))) return 0;
   const pending = only ? [Number(only.reservationId)]
@@ -210,7 +211,9 @@ function backfillLineColumns(db, only = null) {
           label = '';
         }
       }
-      const soldAt = only ? only.soldAt : ((kind === 'custom' && row.createdAt) || stay.createdAt || null);
+      const bootSoldAt = (kind === 'custom' && row.createdAt) || stay.createdAt || null;
+      const soldBySave = only && !(only.before && only.before.has(`${kind}:${row.lineId}`));
+      const soldAt = soldBySave ? only.soldAt : bootSoldAt;
       changed += updates[table].run(moments[index], moments[index], soldAt, articleRef, family, label, row.rid).changes;
     });
   }
@@ -474,9 +477,10 @@ function backfillRefundNettings(db, { force = false } = {}) {
   return changed;
 }
 
-/** The lines a fiche save wrote and left unstamped get their moment, article and sale date now (source `fiche`, the column default). */
-function stampFicheLines(db, reservationId, soldAt) {
-  return backfillLineColumns(db, { reservationId, soldAt });
+/** The lines a fiche save wrote and left unstamped get their moment, article and sale date now (source `fiche`, the column default); the unstamped lines
+ * listed in `before` (held by the stay before the save) get the boot's reading instead — their sale date is the booking's, never the save's. */
+function stampFicheLines(db, reservationId, soldAt, before = null) {
+  return backfillLineColumns(db, { reservationId, soldAt, before });
 }
 
 module.exports = {

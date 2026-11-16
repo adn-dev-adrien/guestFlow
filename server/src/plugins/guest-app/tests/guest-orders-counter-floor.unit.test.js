@@ -24,3 +24,15 @@ test('a fresh install with no cited order starts at 1', () => {
   const id = db.prepare("INSERT INTO guest_orders (reservationId, payment, status, linesJson, total, createdAt) VALUES (1, 'none', 'confirmed', '[]', 0, '2026-11-01')").run().lastInsertRowid; // date-literal-ok — fixture row
   assert.equal(id, 1);
 });
+
+// Loop t2 D2-2 — an unpaid card order is cited by its payment link only (specs/guest-app.md rule 108): the reinstall restarts above it too.
+test('after a reinstall the first order id is above the order an open card link still names', () => {
+  const db = new Database(':memory:');
+  db.exec(`CREATE TABLE reservation_options (lineId INTEGER PRIMARY KEY, orderRef TEXT);
+           CREATE TABLE payment_links (id INTEGER PRIMARY KEY, basketJson TEXT);`);
+  db.prepare("INSERT INTO reservation_options (orderRef) VALUES ('order:10:1')").run();
+  db.prepare('INSERT INTO payment_links (basketJson) VALUES (?), (?), (?), (NULL)').run(JSON.stringify({ source: 'guestOrder', ref: 12 }), JSON.stringify({ source: 'shopOrder', ref: '40' }), 'not json');
+  run(db);
+  const id = db.prepare("INSERT INTO guest_orders (reservationId, payment, status, linesJson, total, createdAt) VALUES (1, 'none', 'confirmed', '[]', 0, '2026-11-01')").run().lastInsertRowid; // date-literal-ok — fixture row
+  assert.equal(id, 13);
+});

@@ -715,9 +715,11 @@ function buildOrdersController({
    * are still free and its price has not risen above what was paid; else `paid_conflict`, nothing reaches the fiche and the money opens a refund obligation of origin
    * `orderConflict` (rule 75). A sale that now costs less than was paid leaves the gap owed back (`refundCents`).
    */
-  function paid({ reservationId, ref, amountCents, paidDate, paidAt, providerPaymentId }) {
+  function paid({ reservationId, ref, linkId, amountCents, paidDate, paidAt, providerPaymentId }) {
     const order = orders().findById(ref);
     if (!order || Number(order.reservationId) !== Number(reservationId)) return notHonoured('commande introuvable');
+    // Loop t2 D2-2 — a link pays the order it was issued for: another order wearing the same id (counter reused after an erase) is never sold with it.
+    if (order.paymentLinkId != null && linkId != null && Number(order.paymentLinkId) !== Number(linkId)) return notHonoured('commande introuvable');
     if (['paid', 'delivered', 'paid_conflict', 'confirmed'].includes(order.status)) return { effect: 'guest-order-already-settled' };
     const at = now();
     const stay = stays().byId(order.reservationId);

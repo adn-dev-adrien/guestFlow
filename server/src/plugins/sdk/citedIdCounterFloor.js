@@ -1,5 +1,5 @@
 /**
- * specs/plugin-removal-resilience.md rule 20 — a plugin's table can be erased and recreated while core rows
+ * specs/plugin-removal-resilience.md rule 22 — a plugin's table can be erased and recreated while core rows
  * still cite its ids in a text reference (`order:<id>:<n>`, `resource-booking:<id>`). The AUTOINCREMENT counter
  * of the recreated table must restart above every id still cited, or a new row would inherit an old document.
  */
@@ -21,6 +21,14 @@ function highestCitedId(db, prefix, sources) {
   return highest;
 }
 
+/** → the highest numeric `ref` of the payment links whose basket names `source` (a link outlives the plugin's erase and can still be paid); 0 when none. */
+function highestBasketRef(db, source) {
+  if (!hasColumn(db, 'payment_links', 'basketJson')) return 0;
+  const row = db.prepare(`SELECT MAX(CAST(json_extract(basketJson, '$.ref') AS INTEGER)) AS highest FROM payment_links
+    WHERE json_valid(basketJson) AND json_extract(basketJson, '$.source') = ?`).get(source);
+  return Math.max(0, Number(row && row.highest) || 0);
+}
+
 /** Raises the AUTOINCREMENT counter of `table` to at least `floor`; never lowers it. */
 function raiseCounter(db, table, floor) {
   if (!(floor > 0) || !hasTable(db, table)) return;
@@ -29,4 +37,4 @@ function raiseCounter(db, table, floor) {
   else if (Number(row.seq) < floor) db.prepare('UPDATE sqlite_sequence SET seq = ? WHERE name = ?').run(floor, table);
 }
 
-module.exports = { highestCitedId, raiseCounter };
+module.exports = { highestCitedId, highestBasketRef, raiseCounter };
