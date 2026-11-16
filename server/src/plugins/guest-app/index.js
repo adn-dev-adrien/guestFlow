@@ -90,7 +90,7 @@ function buildGuestApi({
   db, soliomapUrl, now = () => new Date(), limiters, translator = coreTranslator, scheduler = coreScheduler,
   appName = () => null, soliomapEmbed = () => false, guestHost = () => null, uploadsDir = coreUploadsDir, maxOrderTotal = () => 500,
   soliomapFeed = createSoliomapFeed({ url: soliomapUrl, now }),
-  sale = () => sdk.coreModule('extraSale'), obligations = () => sdk.coreModule('refundObligationsModel'), payments = corePayments, push = corePush,
+  sale = () => sdk.coreModule('extraSale'), payments = corePayments, push = corePush,
   settingsStore = (() => { const store = memorySettings(); return () => store; })(), readGateUrl, httpsEnabled, publicUrl = () => '',
   homeData = coreHomeData,
 }) {
@@ -131,26 +131,14 @@ function buildGuestApi({
     alertStock([...new Set([...ids].flatMap((reservationId) => stock().reconcile(reservationId, today)))]);
   }
   /**
-   * Rule 72 — a stay cancelled, superseded or deleted cancels its orders (`cancelled`, stock and holds released). A paid card order is
-   * owed back (rule 88): its money opens a refund obligation of origin `orderConflict` (`pricing-components.md` rule 75), once per
-   * payment link. → the orders moved.
+   * Rule 72 — a stay cancelled, superseded or deleted cancels its orders (`cancelled`, stock and holds released). → the orders moved.
+   * Rule 110 (owner, 2026-11-16, loop t1 B-2) — a card order paid before the cancellation is a collected line of the stay: its money is given back
+   * from the cancellation's refund dialog only (`reservation-refunds.md` D3, D15), so the cancellation opens no register row for it.
    */
   function cancelOrdersOf(reservationId) {
     const stay = stays().byId(reservationId);
     if (stay && stay.kind === 'reservation') return [];
     const moved = orders().cancelForStay(reservationId, { now: now() });
-    moved.filter((order) => order.payment === 'card' && order.paymentLinkId && ['paid', 'delivered'].includes(order.status)).forEach((order) => {
-      // Loop t1 B-2, AG-4 — what the link paid, less what the register already holds for it (open or closed, e.g. the gap of an order sold below its
-      // payment): the money is owed once, the gap never twice and the honoured part never forgotten.
-      const link = db().prepare('SELECT amountCents FROM payment_links WHERE id = ?').get(Number(order.paymentLinkId));
-      const held = Number(db().prepare('SELECT COALESCE(SUM(amountCents), 0) AS cents FROM refund_obligations WHERE paymentLinkId = ?').get(Number(order.paymentLinkId)).cents);
-      const cents = (link ? Number(link.amountCents) : Math.round(Number(order.total) * 100)) - held;
-      if (cents <= 0) return;
-      obligations().open({
-        reservationId: Number(reservationId), origin: 'orderConflict', paymentLinkId: Number(order.paymentLinkId), amountCents: cents,
-        reason: `séjour annulé : commande client #${order.id} à rembourser`,
-      });
-    });
     reconcileStock(reservationId);
     return moved;
   }

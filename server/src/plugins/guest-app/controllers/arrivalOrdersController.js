@@ -52,8 +52,11 @@ function buildArrivalOrdersController({
   // Rule 103 — a 0 € order (the free bath hour) is an unpaid order like any other for the SAS: nothing to settle, editable and removable.
   const unpaid = (order) => ['note', 'none'].includes(order.payment) && standing(order);
 
-  /** The arrival is not reached (rule 104), not marked, and its complement is not collected. */
-  const editableStay = (reservationId) => sale().collectionOf(reservationId, now()) === 'arrival'
+  /**
+   * Rule 110 a (owner, 2026-11-16) — the stay is live, its arrival is not validated (not marked, SAS not committed) and its complement is not
+   * collected, whatever the hour: a guest who arrives after the check-in time still has the order changed at the door.
+   */
+  const editableStay = (reservationId) => sale().collectionOf(reservationId, now()) !== 'closed'
     && !stays().arrivalMarked(reservationId)
     && stays().arrivalComplementState(reservationId) !== 'collected';
 
@@ -276,7 +279,7 @@ function buildArrivalOrdersController({
           if (!step.next) continue;
           round += 1;
           const sold2 = sale().sell(order.reservationId, [requestOf(step.next)], {
-            source: ORDER_SALE_SOURCE, now: at, orderRef: `order:${order.id}:${100 + stored.length + round}`,
+            source: ORDER_SALE_SOURCE, now: at, atArrival: true, orderRef: `order:${order.id}:${100 + stored.length + round}`,
             history: { field: 'guestOrderAmended', label: 'Commande client modifiée', from: null, to: `Commande client #${order.id} : ${step.next.title} remplacé` },
           });
           if (sold2.status !== 200) { refused = sold2; throw REFUSED; }
