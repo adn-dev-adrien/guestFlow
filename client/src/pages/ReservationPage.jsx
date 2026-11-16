@@ -486,6 +486,8 @@ export default function ReservationPage() {
   const [storedSummary, setStoredSummary] = useState(null);
   // specs/disable-deposit-per-reservation.md rule 13 — why « Sans acompte » is locked, as the GET last said.
   const [storedDepositDisabledLockedReason, setStoredDepositDisabledLockedReason] = useState(null);
+  // guest-app rule 113 a — the notes paid online the fiche neither adjusts nor puts back, served by the GET.
+  const [midStayNoteLocks, setMidStayNoteLocks] = useState({});
   const [storedTaxInComplementLockedReason, setStoredTaxInComplementLockedReason] = useState(null);
   // The live quote reads the stored payments afresh; the GET answers until it arrives.
   const taxInComplementLockedReason = shownQuote && shownQuote.touristTaxInComplementLockedReason !== undefined
@@ -1137,6 +1139,7 @@ export default function ReservationPage() {
           setStoredHeadline(res.storedHeadline || null);
           setStoredSummary(res.storedSummary || null);
           setStoredDepositDisabledLockedReason(res.depositDisabledLockedReason || null);
+          setMidStayNoteLocks(res.midStayNoteLocks || {});
           setStoredTaxInComplementLockedReason(res.touristTaxInComplementLockedReason || null);
           setConvertToDevisLockedReason(res.convertToDevisLockedReason || null);
           setInstallmentPlan(res.installmentPlan || null);
@@ -2826,7 +2829,7 @@ export default function ReservationPage() {
         ledgerEditMarkerRef.current = null;
         // Rule 7 — the stored ledger is what the fiche shows once clean again: re-read it after a save (and the live
         // « Dates prises » marker, specs/payment-link-lifecycle.md rule 48).
-        api.getReservation(reservationId).then((r) => { if (overwritten) loadedUpdatedAtRef.current = r.updatedAt || null; setDatesTaken(r.datesTaken || null); setStoredLedger(r.ledger || null); setStoredHeadline(r.storedHeadline || null); setStoredSummary(r.storedSummary || null); setStoredDepositDisabledLockedReason(r.depositDisabledLockedReason || null); setConvertToDevisLockedReason(r.convertToDevisLockedReason || null); setInstallmentPlan(r.installmentPlan || null); }).catch(() => {});
+        api.getReservation(reservationId).then((r) => { if (overwritten) loadedUpdatedAtRef.current = r.updatedAt || null; setDatesTaken(r.datesTaken || null); setStoredLedger(r.ledger || null); setStoredHeadline(r.storedHeadline || null); setStoredSummary(r.storedSummary || null); setStoredDepositDisabledLockedReason(r.depositDisabledLockedReason || null); setMidStayNoteLocks(r.midStayNoteLocks || {}); setConvertToDevisLockedReason(r.convertToDevisLockedReason || null); setInstallmentPlan(r.installmentPlan || null); }).catch(() => {});
         clearTypedCountFlags();
         if (safeAfterSaveAction) {
           safeAfterSaveAction();
@@ -3116,6 +3119,7 @@ export default function ReservationPage() {
     setStoredSummary(res.storedSummary || null);
     setStoredSaleDetail(res.saleDetail || null);
     setStoredDepositDisabledLockedReason(res.depositDisabledLockedReason || null);
+    setMidStayNoteLocks(res.midStayNoteLocks || {});
     setStoredTaxInComplementLockedReason(res.touristTaxInComplementLockedReason || null);
     setConvertToDevisLockedReason(res.convertToDevisLockedReason || null);
     setInstallmentPlan(res.installmentPlan || null);
@@ -3912,6 +3916,7 @@ export default function ReservationPage() {
     depositDisabledLockedReason: shownQuote && shownQuote.depositDisabledLockedReason !== undefined
       ? shownQuote.depositDisabledLockedReason : storedDepositDisabledLockedReason,
     touristTaxInComplementLockedReason: taxInComplementLockedReason,
+    midStayNoteLocks,
     // specs/plugins-phase-3b-neat.md rule 16 — what plugins draw under an option line: their block,
     // its setter, and what they may need to know about the stay.
     pluginBlocks, setPluginBlock,

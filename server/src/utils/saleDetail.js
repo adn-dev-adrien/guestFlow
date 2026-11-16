@@ -17,7 +17,8 @@
  *   buckets   { plan, arrival, departure } the amount due at each moment, from SETTLEMENT's figures of the quote; with `stored.planCents`,
  *             `stored.arrivalCents` / `stored.departureCents` (a stored stay) the buckets are the stored deposit + balance and complements (rule 93)
  *   totals    { totalCents, settledCents, dueCents, vatByRate: [{ rate, vatCents, netCents }] } — `dueCents` is what the stay still asks: with
- *             `stored.openCents` (a stored stay, `stayOpenCents(row)`) its open buckets, credits already off them; otherwise the lines left unsettled
+ *             `stored.openCents` (a stored stay, `stayOpenCents(row)`) the register's « Reste à percevoir » (its open buckets, net of the
+ *             platform commission, credits already off them); otherwise the lines left unsettled
  *   credits[] { ref, bucket, label, paidLabels[], totalCents (< 0) } — rule 104: the money paid on lines since lowered, read where a bucket takes it
  *             (`stored.paidByKey`: what the notes paid on each line key)
  *   phase     the stay clock's answer ('before' | 'during' | 'after'), or null
@@ -296,14 +297,14 @@ function buildSaleDetail({
   };
 }
 
-// Loop t6 UI6-2 (rule 31) — what a stored stay still asks, in cents: the acompte, the solde, the installments, the arrival and departure
-// complements not collected yet, gross (the guest's figure: no commission or penalty netted out). A rule-104 credit is already off the bucket
-// it sits in. A cancelled stay asks nothing through its sale: its money is the cancellation's (the ledger). Pure.
+// Rule 106 c (loop t6 UI6-2; owner 2026-11-16) — what a stored stay still asks, in cents: the acompte, the solde, the installments, the arrival
+// and departure complements not collected yet. It IS the payment register's « Reste à percevoir » of the stored fiche (`remainingToPay`, the
+// one source the ledger closes on): on a platform stay net of the commission and penalty of each unpaid échéance, on a direct stay the same
+// gross figure as before (no commission). A rule-104 credit is already off the bucket it sits in. A cancelled stay asks nothing through its
+// sale: its money is the cancellation's (the ledger). Pure.
 function stayOpenCents(row) {
   if (!row || row.kind === 'cancelled') return 0;
-  return toCents(remainingToPay({
-    ...row, acompteCommissionAmount: 0, platformCommissionAmount: 0, platformPenaltyAmount: 0,
-  }));
+  return toCents(remainingToPay(row));
 }
 
 // Rule 104 (loop t5, S5-3) — the money a note paid on a line since offered, discounted or lowered stays credited to the stay, and it is read as

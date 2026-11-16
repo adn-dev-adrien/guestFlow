@@ -547,7 +547,7 @@ function saleDetailOfAt(reservationId, now = new Date()) {
       departureByKey: departureRemainderByKey(row),
       // Loop t5 S5-3 — what the notes paid on each line key, for the rule-104 credit lines.
       paidByKey: Object.fromEntries(Object.entries(settledByKey(row.midStaySettledNotes)).map(([key, amount]) => [key, toCents(amount)])),
-      // Loop t6 UI6-2 — the panel's « Reste à payer »: what the stored buckets still ask.
+      // Rule 106 c — the panel's « Reste à payer »: the register's « Reste à percevoir » of the stored fiche.
       openCents: stayOpenCents(row),
     },
   });

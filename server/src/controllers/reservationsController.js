@@ -141,7 +141,7 @@ const { stampComplementPaidSplit } = require('../utils/complementPaidSplit');
 const { untickRefusal } = require('../utils/refundUntickGuard');
 const { contribLinesOf, recordRemovedLineContribs } = require('../utils/removedLineContribs');
 const { validateCollectionDate } = require('../utils/arrivalPaymentDate');
-const { parseNotes: parseMidStayNotes } = require('../utils/midStayExtras');
+const { parseNotes: parseMidStayNotes, midStayNoteLocks } = require('../utils/midStayExtras');
 const paymentSettlementsModel = require('../models/paymentSettlementsModel');
 const paymentSettlementService = require('../utils/paymentSettlementService');
 const ledgerLinks = require('../utils/ledgerLinks');
@@ -1112,6 +1112,8 @@ function getById(req, res) {
     storedSummary: storedSummaryOf(model.getRow(reservation.id)),
     // specs/disable-deposit-per-reservation.md rule 13 — null while « Sans acompte » can be ticked.
     depositDisabledLockedReason: depositDisabledLockedReasonOf(reservation.id),
+    // guest-app rule 113 a (loop t6 A6-2) — the notes the fiche can neither adjust nor put back to the departure: { [noteId]: reason }.
+    midStayNoteLocks: midStayNoteLocks(reservation.midStaySettledNotes),
     // specs/force-item-to-complement.md rule 20 — null while « Taxe de séjour en complément » can be switched on.
     touristTaxInComplementLockedReason: taxInComplementLockedReason(db, model.getRow(reservation.id)),
     // specs/plugins-phase-3b-neat.md rule 12 — what live plugins show on this stay (Neat: the

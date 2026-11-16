@@ -2138,6 +2138,8 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
     > cancelled (409 `NOTE_PAID_ONLINE` « Payée en ligne : offrir la ligne, puis rembourser. »): cancelling it asked the guest again and left the
     > money recorded nowhere. Reservation-refunds rule 38 stays about the platform's money. Tests `sale-paid-line-lowered-credited`,
     > `sale-paid-card-note-kept`.
+    > _Reading of 2026-11-16 (loop t6, A6-2):_ nor adjusted — its amount and its means are refused with the same 409, only its date moves; the
+    > fiche serves the lock and does not draw « Modifier la note » (guest-app rule 113 a). Test `sale-paid-card-note-not-adjusted`.
     > (b) **The way back is bounded like the way down** (S5-2): the engine names what its credit took off the complement, the solde and the acompte
     > (`noteCreditCuts`, only on a quote that holds one); when a gesture withdraws that credit from a bucket the stay stores below the engine's own
     > figure, the withdrawn part first closes the refund the clamp left owed, and only the rest is asked again. A confirmed save that shrinks the
@@ -2188,6 +2190,12 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
     the accommodation and platform lines carry no settled share, so every euro of the acompte and the solde read as still due (36 of 44 fiches of
     the 2026-11-11 copy overstated, a paid stay showing its whole price). A display figure: no stored amount moves. Test
     `sale-detail-due-is-the-buckets`.
+    _Reading of 2026-11-16 (owner decision, loop t6 finishing pass):_ on a **platform** stay the panel's « Reste à payer » is the NET still to
+    collect — the same figure as the payment register's « Reste à percevoir » (each unpaid échéance net of its commission and penalty). One
+    source: `stayOpenCents(row)` is `reservationSettlement.remainingToPay` of the stored row, the function the register closes on (rule 5 of
+    reservation-payment-ledger), with no second formula. A direct stay carries no commission: its figure is unchanged. On the 2026-11-11 copy the
+    panel equals the register on all 62 stays; the 8 unpaid platform stays (22270, 22282, 22301, 22304, 22308, 22324, 22326, 22329) now read their
+    net figure instead of the gross one. Display only: no stored amount moves. Test `sale-detail-due-is-the-buckets` (rule 106 c, 2026-11-16).
     (d) **A cancelled stay gives the order back on its own line, and that closes what was owed** (S6-1, S6-6; guest-app rule 110b, reservation-refunds
     rule 49): in the cancellation's refund register an arrival line a note paid (a card app order before the arrival) collected — it is not among
     the lines capped first when the money left is short (that rank stays for arrival lines nobody collected, and for a key several lines share);
@@ -2546,8 +2554,9 @@ _Rewritten 2026-11-15 (stabilisation loop t1, UI-3) to what shipped._
 - [x] `sale-paid-line-unoffer-drift` — rule 104 b (loop t5, S5-2): offer confirmed then un-offer on a drifted complement asks nothing and closes the refund; `pinSaleDelta` bounds (2)
 - [x] `sale-paid-line-credit-shown` — rule 104 e (loop t5, S5-3): the credit line in the e-mail, the arrival SAS recap, the end-of-stay detail and « Ventes du séjour — au départ » (3)
 - [x] `sale-paid-card-note-kept` — rule 104 c (loop t5, A5-1): a card note is never cancelled, a cash one still is (1)
+- [x] `sale-paid-card-note-not-adjusted` — rule 104 c, guest-app 113 a (loop t6, A6-2): a card note's amount and means refused (409 `NOTE_PAID_ONLINE`), its date still moves, the fiche serves the lock; a cash note adjusted as before (4); Vitest `MidStayNoteRow.paid-online` (2)
 - [x] `sale-paid-line-platform-refund-row` — rule 106 a, b (loop t6, UI6-5, D6-2, B6-1, B6-2): direct and Booking, cash and card note offered → the « Trop-perçu » row, the prefill, the default means, the refund accepted and the obligation settled, a second refused (3)
-- [x] `sale-detail-due-is-the-buckets` — rules 106 c, 104 e (loop t6, UI6-1 to UI6-3): « Reste à payer » = the open buckets (solde paid → the basket; credit → 35; paid in full and platform paid → 0; gross, cancelled 0); the departure credit row not offerable (5)
+- [x] `sale-detail-due-is-the-buckets` — rules 106 c, 104 e (loop t6, UI6-1 to UI6-3; reading of 2026-11-16): « Reste à payer » = the open buckets (solde paid → the basket; credit → 35; paid in full and platform paid → 0; net of commission and penalty = the register's « Reste à percevoir », a Booking stay's panel = its ledger, cancelled 0); the departure credit row not offerable (6)
 - [x] `sas-arrival-draft-credit` — rule 104 e (loop t6): a draft offering the line the credit sat on lists no credit, its lines sum to its complement (1)
 - [x] `cancelled-stay-note-paid-line-refund` — rule 106 d (loop t6, S6-1, S6-6): the order on its own line of a cancelled platform stay; its refund settles the obligation, its deletion reopens it; the rank of a note-paid arrival line (3)
 

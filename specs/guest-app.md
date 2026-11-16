@@ -1119,7 +1119,12 @@ arrival.** Everything below is judged by the server; the apps render what it off
     the establishment (the Qonto link), never by the platform: its line offered on a Booking or Airbnb stay asks the trop-perçu confirmation (409
     `OVERPAID`) and then holds the `lineLowered` refund, as on a direct stay (`pricing-components.md` rule 104 c, loop t5 reading). Its note is
     never cancelled (409 `NOTE_PAID_ONLINE`): the money is given back through the register. Tests: `sale-paid-line-lowered-credited`,
-    `sale-paid-card-note-kept`. (b) **A check-in box ticked before the arrival day closes no order.** The step's `editable` reads the core's judge
+    `sale-paid-card-note-kept`. _Reading of 2026-11-16 (loop t6, A6-2):_ nor adjusted — « Modifier la note » refuses a new amount or « Caisse
+    interne » on a note paid online (`method 'card'`: an app or shop card order, a payment link) with the same 409 `NOTE_PAID_ONLINE`; only its
+    date moves. Before, lowering a 12 € card note to 6 € put 6 € back in the departure remainder (the guest asked again for money paid online),
+    and « Caisse interne » took the card money off the books. The fiche's GET serves the lock (`midStayNoteLocks`: `{ [noteId]: reason }`), and
+    the note's row draws neither « Modifier la note » nor « Reporter au départ » but the reason. Tests: `sale-paid-card-note-not-adjusted`,
+    Vitest `MidStayNoteRow.paid-online`. (b) **A check-in box ticked before the arrival day closes no order.** The step's `editable` reads the core's judge
     (`extraSale.arrivalOpenAt`) and nothing else; the judge counts the box or the committed SAS from the arrival day only (`pricing-components.md`
     rule 105 c). Test: `sale-arrival-open-early-tick`; `guest-app-arrival-orders` ticks the box on the arrival day.
 
