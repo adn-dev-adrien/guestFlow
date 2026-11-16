@@ -26,10 +26,15 @@ test('rule 50 — a surplus kept at 00:30 Paris is booked on that Paris day', ()
   const id = standaloneSale.sell({ lines: [{ articleRef: `option:${beer}`, quantity: 2 }] }).document.document.id;
   standaloneSale.pay(id, { tenders: [{ method: 'cash', amountCents: 1300 }] });
   const link = Number(db.prepare("INSERT INTO payment_links (reservationId, saleRef, type, amountCents, status) VALUES (NULL, ?, 'complement', 1300, 'paid')").run(sales.documentRef(id)).lastInsertRowid);
+  // date-literal-ok: the link's payment day is an input nothing compares with today
   links.settlePaidLink({ link: { id: link, saleRef: sales.documentRef(id), amountCents: 1300 }, paidDate: '2026-03-01' });
   const [row] = sales.obligationsOf(id);
+  // date-literal-ok: the clock is pinned to this moment by atParis; the day read back is the one it pinned
   atParis('2026-03-10T00:30:00+01:00', () => assert.equal(links.closeObligation(id, row.id, 'cancelled', { actor: 'admin' }).status, 200));
+  // date-literal-ok: the pinned day above, read back
   const [doc] = payments.documentsPaidBetween('2026-03-10', '2026-03-10').filter((d) => d.sale.id === id);
+  // date-literal-ok: the pinned day above, read back
   assert.ok(doc, 'the kept surplus is a movement of 2026-03-10');
+  // date-literal-ok: the pinned day above, read back
   assert.deepEqual(doc.kept.map((k) => [k.amountCents, k.day]), [[1300, '2026-03-10']]);
 });
