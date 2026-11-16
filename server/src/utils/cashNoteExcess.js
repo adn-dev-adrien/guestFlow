@@ -5,7 +5,10 @@
  *
  *   cashNoteExcessCents(db, reservationId, { quote }) → cents. Per line key a note paid, the cash a note paid on it beyond what the line is charged now:
  *     the stored line (its amount less its own discount) once the write is done, or, with `quote` (a save not written yet), what that quote charges on
- *     the key. Without `quote` it is capped by `paidLineJudgment.noteExcessCents` (what no bucket absorbs). Read-only.
+ *     the key. Without `quote` it is capped by `paidLineJudgment.noteExcessCents` (what no bucket absorbs). With `quote` it is capped by what the
+ *     save does not charge anew (loop t7, data observation): the growth of every line the quote charges above the stored line (a new line, a line
+ *     un-offered or raised) absorbs the freed note money first (rule 104), so a mixed save — cash freed on one line, an unpaid line added, a booked
+ *     trop-perçu elsewhere — never defaults that booked money to « Caisse interne ». Read-only.
  */
 const { toCents } = require('./pricing/money');
 const { settledByKey, extraLineKey } = require('./pricing/storedLines');
@@ -18,9 +21,15 @@ function chargedByQuote(quote) {
   const charged = {};
   for (const line of [...(quote.optionLines || []), ...(quote.resourceLines || [])]) {
     const key = extraLineKey(line);
+    if (!key) continue;
     charged[key] = (charged[key] || 0) + (line.offered ? 0 : toCents(line.totalPrice));
   }
-  return (key) => charged[key] || 0;
+  return charged;
+}
+
+// What the quote charges beyond the stored lines, Σ per key of the increase only.
+function growthCents(charged, facts) {
+  return Object.entries(charged).reduce((sum, [key, cents]) => sum + Math.max(0, cents - netOf(facts[key])), 0);
 }
 
 function cashNoteExcessCents(db, reservationId, { quote = null } = {}) {
@@ -37,15 +46,11 @@ function cashNoteExcessCents(db, reservationId, { quote = null } = {}) {
     }
   }
   if (!Object.keys(cashByKey).length) return 0;
-  let chargedOn;
-  if (quote) {
-    chargedOn = chargedByQuote(quote);
-  } else {
-    const facts = require('../models/ports/stayRepository').create(db).lineFacts(id);
-    chargedOn = (key) => netOf(facts[key]);
-  }
+  const facts = require('../models/ports/stayRepository').create(db).lineFacts(id);
+  const charged = quote ? chargedByQuote(quote) : null;
+  const chargedOn = charged ? (key) => charged[key] || 0 : (key) => netOf(facts[key]);
   const cash = Object.entries(paidByKey).reduce((sum, [key, paid]) => sum + Math.min(cashByKey[key] || 0, Math.max(0, paid - chargedOn(key))), 0);
-  return quote ? cash : Math.min(cash, noteExcessCents(db, id));
+  return charged ? Math.max(0, cash - growthCents(charged, facts)) : Math.min(cash, noteExcessCents(db, id));
 }
 
 module.exports = { cashNoteExcessCents };

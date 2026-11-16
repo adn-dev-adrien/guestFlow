@@ -3160,6 +3160,9 @@ function createReservationsModel(database, { arrivalComplementEngine = null } = 
       const noteKeyOf = (x) => (x.refKind === 'custom'
         ? extraLineKey({ isCustom: true, description: x.title || x.description })
         : require('./extraSalesModel').keyOfLine(reservationId, x.refKind, x.lineId));
+      // Rule 108 (loop t7 D7-1) — an offered paid line whose money a refund gave back is not put back: the dialog shows it offered, no toggle.
+      const refundedKeys = withExistingLines && HAS_MID_STAY_NOTES
+        ? new Set(require('../utils/paidLineJudgment').refundedLoweredLines(database, reservationId).map((line) => line.key)) : new Set();
       for (const x of extras) {
         // A line the fiche stamped at the arrival (the excess of a settled plan, loop t3 T3-4) is collected there whatever its routing flag.
         if ((Number(x.inComplement) !== 1 && x.collectAt !== 'arrival') || Number(x.sasArrivalOrigin || 0) === 1) continue;
@@ -3185,6 +3188,7 @@ function createReservationsModel(database, { arrivalComplementEngine = null } = 
           key, group: 'existing', label: String(x.title || x.name || 'Prestation'),
           qty: Number(x.billedUnits || x.quantity || 1), unitPrice: round2(x.unitPrice),
           real, billed: offered ? 0 : real, offerable: true, offered,
+          ...(storedOffered && refundedKeys.size && refundedKeys.has(noteKeyOf(x)) ? { offerLocked: true } : {}),
         });
       }
       const extraGuestsReal = round2(r.extraGuestComplementSurcharge);
@@ -4525,6 +4529,11 @@ function createReservationsModel(database, { arrivalComplementEngine = null } = 
           ? new Set(offeredRefs.filter((x) => x && x.kind && x.id != null).map(keyOf))
           : null;
         if (withLines) {
+          // Rule 108 (loop t7 D7-1) — the recalled line whose money a refund gave back stays offered, no toggle.
+          const refundedKeys = HAS_MID_STAY_NOTES
+            ? new Set(require('../utils/paidLineJudgment').refundedLoweredLines(database, reservationId).map((line) => line.key)) : new Set();
+          const refundedRef = (ref) => Boolean(ref && ref.lineId != null && refundedKeys.size
+            && refundedKeys.has(ref.kind === 'custom' ? null : require('./extraSalesModel').keyOfLine(reservationId, ref.kind, ref.lineId)));
           recalledLines = model.buildArrivalComplementDetail(reservationId, { includeOffered: true, withLineIds: true }).detail.map((l) => {
             const key = l.ref ? keyOf(l.ref) : null;
             const real = realOfStoredLine(l);
@@ -4539,6 +4548,7 @@ function createReservationsModel(database, { arrivalComplementEngine = null } = 
               billed: key ? (offered ? 0 : real) : round2(l.amount),
               offerable: Boolean(key),
               offered,
+              ...(Number(l.offered || 0) === 1 && refundedRef(l.ref) ? { offerLocked: true } : {}),
             };
           });
         }
