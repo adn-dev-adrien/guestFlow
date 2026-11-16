@@ -111,11 +111,14 @@ function createSettlementsModel(db) {
       return db.prepare('SELECT COUNT(*) AS n FROM mollie_settlements').get().n;
     },
     /** Rule 16 — the stored settlements worth reading again: a payment of unknown source, or composed from the payments list only. */
-    rereadable({ before, limit = REREAD_PER_PASS }) {
+    rereadable({ before, limit = REREAD_PER_PASS, known = null }) {
+      // `known` (the references a bank credit names) is applied BEFORE the limit: a stale settlement no credit names must
+      // never take the place of one that can be read again.
       return db.prepare(`SELECT s.reference FROM mollie_settlements s
         WHERE s.fetchedAt <= ? AND (s.source = 'payments' OR EXISTS (
           SELECT 1 FROM mollie_settlement_payments p WHERE p.settlementId = s.id AND p.splitId IS NULL))
-        ORDER BY s.fetchedAt LIMIT ?`).all(before, limit).map((r) => normalizeReference(r.reference));
+        ORDER BY s.fetchedAt`).all(before).map((r) => normalizeReference(r.reference))
+        .filter((reference) => !known || known.has(reference)).slice(0, limit);
     },
     /** Rule 17 — a reference Mollie could not give: kept with the day it may be asked again. */
     recordFailure(reference, message, now = new Date()) {
@@ -132,6 +135,10 @@ function createSettlementsModel(db) {
     },
     failures() {
       return db.prepare('SELECT reference, failedAt, retryAt, message FROM mollie_settlement_failures ORDER BY failedAt').all();
+    },
+    /** The failures still cooling down: what the card tells, whether or not this pass asked again. */
+    activeFailures(now = new Date()) {
+      return db.prepare('SELECT reference, failedAt, retryAt, message FROM mollie_settlement_failures WHERE retryAt > ? ORDER BY failedAt').all(now.toISOString());
     },
     /** Rule 5 — the fees Mollie really took of a payment, once every settlement that paid it states them. */
     realFees() {
@@ -196,7 +203,7 @@ async function syncSettlements({ client, model, splits, settings, credits, links
   const cooling = model.coolingDown(now);
   const named = new Set(credits.filter(isMollieCredit).map(settlementReferenceOf).filter(Boolean).map(normalizeReference));
   const fresh = [...named].filter((reference) => !model.hasReference(reference));
-  const again = model.rereadable({ before: new Date(now.getTime() - REREAD_AFTER_MS).toISOString() }).filter((reference) => named.has(reference) && !fresh.includes(reference));
+  const again = model.rereadable({ before: new Date(now.getTime() - REREAD_AFTER_MS).toISOString(), known: named }).filter((reference) => !fresh.includes(reference));
   const references = [...fresh, ...again].filter((reference) => !cooling.has(reference));
   let balances = false;
   if (references.length > 0 && typeof client.listBalanceTransactions === 'function') {
@@ -222,6 +229,7 @@ async function syncSettlements({ client, model, splits, settings, credits, links
   let read = 0;
   let unknownPayments = 0;
   const failed = [];
+  let interrupted = null;
   for (const reference of references) {
     try {
       // eslint-disable-next-line no-await-in-loop
@@ -249,16 +257,24 @@ async function syncSettlements({ client, model, splits, settings, credits, links
     } catch (err) {
       if (Number(err && err.status) === 401) throw err;
       const message = explainError(err);
+      // A network-level failure (no answer, a timeout, Mollie down or limiting) is not about this reference: the next
+      // ones would fail alike, so the pass stops without putting any of them into a 24-hour cooldown.
+      if (isTransient(err)) { interrupted = message; break; }
       model.recordFailure(reference, message, now);
       failed.push({ reference, message });
     }
   }
-  await refreshRefunds({ client, splits });
-  return { read, unknownPayments, balances, failed };
+  if (!interrupted) await refreshRefunds({ client, splits, now });
+  return interrupted ? { read, unknownPayments, balances, failed, interrupted } : { read, unknownPayments, balances, failed };
 }
 
+const isTransient = (err) => {
+  const status = Number(err && err.status);
+  return ['ENETWORK', 'ETIMEDOUT'].includes(err && err.code) || status === 429 || status >= 500;
+};
+
 /** Rule 6 — what Mollie says was refunded of the payments whose reserve is still held. A failed read keeps what is stored. */
-async function refreshRefunds({ client, splits }) {
+async function refreshRefunds({ client, splits, now = new Date() }) {
   if (typeof client.getPayment !== 'function' || typeof splits.openWithMolliePayment !== 'function') return;
   for (const stored of splits.openWithMolliePayment(REFUND_CHECKS_PER_PASS)) {
     try {
@@ -266,6 +282,8 @@ async function refreshRefunds({ client, splits }) {
       const payment = await client.getPayment(stored.molliePaymentId);
       splits.setRefunded(stored.sourceType, stored.sourceKey, payment.refundedCents);
     } catch { /* the stored refund stays */ }
+    // Asked or not answered, it goes to the back of the queue: the same ten oldest never starve the others.
+    if (typeof splits.markRefundChecked === 'function') splits.markRefundChecked(stored.sourceType, stored.sourceKey, now);
   }
 }
 

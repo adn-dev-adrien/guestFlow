@@ -306,7 +306,10 @@ function settlementProposal(tx, detail, open) {
   const splitIds = new Set(detail.payments.filter((p) => p.splitId).map((p) => String(p.splitId)));
   const unknown = detail.payments.filter((p) => !p.splitId).length;
   const immediates = open.filter((r) => r.mollie.tranche === 'immediat' && splitIds.has(r.mollie.splitId));
-  const retenues = open.filter((r) => r.mollie.tranche === 'retenue');
+  // Only the payments list was read: it does not name which payment a release frees, so a reserve is picked by amount and
+  // must at least be reachable on the credit's day (the balance composition names it exactly, whatever the date).
+  const settled = day(tx.settledAt);
+  const retenues = open.filter((r) => r.mollie.tranche === 'retenue' && mollieReachable(r, settled));
   const releasable = retenues.map((r) => ({ receipt: r, cents: r.openCents }));
   const releasedItems = Number(detail.reserveReleasedCents) > 0
     ? (smallestSubset(releasable, Number(detail.reserveReleasedCents), () => 0, MAX_MOLLIE_TRANCHES) || []) : [];

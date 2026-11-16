@@ -1,6 +1,6 @@
 /**
  * MollieReserveAlert — the home's « Retenue Mollie non reçue »
- * (specs/mollie-rolling-reserve-and-incoming-payments.md rule 13): one line per fiche whose reserve is past its window
+ * (specs/mollie-rolling-reserve-and-incoming-payments.md rule 13): one line per fiche (the server's `line`, drawn as it comes) whose reserve is past its window
  * without a matching bank credit, the oldest expected date first; a click opens the fiche. Title, count and severity
  * are the server's (the attention subject `mollie-reserve-late`), drawn by `AttentionCard`; the lines are the same
  * server read as the subject (`GET /api/payments/reconciliation/reserve-attention`, one item per fiche), so the card
@@ -10,7 +10,6 @@ import React, { useEffect, useState } from 'react';
 import { Box, Divider, Stack, Typography } from '@mui/material';
 import { useNavigate } from 'react-router';
 import { api, AttentionCard } from '../sdk';
-import { money } from './reconciliationShared';
 
 // A sale outside a stay (`reservationId` null, `saleKey` set) has no fiche: its line is read-only.
 const ficheOf = (item) => (item.reservationId == null ? null : `/reservations/${item.reservationId}`);
@@ -45,8 +44,7 @@ export default function MollieReserveAlert({ attention }) {
                 } : {})}
                 sx={{ py: 0.75, minHeight: 44, cursor: to ? 'pointer' : 'default' }}
               >
-                <Typography variant="body2" sx={{ fontWeight: 600 }}>{item.clientName || item.saleLabel || 'Client'} · {money(item.amountCents)}</Typography>
-                <Typography variant="caption" color="text.secondary">Attendue depuis le {item.expectedDateLabel}</Typography>
+                <Typography variant="body2" sx={{ fontWeight: 600 }}>{item.line}</Typography>
               </Box>
             );
           })}

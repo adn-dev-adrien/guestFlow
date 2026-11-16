@@ -73,12 +73,15 @@ function createMollieConnection({ settings, db, settlements, buildClient = ({ to
           invoiceSources: invoices(), profileId: String(settings.get('mollieProfileId') || ''), now: now(),
         });
         settings.set('mollieLastRead', JSON.stringify({ at, settlements: result.read, unknownPayments: result.unknownPayments, balances: result.balances }));
-        // Rule 17 — a settlement that could not be read is told in words; the ones that could were stored all the same.
-        const failed = result.failed || [];
-        settings.set('mollieLastError', failed.length === 0 ? '' : JSON.stringify({
-          at, message: failed.length === 1 ? `Règlement ${failed[0].reference} : ${failed[0].message}` : `${failed.length} règlements illisibles (premier : ${failed[0].reference}) — ${failed[0].message}`,
-        }));
-        return { ok: failed.length === 0, ...result };
+        // Rule 17 — what the card tells is every settlement still cooling down, not only this pass's failures (a pass
+        // skips them), plus the network failure that stopped this pass.
+        const cooling = settlements.activeFailures(now());
+        const first = cooling[0];
+        const message = result.interrupted
+          ? result.interrupted
+          : (cooling.length === 0 ? '' : (cooling.length === 1 ? `Règlement ${first.reference} : ${first.message}` : `${cooling.length} règlements illisibles (premier : ${first.reference}) — ${first.message}`));
+        settings.set('mollieLastError', message ? JSON.stringify({ at, message }) : '');
+        return { ok: !message, ...result };
       } catch (err) {
         settings.set('mollieLastError', JSON.stringify({ at, message: explainError(err) }));
         return { ok: false, read: 0, unknownPayments: 0 };

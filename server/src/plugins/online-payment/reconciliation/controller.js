@@ -15,7 +15,7 @@ const { allocateFifo, summarize, validatePairs } = require('./allocation');
 const { runAutoConfirm } = require('./autoConfirm');
 const { decorateRows } = require('./deadlineDecorator');
 const { settlementReferenceOf, isMollieCredit } = require('./mollieSettlements');
-const { addDays: addDaysIso } = require('./molliePaymentSplits');
+const { addDays: addDaysIso, splitIdOf } = require('./molliePaymentSplits');
 const { trancheView, scheduleView, TRANCHE_LABELS, immediateShareLabel, percentLabel } = require('./mollieTranches');
 const { mollieJournal } = require('./mollieJournal');
 const { randomUUID } = require('crypto');
@@ -40,7 +40,8 @@ const { day } = require('./dates');
 const frDate = (iso) => (day(iso) ? `${iso.slice(8, 10)}/${iso.slice(5, 7)}` : '');
 const addDays = (iso, n) => new Date(Date.parse(`${iso}T00:00:00Z`) + n * 86400000).toISOString().slice(0, 10);
 const keyOf = (r) => `${r.reservationId}|${r.ledgerKey}`;
-const isLateReserve = (i) => Boolean(i.mollie) && i.mollie.tranche === 'retenue' && i.state === 'late';
+// Rule 13 — late whether or not a proposal waits: the state may be « À confirmer », the tranche is late all the same.
+const isLateReserve = (i) => Boolean(i.mollie) && i.mollie.tranche === 'retenue' && Boolean(i.mollie.late);
 const parseJson = (raw, fallback) => { try { return raw ? JSON.parse(raw) : fallback; } catch { return fallback; } };
 
 // Rule 12 — the identifiers of a credit: Qonto's transaction id, and for Mollie the settlement reference and the payment.
@@ -104,8 +105,30 @@ function createReconciliationController({ db, settings, transactions, model, wri
     return today;
   };
 
-  const splitFor = splits ? (link) => splits.forLink(link.id) : undefined;
-  const sourceSplit = splits ? (type, key) => splits.forSource(type, key) : undefined;
+  /**
+   * Rule 1 — what a read sees of the splits: the stored one, else a PROVISIONAL one derived in memory (same formula, the
+   * settings in force now, never stored) for a payment seen paid with no `reservation.paid` event yet — a complement
+   * link ended `noop`, a basket link, a double payment, a card taken on site. The sync stores the real one later.
+   */
+  const splitReaders = (cards = new Map()) => (splits ? {
+    splitFor: (link) => splits.forLink(link.id) || splits.provisionalOfLink(link, settings),
+    sourceSplit: (type, key) => splits.forSource(type, key) || cards.get(splitIdOf(type, key)) || null,
+  } : { splitFor: undefined, sourceSplit: undefined });
+
+  /** The provisional splits of the card payments recorded on site (from « CB sur place via Mollie depuis »), keyed by split id. */
+  function provisionalCards({ rows, startDate, today, only = null }) {
+    const cards = new Map();
+    const since = splits ? day(settings.get('mollieCardOnSiteSince')) : null;
+    if (!since) return cards;
+    const { settlementsOf } = settlementsReader(db);
+    cardCandidates({ rows, linksOf: core.listLinks, installmentsOf: installmentsReader(db, core.listInstallments), settlementsOf, startDate, today })
+      .filter((c) => (only == null || Number(c.reservationId) === Number(only)) && day(c.paidAt) && day(c.paidAt) >= since)
+      .forEach((c) => {
+        const row = splits.provisional(c, settings);
+        if (row) cards.set(splitIdOf(c.sourceType, c.sourceKey), row);
+      });
+    return cards;
+  }
 
   /**
    * Rule 1 — the split of every paid link, and of every card payment taken on site (from « CB sur place via Mollie
@@ -195,6 +218,9 @@ function createReconciliationController({ db, settings, transactions, model, wri
 
     // Rule 1 (second half) — the sales outside a stay that went through Mollie have receipts of their own.
     const sales = splits ? salesSince(startDate, today) : [];
+    const { splitFor, sourceSplit } = splitReaders(provisionalCards({
+      rows: splits && day(settings.get('mollieCardOnSiteSince')) ? db.prepare(`${RESERVATION_SQL} ORDER BY r.endDate, r.id`).all(startDate) : [], startDate, today,
+    }));
     const baseReceipts = expectedReceipts({
       db, startDate, today, buildLedger: core.buildLedger, parseGroup: core.parseGroup, listLinks: core.listLinks, listInstallments: core.listInstallments, splitFor, sourceSplit, sales,
     });
@@ -240,7 +266,7 @@ function createReconciliationController({ db, settings, transactions, model, wri
     // credits cover.
     const days = matchable.map((t) => String(t.settledAt).slice(0, 10)).sort();
     // A sale that went through Mollie (rule 1) is in a Mollie credit, never in the day's card batch.
-    const throughMollie = (sale) => { const source = saleSource(sale); return Boolean(splits && splits.forSource(source.sourceType, source.sourceKey)); };
+    const throughMollie = (sale) => { const source = saleSource(sale); return Boolean(sourceSplit && sourceSplit(source.sourceType, source.sourceKey)); };
     const standalone = days.length
       ? standaloneSales.list({ from: shiftDay(days[0], -BATCH_LOOKBACK_DAYS), to: days[days.length - 1] }).filter((sale) => !throughMollie(sale)) : [];
     const { byTransaction } = buildProposals({ transactions: matchable, receipts: openReceipts, discarded, settings: cfg, standalone });
@@ -561,6 +587,8 @@ function createReconciliationController({ db, settings, transactions, model, wri
   function mollieItemsOfReservation(reservationId) {
     const today = core.todayIso();
     const startDate = day(settings.get('reconciliationStartDate'));
+    const row = splits && day(settings.get('mollieCardOnSiteSince')) ? db.prepare(`${RESERVATION_SQL} AND r.id = ?`).get(startDate, Number(reservationId)) : null;
+    const { splitFor, sourceSplit } = splitReaders(provisionalCards({ rows: row ? [row] : [], startDate, today, only: reservationId }));
     const base = expectedReceiptsOfReservation({
       db, reservationId, startDate, today, buildLedger: core.buildLedger, parseGroup: core.parseGroup, listLinks: core.listLinks,
       listInstallments: core.listInstallments, splitFor, sourceSplit,
@@ -920,7 +948,6 @@ function createReconciliationController({ db, settings, transactions, model, wri
     /** Rules 28-31 — the Mollie facts of a month for the accounting export (one pass serves the months asked in a row). */
     journal({ from, to }) {
       if (!connected() || !day(settings.get('reconciliationStartDate'))) return { entries: [], unattached: [], clearing: null };
-      freshenSplits();
       const now = Date.now();
       const stamp = JSON.stringify(db.prepare(`SELECT
         (SELECT COUNT(*) || ':' || COALESCE(MAX(id), 0) FROM bank_reconciliation_lines) AS lines,

@@ -126,6 +126,17 @@ const immediatePercentOf = (split) => (Number(split.grossCents) > 0 ? Math.round
 const TRANCHES = Object.freeze({ immediat: 'immediat', retenue: 'retenue' });
 const trancheKey = (ledgerKey, tranche) => `${ledgerKey}#${tranche}`;
 
+/**
+ * Rule 2 — a correction of the data that moves the payment day ACROSS « Retenue appliquée depuis » decides again whether
+ * the payment carries a reserve: `true` / `false` when the day crossed, `null` when it did not (the stored decision stands).
+ */
+function keepsReserve(stored, newDay, since) {
+  if (!since || !newDay) return null;
+  const before = day(stored.paidAt) >= since;
+  const after = newDay >= since;
+  return before === after ? null : after;
+}
+
 function createSplitsModel(db) {
   const hasInstallments = () => Boolean(db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'reservation_installments'").get());
 
@@ -141,16 +152,35 @@ function createSplitsModel(db) {
   const forSource = (sourceType, sourceKey) => db.prepare('SELECT * FROM mollie_payment_splits WHERE sourceType = ? AND sourceKey = ?')
     .get(String(sourceType), String(sourceKey)) || null;
 
-  /** Stores the split of one payment with the settings of this moment; one already stored is never touched (rule 2). */
-  const create = ({ sourceType, sourceKey, reservationId = null, ledgerKey = null, grossCents, paidAt, molliePaymentId = null }, { ratePercent, holdDays, since }, now) => {
+  /** What the split of one payment is with the settings of this moment, as a stored row would carry it (null: nothing to split). */
+  const plan = ({ sourceType, sourceKey, reservationId = null, ledgerKey = null, grossCents, paidAt, molliePaymentId = null }, { ratePercent, holdDays, since }) => {
     const paidDay = day(paidAt);
-    if (!paidDay || !(Number(grossCents) > 0)) return 0;
+    if (!paidDay || !(Number(grossCents) > 0)) return null;
     const split = computeSplit({ grossCents, ratePercent, applyReserve: !since || paidDay >= since });
-    return insert.run({
+    return {
       sourceType, sourceKey: String(sourceKey), reservationId: reservationId == null ? null : Number(reservationId), ledgerKey,
-      ...split, ratePercent, holdDays, paidAt: String(paidAt), molliePaymentId, createdAt: now.toISOString(),
-    }).changes;
+      ...split, ratePercent, holdDays, paidAt: String(paidAt), molliePaymentId,
+    };
   };
+
+  /** Stores the split of one payment with the settings of this moment; one already stored is never touched (rule 2). */
+  const create = (source, reserve, now) => {
+    const row = plan(source, reserve);
+    return row ? insert.run({ ...row, createdAt: now.toISOString() }).changes : 0;
+  };
+
+  /** A paid link that can have a split: the one definition shared by the sync, the provisional read and `hasUnsplitLinks`. */
+  const linkSource = (link, numbers) => {
+    const ledgerKey = linkLedgerKey(link, (id) => numbers.get(Number(id)) ?? null);
+    return ledgerKey ? {
+      sourceType: SOURCE_TYPES.link, sourceKey: String(link.id), reservationId: Number(link.reservationId), ledgerKey,
+      grossCents: link.amountCents, paidAt: link.paidAt,
+    } : null;
+  };
+
+  const unsplitLinks = () => db.prepare(`SELECT l.* FROM payment_links l
+    WHERE ${PAID_LINK_FILTER}
+      AND NOT EXISTS (SELECT 1 FROM mollie_payment_splits s WHERE s.sourceType = 'link' AND s.sourceKey = CAST(l.id AS TEXT))`).all();
 
   return {
     /**
@@ -168,18 +198,12 @@ function createSplitsModel(db) {
     sync({ settings, candidates = [], scope = null, now = new Date() }) {
       const reserve = readReserveSettings(settings);
       const numbers = installmentNumbers();
-      const missing = db.prepare(`SELECT l.* FROM payment_links l
-        WHERE ${PAID_LINK_FILTER}
-          AND NOT EXISTS (SELECT 1 FROM mollie_payment_splits s WHERE s.sourceType = 'link' AND s.sourceKey = CAST(l.id AS TEXT))`).all();
+      const missing = unsplitLinks();
       let created = 0;
       db.transaction(() => {
         missing.forEach((link) => {
-          const ledgerKey = linkLedgerKey(link, (id) => numbers.get(Number(id)) ?? null);
-          if (!ledgerKey) return;
-          created += create({
-            sourceType: SOURCE_TYPES.link, sourceKey: String(link.id), reservationId: Number(link.reservationId), ledgerKey,
-            grossCents: link.amountCents, paidAt: link.paidAt,
-          }, reserve, now);
+          const source = linkSource(link, numbers);
+          if (source) created += create(source, reserve, now);
         });
         if (!reserve.cardSince) return;
         const wanted = new Set();
@@ -192,7 +216,7 @@ function createSplitsModel(db) {
           if (stored.molliePaymentId || (Number(stored.grossCents) === Number(candidate.grossCents) && day(stored.paidAt) === paidDay)) return;
           const split = computeSplit({
             grossCents: candidate.grossCents, ratePercent: stored.ratePercent,
-            applyReserve: Number(stored.reserveCents) > 0 || computeSplit({ grossCents: stored.grossCents, ratePercent: stored.ratePercent }).reserveCents === 0,
+            applyReserve: keepsReserve(stored, paidDay, reserve.since) ?? (Number(stored.reserveCents) > 0 || computeSplit({ grossCents: stored.grossCents, ratePercent: stored.ratePercent }).reserveCents === 0),
           });
           db.prepare('UPDATE mollie_payment_splits SET grossCents = ?, immediateCents = ?, reserveCents = ?, paidAt = ? WHERE sourceType = ? AND sourceKey = ?')
             .run(split.grossCents, split.immediateCents, split.reserveCents, String(candidate.paidAt), stored.sourceType, stored.sourceKey);
@@ -229,7 +253,11 @@ function createSplitsModel(db) {
       if (!stored) {
         create({ ...source, grossCents: payment.amountCents, paidAt: payment.paidAt, molliePaymentId: payment.id }, readReserveSettings(settings), now);
       } else if (!stored.molliePaymentId && Number(payment.amountCents) > 0 && day(payment.paidAt)) {
-        const split = computeSplit({ grossCents: payment.amountCents, ratePercent: stored.ratePercent, applyReserve: Number(stored.reserveCents) > 0 });
+        const reserve = readReserveSettings(settings);
+        const split = computeSplit({
+          grossCents: payment.amountCents, ratePercent: stored.ratePercent,
+          applyReserve: keepsReserve(stored, day(payment.paidAt), reserve.since) ?? Number(stored.reserveCents) > 0,
+        });
         db.prepare('UPDATE mollie_payment_splits SET grossCents = ?, immediateCents = ?, reserveCents = ?, paidAt = ?, molliePaymentId = ? WHERE sourceType = ? AND sourceKey = ?')
           .run(split.grossCents, split.immediateCents, split.reserveCents, String(payment.paidAt), String(payment.id), stored.sourceType, stored.sourceKey);
       }
@@ -257,10 +285,26 @@ function createSplitsModel(db) {
       return db.prepare('UPDATE mollie_payment_splits SET reserveCents = ?, immediateCents = ? WHERE sourceType = ? AND sourceKey = ?')
         .run(reserve, Number(stored.grossCents) - reserve, stored.sourceType, stored.sourceKey).changes;
     },
-    /** Is a paid link still without its split? One read, no write: the page that lists the reconciliation decides to sync. */
+    /**
+     * Is a paid link that CAN have a split still without it? One read, no write: the page that lists the reconciliation
+     * decides to sync. A link with no ledger row (a type the ledger does not know, an instalment without number) never can.
+     */
     hasUnsplitLinks() {
-      return Boolean(db.prepare(`SELECT 1 FROM payment_links l WHERE ${PAID_LINK_FILTER}
-        AND NOT EXISTS (SELECT 1 FROM mollie_payment_splits s WHERE s.sourceType = 'link' AND s.sourceKey = CAST(l.id AS TEXT)) LIMIT 1`).get());
+      const numbers = installmentNumbers();
+      return unsplitLinks().some((link) => linkSource(link, numbers) !== null);
+    },
+    /**
+     * Rule 1 — the split a paid payment WOULD have with the settings in force now, never stored: what a read shows while
+     * the stored split (made by the sync) does not exist yet. A stored split always wins at the caller.
+     */
+    provisional(source, settings) {
+      return plan(source, readReserveSettings(settings));
+    },
+    /** The provisional split of a paid link (null when it can have none). */
+    provisionalOfLink(link, settings) {
+      if (!link || link.status !== 'paid' || !link.paidAt || !(Number(link.amountCents) > 0)) return null;
+      const source = linkSource(link, String(link.type) === 'installment' ? installmentNumbers() : new Map());
+      return source ? plan(source, readReserveSettings(settings)) : null;
     },
     /** Rule 6 — the splits of a Mollie payment whose reserve is not received yet (no reconciliation line on its `#retenue` tranche): a refund may still come. */
     openWithMolliePayment(limit = 10) {
@@ -268,7 +312,7 @@ function createSplitsModel(db) {
         WHERE s.molliePaymentId IS NOT NULL AND s.reserveCents > 0 AND NOT EXISTS (
           SELECT 1 FROM bank_reconciliation_lines l WHERE l.reservationId = COALESCE(s.reservationId, 0) AND (l.ledgerKey = s.ledgerKey || '#retenue'
             OR (s.ledgerKey = 'complement' AND l.ledgerKey = 'checkoutComplement#retenue')))
-        ORDER BY s.paidAt LIMIT ?`).all(limit);
+        ORDER BY s.refundCheckedAt IS NOT NULL, s.refundCheckedAt, s.paidAt LIMIT ?`).all(limit);
     },
     forLink(linkId) {
       return forSource(SOURCE_TYPES.link, linkId);
@@ -283,6 +327,10 @@ function createSplitsModel(db) {
     setMolliePayment(sourceType, sourceKey, molliePaymentId) {
       db.prepare('UPDATE mollie_payment_splits SET molliePaymentId = ? WHERE sourceType = ? AND sourceKey = ? AND (molliePaymentId IS NULL OR molliePaymentId <> ?)')
         .run(String(molliePaymentId), String(sourceType), String(sourceKey), String(molliePaymentId));
+    },
+    /** Rule 6 — the refund of this payment was asked just now: the next pass asks the ones not asked for the longest time. */
+    markRefundChecked(sourceType, sourceKey, now = new Date()) {
+      db.prepare('UPDATE mollie_payment_splits SET refundCheckedAt = ? WHERE sourceType = ? AND sourceKey = ?').run(now.toISOString(), String(sourceType), String(sourceKey));
     },
     /** Rule 6 — what Mollie says was refunded of the payment. */
     setRefunded(sourceType, sourceKey, refundedCents) {

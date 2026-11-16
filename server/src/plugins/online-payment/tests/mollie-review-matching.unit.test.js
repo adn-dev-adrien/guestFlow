@@ -37,8 +37,8 @@ test('rule 10 — without a settlement read, the same amount stays « sûr » (t
 });
 
 test('rule 10 — a settlement composed from the payments list that frees one of several equal reserves is « probable », not « sûr »', () => {
-  const first = paidStay({ cents: 6250, daysAgo: 20 });
-  paidStay({ cents: 6250, daysAgo: 20, clientId: 2 });
+  const first = paidStay({ cents: 6250, daysAgo: 100 });
+  paidStay({ cents: 6250, daysAgo: 100, clientId: 2 });
   createSettlementsModel(db).store(
     mollieOwn({ id: 'stl_r', reference: '19274230.2611.08', amountCents: 1250, reserveReleasedCents: 1250, source: 'payments' }), [],
   );

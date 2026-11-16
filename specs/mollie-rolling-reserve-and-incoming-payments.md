@@ -122,7 +122,12 @@ brought it; and the accountant receives entries that explain every Mollie credit
    same 20 % / 90-day reserve). Each is split into the **versement immédiat** (gross − reserve) and the
    **retenue** (the reserve). `reserve = round(gross × rate)` to the cent, the immediate share
    absorbs the rounding. The split is computed by the server once, when the payment is seen paid, and stored
-   with the rate and hold it used. A split belongs to a **source** (`sourceType` + `sourceKey`):
+   with the rate and hold it used. Until that stored split exists, every READ (the fiche, « Versements à venir »,
+   the reconciliation pass, the journal) derives a **provisional** one in memory — same formula, the settings in
+   force now, never stored — so a link that turned paid without a `reservation.paid` event (a complement link
+   ended `noop`, a basket link, a double payment, a card taken on site) shows its tranches at once; a read never
+   writes, and the stored split is made by the event, the read job, « Actualiser » or the page that lists the
+   reconciliation. A paid link the ledger has no row for can never have a split and never triggers a sync. A split belongs to a **source** (`sourceType` + `sourceKey`):
    - `link` — a paid payment link (key: the link id);
    - `invoice` — a sale outside a stay that holds a Qonto invoice number (key: the number). When a Mollie payment
      read with the token has that number as its `description`, the split is made from the Mollie payment
@@ -453,6 +458,7 @@ See the summary page for the interactive mock-ups (fiche, tile + table, settings
 - `mollie-settings-validation.unit.test.js` — rules 3, 15.
 - `mollie-card-sources.unit.test.js` — rule 1 second half (Gruat invoice case, tender before / after the setting date, split payment CB line, batch exclusion), rule 3 (`mollieCardOnSiteSince`), rules 13, 16, 23, 28 for a sale outside a stay.
 - `mollie-review-matching`, `mollie-review-settlements-read`, `mollie-review-splits`, `mollie-review-migration`, `mollie-review-read-paths`, `mollie-review-journal`, `mollie-review-lateness-and-words` (online-payment) and `accounting-mollie-libelle` (accounting-export) — the review of 2026-11-16: rules 1, 4-6, 8-10, 13-19, 28 (no amount fallback « sûr » next to a settlement read; one failing reference; re-read of unknown payments; complement and basket links; estimates that follow the data; `reconciliation_v3b` from both drafts; no write on a read; fee gap, refunds, unknown costs and Paris days in the journal; late everywhere; the recap line; the reserve-attention route).
+- `mollie-final-reserve-reachable`, `mollie-final-journal-fees-per-client`, `mollie-final-provisional-splits`, `mollie-final-connection-and-rotation`, `mollie-final-late-reserve-attention`, `mollie-final-since-crossing` (online-payment) — the final pass of 2026-11-16: rule 10 (a reserve picked by amount from a payments-list settlement must be reachable on the credit's day), rule 28 (the clearing per client takes fees off as well as credits), rule 1 (provisional splits on every read, no write from the journal, links that can never have a ledger key never trigger a sync), rules 6, 16, 17 (the card tells every settlement still cooling down; a network failure stops the pass; refund refresh rotates on `refundCheckedAt`; the re-read selection only holds references a credit names), rules 4 and 13 (a late reserve is late whether or not a proposal waits), rule 2 (a correction crossing « Retenue appliquée depuis » decides the reserve again).
 - `incoming-payments.unit.test.js` — rules 21–27 (grouping, sort, late first, without plugin).
 - `accounting-mollie-journal.unit.test.js` — rules 28–31 (balanced entries, clearing balance, switch, unattached).
 
@@ -499,7 +505,7 @@ See the summary page for the interactive mock-ups (fiche, tile + table, settings
 
 ### Server (2026-11-16)
 
-- [x] Rules 1-7 — `molliePaymentSplits.js` (split, since-date, refunds, validation), `mollie_payment_splits` filled the first time a paid link is seen: by the `reservation.paid` event, the read job, « Actualiser » and the page that lists the reconciliation — never by the fiche, the quote preview or the dashboard (review 2026-11-16).
+- [x] Rules 1-7 — `molliePaymentSplits.js` (split, since-date, refunds, validation), `mollie_payment_splits` filled the first time a paid link is seen: by the `reservation.paid` event, the read job, « Actualiser » and the page that lists the reconciliation — never by the fiche, the quote preview, the dashboard or the journal, which read a provisional split in memory until then (review 2026-11-16, final pass).
 - [x] Rules 8-13 — `expectedReceipts.js` (`#immediat` / `#retenue`), `matcher.js` (`classify` Mollie by name, `mollieProposals`, `settlementProposal`), `ficheWriter` untouched (the controller skips the write for a tranche), `qontoReference`, late reserve attention (`mollie-reserve-late`).
 - [x] Rules 14-17 — `mollieClient.js`, `mollieSettlements.js`, `mollieConnection.js`, `POST /api/plugins/online-payment/mollie/test`.
 - [x] Rules 18-20 — `ctx.ledgerBankTranches` → ledger rows `bankTranches[]` and `ledger.schedule` (`utils/pluginLedgerTranches.js`), the fiche's reconciliation card lists the two receipts.
@@ -544,4 +550,5 @@ See the summary page for the interactive mock-ups (fiche, tile + table, settings
 - [x] No write on a reading path: the splits sync on the event, the job, « Actualiser » and the reconciliation page; the fiche reads its own tranches; the quote preview is not decorated; one journal pass per request.
 - [x] Journal: fee gap of a credit confirmed short, net of refunds, unknown payments' costs apart, Paris days, short libellé (rule 28).
 - [x] « En retard » is one definition everywhere; the recap line tells the tranches apart; labels from the real share; the reserve-attention route and `line`; `tiles.incoming.nextDateLabel`; client group `key`.
+- [x] Final pass: the settlement read from the payments list only frees a reserve reachable on the credit's day (rule 10); the clearing per client subtracts fees (rule 28); provisional splits on every read and no journal write (rule 1); `mollieLastError` lists every settlement still cooling down and a network failure stops the pass without a cooldown (rule 17); refund refresh rotates by `refundCheckedAt` (column added to `reconciliation_v3b`, idempotent) and the re-read selection is limited to references a credit names (rules 6, 16); a late reserve with a pending proposal is on the home alert, which draws the server's `line` (rule 13); a day moved across « Retenue appliquée depuis » re-decides the reserve of an estimate (rule 2). `counts.waiting` of the reconciliation payload keeps counting the `waiting` state only (qonto-bank-reconciliation contract, older than this branch).
 - Tests: 43 new server tests in 8 files (`mollie-review-*` ×7 under `plugins/online-payment/tests/`, `accounting-mollie-libelle` under `plugins/accounting-export/tests/`); existing suites adjusted for the new behaviour (splits are synced by the fixture's `build`, as the `reservation.paid` event would).

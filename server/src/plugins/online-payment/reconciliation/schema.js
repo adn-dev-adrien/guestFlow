@@ -79,7 +79,7 @@ const MOLLIE_TABLES_SQL = `
     reservationId INTEGER, ledgerKey TEXT,
     grossCents INTEGER NOT NULL, immediateCents INTEGER NOT NULL, reserveCents INTEGER NOT NULL,
     ratePercent REAL NOT NULL, holdDays INTEGER NOT NULL,
-    paidAt TEXT NOT NULL, molliePaymentId TEXT, refundedCents INTEGER NOT NULL DEFAULT 0,
+    paidAt TEXT NOT NULL, molliePaymentId TEXT, refundedCents INTEGER NOT NULL DEFAULT 0, refundCheckedAt TEXT,
     createdAt TEXT NOT NULL,
     PRIMARY KEY (sourceType, sourceKey)
   );
@@ -165,6 +165,7 @@ function upV3b(db) {
   db.exec(MOLLIE_TABLES_SQL);
   const bank = columnsOf(db, 'bank_transactions');
   if (bank.size > 0 && !bank.has('qontoReference')) db.exec('ALTER TABLE bank_transactions ADD COLUMN qontoReference TEXT');
+  if (!columnsOf(db, 'mollie_payment_splits').has('refundCheckedAt')) db.exec('ALTER TABLE mollie_payment_splits ADD COLUMN refundCheckedAt TEXT');
   if (hasTable(db, 'payment_link_splits')) {
     db.exec(`INSERT OR IGNORE INTO mollie_payment_splits
       (sourceType, sourceKey, reservationId, ledgerKey, grossCents, immediateCents, reserveCents, ratePercent, holdDays, paidAt, molliePaymentId, refundedCents, createdAt)

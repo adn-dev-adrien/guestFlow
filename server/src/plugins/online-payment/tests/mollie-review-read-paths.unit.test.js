@@ -6,6 +6,7 @@ const assert = require('node:assert/strict');
 const registry = require('../../sdk/registry');
 const { createContext } = require('../../sdk/createContext');
 const reservationsController = require('../../../controllers/reservationsController');
+const { createSplitsModel } = require('../reconciliation/molliePaymentSplits');
 const { db, dayAt, build, reset, paidStay, mollieCredit } = require('./mollieFixture');
 
 test.beforeEach(() => {
@@ -42,12 +43,12 @@ function wire() {
   return built;
 }
 
-test('rule 1 — the fiche\'s GET writes nothing: a link paid since the last sync has no tranche until the event or a page syncs it', () => {
+test('rule 1 — the fiche\'s GET writes nothing: a link paid since the last sync shows provisional tranches, stored by the event or a page', () => {
   const { controller } = wire();
   const { reservationId } = paidStay({ cents: 10000, daysAgo: 5 });
   watchWrites();
   const before = fiche(reservationId).ledger;
-  assert.equal(before.schedule == null && !before.rows.some((r) => r.bankTranches), true, 'nothing to show yet');
+  assert.equal(before.rows.find((r) => r.key === 'balance').bankTranches.length, 2, 'provisional, derived in memory');
   assert.deepEqual(writes(), [], 'a read is a read');
 
   controller.syncSplits();
@@ -63,8 +64,9 @@ test('rule 1 — the fiche\'s GET writes nothing: a link paid since the last syn
 test('rule 1 — the page that lists the reconciliation brings the splits up to date (the one reading path that may)', () => {
   const { controller } = wire();
   const { reservationId } = paidStay({ cents: 10000, daysAgo: 5 });
-  assert.equal(controller.ledgerTranches(reservationId), null);
+  assert.equal(createSplitsModel(db).all().length, 0);
   controller.list({ view: 'todo' });
+  assert.equal(createSplitsModel(db).all().length, 1);
   assert.equal(controller.ledgerTranches(reservationId).rows.balance.length, 2);
 });
 
