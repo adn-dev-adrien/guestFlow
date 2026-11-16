@@ -220,6 +220,20 @@ function withUnclaimedNotes(result, settled, paidByKey, notesRaw) {
 }
 
 /**
+ * specs/pricing-components.md rule 110 (loop t7 B7-1) — the note money no line claims, less what a refund on the trop-perçu already gave
+ * back (`refunded`, euros: the settled `lineLowered` rows, the subtraction `paidLineJudgment.noteExcessCents` makes): money refunded is
+ * no credit any more, so a line charged after the refund is asked in full. `unclaimed` disappears at 0, never below.
+ */
+function lessRefundedCredit(split, refunded) {
+  const cut = round2(Number(refunded) || 0);
+  if (!split || !(Number(split.unclaimed) > 0) || !(cut > 0)) return split;
+  const unclaimed = round2(Number(split.unclaimed) - cut);
+  if (unclaimed > 0) return { ...split, unclaimed };
+  const { unclaimed: _gone, unclaimedLabels: _labels, ...rest } = split;
+  return rest;
+}
+
+/**
  * One ready-to-store end-of-stay detail line. Whole units → « 2 × 12 € = 24 € »; anything else
  * (a partially settled line, a rounded price) stays a flat amount rather than showing a misleading
  * « × ». Shared by the split and by the settle/cancel transactions so a line looks the same
@@ -721,6 +735,7 @@ module.exports = {
   splitMidStayExtras,
   splitFromStoredLines,
   resolveMidStaySplit,
+  lessRefundedCredit,
   buildMidStayLine,
   parseNotes,
   parseDetail,

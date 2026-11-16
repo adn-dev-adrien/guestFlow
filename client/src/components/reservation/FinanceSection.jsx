@@ -1359,6 +1359,7 @@ export default function FinanceSection() {
             overpaymentTtc={refundDialogOpen && refundDialogOpen.overpaymentTtc ? refundDialogOpen.overpaymentTtc : 0}
             overpaymentLines={refundDialogOpen && refundDialogOpen.overpaymentLines ? refundDialogOpen.overpaymentLines : null}
             defaultMethod={(refundDialogOpen && refundDialogOpen.method) || 'transfer'}
+            cashPart={(refundDialogOpen && refundDialogOpen.cashPart) || null}
             openOverpaymentTtc={openOverpaymentRow ? Number(openOverpaymentRow.amount || 0) : 0}
             onUseOverpayment={() => openOverpaymentRow && onAction(openOverpaymentRow)}
             onSubmit={createRefund}

@@ -6,6 +6,8 @@
  *
  *   notesOnKey(db, reservationId, key)  → the cents the stay's notes name on a line key: what the guest paid on that line, whatever it is
  *                                         worth now (a line offered after it was paid still carries it)
+ *   refundedLoweredCents(db, reservationId) → the note money a refund on the trop-perçu already gave back (the settled `lineLowered`
+ *                                         rows): never a credit again — the engine's note credit (rule 110) and `noteExcessCents` both deduct it
  *   noteExcessCents(db, reservationId, lineDiscounts)  → the note money no line claims and no bucket absorbs: received by the establishment
  *                                         beyond the total and not refunded yet (`lineDiscounts`: those a save carries, not stored yet)
  *   begin(db, reservationId)            → `{ finish({ overpaid, forced, lineDiscounts }) }`, taken before the write; `finish`, called after the
@@ -216,5 +218,5 @@ function wayBack(db, reservationId, { quoteOf, billedCents = null } = {}) {
 }
 
 module.exports = {
-  begin, wayBack, notesOnKey, noteExcessCents, noteExcessByKey, refundedLoweredLines, PAID_LINE_REMOVED, LINE_REFUNDED,
+  begin, wayBack, notesOnKey, noteExcessCents, noteExcessByKey, refundedLoweredLines, refundedLoweredCents, PAID_LINE_REMOVED, LINE_REFUNDED,
 };

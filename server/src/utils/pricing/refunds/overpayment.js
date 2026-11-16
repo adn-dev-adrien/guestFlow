@@ -213,4 +213,32 @@ function postesLeftOf(collected, currentCents) {
   return Object.fromEntries(Object.entries(left).map(([poste, cents]) => [poste, round2(cents / 100)]));
 }
 
-module.exports = { overpayment, overpaymentLinesOf, currentByPoste, postesLeftOf };
+/**
+ * specs/pricing-components.md rule 112 (loop t7 B7-3) — the part of a trop-perçu that cash notes took, when it is only a part: that money
+ * goes back « caisse interne » (rule 106 b) and the rest by the means it came by, so the avoir covers only money the books hold. The cash
+ * part is carved out of the poste split, the prestations first (where note money lives), then the tax and the accommodation.
+ *
+ * @param {Array<{ bucket, label, amountTtc }>} lines  the trop-perçu split by poste (`overpaymentLinesOf`)
+ * @param {number} overpaymentTtc  the trop-perçu
+ * @param {number} cashCents  the cash notes' part of it (`cashNoteExcessCents`)
+ * @returns {{ amountTtc: number, restTtc: number, lines: Array<{ bucket, label, amountTtc }> } | null}  null when no part or the whole is cash
+ */
+function cashPartOf(lines, overpaymentTtc, cashCents) {
+  const totalCents = Math.round(Number(overpaymentTtc || 0) * 100);
+  const cash = Math.min(Math.max(0, Math.round(Number(cashCents) || 0)), totalCents);
+  if (!(cash > 0) || cash >= totalCents) return null;
+  const order = ['options', 'resources', 'touristTax', 'accommodation'];
+  const sorted = [...(lines || [])].filter((l) => Number(l.amountTtc) > 0).sort((a, b) => order.indexOf(a.bucket) - order.indexOf(b.bucket));
+  let left = cash;
+  const part = [];
+  for (const line of sorted) {
+    const take = Math.min(left, Math.round(Number(line.amountTtc) * 100));
+    if (!(take > 0)) continue;
+    part.push({ bucket: line.bucket, label: line.label, amountTtc: take / 100 });
+    left -= take;
+  }
+  if (left > 0) part.push({ bucket: 'options', label: POSTES[1].label, amountTtc: left / 100 });
+  return { amountTtc: cash / 100, restTtc: (totalCents - cash) / 100, lines: part };
+}
+
+module.exports = { overpayment, overpaymentLinesOf, currentByPoste, postesLeftOf, cashPartOf };

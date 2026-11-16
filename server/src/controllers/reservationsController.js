@@ -98,7 +98,7 @@ function gateInsurance(res, engineInput, bookingId) {
   return true;
 }
 const refundsModel = require('../models/refundsModel');
-const { overpayment, overpaymentLinesOf } = require('../utils/overpayment');
+const { overpayment, overpaymentLinesOf, cashPartOf } = require('../utils/overpayment');
 const { owedOnLineLowered } = require('../utils/pricing/refunds/owed');
 const { grossOf } = require('../utils/pricing/platformPayment');
 const refundObligations = require('../models/refundObligationsModel');
@@ -489,17 +489,22 @@ function overpaymentIntroducedBy(reservationId, quote, overrides = {}) {
     autoComplementCents, engineDriftCents: replay ? totalCentsOf(replay) - totalCentsOf(quote) : 0,
   }, 'asSaved') / 100;
   if (after <= before + 0.01) return null;
+  const cashCents = cashNoteExcessCents(db, reservationId, { quote });
+  const overpaymentMethod = refundMeansOf(row, round2(quote.complementCollectedExcessTtc), after, cashCents);
+  const overpaymentLines = overpaymentLinesOf({
+    row, capturedByPoste: model.capturedScheduleContribsByPoste(reservationId), quote, overpaymentTtc: after, received,
+    // Computed before the write: the stored lines are still the ones the complement collected.
+    complementLeft: Number(quote.complementCollectedExcessTtc) > 0 ? complementLeftOf(reservationId, quote, row) : {},
+    leftover: leftOfStayOf(reservationId, row, quote),
+  });
+  const overpaymentCash = overpaymentMethod ? null : cashPartOf(overpaymentLines, after, cashCents);
   return {
     error: `Trop-perçu : ${formatCurrency(after)} déjà encaissés au-delà du nouveau total.`,
     code: 'OVERPAID',
     overpaymentTtc: after,
-    overpaymentMethod: refundMeansOf(row, round2(quote.complementCollectedExcessTtc), after, cashNoteExcessCents(db, reservationId, { quote })),
-    overpaymentLines: overpaymentLinesOf({
-      row, capturedByPoste: model.capturedScheduleContribsByPoste(reservationId), quote, overpaymentTtc: after, received,
-      // Computed before the write: the stored lines are still the ones the complement collected.
-      complementLeft: Number(quote.complementCollectedExcessTtc) > 0 ? complementLeftOf(reservationId, quote, row) : {},
-      leftover: leftOfStayOf(reservationId, row, quote),
-    }),
+    overpaymentMethod,
+    overpaymentLines,
+    ...(overpaymentCash ? { overpaymentCash } : {}),
   };
 }
 
@@ -595,17 +600,18 @@ function refundMeansOf(row, complementExcess, overpaymentTtc, cashNoteCents = 0)
 
 // The trop-perçu `overpaymentTtc` of a stay, with its refund means and its split by poste, the quote being
 // the stay as it would be saved (or as it is stored).
+// Loop t7 B7-3 (rule 112) — `overpaymentCash`, when cash notes took only part of it: that part is proposed « caisse interne », the rest after.
 function overpaymentResultOf(reservationId, row, quote, overpaymentTtc, { storedOnly = false } = {}) {
   const complementExcess = round2(quote.complementCollectedExcessTtc);
-  return {
-    overpaymentTtc,
-    overpaymentMethod: refundMeansOf(row, complementExcess, overpaymentTtc, overpaymentTtc > 0 ? cashNoteExcessCents(db, reservationId) : 0),
-    overpaymentLines: overpaymentLinesOf({
-      row, capturedByPoste: model.capturedScheduleContribsByPoste(reservationId), quote, overpaymentTtc, received: readSplitReceived(db, reservationId),
-      complementLeft: complementExcess > 0 && overpaymentTtc > 0 ? complementLeftOf(reservationId, quote, row) : {},
-      leftover: overpaymentTtc > 0 ? leftOfStayOf(reservationId, row, quote, { storedOnly }) : {},
-    }),
-  };
+  const cashCents = overpaymentTtc > 0 ? cashNoteExcessCents(db, reservationId) : 0;
+  const overpaymentMethod = refundMeansOf(row, complementExcess, overpaymentTtc, cashCents);
+  const overpaymentLines = overpaymentLinesOf({
+    row, capturedByPoste: model.capturedScheduleContribsByPoste(reservationId), quote, overpaymentTtc, received: readSplitReceived(db, reservationId),
+    complementLeft: complementExcess > 0 && overpaymentTtc > 0 ? complementLeftOf(reservationId, quote, row) : {},
+    leftover: overpaymentTtc > 0 ? leftOfStayOf(reservationId, row, quote, { storedOnly }) : {},
+  });
+  const overpaymentCash = overpaymentMethod ? null : cashPartOf(overpaymentLines, overpaymentTtc, cashCents);
+  return { overpaymentTtc, overpaymentMethod, overpaymentLines, ...(overpaymentCash ? { overpaymentCash } : {}) };
 }
 
 // What left the stay since its money was collected, per poste (rule 74): each line against what the payments named on it, the
@@ -1110,7 +1116,7 @@ function getById(req, res) {
     // specs/reservation-payment-ledger.md rule 1 — the payments ledger, ready to render.
     ledger: ledgerFor({
       row: { ...model.getRow(reservation.id), cautionAmount: reservation.cautionAmount },
-      overpayment: (() => { const over = storedOverpayment(reservation.id); return over ? { ttc: over.overpaymentTtc, lines: over.overpaymentLines, method: over.overpaymentMethod } : null; })(),
+      overpayment: (() => { const over = storedOverpayment(reservation.id); return over ? { ttc: over.overpaymentTtc, lines: over.overpaymentLines, method: over.overpaymentMethod, cash: over.overpaymentCash || null } : null; })(),
     }),
     // Rule 39 — the headline of the sticky total bar, from the stored row: what the fiche shows while it
     // shows the stored ledger (rule 7), so the two never disagree.
@@ -1478,7 +1484,7 @@ async function calculatePrice(req, res) {
       quote,
       live,
       propertyId,
-      overpayment: { ttc: quote.overpaymentTtc, lines: quote.overpaymentLines, method: quote.overpaymentMethod },
+      overpayment: { ttc: quote.overpaymentTtc, lines: quote.overpaymentLines, method: quote.overpaymentMethod, cash: quote.overpaymentCash || null },
     });
     // Rule 21 — the amount editor asks; the server answers the refusal or the consequence.
     const edit = req.body.ledgerEdit;

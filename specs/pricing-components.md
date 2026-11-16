@@ -2281,6 +2281,31 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
     complement the engine already restated, a commit that bills no paid line again, and a refunded line (rule 108, refused) move nothing. On the
     copy: 55/55 stays balanced, the 34 obligations closed, 22303 / 22306 / 22336 / 22282 / 22308 asked their 45 €. The departure SAS does not
     reach a note-paid line through its recall (probe: Σ unchanged on all 55). Test `sas-arrival-paid-line-unoffered`.
+110. **Money already refunded is never credited again** _(stabilisation loop t7, B7-1, 2026-11-16; completes rules 104, 106 a, 107)_. Rule
+    104's note credit — the note money no line claims, which the schedule takes off the open complement, the end-of-stay remainder, then the
+    acompte and the solde not yet paid (`midStayExtras.unclaimed` → `noteCredit`) — is counted less what a refund on the trop-perçu already gave
+    back of it: the `lineLowered` rows refunds settled, the same subtraction `paidLineJudgment.noteExcessCents` makes (D6-1). Before, a note line
+    offered, its 30 € refunded, then a 20 € line sold unpaid read « Reste à payer 0 »: the refunded money still absorbed the new charge (received
+    net 300 for a stay of 320). Now the 20 € are asked at the departure — direct and Booking, the note paid by card or in cash. The engine reads
+    it as one input, `refundedNoteCredit` (euros, `reservationQuoteContext` → `loadStay`), applied in the midStay step (`lessRefundedCredit`,
+    `unclaimed` gone at 0); a refund deleted reopens its rows and the money is owed back again. The 2026-11-11 copy holds no settled
+    `lineLowered` row: no stay moves (replay = the 15 approved differences). Tests `sale-note-credit-after-refund`,
+    `stay-note-refund-money-conservation`.
+111. **The trop-perçu of note money is refunded on the poste that sold it** _(stabilisation loop t7, B7-2, 2026-11-16; completes rule 74 and
+    reservation-refunds rule 35)_. `postesLeft` (scope `schedule`) reads the notes from their register, by the line key each note line names (a
+    note's allocation loses its line once that line is offered): a note line offered, discounted or lowered leaves its money on its line's poste
+    — « Prestations complémentaires » for an option or a custom line, « Activités » for a resource. The refund dialog's prefill
+    (`overpaymentLines`, the ledger's `refundPrefill`, the fiche-save 409) therefore reads « Prestations complémentaires » and the avoir reverses
+    70600010, the account the note booked, never 70600000. A note line still charged at what its note paid leaves nothing. The arrival-complement
+    excess key keeps its own reading (rule 104). Test `refund-note-overpayment-poste`.
+112. **A trop-perçu of cash and card notes is refunded in two parts** _(stabilisation loop t7, B7-3, 2026-11-16; completes rule 106 b)_. When cash
+    notes took only part of the trop-perçu, the stored and live figures carry `overpaymentCash` `{ amountTtc, restTtc, lines }` (`cashPartOf`:
+    the cash cents carved from the poste split, the prestations first) and the ledger's `refundPrefill.cashPart`. The refund dialog opens on that
+    part « Caisse interne » with its lines, and says « X payés en espèces : rendus en caisse interne. Reste Y à rembourser ensuite. »; once it is
+    given back, the ledger's « Trop-perçu » row holds the rest, which defaults to the means it came by — `cashNoteExcessCents` deducts the cash a
+    caisse-interne refund on the trop-perçu settled (the `lineLowered` rows settled by a refund of method `internal`). The avoir thus covers only
+    booked money (cash 30 + card 30 offered: one avoir of 30 on 70600010, not 60). The operator can still change the amount and the means. Tests
+    `refund-mixed-cash-card-note`, client `RefundDialog.cash-part`.
 
 ## 4. Architecture
 
@@ -2625,6 +2650,10 @@ _Rewritten 2026-11-15 (stabilisation loop t1, UI-3) to what shipped._
 - [x] `cash-note-excess-quote-capped` — rule 106 b reading (loop t7): the quote's cash part capped by what the quote charges anew (4)
 - [x] `sas-arrival-paid-line-unoffered` — rule 109 (loop t7, S7-1): « Offert » unticked at the arrival SAS on a card-paid line: plan paid → the 30 € obligation closes, Σ unchanged, no « Trop-perçu »; solde unpaid → 30 € asked again; the seed kept → nothing moves; the recap played alone writes nothing (4)
 - [x] `save-pre-420-stay-lines-kept` — rule 82 reading (loop t7, S7-3): a pre-4.2.0 stay's no-change save keeps its unlinked ménage and its price; a 4.2.0 stay still stores the early-arrival line (2)
+- [x] `sale-note-credit-after-refund` — rule 110 (loop t7, B7-1): `lessRefundedCredit`; offered, refunded, then a 20 € line sold unpaid → asked in full at the departure, direct and Booking × card and cash; the refund deleted reopens the obligation, Σ still balanced (6)
+- [x] `refund-note-overpayment-poste` — rule 111 (loop t7, B7-2): a card note line offered → `postesLeft` options 30, prefill « Prestations complémentaires », avoir on 70600010, direct and Booking; a line still charged leaves nothing (3)
+- [x] `refund-mixed-cash-card-note` — rule 112 (loop t7, B7-3): `cashPartOf`; cash 30 + card 30 offered → 30 « Caisse interne » proposed, then 30 by the booked means, one booked avoir of 30, direct and Booking (3)
+- [x] `stay-note-refund-money-conservation` — rules 104, 106-112 (loop t7): random sequences of notes by card / cash, unpaid sales, offers, refunds as proposed, refunds deleted; after every step Σ buckets + notes − owed − refunded = total, booked avoirs ≤ booked note money, no note money refunded on the accommodation (6 seeds × 12 steps)
 
 ### Client Vitest suites (named 2026-11-16, stabilisation loop t2 P2-2)
 - [x] `ReservationPage.extra-sales-panel` — rule 101 (UI2-1 to UI2-4): a started stay with the window open sells and moves its lines, a collected departure does not, the fiche's `saleDetail` read once, a dirty fiche holds the writes and keeps the typed note, a write on a clean fiche re-reads without the loading screen, and while the re-read is in flight the fiche is busy (fields read-only, « Enregistrer » disabled)
@@ -2633,6 +2662,7 @@ _Rewritten 2026-11-15 (stabilisation loop t1, UI-3) to what shipped._
 - [x] `SaleDetailList.moment`, `SaleDetailList.groups`, `SaleDetailList.discount` — rules 13, 31, 95: the moment menu lists the line's `moments`, the groups, the discount chips
 - [x] `StaySalesSection.accessibility` — rules 31, 32: the SAS sections' accessible names and targets
 - [x] `PricingSummary.refunded-line`, `ReservationSasDialog.refunded-line` — rule 108 (loop t7, D7-1): a refunded offered line reads offered with no toggle, the other offered line keeps « ✓ Offert » (2 + 1)
+- [x] `RefundDialog.cash-part` — rule 112 (loop t7, B7-3): the cash part opens « Caisse interne » with its lines and announces the rest; without it, the whole trop-perçu by transfer (2)
 - [x] `SaleDetailList.credit`, `StaySalesSection.credit` — rules 104 e, 106 c (loop t6, UI6-1 to UI6-3): the credit line read-only in the fiche's panel, « Reste à payer » the served figure; no « Offrir » on the departure credit
 - [x] `ReservationSasDialog.arrival-seed` — rule 107 c (loop t6, S6-3): the dialog seeds the offered lines from `arrivalSeed.offeredKeys` (2)
 - [x] `ReservationSasDialog.paid-line-offer` — rule 107 d (loop t6 S6-4, loop t7 UI7-2, UI7-3): arrival and departure, the 409 asks, confirmed commits again with `forceOverpayment`, « Garder » bills the named line again and commits nothing (4)
