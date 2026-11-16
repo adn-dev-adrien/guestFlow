@@ -380,8 +380,35 @@ function planSchedule({
       key: ARRIVAL_COMPLEMENT_EXCESS_KEY,
     })]
     : midStayExtras.lines;
-  const midStayRemainingDue = roundMoney(midStayRemainingTotal + excessStillDue);
-  const midStaySettledAll = roundMoney(midStaySettledTotal + excessSettledByNotes);
+  // Rule 104 (stabilisation loop t4, S4-3) — money a note collected on a line since offered or discounted stays credited to the stay: it
+  // comes off what the stay still asks, the open arrival complement first (never a collected or adjusted one), then the end-of-stay
+  // remainder, then the acompte and the solde not yet paid of a direct stay (a platform's are its payout). What no open bucket absorbs is
+  // money received beyond the total: the trop-perçu of rule 23, refused until confirmed.
+  let noteCredit = roundMoney(Number(midStayExtras.unclaimed || 0));
+  const creditOff = (amount) => {
+    const cut = roundMoney(Math.max(0, Math.min(noteCredit, amount)));
+    noteCredit = roundMoney(noteCredit - cut);
+    return cut;
+  };
+  if (noteCredit > 0 && !complementPaid && !complementOverridden) resolvedComplementAmount = roundMoney(resolvedComplementAmount - creditOff(resolvedComplementAmount));
+  let creditedLines = midStayLinesWithExcess;
+  if (noteCredit > 0) {
+    creditedLines = midStayLinesWithExcess
+      .map((line) => {
+        const cut = creditOff(line.amount);
+        return cut > 0 ? buildMidStayLine({ label: line.label, unitPrice: line.unitPrice, amount: roundMoney(line.amount - cut), key: line.key }) : line;
+      })
+      .filter((line) => Number(line.amount) > 0);
+  }
+  if (noteCredit > 0 && !platformIsNonDirect && !installmentPlan) {
+    if (!balancePaid) resolvedBalanceAmount = roundMoney(resolvedBalanceAmount - creditOff(resolvedBalanceAmount));
+    if (!depositPaid) resolvedDepositAmount = roundMoney(resolvedDepositAmount - creditOff(resolvedDepositAmount));
+  }
+  const noteCreditApplied = roundMoney(Number(midStayExtras.unclaimed || 0) - noteCredit);
+  const creditedRemainder = roundMoney(creditedLines.reduce((sum, line) => sum + Number(line.amount || 0), 0)
+    - midStayLinesWithExcess.reduce((sum, line) => sum + Number(line.amount || 0), 0));
+  const midStayRemainingDue = roundMoney(midStayRemainingTotal + excessStillDue + creditedRemainder);
+  const midStaySettledAll = roundMoney(midStaySettledTotal + excessSettledByNotes + noteCreditApplied);
   // What the engine would collect on its own — the « Calcul auto (X €) » the fiche shows under the
   // adjustment field, and the base the accounting ventilation is spread over (§3.6 rule 36).
   const autoComplementAmount = roundMoney(resolvedComplementAmount);
@@ -415,7 +442,7 @@ function planSchedule({
     endOfStayComplementTotal,
     installmentPlan,
     isTouristTaxForcedToComplement,
-    midStayLinesWithExcess,
+    midStayLinesWithExcess: creditedLines,
     midStayRemainingDue,
     midStaySettledAll,
     overCollectedTtc,

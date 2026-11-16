@@ -1,6 +1,6 @@
-// specs/arrival-moment-is-the-check-in.md §3 rule 3, amended 2026-11-16 (stabilisation loop t4, D4-2, D4-3; pricing-components rules 102 a,
-// 103 b) — the boot repair clears the arrival-extras baseline only of a stay the stay clock has not started, and never one that carved a line
-// out to the departure. Before, every restart between the check-in hour and the tick erased the baseline rule 102 had laid: the departure part
+// specs/arrival-moment-is-the-check-in.md §3 rule 3, amended 2026-11-16 (stabilisation loop t4, D4-2, D4-3).
+// specs/pricing-components.md rules 102 a, 103 b — the boot repair clears the arrival-extras baseline only of a stay the stay clock has not started, and never one that carved a line
+// out to the departure. Before, every restart between the check-in hour and the tick erased the baseline pricing-components rule 102 had laid: the departure part
 // of a grown line left every bucket (306 + 0 + 45 = 351 € for a final price of 363 €).
 process.env.DB_PATH = ':memory:';
 process.env.TZ = 'Europe/Paris';
@@ -31,7 +31,7 @@ test('D4-3 — a stay not started, nothing carved out: its baseline is cleared',
   assert.equal(row(id).arrivalExtrasBaseline, null);
 });
 
-test('D4-3 — a stay not started that carved a line out to the departure keeps its baseline (rule 103 b)', () => {
+test('D4-3 — a stay not started that carved a line out to the departure keeps its baseline (pricing-components rule 103 b)', () => {
   const id = futureStayWithBeer();
   db.prepare("UPDATE reservation_options SET collectAt = 'departure' WHERE lineId = ?").run(beerLine(id));
   assert.ok(!clearPreArrivalBaselines(db, { now: at(id, '12:00', -5) }).includes(id));
@@ -64,7 +64,7 @@ for (const reboot of [false, true]) {
     const grown = storedBody(id);
     grown.options = grown.options.map((option) => ({ ...option, quantity: 3 }));
     assert.equal(controller.performUpdate(id, grown, { now: at(id, '18:30') }).status, 200);
-    assert.ok(row(id).arrivalExtrasBaseline, 'rule 102 laid a baseline on the started stay');
+    assert.ok(row(id).arrivalExtrasBaseline, 'pricing-components rule 102 laid a baseline on the started stay');
     if (reboot) assert.ok(!clearPreArrivalBaselines(db, { now: at(id, '18:45') }).includes(id));
     assert.equal(extraSale.sell(id, [{ articleRef: 'custom', label: 'Panier', amount: 45 }], { now: at(id, '19:00') }).status, 200);
     const r = row(id);

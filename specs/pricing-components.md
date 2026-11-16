@@ -442,6 +442,8 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
     > discounting or removing an UNPAID line (`settledCents` 0) is no longer refused (no 409 `OVERPAID`, no `forceOverpayment` needed): the
     > trop-perçu grows by exactly that line and is refunded through the usual trop-perçu path; no `lineLowered` obligation is opened (the line
     > carried no money). A paid line keeps the rules above. Test: `pricing-unpaid-line-on-overpaid-stay`.
+    > **Reading 2026-11-16 (loop t4, S4-3):** a paid line lowered on a stay that still asks money is not refused: the money it gives back comes off
+    > what the stay asks (rule 104); only what no open bucket takes is the trop-perçu refused until confirmed.
 24. **One article, one price path.** The evening supplement of an hourly session is a component of the
     session's priced line (rule 5), priced by HOURLY TARIFF whatever the seller. The SAS no longer adds an
     `evening:<id>` complement line computed elsewhere; the `eveningCredit` worked back from stored totals
@@ -535,6 +537,8 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
     > `PRICE_CHANGED`.
     > _Amended 2026-11-15 (rule 93):_ the quote, its dry runs and the write all pin on the same base, so what the quote says the stay moves by is
     > exactly what the write adds to the stored row.
+    > _Amended 2026-11-16 (loop t4, S4-4):_ a quote paid now announces the departure net of the note the sale writes in the same transaction
+    > (`buckets.departure` 0 where it said the line's price). Test `sale-quote-paid-now-buckets`.
 
 ### 3.G The detail, everywhere the same
 
@@ -1941,6 +1945,9 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
     is refused 409 `MOMENT_NOT_AVAILABLE` « Avant l’arrivée, une vente se paie à l’arrivée. », a move to the arrival only re-routes the line (no baseline),
     and `saleDetail` serves each line's `moments` (`['arrival']` before the arrival, `['arrival', 'departure']` once started, `[]` for an offered, paid or
     platform line) and `movable`, which the screens render instead of rebuilding the rule (UI-11). Test `sale-move-before-arrival`.
+    > _Amended 2026-11-16 (loop t4, S4-5):_ « before the arrival » is the stay clock's, also on a stay whose extras are carved out early (its arrival
+    > complement collected): there a plan or arrival line is served no departure moment and its move there is refused; only a line the sale stamped
+    > `departure` (`collectAtDefault`) goes to the arrival and back. Test `sale-plan-line-move-before-arrival`.
 96. **A breakfast sold before the arrival is collected at the arrival, card money included** _(stabilisation loop t1, S-4, S-5, 2026-11-15; completes
     rules 19, 29, 85)_. The stay's first breakfast line is a new line like any sale's (numbered, routed to the arrival complement before the arrival —
     before, it fell in the plan or the complement depending on the plan's state). A later morning keeps merging into that line (rule 85), and a card
@@ -2084,6 +2091,32 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
     > `sale-moment-bucket-agree` (the probe, on fixtures), `sale-false-start-undone`, `sale-open-arrival-offered-line`, `sale-discounted-line-baseline`,
     > `sas-arrival-recap-lists-what-it-collects`, `fiche-line-stamped-where-money-goes`, `sale-detail-plan-bucket-stored`, `sale-at-arrival-contract`,
     > `sas-custom-label-own-number`.
+    > _Loop t4 (2026-11-16):_ (b) **an overridden complement keeps the start** (S4-2): unticked before the hour, a stay whose arrival complement is the
+    > operator's own amount (`complementAmountOverride`) keeps its baseline and its carved lines at the departure, as one that collected something
+    > (before: the line went back to an arrival complement the override pinned, and its money landed in no bucket). Test `sale-untick-complement-override`.
+    > (d) **the arrival takes given-back money only while it is open** (S4-6): `fitArrivalBaseline` raises a key on a discount reduced or removed only
+    > while the arrival is not validated and its complement not collected; past that, the restate carved the given-back part out to the departure and the
+    > baseline stays (before: raised there, the next save dropped the part from every bucket, Σ −10 €). The part an arrival or plan line holds at the
+    > departure is the line's `departureCents` in `saleDetail`: « Ventes du séjour — au départ » lists it, the arrival lists the rest. Tests
+    > `sale-departure-part-of-arrival-line`, `sale-undiscount-open-arrival-then-sale` (S4-1: discount 10 then 0 at the open arrival, ticked, a sale: the
+    > departure takes only the sale).
+104. **A paid line lowered: its money stays credited to the stay** _(stabilisation loop t4, S4-3, 2026-11-16; completes rules 23, 29; amends
+    mid-stay-notes rule 13)_. A line paid now (cash, card terminal: one settled note naming it, rule 29) then offered or discounted left the note's
+    money above what its key now carries, and the mid-stay split clamped it away: on stay 22336 (solde paid, 60,40 € arrival complement due) a 45 € line
+    paid in cash the day after the arrival then offered left the arrival and departure SAS asking 60,40 € for a stay that owed 15,40 €.
+    (a) **The surplus is named.** `splitMidStayExtras` exposes `unclaimed`: what the notes collected on a key beyond what the key now carries (the
+    arrival-complement-excess key keeps its own reading). The carve-out itself is unchanged.
+    (b) **The schedule credits it to what the stay still asks**, in this order: the arrival complement while it is not collected and not the
+    operator's own amount, the end-of-stay remainder of the mid-stay lines, then the acompte and the solde not yet paid of a direct stay (a
+    platform's plan is its payout); the part credited counts as settled during the stay (`midStaySettledTotal`). A bucket a sale-pinned write
+    lowers stops at 0 (`pinSaleDelta`): a credit taken from a figure the stay does not store is not money any bucket gives back.
+    (c) **What no open bucket takes is a trop-perçu**: on a direct stay the line API answers 409 `OVERPAID` and, confirmed, opens the `lineLowered`
+    obligation (rule 23); on a platform stay, which holds no trop-perçu (reservation-refunds rule 38), the gesture is refused 409 `LINE_PAID`
+    « Ligne déjà payée : rien à percevoir sur ce séjour ne peut reprendre ce montant. Ajuster d’abord l’encaissement en séjour. » and nothing moves.
+    > _Measured on a fresh copy of the prod database of 2026-11-11 (2026-11-16):_ on the 55 open stays the day after the arrival, a 45 € option sold
+    > in cash then offered (then, separately, discounted 10 €): what the stay still asks drops by the lowered amount or the confirmed obligation holds
+    > it, and Σ (acompte, solde, complements, notes) − obligations = price + tax, 55 of 55; 22336 asks 15,40 € at both SAS. Offered: 5 credited, 10
+    > confirmed as owed, 40 platform stays refused. The price replay moves nothing but the 15 approved differences. Test `sale-paid-line-lowered-credited`.
 
 ## 4. Architecture
 
@@ -2401,6 +2434,12 @@ _Rewritten 2026-11-15 (stabilisation loop t1, UI-3) to what shipped._
 - [x] `sale-detail-plan-bucket-stored` — rule 103 g (T3-5)
 - [x] `sale-at-arrival-contract` — rule 103 h (T3-6): the quote announces the arrival bucket; `ARRIVAL_CLOSED` once validated or collected
 - [x] `sas-custom-label-own-number` — rule 103 i (T3-7): linen items with their own « (n) » keep their rows across re-runs
+- [x] `sale-paid-line-lowered-credited` — rule 104 (loop t4, S4-3): a cash line offered or discounted comes off the open arrival complement; nothing open → `OVERPAID` then the obligation on a direct stay, `LINE_PAID` on a platform stay; the split's `unclaimed` (5)
+- [x] `sale-untick-complement-override` — rule 103 b (loop t4, S4-2): an overridden complement keeps the start when unticked before the hour
+- [x] `sale-quote-paid-now-buckets` — rule 30 (loop t4, S4-4): a quote paid now announces the buckets the sale writes (2)
+- [x] `sale-plan-line-move-before-arrival` — rule 95 (loop t4, S4-5): a plan line of a stay carved out early is not moved to the departure before the arrival; a line stamped there goes and comes back (2)
+- [x] `sale-departure-part-of-arrival-line` — rule 103 d (loop t4, S4-6): a discount given back after the validated arrival is listed at the departure and stays there after the next sale (2)
+- [x] `sale-undiscount-open-arrival-then-sale` — rule 103 d (loop t4, S4-1): discount 10 then 0 at the open arrival, ticked, a sale: the departure takes only the sale
 
 ### Client Vitest suites (named 2026-11-16, stabilisation loop t2 P2-2)
 - [x] `ReservationPage.extra-sales-panel` — rule 101 (UI2-1 to UI2-4): a started stay with the window open sells and moves its lines, a collected departure does not, the fiche's `saleDetail` read once, a dirty fiche holds the writes and keeps the typed note, a write on a clean fiche re-reads without the loading screen, and while the re-read is in flight the fiche is busy (fields read-only, « Enregistrer » disabled)

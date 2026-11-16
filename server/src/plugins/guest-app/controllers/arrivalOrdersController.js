@@ -61,7 +61,8 @@ function buildArrivalOrdersController({
     const stay = stays().byId(reservationId);
     return Boolean(stay && stay.endDate) && parisDate(now()) > String(stay.endDate);
   };
-  const editableStay = (reservationId) => sale().collectionOf(reservationId, now()) !== 'closed'
+  // Loop t4 A4-1 — the core's judge (`extraSale.arrivalOpenAt`) is the one the sale refuses by: a kept false start reads the order read-only.
+  const editableStay = (reservationId) => sale().arrivalOpenAt(reservationId, now())
     && !stays().arrivalMarked(reservationId)
     && stays().arrivalComplementState(reservationId) !== 'collected'
     && !pastDeparture(reservationId);

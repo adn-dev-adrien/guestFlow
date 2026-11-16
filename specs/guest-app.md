@@ -1093,7 +1093,11 @@ arrival.** Everything below is judged by the server; the apps render what it off
     departure day.** Rule 110 a's edit stays open until the arrival is validated, but an arrival never validated (no SAS, no check-in mark, the
     departure not settled) no longer keeps it open once the stay is over: from the day after `endDate` (Paris day) the step shows the order not
     editable and the change is refused, 409 `ORDER_NOT_EDITABLE`. The departure day itself is still editable. The order is then changed on the
-    fiche. Test: `guest-order-arrival-amend-departure-day`. (b) **A paid card order of a cancelled stay reads « Remboursée » in the staff list
+    fiche. Test: `guest-order-arrival-amend-departure-day`. _(Loop t4, A4-1, 2026-11-16:)_ « the arrival still open » has one judge, the core's
+    `extraSale.arrivalOpenAt` (SDK 2.31): the step's `editable` and the sale's `atArrival` refusal both read it. A stay whose false start was kept
+    (a baseline stored, unticked before the hour) already carves its sales out to the departure: until the check-in hour the order is shown not
+    editable, and the sale refuses `atArrival` 409 `ARRIVAL_CLOSED` « Les ventes de ce séjour se règlent déjà au départ : la commande aussi. »
+    (never « Arrivée déjà validée » when it is not). Test: `guest-order-arrival-kept-false-start`. (b) **A paid card order of a cancelled stay reads « Remboursée » in the staff list
     once the cancellation's refund dialog gave it back** (before: « Payée · à rembourser » for ever). The register keys a line by its article,
     not by its order, so « given back » means: every article key of the lines the order placed on the fiche (`orderRef` `order:<id>:…`) has
     been refunded outside a requalification **and** the dialog offers nothing more on it; a part given back, or a key still holding refundable
@@ -1597,6 +1601,7 @@ le nom et le numéro. »
 - [x] `guest-order-cancelled-stay-money` — rule 109 a-b (loop t1 B-2, AG-4, AG-5, AG-6): the cancellation leaves the register alone (rule 110 b); a payment on a cancelled order is a conflict
 - [x] `guest-order-cancelled-stay-refund-home` — rule 110 b (owner 2026-11-16, B-2): paid before the cancellation → the refund dialog only, never twice; paid after → the register only
 - [x] `guest-order-arrival-amend-after-check-in` — rule 110 a (owner 2026-11-16, AG-2): editable past the check-in hour until the arrival is validated, re-sold into the arrival complement
+- [x] `guest-order-arrival-kept-false-start` — rule 111 a reading (loop t4, A4-1): a kept false start before the hour shows the order read-only and refuses `atArrival` without « validée »; editable again from the check-in hour
 - [x] `guest-order-evening-stable-key` — rule 82 (loop t2 N-6): the supplement carries its bath's key; the recompute reads every supplement of that bath
 - [x] `guest-order-arrival-amend-bath` — rule 109 d (AG-1, AG-3): the supplement goes with its bath; a bath on held hours is not changed from the SAS
 - [x] `guest-order-cancelled-refunded-label` — rules 111 b, 112 b (loop t2 AG2-2, t3 A3-2): « Remboursée » once given back; two orders of one article are two keys

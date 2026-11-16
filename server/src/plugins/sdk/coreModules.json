@@ -996,6 +996,7 @@
     "create"
   ],
   "extraSale": [
+    "arrivalOpenAt",
     "changeLine",
     "collectionOf",
     "departureSalesOf",

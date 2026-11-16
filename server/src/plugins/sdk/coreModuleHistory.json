@@ -308,6 +308,9 @@
         "refundGivenBack"
       ],
       "names": {
+        "extraSale": [
+          "arrivalOpenAt"
+        ],
         "saleDetail": [
           "buildDocumentDetail"
         ],

@@ -100,6 +100,10 @@ const updateLine = (id, fields) => update('standalone_sale_lines', COLUMNS.line,
 
 const bumpVersion = (id) => database().prepare('UPDATE standalone_sales SET version = version + 1 WHERE id = ?').run(Number(id));
 
+// Loop t4 (apps note) — a row closes at the application's clock, in SQLite's UTC text form: the day a kept surplus is booked on (its Paris day,
+// `standalonePaymentsModel.closedDay`) is the day of the gesture's own clock, the one the kept allocation is dated by, never SQLite's own clock.
+const closedAtNow = () => new Date().toISOString().replace('T', ' ').slice(0, 19);
+
 const findSale = (id) => database().prepare('SELECT * FROM standalone_sales WHERE id = ?').get(Number(id)) || null;
 const linesOf = (saleId) => database().prepare('SELECT * FROM standalone_sale_lines WHERE saleId = ? ORDER BY id').all(Number(saleId));
 const findLine = (saleId, lineId) => database().prepare('SELECT * FROM standalone_sale_lines WHERE saleId = ? AND id = ?').get(Number(saleId), Number(lineId)) || null;
@@ -120,13 +124,13 @@ const obligationsOf = (saleId) => database().prepare("SELECT id, origin, payment
 function resizeObligation(obligationId, amountCents) {
   const db = database();
   if (amountCents > 0) return db.prepare("UPDATE standalone_sale_obligations SET amountCents = ? WHERE id = ? AND status = 'open'").run(amountCents, Number(obligationId)).changes;
-  return db.prepare("UPDATE standalone_sale_obligations SET status = 'cancelled', settledAt = datetime('now'), settledBy = 'system' WHERE id = ? AND status = 'open'")
-    .run(Number(obligationId)).changes;
+  return db.prepare("UPDATE standalone_sale_obligations SET status = 'cancelled', settledAt = ?, settledBy = 'system' WHERE id = ? AND status = 'open'")
+    .run(closedAtNow(), Number(obligationId)).changes;
 }
 
 const findObligation = (saleId, obligationId) => database().prepare('SELECT * FROM standalone_sale_obligations WHERE saleId = ? AND id = ?').get(Number(saleId), Number(obligationId)) || null;
-const closeObligation = (obligationId, { status, by = null }) => database().prepare("UPDATE standalone_sale_obligations SET status = ?, settledAt = datetime('now'), settledBy = ? WHERE id = ? AND status = 'open'")
-  .run(String(status), by, Number(obligationId)).changes;
+const closeObligation = (obligationId, { status, by = null }) => database().prepare("UPDATE standalone_sale_obligations SET status = ?, settledAt = ?, settledBy = ? WHERE id = ? AND status = 'open'")
+  .run(String(status), closedAtNow(), by, Number(obligationId)).changes;
 // The counter's documents (no origin) that still owe money back, any day: the « À rembourser » block of the counter card.
 // Loop t1 D-3, D-4 — a document whose origin booking is gone (deleted, or the hourly plugin purged) is the counter's: no other screen reaches it.
 function counterOwnedSql(alias = 's') {

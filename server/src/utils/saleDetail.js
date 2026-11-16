@@ -95,14 +95,16 @@ function groupsOf(lines) {
 // line; before the arrival, the arrival only (a stay not started carves nothing out to the departure). `available` (rule 103), when the caller
 // knows it, is the stay's own list: the moments the engine routes a line to now (the departure once it carves the extras out, the arrival unless
 // its complement is collected).
-function momentsOf(line, phase, available = null) {
+function momentsOf(line, phase, available = null, beforeClock = false) {
   if (!['option', 'resource', 'custom'].includes(line.kind) || line.offered || line.status === 'paid' || line.status === 'platform') return [];
-  if (Array.isArray(available)) return available.slice();
+  // Loop t4 S4-5 (rule 95) — before the stay clock reaches the arrival, the departure is a moment only for a line the sale stamped there (sold
+  // after an early arrival complement; `beforeClock` is false for it): a plan or arrival line is never moved to the departure before the arrival.
+  if (Array.isArray(available)) return available.filter((moment) => !(beforeClock && moment === 'departure'));
   return phase === 'before' ? ['arrival'] : ['arrival', 'departure'];
 }
 
 function lineOf(raw, {
-  kind, facts, vatClassOf, platformStay, phase = null, available = null,
+  kind, facts, vatClassOf, platformStay, phase = null, available = null, beforeClock = false,
 }) {
   const key = extraLineKey(raw);
   const fact = facts[key] || null;
@@ -149,25 +151,45 @@ function lineOf(raw, {
     ...statusOf({ offered: Boolean(raw.offered), includedInPlatform, dueCents: due, settledCents, collectAt, paidAt: fact && fact.paidAt }),
     vatClass: vatClassOf ? vatClassOf(raw, kind) : null,
   };
-  line.moments = momentsOf(line, phase, available);
+  const soldForDeparture = collectAt === 'departure' || Boolean(fact && fact.collectAtDefault === 'departure');
+  line.moments = momentsOf(line, phase, available, beforeClock && !soldForDeparture);
   line.movable = line.moments.some((moment) => moment !== line.collectAt);
   return line;
 }
 
+// Loop t4 S4-6 (rules 31, 103) — the part of an arrival or plan line the engine carved out to the departure (a discount given back once the
+// arrival was validated, a line grown after it): `departureByKey` is the stored end-of-stay remainder by line key. The departure lines of a key
+// take theirs first; what is left is the line's `departureCents`, which « Ventes du séjour — au départ » lists, as the departure SAS does.
+function splitDepartureParts(lines, departureByKey) {
+  if (!departureByKey) return;
+  const left = { ...departureByKey };
+  for (const line of lines) {
+    if (line.collectAt === 'departure' && left[line.key] > 0) left[line.key] = Math.max(0, left[line.key] - line.totalCents);
+  }
+  for (const line of lines) {
+    if (!['arrival', 'plan'].includes(line.collectAt) || line.offered || !(left[line.key] > 0)) continue;
+    const part = Math.min(left[line.key], Math.max(0, line.totalCents - line.settledCents));
+    if (part <= 0) continue;
+    line.departureCents = part;
+    left[line.key] -= part;
+  }
+}
+
 function buildSaleDetail({
-  quote, facts = {}, phase = null, vatClassOf = null, platformStay = false, stored = null, moments = null,
+  quote, facts = {}, phase = null, vatClassOf = null, platformStay = false, stored = null, moments = null, beforeClock = false,
 } = {}) {
   const q = quote || {};
   const options = q.optionLines || [];
   const resources = q.resourceLines || [];
   const extraLines = [
     ...options.map((line) => lineOf(line, {
-      kind: line.isCustom ? 'custom' : 'option', facts, vatClassOf, platformStay, phase, available: moments,
+      kind: line.isCustom ? 'custom' : 'option', facts, vatClassOf, platformStay, phase, available: moments, beforeClock,
     })),
     ...resources.map((line) => lineOf(line, {
-      kind: 'resource', facts, vatClassOf, platformStay, phase, available: moments,
+      kind: 'resource', facts, vatClassOf, platformStay, phase, available: moments, beforeClock,
     })),
   ];
+  splitDepartureParts(extraLines, stored && stored.departureByKey);
   const extrasCents = extraLines.reduce((sum, line) => sum + line.totalCents, 0);
   // Rule 91 — the guests added after a platform's price was entered are billed like a line of their own, at the arrival.
   const extraGuestsCents = stored ? Math.max(0, Number(stored.extraGuestsCents || 0)) : 0;
@@ -215,7 +237,7 @@ function buildSaleDetail({
   // Rule 93 (loop t2 N-5) — a stored stay's arrival and departure buckets are what it stores, never a re-quote at another moment.
   const storedBucket = (field) => (stored && Number.isFinite(stored[field]) ? stored[field] : null);
   const arrivalBucket = storedBucket('arrivalCents') ?? toCents(q.resolvedComplementAmount != null ? q.resolvedComplementAmount : q.complementAmount);
-  const arrivalListed = lines.filter((line) => line.collectAt === 'arrival').reduce((sum, line) => sum + line.totalCents, 0);
+  const arrivalListed = lines.filter((line) => line.collectAt === 'arrival').reduce((sum, line) => sum + line.totalCents - Number(line.departureCents || 0), 0);
   if (stored && arrivalBucket - arrivalListed > 1) {
     const cents = arrivalBucket - arrivalListed;
     lines.push({
@@ -257,7 +279,13 @@ function buildSaleDetail({
 // « Ventes du séjour — au départ ». `null` when nothing is due there.
 const DEPARTURE_TITLE = 'Ventes du séjour — au départ';
 function departureSection(detail) {
-  const lines = ((detail && detail.lines) || []).filter((line) => line.collectAt === 'departure' && line.totalCents > 0);
+  const lines = ((detail && detail.lines) || []).flatMap((line) => {
+    if (line.collectAt === 'departure' && line.totalCents > 0) return [line];
+    // An arrival or plan line's part carved out to the departure is due there (loop t4 S4-6).
+    return line.departureCents > 0
+      ? [{ ...line, totalCents: line.departureCents, settledCents: 0, status: 'dueAtDeparture', statusLabel: 'À payer au départ' }]
+      : [];
+  });
   if (!lines.length) return null;
   // Rule 13: the lines of an article are grouped inside each block — what is left to collect on one side, what is already paid on the other.
   const isPaid = (line) => line.status === 'paid';
@@ -303,6 +331,9 @@ function arrivalComplementLines(detail, { addedGuestsTaxLabel = null, complement
     // complement collects; once the complement is paid, its lines are what it collected and stay listed.
     .filter((line) => line.collectAt === 'arrival' && !line.offered && line.totalCents > 0 && ARRIVAL_KIND[line.kind]
       && (complementPaid || !(Number(line.settledCents || 0) >= line.totalCents)))
+    // Loop t4 S4-6 — the part carved out to the departure is not the arrival's.
+    .map((line) => (line.departureCents > 0 ? { ...line, totalCents: line.totalCents - line.departureCents, billedUnits: 1, unitCents: line.totalCents - line.departureCents } : line))
+    .filter((line) => line.totalCents > 0)
     .map((line, index) => ({ line, index, kind: ARRIVAL_KIND[line.kind] }))
     .sort((a, b) => ARRIVAL_RANK[a.kind] - ARRIVAL_RANK[b.kind] || a.index - b.index)
     .map(({ line, kind }) => {

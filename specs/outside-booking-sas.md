@@ -502,6 +502,9 @@ once on the server by the refonte's components.
     link's payment day is not moved: the surplus was on no line, so it never was on that day's books. Test `standalone-sale-kept-surplus-tip`.
     > _Reading of 2026-11-16 (loop t4 B4-1, owner):_ the tip is read from the kept allocations (their booked part, on their day), and a `lineLowered` row
     > closed « rien » is a tip too (rule 56 a).
+    > _Reading 2026-11-16 (loop t4):_ the day of the tip is the Paris day of the application's clock when the row is closed: `settledAt` is written
+    > from it (in SQLite's UTC text form), never from SQLite's own clock, so the tip and its kept allocation share one day at any hour. Test
+    > `standalone-sale-kept-surplus-paris-day`.
 51. **Every booking payload carries its actions; the invoice reason is the stored visit's** _(stabilisation loop t2, UI2-5 to UI2-8, 2026-11-16;
     completes rules 6, 11, 27, 45, 48)_. (a) Every booking payload carries `actions: { noShow, arrive }` for its caller: the booking read, the rows of
     `GET /api/resource-bookings` (the booking dialog opens on them) and of `GET /api/resource-bookings/planning-events` (the planning cards; the
@@ -848,6 +851,7 @@ number; `prefers-reduced-motion` → no movement.
 - [x] `tests/standalone-sale-refund-journal.unit.test.js` — rule 48 (B-1): the refund allocations of a `lineLowered` row settled, the avoir of the refund day, the caisse interne kept off, nothing refunded twice
 - [x] `tests/standalone-sale-kept-surplus-tip.unit.test.js` — rule 49 (B-6): a link surplus kept is a tip on the day it is kept, on the tip account; refunded, it books nothing
 - [x] (loop t4, rule 56) `tests/standalone-sale-kept-lowered-line.unit.test.js` (5), `tests/standalone-sale-cancel-refund-order.unit.test.js` (4), `tests/standalone-sale-quote-plan.unit.test.js` (2), `tests/standalone-sale-money-conservation.unit.test.js` (1, 300 sequences × 12 steps), `plugins/hourly-resources/tests/visit-invoice-internal-held.unit.test.js` (2), `plugins/online-payment/tests/invoice-issuer-vat-per-group.unit.test.js` (5)
+- [x] `tests/standalone-sale-kept-surplus-paris-day.unit.test.js` — rule 50 (loop t4): a surplus kept at 00:30 Paris is a tip of that Paris day
 - [x] `plugins/hourly-resources/tests/visit-round1-reception-and-refunds.unit.test.js` — rules 44-46 (AV-1 to AV-8, AV-10, AV-11): the row and the invoice refusal, reception privacy, billing in the commit, `invoiceable`, `newSale`, the document's client follows the booking
 - [x] `plugins/hourly-resources/tests/booking-actions-no-show.unit.test.js` — rule 45 (UI-9): `actions.noShow` by day and role
 - [x] `tests/sale-link-expires-label.unit.test.js` — rule 45 (UI-15): the Paris label of a link's end

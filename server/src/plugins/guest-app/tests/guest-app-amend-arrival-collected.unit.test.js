@@ -45,7 +45,7 @@ test('rule 87 (N10): the arrival complement collected — the stay is no editabl
       shop: { soldFor: () => ({ sold: [] }) },
       stock: () => ({ states: () => new Map() }),
       alertStock: () => {},
-      sale: () => ({ collectionOf: () => 'arrival', removeLine: () => ({ status: 409, body: { code: 'REACHED_THE_CORE' } }) }),
+      sale: () => ({ collectionOf: () => 'arrival', arrivalOpenAt: () => true, removeLine: () => ({ status: 409, body: { code: 'REACHED_THE_CORE' } }) }),
       now: () => new Date('2099-01-01T10:00:00Z'),
     });
     controller.amend({ params: { id: '7' }, body: { lines: [{ key: `opt:${CIDER}`, quantity: 1 }] }, user: { role: 'admin' } }, res);
