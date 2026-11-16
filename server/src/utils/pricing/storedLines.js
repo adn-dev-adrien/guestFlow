@@ -68,4 +68,18 @@ function parseDetail(raw) {
   } catch { return []; }
 }
 
-module.exports = { extraLineKey, parseNotes, settledByKey, parseDetail };
+/**
+ * Rule 94 (and rule 100, loop t2 N-4) — a custom line has no article: it is named by its label. A NEW custom line whose label the stay already
+ * holds takes a numbered one (« Bière locale (2) », then « (3) ») on every writer — the sale, the arrival SAS, the fiche — so its payment, its
+ * discount and its removal stay its own. `takenKeys`: the `extraLineKey`s the stay's other custom lines hold.
+ */
+function numberedLabel(label, takenKeys) {
+  const keyOf = (text) => extraLineKey({ isCustom: true, description: text });
+  let candidate = label;
+  for (let n = 2; takenKeys.has(keyOf(candidate)); n += 1) candidate = `${label} (${n})`;
+  return candidate;
+}
+
+module.exports = {
+  extraLineKey, parseNotes, settledByKey, parseDetail, numberedLabel,
+};

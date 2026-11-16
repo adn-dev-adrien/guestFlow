@@ -91,6 +91,21 @@ function prepaidBaseline(lines, settled) {
 }
 
 /**
+ * Rule 100 (stabilisation loop t2, N-1) — the arrival baseline laid from the lines the stay carries: a line a card paid before the arrival
+ * (a note `beforeArrival`, `extraSalesModel.writeCardNote`) is in the baseline at what the card left to collect, so once the stay has
+ * started the note still nets it out of the arrival complement, exactly as `prepaidBaseline` does before it (before: from the check-in
+ * hour on, the line went back into the arrival complement and the SAS asked the guest again for what the card paid).
+ */
+function arrivalBaselineOf(lines, notesRaw) {
+  const baseline = buildExtrasBaseline(lines);
+  const prepaid = settledByKey(parseNotes(notesRaw).filter((note) => note && note.beforeArrival));
+  for (const [key, amount] of Object.entries(prepaid)) {
+    if (baseline[key] > 0) baseline[key] = round2(Math.max(0, baseline[key] - amount));
+  }
+  return baseline;
+}
+
+/**
  * Rule 82 — the arrival baseline of a stay whose departure is over, with the automatic options its lines never stored. They are
  * derived from the stay's own times, so they were never sold during the stay: each is part of what the stay carried at arrival.
  * No baseline (null) stays null.
@@ -614,6 +629,7 @@ function settleDocument({ lines, allocations = [] }) {
 }
 
 module.exports = {
+  arrivalBaselineOf,
   allocateDocumentPayment,
   settleDocument,
   scheduleExcess,

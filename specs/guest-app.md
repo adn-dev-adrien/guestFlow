@@ -879,6 +879,9 @@ arrival.** Everything below is judged by the server; the apps render what it off
     what they place beyond the hours not yet placed. Such an order needs no payment when its total is 0 € (rule 25,
     « Réserver »).
     > **Delivered by PR C** (pass 4, C26-C29, C31-C32): server `guest-app` 1.2.0 on `extraSale` / `saleDetail`; tests listed in §7 (`guest-order-*`, `guest-app-arrival-orders`, `guest-app-orders-from-j7`, …).
+    > _Reading of 2026-11-16 (loop t2 N-6, pricing-components rule 100 f):_ the evening supplement line an order writes carries the stable key
+    > `fulfilmentRef = evening:resource:<id>`; the arrival recompute (`hourly-resources` `orderChargedFor`) sums the order lines of that key, so a
+    > second supplement numbered « … (2) » (rule 94) is read too (a line without the key is still read by its words). Test `guest-order-evening-stable-key`.
 83. **The evening supplement of an app session is billed once, with its order.** _(Reworded in PR C, 2026-11-15, end review R3-5: the
     `orderChargeKey` charge described before was never built — hourly spec rule 38.)_ The order's quote and commit carry the evening supplement
     of its sessions, computed by `hourly-resources` (the scheduler's `orderSupplement({ resourceId, propertyId, sessions, lineGain })`: the
@@ -1073,6 +1076,9 @@ arrival.** Everything below is judged by the server; the apps render what it off
     closes it: a guest who arrives after it has the order changed at the door. What the change keeps is re-sold **into the arrival complement**
     (`extraSale.sell(…, { atArrival: true })`: an unpaid re-sale routed to the arrival whatever the clock), so the door collects it in the same
     piece and nothing moves to the departure. Test: `guest-order-arrival-amend-after-check-in`.
+    > _Reading of 2026-11-16 (loop t2 N-2, pricing-components rule 100 d):_ the core now reads the amend's own `now` (it read the wall clock, so the
+    > suite proved nothing past the hour): the removal of the unpaid arrival line is no longer refused `ARRIVAL_EXTRAS_FROZEN` while the arrival is
+    > not validated, and the re-sale lands in the arrival complement (it was written to the end-of-stay complement). Test `sale-one-moment`.
     (b) **The refund of a card order paid before the stay was cancelled lives in the cancellation's refund dialog only.** The order's note is a
     collected line of the cancelled stay (`reservation-refunds.md` D3, D15): the dialog offers it, at most what it collected, and once given
     back it leaves the dialog — a second refund of it is refused (`REFUND_UNKNOWN_LINE` / `REFUND_EXCEEDS_LINE`). The cancellation
@@ -1567,6 +1573,7 @@ le nom et le numéro. »
 - [x] `guest-order-cancelled-stay-money` — rule 109 a-b (loop t1 B-2, AG-4, AG-5, AG-6): the cancellation leaves the register alone (rule 110 b); a payment on a cancelled order is a conflict
 - [x] `guest-order-cancelled-stay-refund-home` — rule 110 b (owner 2026-11-16, B-2): paid before the cancellation → the refund dialog only, never twice; paid after → the register only
 - [x] `guest-order-arrival-amend-after-check-in` — rule 110 a (owner 2026-11-16, AG-2): editable past the check-in hour until the arrival is validated, re-sold into the arrival complement
+- [x] `guest-order-evening-stable-key` — rule 82 (loop t2 N-6): the supplement carries its bath's key; the recompute reads every supplement of that bath
 - [x] `guest-order-arrival-amend-bath` — rule 109 d (AG-1, AG-3): the supplement goes with its bath; a bath on held hours is not changed from the SAS
 - [x] `guest-app-fulfilment` — rule 41ter: the pickup push names the day of a slot past midnight
 - [x] `plugins/guest-app/tests/guest-app-current-stay.unit.test.js` (15) — rules 2, 4, 5, 6, 9 (window edges and

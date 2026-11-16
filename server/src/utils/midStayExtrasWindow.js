@@ -22,11 +22,12 @@ const isEndOfStayCollected = (row) => Number(row.endOfStayComplementPaid || 0) =
 
 /**
  * Rule 1 — a reservation is open for mid-stay extras when it is locked (`hasStayStarted`), is a
- * live reservation, and its end-of-stay complement has not been collected.
+ * live reservation, and its end-of-stay complement has not been collected. `started`: the stay clock's
+ * answer when the caller holds it (pricing-components rule 100: one moment for the lock and the sale).
  * @returns {{ locked: boolean, extrasEditable: boolean, extrasClosedReason: string|null }}
  */
-function midStayExtrasWindow(row, today, nowTime) {
-  const locked = hasStayStarted(row, today, nowTime);
+function midStayExtrasWindow(row, today, nowTime, started = null) {
+  const locked = started == null ? hasStayStarted(row, today, nowTime) : Boolean(started);
   if (!locked) return { locked: false, extrasEditable: false, extrasClosedReason: null };
   if (String(row.kind || 'reservation') !== 'reservation') {
     return { locked, extrasEditable: false, extrasClosedReason: null };
@@ -180,8 +181,8 @@ function withLockedOccurrences(floors, beforeLines) {
 }
 
 /** Read-side payload of rule 13. */
-function buildEditLock(row, today, baselineRaw, beforeLines, nowTime) {
-  const window = midStayExtrasWindow(row, today, nowTime);
+function buildEditLock(row, today, baselineRaw, beforeLines, nowTime, started = null) {
+  const window = midStayExtrasWindow(row, today, nowTime, started);
   const arrivalLines = window.extrasEditable ? withLockedOccurrences(arrivalLineFloors(baselineRaw, beforeLines), beforeLines) : {};
   return {
     ...window,

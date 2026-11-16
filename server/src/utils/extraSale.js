@@ -12,7 +12,8 @@
  *   paidSalesOf(reservationId, now)       → the departure SAS's « Déjà payé » section (the lines already collected), or null
  *
  * A request is `{ articleRef: 'option:<id>' | 'resource:<id>', quantity, persons?, mornings?, time?, sessions? }`, or a line that is no article —
- * linen pieces, a plugin's supplement — `{ articleRef: 'custom', label, amount, quantity? }` (`amount` = the line's TTC total in euros). A sale is priced and
+ * linen pieces, a plugin's supplement — `{ articleRef: 'custom', label, amount, quantity?, fulfilmentRef? }` (`amount` = the line's TTC total in euros;
+ * `fulfilmentRef` = a stable key the seller reads the line back by). A sale is priced and
  * written exactly as the operator's « Enregistrer » writes it: the stored stay rebuilt as the fiche's PUT body, the requested lines added,
  * then `performUpdate(…, { sale: <seller> })` — the engine, the free allowances, the price lock, the arrival floors and the session conflicts are the
  * fiche's own, the nights read as stored and the stay's shape not judged (rules 8, 9), through the seller's named pipeline (rule 54: `ficheSale`,
@@ -37,7 +38,7 @@ const {
   storedBody, optionRows, mergeOrderLines, personsRefusal, remainderByKey, deltaOf,
 } = require('./stayOrderLines');
 const { toCents } = require('./pricing/money');
-const { extraLineKey } = require('./pricing/storedLines');
+const { extraLineKey, numberedLabel } = require('./pricing/storedLines');
 const { parseNotes } = require('./midStayExtras');
 const { syncStay: syncAllocations } = require('./paymentAllocationsSync');
 const {
@@ -70,7 +71,10 @@ function customRequest(request) {
   const amount = Number(request.amount);
   const quantity = request.quantity == null ? 1 : Number(request.quantity);
   if (!label || !(amount > 0) || !Number.isFinite(amount) || !(quantity >= 1) || !Number.isInteger(quantity)) return null;
-  return { kind: 'custom', label, amount: toCents(amount) / 100, quantity };
+  // `fulfilmentRef` (loop t2 N-6): the stable key a seller gives the line (the guest app's evening supplement names its bath), read back by
+  // that key, never by the label the line may have been numbered under (rule 94).
+  const fulfilmentRef = typeof request.fulfilmentRef === 'string' && /^[a-z][\w:.-]{0,63}$/i.test(request.fulfilmentRef) ? request.fulfilmentRef : null;
+  return { kind: 'custom', label, amount: toCents(amount) / 100, quantity, ...(fulfilmentRef ? { fulfilmentRef } : {}) };
 }
 
 function parseRequests(requests) {
@@ -125,8 +129,10 @@ function fulfilmentDrafts(reservationId, lines, now, { heatFromNow = false } = {
 
 const refusalOf = (articleRef, refusal) => ({ articleRef, code: refusal.code, message: refusal.message });
 
-function dryRunFor(reservationId, body, source, saleBase = null) {
-  const result = controller().performUpdate(Number(reservationId), structuredClone(body), { dryRun: true, sale: salePipelineOf(source), saleBase });
+function dryRunFor(reservationId, body, source, saleBase = null, { atArrival = false } = {}) {
+  const result = controller().performUpdate(Number(reservationId), structuredClone(body), {
+    dryRun: true, sale: salePipelineOf(source), saleBase, now: stayClock().gestureNow(), atArrival,
+  });
   return result.status === 200 ? result : { refused: { status: result.status, body: result.body } };
 }
 
@@ -152,10 +158,7 @@ function bucketsDelta(before, after) {
 // A custom line is named by its label (`extraLineKey`): a second sale of a label the stay already holds takes a numbered label (« Bière locale (2) »),
 // so its discount, its payment and its removal stay its own (rule 94).
 function distinctLabel(customOptions, label) {
-  const taken = new Set(customOptions.map((c) => extraLineKey({ isCustom: true, description: c.description })));
-  let candidate = label;
-  for (let n = 2; taken.has(extraLineKey({ isCustom: true, description: candidate })); n += 1) candidate = `${label} (${n})`;
-  return candidate;
+  return numberedLabel(label, new Set(customOptions.map((c) => extraLineKey({ isCustom: true, description: c.description }))));
 }
 
 function withCustomLine(body, line) {
@@ -215,7 +218,7 @@ function pricedRequests(reservationId, lines, { now, source, atArrival = false }
     const before = held(body);
     body = line.kind === 'custom' ? withCustomLine(body, line) : mergeOrderLines(body, [line], rows, (table) => nextLineId(database(), table));
     const routed = started ? body : withArrivalRouting(body);
-    const next = dryRunFor(id, routed, source, base.row);
+    const next = dryRunFor(id, routed, source, base.row, { atArrival });
     if (next.refused) return { error: next.refused };
     priced.push({
       line,
@@ -226,7 +229,7 @@ function pricedRequests(reservationId, lines, { now, source, atArrival = false }
   }
   const finalBody = started ? body : withArrivalRouting(body);
   return {
-    stored, body: finalBody, base: storedRow, saleBase: base.row, after: previous, priced, started,
+    stored, body: finalBody, base: storedRow, saleBase: base.row, after: previous, priced, started, atArrival,
   };
 }
 
@@ -240,7 +243,7 @@ function soldBeforeNote(reservationId, line, merged) {
   return `Déjà vendu sur ce séjour : ${partsText(rows.map((row) => ({ quantity: row.quantity, unitCents: toCents(row.unitPrice) })))}. Ces lignes gardent leur prix.`;
 }
 
-function quote(reservationId, requests, {
+function quoteAt(reservationId, requests, {
   payment = 'later', now = new Date(), source = 'fiche',
 } = {}) {
   if (!(payment in PAYMENTS)) return refuse(400, 'PAYMENT_MODE_UNSUPPORTED', 'Mode de paiement inconnu.');
@@ -275,7 +278,7 @@ function quote(reservationId, requests, {
   };
 }
 
-function sell(reservationId, requests, {
+function sellAt(reservationId, requests, {
   source = 'fiche', payment = 'later', actor = null, now = new Date(), acceptedTotalCents = null, orderRef = null, paid = null, within = null, history = null,
   atArrival = false,
 } = {}) {
@@ -317,7 +320,9 @@ function sell(reservationId, requests, {
       }
       const before = extraSalesModel().lineIds(id);
       const factsBefore = paid && !result.started ? lineFactsOf(id) : null;
-      const written = controller().performUpdate(id, result.body, { sale: salePipelineOf(source), saleBase: result.saleBase });
+      const written = controller().performUpdate(id, result.body, {
+        sale: salePipelineOf(source), saleBase: result.saleBase, now, atArrival: result.atArrival,
+      });
       if (written.status !== 200) { outcome = { status: written.status, body: written.body }; throw ROLLBACK; }
       const moment = result.started ? 'departure' : 'arrival';
       const ref = typeof orderRef === 'function' ? orderRef() : orderRef;
@@ -406,7 +411,7 @@ function settleCard(id, added, {
       : n));
   db.prepare("UPDATE reservations SET midStaySettledNotes = ?, updatedAt = datetime('now') WHERE id = ?").run(JSON.stringify(notes), id);
   if (base) {
-    const netted = controller().performUpdate(id, { ...storedBody(id), restatePricing: true }, { sale: salePipelineOf(source), saleBase: base.row });
+    const netted = controller().performUpdate(id, { ...storedBody(id), restatePricing: true }, { sale: salePipelineOf(source), saleBase: base.row, now });
     if (netted.status !== 200) return { error: { status: netted.status, body: netted.body } };
   }
   syncAllocations(db, id);
@@ -449,7 +454,7 @@ function settleNow(id, byKey, { source, payment, now }) {
   return {};
 }
 
-function saleDetailOf(reservationId, now = new Date()) {
+function saleDetailOfAt(reservationId, now = new Date()) {
   const id = Number(reservationId);
   const db = database();
   const row = reservations().getRow(id);
@@ -471,6 +476,8 @@ function saleDetailOf(reservationId, now = new Date()) {
     stored: {
       finalCents: toCents(row.finalPrice),
       touristTaxCents: toCents(row.touristTaxTotal),
+      arrivalCents: toCents(row.complementAmount),
+      departureCents: toCents(row.endOfStayComplementAmount),
       touristTaxArrivalCents: taxLine ? toCents(taxLine.amount) : 0,
       touristTaxArrivalLabel: taxLine ? taxLine.label : null,
       extraGuestsCents: guestsLine ? toCents(guestsLine.offered ? guestsLine.originalAmount : guestsLine.amount) : 0,
@@ -482,7 +489,7 @@ function saleDetailOf(reservationId, now = new Date()) {
 
 // Rule 91 — the arrival complement the guest e-mails list, read from the sale detail: `{ amount, paid, detail }` like
 // `buildArrivalComplementDetail`, which stays the reading of a stay the engine cannot quote (null here).
-function arrivalComplementDetailOf(reservationId, now = new Date()) {
+function arrivalComplementDetailOfAt(reservationId, now = new Date()) {
   const detail = saleDetailOf(reservationId, now);
   if (!detail) return null;
   const row = reservations().getRow(Number(reservationId));
@@ -509,7 +516,7 @@ function moveRefusal(restated) {
 }
 
 // Rules 37, 39, 23 — what the operator changes on one stored line. The line is addressed by `ref` (`option:<lineId>`, `resource:<lineId>`, `custom:<lineId>`).
-function changeLine(reservationId, ref, patch, { now = new Date(), forceOverpayment = false } = {}) {
+function changeLineAt(reservationId, ref, patch, { now = new Date(), forceOverpayment = false } = {}) {
   const id = Number(reservationId);
   const model = extraSalesModel();
   const line = model.findLine(id, ref);
@@ -534,7 +541,7 @@ function changeLine(reservationId, ref, patch, { now = new Date(), forceOverpaym
         const moved = model.moveLine(id, line, wants.collectAt, { started });
         if (moved) {
           movedTo = wants.collectAt;
-          const restated = controller().performUpdate(id, { ...storedBody(id), restatePricing: true }, { sale: 'fiche', saleBase: base.row });
+          const restated = controller().performUpdate(id, { ...storedBody(id), restatePricing: true }, { sale: 'fiche', saleBase: base.row, now });
           if (restated.status !== 200) { outcome = moveRefusal(restated); throw ROLLBACK; }
           reservations().addHistoryEntry(id, 'update', [{
             field: 'lineMoment', label: line.label, from: moved.fromLabel, to: moved.toLabel,
@@ -551,7 +558,7 @@ function changeLine(reservationId, ref, patch, { now = new Date(), forceOverpaym
         // The fiche's own save judges it (rule 23, O-10): a paid line lowered is refused 409 OVERPAID until `forceOverpayment`, and the
         // confirmed excess opens the `lineLowered` obligation there — one formula, one place.
         const owedBefore = model.openLoweredCents(id);
-        const restated = controller().performUpdate(id, { ...lowered.body, restatePricing: true, forceOverpayment: Boolean(forceOverpayment) }, { sale: 'fiche', saleBase: base.row, unpaidLine: !lowered.paidLine });
+        const restated = controller().performUpdate(id, { ...lowered.body, restatePricing: true, forceOverpayment: Boolean(forceOverpayment) }, { sale: 'fiche', saleBase: base.row, unpaidLine: !lowered.paidLine, now });
         if (restated.status !== 200) { outcome = { status: restated.status, body: restated.body }; throw ROLLBACK; }
         model.storeDiscount(line, lowered.discountCents);
         owedCents = model.openLoweredCents(id) - owedBefore;
@@ -572,7 +579,7 @@ function changeLine(reservationId, ref, patch, { now = new Date(), forceOverpaym
 // Rules 25, 26 — an unpaid line taken off the stay through the fiche's own save: the engine re-prices the stay under its price lock, gives the
 // line's free units back to the pool (`releaseAllowance`) and keeps its refusals (a line sold at an arrival already collected stays, 409).
 // A paid line is offered, never removed (rule 23: the money it carries stays credited until a refund).
-function removeLine(reservationId, ref, { now = new Date(), actor = null } = {}) {
+function removeLineAt(reservationId, ref, { now = new Date(), actor = null } = {}) {
   const id = Number(reservationId);
   const model = extraSalesModel();
   const line = model.findLine(id, ref);
@@ -588,7 +595,7 @@ function removeLine(reservationId, ref, { now = new Date(), actor = null } = {})
     db.transaction(() => {
       const base = restatedBase(id, 'fiche');
       if (base.refused) { outcome = base.refused; throw ROLLBACK; }
-      const restated = controller().performUpdate(id, { ...model.withoutLine(body, line), restatePricing: true }, { sale: 'fiche', saleBase: base.row, unpaidLine: true });
+      const restated = controller().performUpdate(id, { ...model.withoutLine(body, line), restatePricing: true }, { sale: 'fiche', saleBase: base.row, unpaidLine: true, now });
       if (restated.status !== 200) { outcome = { status: restated.status, body: restated.body }; throw ROLLBACK; }
       reservations().addHistoryEntry(id, 'update', [{
         field: 'lineRemoved', label: line.label, from: `${(line.totalCents / 100).toFixed(2).replace('.', ',')} €`, to: `retirée${actor ? ` (${actor})` : ''}`,
@@ -608,23 +615,37 @@ const withRefundOwed = (section, reservationId) => (section ? { ...section, refu
 // The SAS's own section of what the stay sold for its departure (rule 32).
 // Rules 20, 104 — where an order taken now is collected: `arrival` while the stay clock has not reached the arrival, `departure` once it has,
 // `closed` when the end-of-stay complement is collected or the stay is not a live reservation. The one judge of the shop, the e-mail flags and the sale.
-function collectionOf(reservationId, now = new Date()) {
+function collectionOfAt(reservationId, now = new Date()) {
   const id = Number(reservationId);
   const row = reservations().getRow(id);
   if (!row || String(row.kind || 'reservation') !== 'reservation' || departureCollected(id)) return 'closed';
   return stayStarted(id, now).started ? 'departure' : 'arrival';
 }
 
-function departureSalesOf(reservationId, now = new Date()) {
+function departureSalesOfAt(reservationId, now = new Date()) {
   return withRefundOwed(departureSection(saleDetailOf(reservationId, now)), reservationId);
 }
 
 // The departure SAS's section of what the stay already collected on its sold lines (rule 32).
-function paidSalesOf(reservationId, now = new Date()) {
+function paidSalesOfAt(reservationId, now = new Date()) {
   const owed = extraSalesModel().openLoweredCents(Number(reservationId));
   const section = paidSection(saleDetailOf(reservationId, now)) || (owed > 0 ? { title: PAID_TITLE, lines: [], groups: [], totalCents: 0, dueCents: 0 } : null);
   return withRefundOwed(section, reservationId);
 }
+
+// Rule 100 — one moment per gesture: the `now` a caller injects is the one every reader the gesture reaches sees (the lock, the extras window,
+// the baseline, the detail), never the wall clock.
+const nowOf = (options) => (options && options.now) || new Date();
+const quote = (reservationId, requests, options = {}) => stayClock().withNow(nowOf(options), () => quoteAt(reservationId, requests, { ...options, now: nowOf(options) }));
+const sell = (reservationId, requests, options = {}) => stayClock().withNow(nowOf(options), () => sellAt(reservationId, requests, { ...options, now: nowOf(options) }));
+const changeLine = (reservationId, ref, patch, options = {}) => stayClock().withNow(nowOf(options), () => changeLineAt(reservationId, ref, patch, { ...options, now: nowOf(options) }));
+const removeLine = (reservationId, ref, options = {}) => stayClock().withNow(nowOf(options), () => removeLineAt(reservationId, ref, { ...options, now: nowOf(options) }));
+const atMoment = (fn) => (reservationId, now = stayClock().gestureNow()) => stayClock().withNow(now, () => fn(reservationId, now));
+const collectionOf = atMoment(collectionOfAt);
+const saleDetailOf = atMoment(saleDetailOfAt);
+const arrivalComplementDetailOf = atMoment(arrivalComplementDetailOfAt);
+const departureSalesOf = atMoment(departureSalesOfAt);
+const paidSalesOf = atMoment(paidSalesOfAt);
 
 module.exports = {
   quote, sell, changeLine, removeLine, collectionOf, saleDetailOf, arrivalComplementDetailOf, departureSalesOf, paidSalesOf, parseRequests,

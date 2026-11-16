@@ -14,7 +14,8 @@
  *   groups[]  { id, label, count, title, totalCents, refs[] } — the articles sold on several lines (rules 13, 85), for display: a same-price group reads
  *             « Bière locale — 3 × 6,50 € (2 lignes) », otherwise « Bière locale — 3 : 1 × 6,50 € + 2 × 7,00 € », an hourly resource « N séances »;
  *             an offered line stays in its group (struck through by the client), a group never merges two lines
- *   buckets   { plan, arrival, departure } the amount due at each moment, from SETTLEMENT's figures of the quote
+ *   buckets   { plan, arrival, departure } the amount due at each moment, from SETTLEMENT's figures of the quote; with `stored.arrivalCents` /
+ *             `stored.departureCents` (a stored stay) the arrival and departure buckets are the stored complements (rule 93)
  *   totals    { totalCents, settledCents, dueCents, vatByRate: [{ rate, vatCents, netCents }] }
  *   phase     the stay clock's answer ('before' | 'during' | 'after'), or null
  *
@@ -199,7 +200,9 @@ function buildSaleDetail({ quote, facts = {}, phase = null, vatClassOf = null, p
   lines.push(...extraLines);
   // Rule 91 — what the arrival complement collects beyond its listed lines (an operator's adjustment, a figure kept from an earlier
   // routing) is a line of its own, « Complément d’arrivée », as the e-mails have always listed it. A lower complement lists nothing.
-  const arrivalBucket = toCents(q.resolvedComplementAmount != null ? q.resolvedComplementAmount : q.complementAmount);
+  // Rule 93 (loop t2 N-5) — a stored stay's arrival and departure buckets are what it stores, never a re-quote at another moment.
+  const storedBucket = (field) => (stored && Number.isFinite(stored[field]) ? stored[field] : null);
+  const arrivalBucket = storedBucket('arrivalCents') ?? toCents(q.resolvedComplementAmount != null ? q.resolvedComplementAmount : q.complementAmount);
   const arrivalListed = lines.filter((line) => line.collectAt === 'arrival').reduce((sum, line) => sum + line.totalCents, 0);
   if (stored && arrivalBucket - arrivalListed > 1) {
     const cents = arrivalBucket - arrivalListed;
@@ -231,7 +234,7 @@ function buildSaleDetail({ quote, facts = {}, phase = null, vatClassOf = null, p
     buckets: {
       plan: toCents(q.preArrivalAmount),
       arrival: arrivalBucket,
-      departure: toCents(q.endOfStayComplementTotal),
+      departure: storedBucket('departureCents') ?? toCents(q.endOfStayComplementTotal),
     },
     totals: { totalCents, settledCents, dueCents: Math.max(0, totalCents - settledCents), vatByRate: vat.byRate || [] },
   };

@@ -45,6 +45,9 @@ Two findings on reservation **11773** (id 22308, Gîtes de France, 13→15/11/20
      (`hasGuestArrived`, [arrival-moment-is-the-check-in.md](arrival-moment-is-the-check-in.md)).
    A stay on its arrival day **without a `checkInTime`** starts at 00:00 (today's behaviour — nothing to
    wait for).
+   > _Reading of 2026-11-16 (pricing-components rule 100, loop t2 N-3):_ the moment of a new sale, the extras baseline and the SAS read
+   > this same answer through the stay clock (`phaseForReservation`, which now reads the two marks): an arrival marked before its hour
+   > locks the fiche **and** sends a new sale to the departure. Before, the sale still read « before » and wrote part of the line nowhere.
 2. This single definition replaces `startDate <= today` everywhere the fiche lock is decided:
    `midStayExtrasWindow` / `buildEditLock` (read), `pastReservationLocked` and the `started` test of
    the PUT, the ledger-edit refusal of the quote. One helper, no second copy.

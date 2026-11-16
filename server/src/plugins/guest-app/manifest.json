@@ -89,7 +89,7 @@
       "Une commande payée par carte d’un séjour annulé est due une seule fois : le registre « À rembourser » ne la répète pas.",
       "Un paiement qui arrive sur une commande annulée avec son séjour, même rétabli depuis, n’est jamais vendu sur la fiche : « Payée · à rembourser », l’équipe est prévenue.",
       "Au sas d’arrivée, retirer un bain retire aussi son supplément de soirée ; un bain placé sur des heures que le séjour détenait déjà se modifie sur la fiche.",
-      "Au sas d’arrivée, une commande prise avant l’arrivée se modifie tant que l’arrivée n’est pas validée, quelle que soit l’heure ; ce qui reste se règle à l’arrivée."
+      "Au sas d’arrivée, une commande prise avant l’arrivée se modifie tant que l’arrivée n’est pas validée, quelle que soit l’heure ; ce qui reste se règle à l’arrivée.", "Passé l’heure d’arrivée, une commande modifiée à la porte tant que l’arrivée n’est pas validée reste réglée à l’arrivée : la ligne se retire et ce qui reste n’est plus compté au départ ; le supplément de soirée d’une commande porte la clé de son bain."
     ]
   }
 }

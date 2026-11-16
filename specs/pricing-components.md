@@ -398,7 +398,8 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
     CLOCK only, through `phaseForReservation` (rule 44), for the guest app, the e-mails, the SAS and the fiche.
     - **The arrival mark and the arrival SAS do not change the moment of a new sale.** They change only the
       display: once either is done, the arrival section of the fiche reads « Arrivée faite » and the SAS
-      arrival is shown as committed. `arrivalMoment.hasGuestArrived` no longer routes a sale and has no reader left: **PR C deletes the module** (the display reads `checkInDone` / `arrivalSasDoneAt`).
+      arrival is shown as committed. _(Amended 2026-11-16, rule 100: an arrival validated on its day starts the stay — for the lock and the sale
+      alike, as the lock always read it.)_ `arrivalMoment.hasGuestArrived` no longer routes a sale and has no reader left: **PR C deletes the module** (the display reads `checkInDone` / `arrivalSasDoneAt`).
     - **Sale after check-in time while the arrival SAS is still open** (guest late, SAS not yet done): the
       line is `departure` « À payer au départ ». The open SAS arrival shows it in its own section « Ventes du
       séjour — au départ », not in the total to collect. The operator may collect it there (paid now, rule
@@ -1921,7 +1922,8 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
     then « (3) » — so its discount, its payment and its removal stay its own (before: a 2 € discount on the unpaid second line took 4 €, the paid one read
     « À payer », the paid one was removable). A card sale of a custom line paid before the arrival (the guest app's evening supplement) settles it under
     that key (before: `no such column: resourceId`, the card money on no stay). The fiche's own form, which may type one label twice, keeps the aggregated
-    reading it always had. Test `sale-custom-line-identity`.
+    reading it always had. Test `sale-custom-line-identity`. _(Amended 2026-11-16, rule 100 e: the arrival SAS and the fiche's save number a NEW line
+    too; stored lines keep their labels.)_
 95. **Before the arrival, a line is moved to the arrival only** _(stabilisation loop t1, S-3, 2026-11-15; completes rules 20, 37)_. The extras baseline
     that carves a line out to the departure is a started stay's: one laid before the arrival carved every later pre-arrival sale out to the departure, then
     vanished at the boot repair and left the moved line in no stored bucket. Before the stay clock reaches the arrival, `changeLine { collectAt: 'departure' }`
@@ -1957,6 +1959,35 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
     40,08 € moved from 72,88 / 7,28 to 72,87 / 7,29 when one line was removed). A day with no row (a receipt taken before this rule) keeps the cut over the
     current lines sold by its day. A stay booked before 4.2.0 is never frozen and its figures never move (owner 2026-11-15). Migration: one new table,
     empty, ignored by the previous release. Test `accounting-receipt-split-frozen-at-payment`.
+100. **One moment per gesture: the stay clock decides the lock, the sale, the baseline, the SAS and the change of an order** _(stabilisation loop t2,
+    N-1 to N-6, 2026-11-16; amends rule 20's first bullet, completes rules 44, 45, 93, 94, guest-app rules 82, 110 a)_. Before, two clocks answered
+    « has this stay started? »: the fiche lock (`hasStayStarted`: the check-in hour, or the arrival marked or the arrival SAS committed) and the sale
+    (`phaseForReservation`: the hour only), and the save read the wall clock whatever `now` its caller injected. So a stay whose arrival was marked
+    before its hour was locked for the fiche and « before » for the sale (a 45 € sale quoted 45 € and written 24 € to the departure, 21 € in no bucket;
+    an unpaid line sold a minute ago could not be removed), and a test at a given hour proved nothing about the core.
+    (a) **Started** = the check-in instant has passed, **or the arrival is validated on its day** (`checkInDone`, `arrivalSasDoneAt`: the guest is
+    standing there). `stayClock.phaseOf` takes `arrivalValidated`, `phaseForReservation` reads the two marks, and the lock, the window of a locked
+    fiche, the moment of a new sale (`collectionOf`, `quote`, `sell`), the extras baseline and the edit lock the fiche shows all read that one answer.
+    An arrival marked early thus routes a new sale to the departure, as the lock always said (lock-at-arrival-time rule 1).
+    (b) **The gesture's `now` is the core's.** `performUpdate(…, { now })` and every `extraSale` entry run inside `localDate.withNow(now, …)`; the lock,
+    the window, the baseline and the sale detail read `gestureNow()`, never the wall clock.
+    (c) **Card money paid before the arrival stays netted once the stay has started.** The note a card order writes before the arrival is marked
+    `beforeArrival`; the arrival baseline laid at the start (`arrivalBaselineOf`) carries such a line at what the card left to collect, so the
+    arrival complement does not take it back at the check-in hour, and the arrival SAS lists only what is left of it (before: 20 € paid by card,
+    the SAS asked 20 € again from 16:00 on and its commit wrote it into the complement).
+    (d) **The arrival complement stays open until the arrival is validated** (guest-app rule 110 a). Past the check-in hour, arrival not validated and
+    complement not collected: the unpaid arrival lines are not frozen (removed or changed at the door), a re-sale `atArrival` is routed to the arrival
+    complement and never read as a sale of the stay, and the baseline keys those gestures touch hold what the arrival lines now hold. Once the arrival
+    is validated or its complement collected, rule 6 of mid-stay-extras-on-locked-fiche freezes them again.
+    (e) **A custom line appended under a label the stay holds is numbered on every writer** — the sale (rule 94), the arrival SAS commit and the fiche's
+    save — so its payment and its gestures stay its own; a stored line keeps its label, and the SAS finds its own numbered line again on a re-run.
+    (f) **A seller reads a custom line back by a stable key, never by its label**: a custom request may carry `fulfilmentRef`, stored on the line; the
+    guest app's evening supplement names its bath (`evening:resource:<id>`), which the arrival recompute sums (guest-app rule 82).
+    (g) `saleDetail.buckets.arrival` / `.departure` are the stored complements (rule 93), never a re-quote at another moment.
+    > _Measured on a fresh copy of the prod database of 2026-11-11 (2026-11-16):_ one 45 € option sold, offered, billed again, discounted and removed on
+    > each of the 55 open stays at J-3, the arrival day 09:00 (marked and not), 17:00 (not marked) and 21:30, and on the day of the copy: 55 of 55
+    > every time (before: 27 of 55 on the arrival morning); `saleDetail` buckets = stored complements on 55 of 55 at every moment. Tests
+    > `sale-one-moment`, `guest-order-evening-stable-key`, `stay-clock-compose-feed` (amended).
 
 ## 4. Architecture
 
@@ -2243,6 +2274,9 @@ _Rewritten 2026-11-15 (stabilisation loop t1, UI-3) to what shipped._
 - [ ] Regression tests named after each review defect (D1-D9) on the rebuilt guest app (PR C)
 - [x] `sale-custom-line-identity` — rule 94 (loop t1 S-1, S-2): a custom line paid by card before the arrival settles; a second sale of one label is numbered, its discount and removal its own
 - [x] `sale-move-before-arrival` — rule 95 (S-3): a move to the departure before the arrival is refused, no baseline, `moments` served
+- [x] `sale-one-moment` — rule 100 (loop t2 N-1 to N-6): card money before the arrival not asked again at the hour (detail, SAS plan, commit); an order line changed
+  at the door past the hour until the arrival is validated, re-sold into the arrival complement on the injected clock; an arrival marked early starts the stay
+  for the lock and the sale; numbered custom labels on the SAS and the fiche; the seller's stable key of a custom line
 - [x] `sale-breakfast-card-before-arrival` — rule 96 (S-4, S-5): the first breakfast at the arrival, a morning paid by card settled on its line
 - [x] `sale-installments-pinned` — rule 96 (S-6): a sale to the arrival rewrites no instalment row of a plan the engine would restate
 - [x] `sale-quote-payment-refusals` — rule 96 (S-7): the quote refuses a payment before the arrival like the sale
