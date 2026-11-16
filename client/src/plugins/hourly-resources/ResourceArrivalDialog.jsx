@@ -399,6 +399,7 @@ export default function ResourceArrivalDialog({ open, bookingId, onClose, onDone
                     <span id={`obligation-${row.id}`}>{row.label}{row.detail ? ` · ${row.detail}` : ''}</span>
                   </Alert>
                 ))}
+                {dirty && (view.refundObligations || []).length > 0 && <Typography variant="caption" color="text.secondary">{TEXTS.linkAfterSave}</Typography>}
                 {view.totals.refundUnheldCents > 0 && <Alert severity="warning">{TEXTS.refund(euros(view.totals.refundUnheldCents))}</Alert>}
               </Box>
 
@@ -473,7 +474,7 @@ export default function ResourceArrivalDialog({ open, bookingId, onClose, onDone
               )}
             </Box>
             {quote.refusal && <Alert severity="error" sx={{ gridColumn: '1 / -1' }}>{quote.refusal}</Alert>}
-            {quote.error && <ErrorAlert message={quote.error.message} onRetry={quote.retry} />}
+            {quote.error && <ErrorAlert message={quote.error.message} onRetry={() => { quote.retry(); if (paymentDraft) invoiceQuote.retry(); }} sx={{ gridColumn: '1 / -1' }} />}
             {/* Loop t4 UI4-3 — the payment request carries the draft: its refusal or failure is shown once, by the draft's own answer. */}
             {paymentDraft && !draftAnswerFailed && invoiceQuote.refusal && <Alert severity="error" sx={{ gridColumn: '1 / -1' }}>{invoiceQuote.refusal}</Alert>}
             {paymentDraft && !draftAnswerFailed && invoiceQuote.error && <ErrorAlert message={TEXTS.invoiceQuoteFailed} onRetry={invoiceQuote.retry} sx={{ gridColumn: '1 / -1' }} />}
