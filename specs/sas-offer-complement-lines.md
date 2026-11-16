@@ -220,6 +220,9 @@ Same endpoints, additive fields (no breaking change):
   (pricing-components rules 105, 107): offering a line a note paid with nothing left to absorb its money answers 409 `OVERPAID`
   (`overpaymentTtc`) and writes nothing; the dialog asks « Offrir · X à rembourser » / « Garder » and, confirmed, commits again with this flag
   (the `lineLowered` obligation opens). A paid line that leaves the stay answers 409 `LINE_PAID`.
+  _Reading of 2026-11-16 (loop t7, UI7-2):_ the 409 `OVERPAID` of both commits also carries `overpaymentKeys: string[]`, the recap keys of
+  the lines it offered that a note paid and that were not offered before; « Garder » takes exactly those keys out of the dialog's offered set,
+  so the recap bills them again.
 - `offered?: [{ kind: 'option'|'resource'|'custom'|'extraGuests', id: number, lineId? } | { kind: 'upsell', key: 'cleaning'|'bathLinen' }]`
   — ONE input since 2026-11-15 (pricing-components rule 14; it replaces `cleaningOffered`, `bathLinenOffered` and `offeredExtras`): an
   upsell ref activates the upsell billed 0 €; the line refs are the authoritative offered set for the pre-existing in-complement extras
@@ -285,6 +288,9 @@ Same endpoints, additive fields (no breaking change):
   - **(2026-08-29)** re-sending a stored offered row verbatim keeps its `originalAmount` — the write is
     idempotent, so no refactor can silently zero a price.
 - [x] Full server suite green.
+- [x] `sas-arrival-paid-line-judged` (4) and `sas-departure-paid-line-judged` (3) — pricing-components rule 107 c, d (stabilisation loop
+      t6 S6-3, S6-4; t7 UI7-2, UI7-3): the re-open seed names the exact line, both commits judge a paid line offered (409 `OVERPAID` naming
+      it in `overpaymentKeys`, nothing written; confirmed with `forceOverpayment`), the controllers answer the 409 and record no history.
 
 ### Client tests (vitest, `components/sas/__tests__/ReservationSasDialog.test.jsx`)
 - [x] Arrival recap: « Offrir » on a bed-linen line → total drops, commit sends
@@ -300,6 +306,9 @@ Same endpoints, additive fields (no breaking change):
       `offeredArrivalExtras` entirely.
 - [x] **(2026-08-29)** Re-open: an offered *preserved* check-out line shows its real price, and
       withdrawing the gesture sends `qty`, `unitPrice` and the real `amount` back (rule 3.bis).
+- [x] `ReservationSasDialog.arrival-seed` (2) — the arrival seed read from `arrivalSeed.offeredKeys` (loop t6 S6-3, 2026-11-16).
+- [x] `ReservationSasDialog.paid-line-offer` (4) — the paid-line 409 at the arrival and at the departure: confirmed commits again with
+      `forceOverpayment`; « Garder » bills the named line again and commits nothing (loop t6 S6-4, loop t7 UI7-2 / UI7-3, 2026-11-16).
 
 ### Manual UI verification
 - [x] Arrival + departure SAS run in the browser at `xs` and desktop widths, screenshot in the PR.

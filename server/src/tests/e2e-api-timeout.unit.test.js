@@ -40,6 +40,27 @@ test('rule 19: « proposés à l\'arrivée » reads the server back only after t
   assert.match(source, /expect\.poll\(readBack, \{ timeout: API_TIMEOUT \}\)/);
 });
 
+// Reading of 2026-11-16 (loop t7, P7-4): `page.request` shares the browser context's timeout, which the runner sets to the 5 s
+// `actionTimeout`: every call on it in a spec or a fixture names API_TIMEOUT in its own options.
+test('rule 19: every page.request call of a spec or a fixture carries API_TIMEOUT', () => {
+  const offenders = [];
+  for (const file of [...filesUnder(path.join(E2E, 'fixtures')), ...filesUnder(path.join(E2E, 'specs'))]) {
+    const source = fs.readFileSync(file, 'utf8');
+    for (const match of source.matchAll(/\bpage\.request\.(?:get|post|put|patch|delete|head|fetch)\(/g)) {
+      let depth = 1;
+      let end = match.index + match[0].length;
+      while (end < source.length && depth > 0) {
+        if (source[end] === '(') depth += 1;
+        if (source[end] === ')') depth -= 1;
+        end += 1;
+      }
+      const call = source.slice(match.index, end);
+      if (!/timeout:\s*API_TIMEOUT/.test(call)) offenders.push(`${path.relative(E2E, file)}: ${call.slice(0, 80)}`);
+    }
+  }
+  assert.deepEqual(offenders, []);
+});
+
 // Reading of 2026-11-16 (loop t6): the `request` fixture itself is built with the 5 s `actionTimeout`; a stalled read-back failed
 // plugins/online-payment. Every spec that takes it imports `test` from fixtures/test.js, whose `request` carries API_TIMEOUT.
 test('rule 19: the `request` fixture carries API_TIMEOUT in every spec that takes it', () => {

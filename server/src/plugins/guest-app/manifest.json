@@ -95,7 +95,7 @@
       "Passé l’heure d’arrivée, une commande modifiée à la porte tant que l’arrivée n’est pas validée reste réglée à l’arrivée : la ligne se retire et ce qui reste n’est plus compté au départ ; le supplément de soirée d’une commande porte la clé de son bain.",
       "Une commande ne se modifie plus « à l’arrivée » une fois l’arrivée validée ou son complément encaissé : elle se règle au départ.",
       "À l’arrivée, une commande d’un séjour dont les ventes se règlent déjà au départ (arrivée cochée puis décochée après un encaissement) est affichée non modifiable jusqu’à l’heure d’arrivée, et le refus le dit sans parler d’arrivée validée.",
-      "Demande le SDK 2.31 de GuestFlow."
+      "Demande GuestFlow 4.2 (SDK 2.31)."
     ]
   }
 }
