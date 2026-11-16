@@ -679,6 +679,11 @@ Optional: a plugin that declares nothing reads « Actif ».
     explicit no-op since guest-app rule 108 (a card order awaiting its payment reserves nothing; the first call that passes some is logged once);
     `commitOrder` answers `excessCents` (its 2.26.0 name) beside `overpaidCents`, the same cents. Removing either is a MAJOR.
     Tests: `mid-stay-order-sdk-2-26-shape`, `plugins-sdk-core-module-floor`, `plugins-sdk-history-shipped-minors`.
+54. *(Added 2026-11-16, loop t1 AS-3.)* **The client SDK exports have floors too.** `plugin-core-hardening-floor` scans server sources only, so a plugin
+    whose CLIENT code imports `StaySalesSection` (2.29.0), `SuggestedArticlesStep` or `SalePaymentLink` (2.31.0), `ClientPickerField` (2.27.0),
+    `usePostalCodeCities` (2.25.0), `TenderLines` / `TENDER_TEXTS` (2.24.0), `FilterChip` or `PlatformPenaltyDialog` (2.9.0) must range that SDK
+    or later in its manifest, or an older core would load a bundle that crashes. Adding a client export means adding its row to
+    `plugin-client-sdk-floor.unit.test.js`. Test: `plugin-client-sdk-floor`.
 
 **Edge cases:**
 - **A plugin throws during `register`.** Rule 4 applies: the other plugins and the core boot. The Plugins

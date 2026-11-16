@@ -6,6 +6,7 @@ process.env.DB_PATH = ':memory:';
 process.env.TZ = 'Europe/Paris';
 
 const test = require('node:test');
+const { skipWithout } = require('../plugins/sdk/testing');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
@@ -45,7 +46,8 @@ test('rule 16 — an unknown target is refused', () => {
 
 const DIR = process.env.PRICE_GATE_FIXTURE_DIR || path.join(__dirname, 'fixtures', 'price-gate');
 const captured = fs.existsSync(path.join(DIR, 'inputs.json'));
-const SKIP = captured ? false : 'price-gate fixture absent (inputs.json)';
+// loop t1 AS-2 — the fixture holds `resource_bookings` rows, a table of the hourly-resources plugin: skipped in the cell that removes it.
+const SKIP = skipWithout(['hourly-resources']) || (captured ? false : 'price-gate fixture absent (inputs.json)');
 
 test('rule 16 — nights equals the engine on every fixture stay (percent, manual price, platform pin)', { skip: SKIP }, () => {
   const inputs = JSON.parse(fs.readFileSync(path.join(DIR, 'inputs.json'), 'utf8'));

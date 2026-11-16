@@ -233,9 +233,17 @@ const rebuildOrdersWithCancelled = (db) => {
 };
 
 // Rule 107 — « offert déjà en place à l'arrivée »: NULL follows the article's class (drinks: on), 1 / 0 is the operator's word.
+const ORDER_REF_SOURCES = ['reservation_options', 'reservation_resources', 'reservation_custom_options'].map((table) => ({ table, column: 'orderRef' }));
+
 const addOfferedInPlace = (db) => {
   if (db.prepare('PRAGMA table_info(guest_app_items)').all().some((c) => c.name === 'offeredInPlace')) return;
   db.exec('ALTER TABLE guest_app_items ADD COLUMN offeredInPlace INTEGER CHECK (offeredInPlace IN (0, 1))');
+};
+
+// specs/plugin-removal-resilience.md rule 22 — after an erase and a reinstall the id counter restarts above the orders the stays' lines still cite.
+const keepOrderIdsCited = (db) => {
+  const { highestCitedId, raiseCounter } = require('../sdk/citedIdCounterFloor');
+  raiseCounter(db, 'guest_orders', highestCitedId(db, 'order:', ORDER_REF_SOURCES));
 };
 
 const MIGRATIONS = Object.freeze([
@@ -244,6 +252,7 @@ const MIGRATIONS = Object.freeze([
   { name: 'guest_app_orders_collect_at_v2', up: addCollectAt },
   { name: 'guest_app_orders_status_v3', up: rebuildOrdersWithCancelled },
   { name: 'guest_app_items_offered_in_place_v4', up: addOfferedInPlace },
+  { name: 'guest_orders_counter_floor_v5', up: keepOrderIdsCited },
 ]);
 
 module.exports = { MIGRATIONS, TABLES };
