@@ -12,8 +12,7 @@
  */
 import React, { useCallback, useEffect, useState } from 'react';
 import { Alert, Box, Button, Card, CardContent, Stack, TextField, Typography } from '@mui/material';
-import { api, MaskedTextField, StatusBadge, useToast } from '../sdk/ui';
-import { money } from './reconciliationShared';
+import { api, formatCurrency, MaskedTextField, StatusBadge, useToast } from '../sdk/ui';
 
 const PLUGIN = 'online-payment';
 const HELP = 'Dans Mollie : Développeurs → Clés API → « + Créer une clé API ». Type « Jeton d\'accès avancé », aucune restriction de profil, mode « En direct », autorisations en lecture seule : payments.read, settlements.read, balances.read, balance-reports.read, invoices.read, refunds.read, profiles.read, organizations.read ; signature des demandes désactivée.';
@@ -136,7 +135,7 @@ export default function MollieConnectionCard() {
           )}
           {stored.balance && (
             <Typography variant="body2" color="text.secondary" data-testid="mollie-pending">
-              Encore chez Mollie : {money(stored.balance.pendingCents)} (réserves non libérées) · lu le {stamp(stored.balance.at)}
+              Encore chez Mollie : {formatCurrency(stored.balance.pendingCents / 100)} (réserves non libérées) · lu le {stamp(stored.balance.at)}
             </Typography>
           )}
           {stored.lastError && (
