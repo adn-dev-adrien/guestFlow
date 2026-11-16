@@ -1639,6 +1639,12 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
     - **a stored fixed price is the sold one** (rule 74): the fixed automatic option is read from its stored `unitPrice`, a catalogue
       edit never reprices it. A proportional one is a function of the time and of the locked nights, both stored.
     Test: `pricing-auto-option-stored`.
+    _Reading of 2026-11-16 (loop t7, S7-3; owner 2026-11-15, existing stays keep their figures):_ « the next save stores the line » is read on
+    a stay booked once 4.2.0 is installed (`readsSaleLines = 1`) only. A stay booked before keeps its lines and its price on a save that moved
+    nothing: the missing automatic option re-priced that save, and the re-price dropped a sold line its lodging no longer offers (rule 13 keeps
+    those on the sale pipelines only) — stay 14 at J-3: « Ménage » 80 € replaced by « Arrivée anticipée » 50,50 €, 807,20 → 777,70 €, where
+    master kept both. Every other open stay of the copy already stores its automatic options: nothing moves. Test
+    `save-pre-420-stay-lines-kept`.
 83. **A resource booking sold before the one hourly grid keeps its price** _(owner, 2026-11-12; class E4, rules 24, 37 and 74)_. The free hour
     of a booking is worth the day rate (rule 24) for a booking **created or re-priced by the operator** after this rule; a booking stored
     before it (`resource_bookings.freeHourAtDayRate` NULL, migration `resource_bookings_v5`) keeps the stored price and the breakdown it was
@@ -2185,6 +2191,11 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
     ledger) made the 30 € owed and its « Rembourser » disappear until the save, which kept the obligation. A draft that puts the paid line back to
     billed still shows the obligation until it is saved (the save trims it, as above). Display only: no stored amount moves. Test
     `sale-paid-line-live-ledger-obligation`.
+    _Reading of 2026-11-16 (loop t7, N7-1):_ the floor is the part of the obligation the save keeps — `syncLoweredObligations` holds
+    min(open obligation, excess), so the live preview is floored at min(open `lineLowered`, the note money no line claims,
+    `paidLineJudgment.noteExcessCents`), never at the whole register. A confirmed trop-perçu that is no note money (a discount on a stay paid in
+    full) is absorbed live by a draft that takes the discount back, as the save absorbs it (reservation-save-keeps-pricing rules 13, 14); the
+    platform stay's note money still floors the dirty fiche. Tests `trop-percu-stored-measure` (rules 13, 14), `sale-paid-line-live-ledger-obligation`.
     (b) **Cash note money goes back the way it came**: when the excess is note money a cash note took (caisse interne, never booked), the refund's
     default means is « Caisse interne » (`overpaymentMethod: 'internal'`, on the stored row and on the 409 `OVERPAID` of the line actions and of the
     fiche save), so the default refund writes no avoir for money the journal never held; a card note's keeps no default. The operator can change
@@ -2257,6 +2268,19 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
     and the dialog draws them offered with no « ✓ Offert ». The 2026-11-11 copy holds no note: no stay moves. Tests
     `sale-paid-line-refunded-not-unoffered` (fiche direct and Booking, line API direct cash / card and Booking card, partial refund, refund
     deleted, not refunded, arrival and departure SAS, the payload), client `PricingSummary.refunded-line`, `ReservationSasDialog.refunded-line`.
+109. **A paid line put back to billed at the arrival SAS comes back the fiche's way** _(stabilisation loop t7, S7-1, 2026-11-16; completes rules
+    23, 104, 105, 107; sas-offer-complement-lines §4.3)_. The arrival SAS rewrites its lines and lets the engine restate the arrival complement
+    only: « Offert » unticked on a line the guest paid by a note billed the line again (its note pays it again) but neither closed the
+    `lineLowered` obligation the offer had opened nor gave back the credit the offer had taken off a solde not yet paid — the two halves of the
+    fiche's way back (`syncLoweredObligations`, `pinSaleDelta`). On the 2026-11-11 copy (card order 45 € J-3, offered, the arrival SAS at 15:00
+    committed without it), 34 stays kept 45 € owed for money that pays a billed line (the fiche offered to refund it) and 22303 / 22306 never
+    asked the 45 € again (solde 490,01 instead of 535,01). Now the shared write of the plan and the commit (`writeArrivalComplement`, rule 90.1)
+    takes `paidLineJudgment.wayBack` before it and settles it after: of the note money the lines claim again, bounded by what the stay lost
+    (Σ received − owed − total, the total moved by the lines the run bills), the open obligation closes first, then the acompte and the solde
+    not yet paid get back what the engine's credit took off them (`noteCreditCuts` before and after) — the reverse of rule 104's order. A
+    complement the engine already restated, a commit that bills no paid line again, and a refunded line (rule 108, refused) move nothing. On the
+    copy: 55/55 stays balanced, the 34 obligations closed, 22303 / 22306 / 22336 / 22282 / 22308 asked their 45 €. The departure SAS does not
+    reach a note-paid line through its recall (probe: Σ unchanged on all 55). Test `sas-arrival-paid-line-unoffered`.
 
 ## 4. Architecture
 
@@ -2599,6 +2623,8 @@ _Rewritten 2026-11-15 (stabilisation loop t1, UI-3) to what shipped._
 - [x] `sas-departure-paid-line-judged` — rule 107 d reading (loop t7, UI7-2, UI7-3): the check-out offering the paid recalled line → OVERPAID naming it, nothing written, confirmed owes it; the arrival 409 names its line; both SAS controllers answer 409 and record no history (3)
 - [x] `sale-paid-line-refunded-not-unoffered` — rule 108 (loop t7, D7-1): offered, refunded, un-offered → 409 `LINE_REFUNDED`, nothing written, on the fiche (direct, Booking), the line API (direct cash, card, Booking card), the arrival and departure SAS commits (plans serve `offerLocked`); partial refund; refund deleted; not refunded; the fiche payload (11)
 - [x] `cash-note-excess-quote-capped` — rule 106 b reading (loop t7): the quote's cash part capped by what the quote charges anew (4)
+- [x] `sas-arrival-paid-line-unoffered` — rule 109 (loop t7, S7-1): « Offert » unticked at the arrival SAS on a card-paid line: plan paid → the 30 € obligation closes, Σ unchanged, no « Trop-perçu »; solde unpaid → 30 € asked again; the seed kept → nothing moves; the recap played alone writes nothing (4)
+- [x] `save-pre-420-stay-lines-kept` — rule 82 reading (loop t7, S7-3): a pre-4.2.0 stay's no-change save keeps its unlinked ménage and its price; a 4.2.0 stay still stores the early-arrival line (2)
 
 ### Client Vitest suites (named 2026-11-16, stabilisation loop t2 P2-2)
 - [x] `ReservationPage.extra-sales-panel` — rule 101 (UI2-1 to UI2-4): a started stay with the window open sells and moves its lines, a collected departure does not, the fiche's `saleDetail` read once, a dirty fiche holds the writes and keeps the typed note, a write on a clean fiche re-reads without the loading screen, and while the re-read is in flight the fiche is busy (fields read-only, « Enregistrer » disabled)

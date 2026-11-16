@@ -223,6 +223,9 @@ Same endpoints, additive fields (no breaking change):
   _Reading of 2026-11-16 (loop t7, UI7-2):_ the 409 `OVERPAID` of both commits also carries `overpaymentKeys: string[]`, the recap keys of
   the lines it offered that a note paid and that were not offered before; « Garder » takes exactly those keys out of the dialog's offered set,
   so the recap bills them again.
+  _Reading of 2026-11-16 (loop t7, S7-1):_ a line a note paid that the `offered` set no longer names (« Offert » unticked) is billed again and
+  comes back the fiche's way (pricing-components rule 109): its open `lineLowered` obligation closes, then the acompte and the solde not yet
+  paid get back the credit the offer took off them. The preview plays the same write (rule 90.1). No new field.
 - `offered?: [{ kind: 'option'|'resource'|'custom'|'extraGuests', id: number, lineId? } | { kind: 'upsell', key: 'cleaning'|'bathLinen' }]`
   — ONE input since 2026-11-15 (pricing-components rule 14; it replaces `cleaningOffered`, `bathLinenOffered` and `offeredExtras`): an
   upsell ref activates the upsell billed 0 €; the line refs are the authoritative offered set for the pre-existing in-complement extras
@@ -291,6 +294,9 @@ Same endpoints, additive fields (no breaking change):
 - [x] `sas-arrival-paid-line-judged` (4) and `sas-departure-paid-line-judged` (3) — pricing-components rule 107 c, d (stabilisation loop
       t6 S6-3, S6-4; t7 UI7-2, UI7-3): the re-open seed names the exact line, both commits judge a paid line offered (409 `OVERPAID` naming
       it in `overpaymentKeys`, nothing written; confirmed with `forceOverpayment`), the controllers answer the 409 and record no history.
+- [x] `sas-arrival-paid-line-unoffered` (4) — pricing-components rule 109 (stabilisation loop t7 S7-1): « Offert » unticked on a card-paid
+      line at the arrival SAS closes its obligation (plan paid) or asks the solde again (solde unpaid), Σ unchanged; the kept seed and the
+      preview move nothing.
 
 ### Client tests (vitest, `components/sas/__tests__/ReservationSasDialog.test.jsx`)
 - [x] Arrival recap: « Offrir » on a bed-linen line → total drops, commit sends

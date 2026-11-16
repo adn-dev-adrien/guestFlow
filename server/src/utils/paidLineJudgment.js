@@ -163,6 +163,58 @@ function begin(db, reservationId) {
   };
 }
 
+// Rule 109 (loop t7 S7-1) — the way BACK of a write that bills again a line a note paid (« Offert » unticked) without passing through the
+// fiche's save: the arrival SAS rewrites its lines and lets the engine restate the arrival complement only, so neither `syncLoweredObligations`
+// nor `pinSaleDelta` ran. `wayBack(db, id, { quoteOf })` is taken before the write; `settle()`, called after it in the same transaction, gives
+// back what the note money had been credited to, in the reverse order rule 104 credited it: the open `lineLowered` obligation closes first (the
+// note pays the line again, nothing is owed back), then the acompte and the solde not yet paid get back what the credit took off them
+// (`noteCreditCuts` of the engine before and after). Bounded by what the stay lost (Σ received − owed − total) and by the note money the
+// lines claim again: a write that bills nothing paid again, or whose complement the engine already restated, moves nothing.
+//   quoteOf(row) → the engine's quote of the stored stay (`quoteStoredReservation`), or null
+//   billedCents() → what the stay's lines bill now, when the writer moves `finalPrice` by it only after `settle` (the SAS: `moveFinalPriceBy`)
+function wayBack(db, reservationId, { quoteOf, billedCents = null } = {}) {
+  const id = Number(reservationId);
+  const row = db.prepare('SELECT * FROM reservations WHERE id = ?').get(id);
+  const notes = row ? notesByKeyCents(row) : {};
+  if (!row || !Object.keys(notes).length) return { settle: () => 0 };
+  const cutsOf = (r) => {
+    let quote = null;
+    try { quote = typeof quoteOf === 'function' ? quoteOf(r) : null; } catch { quote = null; }
+    const cuts = quote && !quote.error ? quote.noteCreditCuts || {} : {};
+    return { depositAmount: toCents(cuts.depositAmount), balanceAmount: toCents(cuts.balanceAmount) };
+  };
+  const before = {
+    unclaimed: unclaimedCents(notes, lineFactsOf(db, id)), kept: unabsorbedCents(row) - openLoweredCents(db, id), cuts: cutsOf(row),
+    billed: billedCents ? billedCents() : 0,
+  };
+  return {
+    settle() {
+      const after = db.prepare('SELECT * FROM reservations WHERE id = ?').get(id);
+      const reclaimed = before.unclaimed - unclaimedCents(notesByKeyCents(after), lineFactsOf(db, id));
+      if (reclaimed <= 0) return 0;
+      const owed = openLoweredCents(db, id);
+      const finalShift = billedCents ? billedCents() - before.billed : 0;
+      let rest = Math.min(reclaimed, before.kept - (unabsorbedCents(after) - finalShift - owed));
+      if (rest <= 0) return 0;
+      const closed = Math.min(owed, rest);
+      if (closed > 0) holdLowered(db, id, owed - closed);
+      rest -= closed;
+      if (rest <= 0) return closed;
+      const cuts = cutsOf(after);
+      let given = 0;
+      for (const [column, paid] of [['depositAmount', 'depositPaid'], ['balanceAmount', 'balancePaid']]) {
+        if (rest <= 0 || Number(after[paid] || 0) === 1) continue;
+        const give = Math.min(rest, Math.max(0, before.cuts[column] - cuts[column]));
+        if (give <= 0) continue;
+        db.prepare(`UPDATE reservations SET ${column} = ROUND(COALESCE(${column}, 0) + ?, 2) WHERE id = ?`).run(give / 100, id);
+        rest -= give;
+        given += give;
+      }
+      return closed + given;
+    },
+  };
+}
+
 module.exports = {
-  begin, notesOnKey, noteExcessCents, noteExcessByKey, refundedLoweredLines, PAID_LINE_REMOVED, LINE_REFUNDED,
+  begin, wayBack, notesOnKey, noteExcessCents, noteExcessByKey, refundedLoweredLines, PAID_LINE_REMOVED, LINE_REFUNDED,
 };
