@@ -1102,6 +1102,8 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
     > _Amended 2026-11-15 (end review R2-5):_ a receipt is cut over the lines **sold by its payment day** (`soldAt` of the line, local day,
     > against the receipt's `paidDate`; a line with no `soldAt` — sold before PR B — always counts): a line sold after a receipt never re-cuts it, so a
     > declared month never moves. Proof `accounting-receipt-cut-sold-by-payment-day`; the sale detail lines carry `soldAt`.
+    > _Amended 2026-11-16 (stabilisation loop t1, B-4):_ and over those lines **as they were when the money was taken** — rule 99. A paid line
+    > removed or offered after the receipt no longer re-cuts it.
 
 64. **Today's accounting reads, and where each moves.**
 
@@ -1945,6 +1947,16 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
 98. **A refund deleted gives back what it settled** _(stabilisation loop t1, B-5, 2026-11-15; completes rule 75)_. A refund on the trop-perçu settles
     the open `lineLowered` rows oldest first, the part it takes of a row as a settled row of its own (`settledBy = refund:<id>`); deleting the refund
     opens those rows again, so the SAS's « À rembourser (depuis la fiche) » owes what the trop-perçu owes. Test `refund-deleted-reopens-obligations`.
+99. **A receipt is cut over the lines as they stood when it was paid** _(stabilisation loop t1, B-4, 2026-11-16; completes rule 63 as amended by R2-5)_.
+    On a stay the sale-line readers serve (`readsSaleLines = 1`), the writer every payment path already calls (`paymentAllocationsSync.syncStay`) freezes,
+    per payment day, the stay's sale lines sold by that day (`receipt_line_splits`: `ref`, `kind`, `vatClass`, `totalCents` — what the cut weighs). A day
+    is frozen the first time a payment dated that day is seen; while the day is today the row follows the lines (a sale of the day after a payment of the
+    day is cut like before); once the day is past it never changes; a day that no longer holds a payment (a receipt unticked) loses its row and is frozen
+    afresh if a payment is dated on it again. The journal (`receiptCutOf`, and the refund mirror `bookedSplitsOf`) cuts every receipt of a frozen day over
+    the frozen lines: a paid line removed or offered later no longer re-cuts a month already declared (before: a deposit of 80,16 € cut over two lines of
+    40,08 € moved from 72,88 / 7,28 to 72,87 / 7,29 when one line was removed). A day with no row (a receipt taken before this rule) keeps the cut over the
+    current lines sold by its day. A stay booked before 4.2.0 is never frozen and its figures never move (owner 2026-11-15). Migration: one new table,
+    empty, ignored by the previous release. Test `accounting-receipt-split-frozen-at-payment`.
 
 ## 4. Architecture
 
@@ -1992,6 +2004,7 @@ All of it is plain CommonJS functions and objects (rule 56).
 | `utils/` | `saleDetail.js` | C | the read model of rule 31 |
 | `utils/pricing/` | `storedSaleFigures.js`, `steps/storedExtraGuests.js`, `steps/storedTouristTax.js` | C (PR C) | rule 8: the records a sale reads EXTRA GUESTS and TOURIST TAX from (their keys, their basis, the row check) and the two `staySale` steps that read them |
 | `utils/` | `pricingStoredFiguresMigration.js` | C (PR C) | rule 8: the two record columns and their backfill (once after boot: `index.js`, the replay, the gate's recompute) |
+| `utils/` | `receiptLineSplits.js` | C (loop t1 B-4) | rule 99: freezes, per payment day of a stay the readers serve, the sale lines its receipts are cut over (`freezeStay`, called by `paymentAllocationsSync.syncStay`); the journal reads the rows through `accountingModel.frozenSplitsOf` → `receiptCutOf` |
 | `utils/` | `departureChargeLines.js` | C (PR C) | rule 90.2: the departure charges as custom lines — their single writer (`syncDepartureChargeLines`, called by `writeEndOfStayDetail`) and the clause every reader of the custom lines appends (`notDepartureCharge`) |
 | `controllers/` | `reservationsController.js` | T | `calculatePrice`/`createStay`/`applyUpdate` call the loader + COMPOSE; a sold stay's product addition goes to `extraSale`; `beforeArrival`, `orderGrowth`, `exactMergedTotals` removed (PR C) |
 | `controllers/` | `extraSalesController.js` | C | the endpoints of §4.3 |
@@ -2106,6 +2119,10 @@ books, origin 'backfill'|'live')` with a unique index on `(paymentRef, documentR
 New columns on `reservation_refunds` (`kind`, `amountCents`, `origin`, `providerRefundRef`), `reservation_refund_lines`
 (`amountCents`, `source`, `revenueBucket`, `lineRef`, `vatClass`; no `paymentRef`), `cancellation_compensations.refundId`,
 and the catalogue `options.vatClass`, `resources.vatClass`.
+
+New table (stabilisation loop t1, B-4, rule 99): `receipt_line_splits` (`reservationId` FK CASCADE, `paidDate`, `linesJson`, `frozenAt`, primary key
+`(reservationId, paidDate)`), the lines a payment day of a stay booked once 4.2.0 is installed is cut over. Empty at migration; never written for a stay
+booked before.
 
 On the three line tables (PR B): `vatRate` REAL NULL (the rate the VAT step gave, rule 51; NULL on legacy lines = the stay's regime rate) and `fulfilmentRef` TEXT NULL (`hourly-slot:<hold id>`, rule 49).
 
@@ -2233,6 +2250,7 @@ _Rewritten 2026-11-15 (stabilisation loop t1, UI-3) to what shipped._
 - [x] `pricing-obligations-backfill-once` — rule 97 (D-1, D-5, D-6): S9 once, no twin of a live row, a stay-less link skipped, a sale link not settled as a stay's
 - [x] `fiche-lines-stamped-at-save` — rule 97 (D-2): a fiche-added line stamped by its save, nothing left for the boot
 - [x] `refund-deleted-reopens-obligations` — rule 98 (B-5)
+- [x] `accounting-receipt-split-frozen-at-payment` — rule 99 (B-4): a payment day frozen with the lines sold by it, today's row following the lines, a stay booked before never frozen, the receipt's cut kept when a paid line is removed
 
 ### Proof
 - [ ] Price gate (rule 68): `price-gate.unit.test.js` green on every commit of A, B and C, with the allowlist reviewed by the owner; `price-gate-anonymity`, `price-gate-anonymise`, `price-gate-figures`, `price-gate-compare`, `price-gate-move-proof` unit tests green

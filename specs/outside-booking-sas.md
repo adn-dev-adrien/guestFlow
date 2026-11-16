@@ -396,7 +396,8 @@ once on the server by the refonte's components.
     > (`GET /api/standalone-sales` → `owed`), each with the same action. The action asks a confirmation, then
     > `PATCH /api/standalone-sales/:id/obligations/:oid { status: 'settled' | 'cancelled' }` (admin only: the reception's allowlist does not
     > reach `/api/standalone-sales`) closes an open row once (400 `OBLIGATION_INVALID_STATUS`, 404 `SALE_NOT_FOUND` / `OBLIGATION_NOT_FOUND`,
-    > 409 `OBLIGATION_ALREADY_CLOSED`), writes « 13,00 € remboursés » (or « 13,00 € : rien à rembourser ») in the document's history and answers
+    > 409 `OBLIGATION_ALREADY_CLOSED`), writes « 13,00 € remboursés » (or « 13,00 € : rien à rembourser », « 13,00 € gardés en pourboire » for a
+    > link surplus since rule 49) in the document's history and answers
     > `{ document, sale, paymentLink }`; a closed row is money resolved outside the document, so `refundOwedCents` stops counting it. The
     > reception's visit payload carries neither the rows nor `refundUnheldCents`. Tests `standalone-sale-obligation-close`,
     > `visit-refund-cancel-noshow`, client `StandaloneSalesTodayCard.obligations`, `ResourceArrivalDialog.obligations`.
@@ -424,8 +425,9 @@ once on the server by the refonte's components.
     paiement »). The row is listed and closed like a `linkSurplus` row (rule 41 as amended V-4: the mini SAS, the counter's « À rembourser »,
     « Marquer remboursé »), so `refundUnheldCents` falls to 0 once it is open and `refundOwedCents` once it is closed. The visit's invoice waits for it:
     409 `REFUND_OWED` « Remboursement à faire : facture après le remboursement. ». The LINE_PAID refusal names the amount (« Ligne payée : remboursement
-    à confirmer. 13,00 € à rembourser. », `refundCents`, mock M5). _Not delivered:_ the negative journal entry of the money given back (an avoir in
-    `salesOfDocument`) — the journal still books the line's revenue on its day; the owner decides it with the refund path of rule 25.
+    à confirmer. 13,00 € à rembourser. », `refundCents`, mock M5). ~~_Not delivered:_ the negative journal entry of the money given back (an avoir in
+    `salesOfDocument`) — the journal still books the line's revenue on its day; the owner decides it with the refund path of rule 25.~~ (delivered
+    2026-11-16 by rule 48)
     Migration: the table's CHECK is widened (rebuilt once, rows and ids kept). Tests `standalone-sale-paid-line-refund`,
     `pricing-sales-document-obligations-widened`, `visit-round1-reception-and-refunds`.
 45. **What each caller is served, so the screens rebuild no rule** _(stabilisation loop t1, 2026-11-15)_. The visit payload adds `invoiceable: { ok, code, reason }`
@@ -466,6 +468,24 @@ once on the server by the refonte's components.
     `label` (no class is drawn until the list is read; the client constant `VAT_CLASS_LABELS` is gone). Tests `ResourceBookingDialog.no-show`,
     `ResourceArrivalDialog.invoiceable`, `ResourceArrivalDialog.vat-rate`, `ResourceArrivalDialog.new-sale`, `SalePaymentLink.expires-label`,
     `StandaloneSalesTodayCard.owed-day`, `ExternalSaleFields.server-labels`.
+49. **The money given back on a document is its avoir** _(stabilisation loop t1, B-1 accounting part, 2026-11-16; delivers what rule 44 left « Not
+    delivered », reading of rules 25 and 30)_. « Marquer remboursé » on a `lineLowered` row (`PATCH …/obligations/:oid { status: 'settled' }`) writes, in the
+    same transaction, the money given back as **refund allocations** (refonte rule 74: `payment_allocations` `kind = 'refund'`, negative, `refundId` = the
+    row, `paymentRef` `standalone-refund:<row>`, `…:internal` for the caisse interne, dated the day of the click). They are filed on the lines that hold
+    more than they now ask (the offered, removed or cancelled lines), in sale order, each line's booked part before its caisse-interne part; what no line
+    holds goes on no line. SETTLEMENT reads them as refunded (`paidCents` falls, the reste stays 0), so the closed row is no longer counted a second time
+    as « resolved outside the document ». The journal books, on the refund day, one **avoir** of the document (`standaloneSales.list` row `role:
+    'refund'`, key `standalone:<id>:<day>:refund`; entry kind `standaloneRefund`): the sale's lines mirrored (customer credit, `revenue:<class>` and
+    `vat:<rate>` debit), its VAT cut on the group's cumulative booked TTC like a payment's, so a line refunded in full nets to zero revenue and zero VAT;
+    the caisse interne stays off the books. The sales JSON renders it as a « Remboursement » card; the synthesis nets it in the VAT return. A
+    `lineLowered` row closed « rien à rembourser » writes nothing: the line keeps the money it was paid, booked on its day. A `linkSurplus` row closed
+    `settled` writes nothing either: that money never reached the books (rule 41). No month already booked moves: the avoir sits on its own day. Test
+    `standalone-sale-refund-journal`.
+50. **A link surplus kept is a tip** _(owner decision 2026-11-16, stabilisation loop t1 B-6; completes rules 30, 41)_. A `linkSurplus` row closed
+    « rien à rembourser » (`status: 'cancelled'`) is money the business keeps. The history says « 13,00 € gardés en pourboire », and the journal books it
+    like a stay's tip: one entry on the day the row was closed (`standaloneSales.list` row `role: 'tip'`, key `standalone:<id>:<day>:tip:<row>`; entry kind
+    `standaloneTip`), customer debit and `revenue:tip` credit on the plan's tip account (accounting-export `tipAccount`, named « Pourboire »), no VAT. The
+    link's payment day is not moved: the surplus was on no line, so it never was on that day's books. Test `standalone-sale-kept-surplus-tip`.
 
 ---
 
@@ -487,11 +507,14 @@ once on the server by the refonte's components.
 | `utils/` | `standaloneSaleLinks.js` | C | mints / reuses / withdraws the reste link through the payment-provider path (rule 40); the paid effect of the `standalone-sale` basket (rule 41); sends the manual e-mail on click (rule 42) |
 | `utils/` | `defaultEmailTemplatesRegistry.js` | T | seeds `visit_payment_request`, `sendMode: 'manual'` (rule 42) |
 | plugin `accounting-export` | `settings` + exporters | T | `drinksRevenueAccount` and the `DRINKS_ACCOUNT_REQUIRED` guard (rule 43) |
-| `models/` | `standalonePaymentsModel.js` | C | writes `standalone_sale_payments` and their allocations (`payment_allocations`) inside the sale transaction |
+| `models/` | `standalonePaymentsModel.js` | C | writes `standalone_sale_payments` and their allocations (`payment_allocations`) inside the sale transaction; `recordRefund` writes a `lineLowered` row's refund allocations (rule 48); `documentsPaidBetween` lists the documents with a payment, a refund or a kept surplus in the window |
 | `controllers/` | `standaloneSalesController.js` (from PR C) | T | the counter dialog's routes (§4.3): `GET /` (« Ventes du jour »), the quote's and the sale's `paymentLink` block, the three link routes of a counter sale (C38); exposes the actions above to the SDK |
 | `utils/` | `saleDetail.js` (from PR B) | T | `saleDetail({ documentRef })` for a standalone document: lines, statuses, `totals { totalCents, paidCents, remainingCents, refundOwedCents }` from SETTLEMENT and REFUNDS |
 | `utils/pricing/` | `settlement.js`, `refunds/owed.js` | T | SETTLEMENT and REFUNDS take a standalone document as input (no stay-level parts) — no new formula, rule 4 |
-| `utils/accounting/` | read model of standalone documents | T | lines + VAT output + allocations as `standalone` entries (rule 30) |
+| `utils/accounting/` | read model of standalone documents | T | lines + VAT output + allocations as `standalone` entries (rule 30); `standaloneDocuments.salesOfDocument` adds the refund day's avoir (rule 48) and the kept surplus's tip (rule 49); `journalLines` mirrors the avoir and books the tip; `exporters/salesJson` renders them as a « Remboursement » and a tip card |
+| `utils/` | `standaloneSale.js`, `standaloneSaleLinks.js` | T | `writeObligationRefund` (rule 48), called by `closeObligation` on a `lineLowered` row `settled`; a `linkSurplus` row `cancelled` is written « gardés en pourboire » (rule 49) |
+| `models/` | `standaloneSalesModel.js` | T | `closedObligationCents` leaves out a row written as refund allocations (rule 48); `keptSurpluses` (rule 49) |
+| plugin `accounting-export` | `accountingModel.js` | T | a kept surplus's tip on the plan's tip account, named « Pourboire » (rule 49) |
 | `utils/` | `standaloneSales.js` | T | the core lists its own documents beside the plugins' providers (rule 32) |
 | `plugins/sdk/` | `coreModules.json`, `index.js` | T | expose `standaloneSale`, `saleDetail`, `suggestedArticles`, `sasEditWindow` (already) to plugins; add `ctx.suggestionContexts` (rule 37); SDK minor bump |
 | `database.js` | `database.js` | T | idempotent columns and tables of §5, including `suggested_articles` and the `payment_links` standalone target |
@@ -617,7 +640,8 @@ check; `CREATE TABLE IF NOT EXISTS`).
 | `email_log` | `saleRef` (and `reservationId` nullable) | TEXT NULL | NULL | rule 42, amended 2026-11-12: the link e-mail is logged like every other |
 | `payment_links` | `saleRef` | TEXT NULL | NULL | the document a link bills (rule 40); `reservationId` becomes nullable for those rows. **`reservationId` is `NOT NULL` today** (`database.js`): the table rebuild is done once, in PR C, which already owes a standalone link target (refonte rule 53), and is verified on a copy of production before merge |
 | `standalone_sale_payments` | `source` | TEXT NULL | NULL | `payment-link:<id>` for rule 41 |
-| — | `standalone_sale_obligations` | `id, saleId (FK CASCADE), origin ('linkSurplus'), paymentLinkId UNIQUE, amountCents > 0, reason, createdAt, status ('open'/'settled'/'cancelled'), settledAt, settledBy` | — | rule 41 amended 2026-11-15: the surplus of a link paid after the reste moved, one row per link (`refund_obligations` has `reservationId NOT NULL`, same reasoning as the payments table) |
+| — | `standalone_sale_obligations` | `id, saleId (FK CASCADE), origin ('linkSurplus', 'lineLowered' since rule 44), paymentLinkId UNIQUE, amountCents > 0, reason, createdAt, status ('open'/'settled'/'cancelled'), settledAt, settledBy` | — | rule 41 amended 2026-11-15: the surplus of a link paid after the reste moved, one row per link (`refund_obligations` has `reservationId NOT NULL`, same reasoning as the payments table) |
+| `payment_allocations` | refund rows of a document | `paymentRef 'standalone-refund:<row>'` (`…:internal`), `kind 'refund'`, negative, `refundId` = the obligation row | — | rule 48: the money a `lineLowered` row gave back (no new column) |
 | `email_templates` | `visit_payment_request` | row | seeded FR, EN, `sendMode 'manual'` | rule 42 |
 | `plugin_settings` (`accounting-export`) | `drinksRevenueAccount` | TEXT | `''` | rule 43 |
 
@@ -689,6 +713,8 @@ number; `prefers-reduced-motion` → no movement.
 ### Server unit tests (one file per subject)
 - [x] `tests/standalone-sale-paid-line-refund.unit.test.js` — rules 44, 45 (loop t1 B-1, UI-18): a paid line lowered or a paid document cancelled opens one `lineLowered` row, closed by « Marquer remboursé », the counter's owed rows titled and dated
 - [x] `tests/pricing-sales-document-obligations-widened.unit.test.js` — rule 44: the obligations table widened once, rows kept
+- [x] `tests/standalone-sale-refund-journal.unit.test.js` — rule 48 (B-1): the refund allocations of a `lineLowered` row settled, the avoir of the refund day, the caisse interne kept off, nothing refunded twice
+- [x] `tests/standalone-sale-kept-surplus-tip.unit.test.js` — rule 49 (B-6): a link surplus kept is a tip on the day it is kept, on the tip account; refunded, it books nothing
 - [x] `plugins/hourly-resources/tests/visit-round1-reception-and-refunds.unit.test.js` — rules 44-46 (AV-1 to AV-8, AV-10, AV-11): the row and the invoice refusal, reception privacy, billing in the commit, `invoiceable`, `newSale`, the document's client follows the booking
 - [x] `plugins/hourly-resources/tests/booking-actions-no-show.unit.test.js` — rule 45 (UI-9): `actions.noShow` by day and role
 - [x] `tests/sale-link-expires-label.unit.test.js` — rule 45 (UI-15): the Paris label of a link's end
