@@ -1,4 +1,4 @@
-// specs/guest-app.md rule 110 b, reading of 2026-11-16 (owner, loop t2 AG2-2) — a card order paid before its stay was cancelled reads
+// specs/guest-app.md rule 111 b, reading of rule 110 b (owner 2026-11-16, loop t2 AG2-2) — a card order paid before its stay was cancelled reads
 // « Payée · à rembourser » in the staff list until the cancellation's refund dialog has given its lines back, then « Remboursée ». A part
 // given back leaves it « à rembourser ».
 const fx = require('./guestOrderFixtures');

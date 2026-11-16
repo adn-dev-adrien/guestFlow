@@ -1,4 +1,4 @@
-// specs/guest-app.md rule 110 a, reading of 2026-11-16 (owner, loop t2) — an app order stays editable at the arrival SAS until the arrival is
+// specs/guest-app.md rule 111 a, reading of rule 110 a (owner 2026-11-16, loop t2) — an app order stays editable at the arrival SAS until the arrival is
 // validated, but never after the stay's departure day: an arrival never validated does not keep the order open once the stay is over.
 const fx = require('./guestOrderFixtures');
 
