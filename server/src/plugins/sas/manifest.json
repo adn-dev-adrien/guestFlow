@@ -184,6 +184,8 @@
       "« Offrir » au sas d’arrivée (ménage, linge de toilette, lignes déjà vendues) passe par une seule liste, la même propriété « offerte » que la fiche ; rien ne change à l’écran ni dans les montants.",
       "Le récapitulatif du sas d’arrivée liste ce qu’il perçoit : une ligne déplacée au départ n’y figure plus, une ligne remisée y figure à son montant remisé.",
       "Deux articles de linge dont le libellé se termine par un numéro (« Drap-housse (140) », « Drap-housse (160) ») restent deux lignes distinctes quand le sas est relancé.",
+      "Le récapitulatif d’un sas d’arrivée en cours de saisie ne liste « Déjà réglé » que pour la part que ce sas déduit encore : offrir la ligne où l’argent avait été posé ne laisse plus une ligne négative face à un total à 0 €.",
+      "Au départ, la ligne « Déjà réglé » n’affiche plus « Offrir » : c’est de l’argent déjà reçu, pas une vente.",
       "Compatible avec GuestFlow 4 (SDK 2.30)."
     ]
   }

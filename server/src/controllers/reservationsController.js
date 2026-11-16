@@ -42,6 +42,7 @@ const { suggestBedDistribution } = require('../utils/bedDistribution');
 const { computePlatformCommission } = require('../utils/platformCommission');
 const { unclaimedRise, unlockedPriceRefusal } = require('../utils/savePriceGuards');
 const paidLineJudgment = require('../utils/paidLineJudgment');
+const { cashNoteExcessCents } = require('../utils/cashNoteExcess');
 const { checkGuestCapacity } = require('../utils/capacity');
 const { partyOf, nightsOf, typedCountAlerts, typedCountsErrorPayload } = require('../utils/typedCounts');
 const { clearContribsOnUnflip } = require('../utils/forceItemContribsCapture');
@@ -491,7 +492,7 @@ function overpaymentIntroducedBy(reservationId, quote, overrides = {}) {
     error: `Trop-perçu : ${formatCurrency(after)} déjà encaissés au-delà du nouveau total.`,
     code: 'OVERPAID',
     overpaymentTtc: after,
-    overpaymentMethod: refundMeansOf(row, round2(quote.complementCollectedExcessTtc), after),
+    overpaymentMethod: refundMeansOf(row, round2(quote.complementCollectedExcessTtc), after, cashNoteExcessCents(db, reservationId, { quote })),
     overpaymentLines: overpaymentLinesOf({
       row, capturedByPoste: model.capturedScheduleContribsByPoste(reservationId), quote, overpaymentTtc: after, received,
       // Computed before the write: the stored lines are still the ones the complement collected.
@@ -579,8 +580,10 @@ function complementLeftOf(reservationId, quote, row = model.getRow(reservationId
 // The means a refund of this excess defaults to. Money a complement took « caisse interne » is off the books:
 // the refund of its excess goes back the same way, so nothing is booked in the accounts (Adrien, 2026-10-29);
 // the operator can change it.
-function refundMeansOf(row, complementExcess, overpaymentTtc) {
-  return complementExcess > 0 && Number(row.complementPaidCash || 0) === 1 && overpaymentTtc <= complementExcess ? 'internal' : null;
+// Loop t6 B6-2 — the same for a note paid in cash whose line was since offered, discounted or lowered (`cashNoteCents`, rule 104).
+function refundMeansOf(row, complementExcess, overpaymentTtc, cashNoteCents = 0) {
+  if (complementExcess > 0 && Number(row.complementPaidCash || 0) === 1 && overpaymentTtc <= complementExcess) return 'internal';
+  return overpaymentTtc > 0 && Math.round(overpaymentTtc * 100) <= cashNoteCents ? 'internal' : null;
 }
 
 // The trop-perçu `overpaymentTtc` of a stay, with its refund means and its split by poste, the quote being
@@ -589,7 +592,7 @@ function overpaymentResultOf(reservationId, row, quote, overpaymentTtc, { stored
   const complementExcess = round2(quote.complementCollectedExcessTtc);
   return {
     overpaymentTtc,
-    overpaymentMethod: refundMeansOf(row, complementExcess, overpaymentTtc),
+    overpaymentMethod: refundMeansOf(row, complementExcess, overpaymentTtc, overpaymentTtc > 0 ? cashNoteExcessCents(db, reservationId) : 0),
     overpaymentLines: overpaymentLinesOf({
       row, capturedByPoste: model.capturedScheduleContribsByPoste(reservationId), quote, overpaymentTtc, received: readSplitReceived(db, reservationId),
       complementLeft: complementExcess > 0 && overpaymentTtc > 0 ? complementLeftOf(reservationId, quote, row) : {},
@@ -623,6 +626,13 @@ function syncLoweredObligations(reservationId, quote, { confirmed, lineDiscounts
   obligations.trimLowered(reservationId, Math.min(held, excess) + (confirmed ? owedCents : 0));
 }
 
+// What the register still holds as owed on lowered paid lines (rule 23): money the fiche shows and refunds even when the stay's
+// trop-perçu reads 0 (a platform stay whose establishment-collected note no line claims any more, loop t5 A5-1 / t6 UI6-5).
+function openLoweredCents(reservationId) {
+  const obligations = require('../models/refundObligationsModel');
+  return obligations.ready() ? obligations.openAmountFor(reservationId, 'lineLowered') : 0;
+}
+
 // The same, for a fiche read from the database (a locked fiche shows the stored ledger): measured against the STORED price and
 // what was collected (rule 8), the engine only splitting it by poste.
 function storedOverpayment(reservationId) {
@@ -630,7 +640,11 @@ function storedOverpayment(reservationId) {
   if (!row || row.kind !== 'reservation') return null;
   const quote = quoteStoredReservation(db, row);
   if (!quote || quote.error) return null;
-  const stored = tropPercuCents(reservationId, { autoComplementCents: Math.round(Number(quote.complementRoutedAmount || 0) * 100) });
+  // Loop t6 UI6-5 — the larger of the trop-perçu and the open obligation: the same money when both exist (rule 23).
+  const stored = Math.max(
+    tropPercuCents(reservationId, { autoComplementCents: Math.round(Number(quote.complementRoutedAmount || 0) * 100) }),
+    openLoweredCents(reservationId),
+  );
   return overpaymentResultOf(reservationId, row, quote, stored / 100, { storedOnly: true });
 }
 
@@ -2711,6 +2725,11 @@ function applyUpdate(req, res, pastUnlocked, {
     model.syncComplementAllocation(id, { autoAmount: quote.complementAmountAuto });
     syncLoweredObligations(id, quote, { confirmed: confirmedLowering, lineDiscounts: req.body.lineDiscounts });
     const paidLineRefusal = paidLines.finish({ overpaid: Boolean(overpaidRefusal), forced: Boolean(req.body.forceOverpayment), lineDiscounts: req.body.lineDiscounts });
+    // Loop t6 B6-2 (rule 106 b) — freed cash note money is given back from the caisse interne by default; read after the write, as the judgment.
+    if (paidLineRefusal && paidLineRefusal.body && paidLineRefusal.body.code === 'OVERPAID' && !paidLineRefusal.body.overpaymentMethod
+      && cashNoteExcessCents(db, id) >= Math.round(Number(paidLineRefusal.body.overpaymentTtc || 0) * 100)) {
+      paidLineRefusal.body.overpaymentMethod = 'internal';
+    }
     if (paidLineRefusal) throw new CreationRefused(paidLineRefusal);
     if (overpaidRefusal) throw new CreationRefused({ status: 409, body: overpaidRefusal });
   };

@@ -16,7 +16,8 @@
  *             an offered line stays in its group (struck through by the client), a group never merges two lines
  *   buckets   { plan, arrival, departure } the amount due at each moment, from SETTLEMENT's figures of the quote; with `stored.planCents`,
  *             `stored.arrivalCents` / `stored.departureCents` (a stored stay) the buckets are the stored deposit + balance and complements (rule 93)
- *   totals    { totalCents, settledCents, dueCents, vatByRate: [{ rate, vatCents, netCents }] }
+ *   totals    { totalCents, settledCents, dueCents, vatByRate: [{ rate, vatCents, netCents }] } — `dueCents` is what the stay still asks: with
+ *             `stored.openCents` (a stored stay, `stayOpenCents(row)`) its open buckets, credits already off them; otherwise the lines left unsettled
  *   credits[] { ref, bucket, label, paidLabels[], totalCents (< 0) } — rule 104: the money paid on lines since lowered, read where a bucket takes it
  *             (`stored.paidByKey`: what the notes paid on each line key)
  *   phase     the stay clock's answer ('before' | 'during' | 'after'), or null
@@ -28,6 +29,7 @@
 const { toCents, roundMoney } = require('./pricing/money');
 const { extraLineKey } = require('./pricing/storedLines');
 const { vatOf } = require('./pricing/vat');
+const { remainingToPay } = require('./reservationSettlement');
 
 const SOURCE_LABELS = Object.freeze({ fiche: 'Fiche', shop: 'Boutique', sas: 'SAS', intake: 'Plateforme', devis: 'Devis' });
 const ARRIVAL_ADJUSTMENT_LABEL = 'Complément d\'arrivée';
@@ -285,9 +287,23 @@ function buildSaleDetail({
       arrival: arrivalBucket,
       departure: storedBucket('departureCents') ?? toCents(q.endOfStayComplementTotal),
     },
-    totals: { totalCents, settledCents, dueCents: Math.max(0, totalCents - settledCents), vatByRate: vat.byRate || [] },
+    // Loop t6 UI6-2 — a stored stay's « Reste à payer » is what its buckets still ask (`stored.openCents`, rule 31): the accommodation and the
+    // platform-included lines carry no settled share, so the lines alone would count every paid acompte and solde as still due.
+    totals: {
+      totalCents, settledCents, dueCents: stored && Number.isFinite(stored.openCents) ? stored.openCents : Math.max(0, totalCents - settledCents), vatByRate: vat.byRate || [],
+    },
     credits,
   };
+}
+
+// Loop t6 UI6-2 (rule 31) — what a stored stay still asks, in cents: the acompte, the solde, the installments, the arrival and departure
+// complements not collected yet, gross (the guest's figure: no commission or penalty netted out). A rule-104 credit is already off the bucket
+// it sits in. A cancelled stay asks nothing through its sale: its money is the cancellation's (the ledger). Pure.
+function stayOpenCents(row) {
+  if (!row || row.kind === 'cancelled') return 0;
+  return toCents(remainingToPay({
+    ...row, acompteCommissionAmount: 0, platformCommissionAmount: 0, platformPenaltyAmount: 0,
+  }));
 }
 
 // Rule 104 (loop t5, S5-3) — the money a note paid on a line since offered, discounted or lowered stays credited to the stay, and it is read as
@@ -349,9 +365,10 @@ function departureSection(detail) {
     sourceLabel: line.sourceLabel, offered: line.offered, groupLabel: line.groupLabel, block: isPaid(line) ? 'paid' : 'due', addedOnReopen: line.addedOnReopen,
   }));
   if (credit) {
+    // Loop t6 UI6-3 — money received, no line: nothing to offer on it (`offerable: false`), and its label already says « Déjà réglé ».
     shown.push({
-      ref: credit.ref, label: credit.label, totalCents: credit.totalCents, settledCents: 0, status: 'credit', statusLabel: CREDIT_LABEL, sourceLabel: null,
-      offered: false, block: 'paid', addedOnReopen: false,
+      ref: credit.ref, label: credit.label, totalCents: credit.totalCents, settledCents: 0, status: 'credit', statusLabel: null, sourceLabel: null,
+      offered: false, offerable: false, block: 'paid', addedOnReopen: false,
     });
   }
   return {
@@ -471,5 +488,5 @@ function buildDocumentDetail({
 
 module.exports = {
   buildDocumentDetail,
-  buildSaleDetail, departureSection, paidSection, arrivalComplementLines, partsText, SOURCE_LABELS, MOMENT_LABELS, DEPARTURE_TITLE, PAID_TITLE,
+  buildSaleDetail, stayOpenCents, departureSection, paidSection, arrivalComplementLines, partsText, SOURCE_LABELS, MOMENT_LABELS, DEPARTURE_TITLE, PAID_TITLE,
 };

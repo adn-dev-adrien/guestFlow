@@ -1,6 +1,6 @@
 // specs/outside-booking-sas.md rule 56 (d) (stabilisation loop t4 B4-6) — while a draft is typed, the open rows shown are the quote's: the amounts the commit
 // will leave them (a 13 € link surplus that pays the beer being added reads 6,50 €), and « Marquer remboursé » waits for the draft to be saved — the stored
-// row is not what the screen shows.
+// row is not what the screen shows. Loop t6 UI6-4 — the caption under the rows names the modifications, whatever made the draft dirty.
 import React from 'react';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { vi } from 'vitest';
@@ -60,7 +60,15 @@ test('B4-6 — the draft shows the row at the quote\'s amount, its action disabl
 test('UI5-3 — while the draft is typed, the dead « Marquer remboursé » states why', async () => {
   render(<ResourceArrivalDialog open bookingId={5} onClose={() => {}} onDone={() => {}} />);
   expect(await screen.findByText('13,00 € à rembourser')).toBeInTheDocument();
-  expect(screen.queryByText('Enregistrer d’abord les articles ajoutés.')).toBeNull();
+  expect(screen.queryByText('Enregistrer d’abord les modifications.')).toBeNull();
   fireEvent.click(await screen.findByRole('button', { name: /Bière locale/ }));
-  expect(await screen.findByText('Enregistrer d’abord les articles ajoutés.')).toBeInTheDocument();
+  expect(await screen.findByText('Enregistrer d’abord les modifications.')).toBeInTheDocument();
+});
+
+test('UI6-4 — offered minutes alone (no article added) read « les modifications », never « les articles ajoutés »', async () => {
+  render(<ResourceArrivalDialog open bookingId={5} onClose={() => {}} onDone={() => {}} />);
+  expect(await screen.findByText('13,00 € à rembourser')).toBeInTheDocument();
+  fireEvent.click(screen.getByRole('button', { name: 'Plus 15 minutes' }));
+  expect(await screen.findByText('Enregistrer d’abord les modifications.')).toBeInTheDocument();
+  expect(screen.queryByText('Enregistrer d’abord les articles ajoutés.')).toBeNull();
 });
