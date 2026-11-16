@@ -47,6 +47,19 @@ const { toReceptionStayPayment, toReceptionSasCommit, toReceptionReservationView
 // specs/plugins-phase-2-hosts.md rule 11 (P6) — the bed-linen and towel steps belong to `linen`.
 const linenLive = () => registry.isLive('linen');
 
+// Rules 23, 104, 105 (loop t6 S6-4) — the commit judged a paid line it offers or removes like every save of the stay: its refusal
+// (409 OVERPAID until the operator confirms with `forceOverpayment`, 409 LINE_PAID) rolled the whole commit back and is answered as is.
+const REFUSED = Symbol('refused');
+function refusedOrDone(res, commit) {
+  try {
+    return commit();
+  } catch (err) {
+    if (!err || !err.refusal) throw err;
+    res.status(err.refusal.status).json(err.refusal.body);
+    return REFUSED;
+  }
+}
+
 // specs/reception-sas-today-only.md §3.2 rule 5 — the reception role only runs the SAS of the DAY that
 // has never been committed: a past, future or already-committed SAS is refused. The rule depends on
 // the reservation's dates + markers, so it can't live in the path allowlist of
@@ -437,6 +450,8 @@ function getSas(req, res) {
     // specs/sas-departure-recap-server-side.md rule 12 — what the stored detail says the operator
     // decided, so the dialog seeds its state without dividing an amount by a price.
     ...(isDeparture ? { departureSeed: reservationsModel.buildDepartureSeed(reservation.id) } : {}),
+    // Loop t6 S6-3 — the arrival's offered lines by the recap's own keys, a later line of an article named by its line (rule 85).
+    ...(isDeparture ? {} : { arrivalSeed: reservationsModel.buildArrivalSeed(reservation.id) }),
   });
 }
 
@@ -695,7 +710,7 @@ function commitArrival(req, res) {
 
   const beforeSas = snapshotSas(Number(req.params.id));
   const beforeSplit = reservationsModel.getRow(Number(req.params.id)) || {};
-  const complementAmount = reservationsModel.commitArrivalSas(Number(req.params.id), {
+  const complementAmount = refusedOrDone(res, () => reservationsModel.commitArrivalSas(Number(req.params.id), {
     // Tri-state: undefined (caution step not shown) leaves the marker untouched; the model sets or
     // clears it on a concrete boolean (specs/reopen-completed-sas.md §6).
     cautionReceived: cautionReceived === undefined ? undefined : Boolean(cautionReceived),
@@ -723,7 +738,9 @@ function commitArrival(req, res) {
     // decides what the group may claim, from the buckets it really settled.
     groupArrivalPayment: settlement.grouped,
     pluginWrites: draft.plugins.writes,
-  });
+    forceOverpayment: req.body.forceOverpayment === true,
+  }));
+  if (complementAmount === REFUSED) return res;
   recordSasHistory(Number(req.params.id), 'sas_arrival', beforeSas);
   const splitWarning = splitArrival ? recordSasSplit(Number(req.params.id), beforeSplit, splitArrival.prepared, {
     tenders: req.body.arrivalPaymentTenders, shortfall: req.body.arrivalPaymentShortfall,
@@ -845,7 +862,7 @@ function commitDeparture(req, res) {
   }
   const beforeSas = snapshotSas(id);
   const beforeSplit = reservationsModel.getRow(id) || {};
-  reservationsModel.commitDepartureSas(id, {
+  const departed = refusedOrDone(res, () => reservationsModel.commitDepartureSas(id, {
     // Tri-state, same contract as the arrival caution (specs/reopen-completed-sas.md §6).
     cautionReturned: cautionReturned === undefined ? undefined : Boolean(cautionReturned),
     ...draft.input,
@@ -853,7 +870,9 @@ function commitDeparture(req, res) {
     // positive complement (end-of-stay + recalled arrival) at the checkout moment.
     complementsSettled: complementsSettled === undefined ? undefined : Boolean(complementsSettled),
     complementsPaidCash: splitPrepared ? splitPrepared.allInternal : Boolean(complementsPaidCash),
-  });
+    forceOverpayment: req.body.forceOverpayment === true,
+  }));
+  if (departed === REFUSED) return res;
   // Rules 22-23 — the total the recap showed is compared, never used: the commit went through on its
   // own plan, and a difference is said and kept, as one more change of the `sas_departure` entry.
   // `stored` is what was written.

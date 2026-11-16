@@ -424,6 +424,8 @@ function planSchedule({
       resolvedDepositAmount = roundMoney(resolvedDepositAmount - noteCreditCuts.depositAmount);
     }
   }
+  // Loop t6 S6-2 — and what no bucket nor line absorbed: money beyond the total, the part of the owed refund that is not a clamp of `pinSaleDelta`.
+  if (noteCredit > 0) noteCreditCuts.unabsorbed = noteCredit;
   const noteCreditApplied = roundMoney(Number(midStayExtras.unclaimed || 0) - noteCredit);
   const creditedRemainder = roundMoney(creditedLines.reduce((sum, line) => sum + Number(line.amount || 0), 0)
     - midStayLinesWithExcess.reduce((sum, line) => sum + Number(line.amount || 0), 0));

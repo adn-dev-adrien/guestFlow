@@ -7,7 +7,7 @@
  *   notesOnKey(db, reservationId, key)  → the cents the stay's notes name on a line key: what the guest paid on that line, whatever it is
  *                                         worth now (a line offered after it was paid still carries it)
  *   noteExcessCents(db, reservationId, lineDiscounts)  → the note money no line claims and no bucket absorbs: received by the establishment
- *                                         beyond the total (`lineDiscounts`: those a save carries, not stored yet)
+ *                                         beyond the total and not refunded yet (`lineDiscounts`: those a save carries, not stored yet)
  *   begin(db, reservationId)            → `{ finish({ overpaid, forced, lineDiscounts }) }`, taken before the write; `finish`, called after the
  *                                         write inside the same transaction, answers the refusal that rolls it back, or null (`overpaid`: the
  *                                         save is about to answer the trop-perçu formula's 409 OVERPAID — only a removal is refused before it;
@@ -46,12 +46,13 @@ function unabsorbedCents(row) {
   return BUCKETS.reduce((sum, field) => sum + toCents(row[field]), notes) - toCents(row.finalPrice) - toCents(row.touristTaxTotal);
 }
 
-function openLoweredCents(db, reservationId) {
+function loweredCents(db, reservationId, status) {
   const table = db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'refund_obligations'").get();
   if (!table) return 0;
-  return Number(db.prepare("SELECT COALESCE(SUM(amountCents), 0) AS cents FROM refund_obligations WHERE reservationId = ? AND origin = 'lineLowered' AND status = 'open'")
-    .get(Number(reservationId)).cents);
+  return Number(db.prepare("SELECT COALESCE(SUM(amountCents), 0) AS cents FROM refund_obligations WHERE reservationId = ? AND origin = 'lineLowered' AND status = ?")
+    .get(Number(reservationId), status).cents);
 }
+const openLoweredCents = (db, reservationId) => loweredCents(db, reservationId, 'open');
 
 const lineFactsOf = (db, id) => require('../models/ports/stayRepository').create(db).lineFacts(id);
 const netOf = (fact) => (fact ? Math.max(0, Number(fact.storedCents || 0) - Number(fact.discountCents || 0)) : 0);
@@ -75,7 +76,10 @@ function noteExcessCents(db, reservationId, lineDiscounts = null) {
   const row = db.prepare('SELECT * FROM reservations WHERE id = ?').get(id);
   const notes = row ? notesByKeyCents(row) : {};
   if (!row || !Object.keys(notes).length) return 0;
-  return Math.max(0, Math.min(unabsorbedCents(row), unclaimedCents(notes, factsWith(db, id, lineDiscounts))));
+  // Loop t6 D6-1 — a refund on the trop-perçu gave part of that money back already (the `lineLowered` rows it settled): the notes and the
+  // buckets still count it as received, so it comes off here, or a second lowering would owe it back a second time.
+  const refunded = loweredCents(db, id, 'settled');
+  return Math.max(0, Math.min(unabsorbedCents(row), unclaimedCents(notes, factsWith(db, id, lineDiscounts))) - refunded);
 }
 
 // What the stay owes back on lowered paid lines, in the register (rule 23): held at `cents`.

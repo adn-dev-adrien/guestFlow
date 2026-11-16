@@ -2194,6 +2194,28 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
     and a refund that gives money back on a line a note paid settles the open `lineLowered` obligation by that much (deleted, it reopens it).
     Before: on 13 of 38 cancelled platform stays of the copy the order sat inside « Hébergement » (wrong class and rate), and the obligation stayed
     open at 45 € after the refund on 23. The copy holds no cancelled stay: no existing register moves. Test `cancelled-stay-note-paid-line-refund`.
+107. **A paid line's money is counted once, on every path** _(stabilisation loop t6, S6-2 to S6-4 and D6-1, 2026-11-16; completes rules 23, 85,
+    104, 105; sas-offer-complement-lines §4.3)_.
+    (a) **The way back reads the engine's figure before the credit** (S6-2): rule 104 b bounded the way back only on a bucket stored BELOW the
+    engine, but a credit that took the whole engine bucket leaves engine = 0 = stored, and the bound vanished again — stay 14 (direct, engine
+    complement 50,50 €, stored 0): a 65 € line paid in cash, offered (confirmed, 65 € owed), un-offered asked 50,50 € at the arrival for a line
+    paid in cash. `pinSaleDelta` now bounds when the stay stores the bucket below the engine's figure before the credit (`base + cut`), and closes
+    with the withdrawn credit only the refund the clamp left owed: the open `lineLowered` refund minus what the engine itself counts beyond the
+    total (`noteCreditCuts.unabsorbed`, the credit no bucket nor line absorbed), so a bucket stored at the engine's figure gets its credit back.
+    Tests `sale-paid-line-unoffer-drift` (one line larger than the complement; two lines 30 + 60, offer A, offer B, un-offer A, un-offer B).
+    (b) **A refund already made is not owed twice** (D6-1): the obligation a confirmed lowering opens is the note money received beyond the total
+    MINUS the `lineLowered` rows a refund on the trop-perçu already settled (`paidLineJudgment.noteExcessCents`). Before, a second paid line
+    offered after a refund opened 90 € owed while the trop-perçu read 60 €. Test `sale-paid-line-refunded-then-lowered`.
+    (c) **The arrival SAS addresses the exact line** (S6-3): the SAS payload serves `arrivalSeed.offeredKeys`, the offered complement lines by the
+    recap's own keys (rule 85, a later line `option:<id>:<lineId>`); the dialog seeds from it instead of naming every line `option:<id>`, which
+    the commit read as the article's first line (22328, 22331: the fiche's gift and the guest's paid card line swapped). The departure recall
+    keys its lines the same way. Tests `sas-arrival-paid-line-judged`, client `ReservationSasDialog.arrival-seed`.
+    (d) **The SAS commits are saves like the others** (S6-4): `commitArrivalSas` and `commitDepartureSas` take the paid-line judgment of rule 105
+    inside their transaction: a paid line offered with nothing left to absorb its money answers 409 `OVERPAID` and writes nothing; the dialog
+    asks « Ligne déjà payée — Offrir · X à rembourser / Garder » and, confirmed, commits again with `forceOverpayment` (the `lineLowered`
+    obligation opens); a paid line its money still pays elsewhere (another line still due) is credited by rule 104 b without a question.
+    Before, 40 of 54 stays offered the paid card line at the arrival SAS with no question and 17 left its 45 € credited nowhere. Tests
+    `sas-arrival-paid-line-judged`, client `ReservationSasDialog.paid-line-offer`.
 
 ## 4. Architecture
 

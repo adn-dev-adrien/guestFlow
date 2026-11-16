@@ -176,6 +176,8 @@
       "Offrir une prestation vise une seule ligne quand un article a été vendu plusieurs fois ; le récapitulatif regroupe ces lignes sous un seul titre."
     ],
     "1.11.0": [
+      "Une ligne d’un article vendu sur plusieurs lignes, offerte depuis la fiche, se rouvre offerte au sas d’arrivée : valider garde exactement cette ligne offerte.",
+      "Offrir au sas une ligne déjà payée demande confirmation (« Offrir · X à rembourser ») comme sur la fiche ; confirmé, le montant est à rembourser depuis la fiche.",
       "Le récapitulatif d’arrivée affiche « Déjà réglé (…) » quand l’argent d’une ligne payée puis offerte ou remisée est déduit du complément : les lignes font le total.",
       "Le sas d’arrivée perçoit maintenant les ventes prévues au départ : « Percevoir maintenant » ligne par ligne, ou « Tout percevoir maintenant ».",
       "Les lignes déjà payées se replient sous « Déjà payé ».",

@@ -48,7 +48,7 @@ import CheckIcon from '@mui/icons-material/Check';
 import { useNavigate } from 'react-router';
 import {
   api, getPlatformColor, formatPlatformLabel, ConfirmDialog, OccurrenceGrid, LoadingState, ErrorAlert,
-  useToast, SasKeypadCode, formatCurrency, displayDate, displayDateLong, PRICE_TYPE_LABELS,
+  useToast, useAppDialogs, SasKeypadCode, formatCurrency, displayDate, displayDateLong, PRICE_TYPE_LABELS,
   sasLockTitle, sasLockMessage, Slot, Contribution, useSlot, WheatIcon, BaguetteIcon, StatusBadge,
   TenderLines, TENDER_TEXTS, StaySalesSection,
 } from '../sdk';
@@ -60,7 +60,6 @@ import placePluginSteps from './placePluginSteps';
 import stepNumbering from './sasStepNumbering';
 
 const round2 = (v) => Math.round((Number(v) || 0) * 100) / 100;
-const EXTRA_GUESTS_OFFER_KEY = 'extraGuests:0';
 const REFRESH_FAILED = 'Données du sas non rechargées : les montants affichés peuvent être périmés.';
 // French display for stepper values: integers as-is, halves with a comma (« 1,5 »).
 function formatStepperValue(value) {
@@ -260,6 +259,7 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
   const fullScreen = useMediaQuery(theme.breakpoints.down('sm'));
   const navigate = useNavigate();
   const { showError } = useToast();
+  const { confirm } = useAppDialogs();
 
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -480,17 +480,9 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
         // not the SAS was committed: an offered extra may come from the fiche, or from the other SAS.
         const seed = new Set();
         if (mode === 'arrival') {
-          for (const o of (res.options || [])) {
-            if (Number(o.inComplement || 0) !== 1 || Number(o.offered || 0) !== 1) continue;
-            if (Number(o.sasArrivalOrigin || 0) === 1) continue; // seeded below, on its own SAS key
-            seed.add(Number(o.isCustom || 0) === 1 ? `custom:${o.customOptionId}` : `option:${o.optionId}`);
-          }
-          for (const rs of (res.resources || [])) {
-            if (Number(rs.inComplement || 0) === 1 && Number(rs.offered || 0) === 1) seed.add(`resource:${rs.resourceId}`);
-          }
-          if (Number(res.extraGuestComplementSurcharge || 0) > 0 && Number(res.extraGuestSurchargeOffered || 0) === 1) {
-            seed.add(EXTRA_GUESTS_OFFER_KEY);
-          }
+          // Loop t6 S6-3 — the server names each offered line by the recap's own key (a later line of an article carries its lineId),
+          // so the commit offers exactly that line, never the article's first one.
+          (d.arrivalSeed?.offeredKeys || []).forEach((key) => seed.add(key));
         } else {
           // specs/sas-departure-recap-server-side.md rule 12 — the server says which stored lines the
           // check-out carries and which lines (carried, recalled, and the SAS's own once committed) are
@@ -931,6 +923,25 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [breakfastServed, breakfastSold, breakfastFoodFor]);
+  // Rules 23, 105 (loop t6 S6-4) — a commit that offers a line the guest already paid is judged like the fiche: the server answers 409
+  // OVERPAID with what it would owe back; once the operator confirms, the same commit goes again with `forceOverpayment`.
+  const withPaidLineConfirm = async (send, body) => {
+    try {
+      return await send(body);
+    } catch (e) {
+      if (e?.code !== 'OVERPAID') throw e;
+      const amount = formatCurrency(Number(e.overpaymentTtc) || 0);
+      const ok = await confirm({
+        title: 'Ligne déjà payée',
+        message: `L’offrir rend ${amount} au client (à rembourser depuis la fiche).`,
+        confirmLabel: `Offrir · ${amount} à rembourser`,
+        cancelLabel: 'Garder',
+        confirmColor: 'warning',
+      });
+      if (!ok) return { cancelled: true };
+      return send({ ...body, forceOverpayment: true });
+    }
+  };
   const commit = async () => {
     setCommitting(true); setError('');
     try {
@@ -981,7 +992,8 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
           payload.breakfastBread = breakfastFood.bread;
           payload.breakfastNote = breakfastNote;
         }
-        const result = await api.commitArrivalSas(reservationId, payload);
+        const result = await withPaidLineConfirm((body) => api.commitArrivalSas(reservationId, body), payload);
+        if (result && result.cancelled) return;
         // Rule 22 — recorded on another total than the one shown: the dialog stays open on the warning,
         // and « Fermer » hands over to the page (`onDone` closes the dialog and reloads the planning).
         if (result && result.warning) {
@@ -992,7 +1004,7 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
         // specs/sas-departure-recap-server-side.md rules 4, 22 — the draft the preview priced (intent only:
         // the server prices it again and keeps the stored lines), the settlement, and the total the
         // recap showed, compared by the server and never used as an amount.
-        const result = await api.commitDepartureSas(reservationId, {
+        const result = await withPaidLineConfirm((body) => api.commitDepartureSas(reservationId, body), {
           cautionReturned: activeKeys.includes('cautionReturn') ? (cautionReturned === true) : undefined,
           ...departureDraft,
           // specs/sas-recap-payment-buttons.md — settlement mode → mark every positive complement paid
@@ -1005,6 +1017,7 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
             ...(departureTenders && departureTenders.shortfall ? { complementsShortfall: departureTenders.shortfall } : {}),
           } : {}),
         });
+        if (result && result.cancelled) return;
         if (result && result.warning) {
           setCommitWarning(result.warning);
           return;

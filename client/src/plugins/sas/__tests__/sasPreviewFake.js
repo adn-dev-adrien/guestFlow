@@ -12,9 +12,34 @@
 
 const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
 
-function refKey(x) {
-  if (x.resourceId != null && x.optionId == null && x.customOptionId == null) return `resource:${Number(x.resourceId)}`;
-  return Number(x.isCustom || 0) === 1 ? `custom:${Number(x.customOptionId)}` : `option:${Number(x.optionId)}`;
+// The server's recap key (rule 85): an article's first line is `option:<id>`, a later line of the same article `option:<id>:<lineId>`.
+function lineKeys(r) {
+  const keys = new Map();
+  const first = new Map();
+  const items = [...(r.options || []), ...(r.resources || [])];
+  const articleOf = (x) => (x.resourceId != null && x.optionId == null && x.customOptionId == null ? `resource:${Number(x.resourceId)}` : `option:${Number(x.optionId)}`);
+  for (const x of items) {
+    if (Number(x.isCustom || 0) === 1 || x.lineId == null) continue;
+    const held = first.get(articleOf(x));
+    if (held == null || Number(x.lineId) < held) first.set(articleOf(x), Number(x.lineId));
+  }
+  for (const x of items) {
+    if (Number(x.isCustom || 0) === 1) keys.set(x, `custom:${Number(x.customOptionId)}`);
+    else keys.set(x, x.lineId == null || first.get(articleOf(x)) === Number(x.lineId) ? articleOf(x) : `${articleOf(x)}:${Number(x.lineId)}`);
+  }
+  return keys;
+}
+
+const refKeyOfDraft = (x) => `${x.kind}:${Number(x.id)}${x.lineId ? `:${Number(x.lineId)}` : ''}`;
+
+// The arrival re-open seed the server serves (`arrivalSeed`, loop t6 S6-3): the offered complement lines by their recap keys.
+export function arrivalSeedFor(r) {
+  const keys = lineKeys(r);
+  const offeredKeys = [...(r.options || []), ...(r.resources || [])]
+    .filter((x) => Number(x.inComplement || 0) === 1 && Number(x.offered || 0) === 1 && Number(x.sasArrivalOrigin || 0) !== 1)
+    .map((x) => keys.get(x));
+  if (Number(r.extraGuestComplementSurcharge || 0) > 0 && Number(r.extraGuestSurchargeOffered || 0) === 1) offeredKeys.push('extraGuests:0');
+  return { offeredKeys };
 }
 
 export function recapFor(payload, draft = {}) {
@@ -23,16 +48,17 @@ export function recapFor(payload, draft = {}) {
   const offeredList = Array.isArray(draft.offered) ? draft.offered : null;
   const upsellOffered = (key) => Boolean(offeredList && offeredList.some((x) => x.kind === 'upsell' && x.key === key));
   const offeredSet = offeredList
-    ? new Set(offeredList.filter((x) => x.kind !== 'upsell').map((x) => `${x.kind}:${Number(x.id)}`)) : null;
+    ? new Set(offeredList.filter((x) => x.kind !== 'upsell').map(refKeyOfDraft)) : null;
   const isOffered = (key, stored) => (offeredSet ? offeredSet.has(key) : stored);
   const lines = [];
   let offerDelta = 0;
+  const keys = lineKeys(r);
   for (const x of [...(r.options || []), ...(r.resources || [])]) {
     if (Number(x.inComplement) !== 1 || Number(x.sasArrivalOrigin || 0) === 1) continue;
     if (!(Number(x.originalTotalPrice ?? x.totalPrice ?? 0) > 0)) continue;
     const stored = Number(x.offered || 0) === 1;
     const real = round2(stored ? (x.originalTotalPrice ?? x.totalPrice) : (x.totalPrice ?? x.originalTotalPrice));
-    const key = refKey(x);
+    const key = keys.get(x);
     const offered = isOffered(key, stored);
     offerDelta += (offered && !stored ? -real : 0) + (!offered && stored ? real : 0);
     lines.push({
