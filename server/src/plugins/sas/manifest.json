@@ -181,6 +181,8 @@
       "Le sas de départ liste les ventes déjà payées sous « Déjà payé » : on peut en offrir une, le sas annonce alors le montant à rembourser depuis la fiche.",
       "Un sas rouvert modifie ses lignes sur place et ajoute les nouvelles, qui portent la pastille « Ajoutée à la réouverture » ; les totaux ne changent pas.",
       "« Offrir » au sas d’arrivée (ménage, linge de toilette, lignes déjà vendues) passe par une seule liste, la même propriété « offerte » que la fiche ; rien ne change à l’écran ni dans les montants.",
+      "Le récapitulatif du sas d’arrivée liste ce qu’il perçoit : une ligne déplacée au départ n’y figure plus, une ligne remisée y figure à son montant remisé.",
+      "Deux articles de linge dont le libellé se termine par un numéro (« Drap-housse (140) », « Drap-housse (160) ») restent deux lignes distinctes quand le sas est relancé.",
       "Compatible avec GuestFlow 4 (SDK 2.30)."
     ]
   }

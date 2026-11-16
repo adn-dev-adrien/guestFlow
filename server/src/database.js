@@ -2508,7 +2508,14 @@ for (const table of ['ical_export_ranges', 'ical_export_tombstones']) {
 // complement — with a stale baseline in place it was billed at check-out instead, and listed twice.
 // Naturally idempotent (a filter on « no arrival signal at all »), and money-safe by construction: a
 // stay that collected any complement is excluded, so nothing frozen can lose its reference point.
+// specs/pricing-components.md rule 103 — a baseline that carved a line out to the departure (a line stamped `collectAt = 'departure'`) is
+// the line's bucket: dropping it would leave that line in no stored bucket, so such a stay keeps it.
 {
+  const stamped = ['reservation_options', 'reservation_resources', 'reservation_custom_options']
+    .filter((table) => db.prepare(`PRAGMA table_info(${table})`).all().some((c) => c.name === 'collectAt'));
+  const keepsDepartureLines = stamped
+    .map((table) => `AND NOT EXISTS (SELECT 1 FROM ${table} l WHERE l.reservationId = reservations.id AND l.collectAt = 'departure')`)
+    .join('\n      ');
   const cleared = db.prepare(`
     UPDATE reservations SET arrivalExtrasBaseline = NULL
     WHERE arrivalExtrasBaseline IS NOT NULL
@@ -2519,6 +2526,7 @@ for (const table of ['ical_export_ranges', 'ical_export_tombstones']) {
       AND COALESCE(endOfStayComplementPaid, 0) = 0
       AND COALESCE(endOfStayComplementPaidCash, 0) = 0
       AND COALESCE(midStaySettledNotes, '') IN ('', '[]')
+      ${keepsDepartureLines}
   `).run();
   if (cleared.changes > 0) {
     console.log(`[migration:arrival-baseline] cleared ${cleared.changes} baseline(s) pinned before any check-in`);
