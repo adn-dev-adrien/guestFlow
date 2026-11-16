@@ -28,6 +28,7 @@ p{margin:0 0 12px;max-width:68ch}
 .lead{font-size:19px;color:#3a3f35;max-width:62ch}
 .cols{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:32px;margin-top:20px}
 .cols>div{border-top:1px solid var(--ctl);padding-top:14px}
+.cols h2{font:700 15px/1.3 var(--body);letter-spacing:.02em;margin:0 0 6px}
 .cols p{font-size:16px;color:#3a3f35}
 ul.plain{margin:8px 0 0;padding-left:20px;max-width:68ch}
 ul.plain li{margin:6px 0}
@@ -102,9 +103,9 @@ label.l{display:block;font:700 14px var(--body);margin-bottom:6px}
 <p class="lead">Trois ajustements demandés sur la PR #1055. Ce document montre ce qui change, à manipuler ; les trois arbitrages sont tranchés (voir le bas de page).</p>
 
 <div class="cols">
-  <div><h3>Payé ou rien</h3><p>Aucun bon n'existe tant que l'argent n'est pas reçu. En ligne, c'est la banque qui le confirme ; au comptoir, l'opérateur doit déjà dire comment le bon a été payé, sinon il est refusé (en place).</p></div>
-  <div><h3>Lien d'une heure</h3><p>Le lien de paiement vit <b>60 minutes</b> (30 aujourd'hui). Passé ce délai, il est retiré chez Qonto ; la commande impayée est gardée <b>7 jours en coulisse</b>, invisible dans la liste des bons, puis supprimée.</p></div>
-  <div><h3>TVA réglable</h3><p>Un réglage « TVA des bons cadeaux », <b>10 %</b> par défaut. Le taux est figé sur le bon le jour de la vente ; l'export comptable passe la vente HT + TVA à ce taux.</p></div>
+  <div><h2>Payé ou rien</h2><p>Aucun bon n'existe tant que l'argent n'est pas reçu. En ligne, c'est la banque qui le confirme ; au comptoir, l'opérateur doit déjà dire comment le bon a été payé, sinon il est refusé (en place).</p></div>
+  <div><h2>Lien d'une heure</h2><p>Le lien de paiement vit <b>60 minutes</b> (30 aujourd'hui). Passé ce délai, il est retiré chez Qonto ; la commande impayée est gardée <b>7 jours en coulisse</b>, invisible dans la liste des bons, puis supprimée.</p></div>
+  <div><h2>TVA réglable</h2><p>Un réglage « TVA des bons cadeaux », <b>10 %</b> par défaut. Le taux est figé sur le bon le jour de la vente ; l'export comptable passe la vente HT + TVA à ce taux.</p></div>
 </div>
 
 <h2>1. L'achat sur le site, minute par minute</h2>
