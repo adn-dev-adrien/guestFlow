@@ -924,7 +924,8 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [breakfastServed, breakfastSold, breakfastFoodFor]);
   // Rules 23, 105 (loop t6 S6-4) — a commit that offers a line the guest already paid is judged like the fiche: the server answers 409
-  // OVERPAID with what it would owe back; once the operator confirms, the same commit goes again with `forceOverpayment`.
+  // OVERPAID with what it would owe back; once the operator confirms, the same commit goes again with `forceOverpayment`. « Garder »
+  // (loop t7 UI7-2) puts the paid lines the server names (`overpaymentKeys`) back to billed, so the recap and « Valider » agree with it.
   const withPaidLineConfirm = async (send, body) => {
     try {
       return await send(body);
@@ -936,9 +937,13 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
         message: `L’offrir rend ${amount} au client (à rembourser depuis la fiche).`,
         confirmLabel: `Offrir · ${amount} à rembourser`,
         cancelLabel: 'Garder',
-        confirmColor: 'warning',
+        confirmColor: 'error',
       });
-      if (!ok) return { cancelled: true };
+      if (!ok) {
+        const kept = Array.isArray(e.overpaymentKeys) ? e.overpaymentKeys : [];
+        if (kept.length > 0) setOffered((prev) => new Set([...prev].filter((key) => !kept.includes(key))));
+        return { cancelled: true };
+      }
       return send({ ...body, forceOverpayment: true });
     }
   };

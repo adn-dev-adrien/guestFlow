@@ -771,6 +771,43 @@ function createReservationsModel(database, { arrivalComplementEngine = null } = 
     return (ref) => (ref.kind === 'option' || ref.kind === 'resource' ? refKeyOf(ref, first) : `${ref.kind}:${Number(ref.id)}`);
   };
 
+  // Loop t7 UI7-2 (rule 107 d) — the recap keys of the lines a SAS commit offers that the guest already paid by a note and that were not
+  // offered before it: what its 409 OVERPAID names, so « Garder » on the SAS puts exactly those lines back to billed. Read after the
+  // refused transaction rolled back (the stored lines are the ones before the commit).
+  const LINE_TABLE_OF = { option: ['reservation_options', 'optionId'], resource: ['reservation_resources', 'resourceId'] };
+  const paidOfferKeysOf = (reservationId, refs) => {
+    if (!Array.isArray(refs) || refs.length === 0) return [];
+    const { notesOnKey } = require('../utils/paidLineJudgment');
+    const facts = require('./ports/stayRepository').create(database).lineFacts(reservationId);
+    const keyOf = detailRefKeyOf(reservationId);
+    const keys = [];
+    for (const ref of refs) {
+      let line = null;
+      if (ref.kind === 'custom') {
+        line = database.prepare(`SELECT lineId, offered FROM reservation_custom_options WHERE id = ? AND reservationId = ?${notDepartureCharge(database)}`).get(Number(ref.id), reservationId);
+      } else if (LINE_TABLE_OF[ref.kind] && hasLineId(database, LINE_TABLE_OF[ref.kind][0])) {
+        const [table, column] = LINE_TABLE_OF[ref.kind];
+        line = ref.lineId != null
+          ? database.prepare(`SELECT lineId, offered FROM ${table} WHERE reservationId = ? AND ${column} = ? AND lineId = ?`).get(reservationId, Number(ref.id), Number(ref.lineId))
+          : database.prepare(`SELECT lineId, offered FROM ${table} WHERE reservationId = ? AND ${column} = ? ORDER BY lineId LIMIT 1`).get(reservationId, Number(ref.id));
+      }
+      if (!line || Number(line.offered || 0) === 1) continue;
+      const factKey = Object.keys(facts).find((k) => facts[k].table === ref.kind && Number(facts[k].lineId) === Number(line.lineId));
+      if (factKey && notesOnKey(database, reservationId, factKey) > 0) keys.push(keyOf(ref));
+    }
+    return keys;
+  };
+  // A SAS commit's transaction, its OVERPAID refusal naming the paid lines it offered.
+  const runNamingPaidOffers = (tx, reservationId, refs) => {
+    try {
+      return tx();
+    } catch (err) {
+      const body = err && err.refusal && err.refusal.body;
+      if (body && body.code === 'OVERPAID') body.overpaymentKeys = paidOfferKeysOf(reservationId, refs);
+      throw err;
+    }
+  };
+
   // specs/sas-offer-complement-lines.md §3.3 rule 9 — apply the operator's « Offrir » decisions to the
   // in-complement extras. `refs` is the AUTHORITATIVE offered set (`[{ kind, id }]`): a line named in it
   // is offered, one absent from it is billed — so un-offering works on a re-open. Offering never loses
@@ -4242,7 +4279,7 @@ function createReservationsModel(database, { arrivalComplementEngine = null } = 
         if (paidLineRefusal) throw Object.assign(new Error(paidLineRefusal.body.error), { refusal: paidLineRefusal });
         return database.prepare('SELECT complementAmount FROM reservations WHERE id = ?').get(reservationId).complementAmount;
       });
-      const complementAmount = tx();
+      const complementAmount = runNamingPaidOffers(tx, reservationId, offeredExtras);
       if (stayPaid || complementSettled) retireSettledLinksOf(database);
       return complementAmount;
     },
@@ -4633,7 +4670,7 @@ function createReservationsModel(database, { arrivalComplementEngine = null } = 
         const paidLineRefusal = paidLines.finish({ forced: forceOverpayment === true });
         if (paidLineRefusal) throw Object.assign(new Error(paidLineRefusal.body.error), { refusal: paidLineRefusal });
       });
-      tx();
+      runNamingPaidOffers(tx, reservationId, offeredArrivalExtras);
     },
   };
 

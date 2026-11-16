@@ -543,7 +543,10 @@ function liveOverpayment(reservationId, engineInput) {
     autoComplementCents: replay ? Math.round(Number(replay.complementRoutedAmount || 0) * 100) : 0,
     engineDriftCents: replay ? totalCentsOf(replay) - totalCentsOf(asSaved) : 0,
   }, 'asSaved') / 100;
-  return overpaymentResultOf(reservationId, row, asSaved, reported);
+  // Loop t7 UI7-1 — the open obligation on a lowered paid line is owed whatever the draft types elsewhere: the dirty fiche
+  // keeps the floor the stored one reads (storedOverpayment), or a platform stay's « Trop-perçu » vanishes until the save.
+  const floored = Math.max(Math.round(reported * 100), openLoweredCents(reservationId)) / 100;
+  return overpaymentResultOf(reservationId, row, asSaved, floored);
 }
 
 // The trop-perçu of a stay in cents through the one formula (rule 76); a stay the loader cannot read holds none.

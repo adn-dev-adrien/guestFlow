@@ -894,7 +894,7 @@ full width (44 px). Nothing else moves.
   (moved from `settings-model-encryption`, which now tests the SMTP secret).
 - `plugins/school-holidays/tests/school-holidays-sync-dates.unit.test.js` (5) — rule 27.
 - Rule 19 is cited on the moved OAuth flow tests (`google-oauth-flow`), whose redirect assertions changed.
-- `plugins-sdk-core-module-floor.unit.test.js` (3, audit 2026-10-27) — every `coreModule()` module and dated
+- `plugins-sdk-core-module-floor.unit.test.js` (5: 3 at the audit 2026-10-27, 4 on master, +1 loop t6 S6-3 — the `buildArrivalSeed` floor of rule 56) — every `coreModule()` module and dated
   name a plugin uses exists at the floor of its `sdk` range; the history dates every contract module.
 
 ### Moved tests
