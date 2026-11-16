@@ -175,7 +175,8 @@
       "Le serveur dit si « Client absent », « Créer la facture » et « Retirer le lien » sont possibles, et ouvre une nouvelle vente sur le même client après la facture.",
       "Le taux de TVA saisi au catalogue pour les ressources vaut aussi pour le paiement d’une réservation et sa facture : un seul taux hors séjour.",
       "Une ressource, un logement ou un client dont une visite a de l’argent sur sa vente ne peut plus être supprimé de force.",
-      "L’avertissement de désinstallation nomme l’argent des visites encaissé sur leur vente ; une vente dont la réservation a disparu reste dans « Ventes hors séjour »."
+      "L’avertissement de désinstallation nomme l’argent des visites encaissé sur leur vente ; une vente dont la réservation a disparu reste dans « Ventes hors séjour ».",
+      "« Créer la facture dans Qonto » au paiement immédiat est proposé quand le serveur, interrogé avec le paiement saisi, répond que la facture peut être faite : ni l’arrivée ni la réservation ne le devinent plus d’après les moyens de paiement."
     ]
   }
 }

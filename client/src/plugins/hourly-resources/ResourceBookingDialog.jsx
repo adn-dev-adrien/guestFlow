@@ -362,10 +362,13 @@ export default function ResourceBookingDialog({
 
   const editable = !booking?.frozen;
   const payNow = payWhen === 'now' && !booking?.paid && Boolean(price && price.total > 0);
+  const invoiceDraft = useMemo(() => (payNow && draft && paymentBody(payment) ? { ...draft, payment: paymentBody(payment) } : null), [payNow, draft, payment]);
+  const invoicePreview = useResourceBookingPreview({ draft: invoiceDraft, enabled: open });
   const qontoReady = Boolean(price ? price.invoiceReady : booking?.invoiceReady);
   // Rule 44 (R35-C-L1) — a payment on the books whose invoice is still to make, or was cancelled in Qonto (A2).
   const invoiceLater = Boolean(booking?.paid && booking.payment?.onTheBooks && (!booking.invoice || booking.invoice.cancelled));
-  const invoiceOffered = (payNow && allOnTheBooks(payment)) || invoiceLater;
+  // Loop t2 B2-7 (outside-visit rule 53) — whether « Payé maintenant » can make the invoice is the server's answer for the payment typed.
+  const invoiceOffered = Boolean(payNow && invoicePreview.fresh && invoicePreview.price && invoicePreview.price.invoiceable && invoicePreview.price.invoiceable.ok) || invoiceLater;
   const wantsInvoice = invoiceOffered && invoiceChecked && qontoReady;
   const durationForOffer = durationMinutes - Number(price?.freeMinutesApplied || 0);
   const canSave = Boolean(

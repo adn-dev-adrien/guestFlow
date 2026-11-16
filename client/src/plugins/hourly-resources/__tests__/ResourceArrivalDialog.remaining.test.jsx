@@ -19,7 +19,11 @@ vi.mock('../../../api', () => ({
 }));
 vi.mock('../../../hooks/usePostalCodeCities', () => ({ default: () => [] }));
 
-beforeEach(() => { vi.clearAllMocks(); });
+beforeEach(() => {
+  vi.clearAllMocks();
+  // Loop t2 B2-7 — the quote of the payment typed answers the stored visit and whether its commit could be invoiced.
+  api.quoteResourceVisit.mockImplementation(async () => ({ ...(await api.getResourceVisit.getMockImplementation()()), invoiceable: { ok: true, code: null, reason: null } }));
+});
 
 test('rules 4, 15 — the figures are the payload\'s, even when they are not the sum of the lines', async () => {
   api.getResourceVisit.mockResolvedValue(visitPayload({

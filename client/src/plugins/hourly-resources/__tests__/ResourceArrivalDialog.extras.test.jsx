@@ -66,11 +66,13 @@ test('rule 12 — the stepper stops at the article\'s maximum; a quantity typed 
 test('rule 12 — a quantity that is not a number is a hint, nothing is asked of the server', async () => {
   fireEvent.click(await open());
   const quantity = await screen.findByRole('textbox', { name: 'Quantité Bière locale' });
-  const calls = api.quoteResourceVisit.mock.calls.length;
+  // The quotes that carry the payment typed ask whether the invoice can be made (loop t2 B2-7): only the draft's own quotes count here.
+  const draftQuotes = () => api.quoteResourceVisit.mock.calls.filter(([, body]) => !body.payment).length;
+  const calls = draftQuotes();
   fireEvent.change(quantity, { target: { value: '2x' } });
   expect(await screen.findByText('Quantité : un nombre entier.')).toBeInTheDocument();
   await new Promise((resolve) => { setTimeout(resolve, 300); });
-  expect(api.quoteResourceVisit.mock.calls.length).toBe(calls);
+  expect(draftQuotes()).toBe(calls);
 });
 
 test('rule 11 — « Autre article » searches the articles sellable with no stay, grouped by category, and adds the chosen one', async () => {

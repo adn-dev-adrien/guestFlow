@@ -82,6 +82,15 @@ export function fakeQuote(base = visitPayload()) {
       vatByRate: [{ rate: 20, vatCents: Math.round((totalCents * 20) / 120) }],
       quoted: true,
       refusals,
+      // Loop t2 B2-7 — with the payment typed, the server's answer for the invoice of this commit (here: the whole reste on the books).
+      ...(body.payment ? { invoiceable: invoiceableOf(body.payment, totalCents - paidCents) } : {}),
     };
   };
+}
+
+function invoiceableOf(payment, remainingCents) {
+  const tenders = payment.tenders || [];
+  if (tenders.some((t) => t.internal)) return { ok: false, code: 'INTERNAL_CASH', reason: 'Caisse interne : hors comptabilité.' };
+  const paid = tenders.reduce((sum, t) => sum + t.amountCents, 0);
+  return paid === remainingCents ? { ok: true, code: null, reason: null } : { ok: false, code: 'REMAINING_DUE', reason: 'Reste à payer : facture après le solde.' };
 }

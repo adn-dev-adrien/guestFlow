@@ -3,7 +3,7 @@
  *
  *   GET    /:id/visit                              the visit payload
  *   GET    /:id/visit/articles?q=                  « Autre article »: the articles sellable with no stay, filtered by `q`
- *   POST   /:id/visit/quote                        the payload of a draft, nothing written
+ *   POST   /:id/visit/quote                        the payload of a draft, nothing written; with `payment`, `invoiceable` judges its commit (loop t2 B2-7)
  *   POST   /:id/visit                              « Valider l'arrivée » / « Enregistrer », then the invoice when asked (its failure never undoes the commit)
  *   POST   /:id/visit/payment                      a payment on the reste
  *   PATCH  /:id/visit/lines/:lineId                « Offrir » / « Retirer » a stored line
@@ -121,8 +121,13 @@ function createVisitController({ bookings, visits, invoicing }) {
     const body = isPlainObject(req.body) ? req.body : {};
     const shape = draftRefusal(body);
     if (shape) return res.status(400).json({ error: shape, code: 'INVALID_PAYLOAD' });
+    if (body.payment !== undefined && body.payment !== null && !isPlainObject(body.payment)) return res.status(400).json({ error: 'Paiement invalide.', code: 'INVALID_PAYLOAD' });
     const out = visits().view(row, { reception: isReceptionOnly(req.user), draft: body });
-    return res.status(out.status).json(out.status === 200 ? { ...forCaller(out.body, req), access: accessOf(row, req) } : out.body);
+    if (out.status !== 200) return res.status(out.status).json(out.body);
+    const shown = forCaller(out.body, req);
+    // Loop t2 B2-7 (rule 53) — with a payment typed, `invoiceable` answers for the commit of this draft: « Créer la facture dans Qonto » is the server's.
+    if (body.payment && invoicing && !isReceptionOnly(req.user)) shown.invoiceable = invoicing().draftInvoiceability({ id: row.id, draft: body, payment: body.payment });
+    return res.json({ ...shown, access: accessOf(row, req) });
   }
 
   async function commit(req, res) {
