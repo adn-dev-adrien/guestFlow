@@ -1,0 +1,621 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Retenue Mollie et versements à venir — GuestFlow</title>
+<style>
+  :root {
+    --primary: #2F5D46; --primary-dark: #244A37; --primary-soft: #E3ECE6;
+    --honey: #C99038; --honey-soft: #F6EDD7;
+    --paper: #F8F5EF; --card: #FFFFFF; --ink: #27251F; --muted: #6E6A5E; --line: #E6E0D4; --sand: #EEE9DF;
+    --success: #3E7D54; --success-soft: #E6EFE7;
+    --error: #A8433A; --error-soft: #F7E8E5;
+    --warning: #8F6A1D; --warning-soft: #F6EDD7;
+    --info: #31556E; --info-soft: #E4EDF3;
+    --serif: 'Source Serif 4', 'Iowan Old Style', Charter, Georgia, serif;
+    --sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+    --radius: 14px;
+    --ease: cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body { margin: 0; background: var(--paper); color: var(--ink); font: 15px/1.55 var(--sans); }
+  ::selection { background: var(--primary-soft); color: var(--ink); }
+  :focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; border-radius: 6px; }
+  a { color: var(--primary); text-underline-offset: 3px; }
+  .wrap { max-width: 1180px; margin: 0 auto; padding: 40px 24px 80px; }
+  h1, h2, h3 { font-family: var(--serif); font-weight: 600; color: var(--ink); text-wrap: balance; }
+  h1 { font-size: 2.3rem; line-height: 1.1; letter-spacing: -0.02em; margin: 0 0 10px; }
+  h2 { font-size: 1.45rem; line-height: 1.2; letter-spacing: -0.01em; margin: 60px 0 14px; }
+  h3 { font-size: 1.08rem; margin: 0 0 6px; }
+  p { margin: 0 0 12px; max-width: 72ch; }
+  .lede { font-size: 1.08rem; color: var(--muted); max-width: 70ch; }
+  .meta { display: flex; flex-wrap: wrap; gap: 8px; margin: 16px 0 0; }
+  .pill { display: inline-flex; align-items: center; gap: 6px; padding: 4px 11px; border-radius: 999px; background: var(--card); border: 1px solid var(--line); font-size: 13px; color: var(--muted); }
+  .pill.draft { background: var(--warning-soft); border-color: transparent; color: var(--warning); font-weight: 600; }
+  .num { font-variant-numeric: tabular-nums; }
+  ul.plain { margin: 0; padding-left: 20px; max-width: 74ch; }
+  ul.plain li { margin: 0 0 7px; }
+  .grid2 { display: grid; gap: 20px; grid-template-columns: 1fr; }
+  @media (min-width: 860px) { .grid2 { grid-template-columns: 1fr 1fr; } }
+  .panel { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 20px 22px; }
+  .note { color: var(--muted); font-size: 13.5px; }
+
+  /* Evidence table */
+  table.evidence { border-collapse: collapse; width: 100%; font-size: 14px; }
+  table.evidence th, table.evidence td { text-align: left; padding: 9px 10px; border-bottom: 1px solid var(--line); }
+  table.evidence th { font-weight: 600; color: var(--muted); font-size: 12.5px; }
+  table.evidence td.amt { text-align: right; font-variant-numeric: tabular-nums; font-weight: 600; }
+  .scroll-x { overflow-x: auto; }
+
+  /* Split bar */
+  .split { display: flex; height: 38px; border-radius: 10px; overflow: hidden; margin: 14px 0 8px; font-size: 13px; font-weight: 600; }
+  .split > div { display: flex; align-items: center; padding: 0 12px; white-space: nowrap; }
+  .split .now { flex: 80; background: var(--primary); color: #fff; }
+  .split .later { flex: 20; background: var(--honey-soft); color: var(--warning); border: 1px dashed var(--honey); border-left: 0; border-radius: 0 10px 10px 0; }
+
+  /* Mock chrome */
+  .stage-bar { display: flex; flex-wrap: wrap; gap: 12px 20px; align-items: center; margin: 0 0 14px; }
+  .seg { display: inline-flex; background: var(--sand); border-radius: 999px; padding: 3px; flex-wrap: wrap; }
+  .seg button { border: 0; background: transparent; font: 600 13px var(--sans); color: var(--muted); padding: 8px 14px; border-radius: 999px; cursor: pointer; min-height: 36px; transition: background 160ms var(--ease), color 160ms var(--ease); }
+  .seg button[aria-pressed="true"] { background: var(--card); color: var(--ink); box-shadow: 0 1px 3px rgba(39,37,31,.12); }
+  .seg button:active { transform: scale(0.97); }
+  .label-sm { font-size: 12.5px; color: var(--muted); font-weight: 600; }
+  .device { background: #E9E3D7; border-radius: 22px; padding: 18px; display: flex; justify-content: center; overflow: hidden; }
+  .screen { width: 100%; max-width: 860px; transition: max-width 420ms var(--ease); }
+  .device.mobile .screen { max-width: 390px; }
+  @media (prefers-reduced-motion: reduce) { .screen, .seg button { transition: none; } }
+
+  /* App replica */
+  .card { background: var(--card); border-radius: var(--radius); box-shadow: 0 1px 2px rgba(39,37,31,.06), 0 6px 20px rgba(39,37,31,.06); padding: 18px; }
+  .card + .card { margin-top: 14px; }
+  .card-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; margin-bottom: 8px; flex-wrap: wrap; }
+  .card-head h3 { font-size: 1.12rem; margin: 0; }
+  .muted { color: var(--muted); }
+  .badge { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; font-weight: 600; padding: 3px 9px; border-radius: 999px; white-space: nowrap; }
+  .badge::before { content: ''; width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+  .b-ok { background: var(--success-soft); color: var(--success); }
+  .b-wait { background: var(--sand); color: var(--muted); }
+  .b-hold { background: var(--honey-soft); color: var(--warning); }
+  .b-late { background: var(--error-soft); color: var(--error); }
+  .b-transit { background: var(--info-soft); color: var(--info); }
+
+  .summary-line { display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: baseline; padding: 12px 14px; background: var(--paper); border-radius: 10px; font-size: 14px; }
+  .summary-line strong { font-variant-numeric: tabular-nums; }
+  .s-ok { color: var(--success); font-weight: 600; }
+  .s-wait { color: var(--muted); }
+  .s-late { color: var(--error); font-weight: 600; }
+
+  .ledger-row { display: grid; grid-template-columns: 1fr auto; gap: 4px 12px; padding: 12px 0; border-top: 1px solid var(--line); align-items: center; }
+  .ledger-row:first-of-type { border-top: 0; }
+  .ledger-row .what { font-weight: 600; }
+  .ledger-row .amt { font-variant-numeric: tabular-nums; font-weight: 700; text-align: right; }
+  .tranches { grid-column: 1 / -1; margin: 6px 0 0 4px; padding-left: 14px; border-left: 1px solid var(--line); }
+  .tranche { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 4px 12px; align-items: center; padding: 7px 0; font-size: 14px; }
+  .tranche .t-amt { font-variant-numeric: tabular-nums; font-weight: 600; text-align: right; }
+  .tranche .t-ref { grid-column: 1 / -1; }
+  .device.mobile .tranche { grid-template-columns: minmax(0, 1fr) auto; }
+  .device.mobile .tranche .badge { grid-column: 1 / -1; justify-self: start; }
+
+  .ref { display: inline-flex; align-items: center; gap: 4px; font: 12.5px/1.3 ui-monospace, 'SF Mono', Menlo, monospace; color: var(--muted); background: var(--paper); border: 1px solid var(--line); border-radius: 8px; padding: 2px 4px 2px 8px; max-width: 100%; }
+  .ref span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .ref .k { font-family: var(--sans); font-weight: 600; color: var(--ink); }
+  .ref button { border: 0; background: transparent; cursor: pointer; color: var(--primary); padding: 4px; border-radius: 6px; display: inline-flex; min-width: 28px; min-height: 28px; align-items: center; justify-content: center; }
+  .ref button:hover { background: var(--primary-soft); }
+  .refs { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 2px; }
+
+  /* Tiles */
+  .tiles { display: grid; gap: 12px; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); }
+  .device.mobile .tiles { grid-template-columns: 1fr 1fr; }
+  .tile { text-align: left; border: 1px solid var(--line); background: var(--card); border-radius: var(--radius); padding: 14px 16px; font: inherit; color: inherit; cursor: default; }
+  .tile .t-label { font-size: 12.5px; color: var(--muted); font-weight: 600; }
+  .tile .t-val { font-size: 1.35rem; font-weight: 700; font-variant-numeric: tabular-nums; margin: 4px 0 2px; }
+  .tile .t-sub { font-size: 12.5px; color: var(--muted); }
+  .tile.active { cursor: pointer; border-color: var(--primary); box-shadow: 0 0 0 3px var(--primary-soft); transition: transform 120ms var(--ease), box-shadow 200ms var(--ease); }
+  .tile.active:active { transform: scale(0.98); }
+  .tile.active[aria-expanded="true"] { background: var(--primary); color: #fff; }
+  .tile.active[aria-expanded="true"] .t-label, .tile.active[aria-expanded="true"] .t-sub { color: rgba(255,255,255,.82); }
+  .tile.dim { opacity: .62; }
+
+  .detail { margin-top: 14px; overflow: hidden; display: grid; grid-template-rows: 0fr; transition: grid-template-rows 380ms var(--ease); }
+  .detail.open { grid-template-rows: 1fr; }
+  .detail > div { min-height: 0; }
+  @media (prefers-reduced-motion: reduce) { .detail { transition: none; } }
+
+  .filters { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 0 0 12px; }
+  .chip { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--line); background: var(--card); border-radius: 999px; padding: 6px 12px; font: 600 13px var(--sans); color: var(--muted); cursor: pointer; min-height: 36px; }
+  .chip[aria-pressed="true"] { border-color: var(--primary); color: var(--primary); background: var(--primary-soft); }
+  .chip .n { font-variant-numeric: tabular-nums; opacity: .8; }
+  .chip svg, .tl svg { width: 15px; height: 15px; flex: none; }
+  .switch { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; color: var(--muted); font-weight: 600; cursor: pointer; margin-left: auto; min-height: 36px; }
+  .switch input { appearance: none; width: 34px; height: 20px; border-radius: 999px; background: #D6CFC2; position: relative; cursor: pointer; transition: background 160ms var(--ease); margin: 0; }
+  .switch input::after { content: ''; position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; border-radius: 50%; background: #fff; box-shadow: 0 1px 2px rgba(0,0,0,.2); transition: transform 200ms var(--ease); }
+  .switch input:checked { background: var(--primary); }
+  .switch input:checked::after { transform: translateX(14px); }
+
+  .inc-table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  .inc-table th { text-align: left; font-size: 12.5px; color: var(--muted); font-weight: 600; padding: 8px 10px; border-bottom: 1px solid var(--line); }
+  .inc-table td { padding: 12px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  .inc-table tr.client { cursor: pointer; transition: background 120ms var(--ease); }
+  .inc-table tr.client:hover { background: #FBF9F5; }
+  .inc-table tr.client:active { background: var(--primary-soft); }
+  .inc-table .cname { font-weight: 600; }
+  .inc-table .cstay { font-size: 12.5px; color: var(--muted); }
+  .inc-table .tot { font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; text-align: right; }
+  .inc-table .next { white-space: nowrap; font-variant-numeric: tabular-nums; }
+  .chev { color: var(--muted); width: 18px; height: 18px; }
+  .timeline { display: flex; flex-wrap: wrap; gap: 6px; }
+  .tl { display: inline-flex; align-items: center; gap: 6px; padding: 4px 9px; border-radius: 8px; font-size: 12.5px; font-variant-numeric: tabular-nums; white-space: nowrap; border: 1px solid transparent; }
+  .tl b { font-weight: 700; }
+  .tl.hold { background: var(--honey-soft); color: var(--warning); }
+  .tl.transit { background: var(--info-soft); color: var(--info); }
+  .tl.inst { background: var(--sand); color: var(--ink); }
+  .tl.plat { background: #EFEAF4; color: #57406E; }
+  .tl.late { background: var(--error-soft); color: var(--error); border-color: rgba(168,67,58,.35); }
+  .tl.recv { background: var(--success-soft); color: var(--success); }
+  /* Incoming payments v2 — colour = state only, nature = words + icon */
+  .legend { display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: center; font-size: 12.5px; color: var(--muted); margin: 0 0 12px; }
+  .legend .badge { font-size: 12px; }
+  .nat { display: inline-flex; align-items: center; gap: 8px; font-weight: 600; font-size: 13.5px; color: var(--ink); }
+  .nat .ico { width: 28px; height: 28px; border-radius: 8px; background: var(--paper); border: 1px solid var(--line); display: inline-flex; align-items: center; justify-content: center; flex: none; color: var(--ink); }
+  .nat .ico svg { width: 16px; height: 16px; }
+  .nat small { display: block; font-weight: 400; color: var(--muted); font-size: 12px; }
+  .group { border: 1px solid var(--line); border-radius: 12px; margin-bottom: 12px; overflow: hidden; }
+  .group.late { border-color: rgba(168,67,58,.45); }
+  .g-head { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 4px 18px; align-items: center; padding: 12px 14px; background: #FBF9F5; cursor: pointer; width: 100%; border: 0; font: inherit; color: inherit; text-align: left; min-height: 44px; transition: background 120ms var(--ease); }
+  .g-head:hover { background: var(--primary-soft); }
+  .g-head:active { background: #D6E4DA; }
+  .g-head .cname { font-weight: 700; font-size: 15px; }
+  .g-head .open { color: var(--primary); font-weight: 600; font-size: 13px; display: inline-flex; align-items: center; gap: 2px; white-space: nowrap; }
+  .g-head .gtot { text-align: right; }
+  .g-head .gtot b { font-size: 15px; font-variant-numeric: tabular-nums; display: block; }
+  .g-head .gtot span { font-size: 12px; color: var(--muted); }
+  .g-rows { width: 100%; border-collapse: collapse; font-size: 14px; }
+  .g-rows td { padding: 10px 14px; border-top: 1px solid var(--line); vertical-align: middle; }
+  .g-rows td.d { width: 108px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .g-rows td.d b { display: block; font-size: 14px; }
+  .g-rows td.d span { font-size: 12px; color: var(--muted); }
+  .g-rows td.a { text-align: right; font-variant-numeric: tabular-nums; font-weight: 700; white-space: nowrap; width: 110px; }
+  .g-rows td.s { width: 150px; text-align: right; }
+  .g-rows tr.recv td { color: var(--muted); }
+  .g-rows tr.recv td.a { color: var(--success); }
+  .device.mobile .g-head { grid-template-columns: minmax(0, 1fr) auto; }
+  .device.mobile .g-head .open { display: none; }
+  .device.mobile .g-rows, .device.mobile .g-rows tbody, .device.mobile .g-rows tr { display: block; }
+  .device.mobile .g-rows tr { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 6px 10px; padding: 10px 14px; border-top: 1px solid var(--line); }
+  .device.mobile .g-rows td { display: block; padding: 0; border: 0; width: auto; }
+  .device.mobile .g-rows td.n { grid-column: 1 / -1; grid-row: 1; }
+  .device.mobile .g-rows td.d b, .device.mobile .g-rows td.d span { display: inline; margin-right: 6px; }
+  .device.mobile .g-rows td.s { text-align: left; }
+  .device.mobile .g-rows td.r { grid-column: 1 / -1; }
+  .cards-xs { display: none; }
+  .device.mobile .inc-table { display: none; }
+  .device.mobile .cards-xs { display: block; }
+  .ccard { border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; margin-bottom: 10px; cursor: pointer; min-height: 44px; }
+  .ccard:active { background: var(--primary-soft); }
+  .ccard .top { display: flex; justify-content: space-between; gap: 10px; align-items: baseline; margin-bottom: 8px; }
+  .empty { text-align: center; padding: 28px 12px; color: var(--muted); }
+  .toast { position: fixed; left: 50%; bottom: 24px; transform: translate(-50%, 20px); opacity: 0; background: var(--ink); color: #fff; padding: 10px 16px; border-radius: 10px; font-size: 14px; pointer-events: none; transition: opacity 200ms var(--ease), transform 260ms var(--ease); z-index: 10; max-width: calc(100vw - 32px); }
+  .toast.show { opacity: 1; transform: translate(-50%, 0); }
+  @media (prefers-reduced-motion: reduce) { .toast { transition: opacity 150ms linear; transform: translate(-50%, 0); } }
+
+  /* Lot decomposition */
+  .credit { display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: baseline; padding: 12px 14px; border-radius: 12px; background: var(--paper); margin-bottom: 12px; }
+  .credit .c-amt { font-size: 1.25rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .alloc { width: 100%; border-collapse: collapse; font-size: 14px; }
+  .alloc td { padding: 9px 6px; border-bottom: 1px solid var(--line); }
+  .alloc td.a { text-align: right; font-variant-numeric: tabular-nums; font-weight: 600; white-space: nowrap; }
+  .alloc tr.sum td { border-bottom: 0; font-weight: 700; }
+  .verdict { display: flex; gap: 10px; align-items: center; margin-top: 12px; flex-wrap: wrap; }
+
+  /* Settings */
+  .field { display: grid; gap: 4px; margin-bottom: 14px; }
+  .field label { font-size: 13px; font-weight: 600; }
+  .field input { font: 15px var(--sans); padding: 10px 12px; border: 1px solid #CFC8BA; border-radius: 10px; background: #fff; color: var(--ink); min-height: 44px; width: 100%; max-width: 280px; }
+  .field input:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 3px var(--primary-soft); }
+  .field.bad input { border-color: var(--error); box-shadow: 0 0 0 3px var(--error-soft); }
+  .field .help { font-size: 12.5px; color: var(--muted); }
+  .field.bad .help { color: var(--error); font-weight: 600; }
+  .field .saved { font-size: 12.5px; color: var(--success); font-weight: 600; }
+  .with-unit { display: flex; align-items: center; gap: 8px; }
+
+  /* Journal */
+  .journal { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+  .journal th, .journal td { padding: 7px 8px; border-bottom: 1px solid var(--line); text-align: left; white-space: nowrap; }
+  .journal th { font-size: 12px; color: var(--muted); font-weight: 600; }
+  .journal td.m { text-align: right; font-variant-numeric: tabular-nums; }
+  .journal tr.grp td { background: var(--paper); font-weight: 600; font-size: 12.5px; color: var(--muted); }
+  .balance { display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; align-items: baseline; margin-top: 12px; padding: 12px 14px; border-radius: 12px; background: var(--honey-soft); color: var(--warning); }
+  .balance strong { font-size: 1.15rem; font-variant-numeric: tabular-nums; }
+
+  .decisions { display: grid; gap: 12px; }
+  .decision { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 16px 18px; }
+  .decision .q { font-weight: 600; margin-bottom: 4px; }
+  .decision.done .q::after { content: ' · tranché'; color: var(--success); font-weight: 600; font-size: 13px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<h1>Paiement par carte : 80 % tout de suite, 20 % trois mois plus tard</h1>
+<p class="lede">Mollie, qui encaisse pour Qonto les liens de paiement et le Tap to Pay de l'appli, garde 20 % de chaque paiement pendant 90 jours. Personne ne le voit aujourd'hui : ni la fiche, ni le Suivi financier, ni le rapprochement bancaire, ni le comptable. Voici comment on le rend visible et traçable, en même temps que les échéanciers et les versements des plateformes.</p>
+<div class="meta">
+  <span class="pill draft">Spec à valider</span>
+  <span class="pill">specs/mollie-rolling-reserve-and-incoming-payments.md</span>
+  <span class="pill">16/11/2026</span>
+  <span class="pill">Données fictives</span>
+</div>
+
+<h2>Le constat, mesuré sur le compte</h2>
+<p>Les crédits Mollie reçus sur Qonto (export du 23/10, puis la vente de Gruat donnée par Adrien le 16/11) :</p>
+<div class="panel scroll-x">
+  <table class="evidence">
+    <thead><tr><th>Date banque</th><th>Contrepartie</th><th>Référence</th><th style="text-align:right">Montant</th><th>Lecture</th></tr></thead>
+    <tbody>
+      <tr><td class="num">23/12/2025</td><td>Stichting Mollie Payments</td><td class="num">REF T19274230.2512.01</td><td class="amt">157,44 €</td><td>80 % de 196,80 €</td></tr>
+      <tr><td class="num">23/03/2026</td><td>Stichting Mollie Payments</td><td class="num">REF T19274230.2603.01</td><td class="amt">39,36 €</td><td>20 %, <strong>90 jours plus tard, jour pour jour</strong></td></tr>
+      <tr><td class="num">nov. 2026</td><td>Stichting Mollie Payments</td><td class="num">REF T19274230.2611.01</td><td class="amt">11,20 €</td><td>80 % de 14,00 € · Tap to Pay du 05/11 (Gruat) · frais Mollie 0,446 €</td></tr>
+    </tbody>
+  </table>
+  <div class="split" aria-hidden="true"><div class="now">Versement immédiat · 80 %</div><div class="later">Retenue · 20 % · J+90</div></div>
+  <p class="note" style="margin:0">Le premier couple ne porte aucun frais : il tombe dans les 1 000 € offerts par Mollie au démarrage. Depuis, les frais s'appliquent : 0,446 € sur 14 € = 1,4 % + 0,25 €, et ils ne sont <em>pas</em> pris sur le versement de 80 % (11,20 € tout rond) ; où Mollie les prélève reste à lire chez Mollie. Côté Mollie, la description du paiement est le numéro de la facture Qonto (« F-2026-013 », fichier Qonto « 2610-F-2026-013-SOLIO.pdf ») : c'est la clé qui relie un paiement à sa fiche. La référence désigne un <em>lot</em> Mollie du mois, pas un paiement : Mollie annonce qu'il regroupe plusieurs paiements, et des retenues libérées, dans un même virement. Le rapprochement actuel attend un versement unique, diminué de « 1,4 % + 0,25 € » : il ne rattacherait jamais ce virement.</p>
+</div>
+
+<h2>Essayer</h2>
+
+<h3>1 · La fiche de réservation</h3>
+<p class="note">Faites avancer le temps : le résumé et le registre suivent, comme pour un paiement en plusieurs fois.</p>
+<div class="stage-bar">
+  <span class="label-sm">Nous sommes le</span>
+  <div class="seg" id="ficheTime" role="group" aria-label="Date du jour simulée">
+    <button aria-pressed="false" data-t="0">27/10</button>
+    <button aria-pressed="true" data-t="1">16/11</button>
+    <button aria-pressed="false" data-t="2">26/01</button>
+    <button aria-pressed="false" data-t="3">10/02 sans virement</button>
+  </div>
+  <div class="seg" role="group" aria-label="Taille d'écran" data-device="ficheDevice">
+    <button aria-pressed="true" data-d="desktop">Ordinateur</button>
+    <button aria-pressed="false" data-d="mobile">Téléphone</button>
+  </div>
+</div>
+<div class="device" id="ficheDevice"><div class="screen">
+  <div class="card">
+    <div class="card-head"><h3>Claire Martin · Cabane du Pin</h3><span class="muted num">24 → 27/10/2026</span></div>
+    <div class="summary-line" id="ficheSummary"></div>
+  </div>
+  <div class="card">
+    <div class="card-head"><h3>Registre des paiements</h3><span class="muted">Tout est payé par le client</span></div>
+    <div class="ledger-row">
+      <div><div class="what">Séjour complet · lien de paiement</div><div class="muted" style="font-size:13px">Payé par carte le 26/10/2026</div></div>
+      <div class="amt">732,40 €</div>
+      <div class="tranches" id="ficheTranches"></div>
+    </div>
+    <div class="ledger-row">
+      <div><div class="what">Taxe de séjour</div><div class="muted" style="font-size:13px">Incluse dans le lien</div></div>
+      <div class="amt">—</div>
+    </div>
+  </div>
+</div></div>
+
+<h3 style="margin-top:36px">2 · Suivi financier : « Versements à venir »</h3>
+<p class="note">Cliquez la tuile. Filtrez par nature, basculez « Reçus récemment », cliquez un client : sa fiche s'ouvre.</p>
+<div class="stage-bar">
+  <div class="seg" role="group" aria-label="Taille d'écran" data-device="finDevice">
+    <button aria-pressed="true" data-d="desktop">Ordinateur</button>
+    <button aria-pressed="false" data-d="mobile">Téléphone</button>
+  </div>
+</div>
+<div class="device" id="finDevice"><div class="screen">
+  <div class="card">
+    <div class="card-head"><h3>Vue générale</h3><span class="muted">Exercice 2026</span></div>
+    <div class="tiles">
+      <div class="tile dim"><div class="t-label">Encaissé</div><div class="t-val">48 210 €</div><div class="t-sub">91 % du CA</div></div>
+      <div class="tile dim"><div class="t-label">En attente de règlement</div><div class="t-val">1 512 €</div><div class="t-sub">4 séjours</div></div>
+      <button class="tile active" id="incTile" aria-expanded="false" aria-controls="incDetail">
+        <div class="t-label">Versements à venir</div>
+        <div class="t-val" id="tileVal"></div>
+        <div class="t-sub" id="tileSub"></div>
+      </button>
+      <div class="tile dim"><div class="t-label">En retard</div><div class="t-val">0 €</div><div class="t-sub">Aucun</div></div>
+    </div>
+    <div class="detail" id="incDetail"><div>
+      <div class="filters" id="kindFilters" role="group" aria-label="Natures affichées"></div>
+      <div class="legend"><span>La couleur ne dit que l'état :</span><span class="badge b-wait">À venir</span><span class="badge b-late">En retard</span><span class="badge b-ok">Reçu</span></div>
+      <div id="incGroups"></div>
+      <p class="note" style="margin:10px 0 0">« En attente de règlement » dit ce que les clients doivent ; « Versements à venir » dit ce que la banque va recevoir. Les échéances d'un échéancier figurent dans les deux.</p>
+    </div></div>
+  </div>
+</div></div>
+
+<h3 style="margin-top:36px">3 · Un virement Mollie qui regroupe plusieurs paiements</h3>
+<p class="note">Un même crédit Qonto : sans connexion Mollie, on le reconstitue par les montants ; avec, Mollie dit lui-même ce qu'il contient.</p>
+<div class="stage-bar">
+  <div class="seg" id="lotMode" role="group" aria-label="Connexion Mollie">
+    <button aria-pressed="true" data-m="amounts">Sans jeton Mollie</button>
+    <button aria-pressed="false" data-m="api">Avec jeton Mollie</button>
+  </div>
+</div>
+<div class="device"><div class="screen">
+  <div class="card">
+    <div class="card-head"><h3>Rapprochement bancaire</h3><span class="muted">Crédit du 18/11/2026</span></div>
+    <div class="credit">
+      <span class="c-amt">624,78 €</span><span>Stichting Mollie Payments</span>
+      <div class="refs">
+        <span class="ref"><span class="k">Qonto</span><span title="solio-6791-1-transaction-01a2c4e8-77b0-7f21-9e3d-5b1c8a-90d2e4">solio-6791-1-tra…90d2e4</span><button type="button" data-copy="solio-6791-1-transaction-01a2c4e8-77b0-7f21-9e3d-5b1c8a-90d2e4" aria-label="Copier la référence Qonto"><svg viewBox="0 0 20 20" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="7" y="7" width="10" height="10" rx="2"/><path d="M13 7V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h2"/></svg></button></span>
+        <span class="ref"><span class="k">Lot Mollie</span><span>T19274230.2611.07</span><button type="button" data-copy="T19274230.2611.07" aria-label="Copier la référence du lot Mollie"><svg viewBox="0 0 20 20" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="7" y="7" width="10" height="10" rx="2"/><path d="M13 7V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h2"/></svg></button></span>
+      </div>
+    </div>
+    <table class="alloc"><tbody id="lotBody"></tbody></table>
+    <div class="verdict" id="lotVerdict"></div>
+  </div>
+</div></div>
+
+<h3 style="margin-top:36px">4 · Réglages</h3>
+<p class="note">Tapez une valeur invalide : le serveur la refuse et garde la précédente.</p>
+<div class="device"><div class="screen">
+  <div class="grid2">
+    <div class="card">
+      <div class="card-head"><h3>Retenue Mollie</h3></div>
+      <div class="field" id="fRate"><label for="rate">Part retenue</label><div class="with-unit"><input id="rate" inputmode="decimal" value="20"><span class="muted">%</span></div><span class="help">Entre 0 et 50 %. 0 désactive la retenue.</span></div>
+      <div class="field" id="fDays"><label for="days">Durée de la retenue</label><div class="with-unit"><input id="days" inputmode="numeric" value="90"><span class="muted">jours</span></div><span class="help">Entre 1 et 365 jours.</span></div>
+      <p class="note" style="margin:0">Un changement vaut pour les paiements suivants ; les retenues déjà calculées gardent leurs valeurs.</p>
+      <p class="note" style="margin:8px 0 0" id="rateExample"></p>
+    </div>
+    <div class="card">
+      <div class="card-head"><h3>Compte Mollie</h3><span class="badge b-wait">Facultatif</span></div>
+      <div class="field" id="fTok"><label for="tok">Jeton d'accès (lecture seule)</label><input id="tok" placeholder="access_…" autocomplete="off" style="max-width:100%"><span class="help">Dans Mollie : Développeurs → Clés API → « + Créer une clé API ». Type « Jeton d'accès avancé », aucune restriction de profil, mode « En direct », autorisations en lecture seule : payments.read, settlements.read, balances.read, balance-reports.read, invoices.read, refunds.read, profiles.read, organizations.read, signature des demandes désactivée.</span></div>
+      <p class="note" style="margin:0">Avec le jeton, les virements groupés sont détaillés paiement par paiement. Sans, le rapprochement se fait par les montants.</p>
+    </div>
+  </div>
+</div></div>
+
+<h3 style="margin-top:36px">5 · Ce que reçoit le comptable</h3>
+<p class="note">Journal « MO », compte d'attente 46720000 : son solde est exactement l'argent encore chez Mollie.</p>
+<div class="stage-bar">
+  <div class="seg" id="jMonth" role="group" aria-label="Mois exporté">
+    <button aria-pressed="true" data-j="oct">Octobre 2026</button>
+    <button aria-pressed="false" data-j="jan">Janvier 2027</button>
+  </div>
+  <label class="switch"><input type="checkbox" id="jBank" checked> Exporter les versements Mollie reçus</label>
+</div>
+<div class="device"><div class="screen">
+  <div class="card scroll-x">
+    <table class="journal"><thead><tr><th>Date</th><th>Jnl</th><th>Compte</th><th>Libellé</th><th style="text-align:right">Débit</th><th style="text-align:right">Crédit</th></tr></thead><tbody id="jBody"></tbody></table>
+    <div class="balance"><span>Solde du 46720000 en fin de mois · encore chez Mollie</span><strong id="jBal"></strong></div>
+  </div>
+</div></div>
+
+<h2>Ce qu'on propose</h2>
+<div class="grid2">
+  <div class="panel"><h3>Le paiement reste un seul paiement</h3><p style="margin:0">Le client a tout payé le jour du lien : la fiche reste « payée » à cette date, rien ne change pour lui, ni pour le chiffre d'affaires. Seule l'arrivée sur la banque est découpée en deux tranches, calculées une fois par le serveur avec le taux et la durée du moment.</p></div>
+  <div class="panel"><h3>Sur la fiche, comme un échéancier</h3><p style="margin:0">Le résumé dit « 585,92 € reçus · 146,48 € attendus le 24/01/2027 ». Le registre montre les deux tranches avec le même composant que les échéances d'un paiement en plusieurs fois, et, une fois arrivées, la référence Qonto à copier.</p></div>
+  <div class="panel"><h3>Un rapprochement qui démêle les lots</h3><p style="margin:0">Chaque virement Mollie est rapproché au centime avec une combinaison de tranches (80 % récents et 20 % libérés). Avec un jeton Mollie en lecture seule, la référence du virement ouvre le lot chez Mollie, qui donne la liste exacte des paiements : la proposition devient « sûre » même groupée.</p></div>
+  <div class="panel"><h3>Tout ce qui doit arriver, au même endroit</h3><p style="margin:0">La tuile « Versements à venir » regroupe par client les retenues Mollie, les versements Mollie en transit, les échéances des échéanciers et les versements des plateformes. Les retards en premier, un clic ouvre la fiche, « Reçus récemment » montre la date réelle d'arrivée.</p></div>
+  <div class="panel"><h3>Un compte d'attente pour le comptable</h3><p style="margin:0">Au paiement : 46720000 au débit, client au crédit. À chaque virement Mollie : banque au débit, 46720000 au crédit, avec les références Qonto et Mollie dans le libellé. Le solde du compte, c'est l'argent encore chez Mollie, et l'export en donne le détail par client.</p></div>
+  <div class="panel"><h3>Un retard qui se voit</h3><p style="margin:0">Une retenue non reçue dix jours après sa date passe « en retard », rouge et en tête du tableau, et une alerte « Retenue Mollie non reçue » apparaît sur l'accueil.</p></div>
+</div>
+
+<h2>Ce qu'on ne fait pas</h2>
+<ul class="plain">
+  <li>Rien n'est jamais écrit chez Mollie ni chez Qonto : lecture seule.</li>
+  <li>Les rétrofacturations (litiges carte) : Mollie les retire d'un lot ; elles apparaîtront comme un reste inexpliqué, à traiter à la main.</li>
+  <li>Les anciens lots « Paiements-En-Personne » du terminal Qonto : inchangés. Le Tap to Pay de l'appli Qonto, lui, passe par Mollie et suit les mêmes règles que les liens.</li>
+  <li>Aucune prévision de trésorerie au-delà de ce qui est déjà payé ou programmé.</li>
+</ul>
+
+<h2>Le risque</h2>
+<ul class="plain">
+  <li><strong>Peu de cas mesurés.</strong> Une paire 80/20 à 90 jours (période sans frais) et un 80 % avec frais (Gruat). Le taux et la durée sont donc des réglages, et la connexion Mollie, si elle est posée, lit la vérité du lot au lieu de la déduire.</li>
+  <li><strong>Lier un paiement Mollie à une fiche.</strong> La description Mollie porte le numéro de facture Qonto : clé exacte quand GuestFlow connaît la facture. Reste à voir ce que porte un lien de paiement sans facture ; à défaut, montant + heure à 10 minutes près, seulement si la correspondance est unique.</li>
+  <li><strong>Le comptable.</strong> S'il passe déjà la banque depuis son relevé, nos lignes de banque feraient doublon : d'où l'interrupteur, à régler avec lui.</li>
+  <li><strong>Migration.</strong> Les rapprochements existants d'un lien sont renommés « versement immédiat » : sans perte, rejouable à l'identique (la prod en compte au plus un).</li>
+</ul>
+
+<h2>Décisions</h2>
+<div class="decisions">
+  <div class="decision done"><div class="q">Où suivre les retenues ?</div><div class="muted">Une tuile « Versements à venir » dans la Vue générale qui ouvre un tableau groupé par client (retenues, transit, échéanciers, plateformes), clic client → fiche.</div></div>
+  <div class="decision done"><div class="q">Taux et durée</div><div class="muted">Réglages du plugin Paiements en ligne, 20 % et 90 jours par défaut.</div></div>
+  <div class="decision done"><div class="q">Sur la fiche</div><div class="muted">Sous la ligne du registre et dans le résumé, présentés comme un paiement en plusieurs fois.</div></div>
+  <div class="decision done"><div class="q">Connexion Mollie</div><div class="muted">Dans le plugin Paiements en ligne, facultative.</div></div>
+  <div class="decision done"><div class="q">Export comptable</div><div class="muted">Écritures avec compte d'attente Mollie.</div></div>
+  <div class="decision"><div class="q">À voir avec le comptable</div><div class="muted">Numéros proposés : 46720000 (attente Mollie), journal MO, 627 pour d'éventuels frais. Et passe-t-il la banque lui-même depuis le relevé ?</div></div>
+  <div class="decision"><div class="q">À mesurer au premier jeton Mollie</div><div class="muted">Où Mollie prélève-t-il ses frais (dans le lot, sur la retenue, en facture) ? Que porte la description d'un lien de paiement ? Une retenue libérée arrive-t-elle seule ou dans le lot du jour ?</div></div>
+</div>
+
+</div>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<script>
+(() => {
+  const eur = (c) => (c / 100).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).replace(/ /g, ' ') + ' €';
+  const $ = (id) => document.getElementById(id);
+  const toast = (msg) => { const t = $('toast'); t.textContent = msg; t.classList.add('show'); clearTimeout(toast.h); toast.h = setTimeout(() => t.classList.remove('show'), 2200); };
+  const COPY = '<svg viewBox="0 0 20 20" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="7" y="7" width="10" height="10" rx="2"/><path d="M13 7V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h2"/></svg>';
+  const short = (s) => s.length > 26 ? s.slice(0, 16) + '…' + s.slice(-6) : s;
+  const ref = (k, v) => `<span class="ref"><span class="k">${k}</span><span title="${v}">${short(v)}</span><button type="button" data-copy="${v}" aria-label="Copier la référence ${k}">${COPY}</button></span>`;
+  document.addEventListener('click', (e) => {
+    const b = e.target.closest('[data-copy]'); if (!b) return;
+    e.stopPropagation();
+    const v = b.getAttribute('data-copy');
+    (navigator.clipboard ? navigator.clipboard.writeText(v) : Promise.reject()).then(() => toast('Référence copiée : ' + short(v)), () => toast('Référence : ' + v));
+  });
+  document.querySelectorAll('.seg[data-device]').forEach((seg) => seg.addEventListener('click', (e) => {
+    const b = e.target.closest('button'); if (!b) return;
+    seg.querySelectorAll('button').forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
+    $(seg.dataset.device).classList.toggle('mobile', b.dataset.d === 'mobile');
+  }));
+  const segPick = (id, fn) => $(id).addEventListener('click', (e) => {
+    const b = e.target.closest('button'); if (!b) return;
+    $(id).querySelectorAll('button').forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
+    fn(b);
+  });
+
+  /* 1 · Fiche */
+  const QREF1 = 'solio-6791-1-transaction-01a17a02-4c11-7d3e-8f20-6e7b3c-1a9f55';
+  const QREF2 = 'solio-6791-1-transaction-01a5d0f3-2b8c-7e44-a1d9-0c4f7e-62b318';
+  const FICHE = [
+    { imm: ['b-transit', 'En transit', 'prévu le 30/10'], res: ['b-wait', 'À venir', 'prévue vers le 26/01/2027'], sum: '<span>Payé par carte <strong>732,40 €</strong></span><span class="s-wait">· 732,40 € en route vers la banque : 585,92 € le 30/10, 146,48 € retenus jusqu’au 26/01/2027</span>' },
+    { imm: ['b-ok', 'Reçu le 30/10', null, QREF1], res: ['b-hold', 'Retenue', 'jusqu’au 26/01/2027'], sum: '<span>Payé par carte <strong>732,40 €</strong></span><span class="s-ok">· 585,92 € reçus</span><span class="s-wait">· 146,48 € attendus le 26/01/2027</span>' },
+    { imm: ['b-ok', 'Reçu le 30/10', null, QREF1], res: ['b-ok', 'Reçue le 26/01', null, QREF2], sum: '<span>Payé par carte <strong>732,40 €</strong></span><span class="s-ok">· tout est arrivé sur la banque (30/10 et 26/01)</span>' },
+    { imm: ['b-ok', 'Reçu le 30/10', null, QREF1], res: ['b-late', 'En retard', 'attendue le 26/01/2027'], sum: '<span>Payé par carte <strong>732,40 €</strong></span><span class="s-ok">· 585,92 € reçus</span><span class="s-late">· 146,48 € retenus par Mollie, en retard depuis le 05/02</span>' },
+  ];
+  const tranche = (label, amt, st) => `<div class="tranche"><div>${label}${st[2] ? `<div class="muted" style="font-size:12.5px">${st[2]}</div>` : ''}</div><span class="badge ${st[0]}">${st[1]}</span><div class="t-amt">${amt}</div>${st[3] ? `<div class="t-ref refs">${ref('Qonto', st[3])}${ref('Lot Mollie', st === FICHE[2].res ? 'T19274230.2701.04' : 'T19274230.2610.11')}</div>` : ''}</div>`;
+  const renderFiche = (i) => {
+    const s = FICHE[i];
+    $('ficheSummary').innerHTML = s.sum;
+    $('ficheTranches').innerHTML = tranche('Versement immédiat · 80 %', '585,92 €', s.imm) + tranche('Retenue Mollie · 20 %', '146,48 €', s.res);
+  };
+  segPick('ficheTime', (b) => renderFiche(+b.dataset.t));
+  renderFiche(1);
+
+  /* 2 · Versements à venir — colour = state, nature = icon + words */
+  const ICO = {
+    hold: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h8M6 17h8M7 3c0 4 6 4 6 7s-6 3-6 7M13 3c0 4-6 4-6 7"/></svg>',
+    transit: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="5" width="15" height="10.5" rx="2"/><path d="M2.5 8.5h15M5.5 12.5h3"/></svg>',
+    inst: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4.5" width="14" height="12" rx="2"/><path d="M3 8.5h14M7 3v3M13 3v3M7 12h2M11 12h2"/></svg>',
+    plat: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 9.5 10 4l6.5 5.5M5.5 8v8h9V8M8.5 16v-4h3v4"/></svg>',
+  };
+  const KINDS = {
+    hold: { label: 'Retenue Mollie', filter: 'Retenues Mollie' },
+    transit: { label: 'Paiement carte · 80 %', filter: 'Paiements carte en route' },
+    inst: { label: 'Échéance', filter: 'Échéanciers' },
+    plat: { label: 'Versement plateforme', filter: 'Plateformes' },
+  };
+  const CLIENTS = [
+    { name: 'Paul Girard', stays: [{ stay: 'Roulotte · 28/07 → 01/08', items: [{ k: 'hold', d: '2026-11-04', a: 5370, sub: '20 % du paiement carte du 01/08', late: true }] }] },
+    { name: 'Hugo Bernard', stays: [{ stay: 'Cabane du Pin · 20 → 23/11', items: [{ k: 'transit', d: '2026-11-19', a: 32800, sub: 'lien payé le 15/11 · 410,00 €' }, { k: 'hold', d: '2027-02-17', a: 8200, sub: '20 % du lien du 15/11' }] }] },
+    { name: 'Nadia Benali', stays: [{ stay: 'Gîte · 08 → 15/11', items: [{ k: 'plat', d: '2026-11-20', a: 51236, sub: 'Booking · versement après le départ' }] }] },
+    { name: 'Famille Leroy', stays: [{ stay: 'Gîte · 20 → 27/02/2027', items: [{ k: 'inst', d: '2026-12-01', a: 30000, sub: '2 sur 4' }, { k: 'inst', d: '2027-01-01', a: 30000, sub: '3 sur 4' }, { k: 'inst', d: '2027-02-01', a: 31240, sub: '4 sur 4' }], recent: [{ k: 'inst', d: '2026-11-01', a: 30000, sub: '1 sur 4 · virement', ref: 'solio-6791-1-transaction-01a2a9c0-5e10-7a2b-8c44-2d9e1f-7730ab' }] }] },
+    { name: 'Inès Moreau', stays: [{ stay: 'Gîte · 22 → 29/12', items: [{ k: 'inst', d: '2026-12-15', a: 25000, sub: '2 sur 2' }] }, { stay: 'Roulotte · 02 → 04/11', items: [{ k: 'hold', d: '2027-02-07', a: 4000, sub: '20 % de la CB sur place du 02/11' }] }] },
+    { name: 'Claire Martin', stays: [{ stay: 'Cabane du Pin · 24 → 27/10', items: [{ k: 'hold', d: '2027-01-26', a: 14648, sub: '20 % du lien du 26/10' }], recent: [{ k: 'transit', d: '2026-10-30', a: 58592, sub: 'lien du 26/10', ref: QREF1 }] }] },
+  ];
+  const DOW = ['dim.', 'lun.', 'mar.', 'mer.', 'jeu.', 'ven.', 'sam.'];
+  const fmtD = (iso) => { const [y, m, d] = iso.split('-'); return `${d}/${m}${y !== '2026' ? '/' + y : ''}`; };
+  const dow = (iso) => DOW[new Date(iso + 'T12:00:00').getDay()];
+  const inDays = (iso) => Math.round((new Date(iso + 'T12:00:00') - new Date('2026-11-16T12:00:00')) / 864e5);
+  const state = { kinds: new Set(Object.keys(KINDS)), recent: false };
+  const itemsOf = (c) => c.stays.flatMap((s) => s.items.map((it) => ({ ...it, stay: s.stay })));
+  const badge = (it, received) => {
+    if (received) return `<span class="badge b-ok">Reçu le ${fmtD(it.d)}</span>`;
+    if (it.late) return `<span class="badge b-late">En retard de ${-inDays(it.d)} j</span>`;
+    const n = inDays(it.d);
+    return `<span class="badge b-wait">${n <= 1 ? 'Demain' : n < 31 ? 'Dans ' + n + ' jours' : 'Dans ' + Math.round(n / 30) + ' mois'}</span>`;
+  };
+  const row = (it, received, multiStay) => `<tr class="${received ? 'recv' : ''}">
+      <td class="d"><b>${fmtD(it.d)}</b><span>${received ? 'arrivé' : dow(it.d)}</span></td>
+      <td class="n"><span class="nat"><span class="ico">${ICO[it.k]}</span><span>${KINDS[it.k].label}<small>${it.sub}${multiStay ? ' · ' + it.stay : ''}</small></span></span></td>
+      <td class="a">${eur(it.a)}</td>
+      <td class="s">${badge(it, received)}</td>
+    </tr>${received && it.ref ? `<tr class="recv"><td></td><td class="r" colspan="3"><div class="refs">${ref('Qonto', it.ref)}</div></td></tr>` : ''}`;
+  const renderInc = () => {
+    const all = CLIENTS.flatMap(itemsOf);
+    $('tileVal').textContent = eur(all.reduce((s, i) => s + i.a, 0));
+    $('tileSub').textContent = `${CLIENTS.length} clients · 1 en retard`;
+    $('kindFilters').innerHTML = Object.entries(KINDS).map(([k, v]) => `<button class="chip" aria-pressed="${state.kinds.has(k)}" data-k="${k}">${ICO[k]}${v.filter}<span class="n">${all.filter((i) => i.k === k).length}</span></button>`).join('')
+      + `<label class="switch"><input type="checkbox" id="recentT" ${state.recent ? 'checked' : ''}> Reçus ces 30 derniers jours</label>`;
+    const groups = CLIENTS.map((c) => {
+      const items = itemsOf(c).filter((i) => state.kinds.has(i.k)).sort((a, b) => a.d.localeCompare(b.d));
+      const recent = state.recent ? c.stays.flatMap((s) => (s.recent || []).map((r) => ({ ...r, stay: s.stay }))).filter((i) => state.kinds.has(i.k)) : [];
+      return { c, items, recent, late: items.some((i) => i.late), next: items[0] ? items[0].d : null, tot: items.reduce((s, i) => s + i.a, 0) };
+    }).filter((g) => g.items.length || g.recent.length)
+      .sort((a, b) => (b.late - a.late) || String(a.next || '9').localeCompare(String(b.next || '9')));
+    if (!groups.length) { $('incGroups').innerHTML = '<div class="empty">Rien à recevoir : tout ce qui était attendu est arrivé.</div>'; return; }
+    $('incGroups').innerHTML = groups.map((g) => {
+      const multi = g.c.stays.length > 1;
+      return `<div class="group${g.late ? ' late' : ''}">
+        <button type="button" class="g-head" data-n="${g.c.name}">
+          <span><span class="cname">${g.c.name}</span><br><span class="muted" style="font-size:12.5px">${g.c.stays.map((s) => s.stay).join(' · ')}</span></span>
+          <span class="gtot"><b>${g.tot ? eur(g.tot) : '—'}</b><span>${g.items.length} à venir</span></span>
+          <span class="open">Ouvrir la fiche<svg viewBox="0 0 20 20" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M8 5l5 5-5 5"/></svg></span>
+        </button>
+        <table class="g-rows"><tbody>${g.items.map((i) => row(i, false, multi)).join('')}${g.recent.map((i) => row(i, true, multi)).join('')}</tbody></table>
+      </div>`;
+    }).join('');
+  };
+  $('incGroups').addEventListener('click', (e) => { const n = e.target.closest('.g-head'); if (n) toast(`Ouverture de la fiche de ${n.dataset.n}…`); });
+  $('kindFilters').addEventListener('click', (e) => {
+    const b = e.target.closest('.chip'); if (!b) return;
+    const k = b.dataset.k;
+    if (state.kinds.has(k)) state.kinds.delete(k); else state.kinds.add(k);
+    renderInc();
+  });
+  $('kindFilters').addEventListener('change', (e) => { if (e.target.id === 'recentT') { state.recent = e.target.checked; renderInc(); } });
+  $('incTile').addEventListener('click', () => {
+    const t = $('incTile'); const o = t.getAttribute('aria-expanded') !== 'true';
+    t.setAttribute('aria-expanded', String(o)); $('incDetail').classList.toggle('open', o);
+  });
+  renderInc();
+
+  /* 3 · Lot */
+  const LOT = {
+    amounts: { rows: [['Hugo Bernard · versement immédiat 80 %', 'payé le 15/11', 32800], ['Lucas Petit · versement immédiat 80 %', 'payé le 16/11', 21408], ['Paul Girard · retenue 20 % libérée', 'payé le 01/08', 5370], ['Non expliqué', 'reste du crédit', 2900]],
+      verdict: '<span class="badge b-hold">À vérifier</span><span class="note">Trois tranches font 595,78 € ; il reste 29,00 € que les montants seuls n’expliquent pas. Le crédit reste « non rattaché » pour ce reste.</span>' },
+    api: { rows: [['Hugo Bernard · versement immédiat 80 %', 'tr_7UhSN1zuXS · payé le 15/11', 32800], ['Lucas Petit · versement immédiat 80 %', 'tr_Wv3pQ8kLmA · payé le 16/11', 21408], ['Anna Roux · versement immédiat 80 %', 'tr_2bFxY9cRtE · payé le 16/11', 2900], ['Paul Girard · retenue 20 % libérée', 'lot de réserve du 01/08', 5370]],
+      verdict: '<span class="badge b-ok">Sûr</span><span class="note">Le lot T19274230.2611.07 lu chez Mollie liste ces 3 paiements et la retenue libérée : 624,78 € au centime, aucun frais.</span>' },
+  };
+  const renderLot = (m) => {
+    const L = LOT[m];
+    $('lotBody').innerHTML = L.rows.map(([a, b, c]) => `<tr><td><div style="font-weight:600">${a}</div><div class="muted" style="font-size:12.5px">${b}</div></td><td class="a">${eur(c)}</td></tr>`).join('') + `<tr class="sum"><td>Total</td><td class="a">${eur(L.rows.reduce((s, r) => s + r[2], 0))}</td></tr>`;
+    $('lotVerdict').innerHTML = L.verdict;
+  };
+  segPick('lotMode', (b) => renderLot(b.dataset.m));
+  renderLot('amounts');
+
+  /* 4 · Réglages */
+  const kept = { rate: '20', days: '90' };
+  const ex = () => { const r = parseFloat(kept.rate.replace(',', '.')); const res = Math.round(73240 * r / 100); $('rateExample').textContent = `Exemple : un paiement de 732,40 € → ${eur(73240 - res)} tout de suite, ${eur(res)} après ${kept.days} jours.`; };
+  const validate = (id, field, test, msg, help) => {
+    const input = $(id), f = $(field), h = f.querySelector('.help');
+    const check = () => {
+      const v = input.value.trim(); const err = test(v);
+      f.classList.toggle('bad', Boolean(err));
+      h.textContent = err ? err + ` On garde ${kept[id] !== undefined ? kept[id] + (id === 'rate' ? ' %' : ' jours') : 'la valeur précédente'}.` : help;
+      if (!err && kept[id] !== undefined) { kept[id] = v; ex(); }
+    };
+    input.addEventListener('input', check); input.addEventListener('blur', check);
+  };
+  validate('rate', 'fRate', (v) => { if (!/^\d+([.,]\d{1,2})?$/.test(v)) return 'Le taux est un nombre, 2 décimales au plus.'; const n = parseFloat(v.replace(',', '.')); return n > 50 ? 'Le taux doit être compris entre 0 et 50 %.' : null; }, null, 'Entre 0 et 50 %. 0 désactive la retenue.');
+  validate('days', 'fDays', (v) => (/^\d+$/.test(v) && +v >= 1 && +v <= 365) ? null : 'La durée est un nombre de jours entre 1 et 365.', null, 'Entre 1 et 365 jours.');
+  const tokHelp = $('fTok').querySelector('.help').textContent;
+  $('tok').addEventListener('input', () => {
+    const v = $('tok').value.trim(); const f = $('fTok'), h = f.querySelector('.help');
+    const bad = v && !v.startsWith('access_');
+    f.classList.toggle('bad', Boolean(bad));
+    h.textContent = bad ? 'Ce n’est pas un jeton d’accès Mollie : il commence par access_ (une clé live_ ne lit pas les lots).' : tokHelp;
+  });
+  ex();
+
+  /* 5 · Journal */
+  const J = {
+    oct: { open: 5370, rows: [
+      ['grp', 'Paiement par lien · Claire Martin'],
+      ['26/10', 'MO', '46720000', 'CLAIRE MARTIN · lien carte', 73240, 0],
+      ['26/10', 'MO', 'CMARTIN', 'CLAIRE MARTIN · lien carte', 0, 73240],
+      ['26/10', 'MO', '62780000', 'FRAIS MOLLIE · CLAIRE MARTIN (1,4 % + 0,25 €)', 1050, 0],
+      ['26/10', 'MO', '46720000', 'FRAIS MOLLIE · CLAIRE MARTIN (1,4 % + 0,25 €)', 0, 1050],
+      ['grp', 'Virement Mollie reçu sur Qonto', true],
+      ['30/10', 'MO', '51200000', 'MOLLIE T19274230.2610.11 · Qonto solio-…1a9f55', 58592, 0, true],
+      ['30/10', 'MO', '46720000', 'MOLLIE T19274230.2610.11 · Qonto solio-…1a9f55', 0, 58592, true],
+    ] },
+    jan: { open: 14648 + 8200 + 4000, rows: [
+      ['grp', 'Virements Mollie reçus sur Qonto', true],
+      ['26/01', 'MO', '51200000', 'MOLLIE T19274230.2701.04 · retenue C. MARTIN', 14648, 0, true],
+      ['26/01', 'MO', '46720000', 'MOLLIE T19274230.2701.04 · retenue C. MARTIN', 0, 14648, true],
+    ] },
+  };
+  const renderJ = () => {
+    const m = $('jMonth').querySelector('[aria-pressed="true"]').dataset.j;
+    const bank = $('jBank').checked; const D = J[m];
+    const rows = D.rows.filter((r) => bank || !r[r[0] === 'grp' ? 2 : 6]);
+    $('jBody').innerHTML = rows.map((r) => r[0] === 'grp' ? `<tr class="grp"><td colspan="6">${r[1]}</td></tr>` : `<tr><td class="num">${r[0]}</td><td>${r[1]}</td><td class="num">${r[2]}</td><td>${r[3]}</td><td class="m">${r[4] ? eur(r[4]) : '0'}</td><td class="m">${r[5] ? eur(r[5]) : '0'}</td></tr>`).join('') || '<tr><td colspan="6" class="empty">Aucune écriture Mollie ce mois-ci.</td></tr>';
+    let bal = D.open; D.rows.forEach((r) => { if (r[0] !== 'grp' && r[2] === '46720000') bal += r[4] - r[5]; });
+    $('jBal').textContent = eur(bal);
+  };
+  segPick('jMonth', renderJ);
+  $('jBank').addEventListener('change', renderJ);
+  renderJ();
+})();
+</script>
+</body>
+</html>
