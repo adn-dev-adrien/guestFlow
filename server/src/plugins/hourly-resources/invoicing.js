@@ -178,6 +178,40 @@ function createInvoicing({ bookings, visits = null, issuers = () => sdk.coreModu
     return refusal ? { ok: false, code: refusal.code || null, reason: refusal.error, silent: SILENT_REFUSALS.has(refusal.code) } : { ok: true, code: null, reason: null };
   }
 
+  /**
+   * Loop t2 B2-7 (outside-visit rule 54) — `invoiceability` of what the operator is about to save with a payment typed now, so « Créer la facture dans Qonto »
+   * is offered by the server, never decided from the typed tenders: the tenders are validated against what is due, then judged by the refusals `issue`
+   * would answer once the commit is written. A booking whose money is on a document (or a visit, `draft` its quote body) is judged on the document as
+   * the commit would leave it; a booking paid on its own columns on `{ totalPrice, reservationId }`. Nothing is written.
+   * @param {{ id?: number, draft?: object, totalPrice?: number, reservationId?: number, payment: { tenders, shortfall? } }} args
+   */
+  function draftInvoiceability({
+    id = null, draft = null, totalPrice = 0, reservationId = null, payment,
+  }) {
+    const raw = id ? bookings().rawById(id) : null;
+    if (id && !raw) return { ok: false, code: 'BOOKING_NOT_FOUND', reason: 'Réservation non trouvée' };
+    if (raw && raw.qontoInvoiceId && !raw.invoiceCancelledAt) return { ok: false, code: 'BOOKING_INVOICED', reason: 'Déjà facturée.' };
+    const { validateSettlement } = sdk.coreModule('paymentTenders');
+    const tenders = payment && payment.tenders;
+    const onDocument = Boolean(raw && visits && !raw.reservationId && (raw.saleRef || draft));
+    const money = onDocument ? visits().draftMoneyOf(raw, draft) : null;
+    const dueCents = money ? money.remainingCents : cents(totalPrice);
+    const checked = validateSettlement({ tenders, dueCents, shortfall: (payment && payment.shortfall) || null });
+    if (!checked.ok) return { ok: false, code: 'TENDERS_INVALID', reason: checked.error };
+    let refusal;
+    if (money) {
+      const after = { ...money, remainingCents: checked.shortfallKind === 'due' ? checked.shortfallCents : 0, payments: [...money.payments, { tenders: checked.lines }] };
+      refusal = documentInvoiceRefusal(bookings().findById(raw.id), after, issuers(), { basis: bookings().invoiceBasis(raw.id) });
+    } else {
+      const lines = checked.lines;
+      refusal = invoiceRefusal({
+        reservationId: raw ? raw.reservationId : reservationId, frozen: false, totalPrice: Number(totalPrice),
+        payment: { tenders: lines, onTheBooks: lines.length > 0 && !lines.some((t) => t.internal) },
+      }, issuers());
+    }
+    return refusal ? { ok: false, code: refusal.code || null, reason: refusal.error } : { ok: true, code: null, reason: null };
+  }
+
   /** POST /:id/invoice — `{ ok, invoice }` or `{ error, status, code }`. Never touches the payment. */
   async function issue(id) {
     const raw = bookings().rawById(id);
@@ -278,7 +312,7 @@ function createInvoicing({ bookings, visits = null, issuers = () => sdk.coreModu
   }
 
   return {
-    issue, invoiceability, attach, watch, requestOf, documentRequestOf,
+    issue, invoiceability, draftInvoiceability, attach, watch, requestOf, documentRequestOf,
   };
 }
 

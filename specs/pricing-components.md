@@ -1528,6 +1528,11 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
     > **Delivered by PR B** (pass 3): `refund_obligations` written by `settleBasket`, `recordRefundOwed`,
     > `settleWithdrawnPayment` (opened then settled, `neverBooked` for a devis), the confirmed lowering of a paid line; the close
     > action and its ledger rows (`refund-obligations`, `pricing-refunds-owed`).
+    > _Reading of 2026-11-16 (loop t2 B2-5, owner O-6):_ a stay's `lineLowered` rows are settled by a refund opened on the trop-perçu only. A refund made on a
+    > line — the lowered one (a discounted paid line) or the accommodation — does not lower the trop-perçu (O-6), so the row rightly stays open at the
+    > trop-perçu: the register and the trop-perçu never disagree. Measured: a paid 40 € line offered, then 40 € refunded on the accommodation, trop-perçu 40 €
+    > and row 40 € before and after; a paid line discounted 10 €, then 10 € refunded on that line, 10 € and 10 €. Test `refund-on-lowered-line-o6`.
+    > On a sale document the rows follow what is owed after every change (outside-booking-sas rule 53).
 76. **One trop-perçu formula for every stay** _(owner O-6, O-7 b, Q16)_. The trop-perçu is the Σ of the stay's
     allocations (rule 74) minus its line totals, for every stay: legacy stays read allocations backfilled from the
     stored contribs, splits and settlements, stay-level through `legacyBucketSplit` where no per-line truth exists
@@ -1948,7 +1953,7 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
     the open `lineLowered` rows oldest first, the part it takes of a row as a settled row of its own (`settledBy = refund:<id>`); deleting the refund
     opens those rows again, so the SAS's « À rembourser (depuis la fiche) » owes what the trop-perçu owes. Test `refund-deleted-reopens-obligations`.
 99. **A receipt is cut over the lines as they stood when it was paid** _(stabilisation loop t1, B-4, 2026-11-16; completes rule 63 as amended by R2-5)_.
-    On a stay the sale-line readers serve (`readsSaleLines = 1`), the writer every payment path already calls (`paymentAllocationsSync.syncStay`) freezes,
+    On a stay the sale-line readers serve (`readsSaleLines = 1`), `paymentAllocationsSync.syncStay` freezes,
     per payment day, the stay's sale lines sold by that day (`receipt_line_splits`: `ref`, `kind`, `vatClass`, `totalCents` — what the cut weighs). A day
     is frozen the first time a payment dated that day is seen; while the day is today the row follows the lines (a sale of the day after a payment of the
     day is cut like before); once the day is past it never changes; a day that no longer holds a payment (a receipt unticked) loses its row and is frozen
@@ -1957,6 +1962,10 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
     40,08 € moved from 72,88 / 7,28 to 72,87 / 7,29 when one line was removed). A day with no row (a receipt taken before this rule) keeps the cut over the
     current lines sold by its day. A stay booked before 4.2.0 is never frozen and its figures never move (owner 2026-11-15). Migration: one new table,
     empty, ignored by the previous release. Test `accounting-receipt-split-frozen-at-payment`.
+    > _Reading of 2026-11-16 (loop t2 B2-6):_ no payment path calls `syncStay` itself: a payment marks the stay dirty (`payment_allocations_dirty`) and
+    > `syncStay` runs the first time the stay's allocations are read after it (`flushDirty`) — the journal, a fiche read, a lowering of a paid line, which
+    > reads SETTLEMENT before it writes. So a day is frozen the first time the stay's allocations are read after a payment dated that day; no reachable
+    > path re-cuts a frozen day before that read.
 100. **A fiche save dates only the lines it wrote** _(stabilisation loop t2, D2-1, 2026-11-16; completes rule 97 b)_. The save takes the stay's line ids
     before it writes; an unstamped line it did not hold before is sold by the save (`soldAt` = the save), an unstamped line it already held — a stay's
     first lines, written by the creation, a devis conversion, an iCal or a plugin — gets the boot's reading (`soldAt` = the booking's `createdAt`, its

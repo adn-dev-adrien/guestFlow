@@ -5,7 +5,7 @@ import { render, screen } from '@testing-library/react';
 import { vi } from 'vitest';
 import ResourceArrivalDialog from '../ResourceArrivalDialog';
 import api from '../../../api';
-import { visitPayload } from './arrivalVisitFixtures';
+import { visitPayload, fakeQuote } from './arrivalVisitFixtures';
 
 vi.mock('../../../api', () => ({
   default: {
@@ -27,7 +27,7 @@ const phone = () => {
   });
 };
 afterEach(() => { delete window.matchMedia; });
-beforeEach(() => { vi.clearAllMocks(); api.getResourceVisit.mockResolvedValue(visitPayload()); });
+beforeEach(() => { vi.clearAllMocks(); api.getResourceVisit.mockResolvedValue(visitPayload()); api.quoteResourceVisit.mockImplementation(fakeQuote()); });
 
 test('on a phone: full screen, the reste kept at the top, « Valider l\'arrivée » last and full width, 44 px targets', async () => {
   phone();

@@ -28,8 +28,8 @@
  */
 const { toCents } = require('./pricing/money');
 const { externalSale } = require('./pricing/pipelines');
-const { allocateDocumentPayment } = require('./pricing/settlement');
-const { owedOnDocument } = require('./pricing/refunds/owed');
+const { allocateDocumentPayment, refileDocumentExcess } = require('./pricing/settlement');
+const { owedOnDocument, documentRowsInStep, refundRowsOfDocument } = require('./pricing/refunds/owed');
 const articles = require('./pricing/articles');
 const { buildDocumentDetail } = require('./saleDetail');
 const { validateSettlement, methodLabel, euros } = require('./paymentTenders');
@@ -382,6 +382,7 @@ function sell(request = {}, { actor = null, now = new Date() } = {}) {
       if (existing) sales.bumpVersion(saleId);
       else sales.addHistory(saleId, 'Vente enregistrée', actor);
       for (const added of ctx.lines.filter((l) => l.isNew)) sales.addHistory(saleId, `${added.label} ×${added.quantity} ${added.offered ? 'offerte' : 'ajoutée'}`, actor);
+      if (existing) reconcile(saleId);
       refreshInPlace(saleId);
       if (body.payment) {
         const taken = takePayment(saleId, { ...body.payment, actor });
@@ -433,16 +434,39 @@ function publishSold(document) {
   });
 }
 
-// One change of a stored document, in its own transaction: the version is compared, the change made, the document refreshed and its version moved.
-// Loop t1 B-1, AV-1 (outside-visit rule 25) — money a confirmed lowering leaves owed back is a register row of its own (`lineLowered`), opened in the
-// gesture's transaction: the « À rembourser » lists show it, the invoice waits for it, and « Marquer remboursé » closes it.
-function holdOwedMoney(saleId, reason) {
-  const { stored, allocations } = storedOf(saleId);
-  const { owed } = owedOf(price({ requests: [], stored, allocations }), saleId);
-  if (owed.unheldCents > 0) sales.openObligation({ saleId, origin: 'lineLowered', amountCents: owed.unheldCents, reason });
+/**
+ * Loop t2 B2-2, B2-3 (outside-visit rules 52, 53) — after every change of a stored document, in its transaction: the money a lowered line holds is first
+ * filed on the lines still due (a transfer dated today, so the journal books what the money now pays), then the open `lineLowered` rows are kept in step
+ * with what the document owes back; a confirmed lowering (`lowered`: `{ reason, lineRef }`, `lineRef` null for the whole document) opens what no row
+ * holds yet (loop t1 B-1, AV-1, rule 25): the « À rembourser » lists show it, the invoice waits for it, and « Marquer remboursé » closes it.
+ */
+function reconcile(saleId, lowered = null) {
+  let { stored, allocations } = storedOf(saleId);
+  const moved = refileDocumentExcess({ lines: price({ requests: [], stored, allocations }).lines, allocations });
+  if (moved.length) {
+    payments.recordTransfer({ saleId, at: todayIso(), rows: moved });
+    ({ stored, allocations } = storedOf(saleId));
+  }
+  const ctx = price({ requests: [], stored, allocations });
+  const { obligations, owed } = owedOf(ctx, saleId);
+  const rows = obligations.filter((row) => row.origin === 'lineLowered');
+  const othersCents = obligations.filter((row) => row.origin !== 'lineLowered').reduce((sum, row) => sum + row.amountCents, 0);
+  const step = documentRowsInStep({
+    rows, lines: ctx.settlement.lines, owedCents: owed.owedCents - othersCents, open: lowered ? { lineRef: lowered.lineRef || null } : null,
+  });
+  for (const row of step.amounts) {
+    const before = rows.find((r) => r.id === row.id);
+    if (before && before.amountCents !== row.amountCents) sales.resizeObligation(row.id, row.amountCents);
+  }
+  if (lowered && step.openCents > 0) {
+    sales.openObligation({
+      saleId, origin: 'lineLowered', amountCents: step.openCents, reason: lowered.reason, lineRef: lowered.lineRef || null,
+    });
+  }
 }
 
-function change(saleId, version, work, { owedReason = null } = {}) {
+// One change of a stored document, in its own transaction: the version is compared, the change made, the document reconciled and refreshed, its version moved.
+function change(saleId, version, work, { lowered = null } = {}) {
   const db = database();
   let outcome = null;
   try {
@@ -453,7 +477,7 @@ function change(saleId, version, work, { owedReason = null } = {}) {
       if (stale) { outcome = stale; throw outcome; }
       const refused = work(sale);
       if (refused) { outcome = refused; throw outcome; }
-      if (owedReason) holdOwedMoney(saleId, typeof owedReason === 'function' ? owedReason() : owedReason);
+      reconcile(saleId, typeof lowered === 'function' ? lowered() : lowered);
       refreshInPlace(saleId);
       sales.bumpVersion(saleId);
       outcome = { status: 200 };
@@ -489,7 +513,7 @@ function offerLine(saleId, lineId, { offered = true, confirmRefund = false, vers
     sales.updateLine(row.id, { offered: offered ? 1 : 0, totalCents: offered ? 0 : catalogue, catalogueCents: catalogue });
     sales.addHistory(saleId, `${row.label} ${offered ? 'offerte' : 'à nouveau payante'}`);
     return null;
-  }, { owedReason: () => `${label} offerte après paiement` });
+  }, { lowered: () => (offered ? { reason: `${label} offerte après paiement`, lineRef: sales.lineRef(lineId) } : null) });
 }
 
 function removeLine(saleId, lineId, { confirmRefund = false, version } = {}) {
@@ -501,7 +525,7 @@ function removeLine(saleId, lineId, { confirmRefund = false, version } = {}) {
     sales.updateLine(row.id, { cancelledAt: new Date().toISOString() });
     sales.addHistory(saleId, `${row.label} retirée`);
     return null;
-  }, { owedReason: () => `${label} retirée après paiement` });
+  }, { lowered: () => ({ reason: `${label} retirée après paiement`, lineRef: sales.lineRef(lineId) }) });
 }
 
 function pay(saleId, {
@@ -523,31 +547,22 @@ function cancel(saleId) {
     sales.addHistory(saleId, 'Vente annulée');
     // The open link of the document is withdrawn with it (`refreshInPlace`); a payment that still arrives on it is booked in full and owed back (rule 41).
     return null;
-  }, { owedReason: 'Vente annulée après paiement' });
+  }, { lowered: { reason: 'Vente annulée après paiement', lineRef: null } });
 }
 
 /**
  * Loop t1 B-1 (outside-visit rule 49) — « Marquer remboursé » on a `lineLowered` row: the money given back is written as refund allocations (rule 74:
- * a refund is a negative allocation), in the caller's transaction, on the lines that hold more than they now ask (an offered, removed or cancelled
- * line), in sale order, each line's booked part before its caisse-interne part, dated the day of the refund; what no line holds goes on no line. The
+ * a refund is a negative allocation), in the caller's transaction, on the line the row was opened for first, then on the other lines that hold more than
+ * they now ask, dated the day of the refund (which line, REFUNDS' `refundRowsOfDocument` — loop t2 B2-1, B2-4). The
  * journal books them as the document's avoir that day (`accounting/standaloneDocuments.js`), so the revenue and the VAT of the money given back leave
  * the books; SETTLEMENT reads them as refunded.
  */
 function writeObligationRefund(saleId, obligation, { day = todayIso() } = {}) {
   const { stored, allocations } = storedOf(saleId);
   const ctx = price({ requests: [], stored, allocations });
-  const heldBy = (ref, books) => allocations.filter((row) => row.lineRef === ref && Number(row.books) === books).reduce((sum, row) => sum + Number(row.amountCents), 0);
-  let left = Number(obligation.amountCents);
-  const rows = [];
-  for (const line of ctx.settlement.lines) {
-    if (left <= 0) break;
-    const take = Math.min(left, Math.max(0, line.settledCents - line.dueCents));
-    if (!(take > 0)) continue;
-    const booked = Math.min(take, Math.max(0, heldBy(line.ref, 1)));
-    rows.push({ lineRef: line.ref, amountCents: booked, internal: false }, { lineRef: line.ref, amountCents: take - booked, internal: true });
-    left -= take;
-  }
-  if (left > 0) rows.push({ lineRef: null, amountCents: left, internal: false });
+  const rows = refundRowsOfDocument({
+    lines: ctx.settlement.lines, allocations, amountCents: Number(obligation.amountCents), lineRef: obligation.lineRef || null,
+  });
   payments.recordRefund({ saleId, obligationId: obligation.id, at: day, rows });
   refreshInPlace(saleId);
   sales.bumpVersion(saleId);

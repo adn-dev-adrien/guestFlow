@@ -177,6 +177,7 @@
       "L’avertissement de désinstallation nomme l’argent des visites encaissé sur leur vente ; une vente dont la réservation a disparu reste dans « Ventes hors séjour ».",
       "« Arrivée » et « Client absent » ne s’affichent que si le serveur les propose, selon l’heure du serveur : le planning ne compare plus le jour avec l’horloge du navigateur.",
       "L’arrivée d’une visite n’affiche plus de raison de facture qui ne s’applique pas : rien sans Qonto ni pendant un encaissement en cours.",
+      "« Créer la facture dans Qonto » au paiement immédiat est proposé quand le serveur, interrogé avec le paiement saisi, répond que la facture peut être faite : ni l’arrivée ni la réservation ne le devinent plus d’après les moyens de paiement.",
       "Demande le SDK 2.31 de GuestFlow."
     ]
   }

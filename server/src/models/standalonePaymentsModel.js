@@ -12,7 +12,10 @@
  *   recordRefund({ saleId, obligationId, at, rows })   the money a `lineLowered` row gave back, as refund allocations (negative, `kind = 'refund'`,
  *                                 `refundId` = the row, `paymentRef` `standalone-refund:<row>` and `…:internal` off the books) — loop t1 B-1, rule 49;
  *                                 which line a cent leaves is decided by the caller (`standaloneSale.writeObligationRefund`)
- *   documentsPaidBetween(from, to)  every document with money moved in the window (a payment, a refund, a kept surplus) and what the journal reads
+ *   recordTransfer({ saleId, at, rows })   money a lowered line held moved onto a line still due (loop t2 B2-3, outside-visit rule 52): signed `payment`
+ *                                 allocations under one `standalone-transfer:<sale>:<n>` ref (`…:internal` off the books), dated the day of the change; which
+ *                                 line gives and which takes is SETTLEMENT's (`refileDocumentExcess`)
+ *   documentsPaidBetween(from, to)  every document with money moved in the window (a payment, a refund, a transfer, a kept surplus) and what the journal reads
  */
 const sales = require('./standaloneSalesModel');
 const { localIsoDate } = require('../utils/localDate');
@@ -49,6 +52,20 @@ function recordRefund({ saleId, obligationId, at, rows }) {
   }
 }
 
+const TRANSFER = 'standalone-transfer:';
+
+function recordTransfer({ saleId, at, rows }) {
+  const db = database();
+  const ref = `${TRANSFER}${Number(saleId)}:${Number(db.prepare(`SELECT COUNT(DISTINCT REPLACE(paymentRef, ':internal', '')) AS n FROM payment_allocations
+    WHERE documentRef = ? AND paymentRef LIKE '${TRANSFER}%'`).get(documentRef(saleId)).n) + 1}`;
+  const insert = db.prepare(`INSERT INTO payment_allocations (paymentRef, documentRef, lineRef, amountCents, kind, at, books, origin)
+    VALUES (?, ?, ?, ?, 'payment', ?, ?, 'live')`);
+  for (const row of rows) {
+    if (!row.amountCents) continue;
+    insert.run(Number(row.books) ? ref : `${ref}:internal`, documentRef(saleId), row.lineRef, row.amountCents, at, Number(row.books) ? 1 : 0);
+  }
+}
+
 const parse = (raw) => { try { return JSON.parse(raw || '[]'); } catch { return []; } };
 
 function paymentsOf(saleId) {
@@ -65,7 +82,8 @@ const closedDay = (settledAt) => (settledAt ? localIsoDate(new Date(`${String(se
 /**
  * The documents that moved money between two days (inclusive) — a payment taken, money given back (rule 49), a link surplus kept (rule 50) — each with
  * everything the journal reads: its frozen lines, ALL its payments (the VAT of a day is cut cumulatively) with their allocations, its refunds, its kept
- * surpluses and its client. `[{ sale, lines: [{ ref, vatClass, vatRate }], payments, refunds: [{ lineRef, amountCents, books, at }], kept: [{ id, amountCents, day }], client }]`.
+ * surpluses and its client. `[{ sale, lines: [{ ref, vatClass, vatRate }], payments, refunds: [{ lineRef, amountCents, books, at }], transfers: [{ lineRef, amountCents (signed),
+ * books, at }], kept: [{ id, amountCents, day }], client }]`.
  */
 function documentsPaidBetween(from, to) {
   const db = database();
@@ -73,7 +91,7 @@ function documentsPaidBetween(from, to) {
   const ids = [...new Set([
     ...db.prepare('SELECT DISTINCT saleId FROM standalone_sale_payments WHERE paidAt >= ? AND paidAt <= ?').all(from, to).map((row) => row.saleId),
     ...db.prepare(`SELECT DISTINCT CAST(substr(documentRef, 12) AS INTEGER) AS saleId FROM payment_allocations
-      WHERE documentRef LIKE 'standalone:%' AND kind = 'refund' AND at >= ? AND at <= ?`).all(from, to).map((row) => row.saleId),
+      WHERE documentRef LIKE 'standalone:%' AND (kind = 'refund' OR paymentRef LIKE '${TRANSFER}%') AND at >= ? AND at <= ?`).all(from, to).map((row) => row.saleId),
     ...kept.filter((row) => row.day && row.day >= from && row.day <= to).map((row) => row.saleId),
   ])].sort((a, b) => a - b).filter((saleId) => sales.findSale(saleId));
   return ids.map((saleId) => {
@@ -93,6 +111,9 @@ function documentsPaidBetween(from, to) {
       refunds: allocations.filter((row) => row.kind === 'refund').map((row) => ({
         lineRef: row.lineRef, amountCents: Math.abs(Number(row.amountCents)), books: Number(row.books), at: row.at,
       })),
+      transfers: allocations.filter((row) => String(row.paymentRef || '').startsWith(TRANSFER)).map((row) => ({
+        lineRef: row.lineRef, amountCents: Number(row.amountCents), books: Number(row.books), at: row.at,
+      })),
       kept: kept.filter((row) => row.saleId === saleId && row.day).map((row) => ({ id: row.id, amountCents: Number(row.amountCents), day: row.day })),
       client,
     };
@@ -100,5 +121,5 @@ function documentsPaidBetween(from, to) {
 }
 
 module.exports = {
-  record, recordRefund, paymentsOf, allocationsOf, paymentRef, documentsPaidBetween,
+  record, recordRefund, recordTransfer, paymentsOf, allocationsOf, paymentRef, documentsPaidBetween,
 };

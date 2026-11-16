@@ -591,6 +591,47 @@ function allocateDocumentPayment({ lines, allocations = [], amountCents }) {
   return out;
 }
 
+/**
+ * Loop t2 B2-3 (outside-visit rule 52) — money a lowered line holds while another line still asks is filed on that line: `refileDocumentExcess({ lines,
+ * allocations })` → `[{ lineRef, amountCents, books }]`, the signed allocation rows of the move (negative on the line that holds more than it asks,
+ * positive on the line it now pays), one row per (line, books), the lines in sale order on both sides, each line's booked part before its
+ * caisse-interne part. Nothing moves when no line holds an excess or no line asks.
+ */
+function refileDocumentExcess({ lines, allocations = [] }) {
+  const settled = settledOnLines(lines, allocations);
+  const bookedOn = (ref) => (allocations || []).filter((row) => row.lineRef === ref && Number(row.books) === 1)
+    .reduce((sum, row) => sum + Math.round(Number(row.amountCents || 0)), 0);
+  const givers = [];
+  const takers = [];
+  lines.forEach((line, index) => {
+    const gap = settled[index] - dueOf(line);
+    if (gap > 0) {
+      const booked = Math.min(gap, Math.max(0, bookedOn(line.ref)));
+      if (booked > 0) givers.push({ ref: line.ref, books: 1, cents: booked });
+      if (gap - booked > 0) givers.push({ ref: line.ref, books: 0, cents: gap - booked });
+    } else if (gap < 0) takers.push({ ref: line.ref, cents: -gap });
+  });
+  const rows = new Map();
+  const add = (ref, books, cents) => {
+    const key = `${ref}|${books}`;
+    const row = rows.get(key) || { lineRef: ref, amountCents: 0, books };
+    row.amountCents += cents;
+    rows.set(key, row);
+  };
+  for (const giver of givers) {
+    for (const taker of takers) {
+      if (giver.cents <= 0) break;
+      const move = Math.min(giver.cents, taker.cents);
+      if (move <= 0) continue;
+      add(giver.ref, giver.books, -move);
+      add(taker.ref, giver.books, move);
+      giver.cents -= move;
+      taker.cents -= move;
+    }
+  }
+  return [...rows.values()].filter((row) => row.amountCents !== 0);
+}
+
 function settleDocument({ lines, allocations = [] }) {
   const settled = settledOnLines(lines, allocations);
   const received = (allocations || []).filter((row) => row.kind !== 'refund').reduce((sum, row) => sum + Math.round(Number(row.amountCents || 0)), 0);
@@ -615,6 +656,7 @@ function settleDocument({ lines, allocations = [] }) {
 
 module.exports = {
   allocateDocumentPayment,
+  refileDocumentExcess,
   settleDocument,
   scheduleExcess,
   PLATFORM_RESERVATION,

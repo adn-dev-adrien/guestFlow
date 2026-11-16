@@ -78,12 +78,17 @@ function createController({ bookings: model, scheduling, planningCards, reservat
 
   /**
    * POST /api/resource-bookings/preview — the price of a booking draft, written nowhere
-   * (specs/resource-supplements-total-server-side.md rules 4-7). Admin only: it carries money.
+   * (specs/resource-supplements-total-server-side.md rules 4-7). Admin only: it carries money. With `payment`, `invoiceable` too (loop t2 B2-7).
    */
   function preview(req, res) {
-    const result = model().priceBooking(req.body || {});
+    const body = req.body || {};
+    const result = model().priceBooking(body);
     if (result.error) return res.status(result.status).json({ error: result.error });
-    return res.json({ ...result, invoiceReady: invoiceReady() });
+    // Loop t2 B2-7 (outside-visit rule 54) — with the payment typed for « Payé maintenant », whether the save could make the invoice: the server's answer.
+    const payment = body.payment && typeof body.payment === 'object' && !Array.isArray(body.payment) ? body.payment : null;
+    const invoiceable = payment && invoicing
+      ? invoicing().draftInvoiceability({ id: body.bookingId ? Number(body.bookingId) : null, totalPrice: result.total, payment }) : undefined;
+    return res.json({ ...result, invoiceReady: invoiceReady(), ...(invoiceable ? { invoiceable } : {}) });
   }
 
   function update(req, res) {

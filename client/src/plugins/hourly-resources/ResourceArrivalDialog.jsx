@@ -11,6 +11,7 @@
  *
  * Whether the money on the books can be invoiced now is the server's `invoiceable` ({ ok, code, reason, silent }, admin only): « Créer la facture » iff `ok`, its `reason`
  * otherwise — unless `silent`, or while a draft or a payment is typed (the reason reads the stored visit).
+ * At « Payé maintenant » the checkbox « Créer la facture dans Qonto » reads the same answer from the quote of the draft with the payment typed (loop t2 B2-7).
  * Each line names its VAT rate (`line.vatRate`). An invoiced visit offers « Nouvelle vente » on its client (`newSale.client`, rule 24): the counter's dialog seeded with it.
  *
  * Props: open, bookingId, onClose, onDone (called after a successful commit)
@@ -181,7 +182,10 @@ export default function ResourceArrivalDialog({ open, bookingId, onClose, onDone
   const hasChanges = dirty || payNow;
   const quoteReady = !dirty || (quote.fresh && !quote.refusal && refusals.length === 0);
   const qontoReady = Boolean(view && view.invoiceReady);
-  const invoiceOffered = !reception && payNow && allOnTheBooks(payment) && Boolean(payment) && payment.gapCents === 0;
+  // Loop t2 B2-7 (rule 54) — with « Payé maintenant », whether this commit could make the invoice is the server's answer for the payment typed.
+  const paymentDraft = useMemo(() => (!reception && payNow && payment && paymentBody(payment) ? { ...(draft || {}), payment: paymentBody(payment) } : null), [reception, payNow, payment, draft]);
+  const invoiceQuote = useVisitQuote({ bookingId, draft: paymentDraft, enabled: open, version: visit ? visit.document.version : 0 });
+  const invoiceOffered = Boolean(paymentDraft && invoiceQuote.fresh && invoiceQuote.visit && invoiceQuote.visit.invoiceable && invoiceQuote.visit.invoiceable.ok);
   // Money already on the books, invoiceable now: the server's `invoiceable` (invoicing rules 13, 44; loop t1 UI-10 / AV-11). It reads the stored visit, so a draft waits for its save.
   const invoiceable = visit && !reception ? visit.invoiceable : null;
   const invoiceStored = !dirty && Boolean(invoiceable && invoiceable.ok);
@@ -192,7 +196,8 @@ export default function ResourceArrivalDialog({ open, bookingId, onClose, onDone
   const commitMode = !invoiceOutcome && (!booking || !booking.arrived || hasChanges);
   const primaryLabel = invoiceOutcome ? TEXTS.makeInvoice : (!booking || !booking.arrived ? TEXTS.validate : (hasChanges ? TEXTS.save : (invoiceStored ? TEXTS.makeInvoice : TEXTS.close)));
   const closesOnly = !commitMode && !invoiceOutcome && !invoiceStored;
-  const paymentReady = !payNow || Boolean(payment && payment.canSubmit);
+  // The invoice question is answered before the commit, so the checkbox the operator sees is the one the commit carries.
+  const paymentReady = !payNow || (Boolean(payment && payment.canSubmit) && (!paymentDraft || invoiceQuote.fresh));
   const canValidate = Boolean(visit) && !busy && (closesOnly || Boolean(invoiceOutcome) || (commitMode ? quoteReady && paymentReady : invoiceStored));
 
   const adopt = (next) => { setVisit(next); setOfferedMinutes(Number(next.session.offeredMinutes || 0)); };

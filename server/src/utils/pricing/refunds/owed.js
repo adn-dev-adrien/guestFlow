@@ -9,6 +9,8 @@
  *   owedOnDuplicate    a link paid a second time: what the second payment gives back
  *   owedOnLineLowered  a paid line lowered, offered or removed: its trop-perçu share (rule 76), net of what is already owed for it
  *   owedOnDocument     a sale document paid above what its lines now ask (a line offered, removed, a link paid late): the excess, net of what was given back
+ *   documentRowsInStep a sale document's open `lineLowered` rows kept in step with what it owes now, and what a lowering opens (loop t2 B2-2)
+ *   refundRowsOfDocument  which line the money of a `lineLowered` row marked refunded leaves (loop t2 B2-1, B2-4)
  */
 
 const whole = (value) => (Number.isInteger(value) ? value : 0);
@@ -64,6 +66,63 @@ function owedOnDocument({ dueCents, paidCents, refundedCents = 0, heldCents = 0 
   return { owedCents, unheldCents: Math.max(0, owedCents - whole(heldCents)) };
 }
 
+// What each line of a settled document holds beyond what it asks (an offered, removed or cancelled line still carrying its money).
+const excessByLine = (lines) => new Map((lines || []).map((line) => [line.ref, Math.max(0, whole(line.settledCents) - whole(line.dueCents))]));
+
+/**
+ * Loop t2 B2-2 (outside-visit rule 53) — the open `lineLowered` rows of a document, in step with what it owes now: a row names the line it was opened for
+ * and holds at most what that line still holds beyond what it asks; the rows together hold at most `owedCents` (the newest cut first). A lowering
+ * (`open`) opens what no row holds yet, at most the excess of its line (`open.lineRef`, null for the whole document cancelled).
+ * @param {{ rows: Array<{ id: number, lineRef: (string|null), amountCents: number }>, lines: Array<{ ref: string, dueCents: number, settledCents: number }>,
+ *   owedCents: number, open?: ({ lineRef: (string|null) }|null) }} args  `rows` oldest first; `owedCents` = what the document owes back less the other open rows
+ * @returns {{ amounts: Array<{ id: number, amountCents: number }>, openCents: number }} each row's amount now (0 = no longer owed), and what to open
+ */
+function documentRowsInStep({ rows, lines, owedCents, open = null }) {
+  const left = excessByLine(lines);
+  const amounts = (rows || []).map((row) => {
+    const amount = whole(row.amountCents);
+    if (row.lineRef == null) return { id: row.id, amountCents: amount };
+    const kept = Math.min(amount, left.get(row.lineRef) || 0);
+    left.set(row.lineRef, (left.get(row.lineRef) || 0) - kept);
+    return { id: row.id, amountCents: kept };
+  });
+  let over = amounts.reduce((sum, row) => sum + row.amountCents, 0) - Math.max(0, whole(owedCents));
+  for (const row of [...amounts].reverse()) {
+    if (over <= 0) break;
+    const cut = Math.min(over, row.amountCents);
+    row.amountCents -= cut;
+    over -= cut;
+  }
+  const room = Math.max(0, whole(owedCents) - amounts.reduce((sum, row) => sum + row.amountCents, 0));
+  let openCents = 0;
+  if (open) openCents = open.lineRef == null ? room : Math.min(room, left.get(open.lineRef) || 0);
+  return { amounts, openCents };
+}
+
+/**
+ * Loop t2 B2-1, B2-4 (outside-visit rule 49) — the refund rows of a `lineLowered` row marked refunded: taken first on the line the row was opened for, then
+ * on the other lines holding more than they ask, in sale order; on each line its booked part before its caisse-interne part; what no line holds goes on
+ * no line. `allocations` are the document's rows (`{ lineRef, amountCents, books }`), `lines` its settled lines.
+ * @returns {Array<{ lineRef: (string|null), amountCents: number, internal: boolean }>}
+ */
+function refundRowsOfDocument({ lines, allocations = [], amountCents, lineRef = null }) {
+  const excess = excessByLine(lines);
+  const bookedOn = (ref) => (allocations || []).filter((row) => row.lineRef === ref && Number(row.books) === 1).reduce((sum, row) => sum + whole(Number(row.amountCents)), 0);
+  const order = [...(lines || [])].sort((a, b) => (a.ref === lineRef ? -1 : 0) - (b.ref === lineRef ? -1 : 0));
+  let left = whole(amountCents);
+  const rows = [];
+  for (const line of order) {
+    if (left <= 0) break;
+    const take = Math.min(left, excess.get(line.ref) || 0);
+    if (!(take > 0)) continue;
+    const booked = Math.min(take, Math.max(0, bookedOn(line.ref)));
+    rows.push({ lineRef: line.ref, amountCents: booked, internal: false }, { lineRef: line.ref, amountCents: take - booked, internal: true });
+    left -= take;
+  }
+  if (left > 0) rows.push({ lineRef: null, amountCents: left, internal: false });
+  return rows;
+}
+
 /**
  * The part of a second paid link to give back, as the poll and the notifier carry it: `null` when the whole link is owed.
  * @param {(number|null)} [duplicateCents]
@@ -87,5 +146,5 @@ const duplicateOnSolde = ({ linkCents, balanceCents }) => Math.max(0, linkCents 
 const flagRefundOwed = (basket, partCents) => ({ ...basket, refundOwed: true, ...(partCents ? { refundCents: partCents } : {}) });
 
 module.exports = {
-  owedOnBasket, owedOnLinkPayment, owedOnDuplicate, owedOnLineLowered, owedOnDocument, duplicatePayment, doublePaymentEffect, fullOverDeposit, duplicateOnSolde, flagRefundOwed,
+  owedOnBasket, owedOnLinkPayment, owedOnDuplicate, owedOnLineLowered, owedOnDocument, documentRowsInStep, refundRowsOfDocument, duplicatePayment, doublePaymentEffect, fullOverDeposit, duplicateOnSolde, flagRefundOwed,
 };
