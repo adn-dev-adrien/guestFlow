@@ -9,17 +9,13 @@
  * Props:
  *   value      { sellableExternally: bool, vatClass: string ('' = the class of its kind), externalVatRate: string | null } (null = untouched: the class's own rate shows; a string, even empty, is what the operator typed)
  *   onChange   (patch) => void   `{ sellableExternally }`, `{ vatClass }` or `{ externalVatRate }`
- *   classes    [{ vatClass, externalRate | null }] — `GET /api/standalone-sales/vat-rates`
+ *   classes    [{ vatClass, label, externalRate | null }] — `GET /api/standalone-sales/vat-rates`; the menu lists them with the server's French label
  *   defaultClass  the class used when `vatClass` is empty (`options` or `resources`)
  *   errors     { sellableExternally?, vatClass?, externalVatRate? } — the server's messages
  *   disabled   boolean
  */
 import React, { useId } from 'react';
 import { Box, FormControl, FormControlLabel, FormHelperText, InputLabel, MenuItem, Select, Switch, TextField, Typography } from '@mui/material';
-
-export const VAT_CLASS_LABELS = Object.freeze({
-  options: 'Options', resources: 'Ressources', drinks: 'Boissons', catering: 'Restauration',
-});
 
 const TEXTS = Object.freeze({
   sellable: 'Vendable hors séjour',
@@ -51,10 +47,10 @@ export default function ExternalSaleFields({
           <Select
             labelId={labelId}
             label={TEXTS.vatClass}
-            value={effective}
+            value={known ? effective : ''}
             onChange={(e) => onChange({ vatClass: e.target.value, externalVatRate: null })}
           >
-            {Object.entries(VAT_CLASS_LABELS).map(([key, label]) => <MenuItem key={key} value={key}>{label}</MenuItem>)}
+            {classes.map((c) => <MenuItem key={c.vatClass} value={c.vatClass}>{c.label}</MenuItem>)}
           </Select>
           {errors.vatClass && <FormHelperText>{errors.vatClass}</FormHelperText>}
         </FormControl>
@@ -68,7 +64,7 @@ export default function ExternalSaleFields({
           slotProps={{ htmlInput: { inputMode: 'decimal', style: { fontSize: 16, textAlign: 'right', fontVariantNumeric: 'tabular-nums' } } }}
         />
       </Box>
-      <Typography variant="caption" color="text.secondary">{TEXTS.rateHelp(VAT_CLASS_LABELS[effective])}</Typography>
+      {known && <Typography variant="caption" color="text.secondary">{TEXTS.rateHelp(known.label)}</Typography>}
     </Box>
   );
 }

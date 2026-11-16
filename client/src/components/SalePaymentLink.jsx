@@ -10,7 +10,8 @@
  *   minted       `open` is set — « Lien · {amount} · valable jusqu'au {date} », « Copier le lien », « Envoyer par e-mail », « Retirer le lien »
  *
  * Props:
- *   link          { available, reason, email, open: { id, url, amountCents, expiresAt } | null } | null
+ *   link          { available, reason, email, hasEmail?, open: { id, url, amountCents, expiresAt, expiresLabel } | null } | null — `expiresLabel` is the server's
+ *                 Europe/Paris « 16/11 à 14:30 », rendered as is
  *   onMint(email)         the click on « Envoyer un lien » (the typed address, or null)
  *   onSendEmail(open)     the click on « Envoyer par e-mail » — the only thing that mails
  *   onWithdraw(open)      « Retirer le lien »
@@ -38,13 +39,6 @@ const TEXTS = Object.freeze({
 });
 
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
-const untilText = (iso) => {
-  const date = iso ? new Date(iso) : null;
-  if (!date || Number.isNaN(date.getTime())) return '';
-  const day = date.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' });
-  const time = date.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
-  return `${day} à ${time}`;
-};
 
 export default function SalePaymentLink({ link, onMint, onSendEmail, onWithdraw, busy = false, error = null, sentTo = null, disabled = false }) {
   const [email, setEmail] = useState('');
@@ -65,11 +59,11 @@ export default function SalePaymentLink({ link, onMint, onSendEmail, onWithdraw,
   if (open) {
     return (
       <Box sx={{ display: 'grid', gap: 1, p: 1.5, borderRadius: 1.5, border: 1, borderColor: 'divider', bgcolor: 'background.default' }}>
-        <Typography variant="body2" sx={{ fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>{TEXTS.minted(formatCurrency(open.amountCents / 100), untilText(open.expiresAt))}</Typography>
+        <Typography variant="body2" sx={{ fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>{TEXTS.minted(formatCurrency(open.amountCents / 100), open.expiresLabel)}</Typography>
         <Typography variant="caption" sx={{ overflowWrap: 'anywhere', userSelect: 'all' }}>{open.url}</Typography>
         <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
           <Button variant="outlined" size="small" onClick={copy} disabled={busy} sx={{ minHeight: 44, textTransform: 'none' }}>{TEXTS.copy}</Button>
-          <Button variant="outlined" size="small" onClick={() => onSendEmail(open)} disabled={disabled || busy || !link.email} sx={{ minHeight: 44, textTransform: 'none' }}>{TEXTS.email}</Button>
+          <Button variant="outlined" size="small" onClick={() => onSendEmail(open)} disabled={disabled || busy || !(link.email || link.hasEmail)} sx={{ minHeight: 44, textTransform: 'none' }}>{TEXTS.email}</Button>
           <Button color="error" size="small" onClick={() => onWithdraw(open)} disabled={disabled || busy} sx={{ minHeight: 44, textTransform: 'none' }}>{TEXTS.withdraw}</Button>
         </Box>
         <Box aria-live="polite">

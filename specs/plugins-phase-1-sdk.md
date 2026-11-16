@@ -668,7 +668,8 @@ Optional: a plugin that declares nothing reads « Actif ».
     (quote / sell / offerLine / removeLine / pay / cancel / receive / documentOf / paymentsOf of a document with no reservation),
     `coreModule('standaloneSaleLinks')` (linkOf / draftLinkOf / mint / withdraw / emailLink of its payment link), `coreModule('suggestedArticles')`
     (the articles suggested for a sale context), `saleDetail.buildDocumentDetail`, the context hook `ctx.suggestionContexts({ kind, label, list })`, the
-    event `standaloneSale.sold` (after the commit, an observer), and the client exports `SuggestedArticlesStep` and `SalePaymentLink`
+    event `standaloneSale.sold` (after the commit, an observer), and the client exports `SuggestedArticlesStep`, `SalePaymentLink`
+    and `StandaloneSaleDialog` (optional `client` prop, outside-booking-sas rule 48)
     (`client/src/plugins/sdk/index.js`; `StaySalesSection` is SDK 2.29.0's). guest-app and hourly-resources range `^2.31.0`.
     **The SDK history records what each shipped minor exposed:** v4.1.0 shipped SDK 2.27.0 without `vat`, `accountingOutput`, `legacyBucketSplit`,
     `refundJournal`, `csvJournal`, `salesJson` and `synthesisExporter`, and SDK 2.28.0 (the home-data extension points,

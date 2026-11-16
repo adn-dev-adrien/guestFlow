@@ -1,8 +1,9 @@
 /**
  * StandaloneSalesTodayCard — « Ventes hors séjour · aujourd'hui » on the Suivi financier (owner M4): the counter's sales of the day, newest first, each with its client, its lines, its total
  * and the server's status (« Payée », « Reste 5,00 € », « Offerte », « Annulée »), and the « Vente hors séjour » button that opens the counter dialog. It reads `GET /api/standalone-sales`;
- * nothing is derived here. A refusal stays inside the card with a retry. Above the list, « À rembourser »: the sales of any day whose document still owes money
- * back (`owed`, outside-visit rule 41), each with « Marquer remboursé » (confirmed, then the card is read again).
+ * nothing is derived here. A refusal stays inside the card with a retry. Above the day's list, under the server's `owedTitle` (« À rembourser »): the sales of any
+ * day whose document still owes money back (`owed`, outside-visit rule 41), each naming its sale's day (`soldDayLabel`, « Vente du 14/11 ») and carrying
+ * « Marquer remboursé » (confirmed, then the card is read again).
  *
  * Props: refreshKey — bumped by the page's refresh action; onNewSale — opens the dialog; reloadKey — bumped after a sale
  */
@@ -23,14 +24,13 @@ const TEXTS = Object.freeze({
   none: 'Aucune vente aujourd’hui.',
   failed: 'Impossible de charger les ventes du jour.',
   sale: (id, client) => `Vente n° ${id} · ${client}`,
-  owed: 'À rembourser',
   refunded: 'Marquer remboursé',
   refundedAsk: 'Marquer comme remboursé ?',
   refundedFailed: 'Clôture impossible.',
 });
 
 export default function StandaloneSalesTodayCard({ refreshKey = 0, reloadKey = 0, onNewSale }) {
-  const [state, setState] = useState({ sales: null, owed: [], error: false });
+  const [state, setState] = useState({ sales: null, owed: [], owedTitle: '', error: false });
   const [ask, setAsk] = useState(null);
   const [closeError, setCloseError] = useState(null);
   const begin = useLatestRequest();
@@ -39,9 +39,9 @@ export default function StandaloneSalesTodayCard({ refreshKey = 0, reloadKey = 0
     setState((s) => ({ ...s, error: false }));
     try {
       const data = await api.getStandaloneSales();
-      if (current()) setState({ sales: data.sales, owed: data.owed || [], error: false });
+      if (current()) setState({ sales: data.sales, owed: data.owed || [], owedTitle: data.owedTitle || '', error: false });
     } catch {
-      if (current()) setState({ sales: null, owed: [], error: true });
+      if (current()) setState({ sales: null, owed: [], owedTitle: '', error: true });
     }
   }, [begin]);
   useEffect(() => { load(); }, [load, refreshKey, reloadKey]);
@@ -65,8 +65,8 @@ export default function StandaloneSalesTodayCard({ refreshKey = 0, reloadKey = 0
         </Box>
         {state.error && <ErrorAlert message={TEXTS.failed} onRetry={load} />}
         {state.owed.length > 0 && (
-          <Box component="section" aria-label={TEXTS.owed} sx={{ display: 'grid', gap: 1 }}>
-            <Typography variant="subtitle2">{TEXTS.owed}</Typography>
+          <Box component="section" aria-label={state.owedTitle || undefined} sx={{ display: 'grid', gap: 1 }}>
+            {state.owedTitle && <Typography variant="subtitle2" component="h3">{state.owedTitle}</Typography>}
             {closeError && <Typography role="alert" variant="caption" color="error">{closeError}</Typography>}
             {state.owed.flatMap((sale) => sale.refundObligations.map((row) => (
               <Alert
@@ -76,7 +76,7 @@ export default function StandaloneSalesTodayCard({ refreshKey = 0, reloadKey = 0
                 sx={{ '& .MuiAlert-message': { minWidth: 0, overflowWrap: 'anywhere' } }}
               >
                 <Typography id={`owed-${sale.id}-${row.id}`} variant="body2" sx={{ fontWeight: 600 }}>{TEXTS.sale(sale.id, sale.clientLabel)}</Typography>
-                <Typography variant="caption">{[row.label, row.detail].filter(Boolean).join(' · ')}</Typography>
+                <Typography variant="caption">{[sale.soldDayLabel, row.label, row.detail].filter(Boolean).join(' · ')}</Typography>
               </Alert>
             )))}
           </Box>

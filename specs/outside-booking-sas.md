@@ -452,6 +452,20 @@ once on the server by the refonte's components.
     warning of the plugin names the visits' money on their documents (« 1 visite hors séjour, 63,00 € encaissés sur leur vente, dont 13,00 € à
     rembourser : la vente reste dans « Ventes hors séjour » »), and the counter lists a document whose booking is gone (its « Ventes du jour » and
     « À rembourser »). Tests `outside-vat-rate-one-home`, `visit-money-blocks-deletion`, `visit-money-survives-purge`.
+48. **The screens render what rule 45 serves** _(stabilisation loop t1, client round, 2026-11-16)_. « Client absent » shows iff the booking's own
+    read (`GET /api/resource-bookings/:id`) answers `actions.noShow` (the planning rows carry no `actions`, so the dialog reads the booking on opening and
+    again after the confirmation); no date is compared with the browser's clock. On the mini SAS, « Créer la facture » for money already on the books
+    shows iff `invoiceable.ok`, otherwise the invoice section prints `invoiceable.reason` (the pay-now checkbox « Créer la facture dans Qonto » still
+    depends on the tenders typed and the commit's `invoice` outcome judges it, rule 31). Each visit line names its VAT rate as served (« TVA 20 % »:
+    beside the session's status, in the detail of a stored or priced draft extra; `SuggestedArticlesStep` gains the optional `showVatRate` prop, set
+    by the mini SAS only). An invoiced visit (`newSale` set) offers « Nouvelle vente », which opens « Vente hors séjour » seeded with `newSale.client`
+    (« Vente rattachée à ce client. », no name, e-mail or « Enregistrer comme client » asked; the quote and the sale carry `customer: { clientId }`).
+    A link reads « valable jusqu’au {expiresLabel} » as served (Europe/Paris), never a browser reading of `expiresAt`; « Envoyer par e-mail » is enabled
+    when `email` or `hasEmail` is set (the reception gets `email: null`). The counter card lists the owed documents of any day ABOVE the day's list,
+    under `owedTitle`, each row opening with its `soldDayLabel`. The « Classe de TVA » menu of the catalogue lists the server's `classes` with their
+    `label` (no class is drawn until the list is read; the client constant `VAT_CLASS_LABELS` is gone). Tests `ResourceBookingDialog.no-show`,
+    `ResourceArrivalDialog.invoiceable`, `ResourceArrivalDialog.vat-rate`, `ResourceArrivalDialog.new-sale`, `SalePaymentLink.expires-label`,
+    `StandaloneSalesTodayCard.owed-day`, `ExternalSaleFields.server-labels`.
 
 ---
 
@@ -710,6 +724,7 @@ number; `prefers-reduced-motion` → no movement.
 - [x] `components/__tests__/TenderLines.shortfall-kinds.test.jsx` — only « Reste à percevoir » offered
 - [x] (C38) `plugins/hourly-resources/__tests__/ResourceArrivalDialog.test.jsx`, `.paid-before.test.jsx`, `.no-unasked-invoice.test.jsx` — the three former suites, moved onto the visit routes; `arrivalVisitFixtures.jsx` — their shared fixture
 - [x] (C38) `components/__tests__/StandaloneSaleDialog.counter.test.jsx`, `StandaloneSalesTodayCard.list.test.jsx`, `ExternalSaleFields.fields.test.jsx`; `plugins/hourly-resources/__tests__/ResourceBookingDialog.no-show.test.jsx`; `PlanningResourceCard.test.jsx` gains the « Reste » and « Absent » cases; `SuggestedArticlesStep.worst-case.test.jsx` — the break-ui pass (a 120-character label, an emoji-first label, 99, 1, none, a thousand results)
+- [x] (loop t1, rule 48) `plugins/hourly-resources/__tests__/ResourceBookingDialog.no-show.test.jsx` (rewritten on `actions.noShow`, 4), `ResourceArrivalDialog.invoiceable.test.jsx` (3), `ResourceArrivalDialog.vat-rate.test.jsx` (2), `ResourceArrivalDialog.new-sale.test.jsx` (2); `components/__tests__/SalePaymentLink.expires-label.test.jsx` (3), `StandaloneSalesTodayCard.owed-day.test.jsx` (2), `ExternalSaleFields.server-labels.test.jsx` (2)
 
 ### E2E
 - [x] `e2e/specs/planning/outside-visit.spec.js` — book a walk-in session, open « Arrivée » on its day, add 2 drinks, offer 1, partial card payment with reste, card shows « Reste », reopen, pay the reste, invoice offered; _(the link part is not run: the E2E database never connects a provider; the spec asserts the block absent. A second E2E, `finance/standalone-sale.spec.js`, covers the counter dialog.)_

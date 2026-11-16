@@ -1,5 +1,5 @@
 // @ts-check
-// specs/pricing-components.md §6 — « Ajouter un produit » on a saved stay: the sale panel, the quote, the sale, the moment menu,
+// specs/pricing-components.md §6 — « Ajouter un produit » on a saved stay: the sale panel, the quote, the sale, no moment menu before the arrival,
 // and the discount target selector, at 390 and 1280 px.
 import { test, expect } from '@playwright/test';
 import { createClient, createProperty, createReservation } from '../../fixtures/apiSeed.js';
@@ -30,11 +30,9 @@ for (const [name, size] of [['mobile', { width: 390, height: 844 }], ['desktop',
     await dialog.getByLabel('Quantité').fill('1');
     await dialog.getByRole('button', { name: 'Ajouter' }).click();
     await expect(dialog).toBeHidden();
-    const moment = page.getByRole('button', { name: /^Moment de / }).first();
-    await expect(moment).toHaveText('À l’arrivée');
-    await moment.click();
-    await page.getByRole('menuitem', { name: 'À payer au départ' }).click();
-    await expect(moment).toHaveText('Au départ');
+    // Rules 37, 95 (loop t1 UI-11) — before the arrival the server offers no other moment (`moments: ['arrival']`, `movable: false`): no « Moment » button.
+    await expect(page.getByRole('list', { name: 'Détail des ventes' })).toContainText('À payer à l’arrivée');
+    await expect(page.getByRole('button', { name: /^Moment de / })).toHaveCount(0);
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
     await page.screenshot({ path: testInfo.outputPath(`extra-sale-${name}.png`) });
   });

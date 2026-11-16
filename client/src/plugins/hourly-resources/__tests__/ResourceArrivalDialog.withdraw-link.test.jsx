@@ -16,6 +16,7 @@ vi.mock('../../../api', () => ({
 }));
 vi.mock('../../../hooks/usePostalCodeCities', () => ({ default: () => [] }));
 
+// date-literal-ok: the link's end is printed from the payload, the dialog compares it with no clock
 const open = { id: 9, url: 'https://pay.example/9', amountCents: 5000, expiresAt: '2026-11-20T10:00:00Z' };
 const withLink = (over = {}) => visitPayload({ paymentLink: { available: true, reason: null, email: null, open }, ...over });
 

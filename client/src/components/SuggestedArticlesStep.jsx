@@ -21,6 +21,7 @@
  *   onDraftRemove(index)
  *   onStoredOffer(line, offered) / onStoredRemove(line)   an explicit action on a stored line (omit onStoredRemove to hide « Retirer »)
  *   title         the step's heading (default « Proposés à l'arrivée »)
+ *   showVatRate   boolean — each priced line also names the server's `vatRate` (« TVA 20 % »), for a SAS that bills per line (outside-booking-sas, loop t1 AV-10)
  */
 import React, { useEffect, useRef, useState } from 'react';
 import { Box, Button, Chip, CircularProgress, IconButton, InputAdornment, TextField, Typography } from '@mui/material';
@@ -43,6 +44,7 @@ const TEXTS = Object.freeze({
   more: 'Un de plus',
   quantityHint: 'Quantité : un nombre entier.',
   empty: 'Aucun article ajouté.',
+  vatRate: (rate) => `TVA ${rate} %`,
 });
 
 const euros = (cents) => formatCurrency((Number(cents) || 0) / 100);
@@ -111,7 +113,7 @@ function Row({ name, detail, line, children, refusal, fresh }) {
 }
 
 export default function SuggestedArticlesStep({
-  suggestions = [], search = null, draft = [], draftLines = [], storedLines = [], storedGroups = [], refusals = [], pending = false, disabled = false, busyId = null,
+  suggestions = [], search = null, draft = [], draftLines = [], storedLines = [], storedGroups = [], refusals = [], pending = false, disabled = false, busyId = null, showVatRate = false,
   onAdd, onDraftChange, onDraftRemove, onStoredOffer, onStoredRemove, title = TEXTS.title,
 }) {
   const [searching, setSearching] = useState(false);
@@ -119,6 +121,7 @@ export default function SuggestedArticlesStep({
   const [found, setFound] = useState(null);
   const [searchError, setSearchError] = useState(false);
   const latest = useRef(0);
+  const vatOf = (line) => (showVatRate && line && line.vatRate != null ? TEXTS.vatRate(String(line.vatRate).replace('.', ',')) : null);
 
   useEffect(() => {
     if (!searching || !search) return undefined;
@@ -208,7 +211,7 @@ export default function SuggestedArticlesStep({
                 </Box>
               )}
               {entry.lines.map((line) => (
-              <Row key={`stored-${line.id}`} name={entry.group && line.groupLabel ? line.groupLabel : line.label} detail={[line.detail, line.statusLabel].filter(Boolean).join(' · ')} line={line}>
+              <Row key={`stored-${line.id}`} name={entry.group && line.groupLabel ? line.groupLabel : line.label} detail={[line.detail, vatOf(line), line.statusLabel].filter(Boolean).join(' · ')} line={line}>
                 <Box sx={{ display: 'flex', gap: 0.75 }}>
                   {line.status !== 'cancelled' && (
                     <Button size="small" variant={line.offered ? 'contained' : 'outlined'} aria-pressed={line.offered} disabled={disabled || busyId === line.id} onClick={() => onStoredOffer(line, !line.offered)} sx={{ minHeight: 44, minWidth: 44, textTransform: 'none' }}>
@@ -227,7 +230,7 @@ export default function SuggestedArticlesStep({
             const line = draftLines[index] || null;
             const refusal = refusalOf(entry.articleRef);
             return (
-              <Row key={`draft-${index}-${entry.articleRef}`} fresh name={entry.label} detail={line ? line.detail : null} line={line} refusal={refusal}>
+              <Row key={`draft-${index}-${entry.articleRef}`} fresh name={entry.label} detail={line ? [line.detail, vatOf(line)].filter(Boolean).join(' · ') : null} line={line} refusal={refusal}>
                 <Stepper value={entry.quantity} max={entry.max} disabled={disabled} invalid={Boolean(refusal)} label={entry.label} onChange={(quantity) => onDraftChange(index, { quantity })} />
                 <Box sx={{ display: 'flex', gap: 0.75 }}>
                   <Button size="small" variant={entry.offered ? 'contained' : 'outlined'} aria-pressed={Boolean(entry.offered)} disabled={disabled} onClick={() => onDraftChange(index, { offered: !entry.offered })} sx={{ minHeight: 44, minWidth: 44, textTransform: 'none' }}>

@@ -648,6 +648,10 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
     > **Delivered by PR C** (pass 3g, C23): a line moved to the arrival is routed into the arrival complement (`inComplement = 1`), on a started stay as on one not
     > started: before, a started stay's moved line said « À payer à l’arrivée » while its money went to the solde (`saleDetail.buckets.arrival` stayed 0), so the
     > arrival SAS never collected it. Moved back to the departure, the baseline carves it out again. Proof `sale-detail-arrival-bucket`.
+    > _Reading of 2026-11-16 (stabilisation loop t1, UI-11 / S-3, client):_ the « Moment » button shows on a line the server marks `movable`, and its
+    > menu lists only that line's `moments` (`saleDetail.lines[].moments`); the client keeps the labels only (`MOMENT_LABELS`). Before the arrival a line
+    > is `moments: ['arrival']`, not movable: no button (the server refuses the move, 409 `MOMENT_NOT_AVAILABLE`). Tests `SaleDetailList.moment`, E2E
+    > `reservations/extra-sale.spec.js` (no « Moment » on a stay not started).
 38. **Money helpers are shared, not a component.** `money.js` holds `roundMoney`, `toCents`, `fromCents` and
     `allocateCents`. It carries no business rule, so it is not a component; it is a unit because about twenty
     files redefine `round2` / `cents`, and two definitions that differ are a silent drift. PR A moves the

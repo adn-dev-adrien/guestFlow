@@ -9,6 +9,9 @@
  * Specific: it composes the generic components. Full screen on a phone with the « Reste à payer » kept at the top and « Valider l'arrivée » last under the thumb;
  * two columns from `lg` (lines and picker left, recap and payment right).
  *
+ * Whether the money on the books can be invoiced now is the server's `invoiceable` ({ ok, code, reason }, admin only): « Créer la facture » iff `ok`, its `reason` otherwise.
+ * Each line names its VAT rate (`line.vatRate`). An invoiced visit offers « Nouvelle vente » on its client (`newSale.client`, rule 24): the counter's dialog seeded with it.
+ *
  * Props: open, bookingId, onClose, onDone (called after a successful commit)
  */
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
@@ -16,7 +19,7 @@ import {
   Alert, Box, Button, Dialog, DialogActions, DialogContent, DialogTitle, ToggleButton, ToggleButtonGroup, Typography, useMediaQuery, useTheme,
 } from '@mui/material';
 import {
-  api, formatCurrency, LoadingState, ErrorAlert, ConfirmDialog, SuggestedArticlesStep, SalePaymentLink, StatusBadge,
+  api, formatCurrency, LoadingState, ErrorAlert, ConfirmDialog, SuggestedArticlesStep, SalePaymentLink, StatusBadge, StandaloneSaleDialog,
 } from '../sdk';
 import OfferedTimeField from './OfferedTimeField';
 import BookingPaymentFields, { paymentBody, allOnTheBooks, hasCard } from './BookingPaymentFields';
@@ -39,6 +42,8 @@ const TEXTS = Object.freeze({
   laterHint: 'La séance reste signalée au planning jusqu’au paiement.',
   offer: 'Offrir',
   offered: 'Offert',
+  vatRate: (rate) => `TVA ${rate} %`,
+  newSale: 'Nouvelle vente',
   linkAfterSave: 'Enregistrer d’abord les articles ajoutés.',
   refundTitle: 'Remboursement',
   refundAsk: 'Ligne payée : remboursement à confirmer.',
@@ -85,6 +90,7 @@ function SessionLine({ line, disabled, onOffer, busy }) {
       ))}
       <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', flexWrap: 'wrap' }}>
         <StatusBadge status={STATUS_TONE[line.status] || 'neutral'} label={line.statusLabel} />
+        {line.vatRate != null && <Typography variant="caption" color="text.secondary" sx={{ fontVariantNumeric: 'tabular-nums' }}>{TEXTS.vatRate(String(line.vatRate).replace('.', ','))}</Typography>}
         {!line.legacy && line.status !== 'cancelled' && (
           <Button size="small" variant={line.offered ? 'contained' : 'outlined'} aria-pressed={line.offered} disabled={disabled || busy} onClick={onOffer} sx={{ minHeight: 44, minWidth: 44, textTransform: 'none' }}>
             {line.offered ? TEXTS.offered : TEXTS.offer}
@@ -115,6 +121,7 @@ export default function ResourceArrivalDialog({ open, bookingId, onClose, onDone
   const [refundAsk, setRefundAsk] = useState(null);
   const [obligationAsk, setObligationAsk] = useState(null);
   const [link, setLink] = useState({ busy: false, error: null, sentTo: null });
+  const [newSaleOpen, setNewSaleOpen] = useState(false);
 
   const load = useCallback(() => {
     setLoadError(null);
@@ -173,10 +180,11 @@ export default function ResourceArrivalDialog({ open, bookingId, onClose, onDone
   const hasChanges = dirty || payNow;
   const quoteReady = !dirty || (quote.fresh && !quote.refusal && refusals.length === 0);
   const qontoReady = Boolean(view && view.invoiceReady);
-  const onTheBooks = Boolean(booking && booking.payment && booking.payment.onTheBooks);
   const invoiceOffered = !reception && payNow && allOnTheBooks(payment) && Boolean(payment) && payment.gapCents === 0;
-  // Money already on the books (paid at booking time, or at an earlier opening) and no invoice yet: « Créer la facture » is offered (invoicing rules 13, 44).
-  const invoiceStored = Boolean(visit) && !reception && remainingCents === 0 && view.totals.totalCents > 0 && onTheBooks && !invoiced && qontoReady;
+  // Money already on the books, invoiceable now: the server's `invoiceable` (invoicing rules 13, 44; loop t1 UI-10 / AV-11). It reads the stored visit, so a draft waits for its save.
+  const invoiceable = visit && !reception ? visit.invoiceable : null;
+  const invoiceStored = !dirty && Boolean(invoiceable && invoiceable.ok);
+  const invoiceReason = !invoiced && !invoiceOutcome && !invoiceOffered && invoiceable && !invoiceable.ok ? invoiceable.reason : null;
   const wantsInvoice = invoiceOffered && invoiceChecked && qontoReady;
   const commitMode = !invoiceOutcome && (!booking || !booking.arrived || hasChanges);
   const primaryLabel = invoiceOutcome ? TEXTS.makeInvoice : (!booking || !booking.arrived ? TEXTS.validate : (hasChanges ? TEXTS.save : (invoiceStored ? TEXTS.makeInvoice : TEXTS.close)));
@@ -338,6 +346,7 @@ export default function ResourceArrivalDialog({ open, bookingId, onClose, onDone
                 pending={dirty && quote.pending}
                 disabled={readOnly}
                 busyId={busyLine}
+                showVatRate
                 onAdd={addExtra}
                 onDraftChange={(index, patch) => setExtras((prev) => prev.map((entry, i) => (i === index ? { ...entry, ...patch } : entry)))}
                 onDraftRemove={(index) => setExtras((prev) => prev.filter((_, i) => i !== index))}
@@ -417,7 +426,13 @@ export default function ResourceArrivalDialog({ open, bookingId, onClose, onDone
                 </Box>
               )}
 
-              {!reception && (invoiceOffered || invoiced || invoiceOutcome || invoiceStored) && (
+              {!reception && invoiceReason && (
+                <Box sx={{ display: 'grid', gap: 1 }}>
+                  <Typography variant="subtitle2">{TEXTS.invoice}</Typography>
+                  <Typography variant="caption" color="text.secondary">{invoiceReason}</Typography>
+                </Box>
+              )}
+              {!reception && !invoiceReason && (invoiceOffered || invoiced || invoiceOutcome || invoiceStored) && (
                 <Box sx={{ display: 'grid', gap: 1 }}>
                   <Typography variant="subtitle2">{TEXTS.invoice}</Typography>
                   {invoiceOutcome && invoiceOutcome.code !== 'QONTO_NEEDS_ADDRESS' && <Alert severity="error">{invoiceOutcome.message}</Alert>}
@@ -448,6 +463,9 @@ export default function ResourceArrivalDialog({ open, bookingId, onClose, onDone
         )}
       </DialogContent>
       <DialogActions sx={{ flexDirection: { xs: 'column', sm: 'row' }, gap: 1, p: 2, '& > :not(style) ~ :not(style)': { ml: { xs: 0, sm: 1 } } }}>
+        {visit && visit.newSale && (
+          <Button variant="outlined" onClick={() => setNewSaleOpen(true)} sx={{ minHeight: 44, width: { xs: '100%', sm: 'auto' }, mr: { sm: 'auto' } }}>{TEXTS.newSale}</Button>
+        )}
         {!closesOnly && !readOnly && <Button onClick={onClose} disabled={busy} sx={{ minHeight: 44, width: { xs: '100%', sm: 'auto' } }}>{TEXTS.cancel}</Button>}
         <Button
           variant="contained"
@@ -458,6 +476,9 @@ export default function ResourceArrivalDialog({ open, bookingId, onClose, onDone
           {busy ? TEXTS.saving : (readOnly ? TEXTS.close : primaryLabel)}
         </Button>
       </DialogActions>
+      {visit && visit.newSale && (
+        <StandaloneSaleDialog open={newSaleOpen} client={visit.newSale.client} onClose={() => setNewSaleOpen(false)} onSold={() => {}} />
+      )}
       <ConfirmDialog
         open={Boolean(refundAsk)}
         title={TEXTS.refundTitle}

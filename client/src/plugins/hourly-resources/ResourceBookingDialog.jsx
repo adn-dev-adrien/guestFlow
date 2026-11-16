@@ -205,6 +205,18 @@ export default function ResourceBookingDialog({
     return () => { current = false; };
   }, [open, date]);
 
+  // Outside-visit rule 27 (loop t1 UI-9) — the planning's rows carry no `actions`: the booking's own read says whether « Client absent » is offered
+  // (role, stay, day on the server's clock). Only `actions` is taken, the rest of the row stays what the dialog opened on.
+  const openedId = open && bookingProp ? bookingProp.id : null;
+  useEffect(() => {
+    if (!openedId) return undefined;
+    let current = true;
+    Promise.resolve().then(() => api.getResourceBooking(openedId))
+      .then((fresh) => { if (current && fresh) setStored((s) => (s && s.id === fresh.id ? { ...s, actions: fresh.actions } : s)); })
+      .catch(() => {});
+    return () => { current = false; };
+  }, [openedId]);
+
   useEffect(() => {
     if (!open) return;
     setStored(bookingProp);
@@ -341,8 +353,9 @@ export default function ResourceBookingDialog({
     }
   }
   const takeBackPayment = () => act(() => api.clearResourceBookingPayment(booking.id));
-  // specs/outside-booking-sas.md rule 27 — « Client absent »: the visit closes without arrival; the server judges the day and the role.
-  const markNoShow = () => act(() => api.markResourceNoShow(booking.id).then((res) => res.booking));
+  // specs/outside-booking-sas.md rule 27 — « Client absent »: the visit closes without arrival; the server judges the day and the role. The booking is then read
+  // again so its `actions` say what is still offered.
+  const markNoShow = () => act(() => api.markResourceNoShow(booking.id).then(() => api.getResourceBooking(booking.id)));
   const issueLater = () => act(() => api.issueResourceBookingInvoice(booking.id, booking.external && !booking.clientId ? { billing } : {}));
   const attachInvoice = () => act(() => api.attachResourceBookingInvoice(booking.id));
   const pickTransaction = (transactionId) => act(() => api.attachResourceBookingInvoice(booking.id, { transactionId }));
@@ -705,7 +718,7 @@ export default function ResourceBookingDialog({
                 Supprimer
               </Button>
             )}
-            {booking && booking.external && !booking.arrived && !booking.noShow && booking.date <= localIsoDate() && (
+            {booking && booking.actions && booking.actions.noShow && (
               <Button color="warning" onClick={() => setConfirming('noshow')} disabled={saving} sx={{ minHeight: 44 }}>Client absent</Button>
             )}
             {booking && booking.external && onArrival && !booking.noShow && (booking.arrived || booking.date === localIsoDate()) && (

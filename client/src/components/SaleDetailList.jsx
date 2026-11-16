@@ -2,14 +2,14 @@
  * SaleDetailList — the lines a stay sold, as the server's `saleDetail` payload gives them (specs/pricing-components.md §3 rule 31).
  *
  * Props: `detail` (the payload: `lines[]`, `groups[]`, `buckets`, `totals`), `onChangeMoment(line, collectAt)` (optional: shows a « moment » menu on
- * an unpaid line), `busyRef` (the ref of the line being changed). Nothing is computed here: amounts are the server's cents, labels the
+ * a line the server marks `movable`, listing only that line's `moments`), `busyRef` (the ref of the line being changed). Nothing is computed here: amounts are the server's cents, labels the
  * server's French. An article sold on several lines (`groups`, rule 13) reads under one title with its total, each line below it with its own
  * status and moment; an offered line stays in its group, its amount struck through. Lines stack on a phone, two columns from `sm`.
  */
 import React, { useState } from 'react';
 import { Box, Button, Chip, Menu, MenuItem, Stack, Typography } from '@mui/material';
 import { formatCurrency } from '../utils/formatters';
-import { MOMENT_CHOICES } from '../constants/extraSale';
+import { MOMENT_LABELS } from '../constants/extraSale';
 
 const euros = (cents) => formatCurrency((Number(cents) || 0) / 100);
 const STATUS_COLOR = { paid: 'success', offered: 'default', platform: 'info', dueAtArrival: 'warning', dueAtDeparture: 'warning', inPlan: 'default' };
@@ -17,7 +17,7 @@ const STATUS_COLOR = { paid: 'success', offered: 'default', platform: 'info', du
 export default function SaleDetailList({ detail, onChangeMoment, busyRef = null }) {
   const [menu, setMenu] = useState(null);
   if (!detail || !Array.isArray(detail.lines)) return null;
-  const movable = (line) => Boolean(onChangeMoment) && ['option', 'resource', 'custom'].includes(line.kind) && !line.offered && line.status !== 'paid' && line.status !== 'platform';
+  const movable = (line) => Boolean(onChangeMoment) && line.movable === true && Array.isArray(line.moments) && line.moments.length > 0;
   const groupOf = new Map();
   (detail.groups || []).forEach((group) => group.refs.forEach((ref) => groupOf.set(ref, group)));
   // The lines in the server's order; a group takes the place of its first line.
@@ -84,14 +84,14 @@ export default function SaleDetailList({ detail, onChangeMoment, busyRef = null 
         ) : row(block.line, false)))}
       </Box>
       <Menu anchorEl={menu && menu.anchor} open={Boolean(menu)} onClose={() => setMenu(null)}>
-        {MOMENT_CHOICES.map((choice) => (
+        {(menu ? menu.line.moments : []).map((moment) => (
           <MenuItem
-            key={choice.value}
-            selected={menu && menu.line.collectAt === choice.value}
+            key={moment}
+            selected={menu.line.collectAt === moment}
             sx={{ minHeight: 44 }}
-            onClick={() => { const { line } = menu; setMenu(null); if (line.collectAt !== choice.value) onChangeMoment(line, choice.value); }}
+            onClick={() => { const { line } = menu; setMenu(null); if (line.collectAt !== moment) onChangeMoment(line, moment); }}
           >
-            {choice.label}
+            {MOMENT_LABELS[moment] || moment}
           </MenuItem>
         ))}
       </Menu>

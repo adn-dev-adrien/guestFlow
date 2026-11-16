@@ -10,7 +10,7 @@ import api from '../../api';
 import ExtraSalesPanel from '../ExtraSalesPanel';
 
 const articles = [{ articleRef: 'option:5', label: 'Bain nordique' }];
-const unpaid = { ref: 'option:5', kind: 'option', label: 'Bain nordique', quantity: 1, totalCents: 4000, sourceLabel: 'Fiche', status: 'dueAtArrival', statusLabel: 'À payer à l’arrivée', collectAt: 'arrival', momentLabel: 'À l’arrivée', discountCents: 0, stayDiscountShareCents: 0 };
+const unpaid = { ref: 'option:5', kind: 'option', label: 'Bain nordique', quantity: 1, totalCents: 4000, sourceLabel: 'Fiche', status: 'dueAtArrival', statusLabel: 'À payer à l’arrivée', collectAt: 'arrival', momentLabel: 'À l’arrivée', movable: true, moments: ['arrival', 'departure'], discountCents: 0, stayDiscountShareCents: 0 };
 
 beforeEach(() => {
   vi.clearAllMocks();

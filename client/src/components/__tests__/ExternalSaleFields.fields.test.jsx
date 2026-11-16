@@ -7,7 +7,7 @@ import { render, screen, fireEvent } from '@testing-library/react';
 import { vi } from 'vitest';
 import ExternalSaleFields from '../ExternalSaleFields';
 
-const CLASSES = [{ vatClass: 'options', externalRate: 20 }, { vatClass: 'drinks', externalRate: 5.5 }, { vatClass: 'catering', externalRate: null }, { vatClass: 'resources', externalRate: 20 }];
+const CLASSES = [{ vatClass: 'options', label: 'Options', externalRate: 20 }, { vatClass: 'drinks', label: 'Boissons', externalRate: 5.5 }, { vatClass: 'catering', label: 'Restauration', externalRate: null }, { vatClass: 'resources', label: 'Ressources', externalRate: 20 }];
 const base = { sellableExternally: false, vatClass: '', externalVatRate: null };
 
 test('the switch and the class go to the parent as patches; choosing a class forgets a rate typed for another', () => {

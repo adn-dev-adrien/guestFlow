@@ -6,7 +6,8 @@
  * It renders the server's quote of the draft (`POST /api/standalone-sales/quote`) and its sale (`POST /api/standalone-sales`); it prices, sums and splits VAT nowhere (CLAUDE.md §6.0). The
  * draft is only what was typed: articles with a quantity, the customer, the tenders. Core: it needs no plugin; `SalePaymentLink` is the generic link block.
  *
- * Props: open, onClose, onSold (called with the sale row after each sale, to refresh the day's list)
+ * Props: open, onClose, onSold (called with the sale row after each sale, to refresh the day's list), client (optional `{ id, label, kind }`: the sale is that client's —
+ * the quote and the sale carry `customer: { clientId }` and no name/e-mail is asked; outside-booking-sas rule 24, « Nouvelle vente » of an invoiced visit, loop t1 AV-8)
  */
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Alert, Box, Checkbox, Chip, FormControlLabel, TextField, ToggleButton, ToggleButtonGroup, Typography } from '@mui/material';
@@ -42,6 +43,7 @@ const TEXTS = Object.freeze({
   linkAfter: 'Le lien se crée à l’enregistrement.',
   emailRequired: 'Adresse e-mail requise.',
   passage: 'Passage',
+  sameClient: 'Vente rattachée à ce client.',
   save: 'Enregistrer la vente',
   saveAndCollect: (amount) => `Enregistrer la vente · encaisser ${amount}`,
   saveAndLink: 'Enregistrer et créer le lien',
@@ -63,7 +65,7 @@ const emptyDraft = () => ({
   extras: [], name: '', email: '', register: false, mode: 'now',
 });
 
-export default function StandaloneSaleDialog({ open, onClose, onSold }) {
+export default function StandaloneSaleDialog({ open, onClose, onSold, client = null }) {
   const [draft, setDraft] = useState(emptyDraft);
   const [catalogue, setCatalogue] = useState(null);
   const [catalogueError, setCatalogueError] = useState(false);
@@ -85,16 +87,17 @@ export default function StandaloneSaleDialog({ open, onClose, onSold }) {
     return () => { current = false; };
   }, [open]);
 
-  const customer = useMemo(() => ({
+  const clientId = client ? client.id : null;
+  const customer = useMemo(() => (clientId ? { clientId } : {
     ...(draft.name.trim() ? { name: draft.name.trim() } : {}),
     ...(draft.email.trim() ? { email: draft.email.trim() } : {}),
     ...(draft.register ? { registerAsClient: true } : {}),
-  }), [draft.name, draft.email, draft.register]);
+  }), [clientId, draft.name, draft.email, draft.register]);
   const body = useMemo(() => ({
     lines: draft.extras.map(({ articleRef, quantity, offered }) => ({ articleRef, quantity, offered: Boolean(offered) })),
     customer,
   }), [draft.extras, customer]);
-  const emailBad = draft.email.trim() !== '' && !EMAIL.test(draft.email.trim());
+  const emailBad = !client && draft.email.trim() !== '' && !EMAIL.test(draft.email.trim());
   const fetcher = useCallback((request, options) => api.quoteStandaloneSale(request, options), []);
   const preview = useLatestPreview({
     fetcher, draft: body, enabled: open && !saved && draft.extras.length > 0 && !emailBad, resetKey: open ? 'open' : 'closed',
@@ -118,7 +121,7 @@ export default function StandaloneSaleDialog({ open, onClose, onSold }) {
   const mode = linkOffered ? draft.mode : 'now';
   const payNow = mode === 'now' && remainingCents > 0;
   const linkMode = mode === 'link';
-  const nameMissing = draft.register && !draft.name.trim();
+  const nameMissing = !client && draft.register && !draft.name.trim();
   const customerKind = quote ? quote.customer.kind : 'passage';
   const ready = Boolean(document) && draft.extras.length > 0 && preview.fresh && refusals.length === 0 && !emailBad && !nameMissing && !busy
     && (!payNow || Boolean(payment && payment.canSubmit)) && (!linkMode || (linkState.reason === null));
@@ -232,41 +235,51 @@ export default function StandaloneSaleDialog({ open, onClose, onSold }) {
           </Box>
         )}
 
-        <Box sx={{ display: 'grid', gap: 1 }}>
-          <Typography variant="subtitle2">{TEXTS.client} <Typography component="span" variant="caption" color="text.secondary">{TEXTS.optional}</Typography></Typography>
-          <Box sx={{ display: 'grid', gap: 1.5, gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, minmax(0, 1fr))' } }}>
-            <TextField size="small" label={TEXTS.name} value={draft.name} onChange={(e) => patch({ name: e.target.value })} slotProps={{ htmlInput: { autoComplete: 'off', style: { fontSize: 16 } } }} />
-            <TextField
-              size="small"
-              type="email"
-              label={TEXTS.email}
-              value={draft.email}
-              onChange={(e) => patch({ email: e.target.value })}
-              error={emailBad}
-              helperText={emailBad ? TEXTS.emailInvalid : undefined}
-              slotProps={{ htmlInput: { autoComplete: 'off', style: { fontSize: 16 } } }}
-            />
-          </Box>
-          {quote && customerKind === 'match' ? (
+        {client ? (
+          <Box sx={{ display: 'grid', gap: 1 }}>
+            <Typography variant="subtitle2">{TEXTS.client}</Typography>
             <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', flexWrap: 'wrap' }}>
-              <Chip size="small" color="success" variant="outlined" label={quote.customer.label} />
-              <Typography variant="caption" color="text.secondary">{TEXTS.matched}</Typography>
+              <Chip size="small" variant="outlined" label={client.label} sx={{ maxWidth: '100%' }} />
+              <Typography variant="caption" color="text.secondary">{TEXTS.sameClient}</Typography>
             </Box>
-          ) : (
-            <>
-              <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', flexWrap: 'wrap' }}>
-                <Chip size="small" variant="outlined" label={quote ? quote.customer.label : TEXTS.passage} />
-                <Typography variant="caption" color="text.secondary">{draft.name.trim() || draft.email.trim() ? TEXTS.passageNamed : TEXTS.passageAnonymous}</Typography>
-              </Box>
-              <FormControlLabel
-                sx={{ m: 0, minHeight: 44 }}
-                control={<Checkbox checked={draft.register} onChange={(e) => patch({ register: e.target.checked })} />}
-                label={TEXTS.register}
+          </Box>
+        ) : (
+          <Box sx={{ display: 'grid', gap: 1 }}>
+            <Typography variant="subtitle2">{TEXTS.client} <Typography component="span" variant="caption" color="text.secondary">{TEXTS.optional}</Typography></Typography>
+            <Box sx={{ display: 'grid', gap: 1.5, gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, minmax(0, 1fr))' } }}>
+              <TextField size="small" label={TEXTS.name} value={draft.name} onChange={(e) => patch({ name: e.target.value })} slotProps={{ htmlInput: { autoComplete: 'off', style: { fontSize: 16 } } }} />
+              <TextField
+                size="small"
+                type="email"
+                label={TEXTS.email}
+                value={draft.email}
+                onChange={(e) => patch({ email: e.target.value })}
+                error={emailBad}
+                helperText={emailBad ? TEXTS.emailInvalid : undefined}
+                slotProps={{ htmlInput: { autoComplete: 'off', style: { fontSize: 16 } } }}
               />
-              {nameMissing && <Typography role="alert" variant="caption" color="error">{TEXTS.nameForRegister}</Typography>}
-            </>
-          )}
-        </Box>
+            </Box>
+            {quote && customerKind === 'match' ? (
+              <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', flexWrap: 'wrap' }}>
+                <Chip size="small" color="success" variant="outlined" label={quote.customer.label} />
+                <Typography variant="caption" color="text.secondary">{TEXTS.matched}</Typography>
+              </Box>
+            ) : (
+              <>
+                <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', flexWrap: 'wrap' }}>
+                  <Chip size="small" variant="outlined" label={quote ? quote.customer.label : TEXTS.passage} />
+                  <Typography variant="caption" color="text.secondary">{draft.name.trim() || draft.email.trim() ? TEXTS.passageNamed : TEXTS.passageAnonymous}</Typography>
+                </Box>
+                <FormControlLabel
+                  sx={{ m: 0, minHeight: 44 }}
+                  control={<Checkbox checked={draft.register} onChange={(e) => patch({ register: e.target.checked })} />}
+                  label={TEXTS.register}
+                />
+                {nameMissing && <Typography role="alert" variant="caption" color="error">{TEXTS.nameForRegister}</Typography>}
+              </>
+            )}
+          </Box>
+        )}
 
         <Box sx={{ display: 'grid', gap: 1 }}>
           <Typography variant="subtitle2">{TEXTS.payment}</Typography>

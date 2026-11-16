@@ -5,7 +5,8 @@ export const DISCOUNT_TARGETS = [
   { value: 'all', label: 'Tout' },
 ];
 
-export const MOMENT_CHOICES = [
-  { value: 'arrival', label: 'À payer à l’arrivée' },
-  { value: 'departure', label: 'À payer au départ' },
-];
+// Labels of the moments the server lists per line (`saleDetail.lines[].moments`); which moments a line offers is the server's call.
+export const MOMENT_LABELS = Object.freeze({
+  arrival: 'À payer à l’arrivée',
+  departure: 'À payer au départ',
+});
