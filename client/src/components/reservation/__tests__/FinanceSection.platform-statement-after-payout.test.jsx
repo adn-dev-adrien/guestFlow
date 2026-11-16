@@ -63,8 +63,11 @@ beforeEach(() => {
   api.previewPlatformStatement.mockResolvedValue({ netGap: 0, netLabel: { tone: 'done', label: 'Net : 171,14 € — identique au virement ✓' } });
 });
 
-test('rules 1, 3, 8 — a received payout on a locked fiche opens the statement with its transfer, prefilled and editable', async () => {
+test('rules 1, 2, 3, 8 — a received payout on a locked fiche opens the statement: same fields, its transfer prefilled and editable', async () => {
   renderFinance();
+  // Rule 2 — the fields and the button of the existing statement, unchanged.
+  expect(screen.getByLabelText('Commission solde (€)')).toBeInTheDocument();
+  expect(screen.getByRole('button', { name: /Calculer la commission/i })).toBeInTheDocument();
   expect(screen.getByLabelText('Virement reçu le 05/06 (€)')).toHaveValue('171,14');
   expect(screen.getByLabelText('Virement reçu le 05/06 (€)')).not.toBeDisabled();
   expect(screen.getByLabelText('Montant total payé par le client')).not.toBeDisabled();

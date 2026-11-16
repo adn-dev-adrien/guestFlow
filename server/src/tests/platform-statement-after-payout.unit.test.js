@@ -204,3 +204,30 @@ test('review L1 — the history formats the statement as money', () => {
   assert.match(printed, /"toText":"215 €"/);
   assert.match(printed, /43,86/);
 });
+
+test('rule 9 — the encaissement keeps its date: turnover on the brut, the commission booked, the net unchanged', () => {
+  const { create: createAccountingModel } = require('../plugins/accounting-export/accountingModel');
+  const id = receivedNetStay();
+  const before = rowOf(id);
+  assert.equal(patch(id, { platformGrossAmount: before.balanceAmount + 75, platformCommissionAmount: 75 }).statusCode, 200);
+  const [year, month] = before.balancePaidDate.split('-').map(Number);
+  const entry = createAccountingModel(db).encaissementsByMonth({ month, year })
+    .find((e) => Number(e.reservationId) === id && e.kind === 'balance');
+  assert.equal(entry.paidDate, before.balancePaidDate);
+  assert.equal(entry.encaissementTtc, before.balanceAmount + 75);
+  assert.equal(entry.commission.ttc, 75);
+  assert.equal(entry.encaissementNetTtc, before.balanceAmount);
+});
+
+test('rule 13 — the « À vérifier » line clears once the brut is stored', () => {
+  const checks = require('../models/financeDataChecksModel');
+  const listed = () => {
+    const result = checks.getDataChecks({});
+    const check = (result.data.checks || []).find((c) => c.key === 'platform-payment-missing');
+    return check ? check.items.map((i) => i.reservationId) : [];
+  };
+  const id = receivedNetStay();
+  assert.ok(listed().includes(id), 'listed while the brut is missing');
+  assert.equal(patch(id, { platformGrossAmount: rowOf(id).balanceAmount + 75, platformCommissionAmount: 75 }).statusCode, 200);
+  assert.ok(!listed().includes(id));
+});
