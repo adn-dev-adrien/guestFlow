@@ -547,7 +547,7 @@ function changeLine(reservationId, ref, patch, { now = new Date(), forceOverpaym
         // The fiche's own save judges it (rule 23, O-10): a paid line lowered is refused 409 OVERPAID until `forceOverpayment`, and the
         // confirmed excess opens the `lineLowered` obligation there — one formula, one place.
         const owedBefore = model.openLoweredCents(id);
-        const restated = controller().performUpdate(id, { ...lowered.body, restatePricing: true, forceOverpayment: Boolean(forceOverpayment) }, { sale: 'fiche', saleBase: base.row });
+        const restated = controller().performUpdate(id, { ...lowered.body, restatePricing: true, forceOverpayment: Boolean(forceOverpayment) }, { sale: 'fiche', saleBase: base.row, unpaidLine: !lowered.paidLine });
         if (restated.status !== 200) { outcome = { status: restated.status, body: restated.body }; throw ROLLBACK; }
         model.storeDiscount(line, lowered.discountCents);
         owedCents = model.openLoweredCents(id) - owedBefore;
@@ -584,7 +584,7 @@ function removeLine(reservationId, ref, { now = new Date(), actor = null } = {})
     db.transaction(() => {
       const base = restatedBase(id, 'fiche');
       if (base.refused) { outcome = base.refused; throw ROLLBACK; }
-      const restated = controller().performUpdate(id, { ...model.withoutLine(body, line), restatePricing: true }, { sale: 'fiche', saleBase: base.row });
+      const restated = controller().performUpdate(id, { ...model.withoutLine(body, line), restatePricing: true }, { sale: 'fiche', saleBase: base.row, unpaidLine: true });
       if (restated.status !== 200) { outcome = { status: restated.status, body: restated.body }; throw ROLLBACK; }
       reservations().addHistoryEntry(id, 'update', [{
         field: 'lineRemoved', label: line.label, from: `${(line.totalCents / 100).toFixed(2).replace('.', ',')} €`, to: `retirée${actor ? ` (${actor})` : ''}`,

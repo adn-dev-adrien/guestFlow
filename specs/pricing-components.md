@@ -437,6 +437,10 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
     > **Delivered by PR B** (pass 4): offering or discounting a paid line through the line API (`PATCH …/extras/:ref`) goes through the
     > fiche's own save: 409 `OVERPAID` until `forceOverpayment`, then the `lineLowered` obligation. The SAS cannot reach a paid line (a paid
     > complement freezes its lines, rule 32). Removing a line stays the fiche's.
+    > **Owner reading 2026-11-16 (loop round 1, S-8):** the refusal is for a PAID line only. On a stay already over-collected, offering,
+    > discounting or removing an UNPAID line (`settledCents` 0) is no longer refused (no 409 `OVERPAID`, no `forceOverpayment` needed): the
+    > trop-perçu grows by exactly that line and is refunded through the usual trop-perçu path; no `lineLowered` obligation is opened (the line
+    > carried no money). A paid line keeps the rules above. Test: `pricing-unpaid-line-on-overpaid-stay`.
 24. **One article, one price path.** The evening supplement of an hourly session is a component of the
     session's priced line (rule 5), priced by HOURLY TARIFF whatever the seller. The SAS no longer adds an
     `evening:<id>` complement line computed elsewhere; the `eveningCredit` worked back from stored totals

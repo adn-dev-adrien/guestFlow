@@ -1887,11 +1887,11 @@ const DRY_RUN = Symbol('dry-run');
 // writes the stored stay plus what the sale moved — `stored + (after − saleBase)` on the money a line moves, the stored figure on every other one —
 // and leaves the nights, the stay lines, the tax and extra-guest records as they are: a sale never carries the engine's drift into the stay.
 function performUpdate(reservationId, body, {
-  unlockPast = false, dryRun = false, sale = null, saleBase = null,
+  unlockPast = false, dryRun = false, sale = null, saleBase = null, unpaidLine = false,
 } = {}) {
   const res = createResultRecorder();
   if (!dryRun) {
-    applyUpdate({ body, params: { id: reservationId } }, res, Boolean(unlockPast), { sale: sale || null, saleBase });
+    applyUpdate({ body, params: { id: reservationId } }, res, Boolean(unlockPast), { sale: sale || null, saleBase, unpaidLine });
     const result = res.result();
     // specs/payment-link-lifecycle.md rule 32 — every save path (fiche, SAS, plugins, platform intakes): a stay
     // that holds its nights after the save takes them from the unpaid requests it now covers. Never on a dry run.
@@ -2023,7 +2023,7 @@ function withPostedLineIds(pricedLines, postedLines, articleField) {
   });
 }
 
-function applyUpdate(req, res, pastUnlocked, { silent = false, sale = null, saleBase = null } = {}) {
+function applyUpdate(req, res, pastUnlocked, { silent = false, sale = null, saleBase = null, unpaidLine = false } = {}) {
   const storedBefore = model.getRow(Number(req.params.id));
   // specs/reservations-backend-mvc.md rule 26 reading (audit R44-C-L3) — a stay that does not exist is refused before any
   // pricing or write: the insert used to reach the lines and fail on their foreign key (500).
@@ -2428,11 +2428,13 @@ function applyUpdate(req, res, pastUnlocked, { silent = false, sale = null, sale
     return res.status(409).json(changeoverErrorPayload(quote));
   }
   // Rule 23 (owner O-10) — a paid line lowered is refused until the operator confirms; the confirmed excess is then owed back.
+  // Owner reading 2026-11-16: offering or removing an UNPAID line is never refused for the excess it leaves — it grows the
+  // trop-perçu by that much, refunded through the usual path, and opens no `lineLowered` obligation.
   let confirmedLowering = false;
-  if (!req.body.forceOverpayment) {
+  if (!unpaidLine && !req.body.forceOverpayment) {
     const overpaid = overpaymentIntroducedBy(id, quote, windowEngineInputs);
     if (overpaid) return res.status(409).json(overpaid);
-  } else {
+  } else if (!unpaidLine) {
     confirmedLowering = Boolean(overpaymentIntroducedBy(id, quote, windowEngineInputs));
   }
   if (!forceTypedCounts && !pastReservationLocked) {
