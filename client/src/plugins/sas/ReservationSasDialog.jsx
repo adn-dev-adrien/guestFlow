@@ -930,7 +930,8 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
     try {
       return await send(body);
     } catch (e) {
-      if (e?.code !== 'OVERPAID') throw e;
+      // Reception is answered no amount (reception-role-checkin-only rule 18): there is nothing to confirm, the refusal is shown as is.
+      if (e?.code !== 'OVERPAID' || e.overpaymentTtc === undefined) throw e;
       const amount = formatCurrency(Number(e.overpaymentTtc) || 0);
       const ok = await confirm({
         title: 'Ligne déjà payée',

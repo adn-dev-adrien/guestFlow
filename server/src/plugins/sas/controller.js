@@ -50,12 +50,15 @@ const linenLive = () => registry.isLive('linen');
 // Rules 23, 104, 105 (loop t6 S6-4) — the commit judged a paid line it offers or removes like every save of the stay: its refusal
 // (409 OVERPAID until the operator confirms with `forceOverpayment`, 409 LINE_PAID) rolled the whole commit back and is answered as is.
 const REFUSED = Symbol('refused');
-function refusedOrDone(res, commit) {
+// reception-role-checkin-only rule 18 — a paid-line refusal names no amount to reception (refund money is not door money).
+const RECEPTION_PAID_LINE_REFUSAL = 'Ligne déjà payée : à voir avec l’administrateur.';
+const paidLineAnswer = (req, body) => (isReceptionOnly(req.user) ? { error: RECEPTION_PAID_LINE_REFUSAL, code: body.code } : body);
+function refusedOrDone(req, res, commit) {
   try {
     return commit();
   } catch (err) {
     if (!err || !err.refusal) throw err;
-    res.status(err.refusal.status).json(err.refusal.body);
+    res.status(err.refusal.status).json(paidLineAnswer(req, err.refusal.body));
     return REFUSED;
   }
 }
@@ -710,7 +713,7 @@ function commitArrival(req, res) {
 
   const beforeSas = snapshotSas(Number(req.params.id));
   const beforeSplit = reservationsModel.getRow(Number(req.params.id)) || {};
-  const complementAmount = refusedOrDone(res, () => reservationsModel.commitArrivalSas(Number(req.params.id), {
+  const complementAmount = refusedOrDone(req, res, () => reservationsModel.commitArrivalSas(Number(req.params.id), {
     // Tri-state: undefined (caution step not shown) leaves the marker untouched; the model sets or
     // clears it on a concrete boolean (specs/reopen-completed-sas.md §6).
     cautionReceived: cautionReceived === undefined ? undefined : Boolean(cautionReceived),
@@ -738,7 +741,7 @@ function commitArrival(req, res) {
     // decides what the group may claim, from the buckets it really settled.
     groupArrivalPayment: settlement.grouped,
     pluginWrites: draft.plugins.writes,
-    forceOverpayment: req.body.forceOverpayment === true,
+    forceOverpayment: !isReceptionOnly(req.user) && req.body.forceOverpayment === true,
   }));
   if (complementAmount === REFUSED) return res;
   recordSasHistory(Number(req.params.id), 'sas_arrival', beforeSas);
@@ -862,7 +865,7 @@ function commitDeparture(req, res) {
   }
   const beforeSas = snapshotSas(id);
   const beforeSplit = reservationsModel.getRow(id) || {};
-  const departed = refusedOrDone(res, () => reservationsModel.commitDepartureSas(id, {
+  const departed = refusedOrDone(req, res, () => reservationsModel.commitDepartureSas(id, {
     // Tri-state, same contract as the arrival caution (specs/reopen-completed-sas.md §6).
     cautionReturned: cautionReturned === undefined ? undefined : Boolean(cautionReturned),
     ...draft.input,
@@ -870,7 +873,7 @@ function commitDeparture(req, res) {
     // positive complement (end-of-stay + recalled arrival) at the checkout moment.
     complementsSettled: complementsSettled === undefined ? undefined : Boolean(complementsSettled),
     complementsPaidCash: splitPrepared ? splitPrepared.allInternal : Boolean(complementsPaidCash),
-    forceOverpayment: req.body.forceOverpayment === true,
+    forceOverpayment: !isReceptionOnly(req.user) && req.body.forceOverpayment === true,
   }));
   if (departed === REFUSED) return res;
   // Rules 22-23 — the total the recap showed is compared, never used: the commit went through on its

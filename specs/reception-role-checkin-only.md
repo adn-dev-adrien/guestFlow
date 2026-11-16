@@ -248,6 +248,15 @@ emails, settings, or any monetary figure beyond *the caution and complement to c
     and notes (rule 12bis). `POST /resource-bookings/:id/no-show`, the booking itself and its payment routes stay admin.
     Test: `visit-window-and-roles.unit.test.js` (plugin `hourly-resources`).
 
+18. **A paid line at the SAS shows no amount to reception and cannot be forced** (added 2026-11-16, loop t7 A7-1; reading of
+    pricing-components rules 105 and 107, `sas-offer-complement-lines.md` §4.3). The refusal a SAS commit meets on a paid line it offers or
+    removes (409 `OVERPAID`, 409 `LINE_PAID`) is answered to a reception-only requester with the same `code` and « Ligne déjà payée : à voir avec
+    l’administrateur. », no `overpaymentTtc`, no `refundCents`: what a line would owe back is not door money (rules 12bis, 16).
+    `toReceptionSasCommit` drops `forceOverpayment` and the arrival and departure commits ignore it for a reception-only requester, so the
+    refusal cannot be confirmed: nothing is written, no `lineLowered` obligation is opened. The dialog shows the refusal as is and offers no
+    « Offrir · X à rembourser » confirmation when the 409 carries no amount. The admin flow is unchanged.
+    Test: `reception-sas-paid-line-refusal.unit.test.js`, `ReservationSasDialog.reception-paid-line.test.jsx`.
+
 **Edge cases:**
 - **reception + admin** on the same account → admin wins: full payloads, full nav, no stripping,
   no confinement (rule 1).
