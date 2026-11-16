@@ -244,7 +244,12 @@ function buildOrdersController({
     if (placed.length) out.push({ articleRef: `resource:${line.id}`, quantity: sessionsHours(placed), sessions: placed, placeOnHeld: true });
     if (rest.length) out.push({ articleRef: `resource:${line.id}`, quantity: sessionsHours(rest), sessions: rest });
     // Rules 81-83 — the evening the offered or held hours owe, a line of the stay of its own (pricing-components rules 13, 25), decided once at the quote.
-    if (Number(line.supplement) > 0) out.push({ articleRef: 'custom', label: `${line.title} — supplément soirée`, amount: Number(line.supplement), quantity: 1 });
+    // Loop t2 N-6 — the supplement names its bath by a stable key: a second one may be numbered « … (2) » (pricing-components rule 94).
+    if (Number(line.supplement) > 0) {
+      out.push({
+        articleRef: 'custom', label: `${line.title} — supplément soirée`, amount: Number(line.supplement), quantity: 1, fulfilmentRef: `evening:resource:${line.id}`,
+      });
+    }
     return out;
   };
 

@@ -31,8 +31,8 @@ const { isNamedChannel } = require('../utils/saleChannel');
 const { isCleaningOption } = require('../utils/cleaningOption');
 const { buildCheckoutComplement, END_OF_STAY_CLEANING_LABEL } = require('../utils/checkoutComplement');
 const {
-  buildExtrasBaseline, mergeMidStayIntoDetail, parseBaseline, extraLineKey,
-  buildMidStayLine, parseNotes, nextNoteId, storedMidStayLines, resolveMidStaySplit, MID_STAY_SOURCE,
+  buildExtrasBaseline, arrivalBaselineOf, mergeMidStayIntoDetail, parseBaseline, extraLineKey,
+  buildMidStayLine, parseNotes, nextNoteId, storedMidStayLines, resolveMidStaySplit, MID_STAY_SOURCE, settledByKey,
 } = require('../utils/midStayExtras');
 const { buildEditLock } = require('../utils/midStayExtrasWindow');
 const {
@@ -40,6 +40,7 @@ const {
 } = require('../utils/sasOptionSale');
 const { CATERING_CATEGORY } = require('../utils/optionCategoriesMigration');
 const { syncDepartureChargeLines, notDepartureCharge } = require('../utils/departureChargeLines');
+const { numberedLabel } = require('../utils/pricing/storedLines');
 const { typedCountOf, displayCountOf } = require('../utils/typedCounts');
 const { stampComplementPaidSplit, readComplementPaidSplit } = require('../utils/complementPaidSplit');
 const { parseRemovedLineContribs } = require('../utils/removedLineContribs');
@@ -707,7 +708,7 @@ function createReservationsModel(database, { arrivalComplementEngine = null } = 
     if (Number(row.complementPaid || 0) === 1 || Number(row.complementPaidCash || 0) === 1) return true;
     // Rules 20, 44: « started » is the check-in time having passed, answered by the stay clock. The arrival mark and the
     // arrival SAS no longer route a sale (they only change the display).
-    const phase = stayClockModel.create(database).phaseForReservation(row.id, new Date());
+    const phase = stayClockModel.create(database).phaseForReservation(row.id, stayClockModel.gestureNow());
     return Boolean(phase && phase.started);
   };
 
@@ -1047,13 +1048,15 @@ function createReservationsModel(database, { arrivalComplementEngine = null } = 
       }
     }
   };
+  // A SAS line numbered because its label was taken (« Bière locale (2) ») is the line of « Bière locale ».
+  const sasBaseLabel = (label) => String(label).trim().replace(/ \(\d+\)$/, '');
   // The SAS-origin custom lines (linen pieces, a plugin's supplements), shared by the two branches. A re-run changes the line it
   // already wrote in place (same row, same identity: rule 14, reopen-completed-sas rule 4), appends a new one, and removes only the one
   // the selection no longer holds; a line is matched by the key its plugin gave it, else by its label.
   const rewriteSasCustomItems = (reservationId, items) => {
     const rows = database.prepare(`SELECT id, description${HAS_RCO_SAS_LINE_KEY ? ', sasLineKey' : ''} FROM reservation_custom_options
       WHERE reservationId = ? AND sasArrivalOrigin = 1 ORDER BY sortOrder, id`).all(reservationId);
-    const identity = (key, label) => (key ? `key:${key}` : `label:${String(label).trim()}`);
+    const identity = (key, label) => (key ? `key:${key}` : `label:${sasBaseLabel(label)}`);
     const held = new Map();
     for (const row of rows) {
       const k = identity(HAS_RCO_SAS_LINE_KEY ? row.sasLineKey : null, row.description);
@@ -1069,17 +1072,31 @@ function createReservationsModel(database, { arrivalComplementEngine = null } = 
       : database.prepare('INSERT INTO reservation_custom_options (reservationId, description, amount, offered, sortOrder, inComplement, sasArrivalOrigin) VALUES (?, ?, ?, ?, ?, 1, 1)');
     // The count rides along (« Taie d'oreiller ×2 », rule 29), written apart so the guarded statements above stay valid on a schema without the column.
     const setQuantity = HAS_RCO_QUANTITY ? database.prepare('UPDATE reservation_custom_options SET quantity = ? WHERE id = ?') : null;
-    for (const it of items) {
+    // Rule 94 (loop t2 N-4) — a new SAS line whose label the stay already holds (a sale of the shop, a line of the fiche) is numbered, as a
+    // sale's is; a line this SAS wrote keeps the label it was given, so a re-run finds it again.
+    const description = new Map(rows.map((row) => [row.id, row.description]));
+    const plan = items.map((it) => {
       const label = String(it.label).trim();
+      const queue = held.get(identity(it.sasLineKey || null, label));
+      return { it, label, id: queue && queue.length ? queue.shift() : null };
+    });
+    const keyOfLabel = (text) => extraLineKey({ isCustom: true, description: text });
+    const taken = new Set([
+      ...database.prepare(`SELECT description FROM reservation_custom_options WHERE reservationId = ? AND COALESCE(sasArrivalOrigin, 0) = 0${notDepartureCharge(database)}`)
+        .all(reservationId).map((row) => keyOfLabel(row.description)),
+      ...plan.filter((step) => step.id != null).map((step) => keyOfLabel(description.get(step.id))),
+    ]);
+    for (const { it, label, id } of plan) {
       const amount = roundMoneyStrict(it.amount);
       const qty = Math.max(1, Math.round(Number(it.qty) || 1));
-      const queue = held.get(identity(it.sasLineKey || null, label));
-      const id = queue && queue.length ? queue.shift() : null;
       if (id != null) {
-        update.run(label, amount, it.offered ? 1 : 0, ...(HAS_RCO_QUANTITY ? [qty] : []), id);
+        const keeps = sasBaseLabel(description.get(id)) === label ? description.get(id) : label;
+        update.run(keeps, amount, it.offered ? 1 : 0, ...(HAS_RCO_QUANTITY ? [qty] : []), id);
         kept.add(id);
       } else {
-        const inserted = insert.run(reservationId, label, amount, it.offered ? 1 : 0, sort, ...(HAS_RCO_SAS_LINE_KEY ? [it.sasLineKey || null] : []));
+        const numbered = numberedLabel(label, taken);
+        taken.add(keyOfLabel(numbered));
+        const inserted = insert.run(reservationId, numbered, amount, it.offered ? 1 : 0, sort, ...(HAS_RCO_SAS_LINE_KEY ? [it.sasLineKey || null] : []));
         if (setQuantity && qty > 1) setQuantity.run(qty, inserted.lastInsertRowid);
         sort += 1;
       }
@@ -3078,13 +3095,25 @@ function createReservationsModel(database, { arrivalComplementEngine = null } = 
         ...(r.options || []).map((x) => ({ ...x, refKind: Number(x.isCustom || 0) === 1 ? 'custom' : 'option', refId: Number(x.isCustom || 0) === 1 ? x.customOptionId : x.optionId })),
         ...(r.resources || []).map((x) => ({ ...x, refKind: 'resource', refId: x.resourceId })),
       ];
+      // Rule 102 (stabilisation loop t2, N-1) — a line a card paid before the arrival is not asked again: the recap lists what is left of it.
+      const prepaidLeft = withExistingLines && HAS_MID_STAY_NOTES
+        ? { ...settledByKey(model.getMidStaySettledNotes(reservationId).filter((note) => note && note.beforeArrival)) }
+        : {};
+      const noteKeyOf = (x) => (x.refKind === 'custom'
+        ? extraLineKey({ isCustom: true, description: x.title || x.description })
+        : require('./extraSalesModel').keyOfLine(reservationId, x.refKind, x.lineId));
       for (const x of extras) {
         if (Number(x.inComplement) !== 1 || Number(x.sasArrivalOrigin || 0) === 1) continue;
         if (!(Number(x.originalTotalPrice ?? x.totalPrice ?? 0) > 0)) continue;
         const storedOffered = Number(x.offered || 0) === 1;
         const hostsEvening = x.refKind === 'resource' && hosted.some((c) => c.lineId === Number(x.lineId));
-        const real = round2((storedOffered ? (x.originalTotalPrice ?? x.totalPrice) : (x.totalPrice ?? x.originalTotalPrice))
+        const noteKey = Object.keys(prepaidLeft).length ? noteKeyOf(x) : null;
+        const fullReal = round2((storedOffered ? (x.originalTotalPrice ?? x.totalPrice) : (x.totalPrice ?? x.originalTotalPrice))
           - (hostsEvening ? eveningCentsOf(x.components) / 100 : 0));
+        const prepaid = !storedOffered && noteKey && prepaidLeft[noteKey] > 0 ? Math.min(fullReal, prepaidLeft[noteKey]) : 0;
+        if (prepaid > 0) prepaidLeft[noteKey] = round2(prepaidLeft[noteKey] - prepaid);
+        const real = round2(fullReal - prepaid);
+        if (prepaid > 0 && real <= 0) continue;
         if (hostsEvening && real <= 0) continue;
         const key = x.refKind === 'custom' ? `custom:${Number(x.refId)}` : lineRefKey(x.refKind, x.refId, x.lineId, recapFirst[x.refKind]);
         const offered = isOffered(key, storedOffered);
@@ -3296,14 +3325,22 @@ function createReservationsModel(database, { arrivalComplementEngine = null } = 
 
     // specs/mid-stay-extras-on-locked-fiche.md rule 13 — the ready-to-render lock of a fiche: is it
     // locked, may its extras still be edited, and the floor of every line sold at arrival.
-    getEditLock(reservationId, { today, nowTime }) {
+    getEditLock(reservationId, { today, nowTime, now = null }) {
       const row = database.prepare('SELECT * FROM reservations WHERE id = ?').get(reservationId);
       if (!row) return null;
       const lines = model.readExtraLinesWithQuantity(reservationId);
       // A locked fiche has started: with no baseline captured yet, what it carries now IS what was sold
       // at arrival, exactly what the next save will pin.
-      const baseline = model.getArrivalExtrasBaseline(reservationId) || JSON.stringify(buildExtrasBaseline(lines));
-      return buildEditLock(row, today, baseline, lines, nowTime);
+      const baseline = model.getArrivalExtrasBaseline(reservationId) || JSON.stringify(arrivalBaselineOf(lines, row.midStaySettledNotes));
+      // Rule 102 — the lock the fiche shows is the stay clock's, the one the save and the sale read.
+      const at = now || (nowTime ? new Date(`${today}T${nowTime}:00`) : null);
+      let phase = null;
+      try {
+        phase = at && !Number.isNaN(at.getTime()) ? stayClockModel.create(database).phaseForReservation(row.id, at) : null;
+      } catch (err) {
+        if (err.code !== 'STAY_CLOCK_INVALID') throw err;
+      }
+      return buildEditLock(row, today, baseline, lines, nowTime, phase ? phase.started : null);
     },
 
     // `readExtraLines` plus the units of each line — what the arrival floors of a locked fiche count
@@ -3370,7 +3407,7 @@ function createReservationsModel(database, { arrivalComplementEngine = null } = 
       if (!row) return null;
       if (row.arrivalExtrasBaseline) return row.arrivalExtrasBaseline;
       if (!arrivalExtrasBaselineIsDue(row)) return null;
-      return JSON.stringify(buildExtrasBaseline(model.readExtraLines(reservationId)));
+      return JSON.stringify(arrivalBaselineOf(model.readExtraLines(reservationId), row.midStaySettledNotes));
     },
 
     // No baseline, and none due: what is sold now joins the ordinary balance (specs/mid-stay-notes.md rule 23).
@@ -3394,7 +3431,7 @@ function createReservationsModel(database, { arrivalComplementEngine = null } = 
       if (!row) return null;
       if (row.arrivalExtrasBaseline) return row.arrivalExtrasBaseline;
       if (!arrivalExtrasBaselineIsDue(row)) return null;
-      const baseline = JSON.stringify(buildExtrasBaseline(model.readExtraLines(reservationId)));
+      const baseline = JSON.stringify(arrivalBaselineOf(model.readExtraLines(reservationId), row.midStaySettledNotes));
       database.prepare("UPDATE reservations SET arrivalExtrasBaseline = ?, updatedAt = datetime('now') WHERE id = ?")
         .run(baseline, reservationId);
       return baseline;
@@ -3409,20 +3446,38 @@ function createReservationsModel(database, { arrivalComplementEngine = null } = 
     // one the extras carried now would pin.
     peekArrivalExtrasBaseline(reservationId) {
       if (!HAS_ARRIVAL_EXTRAS_BASELINE) return null;
-      const row = database.prepare('SELECT arrivalExtrasBaseline FROM reservations WHERE id = ?').get(reservationId);
+      const row = database.prepare('SELECT * FROM reservations WHERE id = ?').get(reservationId);
       if (!row) return null;
-      return row.arrivalExtrasBaseline || JSON.stringify(buildExtrasBaseline(model.readExtraLines(reservationId)));
+      return row.arrivalExtrasBaseline || JSON.stringify(arrivalBaselineOf(model.readExtraLines(reservationId), row.midStaySettledNotes));
     },
 
     captureArrivalExtrasBaseline(reservationId) {
       if (!HAS_ARRIVAL_EXTRAS_BASELINE) return null;
-      const row = database.prepare('SELECT arrivalExtrasBaseline FROM reservations WHERE id = ?').get(reservationId);
+      const row = database.prepare('SELECT * FROM reservations WHERE id = ?').get(reservationId);
       if (!row) return null;
       if (row.arrivalExtrasBaseline) return row.arrivalExtrasBaseline;
-      const baseline = JSON.stringify(buildExtrasBaseline(model.readExtraLines(reservationId)));
+      const baseline = JSON.stringify(arrivalBaselineOf(model.readExtraLines(reservationId), row.midStaySettledNotes));
       database.prepare("UPDATE reservations SET arrivalExtrasBaseline = ?, updatedAt = datetime('now') WHERE id = ?")
         .run(baseline, reservationId);
       return baseline;
+    },
+
+    // Rule 102 (guest-app rule 110 a) — the keys of an open arrival complement (check-in hour passed, arrival not validated, complement not
+    // collected) a gesture touched: each holds in the baseline what its arrival lines now hold (0 → the key goes), so a line removed at the
+    // door leaves nothing behind and a line re-sold there is never read as a sale of the stay.
+    rebaseArrivalExtrasKeys(reservationId, keys) {
+      if (!HAS_ARRIVAL_EXTRAS_BASELINE || !keys || keys.length === 0) return;
+      const row = database.prepare('SELECT arrivalExtrasBaseline, midStaySettledNotes FROM reservations WHERE id = ?').get(reservationId);
+      if (!row || !row.arrivalExtrasBaseline) return;
+      const baseline = parseBaseline(row.arrivalExtrasBaseline) || {};
+      // A touched key's lines are its arrival's: the stamped ones, and the line this very write appended (its moment is stamped after it).
+      const arrival = arrivalBaselineOf(model.readExtraLines(reservationId).filter((line) => line.collectAt !== 'departure'), row.midStaySettledNotes);
+      for (const key of new Set(keys)) {
+        if (Number(arrival[key] || 0) > 0) baseline[key] = arrival[key];
+        else delete baseline[key];
+      }
+      database.prepare("UPDATE reservations SET arrivalExtrasBaseline = ?, updatedAt = datetime('now') WHERE id = ?")
+        .run(JSON.stringify(baseline), reservationId);
     },
 
     // Fold specific keys into the baseline at their CURRENT amount — used by the arrival SAS for the

@@ -178,6 +178,7 @@
       "« Arrivée » et « Client absent » ne s’affichent que si le serveur les propose, selon l’heure du serveur : le planning ne compare plus le jour avec l’horloge du navigateur.",
       "L’arrivée d’une visite n’affiche plus de raison de facture qui ne s’applique pas : rien sans Qonto ni pendant un encaissement en cours.",
       "« Créer la facture dans Qonto » au paiement immédiat est proposé quand le serveur, interrogé avec le paiement saisi, répond que la facture peut être faite : ni l’arrivée ni la réservation ne le devinent plus d’après les moyens de paiement.",
+      "Le sas d’arrivée lit les suppléments de soirée des commandes par la clé de leur bain : un second supplément, numéroté « (2) », n’est plus facturé une seconde fois.",
       "Demande le SDK 2.31 de GuestFlow."
     ]
   }

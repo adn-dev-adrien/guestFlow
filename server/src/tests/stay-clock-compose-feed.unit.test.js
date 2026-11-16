@@ -1,6 +1,7 @@
 // specs/pricing-components.md §3 rules 20, 44-46 (class E1, D2) — the clock feeds the engine. The extras baseline COMPOSE reads
 // (`arrivalExtrasBaseline`, through `resolveArrivalExtrasBaseline`) exists exactly when the stay clock says the stay has started
-// (or a complement is collected): the arrival mark and the arrival SAS no longer route a sale.
+// (or a complement is collected). Rule 102 (loop t2, 2026-11-16): an arrival validated on its day — the mark or the committed arrival
+// SAS — starts the stay before its hour, for the baseline as for the fiche lock: one moment.
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const Database = require('better-sqlite3');
@@ -36,9 +37,11 @@ test('the baseline follows the clock: started and not marked → due; not starte
   assert.equal(futureMarked.arrivalBaselineNotDue(1), true);
 });
 
-test('on the arrival day the check-in time decides, not the mark', () => {
-  const beforeTime = createReservationsModel(modelDb({ startDate: todayIso(), endDate: day(2), checkInTime: '23:59', checkInDone: 1 }));
-  assert.equal(beforeTime.resolveArrivalExtrasBaseline(1), null, 'marked, but 23:59 has not passed');
+test('on the arrival day the check-in time decides, or the arrival validated before it (rule 102, loop t2 N-3)', () => {
+  const beforeTime = createReservationsModel(modelDb({ startDate: todayIso(), endDate: day(2), checkInTime: '23:59' }));
+  assert.equal(beforeTime.resolveArrivalExtrasBaseline(1), null, 'unmarked, and 23:59 has not passed');
+  const markedEarly = createReservationsModel(modelDb({ startDate: todayIso(), endDate: day(2), checkInTime: '23:59', checkInDone: 1 }));
+  assert.notEqual(markedEarly.resolveArrivalExtrasBaseline(1), null, 'marked before 23:59: the guest is there, the stay has started (the lock says so too)');
   const afterTime = createReservationsModel(modelDb({ startDate: todayIso(), endDate: day(2), checkInTime: '00:00' }));
   assert.notEqual(afterTime.resolveArrivalExtrasBaseline(1), null, 'unmarked, but 00:00 has passed');
 });

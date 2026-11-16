@@ -12,7 +12,7 @@
  *   lowerLine(reservationId, line, { discount, offered })  → { body, text, discountCents } | { error }   rule 39 / 14: the PUT body that offers it or carries the discount
  *   storeDiscount(line, cents)                   the line's own discount, stored once the save went through
  *   withoutLine(body, line)                      the fiche's PUT body without that one line (rule 25: an unpaid line removed)
- *   stampCustomQuantities(reservationId, added, requests)  the count a sold custom line carries (« Taie d'oreiller ×2 »)
+ *   stampCustomQuantities(reservationId, added, requests)  the count a sold custom line carries (« Taie d'oreiller ×2 ») and its seller's key (`fulfilmentRef`)
  *   stampIntakeLines(reservationId, platform, soldAt)  the lines a platform intake wrote and left without a moment: `platform` or `arrival` (rule 17)
  *   stampSasLines(reservationId, soldAt, { reopened })  the lines an arrival SAS wrote carry source `sas` and the arrival moment (rule 18); a reopened run flags the lines it appended
  *   openLoweredCents(reservationId)              the open `lineLowered` obligations, in cents
@@ -124,8 +124,9 @@ function writeCardNote(reservationId, { items }) {
     return line;
   });
   const notes = parseNotes(row && row.midStaySettledNotes);
+  // `beforeArrival` (pricing-components rule 102): the arrival baseline laid once the stay starts keeps netting this money out of the arrival complement.
   const note = {
-    id: nextNoteId(notes), paidDate: require('../utils/localDate').todayIso(), paidCash: 0, total: roundMoney(lines.reduce((sum, line) => sum + Number(line.amount || 0), 0)), lines,
+    id: nextNoteId(notes), paidDate: require('../utils/localDate').localIsoDate(require('./stayClockModel').gestureNow()), paidCash: 0, total: roundMoney(lines.reduce((sum, line) => sum + Number(line.amount || 0), 0)), lines, beforeArrival: true,
   };
   db.prepare("UPDATE reservations SET midStaySettledNotes = ?, updatedAt = datetime('now') WHERE id = ?").run(JSON.stringify([...notes, note]), Number(reservationId));
   return note;
@@ -242,10 +243,12 @@ function withoutLine(body, line) {
 function stampCustomQuantities(reservationId, added, requests) {
   const customs = added.filter((line) => line.kind === 'custom');
   const db = database();
-  if (!db.prepare('PRAGMA table_info(reservation_custom_options)').all().some((c) => c.name === 'quantity')) return;
+  const columns = new Set(db.prepare('PRAGMA table_info(reservation_custom_options)').all().map((c) => c.name));
   customs.forEach((line, index) => {
     const request = requests[index];
-    if (request && request.quantity > 1) db.prepare('UPDATE reservation_custom_options SET quantity = ? WHERE reservationId = ? AND lineId = ?').run(request.quantity, Number(reservationId), line.lineId);
+    if (columns.has('quantity') && request && request.quantity > 1) db.prepare('UPDATE reservation_custom_options SET quantity = ? WHERE reservationId = ? AND lineId = ?').run(request.quantity, Number(reservationId), line.lineId);
+    // Loop t2 N-6 — the seller's stable key of the line.
+    if (columns.has('fulfilmentRef') && request && request.fulfilmentRef) db.prepare('UPDATE reservation_custom_options SET fulfilmentRef = ? WHERE reservationId = ? AND lineId = ?').run(request.fulfilmentRef, Number(reservationId), line.lineId);
   });
 }
 
