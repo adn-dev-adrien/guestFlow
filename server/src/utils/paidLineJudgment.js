@@ -1,0 +1,123 @@
+/**
+ * paidLineJudgment — the one judgment of a write that takes money away from a line a note paid (specs/pricing-components.md rules 23, 104;
+ * stabilisation loop t5, S5-1). Every save of a stay passes through it (`applyUpdate`): the fiche's « Enregistrer », the line API
+ * (`extraSale.changeLine` / `removeLine`), a sale, a restate. One formula, so a paid line offered in the fiche and the same line offered
+ * through its action end the same way.
+ *
+ *   notesOnKey(db, reservationId, key)  → the cents the stay's notes name on a line key: what the guest paid on that line, whatever it is
+ *                                         worth now (a line offered after it was paid still carries it)
+ *   noteExcessCents(db, reservationId, lineDiscounts)  → the note money no line claims and no bucket absorbs: received by the establishment
+ *                                         beyond the total (`lineDiscounts`: those a save carries, not stored yet)
+ *   begin(db, reservationId)            → `{ finish({ overpaid, forced, lineDiscounts }) }`, taken before the write; `finish`, called after the
+ *                                         write inside the same transaction, answers the refusal that rolls it back, or null (`overpaid`: the
+ *                                         save is about to answer the trop-perçu formula's 409 OVERPAID — only a removal is refused before it;
+ *                                         `forced`: the operator confirmed; `lineDiscounts`: the line discounts the save carries, stored after it):
+ *     - 409 `LINE_PAID` (« elle peut être offerte, pas retirée ») — a line a note pays left the stay. Its money stays credited until a refund
+ *       (rule 23), and a later line of the same article would otherwise inherit the note's key and read as paid (S5-4).
+ *     - 409 `OVERPAID` — the write freed note money (a paid line offered, discounted or lowered) and the stay absorbed less of it than it grew
+ *       (rule 104 credits it to what is still due first). A note is money the ESTABLISHMENT collected (cash, card terminal, online link), on a
+ *       platform stay too (loop t5 A5-1: the platform collected none of it, reservation-refunds rule 38 is about the platform's money): what
+ *       nothing absorbs is a trop-perçu the operator confirms, then owed back (`lineLowered` obligation), whatever the channel.
+ */
+const { toCents } = require('./pricing/money');
+const { settledByKey } = require('./pricing/storedLines');
+const { parseNotes } = require('./midStayExtras');
+
+const PAID_LINE_REMOVED = 'Ligne déjà payée : elle peut être offerte, pas retirée.';
+const eurosText = (cents) => `${(cents / 100).toFixed(2).replace('.', ',')} €`;
+
+const TABLES = { option: 'reservation_options', resource: 'reservation_resources', custom: 'reservation_custom_options' };
+const BUCKETS = ['depositAmount', 'balanceAmount', 'complementAmount', 'endOfStayComplementAmount'];
+
+function notesByKeyCents(row) {
+  const byKey = {};
+  for (const [key, amount] of Object.entries(settledByKey(row && row.midStaySettledNotes))) byKey[key] = toCents(amount);
+  return byKey;
+}
+
+function notesOnKey(db, reservationId, key) {
+  const row = db.prepare('SELECT midStaySettledNotes FROM reservations WHERE id = ?').get(Number(reservationId));
+  return key ? Number(notesByKeyCents(row)[key] || 0) : 0;
+}
+
+// Rule 104 — the money the stay received beyond what its stored buckets carry: Σ (acompte, solde, complements, notes) − (price + tax), in cents.
+function unabsorbedCents(row) {
+  const notes = parseNotes(row.midStaySettledNotes).reduce((sum, note) => sum + toCents(note && note.total), 0);
+  return BUCKETS.reduce((sum, field) => sum + toCents(row[field]), notes) - toCents(row.finalPrice) - toCents(row.touristTaxTotal);
+}
+
+function openLoweredCents(db, reservationId) {
+  const table = db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'refund_obligations'").get();
+  if (!table) return 0;
+  return Number(db.prepare("SELECT COALESCE(SUM(amountCents), 0) AS cents FROM refund_obligations WHERE reservationId = ? AND origin = 'lineLowered' AND status = 'open'")
+    .get(Number(reservationId)).cents);
+}
+
+const lineFactsOf = (db, id) => require('../models/ports/stayRepository').create(db).lineFacts(id);
+const netOf = (fact) => (fact ? Math.max(0, Number(fact.storedCents || 0) - Number(fact.discountCents || 0)) : 0);
+
+// What the notes collected beyond what each paid key carries now: the note money no line claims (rule 104's `unclaimed`).
+function unclaimedCents(notes, facts) {
+  return Object.entries(notes).reduce((sum, [key, paid]) => sum + Math.max(0, paid - netOf(facts[key])), 0);
+}
+
+// A line discount a save carries (`lineDiscounts`, the line action's) is stored once the save went through: weighed here already.
+function factsWith(db, id, lineDiscounts) {
+  const facts = lineFactsOf(db, id);
+  for (const [key, cents] of Object.entries(lineDiscounts && typeof lineDiscounts === 'object' ? lineDiscounts : {})) {
+    if (facts[key]) facts[key] = { ...facts[key], discountCents: Math.max(0, Math.round(Number(cents) || 0)) };
+  }
+  return facts;
+}
+
+function noteExcessCents(db, reservationId, lineDiscounts = null) {
+  const id = Number(reservationId);
+  const row = db.prepare('SELECT * FROM reservations WHERE id = ?').get(id);
+  const notes = row ? notesByKeyCents(row) : {};
+  if (!row || !Object.keys(notes).length) return 0;
+  return Math.max(0, Math.min(unabsorbedCents(row), unclaimedCents(notes, factsWith(db, id, lineDiscounts))));
+}
+
+// What the stay owes back on lowered paid lines, in the register (rule 23): held at `cents`.
+function holdLowered(db, reservationId, cents) {
+  const obligations = require('../models/refundObligationsModel');
+  if (obligations.ready()) obligations.trimLowered(Number(reservationId), cents);
+}
+
+function begin(db, reservationId) {
+  const id = Number(reservationId);
+  const row = db.prepare('SELECT * FROM reservations WHERE id = ?').get(id);
+  const notes = row ? notesByKeyCents(row) : {};
+  if (!row || !Object.keys(notes).length) return { finish: () => null };
+  const facts = lineFactsOf(db, id);
+  const paidLines = Object.keys(notes).filter((key) => facts[key]).map((key) => ({ key, table: facts[key].table, lineId: Number(facts[key].lineId) }));
+  const before = { unabsorbed: unabsorbedCents(row), owed: openLoweredCents(db, id), unclaimed: unclaimedCents(notes, facts) };
+  return {
+    finish({ overpaid = false, forced = false, lineDiscounts = null } = {}) {
+      const removed = paidLines.find(({ table, lineId }) => !db.prepare(`SELECT 1 FROM ${TABLES[table]} WHERE lineId = ? AND reservationId = ?`).get(lineId, id));
+      if (removed) return { status: 409, body: { error: PAID_LINE_REMOVED, code: 'LINE_PAID' } };
+      // A trop-perçu the save is about to ask confirmation of (409 OVERPAID) is that refusal's: once confirmed, it is owed back.
+      if (overpaid) return null;
+      const after = db.prepare('SELECT * FROM reservations WHERE id = ?').get(id);
+      const freed = unclaimedCents(notesByKeyCents(after), factsWith(db, id, lineDiscounts)) - before.unclaimed;
+      if (freed <= 0) return null;
+      const owed = openLoweredCents(db, id);
+      const gap = Math.min(freed, unabsorbedCents(after) - before.unabsorbed - (owed - before.owed));
+      if (gap <= 0) return null;
+      if (forced) {
+        holdLowered(db, id, owed + gap);
+        return null;
+      }
+      return {
+        status: 409,
+        body: {
+          error: `Trop-perçu : ${eurosText(gap)} déjà encaissés au-delà du nouveau total.`, code: 'OVERPAID', overpaymentTtc: gap / 100, overpaymentMethod: null, overpaymentLines: [],
+        },
+      };
+    },
+  };
+}
+
+module.exports = {
+  begin, notesOnKey, noteExcessCents, PAID_LINE_REMOVED,
+};

@@ -74,6 +74,7 @@
       "Nécessite le SDK 2.28 de GuestFlow (échange des données de la maison entre plugins)."
     ],
     "1.2.0": [
+      "Une case « arrivé » cochée avant le jour d’arrivée ne fige plus une commande : elle reste modifiable à l’arrivée.",
       "Une commande peut être encaissée à l’arrivée ou au départ, et une commande d’un séjour annulé est marquée annulée ; aucune donnée existante n’est modifiée.",
       "Une commande de la boutique forme sa propre ligne du séjour ; les lignes déjà commandées gardent leur prix.",
       "« Mon séjour » s’ouvre dès J-7 : la boutique, le bain nordique et « Mes commandes » sont utilisables avant l’arrivée, avec le lien du séjour.",

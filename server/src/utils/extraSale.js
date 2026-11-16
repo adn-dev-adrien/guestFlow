@@ -39,7 +39,7 @@ const {
   storedBody, optionRows, mergeOrderLines, personsRefusal, remainderByKey, deltaOf,
 } = require('./stayOrderLines');
 const { toCents } = require('./pricing/money');
-const { extraLineKey, numberedLabel } = require('./pricing/storedLines');
+const { extraLineKey, numberedLabel, settledByKey } = require('./pricing/storedLines');
 const { parseNotes } = require('./midStayExtras');
 const { syncStay: syncAllocations } = require('./paymentAllocationsSync');
 const {
@@ -49,6 +49,8 @@ const fulfilment = require('./pricing/articleFulfilment');
 const { overpaidBy } = require('./pricing/refunds/basketOutcome');
 const { makeArticle } = require('./pricing/articles');
 const { nextLineId } = require('./lineRowTarget');
+const { isArrivalValidated } = require('./pricing/stayClock');
+const { PAID_LINE_REMOVED } = require('./paidLineJudgment');
 
 const database = () => require('../database');
 const reservations = () => require('../models/reservationsModel');
@@ -201,10 +203,12 @@ const ARRIVAL_CLOSED = 'Arrivée déjà validée ou complément d’arrivée enc
 // Loop t4 A4-1 — a stay whose false start was kept (a baseline stored, unticked before the hour): neither validated nor collected, its sales are
 // already the departure's until the check-in hour.
 const ARRIVAL_CARVED_EARLY = 'Les ventes de ce séjour se règlent déjà au départ : la commande aussi.';
+// Loop t5 S5-6 — the validation is the stay clock's (rule 102): the check-in box or the committed SAS count from the arrival day only, so a box
+// ticked days ahead closes nothing the sale still routes to the arrival.
 function arrivalClosedRefusal(id, clock) {
   const row = database().prepare('SELECT complementPaid, complementPaidCash, checkInDone, arrivalSasDoneAt FROM reservations WHERE id = ?').get(Number(id));
-  if (!row || Number(row.complementPaid || 0) === 1 || Number(row.complementPaidCash || 0) === 1
-    || Number(row.checkInDone || 0) === 1 || Boolean(row.arrivalSasDoneAt)) return refuse(409, 'ARRIVAL_CLOSED', ARRIVAL_CLOSED);
+  const validated = Boolean(row) && isArrivalValidated(row) && Boolean(clock.phase && clock.phase.arrivalDayReached);
+  if (!row || Number(row.complementPaid || 0) === 1 || Number(row.complementPaidCash || 0) === 1 || validated) return refuse(409, 'ARRIVAL_CLOSED', ARRIVAL_CLOSED);
   return clock.carved && !clock.started ? refuse(409, 'ARRIVAL_CLOSED', ARRIVAL_CARVED_EARLY) : null;
 }
 
@@ -228,7 +232,8 @@ function pricedRequests(reservationId, lines, { now, source, atArrival = false }
   // arrival complement whatever the hour: the guest settles it at the door, never at the departure. Only while that complement is open
   // (rule 103): once the arrival is validated or its complement collected, the door collects nothing more and `atArrival` is refused.
   const clock = stayStarted(id, now);
-  const closed = atArrival && clock.carved ? arrivalClosedRefusal(id, clock) : null;
+  // Loop t5 S5-6 — the one judge: the sale refuses `atArrival` exactly when `arrivalOpenAt` reads the arrival closed.
+  const closed = atArrival ? arrivalClosedRefusal(id, clock) : null;
   if (closed) return { error: closed };
   const started = atArrival ? false : clock.carved;
   const pinned = started ? null : complementPinnedRefusal(id);
@@ -540,6 +545,8 @@ function saleDetailOfAt(reservationId, now = new Date()) {
       extraGuestsOffered: Boolean(guestsLine && guestsLine.offered),
       extraGuestsCount: guestsLine ? guestsLine.qty : 0,
       departureByKey: departureRemainderByKey(row),
+      // Loop t5 S5-3 — what the notes paid on each line key, for the rule-104 credit lines.
+      paidByKey: Object.fromEntries(Object.entries(settledByKey(row.midStaySettledNotes)).map(([key, amount]) => [key, toCents(amount)])),
     },
   });
 }
@@ -570,16 +577,6 @@ function moveRefusal(restated) {
   return body.code === 'ARRIVAL_EXTRAS_FROZEN'
     ? { status: 409, body: { ...body, error: MOVE_REFUSED, code: 'MOMENT_NOT_AVAILABLE' } }
     : { status: restated.status, body };
-}
-
-const PAID_LINE_NOT_ABSORBED = 'Ligne déjà payée : rien à percevoir sur ce séjour ne peut reprendre ce montant. Ajuster d’abord l’encaissement en séjour.';
-
-// Rule 104 — the money the stay received beyond what its stored buckets carry: Σ (acompte, solde, complements, notes) − (price + tax), in cents.
-function unabsorbedCents(id) {
-  const row = reservations().getRow(id);
-  const notes = parseNotes(row.midStaySettledNotes).reduce((sum, note) => sum + toCents(note && note.total), 0);
-  return ['depositAmount', 'balanceAmount', 'complementAmount', 'endOfStayComplementAmount'].reduce((sum, field) => sum + centsOf(row, field), notes)
-    - centsOf(row, 'finalPrice') - centsOf(row, 'touristTaxTotal');
 }
 
 // Rules 37, 39, 23 — what the operator changes on one stored line. The line is addressed by `ref` (`option:<lineId>`, `resource:<lineId>`, `custom:<lineId>`).
@@ -628,17 +625,14 @@ function changeLineAt(reservationId, ref, patch, { now = new Date(), forceOverpa
         if (base.refused) { outcome = base.refused; throw ROLLBACK; }
         const lowered = model.lowerLine(id, line, wants);
         if (lowered.error) { outcome = lowered.error; throw ROLLBACK; }
-        // The fiche's own save judges it (rule 23, O-10): a paid line lowered is refused 409 OVERPAID until `forceOverpayment`, and the
-        // confirmed excess opens the `lineLowered` obligation there — one formula, one place.
+        // The fiche's own save judges it (rule 23, O-10): a paid line lowered is refused 409 OVERPAID until `forceOverpayment`, the
+        // confirmed excess opens the `lineLowered` obligation there, and rule 104's 409 LINE_PAID (money nothing absorbs on a platform stay)
+        // is that save's too (`utils/paidLineJudgment`, loop t5 S5-1) — one formula, one place, whichever screen saved.
         const owedBefore = model.openLoweredCents(id);
-        const unclaimedBefore = unabsorbedCents(id);
         const restated = controller().performUpdate(id, { ...lowered.body, restatePricing: true, forceOverpayment: Boolean(forceOverpayment) }, { sale: 'fiche', saleBase: base.row, unpaidLine: !lowered.paidLine, now });
         if (restated.status !== 200) { outcome = { status: restated.status, body: restated.body }; throw ROLLBACK; }
         model.storeDiscount(line, lowered.discountCents, { arrivalOpen: arrivalOpenAtAt(id, now) });
         owedCents = model.openLoweredCents(id) - owedBefore;
-        // Rule 104 — the money a paid line gives back comes off what the stay still asks; on a platform stay with nothing left to ask
-        // there is no trop-perçu to confirm (reservation-refunds rule 38), so the gesture is refused rather than leave it credited nowhere.
-        if (lowered.paidLine && unabsorbedCents(id) - unclaimedBefore > owedCents) { outcome = refuse(409, 'LINE_PAID', PAID_LINE_NOT_ABSORBED); throw ROLLBACK; }
         reservations().addHistoryEntry(id, 'update', [{ field: 'lineLowered', label: line.label, from: null, to: lowered.text }]);
       }
       outcome = { status: 200, saleDetail: saleDetailOf(id, now) };
@@ -661,7 +655,8 @@ function removeLineAt(reservationId, ref, { now = new Date(), actor = null } = {
   const model = extraSalesModel();
   const line = model.findLine(id, ref);
   if (!line) return refuse(404, 'LINE_NOT_FOUND', 'Ligne introuvable');
-  if (line.settledCents > 0) return refuse(409, 'LINE_PAID', 'Ligne déjà payée : elle peut être offerte, pas retirée.');
+  // Loop t5 S5-4 — judged by what the notes paid on the line, not by its allocations: an offered paid line holds none and stays the note's.
+  if (line.settledCents > 0 || line.paidCents > 0) return refuse(409, 'LINE_PAID', PAID_LINE_REMOVED);
   const body = storedBody(id);
   if (!body) return refuse(404, 'RESERVATION_NOT_FOUND', 'Réservation introuvable');
   const pinned = line.collectAt === 'arrival' ? complementPinnedRefusal(id) : null;

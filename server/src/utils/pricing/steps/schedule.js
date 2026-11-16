@@ -24,7 +24,7 @@ const step = {
     'accommodationPreArrival', 'autoComplementAmount', 'autoDepositAmount', 'balanceDueDate',
     'complementCollectedExcess', 'depositDueDate', 'endOfStayComplementAutoTotal', 'endOfStayComplementTotal',
     'installmentPlan', 'isTouristTaxForcedToComplement', 'midStayLinesWithExcess', 'midStayRemainingDue',
-    'midStaySettledAll', 'overCollectedTtc', 'planScheduled', 'platformIsNonDirect', 'preArrivalAmount',
+    'midStaySettledAll', 'noteCreditCuts', 'overCollectedTtc', 'planScheduled', 'platformIsNonDirect', 'preArrivalAmount',
     'rawComplement', 'resolvedBalanceAmount', 'resolvedComplementAmount', 'resolvedDepositAmount',
     'taxInComplement',
   ],
@@ -55,7 +55,7 @@ const step = {
     const {
       accommodationPreArrival, autoComplementAmount, autoDepositAmount, balanceDueDate, complementCollectedExcess,
       depositDueDate, endOfStayComplementAutoTotal, endOfStayComplementTotal, installmentPlan,
-      isTouristTaxForcedToComplement, midStayLinesWithExcess, midStayRemainingDue, midStaySettledAll, overCollectedTtc,
+      isTouristTaxForcedToComplement, midStayLinesWithExcess, midStayRemainingDue, midStaySettledAll, noteCreditCuts, overCollectedTtc,
       planScheduled, platformIsNonDirect, preArrivalAmount, rawComplement, resolvedBalanceAmount,
       resolvedComplementAmount, resolvedDepositAmount, taxInComplement,
     } = planSchedule({
@@ -84,7 +84,7 @@ const step = {
       accommodationPreArrival, autoComplementAmount, autoDepositAmount, balanceDueDate,
       complementCollectedExcess, depositDueDate, endOfStayComplementAutoTotal, endOfStayComplementTotal,
       installmentPlan, isTouristTaxForcedToComplement, midStayLinesWithExcess, midStayRemainingDue,
-      midStaySettledAll, overCollectedTtc, planScheduled, platformIsNonDirect, preArrivalAmount,
+      midStaySettledAll, noteCreditCuts, overCollectedTtc, planScheduled, platformIsNonDirect, preArrivalAmount,
       rawComplement, resolvedBalanceAmount, resolvedComplementAmount, resolvedDepositAmount,
       taxInComplement,
     };

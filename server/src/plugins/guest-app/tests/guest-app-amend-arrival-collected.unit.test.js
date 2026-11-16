@@ -39,7 +39,7 @@ test('rule 87 (N10): the arrival complement collected — the stay is no editabl
       db: () => ({ transaction: (fn) => fn }),
       orders: () => ({ findById: () => order, atArrivalFor: () => [order] }),
       stays: () => ({
-        byId: () => ({ id: 1, kind: 'reservation', startDate: '2099-01-01', propertyId: 1 }), arrivalComplementState: () => state, arrivalMarked: () => false,
+        byId: () => ({ id: 1, kind: 'reservation', startDate: '2099-01-01', propertyId: 1 }), arrivalComplementState: () => state,
       }),
       stayLines: () => ({ orderLines: () => [{ orderId: 7, kind: 'option', articleId: CIDER, lineId: 1, ref: 'option:1' }] }),
       shop: { soldFor: () => ({ sold: [] }) },

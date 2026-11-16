@@ -17,6 +17,8 @@
  *   buckets   { plan, arrival, departure } the amount due at each moment, from SETTLEMENT's figures of the quote; with `stored.planCents`,
  *             `stored.arrivalCents` / `stored.departureCents` (a stored stay) the buckets are the stored deposit + balance and complements (rule 93)
  *   totals    { totalCents, settledCents, dueCents, vatByRate: [{ rate, vatCents, netCents }] }
+ *   credits[] { ref, bucket, label, paidLabels[], totalCents (< 0) } — rule 104: the money paid on lines since lowered, read where a bucket takes it
+ *             (`stored.paidByKey`: what the notes paid on each line key)
  *   phase     the stay clock's answer ('before' | 'during' | 'after'), or null
  * `moments` (optional) the moments a line of this stay can be moved to now (rule 103); without it, `phase` decides (rule 95).
  *
@@ -247,6 +249,18 @@ function buildSaleDetail({
     });
   }
 
+  const credits = creditsOf({
+    extraLines,
+    lines,
+    stored,
+    buckets: {
+      arrival: arrivalBucket,
+      // The departure's mid-stay remainder, without the departure SAS's own charges (they are no line of the detail).
+      departure: stored && stored.departureByKey ? Object.values(stored.departureByKey).reduce((sum, cents) => sum + Number(cents || 0), 0) : null,
+      plan: storedBucket('planCents'),
+    },
+  });
+
   // VAT line by line (rules 51, 62): one rounding per (class, rate) group, shared over its lines by largest remainder.
   const taxable = lines.filter((line) => line.totalCents > 0 && line.vatClass);
   const regime = q.vatRegime || null;
@@ -272,7 +286,43 @@ function buildSaleDetail({
       departure: storedBucket('departureCents') ?? toCents(q.endOfStayComplementTotal),
     },
     totals: { totalCents, settledCents, dueCents: Math.max(0, totalCents - settledCents), vatByRate: vat.byRate || [] },
+    credits,
   };
+}
+
+// Rule 104 (loop t5, S5-3) — the money a note paid on a line since offered, discounted or lowered stays credited to the stay, and it is read as
+// what it is: a line of its own in the bucket it comes off, « Déjà réglé : <the paid lines> » −amount, never a price cut of another article.
+// Each bucket shows only the credit that explains why it asks less than the lines it lists (arrival, then departure, then the plan — the order
+// the engine credits them in); `stored.paidByKey` = what the notes paid on each line key. → [{ ref, bucket, label, paidLabels[], totalCents (< 0) }]
+const CREDIT_LABEL = 'Déjà réglé';
+function creditsOf({
+  extraLines, lines, stored, buckets,
+}) {
+  const paidByKey = (stored && stored.paidByKey) || {};
+  const sources = extraLines
+    .map((line) => ({ label: line.label, cents: Math.max(0, Number(paidByKey[line.key] || 0) - Math.max(0, line.totalCents)) }))
+    .filter((source) => source.cents > 0);
+  let left = sources.reduce((sum, source) => sum + source.cents, 0);
+  if (!left) return [];
+  const paidLabels = [...new Set(sources.map((source) => source.label))];
+  const listed = {
+    // A line already settled in full (a card order before the arrival, a complement collected) is no money the bucket still asks.
+    arrival: lines.filter((line) => line.collectAt === 'arrival' && !(line.totalCents > 0 && line.settledCents >= line.totalCents))
+      .reduce((sum, line) => sum + line.totalCents - Number(line.departureCents || 0), 0),
+    departure: lines.reduce((sum, line) => sum + (line.collectAt === 'departure' ? Math.max(0, line.totalCents - line.settledCents) : 0) + Number(line.departureCents || 0), 0),
+    plan: lines.filter((line) => line.collectAt === 'plan').reduce((sum, line) => sum + line.totalCents, 0),
+  };
+  const credits = [];
+  for (const bucket of ['arrival', 'departure', 'plan']) {
+    if (buckets[bucket] == null) continue;
+    const cents = Math.min(left, Math.max(0, listed[bucket] - buckets[bucket]));
+    if (cents <= 0) continue;
+    left -= cents;
+    credits.push({
+      ref: `credit:${bucket}`, bucket, label: `${CREDIT_LABEL} (${paidLabels.join(', ')})`, paidLabels, totalCents: -cents,
+    });
+  }
+  return credits;
 }
 
 // Rule 32 — the SAS shows what a started stay sold for its departure apart from the total it collects at the door:
@@ -291,15 +341,25 @@ function departureSection(detail) {
   const isPaid = (line) => line.status === 'paid';
   const groups = [['due', lines.filter((line) => !isPaid(line))], ['paid', lines.filter(isPaid)]]
     .flatMap(([block, inBlock]) => groupsOf(inBlock).map((group) => ({ ...group, block })));
+  // Loop t5 S5-3 — the rule-104 credit the departure takes is a line of its own under « Déjà payé » (money already received, nothing to collect
+  // or offer on it): the section's due sums to what the departure asks.
+  const credit = ((detail && detail.credits) || []).find((entry) => entry.bucket === 'departure');
+  const shown = lines.map((line) => ({
+    ref: line.ref, label: line.label, totalCents: line.totalCents, settledCents: line.settledCents, status: line.status, statusLabel: line.statusLabel,
+    sourceLabel: line.sourceLabel, offered: line.offered, groupLabel: line.groupLabel, block: isPaid(line) ? 'paid' : 'due', addedOnReopen: line.addedOnReopen,
+  }));
+  if (credit) {
+    shown.push({
+      ref: credit.ref, label: credit.label, totalCents: credit.totalCents, settledCents: 0, status: 'credit', statusLabel: CREDIT_LABEL, sourceLabel: null,
+      offered: false, block: 'paid', addedOnReopen: false,
+    });
+  }
   return {
     title: DEPARTURE_TITLE,
-    lines: lines.map((line) => ({
-      ref: line.ref, label: line.label, totalCents: line.totalCents, settledCents: line.settledCents, status: line.status, statusLabel: line.statusLabel,
-      sourceLabel: line.sourceLabel, offered: line.offered, groupLabel: line.groupLabel, block: isPaid(line) ? 'paid' : 'due', addedOnReopen: line.addedOnReopen,
-    })),
+    lines: shown,
     groups,
-    totalCents: lines.reduce((sum, line) => sum + line.totalCents, 0),
-    dueCents: lines.reduce((sum, line) => sum + Math.max(0, line.totalCents - line.settledCents), 0),
+    totalCents: shown.reduce((sum, line) => sum + line.totalCents, 0),
+    dueCents: shown.reduce((sum, line) => sum + (line.status === 'credit' ? line.totalCents : Math.max(0, line.totalCents - line.settledCents)), 0),
   };
 }
 
@@ -346,7 +406,11 @@ function arrivalComplementLines(detail, { addedGuestsTaxLabel = null, complement
         amount: line.totalCents / 100,
         ...(kind === 'tax' && addedGuestsTaxLabel && line.label === addedGuestsTaxLabel ? { addedGuests: true } : {}),
       };
-    });
+    })
+    // Loop t5 S5-3 — the rule-104 credit the arrival complement takes, last: the lines sum to the amount asked.
+    .concat(((detail && detail.credits) || []).filter((credit) => credit.bucket === 'arrival').map((credit) => ({
+      kind: 'credit', label: credit.label, paidLabels: credit.paidLabels, qty: 1, unitPrice: credit.totalCents / 100, amount: credit.totalCents / 100,
+    })));
 }
 
 // The status of a document line as the screens name it (outside-visit spec rule 10): paid, to pay, offered or cancelled.

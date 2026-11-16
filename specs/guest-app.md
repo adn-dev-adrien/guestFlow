@@ -1114,6 +1114,14 @@ arrival.** Everything below is judged by the server; the apps render what it off
     the stay. Two paid orders of one article are two keys: giving back the first order's line leaves the second « Payée · à rembourser » until its
     own line is given back; giving back the stay's own line of the article does not read a later order's line « Remboursée ». Test:
     `guest-order-cancelled-refunded-label`.
+113. **Readings of 2026-11-16 on a paid card order given back on a live stay and on an early check-in mark** _(stabilisation loop t5, A5-1 and
+    S5-6; readings of rules 87, 110 a)_. (a) **A paid card order given back on a live stay is owed back, on any channel.** Its money was taken by
+    the establishment (the Qonto link), never by the platform: its line offered on a Booking or Airbnb stay asks the trop-perçu confirmation (409
+    `OVERPAID`) and then holds the `lineLowered` refund, as on a direct stay (`pricing-components.md` rule 104 c, loop t5 reading). Its note is
+    never cancelled (409 `NOTE_PAID_ONLINE`): the money is given back through the register. Tests: `sale-paid-line-lowered-credited`,
+    `sale-paid-card-note-kept`. (b) **A check-in box ticked before the arrival day closes no order.** The step's `editable` reads the core's judge
+    (`extraSale.arrivalOpenAt`) and nothing else; the judge counts the box or the committed SAS from the arrival day only (`pricing-components.md`
+    rule 105 c). Test: `sale-arrival-open-early-tick`; `guest-app-arrival-orders` ticks the box on the arrival day.
 
 **Edge cases:**
 - Guest scans the La Granja poster while staying at L'Estiva → La Granja's visitor mode; their own stay opens

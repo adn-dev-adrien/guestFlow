@@ -8,6 +8,7 @@
  *   stampNewLines(reservationId, before, sale)   writes source / moment / date (and the order it belongs to) on the lines that were not in `before` → [{ label }]
  *   keyOfLine / writeCardNote                    the key a line is named by in the notes; the settled note of a card-paid sale before the arrival
  *   findLine(reservationId, ref)                 `ref` = `option:<lineId>` | `resource:<lineId>` | `custom:<lineId>` → the stored line or null
+ *                                                (`settledCents`: its allocations; `paidCents`: what the notes paid on it, kept once it is offered)
  *   momentRefusal(reservationId, line, to, moments) / moveLine(reservationId, line, to)    rule 37: the 409 or null / the move, journaled by the caller
  *   lowerLine(reservationId, line, { discount, offered })  → { body, text, discountCents } | { error }   rule 39 / 14: the PUT body that offers it or carries the discount
  *   storeDiscount(line, cents, { arrivalOpen })  the line's own discount, stored once the save went through; `arrivalOpen` is the caller's
@@ -147,12 +148,15 @@ function findLine(reservationId, ref) {
     kind: match[1], table: KINDS[match[1]].table, lineId: Number(match[2]), key, label: String(row.label || 'Prestation'), row,
     totalCents: toCents(match[1] === 'custom' ? row.amount : row.totalPrice), offered: Number(row.offered || 0) === 1,
     settledCents: Number(fact.settledCents || 0), collectAt: row.collectAt || null, collectAtDefault: row.collectAtDefault || null,
+    // Loop t5 S5-4 — what the notes paid on the line, gross: an offered paid line carries no allocation any more, but its money is still the note's.
+    paidCents: require('../utils/paidLineJudgment').notesOnKey(db, reservationId, key),
   };
 }
 
 function momentRefusal(reservationId, line, to, moments) {
   if (!moments.includes(to)) return { status: 400, body: { error: 'Moment inconnu.', code: 'INVALID_MOMENT' } };
-  if (line.settledCents > 0) return { status: 409, body: { error: 'Ligne déjà payée : son moment est figé.', code: 'LINE_PAID' } };
+  // Loop t5 S5-5 — a paid line keeps its moment once offered too (the detail shows it none): its money stays where the note put it.
+  if (line.settledCents > 0 || line.paidCents > 0) return { status: 409, body: { error: 'Ligne déjà payée : son moment est figé.', code: 'LINE_PAID' } };
   const stay = database().prepare('SELECT complementPaid, complementPaidCash, endOfStayComplementPaid, endOfStayComplementPaidCash FROM reservations WHERE id = ?').get(Number(reservationId));
   if (!stay) return { status: 404, body: { error: 'Réservation introuvable', code: 'RESERVATION_NOT_FOUND' } };
   const arrivalCollected = Number(stay.complementPaid || 0) === 1 || Number(stay.complementPaidCash || 0) === 1;
