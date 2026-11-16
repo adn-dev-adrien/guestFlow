@@ -5,14 +5,16 @@ import {
   FormControlLabel, Typography, Divider, Switch, LinearProgress, ToggleButton, ToggleButtonGroup, useMediaQuery, useTheme,
 } from '@mui/material';
 import MiniDayPlanner from './MiniDayPlanner';
-import { api, formatCurrency, ConfirmDialog, ClientPickerField } from '../sdk';
+import { api, formatCurrency, ConfirmDialog, ClientPickerField, ErrorAlert } from '../sdk';
 import resourceBookingDraft from './resourceBookingDraft';
 import useResourceBookingPreview from './useResourceBookingPreview';
 import { localIsoDate } from './localDate';
 import ResourceBookingSummary from './ResourceBookingSummary';
 import OfferedTimeField from './OfferedTimeField';
-import BookingPaymentFields, { paymentBody, allOnTheBooks, hasCard } from './BookingPaymentFields';
+import BookingPaymentFields, { paymentBody, hasCard } from './BookingPaymentFields';
 import BookingInvoiceBlock from './BookingInvoiceBlock';
+
+const INVOICE_PREVIEW_FAILED = 'Facture non vérifiée pour ce paiement.';
 
 const EMPTY_BILLING = { street: '', postcode: '', city: '' };
 const dayMonth = (iso) => (iso ? iso.split('-').reverse().slice(0, 2).join('/') : '');
@@ -356,7 +358,11 @@ export default function ResourceBookingDialog({
   // Rule 44 (R35-C-L1) — a payment on the books whose invoice is still to make, or was cancelled in Qonto (A2).
   const invoiceLater = Boolean(booking?.paid && booking.payment?.onTheBooks && (!booking.invoice || booking.invoice.cancelled));
   // Loop t2 B2-7 (outside-visit rule 54) — whether « Payé maintenant » can make the invoice is the server's answer for the payment typed.
-  const invoiceOffered = Boolean(payNow && invoicePreview.fresh && invoicePreview.price && invoicePreview.price.invoiceable && invoicePreview.price.invoiceable.ok) || invoiceLater;
+  // Loop t3 UI3-4/UI3-5 — the latest answer stays on screen while a newer one is asked; the save waits for the answer to the payment typed.
+  const invoiceAnswer = invoiceDraft && invoicePreview.price ? invoicePreview.price.invoiceable || null : null;
+  const invoiceOffered = Boolean(invoiceAnswer && invoiceAnswer.ok) || invoiceLater;
+  const draftInternalCash = Boolean(invoiceAnswer && invoiceAnswer.code === 'INTERNAL_CASH');
+  const draftRefusal = invoiceAnswer && !invoiceAnswer.ok && !invoiceAnswer.silent && !draftInternalCash ? invoiceAnswer.reason : null;
   const wantsInvoice = invoiceOffered && invoiceChecked && qontoReady;
   const durationForOffer = durationMinutes - Number(price?.freeMinutesApplied || 0);
   const canSave = Boolean(
@@ -368,6 +374,7 @@ export default function ResourceBookingDialog({
     && (externalMode ? clientName.trim() : selectedClient)
     && slotAvailable
     && (!payNow || Boolean(payment && payment.canSubmit))
+    && (!invoiceDraft || invoicePreview.fresh)
   );
   const shownPrice = draft ? price : null;
   const showRefusal = Boolean(draft && preview.refusal && !preview.pending);
@@ -672,6 +679,8 @@ export default function ResourceBookingDialog({
 
             {booking?.noShow && <Alert severity="info">Client absent : la visite est close.</Alert>}
             {actionError && <Alert severity="error">{actionError}</Alert>}
+            {invoiceDraft && invoicePreview.refusal && <Alert severity="error">{invoicePreview.refusal}</Alert>}
+            {invoiceDraft && invoicePreview.error && <ErrorAlert message={INVOICE_PREVIEW_FAILED} onRetry={invoicePreview.retry} />}
             {(payNow || booking?.invoice || invoiceOutcome || invoiceLater) && (
               <Box sx={{ display: 'grid', gap: 1.25 }}>
                 <Typography variant="body2" sx={{ fontWeight: 700 }}>Facture</Typography>
@@ -685,7 +694,8 @@ export default function ResourceBookingDialog({
                   billing={billing}
                   onBilling={setBilling}
                   addressAsked={Boolean(invoiceOutcome && invoiceOutcome.code === 'QONTO_NEEDS_ADDRESS')}
-                  internalCash={payNow && Boolean(payment) && !allOnTheBooks(payment)}
+                  internalCash={draftInternalCash}
+                  reason={draftRefusal}
                   cardDay={dayMonth(booking?.payment?.paidAt || payment?.paidAt)}
                   onIssue={issueLater}
                   onAttach={attachInvoice}

@@ -12,7 +12,9 @@
  *   onCheck       (bool) => void
  *   billing       { street, postcode, city } and onBilling(next) — the address of a guest with no client record
  *   addressAsked  boolean — Qonto refused without an address
- *   internalCash  boolean — the payment has a caisse-interne line
+ *   internalCash  boolean — the server answers `INTERNAL_CASH` for the payment (typed or stored)
+ *   reason        string | null — the server's refusal for the payment typed (`invoiceable.reason`, not `silent`); shown instead of the
+ *                 « une fois le paiement saisi » caption, which stays for a payment not typed yet
  *   cardDay       'JJ/MM' — the day of the card batch
  *   onIssue, onAttach  () => void — the buttons of a booking whose invoice is still to make / to join
  *   onPickTransaction (transactionId) => void
@@ -24,7 +26,7 @@ import { Alert, Box, Button, Checkbox, FormControlLabel, TextField, Typography }
 import BillingAddressFields from './BillingAddressFields';
 
 export default function BookingInvoiceBlock({
-  booking = null, qontoReady, offered, checked, onCheck, billing, onBilling, addressAsked = false, internalCash = false,
+  booking = null, qontoReady, offered, checked, onCheck, billing, onBilling, addressAsked = false, internalCash = false, reason = null,
   cardDay = '', onIssue, onAttach, onPickTransaction, busy = false, showAddress = true,
 }) {
   const [picking, setPicking] = useState(false);
@@ -71,6 +73,9 @@ export default function BookingInvoiceBlock({
   }
   if (internalCash) {
     return <Alert severity="info">Caisse interne : hors comptabilité, pas de facture. Décocher « Caisse interne » pour la passer en compta et la facturer.</Alert>;
+  }
+  if (!offered && reason) {
+    return <Typography variant="caption" color="text.secondary">{reason}</Typography>;
   }
   if (!offered) {
     return <Typography variant="caption" color="text.secondary">La facture se propose une fois le paiement saisi.</Typography>;

@@ -189,15 +189,15 @@ function createInvoicing({ bookings, visits = null, issuers = () => sdk.coreModu
     id = null, draft = null, totalPrice = 0, reservationId = null, payment,
   }) {
     const raw = id ? bookings().rawById(id) : null;
-    if (id && !raw) return { ok: false, code: 'BOOKING_NOT_FOUND', reason: 'Réservation non trouvée' };
-    if (raw && raw.qontoInvoiceId && !raw.invoiceCancelledAt) return { ok: false, code: 'BOOKING_INVOICED', reason: 'Déjà facturée.' };
+    if (id && !raw) return { ok: false, code: 'BOOKING_NOT_FOUND', reason: 'Réservation non trouvée', silent: true };
+    if (raw && raw.qontoInvoiceId && !raw.invoiceCancelledAt) return { ok: false, code: 'BOOKING_INVOICED', reason: 'Déjà facturée.', silent: true };
     const { validateSettlement } = sdk.coreModule('paymentTenders');
     const tenders = payment && payment.tenders;
     const onDocument = Boolean(raw && visits && !raw.reservationId && (raw.saleRef || draft));
     const money = onDocument ? visits().draftMoneyOf(raw, draft) : null;
     const dueCents = money ? money.remainingCents : cents(totalPrice);
     const checked = validateSettlement({ tenders, dueCents, shortfall: (payment && payment.shortfall) || null });
-    if (!checked.ok) return { ok: false, code: 'TENDERS_INVALID', reason: checked.error };
+    if (!checked.ok) return { ok: false, code: 'TENDERS_INVALID', reason: checked.error, silent: false };
     let refusal;
     if (money) {
       const after = { ...money, remainingCents: checked.shortfallKind === 'due' ? checked.shortfallCents : 0, payments: [...money.payments, { tenders: checked.lines }] };
@@ -209,7 +209,8 @@ function createInvoicing({ bookings, visits = null, issuers = () => sdk.coreModu
         payment: { tenders: lines, onTheBooks: lines.length > 0 && !lines.some((t) => t.internal) },
       }, issuers());
     }
-    return refusal ? { ok: false, code: refusal.code || null, reason: refusal.error } : { ok: true, code: null, reason: null };
+    // Loop t3 UI3-5 — the screens print a draft's `reason` under the payment typed, so the draft answer marks its silent refusals like `invoiceability`.
+    return refusal ? { ok: false, code: refusal.code || null, reason: refusal.error, silent: SILENT_REFUSALS.has(refusal.code) } : { ok: true, code: null, reason: null };
   }
 
   /** POST /:id/invoice — `{ ok, invoice }` or `{ error, status, code }`. Never touches the payment. */

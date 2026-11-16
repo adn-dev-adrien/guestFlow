@@ -24,7 +24,7 @@ import {
   api, formatCurrency, LoadingState, ErrorAlert, ConfirmDialog, SuggestedArticlesStep, SalePaymentLink, StatusBadge, StandaloneSaleDialog,
 } from '../sdk';
 import OfferedTimeField from './OfferedTimeField';
-import BookingPaymentFields, { paymentBody, allOnTheBooks, hasCard } from './BookingPaymentFields';
+import BookingPaymentFields, { paymentBody, hasCard } from './BookingPaymentFields';
 import BookingInvoiceBlock from './BookingInvoiceBlock';
 import useVisitQuote from './useVisitQuote';
 
@@ -57,6 +57,7 @@ const TEXTS = Object.freeze({
   validate: 'Valider l’arrivée',
   save: 'Enregistrer',
   makeInvoice: 'Créer la facture',
+  invoiceQuoteFailed: 'Facture non vérifiée pour ce paiement.',
   close: 'Fermer',
   cancel: 'Annuler',
   saving: 'Enregistrement…',
@@ -185,7 +186,12 @@ export default function ResourceArrivalDialog({ open, bookingId, onClose, onDone
   // Loop t2 B2-7 (rule 54) — with « Payé maintenant », whether this commit could make the invoice is the server's answer for the payment typed.
   const paymentDraft = useMemo(() => (!reception && payNow && payment && paymentBody(payment) ? { ...(draft || {}), payment: paymentBody(payment) } : null), [reception, payNow, payment, draft]);
   const invoiceQuote = useVisitQuote({ bookingId, draft: paymentDraft, enabled: open, version: visit ? visit.document.version : 0 });
-  const invoiceOffered = Boolean(paymentDraft && invoiceQuote.fresh && invoiceQuote.visit && invoiceQuote.visit.invoiceable && invoiceQuote.visit.invoiceable.ok);
+  // Loop t3 UI3-4/UI3-5 — the latest answer stays on screen while a newer one is asked (no caption ↔ checkbox flip per keystroke); the commit
+  // still waits for the answer to the payment typed (`paymentReady`). « Caisse interne » and any other refusal are the server's words too.
+  const invoiceAnswer = paymentDraft && invoiceQuote.visit ? invoiceQuote.visit.invoiceable || null : null;
+  const invoiceOffered = Boolean(invoiceAnswer && invoiceAnswer.ok);
+  const draftInternalCash = Boolean(invoiceAnswer && invoiceAnswer.code === 'INTERNAL_CASH');
+  const draftRefusal = invoiceAnswer && !invoiceAnswer.ok && !invoiceAnswer.silent && !draftInternalCash ? invoiceAnswer.reason : null;
   // Money already on the books, invoiceable now: the server's `invoiceable` (invoicing rules 13, 44; loop t1 UI-10 / AV-11). It reads the stored visit, so a draft waits for its save.
   const invoiceable = visit && !reception ? visit.invoiceable : null;
   const invoiceStored = !dirty && Boolean(invoiceable && invoiceable.ok);
@@ -440,7 +446,7 @@ export default function ResourceArrivalDialog({ open, bookingId, onClose, onDone
                   <Typography variant="caption" color="text.secondary">{invoiceReason}</Typography>
                 </Box>
               )}
-              {!reception && !invoiceReason && (invoiceOffered || invoiced || invoiceOutcome || invoiceStored) && (
+              {!reception && !invoiceReason && (invoiceOffered || invoiced || invoiceOutcome || invoiceStored || draftInternalCash || draftRefusal) && (
                 <Box sx={{ display: 'grid', gap: 1 }}>
                   <Typography variant="subtitle2">{TEXTS.invoice}</Typography>
                   {invoiceOutcome && invoiceOutcome.code !== 'QONTO_NEEDS_ADDRESS' && <Alert severity="error">{invoiceOutcome.message}</Alert>}
@@ -453,7 +459,8 @@ export default function ResourceArrivalDialog({ open, bookingId, onClose, onDone
                     billing={billing}
                     onBilling={setBilling}
                     addressAsked={Boolean(invoiceOutcome && invoiceOutcome.code === 'QONTO_NEEDS_ADDRESS')}
-                    internalCash={(payNow && Boolean(payment) && !allOnTheBooks(payment)) || Boolean(booking.payment && !booking.payment.onTheBooks)}
+                    internalCash={draftInternalCash || Boolean(booking.payment && !booking.payment.onTheBooks)}
+                    reason={draftRefusal}
                     cardDay={dayMonth((booking.payment && booking.payment.paidAt) || (payment && payment.paidAt))}
                     onIssue={() => validate({ issue: true })}
                     onAttach={() => attachWith({})}
@@ -466,6 +473,8 @@ export default function ResourceArrivalDialog({ open, bookingId, onClose, onDone
             </Box>
             {quote.refusal && <Alert severity="error" sx={{ gridColumn: '1 / -1' }}>{quote.refusal}</Alert>}
             {quote.error && <ErrorAlert message={quote.error.message} onRetry={quote.retry} />}
+            {paymentDraft && invoiceQuote.refusal && <Alert severity="error" sx={{ gridColumn: '1 / -1' }}>{invoiceQuote.refusal}</Alert>}
+            {paymentDraft && invoiceQuote.error && <ErrorAlert message={TEXTS.invoiceQuoteFailed} onRetry={invoiceQuote.retry} sx={{ gridColumn: '1 / -1' }} />}
             {error && <Alert severity="error" sx={{ gridColumn: '1 / -1' }}>{error}</Alert>}
           </Box>
         )}
