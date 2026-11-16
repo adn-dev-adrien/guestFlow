@@ -139,6 +139,10 @@ or mutable state.
     > `plugins/online-payment` « the public site address… » and skipped the 18 specs after it. Every spec that takes `request`
     > imports `test` from `e2e/fixtures/test.js`, whose `request` fixture is built with `API_TIMEOUT` (baseURL and storageState
     > still come from the config). Same test file.
+    > _Reading of 2026-11-16 (loop t7, P7-4):_ `page.request` shares the browser context's timeout settings, which the runner
+    > sets to `actionTimeout`: the 12 read-backs on it (`reservations/payment-ledger` 6, `plugins/booking-intake` 5,
+    > `reservations/fiche-stale-save` 1) carried the same 5 s budget. Each passes `{ timeout: API_TIMEOUT }`, and the guard refuses a
+    > `page.request.<verb>(…)` without it in a spec or a fixture. Same test file (5).
 20. **Specs that rewrite global state never overlap other specs** (2026-10-28 audit). The VAT specs
     (`vat-regime-switch`, `vat-franchise`, `vat-roundtrip`: global regime and rate) and `laundry-days` (global
     laundry schedule) are each their own Playwright project, run after the main `chromium` project (the VAT
