@@ -125,6 +125,14 @@ or mutable state.
     selectors. Resilient to MUI structural changes during the Vite migration.
 19. **Timeouts**: action timeout 5 s, navigation 10 s, expect 5 s. Suite-wide
     timeout 30 s per spec. CI total budget < 5 min.
+    > _Reading of 2026-11-16 (pricing-components stabilisation loop t4, UI4-1):_ the 5 s action budget is the UI's, not the
+    > API's. A request context created inside a test inherits `actionTimeout`, so one call stalled on the runner → Vite proxy →
+    > server hop (no response headers in 5 s, while the server answered every other call in 3-29 ms) failed
+    > `settings/suggested-articles` (phone) and once `tariff/sold-reservation-immutable`. Every request context the suite creates
+    > itself (`fixtures/apiSeed.js` and the specs' shared contexts) carries `API_TIMEOUT` (15 s, `e2e/clientUrl.js`), and a direct
+    > read through the `request` fixture passes `{ timeout: API_TIMEOUT }`. A save is observed by its answer, never by a disabled
+    > « Enregistrer » (it flips with `saving`, before the PUT is even sent): wait for the PUT's response, then read the server
+    > back with `expect.poll(…, { timeout: API_TIMEOUT })`. Test: `server/src/tests/e2e-api-timeout.unit.test.js`.
 20. **Specs that rewrite global state never overlap other specs** (2026-10-28 audit). The VAT specs
     (`vat-regime-switch`, `vat-franchise`, `vat-roundtrip`: global regime and rate) and `laundry-days` (global
     laundry schedule) are each their own Playwright project, run after the main `chromium` project (the VAT

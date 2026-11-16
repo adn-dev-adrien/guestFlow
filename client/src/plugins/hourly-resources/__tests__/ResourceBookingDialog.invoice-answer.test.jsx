@@ -1,6 +1,8 @@
 // specs/outside-booking-sas.md rule 54 (reading 2026-11-16, loop t3 UI3-4, UI3-5) — at « Payé maintenant » the booking dialog saves only once the
 // server has answered for the payment typed (never a save carrying no invoice because the answer was still on its way); a failed answer shows
 // « Facture non vérifiée pour ce paiement. » with « Réessayer »; « Caisse interne » and the other refusals are the server's words.
+// Reading 2026-11-16 (loop t4 UI4-3): the payment preview carries the draft, yet a refused draft has no price, so no payment preview, and a
+// failed draft keeps its last price without a second message: one error, one « Réessayer », in both cases.
 import React from 'react';
 import { vi } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
@@ -86,4 +88,43 @@ test('UI3-5 — « Caisse interne » is the server\'s INTERNAL_CASH, and another
   await fillNewBooking();
   expect(await screen.findByText('Le paiement dépasse le montant dû.')).toBeInTheDocument();
   expect(screen.queryByText('La facture se propose une fois le paiement saisi.')).toBeNull();
+});
+
+async function changeEndTo(time) {
+  fireEvent.mouseDown(screen.getAllByRole('combobox')[1]);
+  fireEvent.click(await screen.findByRole('option', { name: time }));
+}
+
+test('UI4-3 — a refusal of the draft itself is shown once, not again for the payment typed', async () => {
+  let refuse = false;
+  api.previewResourceBooking.mockImplementation(async (draft) => {
+    if (refuse) throw Object.assign(new Error('Créneau refusé.'), { status: 409 });
+    return draft.payment ? { ...PRICE, invoiceable: OK } : PRICE;
+  });
+  openDialog();
+  await fillNewBooking();
+  expect(await screen.findByText('Créer la facture dans Qonto')).toBeInTheDocument();
+  refuse = true;
+  await changeEndTo('19:00');
+  expect(await screen.findByText('Créneau refusé.')).toBeInTheDocument();
+  await new Promise((resolve) => { setTimeout(resolve, 200); });
+  expect(screen.getAllByText('Créneau refusé.')).toHaveLength(1);
+});
+
+test('UI4-3 — a failed draft with a price on screen shows one error and one « Réessayer », and the save waits', async () => {
+  let fail = false;
+  api.previewResourceBooking.mockImplementation(async (draft) => {
+    if (fail) throw Object.assign(new Error('Service indisponible'), { status: 503 });
+    return draft.payment ? { ...PRICE, invoiceable: OK } : PRICE;
+  });
+  openDialog();
+  await fillNewBooking();
+  expect(await screen.findByText('Créer la facture dans Qonto')).toBeInTheDocument();
+  fail = true;
+  await changeEndTo('19:00');
+  expect(await screen.findByText('Facture non vérifiée pour ce paiement.')).toBeInTheDocument();
+  await new Promise((resolve) => { setTimeout(resolve, 200); });
+  expect(screen.queryByText(/Prix indisponible/)).toBeNull();
+  expect(screen.getAllByRole('button', { name: 'Réessayer' })).toHaveLength(1);
+  expect(saveButton()).toBeDisabled();
 });

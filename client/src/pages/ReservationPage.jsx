@@ -791,7 +791,7 @@ export default function ReservationPage() {
   };
 
   const handleMiniDateClick = (dateStr) => {
-    if (isReservationLocked) return;
+    if (isReservationLocked || formReadOnly) return;
     miniStripDateChangeRef.current = true;
 
     const defaultCheckIn = selectedProperty?.defaultCheckIn || '15:00';
@@ -4103,11 +4103,12 @@ export default function ReservationPage() {
         )}
 
         {/* A closed fiche is shown, not edited: a disabled fieldset makes every field really read-only
-            (keyboard included), not just unclickable. The same holds a fiche being re-read after a sale (rule 101). */}
+            (keyboard included), not just unclickable. The same holds a fiche being re-read after a sale (rule 101);
+            `inert` also covers the clickable non-control boxes (mini-planning days) while re-reading or after a failed re-read. */}
         <Box
           component="fieldset"
           disabled={formReadOnly}
-          inert={rereading || undefined}
+          inert={rereading || rereadFailed || undefined}
           aria-busy={rereading || undefined}
           sx={{
             position: 'relative', border: 0, p: 0, m: 0, minWidth: 0,

@@ -188,6 +188,7 @@ export default function ResourceArrivalDialog({ open, bookingId, onClose, onDone
   const invoiceQuote = useVisitQuote({ bookingId, draft: paymentDraft, enabled: open, version: visit ? visit.document.version : 0 });
   // Loop t3 UI3-4/UI3-5 — the latest answer stays on screen while a newer one is asked (no caption ↔ checkbox flip per keystroke); the commit
   // still waits for the answer to the payment typed (`paymentReady`). « Caisse interne » and any other refusal are the server's words too.
+  const draftAnswerFailed = Boolean(quote.refusal || quote.error);
   const invoiceAnswer = paymentDraft && invoiceQuote.visit ? invoiceQuote.visit.invoiceable || null : null;
   const invoiceOffered = Boolean(invoiceAnswer && invoiceAnswer.ok);
   const draftInternalCash = Boolean(invoiceAnswer && invoiceAnswer.code === 'INTERNAL_CASH');
@@ -473,8 +474,9 @@ export default function ResourceArrivalDialog({ open, bookingId, onClose, onDone
             </Box>
             {quote.refusal && <Alert severity="error" sx={{ gridColumn: '1 / -1' }}>{quote.refusal}</Alert>}
             {quote.error && <ErrorAlert message={quote.error.message} onRetry={quote.retry} />}
-            {paymentDraft && invoiceQuote.refusal && <Alert severity="error" sx={{ gridColumn: '1 / -1' }}>{invoiceQuote.refusal}</Alert>}
-            {paymentDraft && invoiceQuote.error && <ErrorAlert message={TEXTS.invoiceQuoteFailed} onRetry={invoiceQuote.retry} sx={{ gridColumn: '1 / -1' }} />}
+            {/* Loop t4 UI4-3 — the payment request carries the draft: its refusal or failure is shown once, by the draft's own answer. */}
+            {paymentDraft && !draftAnswerFailed && invoiceQuote.refusal && <Alert severity="error" sx={{ gridColumn: '1 / -1' }}>{invoiceQuote.refusal}</Alert>}
+            {paymentDraft && !draftAnswerFailed && invoiceQuote.error && <ErrorAlert message={TEXTS.invoiceQuoteFailed} onRetry={invoiceQuote.retry} sx={{ gridColumn: '1 / -1' }} />}
             {error && <Alert severity="error" sx={{ gridColumn: '1 / -1' }}>{error}</Alert>}
           </Box>
         )}

@@ -1,6 +1,7 @@
 // specs/pricing-components.md rule 101 (readings 2026-11-16, loop t3 UI3-1..UI3-3) — the quiet re-read after a write of
 // « Ventes du séjour »: every field is inert while it is in flight, MUI selects included (a div the fieldset does not disable);
 // the summary keeps the last quote until the new one lands; a failed re-read keeps the page, read-only, with « Réessayer ».
+// Reading 2026-11-16 (loop t4 UI4-2): read-only after a failed re-read covers the mini-planning days too.
 import { vi } from 'vitest';
 import { screen, waitFor, fireEvent, within, act } from '@testing-library/react';
 
@@ -122,4 +123,20 @@ test('a failed re-read keeps the page read-only with « Réessayer », and the r
   await waitFor(() => expect(api.getReservation.mock.calls.length).toBe(loads + 1));
   await waitFor(() => expect(screen.getByLabelText(/^Notes/i)).toBeEnabled());
   expect(screen.queryByText('Fiche non relue après la vente.')).toBeNull();
+});
+
+test('after a failed re-read a mini-planning day does not move the dates', async () => {
+  openPage();
+  await screen.findByText('Panier');
+  const arrival = screen.getByLabelText("Date d'arrivée");
+  const before = arrival.value;
+  api.getReservation.mockRejectedValueOnce(Object.assign(new Error('boom'), { status: 503 }));
+  await moveTheLine();
+  await screen.findByText('Fiche non relue après la vente.');
+  const days = screen.getAllByTitle('Disponible');
+  expect(days.length).toBeGreaterThan(0);
+  fireEvent.click(days[0]);
+  fireEvent.click(days[days.length - 1]);
+  expect(screen.getByLabelText("Date d'arrivée").value).toBe(before);
+  expect(screen.getByRole('button', { name: 'Enregistrer' })).toBeDisabled();
 });

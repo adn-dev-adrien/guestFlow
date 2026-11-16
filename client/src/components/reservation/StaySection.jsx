@@ -75,7 +75,7 @@ export default function StaySection() {
             currentReservationId={editingReservationId}
             onDateClick={handleMiniDateClick}
             onRecenter={() => centerMiniCalendarOnRange(form.startDate, form.endDate)}
-            isLocked={isReservationLocked}
+            isLocked={isReservationLocked || formReadOnly}
           />
 
           <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, minmax(0, 1fr))' }, gap: 2 }}>

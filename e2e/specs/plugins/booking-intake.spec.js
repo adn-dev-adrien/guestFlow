@@ -7,7 +7,7 @@
 import { test, expect, request as playwrightRequest } from '@playwright/test';
 import { createClient, createProperty, createReservation } from '../../fixtures/apiSeed.js';
 import { setPublicUrl, markIcalImported, setPlatformPayout } from '../../fixtures/dbSeed.js';
-import { CLIENT_URL, SERVER_PORT } from '../../clientUrl.js';
+import { CLIENT_URL, SERVER_PORT, API_TIMEOUT } from '../../clientUrl.js';
 import { FAR_YEAR } from '../../fixtures/farYear.js';
 
 const { PAGE_6300000001, replaceOnce } = require('../../../server/src/plugins/booking-intake/tests/fixtures.js');
@@ -40,7 +40,7 @@ async function setActive(page, active) {
 }
 
 async function sendPage(ids, secret) {
-  const ctx = await playwrightRequest.newContext({ baseURL: BACKEND });
+  const ctx = await playwrightRequest.newContext({ baseURL: BACKEND, timeout: API_TIMEOUT });
   try {
     const res = await ctx.post('/public/booking-intake/page', {
       headers: { 'X-Booking-Intake-Key': secret },
