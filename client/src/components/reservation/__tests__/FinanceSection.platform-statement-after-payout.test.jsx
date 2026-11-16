@@ -25,6 +25,7 @@ const RECEIVED = {
   action: null,
   amountEdit: {
     editable: true, mode: 'statement', min: null, max: null, reason: null, correctable: true,
+    // date-literal-ok: a mocked ledger row; the panel only prints the server's label, nothing compares the date with today
     received: { date: '2026-06-05', net: 171.14, label: 'Virement reçu le 05/06 (€)' },
   },
   detail: null,
