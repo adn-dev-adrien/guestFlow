@@ -50,3 +50,23 @@ test('rule 20: the support access flow runs in « support-access », after the p
   assert.deepEqual(project('support-access').dependencies, ['plugin-toggles']);
   assert.ok(!matches(project('chromium').testIgnore, '/repo/e2e/specs/account-security/hosting-h2.spec.js'), 'the rest of hosting-h2 stays in the main project');
 });
+
+// Reading of 2026-11-16 (loop t6): the request file outlives the run that wrote it, beside the database; the wipe clears it with the database,
+// so a later run on a fresh database in the same folder does not open with the support banner up.
+test('rule 20: the pre-run wipe clears the support access request beside the database', () => {
+  const fs = require('node:fs');
+  const os = require('node:os');
+  const { execFileSync } = require('node:child_process');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'e2e-wipe-'));
+  const db = path.join(dir, 'e2e.db');
+  ['', '-wal', '-shm'].forEach((suffix) => fs.writeFileSync(`${db}${suffix}`, ''));
+  const request = path.join(dir, require('../utils/supportAccess').REQUEST_FILE);
+  fs.writeFileSync(request, 'token');
+  try {
+    execFileSync(process.execPath, [path.join(__dirname, '..', '..', '..', 'e2e', 'wipe-db.js')], { env: { ...process.env, GUESTFLOW_E2E_DB_PATH: db }, stdio: 'pipe' });
+    assert.equal(fs.existsSync(request), false, 'the support request is gone');
+    assert.equal(fs.existsSync(db), false, 'the database is gone');
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});

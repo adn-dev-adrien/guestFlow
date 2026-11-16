@@ -159,6 +159,10 @@ or mutable state.
     > of `mobile/page-tabs` 238 px down mid-measure. The support flow is its own spec, `account-security/support-access.spec.js`, in the
     > project `support-access` after `plugin-toggles`; `page-tabs` measures the strip in the viewport again, so a bar that moves on the screen
     > is caught whatever moved it.
+    > _Reading of 2026-11-16 (loop t6):_ the request is a file beside the database (`support-request.jws`, read from the database's folder),
+    > and `support-access.spec.js` leaves it there: the next run on a fresh database in the same folder opened with the banner already up and
+    > `page-tabs` measured the strip at 141 then 379 px. `e2e/wipe-db.js` clears that file with the database before every run. Test:
+    > `e2e-shared-state-projects`.
 21. **The server log is an artifact** (2026-10-29 audit R3). The `webServer` of the main project sends the
     server's stdout/stderr to `playwright-server.log` (`GUESTFLOW_E2E_SERVER_LOG` overrides the path) instead of
     a pipe nobody reads, and the failure upload of `e2e.yml` ships it with `playwright-report/`, so a screenshot
