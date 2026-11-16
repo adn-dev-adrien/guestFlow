@@ -1072,14 +1072,27 @@ arrival.** Everything below is judged by the server; the apps render what it off
     and a stay that is no live reservation or whose departure is settled close it too (409 `ORDER_NOT_EDITABLE`). The check-in hour no longer
     closes it: a guest who arrives after it has the order changed at the door. What the change keeps is re-sold **into the arrival complement**
     (`extraSale.sell(…, { atArrival: true })`: an unpaid re-sale routed to the arrival whatever the clock), so the door collects it in the same
-    piece and nothing moves to the departure. Test: `guest-order-arrival-amend-after-check-in`.
+    piece and nothing moves to the departure. Test: `guest-order-arrival-amend-after-check-in`. **Bounded 2026-11-16 by rule 111 a:** never
+    after the stay's departure day.
     (b) **The refund of a card order paid before the stay was cancelled lives in the cancellation's refund dialog only.** The order's note is a
     collected line of the cancelled stay (`reservation-refunds.md` D3, D15): the dialog offers it, at most what it collected, and once given
     back it leaves the dialog — a second refund of it is refused (`REFUND_UNKNOWN_LINE` / `REFUND_EXCEEDS_LINE`). The cancellation
     (`cancelOrdersOf`) opens **no** `orderConflict` row any more, so the « À rembourser » register never repeats that money and it cannot be paid
     out twice. The register keeps only money that never reached the fiche: the gap of an order sold below its payment (rule 108 d) and a payment
-    that lands after the cancellation (`paid_conflict`, rule 109 b) — those the dialog does not offer. The staff list still reads « Payée · à
-    rembourser » on the cancelled order. Test: `guest-order-cancelled-stay-refund-home` (both paths, and the gap case).
+    that lands after the cancellation (`paid_conflict`, rule 109 b) — those the dialog does not offer. The staff list reads « Payée · à
+    rembourser » on the cancelled order until the dialog gave it back, then « Remboursée » (rule 111 b). Test: `guest-order-cancelled-stay-refund-home`
+    (both paths, and the gap case).
+111. **Owner decisions of 2026-11-16 on the end of an order's edit and on a refunded order's label** _(stabilisation loop t2, AG2-2 and the
+    observation on rule 110 a; readings of rules 87, 110 a and b)_. (a) **An app order is never editable at the arrival SAS after the stay's
+    departure day.** Rule 110 a's edit stays open until the arrival is validated, but an arrival never validated (no SAS, no check-in mark, the
+    departure not settled) no longer keeps it open once the stay is over: from the day after `endDate` (Paris day) the step shows the order not
+    editable and the change is refused, 409 `ORDER_NOT_EDITABLE`. The departure day itself is still editable. The order is then changed on the
+    fiche. Test: `guest-order-arrival-amend-departure-day`. (b) **A paid card order of a cancelled stay reads « Remboursée » in the staff list
+    once the cancellation's refund dialog gave it back** (before: « Payée · à rembourser » for ever). The register keys a line by its article,
+    not by its order, so « given back » means: every article key of the lines the order placed on the fiche (`orderRef` `order:<id>:…`) has
+    been refunded outside a requalification **and** the dialog offers nothing more on it; a part given back, or a key still holding refundable
+    money, reads « Payée · à rembourser ». The reading is the core's (`refundGivenBack`, `plugins-phase-1-sdk.md` rule 55); a `paid_conflict`
+    order (paid after the cancellation, the register's row) keeps « Payée · à rembourser ». Test: `guest-order-cancelled-refunded-label`.
 
 **Edge cases:**
 - Guest scans the La Granja poster while staying at L'Estiva → La Granja's visitor mode; their own stay opens
