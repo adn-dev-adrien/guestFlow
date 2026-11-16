@@ -1296,9 +1296,12 @@ function createReservationsModel(database, { arrivalComplementEngine = null } = 
   }) => {
     // Rule 109 (loop t7 S7-1) — a paid line whose « Offert » the recap unticks is billed again: the note money it had freed comes back the way
     // the fiche's save takes it (obligation closed, credit given back to the plan), in the plan and the commit alike. Engine-backed models only.
+    // Rule 118 (loop t8 S8-2) — and a paid line the recap offers frees its note money the way the line API does: credited to what the stay still
+    // asks (the solde, the acompte not yet paid) before the paid-line judgment weighs what is left.
     const paidWayBack = arrivalComplementEngine ? require('../utils/paidLineJudgment').wayBack(database, reservationId, {
       quoteOf: (r) => require('../utils/storedReservationQuote').quoteStoredReservation(database, r),
       billedCents: () => Math.round(Number(billedLinesOf(reservationId) || 0) * 100),
+      midStay: (lines) => model.syncMidStayComplement(reservationId, lines),
     }) : null;
     applyOfferedComplementExtras(reservationId, offeredExtras, { skipSasOrigin: true });
     const upsellOptionIds = new Set([upsells.cleaning.optionId, upsells.bathLinen.optionId].filter((id) => id != null).map(Number));
@@ -3297,6 +3300,9 @@ function createReservationsModel(database, { arrivalComplementEngine = null } = 
       // Rule 90.1 — the totals are the commit's own: its write played inside a transaction rolled back, the complement read from the
       // stored row it leaves. Only a model without the engine keeps the arithmetic.
       let after = arithmetic;
+      // Rule 117 (loop t8 S8-1) — the acompte and the solde the commit leaves (rules 109, 118 move them with the paid lines it bills again or
+      // offers): the « Séjour à régler » the recap shows and the commit marks paid. Null without the engine: the stored ones stand.
+      let stayAfter = null;
       if (arrivalComplementEngine) {
         const ROLLBACK = Symbol('arrival-plan');
         try {
@@ -3305,6 +3311,7 @@ function createReservationsModel(database, { arrivalComplementEngine = null } = 
               items, hosted, sales, upsells, offeredExtras, cleaningAdded, cleaningOffered, bathLinenAdded, bathLinenOffered, arithmetic: arithmetic.engineAfter,
             });
             after = { engineAfter: written.engineAfter, stored: written.stored, existingTotal: Math.max(0, round2(written.engineAfter - addedBilled)) };
+            stayAfter = database.prepare('SELECT depositAmount, balanceAmount FROM reservations WHERE id = ?').get(reservationId) || null;
             throw ROLLBACK;
           })();
         } catch (err) {
@@ -3323,6 +3330,7 @@ function createReservationsModel(database, { arrivalComplementEngine = null } = 
         addedTotal: addedBilled,
         engineAfter: after.engineAfter,
         arrivalComplementTotal: after.stored,
+        stayAfter: stayAfter ? { depositAmount: Number(stayAfter.depositAmount || 0), balanceAmount: Number(stayAfter.balanceAmount || 0) } : null,
         supplementOutsideComplement: 0,
         adjusted: override != null && round2(after.stored) !== round2(after.engineAfter)
           ? { amount: after.stored, engineAmount: after.engineAfter } : null,
