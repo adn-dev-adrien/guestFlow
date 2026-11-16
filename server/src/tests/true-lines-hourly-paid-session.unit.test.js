@@ -1,3 +1,6 @@
+const { requirePlugins } = require('../plugins/sdk/testing');
+// Loop t1 AS-1 (plugin-removal-resilience rule 4) — the hourly lines are the plugin's: without it the suite has nothing to prove.
+if (!requirePlugins(['hourly-resources'])) return;
 // specs/pricing-components.md §3 rule 85 (owner Q-C7) — a session added to an hourly line that is already PAID becomes a NEW line (the paid line
 // keeps what it was sold with); added to an unpaid line, it stays on that line. Nothing is moved when no session is new.
 const test = require('node:test');

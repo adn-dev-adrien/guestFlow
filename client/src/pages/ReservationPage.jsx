@@ -4187,6 +4187,8 @@ export default function ReservationPage() {
           {editingReservationId && (
             <ExtraSalesPanel
               reservationId={editingReservationId}
+              locked={isClosedFiche || isReservationLocked}
+              onChanged={() => setReloadToken((token) => token + 1)}
               articles={propertyOptions
                 .filter((option) => Number(option.autoEnabled || 0) !== 1)
                 .map((option) => ({ articleRef: `option:${option.id}`, label: option.title }))}

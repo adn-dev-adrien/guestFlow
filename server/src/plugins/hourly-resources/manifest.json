@@ -168,7 +168,14 @@
       "Retirer le lien de paiement d’une visite ou l’envoyer par e-mail suit les règles des autres gestes : l’accueil le jour de la séance seulement, personne sur une visite close (client absent, facturée). Un paiement qui solde le reste retire le lien encore ouvert, et un lien payé malgré tout est gardé comme remboursement dû, visible par l’administrateur.",
       "Un remboursement dû sur une visite s’affiche dans l’arrivée pour l’administrateur, avec « Marquer remboursé » ; l’accueil ne le voit pas.",
       "L’administrateur peut retirer le lien de paiement d’une visite le lendemain de la séance, même sans arrivée enregistrée.",
-      "Demande le SDK 2.31 de GuestFlow."
+      "Demande le SDK 2.31 de GuestFlow.",
+      "Offrir ou retirer une ligne payée d’une visite, avec confirmation, inscrit la somme dans « À rembourser » (bouton « Marquer remboursé ») ; la facture attend ce remboursement.",
+      "L’accueil ne voit plus l’adresse e-mail du client ni le nom d’un client reconnu, et ne peut plus demander la facture ni saisir l’adresse de facturation.",
+      "L’adresse de facturation n’est enregistrée qu’avec l’arrivée acceptée ; changer le client d’une réservation change celui de sa vente.",
+      "Le serveur dit si « Client absent », « Créer la facture » et « Retirer le lien » sont possibles, et ouvre une nouvelle vente sur le même client après la facture.",
+      "Le taux de TVA saisi au catalogue pour les ressources vaut aussi pour le paiement d’une réservation et sa facture : un seul taux hors séjour.",
+      "Une ressource, un logement ou un client dont une visite a de l’argent sur sa vente ne peut plus être supprimé de force.",
+      "L’avertissement de désinstallation nomme l’argent des visites encaissé sur leur vente ; une vente dont la réservation a disparu reste dans « Ventes hors séjour »."
     ],
     "1.8.1": [
       "Aucun changement visible : GuestFlow sait désormais qu'une part d'un paiement peut avoir été reçue d'avance (un bon cadeau), ce que ce module lit sans le compter à part.",

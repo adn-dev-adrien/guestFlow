@@ -200,6 +200,12 @@ function bookingsV6(db) {
 }
 
 /** @param {(db, row: { reservationId, date }) => number|null} rateOf the rate in force for a booking (rule 5) */
+// specs/plugin-removal-resilience.md rule 22 — after an erase and a reinstall the id counter restarts above the visits the sales still cite.
+function keepBookingIdsCited(db) {
+  const { highestCitedId, raiseCounter } = require('../sdk/citedIdCounterFloor');
+  raiseCounter(db, 'resource_bookings', highestCitedId(db, 'resource-booking:', [{ table: 'standalone_sales', column: 'originRef' }]));
+}
+
 function migrationsFor(rateOf) {
   return [
     { name: 'tables_v1', up: createTables },
@@ -209,6 +215,7 @@ function migrationsFor(rateOf) {
     { name: 'resource_bookings_v4', up: bookingsV4 },
     { name: 'resource_bookings_v5', up: bookingsV5 },
     { name: 'resource_bookings_v6', up: bookingsV6 },
+    { name: 'resource_bookings_counter_floor_v7', up: keepBookingIdsCited },
   ];
 }
 

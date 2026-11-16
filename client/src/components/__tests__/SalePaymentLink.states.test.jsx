@@ -11,7 +11,7 @@ const link = (over = {}) => ({
   available: true, reason: null, email: 'a@exemple.fr', open: null, ...over,
 });
 const OPEN = {
-  id: 3, url: 'https://pay.exemple.fr/l/abc', amountCents: 1300, expiresAt: '2099-02-14T08:00:00.000Z',
+  id: 3, url: 'https://pay.exemple.fr/l/abc', amountCents: 1300, expiresAt: '2099-02-14T08:00:00.000Z', expiresLabel: '14/02 à 09:00',
 };
 const handlers = () => ({ onMint: vi.fn(), onSendEmail: vi.fn(), onWithdraw: vi.fn() });
 

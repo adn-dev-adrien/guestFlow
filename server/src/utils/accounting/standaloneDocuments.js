@@ -10,6 +10,11 @@
  *
  * `payments[i]` = `{ id, paidAt, tenders: [{ method, amountCents, internal }], allocations: [{ lineRef, amountCents, books }] }` in the order they were taken,
  * `lines[i]` = `{ ref, vatClass, vatRate }`.
+ *
+ * Loop t1 B-1 (outside-visit rule 49): `refunds[i]` = `{ lineRef, amountCents, books, at }` (the money a « Marquer remboursé » gave back, positive) → one
+ * avoir per refund day (`role: 'refund'`, key `…:<day>:refund`), its groups the TTC and VAT that leave the books, the VAT cut on the cumulative TTC like a payment's.
+ * Loop t1 B-6 (rule 50, owner 2026-11-16): `kept[i]` = `{ id, amountCents, day }` (a link surplus closed « rien à rembourser ») → one tip
+ * (`role: 'tip'`, key `…:<day>:tip:<id>`, no group), booked like a stay's tip. A document with neither lists exactly what it listed before.
  */
 const { vatOf } = require('../pricing/vat');
 
@@ -18,7 +23,7 @@ const vatCentsOf = (ttcCents, rate) => (ttcCents > 0
   : 0);
 
 function salesOfDocument({
-  sale, lines, payments, client,
+  sale, lines, payments, refunds = [], kept = [], client,
 }) {
   const lineOf = new Map(lines.map((line) => [line.ref, line]));
   const cumulative = new Map();
@@ -30,40 +35,88 @@ function salesOfDocument({
     byDay.set(payment.paidAt, day);
     day.receivedCents += payment.tenders.reduce((sum, tender) => sum + Number(tender.amountCents || 0), 0);
     day.cardCents += payment.tenders.filter((tender) => tender.method === 'card').reduce((sum, tender) => sum + Number(tender.amountCents || 0), 0);
-    for (const allocation of payment.allocations) {
-      const line = lineOf.get(allocation.lineRef);
-      if (!line || !allocation.books) continue;
-      const key = `${line.vatClass}|${line.vatRate}`;
-      const group = day.groups.get(key) || { vatClass: line.vatClass, rate: Number(line.vatRate || 0), ttcCents: 0 };
-      group.ttcCents += allocation.amountCents;
-      day.groups.set(key, group);
-    }
+    for (const allocation of payment.allocations) addTo(day.groups, lineOf.get(allocation.lineRef), allocation);
   }
-  const sales = [];
-  for (const [day, data] of byDay) {
-    const groups = [];
-    for (const [key, group] of data.groups) {
+  // Rule 48 — the money given back, per day, on the lines it left (the caisse interne and what no line held stay off the books).
+  const refundDays = new Map();
+  for (const refund of refunds) {
+    const groups = refundDays.get(refund.at) || new Map();
+    refundDays.set(refund.at, groups);
+    addTo(groups, lineOf.get(refund.lineRef), refund);
+  }
+  const invoiceNumber = sale.invoiceNumber && !sale.invoiceCancelledAt ? sale.invoiceNumber : null;
+  // The VAT of a group is cut on its cumulative TTC, oldest day first and, on one day, the payments before the money given back.
+  const cut = (groups, sign) => {
+    const out = [];
+    for (const [key, group] of groups) {
       const before = cumulative.get(key) || { ttcCents: 0, vatCents: 0 };
-      const ttcCents = before.ttcCents + group.ttcCents;
+      const ttcCents = before.ttcCents + sign * group.ttcCents;
       const vatCents = vatCentsOf(ttcCents, group.rate);
-      groups.push({ vatClass: group.vatClass, rate: group.rate, ttcCents: group.ttcCents, vatCents: vatCents - before.vatCents });
+      out.push({ vatClass: group.vatClass, rate: group.rate, ttcCents: group.ttcCents, vatCents: sign * (vatCents - before.vatCents) });
       cumulative.set(key, { ttcCents, vatCents });
     }
-    const booksCents = groups.reduce((sum, group) => sum + group.ttcCents, 0);
-    sales.push({
-      key: `standalone:${sale.id}:${day}`,
-      date: day,
-      totalCents: data.receivedCents,
-      booksCents,
-      cardCents: data.cardCents,
-      label: 'Vente hors séjour',
+    return out.sort((a, b) => a.rate - b.rate || String(a.vatClass).localeCompare(String(b.vatClass)));
+  };
+  const out = [];
+  for (const day of [...new Set([...byDay.keys(), ...refundDays.keys()])].sort()) {
+    const data = byDay.get(day);
+    if (data) {
+      const groups = cut(data.groups, 1);
+      out.push({
+        key: `standalone:${sale.id}:${day}`,
+        date: day,
+        totalCents: data.receivedCents,
+        booksCents: groups.reduce((sum, group) => sum + group.ttcCents, 0),
+        cardCents: data.cardCents,
+        label: 'Vente hors séjour',
+        client,
+        vatRate: null,
+        groups,
+        invoiceNumber,
+      });
+    }
+    if (refundDays.has(day)) {
+      const groups = cut(refundDays.get(day), -1);
+      out.push({
+        key: `standalone:${sale.id}:${day}:refund`,
+        date: day,
+        totalCents: 0,
+        booksCents: groups.reduce((sum, group) => sum + group.ttcCents, 0),
+        cardCents: 0,
+        label: 'Remboursement vente hors séjour',
+        client,
+        vatRate: null,
+        groups,
+        invoiceNumber,
+        role: 'refund',
+      });
+    }
+  }
+  // Rule 49 (owner 2026-11-16) — a link surplus kept is a tip, on the day it was kept: no line, no VAT.
+  for (const row of kept) {
+    out.push({
+      key: `standalone:${sale.id}:${row.day}:tip:${row.id}`,
+      date: row.day,
+      totalCents: 0,
+      booksCents: Number(row.amountCents),
+      cardCents: 0,
+      label: 'Pourboire vente hors séjour',
       client,
       vatRate: null,
-      groups: groups.sort((a, b) => a.rate - b.rate || String(a.vatClass).localeCompare(String(b.vatClass))),
-      invoiceNumber: sale.invoiceNumber && !sale.invoiceCancelledAt ? sale.invoiceNumber : null,
+      invoiceNumber: null,
+      role: 'tip',
     });
   }
-  return sales;
+  return out;
+}
+
+// What an allocation (or a refund) puts on the books for its line's (class, rate) group; the caisse interne and money on no line put nothing.
+function addTo(groups, line, allocation) {
+  if (!line || !Number(allocation.books)) return;
+  const key = `${line.vatClass}|${line.vatRate}`;
+  const group = groups.get(key) || { vatClass: line.vatClass, rate: Number(line.vatRate || 0), ttcCents: 0 };
+  group.ttcCents += Math.abs(Number(allocation.amountCents));
+  groups.set(key, group);
 }
 
 module.exports = { salesOfDocument };

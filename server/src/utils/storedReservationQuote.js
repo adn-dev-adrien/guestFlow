@@ -129,6 +129,10 @@ function pinSaleDelta(quote, stored, base) {
   if (quote.complementAmountAuto != null) {
     pinned.complementAmountAuto = (toCents(quote.complementAmountAuto) + toCents(stored.complementAmount) - toCents(base.complementAmount)) / 100;
   }
+  // The instalment plan follows the pinned plan bucket, never the engine's restated one (rule 93: a sale never rewrites a plan the stay stores at its own figure).
+  if (quote.preArrivalAmount != null && base.preArrivalAmount != null) {
+    pinned.preArrivalAmount = (toCents(stored.depositAmount) + toCents(stored.balanceAmount) + toCents(quote.preArrivalAmount) - toCents(base.preArrivalAmount)) / 100;
+  }
   return pinned;
 }
 

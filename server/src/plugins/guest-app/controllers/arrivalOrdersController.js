@@ -27,6 +27,7 @@ const WORDS = Object.freeze({
   free: 'Offert',
   dueOnArrival: 'À régler à l’arrivée',
   notEditable: 'Commande non modifiable.',
+  supplementWhole: 'Supplément soirée : retirer le bain entier, ou modifier sur la fiche.',
   paidReadOnly: 'Commande payée par carte : non modifiable ici.',
   invalid: 'Modification invalide.',
   outsideScope: 'Modification impossible hors du jour d’arrivée.',
@@ -51,8 +52,11 @@ function buildArrivalOrdersController({
   // Rule 103 — a 0 € order (the free bath hour) is an unpaid order like any other for the SAS: nothing to settle, editable and removable.
   const unpaid = (order) => ['note', 'none'].includes(order.payment) && standing(order);
 
-  /** The arrival is not reached (rule 104), not marked, and its complement is not collected. */
-  const editableStay = (reservationId) => sale().collectionOf(reservationId, now()) === 'arrival'
+  /**
+   * Rule 110 a (owner, 2026-11-16) — the stay is live, its arrival is not validated (not marked, SAS not committed) and its complement is not
+   * collected, whatever the hour: a guest who arrives after the check-in time still has the order changed at the door.
+   */
+  const editableStay = (reservationId) => sale().collectionOf(reservationId, now()) !== 'closed'
     && !stays().arrivalMarked(reservationId)
     && stays().arrivalComplementState(reservationId) !== 'collected';
 
@@ -69,6 +73,8 @@ function buildArrivalOrdersController({
   }
 
   const maxQuantityOf = (line, sold, stocks) => Math.min(boundOf(line, sold), stockCapOf(line, stocks));
+  // The order's bath placed some sessions on hours the stay held: its own line carries fewer sessions than the order (guest-app rule 82).
+  const onHeldHours = (line, own) => line.kind === 'resource' && Boolean(own) && Number(own.sessionCount || 0) < (line.sessions || []).length;
 
   /** The order's snapshot lines that became a line of their own on the fiche, with that line (a breakfast merged into the stay's own has none). */
   function storedLineOf(order, line, stored) {
@@ -88,7 +94,8 @@ function buildArrivalOrdersController({
       : labels.unitLabel(line);
     const own = storedLineOf(order, line, stored);
     if (own) own.claimed = true;
-    const canEdit = editable && Boolean(own);
+    // Loop t1 AG-3 — sessions placed on hours the stay already held sit on the stay's own line: the SAS cannot take them off it, so it offers no change.
+    const canEdit = editable && Boolean(own) && !onHeldHours(line, own);
     return {
       key,
       label: line.title,
@@ -248,8 +255,14 @@ function buildArrivalOrdersController({
     const changed = changePlan(order, req.body, { sold, stocks, stored });
     if (changed.bound) return fail(res, 409, 'ITEM_MAX_QUANTITY', WORDS.maxQuantity(changed.bound.max, changed.bound.title), { itemKey: changed.bound.key, max: changed.bound.max });
     if (changed.stock) return fail(res, 409, 'OUT_OF_STOCK', WORDS.outOfStock(changed.stock.left), { itemKey: changed.stock.key, left: changed.stock.left });
-    // A line that is no line of its own (a breakfast merged into the stay's own) is edited on the fiche, never from here.
-    if (changed.plan.some((step) => !step.unchanged && !step.own)) return fail(res, 409, 'ORDER_NOT_EDITABLE', WORDS.notEditable);
+    // A line that is no line of its own (a breakfast merged into the stay's own) is edited on the fiche, never from here; nor a bath placed on held hours (AG-3).
+    if (changed.plan.some((step) => !step.unchanged && (!step.own || onHeldHours(step.line, step.own)))) return fail(res, 409, 'ORDER_NOT_EDITABLE', WORDS.notEditable);
+    // Loop t1 AG-1 (rules 83, 87) — the order's evening supplement goes with its bath: removed with the bath line; a bath that keeps some sessions keeps
+    // the supplement only whole, so taking one session of a supplemented bath off is the fiche's.
+    const supplements = stored.filter((s) => s.kind === 'custom' && s.orderId === Number(order.id));
+    const bathChanged = changed.plan.filter((step) => !step.unchanged && step.line.kind === 'resource');
+    if (supplements.length && bathChanged.some((step) => step.next)) return fail(res, 409, 'ORDER_NOT_EDITABLE', WORDS.supplementWhole);
+    const dropSupplements = supplements.length > 0 && bathChanged.length > 0;
 
     const at = now();
     let written = null;
@@ -266,12 +279,19 @@ function buildArrivalOrdersController({
           if (!step.next) continue;
           round += 1;
           const sold2 = sale().sell(order.reservationId, [requestOf(step.next)], {
-            source: ORDER_SALE_SOURCE, now: at, orderRef: `order:${order.id}:${100 + stored.length + round}`,
+            source: ORDER_SALE_SOURCE, now: at, atArrival: true, orderRef: `order:${order.id}:${100 + stored.length + round}`,
             history: { field: 'guestOrderAmended', label: 'Commande client modifiée', from: null, to: `Commande client #${order.id} : ${step.next.title} remplacé` },
           });
           if (sold2.status !== 200) { refused = sold2; throw REFUSED; }
           const totalCents = sold2.lines.reduce((sum, l) => sum + l.totalCents, 0);
           kept.push({ ...step.next, total: round2(totalCents / 100) });
+        }
+        if (dropSupplements) {
+          for (const supplement of supplements) {
+            const removed = sale().removeLine(order.reservationId, supplement.ref, { now: at, actor: who(req) || null });
+            if (removed.status !== 200) { refused = removed; throw REFUSED; }
+          }
+          changed.changes.push('supplément soirée retiré');
         }
         const total = round2(kept.reduce((sum, l) => sum + Number(l.total || 0), 0));
         const text = `Commande client #${order.id} modifiée à l’arrivée : ${changed.changes.join(', ') || 'sans changement'}${who(req) ? ` (${who(req)})` : ''}`;

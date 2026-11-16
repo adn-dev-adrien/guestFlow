@@ -43,7 +43,7 @@ function QuantityControl({ line, disabled, onChange }) {
       <IconButton aria-label={`Moins de ${line.label}`} disabled={disabled || line.quantity <= 1} onClick={() => onChange(line.quantity - 1)} sx={{ width: 44, height: 44 }}>
         <RemoveIcon fontSize="small" />
       </IconButton>
-      <Typography component="span" sx={{ minWidth: 28, textAlign: 'center', ...figure }} aria-label={`Quantité de ${line.label}`}>{line.quantity}</Typography>
+      <Typography component="span" role="status" sx={{ minWidth: 28, textAlign: 'center', ...figure }} aria-label={`Quantité de ${line.label}`}>{line.quantity}</Typography>
       <IconButton aria-label={`Plus de ${line.label}`} disabled={disabled || line.quantity >= line.maxQuantity} onClick={() => onChange(line.quantity + 1)} sx={{ width: 44, height: 44 }}>
         <AddIcon fontSize="small" />
       </IconButton>

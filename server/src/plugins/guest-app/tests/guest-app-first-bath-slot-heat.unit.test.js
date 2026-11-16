@@ -18,10 +18,9 @@ db.prepare(`UPDATE resources SET heatUpMinutes = 180, heatRetentionMinutes = 120
 test('rule 79 (N13): the arrival day first free slot counts the heat-up from now, not from the check-in', { skip: skipWithout(['hourly-resources']) }, async () => {
   db.prepare('DELETE FROM resource_bookings').run();
   const stayId = seedStay({ start: 0, end: 4, checkedIn: 0 });
-  const ctx = await openOrdering(stayId, { guestHost: 'sejour.example.test' });
+  // 12:30 UTC is 13:30 or 14:30 in Paris whatever the season: inside the window, before the check-in.
+  const ctx = await openOrdering(stayId, { guestHost: 'sejour.example.test', now: new Date(`${isoPlus(0)}T12:30:00Z`) });
   try {
-    // 12:30 UTC is 13:30 or 14:30 in Paris whatever the season: inside the window, before the check-in.
-    ctx.clock.now = new Date(`${isoPlus(0)}T12:30:00Z`);
     const highlight = (await ctx.call('GET', '/public/v1/guest/me')).body.data.highlight;
     assert.equal(highlight && highlight.key, 'bath', JSON.stringify(highlight));
     const hour = Number(/(\d{1,2})\s*h/.exec(highlight.detail)[1]);

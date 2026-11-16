@@ -165,9 +165,12 @@ function directChannelNames(db) {
   return names;
 }
 
-function backfillLineColumns(db) {
+// `only` = { reservationId, soldAt }: the fiche's own save stamps the lines it wrote, at the moment it wrote them, with the same derivation (loop t1 D-2) —
+// the boot pass is then only the reading of the rows stored before 4.2.0 and of a stay's first lines (sold when the stay was booked).
+function backfillLineColumns(db, only = null) {
   if (!LINE_TABLES.every((table) => hasTable(db, table) && columnsOf(db, table).has('collectAt'))) return 0;
-  const pending = db.prepare(LINE_TABLES.map((table) => `SELECT reservationId FROM ${table} WHERE collectAt IS NULL`).join(' UNION ')).all().map((r) => r.reservationId);
+  const pending = only ? [Number(only.reservationId)]
+    : db.prepare(LINE_TABLES.map((table) => `SELECT reservationId FROM ${table} WHERE collectAt IS NULL`).join(' UNION ')).all().map((r) => r.reservationId);
   if (pending.length === 0) return 0;
   const direct = directChannelNames(db);
   const catalogue = {
@@ -207,7 +210,7 @@ function backfillLineColumns(db) {
           label = '';
         }
       }
-      const soldAt = (kind === 'custom' && row.createdAt) || stay.createdAt || null;
+      const soldAt = only ? only.soldAt : ((kind === 'custom' && row.createdAt) || stay.createdAt || null);
       changed += updates[table].run(moments[index], moments[index], soldAt, articleRef, family, label, row.rid).changes;
     });
   }
@@ -344,27 +347,36 @@ function backfillCancellationFigures(db) {
 }
 
 // ── S9 — the refunds owed ───────────────────────────────────────────────────────────────────────────────────────────
+// Read once (marker `pricing_obligations_s9_v1`): it carries into the register what the links said before the live register existed. A link that
+// already holds an obligation, of any origin, is the live register's (the poll's `orderConflict`, a devis's `neverBooked`): never a second row (loop t1
+// D-1, D-5). A link whose stay is gone, or that names none (an outside sale's), holds no stay obligation (D-6).
+const OBLIGATIONS_DONE = 'pricing_obligations_s9_v1';
 function backfillObligations(db) {
   if (!hasTable(db, 'refund_obligations') || !hasTable(db, 'payment_links')) return 0;
+  const marked = hasTable(db, 'migrations');
+  if (marked && db.prepare('SELECT 1 FROM migrations WHERE name = ?').get(OBLIGATIONS_DONE)) return 0;
   const columns = columnsOf(db, 'payment_links');
   let changed = 0;
-  const exists = db.prepare('SELECT 1 FROM refund_obligations WHERE paymentLinkId = ? AND origin = ?');
+  const held = db.prepare('SELECT 1 FROM refund_obligations WHERE paymentLinkId = ? LIMIT 1');
+  const stayOf = db.prepare('SELECT 1 FROM reservations WHERE id = ?');
+  const skip = (link) => link.reservationId == null || !stayOf.get(link.reservationId) || held.get(link.id);
   const insert = db.prepare(`INSERT INTO refund_obligations (reservationId, origin, paymentLinkId, amountCents, createdAt, status, settledAt, settledBy)
     VALUES (?, ?, ?, ?, COALESCE(?, datetime('now')), ?, NULL, ?)`);
   if (columns.has('basketJson')) {
     for (const link of db.prepare("SELECT id, reservationId, amountCents, paidAt, createdAt, basketJson FROM payment_links WHERE basketJson LIKE '%refundOwed%'").all()) {
       const basket = parseJson(link.basketJson);
-      if (!basket || basket.refundOwed !== true || exists.get(link.id, 'basket')) continue;
+      if (!basket || basket.refundOwed !== true || skip(link)) continue;
       const owed = Number.isInteger(basket.refundCents) && basket.refundCents > 0 ? basket.refundCents : Number(link.amountCents);
       if (owed > 0) changed += insert.run(link.reservationId, 'basket', link.id, owed, link.paidAt || link.createdAt, 'open', null).changes;
     }
   }
   if (columns.has('cancelReason')) {
     for (const link of db.prepare("SELECT id, reservationId, amountCents, paidAt, createdAt FROM payment_links WHERE cancelReason = 'refunded'").all()) {
-      if (exists.get(link.id, 'withdrawnLink') || Number(link.amountCents) <= 0) continue;
+      if (skip(link) || Number(link.amountCents) <= 0) continue;
       changed += insert.run(link.reservationId, 'withdrawnLink', link.id, Number(link.amountCents), link.paidAt || link.createdAt, 'settled', 'provider').changes;
     }
   }
+  if (marked) db.prepare('INSERT OR IGNORE INTO migrations (name) VALUES (?)').run(OBLIGATIONS_DONE);
   return changed;
 }
 
@@ -462,6 +474,11 @@ function backfillRefundNettings(db, { force = false } = {}) {
   return changed;
 }
 
+/** The lines a fiche save wrote and left unstamped get their moment, article and sale date now (source `fiche`, the column default). */
+function stampFicheLines(db, reservationId, soldAt) {
+  return backfillLineColumns(db, { reservationId, soldAt });
+}
+
 module.exports = {
-  runPricingLinesMigration, backfillRefundNettings, backfillStayLevelAllocations, syncStayLines, LINE_COLUMNS, LINE_TABLES,
+  stampFicheLines, runPricingLinesMigration, backfillRefundNettings, backfillStayLevelAllocations, syncStayLines, LINE_COLUMNS, LINE_TABLES,
 };

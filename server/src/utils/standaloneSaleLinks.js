@@ -55,6 +55,18 @@ function draftLinkOf({ remainingCents = 0, email = '' } = {}) {
   };
 }
 
+// Loop t1 UI-15 — the end of a link's validity as the operator reads it, in Europe/Paris whatever the browser's zone: « 16/11 à 14:30 ».
+function expiresLabelOf(iso) {
+  if (!iso) return null;
+  const date = new Date(/[zZ]|[+-]\d{2}:?\d{2}$/.test(String(iso)) || String(iso).includes('T') ? iso : `${String(iso).replace(' ', 'T')}Z`);
+  if (Number.isNaN(date.getTime())) return null;
+  const parts = new Intl.DateTimeFormat('fr-FR', {
+    timeZone: 'Europe/Paris', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23',
+  }).formatToParts(date);
+  const part = (type) => (parts.find((p) => p.type === type) || {}).value || '';
+  return `${part('day')}/${part('month')} à ${part('hour')}:${part('minute')}`;
+}
+
 function linkOf(saleId, { now = new Date() } = {}) {
   const sale = sales.findSale(saleId);
   const document = standaloneSale.documentOf(saleId);
@@ -69,6 +81,7 @@ function linkOf(saleId, { now = new Date() } = {}) {
     email: email || null,
     open: open ? {
       id: open.id, url: open.url, amountCents: open.amountCents, expiresAt: validityOf(open, now).expiresAt || open.expiresAt || null,
+      expiresLabel: expiresLabelOf(validityOf(open, now).expiresAt || open.expiresAt || null),
     } : null,
   };
 }
@@ -148,7 +161,7 @@ async function mint(saleId, { email = null, now = new Date(), deps = {} } = {}) 
 }
 
 const linkView = (row) => ({
-  id: row.id, url: row.url, amountCents: row.amountCents, expiresAt: row.expiresAt, status: row.status,
+  id: row.id, url: row.url, amountCents: row.amountCents, expiresAt: row.expiresAt, expiresLabel: expiresLabelOf(row.expiresAt), status: row.status,
 });
 
 async function withdraw(saleId, linkId, { now = new Date(), deps = {} } = {}) {
@@ -201,6 +214,8 @@ const OBLIGATION_STATUSES = ['settled', 'cancelled'];
  * Closes an open obligation of a document (outside-visit rule 41, end-review V-4): `settled` = the money went back (from the provider's space or by hand),
  * `cancelled` = nothing was owed after all — the close action of the stay's « À rembourser » rows (pricing-components rule 75), for a sale. Only an
  * open row closes (409 otherwise); the document's history says so, and the document stops claiming that money.
+ * Loop t1 B-1 (rule 49): a `lineLowered` row `settled` writes its refund allocations, the journal's avoir. Loop t1 B-6 (rule 50, owner 2026-11-16): a
+ * `linkSurplus` row `cancelled` is money kept, booked as a tip on the day it is closed (« 13,00 € gardés en pourboire »).
  */
 function closeObligation(saleId, obligationId, status, { actor = null } = {}) {
   if (!OBLIGATION_STATUSES.includes(status)) return refuse(400, 'OBLIGATION_INVALID_STATUS', 'Statut invalide.');
@@ -210,8 +225,11 @@ function closeObligation(saleId, obligationId, status, { actor = null } = {}) {
   if (row.status !== 'open') return refuse(409, 'OBLIGATION_ALREADY_CLOSED', 'Déjà clos.');
   database().transaction(() => {
     sales.closeObligation(row.id, { status, by: actor || 'operator' });
+    if (status === 'settled' && row.origin === 'lineLowered') standaloneSale.writeObligationRefund(saleId, row);
     const { euros } = require('./paymentTenders');
-    sales.addHistory(saleId, status === 'settled' ? `${euros(row.amountCents)} remboursés` : `${euros(row.amountCents)} : rien à rembourser`, actor);
+    let words = `${euros(row.amountCents)} remboursés`;
+    if (status === 'cancelled') words = row.origin === 'linkSurplus' ? `${euros(row.amountCents)} gardés en pourboire` : `${euros(row.amountCents)} : rien à rembourser`;
+    sales.addHistory(saleId, words, actor);
   }).immediate();
   return { status: 200, document: standaloneSale.documentOf(saleId) };
 }
@@ -289,5 +307,6 @@ async function emailLink(saleId, linkId, { deps = {} } = {}) {
 }
 
 module.exports = {
+  expiresLabelOf,
   linkOf, draftLinkOf, mint, withdraw, settlePaidLink, closeObligation, emailLink, basketOf, SOURCE, TEMPLATE_KEY,
 };

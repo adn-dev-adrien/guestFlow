@@ -36,7 +36,8 @@ test('rule 53 — the external rate belongs to the class: set from one article, 
   assert.equal(sales.externalRates().drinks, 5.5);
   const rates = res();
   standaloneSalesController.vatRates({}, rates);
-  assert.deepEqual(rates.body.classes.find((c) => c.vatClass === 'drinks'), { vatClass: 'drinks', externalRate: 5.5 });
+  assert.deepEqual(rates.body.classes.find((c) => c.vatClass === 'drinks'), { vatClass: 'drinks', label: 'Boissons', externalRate: 5.5 });
+  assert.deepEqual(rates.body.classes.map((c) => c.label), ['Options', 'Ressources', 'Boissons', 'Restauration'], 'UI-7 — the labels are the server\'s');
   assert.deepEqual(rates.body.classes.map((c) => c.vatClass), ['options', 'resources', 'drinks', 'catering']);
   sales.setExternalRate('drinks', 20);
 });

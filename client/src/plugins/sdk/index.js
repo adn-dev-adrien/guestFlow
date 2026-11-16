@@ -78,3 +78,5 @@ export { default as ClientPickerField } from '../../components/ClientPickerField
 // hourly-resources — the generic « Proposés à l'arrivée » step and the payment-link block (specs/outside-booking-sas.md rules 35, 39-42) — SDK 2.31.0.
 export { default as SuggestedArticlesStep } from '../../components/SuggestedArticlesStep';
 export { default as SalePaymentLink } from '../../components/SalePaymentLink';
+// hourly-resources — « Nouvelle vente » on the client of an invoiced visit (specs/outside-booking-sas.md rule 24, loop t1 AV-8) — SDK 2.31.0.
+export { default as StandaloneSaleDialog } from '../../components/StandaloneSaleDialog';

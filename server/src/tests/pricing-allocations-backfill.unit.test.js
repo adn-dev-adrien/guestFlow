@@ -5,6 +5,7 @@ process.env.DB_PATH = ':memory:';
 process.env.TZ = 'Europe/Paris';
 
 const test = require('node:test');
+const { skipWithout } = require('../plugins/sdk/testing');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
@@ -66,7 +67,7 @@ test('rule 74: a cash bucket is off the books, a settled note without lines is o
 const DIR = process.env.PRICE_GATE_FIXTURE_DIR || path.join(__dirname, 'fixtures', 'price-gate');
 const captured = fs.existsSync(path.join(DIR, 'inputs.json'));
 
-test('rule 74: on every stay of the price-gate fixture Σ allocations of a paid bucket is the bucket, and a second run writes nothing', { skip: captured ? false : 'price-gate fixture absent' }, () => {
+test('rule 74: on every stay of the price-gate fixture Σ allocations of a paid bucket is the bucket, and a second run writes nothing', { skip: skipWithout(['hourly-resources']) || (captured ? false : 'price-gate fixture absent') }, () => {
   const inputs = JSON.parse(fs.readFileSync(path.join(DIR, 'inputs.json'), 'utf8'));
   const { freezeClock } = require('./vatRegimeGoldenFixture');
   freezeClock(new Date(inputs.meta.capturedAt));

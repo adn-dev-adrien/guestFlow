@@ -35,7 +35,7 @@ test('rule 35 — a suggestion is added with one tap: the quote is asked with th
   fireEvent.click(await open());
   await waitFor(() => expect(api.quoteResourceVisit).toHaveBeenLastCalledWith(5, expect.objectContaining({ extras: [{ articleRef: 'option:7', quantity: 1, offered: false }] }), expect.anything()));
   const list = await screen.findByRole('list', { name: 'Proposés à l’arrivée' });
-  expect(await within(list).findByText('1 × 6,50 €')).toBeInTheDocument();
+  expect(await within(list).findByText('1 × 6,50 € · TVA 20 %')).toBeInTheDocument();
   await waitFor(() => expect(screen.getByTestId('remaining')).toHaveTextContent('126,50'));
 });
 
@@ -44,7 +44,7 @@ test('rule 12 — the same suggestion tapped twice is one line of quantity 2; «
   fireEvent.click(chip);
   fireEvent.click(chip);
   await waitFor(() => expect(api.quoteResourceVisit).toHaveBeenLastCalledWith(5, expect.objectContaining({ extras: [{ articleRef: 'option:7', quantity: 2, offered: false }] }), expect.anything()));
-  expect(await screen.findByText('2 × 6,50 €')).toBeInTheDocument();
+  expect(await screen.findByText('2 × 6,50 € · TVA 20 %')).toBeInTheDocument();
   fireEvent.click(screen.getByRole('button', { name: 'Retirer' }));
   await waitFor(() => expect(screen.getByTestId('remaining')).toHaveTextContent('120,00'));
   expect(screen.getByText('Aucun article ajouté.')).toBeInTheDocument();
@@ -94,7 +94,7 @@ test('rule 11 — « Autre article » searches the articles sellable with no sta
 test('rule 21 — the commit carries the extras and the total the operator saw', async () => {
   api.commitResourceVisit.mockResolvedValue({ visit: visitPayload(), invoice: null });
   fireEvent.click(await open());
-  await screen.findByText('1 × 6,50 €');
+  await screen.findByText('1 × 6,50 € · TVA 20 %');
   await waitFor(() => expect(validate()).toBeEnabled());
   fireEvent.click(screen.getByRole('button', { name: 'Pas maintenant' }));
   fireEvent.click(validate());

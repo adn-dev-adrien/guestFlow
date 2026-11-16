@@ -2,8 +2,8 @@
  * Standalone sales controller — HTTP face of `utils/standaloneSale.js` (specs/pricing-components.md §4.3, rules 53, 74).
  *
  *   POST /api/standalone-sales/quote   { lines, customer?, saleId?, payment? }                      priced, nothing written
- *   GET  /api/standalone-sales/vat-rates                                                              { classes: [{ vatClass, externalRate | null }] }
- *   GET  /api/standalone-sales?day=    { day, sales: [{ id, ref, clientLabel, lines, totalCents, remainingCents, statusLabel, tone, refundObligations }], owed: [same] }   « Ventes du jour »
+ *   GET  /api/standalone-sales/vat-rates                                                              { classes: [{ vatClass, label, externalRate | null }] }
+ *   GET  /api/standalone-sales?day=    { day, sales: [{ id, ref, clientLabel, lines, totalCents, remainingCents, statusLabel, tone, refundObligations, soldDayLabel }], owed: [same], owedTitle }   « Ventes du jour »
  *                                      + the counter's documents with an open obligation, any day (`owed`, rule 41)
  *   PATCH /api/standalone-sales/:id/obligations/:oid  { status: 'settled' | 'cancelled' } → { document, sale, paymentLink }   (rule 41, « Marquer remboursé »)
  *   POST /api/standalone-sales/:id/payment-link  { email? } → { document, sale, paymentLink, link }   (outside-visit rules 39-40)
@@ -36,27 +36,46 @@ function saleRow(document) {
     statusLabel,
     tone,
     refundObligations: document.refundObligations.map(({ id, amountCents, label, detail }) => ({ id, amountCents, label, detail })),
+    // Loop t1 UI-18 (rule 41 as amended V-4) — an « À rembourser » row may be of another day: it names its sale's Paris day.
+    soldDayLabel: soldDayLabelOf(document.document.soldAt),
   };
 }
 
+function soldDayLabelOf(soldAt) {
+  const date = soldAt ? new Date(String(soldAt).includes('T') ? soldAt : `${String(soldAt).replace(' ', 'T')}Z`) : null;
+  if (!date || Number.isNaN(date.getTime())) return null;
+  const parts = new Intl.DateTimeFormat('fr-FR', { timeZone: 'Europe/Paris', day: '2-digit', month: '2-digit' }).formatToParts(date);
+  const part = (type) => (parts.find((p) => p.type === type) || {}).value || '';
+  return `Vente du ${part('day')}/${part('month')}`;
+}
+
 const withLink = (document) => ({ document, sale: saleRow(document), paymentLink: standaloneSaleLinks.linkOf(document.document.id) });
+
+// Loop t1 UI-7 — the French name of each article VAT class, served with the classes so the article form lists the server's.
+const VAT_CLASS_LABELS = Object.freeze({
+  options: 'Options', resources: 'Ressources', drinks: 'Boissons', catering: 'Restauration',
+});
 
 module.exports = {
   // The external VAT rate of each class the catalogue offers (owner Q-C11): what the article form shows beside « Vendable hors séjour ».
   vatRates(req, res) {
     const rates = require('../models/ports/settingsProvider').create(require('../database')).for('vat', {});
     const { ARTICLE_VAT_CLASSES } = require('../utils/pricing/vat/settingsSchema');
-    return res.json({ classes: ARTICLE_VAT_CLASSES.map((vatClass) => ({ vatClass, externalRate: Number.isFinite(rates[`vat.rate.${vatClass}.external`]) ? rates[`vat.rate.${vatClass}.external`] : null })) });
+    return res.json({
+      classes: ARTICLE_VAT_CLASSES.map((vatClass) => ({
+        vatClass, label: VAT_CLASS_LABELS[vatClass] || vatClass, externalRate: Number.isFinite(rates[`vat.rate.${vatClass}.external`]) ? rates[`vat.rate.${vatClass}.external`] : null,
+      })),
+    });
   },
 
   // « Ventes du jour » (owner M4): the counter's sales of a Paris day, newest first.
   list(req, res) {
     const day = typeof req.query.day === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(req.query.day) ? req.query.day : parisDay(new Date());
-    const rows = require('../database').prepare('SELECT id, soldAt FROM standalone_sales WHERE originRef IS NULL ORDER BY id DESC LIMIT 300').all()
+    const rows = require('../database').prepare(`SELECT s.id, s.soldAt FROM standalone_sales s WHERE ${sales.counterOwnedSql('s')} ORDER BY s.id DESC LIMIT 300`).all()
       .filter((row) => row.soldAt && parisDay(new Date(row.soldAt)) === day);
     // Rule 41 (V-4) — the counter's documents that still owe money back, whatever their day: « À rembourser » until the refund is made.
     const owed = sales.counterSalesOwing().map((id) => saleRow(standaloneSale.documentOf(id)));
-    return res.json({ day, sales: rows.map((row) => saleRow(standaloneSale.documentOf(row.id))), owed });
+    return res.json({ day, sales: rows.map((row) => saleRow(standaloneSale.documentOf(row.id))), owed, owedTitle: 'À rembourser' });
   },
 
   // The link block of a counter sale that is not written yet answers from its draft reste and the typed e-mail (rule 39).

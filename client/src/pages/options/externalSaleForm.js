@@ -3,12 +3,12 @@
  * The class's external rate is sent only once the operator typed it (a rate typed for a class is the rate of the whole class); the server judges the rest.
  */
 
-export const emptyExternalSale = { sellableExternally: false, vatClass: '', externalVatRate: '' };
+export const emptyExternalSale = { sellableExternally: false, vatClass: '', externalVatRate: null };
 
 export const externalSaleFromItem = (item) => ({
   sellableExternally: Boolean(Number(item.sellableExternally)),
   vatClass: item.vatClass || '',
-  externalVatRate: '',
+  externalVatRate: null,
 });
 
 export function externalSalePayload(form) {

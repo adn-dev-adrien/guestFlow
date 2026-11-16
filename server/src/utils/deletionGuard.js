@@ -122,7 +122,14 @@ function bookingMoneyBlocker(database, column, id) {
   const invoiced = columns.has('qontoInvoiceId') && columns.has('invoiceCancelledAt')
     ? ' OR (qontoInvoiceId IS NOT NULL AND invoiceCancelledAt IS NULL)'
     : '';
-  const held = database.prepare(`SELECT 1 FROM resource_bookings WHERE ${column} = ? AND (paid = 1${invoiced}) LIMIT 1`).get(Number(id));
+  // Loop t1 D-3 (rule 34 since 4.2.0) — a visit's money lives on its sale document (`saleRef`): a payment, an open obligation or an invoice on it
+  // holds the booking too.
+  const onDocument = columns.has('saleRef') && hasTable(database, 'standalone_sales')
+    ? ` OR (saleRef LIKE 'standalone:%' AND EXISTS (SELECT 1 FROM standalone_sales s WHERE 'standalone:' || s.id = resource_bookings.saleRef AND (s.invoiceNumber IS NOT NULL
+        OR EXISTS (SELECT 1 FROM standalone_sale_payments p WHERE p.saleId = s.id AND p.receivedCents > 0)
+        OR EXISTS (SELECT 1 FROM standalone_sale_obligations o WHERE o.saleId = s.id AND o.status = 'open'))))`
+    : '';
+  const held = database.prepare(`SELECT 1 FROM resource_bookings WHERE ${column} = ? AND (paid = 1${invoiced}${onDocument}) LIMIT 1`).get(Number(id));
   return held ? BOOKING_MONEY_MESSAGES[column] : null;
 }
 

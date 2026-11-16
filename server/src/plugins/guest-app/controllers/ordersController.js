@@ -732,6 +732,9 @@ function buildOrdersController({
       };
       // Rule 35 — abandoned, its lines went back to the cart: a payment landing now is never committed.
       if (order.status === 'abandoned') return conflict('commande abandonnée avant le paiement, commande non honorée');
+      // Loop t1 AG-5, AG-6 (rules 72, 108 d) — an order cancelled with its stay before its payment landed is never sold, even on a stay restored since:
+      // the payment is a conflict, shown « Payée · à rembourser » and pushed to the staff.
+      if (order.status === 'cancelled') return conflict('commande annulée avant le paiement, commande non honorée');
       // Rule 37quater — an unpaid order held nothing: the payment finds what is left at that moment.
       if (!stay || stay.kind !== 'reservation' || !sessionsStillFree(order, stay, at) || !unitsStillLeft(order, at)) return conflict();
       const delivery = deliveryAfterPayment(order, stay, at);

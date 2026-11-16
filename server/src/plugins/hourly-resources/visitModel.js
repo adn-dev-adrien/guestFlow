@@ -236,7 +236,7 @@ function createVisitModel({ db, bookings, now = () => new Date() }) {
     }
   }
 
-  const fromCore = (result) => ({ status: result.status, code: result.body.code, error: result.body.error, ...(result.body.refusals ? { refusals: result.body.refusals } : {}), ...(result.body.field ? { field: result.body.field } : {}) });
+  const fromCore = (result) => ({ status: result.status, code: result.body.code, error: result.body.error, ...(result.body.refusals ? { refusals: result.body.refusals } : {}), ...(result.body.field ? { field: result.body.field } : {}), ...(result.body.refundCents ? { refundCents: result.body.refundCents } : {}) });
 
   // The document of the visit, created with its session line when the booking has none (and its session is not paid on the booking).
   function ensureDocument(row, { actor = null, stop, draft = {} } = {}) {

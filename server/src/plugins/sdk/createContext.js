@@ -137,7 +137,7 @@ function createContext(id, {
       });
       record.priceLineContributor = contributor;
     },
-    // SDK 2.27.0 (specs/pricing-components.md rules 5, 47) — a pricing family for the Articles head:
+    // SDK 2.29.0 (specs/pricing-components.md rules 5, 47; plugins-phase-1-sdk rule 53) — a pricing family for the Articles head:
     // `{ id, configSchema, validate(config, request, ctx), price(config, request, ctx), describe(config, line) }`.
     // `ctx.priceLineContributor` stays as the alias of the hourly one. A family id is declared once
     // (DUPLICATE_FAMILY); it prices only while this plugin is live (FAMILY_UNAVAILABLE otherwise).

@@ -1,5 +1,6 @@
-// specs/outside-booking-sas.md rule 27 — « Client absent » in the booking dialog of an outside visit, on or after its day: asked, confirmed, the dialog then shows the booking absent
-// (the server's answer) and offers neither « Arrivée » nor « Client absent » again; before its day, and once arrived, there is no such action; a refusal of the server is shown where the action is.
+// specs/outside-booking-sas.md rules 27, 48 — « Client absent » in the booking dialog of an outside visit: offered iff the booking's own read says `actions.noShow`
+// (loop t1 UI-9: role, stay and day are the server's call, no browser-clock compare); asked, confirmed, the booking is read again and shows absent with neither
+// « Arrivée » nor « Client absent »; a refusal of the server is shown where the action is.
 import React from 'react';
 import { vi } from 'vitest';
 import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
@@ -13,6 +14,7 @@ vi.mock('../../../api', () => ({
     getProperties: vi.fn().mockResolvedValue([]),
     previewResourceBooking: vi.fn(),
     markResourceNoShow: vi.fn(),
+    getResourceBooking: vi.fn(),
   },
 }));
 vi.mock('../../../hooks/usePostalCodeCities', () => ({ default: () => [] }));
@@ -39,13 +41,16 @@ function mount(booking) {
 beforeEach(() => {
   vi.clearAllMocks();
   api.previewResourceBooking.mockResolvedValue(PRICE);
+  api.getResourceBooking.mockResolvedValue({ ...BOOKING, actions: { noShow: true } });
 });
 
 test('rule 27 — « Client absent » is confirmed, sent, and the booking then reads absent with no « Arrivée »', async () => {
   api.markResourceNoShow.mockResolvedValue({ booking: { ...BOOKING, noShow: true, noShowAt: '2099-01-01T20:00:00.000Z' } });
   const { onCommitted } = mount(BOOKING);
   expect(screen.getByRole('button', { name: 'Arrivée' })).toBeInTheDocument();
-  fireEvent.click(screen.getByRole('button', { name: 'Client absent' }));
+  await waitFor(() => expect(api.getResourceBooking).toHaveBeenCalledWith(9));
+  api.getResourceBooking.mockResolvedValue({ ...BOOKING, noShow: true, noShowAt: '2099-01-01T20:00:00.000Z', actions: { noShow: false } });
+  fireEvent.click(await screen.findByRole('button', { name: 'Client absent' }));
   const confirm = await screen.findByRole('dialog', { name: 'Client absent ?' });
   expect(within(confirm).getByText(/paiements déjà pris restent enregistrés/)).toBeInTheDocument();
   fireEvent.click(within(confirm).getByRole('button', { name: 'Confirmer' }));
@@ -56,20 +61,24 @@ test('rule 27 — « Client absent » is confirmed, sent, and the booking then r
   expect(onCommitted).toHaveBeenCalled();
 });
 
-test('rule 27 — before its day, or once arrived, a booking offers no « Client absent »', () => {
-  const tomorrow = new Date();
-  tomorrow.setDate(tomorrow.getDate() + 1);
-  const { unmount } = render(<ResourceBookingDialog open resource={RESOURCE} booking={{ ...BOOKING, date: localIsoDate(tomorrow) }} onClose={() => {}} onSave={vi.fn()} onDelete={vi.fn()} />);
+test('rule 27 — the server does not offer it (before its day, arrived, reception…): no « Client absent », whatever the booking\'s date', async () => {
+  api.getResourceBooking.mockResolvedValue({ ...BOOKING, actions: { noShow: false } });
+  mount(BOOKING);
+  await waitFor(() => expect(api.getResourceBooking).toHaveBeenCalledWith(9));
+  await Promise.resolve();
   expect(screen.queryByRole('button', { name: 'Client absent' })).toBeNull();
-  unmount();
-  mount({ ...BOOKING, arrived: true });
+});
+
+test('rule 27 — a booking of a past day stays without the action until the server offers it, and the planning row alone never offers it', async () => {
+  api.getResourceBooking.mockReturnValue(new Promise(() => {}));
+  mount({ ...BOOKING, date: '2000-01-01' });
   expect(screen.queryByRole('button', { name: 'Client absent' })).toBeNull();
 });
 
 test('rule 27 — the server\'s refusal is shown where the action is', async () => {
   api.markResourceNoShow.mockRejectedValue(new Error('Client absent : réservé à l’administrateur.'));
   mount(BOOKING);
-  fireEvent.click(screen.getByRole('button', { name: 'Client absent' }));
+  fireEvent.click(await screen.findByRole('button', { name: 'Client absent' }));
   fireEvent.click(within(await screen.findByRole('dialog', { name: 'Client absent ?' })).getByRole('button', { name: 'Confirmer' }));
   expect(await screen.findByText('Client absent : réservé à l’administrateur.')).toBeInTheDocument();
 });

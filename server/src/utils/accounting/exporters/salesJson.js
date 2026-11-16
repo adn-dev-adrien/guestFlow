@@ -20,10 +20,11 @@ function createSalesJson({ accountPlan, csvJournal }) {
     if (rows.length === 0) return null;
     const [day, month, year] = rows[0];
 
-    const isRefund = entry.direction === 'refund';
+    // A standalone document's avoir and kept surplus (outside-visit rules 49-50) render as an avoir and a tip.
+    const isRefund = entry.direction === 'refund' || entry.standaloneRole === 'refund';
     const isCompensation = entry.direction === 'compensation';
     const isDiscount = entry.direction === 'discount';
-    const isTip = entry.direction === 'tip';
+    const isTip = entry.direction === 'tip' || entry.standaloneRole === 'tip';
     const isPenalty = entry.direction === 'penalty';
     const platformInfo = (entry.platform && entry.platform !== 'direct' && !isRefund && !isCompensation
       && !isDiscount && !isTip && !isPenalty)

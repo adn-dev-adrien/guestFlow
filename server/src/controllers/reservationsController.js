@@ -1831,6 +1831,8 @@ async function update(req, res) {
     const staleAfterAwait = staleFicheRefusal(id, req.body);
     if (staleAfterAwait) return res.status(staleAfterAwait.status).json(staleAfterAwait.body);
     const result = performUpdate(id, req.body, { unlockPast });
+    // Loop t1 D-2 — a line the operator added on the fiche is stamped as it is written (its sale date is today, never the booking's at the next boot).
+    if (result.status === 200) require('../utils/pricingLinesMigration').stampFicheLines(db, id, new Date().toISOString());
     if (result.status === 200 && stale.length > 0) await retireStaleLinks(id);
     return res.status(result.status).json(result.body);
   } catch (err) {
@@ -1885,11 +1887,11 @@ const DRY_RUN = Symbol('dry-run');
 // writes the stored stay plus what the sale moved — `stored + (after − saleBase)` on the money a line moves, the stored figure on every other one —
 // and leaves the nights, the stay lines, the tax and extra-guest records as they are: a sale never carries the engine's drift into the stay.
 function performUpdate(reservationId, body, {
-  unlockPast = false, dryRun = false, sale = null, saleBase = null,
+  unlockPast = false, dryRun = false, sale = null, saleBase = null, unpaidLine = false,
 } = {}) {
   const res = createResultRecorder();
   if (!dryRun) {
-    applyUpdate({ body, params: { id: reservationId } }, res, Boolean(unlockPast), { sale: sale || null, saleBase });
+    applyUpdate({ body, params: { id: reservationId } }, res, Boolean(unlockPast), { sale: sale || null, saleBase, unpaidLine });
     const result = res.result();
     // specs/payment-link-lifecycle.md rule 32 — every save path (fiche, SAS, plugins, platform intakes): a stay
     // that holds its nights after the save takes them from the unpaid requests it now covers. Never on a dry run.
@@ -1903,7 +1905,7 @@ function performUpdate(reservationId, body, {
   try {
     db.transaction(() => {
       applyUpdate({ body: structuredClone(body), params: { id: reservationId } }, res, Boolean(unlockPast), { silent: true, sale: sale || null, saleBase });
-      preview = { ...res.result(), row: model.getRow(Number(reservationId)) };
+      preview = { ...res.result(), row: { ...model.getRow(Number(reservationId)), ...(res.enginePreArrivalAmount != null ? { preArrivalAmount: res.enginePreArrivalAmount } : {}) } };
       throw DRY_RUN;
     })();
   } catch (err) {
@@ -2021,7 +2023,7 @@ function withPostedLineIds(pricedLines, postedLines, articleField) {
   });
 }
 
-function applyUpdate(req, res, pastUnlocked, { silent = false, sale = null, saleBase = null } = {}) {
+function applyUpdate(req, res, pastUnlocked, { silent = false, sale = null, saleBase = null, unpaidLine = false } = {}) {
   const storedBefore = model.getRow(Number(req.params.id));
   // specs/reservations-backend-mvc.md rule 26 reading (audit R44-C-L3) — a stay that does not exist is refused before any
   // pricing or write: the insert used to reach the lines and fail on their foreign key (500).
@@ -2281,6 +2283,8 @@ function applyUpdate(req, res, pastUnlocked, { silent = false, sale = null, sale
     && !complementOverrideMoved(req.body.complementAmountOverride, storedPaymentForQuote.complementAmountOverride)
     && pricingUnchangedFromStored(db, storedPaymentForQuote, quote, windowEngineInputs)
     && !(stayIsOpenForLines(id, pastReservationLocked, midStayWindow) && hasUnstoredAutoOption(model.listCarriedOptionIds(id), quote));
+  // The plan the engine gives this save, before any pin: a dry run's base carries it, so a gesture's plan moves by its line only (pinSaleDelta).
+  res.enginePreArrivalAmount = quote.preArrivalAmount;
   if (keepPricing) quote = pinStoredPricing(quote, storedPaymentForQuote);
   else if (saleBase) quote = withoutUnstoredAutoLines(pinSaleDelta(quote, storedPaymentForQuote, saleBase), model.listCarriedOptionIds(id));
   const stayPinned = !keepPricing && Boolean(saleBase);
@@ -2424,11 +2428,13 @@ function applyUpdate(req, res, pastUnlocked, { silent = false, sale = null, sale
     return res.status(409).json(changeoverErrorPayload(quote));
   }
   // Rule 23 (owner O-10) — a paid line lowered is refused until the operator confirms; the confirmed excess is then owed back.
+  // Owner reading 2026-11-16: offering or removing an UNPAID line is never refused for the excess it leaves — it grows the
+  // trop-perçu by that much, refunded through the usual path, and opens no `lineLowered` obligation.
   let confirmedLowering = false;
-  if (!req.body.forceOverpayment) {
+  if (!unpaidLine && !req.body.forceOverpayment) {
     const overpaid = overpaymentIntroducedBy(id, quote, windowEngineInputs);
     if (overpaid) return res.status(409).json(overpaid);
-  } else {
+  } else if (!unpaidLine) {
     confirmedLowering = Boolean(overpaymentIntroducedBy(id, quote, windowEngineInputs));
   }
   if (!forceTypedCounts && !pastReservationLocked) {
@@ -2547,8 +2553,10 @@ function applyUpdate(req, res, pastUnlocked, { silent = false, sale = null, sale
     if (changes.length > 0) model.addHistoryEntry(id, 'update', changes);
   };
   const writePricedLines = () => {
-    // specs/direct-installments.md rules 7, 8, 13 — the plan follows the new total.
-    installments.syncAfterSave(id, quote);
+    // specs/direct-installments.md rules 7, 8, 13 — the plan follows the new total. A line gesture that leaves the plan where it stands
+    // writes no instalment row (pricing-components rule 93).
+    const planCents = () => db.prepare('SELECT COALESCE(SUM(amountCents), 0) AS cents FROM reservation_installments WHERE reservationId = ?').get(id).cents;
+    if (!(saleBase && Math.round(Number(quote.preArrivalAmount || 0) * 100) === planCents())) installments.syncAfterSave(id, quote);
 
     // Nights are never rewritten on a locked fiche, but its extras are while the window is open.
     const writesExtras = !pastReservationLocked || Boolean(midStayWindow);

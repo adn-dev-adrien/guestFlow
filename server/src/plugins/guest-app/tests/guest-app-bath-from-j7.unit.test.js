@@ -28,8 +28,7 @@ function withBath(name, fn, { stay = {}, now = null } = {}) {
     db.prepare('DELETE FROM reservation_resources').run();
     db.prepare('UPDATE property_resource_prices SET freeMinutes = 60 WHERE resourceId = ?').run(BATH);
     const stayId = seedStay({ start: 5, end: 9, checkedIn: 0, ...stay });
-    const ctx = await openOrdering(stayId, { guestHost: 'sejour.example.test' });
-    if (now) ctx.clock.now = now();
+    const ctx = await openOrdering(stayId, { guestHost: 'sejour.example.test', ...(now ? { now: now() } : {}) });
     try {
       await fn({ stayId, ...ctx });
     } finally {

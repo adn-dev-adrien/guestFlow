@@ -345,6 +345,13 @@ including the ones added later.
     `removal: online-payment` cell died at load (MODULE_NOT_FOUND) while the guard stayed green. The guard now reads
     `(../){2,}<id>/` in a file under a plugin's `tests/` (never in core tests, where it names no plugin), and that file
     runs inside `requirePlugins(['online-payment'])`.
+22. **An erased then reinstalled table never reuses an id the core still cites** (loop t1 D-4b, 2026-11-16). A purge
+    drops `guest_orders` and `resource_bookings` with their `sqlite_sequence` rows, while the stays' lines keep
+    `orderRef 'order:<id>:<n>'` and the outside sales keep `originRef 'resource-booking:<id>'`. A migration of each plugin
+    (`guest_orders_counter_floor_v5`, `resource_bookings_counter_floor_v7`) raises the AUTOINCREMENT counter to the highest id
+    still named (`plugins/sdk/citedIdCounterFloor.js`), never lowers it, and is a no-op where nothing is cited. Tests:
+    `cited-id-counter-floor.unit.test.js`, `guest-orders-counter-floor.unit.test.js`,
+    `resource-bookings-counter-floor.unit.test.js`.
 
 **Edge cases:**
 - A plugin folder exists on one side only (server without client, or the reverse) → rule 13's guard

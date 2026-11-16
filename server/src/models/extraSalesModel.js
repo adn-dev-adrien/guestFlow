@@ -105,6 +105,11 @@ function storedLineKey(db, table, reservationId, lineId) {
 
 // The key a stored line is named by in the stay's notes and allocations: the article's legacy key for its first line, `line:<table>:<id>` for a later one (rule 85).
 function keyOfLine(reservationId, kind, lineId) {
+  // A custom line has no article: it is named by its label (`extraLineKey`), the key the engine and `lineFacts` give it.
+  if (kind === 'custom') {
+    const row = database().prepare('SELECT description FROM reservation_custom_options WHERE reservationId = ? AND lineId = ?').get(Number(reservationId), Number(lineId));
+    return row ? extraLineKey({ isCustom: true, description: row.description }) : null;
+  }
   return storedLineKey(database(), KINDS[kind].table, Number(reservationId), Number(lineId));
 }
 
@@ -158,16 +163,18 @@ function momentRefusal(reservationId, line, to, moments) {
 }
 
 // The arrival baseline (`{ lineKey → TTC }`) says which part of a line was sold at arrival: what exceeds it is paid at departure (rule 20).
-function moveLine(reservationId, line, to) {
+function moveLine(reservationId, line, to, { started = true } = {}) {
   if ((line.collectAt || null) === to) return null;
   const db = database();
   const reservations = require('./reservationsModel');
-  // Stored, or laid now from the lines as they stand (a stay not started yet has none).
-  const baseline = JSON.parse(reservations.peekArrivalExtrasBaseline(Number(reservationId)) || '{}');
-  const total = line.totalCents / 100;
-  if (to === 'departure') baseline[line.key] = Math.max(0, roundMoney((baseline[line.key] || 0) - total));
-  else if (to === 'arrival') baseline[line.key] = roundMoney((baseline[line.key] || 0) + total);
-  db.prepare("UPDATE reservations SET arrivalExtrasBaseline = ?, updatedAt = datetime('now') WHERE id = ?").run(JSON.stringify(baseline), Number(reservationId));
+  // Rule 95 — only a started stay carries a baseline: before the arrival the line's routing (`inComplement`) is the whole move.
+  if (started) {
+    const baseline = JSON.parse(reservations.peekArrivalExtrasBaseline(Number(reservationId)) || '{}');
+    const total = line.totalCents / 100;
+    if (to === 'departure') baseline[line.key] = Math.max(0, roundMoney((baseline[line.key] || 0) - total));
+    else if (to === 'arrival') baseline[line.key] = roundMoney((baseline[line.key] || 0) + total);
+    db.prepare("UPDATE reservations SET arrivalExtrasBaseline = ?, updatedAt = datetime('now') WHERE id = ?").run(JSON.stringify(baseline), Number(reservationId));
+  }
   const was = line.collectAt || 'arrival';
   // A line moved to the arrival is routed into the arrival complement, as a new line of a stay not started is (rule 19): the moment the line
   // says and the bucket that collects it are one (rule 31). A line sent to the departure keeps its routing: the baseline carves it out.

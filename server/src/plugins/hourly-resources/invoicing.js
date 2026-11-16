@@ -45,6 +45,10 @@ function documentInvoiceRefusal(row, money, issuer, { basis = null } = {}) {
   if (row.frozen) return { status: 409, code: 'BOOKING_INVOICED', error: 'Déjà facturée.' };
   if (!(money.totalCents > 0)) return { status: 400, code: 'NOTHING_TO_INVOICE', error: 'Total à 0 € : pas de facture.' };
   if (money.remainingCents > 0) return { status: 409, code: 'REMAINING_DUE', error: 'Reste à payer : facture après le solde.' };
+  // Loop t1 AV-1 — money owed back on the document is given back first: an invoice states what was kept.
+  if (money.document && money.document.totals && money.document.totals.refundOwedCents > 0) {
+    return { status: 409, code: 'REFUND_OWED', error: 'Remboursement à faire : facture après le remboursement.' };
+  }
   if (money.payments.some((payment) => payment.tenders.some((t) => t.internal))) return { status: 400, code: 'INTERNAL_CASH', error: 'Caisse interne : hors comptabilité.' };
   if (paidElsewhereLine(money)) {
     if (!row.payment || !row.payment.tenders.length) return { status: 400, code: 'NO_METHOD', error: 'Moyen de paiement non saisi : retirer le paiement puis l’enregistrer à nouveau.' };
@@ -149,6 +153,27 @@ function createInvoicing({ bookings, visits = null, issuers = () => sdk.coreModu
     return { error: 'Qonto n’a pas répondu : la facture n’est pas créée, le paiement reste enregistré.', status: 502, code: 'ISSUER_FAILED' };
   }
 
+  /**
+   * Loop t1 AV-11, UI-10 — whether « Créer la facture » can be offered now, judged by the refusals `issue` would answer before Qonto is called:
+   * `{ ok, code, reason }`, so the screen offers what the server would accept and rebuilds no rule.
+   */
+  function invoiceability(id) {
+    const raw = bookings().rawById(id);
+    if (!raw) return { ok: false, code: 'BOOKING_NOT_FOUND', reason: 'Réservation non trouvée' };
+    if (raw.qontoInvoiceId && !raw.invoiceCancelledAt) return { ok: false, code: 'BOOKING_INVOICED', reason: 'Déjà facturée.' };
+    const money = raw.saleRef && visits ? visits().moneyOf(raw) : null;
+    let refusal;
+    if (money && (Number(raw.paid) !== 1 || documentHoldsMoney(money))) {
+      refusal = documentInvoiceRefusal(bookings().findById(id), money, issuers(), { basis: bookings().invoiceBasis(id) });
+    } else {
+      const basis = bookings().invoiceBasis(id);
+      if (!basis) return { ok: false, code: 'BOOKING_NOT_FOUND', reason: 'Réservation non trouvée' };
+      refusal = invoiceRefusal(basis.row, issuers())
+        || (cents(basis.breakdown.total) !== cents(basis.row.totalPrice) ? { code: 'TARIFF_CHANGED', error: 'Le tarif a changé depuis le paiement : facture à établir dans Qonto.' } : null);
+    }
+    return refusal ? { ok: false, code: refusal.code || null, reason: refusal.error } : { ok: true, code: null, reason: null };
+  }
+
   /** POST /:id/invoice — `{ ok, invoice }` or `{ error, status, code }`. Never touches the payment. */
   async function issue(id) {
     const raw = bookings().rawById(id);
@@ -249,7 +274,7 @@ function createInvoicing({ bookings, visits = null, issuers = () => sdk.coreModu
   }
 
   return {
-    issue, attach, watch, requestOf, documentRequestOf,
+    issue, invoiceability, attach, watch, requestOf, documentRequestOf,
   };
 }
 

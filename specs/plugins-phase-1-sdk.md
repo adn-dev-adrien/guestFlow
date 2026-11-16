@@ -634,6 +634,9 @@ Optional: a plugin that declares nothing reads « Actif ».
     `plugin-core-hardening-floor` holds it); hourly-resources and accounting-export range `^2.27.0`; `coreModuleHistory.json`
     records 2.27.0 (`vat`). Tests: `article-family-sdk.unit.test.js`, `plugin-core-hardening-floor.unit.test.js`,
     `sdk-v2-plugin-ranges.unit.test.js`.
+    > _Amended 2026-11-15 (stabilisation loop t1, AS-3, AS-4; rule 53):_ v4.1.0 shipped SDK 2.27.0 without `vat` nor `ctx.articleFamily`; both are
+    > first shipped by 2.29.0, which `coreModuleHistory.json` records, the hardening floor holds (`ctx.articleFamily(` asks `^2.29.0`) and the SDK's
+    > comments say. The in-tree plugins that use them range `^2.30.0` or `^2.31.0`.
 51. *(Added 2026-11-12, specs/pricing-components.md rules 10, 27, 31, 44-49, SDK 2.29.0.)* **A plugin sells through the same services as the
     core, and declares the booking an article needs.** `coreModule('extraSale')` hands out the sale service (`quote`, `sell`,
     `changeLine`, `saleDetailOf`, `departureSalesOf`), `coreModule('saleDetail')` its read model, `coreModule('articles')` the head's reads
@@ -665,7 +668,8 @@ Optional: a plugin that declares nothing reads « Actif ».
     (quote / sell / offerLine / removeLine / pay / cancel / receive / documentOf / paymentsOf of a document with no reservation),
     `coreModule('standaloneSaleLinks')` (linkOf / draftLinkOf / mint / withdraw / emailLink of its payment link), `coreModule('suggestedArticles')`
     (the articles suggested for a sale context), `saleDetail.buildDocumentDetail`, the context hook `ctx.suggestionContexts({ kind, label, list })`, the
-    event `standaloneSale.sold` (after the commit, an observer), and the client exports `SuggestedArticlesStep` and `SalePaymentLink`
+    event `standaloneSale.sold` (after the commit, an observer), and the client exports `SuggestedArticlesStep`, `SalePaymentLink`
+    and `StandaloneSaleDialog` (optional `client` prop, outside-booking-sas rule 48)
     (`client/src/plugins/sdk/index.js`; `StaySalesSection` is SDK 2.29.0's). guest-app and hourly-resources range `^2.31.0`.
     **The SDK history records what each shipped minor exposed:** v4.1.0 shipped SDK 2.27.0 without `vat`, `accountingOutput`, `legacyBucketSplit`,
     `refundJournal`, `csvJournal`, `salesJson` and `synthesisExporter`, and SDK 2.28.0 (the home-data extension points,
@@ -676,6 +680,11 @@ Optional: a plugin that declares nothing reads « Actif ».
     explicit no-op since guest-app rule 108 (a card order awaiting its payment reserves nothing; the first call that passes some is logged once);
     `commitOrder` answers `excessCents` (its 2.26.0 name) beside `overpaidCents`, the same cents. Removing either is a MAJOR.
     Tests: `mid-stay-order-sdk-2-26-shape`, `plugins-sdk-core-module-floor`, `plugins-sdk-history-shipped-minors`.
+54. *(Added 2026-11-16, loop t1 AS-3.)* **The client SDK exports have floors too.** `plugin-core-hardening-floor` scans server sources only, so a plugin
+    whose CLIENT code imports `StaySalesSection` (2.29.0), `SuggestedArticlesStep` or `SalePaymentLink` (2.31.0), `ClientPickerField` (2.27.0),
+    `usePostalCodeCities` (2.25.0), `TenderLines` / `TENDER_TEXTS` (2.24.0), `FilterChip` or `PlatformPenaltyDialog` (2.9.0) must range that SDK
+    or later in its manifest, or an older core would load a bundle that crashes. Adding a client export means adding its row to
+    `plugin-client-sdk-floor.unit.test.js`. Test: `plugin-client-sdk-floor`.
 
 **Edge cases:**
 - **A plugin throws during `register`.** Rule 4 applies: the other plugins and the core boot. The Plugins
