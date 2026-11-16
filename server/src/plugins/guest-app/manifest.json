@@ -92,6 +92,7 @@
       "Après un effacement puis une réinstallation, un ancien lien de paiement d’une commande ne règle plus la nouvelle commande qui a repris son numéro : les numéros repartent au-dessus des commandes encore nommées par un lien, et un lien qui n’est pas celui de la commande ne vend rien et reste à rembourser.",
       "Une commande payée par carte d’un séjour annulé passe à « Remboursée » dans la liste de l’équipe une fois rendue depuis le remboursement de l’annulation ; deux commandes du même article se rendent chacune sur sa propre ligne.",
       "Passé l’heure d’arrivée, une commande modifiée à la porte tant que l’arrivée n’est pas validée reste réglée à l’arrivée : la ligne se retire et ce qui reste n’est plus compté au départ ; le supplément de soirée d’une commande porte la clé de son bain.",
+      "Une commande ne se modifie plus « à l’arrivée » une fois l’arrivée validée ou son complément encaissé : elle se règle au départ.",
       "Demande le SDK 2.31 de GuestFlow."
     ]
   }

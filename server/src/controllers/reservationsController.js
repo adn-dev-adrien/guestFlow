@@ -1845,10 +1845,12 @@ async function update(req, res) {
     const staleAfterAwait = staleFicheRefusal(id, req.body);
     if (staleAfterAwait) return res.status(staleAfterAwait.status).json(staleAfterAwait.body);
     const linesBefore = require('../models/extraSalesModel').lineIds(id);
+    const rowBefore = model.getRow(id);
     const result = performUpdate(id, req.body, { unlockPast });
     // Loop t1 D-2 — a line the operator added on the fiche is stamped as it is written (its sale date is today, never the booking's at the next boot);
     // loop t2 D2-1 — a line the stay already held keeps the booking's date.
-    if (result.status === 200) require('../utils/pricingLinesMigration').stampFicheLines(db, id, new Date().toISOString(), linesBefore);
+    // Loop t3 T3-4 — …and where the save put its money (`rowBefore`: the buckets it started from).
+    if (result.status === 200) require('../utils/pricingLinesMigration').stampFicheLines(db, id, new Date().toISOString(), linesBefore, { rowBefore });
     if (result.status === 200 && stale.length > 0) await retireStaleLinks(id);
     return res.status(result.status).json(result.body);
   } catch (err) {
@@ -2028,25 +2030,29 @@ function enterMidStayExtrasWindow(id, body, today, nowTime, { atArrival = false 
   const newKeys = started && toArrival ? appendedLineKeys(body) : [];
   const parsed = parseBaseline(baseline) || {};
   const frozenBaseline = openKeys.length ? JSON.stringify(Object.fromEntries(Object.entries(parsed).filter(([key]) => !openKeys.includes(key)))) : baseline;
+  // Rule 102 d (loop t3, T3-2) — a key of the open arrival complement is the arrival's whatever the gesture does to it (offered, billed again,
+  // discounted): the engine never reads it above the baseline, and the rebase after the write holds what its arrival lines then hold.
+  const arrivalKeys = [...new Set([...openKeys, ...newKeys])];
   const engineBaseline = started
-    ? (newKeys.length ? JSON.stringify({ ...parsed, ...Object.fromEntries(newKeys.map((key) => [key, ARRIVAL_LINE_NEVER_MID_STAY])) }) : baseline)
+    ? (arrivalKeys.length ? JSON.stringify({ ...parsed, ...Object.fromEntries(arrivalKeys.map((key) => [key, ARRIVAL_LINE_NEVER_MID_STAY])) }) : baseline)
     : (model.getArrivalExtrasBaseline(id) || null);
   return {
-    baseline: frozenBaseline, beforeLines, started, engineBaseline, rebaseKeys: [...new Set([...openKeys, ...newKeys])],
+    baseline: frozenBaseline, beforeLines, started, engineBaseline, openKeys, rebaseKeys: arrivalKeys,
   };
 }
 
 // An amount no arrival line reaches: a key the gesture sends to the open arrival complement is never read above the baseline (rule 102).
 const ARRIVAL_LINE_NEVER_MID_STAY = 1e9;
 
-// The keys whose every stored line is collected at the arrival and paid by no card before it: the open arrival complement's own (rule 102).
+// The keys whose every stored line is collected at the arrival and paid by no card before it: the open arrival complement's own (rule 102). An
+// offered line counts (loop t3, T3-2): offered at the door by mistake, it is billed again or removed there, until the arrival is validated.
 function openArrivalKeys(beforeLines, notesRaw) {
   const prepaid = new Set(Object.keys(settledByKey(parseMidStayNotes(notesRaw).filter((note) => note && note.beforeArrival))));
   const byKey = new Map();
   for (const line of beforeLines || []) {
     const key = extraLineKey(line);
     if (!key) continue;
-    byKey.set(key, (byKey.get(key) !== false) && line.collectAt === 'arrival' && Number(line.offered || 0) !== 1);
+    byKey.set(key, (byKey.get(key) !== false) && line.collectAt === 'arrival');
   }
   return [...byKey].filter(([key, open]) => open && !prepaid.has(key)).map(([key]) => key);
 }
@@ -2413,9 +2419,10 @@ function applyUpdate(req, res, pastUnlocked, {
     optionsSignature: beforeAuditSnapshot.optionsSignature, resourcesSignature: beforeAuditSnapshot.resourcesSignature,
   });
   if (midStayWindow && !keepPricing) {
+    // An open arrival key (rule 102 d) is the door's to change: an offered line's floor is no floor there.
     const violations = arrivalExtrasViolations(
       midStayWindow.baseline, midStayWindow.beforeLines, [...(quote.optionLines || []), ...(quote.resourceLines || [])],
-    );
+    ).filter((violation) => !midStayWindow.openKeys.includes(violation.key));
     if (violations.length > 0) {
       return res.status(400).json({ error: ARRIVAL_EXTRAS_FROZEN_MESSAGE, code: 'ARRIVAL_EXTRAS_FROZEN', lines: violations });
     }
@@ -3255,7 +3262,9 @@ function updatePaymentCore(req, res) {
     model.updatePaymentField('UPDATE reservations SET checkInReady = ?, updatedAt = datetime(\'now\') WHERE id = ?', checkInReady ? 1 : 0, id);
   }
   if (checkInDone !== undefined) {
-    model.updatePaymentField('UPDATE reservations SET checkInDone = ?, updatedAt = datetime(\'now\') WHERE id = ?', checkInDone ? 1 : 0, id);
+    // specs/pricing-components.md rule 103 — unticking undoes the false start the tick made (its baseline, the lines it carved out).
+    if (checkInDone) model.updatePaymentField('UPDATE reservations SET checkInDone = ?, updatedAt = datetime(\'now\') WHERE id = ?', 1, id);
+    else require('../utils/extraSale').unmarkArrival(Number(id));
   }
   if (checkOutDone !== undefined) {
     model.updatePaymentField('UPDATE reservations SET checkOutDone = ?, updatedAt = datetime(\'now\') WHERE id = ?', checkOutDone ? 1 : 0, id);

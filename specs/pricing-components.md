@@ -2028,6 +2028,50 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
     > every time (before: 27 of 55 on the arrival morning); `saleDetail` buckets = stored complements on 55 of 55 at every moment. Tests
     > `sale-one-moment`, `guest-order-evening-stable-key`, `stay-clock-compose-feed` (amended).
 
+103. **One judge for where a sold line is collected: the engine's** _(stabilisation loop t3, T3-1 to T3-8, 2026-11-16; completes rules 20, 37, 39,
+    93, 95, 102)_. Before, two answers remained: the sale's moment (`collectionOf`, the stamp, `moments`) read the stay clock, and the engine carved a
+    line out to the departure whenever it held an extras baseline — stored, or due because the stay started **or its arrival complement was collected**
+    (a complement paid before the arrival, defer-arrival-complement-to-checkout rule 21, closes that bucket: master's money fix). So a 65 € sale at J-3 on a
+    stay whose complement was paid read « À payer à l’arrivée », was listed in the arrival e-mail and SAS, and was written to the departure; and after the
+    arrival box was ticked then unticked before the hour, a sale read « arrival », went to the departure, and « move to the arrival » answered 200 and
+    moved nothing.
+    (a) **The judge.** `reservationsModel.extrasCarvedOut(id)` answers what `resolveArrivalExtrasBaseline` decides: a baseline stored, or one due (the
+    stay clock started — rule 102 a — or the arrival complement collected). The moment of a new sale (`collectionOf`, the quote's and the sale's
+    `collectAt`, the stamp), its routing, the card settlement, the moves (`changeLine { collectAt }`, the baseline they adjust) and the moments the sale
+    detail offers (`['arrival']` before; `['arrival', 'departure']` once carved; `['departure']` when the arrival complement is collected) all read it.
+    The stay clock alone still decides the lock and whether a payment can be taken now (`PAYMENT_BEFORE_ARRIVAL`).
+    (b) **A false start is undone.** The check-in box unticked (payments PATCH `checkInDone: false`, `extraSale.unmarkArrival`) before the check-in hour,
+    on a stay that collected nothing in between (no complement, no settled note of the stay): the lines the tick carved out to the departure go back to
+    the arrival (`collectAt`, routing), the baseline is cleared, and the stored complements follow in the same pinned write (rule 93). Past the hour, or
+    once something was collected, the start stands and the baseline stays — the judge then keeps reading it. The boot repair of
+    arrival-moment-is-the-check-in rule 5 no longer clears a baseline that carved a line out to the departure (a line stamped `departure`).
+    (c) **An offered line at the open arrival stays the door's** (rule 102 d): an unpaid arrival line offered there is billed again, discounted or removed
+    (before: 400 `ARRIVAL_EXTRAS_FROZEN`); the keys of the open arrival complement are never read above the baseline during the gesture.
+    (d) **A line's own discount is weighed net** by the baseline (`readExtraLines`, the move, the baseline of an arrival line discounted where the door can
+    change it), as the engine weighs it: a line discounted before the arrival no longer freezes every later sale of the started stay (« reduced »), and
+    a discounted line moves to the arrival and back with its net amount.
+    (e) **The arrival SAS recap lists what it collects**: no line stamped `departure` (a line moved there keeps its routing flag), a line at its amount
+    net of its own discount, and a line the fiche stamped at the arrival. A custom line of the stored detail carries its `collectAt` and `discountCents`.
+    (f) **The fiche's save stamps a line it writes where the engine put its money**: above the baseline of a started stay → `departure`; a line that left
+    the settled plan untouched and grew the arrival complement (the excess of a paid plan) → `arrival`. Older rows keep the boot's reading.
+    (g) `saleDetail.buckets.plan` is the stored deposit + balance (rule 93), like the two complements.
+    (h) **`atArrival` is carried whole**: the quote takes it (it announces the arrival bucket the sale writes), and a quote or a sale `atArrival` is refused
+    409 `ARRIVAL_CLOSED` « Arrivée déjà validée ou complément d’arrivée encaissé : la commande se règle au départ. » once the arrival is validated or its
+    complement collected (before: the line was stamped `arrival` while its money went to the departure).
+    (i) **A SAS custom line is found again by its own label first**: two linen items whose labels end in their own « (n) » (« Drap-housse (140) »,
+    « Drap-housse (160) ») keep their rows, ids and amounts on a re-run in any order; only a row the SAS numbered itself is found by its base label.
+    > _Measured on a fresh copy of the prod database of 2026-11-11 (2026-11-16):_ one 45 € option sold, offered, billed again, discounted 10 €, moved to
+    > the other moment the detail offers and back, and removed, on each of the 55 open stays at J-3, the arrival day 09:00 (as stored, ticked, unticked),
+    > 17:00 (as stored, ticked, unticked), 21:30, the day after, the departure day 09:00 and 11:00 and the day after the departure: 55 of 55 every time,
+    > with the bucket written = the moment announced, the line in the arrival e-mail only at the arrival and in « Ventes du séjour — au départ » only at
+    > the departure, a move answering 200 exactly when the detail offers it and the money following it (before: 37 of 55 at J-3 and unticked at 09:00, 54
+    > of 55 at 09:00 and unticked at 17:00, and 17 discounted lines per started moment refused « reduced »). `atArrival` at 17:00: 43 open arrivals sold
+    > into the arrival complement, 12 refused `ARRIVAL_CLOSED` (before: 2 of 55). The price replay moves nothing but the arrival SAS recap of five past
+    > stays (12, 22269, 22275, 22280, 22293), which no longer lists lines collected at the departure: their totals are unchanged. Tests
+    > `sale-moment-bucket-agree` (the probe, on fixtures), `sale-false-start-undone`, `sale-open-arrival-offered-line`, `sale-discounted-line-baseline`,
+    > `sas-arrival-recap-lists-what-it-collects`, `fiche-line-stamped-where-money-goes`, `sale-detail-plan-bucket-stored`, `sale-at-arrival-contract`,
+    > `sas-custom-label-own-number`.
+
 ## 4. Architecture
 
 > **Fat backend, thin frontend.** Every amount, status, discount share and grouping in this spec is computed
@@ -2070,7 +2114,8 @@ All of it is plain CommonJS functions and objects (rule 56).
 | `models/` | `pricingInputModel.js` | C | the loader: property, rules, VAT regime, catalogue, platform tax rows, installments, split receipts, stored lines; takes the phase from `stayClockModel` |
 | `models/` | `stayClockModel.js` | C | `phaseForReservation(id, now)` — the only resolver of the stay phase (rule 44) |
 | `models/` | `extraSalesModel.js` | C | writes appended lines with moment/status/source/discount, bucket columns, history |
-| `utils/` | `extraSale.js` | C | `quote` / `sell` orchestration (rules 27-30) |
+| `utils/` | `extraSale.js` | C | `quote` / `sell` orchestration (rules 27-30); `unmarkArrival` undoes a false start (rule 103 b) |
+| `models/` | `reservationsModel.js` | C | `extrasCarvedOut(id)` — the one judge of where a sold line is collected (rule 103 a) |
 | `utils/` | `saleDetail.js` | C | the read model of rule 31 |
 | `utils/pricing/` | `storedSaleFigures.js`, `steps/storedExtraGuests.js`, `steps/storedTouristTax.js` | C (PR C) | rule 8: the records a sale reads EXTRA GUESTS and TOURIST TAX from (their keys, their basis, the row check) and the two `staySale` steps that read them |
 | `utils/` | `pricingStoredFiguresMigration.js` | C (PR C) | rule 8: the two record columns and their backfill (once after boot: `index.js`, the replay, the gate's recompute) |
@@ -2332,6 +2377,15 @@ _Rewritten 2026-11-15 (stabilisation loop t1, UI-3) to what shipped._
 - [x] `refund-deleted-reopens-obligations` — rule 98 (B-5)
 - [x] `accounting-receipt-split-frozen-at-payment` — rule 99 (B-4): a payment day frozen with the lines sold by it, today's row following the lines, a stay booked before never frozen, the receipt's cut kept when a paid line is removed
 - [x] `fiche-save-keeps-first-lines-booking-date` — rule 100 (D2-1): a notes-only save leaves a stay's first lines on the booking date and a receipt of yesterday frozen with them; a line the save adds is sold today
+- [x] `sale-moment-bucket-agree` — rule 103 (loop t3 T3-1): the 55-stay probe on fixtures — a plain stay and a stay whose arrival complement was collected before the arrival, at twelve moments (J-3 to the day after the departure, ticked, unticked, false start): sale, offer, re-bill, discount, move there and back, removal; the moment, the bucket, the e-mail, the departure section and the move agree
+- [x] `sale-false-start-undone` — rule 103 b: unticked before the hour, the carved lines and their money back at the arrival; past the hour or once collected, the start stands
+- [x] `sale-open-arrival-offered-line` — rule 103 c (T3-2): an offered arrival line billed again, discounted and removed at the open arrival; frozen once validated
+- [x] `sale-discounted-line-baseline` — rule 103 d (T3-8): a discounted arrival line does not freeze the started stay; a discounted line moves with its net amount
+- [x] `sas-arrival-recap-lists-what-it-collects` — rule 103 e (T3-3): a moved line not listed, a discounted line at its net amount
+- [x] `fiche-line-stamped-where-money-goes` — rule 103 f (T3-4): a fiche line beyond a settled plan reads « À payer à l’arrivée » and the SAS lists it; a fiche line of a started stay reads « À payer au départ »
+- [x] `sale-detail-plan-bucket-stored` — rule 103 g (T3-5)
+- [x] `sale-at-arrival-contract` — rule 103 h (T3-6): the quote announces the arrival bucket; `ARRIVAL_CLOSED` once validated or collected
+- [x] `sas-custom-label-own-number` — rule 103 i (T3-7): linen items with their own « (n) » keep their rows across re-runs
 
 ### Client Vitest suites (named 2026-11-16, stabilisation loop t2 P2-2)
 - [x] `ReservationPage.extra-sales-panel` — rule 101 (UI2-1 to UI2-4): a started stay with the window open sells and moves its lines, a collected departure does not, the fiche's `saleDetail` read once, a dirty fiche holds the writes and keeps the typed note, a write on a clean fiche re-reads without the loading screen, and while the re-read is in flight the fiche is busy (fields read-only, « Enregistrer » disabled)

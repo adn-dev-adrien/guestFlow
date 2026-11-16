@@ -22,7 +22,8 @@
  * (`index.js`) and in the price gate's recompute.
  */
 const { toCents: cents } = require('./pricing/money');
-const { legacyCollectAt } = require('./pricing/legacyCollectAt');
+const { legacyCollectAt, keysAboveBaseline } = require('./pricing/legacyCollectAt');
+const { extraLineKey } = require('./pricing/storedLines');
 const { storedMidStayLines, resolveMidStaySplit } = require('./pricing/settlement');
 
 const endOfStayCollected = (stay) => Number(stay.endOfStayComplementPaid || 0) === 1 || Number(stay.endOfStayComplementPaidCash || 0) === 1;
@@ -31,7 +32,6 @@ const collectedMidStayKeys = (stay) => Object.entries(resolveMidStaySplit([], {
   settled: true, storedLines: storedMidStayLines(stay.endOfStayComplementDetail), notes: stay.midStaySettledNotes || null,
 }).byKey || {}).filter(([, amount]) => Number(amount) > 0).map(([key]) => key);
 const { paymentRowsOfStay, ensureTriggers, lineRefsByKey } = require('./paymentAllocationsSync');
-const { extraLineKey } = require('./pricing/storedLines');
 const { makeArticle } = require('./pricing/articles');
 const { notDepartureCharge } = require('./departureChargeLines');
 
@@ -189,13 +189,30 @@ function backfillLineColumns(db, only = null) {
       ...db.prepare('SELECT rowid AS rid, * FROM reservation_resources WHERE reservationId = ? ORDER BY rowid').all(reservationId).map((row) => ({ table: 'reservation_resources', row, kind: 'resource', refKind: 'resource', idKey: 'resourceId' })),
       ...db.prepare(`SELECT rowid AS rid, * FROM reservation_custom_options WHERE reservationId = ?${notDepartureCharge(db)} ORDER BY sortOrder, id`).all(reservationId).map((row) => ({ table: 'reservation_custom_options', row, kind: 'custom' })),
     ];
-    const moments = legacyCollectAt(lines.map(({ row, kind, idKey }) => (kind === 'custom'
+    const read = lines.map(({ row, kind, idKey }) => (kind === 'custom'
       ? { isCustom: true, description: row.description, totalPrice: row.amount, offered: row.offered, inComplement: row.inComplement }
-      : { [idKey]: row[idKey], totalPrice: row.totalPrice, offered: row.offered, inComplement: row.inComplement })), {
+      : { [idKey]: row[idKey], totalPrice: row.totalPrice, offered: row.offered, inComplement: row.inComplement }));
+    const moments = legacyCollectAt(read, {
       platformSale: !direct.has(String(stay.platform == null ? 'direct' : stay.platform).trim().toLowerCase() || 'direct'),
       baseline: stay.arrivalExtrasBaseline || null,
       collectedMidStayKeys: endOfStayCollected(stay) ? collectedMidStayKeys(stay) : null,
     });
+    // Loop t3, T3-4 — a line the fiche's own save just wrote is stamped where the engine put its money (rule 103): above the stay's baseline it is
+    // collected at the departure, whatever its routing flag; a line that left the settled plan untouched and grew the arrival complement (the
+    // excess of a paid plan) is collected at the arrival. The boot's reading of older rows is unchanged.
+    if (only) {
+      const above = keysAboveBaseline(read, stay.arrivalExtrasBaseline || null);
+      const before = only.rowBefore || null;
+      const toCents2 = (v) => Math.round(Number(v || 0) * 100);
+      const excessToArrival = before
+        && toCents2(stay.depositAmount) + toCents2(stay.balanceAmount) <= toCents2(before.depositAmount) + toCents2(before.balanceAmount)
+        && toCents2(stay.complementAmount) > toCents2(before.complementAmount);
+      lines.forEach(({ kind, row }, index) => {
+        if (only.before && only.before.has(`${kind}:${row.lineId}`)) return;
+        if (above.has(extraLineKey(read[index]))) moments[index] = 'departure';
+        else if (moments[index] === 'plan' && excessToArrival && Number(row.offered || 0) !== 1) moments[index] = 'arrival';
+      });
+    }
     lines.forEach(({ table, row, kind, refKind, idKey }, index) => {
       let articleRef = `custom:${row.lineId}`;
       let family = null;
@@ -479,8 +496,8 @@ function backfillRefundNettings(db, { force = false } = {}) {
 
 /** The lines a fiche save wrote and left unstamped get their moment, article and sale date now (source `fiche`, the column default); the unstamped lines
  * listed in `before` (held by the stay before the save) get the boot's reading instead — their sale date is the booking's, never the save's. */
-function stampFicheLines(db, reservationId, soldAt, before = null) {
-  return backfillLineColumns(db, { reservationId, soldAt, before });
+function stampFicheLines(db, reservationId, soldAt, before = null, { rowBefore = null } = {}) {
+  return backfillLineColumns(db, { reservationId, soldAt, before, rowBefore });
 }
 
 module.exports = {

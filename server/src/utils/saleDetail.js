@@ -14,10 +14,11 @@
  *   groups[]  { id, label, count, title, totalCents, refs[] } — the articles sold on several lines (rules 13, 85), for display: a same-price group reads
  *             « Bière locale — 3 × 6,50 € (2 lignes) », otherwise « Bière locale — 3 : 1 × 6,50 € + 2 × 7,00 € », an hourly resource « N séances »;
  *             an offered line stays in its group (struck through by the client), a group never merges two lines
- *   buckets   { plan, arrival, departure } the amount due at each moment, from SETTLEMENT's figures of the quote; with `stored.arrivalCents` /
- *             `stored.departureCents` (a stored stay) the arrival and departure buckets are the stored complements (rule 93)
+ *   buckets   { plan, arrival, departure } the amount due at each moment, from SETTLEMENT's figures of the quote; with `stored.planCents`,
+ *             `stored.arrivalCents` / `stored.departureCents` (a stored stay) the buckets are the stored deposit + balance and complements (rule 93)
  *   totals    { totalCents, settledCents, dueCents, vatByRate: [{ rate, vatCents, netCents }] }
  *   phase     the stay clock's answer ('before' | 'during' | 'after'), or null
+ * `moments` (optional) the moments a line of this stay can be moved to now (rule 103); without it, `phase` decides (rule 95).
  *
  * `facts[lineKey]` = { lineId, table, source, collectAt, collectAtDefault, soldAt, settledCents, paidAt, discountCents }.
  * A line with no fact is a line being sold (source fiche, nothing paid). Pure: no DB, no clock.
@@ -91,13 +92,18 @@ function groupsOf(lines) {
 }
 
 // Rules 37, 95 — the moments a line can be moved to, said by the server (the screen offers them and rebuilds no rule): none for an offered, paid or platform
-// line; before the arrival, the arrival only (a stay not started carves nothing out to the departure).
-function momentsOf(line, phase) {
+// line; before the arrival, the arrival only (a stay not started carves nothing out to the departure). `available` (rule 103), when the caller
+// knows it, is the stay's own list: the moments the engine routes a line to now (the departure once it carves the extras out, the arrival unless
+// its complement is collected).
+function momentsOf(line, phase, available = null) {
   if (!['option', 'resource', 'custom'].includes(line.kind) || line.offered || line.status === 'paid' || line.status === 'platform') return [];
+  if (Array.isArray(available)) return available.slice();
   return phase === 'before' ? ['arrival'] : ['arrival', 'departure'];
 }
 
-function lineOf(raw, { kind, facts, vatClassOf, platformStay, phase = null }) {
+function lineOf(raw, {
+  kind, facts, vatClassOf, platformStay, phase = null, available = null,
+}) {
   const key = extraLineKey(raw);
   const fact = facts[key] || null;
   const quotedGross = toCents(raw.grossTotalPrice != null ? raw.grossTotalPrice : (raw.originalTotalPrice && raw.offered ? raw.originalTotalPrice : raw.totalPrice));
@@ -143,18 +149,24 @@ function lineOf(raw, { kind, facts, vatClassOf, platformStay, phase = null }) {
     ...statusOf({ offered: Boolean(raw.offered), includedInPlatform, dueCents: due, settledCents, collectAt, paidAt: fact && fact.paidAt }),
     vatClass: vatClassOf ? vatClassOf(raw, kind) : null,
   };
-  line.moments = momentsOf(line, phase);
+  line.moments = momentsOf(line, phase, available);
   line.movable = line.moments.some((moment) => moment !== line.collectAt);
   return line;
 }
 
-function buildSaleDetail({ quote, facts = {}, phase = null, vatClassOf = null, platformStay = false, stored = null } = {}) {
+function buildSaleDetail({
+  quote, facts = {}, phase = null, vatClassOf = null, platformStay = false, stored = null, moments = null,
+} = {}) {
   const q = quote || {};
   const options = q.optionLines || [];
   const resources = q.resourceLines || [];
   const extraLines = [
-    ...options.map((line) => lineOf(line, { kind: line.isCustom ? 'custom' : 'option', facts, vatClassOf, platformStay, phase })),
-    ...resources.map((line) => lineOf(line, { kind: 'resource', facts, vatClassOf, platformStay, phase })),
+    ...options.map((line) => lineOf(line, {
+      kind: line.isCustom ? 'custom' : 'option', facts, vatClassOf, platformStay, phase, available: moments,
+    })),
+    ...resources.map((line) => lineOf(line, {
+      kind: 'resource', facts, vatClassOf, platformStay, phase, available: moments,
+    })),
   ];
   const extrasCents = extraLines.reduce((sum, line) => sum + line.totalCents, 0);
   // Rule 91 — the guests added after a platform's price was entered are billed like a line of their own, at the arrival.
@@ -232,7 +244,8 @@ function buildSaleDetail({ quote, facts = {}, phase = null, vatClassOf = null, p
     lines,
     groups: groupsOf(lines),
     buckets: {
-      plan: toCents(q.preArrivalAmount),
+      // Loop t3 T3-5 — the plan too: a stored stay's deposit and balance as stored (rule 93), never a live re-quote.
+      plan: storedBucket('planCents') ?? toCents(q.preArrivalAmount),
       arrival: arrivalBucket,
       departure: storedBucket('departureCents') ?? toCents(q.endOfStayComplementTotal),
     },

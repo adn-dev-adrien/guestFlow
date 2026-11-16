@@ -171,7 +171,9 @@ function moveLine(reservationId, line, to, { started = true } = {}) {
   // Rule 95 — only a started stay carries a baseline: before the arrival the line's routing (`inComplement`) is the whole move.
   if (started) {
     const baseline = JSON.parse(reservations.peekArrivalExtrasBaseline(Number(reservationId)) || '{}');
-    const total = line.totalCents / 100;
+    // What the engine weighs the line at against the baseline: its amount net of its own discount (rule 39) — the gross would leave a discounted
+    // line below the floor it was just given, and the move would be refused as a reduction.
+    const total = Math.max(0, line.totalCents - Number((line.row && line.row.discountCents) || 0)) / 100;
     if (to === 'departure') baseline[line.key] = Math.max(0, roundMoney((baseline[line.key] || 0) - total));
     else if (to === 'arrival') baseline[line.key] = roundMoney((baseline[line.key] || 0) + total);
     db.prepare("UPDATE reservations SET arrivalExtrasBaseline = ?, updatedAt = datetime('now') WHERE id = ?").run(JSON.stringify(baseline), Number(reservationId));
@@ -256,6 +258,21 @@ function stampCustomQuantities(reservationId, added, requests) {
 function storeDiscount(line, cents) {
   if (cents == null) return;
   database().prepare(`UPDATE ${line.table} SET discountCents = ? WHERE lineId = ?`).run(cents, line.lineId);
+  fitArrivalBaseline(line, cents);
+}
+
+// Loop t3, T3-8 — an arrival line discounted where the door can still change it (an open arrival, a collected complement) is held in the
+// baseline at what it is now worth, as the engine weighs it: left at its gross, every later save of the started stay reads it as reduced.
+function fitArrivalBaseline(line, cents) {
+  if (line.collectAt !== 'arrival') return;
+  const db = database();
+  const row = db.prepare('SELECT arrivalExtrasBaseline FROM reservations WHERE id = ?').get(Number(line.row && line.row.reservationId));
+  const baseline = row && row.arrivalExtrasBaseline ? JSON.parse(row.arrivalExtrasBaseline) : null;
+  if (!baseline || baseline[line.key] == null) return;
+  const worth = roundMoney(Math.max(0, line.totalCents - Number(cents || 0)) / 100);
+  if (Number(baseline[line.key]) <= worth) return;
+  baseline[line.key] = worth;
+  db.prepare("UPDATE reservations SET arrivalExtrasBaseline = ?, updatedAt = datetime('now') WHERE id = ?").run(JSON.stringify(baseline), Number(line.row.reservationId));
 }
 
 // What the stay owes back for lowered lines, still open (the sale service compares it before and after a confirmed lowering).

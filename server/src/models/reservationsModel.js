@@ -654,6 +654,12 @@ function createReservationsModel(database, { arrivalComplementEngine = null } = 
     try { return database.prepare('PRAGMA table_info(reservation_custom_options)').all().some((c) => c.name === 'sasLineKey'); } catch { return false; }
   })();
   // A custom line keeps its count (specs/arrival-departure-sas.md rule 29); minimal test schemas lack it.
+  // Loop t3 T3-3 — a custom line carries its moment and its own discount like an option row (`ro.*`), so the readers of the detail (the arrival SAS
+  // recap) judge it the same way. Read when asked: the columns are added by the pricing-lines migration.
+  const customLineFacts = () => {
+    const columns = new Set(database.prepare('PRAGMA table_info(reservation_custom_options)').all().map((c) => c.name));
+    return ['collectAt', 'discountCents'].filter((name) => columns.has(name)).map((name) => `\n          rco.${name} as ${name},`).join('');
+  };
   const HAS_RCO_QUANTITY = (() => {
     try { return database.prepare('PRAGMA table_info(reservation_custom_options)').all().some((c) => c.name === 'quantity'); } catch { return false; }
   })();
@@ -1056,7 +1062,9 @@ function createReservationsModel(database, { arrivalComplementEngine = null } = 
   const rewriteSasCustomItems = (reservationId, items) => {
     const rows = database.prepare(`SELECT id, description${HAS_RCO_SAS_LINE_KEY ? ', sasLineKey' : ''} FROM reservation_custom_options
       WHERE reservationId = ? AND sasArrivalOrigin = 1 ORDER BY sortOrder, id`).all(reservationId);
-    const identity = (key, label) => (key ? `key:${key}` : `label:${sasBaseLabel(label)}`);
+    // Loop t3 T3-7 — a line is found by its own label first: two items whose labels differ only by a « (n) » of their own (« Drap-housse (140) »,
+    // « Drap-housse (160) », operator-editable) are two lines. Only a row this SAS numbered itself (« Bière locale (2) ») is found by its base label.
+    const identity = (key, label) => (key ? `key:${key}` : `label:${String(label).trim()}`);
     const held = new Map();
     for (const row of rows) {
       const k = identity(HAS_RCO_SAS_LINE_KEY ? row.sasLineKey : null, row.description);
@@ -1075,11 +1083,19 @@ function createReservationsModel(database, { arrivalComplementEngine = null } = 
     // Rule 94 (loop t2 N-4) — a new SAS line whose label the stay already holds (a sale of the shop, a line of the fiche) is numbered, as a
     // sale's is; a line this SAS wrote keeps the label it was given, so a re-run finds it again.
     const description = new Map(rows.map((row) => [row.id, row.description]));
+    const numberedOf = (label) => {
+      const pattern = new RegExp(`^${label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')} \\(\\d+\\)$`);
+      for (const [k, queue] of held) {
+        if (k.startsWith('label:') && queue.length && pattern.test(k.slice(6)) && sasBaseLabel(k.slice(6)) === label) return queue.shift();
+      }
+      return null;
+    };
     const plan = items.map((it) => {
       const label = String(it.label).trim();
       const queue = held.get(identity(it.sasLineKey || null, label));
       return { it, label, id: queue && queue.length ? queue.shift() : null };
     });
+    for (const step of plan) if (step.id == null && !step.it.sasLineKey) step.id = numberedOf(step.label);
     const keyOfLabel = (text) => extraLineKey({ isCustom: true, description: text });
     const taken = new Set([
       ...database.prepare(`SELECT description FROM reservation_custom_options WHERE reservationId = ? AND COALESCE(sasArrivalOrigin, 0) = 0${notDepartureCharge(database)}`)
@@ -1489,7 +1505,7 @@ function createReservationsModel(database, { arrivalComplementEngine = null } = 
           ${HAS_RCO_SAS_LINE_KEY ? 'rco.sasLineKey' : 'NULL'} as sasLineKey,
           ${HAS_RCO_LINE_ID ? 'rco.lineId' : 'NULL'} as lineId,
           rco.acompteContribTtc as acompteContribTtc,
-          rco.soldeContribTtc as soldeContribTtc,
+          rco.soldeContribTtc as soldeContribTtc,${customLineFacts()}
           1 as isCustom
         FROM reservation_custom_options rco
         WHERE rco.reservationId = ?${notDepartureCharge(database, 'rco')}
@@ -3103,13 +3119,19 @@ function createReservationsModel(database, { arrivalComplementEngine = null } = 
         ? extraLineKey({ isCustom: true, description: x.title || x.description })
         : require('./extraSalesModel').keyOfLine(reservationId, x.refKind, x.lineId));
       for (const x of extras) {
-        if (Number(x.inComplement) !== 1 || Number(x.sasArrivalOrigin || 0) === 1) continue;
+        // A line the fiche stamped at the arrival (the excess of a settled plan, loop t3 T3-4) is collected there whatever its routing flag.
+        if ((Number(x.inComplement) !== 1 && x.collectAt !== 'arrival') || Number(x.sasArrivalOrigin || 0) === 1) continue;
+        // Loop t3, T3-3 — the recap lists what the arrival complement collects: a line moved to the departure (its moment says so, its routing
+        // stays) is collected there, never at the door.
+        if (x.collectAt === 'departure') continue;
         if (!(Number(x.originalTotalPrice ?? x.totalPrice ?? 0) > 0)) continue;
         const storedOffered = Number(x.offered || 0) === 1;
         const hostsEvening = x.refKind === 'resource' && hosted.some((c) => c.lineId === Number(x.lineId));
         const noteKey = Object.keys(prepaidLeft).length ? noteKeyOf(x) : null;
-        const fullReal = round2((storedOffered ? (x.originalTotalPrice ?? x.totalPrice) : (x.totalPrice ?? x.originalTotalPrice))
-          - (hostsEvening ? eveningCentsOf(x.components) / 100 : 0));
+        // …and a line at what it is worth once its own discount is taken (rule 39), as the complement collects it.
+        const ownDiscount = storedOffered ? 0 : Number(x.discountCents || 0) / 100;
+        const fullReal = round2(Math.max(0, (storedOffered ? (x.originalTotalPrice ?? x.totalPrice) : (x.totalPrice ?? x.originalTotalPrice))
+          - ownDiscount - (hostsEvening ? eveningCentsOf(x.components) / 100 : 0)));
         const prepaid = !storedOffered && noteKey && prepaidLeft[noteKey] > 0 ? Math.min(fullReal, prepaidLeft[noteKey]) : 0;
         if (prepaid > 0) prepaidLeft[noteKey] = round2(prepaidLeft[noteKey] - prepaid);
         const real = round2(fullReal - prepaid);
@@ -3282,24 +3304,30 @@ function createReservationsModel(database, { arrivalComplementEngine = null } = 
     readExtraLines(reservationId) {
       const lineId = (table) => (hasLineId(database, table) ? 'lineId, ' : '');
       // The moment a line is collected (pricing-components rule 20): a line sold for the departure is not an arrival line (end-review V-5).
-      const moment = (table) => (database.prepare(`PRAGMA table_info(${table})`).all().some((c) => c.name === 'collectAt') ? ', collectAt' : '');
-      const options = database.prepare(`SELECT ${lineId('reservation_options')}optionId, totalPrice, offered${moment('reservation_options')} FROM reservation_options WHERE reservationId = ?`).all(reservationId);
-      const resources = database.prepare(`SELECT ${lineId('reservation_resources')}resourceId, totalPrice, offered${moment('reservation_resources')} FROM reservation_resources WHERE reservationId = ?`).all(reservationId);
-      const customs = database.prepare(`SELECT id, description, amount, offered${moment('reservation_custom_options')} FROM reservation_custom_options WHERE reservationId = ?${notDepartureCharge(database)}`).all(reservationId);
+      const columnsOf = (table) => new Set(database.prepare(`PRAGMA table_info(${table})`).all().map((c) => c.name));
+      const moment = (table) => (columnsOf(table).has('collectAt') ? ', collectAt' : '');
+      // A line's own discount (pricing-components rule 39) is weighed as the engine weighs it: the line nets it (loop t3, T3-8). The stored
+      // amount is the gross; a baseline laid from it would hold a discounted line above what it is worth, and every later save would read
+      // it as reduced (ARRIVAL_EXTRAS_FROZEN).
+      const discount = (table) => (columnsOf(table).has('discountCents') ? ', discountCents' : '');
+      const net = (amount, row) => Math.max(0, round2(Number(amount || 0) - Number(row.discountCents || 0) / 100));
+      const options = database.prepare(`SELECT ${lineId('reservation_options')}optionId, totalPrice, offered${moment('reservation_options')}${discount('reservation_options')} FROM reservation_options WHERE reservationId = ?`).all(reservationId);
+      const resources = database.prepare(`SELECT ${lineId('reservation_resources')}resourceId, totalPrice, offered${moment('reservation_resources')}${discount('reservation_resources')} FROM reservation_resources WHERE reservationId = ?`).all(reservationId);
+      const customs = database.prepare(`SELECT id, description, amount, offered${moment('reservation_custom_options')}${discount('reservation_custom_options')} FROM reservation_custom_options WHERE reservationId = ?${notDepartureCharge(database)}`).all(reservationId);
       // Rule 85: a later sale of an article is a line of its own (`lineId` + `lineKey`); the article's first line keeps the legacy key.
       const identified = (table, rows, make) => keyLines(table, rows).map(({ row, key }) => ({
         ...make(row), ...(row.lineId != null ? { lineId: Number(row.lineId) } : {}), ...(key.startsWith('line:') ? { lineKey: key } : {}),
       }));
       const collectAt = (row) => (row.collectAt ? { collectAt: row.collectAt } : {});
       return [
-        ...identified('reservation_options', options, (o) => ({ optionId: Number(o.optionId), totalPrice: Number(o.totalPrice || 0), offered: Number(o.offered || 0), ...collectAt(o) })),
-        ...identified('reservation_resources', resources, (r) => ({ resourceId: Number(r.resourceId), totalPrice: Number(r.totalPrice || 0), offered: Number(r.offered || 0), ...collectAt(r) })),
+        ...identified('reservation_options', options, (o) => ({ optionId: Number(o.optionId), totalPrice: net(o.totalPrice, o), offered: Number(o.offered || 0), ...collectAt(o) })),
+        ...identified('reservation_resources', resources, (r) => ({ resourceId: Number(r.resourceId), totalPrice: net(r.totalPrice, r), offered: Number(r.offered || 0), ...collectAt(r) })),
         // A custom line stores its ORIGINAL amount; an offered one is worth 0 like in the engine.
         ...customs.map((c) => ({
           isCustom: true,
           customOptionId: Number(c.id),
           title: c.description,
-          totalPrice: Number(c.offered || 0) === 1 ? 0 : Number(c.amount || 0),
+          totalPrice: Number(c.offered || 0) === 1 ? 0 : net(c.amount, c),
           offered: Number(c.offered || 0),
           ...collectAt(c),
         })),
@@ -3408,6 +3436,20 @@ function createReservationsModel(database, { arrivalComplementEngine = null } = 
       if (row.arrivalExtrasBaseline) return row.arrivalExtrasBaseline;
       if (!arrivalExtrasBaselineIsDue(row)) return null;
       return JSON.stringify(arrivalBaselineOf(model.readExtraLines(reservationId), row.midStaySettledNotes));
+    },
+
+    // Pricing-components rule 103 — the one judge of « does a sale taken now go to the departure? »: the engine carves the extras above a
+    // baseline out to the end-of-stay complement whenever `resolveArrivalExtrasBaseline` answers one — a stored baseline, or one due (the
+    // stay clock has started, or the arrival complement is collected and closed). The sale's moment, its stamp, the moves and the sale
+    // detail read this same answer, so the label and the bucket the money lands in are never two clocks. Read at the gesture's `now`.
+    extrasCarvedOut(reservationId) {
+      const row = database.prepare('SELECT * FROM reservations WHERE id = ?').get(reservationId);
+      if (!row) return false;
+      if (!HAS_ARRIVAL_EXTRAS_BASELINE) {
+        const phase = stayClockModel.create(database).phaseForReservation(row.id, stayClockModel.gestureNow());
+        return Boolean(phase && phase.started);
+      }
+      return Boolean(row.arrivalExtrasBaseline) || arrivalExtrasBaselineIsDue(row);
     },
 
     // No baseline, and none due: what is sold now joins the ordinary balance (specs/mid-stay-notes.md rule 23).
