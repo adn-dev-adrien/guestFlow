@@ -246,7 +246,7 @@ function toReceptionSasCommit(body) {
   // not lose a whole check-in over a field it should not have sent. Dropping the mode leaves the
   // complement to settle through its own field, which reception is allowed to use.
   const {
-    stayPaid, stayPaidCash, arrivalPaymentMode, arrivalPaymentSplit, ...rest
+    stayPaid, stayPaidCash, arrivalPaymentMode, arrivalPaymentSplit, forceOverpayment, ...rest
   } = body || {};
   return rest;
 }

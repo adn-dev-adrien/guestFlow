@@ -188,6 +188,7 @@
       "Deux articles de linge dont le libellé se termine par un numéro (« Drap-housse (140) », « Drap-housse (160) ») restent deux lignes distinctes quand le sas est relancé.",
       "Le récapitulatif d’un sas d’arrivée en cours de saisie ne liste « Déjà réglé » que pour la part que ce sas déduit encore : offrir la ligne où l’argent avait été posé ne laisse plus une ligne négative face à un total à 0 €.",
       "Au départ, la ligne « Déjà réglé » n’affiche plus « Offrir » : c’est de l’argent déjà reçu, pas une vente.",
+      "Au sas, le compte « Accueil » ne voit plus le montant à rembourser d’une ligne déjà payée et ne peut pas confirmer de l’offrir : le refus renvoie à l’administrateur.",
       "Au sas, « Garder » sur une ligne déjà payée la remet à facturer : le récapitulatif reprend son prix et « Valider » ne repose pas la question.",
       "Une ligne payée, offerte puis remboursée reste offerte au sas : « ✓ Offert » n’y est plus proposé, la revendre se fait comme une nouvelle ligne.",
       "Décocher « Offert » au sas d’arrivée sur une ligne déjà payée la remet à facturer comme sur la fiche : le montant à rembourser s’annule, le solde non réglé redemande ce qui en avait été déduit.",
