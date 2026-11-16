@@ -133,6 +133,12 @@ or mutable state.
     > read through the `request` fixture passes `{ timeout: API_TIMEOUT }`. A save is observed by its answer, never by a disabled
     > « Enregistrer » (it flips with `saving`, before the PUT is even sent): wait for the PUT's response, then read the server
     > back with `expect.poll(…, { timeout: API_TIMEOUT })`. Test: `server/src/tests/e2e-api-timeout.unit.test.js`.
+    > _Reading of 2026-11-16 (loop t6):_ the `request` fixture itself is built with `actionTimeout`, and the per-call
+    > `{ timeout: API_TIMEOUT }` was left out of most read-backs: the same hop stall (status -1 for 5 s on `GET /api/terms`, while
+    > the page's calls before and after answered in 2-13 ms and nothing in the route is asynchronous) failed
+    > `plugins/online-payment` « the public site address… » and skipped the 18 specs after it. Every spec that takes `request`
+    > imports `test` from `e2e/fixtures/test.js`, whose `request` fixture is built with `API_TIMEOUT` (baseURL and storageState
+    > still come from the config). Same test file.
 20. **Specs that rewrite global state never overlap other specs** (2026-10-28 audit). The VAT specs
     (`vat-regime-switch`, `vat-franchise`, `vat-roundtrip`: global regime and rate) and `laundry-days` (global
     laundry schedule) are each their own Playwright project, run after the main `chromium` project (the VAT

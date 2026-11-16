@@ -25,6 +25,7 @@
     "adjustMidStayNote",
     "applyEndOfStayAdjustment",
     "buildArrivalComplementDetail",
+    "buildArrivalSeed",
     "buildDepartureSeed",
     "cancelMidStayNote",
     "captureArrivalExtrasBaseline",

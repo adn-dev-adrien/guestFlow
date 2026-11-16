@@ -7,6 +7,7 @@ import MidStayNoteRow from '../MidStayNoteRow';
 // server serves the lock (`midStayNoteLocks`), the row draws neither « Modifier la note » nor « Reporter au départ » and shows the reason.
 
 const NOTE = {
+  // date-literal-ok: the row only prints paidDate as « 06/08 »; neither the row nor the served lock compares it with today.
   id: 4, paidDate: '2026-08-06', paidCash: 0, total: 12, method: 'card', lines: [{ label: 'Bière', amount: 12, key: 'opt:9' }],
 };
 const REASON = 'Payée en ligne : offrir la ligne, puis rembourser.';

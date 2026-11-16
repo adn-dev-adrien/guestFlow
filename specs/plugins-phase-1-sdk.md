@@ -691,6 +691,11 @@ Optional: a plugin that declares nothing reads « Actif ».
     the stored lines whose `orderRef` starts with `refPrefix` were given back by the stay's refund register (every article key refunded outside
     a requalification, nothing left refundable on it). guest-app reads it for its staff list's « Remboursée » (`guest-app.md` rule 111 b); a
     plugin calling it ranges `^2.31.0` (`plugin-core-hardening-floor`). Test: `guest-order-cancelled-refunded-label`.
+56. *(Added 2026-11-16, loop t6 S6-3.)* **`ctx.core.reservations.buildArrivalSeed(reservationId)` (SDK 2.31.0)** — what the arrival SAS opens
+    with: `{ offeredKeys }`, the stored lines already offered, keyed by the recap's key rule (specs/sas-offer-complement-lines.md 4.3,
+    specs/pricing-components.md rule 85), so a later line of an article offered on the fiche reopens as exactly that line. `sas` 1.11.0 serves
+    it as `arrivalSeed` and ranges `^2.31.0` (`plugins-sdk-core-module-floor`); `coreModules.json` lists the name and `coreModuleHistory.json`
+    records it under 2.31.0 (rule 35). Tests: `sas-arrival-paid-line-judged`, `plugins-sdk-core-names-census`.
 
 **Edge cases:**
 - **A plugin throws during `register`.** Rule 4 applies: the other plugins and the core boot. The Plugins

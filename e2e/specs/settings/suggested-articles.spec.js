@@ -3,7 +3,7 @@
 // reordered with ↑ / ↓, saved with the bar's « Enregistrer »; the server holds the list in that order; no sideways scroll.
 // Reading 2026-11-16 (loop t4 UI4-1, smoke rule 19): a disabled « Enregistrer » is not a save signal (it flips with `saving`, before the PUT
 // is answered) — the test waits for the PUT's answer, then reads the server back with its own API budget, polling.
-import { test, expect } from '@playwright/test';
+import { test, expect } from '../../fixtures/test.js';
 import { createHourlyResource, createCounterArticle } from '../../fixtures/apiSeed';
 import { API_TIMEOUT } from '../../clientUrl.js';
 

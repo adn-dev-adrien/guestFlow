@@ -4,7 +4,7 @@
 //
 // Reported on a devis: « Nouveau devis » opened on L'Estiva (Ménage offered by default), the operator
 // switched to La Granja and took the Ménage — it showed « ✓ Offert » at 0 € instead of its 80 €.
-import { test, expect } from '@playwright/test';
+import { test, expect } from '../../fixtures/test.js';
 import { createProperty } from '../../fixtures/apiSeed.js';
 import { FAR_YEAR } from '../../fixtures/farYear.js';
 

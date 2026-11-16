@@ -39,3 +39,18 @@ test('rule 19: « proposés à l\'arrivée » reads the server back only after t
   assert.ok(readAt > waitAt, 'the read-back comes after it, with its own budget');
   assert.match(source, /expect\.poll\(readBack, \{ timeout: API_TIMEOUT \}\)/);
 });
+
+// Reading of 2026-11-16 (loop t6): the `request` fixture itself is built with the 5 s `actionTimeout`; a stalled read-back failed
+// plugins/online-payment. Every spec that takes it imports `test` from fixtures/test.js, whose `request` carries API_TIMEOUT.
+test('rule 19: the `request` fixture carries API_TIMEOUT in every spec that takes it', () => {
+  const fixture = fs.readFileSync(path.join(E2E, 'fixtures', 'test.js'), 'utf8');
+  assert.match(fixture, /request:\s*async \(\{ playwright \}, use\)/);
+  assert.match(fixture, /newContext\(\{ timeout: API_TIMEOUT \}\)/);
+  const offenders = [];
+  for (const file of filesUnder(path.join(E2E, 'specs'))) {
+    const source = fs.readFileSync(file, 'utf8');
+    if (!/\(\{[^}]*\brequest\b[^}]*\}[,)]/.test(source)) continue;
+    if (!/import \{ test, expect \} from '\.\.\/\.\.\/fixtures\/test\.js';/.test(source)) offenders.push(path.relative(E2E, file));
+  }
+  assert.deepEqual(offenders, []);
+});

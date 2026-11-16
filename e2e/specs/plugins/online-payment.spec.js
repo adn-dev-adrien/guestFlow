@@ -4,7 +4,7 @@
 // not connected (the E2E database never connects it), the fiche offers no payment request and the
 // endpoints refuse. Switched off, the Paiements page and its menu entry go too. The public site's
 // address lives with the CGV and survives the plugin.
-import { test, expect } from '@playwright/test';
+import { test, expect } from '../../fixtures/test.js';
 import { createClient, createProperty, createReservation } from '../../fixtures/apiSeed.js';
 
 test.describe.configure({ mode: 'serial' });

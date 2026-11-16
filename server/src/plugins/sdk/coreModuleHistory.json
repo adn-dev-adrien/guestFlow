@@ -311,6 +311,9 @@
         "extraSale": [
           "arrivalOpenAt"
         ],
+        "reservationsModel": [
+          "buildArrivalSeed"
+        ],
         "saleDetail": [
           "buildDocumentDetail"
         ],

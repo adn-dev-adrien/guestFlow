@@ -3,7 +3,7 @@
 // into the past and the future: it opens on today under the bar, the past is one scroll up, an empty
 // fortnight does not stop the scroll (a stay 8 weeks out is reachable), « Aujourd'hui » comes back, and
 // there is no date input on the page.
-import { test, expect } from '@playwright/test';
+import { test, expect } from '../../fixtures/test.js';
 import { createClient, createProperty, createReservation } from '../../fixtures/apiSeed.js';
 
 const addDays = (iso, n) => {
