@@ -19,7 +19,7 @@ import { useNavigate, useSearchParams } from 'react-router';
 import {
   api, useToast, PageActionBar, PageTabs, TableCard, EmptyState, ErrorAlert, LoadingState, StatusBadge, PlatformChip, FilterChip, PlatformPenaltyDialog,
 } from '../sdk';
-import ReconciliationLine, { BankCell } from './ReconciliationLine';
+import ReconciliationLine, { BankCell, BankRefs } from './ReconciliationLine';
 import LinkTransactionDialog from './LinkTransactionDialog';
 import BulkConfirmDialog from './BulkConfirmDialog';
 import SplitSharesDialog from './SplitSharesDialog';
@@ -238,7 +238,7 @@ export default function ReconciliationPage() {
                   return (
                     <TableRow key={item.key} hover>
                       <TableCell>
-                        {item.reservation.clientName || '—'} <PlatformChip platform={item.reservation.platform} sx={{ ml: 0.5 }} />
+                        {item.reservation.clientName || item.reservation.saleLabel || '—'} <PlatformChip platform={item.reservation.platform} sx={{ ml: 0.5 }} />
                         <Typography variant="caption" color="text.secondary" component="div">{item.reservation.propertyName}</Typography>
                       </TableCell>
                       <TableCell>{item.label}</TableCell>
@@ -254,7 +254,7 @@ export default function ReconciliationPage() {
                         {item.proposal && <Button size="small" color="inherit" disabled={busy} onClick={() => actions.discard(item)} sx={{ textTransform: 'none' }}>Écarter</Button>}
                         {item.canUndo && <Button size="small" color="inherit" disabled={busy} onClick={() => actions.undo(item)} sx={{ textTransform: 'none' }}>Défaire</Button>}
                         {item.declarePenalty && <Button size="small" variant="outlined" onClick={() => setPenaltyItem(item)} sx={{ ml: 0.5, minHeight: 44, textTransform: 'none' }}>Déclarer une pénalité de {money(item.declarePenalty.amountCents)}</Button>}
-                        {item.isGap && <Button size="small" variant="outlined" onClick={() => openFiche(item)} sx={{ ml: 0.5, textTransform: 'none' }}>Ouvrir la fiche</Button>}
+                        {item.isGap && item.reservation.id != null && <Button size="small" variant="outlined" onClick={() => openFiche(item)} sx={{ ml: 0.5, textTransform: 'none' }}>Ouvrir la fiche</Button>}
                       </TableCell>
                     </TableRow>
                   );
@@ -276,6 +276,7 @@ export default function ReconciliationPage() {
                         <Typography variant="caption" color="text.secondary" sx={{ overflowWrap: 'anywhere' }}>
                           {credit.counterparty}{credit.reference ? ` · « ${credit.reference} »` : ''}
                         </Typography>
+                        <BankRefs refs={credit.refs} />
                         {credit.note && <Typography variant="caption" color="text.secondary" component="div">{credit.note}</Typography>}
                       </Box>
                       <StatusBadge status={tone} label={label} />

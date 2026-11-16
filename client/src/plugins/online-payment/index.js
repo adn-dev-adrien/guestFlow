@@ -18,7 +18,11 @@ export default {
     // Rules 25–27 — under the payments ledger of the fiche, from `pluginBlocks['online-payment']`.
     'reservation.cards': [{ key: 'bank-reconciliation', order: 5, Component: lazy(() => import('./ReservationReconciliationCard')) }],
     // Rule 22 — the home's « Écarts de règlement ».
-    'dashboard.alerts': [{ key: 'bank-reconciliation', order: 20, Component: lazy(() => import('./ReconciliationAlert')) }],
+    'dashboard.alerts': [
+      { key: 'bank-reconciliation', order: 20, Component: lazy(() => import('./ReconciliationAlert')) },
+      // specs/mollie-rolling-reserve-and-incoming-payments.md rule 13 — a reserve past its window with no credit.
+      { key: 'mollie-reserve-late', order: 21, Component: lazy(() => import('./MollieReserveAlert')) },
+    ],
     'settings.menu': [{
       path: '/parametres/paiements', label: 'Paiements en ligne', Icon: PaymentsIcon, before: '/settings/tva-exercice',
       keywords: ['Qonto', 'Lien de paiement', 'Carte bancaire', 'Paiement en ligne'],

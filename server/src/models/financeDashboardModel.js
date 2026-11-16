@@ -25,6 +25,7 @@ const { paceStartOf, revenueOfNights } = require('../utils/bookingPace');
 const { withoutTouristTax } = require('../utils/stayProfile');
 const { comparisonWindow, compare } = require('../utils/financeComparison');
 const { settlementFigures } = require('../utils/paymentTenders');
+const incomingPaymentsModel = require('./incomingPaymentsModel');
 
 const H = financeModel.helpers;
 
@@ -43,7 +44,7 @@ function withServedExercise(fiscalYears, exercise) {
   return list.sort((a, b) => b.key - a.key);
 }
 
-const DETAIL_TILES = new Set(['collected', 'toCollect', 'late', 'stays', 'properties', 'channels']);
+const DETAIL_TILES = new Set(['collected', 'toCollect', 'late', 'stays', 'properties', 'channels', 'incoming']);
 const CUMULATIVE_DAILY_UP_TO = 62;
 // specs/finance-revpar-year-over-year.md rules 8 and 13 — the figures compared with last year, their
 // unit, and the source each one reads: the stays' amounts or the money collected, never both.
@@ -429,6 +430,8 @@ function createDashboardModel(database, finance) {
             ? { count: 1, name: scopeRevenue ? scopeRevenue.propertyName : '', revenue: scopeRevenue ? scopeRevenue.revenue : 0, revPar: heroRevPar }
             : { count: allProperties.length, leader: leader ? leader.propertyName : null },
           channels: { commission },
+          // specs/mollie-rolling-reserve-and-incoming-payments.md rule 21 — a state, not a window: the period never moves it.
+          incoming: incomingTile(today),
         },
         revenueMonths,
         occupancy: occupancySeries,
@@ -518,8 +521,15 @@ function createDashboardModel(database, finance) {
     return rows;
   }
 
+  // Rule 21 — « Versements à venir »: what is still to arrive on the bank, how many clients, and the next day.
+  function incomingTile(today) {
+    const { totals } = incomingPaymentsModel.buildModel(database).get({ today });
+    return { amount: totals.amount, clients: totals.clients, nextDate: totals.nextDate, nextDateLabel: totals.nextDateLabel };
+  }
+
   function getDashboardDetail(tile, params = {}) {
     if (!DETAIL_TILES.has(tile)) return { ok: false, status: 404, error: 'Tableau inconnu.' };
+    if (tile === 'incoming') return { ok: true, data: incomingPaymentsModel.buildModel(database).get({ today: H.todayIso(), recent: params.recent === '1' || params.recent === 'true' }) };
     const ctx = context(params);
     if (!ctx.ok) return ctx;
     const { window: win, exercise, propertyId, today, scopeProperties } = ctx;

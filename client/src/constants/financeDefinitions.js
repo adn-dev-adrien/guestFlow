@@ -10,6 +10,7 @@ const NIGHTS_REVENUE = 'revenu des nuits de la période (chaque séjour réparti
 export const TILE_DEFINITIONS = {
   collected: `${STAYS_SOURCE} : paiements déjà reçus pour les séjours de la période, nets de commissions, comparés à la même période de l'an dernier.`,
   toCollect: `${STAYS_SOURCE} : reste à payer des séjours terminés, tous exercices.`,
+  incoming: 'Ce que la banque va recevoir : retenues et versements Mollie, échéances des échéanciers, versements des plateformes. Sans rapport avec la période. « À encaisser » dit ce que les clients doivent ; ici, ce qui arrivera sur le compte.',
   late: `${STAYS_SOURCE} : acomptes, soldes et versements plateforme passés leur échéance, tous exercices.`,
   stays: `${STAYS_SOURCE} : séjours rattachés à la période.`,
   properties: `${STAYS_SOURCE} : revenu, occupation et RevPAR de chaque logement.`,
