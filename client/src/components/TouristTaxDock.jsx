@@ -8,10 +8,10 @@
  * Props: totals (the report's totals), windowLabel (« août 2026 »), formatMoney (default formatCurrency)
  */
 import React from 'react';
-import { Box, Typography } from '@mui/material';
+import { Box, Tooltip, Typography } from '@mui/material';
 import { alpha, useTheme } from '@mui/material/styles';
 import { formatCurrency } from '../utils/formatters';
-import { TAX_DOCK } from '../constants/touristTaxReport';
+import { TAX_DOCK, PERSON_NIGHT_HINTS } from '../constants/touristTaxReport';
 
 const TABULAR = { fontVariantNumeric: 'tabular-nums' };
 
@@ -36,7 +36,7 @@ export default function TouristTaxDock({ totals, windowLabel }) {
       sx={{
         position: 'sticky', bottom: 0, zIndex: 3, mt: { xs: 1.5, sm: 2.25 }, mb: { xs: 'calc(env(safe-area-inset-bottom) + 4px)', sm: 1 },
         borderRadius: { xs: 3, sm: 4 }, border: '1px solid', borderColor: 'divider',
-        px: { xs: 1.5, sm: 2.25 }, py: { xs: 1, sm: 1.75 },
+        px: { xs: 2, sm: 3 }, py: { xs: 1.25, sm: 2 },
         display: 'grid', alignItems: 'center',
         columnGap: { xs: 1.5, md: 2 }, rowGap: { xs: 0.25, sm: 1.5, md: 2 },
         gridTemplateColumns: { xs: '1fr auto', sm: '1fr 1fr', md: '1.2fr 1fr 1fr 1.6fr' },
@@ -46,13 +46,13 @@ export default function TouristTaxDock({ totals, windowLabel }) {
         '@media (prefers-reduced-transparency: reduce)': { bgcolor: 'background.paper', backdropFilter: 'none' },
       }}
     >
-      <Box data-testid="total-amount" sx={{ gridRow: { xs: '1 / span 2', sm: 'auto' }, gridColumn: { sm: '1 / -1', md: 'auto' } }}>
+      <Box data-testid="total-amount" sx={{ minWidth: 0, gridRow: { xs: '1 / span 2', sm: 'auto' }, gridColumn: { sm: '1 / -1', md: 'auto' } }}>
         <Typography variant="caption" color="text.secondary" sx={{ display: { xs: 'block', sm: 'none' } }}>{TAX_DOCK.toRemitShort}</Typography>
         <Typography variant="caption" color="text.secondary" sx={{ display: { xs: 'none', sm: 'block' } }}>{TAX_DOCK.toRemit(windowLabel)}</Typography>
         <Typography component="b" sx={{ display: 'block', fontSize: { xs: '1.5rem', sm: '2rem' }, lineHeight: 1.1, letterSpacing: '-0.02em', color: 'primary.main', fontWeight: 700, ...TABULAR }}>
           {formatCurrency(t.remainingAmount)}
         </Typography>
-        <Typography variant="caption" color="text.secondary" sx={{ whiteSpace: { xs: 'nowrap', sm: 'normal' } }}>{caption}</Typography>
+        <Typography variant="caption" color="text.secondary" sx={{ display: 'block', lineHeight: 1.3 }}>{caption}</Typography>
       </Box>
       <Box data-testid="total-declared" sx={{ display: 'flex', flexDirection: { xs: 'row', sm: 'column' }, gap: { xs: 1, sm: 0 }, alignItems: { xs: 'baseline', sm: 'stretch' }, justifyContent: { xs: 'space-between', sm: 'flex-start' } }}>
         <Typography variant="caption" color="text.secondary">{TAX_DOCK.declared}</Typography>
@@ -65,13 +65,16 @@ export default function TouristTaxDock({ totals, windowLabel }) {
         <Typography variant="caption" color="text.secondary" sx={{ display: { xs: 'none', sm: 'block' } }}>{TAX_DOCK.platformStays(t.platformRemittedStaysCount)}</Typography>
       </Box>
       <Box sx={{ display: { xs: 'none', sm: 'flex' }, flexWrap: 'wrap', gap: 0.75, gridColumn: { sm: '1 / -1', md: 'auto' } }}>
-        {pills.map(([n, label, key]) => (
-          <Box key={key} data-testid={`total-${key}`} sx={{ bgcolor: 'background.default', borderRadius: 99, px: 1.25, py: 0.625, fontSize: '0.8125rem' }}>
-            {key === 'taxed'
-              ? <><Box component="b" sx={TABULAR}>{t.taxedPersons}</Box>{` ${TAX_DOCK.taxed(t.taxedPersons)} · `}<Box component="b" sx={TABULAR}>{t.exemptPersons}</Box>{` ${TAX_DOCK.exempt(t.exemptPersons)}`}</>
-              : <><Box component="b" sx={TABULAR}>{n}</Box>{` ${label}`}</>}
-          </Box>
-        ))}
+        {pills.map(([n, label, key]) => {
+          const pill = (
+            <Box key={key} data-testid={`total-${key}`} sx={{ bgcolor: 'background.default', borderRadius: 99, px: 1.25, py: 0.625, fontSize: '0.8125rem', ...(key === 'personNights' ? { cursor: 'help' } : {}) }}>
+              {key === 'taxed'
+                ? <><Box component="b" sx={TABULAR}>{t.taxedPersons}</Box>{` ${TAX_DOCK.taxed(t.taxedPersons)} · `}<Box component="b" sx={TABULAR}>{t.exemptPersons}</Box>{` ${TAX_DOCK.exempt(t.exemptPersons)}`}</>
+                : <><Box component="b" sx={TABULAR}>{n}</Box>{` ${label}`}</>}
+            </Box>
+          );
+          return key === 'personNights' ? <Tooltip key={key} title={PERSON_NIGHT_HINTS.taxed}>{pill}</Tooltip> : pill;
+        })}
       </Box>
     </Box>
   );
