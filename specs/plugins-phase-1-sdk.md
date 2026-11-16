@@ -695,7 +695,7 @@ Optional: a plugin that declares nothing reads « Actif ».
     with: `{ offeredKeys }`, the stored lines already offered, keyed by the recap's key rule (specs/sas-offer-complement-lines.md 4.3,
     specs/pricing-components.md rule 85), so a later line of an article offered on the fiche reopens as exactly that line. `sas` 1.11.0 serves
     it as `arrivalSeed` and ranges `^2.31.0` (`plugins-sdk-core-module-floor`); `coreModules.json` lists the name and `coreModuleHistory.json`
-    records it under 2.31.0 (rule 35). Tests: `sas-arrival-paid-line-judged`, `plugins-sdk-core-names-census`.
+    records it under 2.31.0 (rule 35). Tests: `sas-arrival-paid-line-judged`, `plugins-sdk-core-names-census`, `plugins-sdk-core-module-floor`.
 
 **Edge cases:**
 - **A plugin throws during `register`.** Rule 4 applies: the other plugins and the core boot. The Plugins
