@@ -2298,6 +2298,9 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
     (`overpaymentLines`, the ledger's `refundPrefill`, the fiche-save 409) therefore reads « Prestations complémentaires » and the avoir reverses
     70600010, the account the note booked, never 70600000. A note line still charged at what its note paid leaves nothing. The arrival-complement
     excess key keeps its own reading (rule 104). Test `refund-note-overpayment-poste`.
+    > **Reading of 2026-11-16 (stabilisation loop t8, D8-1).** A later cancellation keeps the poste: that refund names no line, and the cancelled
+    > register deducts it from its own bucket first (reservation-refunds rule 49 reading of the same day), so « Hébergement » gives back all it
+    > collected and the options never more than the notes sold.
 112. **A trop-perçu of cash and card notes is refunded in two parts** _(stabilisation loop t7, B7-3, 2026-11-16; completes rule 106 b)_. When cash
     notes took only part of the trop-perçu, the stored and live figures carry `overpaymentCash` `{ amountTtc, restTtc, lines }` (`cashPartOf`:
     the cash cents carved from the poste split, the prestations first) and the ledger's `refundPrefill.cashPart`. The refund dialog opens on that

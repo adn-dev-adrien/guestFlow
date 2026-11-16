@@ -126,9 +126,11 @@ function refundable({ finalPrice, touristTaxTotal, vatRate, options = [], resour
   }
   all.push(...extras);
   // Rule 49 reading of 2026-11-05 (D11) — a paid line removed since is offered back on what it collected, under its name.
+  const goneKeys = new Set();
   if (cancelled) {
     for (const line of goneLines) {
       if (all.some((other) => other.key === line.key)) continue;
+      goneKeys.add(line.key);
       all.push({ key: line.key, label: line.label, bucket: line.bucket, quantity: null, unitPrice: null, billedTtc: line.collectedTtc, vatRate: rate });
     }
   }
@@ -209,6 +211,29 @@ function refundable({ finalPrice, touristTaxTotal, vatRate, options = [], resour
     // are the very lines that collected.
     const rank = (line) => (atArrival.has(line.key) && !complementCollected ? 0 : (collectedLeft(line) === Infinity ? 1 : 2));
     const order = perLine.map((line, index) => index).sort((a, b) => rank(perLine[a]) - rank(perLine[b]) || a - b);
+    // Rule 49 reading of 2026-11-16 (loop t8 D8-1) — a book refund line keyed by no line (a trop-perçu refunded on its poste, rule 111 of
+    // pricing-components) gave back money of ITS poste: the excess it leaves comes off the lines of that bucket first, the lines holding money they no
+    // longer bill (offered or removed since, lowered after they were paid) before the others, and only the rest by the rank above. So every poste
+    // gives back at most what it holds: a note's overpayment refunded on « Prestations complémentaires » never comes off « Hébergement » again.
+    const keyless = {};
+    for (const line of (refunds || []).filter((refund) => !isRequalification(refund) && !isOffBooks(refund.method)).flatMap((refund) => refund.lines || [])) {
+      if (line.lineKey || isIndemnityLine(line) || !line.bucket) continue;
+      keyless[line.bucket] = (keyless[line.bucket] || 0) + Math.round(Number(line.amountTtc || 0) * 100);
+    }
+    const holdsUnbilled = (line) => goneKeys.has(line.key) || line.ceilingTtc > line.billedTtc;
+    let saleExcess = saleRooms.reduce((total, cents) => total + cents, 0) - Math.round(cancelled.saleLeftTtc * 100);
+    for (const [bucket, cents] of Object.entries(keyless)) {
+      if (saleExcess <= 0) break;
+      const inBucket = order.filter((index) => perLine[index].bucket === bucket);
+      const ownFirst = [...inBucket.filter((index) => holdsUnbilled(perLine[index])), ...inBucket.filter((index) => !holdsUnbilled(perLine[index]))];
+      let left = Math.min(saleExcess, cents);
+      for (const index of ownFirst) {
+        const taken = Math.min(left, saleRooms[index]);
+        saleRooms[index] -= taken;
+        left -= taken;
+        saleExcess -= taken;
+      }
+    }
     capInOrder(saleRooms, Math.round(cancelled.saleLeftTtc * 100), order);
     capInOrder(indemnityRooms, Math.round(cancelled.indemnityLeftTtc * 100), order);
     // Rule 49 reading of 2026-11-02 (second review of PR #926) — the cents the per-line caps leave unoffered (the
