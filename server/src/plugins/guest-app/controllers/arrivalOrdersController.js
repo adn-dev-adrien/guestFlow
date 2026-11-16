@@ -264,11 +264,15 @@ function buildArrivalOrdersController({
     // A line that is no line of its own (a breakfast merged into the stay's own) is edited on the fiche, never from here; nor a bath placed on held hours (AG-3).
     if (changed.plan.some((step) => !step.unchanged && (!step.own || onHeldHours(step.line, step.own)))) return fail(res, 409, 'ORDER_NOT_EDITABLE', WORDS.notEditable);
     // Loop t1 AG-1 (rules 83, 87) — the order's evening supplement goes with its bath: removed with the bath line; a bath that keeps some sessions keeps
-    // the supplement only whole, so taking one session of a supplemented bath off is the fiche's.
-    const supplements = stored.filter((s) => s.kind === 'custom' && s.orderId === Number(order.id));
+    // the supplement only whole, so taking one session of a supplemented bath off is the fiche's. Loop t3 A3-1 — the supplement of THAT bath, read by
+    // its stable key (`evening:resource:<id>`, loop t2 N-6) or, written before the key, by its words: another bath of the order keeps its own.
+    const supplementsOf = (bath) => stored.filter((s) => s.kind === 'custom' && s.orderId === Number(order.id) && (s.fulfilmentRef
+      ? s.fulfilmentRef === `evening:resource:${Number(bath.id)}`
+      : s.description === `${bath.title} — supplément soirée`));
     const bathChanged = changed.plan.filter((step) => !step.unchanged && step.line.kind === 'resource');
-    if (supplements.length && bathChanged.some((step) => step.next)) return fail(res, 409, 'ORDER_NOT_EDITABLE', WORDS.supplementWhole);
-    const dropSupplements = supplements.length > 0 && bathChanged.length > 0;
+    if (bathChanged.some((step) => step.next && supplementsOf(step.line).length)) return fail(res, 409, 'ORDER_NOT_EDITABLE', WORDS.supplementWhole);
+    const supplements = bathChanged.flatMap((step) => supplementsOf(step.line));
+    const dropSupplements = supplements.length > 0;
 
     const at = now();
     let written = null;

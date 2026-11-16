@@ -87,10 +87,10 @@
       "La liste des commandes au sas d’arrivée se replie sans animation quand l’appareil demande de réduire les animations.",
       "Une commande payée par carte d’un séjour annulé est due une seule fois : le registre « À rembourser » ne la répète pas.",
       "Un paiement qui arrive sur une commande annulée avec son séjour, même rétabli depuis, n’est jamais vendu sur la fiche : « Payée · à rembourser », l’équipe est prévenue.",
-      "Au sas d’arrivée, retirer un bain retire aussi son supplément de soirée ; un bain avec supplément de soirée se retire en entier, et un bain placé sur des heures que le séjour détenait déjà se modifie sur la fiche.",
+      "Au sas d’arrivée, retirer un bain retire aussi son supplément de soirée, et seulement le sien : un autre bain de la même commande garde le sien ; un bain avec supplément de soirée se retire en entier, et un bain placé sur des heures que le séjour détenait déjà se modifie sur la fiche.",
       "Au sas d’arrivée, une commande prise avant l’arrivée se modifie tant que l’arrivée n’est pas validée, quelle que soit l’heure, et au plus tard le jour du départ ; ce qui reste se règle à l’arrivée.",
       "Après un effacement puis une réinstallation, un ancien lien de paiement d’une commande ne règle plus la nouvelle commande qui a repris son numéro : les numéros repartent au-dessus des commandes encore nommées par un lien, et un lien qui n’est pas celui de la commande ne vend rien et reste à rembourser.",
-      "Une commande payée par carte d’un séjour annulé passe à « Remboursée » dans la liste de l’équipe une fois rendue depuis le remboursement de l’annulation.",
+      "Une commande payée par carte d’un séjour annulé passe à « Remboursée » dans la liste de l’équipe une fois rendue depuis le remboursement de l’annulation ; deux commandes du même article se rendent chacune sur sa propre ligne.",
       "Passé l’heure d’arrivée, une commande modifiée à la porte tant que l’arrivée n’est pas validée reste réglée à l’arrivée : la ligne se retire et ce qui reste n’est plus compté au départ ; le supplément de soirée d’une commande porte la clé de son bain.",
       "Demande le SDK 2.31 de GuestFlow."
     ]

@@ -1099,6 +1099,17 @@ arrival.** Everything below is judged by the server; the apps render what it off
     been refunded outside a requalification **and** the dialog offers nothing more on it; a part given back, or a key still holding refundable
     money, reads « Payée · à rembourser ». The reading is the core's (`refundGivenBack`, `plugins-phase-1-sdk.md` rule 55); a `paid_conflict`
     order (paid after the cancellation, the register's row) keeps « Payée · à rembourser ». Test: `guest-order-cancelled-refunded-label`.
+112. **Readings of 2026-11-16 on an order with two baths and on two orders of one article** _(stabilisation loop t3, A3-1 and A3-2; readings of
+    rules 109 d and 111 b)_. (a) **The evening supplement goes with ITS bath, not with the order.** The arrival SAS reads the supplement of the bath it
+    changes by the stable key the order gave it (`fulfilmentRef = evening:resource:<id>`, rule 82 reading N-6; a line written before the key, by its
+    words « <bain> — supplément soirée »). Removing a bath removes its own supplement only; another bath of the same order — supplemented or not —
+    keeps its line and its money. The « Supplément soirée : retirer le bain entier » refusal (rule 109 d) applies to a supplemented bath only: taking a
+    session off an unsupplemented bath of the same order is accepted. Test: `guest-order-arrival-amend-two-baths`. (b) **« Remboursée » keys a line
+    as the register does.** The first line of an article on the stay is keyed by the article (`opt:<id>` / `res:<id>`), every later line of that
+    article `line:<table>:<lineId>` (`pricing-components.md` rule 85); `refundGivenBack` keys the order's lines with the same scheme over every line of
+    the stay. Two paid orders of one article are two keys: giving back the first order's line leaves the second « Payée · à rembourser » until its
+    own line is given back; giving back the stay's own line of the article does not read a later order's line « Remboursée ». Test:
+    `guest-order-cancelled-refunded-label`.
 
 **Edge cases:**
 - Guest scans the La Granja poster while staying at L'Estiva → La Granja's visitor mode; their own stay opens
@@ -1588,6 +1599,8 @@ le nom et le numéro. »
 - [x] `guest-order-arrival-amend-after-check-in` — rule 110 a (owner 2026-11-16, AG-2): editable past the check-in hour until the arrival is validated, re-sold into the arrival complement
 - [x] `guest-order-evening-stable-key` — rule 82 (loop t2 N-6): the supplement carries its bath's key; the recompute reads every supplement of that bath
 - [x] `guest-order-arrival-amend-bath` — rule 109 d (AG-1, AG-3): the supplement goes with its bath; a bath on held hours is not changed from the SAS
+- [x] `guest-order-cancelled-refunded-label` — rules 111 b, 112 b (loop t2 AG2-2, t3 A3-2): « Remboursée » once given back; two orders of one article are two keys
+- [x] `guest-order-arrival-amend-two-baths` — rule 112 a (loop t3 A3-1): an order with two baths — the supplement goes with its own bath only; a session off the unsupplemented bath is accepted
 - [x] `guest-app-fulfilment` — rule 41ter: the pickup push names the day of a slot past midnight
 - [x] `plugins/guest-app/tests/guest-app-current-stay.unit.test.js` (15) — rules 2, 4, 5, 6, 9 (window edges and
   DST, what the link opens before J-7 / from J-7 / in the window / after, cancelled, a pre-arrival link session
