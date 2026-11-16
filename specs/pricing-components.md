@@ -2320,6 +2320,8 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
     _Reading of 2026-11-16 (loop t8, UI8-4):_ the announcement holds only while the means is « Caisse interne »: another means takes it away
     (it would say the cash goes back to the till when it does not), coming back to « Caisse interne » shows it again. Client
     `RefundDialog.cash-part-means`.
+    _Reading of 2026-11-16 (loop t8, B8-2):_ the cash a caisse-interne refund settled is the NOTE part of the rows it settled (`noteCents`,
+    rule 115): a caisse-interne refund of the stay's own trop-perçu took no note's cash.
 113. **« Enregistrer et rembourser » opens the refund dialog on the ledger row's split** _(stabilisation loop t8, UI8-1 / UI8-2, 2026-11-16;
     completes rules 104, 111, 112, reservation-refunds rule 34)_. The 409 `OVERPAID` a save answers carries what the ledger's « Trop-perçu »
     row serves once the save is confirmed (`refundPrefill`): `overpaymentLines` by poste, `overpaymentMethod`, and `overpaymentCash` when cash
@@ -2331,13 +2333,13 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
     for 27,27 of booked money). A cash-only trop-perçu still defaults to the caisse interne (rule 106 b). Replayed as the dialog posts it: one
     avoir on 70600010, on the booked money only, direct and Booking, card and cash + card. The 2026-11-11 copy holds no note: no stay moves.
     Test `fiche-save-overpaid-refund-split`, client `ReservationPage.overpaid-cash-part`.
-114. **A custom line carries the server's key** _(stabilisation loop t8, UI8-5, 2026-11-16; completes rules 85, 108)_. The engine's custom
-    lines (`steps/extras`) and the stored summary's (`storedSummary`) carry `key`, the server's own key of the line (`extraLineKey`:
-    `custom:<normalised label>`), the same the notes, the allocations and `refundedLoweredLines` name it by. The fiche compares that key; it never
-    copies the label normalisation (which had already drifted: description before title). Option and resource lines keep their `opt:` / `res:` /
-    `lineKey` keys. No figure moves. Test `custom-line-server-key`, client `ReservationPage.refunded-line-key`.
-    _Reading of 2026-11-16 (loop t8, B8-2):_ the cash a caisse-interne refund settled is the NOTE part of the rows it settled (`noteCents`,
-    rule 115): a caisse-interne refund of the stay's own trop-perçu took no note's cash.
+114. **A custom line carries the server's key** _(stabilisation loop t8, UI8-5, 2026-11-16; completes rules 85, 108)_. The custom lines of the
+    fiche's live quote (`POST /reservations/calculate-price`, `withCustomLineKeys`) and of the stored summary (`storedSummary`) carry `key`, the
+    server's own key of the line (`extraLineKey`: `custom:<normalised label>`), the same the notes, the allocations and `refundedLoweredLines`
+    name it by. The fiche compares that key; it never copies the label normalisation (which had already drifted: description before title).
+    Option and resource lines keep their `opt:` / `res:` / `lineKey` keys. The engine's quote itself (`steps/extras`) is not touched: it stays
+    key for key what it was (rule 4, `pricing-compose`; first written on the engine, moved to the endpoint at the round-8 merge). No figure
+    moves. Test `custom-line-server-key`, client `ReservationPage.refunded-line-key`.
 115. **Note money refunded is told apart from the stay's own** _(stabilisation loop t8, B8-2, 2026-11-16; completes rules 106, 108, 110, 112
     and D6-1)_. A `lineLowered` row holds the larger of the stay's trop-perçu and the note money no line claims (`syncLoweredObligations`):
     it can be solde money (a line of the solde discounted before the arrival), not note money. A refund opened on the trop-perçu therefore
@@ -2748,7 +2750,7 @@ _Rewritten 2026-11-15 (stabilisation loop t1, UI-3) to what shipped._
 - [x] `refund-note-overpayment-poste` — rule 111 (loop t7, B7-2): a card note line offered → `postesLeft` options 30, prefill « Prestations complémentaires », avoir on 70600010, direct and Booking; a line still charged leaves nothing (3)
 - [x] `refund-mixed-cash-card-note` — rule 112 (loop t7, B7-3): `cashPartOf`; cash 30 + card 30 offered → 30 « Caisse interne » proposed, then 30 by the booked means, one booked avoir of 30, direct and Booking (3)
 - [x] `fiche-save-overpaid-refund-split` — rule 113 (loop t8, UI8-1, UI8-2): a note line offered in the fiche, direct and Booking → the 409 splits on « Prestations complémentaires », carries the ledger row's cash part, a cash-only one defaults to the caisse interne; the dialog replayed on it books one avoir on 70600010, −30 € booked, card and cash + card (10)
-- [x] `custom-line-server-key` — rule 114 (loop t8, UI8-5): the engine's and the stored summary's custom line carry `key` = `extraLineKey` (2)
+- [x] `custom-line-server-key` — rule 114 (loop t8, UI8-5): the live quote's (`calculate-price`) and the stored summary's custom line carry `key` = `extraLineKey`; the engine quote carries none (rule 4) (2)
 - [x] `refund-solde-money-not-note-credit` — rule 115 (loop t8, B8-2): solde line discounted and refunded, then a note line offered: a 15 € line sold unpaid absorbed and 5 owed (card and cash), the control without refund, the un-offer accepted by the line API and the fiche, rule 108 still refusing the refunded plank, the cash note's « Caisse interne », a mixed refund stamping only its note part and its deletion clearing it — Σ balanced after each (7)
 - [x] `refund-note-discount-poste` — rule 111 reading (loop t8, B8-1): a note line discounted 24 → « Prestations complémentaires » 24, prefill and avoir on 70600010, direct and Booking; a cash note through the caisse interne (3)
 - [x] `platform-collected-complement-lowered` — rule 116 (loop t8, B8-5, B8-6): Booking complement collected before the arrival, a line offered / discounted → 409 OVERPAID, owed, refunded on 70600010; « caisse interne »; removal LINE_PAID; the way back and LINE_REFUNDED; direct stays not claimed; later sales after a pre-arrival discount; the floor's own reduction still refused — Σ balanced (8)

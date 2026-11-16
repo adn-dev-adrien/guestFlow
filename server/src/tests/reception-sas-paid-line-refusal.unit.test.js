@@ -104,7 +104,7 @@ function recalledStay({ offeredAtArrival = null } = {}) {
   assert.equal(extraSale.sell(id, requests, { now }).status, 200);
   const lines = db.prepare('SELECT lineId FROM reservation_options WHERE reservationId = ? AND optionId = ? ORDER BY lineId').all(id, beer);
   const refs = [{ kind: 'option', id: beer }, { kind: 'option', id: beer, lineId: lines[1].lineId }];
-  // `offeredAtArrival` — the admin adjusted the complement to 30 € (rule 104 credits no adjusted complement), then the admin's arrival SAS
+  // `offeredAtArrival` — the admin adjusted the complement to 30 € (pricing-components.md rule 104 credits no adjusted complement), then the admin's arrival SAS
   // offers the paid beer and confirms the trop-perçu: its 30 € is owed back while the complement, still unpaid, is recalled at the check-out.
   if (offeredAtArrival) db.prepare('UPDATE reservations SET complementAmountOverride = 30 WHERE id = ?').run(id);
   withNow(at(id, '17:00'), () => reservations.commitArrivalSas(id, {
@@ -158,7 +158,7 @@ test('A8-1 — arrival: the admin offered a paid line (30 € owed); reception s
 
   const admin = call('commitArrival', id, { offered: [], complementSettled: false }, ADMIN);
   assert.equal(admin.statusCode, 200);
-  assert.equal(owed(id), 0, 'the admin bills it again: the obligation closes (rule 109)');
+  assert.equal(owed(id), 0, 'the admin bills it again: the obligation closes (pricing-components.md rule 109)');
 });
 
 test('A8-1 — departure: the admin offered the paid beer at the arrival (30 € owed, adjusted complement recalled); reception sees it locked and cannot bill it again', SAS, () => {

@@ -1,5 +1,6 @@
 // specs/pricing-components.md §3 rule 114 (stabilisation loop t8, UI8-5) — a custom line carries the server's own key (`key`, `extraLineKey`)
-// on the live quote and on the stored summary, so the fiche matches `refundedLoweredLines` on it and never rebuilds a key from a label.
+// on the fiche's live quote (`calculate-price`; the engine's quote itself stays key for key, rule 4) and on the stored summary, so the
+// fiche matches `refundedLoweredLines` on it and never rebuilds a key from a label.
 process.env.DB_PATH = ':memory:';
 process.env.TZ = 'Europe/Paris';
 const test = require('node:test');
@@ -22,9 +23,18 @@ function withCustomLine() {
   return id;
 }
 
-test('UI8-5 — the engine serves the custom line\'s key, equal to the key the server reads the line by', () => {
+test('UI8-5 — the fiche\'s live quote serves the custom line\'s key, equal to the key the server reads the line by; the engine quote is unchanged (rule 4)', async () => {
   const id = withCustomLine();
-  const quote = quoteStoredReservation(db, row(id));
+  const engine = quoteStoredReservation(db, row(id)).optionLines.find((l) => l.isCustom);
+  assert.equal('key' in engine, false, 'the engine quote stays key for key what it was (pricing-components.md rule 4)');
+  const body = storedBody(id);
+  const quote = await new Promise((resolve) => {
+    ctrl.calculatePrice({
+      body: { ...body, reservationId: id, customOptions: [{ customKey: 'custom_1', description: 'Bière  Pression', amount: 30, offered: false }] },
+      user: { id: 1, role: 'admin' }, params: {}, query: {},
+    }, { status() { return this; }, json: resolve });
+  });
+  assert.equal(quote.error, undefined, JSON.stringify(quote));
   const custom = quote.optionLines.find((l) => l.isCustom);
   assert.equal(custom.key, 'custom:bière pression');
   assert.equal(custom.key, extraLineKey(custom));

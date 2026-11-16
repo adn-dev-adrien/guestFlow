@@ -1531,7 +1531,17 @@ async function calculatePrice(req, res) {
     }
   }
 
-  res.json(quote);
+  res.json(withCustomLineKeys(quote));
+}
+
+// Pricing-components rule 114 (loop t8 UI8-5, reading of 2026-11-16) — the fiche's live quote names each custom line by the server's own key
+// (`extraLineKey`), the key `refundedLoweredLines` uses. Served here, not by the engine: its quote stays key for key what it was (rule 4).
+function withCustomLineKeys(quote) {
+  if (!quote || !Array.isArray(quote.optionLines)) return quote;
+  return {
+    ...quote,
+    optionLines: quote.optionLines.map((line) => (line && line.isCustom && !line.key ? { ...line, key: extraLineKey({ isCustom: true, title: line.title }) } : line)),
+  };
 }
 
 /**

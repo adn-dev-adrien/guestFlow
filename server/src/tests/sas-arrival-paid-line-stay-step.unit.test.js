@@ -4,6 +4,7 @@
 // before the plan moved (`displayedStayDue`) is refused (409 STAY_DUE_CHANGED), nothing written. Before: shown 490,01, marked 535,01 (22303).
 // Rule 118: the SAS offering a paid line credits its money to the solde not yet paid, as the line API does at the same hour — no 409, the solde
 // lowered, nothing owed back. Before: 409 OVERPAID, forced → 45 € owed back while the unpaid solde was still asked in full (22303, 22306).
+// Also specs/sas-arrival-total-server-side.md rule 25: the stay amount is the plan's, and a stale `displayedStayDue` is refused.
 process.env.DB_PATH = ':memory:';
 process.env.TZ = 'Europe/Paris';
 const test = require('node:test');
