@@ -1294,6 +1294,12 @@ function createReservationsModel(database, { arrivalComplementEngine = null } = 
   const writeArrivalComplement = (reservationId, {
     items, hosted = [], sales, upsells, offeredExtras, cleaningAdded, cleaningOffered, bathLinenAdded, bathLinenOffered, arithmetic,
   }) => {
+    // Rule 109 (loop t7 S7-1) — a paid line whose « Offert » the recap unticks is billed again: the note money it had freed comes back the way
+    // the fiche's save takes it (obligation closed, credit given back to the plan), in the plan and the commit alike. Engine-backed models only.
+    const paidWayBack = arrivalComplementEngine ? require('../utils/paidLineJudgment').wayBack(database, reservationId, {
+      quoteOf: (r) => require('../utils/storedReservationQuote').quoteStoredReservation(database, r),
+      billedCents: () => Math.round(Number(billedLinesOf(reservationId) || 0) * 100),
+    }) : null;
     applyOfferedComplementExtras(reservationId, offeredExtras, { skipSasOrigin: true });
     const upsellOptionIds = new Set([upsells.cleaning.optionId, upsells.bathLinen.optionId].filter((id) => id != null).map(Number));
     rewriteSasCustomItems(reservationId, items);
@@ -1304,6 +1310,7 @@ function createReservationsModel(database, { arrivalComplementEngine = null } = 
     const engineAfter = arrivalComplementEngine ? round2(arrivalComplementEngine(reservationId)) : arithmetic;
     database.prepare("UPDATE reservations SET complementAmount = ?, updatedAt = datetime('now') WHERE id = ?").run(engineAfter, reservationId);
     reapplyComplementOverride(reservationId, engineAfter);
+    if (paidWayBack) paidWayBack.settle();
     const stored = round2(database.prepare('SELECT complementAmount FROM reservations WHERE id = ?').get(reservationId).complementAmount);
     return { engineAfter, stored };
   };

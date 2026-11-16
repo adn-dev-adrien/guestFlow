@@ -42,6 +42,7 @@ const { suggestBedDistribution } = require('../utils/bedDistribution');
 const { computePlatformCommission } = require('../utils/platformCommission');
 const { unclaimedRise, unlockedPriceRefusal } = require('../utils/savePriceGuards');
 const paidLineJudgment = require('../utils/paidLineJudgment');
+const { readsSaleLines } = require('../utils/saleLinesReaders');
 const { cashNoteExcessCents } = require('../utils/cashNoteExcess');
 const { checkGuestCapacity } = require('../utils/capacity');
 const { partyOf, nightsOf, typedCountAlerts, typedCountsErrorPayload } = require('../utils/typedCounts');
@@ -545,7 +546,10 @@ function liveOverpayment(reservationId, engineInput) {
   }, 'asSaved') / 100;
   // Loop t7 UI7-1 — the open obligation on a lowered paid line is owed whatever the draft types elsewhere: the dirty fiche
   // keeps the floor the stored one reads (storedOverpayment), or a platform stay's « Trop-perçu » vanishes until the save.
-  const floored = Math.max(Math.round(reported * 100), openLoweredCents(reservationId)) / 100;
+  // Loop t7 N7-1 — the floor is the part of it the save keeps (`syncLoweredObligations`: min(held, excess)): the note money no line claims.
+  // A draft that absorbs a confirmed trop-perçu (the discount taken back) shows what the save leaves, not the obligation it closes.
+  const keptOwed = Math.min(openLoweredCents(reservationId), paidLineJudgment.noteExcessCents(db, reservationId));
+  const floored = Math.max(Math.round(reported * 100), keptOwed) / 100;
   return overpaymentResultOf(reservationId, row, asSaved, floored);
 }
 
@@ -2407,7 +2411,10 @@ function applyUpdate(req, res, pastUnlocked, {
   const keepPricing = Boolean(existingReservation) && !refreshPricingToCurrent && !req.body.refreshTouristTax && !req.body.restatePricing
     && !complementOverrideMoved(req.body.complementAmountOverride, storedPaymentForQuote.complementAmountOverride)
     && pricingUnchangedFromStored(db, storedPaymentForQuote, quote, windowEngineInputs)
-    && !(stayIsOpenForLines(id, pastReservationLocked, midStayWindow) && hasUnstoredAutoOption(model.listCarriedOptionIds(id), quote));
+    // Loop t7 S7-3 (rule 82 reading) — only on a stay booked once 4.2.0 is installed: one booked before keeps its lines and figures on a save that
+    // moved nothing (owner 2026-11-15), or the re-price drops a sold line its lodging no longer offers (stay 14: « Ménage » for an early arrival).
+    && !(readsSaleLines(model.getRow(id)) && stayIsOpenForLines(id, pastReservationLocked, midStayWindow)
+      && hasUnstoredAutoOption(model.listCarriedOptionIds(id), quote));
   // The plan the engine gives this save, before any pin: a dry run's base carries it, so a gesture's plan moves by its line only (pinSaleDelta).
   res.enginePreArrivalAmount = quote.preArrivalAmount;
   res.engineNoteCreditCuts = quote.noteCreditCuts;
