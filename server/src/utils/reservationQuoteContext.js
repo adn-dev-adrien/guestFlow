@@ -15,6 +15,9 @@ const { arrivalPaymentAdjustment } = require('./reservationSettlement');
 const { getTodayIsoDate } = require('./reservationHelpers');
 const { isTouristTaxFrozen } = require('./touristTaxFreeze');
 const { DEFAULT_PAYOUT_DUE_DAYS } = require('./platformPayout');
+const { isDirectChannel } = require('./platformNameFormat');
+
+const refundLinesReady = (db) => db.prepare("SELECT COUNT(*) AS n FROM sqlite_master WHERE type = 'table' AND name IN ('reservation_refunds', 'reservation_refund_lines')").get().n === 2;
 const { create: createStayRepository } = require('../models/ports/stayRepository');
 
 // specs/mid-stay-extras-to-end-of-stay-complement.md — everything the engine needs to keep the
@@ -40,6 +43,14 @@ function midStayQuoteInputs(db, reservationId) {
     midStaySettledNotes: row.midStaySettledNotes || null,
     // specs/pricing-components.md rule 110 (loop t7 B7-1) — what a refund on the trop-perçu gave back of that money: no credit any more.
     refundedNoteCredit: require('./paidLineJudgment').refundedLoweredCents(db, Number(reservationId)) / 100,
+    // Rule 121 (loop t9 B9-2) — what the refunds on the trop-perçu gave back of the stay's OWN money (not a note's): no credit any more.
+    refundedStayCredit: refundLinesReady(db) ? Math.max(0, Math.round(refundsModel.overpaymentRefundedTtc(Number(reservationId)) * 100)
+      - require('./paidLineJudgment').refundedLoweredCents(db, Number(reservationId))) / 100 : 0,
+    // Rule 116 reading (loop t9 B9-3) — a platform stay's collected arrival complement claims its lines as a note does; on a platform stay every
+    // settled cent of a `lineLowered` row is claimed money, its note part stamped (`noteCents`), the rest the complement's.
+    complementClaims: require('./paidLineJudgment').platformComplementClaims(row),
+    refundedComplementCredit: isDirectChannel(row.platform) ? 0 : Math.max(0, require('./paidLineJudgment').settledLoweredCents(db, Number(reservationId))
+      - require('./paidLineJudgment').refundedLoweredCents(db, Number(reservationId))) / 100,
     complementCollected: Number(row.complementPaid || 0) === 1,
     // specs/defer-arrival-complement-to-checkout.md §3.3 rule 16 — a complement the operator moved to
     // the door reads under « fin de séjour » straight away, without waiting for the stay to start.

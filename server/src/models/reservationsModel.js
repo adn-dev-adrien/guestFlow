@@ -3402,13 +3402,21 @@ function createReservationsModel(database, { arrivalComplementEngine = null } = 
     // specs/mid-stay-extras-on-locked-fiche.md rule 8 — the « Forcer en complément » routing as stored,
     // so a save inside the window can carry it back untouched whatever the payload says.
     // specs/reservation-save-keeps-pricing.md rule 19 — and the custom lines' contribs, carried by every priced save.
+    // Pricing-components rule 85 (loop t9 B9-5) — a stay may hold several lines of one article (a solde line paid, the same article sold again
+    // at the arrival): the routing is stored per LINE (`optionLines` / `resourceLines`, by `lineId`), and the per-article maps are only the
+    // fallback of a body line that carries no `lineId`.
     getStoredRouting(reservationId) {
       const flag = (r) => Number(r.inComplement || 0);
+      const optionRows = database.prepare('SELECT optionId AS id, lineId, COALESCE(inComplement, 0) AS inComplement FROM reservation_options WHERE reservationId = ?')
+        .all(reservationId);
+      const resourceRows = database.prepare('SELECT resourceId AS id, lineId, COALESCE(inComplement, 0) AS inComplement FROM reservation_resources WHERE reservationId = ?')
+        .all(reservationId);
+      const byLine = (rows) => new Map(rows.filter((r) => r.lineId != null).map((r) => [Number(r.lineId), flag(r)]));
       return {
-        options: new Map(database.prepare('SELECT optionId AS id, COALESCE(inComplement, 0) AS inComplement FROM reservation_options WHERE reservationId = ?')
-          .all(reservationId).map((r) => [Number(r.id), flag(r)])),
-        resources: new Map(database.prepare('SELECT resourceId AS id, COALESCE(inComplement, 0) AS inComplement FROM reservation_resources WHERE reservationId = ?')
-          .all(reservationId).map((r) => [Number(r.id), flag(r)])),
+        options: new Map(optionRows.map((r) => [Number(r.id), flag(r)])),
+        resources: new Map(resourceRows.map((r) => [Number(r.id), flag(r)])),
+        optionLines: byLine(optionRows),
+        resourceLines: byLine(resourceRows),
         customs: database.prepare(`SELECT id, description, COALESCE(inComplement, 0) AS inComplement, acompteContribTtc, soldeContribTtc FROM reservation_custom_options WHERE reservationId = ?${notDepartureCharge(database)} ORDER BY sortOrder, id`)
           .all(reservationId).map((r) => ({
             id: Number(r.id), description: r.description, inComplement: flag(r), acompteContribTtc: r.acompteContribTtc, soldeContribTtc: r.soldeContribTtc,

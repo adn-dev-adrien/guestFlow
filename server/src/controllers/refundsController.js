@@ -17,7 +17,8 @@ const database = require('../database');
 const vatRegimeModel = require('../models/vatRegimeModel');
 const { lineAllocationsContext } = require('../models/refundInputModel');
 const { collectedAfterArrival } = require('../utils/pricing/refunds/collected');
-const { noteExcessByKey, noteExcessCents, reopenedCredit } = require('../utils/paidLineJudgment');
+const paidLineJudgment = require('../utils/paidLineJudgment');
+const { noteExcessByKey, noteExcessCents, reopenedCredit } = paidLineJudgment;
 const {
   buildRefundableLines, validateRefundPayload, cancelledRefundBudget, collectedByLine, collectedLinesGone, refundDeletionRefusal, lastBookPaymentDateOf, capCashToLines, overpaymentRefusal,
 } = require('../utils/refunds');
@@ -183,8 +184,16 @@ function createRefundsController(deps = {}) {
         recordRefundHistory(id, validated.refund, refundId);
         if (validated.refund.origin === 'overpayment') {
           // Loop t8 B8-2 — the note money freed and not given back yet goes first: the rest is the stay's own trop-perçu (a solde line lowered).
-          const noteCents = stayDatabase && reservation.midStaySettledNotes ? noteExcessCents(stayDatabase, id, null, { notesOnly: true }) : 0;
-          require('../models/refundObligationsModel').settleLoweredBy(id, refundId, Math.round(validated.refund.totalTtc * 100), { noteCents });
+          const totalCents = Math.round(validated.refund.totalTtc * 100);
+          let noteCents = stayDatabase && reservation.midStaySettledNotes ? noteExcessCents(stayDatabase, id, null, { notesOnly: true }) : 0;
+          // Loop t9 B9-1 — a platform stay's arrival complement collected « caisse interne » is cash the till holds: a caisse-interne refund gives
+          // that cash back first, so only what it gives beyond the complement's freed money is note money (rule 115 stamp, by means).
+          if (noteCents > 0 && stayDatabase && validated.refund.method === 'internal' && Number(reservation.complementPaidCash || 0) === 1
+            && paidLineJudgment.platformComplementClaims(reservation)) {
+            const complementFreed = Math.max(0, noteExcessCents(stayDatabase, id) - noteCents);
+            noteCents = Math.min(noteCents, Math.max(0, totalCents - complementFreed));
+          }
+          require('../models/refundObligationsModel').settleLoweredBy(id, refundId, totalCents, { noteCents });
         } else if (cancelled) {
           // Loop t6 S6-1 (pricing-components rule 106 d) — on a cancelled stay the cancellation dialog gives a note-paid line's money back on the
           // line itself: what it gives back on a line a note paid settles the `lineLowered` obligation held for that money. Loop t7 D7-2 — only on
@@ -226,15 +235,16 @@ function createRefundsController(deps = {}) {
       // Loop t9 D9-3 — the deletion, the reopen of what it settled and the rule-119 credit are one write: a failure on the way leaves the
       // refund in place, never a settled obligation pointing at a refund that no longer exists.
       const deleteRefund = () => {
-        if (!refundsModel.remove(id, refundId)) return false;
         // Pricing-components rule 119 (loop t8 S8-3) — the money the deleted refund gave back is note credit again: what the stay still asks
         // absorbs it first (rule 104), only the rest is owed back, as if the refund had never been made — whatever was sold since.
+        // Loop t9 B9-2 (rule 121) — taken BEFORE the refund row goes: the engine reads the stay's own money refunded from it.
         const credit = stayDatabase && register && String(register.reservation.kind) === 'reservation'
           ? reopenedCredit(stayDatabase, id, {
             quoteOf: (r) => require('../utils/storedReservationQuote').quoteStoredReservation(stayDatabase, r),
             midStay: (lines) => reservationsModel.syncMidStayComplement(id, lines),
           })
           : null;
+        if (!refundsModel.remove(id, refundId)) return false;
         require('../models/refundObligationsModel').reopenSettledBy(id, refundId);
         if (credit) credit.settle();
         recordRefundDeletion(id, target);
