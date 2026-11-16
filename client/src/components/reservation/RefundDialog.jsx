@@ -36,6 +36,8 @@ import { evaluateArithmetic } from '../../utils/arithmetic';
  *    refunded on the tax. Wins over `overpaymentTtc` when present.
  *  - `defaultMethod` — the means the dialog opens on (`transfer` by default; `internal` for a trop-perçu
  *    taken « caisse interne »), which the operator can change.
+ *  - `cashPart` — `{ amountTtc, restTtc, lines }` when cash notes took only part of the trop-perçu (pricing-components rule 112):
+ *    the dialog opens on that part « Caisse interne » (its lines), and says what is left to refund afterwards by the means it came by.
  *  - `openOverpaymentTtc`, `onUseOverpayment()` — a trop-perçu still open on the stay (the ledger's row, rule 44),
  *    when the dialog was NOT opened on it: a warning with an action that reopens the dialog on the trop-perçu.
  *    A refund of a sold line stays independent of it.
@@ -80,7 +82,7 @@ const DECIMAL_INPUT = { htmlInput: { inputMode: 'decimal' } };
 const NOTHING_COLLECTED = 'Rien d’encaissé sur cette ligne.';
 
 export default function RefundDialog({
-  open, onClose, refundableLines = [], collectedTtc = 0, overpaymentTtc = 0, overpaymentLines = null, defaultMethod = 'transfer', openOverpaymentTtc = 0, onUseOverpayment, onSubmit,
+  open, onClose, refundableLines = [], collectedTtc = 0, overpaymentTtc = 0, overpaymentLines = null, defaultMethod = 'transfer', cashPart = null, openOverpaymentTtc = 0, onUseOverpayment, onSubmit,
 }) {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
@@ -97,18 +99,19 @@ export default function RefundDialog({
   useEffect(() => {
     if (!open) return;
     setSelected({});
-    const split = Array.isArray(overpaymentLines) ? overpaymentLines.filter((l) => Number(l.amountTtc) > 0) : [];
+    const cashSplit = cashPart && Array.isArray(cashPart.lines) ? cashPart.lines.filter((l) => Number(l.amountTtc) > 0) : [];
+    const split = cashSplit.length > 0 ? cashSplit : (Array.isArray(overpaymentLines) ? overpaymentLines.filter((l) => Number(l.amountTtc) > 0) : []);
     if (split.length > 0) {
       setFreeLines(split.map((l) => ({ label: 'Trop-perçu', bucket: l.bucket, amount: amountText(l.amountTtc) })));
     } else {
       setFreeLines(overpaymentTtc > 0 ? [{ label: 'Trop-perçu', bucket: 'accommodation', amount: amountText(overpaymentTtc) }] : []);
     }
     setRefundDate(todayIso());
-    setMethod(defaultMethod);
+    setMethod(cashSplit.length > 0 ? 'internal' : defaultMethod);
     setReason('');
     setError('');
     setBusy(false);
-  }, [open, overpaymentTtc, overpaymentLines, defaultMethod]);
+  }, [open, overpaymentTtc, overpaymentLines, defaultMethod, cashPart]);
 
   // Rule 51 (D15) — the server's figure on a book refund; the caisse interne is not judged by it.
   const capOf = (line) => (method === 'internal' || line.availableTtc == null ? line.refundableTtc : line.availableTtc);
@@ -208,6 +211,11 @@ export default function RefundDialog({
       <DialogContent dividers>
         <Stack spacing={2}>
           {error && <ErrorAlert message={error} />}
+          {overpaymentTtc > 0 && cashPart && Number(cashPart.amountTtc) > 0 && (
+            <Alert severity="info">
+              {formatCurrency(cashPart.amountTtc)} payés en espèces : rendus en caisse interne. Reste {formatCurrency(cashPart.restTtc)} à rembourser ensuite.
+            </Alert>
+          )}
           {!(overpaymentTtc > 0) && openOverpaymentTtc > 0 && onUseOverpayment && (
             <Alert
               severity="warning"

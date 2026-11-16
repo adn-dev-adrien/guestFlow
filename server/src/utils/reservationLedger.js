@@ -718,7 +718,11 @@ function buildLedger({
       action: canAct ? { kind: 'refund', label: 'Rembourser' } : null,
       amountEdit: { editable: false, mode: 'none', min: null, max: null, reason: null },
       // What the refund dialog opens on, so a fiche that shows only the stored ledger still prefills it.
-      refundPrefill: { overpaymentTtc: round2(overpayment.ttc), overpaymentLines: overpayment.lines || [], method: overpayment.method || null },
+      // Loop t7 B7-3 (rule 112) — and the cash notes' part of it, when only a part: proposed first, « caisse interne ».
+      refundPrefill: {
+        overpaymentTtc: round2(overpayment.ttc), overpaymentLines: overpayment.lines || [], method: overpayment.method || null,
+        ...(overpayment.cash ? { cashPart: overpayment.cash } : {}),
+      },
       detail: {
         lines: (overpayment.lines || []).filter((l) => Number(l.collectedTtc) > 0)
           .map((l) => (l.excessOnly

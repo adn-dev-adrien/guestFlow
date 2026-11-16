@@ -38,6 +38,8 @@ function midStayQuoteInputs(db, reservationId) {
     // specs/mid-stay-notes.md — already collected during the stay: out of the remainder, still out
     // of the frozen pre-arrival buckets.
     midStaySettledNotes: row.midStaySettledNotes || null,
+    // specs/pricing-components.md rule 110 (loop t7 B7-1) — what a refund on the trop-perçu gave back of that money: no credit any more.
+    refundedNoteCredit: require('./paidLineJudgment').refundedLoweredCents(db, Number(reservationId)) / 100,
     complementCollected: Number(row.complementPaid || 0) === 1,
     // specs/defer-arrival-complement-to-checkout.md §3.3 rule 16 — a complement the operator moved to
     // the door reads under « fin de séjour » straight away, without waiting for the stay to start.
