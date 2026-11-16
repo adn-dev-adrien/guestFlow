@@ -2044,12 +2044,18 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
     on a stay that collected nothing in between (no complement, no settled note of the stay): the lines the tick carved out to the departure go back to
     the arrival (`collectAt`, routing), the baseline is cleared, and the stored complements follow in the same pinned write (rule 93). Past the hour, or
     once something was collected, the start stands and the baseline stays — the judge then keeps reading it. The boot repair of
-    arrival-moment-is-the-check-in rule 5 no longer clears a baseline that carved a line out to the departure (a line stamped `departure`).
+    arrival-moment-is-the-check-in rule 3 no longer clears a baseline that carved a line out to the departure (a line stamped `departure`),
+    nor _(loop t4, D4-2, 2026-11-16)_ the baseline of a stay the stay clock has started (rule 102 lays it on a save past the check-in hour):
+    only a stay not started at the boot's `now` is still pre-arrival.
     (c) **An offered line at the open arrival stays the door's** (rule 102 d): an unpaid arrival line offered there is billed again, discounted or removed
     (before: 400 `ARRIVAL_EXTRAS_FROZEN`); the keys of the open arrival complement are never read above the baseline during the gesture.
     (d) **A line's own discount is weighed net** by the baseline (`readExtraLines`, the move, the baseline of an arrival line discounted where the door can
     change it), as the engine weighs it: a line discounted before the arrival no longer freezes every later sale of the started stay (« reduced »), and
-    a discounted line moves to the arrival and back with its net amount.
+    a discounted line moves to the arrival and back with its net amount. _(Loop t4, D4-1, 2026-11-16.)_ The baseline follows the discount
+    **both ways**: reduced or removed, the money goes back where the discount took it — a line wholly at the arrival (its baseline at least
+    its worth before the change) takes it back at the arrival; a line that already had money at the departure keeps its baseline. Before,
+    the baseline only went down: a discount removed at the open arrival left it at the old net, and the departure billed the given-back
+    part a second time (45 € at the arrival + 16 € at the departure for a 45 € line and a 6 € beer).
     (e) **The arrival SAS recap lists what it collects**: no line stamped `departure` (a line moved there keeps its routing flag), a line at its amount
     net of its own discount, and a line the fiche stamped at the arrival. A custom line of the stored detail carries its `collectAt` and `discountCents`.
     (f) **The fiche's save stamps a line it writes where the engine put its money**: above the baseline of a started stay → `departure`; a line that left
@@ -2381,6 +2387,8 @@ _Rewritten 2026-11-15 (stabilisation loop t1, UI-3) to what shipped._
 - [x] `sale-false-start-undone` — rule 103 b: unticked before the hour, the carved lines and their money back at the arrival; past the hour or once collected, the start stands
 - [x] `sale-open-arrival-offered-line` — rule 103 c (T3-2): an offered arrival line billed again, discounted and removed at the open arrival; frozen once validated
 - [x] `sale-discounted-line-baseline` — rule 103 d (T3-8): a discounted arrival line does not freeze the started stay; a discounted line moves with its net amount
+- [x] `sale-discount-given-back-baseline` — rule 103 d (loop t4, D4-1): a discount removed or reduced before or at the open arrival gives the money back to the arrival, never billed again at the departure (5)
+- [x] `arrival-baseline-boot-repair-clock` — rule 103 b (loop t4, D4-2, D4-3): the boot repair clears only the baseline of a stay the clock has not started, never one that carved a line out (6)
 - [x] `sas-arrival-recap-lists-what-it-collects` — rule 103 e (T3-3): a moved line not listed, a discounted line at its net amount
 - [x] `fiche-line-stamped-where-money-goes` — rule 103 f (T3-4): a fiche line beyond a settled plan reads « À payer à l’arrivée » and the SAS lists it; a fiche line of a started stay reads « À payer au départ »
 - [x] `sale-detail-plan-bucket-stored` — rule 103 g (T3-5)

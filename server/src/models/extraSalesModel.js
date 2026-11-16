@@ -263,15 +263,22 @@ function storeDiscount(line, cents) {
 
 // Loop t3, T3-8 — an arrival line discounted where the door can still change it (an open arrival, a collected complement) is held in the
 // baseline at what it is now worth, as the engine weighs it: left at its gross, every later save of the started stay reads it as reduced.
+// Loop t4, D4-1 — both ways: a discount reduced or removed gives the money back where the discount took it. A line wholly at the arrival
+// (its baseline at least its worth before the change) takes it back there; a line that already had money at the departure keeps its
+// baseline, and the departure takes it back. Left at the old net, the arrival collected the line whole and the departure billed the
+// given-back part a second time.
 function fitArrivalBaseline(line, cents) {
   if (line.collectAt !== 'arrival') return;
   const db = database();
   const row = db.prepare('SELECT arrivalExtrasBaseline FROM reservations WHERE id = ?').get(Number(line.row && line.row.reservationId));
   const baseline = row && row.arrivalExtrasBaseline ? JSON.parse(row.arrivalExtrasBaseline) : null;
   if (!baseline || baseline[line.key] == null) return;
+  const held = Number(baseline[line.key]);
   const worth = roundMoney(Math.max(0, line.totalCents - Number(cents || 0)) / 100);
-  if (Number(baseline[line.key]) <= worth) return;
-  baseline[line.key] = worth;
+  const before = roundMoney(Math.max(0, line.totalCents - Number((line.row && line.row.discountCents) || 0)) / 100);
+  const fitted = worth < held ? worth : (held >= before ? Math.max(held, worth) : held);
+  if (fitted === held) return;
+  baseline[line.key] = fitted;
   db.prepare("UPDATE reservations SET arrivalExtrasBaseline = ?, updatedAt = datetime('now') WHERE id = ?").run(JSON.stringify(baseline), Number(line.row.reservationId));
 }
 
