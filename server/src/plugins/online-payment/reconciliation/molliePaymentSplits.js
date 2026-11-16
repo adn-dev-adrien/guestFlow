@@ -115,6 +115,14 @@ function linkLedgerKey(link, installmentNumberOf = () => null) {
   return null;
 }
 
+// The one definition of a link that has a split: the sync and the migration's key rewrite read it alike (rule 8).
+const PAID_LINK_FILTER = "l.status = 'paid' AND l.paidAt IS NOT NULL AND l.amountCents > 0";
+
+/** Rule 18 — the reserve as a share of the payment, to two decimals: what was kept, not the setting that asked for it. */
+const reservePercentOf = (split) => (Number(split.grossCents) > 0 ? Math.round((10000 * Number(split.reserveCents)) / Number(split.grossCents)) / 100 : 0);
+/** The immediate share as a share of the payment (a reserve of 0 is a payment paid whole). */
+const immediatePercentOf = (split) => (Number(split.grossCents) > 0 ? Math.round((10000 * Number(split.immediateCents)) / Number(split.grossCents)) / 100 : 100);
+
 const TRANCHES = Object.freeze({ immediat: 'immediat', retenue: 'retenue' });
 const trancheKey = (ledgerKey, tranche) => `${ledgerKey}#${tranche}`;
 
@@ -146,17 +154,22 @@ function createSplitsModel(db) {
 
   return {
     /**
-     * Rule 1 — stores the split of every paid link, and of every card payment taken on site, that has none yet; one
-     * already stored is never touched (rule 2). `since`: a payment before it has no reserve. Idempotent.
+     * Rule 1 — stores the split of every paid link, and of every card payment taken on site, that has none yet. A link's
+     * split is never touched once stored (rule 2: a setting never moves it). A card payment recorded on site is an
+     * estimate until Mollie's own payment is read: while no Mollie payment is attached, it follows the amount and the day
+     * the fiche (or the sale) carries NOW — a correction of the data, not a change of setting — and disappears with the
+     * card payment it estimated, unless a bank line already rests on it. Idempotent.
      *
      * `candidates` are the card payments recorded on site, `{ sourceType: 'tender' | 'invoice', sourceKey, reservationId,
-     * ledgerKey, grossCents, paidAt }`: they are split only from the day of « CB sur place via Mollie depuis ».
+     * ledgerKey, grossCents, paidAt }`: they are split only from the day of « CB sur place via Mollie depuis ». `scope`
+     * (`{ reservationIds: Set<number>, salesFrom, salesTo }`) is what `candidates` covers: only a split inside it can be
+     * dropped for want of a candidate.
      */
-    sync({ settings, candidates = [], now = new Date() }) {
+    sync({ settings, candidates = [], scope = null, now = new Date() }) {
       const reserve = readReserveSettings(settings);
       const numbers = installmentNumbers();
       const missing = db.prepare(`SELECT l.* FROM payment_links l
-        WHERE l.status = 'paid' AND l.paidAt IS NOT NULL AND l.amountCents > 0
+        WHERE ${PAID_LINK_FILTER}
           AND NOT EXISTS (SELECT 1 FROM mollie_payment_splits s WHERE s.sourceType = 'link' AND s.sourceKey = CAST(l.id AS TEXT))`).all();
       let created = 0;
       db.transaction(() => {
@@ -168,13 +181,42 @@ function createSplitsModel(db) {
             grossCents: link.amountCents, paidAt: link.paidAt,
           }, reserve, now);
         });
+        if (!reserve.cardSince) return;
+        const wanted = new Set();
         candidates.forEach((candidate) => {
           const paidDay = day(candidate.paidAt);
-          if (!reserve.cardSince || !paidDay || paidDay < reserve.cardSince) return;
-          created += create(candidate, reserve, now);
+          if (!paidDay || paidDay < reserve.cardSince) return;
+          wanted.add(splitIdOf(candidate.sourceType, candidate.sourceKey));
+          const stored = forSource(candidate.sourceType, candidate.sourceKey);
+          if (!stored) { created += create(candidate, reserve, now); return; }
+          if (stored.molliePaymentId || (Number(stored.grossCents) === Number(candidate.grossCents) && day(stored.paidAt) === paidDay)) return;
+          const split = computeSplit({
+            grossCents: candidate.grossCents, ratePercent: stored.ratePercent,
+            applyReserve: Number(stored.reserveCents) > 0 || computeSplit({ grossCents: stored.grossCents, ratePercent: stored.ratePercent }).reserveCents === 0,
+          });
+          db.prepare('UPDATE mollie_payment_splits SET grossCents = ?, immediateCents = ?, reserveCents = ?, paidAt = ? WHERE sourceType = ? AND sourceKey = ?')
+            .run(split.grossCents, split.immediateCents, split.reserveCents, String(candidate.paidAt), stored.sourceType, stored.sourceKey);
         });
+        if (scope) this.dropVanished({ wanted, scope, cardSince: reserve.cardSince });
       })();
       return created;
+    },
+
+    /** Rule 1 — an estimate whose card payment is gone (typed again as cash, deleted) leaves no tranche, unless a bank line rests on it. */
+    dropVanished({ wanted, scope, cardSince }) {
+      const hasLine = db.prepare('SELECT 1 FROM bank_reconciliation_lines WHERE reservationId = ? AND ledgerKey IN (?, ?)');
+      return db.prepare(`SELECT * FROM mollie_payment_splits
+        WHERE sourceType IN ('tender', 'invoice') AND molliePaymentId IS NULL AND substr(paidAt, 1, 10) >= ?`).all(cardSince)
+        .filter((stored) => !wanted.has(splitIdOf(stored.sourceType, stored.sourceKey)))
+        .filter((stored) => {
+          const paidDay = day(stored.paidAt);
+          return stored.reservationId == null
+            ? Boolean(paidDay) && paidDay >= scope.salesFrom && paidDay <= scope.salesTo
+            : scope.reservationIds.has(Number(stored.reservationId));
+        })
+        .filter((stored) => !hasLine.get(Number(stored.reservationId || 0), trancheKey(stored.ledgerKey, 'immediat'), trancheKey(stored.ledgerKey, 'retenue')))
+        .map((stored) => db.prepare('DELETE FROM mollie_payment_splits WHERE sourceType = ? AND sourceKey = ?').run(stored.sourceType, stored.sourceKey).changes)
+        .reduce((t, n) => t + n, 0);
     },
 
     /**
@@ -215,6 +257,19 @@ function createSplitsModel(db) {
       return db.prepare('UPDATE mollie_payment_splits SET reserveCents = ?, immediateCents = ? WHERE sourceType = ? AND sourceKey = ?')
         .run(reserve, Number(stored.grossCents) - reserve, stored.sourceType, stored.sourceKey).changes;
     },
+    /** Is a paid link still without its split? One read, no write: the page that lists the reconciliation decides to sync. */
+    hasUnsplitLinks() {
+      return Boolean(db.prepare(`SELECT 1 FROM payment_links l WHERE ${PAID_LINK_FILTER}
+        AND NOT EXISTS (SELECT 1 FROM mollie_payment_splits s WHERE s.sourceType = 'link' AND s.sourceKey = CAST(l.id AS TEXT)) LIMIT 1`).get());
+    },
+    /** Rule 6 — the splits of a Mollie payment whose reserve is not received yet (no reconciliation line on its `#retenue` tranche): a refund may still come. */
+    openWithMolliePayment(limit = 10) {
+      return db.prepare(`SELECT s.* FROM mollie_payment_splits s
+        WHERE s.molliePaymentId IS NOT NULL AND s.reserveCents > 0 AND NOT EXISTS (
+          SELECT 1 FROM bank_reconciliation_lines l WHERE l.reservationId = COALESCE(s.reservationId, 0) AND (l.ledgerKey = s.ledgerKey || '#retenue'
+            OR (s.ledgerKey = 'complement' AND l.ledgerKey = 'checkoutComplement#retenue')))
+        ORDER BY s.paidAt LIMIT ?`).all(limit);
+    },
     forLink(linkId) {
       return forSource(SOURCE_TYPES.link, linkId);
     },
@@ -238,7 +293,7 @@ function createSplitsModel(db) {
 }
 
 module.exports = {
-  DEFAULT_RATE_PERCENT, DEFAULT_HOLD_DAYS, IMMEDIATE_DELAY_DAYS, LATE_AFTER_DAYS, RESERVE_EARLY_DAYS, TRANCHES, SOURCE_TYPES, splitIdOf,
+  PAID_LINK_FILTER, reservePercentOf, immediatePercentOf, DEFAULT_RATE_PERCENT, DEFAULT_HOLD_DAYS, IMMEDIATE_DELAY_DAYS, LATE_AFTER_DAYS, RESERVE_EARLY_DAYS, TRANCHES, SOURCE_TYPES, splitIdOf,
   rateMessage, holdMessage, sinceMessage, readReserveSettings, computeSplit, afterRefund, expectedDates, linkLedgerKey, trancheKey,
   createSplitsModel, addDays,
 };

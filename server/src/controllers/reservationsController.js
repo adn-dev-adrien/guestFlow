@@ -175,8 +175,9 @@ function ledgerFor({ row, quote = null, live = {}, propertyId = null, overpaymen
     settlements: id ? paymentSettlementsModel.listFor(id) : [],
     today: getTodayIsoDate(),
   });
-  // specs/mollie-rolling-reserve-and-incoming-payments.md rules 18-19 — the dated bank tranches of a paid row.
-  return id ? decorateLedger(ledger, id) : ledger;
+  // specs/mollie-rolling-reserve-and-incoming-payments.md rules 18-19 — the dated bank tranches of a paid row, on the
+  // stored fiche only: a quote preview (fired on every edit) is the form's live figures, never the bank's.
+  return id && !quote ? decorateLedger(ledger, id) : ledger;
 }
 
 // Payment-schedule rule 55 reading of 2026-11-02 (audit R16-L1) — the refunds the cancellation's avoir read: the

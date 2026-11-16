@@ -20,6 +20,8 @@ const RESTRICTED_TOKEN_FRAGMENT = 'not restricted to a specific profile';
 
 /** « 732.40 » → 73240. Mollie writes amounts as decimal strings. */
 const centsOf = (amount) => (amount && amount.value != null ? Math.round(Number(amount.value) * 100) : 0);
+/** The amount as Mollie wrote it, in hundredths of a cent-free euros: summed raw, rounded once (rule 5, « 0,125 − 0,125 = 0 »). */
+const rawEuros = (amount) => (amount && amount.value != null && Number.isFinite(Number(amount.value)) ? Number(amount.value) : 0);
 
 /** Rule 15 — what a Mollie failure means, in words. The token and Mollie's raw body never reach the text. */
 function explainError(err) {
@@ -70,6 +72,12 @@ function buildMollieClient({ token, fetchImpl = globalThis.fetch, retry = {}, ti
     }
   }
 
+  // The token travels with every call: a next page is followed only on Mollie's own origin (a body is data, not an address).
+  const sameOrigin = (href) => {
+    if (!href) return null;
+    try { return new URL(href, `${base}/`).origin === new URL(base).origin ? new URL(href, `${base}/`).toString() : null; } catch { return null; }
+  };
+
   const get = (path) => withRetry(() => once(path.startsWith('http') ? path : `${base}${path}`), retryOptions);
 
   // A page of a list, then `_links.next` until the end (bounded) or until `stop` says a page reached what is already known.
@@ -82,7 +90,7 @@ function buildMollieClient({ token, fetchImpl = globalThis.fetch, retry = {}, ti
       const items = (body._embedded || {})[embeddedKey] || [];
       out.push(...items);
       if (stop && items.some(stop)) break;
-      url = body._links && body._links.next && body._links.next.href ? body._links.next.href : null;
+      url = sameOrigin(body._links && body._links.next && body._links.next.href ? body._links.next.href : null);
     }
     return out;
   }
@@ -187,6 +195,8 @@ function readSettlement(s) {
   let costs = 0;
   let held = 0;
   let released = 0;
+  // Costs are summed as Mollie wrote them (« 0.125 » and « -0.125 »), rounded once: rounding line by line drifts by a cent.
+  let rawCosts = 0;
   Object.values(s.periods || {}).forEach((year) => Object.values(year || {}).forEach((month) => {
     ['revenue', 'costs'].forEach((section) => ((month && month[section]) || []).forEach((line) => {
       const cents = centsOf(line.amountGross || line.amountNet);
@@ -194,9 +204,10 @@ function readSettlement(s) {
       if (reserve === 'release') released += Math.abs(cents);
       else if (reserve === 'hold') held += Math.abs(cents);
       // Costs are signed: « Fee Discount » is a negative cost that cancels the card cost (rule 5).
-      else if (section === 'costs') costs += cents;
+      else if (section === 'costs') rawCosts += rawEuros(line.amountGross || line.amountNet);
     }));
   }));
+  costs = Math.round(rawCosts * 100) || 0;
   return {
     id: s.id, reference: s.reference || '', settledAt: s.settledAt || s.createdAt || null,
     amountCents: centsOf(s.amount), costsCents: costs, reserveHeldCents: held, reserveReleasedCents: released,

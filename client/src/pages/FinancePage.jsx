@@ -35,7 +35,6 @@ const DETAIL_ID = 'finance-detail';
 const percent = (x) => (x == null ? '—' : `${Math.round(x * 100)} %`);
 const shortDate = (iso) => (iso ? new Date(`${String(iso).slice(0, 10)}T12:00:00`).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' }) : '');
 // « prochain le 18/11 » — the ISO day of the tile, written the way the server writes its own short dates.
-const dayMonth = (iso) => `${String(iso).slice(8, 10)}/${String(iso).slice(5, 7)}`;
 const FORMAT = { amount: formatCurrencyRounded, perNight: perNightAmount, percent, date: shortDate };
 // The browser's own calendar day, never the UTC one (rule 37).
 const iso = (d) => localIsoToday(d);
@@ -44,7 +43,7 @@ const iso = (d) => localIsoToday(d);
 const TILES = [
   { key: 'collected', label: 'Déjà payé', dot: 'success.main', read: (t) => [formatCurrencyRounded(t.amount), t.shareOfRevenue == null ? '' : `${percent(t.shareOfRevenue)} du chiffre d'affaires`] },
   { key: 'toCollect', label: 'À encaisser', dot: 'secondary.main', read: (t) => [formatCurrencyRounded(t.amount), `${plural(t.stays, 'séjour')} · tous exercices`] },
-  { key: 'incoming', label: 'Versements à venir', dot: 'info.main', read: (t) => [formatCurrencyRounded(t.amount), t.clients ? `${plural(t.clients, 'client')}${t.nextDate ? ` · prochain le ${dayMonth(t.nextDate)}` : ''}` : 'rien à recevoir'] },
+  { key: 'incoming', label: 'Versements à venir', dot: 'info.main', read: (t) => [formatCurrencyRounded(t.amount), t.clients ? `${plural(t.clients, 'client')}${t.nextDateLabel ? ` · prochain le ${t.nextDateLabel}` : ''}` : 'rien à recevoir'] },
   { key: 'late', label: 'En retard', dot: 'error.main', read: (t) => [formatCurrencyRounded(t.amount), t.stays ? `${plural(t.stays, 'séjour')} · tous exercices` : 'rien à relancer'], alert: (t) => t.stays > 0 },
   { key: 'stays', label: 'Réservations', dot: 'info.main', read: (t) => [plural(t.count, 'séjour'), `${t.upcoming} à venir`] },
   { key: 'properties', label: 'Logements', dot: 'primary.main', read: (t) => (t.count === 1 && t.name ? [formatCurrencyRounded(t.revenue), t.name] : [plural(t.count, 'logement'), t.leader ? `en tête : ${t.leader}` : '']) },

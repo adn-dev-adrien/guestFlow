@@ -524,7 +524,7 @@ function createDashboardModel(database, finance) {
   // Rule 21 — « Versements à venir »: what is still to arrive on the bank, how many clients, and the next day.
   function incomingTile(today) {
     const { totals } = incomingPaymentsModel.buildModel(database).get({ today });
-    return { amount: totals.amount, clients: totals.clients, nextDate: totals.nextDate };
+    return { amount: totals.amount, clients: totals.clients, nextDate: totals.nextDate, nextDateLabel: totals.nextDateLabel };
   }
 
   function getDashboardDetail(tile, params = {}) {

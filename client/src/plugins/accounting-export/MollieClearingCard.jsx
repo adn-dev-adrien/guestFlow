@@ -7,9 +7,10 @@
  * Every figure, date and name is the server's (`sales.mollie`); nothing is added up here.
  *
  * Props:
- *   mollie:               { clearing: { account, asOf, balance, clients: [{ reservationId, clientName, balance }] },
+ *   mollie:               { clearing: { account, asOf, balance, clients: [{ reservationId, saleKey, clientName, balance }] },
  *                           unattached: [{ date, amount, qontoReference, settlementReference, counterparty }] }
- *   canOpenReservation:   boolean — the viewer may open a fiche (admins; accountants are read-only on the accounting)
+ *   canOpenReservation:   boolean — the viewer may open a fiche (admins; accountants are read-only on the accounting);
+ *                         a client from a sale outside a stay (`reservationId` null, `saleKey` set) has no fiche
  *   onOpenReservation:    (reservationId) → void
  */
 import React from 'react';
@@ -38,8 +39,8 @@ export default function MollieClearingCard({ mollie, canOpenReservation = false,
             {clearing.clients.length > 0 && (
               <Stack divider={<Divider flexItem />} sx={{ mt: 1 }}>
                 {clearing.clients.map((client) => (
-                  <Box key={client.reservationId} sx={{ display: 'flex', justifyContent: 'space-between', gap: 2, py: 1, minHeight: 44, alignItems: 'center' }}>
-                    {canOpenReservation ? (
+                  <Box key={client.reservationId == null ? `sale:${client.saleKey}` : client.reservationId} sx={{ display: 'flex', justifyContent: 'space-between', gap: 2, py: 1, minHeight: 44, alignItems: 'center' }}>
+                    {canOpenReservation && client.reservationId != null ? (
                       <Link component="button" type="button" underline="hover" onClick={() => onOpenReservation(client.reservationId)} sx={{ textAlign: 'left', minHeight: 44, overflowWrap: 'anywhere' }}>
                         {client.clientName}
                       </Link>

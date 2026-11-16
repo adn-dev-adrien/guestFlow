@@ -552,7 +552,10 @@ function mollieEntryToRows(entry, plan = {}) {
     credit: [String(accounts.mollieBankAccount), clearing, 'mollieClearing'],
     cost: [String(accounts.mollieFeeAccount), clearing, 'mollieClearing'],
   }[entry.mollieKind];
-  const libelle = entry.mollieKind === 'link' ? libelleFor(entry) : [entry.libelle, entry.settlementReference, entry.qontoReference].filter(Boolean).join(' ');
+  // The export sets no maximum libellé length: the Qonto transaction id (50 characters) would drown the line, so a credit
+  // names its Mollie settlement and the last 6 characters of Qonto's reference — enough to find it in the bank's search.
+  const libelle = entry.mollieKind === 'link' ? libelleFor(entry)
+    : [entry.libelle, entry.settlementReference, entry.qontoReference ? String(entry.qontoReference).slice(-6) : ''].filter(Boolean).join(' ');
   return [
     tagRow(zerofyMoneyColumns([day, month, year, journal, '', libelle, debitAccount, amount, '', '', '', '']), 'mollieDebit'),
     tagRow(zerofyMoneyColumns([day, month, year, journal, '', libelle, creditAccount, '', amount, '', '', '']), creditRole),

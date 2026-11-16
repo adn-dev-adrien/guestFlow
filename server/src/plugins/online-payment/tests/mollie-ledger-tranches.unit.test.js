@@ -59,17 +59,17 @@ test('rule 18 — the states: en transit while the immediate share is on its way
   assert.equal(transit.text, `Versement immédiat · 80,00 € · attendu vers le ${frShort(dayAt(-1 + 4))}`);
   const late = fiche(old.reservationId).ledger.rows.find((r) => r.key === 'balance').bankTranches[0];
   assert.equal(late.state, 'late');
-  assert.equal(late.stateLabel, 'en retard');
+  assert.match(late.stateLabel, /^en retard de \d+ j$/);
   assert.equal(late.tone, 'error');
 });
 
-test('rule 19 — the money summary reads the split: « Payé par carte 732,40 € — 585,92 € reçus · 146,48 € attendus le … »', () => {
+test('rule 19 — the money summary reads the split: « Payé par carte 732,40 € — 585,92 € reçus · 146,48 € retenus jusqu\'au … »', () => {
   const { reservationId } = paidStay({ cents: 73240, daysAgo: 5 });
   const { transactions, controller } = wire();
   transactions.upsertMany([mollieCredit('c1', 58592, 3)], { bankAccountId: 'acc-1' });
   controller.confirm({ transactionId: 'c1', allocations: [{ reservationId, ledgerKey: 'balance#immediat', amountCents: 58592 }], user: { id: 1 } });
   const { schedule } = fiche(reservationId).ledger;
-  assert.equal(schedule.text, `Payé par carte 732,40 € — 585,92 € reçus · 146,48 € attendus le ${frLong(dayAt(-3 + 90))}`);
+  assert.equal(schedule.text, `Payé par carte 732,40 € — 585,92 € reçus · 146,48 € retenus jusqu'au ${frLong(dayAt(-3 + 90))}`);
   assert.deepEqual(schedule.segments.map((s) => s.tone), ['default', 'success', 'muted']);
   assert.deepEqual([schedule.totalCents, schedule.receivedCents, schedule.expectedCents, schedule.lateCents], [73240, 58592, 14648, 0]);
   assert.equal(schedule.nextDate, dayAt(-3 + 90));
@@ -77,11 +77,12 @@ test('rule 19 — the money summary reads the split: « Payé par carte 732,40 �
 
 test('rule 19 — a late tranche reads « en retard » in the summary; a fiche with nothing pending shows nothing new', () => {
   const late = paidStay({ cents: 10000, daysAgo: 30 });
-  wire();
-  assert.match(fiche(late.reservationId).ledger.schedule.text, /en retard$/);
+  const { controller } = wire();
+  assert.match(fiche(late.reservationId).ledger.schedule.text, /80,00 € en retard · 20,00 € retenus jusqu'au /);
   assert.equal(fiche(late.reservationId).ledger.schedule.lateCents, 8000);
 
   const done = paidStay({ cents: 10000, daysAgo: 5, clientId: 2 });
+  controller.syncSplits();
   assert.ok(fiche(done.reservationId).ledger.schedule, 'seen paid: its split is stored');
   // fully refunded: both tranches are gone, there is nothing left to expect
   db.prepare('UPDATE mollie_payment_splits SET refundedCents = 10000 WHERE reservationId = ?').run(done.reservationId);

@@ -73,8 +73,12 @@ function createMollieConnection({ settings, db, settlements, buildClient = ({ to
           invoiceSources: invoices(), profileId: String(settings.get('mollieProfileId') || ''), now: now(),
         });
         settings.set('mollieLastRead', JSON.stringify({ at, settlements: result.read, unknownPayments: result.unknownPayments, balances: result.balances }));
-        settings.set('mollieLastError', '');
-        return { ok: true, ...result };
+        // Rule 17 — a settlement that could not be read is told in words; the ones that could were stored all the same.
+        const failed = result.failed || [];
+        settings.set('mollieLastError', failed.length === 0 ? '' : JSON.stringify({
+          at, message: failed.length === 1 ? `Règlement ${failed[0].reference} : ${failed[0].message}` : `${failed.length} règlements illisibles (premier : ${failed[0].reference}) — ${failed[0].message}`,
+        }));
+        return { ok: failed.length === 0, ...result };
       } catch (err) {
         settings.set('mollieLastError', JSON.stringify({ at, message: explainError(err) }));
         return { ok: false, read: 0, unknownPayments: 0 };
@@ -95,7 +99,8 @@ function createMollieConnection({ settings, db, settlements, buildClient = ({ to
           try {
             const profiles = await client.listProfiles();
             const pick = profiles.find((p) => p.mode === 'live') || profiles[0];
-            if (pick) { profileId = pick.id; settings.set('mollieProfileId', profileId); }
+            // A token typed but not saved yet belongs to no one: its profile is told, never stored (it could be another account's).
+            if (pick) { profileId = pick.id; if (candidate === token()) settings.set('mollieProfileId', profileId); }
           } catch { /* `profiles.read` is optional: the profile is only needed to list payments of an organisation token */ }
         }
         return { status: 200, body: { ok: true, settlements: found.length, profileId } };

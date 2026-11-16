@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| **Status** | Approved |
+| **Status** | Implemented |
 | **Branch** | `feature/mollie-rolling-reserve` |
 | **Created** | 2026-11-16 |
 | **Author** | Adrien |
@@ -140,8 +140,11 @@ brought it; and the accountant receives entries that explain every Mollie credit
 2. Rate and hold are settings of the `online-payment` plugin: **« Retenue Mollie » 20 %** and
    **« Durée de la retenue » 90 jours**, plus **« Retenue appliquée depuis »** (date, default: the
    reconciliation start date). A link paid before that date has no reserve (one tranche, 100 %). A rate
-   of 0 disables the reserve. Changing a setting never moves a split already stored (rule 1); the
-   settings card says so under the fields.
+   of 0 disables the reserve. Changing a **setting** never moves a split already stored (rule 1); the
+   settings card says so under the fields. This is about settings, not about the data: a card payment recorded on site
+   is an estimate until Mollie's own payment is read, so while no Mollie payment is attached it follows the amount and
+   the day the fiche or the sale carries now, and it disappears with that card payment (unless a bank line rests on it);
+   a link's split, and any split a Mollie payment is attached to, is never corrected from the data.
 3. **Validation (server, authoritative)** — rate: a number from 0 to 50 with at most 2 decimals; hold: a
    whole number of days from 1 to 365; « depuis »: a valid date not in the future. A refused value keeps
    the stored one and returns the reason in French (« Le taux doit être compris entre 0 et 50 % »,
@@ -149,7 +152,7 @@ brought it; and the accountant receives entries that explain every Mollie credit
 4. **Expected dates** — immediate tranche: `paidAt` + 4 days (Mollie's « en solde disponible »,
    measured on Gruat; window [0, +8]); retenue: the immediate tranche's **bank date** + hold when it is
    reconciled, else `paidAt` + 4 + hold (window [−3, +10]). The measured release came 90 days after the
-   immediate credit to the day. **The reserve itself is read from Mollie** (2026-11-16): the hold Mollie applied to a payment
+   immediate credit to the day. A tranche is **late** (`en retard`) once its window has passed without a credit — **whether or not a proposal waits for the operator's click**: the reconciliation item (`mollie.late`, `mollie.daysLate` = days since the expected date), the payments ledger (« en retard de N j ») and « Versements à venir » (« En retard de N j ») read the same definition (`trancheDaysLate`). **The reserve itself is read from Mollie** (2026-11-16): the hold Mollie applied to a payment
    (its balance transaction's `deductions`, minus the fees of the settlement) replaces the stored `round(gross × rate)` when
    they differ — the immediate share absorbs the difference; with several payments in one settlement and some cost, the
    split is left as stored.
@@ -159,7 +162,7 @@ brought it; and the accountant receives entries that explain every Mollie credit
    reconciled for exactly its amount. The formula stays a setting, default **1,4 % + 0,25 €**, and is only the
    **estimate** for a payment whose settlement was not read (no token): then a Mollie credit lower than its tranches by at
    most the estimated fees of its payments is proposed with « frais Mollie estimés : x € » (resolved Q5). The tranches are
-   computed on the gross (rule 1). When fees do apply, a payment alone in its settlement bears them
+   computed on the gross (rule 1). Only the **immediate** share bears fees (real or estimated): a reserve release is paid whole, its tolerance is 0. When fees do apply, a payment alone in its settlement bears them
    (`deductions − reserve`); with several payments and some cost, which one bore it is unknown and the estimate stays.
 6. A **refund** of a link (if any) reduces the immediate tranche first, then the retenue; a fully
    refunded link has no tranche left to expect. A **chargeback** is out of scope (§8).
@@ -173,14 +176,25 @@ brought it; and the accountant receives entries that explain every Mollie credit
    `<ledgerKey>#immediat` and `<ledgerKey>#retenue` (a sale outside a stay: ledger key `sale:<sale key>`, reservation
    id `0` in the stored lines, `reservation.id` null in the payload; the CB line of a split payment:
    `settlement-<id>-card`), each with its amount and window (rule 4). Existing reconciliation lines on the
-   bare `<ledgerKey>` of a link are migrated to `#immediat` (§5, idempotent, nothing lost). Confirming **and
+   bare `<ledgerKey>` of a link are migrated to `#immediat` (§5, idempotent, nothing lost). A `complement` link is split on the row the
+   ledger draws it on — `complement`, or `checkoutComplement` once the complement is deferred to the check-out (the link is typed
+   `complement` either way). A **basket link** (`basket-<id>`, a guest order) is split and reconciled like any other, but no row of the
+   payments ledger carries it: its tranches count in the fiche's recap line (rule 19) and on the reconciliation page, with no
+   `bankTranches[]` line. On the reconciliation page the **reserve of a paid link is a future receipt like any other**: it is listed
+   with its waiting state (« Attendu ») under « Attendus », and moves to « À traiter » only once it is a gap, a proposal or late;
+   the fiche's card lists both tranches. Confirming **and
    discarding** a proposal of such a sale name it by reservation id `0` (a discard of id 0 is accepted when a receipt
    `0|<ledgerKey>` exists, else 404; the client sends `0` for a null `reservation.id`).
 9. **Rule 15 is replaced.** A credit classified Mollie (counterparty or label contains « mollie »,
    whatever the operation type) is matched against the open link tranches — immediate and retenue alike —
    by the smallest combination (≤ 8 tranches) whose sum equals the credit to the cent, or equals it less
     the estimated fees of those payments (rule 5). One tranche →
-   **sûr**; several → **probable**; nothing exact → no proposal, the credit stays « non rattaché ».
+   **sûr**; several → **probable**; nothing exact → no proposal, the credit stays « non rattaché ». By amount alone a credit never
+   takes an immediate share past its window (expected date + `lateAfterDays`) nor a reserve before its window opens; the exact
+   composition of rule 10 knows no date window. **When a settlement read from Mollie exists for the credit and its composition does not
+   match the open tranches** (a payment unknown to GuestFlow, a tranche not open), the amount path is only a coincidence to look at: its
+   proposals are capped at **probable**, never « sûr », never confirmed automatically. A platform that pays through Mollie (Mollie
+   Connect) stays a platform: the platform patterns are read before the Mollie name.
 10. **With a Mollie connection (§3.3), the settlement decides, and the balance transactions say exactly what it paid.**
     The credit's reference is looked up as a settlement (rule 16). The **balance transactions** between the previous
     `outgoing-transfer` and the one naming the settlement are its composition: each `payment` is the **immediate tranche**
@@ -188,7 +202,8 @@ brought it; and the accountant receives entries that explain every Mollie credit
     `context.paymentId`. Every tranche is allocated to the cent, so the proposal is **sûr even when grouped** (several
     payments, a release of an older one, a release alone). A settlement whose composition is not available (the token
     cannot read balances) falls back on the settlement's payments list plus the released reserve it declares; a payment
-    unknown to GuestFlow leaves the known part **probable** and shows « 1 paiement Mollie inconnu de GuestFlow »; a
+    unknown to GuestFlow leaves the known part **probable** (as do reserves freed in a settlement whose released sum several sets of open
+    reserves can make) and shows « 1 paiement Mollie inconnu de GuestFlow »; a
     composition that does not add up to the credit falls back to rule 9.
 11. Confirming a Mollie credit never writes the fiche (the échéance is already paid by the webhook,
     rule 7): it stores the reconciliation lines only. « Défaire » removes them.
@@ -198,7 +213,9 @@ brought it; and the accountant receives entries that explain every Mollie credit
     (`tr_…`). The Qonto `transaction_id` is now stored (§5); it is the identifier Qonto's own search
     and exports show.
 13. A retenue whose window has passed without a matching credit is **en retard** and raises one attention
-    item « Retenue Mollie non reçue » on the home page (one per fiche, with the expected date).
+    item « Retenue Mollie non reçue » on the home page (one per fiche, with the **oldest** expected date of its late reserves). The server
+    builds the whole line (`items[].line`: « Jean Dupont · 146,48 € · attendue le 24/01 ») and serves it on
+    `GET /api/payments/reconciliation/reserve-attention` as well as in the attention payload.
 
 ### 3.3 Mollie connection (optional)
 
@@ -234,19 +251,29 @@ brought it; and the accountant receives entries that explain every Mollie credit
     (rule 4). With an organisation-level token the payments are listed with the profile id (setting, filled by « Tester »
     from `profiles.read`).
 17. A Mollie failure never blocks the reconciliation: the last read stays, the error is shown in words
-    on the card, rule 9 applies.
+    on the card, rule 9 applies. **One reference failing never stops the others** (not a settlement: 404, a body that does not parse, a
+    transient refusal): it is kept in `mollie_settlement_failures` with a 24-hour delay before it is asked again, the loop goes on, and
+    `lastError` says how many settlements could not be read (only a refused token, 401, ends the pass). A stored settlement holding a
+    payment GuestFlow could not name — or composed from the payments list only — is read again (at most 5 per pass, at least an hour after
+    the previous read), so a sale typed afterwards gets paired; the refunds of the payments whose reserve is still held are refreshed
+    (at most 10 per pass). Costs are summed as Mollie writes them and rounded once. The token goes only to Mollie's own origin: a
+    `_links.next` pointing elsewhere is not followed; « Tester » with a token typed but not saved never stores the profile it found.
 
 ### 3.4 On the fiche
 
 18. **In the payments ledger, a paid link shows its tranches the way an instalment plan shows its
     instalments**: one dated line per tranche, under the échéance, with amount, label and state —
     « Versement immédiat · 585,92 € · reçu le 28/10 » / « Retenue Mollie 20 % · 146,48 € · prévue vers le
-    24/01/2027 ». States: `en transit`, `reçu le …`, `retenue jusqu'au …`, `en retard`. The lines are
+    24/01/2027 ». The percentage is what was kept of the payment (`reserveCents / grossCents`, so Mollie's real hold prints as it was),
+    never the setting — likewise « Paiement carte · 80 % » and « Retenue Mollie 20 % » of rule 22. States: `en transit`, `reçu le …`,
+    `retenue jusqu'au …`, `en retard de N j`. The lines are
     built by the server (ledger row `bankTranches[]`, contributed by the plugin) and drawn by the same
     component as the instalment lines.
 19. The **reservation summary** (top of the fiche, the money recap) shows the same split as a schedule:
-    « Payé par carte 732,40 € — 585,92 € reçus · 146,48 € attendus le 24/01/2027 », exactly as a payment
-    plan reads « 2 échéances payées · 1 à venir le … ». A fiche with no pending tranche shows nothing new.
+    one segment per kind of tranche — « Payé par carte 732,40 € — 585,92 € attendus le 30/10 · 146,48 € retenus jusqu'au 28/01/2027 »,
+    then « 585,92 € reçus · 146,48 € retenus jusqu'au … », and « 585,92 € en retard » once the immediate window has passed — exactly as a
+    payment plan reads « 2 échéances payées · 1 à venir le … ». The ledger of the fiche is read per fiche (its own receipts and bank
+    lines, no proposal) and never writes; the quote preview's ledger carries no bank tranches. A fiche with no pending tranche shows nothing new.
 20. The reconciliation card of the fiche lists the two tranches as two receipts, each with its credit
     identifiers (rule 12).
 
@@ -290,7 +317,13 @@ brought it; and the accountant receives entries that explain every Mollie credit
       the Mollie entry settles it exactly as for a link, so nothing is counted twice;
     - at each reconciled Mollie credit, on its bank date: **D 512 (bank account setting) / C 46720000** for
       the credit amount, the libellé carrying the Mollie settlement reference and the Qonto reference;
-    - a settlement cost (rule 5), if any: **D 627 (setting) / C 46720000**.
+    - a settlement cost (rule 5), if any: **D 627 (setting) / C 46720000** — the costs of the payments GuestFlow knows; the share of
+      unknown payments is listed apart as unattached (`kind: 'cost'`), never booked on a client. Without a token (no settlement read), a
+      credit confirmed short of its tranche by the estimated fee books that gap as a cost (« FRAIS MOLLIE ESTIMÉS »); with a settlement
+      the settlement's own costs are booked, never both;
+    - the gross of a link is net of what Mollie refunded of it (rule 6); dates are the Paris day of the instant, whatever its stored
+      format (ISO with a zone, or SQLite's UTC `datetime`); the libellé of a credit is « VERSEMENT MOLLIE <settlement> <last 6 characters of
+      Qonto's reference> » (the export sets no maximum length; the 50-character id would drown the line).
     The balance of 46720000 at any date is then exactly the money still at Mollie (transit + reserves).
 29. The bank lines of rule 28 can be switched off (setting « Exporter les versements Mollie reçus »,
     default on) for an accountant who books the bank from the bank feed himself — Q2.
@@ -312,12 +345,15 @@ brought it; and the accountant receives entries that explain every Mollie credit
 | | `mollieSettlements.js` | C | Rules 10, 16: normalise the reference, store settlements and balance transactions, compose a settlement from them, attach payments, correct the reserve (rule 4). |
 | | `transactionsReader.js`, `bankTransactionsModel.js` | T | Rule 12: store Qonto `transaction_id` as `qontoReference`. |
 | | `controller.js` | T | Tranche states and identifiers in the fiche/page payloads; attention item (rule 13). |
-| | `schema.js` | T | Tables of §5, `reconciliation_v3` migration. |
+| | `schema.js` | T | Tables of §5, `reconciliation_v3` and the remediation `reconciliation_v3b` (final schema from any state). |
+| | `mollieTranches.js`, `mollieJournal.js` | C | Rules 18-19 (the words and states of a tranche, the recap line); rules 28-31 (the Mollie facts a month books). Pure. |
+| | `receiptStates.js` | T | `trancheDaysLate`: the one definition of a late tranche (rule 4). |
 | `plugins/online-payment/` | `mollieClient.js` | C | Read-only Mollie API client (settlements, settlement payments, balance transactions, primary balance, a payment), `httpRetry`, token from settings. |
 | | `mollieConnection.js` | C | « Compte Mollie »: token check, « Tester », the read (settlements + balance), `status()` with `balance`. |
 | | `index.js`, `settingsStore.js`, `manifest.json` | T | Settings of rules 2, 14; registration of the SDK contributions below; version → 1.8.0. |
 | `plugins/sdk/` | `createContext.js`, `version.js` | T | New entries (MINOR, SDK 2.29.0): `ledgerBankTranches(provider)` (rule 18), `incomingPayments(provider)` (rule 23), `journalEntries(provider)` (rule 28). |
-| `utils/` | `reservationLedger.js` | T | Ledger rows carry `bankTranches[]` from the providers; summary line (rule 19). |
+| `utils/` | `pluginLedgerTranches.js`, `pluginIncomingPayments.js`, `pluginJournalEntries.js` | C | The three provider registries read from live plugins; `decorateLedger` adds `bankTranches[]` to the rows and `schedule` to the ledger (rules 18-19). |
+| `controllers/` | `reservationsController.js` | T | Decorates the stored fiche's ledger only (never the quote preview's). |
 | | `incomingPayments.js` | C | Rules 21–27: gather core kinds (instalments, platform payouts) + plugin providers, group by client, sort, totals. Pure. |
 | `models/` | `financeDashboardModel.js` | T | Tile `incoming` (rule 21) and detail `incoming`. |
 | `routes/` + `controllers/` | `finance.js`, `financeController.js` | T | `GET /api/finance/incoming?recent=1`. |
@@ -328,18 +364,18 @@ brought it; and the accountant receives entries that explain every Mollie credit
 
 | Layer | File | T/C | Responsibility |
 |---|---|---|---|
-| `components/` | `ScheduleLines.jsx` | C | Generic dated-amount lines with state badge — extracted from `InstallmentPlanCard`'s read view, reused by instalments and Mollie tranches (rule 18). |
+| `components/` | `ScheduleLines.jsx` | C | Generic dated-amount lines with a state badge — used by `BankTranches` (rule 18); `InstallmentPlanCard` keeps its own read view. |
 | | `TransactionRef.jsx` | C | A bank/provider identifier shortened in the middle + copy button (rule 12). Generic: any external id. |
-| `components/reservation/` | `FinanceSection.jsx`, `InstallmentPlanCard.jsx` | T | Render `bankTranches[]` and the summary line (rules 18–19); the plan card uses `ScheduleLines`. |
+| `components/reservation/` | `BankTranches.jsx` (C), `FinanceSection.jsx` (T) | | Render `bankTranches[]` under a paid row and the summary line (rules 18-19). |
 | `pages/` | `FinancePage.jsx` | T | Tile « Versements à venir » + its detail. |
-| `components/finance/` | `IncomingPaymentsTable.jsx` | C | Rules 22–24: grouped table (md+), cards (xs), kind filter chips, recent toggle, row → fiche. Feature-specific. |
-| `plugins/online-payment/` | `MollieConnectionCard.jsx`, `ReconciliationSettingsCard.jsx`, `ReconciliationLine.jsx` | C/T | Token card (rules 14–15), reserve settings (rules 2–3), identifiers on bank rows (rule 12). |
-| `plugins/accounting-export/` | export page | T | Clearing account balance + unattached credits (rules 30–31), settings. |
-| `api.js` | — | T | `finance.incoming`, Mollie test. |
+| `components/finance/` | `IncomingPaymentsTable.jsx` | C | Rules 22-24: grouped table (md+), cards (xs), kind filter chips, recent toggle, row → fiche. Feature-specific. |
+| `plugins/online-payment/` | `MollieConnectionCard.jsx` (C), `ReconciliationSettingsCard.jsx` (T), `ReconciliationLine.jsx` (T), `MollieReserveAlert.jsx` (C) | | Token card (rules 14-15), reserve settings (rules 2-3), identifiers on bank rows (rule 12), the home alert of rule 13. The Mollie cards have their own « Enregistrer » buttons, like the existing reconciliation card: they save plugin settings, not the page's form. |
+| `plugins/accounting-export/` | `MollieJournalCard.jsx` (C), `MollieClearingCard.jsx` (C) | | Mollie journal settings with their own « Enregistrer »; clearing balance + unattached credits (rules 30-31). |
+| `api.js` | — | T | `finance.incoming`, Mollie test, reserve attention. |
 
-**Component reuse:** consumes `StatusBadge`, `TableCard`, `EmptyState`, `ErrorAlert`, `LoadingState`,
-`MaskedTextField`, `HelpedTextField`, `PlatformChip`. Creates `ScheduleLines` (generic: instalments,
-Mollie tranches, later any staged payment) and `TransactionRef` (generic: Qonto, Mollie, Stripe ids).
+**Component reuse:** consumes `StatusBadge`, `EmptyState`, `MaskedTextField`, `HelpedTextField` and the
+reconciliation's own `PlatformChip`; the incoming table is its own markup (`TableCard` and the error / loading states are not used there).
+Creates `ScheduleLines` (generic: Mollie tranches, later any staged payment) and `TransactionRef` (generic: Qonto, Mollie, Stripe ids).
 `IncomingPaymentsTable` is specific (one page, one payload).
 
 ### 4.3 API contract
@@ -347,7 +383,8 @@ Mollie tranches, later any staged payment) and `TransactionRef` (generic: Qonto,
 | Method | Endpoint | Response | Notes |
 |---|---|---|---|
 | GET | `/api/finance/incoming[?recent=1]` | `{ totals: { amount, amountCents, clients, nextDate, nextDateLabel }, kinds: [{ key, label, count }], clients: [{ clientId, name, totalCents, nextDate, nextDateLabel, late, stays: [{ reservationId (null for a sale outside a stay), saleKey (null for a stay), label, startDate, endDate, items: [{ key, kind, label, icon, natureLabel, natureDetail, amountCents, expectedDate, receivedDate, dateLabel, state, stateLabel, tone, refs: { qonto, mollieSettlement, molliePayment } }] }] }] }` | Admin + accounting role (`enforceRoleAccess`: accountant `GET /finance/incoming`). |
-| GET | `/api/finance/dashboard` | `tiles.incoming: { amount, clients, nextDate }` | Added field. |
+| GET | `/api/finance/dashboard` | `tiles.incoming: { amount, clients, nextDate, nextDateLabel }` | Added field; `nextDateLabel` « jeu. 11/02 ». Each `clients[]` group of `/api/finance/incoming` also carries a unique `key`. |
+| GET | `/api/payments/reconciliation/reserve-attention` | `{ count, items: [{ reservationId, saleKey, clientName, saleLabel, amountCents, amount, amountLabel, expectedDate, expectedDateLabel, line }] }` | One item per fiche (or sale), oldest expected date first (rule 13); same role access as the other reconciliation GETs (admin). |
 | GET | `/api/reservations/:id` (ledger) | rows gain `bankTranches[]`, summary gains `schedule` | Additive. |
 | POST | `/api/plugins/online-payment/mollie/test` | `{ ok, settlements, error? }` | Never returns the token. |
 | GET | reconciliation payload | `mollie: { configured, profileId, lastRead: { at, settlements, unknownPayments, balances }, lastError, balance: { pendingCents, pendingAmount, availableCents, at } or null, settlements }` | `balance` added (rule 14); the plugin setting `mollieBalance` (JSON) carries the same for the settings card. |
@@ -367,6 +404,7 @@ Mollie tranches, later any staged payment) and `TransactionRef` (generic: Qonto,
   `reserveHeldCents`, `reserveReleasedCents`, `fetchedAt`.
 - `mollie_settlement_payments` — `settlementId`, `molliePaymentId`, `amountCents`, `paidAt`,
   `description`, `splitId` NULL (`link:<id>` or `invoice:<number>`: the split the payment is); PK (`settlementId`, `molliePaymentId`).
+- `mollie_settlement_failures` — `reference` PK, `failedAt`, `retryAt`, `message`: a settlement Mollie could not give, not asked again before `retryAt` (rule 17).
 - `mollie_settlements.source` — `balance` (composed from balance transactions, exact) or `payments` (fallback); `reference` is
   stored in Mollie's form (no `T`).
 - `mollie_settlement_payments` also carries `kind` (`immediate` | `release`; part of the PK), `grossCents`, `reserveCents`
@@ -377,6 +415,12 @@ Mollie tranches, later any staged payment) and `TransactionRef` (generic: Qonto,
 - `bank_transactions.qontoReference` TEXT NULL (filled on next read; CSV imports already use it as id).
 - `bank_reconciliation_lines`: rows whose `ledgerKey` is a link's bare key are rewritten to `#immediat`
   — idempotent, a rerun finds nothing to rewrite.
+
+Migration `reconciliation_v3b` (idempotent, `IF NOT EXISTS` / column checks) reaches this schema from ANY state: a database that ran a draft of
+`reconciliation_v3` has its two settlement tables rebuilt when they carry the draft shape (they hold only what Mollie can say again) and its
+`payment_link_splits` copied into `mollie_payment_splits`; a database already on the final shape is untouched. The bare-key rewrite reads
+exactly the links the splits model splits (paid, dated, above zero), covers a complement drawn on `checkoutComplement`, and drops a discard
+whose `#immediat` twin exists instead of leaving it to the primary key.
 
 **Data impact:** additive; one rewrite of reconciliation keys for links (production has at most one).
 
@@ -408,6 +452,7 @@ See the summary page for the interactive mock-ups (fiche, tile + table, settings
 - `mollie-sale-discard.unit.test.js` — rule 8 (discard of a sale outside a stay).
 - `mollie-settings-validation.unit.test.js` — rules 3, 15.
 - `mollie-card-sources.unit.test.js` — rule 1 second half (Gruat invoice case, tender before / after the setting date, split payment CB line, batch exclusion), rule 3 (`mollieCardOnSiteSince`), rules 13, 16, 23, 28 for a sale outside a stay.
+- `mollie-review-matching`, `mollie-review-settlements-read`, `mollie-review-splits`, `mollie-review-migration`, `mollie-review-read-paths`, `mollie-review-journal`, `mollie-review-lateness-and-words` (online-payment) and `accounting-mollie-libelle` (accounting-export) — the review of 2026-11-16: rules 1, 4-6, 8-10, 13-19, 28 (no amount fallback « sûr » next to a settlement read; one failing reference; re-read of unknown payments; complement and basket links; estimates that follow the data; `reconciliation_v3b` from both drafts; no write on a read; fee gap, refunds, unknown costs and Paris days in the journal; late everywhere; the recap line; the reserve-attention route).
 - `incoming-payments.unit.test.js` — rules 21–27 (grouping, sort, late first, without plugin).
 - `accounting-mollie-journal.unit.test.js` — rules 28–31 (balanced entries, clearing balance, switch, unattached).
 
@@ -454,7 +499,7 @@ See the summary page for the interactive mock-ups (fiche, tile + table, settings
 
 ### Server (2026-11-16)
 
-- [x] Rules 1-7 — `molliePaymentSplits.js` (split, since-date, refunds, validation), `mollie_payment_splits` filled the first time a paid link is seen (every compute of the reconciliation, the ledger and the incoming table).
+- [x] Rules 1-7 — `molliePaymentSplits.js` (split, since-date, refunds, validation), `mollie_payment_splits` filled the first time a paid link is seen: by the `reservation.paid` event, the read job, « Actualiser » and the page that lists the reconciliation — never by the fiche, the quote preview or the dashboard (review 2026-11-16).
 - [x] Rules 8-13 — `expectedReceipts.js` (`#immediat` / `#retenue`), `matcher.js` (`classify` Mollie by name, `mollieProposals`, `settlementProposal`), `ficheWriter` untouched (the controller skips the write for a tranche), `qontoReference`, late reserve attention (`mollie-reserve-late`).
 - [x] Rules 14-17 — `mollieClient.js`, `mollieSettlements.js`, `mollieConnection.js`, `POST /api/plugins/online-payment/mollie/test`.
 - [x] Rules 18-20 — `ctx.ledgerBankTranches` → ledger rows `bankTranches[]` and `ledger.schedule` (`utils/pluginLedgerTranches.js`), the fiche's reconciliation card lists the two receipts.
@@ -462,12 +507,12 @@ See the summary page for the interactive mock-ups (fiche, tile + table, settings
 - [x] Rules 28-31 — `ctx.journalEntries`, `mollieJournal.js`, accounting-export settings, entries, clearing balance and unattached credits in `GET /api/accounting/sales`.
 - [x] SDK 2.29.0, `online-payment` 1.8.0, `accounting-export` 1.3.0, `reconciliation_v3`.
 - [x] Rule 1, second half (2026-11-16) — `mollie_payment_splits` keyed by `sourceType` (`link | invoice | tender`) + `sourceKey`; `mollieCardSources.js`; setting `mollieCardOnSiteSince` (« CB sur place via Mollie depuis »); `invoice` splits made from the Mollie payment paired by its `description` (Gruat, F-2026-013: 14,00 € → 11,20 € + 2,80 €); `tender` splits for an instalment paid by card without a link, the CB line of a split payment (its cheque / transfer lines stay `settlement-<id>`) and a sale outside a stay without invoice; receipts, matching, ledger `bankTranches`, `incomingPayments` (items carry `sale`), journal and late-reserve attention work for every source; a sale that went through Mollie leaves the day's card batch.
-- [ ] Client (another session).
+- [x] Client — done (2026-11-16): `BankTranches`, `ScheduleLines`, `TransactionRef`, `IncomingPaymentsTable`, the Mollie cards and the reserve alert (see §4.2).
 
 ### Readings that settled what the rules left open
 
-- **Windows (rule 4).** « Window [0, +8] / [−3, +10] » is read as the days after the expected date during which the tranche is still on time: past `expected + 8` (immediate) or `expected + 10` (reserve) without a credit it is `en retard`. A credit is a candidate from the day of the payment (never before it); a reserve from `expected − 3`. A credit above its window is never refused for it: the amount decides.
-- **Fees (rule 5).** A tranche is reconciled when its credit is short of it by at most the estimated fees of the whole payment (`1,4 % + 0,25 €` setting `reconciliationAcquiringFee`), never above it.
+- **Windows (rule 4).** « Window [0, +8] / [−3, +10] » is read as the days after the expected date during which the tranche is still on time: past `expected + 8` (immediate) or `expected + 10` (reserve) without a credit it is `en retard`. A credit is a candidate from the day of the payment (never before it); a reserve from `expected − 3`. By amount alone an immediate share is not matched to a credit past `expected + lateAfterDays`, nor a reserve to a credit before `expected − 3`; the exact composition of rule 10 has no date window (review 2026-11-16).
+- **Fees (rule 5).** An immediate tranche is reconciled when its credit is short of it by at most the estimated fees of the whole payment (`1,4 % + 0,25 €` setting `reconciliationAcquiringFee`), never above it; a reserve tranche has no tolerance.
 - **Settlement costs and reserve lines (rule 16).** Read from `periods.<year>.<month>.revenue|costs[]`: the `rollingreserve` lines are a release when their gross is positive and a hold when negative; every other costs line is a cost. Where Mollie takes its fees is still Q5: a settlement whose credit is short of its tranches by its `costsCents` is explained by them.
 - **« Versement plateforme » (rule 23).** Listed once the guest has left (`endDate <= today`): its due date is the end date plus the platform's payout delay, its amount the solde net of the platform's commission and penalties — the same figures as « En retard ».
 - **« Reçus récemment » (rule 24)** — instalments paid by transfer or cheque (a card instalment is a Mollie tranche), platform payouts marked received, Mollie tranches reconciled.
@@ -488,5 +533,15 @@ See the summary page for the interactive mock-ups (fiche, tile + table, settings
 - [x] Reserve hold read from `deductions` and corrected on the split (rule 4); the reserve's expected date stays « immediate bank date + hold ».
 - [x] `balance.pendingCents` on the Mollie status and card (rule 14).
 - [x] Discard of a sale outside a stay (reservation id 0); the client sends 0 for a null `reservation.id`, hides « Ouvrir la fiche » and the fiche links of a sale (`IncomingPaymentsTable`, `MollieReserveAlert`, `ReconciliationAlert`, `ReconciliationLine`, `ReconciliationPage`).
-- Migration `reconciliation_v3` edited in place (unreleased): a development database that already ran the first draft needs `mollie_settlements` and `mollie_settlement_payments` dropped (they are re-read).
+- Migration `reconciliation_v3` was edited in place while unreleased; `reconciliation_v3b` (review 2026-11-16) makes the final schema reachable from any state, including a development or shadow database that ran a draft.
 - Tests: `mollie-balance-composition` (9), `mollie-sale-discard` (2) on the server; 4 new files / 7 tests on the client.
+
+### Review corrections (2026-11-16, server)
+
+- [x] No « sûr » by amount next to a settlement read from Mollie that does not match (rule 10); ambiguous reserve releases « probable »; the exact composition has no date window and the amount path bounds the immediate share (rules 9, 14); reserve tolerance 0 (rule 15); platform patterns before the Mollie name.
+- [x] One failing reference never stops the settlements read; re-read of unknown payments; refunds refreshed; costs rounded once; next page on Mollie's origin only; « Tester » never stores a typed token's profile (rules 16-17).
+- [x] Splits: complement on `checkoutComplement`, basket links without a ledger row, estimates that follow the data and leave with it (rules 1-2, 8); `reconciliation_v3b` and the exact bare-key rewrite (§5).
+- [x] No write on a reading path: the splits sync on the event, the job, « Actualiser » and the reconciliation page; the fiche reads its own tranches; the quote preview is not decorated; one journal pass per request.
+- [x] Journal: fee gap of a credit confirmed short, net of refunds, unknown payments' costs apart, Paris days, short libellé (rule 28).
+- [x] « En retard » is one definition everywhere; the recap line tells the tranches apart; labels from the real share; the reserve-attention route and `line`; `tiles.incoming.nextDateLabel`; client group `key`.
+- Tests: 43 new server tests in 8 files (`mollie-review-*` ×7 under `plugins/online-payment/tests/`, `accounting-mollie-libelle` under `plugins/accounting-export/tests/`); existing suites adjusted for the new behaviour (splits are synced by the fixture's `build`, as the `reservation.paid` event would).

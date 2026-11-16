@@ -10,7 +10,7 @@ const flag = (v) => Number(v || 0) === 1 || v === true;
 const cents = (n) => Math.round((Number(n) || 0) * 100);
 const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
 const { day } = require('./dates');
-const { afterRefund, expectedDates, trancheKey, splitIdOf, LATE_AFTER_DAYS } = require('./molliePaymentSplits');
+const { afterRefund, expectedDates, trancheKey, splitIdOf, reservePercentOf, immediatePercentOf, LATE_AFTER_DAYS } = require('./molliePaymentSplits');
 const { settlementLedgerRow } = require('./mollieCardSources');
 
 /**
@@ -64,6 +64,8 @@ function trancheReceipts({ split, ledgerKey, label, brief, platform, ledgerRow =
       tranche, sourceType: split.sourceType, sourceKey: String(split.sourceKey), splitId: splitIdOf(split.sourceType, split.sourceKey),
       ledgerRow, paymentGrossCents: split.grossCents, ratePercent: split.ratePercent,
       holdDays: split.holdDays, lateAfterDays: LATE_AFTER_DAYS[tranche], molliePaymentId: split.molliePaymentId || null,
+      // Rule 18 — the share the reserve really is of the payment (Mollie's own hold corrects the rate): the words print it.
+      reservePercent: reservePercentOf(split), immediatePercent: immediatePercentOf(split), refundedCents: Number(split.refundedCents) || 0,
     },
     reservation: brief,
   }));
@@ -79,7 +81,8 @@ function basketReceipts(row, links, brief, platform, splitFor) {
   return links.filter((l) => l.status === 'paid' && l.basketJson && Number(l.amountCents) > 0).flatMap((l) => {
     const split = splitFor(l);
     const label = `Paiement en ligne (lien ${l.id})`;
-    if (split) return trancheReceipts({ split, ledgerKey: `basket-${l.id}`, label, brief, platform });
+    // A basket has no row of the payments ledger (its order is the plugin's): its tranches count in the fiche's schedule line only.
+    if (split) return trancheReceipts({ split, ledgerKey: `basket-${l.id}`, label, brief, platform, ledgerRow: null });
     return [{
       reservationId: row.id, ledgerKey: `basket-${l.id}`, label,
       channel: 'link', platform,
@@ -189,8 +192,10 @@ function receiptsOfReservation(row, { buildLedger, parseGroup, links, installmen
     const paid = isPaid(r);
     if (!(Number(r.amount) > 0)) return;
     const link = r.detail && r.detail.link && r.detail.link.status === 'paid' ? r.detail.link : null;
+    // The complement's link is typed `complement` whichever row the ledger draws it on (arrival, or deferred to the check-out).
+    const linkType = r.key === 'checkoutComplement' ? 'complement' : r.key;
     const paidLink = link ? links.find((l) => l.status === 'paid' && ['deposit', 'balance', 'full', 'complement'].includes(String(l.type))
-      && ((r.key === 'balance' && ['balance', 'full'].includes(String(l.type))) || String(l.type) === r.key)) : null;
+      && ((linkType === 'balance' && ['balance', 'full'].includes(String(l.type))) || String(l.type) === linkType)) : null;
     const due = meta.dueDate ? day(row[meta.dueDate]) : null;
     const split = paidLink ? splitFor(paidLink) : null;
     if (split) {
@@ -275,7 +280,8 @@ function expectedReceipts({ db, startDate, today, buildLedger, parseGroup, listL
 function saleReceipts(sales, sourceSplit = () => null) {
   return sales.flatMap(({ sale, sourceType, sourceKey }) => {
     const split = sourceSplit(sourceType, sourceKey);
-    if (!split) return [];
+    // A card amount that is gone from the sale leaves nothing to expect, unless Mollie's own payment is the proof of it.
+    if (!split || (!split.molliePaymentId && !(Number(sale.cardCents) > 0))) return [];
     const client = [sale.client && sale.client.firstName, sale.client && sale.client.lastName].filter(Boolean).join(' ').trim();
     const brief = {
       id: null, saleKey: String(sale.key), clientName: client || sale.label, lastName: (sale.client && sale.client.lastName) || '', hasClient: Boolean(client),

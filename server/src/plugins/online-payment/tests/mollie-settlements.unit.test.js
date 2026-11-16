@@ -99,14 +99,15 @@ test('rule 16 — a settlement is read once: its payments are attached to their 
   const credits = [mollieCredit('c1', 1120, 4, { reference: 'REF T19274230.2611.01' })];
   const links = db.prepare("SELECT * FROM payment_links WHERE status = 'paid'").all();
   const first = await syncSettlements({ client: mollie, model: settlements, splits, credits, links });
-  assert.deepEqual(first, { read: 1, unknownPayments: 0, balances: false });
+  assert.deepEqual(first, { read: 1, unknownPayments: 0, balances: false, failed: [] });
   assert.equal(splits.forLink(link.id).molliePaymentId, 'tr_9');
   assert.equal(splits.forLink(link.id).refundedCents, 200, 'what Mollie says was refunded');
   const detail = settlements.byReference().get('19274230.2611.01');
   assert.equal(detail.costsCents, 0, 'the fee discount cancels the card cost (rule 5)');
   assert.equal(detail.payments[0].splitId, `link:${link.id}`);
-  const callsAfterFirst = calls.length;
-  assert.deepEqual(await syncSettlements({ client: mollie, model: settlements, splits, credits, links }), { read: 0, unknownPayments: 0, balances: false });
+  // The reserve of the payment is still held: its refunds are asked again (one payment read), nothing else is.
+  const callsAfterFirst = calls.length + 1;
+  assert.deepEqual(await syncSettlements({ client: mollie, model: settlements, splits, credits, links }), { read: 0, unknownPayments: 0, balances: false, failed: [] });
   assert.equal(calls.length, callsAfterFirst, 'nothing is asked twice');
 });
 
@@ -121,7 +122,7 @@ test('rule 16 — a payment paired with a Qonto invoice number is known (stored 
   });
   const credits = [mollieCredit('c1', 2000, 4, { reference: 'REF T19274230.2611.07' })];
   const result = await syncSettlements({ client: mollie, model: settlements, splits: createSplitsModel(db), settings: { get: () => '' }, credits, links: [], invoiceSources: new Map([['F-2026-013', { sourceType: 'invoice', sourceKey: 'F-2026-013', reservationId: null, ledgerKey: 'sale:s1' }]]) });
-  assert.deepEqual(result, { read: 1, unknownPayments: 1, balances: false });
+  assert.deepEqual(result, { read: 1, unknownPayments: 1, balances: false, failed: [] });
   assert.deepEqual(settlements.byReference().get('19274230.2611.07').payments.map((p) => p.splitId).sort(), ['invoice:F-2026-013', null]);
 });
 
@@ -140,8 +141,9 @@ test('rule 17 — a Mollie failure never blocks the reconciliation: the error is
   const reconciled = controller.list({ view: 'done' }).body.items.find((i) => i.ledgerKey === 'balance#immediat');
   assert.equal(reconciled.state, 'reconciled', 'rule 9 applied: the certain match confirmed itself');
   assert.equal(reconciled.bank[0].auto, true);
-  assert.equal(JSON.parse(store.get('mollieLastError')).message, 'Ce jeton est limité à un profil : le recréer sans restriction de profil pour lire les règlements');
-  assert.equal(answer.body.mollie.lastError.message, 'Ce jeton est limité à un profil : le recréer sans restriction de profil pour lire les règlements');
+  const words = /^Règlement 19274230\.2611\.\d+ : Ce jeton est limité à un profil : le recréer sans restriction de profil pour lire les règlements$/;
+  assert.match(JSON.parse(store.get('mollieLastError')).message, words);
+  assert.match(answer.body.mollie.lastError.message, words);
   assert.ok(!JSON.stringify(answer.body).includes(TOKEN));
 });
 

@@ -47,8 +47,8 @@ test('rule 28 — a paid link: D clearing account / C the client\'s account, the
 test('rule 28 — a reconciled credit: D bank / C clearing account, the libellé carrying the settlement and the Qonto reference', () => {
   const [entry] = mollieEntries(stub({ entries: [credit()] }), { month: 12, year: Y }, PLAN).entries;
   assert.deepEqual(cols(entryToRows(entry, PLAN)), [
-    ['MO', 'VERSEMENT MOLLIE T19274230.2512.01 solio-6791-1-transaction-019d1b2f-0001', '51200000', 157.44, 0],
-    ['MO', 'VERSEMENT MOLLIE T19274230.2512.01 solio-6791-1-transaction-019d1b2f-0001', '46720000', 0, 157.44],
+    ['MO', 'VERSEMENT MOLLIE T19274230.2512.01 f-0001', '51200000', 157.44, 0],
+    ['MO', 'VERSEMENT MOLLIE T19274230.2512.01 f-0001', '46720000', 0, 157.44],
   ]);
 });
 

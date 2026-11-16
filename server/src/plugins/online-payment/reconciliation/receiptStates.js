@@ -32,6 +32,17 @@ const TONES = {
 };
 
 /**
+ * Rule 4 — how many days past its expected date a Mollie tranche still without a credit is, once its window
+ * (`lateAfterDays`) has passed; 0 while it is on time. The one definition of « en retard » for a tranche: the
+ * reconciliation, the payments ledger and « Versements à venir » all read it.
+ */
+function trancheDaysLate(receipt, today) {
+  if (!receipt.mollie || !day(receipt.expectedDate)) return 0;
+  const since = daysUntil(receipt.expectedDate, today);
+  return since > receipt.mollie.lateAfterDays ? since : 0;
+}
+
+/**
  * @param {object} p
  * @param {object} p.receipt         expected receipt (`expectedCents`, `paid`, `paidDate`, `dueDate`, `expectedDate`, `channel`)
  * @param {{ amountCents: number, settledAt: string }[]} p.lines  confirmed reconciliations of this receipt
@@ -59,8 +70,7 @@ function stateOfReceipt({ receipt, lines, hasProposal, today, netOf = (c) => c }
   } else if (hasProposal) key = 'proposed';
   else if (isMollie) {
     // Rule 4 — a tranche is late once its expected date and its window have passed.
-    const lateFrom = day(receipt.expectedDate) ? daysUntil(receipt.expectedDate, today) - (receipt.mollie ? receipt.mollie.lateAfterDays : 0) : 0;
-    key = lateFrom > 0 ? 'late' : 'waiting';
+    key = trancheDaysLate(receipt, today) > 0 ? 'late' : 'waiting';
   } else if (receipt.paid) {
     const at = day(receipt.paidDate) || day(receipt.expectedDate);
     key = at && daysUntil(at, today) > 7 ? 'recorded_not_received' : 'waiting';
@@ -89,4 +99,4 @@ function fixText({ state, receipt, gapCents, receivedCents, expectedBankCents, l
 
 const isGap = (state) => GAP_STATES.includes(state);
 
-module.exports = { stateOfReceipt, fixText, isGap, GAP_STATES, TONES, euros, shortDate };
+module.exports = { stateOfReceipt, trancheDaysLate, fixText, isGap, GAP_STATES, TONES, euros, shortDate };

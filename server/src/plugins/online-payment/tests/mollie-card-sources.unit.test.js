@@ -49,7 +49,7 @@ test('rule 1 — the measured Gruat case: 14,00 € paid on invoice F-2026-013 i
   transactions.upsertMany(credits, { bankAccountId: 'acc-1' });
   assert.deepEqual(itemsOf(controller).filter((i) => i.mollie), [], 'no Mollie token read yet: nothing is known of this payment');
 
-  assert.deepEqual(await readSettlement([gruatPayment()], credits), { read: 1, unknownPayments: 0, balances: false });
+  assert.deepEqual(await readSettlement([gruatPayment()], credits), { read: 1, unknownPayments: 0, balances: false, failed: [] });
   const stored = createSplitsModel(db).forSource('invoice', 'F-2026-013');
   assert.deepEqual([stored.grossCents, stored.immediateCents, stored.reserveCents, stored.molliePaymentId, stored.reservationId, stored.ledgerKey],
     [1400, 1120, 280, 'tr_gruat', null, SALE_KEY]);

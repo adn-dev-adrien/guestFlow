@@ -22,6 +22,16 @@ const clientOf = (brief, anonymous = false) => {
   return { firstName: whole.endsWith(lastName) ? whole.slice(0, whole.length - lastName.length).trim() : whole, lastName };
 };
 
+/** A settlement's costs split between the payments GuestFlow knows and the others, pro rata of the immediate shares they paid. */
+function splitCosts(settlement, costsCents) {
+  const rows = (settlement.payments || []).filter((p) => p.kind !== 'release');
+  const total = rows.reduce((t, p) => t + Number(p.amountCents || 0), 0);
+  const knownTotal = rows.filter((p) => p.splitId).reduce((t, p) => t + Number(p.amountCents || 0), 0);
+  if (rows.length === 0 || total <= 0) return { known: costsCents, unknown: 0 };
+  const known = Math.round((costsCents * knownTotal) / total);
+  return { known, unknown: costsCents - known };
+}
+
 /**
  * @param {object} data        the reconciliation controller's computed pass
  * @param {{ from: string, to: string }} window  the month exported; `to` is also the date of the clearing balance
@@ -31,29 +41,37 @@ function mollieJournal(data, { from, to }, settlements = new Map()) {
   const mollieItems = data.items.filter((i) => i.mollie);
   const linkOnce = new Map();
   mollieItems.forEach((i) => { if (!linkOnce.has(i.mollie.splitId)) linkOnce.set(i.mollie.splitId, i); });
-  // A payment taken on site (rule 1, second half) books like a link: the client settles, Mollie owes the gross. A sale
-  // outside a stay has no stay: its holder is the sale (`holderOf`), its client the one named on the sale, if any.
+  // A payment taken on site (rule 1, second half) books like a link: the client settles, Mollie owes the gross — less what
+  // Mollie refunded of it (rule 6), which it never pays. A sale outside a stay has no stay: its holder is the sale
+  // (`holderOf`), its client the one named on the sale, if any. The day is the Paris day of the payment (`day`).
   const links = [...linkOnce.values()].map((i) => ({
-    kind: 'link', date: i.paidDate, amountCents: i.mollie.paymentGrossCents, reservationId: i.reservation.id, saleKey: i.reservation.saleKey || null,
+    kind: 'link', date: i.paidDate, amountCents: Math.max(0, i.mollie.paymentGrossCents - (i.mollie.refundedCents || 0)),
+    reservationId: i.reservation.id, saleKey: i.reservation.saleKey || null,
     client: clientOf(i.reservation, i.reservation.hasClient === false), libelle: i.reservation.clientName, ledgerKey: i.mollie.baseKey,
-  }));
+  })).filter((e) => e.amountCents > 0);
 
   const mollieByKey = new Set(mollieItems.map((i) => i.key));
   const saleOf = new Map(mollieItems.map((i) => [i.key, i.reservation.saleKey || null]));
+  const expectedOf = new Map(mollieItems.map((i) => [i.key, i.expectedCents]));
   const perCredit = new Map();
   data.linesByReceipt.forEach((lines, key) => {
     if (!mollieByKey.has(key)) return;
-    lines.forEach((l) => {
-      const entry = perCredit.get(l.transactionId) || { cents: 0, perReservation: new Map() };
+    const received = lines.reduce((t, l) => t + l.amountCents, 0);
+    lines.forEach((l, index) => {
+      const entry = perCredit.get(l.transactionId) || { cents: 0, perReservation: new Map(), shortCents: 0 };
       entry.cents += l.amountCents;
       const holder = holderOf(l.reservationId, saleOf.get(`${l.reservationId}|${l.ledgerKey}`));
       entry.perReservation.set(holder, (entry.perReservation.get(holder) || 0) + l.amountCents);
+      // Rule 5 — a tranche confirmed short of its amount (the estimated fees, no token to read them) leaves that gap
+      // at Mollie for good: it is the fee, booked with the credit that closed the tranche.
+      if (index === lines.length - 1) entry.shortCents += Math.max(0, expectedOf.get(key) - received);
       perCredit.set(l.transactionId, entry);
     });
   });
 
   const credits = [];
   const costs = [];
+  const unattachedCosts = [];
   perCredit.forEach((booked, transactionId) => {
     const tx = data.txById.get(transactionId);
     if (!tx) return;
@@ -61,14 +79,24 @@ function mollieJournal(data, { from, to }, settlements = new Map()) {
     const base = { date: day(tx.settledAt), settlementReference: reference, qontoReference: tx.qontoReference || String(tx.id) };
     credits.push({ kind: 'credit', ...base, amountCents: booked.cents, perReservation: booked.perReservation, libelle: 'VERSEMENT MOLLIE' });
     const settlement = reference ? settlements.get(normalizeReference(reference)) : null;
-    if (settlement && Number(settlement.costsCents) > 0) costs.push({ kind: 'cost', ...base, amountCents: Number(settlement.costsCents), libelle: 'FRAIS MOLLIE' });
+    const settlementCosts = settlement ? Number(settlement.costsCents) : 0;
+    if (settlementCosts > 0) {
+      // Rule 5 — the settlement's costs belong to the payments GuestFlow knows; what the unknown payments bore is
+      // shown apart, never booked on a client.
+      const { known, unknown } = splitCosts(settlement, settlementCosts);
+      if (known > 0) costs.push({ kind: 'cost', ...base, amountCents: known, libelle: 'FRAIS MOLLIE' });
+      if (unknown > 0) unattachedCosts.push({ date: base.date, amountCents: unknown, qontoReference: base.qontoReference, settlementReference: reference, counterparty: 'Mollie (frais)', kind: 'cost' });
+    } else if (booked.shortCents > 0) {
+      costs.push({ kind: 'cost', ...base, amountCents: booked.shortCents, libelle: 'FRAIS MOLLIE ESTIMÉS' });
+    }
   });
 
   const unattached = data.credits
     .filter((c) => c.kind === 'mollie' && c.status !== 'outside' && c.remainingCents > 0 && inWindow(c.date, from, to))
     .map((c) => ({
-      date: c.date, amountCents: c.remainingCents, qontoReference: c.refs.qonto, settlementReference: c.refs.mollieSettlement, counterparty: c.counterparty,
-    }));
+      date: c.date, amountCents: c.remainingCents, qontoReference: c.refs.qonto, settlementReference: c.refs.mollieSettlement, counterparty: c.counterparty, kind: 'credit',
+    }))
+    .concat(unattachedCosts.filter((u) => inWindow(u.date, from, to)));
 
   const upTo = (list) => list.filter((e) => e.date && e.date <= to);
   const balanceCents = upTo(links).reduce((t, e) => t + e.amountCents, 0)

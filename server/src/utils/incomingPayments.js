@@ -63,7 +63,7 @@ function buildIncoming({ items, stays, today, recent = false }) {
   const nameOf = (name) => String(name || '').trim().toLowerCase();
   const clientKeyByName = new Map();
   const place = (line, clientKey, base, stayKey, stay) => {
-    const client = byClient.get(clientKey) || { ...base, stays: new Map() };
+    const client = byClient.get(clientKey) || { ...base, key: clientKey, stays: new Map() };
     const here = client.stays.get(stayKey) || { ...stay, items: [] };
     const { reservationId, sale, ...item } = line;
     here.items.push(item);
@@ -92,7 +92,7 @@ function buildIncoming({ items, stays, today, recent = false }) {
     const all = stayList.flatMap((s) => s.items);
     const dates = all.map((i) => i.expectedDate).sort();
     return {
-      clientId: client.clientId, name: client.name, totalCents: all.reduce((t, i) => t + i.amountCents, 0),
+      key: client.key, clientId: client.clientId, name: client.name, totalCents: all.reduce((t, i) => t + i.amountCents, 0),
       nextDate: recent ? null : dates[0], nextDateLabel: recent || !dates[0] ? null : withWeekday(dates[0]),
       late: all.some((i) => i.state === 'late'), stays: stayList,
     };

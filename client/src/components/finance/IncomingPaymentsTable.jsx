@@ -37,6 +37,16 @@ const ICONS = { hourglass: HourglassBottomIcon, card: CreditCardIcon, calendar: 
 const TAB = { fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' };
 const WIDE = '@container (min-width: 720px)';
 const EMPTY = 'Rien à recevoir : tout ce qui était attendu est arrivé.';
+const EMPTY_RECENT = 'Rien de reçu ces 30 derniers jours.';
+
+// One key per block: the server's `key` when it sends one, else the client, else what its stays are (a sale outside a
+// stay or a stay without client has no `clientId`, and two of them may share a name).
+const blockKey = (client) => {
+  if (client.key != null) return String(client.key);
+  if (client.clientId != null) return `client:${client.clientId}`;
+  const stays = client.stays.map((stay) => (stay.reservationId != null ? `r${stay.reservationId}` : `s${stay.saleKey}`)).join('|');
+  return stays ? `stays:${stays}` : `label:${client.name}`;
+};
 
 function KindIcon({ name, sx }) {
   const Icon = ICONS[name] || HourglassBottomIcon;
@@ -115,31 +125,35 @@ function ClientBlock({ client, items, filtered, recent, onOpenReservation }) {
   const visible = items.length;
   const head = (
     <>
-      <Box sx={{ minWidth: 0, flex: 1 }}>
+      <Box sx={{ gridArea: 'name', minWidth: 0 }}>
         <Typography component="span" sx={{ fontWeight: 700, display: 'block', overflowWrap: 'anywhere' }}>{client.name}</Typography>
         <Typography component="span" variant="caption" color="text.secondary" sx={{ display: 'block', overflowWrap: 'anywhere' }}>
           {client.stays.map((stay) => stay.label).join(' · ')}
         </Typography>
       </Box>
-      <Box sx={{ textAlign: 'right' }}>
+      <Box sx={{ gridArea: 'figures', display: 'flex', alignItems: { xs: 'baseline', sm: 'flex-end' }, columnGap: 1.5, flexDirection: { xs: 'row', sm: 'column' }, textAlign: { xs: 'left', sm: 'right' } }}>
         {!filtered && <Typography component="span" sx={{ fontWeight: 700, display: 'block', ...TAB }}>{formatCurrency(client.totalCents / 100)}</Typography>}
         <Typography component="span" variant="caption" color="text.secondary" sx={{ display: 'block' }}>
           {recent ? `${visible} reçu${visible > 1 ? 's' : ''}` : `${visible} à venir`}
         </Typography>
       </Box>
       {openable && (
-        <Box component="span" sx={{ display: 'inline-flex', alignItems: 'center', color: 'primary.main', fontWeight: 600, fontSize: 13, whiteSpace: 'nowrap' }}>
+        <Box component="span" sx={{ gridArea: 'open', justifySelf: 'end', display: 'inline-flex', alignItems: 'center', color: 'primary.main', fontWeight: 600, fontSize: 13, whiteSpace: 'nowrap' }}>
           Ouvrir la fiche<ChevronRightIcon sx={{ fontSize: 18 }} />
         </Box>
       )}
     </>
   );
-  const headSx = { display: 'flex', alignItems: 'center', gap: 2, width: '100%', minHeight: 44, px: 1.5, py: 1, textAlign: 'left', bgcolor: client.late ? 'error.soft' : 'grey.50' };
+  // xs: the name takes the whole first row, the figures and the open affordance share the second; from sm, one row.
+  const headSx = {
+    display: 'grid', alignItems: 'center', columnGap: 2, rowGap: 0.5, width: '100%',
+    gridTemplateColumns: { xs: '1fr auto', sm: 'minmax(0, 1fr) auto auto' },
+    gridTemplateAreas: { xs: '"name name" "figures open"', sm: '"name figures open"' }, minHeight: 44, px: 1.5, py: 1, textAlign: 'left', bgcolor: client.late ? 'error.soft' : 'grey.50' };
   return (
     <Box
       component="section"
       aria-label={client.name}
-      data-client={client.clientId == null ? client.name : client.clientId}
+      data-client={blockKey(client)}
       data-late={client.late ? 'true' : undefined}
       sx={{ border: '1px solid', borderColor: client.late ? 'error.main' : 'divider', borderRadius: 2, overflow: 'hidden', containerType: 'inline-size', bgcolor: 'background.paper' }}
     >
@@ -214,12 +228,12 @@ export default function IncomingPaymentsTable({ data, recent, onRecentChange, on
       </Stack>
       <Box sx={{ mb: 1.5 }}><Legend /></Box>
       {blocks.length === 0 ? (
-        <EmptyState message={EMPTY} py={3} />
+        <EmptyState message={recent ? EMPTY_RECENT : EMPTY} py={3} />
       ) : (
         <Stack spacing={1.5}>
           {blocks.map(({ client, items }) => (
             <ClientBlock
-              key={client.clientId == null ? `name:${client.name}` : client.clientId}
+              key={blockKey(client)}
               client={client}
               items={items}
               filtered={hidden.size > 0}

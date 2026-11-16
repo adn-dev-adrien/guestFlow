@@ -200,7 +200,8 @@ test('rule 21 — the dashboard tile ignores the period: the same figures whatev
   instalment(planned, 1, at(5));
   const tile = (params) => dashboard.getDashboard(params).data.tiles.incoming;
   const year = tile({ period: 'fy' });
-  assert.deepEqual(year, { amount: 300, clients: 1, nextDate: at(5) });
+  assert.deepEqual(year, { amount: 300, clients: 1, nextDate: at(5), nextDateLabel: year.nextDateLabel });
+  assert.match(year.nextDateLabel, /^\S+ \d{2}\/\d{2}$/);
   assert.deepEqual(tile({ period: 'month', month: at(-200).slice(0, 7) }), year);
 });
 

@@ -83,12 +83,15 @@ function build({ connected = true, qontoConfigured = true, startDate = dayAt(-22
       listLinks: (id) => paymentLinks.listForStay(id),
     },
   });
+  // The payments the fixture holds were seen paid (`reservation.paid`) before the pass: their splits exist (rule 1). A suite
+  // that pays a link AFTER `build` syncs again, as the event would.
+  controller.syncSplits();
   return { controller, transactions, model, settings, store, calls };
 }
 
 function reset() {
   ['bank_reconciliation_lines', 'bank_reconciliation_fiche_writes', 'bank_reconciliation_discards', 'bank_transactions_outside', 'bank_transactions',
-    'mollie_payment_splits', 'mollie_settlements', 'mollie_settlement_payments', 'mollie_balance_transactions']
+    'mollie_payment_splits', 'mollie_settlements', 'mollie_settlement_payments', 'mollie_balance_transactions', 'mollie_settlement_failures']
     .forEach((t) => db.prepare(`DELETE FROM ${t}`).run());
   db.prepare('DELETE FROM reservation_history').run();
   db.prepare('DELETE FROM payment_links WHERE reservationId >= 100').run();

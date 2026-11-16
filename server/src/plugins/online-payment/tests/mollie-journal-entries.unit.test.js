@@ -65,7 +65,7 @@ test('rule 31 — a Mollie credit not reconciled is listed as unattached and boo
   const found = controller.journal({ from: dayAt(-95), to: dayAt(-95) });
   assert.deepEqual(found.entries.filter((e) => e.kind === 'credit'), []);
   assert.deepEqual(found.unattached, [{
-    date: dayAt(-95), amountCents: 15744, qontoReference: 'solio-6791-1-transaction-019d-0001', settlementReference: 'T19274230.2512.01', counterparty: 'Stichting Mollie Payments',
+    date: dayAt(-95), amountCents: 15744, qontoReference: 'solio-6791-1-transaction-019d-0001', settlementReference: 'T19274230.2512.01', counterparty: 'Stichting Mollie Payments', kind: 'credit',
   }]);
   assert.equal(found.clearing.balanceCents, 19680, 'nothing reconciled yet: Mollie still owes it all');
 });

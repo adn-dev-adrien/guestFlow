@@ -23,14 +23,14 @@ function parseMonthYear(query) {
 // refund nor a compensation is an encaissement, but both belong to the same journal at their own
 // date (specs/reservation-refunds.md §3.4 rule 21, specs/cancellation-compensation.md §3.3 rule 15).
 // Building the stream here means the CSV and the JSON preview can never drift apart.
-function monthEntries(accountingModel, params, plan = {}) {
+function monthEntries(accountingModel, params, plan = {}, mollie = null) {
   const sales = accountingModel.encaissementsByMonth(params);
   const refunds = accountingModel.refundsByMonth ? accountingModel.refundsByMonth(params) : [];
   const compensations = accountingModel.compensationsByMonth ? accountingModel.compensationsByMonth(params) : [];
   const penalties = accountingModel.platformPenaltiesByMonth ? accountingModel.platformPenaltiesByMonth(params) : [];
   // specs/resource-booking-pricing-and-invoicing.md rule 21 — the sales made outside any stay.
   const standalone = accountingModel.standaloneSalesByMonth ? accountingModel.standaloneSalesByMonth(params) : [];
-  return [...sales, ...refunds, ...compensations, ...penalties, ...standalone, ...mollieEntries(accountingModel, params, plan).entries]
+  return [...sales, ...refunds, ...compensations, ...penalties, ...standalone, ...(mollie || mollieEntries(accountingModel, params, plan)).entries]
     .sort((a, b) => String(a.paidDate || '').localeCompare(String(b.paidDate || '')));
 }
 
@@ -108,9 +108,10 @@ function createAccountingController(accountingModel, { plan = () => undefined, o
     salesJson(req, res) {
       const params = parseMonthYear(req.query);
       if (!params) return res.status(400).json({ error: 'INVALID_MONTH_OR_YEAR' });
-      const entries = monthEntries(accountingModel, params, plan());
-      const structured = buildStructuredEntries(entries, plan());
+      // The Mollie facts are read once for the response: the stream and the clearing aid come from the same read.
       const mollie = mollieEntries(accountingModel, params, plan());
+      const entries = monthEntries(accountingModel, params, plan(), mollie);
+      const structured = buildStructuredEntries(entries, plan());
       const totalDebits = structured.reduce((s, e) => s + e.sumDebits, 0);
       const totalCredits = structured.reduce((s, e) => s + e.sumCredits, 0);
       return res.json({

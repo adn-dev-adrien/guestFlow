@@ -30,7 +30,7 @@ const INCOMING = {
 };
 const RECENT = { ...INCOMING, totals: { ...INCOMING.totals, nextDate: null, nextDateLabel: null }, clients: [{ ...INCOMING.clients[0], stays: [{ ...INCOMING.clients[0].stays[0], items: [{ ...ITEM, state: 'received', tone: 'success', stateLabel: 'Reçu le 30/10' }] }] }] };
 
-const WITH_TILE = { ...DASHBOARD, tiles: { ...DASHBOARD.tiles, incoming: { amount: 146.48, clients: 1, nextDate: '2027-02-11' } } };
+const WITH_TILE = { ...DASHBOARD, tiles: { ...DASHBOARD.tiles, incoming: { amount: 146.48, clients: 1, nextDate: '2027-02-11', nextDateLabel: 'jeu. 11/02' } } };
 
 function renderPage() {
   return render(
@@ -55,7 +55,7 @@ test('rule 21: the tile reads the server\'s figure with the client count and the
   renderPage();
   const tile = await screen.findByRole('button', { name: 'Versements à venir : afficher le détail' });
   expect(within(tile).getByText(/146\s?€/)).toBeInTheDocument();
-  expect(within(tile).getByText('1 client · prochain le 11/02')).toBeInTheDocument();
+  expect(within(tile).getByText('1 client · prochain le jeu. 11/02')).toBeInTheDocument();
 });
 
 test('rule 21: a dashboard without the tile (no payload field) shows no tile', async () => {

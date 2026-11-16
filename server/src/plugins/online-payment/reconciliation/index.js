@@ -6,7 +6,7 @@
 
 const sdk = require('../../sdk');
 const express = require('express');
-const { up, upV2, upV3, TABLES } = require('./schema');
+const { up, upV2, upV3, upV3b, TABLES } = require('./schema');
 const { createBankTransactionsModel } = require('./bankTransactionsModel');
 const { createReconciliationModel } = require('./reconciliationModel');
 const { readTransactions } = require('./transactionsReader');
@@ -21,7 +21,7 @@ const { createMollieConnection } = require('../mollieConnection');
 const READ_INTERVAL_MS = 8 * 60 * 60 * 1000;
 
 function mountReconciliation(ctx, { store }) {
-  ctx.migrations([{ name: 'reconciliation_v1', up }, { name: 'reconciliation_v2', up: upV2 }, { name: 'reconciliation_v3', up: upV3 }]);
+  ctx.migrations([{ name: 'reconciliation_v1', up }, { name: 'reconciliation_v2', up: upV2 }, { name: 'reconciliation_v3', up: upV3 }, { name: 'reconciliation_v3b', up: upV3b }]);
 
   let controller = null;
   let mollieConnection = null;
@@ -68,7 +68,7 @@ function mountReconciliation(ctx, { store }) {
     undo: (...a) => build().undo(...a), discard: (...a) => build().discard(...a), setOutside: (...a) => build().setOutside(...a),
     linkBatch: (...a) => build().linkBatch(...a), previewAllocation: (...a) => build().previewAllocation(...a),
     confirmAll: (...a) => build().confirmAll(...a), ficheCredits: (...a) => build().ficheCredits(...a),
-    candidates: (...a) => build().candidates(...a), bankAccounts: (...a) => build().bankAccounts(...a),
+    candidates: (...a) => build().candidates(...a), reserveAttention: () => build().reserveAttention(), bankAccounts: (...a) => build().bankAccounts(...a),
   }));
 
   // specs/mollie-rolling-reserve-and-incoming-payments.md rule 15 — « Tester » on the optional Mollie account.

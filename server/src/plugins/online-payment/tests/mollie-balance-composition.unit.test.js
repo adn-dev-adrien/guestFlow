@@ -128,7 +128,7 @@ test('rule 10 — a settlement of two immediate shares and one release is alloca
   const { controller, transactions } = build({ startDate: START });
   transactions.upsertMany(credits, { bankAccountId: 'acc-1' });
   const result = await syncSettlements({ client: mollie, model: createSettlementsModel(db), splits, credits, links: db.prepare("SELECT * FROM payment_links WHERE status = 'paid'").all() });
-  assert.deepEqual(result, { read: 1, unknownPayments: 0, balances: true });
+  assert.deepEqual(result, { read: 1, unknownPayments: 0, balances: true, failed: [] });
   assert.equal(mollie.calls.settlementPayments, 0, 'the settlement\'s payments list is only the fallback');
   assert.equal(splits.forLink(c.link.id).molliePaymentId, 'tr_c', 'the release carries the payment it frees');
 
@@ -242,7 +242,7 @@ test('rule 16 — a token that cannot read the balance falls back on the settlem
     client: mollie, model, splits, credits: [mollieCredit('c1', 8000, 1, { reference: 'REF T19274230.2611.21' })],
     links: db.prepare("SELECT * FROM payment_links WHERE status = 'paid'").all(),
   });
-  assert.deepEqual(result, { read: 1, unknownPayments: 0, balances: false });
+  assert.deepEqual(result, { read: 1, unknownPayments: 0, balances: false, failed: [] });
   assert.equal(mollie.calls.settlementPayments, 1);
   assert.equal(model.byReference().get('19274230.2611.21').source, 'payments');
 });

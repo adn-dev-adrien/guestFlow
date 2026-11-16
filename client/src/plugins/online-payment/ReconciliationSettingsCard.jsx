@@ -37,6 +37,7 @@ export default function ReconciliationSettingsCard({ connected }) {
         reservePercent: s.mollieReservePercent || '',
         reserveHoldDays: s.mollieReserveHoldDays || '',
         reserveSince: s.mollieReserveSince || '',
+        cardOnSiteSince: s.mollieCardOnSiteSince || '',
       });
     } catch { setForm(null); }
   }, []);
@@ -77,6 +78,7 @@ export default function ReconciliationSettingsCard({ connected }) {
         mollieReservePercent: form.reservePercent,
         mollieReserveHoldDays: form.reserveHoldDays,
         mollieReserveSince: form.reserveSince,
+        mollieCardOnSiteSince: form.cardOnSiteSince,
       });
       setErrors({});
       setStoredStartDate(form.startDate);
@@ -119,7 +121,7 @@ export default function ReconciliationSettingsCard({ connected }) {
             <Typography variant="caption" color="text.secondary" component="div" sx={{ mb: 1.5 }}>
               Mollie garde une part de chaque paiement par carte, puis la verse après quelques semaines. Un changement vaut pour les paiements suivants : les retenues déjà calculées gardent leurs valeurs.
             </Typography>
-            <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr 1fr' }, gap: 2 }}>
+            <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 2 }}>
               <TextField
                 label="Part retenue (%)" value={form.reservePercent} onChange={setReserve('reservePercent', 'mollieReservePercent')}
                 slotProps={{ htmlInput: { inputMode: 'decimal' } }} error={Boolean(errors.mollieReservePercent)}
@@ -134,6 +136,11 @@ export default function ReconciliationSettingsCard({ connected }) {
                 label="Retenue appliquée depuis" value={form.reserveSince} onChange={setReserve('reserveSince', 'mollieReserveSince')} slotProps={{ inputLabel: { shrink: true } }}
                 error={Boolean(errors.mollieReserveSince)}
                 helperText={errors.mollieReserveSince || 'Vide : la date de mise en service.'}
+              />
+              <DateField
+                label="CB sur place via Mollie depuis" value={form.cardOnSiteSince} onChange={setReserve('cardOnSiteSince', 'mollieCardOnSiteSince')} slotProps={{ inputLabel: { shrink: true } }}
+                error={Boolean(errors.mollieCardOnSiteSince)}
+                helperText={errors.mollieCardOnSiteSince || 'Vide : désactivé.'}
               />
             </Box>
           </Box>

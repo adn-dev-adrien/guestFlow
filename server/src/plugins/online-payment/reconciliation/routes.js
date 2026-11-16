@@ -35,6 +35,7 @@ function buildRouter(controller) {
   })));
   router.get('/reservations/:id/credits', wrap((req) => controller.ficheCredits({ reservationId: req.params.id, q: req.query.q, offset: req.query.offset })));
   router.get('/candidates', wrap((req) => controller.candidates({ transactionId: req.query.transactionId, q: req.query.q, offset: req.query.offset })));
+  router.get('/reserve-attention', wrap(() => ({ status: 200, body: controller.reserveAttention() })));
   router.get('/bank-accounts', wrap(() => controller.bankAccounts()));
   return router;
 }
