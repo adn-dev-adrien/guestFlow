@@ -145,10 +145,9 @@ function parseBaseline(raw) {
 function splitMidStayExtras(lines, baselineRaw, notesRaw) {
   const settled = settledByKey(notesRaw);
   const baseline = parseBaseline(baselineRaw) || prepaidBaseline(lines, settled);
-  const empty = {
+  if (!baseline) return withUnclaimedNotes({
     total: 0, forced: 0, unforced: 0, byKey: {}, remainingTotal: 0, settledTotal: 0, lines: [],
-  };
-  if (!baseline) return empty;
+  }, settled, {});
 
   // Aggregate per key first: two custom lines sharing a label are one key on both sides.
   const currentByKey = new Map();
@@ -177,6 +176,7 @@ function splitMidStayExtras(lines, baselineRaw, notesRaw) {
   const result = {
     total: 0, forced: 0, unforced: 0, byKey: {}, remainingTotal: 0, settledTotal: 0, lines: [],
   };
+  const paidByKey = {};
   for (const entry of currentByKey.values()) {
     // Removing or shrinking a line brings the mid-stay part back to 0 — never negative.
     const amount = round2(Math.max(0, entry.total - round2(baseline[entry.key])));
@@ -188,6 +188,7 @@ function splitMidStayExtras(lines, baselineRaw, notesRaw) {
     // What is left to collect at check-out: the sale minus what notes already collected. Settling
     // MORE than what is currently sold (a line was removed after payment) clamps here, never below 0.
     const paid = round2(Math.min(round2(settled[entry.key]), amount));
+    paidByKey[entry.key] = paid;
     result.settledTotal = round2(result.settledTotal + paid);
     const remaining = round2(amount - paid);
     if (remaining <= 0) continue;
@@ -197,7 +198,20 @@ function splitMidStayExtras(lines, baselineRaw, notesRaw) {
     }));
   }
   result.lines.sort((a, b) => a.label.localeCompare(b.label, 'fr'));
-  return result;
+  return withUnclaimedNotes(result, settled, paidByKey);
+}
+
+/**
+ * specs/pricing-components.md rule 104 (stabilisation loop t4, S4-3) — what the notes collected on a key beyond what that key now carries
+ * (the line offered or discounted after it was paid): money in the till no line claims any more. It is exposed as `unclaimed` (absent when
+ * 0); the schedule credits it to the stay's open buckets (`planSchedule`). The carve-out itself is unchanged. The arrival-complement-excess
+ * key has its own reading in the schedule; the collected split (`splitFromStoredLines`) already carves every note in full.
+ */
+function withUnclaimedNotes(result, settled, paidByKey) {
+  const unclaimed = round2(Object.entries(settled)
+    .filter(([key]) => key !== ARRIVAL_COMPLEMENT_EXCESS_KEY)
+    .reduce((sum, [key, amount]) => sum + Math.max(0, round2(amount) - round2(paidByKey[key] || 0)), 0));
+  return unclaimed > 0 ? { ...result, unclaimed } : result;
 }
 
 /**

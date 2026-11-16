@@ -120,11 +120,15 @@ function pinStoredPricing(quote, stored) {
 // stay stores. The figures no line moves (the tax, its rate, the discount, the deadlines, the commissions) stay the stored ones, whatever the engine of
 // today would make of them (a platform's tax mode changed since, a stay stored at a figure the engine no longer reproduces).
 const SALE_DELTA_COLUMNS = ['totalPrice', 'finalPrice', 'depositAmount', 'balanceAmount', 'complementAmount'];
+const PINNED_BUCKETS = ['depositAmount', 'balanceAmount', 'complementAmount'];
 const SALE_STORED_COLUMNS = PRICING_COLUMNS.filter((column) => !SALE_DELTA_COLUMNS.includes(column));
 
 function pinSaleDelta(quote, stored, base) {
   const pinned = { ...quote };
   for (const column of SALE_DELTA_COLUMNS) pinned[column] = (toCents(stored[column]) + toCents(quote[column]) - toCents(base[column])) / 100;
+  // Rule 104 (loop t4, S4-3) — a bucket the gesture lowers stops at 0: a paid line's money the engine credited to a complement or a plan bucket
+  // the stay does not store (a figure it no longer reproduces) is money received beyond the total, the trop-perçu rule 23 confirms.
+  for (const column of PINNED_BUCKETS) if (pinned[column] < 0 && toCents(quote[column]) < toCents(base[column])) pinned[column] = 0;
   for (const column of SALE_STORED_COLUMNS) pinned[column] = stored[column];
   if (quote.complementAmountAuto != null) {
     pinned.complementAmountAuto = (toCents(quote.complementAmountAuto) + toCents(stored.complementAmount) - toCents(base.complementAmount)) / 100;

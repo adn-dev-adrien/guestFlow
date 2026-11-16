@@ -270,13 +270,17 @@ function storeDiscount(line, cents) {
 function fitArrivalBaseline(line, cents) {
   if (line.collectAt !== 'arrival') return;
   const db = database();
-  const row = db.prepare('SELECT arrivalExtrasBaseline FROM reservations WHERE id = ?').get(Number(line.row && line.row.reservationId));
+  const row = db.prepare('SELECT arrivalExtrasBaseline, checkInDone, arrivalSasDoneAt, complementPaid, complementPaidCash FROM reservations WHERE id = ?')
+    .get(Number(line.row && line.row.reservationId));
   const baseline = row && row.arrivalExtrasBaseline ? JSON.parse(row.arrivalExtrasBaseline) : null;
   if (!baseline || baseline[line.key] == null) return;
   const held = Number(baseline[line.key]);
   const worth = roundMoney(Math.max(0, line.totalCents - Number(cents || 0)) / 100);
   const before = roundMoney(Math.max(0, line.totalCents - Number((line.row && line.row.discountCents) || 0)) / 100);
-  const fitted = worth < held ? worth : (held >= before ? Math.max(held, worth) : held);
+  // Loop t4 S4-6 — the arrival takes the given-back money only while it is open: once validated or its complement collected, the restate
+  // carved it out to the departure, and a raised baseline would let the next save drop it from there.
+  const arrivalOpen = !Number(row.checkInDone || 0) && !row.arrivalSasDoneAt && !Number(row.complementPaid || 0) && !Number(row.complementPaidCash || 0);
+  const fitted = worth < held ? worth : (held >= before && arrivalOpen ? Math.max(held, worth) : held);
   if (fitted === held) return;
   baseline[line.key] = fitted;
   db.prepare("UPDATE reservations SET arrivalExtrasBaseline = ?, updatedAt = datetime('now') WHERE id = ?").run(JSON.stringify(baseline), Number(line.row.reservationId));

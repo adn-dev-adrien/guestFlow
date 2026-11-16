@@ -198,10 +198,23 @@ function complementPinnedRefusal(id) {
 // Guest-app rule 110 a, rule 102 d — the arrival complement is still open at the door: the check-in hour has passed (or not yet), the arrival is
 // not validated and its complement is not collected, and no baseline was laid otherwise.
 const ARRIVAL_CLOSED = 'Arrivée déjà validée ou complément d’arrivée encaissé : la commande se règle au départ.';
-function arrivalStillOpen(id, clock) {
+// Loop t4 A4-1 — a stay whose false start was kept (a baseline stored, unticked before the hour): neither validated nor collected, its sales are
+// already the departure's until the check-in hour.
+const ARRIVAL_CARVED_EARLY = 'Les ventes de ce séjour se règlent déjà au départ : la commande aussi.';
+function arrivalClosedRefusal(id, clock) {
   const row = database().prepare('SELECT complementPaid, complementPaidCash, checkInDone, arrivalSasDoneAt FROM reservations WHERE id = ?').get(Number(id));
-  if (!row || Number(row.complementPaid || 0) === 1 || Number(row.complementPaidCash || 0) === 1) return false;
-  return clock.started && !(Number(row.checkInDone || 0) === 1 || Boolean(row.arrivalSasDoneAt));
+  if (!row || Number(row.complementPaid || 0) === 1 || Number(row.complementPaidCash || 0) === 1
+    || Number(row.checkInDone || 0) === 1 || Boolean(row.arrivalSasDoneAt)) return refuse(409, 'ARRIVAL_CLOSED', ARRIVAL_CLOSED);
+  return clock.carved && !clock.started ? refuse(409, 'ARRIVAL_CLOSED', ARRIVAL_CARVED_EARLY) : null;
+}
+
+// Guest-app rule 110 a, loop t4 A4-1 — the one judge of « an order taken before the arrival is still changed at the door »: the stay is live, its
+// arrival neither validated nor collected, and the engine has not carved its extras out before the stay clock (a kept false start). The sale's
+// `atArrival` refusal and the guest app's editable step both read it.
+function arrivalOpenAtAt(reservationId, now = new Date()) {
+  const id = Number(reservationId);
+  if (collectionOfAt(id, now) === 'closed') return false;
+  return !arrivalClosedRefusal(id, stayStarted(id, now));
 }
 
 function pricedRequests(reservationId, lines, { now, source, atArrival = false }) {
@@ -215,7 +228,8 @@ function pricedRequests(reservationId, lines, { now, source, atArrival = false }
   // arrival complement whatever the hour: the guest settles it at the door, never at the departure. Only while that complement is open
   // (rule 103): once the arrival is validated or its complement collected, the door collects nothing more and `atArrival` is refused.
   const clock = stayStarted(id, now);
-  if (atArrival && clock.carved && !arrivalStillOpen(id, clock)) return { error: refuse(409, 'ARRIVAL_CLOSED', ARRIVAL_CLOSED) };
+  const closed = atArrival && clock.carved ? arrivalClosedRefusal(id, clock) : null;
+  if (closed) return { error: closed };
   const started = atArrival ? false : clock.carved;
   const pinned = started ? null : complementPinnedRefusal(id);
   if (pinned) return { error: pinned };
@@ -260,6 +274,14 @@ function soldBeforeNote(reservationId, line, merged) {
   return `Déjà vendu sur ce séjour : ${partsText(rows.map((row) => ({ quantity: row.quantity, unitCents: toCents(row.unitPrice) })))}. Ces lignes gardent leur prix.`;
 }
 
+// Rule 30 (loop t4 S4-4) — the buckets as the sale writes them: paid now, what the sale added to the departure remainder is settled by its note in the
+// same transaction (`settleNow`), so the departure bucket does not move.
+function quotedBuckets(result, payment) {
+  const buckets = bucketsDelta(result.base, result.after);
+  if (!PAYMENTS[payment]) return buckets;
+  return { ...buckets, departure: buckets.departure - toCents(deltaOf(remainderByKey(result.base), remainderByKey(result.after)).total) };
+}
+
 function quoteAt(reservationId, requests, {
   payment = 'later', now = new Date(), source = 'fiche', atArrival = false,
 } = {}) {
@@ -292,7 +314,7 @@ function quoteAt(reservationId, requests, {
       momentLabel: moment === 'departure' ? 'À payer au départ' : 'À payer à l’arrivée',
       note: line.kind === 'custom' ? null : soldBeforeNote(reservationId, line, merged),
     })),
-    buckets: bucketsDelta(result.base, result.after),
+    buckets: quotedBuckets(result, payment),
     totalCents: centsOf(result.after, 'finalPrice') - centsOf(result.base, 'finalPrice'),
     refusals,
   };
@@ -474,6 +496,13 @@ function settleNow(id, byKey, { source, payment, now }) {
   return {};
 }
 
+// Loop t4 S4-6 — the stored end-of-stay remainder by line key, in cents (the mid-stay lines of the detail).
+function departureRemainderByKey(row) {
+  const byKey = {};
+  for (const [key, amount] of remainderByKey(row)) byKey[key] = toCents(amount);
+  return byKey;
+}
+
 function saleDetailOfAt(reservationId, now = new Date()) {
   const id = Number(reservationId);
   const db = database();
@@ -497,6 +526,7 @@ function saleDetailOfAt(reservationId, now = new Date()) {
     // Rule 103 — the moments the engine routes a line to now: the arrival only before it carves the extras out, the departure once it does, the
     // arrival too while its complement is not collected.
     moments: clock.carved ? (arrivalCollected ? ['departure'] : ['arrival', 'departure']) : ['arrival'],
+    beforeClock: !clock.started,
     vatClassOf: (line, kind) => extraSalesModel().vatClassOf(line, kind),
     stored: {
       finalCents: toCents(row.finalPrice),
@@ -509,6 +539,7 @@ function saleDetailOfAt(reservationId, now = new Date()) {
       extraGuestsCents: guestsLine ? toCents(guestsLine.offered ? guestsLine.originalAmount : guestsLine.amount) : 0,
       extraGuestsOffered: Boolean(guestsLine && guestsLine.offered),
       extraGuestsCount: guestsLine ? guestsLine.qty : 0,
+      departureByKey: departureRemainderByKey(row),
     },
   });
 }
@@ -541,6 +572,16 @@ function moveRefusal(restated) {
     : { status: restated.status, body };
 }
 
+const PAID_LINE_NOT_ABSORBED = 'Ligne déjà payée : rien à percevoir sur ce séjour ne peut reprendre ce montant. Ajuster d’abord l’encaissement en séjour.';
+
+// Rule 104 — the money the stay received beyond what its stored buckets carry: Σ (acompte, solde, complements, notes) − (price + tax), in cents.
+function unabsorbedCents(id) {
+  const row = reservations().getRow(id);
+  const notes = parseNotes(row.midStaySettledNotes).reduce((sum, note) => sum + toCents(note && note.total), 0);
+  return ['depositAmount', 'balanceAmount', 'complementAmount', 'endOfStayComplementAmount'].reduce((sum, field) => sum + centsOf(row, field), notes)
+    - centsOf(row, 'finalPrice') - centsOf(row, 'touristTaxTotal');
+}
+
 // Rules 37, 39, 23 — what the operator changes on one stored line. The line is addressed by `ref` (`option:<lineId>`, `resource:<lineId>`, `custom:<lineId>`).
 function changeLineAt(reservationId, ref, patch, { now = new Date(), forceOverpayment = false } = {}) {
   const id = Number(reservationId);
@@ -559,10 +600,14 @@ function changeLineAt(reservationId, ref, patch, { now = new Date(), forceOverpa
       if (wants.collectAt !== undefined) {
         // Rule 103 — a stay whose extras the engine carves out (started, arrival complement collected, a baseline stored) moves a line by its
         // baseline; any other is before the arrival and moves by its routing only (rule 95).
-        const { carved: started } = stayStarted(id, now);
+        const clock = stayStarted(id, now);
+        const started = clock.carved;
+        // Loop t4 S4-5 — the refusal of rule 95 reads the stay clock: a stay whose extras are carved out before its arrival (an early complement)
+        // moves to the departure only a line the sale stamped there (and back).
         const refusal = model.momentRefusal(id, line, wants.collectAt, MOMENTS)
           || (wants.collectAt === 'arrival' || line.collectAt === 'arrival' ? complementPinnedRefusal(id) : null)
-          || (!started && wants.collectAt === 'departure' && line.collectAt !== 'departure' ? refuse(409, 'MOMENT_NOT_AVAILABLE', BEFORE_ARRIVAL_DEPARTURE) : null);
+          || (!clock.started && wants.collectAt === 'departure' && line.collectAt !== 'departure' && !(started && line.collectAtDefault === 'departure')
+            ? refuse(409, 'MOMENT_NOT_AVAILABLE', BEFORE_ARRIVAL_DEPARTURE) : null);
         if (refusal) { outcome = refusal; throw ROLLBACK; }
         const base = restatedBase(id, 'fiche');
         if (base.refused) { outcome = moveRefusal(base.refused); throw ROLLBACK; }
@@ -586,10 +631,14 @@ function changeLineAt(reservationId, ref, patch, { now = new Date(), forceOverpa
         // The fiche's own save judges it (rule 23, O-10): a paid line lowered is refused 409 OVERPAID until `forceOverpayment`, and the
         // confirmed excess opens the `lineLowered` obligation there — one formula, one place.
         const owedBefore = model.openLoweredCents(id);
+        const unclaimedBefore = unabsorbedCents(id);
         const restated = controller().performUpdate(id, { ...lowered.body, restatePricing: true, forceOverpayment: Boolean(forceOverpayment) }, { sale: 'fiche', saleBase: base.row, unpaidLine: !lowered.paidLine, now });
         if (restated.status !== 200) { outcome = { status: restated.status, body: restated.body }; throw ROLLBACK; }
         model.storeDiscount(line, lowered.discountCents);
         owedCents = model.openLoweredCents(id) - owedBefore;
+        // Rule 104 — the money a paid line gives back comes off what the stay still asks; on a platform stay with nothing left to ask
+        // there is no trop-perçu to confirm (reservation-refunds rule 38), so the gesture is refused rather than leave it credited nowhere.
+        if (lowered.paidLine && unabsorbedCents(id) - unclaimedBefore > owedCents) { outcome = refuse(409, 'LINE_PAID', PAID_LINE_NOT_ABSORBED); throw ROLLBACK; }
         reservations().addHistoryEntry(id, 'update', [{ field: 'lineLowered', label: line.label, from: null, to: lowered.text }]);
       }
       outcome = { status: 200, saleDetail: saleDetailOf(id, now) };
@@ -654,7 +703,8 @@ function collectionOfAt(reservationId, now = new Date()) {
 // Rule 103 — the check-in box unticked before the check-in hour undoes the false start it made (rule 102 a): while the arrival was marked, the
 // engine laid a baseline and carved what was sold out to the departure. Once unticked, the stay is before its arrival again, so — when nothing was
 // collected in between (no complement, no note of the stay) — those lines go back to the arrival, the baseline goes, and the stored complements
-// follow in the same pinned write (rule 93). Otherwise the baseline stays, and the sale keeps reading it (`extrasCarvedOut`). → `{ undone }`.
+// follow in the same pinned write (rule 93). Otherwise — or when the arrival complement is the operator's own amount (loop t4 S4-2) — the
+// baseline stays, and the sale keeps reading it (`extrasCarvedOut`). → `{ undone }`.
 function unmarkArrivalAt(reservationId, now = new Date()) {
   const id = Number(reservationId);
   const db = database();
@@ -670,7 +720,8 @@ function unmarkArrivalAt(reservationId, now = new Date()) {
     const after = reservations().getRow(id);
     const collected = [after.complementPaid, after.complementPaidCash, after.endOfStayComplementPaid, after.endOfStayComplementPaidCash].some((flag) => Number(flag || 0) === 1);
     const notes = parseNotes(after.midStaySettledNotes).filter((note) => note && !note.beforeArrival);
-    if (stayStarted(id, now).started || collected || notes.length) return;
+    // Loop t4 S4-2 — a complement the operator forced (COMPLEMENT_OVERRIDDEN) takes no line back: the carved lines keep their departure money.
+    if (stayStarted(id, now).started || collected || notes.length || complementPinnedRefusal(id)) return;
     const moved = [];
     for (const { table, label } of [
       { table: 'reservation_options', label: 'SELECT o.title AS label FROM reservation_options ro JOIN options o ON o.id = ro.optionId WHERE ro.lineId = ?' },
@@ -722,7 +773,9 @@ const arrivalComplementDetailOf = atMoment(arrivalComplementDetailOfAt);
 const departureSalesOf = atMoment(departureSalesOfAt);
 const paidSalesOf = atMoment(paidSalesOfAt);
 const unmarkArrival = atMoment(unmarkArrivalAt);
+const arrivalOpenAt = atMoment(arrivalOpenAtAt);
 
 module.exports = {
   quote, sell, changeLine, removeLine, collectionOf, saleDetailOf, arrivalComplementDetailOf, departureSalesOf, paidSalesOf, parseRequests, unmarkArrival,
+  arrivalOpenAt,
 };

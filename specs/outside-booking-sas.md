@@ -498,6 +498,9 @@ once on the server by the refonte's components.
     like a stay's tip: one entry on the day the row was closed (`standaloneSales.list` row `role: 'tip'`, key `standalone:<id>:<day>:tip:<row>`; entry kind
     `standaloneTip`), customer debit and `revenue:tip` credit on the plan's tip account (accounting-export `tipAccount`, named « Pourboire »), no VAT. The
     link's payment day is not moved: the surplus was on no line, so it never was on that day's books. Test `standalone-sale-kept-surplus-tip`.
+    > _Reading 2026-11-16 (loop t4):_ the day of the tip is the Paris day of the application's clock when the row is closed: `settledAt` is written
+    > from it (in SQLite's UTC text form), never from SQLite's own clock, so the tip and its kept allocation share one day at any hour. Test
+    > `standalone-sale-kept-surplus-paris-day`.
 51. **Every booking payload carries its actions; the invoice reason is the stored visit's** _(stabilisation loop t2, UI2-5 to UI2-8, 2026-11-16;
     completes rules 6, 11, 27, 45, 48)_. (a) Every booking payload carries `actions: { noShow, arrive }` for its caller: the booking read, the rows of
     `GET /api/resource-bookings` (the booking dialog opens on them) and of `GET /api/resource-bookings/planning-events` (the planning cards; the
@@ -797,6 +800,7 @@ number; `prefers-reduced-motion` → no movement.
 - [x] `tests/pricing-sales-document-obligations-widened.unit.test.js` — rule 44: the obligations table widened once, rows kept
 - [x] `tests/standalone-sale-refund-journal.unit.test.js` — rule 48 (B-1): the refund allocations of a `lineLowered` row settled, the avoir of the refund day, the caisse interne kept off, nothing refunded twice
 - [x] `tests/standalone-sale-kept-surplus-tip.unit.test.js` — rule 49 (B-6): a link surplus kept is a tip on the day it is kept, on the tip account; refunded, it books nothing
+- [x] `tests/standalone-sale-kept-surplus-paris-day.unit.test.js` — rule 50 (loop t4): a surplus kept at 00:30 Paris is a tip of that Paris day
 - [x] `plugins/hourly-resources/tests/visit-round1-reception-and-refunds.unit.test.js` — rules 44-46 (AV-1 to AV-8, AV-10, AV-11): the row and the invoice refusal, reception privacy, billing in the commit, `invoiceable`, `newSale`, the document's client follows the booking
 - [x] `plugins/hourly-resources/tests/booking-actions-no-show.unit.test.js` — rule 45 (UI-9): `actions.noShow` by day and role
 - [x] `tests/sale-link-expires-label.unit.test.js` — rule 45 (UI-15): the Paris label of a link's end

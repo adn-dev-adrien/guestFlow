@@ -125,6 +125,9 @@ becomes **the remainder** — collected at check-out exactly as today.
     keeps the settled notes untouched.
 13. **Removing/shrinking a line after settlement**: `remaining` clamps to 0; the register keeps its
     money (it is physically in the till). A refund = cancel the note (rule 3), then remove the sale.
+    > _Amended 2026-11-16 (pricing-components rule 104, loop t4 S4-3):_ the money the register keeps is credited to the stay: it comes off
+    > what the stay still asks (the open arrival complement, the end-of-stay remainder, an unpaid solde of a direct stay), and only what no open
+    > bucket takes is a trop-perçu to refund (or, on a platform stay, the lowering is refused until the note is adjusted).
 
 ### 3.4 Finance & accounting
 
