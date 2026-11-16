@@ -1830,9 +1830,11 @@ async function update(req, res) {
     }
     const staleAfterAwait = staleFicheRefusal(id, req.body);
     if (staleAfterAwait) return res.status(staleAfterAwait.status).json(staleAfterAwait.body);
+    const linesBefore = require('../models/extraSalesModel').lineIds(id);
     const result = performUpdate(id, req.body, { unlockPast });
-    // Loop t1 D-2 — a line the operator added on the fiche is stamped as it is written (its sale date is today, never the booking's at the next boot).
-    if (result.status === 200) require('../utils/pricingLinesMigration').stampFicheLines(db, id, new Date().toISOString());
+    // Loop t1 D-2 — a line the operator added on the fiche is stamped as it is written (its sale date is today, never the booking's at the next boot);
+    // loop t2 D2-1 — a line the stay already held keeps the booking's date.
+    if (result.status === 200) require('../utils/pricingLinesMigration').stampFicheLines(db, id, new Date().toISOString(), linesBefore);
     if (result.status === 200 && stale.length > 0) await retireStaleLinks(id);
     return res.status(result.status).json(result.body);
   } catch (err) {

@@ -1957,6 +1957,12 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
     40,08 € moved from 72,88 / 7,28 to 72,87 / 7,29 when one line was removed). A day with no row (a receipt taken before this rule) keeps the cut over the
     current lines sold by its day. A stay booked before 4.2.0 is never frozen and its figures never move (owner 2026-11-15). Migration: one new table,
     empty, ignored by the previous release. Test `accounting-receipt-split-frozen-at-payment`.
+100. **A fiche save dates only the lines it wrote** _(stabilisation loop t2, D2-1, 2026-11-16; completes rule 97 b)_. The save takes the stay's line ids
+    before it writes; an unstamped line it did not hold before is sold by the save (`soldAt` = the save), an unstamped line it already held — a stay's
+    first lines, written by the creation, a devis conversion, an iCal or a plugin — gets the boot's reading (`soldAt` = the booking's `createdAt`, its
+    moment, article, family and label). Before, a notes-only save dated every first line of the stay with the save: a receipt dated between the booking
+    and that save (a transfer ticked with its own date) was frozen without them (rule 99) — 13,00 € of options cut over no options line, for good.
+    Test `fiche-save-keeps-first-lines-booking-date`.
 
 ## 4. Architecture
 
@@ -2251,6 +2257,7 @@ _Rewritten 2026-11-15 (stabilisation loop t1, UI-3) to what shipped._
 - [x] `fiche-lines-stamped-at-save` — rule 97 (D-2): a fiche-added line stamped by its save, nothing left for the boot
 - [x] `refund-deleted-reopens-obligations` — rule 98 (B-5)
 - [x] `accounting-receipt-split-frozen-at-payment` — rule 99 (B-4): a payment day frozen with the lines sold by it, today's row following the lines, a stay booked before never frozen, the receipt's cut kept when a paid line is removed
+- [x] `fiche-save-keeps-first-lines-booking-date` — rule 100 (D2-1): a notes-only save leaves a stay's first lines on the booking date and a receipt of yesterday frozen with them; a line the save adds is sold today
 
 ### Proof
 - [ ] Price gate (rule 68): `price-gate.unit.test.js` green on every commit of A, B and C, with the allowlist reviewed by the owner; `price-gate-anonymity`, `price-gate-anonymise`, `price-gate-figures`, `price-gate-compare`, `price-gate-move-proof` unit tests green

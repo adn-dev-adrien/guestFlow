@@ -240,10 +240,11 @@ const addOfferedInPlace = (db) => {
   db.exec('ALTER TABLE guest_app_items ADD COLUMN offeredInPlace INTEGER CHECK (offeredInPlace IN (0, 1))');
 };
 
-// specs/plugin-removal-resilience.md rule 22 — after an erase and a reinstall the id counter restarts above the orders the stays' lines still cite.
+// specs/plugin-removal-resilience.md rule 22 — after an erase and a reinstall the id counter restarts above the orders the stays' lines still cite,
+// and above the orders a card payment link still names (an unpaid order is cited by its link only, rule 108; loop t2 D2-2).
 const keepOrderIdsCited = (db) => {
-  const { highestCitedId, raiseCounter } = require('../sdk/citedIdCounterFloor');
-  raiseCounter(db, 'guest_orders', highestCitedId(db, 'order:', ORDER_REF_SOURCES));
+  const { highestCitedId, highestBasketRef, raiseCounter } = require('../sdk/citedIdCounterFloor');
+  raiseCounter(db, 'guest_orders', Math.max(highestCitedId(db, 'order:', ORDER_REF_SOURCES), highestBasketRef(db, 'guestOrder')));
 };
 
 const MIGRATIONS = Object.freeze([
