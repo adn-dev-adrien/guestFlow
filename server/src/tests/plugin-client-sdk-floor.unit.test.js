@@ -2,7 +2,7 @@
 // code imports an export of `client/src/plugins/sdk/index.js` asks for the SDK that first shipped it. The core SDK's floor list only scans
 // the server sources; without this one a client-only dependency on a newer export would let an older core load a bundle that crashes.
 // Exports recorded here are the ones whose SDK minor is written next to them in the barrel; the 2.29-2.31 numbers are those of the
-// renumbering of 2026-11-15 (StaySalesSection 2.29.0, SuggestedArticlesStep / SalePaymentLink 2.31.0).
+// renumbering of 2026-11-15 (StaySalesSection 2.29.0, SuggestedArticlesStep / SalePaymentLink / StandaloneSaleDialog 2.31.0 — the last one added in loop t2 AS2-1).
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('fs');
@@ -21,7 +21,7 @@ const CLIENT_EXPORTS = [
   { names: ['usePostalCodeCities'], sdk: '2.25.0' },
   { names: ['ClientPickerField'], sdk: '2.27.0' },
   { names: ['StaySalesSection'], sdk: '2.29.0' },
-  { names: ['SuggestedArticlesStep', 'SalePaymentLink'], sdk: '2.31.0' },
+  { names: ['SuggestedArticlesStep', 'SalePaymentLink', 'StandaloneSaleDialog'], sdk: '2.31.0' },
 ];
 
 const floorOf = (text) => CLIENT_EXPORTS
@@ -43,6 +43,26 @@ const clientBarrel = fs.existsSync(CLIENT_PLUGINS) ? fs.readFileSync(path.join(C
 
 test('rule 54: every export of the list is still exported by the client SDK barrel', { skip: !clientBarrel }, () => {
   for (const { names } of CLIENT_EXPORTS) for (const n of names) assert.match(clientBarrel, new RegExp(`\\b${n}\\b`), `${n} left the barrel`);
+});
+
+// Loop t2 AS2-1: StandaloneSaleDialog shipped under its « SDK 2.31.0 » comment with no row. From 2.24.0 on, every export placed right under a
+// comment naming its SDK must carry a row at that SDK, so the list cannot fall behind the barrel again.
+test('rule 54: every barrel export announced with an SDK ≥ 2.24.0 has its row in the list, at that SDK', { skip: !clientBarrel }, () => {
+  const lines = clientBarrel.split('\n');
+  const listed = new Map(CLIENT_EXPORTS.flatMap(({ names, sdk }) => names.map((n) => [n, sdk])));
+  let checked = 0;
+  lines.forEach((line, i) => {
+    const announced = /^\/\/.*\bSDK (\d+\.\d+\.\d+)\.?\s*$/.exec(line);
+    if (!announced || !satisfies(announced[1], '>=2.24.0')) return;
+    for (let j = i + 1; j < lines.length && lines[j].startsWith('export '); j += 1) {
+      const names = /^export \{([^}]*)\}/.exec(lines[j])[1].split(',').map((p) => p.trim().split(/\s+as\s+/).pop());
+      for (const n of names) {
+        assert.equal(listed.get(n), announced[1], `${n} is announced at SDK ${announced[1]} but has no matching row in CLIENT_EXPORTS`);
+        checked += 1;
+      }
+    }
+  });
+  assert.ok(checked >= 8, `only ${checked} announced exports read: the barrel's comment format changed`);
 });
 
 test('rule 54: the discovery sees a destructured import and ignores a similarly named word', () => {
