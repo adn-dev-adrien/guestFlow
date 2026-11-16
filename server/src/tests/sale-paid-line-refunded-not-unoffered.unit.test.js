@@ -150,7 +150,8 @@ test('D7-1 — the departure SAS commit: the refunded line recalled from an unpa
   // to the judgment is what this case proves.
   assert.equal(extraSale.sell(id, [{ articleRef: `option:${wine}`, quantity: 1 }], { now }).status, 200);
   assert.equal(ctrl.performUpdate(id, withBeerOffered(id, true), { now }).status, 200);
-  db.prepare("INSERT INTO refund_obligations (reservationId, origin, amountCents, reason, status, settledAt, settledBy) VALUES (?, 'lineLowered', 3000, 'ligne payée baissée', 'settled', datetime('now'), 'refund:999')").run(id);
+  // Note money (loop t8, rule 115): the settled row carries its note part.
+  db.prepare("INSERT INTO refund_obligations (reservationId, origin, amountCents, reason, status, settledAt, settledBy, noteCents) VALUES (?, 'lineLowered', 3000, 'ligne payée baissée', 'settled', datetime('now'), 'refund:999', 3000)").run(id);
   const departure = at(id, '09:00', 3);
   const plan = withNow(departure, () => reservations.planDepartureSas(id, {}));
   assert.deepEqual(plan.lines.filter((l) => l.offerLocked).map((l) => [l.label, l.offered]), [['Bière ronde', true]], 'the dialog is told not to offer the toggle');

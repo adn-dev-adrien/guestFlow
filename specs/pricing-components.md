@@ -1524,7 +1524,7 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
 
 75. **Refund obligations — money that must leave, kept in one register** _(owner O-2, O-5, O-10, Q16)_. A table
     `refund_obligations (id, reservationId, origin, paymentLinkId, lineRef, amountCents, reason, createdAt,
-    status, settledAt, settledBy)` holds every refund owed and not yet paid out. `origin` is one of `basket`,
+    status, settledAt, settledBy, noteCents)` holds every refund owed and not yet paid out. `origin` is one of `basket`,
     `duplicatePayment`, `withdrawnLink`, `lineLowered`, `orderConflict`, `neverBooked`; `status` is `open`,
     `settled` or `cancelled`. The register holds money that **left** (or must leave) only: nothing in it is a
     sale (conflict C-1). The ledger's « À rembourser » rows are its open rows and offer a close action; the link
@@ -2306,6 +2306,9 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
     > **Reading of 2026-11-16 (stabilisation loop t8, D8-1).** A later cancellation keeps the poste: that refund names no line, and the cancelled
     > register deducts it from its own bucket first (reservation-refunds rule 49 reading of the same day), so « Hébergement » gives back all it
     > collected and the options never more than the notes sold.
+    _Reading of 2026-11-16 (loop t8, B8-1):_ « discounted » included — `postesLeft` reads what a stored line charges as its amount less its
+    own discount (`discountCents`, rule 39), as the engine does: a card note's beer 30 discounted 24 reads « Prestations complémentaires » 24
+    and its avoir reverses 70600010, no longer « Hébergement » / 70600000. Test `refund-note-discount-poste`.
 112. **A trop-perçu of cash and card notes is refunded in two parts** _(stabilisation loop t7, B7-3, 2026-11-16; completes rule 106 b)_. When cash
     notes took only part of the trop-perçu, the stored and live figures carry `overpaymentCash` `{ amountTtc, restTtc, lines }` (`cashPartOf`:
     the cash cents carved from the poste split, the prestations first) and the ledger's `refundPrefill.cashPart`. The refund dialog opens on that
@@ -2333,6 +2336,39 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
     `custom:<normalised label>`), the same the notes, the allocations and `refundedLoweredLines` name it by. The fiche compares that key; it never
     copies the label normalisation (which had already drifted: description before title). Option and resource lines keep their `opt:` / `res:` /
     `lineKey` keys. No figure moves. Test `custom-line-server-key`, client `ReservationPage.refunded-line-key`.
+    _Reading of 2026-11-16 (loop t8, B8-2):_ the cash a caisse-interne refund settled is the NOTE part of the rows it settled (`noteCents`,
+    rule 115): a caisse-interne refund of the stay's own trop-perçu took no note's cash.
+115. **Note money refunded is told apart from the stay's own** _(stabilisation loop t8, B8-2, 2026-11-16; completes rules 106, 108, 110, 112
+    and D6-1)_. A `lineLowered` row holds the larger of the stay's trop-perçu and the note money no line claims (`syncLoweredObligations`):
+    it can be solde money (a line of the solde discounted before the arrival), not note money. A refund opened on the trop-perçu therefore
+    stamps on the rows it settles how much of what it gave back was note money — `refund_obligations.noteCents`, the note money freed and
+    not given back yet first (`paidLineJudgment.noteExcessCents(…, { notesOnly: true })` read before the settlement), the rest being the
+    stay's own; a cancellation refund on a note line's key (D7-2) is note money whole; a refund deleted clears the stamp with the rows it
+    reopens. « Note money already refunded » (`refundedLoweredCents`) is the Σ of that stamp, and its four readers read nothing else: the
+    engine's note credit (rule 110, `refundedNoteCredit`), the rule-108 refusal (`begin`/`finish`, `refundedLoweredLines`), the cash part of
+    rule 112 (`cashReturnedCents`) and `noteExcessCents` (D6-1), which now takes every cent given back off what the buckets hold beyond the
+    total and only the note part off what the notes leave unclaimed (`min(unabsorbed − settled, unclaimed − noteCents)`, never below the old
+    figure). Review scenario (direct): beer 30 in the solde (paid 330) discounted 24 at J-2 and the 24 refunded by transfer, a plank 20 paid
+    by a note then offered, a jam 15 sold unpaid — before: « À percevoir au départ 15 » AND « Trop-perçu 5 » (336 ≠ 321), the plank's
+    un-offer refused `LINE_REFUNDED` although nobody refunded it, and a cash note's freed 20 defaulted to a transfer; now: the jam absorbed,
+    5 owed, the un-offer accepted, « Caisse interne ». Rows settled before the column existed keep their reading (the migration stamps them
+    whole); the 2026-11-11 copy holds no settled `lineLowered` row: no stay moves. Test `refund-solde-money-not-note-credit`.
+116. **A platform stay's collected arrival complement is the establishment's money** _(stabilisation loop t8, B8-5 OLD, B8-6, 2026-11-16;
+    completes rules 23, 104-108, 111 and reservation-refunds rules 34, 38)_. On a platform stay the guest pays the platform its share, but the
+    arrival complement is collected by the establishment (a link, a transfer, the caisse interne), and no trop-perçu formula reads it
+    (reservation-refunds rule 38 is about the platform's money). Collected before the arrival, then a line of it offered or discounted, the
+    line fell to 0 or 6 and the establishment kept 30 € for nothing (also on master, through the fiche). Now, once collected and while its
+    split is frozen (`complementPaidSplit.lines`; none on a complement collected before that column or adjusted by the operator), each line it
+    named claims what it collected on it, exactly as a note does (`paidLineJudgment.platformComplementClaims`, read with the notes by the
+    one paid-line judgment of rule 105): a line offered, discounted or lowered answers 409 OVERPAID, confirmed it opens the `lineLowered`
+    obligation the ledger shows « Trop-perçu · À rembourser »; removed it answers 409 `LINE_PAID`; put back it closes the obligation; refunded
+    then put back it answers `LINE_REFUNDED` (rule 108). On such a stay every settled `lineLowered` row is establishment money (no trop-perçu
+    opens one there). The refund is split on the line's poste (`leftOfStayOf` adds the complement's `postesLeft` on a platform stay), so its
+    avoir reverses 70600010, the account the complement booked; a complement collected « caisse interne » refunds through it
+    (`cashNoteExcessCents`). A direct stay's collected complement stays the trop-perçu formula's (`complementCollectedExcess`), never read
+    twice. And the in-stay « sold at arrival » floor (`arrivalExtrasViolations`) measures a line against the smaller of its baseline and what
+    it held entering the save: a line lowered before the arrival (its excess owed back) is no reduction of a later save, which no longer
+    refuses every sale of the stay (B8-6); a reduction the save itself makes is still refused. Test `platform-collected-complement-lowered`.
 
 ## 4. Architecture
 
@@ -2682,6 +2718,9 @@ _Rewritten 2026-11-15 (stabilisation loop t1, UI-3) to what shipped._
 - [x] `refund-mixed-cash-card-note` — rule 112 (loop t7, B7-3): `cashPartOf`; cash 30 + card 30 offered → 30 « Caisse interne » proposed, then 30 by the booked means, one booked avoir of 30, direct and Booking (3)
 - [x] `fiche-save-overpaid-refund-split` — rule 113 (loop t8, UI8-1, UI8-2): a note line offered in the fiche, direct and Booking → the 409 splits on « Prestations complémentaires », carries the ledger row's cash part, a cash-only one defaults to the caisse interne; the dialog replayed on it books one avoir on 70600010, −30 € booked, card and cash + card (10)
 - [x] `custom-line-server-key` — rule 114 (loop t8, UI8-5): the engine's and the stored summary's custom line carry `key` = `extraLineKey` (2)
+- [x] `refund-solde-money-not-note-credit` — rule 115 (loop t8, B8-2): solde line discounted and refunded, then a note line offered: a 15 € line sold unpaid absorbed and 5 owed (card and cash), the control without refund, the un-offer accepted by the line API and the fiche, rule 108 still refusing the refunded plank, the cash note's « Caisse interne », a mixed refund stamping only its note part and its deletion clearing it — Σ balanced after each (7)
+- [x] `refund-note-discount-poste` — rule 111 reading (loop t8, B8-1): a note line discounted 24 → « Prestations complémentaires » 24, prefill and avoir on 70600010, direct and Booking; a cash note through the caisse interne (3)
+- [x] `platform-collected-complement-lowered` — rule 116 (loop t8, B8-5, B8-6): Booking complement collected before the arrival, a line offered / discounted → 409 OVERPAID, owed, refunded on 70600010; « caisse interne »; removal LINE_PAID; the way back and LINE_REFUNDED; direct stays not claimed; later sales after a pre-arrival discount; the floor's own reduction still refused — Σ balanced (8)
 - [x] `stay-note-refund-money-conservation` — rules 104, 106-112 (loop t7): random sequences of notes by card / cash, unpaid sales, offers, refunds as proposed, refunds deleted; after every step Σ buckets + notes − owed − refunded = total, booked avoirs ≤ booked note money, no note money refunded on the accommodation (6 seeds × 12 steps)
 
 ### Client Vitest suites (named 2026-11-16, stabilisation loop t2 P2-2)

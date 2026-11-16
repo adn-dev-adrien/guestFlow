@@ -13,7 +13,7 @@
 const { toCents } = require('./pricing/money');
 const { settledByKey, extraLineKey } = require('./pricing/storedLines');
 const { parseNotes } = require('./midStayExtras');
-const { noteExcessCents } = require('./paidLineJudgment');
+const { noteExcessCents, platformComplementClaims } = require('./paidLineJudgment');
 
 const netOf = (fact) => (fact ? Math.max(0, Number(fact.storedCents || 0) - Number(fact.discountCents || 0)) : 0);
 
@@ -34,17 +34,18 @@ function growthCents(charged, facts) {
 
 // Loop t7 B7-3 (rule 112) — the cash a « caisse interne » refund on the trop-perçu already gave back: the `lineLowered` rows it settled. That cash
 // left the till; what stays freed is the money the other means brought, so the second refund of a mixed excess defaults to them, never to the till.
+// Loop t8 B8-2 — only its note part (`noteCents`): a caisse-interne refund of the stay's own trop-perçu took no note's cash.
 function cashReturnedCents(db, id) {
   const ready = db.prepare("SELECT COUNT(*) AS n FROM sqlite_master WHERE type = 'table' AND name IN ('refund_obligations', 'reservation_refunds')").get().n === 2;
   if (!ready) return 0;
-  return Number(db.prepare(`SELECT COALESCE(SUM(o.amountCents), 0) AS cents FROM refund_obligations o
+  return Number(db.prepare(`SELECT COALESCE(SUM(o.noteCents), 0) AS cents FROM refund_obligations o
     JOIN reservation_refunds r ON o.settledBy = 'refund:' || r.id
     WHERE o.reservationId = ? AND o.origin = 'lineLowered' AND o.status = 'settled' AND r.method = 'internal'`).get(id).cents);
 }
 
 function cashNoteExcessCents(db, reservationId, { quote = null } = {}) {
   const id = Number(reservationId);
-  const row = db.prepare('SELECT midStaySettledNotes FROM reservations WHERE id = ?').get(id);
+  const row = db.prepare('SELECT * FROM reservations WHERE id = ?').get(id);
   if (!row) return 0;
   const paidByKey = {};
   const cashByKey = {};
@@ -54,6 +55,12 @@ function cashNoteExcessCents(db, reservationId, { quote = null } = {}) {
       paidByKey[key] = (paidByKey[key] || 0) + toCents(amount);
       if (cash) cashByKey[key] = (cashByKey[key] || 0) + toCents(amount);
     }
+  }
+  // Loop t8 B8-5 — a platform stay's arrival complement collected « caisse interne » is cash the till holds, as a cash note's.
+  const complementCash = Number(row.complementPaidCash || 0) === 1;
+  for (const line of platformComplementClaims(row) || []) {
+    paidByKey[line.key] = (paidByKey[line.key] || 0) + Math.round(Number(line.cents));
+    if (complementCash) cashByKey[line.key] = (cashByKey[line.key] || 0) + Math.round(Number(line.cents));
   }
   if (!Object.keys(cashByKey).length) return 0;
   const facts = require('../models/ports/stayRepository').create(db).lineFacts(id);

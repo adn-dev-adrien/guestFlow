@@ -97,7 +97,8 @@ const TABLES = [
     createdAt TEXT NOT NULL DEFAULT (datetime('now')),
     status TEXT NOT NULL DEFAULT 'open' CHECK (status IN ('open', 'settled', 'cancelled')),
     settledAt TEXT,
-    settledBy TEXT
+    settledBy TEXT,
+    noteCents INTEGER NOT NULL DEFAULT 0
   )`,
   'CREATE INDEX IF NOT EXISTS idx_refund_obligations_reservation ON refund_obligations (reservationId, status)',
   `CREATE TABLE IF NOT EXISTS payment_allocations (
@@ -153,6 +154,13 @@ function addColumns(db) {
   };
   for (const table of LINE_TABLES) for (const [name, definition] of LINE_COLUMNS) add(table, name, definition);
   for (const [table, name, definition] of COLUMNS) add(table, name, definition);
+  // Loop t8 B8-2 — the note part of the money a settled `lineLowered` row gave back. Rows settled before the column existed were all read
+  // as note money: they keep that reading, so no figure moves.
+  if (hasTable(db, 'refund_obligations') && !columnsOf(db, 'refund_obligations').has('noteCents')) {
+    db.exec('ALTER TABLE refund_obligations ADD COLUMN noteCents INTEGER NOT NULL DEFAULT 0');
+    db.exec("UPDATE refund_obligations SET noteCents = amountCents WHERE origin = 'lineLowered' AND status = 'settled'");
+    added += 1;
+  }
   return added;
 }
 

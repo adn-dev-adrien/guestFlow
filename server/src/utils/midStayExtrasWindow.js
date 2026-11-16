@@ -119,6 +119,7 @@ function arrivalLineFloors(baselineRaw, beforeLines) {
 function arrivalExtrasViolations(baselineRaw, beforeLines, afterLines) {
   const baseline = parseBaseline(baselineRaw) || {};
   const floors = arrivalLineFloors(baselineRaw, beforeLines);
+  const before = aggregateByKey(beforeLines);
   const after = aggregateByKey(afterLines);
   const violations = [];
   for (const [key, floor] of Object.entries(floors)) {
@@ -137,8 +138,11 @@ function arrivalExtrasViolations(baselineRaw, beforeLines, afterLines) {
       continue;
     }
     // The amount is the line's real price: fewer served persons, a lower price or a lost free allowance
-    // all shrink it without touching the quantity.
-    if (!wasOffered && next.total + 0.005 < Number(baseline[key] || 0)) violations.push({ key, reason: 'reduced' });
+    // all shrink it without touching the quantity. Loop t8 B8-6 — measured against what the line held entering the save when that is
+    // less: a line lowered BEFORE the arrival on a collected complement (its excess owed back, pricing-components rule 106) is no
+    // reduction of this save, or every later sale of the stay would be refused.
+    const floorAmount = Math.min(Number(baseline[key] || 0), before.has(key) ? before.get(key).total : Infinity);
+    if (!wasOffered && next.total + 0.005 < floorAmount) violations.push({ key, reason: 'reduced' });
   }
   return violations;
 }
