@@ -11,7 +11,6 @@ import HomeWorkIcon from '@mui/icons-material/HomeWork';
 import PersonIcon from '@mui/icons-material/Person';
 import EuroIcon from '@mui/icons-material/Euro';
 import { api, OptionDayCard, useToast, formatCurrency } from '../sdk';
-import { localIsoDate } from './localDate';
 
 // « pour demain 09:00 » / « 22:00 → pour demain 06:00 » — the « démarrer » card says what it prepares
 // (specs/resource-ignition-task.md §3 rule 5). A night-time ignition carries no hour of its own: the
@@ -50,8 +49,8 @@ function BookingCard({ booking, openable }) {
   const navigate = useNavigate();
   const open = () => navigate(resourceBookingPath(booking));
   const turnover = Number(booking.turnoverMinutes || 0);
-  // specs/resource-booking-pricing-and-invoicing.md rule 28 — a guest with no stay arrives from his card, on his day.
-  const canArrive = booking.external === true && !booking.arrived && !booking.noShowAt && booking.date === localIsoDate();
+  // specs/resource-booking-pricing-and-invoicing.md rule 28 — a guest with no stay arrives from his card, on his day: the server's `actions.arrive` (loop t2 UI2-7).
+  const canArrive = Boolean(booking.actions && booking.actions.arrive);
   const { cardState } = booking;
   const tone = cardState && cardState.state === 'paid' ? 'success' : 'info';
   return (

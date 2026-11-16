@@ -6,7 +6,6 @@ import { vi } from 'vitest';
 import { MemoryRouter, Routes, Route, useLocation } from 'react-router';
 
 import PlanningResourceCard from '../PlanningResourceCard';
-import { localIsoDate } from '../localDate';
 
 vi.mock('../../../api', () => ({ default: {} }));
 vi.mock('../../../components/DialogProvider', () => ({ useToast: () => ({ showError: vi.fn() }) }));
@@ -45,7 +44,7 @@ test('Enter on the focused card opens it too', () => {
 });
 
 test('« Arrivée » still opens the arrival, not the booking', () => {
-  renderCard({ ...BOOKING, date: localIsoDate() }, vi.fn());
+  renderCard({ ...BOOKING, actions: { noShow: false, arrive: true } }, vi.fn());
   fireEvent.click(screen.getByRole('button', { name: 'Arrivée' }));
   expect(screen.getByTestId('where').textContent).toBe('/resource-planning?arrival=12');
 });

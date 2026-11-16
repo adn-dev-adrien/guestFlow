@@ -486,6 +486,20 @@ once on the server by the refonte's components.
     like a stay's tip: one entry on the day the row was closed (`standaloneSales.list` row `role: 'tip'`, key `standalone:<id>:<day>:tip:<row>`; entry kind
     `standaloneTip`), customer debit and `revenue:tip` credit on the plan's tip account (accounting-export `tipAccount`, named « Pourboire »), no VAT. The
     link's payment day is not moved: the surplus was on no line, so it never was on that day's books. Test `standalone-sale-kept-surplus-tip`.
+51. **Every booking payload carries its actions; the invoice reason is the stored visit's** _(stabilisation loop t2, UI2-5 to UI2-8, 2026-11-16;
+    completes rules 6, 11, 27, 45, 48)_. (a) Every booking payload carries `actions: { noShow, arrive }` for its caller: the booking read, the rows of
+    `GET /api/resource-bookings` (the booking dialog opens on them) and of `GET /api/resource-bookings/planning-events` (the planning cards; the
+    reception's projection keeps `actions`), and the answer of `POST /:id/no-show`. `arrive` (rule 6): a visit with no stay, not arrived nor absent,
+    inside its day window (D 00:00 → D+1 04:00 on the server's clock, rule 5's window); `noShow` as rule 45. The planning card shows « Arrivée » iff
+    `actions.arrive`; the booking dialog shows « Arrivée » iff `actions.arrive` and « Voir l'arrivée » on an arrived visit; neither compares a date with
+    the browser's clock, and the dialog reads the booking a second time for nothing (rule 48's extra read is gone). (b) `invoiceable` adds `silent: true`
+    on the refusals that state no step for the operator (`ISSUER_UNAVAILABLE`, `NOTHING_TO_INVOICE`, `NOT_PAID`, `BOOKING_HAS_STAY`,
+    `BOOKING_NOT_FOUND`, `BOOKING_INVOICED`): the mini SAS prints the reason only when not silent, and only while nothing is typed (no draft, no payment
+    being taken — the reason reads the stored visit; the commit answers its own invoice). A paid visit on an install without Qonto shows no « Facture »
+    block, as before rule 45. (c) Rule 11: a class's external rate the operator emptied in an article form is sent empty and refused
+    (`EXTERNAL_RATE_EMPTY`, « Taux du client extérieur requis. », on the field) — the class keeps one rate, which no save clears; an untouched rate is
+    not sent. Tests `visit-round2-row-actions-and-invoice-reason`, `catalogue-external-rate-emptied`, `reception-planning-and-date-caps`; Vitest
+    `ResourceBookingDialog.no-show`, `PlanningResourceCard`, `ResourceArrivalDialog.invoice-reason`, `externalSaleForm.emptied-rate`.
 
 ---
 
@@ -726,6 +740,7 @@ number; `prefers-reduced-motion` → no movement.
 - [x] `plugins/hourly-resources/tests/visit-commit-reopen.unit.test.js` — rules 21-24 (one transaction, `PRICE_CHANGED`, reopen appends, invoiced read-only)
 - [x] `plugins/hourly-resources/tests/visit-refund-cancel-noshow.unit.test.js` — rules 25-27
 - [x] `plugins/hourly-resources/tests/visit-legacy-money.unit.test.js` — rule 34 (paid before: session « Payée », extras on a new document, journal unchanged)
+- [x] (loop t2, rule 51) `plugins/hourly-resources/tests/visit-round2-row-actions-and-invoice-reason.unit.test.js` (4) — the rows', cards' and no-show answer's `actions`, the silent refusal; `tests/catalogue-external-rate-emptied.unit.test.js` (1) — an emptied rate refused
 - [x] `plugins/hourly-resources/tests/visit-card-batch-once.unit.test.js` — rule 32 (no double listing)
 - [x] `plugins/hourly-resources/tests/visit-invoice-document.unit.test.js` — rule 31 (all lines, `REMAINING_DUE`, money guard)
 - [x] `plugins/hourly-resources/tests/visit-invoice-whole-visit.unit.test.js` — rule 31, reading of 2026-11-15 (a session paid on the booking and the document's extras: one invoice; no document: the booking's invoice unchanged)
@@ -750,6 +765,7 @@ number; `prefers-reduced-motion` → no movement.
 - [x] `components/__tests__/TenderLines.shortfall-kinds.test.jsx` — only « Reste à percevoir » offered
 - [x] (C38) `plugins/hourly-resources/__tests__/ResourceArrivalDialog.test.jsx`, `.paid-before.test.jsx`, `.no-unasked-invoice.test.jsx` — the three former suites, moved onto the visit routes; `arrivalVisitFixtures.jsx` — their shared fixture
 - [x] (C38) `components/__tests__/StandaloneSaleDialog.counter.test.jsx`, `StandaloneSalesTodayCard.list.test.jsx`, `ExternalSaleFields.fields.test.jsx`; `plugins/hourly-resources/__tests__/ResourceBookingDialog.no-show.test.jsx`; `PlanningResourceCard.test.jsx` gains the « Reste » and « Absent » cases; `SuggestedArticlesStep.worst-case.test.jsx` — the break-ui pass (a 120-character label, an emoji-first label, 99, 1, none, a thousand results)
+- [x] (loop t2, rule 51) `ResourceBookingDialog.no-show.test.jsx` (rewritten on the row's `actions`, no second read, 5), `PlanningResourceCard.test.jsx` and `PlanningResourceCard.open-booking.test.jsx` (« Arrivée » on `actions.arrive`), `ResourceArrivalDialog.invoice-reason.test.jsx` (2), `pages/options/__tests__/externalSaleForm.emptied-rate.test.js` (1); named after the fact (P2-2): `ResourceArrivalDialog.withdraw-link.test.jsx` — rule 45 (`access.withdrawLink`)
 - [x] (loop t1, rule 48) `plugins/hourly-resources/__tests__/ResourceBookingDialog.no-show.test.jsx` (rewritten on `actions.noShow`, 4), `ResourceArrivalDialog.invoiceable.test.jsx` (3), `ResourceArrivalDialog.vat-rate.test.jsx` (2), `ResourceArrivalDialog.new-sale.test.jsx` (2); `components/__tests__/SalePaymentLink.expires-label.test.jsx` (3), `StandaloneSalesTodayCard.owed-day.test.jsx` (2), `ExternalSaleFields.server-labels.test.jsx` (2)
 
 ### E2E

@@ -153,25 +153,29 @@ function createInvoicing({ bookings, visits = null, issuers = () => sdk.coreModu
     return { error: 'Qonto n’a pas répondu : la facture n’est pas créée, le paiement reste enregistré.', status: 502, code: 'ISSUER_FAILED' };
   }
 
+  // Loop t2 UI2-5 (outside-booking-sas rule 48) — refusals that state no step the operator can take on this visit: no Qonto on the install, nothing to
+  // invoice, no payment yet, a stay's session, an invoice already there. The screen shows no « Facture » block for them, as before the invoiceability existed.
+  const SILENT_REFUSALS = new Set(['ISSUER_UNAVAILABLE', 'NOTHING_TO_INVOICE', 'NOT_PAID', 'BOOKING_HAS_STAY', 'BOOKING_NOT_FOUND', 'BOOKING_INVOICED']);
+
   /**
    * Loop t1 AV-11, UI-10 — whether « Créer la facture » can be offered now, judged by the refusals `issue` would answer before Qonto is called:
-   * `{ ok, code, reason }`, so the screen offers what the server would accept and rebuilds no rule.
+   * `{ ok, code, reason, silent? }`, so the screen offers what the server would accept and rebuilds no rule; `silent` (a refusal only) asks the screen to show no reason.
    */
   function invoiceability(id) {
     const raw = bookings().rawById(id);
-    if (!raw) return { ok: false, code: 'BOOKING_NOT_FOUND', reason: 'Réservation non trouvée' };
-    if (raw.qontoInvoiceId && !raw.invoiceCancelledAt) return { ok: false, code: 'BOOKING_INVOICED', reason: 'Déjà facturée.' };
+    if (!raw) return { ok: false, code: 'BOOKING_NOT_FOUND', reason: 'Réservation non trouvée', silent: true };
+    if (raw.qontoInvoiceId && !raw.invoiceCancelledAt) return { ok: false, code: 'BOOKING_INVOICED', reason: 'Déjà facturée.', silent: true };
     const money = raw.saleRef && visits ? visits().moneyOf(raw) : null;
     let refusal;
     if (money && (Number(raw.paid) !== 1 || documentHoldsMoney(money))) {
       refusal = documentInvoiceRefusal(bookings().findById(id), money, issuers(), { basis: bookings().invoiceBasis(id) });
     } else {
       const basis = bookings().invoiceBasis(id);
-      if (!basis) return { ok: false, code: 'BOOKING_NOT_FOUND', reason: 'Réservation non trouvée' };
+      if (!basis) return { ok: false, code: 'BOOKING_NOT_FOUND', reason: 'Réservation non trouvée', silent: true };
       refusal = invoiceRefusal(basis.row, issuers())
         || (cents(basis.breakdown.total) !== cents(basis.row.totalPrice) ? { code: 'TARIFF_CHANGED', error: 'Le tarif a changé depuis le paiement : facture à établir dans Qonto.' } : null);
     }
-    return refusal ? { ok: false, code: refusal.code || null, reason: refusal.error } : { ok: true, code: null, reason: null };
+    return refusal ? { ok: false, code: refusal.code || null, reason: refusal.error, silent: SILENT_REFUSALS.has(refusal.code) } : { ok: true, code: null, reason: null };
   }
 
   /** POST /:id/invoice — `{ ok, invoice }` or `{ error, status, code }`. Never touches the payment. */

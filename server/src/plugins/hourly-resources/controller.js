@@ -24,9 +24,16 @@ function createController({ bookings: model, scheduling, planningCards, reservat
   const invoiceReady = () => sdk.coreModule('invoiceIssuers').ready();
   // Loop t1 UI-9 (outside-visit rule 27) — « Client absent » is offered when the server would take it: an administrator, a visit with no stay, from its day on,
   // not arrived nor already absent. The screen reads `actions.noShow` and compares no date with the browser's clock.
+  const dayLock = (booking) => sdk.coreModule('sasEditWindow').sasLockReason({ stay: { startDate: booking.date, endDate: booking.date }, side: 'arrival', doneAt: null, now: new Date() });
   const noShowOffered = (booking, req) => Boolean(req) && !isReceptionOnly(req.user) && !booking.reservationId && !booking.arrived && !booking.noShowAt
-    && sdk.coreModule('sasEditWindow').sasLockReason({ stay: { startDate: booking.date, endDate: booking.date }, side: 'arrival', doneAt: null, now: new Date() }) !== 'future';
-  const withReady = (booking, req = null) => (booking ? { ...booking, invoiceReady: invoiceReady(), actions: { noShow: noShowOffered(booking, req) } } : booking);
+    && dayLock(booking) !== 'future';
+  // Loop t2 UI2-7 (outside-visit rules 5, 6; resource-booking-pricing-and-invoicing rule 28) — « Arrivée » is offered on a visit with no stay, not arrived nor
+  // absent, inside its day window (D 00:00 → D+1 04:00 on the server's clock), the window the visit's writes are judged by. The screen compares no date.
+  const arriveOffered = (booking) => Boolean(booking.external) && !booking.reservationId && !booking.arrived && !booking.noShowAt && dayLock(booking) === null;
+  // Loop t2 UI2-6 — every booking payload carries its `actions`, the planning rows included: the screens read them and re-read nothing.
+  const actionsOf = (booking, req) => ({ noShow: noShowOffered(booking, req), arrive: arriveOffered(booking) });
+  const withActions = (booking, req) => (booking && booking.kind === 'booking' ? { ...booking, actions: actionsOf(booking, req) } : booking);
+  const withReady = (booking, req = null) => (booking ? { ...booking, invoiceReady: invoiceReady(), actions: actionsOf(booking, req) } : booking);
   const fail = (res, result) => res.status(result.status).json({ error: result.error, ...(result.code ? { code: result.code } : {}) });
 
   function planningEvents(req, res) {
@@ -37,7 +44,7 @@ function createController({ bookings: model, scheduling, planningCards, reservat
     const rangeError = checkPlanningRange(from, to);
     if (rangeError) return res.status(rangeError.status).json({ error: rangeError.error, message: rangeError.message });
 
-    const events = model().listPlanningEvents(from, to);
+    const events = model().listPlanningEvents(from, to).map((event) => ({ ...event, actions: actionsOf(event, req) }));
     // Reception must never receive the finance (price/paid) or PII (phone/notes/raw names) that the
     // full planning payload carries — project through the whitelist (AUTH-4). Admin keeps everything.
     if (isReceptionOnly(req.user)) return res.json(toReceptionPlanningEventList(events));
@@ -54,7 +61,7 @@ function createController({ bookings: model, scheduling, planningCards, reservat
     const { resourceId, date, weekStart } = req.query;
     if (!resourceId) return res.status(400).json({ error: 'resourceId required' });
     if (!date && !weekStart) return res.status(400).json({ error: 'date or weekStart required' });
-    return res.json(model().listForResource({ resourceId, date, weekStart }));
+    return res.json(model().listForResource({ resourceId, date, weekStart }).map((row) => withActions(row, req)));
   }
 
   function getOne(req, res) {
@@ -201,6 +208,8 @@ function createController({ bookings: model, scheduling, planningCards, reservat
     planningEvents, occupiedSlots, list, getOne, create, preview, update, remove,
     recordPayment, clearPayment, issueInvoice, attachInvoice,
     freeSlots, resourceCards, setResourceCardDone,
+    // The booking as every route answers it (`invoiceReady`, `actions`), for the visit routes that answer a booking too.
+    bookingPayload: withReady,
   };
 }
 
