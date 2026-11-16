@@ -12,7 +12,7 @@ const { buildPaymentEffectDeps } = require('../../../utils/paymentEffectDeps');
 const paymentLinksModel = require('../../../models/paymentLinksModel');
 const refundsController = require('../../../controllers/refundsController');
 const { localIsoDate } = require('../../../utils/localDate');
-const { refGivenBack } = require('../../../utils/pricing/refunds/givenBack');
+const { refGivenBack } = require('../../../utils/refundGivenBack');
 
 const CIDER = addOption({ id: 813, title: 'Cidre', price: 6 });
 sell('option', CIDER);
