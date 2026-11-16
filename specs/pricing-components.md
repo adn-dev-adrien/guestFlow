@@ -1982,7 +1982,13 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
     the panel's writes, focusable and inert with « Enregistrer d'abord les modifications. » (the reason under the title, in the tooltip and the
     accessible name), as « Annuler le séjour » and « Supprimer » are; on a clean fiche the re-read keeps the page on screen (no loading screen, the
     scroll and the administrator's unlock kept). The panel renders the `saleDetail` the fiche read (`GET /api/reservations/:id`, refreshed by every
-    finance re-read) and asks `GET …/sale-detail` only when the fiche carries none. Vitest `ReservationPage.extra-sales-panel`.
+    finance re-read) and asks `GET …/sale-detail` only when the fiche carries none. _Reading 2026-11-16 (E2E `extra-sale`, parallel run after the
+    loop t2 round-2 merge):_ the quiet re-read left the fiche editable while it was in flight, so a note typed in that window was saved on a form
+    older than the server's — sent before the re-read landed, the save carried the note without the sold line and deleted it; typed before it
+    landed and saved after, the re-read overwrote the note and the save carried the line without it. From the write to the moment the re-read's
+    form is applied, the fiche is busy: its fields are read-only (the disabled fieldset of a closed fiche, `aria-busy`), « Enregistrer » is
+    disabled and shows its spinner, and the clean baseline is taken from the form the re-read applied, never from the one it replaces. A save
+    therefore never sends a form older than the last server version. Vitest `ReservationPage.extra-sales-panel`.
 102. **One moment per gesture: the stay clock decides the lock, the sale, the baseline, the SAS and the change of an order** _(stabilisation loop t2,
     N-1 to N-6, 2026-11-16; amends rule 20's first bullet, completes rules 44, 45, 93, 94, guest-app rules 82, 110 a)_. Before, two clocks answered
     « has this stay started? »: the fiche lock (`hasStayStarted`: the check-in hour, or the arrival marked or the arrival SAS committed) and the sale

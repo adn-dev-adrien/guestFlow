@@ -267,6 +267,9 @@ export default function ReservationPage() {
   // specs/pricing-components.md rule 27 — a re-read after a write of « Ventes du séjour » keeps the page on screen (no spinner, no lost
   // scroll, the admin unlock kept): the fiche is clean then, since the panel holds its writes while it is dirty.
   const quietReloadRef = useRef(false);
+  // Rule 101 (reading 2026-11-16) — while that re-read is in flight the fiche is busy: fields read-only, « Enregistrer » spinning.
+  // A note typed in that window was saved on a form older than the server's (the sold line dropped, or the note overwritten).
+  const [rereading, setRereading] = useState(false);
   // Rule 31 — the sale detail the fiche read with the stay: the panel renders it without a second request.
   const [storedSaleDetail, setStoredSaleDetail] = useState(null);
   // The `updatedAt` this fiche was built on, sent back on save: the server refuses a save made on an
@@ -698,13 +701,15 @@ export default function ReservationPage() {
   // there (the server recalc reshapes the loaded form once on mount: offered flags, derived amounts); never
   // the live form, so whatever the operator typed meanwhile stays an edit. New records snapshot at once.
   // Once the quote is in it is frozen into `initialSnapshot`; a save or a payment mark moves it from there.
-  if (!loading && loadedSnapshot === null) setLoadedSnapshot(formSnapshot);
+  // A quiet re-read (rule 101) is a load too: its baseline is the form it applies, not the one it replaces.
+  const formSettling = loading || rereading;
+  if (!formSettling && loadedSnapshot === null) setLoadedSnapshot(formSnapshot);
   let cleanBaseline = initialSnapshot;
   // Rule 40 — a blank new fiche: the logement's defaults, the welcome pack and the quote land on their own and none is an
   // edit, so the baseline follows the form until the operator's first gesture, which freezes what stood before it.
   const baselineFollowsForm = isBlankNewBooking && cleanBaseline === null && !loading;
   if (baselineFollowsForm) cleanBaseline = formSnapshot;
-  else if (cleanBaseline === null && !loading) {
+  else if (cleanBaseline === null && !formSettling) {
     const isExistingRecord = Boolean(editingReservationId || editingDevisId);
     // Rule 51 (R25-C2) — a devis prefilled by « Créer un devis » holds a draft saved nowhere: an edit until its first save.
     if (prefillDevis) cleanBaseline = PREFILLED_DEVIS_BASELINE;
@@ -1379,6 +1384,8 @@ export default function ReservationPage() {
         if (err && err.status === 404 && err.missingLookup) setNotFound(true);
         else setInitError(true);
         setLoading(false);
+      } finally {
+        if (isCurrentLoad()) setRereading(false);
       }
     };
 
@@ -3053,6 +3060,7 @@ export default function ReservationPage() {
   // shows a spinner and can't be double-submitted. The internal recursion stays on
   // handleSaveReservation (no nested toggle). specs/ds-sweep-reservations.md rule 1.
   const handleSaveClick = async () => {
+    if (rereading) return;
     setSaving(true);
     try {
       await handleSaveReservation();
@@ -3986,8 +3994,8 @@ export default function ReservationPage() {
         actionsBefore={actionBarBefore}
         onSave={isClosedFiche ? undefined : handleSaveClick}
         saveTooltip={isDevisMode ? 'Enregistrer le devis' : 'Enregistrer'}
-        saveDisabled={saving || !(isDirty || touristTaxRefreshRequested)}
-        saveBusy={saving}
+        saveDisabled={saving || rereading || !(isDirty || touristTaxRefreshRequested)}
+        saveBusy={saving || rereading}
         onCancel={goBackToOrigin}
         actionsAfter={actionBarAfter}
       />
@@ -4073,10 +4081,11 @@ export default function ReservationPage() {
         )}
 
         {/* A closed fiche is shown, not edited: a disabled fieldset makes every field really read-only
-            (keyboard included), not just unclickable. */}
+            (keyboard included), not just unclickable. The same holds a fiche being re-read after a sale (rule 101). */}
         <Box
           component="fieldset"
-          disabled={isClosedFiche}
+          disabled={isClosedFiche || rereading}
+          aria-busy={rereading || undefined}
           sx={{
             position: 'relative', border: 0, p: 0, m: 0, minWidth: 0,
           }}
@@ -4202,7 +4211,7 @@ export default function ReservationPage() {
               locked={salesPanelLocked}
               heldReason={isDirty ? SAVE_FIRST_REASON : null}
               initialDetail={storedSaleDetail}
-              onChanged={() => { quietReloadRef.current = true; setReloadToken((token) => token + 1); }}
+              onChanged={() => { quietReloadRef.current = true; setRereading(true); setReloadToken((token) => token + 1); }}
               articles={propertyOptions
                 .filter((option) => Number(option.autoEnabled || 0) !== 1)
                 .map((option) => ({ articleRef: `option:${option.id}`, label: option.title }))}

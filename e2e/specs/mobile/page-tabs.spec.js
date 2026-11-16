@@ -56,15 +56,17 @@ test('switching to a plugin tab never leaves the page without tabs', async ({ pa
   await page.evaluate(() => {
     window.__tabCounts = new Set();
     window.__tabYs = new Set();
-    // A Y counts once it held for two consecutive frames. One-frame readings are out of scope on purpose: a single
-    // sample 238 px lower was seen once on a loaded runner and never reproduced (12 runs at 6x CPU throttling and
-    // 52 under load show one constant Y), so it is read as a sampling artefact, not a flash. A bar that really
-    // jumps stays in the layout for more than one frame and is caught.
+    // The strip is measured inside its own sticky bar, not in the viewport: a banner of the whole app mounting above the page (the
+    // support access request another parallel test files, seen pushing the bar 238 px down mid-switch) moves the bar, never the strip
+    // within it. A strip outside any bar is recorded as such and fails the count below.
+    // A Y counts once it held for two consecutive frames: a single-frame reading is a sampling artefact, a bar that really jumps
+    // stays in the layout for more than one frame and is caught.
     let previous = null;
     const sample = () => {
       const tabs = document.querySelectorAll('[role=tab]');
       window.__tabCounts.add(tabs.length);
-      const y = tabs.length ? Math.round(tabs[0].getBoundingClientRect().y) : null;
+      const bar = tabs.length ? tabs[0].closest('[data-sticky-bar]') : null;
+      const y = !tabs.length ? null : (bar ? Math.round(tabs[0].getBoundingClientRect().y - bar.getBoundingClientRect().y) : 'outside the bar');
       if (y !== null && y === previous) window.__tabYs.add(y);
       previous = y;
       requestAnimationFrame(sample);

@@ -1,9 +1,10 @@
 // specs/pricing-components.md rule 101 (§3 rules 27, 31, 37; loop t2 UI2-1, UI2-2, UI2-3, UI2-4) — « Ventes du séjour » on the real fiche:
 // a started stay whose mid-stay window is open still sells and moves its lines; a closed window does not; a fiche with typed,
 // unsaved edits holds the panel's writes (« Enregistrer d'abord les modifications. ») instead of re-reading and dropping them;
-// after a write on a clean fiche the page re-reads quietly; the panel renders the fiche's own `saleDetail` without a second request.
+// after a write on a clean fiche the page re-reads quietly; the panel renders the fiche's own `saleDetail` without a second request;
+// while that re-read is in flight the fiche is busy (reading 2026-11-16): nothing typed then can be saved on a form older than the server's.
 import { vi } from 'vitest';
-import { screen, waitFor, fireEvent, within } from '@testing-library/react';
+import { screen, waitFor, fireEvent, within, act } from '@testing-library/react';
 
 vi.setConfig({ testTimeout: 30000 });
 
@@ -99,4 +100,33 @@ test('a write on a clean fiche re-reads the fiche without the page spinner', asy
   await screen.findByRole('button', { name: 'Moment de Panier' });
   expect(notes).toBeInTheDocument();
   expect(screen.getByLabelText(/^Notes/i)).toBe(notes);
+});
+
+test('while the re-read after a write is in flight, the fiche is busy and the save carries the server’s line with the typed note', async () => {
+  openPage();
+  await screen.findByText('Panier');
+  let answer;
+  const SOLD = { ...STAY, notes: '', saleDetail: DETAIL, options: [{ isCustom: true, customOptionId: 7, title: 'Panier', totalPrice: 25 }] };
+  api.getReservation.mockImplementationOnce(() => new Promise((resolve) => { answer = () => resolve(SOLD); }));
+  fireEvent.click(screen.getByRole('button', { name: 'Moment de Panier' }));
+  fireEvent.click(within(await screen.findByRole('menu')).getByText('À payer à l’arrivée'));
+  await waitFor(() => expect(answer).toBeTypeOf('function'));
+  // The slow re-read: the fields are read-only and « Enregistrer » is busy, so no stale form can leave.
+  expect(screen.getByLabelText(/^Notes/i)).toBeDisabled();
+  expect(screen.getByRole('button', { name: 'Enregistrer' })).toBeDisabled();
+  await act(async () => { answer(); });
+  const notes = screen.getByLabelText(/^Notes/i);
+  await waitFor(() => expect(notes).toBeEnabled());
+  // The re-read's form is the new baseline: the fiche is clean, the panel open.
+  expect(screen.getByRole('button', { name: 'Enregistrer' })).toBeDisabled();
+  expect(screen.getByRole('button', { name: 'Ajouter un produit' })).not.toHaveAttribute('aria-disabled', 'true');
+  fireEvent.change(notes, { target: { value: 'typed after the sale' } });
+  api.updateReservation.mockResolvedValue({ id: STAY.id });
+  const save = screen.getByRole('button', { name: 'Enregistrer' });
+  await waitFor(() => expect(save).toBeEnabled());
+  fireEvent.click(save);
+  await waitFor(() => expect(api.updateReservation).toHaveBeenCalled());
+  const payload = api.updateReservation.mock.calls[0][1];
+  expect(payload.notes).toBe('typed after the sale');
+  expect(payload.customOptions).toEqual([expect.objectContaining({ description: 'Panier', amount: 25 })]);
 });

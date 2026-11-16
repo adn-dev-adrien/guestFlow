@@ -38,7 +38,9 @@ for (const [name, size] of [['mobile', { width: 390, height: 844 }], ['desktop',
     await page.screenshot({ path: testInfo.outputPath(`extra-sale-${name}.png`) });
 
     // Rule 101 — a typed note holds the panel's writes; the save keeps the line the sale wrote. « Enregistrer » leaves the fiche for its
-    // origin, as every fiche save does: the fiche is opened again to read what was stored.
+    // origin, as every fiche save does: the fiche is opened again to read what was stored. The sale's re-read keeps the fiche busy (fields
+    // read-only, reading 2026-11-16) from the dialog's close until the server's form is applied: the note is typed once it is editable again.
+    await expect(page.getByLabel('Notes')).toBeEditable({ timeout: 15_000 });
     await page.getByLabel('Notes').fill(`Note ${name}`);
     await expect(page.getByRole('button', { name: 'Ajouter un produit' })).toHaveAttribute('aria-disabled', 'true');
     await expect(page.getByText('Enregistrer d\'abord les modifications.').first()).toBeVisible();
