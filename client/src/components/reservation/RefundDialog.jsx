@@ -38,6 +38,7 @@ import { evaluateArithmetic } from '../../utils/arithmetic';
  *    taken « caisse interne »), which the operator can change.
  *  - `cashPart` — `{ amountTtc, restTtc, lines }` when cash notes took only part of the trop-perçu (pricing-components rule 112):
  *    the dialog opens on that part « Caisse interne » (its lines), and says what is left to refund afterwards by the means it came by.
+ *    The announcement shows only while the means stays « Caisse interne ».
  *  - `openOverpaymentTtc`, `onUseOverpayment()` — a trop-perçu still open on the stay (the ledger's row, rule 44),
  *    when the dialog was NOT opened on it: a warning with an action that reopens the dialog on the trop-perçu.
  *    A refund of a sold line stays independent of it.
@@ -211,7 +212,8 @@ export default function RefundDialog({
       <DialogContent dividers>
         <Stack spacing={2}>
           {error && <ErrorAlert message={error} />}
-          {overpaymentTtc > 0 && cashPart && Number(cashPart.amountTtc) > 0 && (
+          {/* Rule 112 (loop t8 UI8-4) — the announcement holds while the dialog gives the cash part back « Caisse interne »: another means drops it. */}
+          {overpaymentTtc > 0 && cashPart && Number(cashPart.amountTtc) > 0 && method === 'internal' && (
             <Alert severity="info">
               {formatCurrency(cashPart.amountTtc)} payés en espèces : rendus en caisse interne. Reste {formatCurrency(cashPart.restTtc)} à rembourser ensuite.
             </Alert>

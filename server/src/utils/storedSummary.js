@@ -19,6 +19,7 @@ const { displayCountOf } = require('./typedCounts');
 const { isComplementDeferred } = require('./checkoutComplement');
 
 const { roundMoneyOrZero: round2 } = require('./pricing/money');
+const { extraLineKey } = require('./pricing/storedLines');
 const { notDepartureCharge } = require('./departureChargeLines');
 const flag = (v) => Number(v || 0) === 1;
 
@@ -71,6 +72,7 @@ function storedOptionLines(db, row) {
       isCustom: true,
       customOptionId: Number(r.id),
       customKey: `custom_${r.id}`,
+      key: extraLineKey({ isCustom: true, title: r.description }),
       title: r.description,
       quantity: 1,
       unitPrice: round2(r.amount),

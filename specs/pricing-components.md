@@ -2268,6 +2268,11 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
     and the dialog draws them offered with no « ✓ Offert ». The 2026-11-11 copy holds no note: no stay moves. Tests
     `sale-paid-line-refunded-not-unoffered` (fiche direct and Booking, line API direct cash / card and Booking card, partial refund, refund
     deleted, not refunded, arrival and departure SAS, the payload), client `PricingSummary.refunded-line`, `ReservationSasDialog.refunded-line`.
+    _Reading of 2026-11-16 (loop t8, UI8-3 / UI8-5):_ the fiche re-reads `refundedLoweredLines` with the rest of its finance — after a refund,
+    after a refund deleted, after a save — not only on a full load: in the canonical flow (offer the paid line → « Enregistrer et rembourser »
+    → refund) the line reads « ✓ Offert · remboursée » at once, and a deleted refund gives the toggle back at once. The fiche matches the list
+    on the key the server serves on the line (rule 114), never on a key it rebuilds from a label. Client `ReservationPage.refunded-line-reread`,
+    `ReservationPage.refunded-line-key`.
 109. **A paid line put back to billed at the arrival SAS comes back the fiche's way** _(stabilisation loop t7, S7-1, 2026-11-16; completes rules
     23, 104, 105, 107; sas-offer-complement-lines §4.3)_. The arrival SAS rewrites its lines and lets the engine restate the arrival complement
     only: « Offert » unticked on a line the guest paid by a note billed the line again (its note pays it again) but neither closed the
@@ -2309,6 +2314,25 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
     caisse-interne refund on the trop-perçu settled (the `lineLowered` rows settled by a refund of method `internal`). The avoir thus covers only
     booked money (cash 30 + card 30 offered: one avoir of 30 on 70600010, not 60). The operator can still change the amount and the means. Tests
     `refund-mixed-cash-card-note`, client `RefundDialog.cash-part`.
+    _Reading of 2026-11-16 (loop t8, UI8-4):_ the announcement holds only while the means is « Caisse interne »: another means takes it away
+    (it would say the cash goes back to the till when it does not), coming back to « Caisse interne » shows it again. Client
+    `RefundDialog.cash-part-means`.
+113. **« Enregistrer et rembourser » opens the refund dialog on the ledger row's split** _(stabilisation loop t8, UI8-1 / UI8-2, 2026-11-16;
+    completes rules 104, 111, 112, reservation-refunds rule 34)_. The 409 `OVERPAID` a save answers carries what the ledger's « Trop-perçu »
+    row serves once the save is confirmed (`refundPrefill`): `overpaymentLines` by poste, `overpaymentMethod`, and `overpaymentCash` when cash
+    notes took only part of it. On a platform stay the refusal comes from the paid-line judgment (rule 105: the trop-perçu formula does not see
+    note money); its body is now built by `overpaymentResultOf` from the stay the write left (`judgedOverpaymentOf`), instead of an empty split
+    that made the dialog fall back on « Hébergement » (Booking, a card note line offered in the fiche: avoir 27,27 on 70600000 while the note
+    booked 70600010; cash + card: 54,55 on 70600000 and −60 € booked). The client hands `overpaymentCash` to the dialog as the ledger row does
+    (`cashPart`), so the dialog opens « Caisse interne » on the cash part and announces the rest (before, 60 € « Virement »: an avoir of 54,55
+    for 27,27 of booked money). A cash-only trop-perçu still defaults to the caisse interne (rule 106 b). Replayed as the dialog posts it: one
+    avoir on 70600010, on the booked money only, direct and Booking, card and cash + card. The 2026-11-11 copy holds no note: no stay moves.
+    Test `fiche-save-overpaid-refund-split`, client `ReservationPage.overpaid-cash-part`.
+114. **A custom line carries the server's key** _(stabilisation loop t8, UI8-5, 2026-11-16; completes rules 85, 108)_. The engine's custom
+    lines (`steps/extras`) and the stored summary's (`storedSummary`) carry `key`, the server's own key of the line (`extraLineKey`:
+    `custom:<normalised label>`), the same the notes, the allocations and `refundedLoweredLines` name it by. The fiche compares that key; it never
+    copies the label normalisation (which had already drifted: description before title). Option and resource lines keep their `opt:` / `res:` /
+    `lineKey` keys. No figure moves. Test `custom-line-server-key`, client `ReservationPage.refunded-line-key`.
 
 ## 4. Architecture
 
@@ -2421,7 +2445,7 @@ _Rewritten 2026-11-15 (stabilisation loop t1, UI-3) to the files PR B and PR C s
 | DELETE | `/api/reservations/:id/extras/:ref` | — (same `ref`) | `{ saleDetail }` | an unpaid line taken off the stay through the fiche's save; 409 `LINE_PAID`, 409 `ARRIVAL_EXTRAS_FROZEN`; journaled `lineRemoved` (pass 3g) |
 | GET | `/api/reservations/:id/sale-detail` | — | `saleDetail` | also embedded in `GET /sas` and the fiche payload |
 | PUT | `/api/reservations/:id` (existing) | `discountTarget` added (`nights` default); `discountAmountCents` (positive integer, else none; absent keeps the stored one) | unchanged | rule 16 |
-| GET / PUT | `/api/reservations/:id` (existing) | — | GET adds `refundedLoweredLines: [{ key, table, lineId }]` | rule 108: PUT answers 409 `LINE_REFUNDED` on a line that list names; the SAS recap lines add `offerLocked` |
+| GET / PUT | `/api/reservations/:id` (existing) | — | GET adds `refundedLoweredLines: [{ key, table, lineId }]` | rule 108: PUT answers 409 `LINE_REFUNDED` on a line that list names; the SAS recap lines add `offerLocked`. Rule 113: PUT's 409 `OVERPAID` carries `overpaymentLines`, `overpaymentMethod` and `overpaymentCash` (the ledger row's `refundPrefill`), the paid-line judgment's too. Rule 114: the quote's and the stored summary's custom lines carry `key` |
 | guest-app | `/public/v1/stay/…/orders` (existing) | unchanged shape | unchanged shape | implementation moves to `extraSale` (PR C) |
 | POST | `/api/standalone-sales/quote` | `{ requests[], payment }` | `{ lines[], vatByRate[], totalCents, refusals[] }` | `externalSale` pipeline, no write (PR C) |
 | POST | `/api/standalone-sales` | same + `acceptedTotalCents`, `customer?:{name, email}` | `{ sale, paymentLink? }` | records `standalone_sales` (PR C) |
@@ -2656,6 +2680,8 @@ _Rewritten 2026-11-15 (stabilisation loop t1, UI-3) to what shipped._
 - [x] `sale-note-credit-after-refund` — rule 110 (loop t7, B7-1): `lessRefundedCredit`; offered, refunded, then a 20 € line sold unpaid → asked in full at the departure, direct and Booking × card and cash; the refund deleted reopens the obligation, Σ still balanced (6)
 - [x] `refund-note-overpayment-poste` — rule 111 (loop t7, B7-2): a card note line offered → `postesLeft` options 30, prefill « Prestations complémentaires », avoir on 70600010, direct and Booking; a line still charged leaves nothing (3)
 - [x] `refund-mixed-cash-card-note` — rule 112 (loop t7, B7-3): `cashPartOf`; cash 30 + card 30 offered → 30 « Caisse interne » proposed, then 30 by the booked means, one booked avoir of 30, direct and Booking (3)
+- [x] `fiche-save-overpaid-refund-split` — rule 113 (loop t8, UI8-1, UI8-2): a note line offered in the fiche, direct and Booking → the 409 splits on « Prestations complémentaires », carries the ledger row's cash part, a cash-only one defaults to the caisse interne; the dialog replayed on it books one avoir on 70600010, −30 € booked, card and cash + card (10)
+- [x] `custom-line-server-key` — rule 114 (loop t8, UI8-5): the engine's and the stored summary's custom line carry `key` = `extraLineKey` (2)
 - [x] `stay-note-refund-money-conservation` — rules 104, 106-112 (loop t7): random sequences of notes by card / cash, unpaid sales, offers, refunds as proposed, refunds deleted; after every step Σ buckets + notes − owed − refunded = total, booked avoirs ≤ booked note money, no note money refunded on the accommodation (6 seeds × 12 steps)
 
 ### Client Vitest suites (named 2026-11-16, stabilisation loop t2 P2-2)
@@ -2666,6 +2692,9 @@ _Rewritten 2026-11-15 (stabilisation loop t1, UI-3) to what shipped._
 - [x] `StaySalesSection.accessibility` — rules 31, 32: the SAS sections' accessible names and targets
 - [x] `PricingSummary.refunded-line`, `ReservationSasDialog.refunded-line` — rule 108 (loop t7, D7-1): a refunded offered line reads offered with no toggle, the other offered line keeps « ✓ Offert » (2 + 1)
 - [x] `RefundDialog.cash-part` — rule 112 (loop t7, B7-3): the cash part opens « Caisse interne » with its lines and announces the rest; without it, the whole trop-perçu by transfer (2)
+- [x] `RefundDialog.cash-part-means` — rule 112 reading (loop t8, UI8-4): another means takes the cash announcement away, « Caisse interne » shows it again (1)
+- [x] `ReservationPage.overpaid-cash-part` — rule 113 (loop t8, UI8-1): the save's 409 `overpaymentCash` opens the dialog « Caisse interne » on 30 with the announcement, and posts it (1)
+- [x] `ReservationPage.refunded-line-reread`, `ReservationPage.refunded-line-key` — rules 108, 114 (loop t8, UI8-3, UI8-5): the refund locks the line at once, its deletion gives the toggle back; the line is matched on the served key only (1 + 2)
 - [x] `SaleDetailList.credit`, `StaySalesSection.credit` — rules 104 e, 106 c (loop t6, UI6-1 to UI6-3): the credit line read-only in the fiche's panel, « Reste à payer » the served figure; no « Offrir » on the departure credit
 - [x] `ReservationSasDialog.arrival-seed` — rule 107 c (loop t6, S6-3): the dialog seeds the offered lines from `arrivalSeed.offeredKeys` (2)
 - [x] `ReservationSasDialog.paid-line-offer` — rule 107 d (loop t6 S6-4, loop t7 UI7-2, UI7-3): arrival and departure, the 409 asks, confirmed commits again with `forceOverpayment`, « Garder » bills the named line again and commits nothing (4)
