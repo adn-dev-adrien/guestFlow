@@ -1,0 +1,1 @@
+- `refund_obligations.noteCents` (INTEGER NOT NULL DEFAULT 0): the part of a settled `lineLowered` row that gave back note money (pricing-components rule 113, loop t8 B8-2). Added once; rows already settled when the column appears are stamped whole (`noteCents = amountCents`), the reading they had, so no figure moves. A reopened row is reset to 0. Ignored by the previous release.

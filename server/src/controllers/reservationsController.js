@@ -618,7 +618,12 @@ function overpaymentResultOf(reservationId, row, quote, overpaymentTtc, { stored
 // quote being the stay as a save would store it. A stored stay is read against its own lines only: today's engine may price a
 // line differently without any edit, which is no excess.
 function leftOfStayOf(reservationId, row, quote, { storedOnly = false } = {}) {
-  return postesLeft(db, reservationId, { scope: 'schedule', quote: storedOnly ? null : quote });
+  const left = postesLeft(db, reservationId, { scope: 'schedule', quote: storedOnly ? null : quote });
+  // Loop t8 B8-5 — a platform stay's collected arrival complement is the establishment's money (`platformComplementClaims`): a line it
+  // collected and that now charges less leaves that money on the line's poste, so its refund reverses the account the complement booked.
+  if (!paidLineJudgment.platformComplementClaims(row)) return left;
+  const complement = postesLeft(db, reservationId, { scope: 'complement', quote: storedOnly ? null : quote });
+  return Object.fromEntries(Object.entries(left).map(([poste, euros]) => [poste, round2(euros + Number(complement[poste] || 0))]));
 }
 
 // Rule 23 — what the operator confirmed owing back when a paid line went down is held in the register of obligations, at the

@@ -14,6 +14,8 @@
  *   settleLoweredBy(reservationId, refundId, cents, { lineRef }) / reopenSettledBy(reservationId, refundId)   a refund on the trop-perçu settles the `lineLowered` rows; deleted, it reopens them
  *                             (`lineRef`: the line key a refund on a line gave the money back on — stamped on the settled rows, loop t7 D7-2)
  *   settledLoweredOn(reservationId, lineRef) → Σ cents of the `lineLowered` rows settled by refunds given back on that line key
+ *   settleLoweredBy(…, { noteCents }) stamps on the rows it settles how much of the money given back was NOTE money (`noteCents`, oldest
+ *                             first): a lowered row also holds the stay's trop-perçu (solde, acompte…), which is no note credit (loop t8 B8-2)
  */
 const ORIGINS = ['basket', 'duplicatePayment', 'withdrawnLink', 'lineLowered', 'orderConflict', 'neverBooked'];
 const CLOSED = ['settled', 'cancelled'];
@@ -65,24 +67,34 @@ function buildModel(database) {
   // Loop t1 B-5 — a refund deleted gives back what it settled: the rows it closed are open again.
   function reopenSettledBy(reservationId, refundId) {
     if (!ready()) return 0;
-    return database.prepare(`UPDATE refund_obligations SET status = 'open', settledAt = NULL, settledBy = NULL
+    return database.prepare(`UPDATE refund_obligations SET status = 'open', settledAt = NULL, settledBy = NULL, noteCents = 0
       WHERE reservationId = ? AND status = 'settled' AND settledBy = ?`).run(Number(reservationId), `refund:${Number(refundId)}`).changes;
   }
 
-  function settleLoweredBy(reservationId, refundId, cents, { lineRef = null } = {}) {
+  function settleLoweredBy(reservationId, refundId, cents, { lineRef = null, noteCents = 0 } = {}) {
     if (!ready()) return;
     let left = cents;
+    let note = Math.max(0, Math.min(cents, Math.round(Number(noteCents) || 0)));
+    const stamp = (rowId, amountCents) => {
+      const part = Math.min(note, amountCents);
+      database.prepare('UPDATE refund_obligations SET noteCents = ? WHERE id = ?').run(part, rowId);
+      note -= part;
+    };
     for (const row of database.prepare("SELECT * FROM refund_obligations WHERE reservationId = ? AND origin = 'lineLowered' AND status = 'open' ORDER BY id").all(Number(reservationId))) {
       if (left <= 0) break;
       if (row.amountCents <= left) {
         if (lineRef) database.prepare('UPDATE refund_obligations SET lineRef = ? WHERE id = ?').run(lineRef, row.id);
         close(row.id, { status: 'settled', by: `refund:${refundId}` });
+        stamp(row.id, row.amountCents);
         left -= row.amountCents;
       } else {
         // The part given back is a settled row of its own, so a deleted refund can give it back (loop t1 B-5).
         database.prepare('UPDATE refund_obligations SET amountCents = ? WHERE id = ?').run(row.amountCents - left, row.id);
         const part = open({ reservationId: row.reservationId, origin: 'lineLowered', lineRef: lineRef || row.lineRef, amountCents: left, reason: row.reason });
-        if (part) close(part.id, { status: 'settled', by: `refund:${refundId}` });
+        if (part) {
+          close(part.id, { status: 'settled', by: `refund:${refundId}` });
+          stamp(part.id, left);
+        }
         left = 0;
       }
     }

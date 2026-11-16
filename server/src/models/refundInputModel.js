@@ -86,18 +86,21 @@ function lineAllocationsContext(db, reservationId) {
   return { allocations, stayLineRefs };
 }
 
-// The stored lines of a stay with the ref a payment allocation names them by (rule 74).
+// The stored lines of a stay with the ref a payment allocation names them by (rule 74). `totalPrice` is what the line charges: its stored
+// amount less its own discount (rule 39 — loop t8 B8-1: a discounted note line leaves its money on its own poste, as an offered one does).
 function storedLinesOf(db, reservationId) {
   const read = (table, sql, make) => (hasTable(db, table) ? db.prepare(sql).all(reservationId).map(make) : []);
+  const discount = (table) => (hasTable(db, table) && db.prepare(`PRAGMA table_info(${table})`).all().some((c) => c.name === 'discountCents') ? ', discountCents' : '');
+  const net = (amount, r) => Math.max(0, toCents(amount) - Math.max(0, Number(r.discountCents || 0))) / 100;
   // Rule 85: an article's first line keeps `opt:<id>` / `res:<id>`, a later sale is named by its ref.
   const keyed = (table, rows, make) => keyLines(table, rows).map(({ row, key }) => make(row, key));
   return [
-    ...keyed('reservation_options', read('reservation_options', 'SELECT lineId, optionId, totalPrice, offered FROM reservation_options WHERE reservationId = ?', (r) => r),
-      (r, key) => ({ ref: lineRef('reservation_options', r.lineId), key, poste: 'options', totalPrice: r.totalPrice, offered: r.offered })),
-    ...keyed('reservation_resources', read('reservation_resources', 'SELECT lineId, resourceId, totalPrice, offered FROM reservation_resources WHERE reservationId = ?', (r) => r),
-      (r, key) => ({ ref: lineRef('reservation_resources', r.lineId), key, poste: 'resources', totalPrice: r.totalPrice, offered: r.offered })),
-    ...read('reservation_custom_options', `SELECT lineId, description, amount, offered FROM reservation_custom_options WHERE reservationId = ?${notDepartureCharge(db)}`,
-      (r) => ({ ref: `line:reservation_custom_options:${r.lineId}`, key: extraLineKey({ isCustom: true, description: r.description }), poste: 'options', totalPrice: r.amount, offered: r.offered })),
+    ...keyed('reservation_options', read('reservation_options', `SELECT lineId, optionId, totalPrice, offered${discount('reservation_options')} FROM reservation_options WHERE reservationId = ?`, (r) => r),
+      (r, key) => ({ ref: lineRef('reservation_options', r.lineId), key, poste: 'options', totalPrice: net(r.totalPrice, r), offered: r.offered })),
+    ...keyed('reservation_resources', read('reservation_resources', `SELECT lineId, resourceId, totalPrice, offered${discount('reservation_resources')} FROM reservation_resources WHERE reservationId = ?`, (r) => r),
+      (r, key) => ({ ref: lineRef('reservation_resources', r.lineId), key, poste: 'resources', totalPrice: net(r.totalPrice, r), offered: r.offered })),
+    ...read('reservation_custom_options', `SELECT lineId, description, amount, offered${discount('reservation_custom_options')} FROM reservation_custom_options WHERE reservationId = ?${notDepartureCharge(db)}`,
+      (r) => ({ ref: `line:reservation_custom_options:${r.lineId}`, key: extraLineKey({ isCustom: true, description: r.description }), poste: 'options', totalPrice: net(r.amount, r), offered: r.offered })),
   ];
 }
 
