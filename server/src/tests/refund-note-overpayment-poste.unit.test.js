@@ -12,8 +12,10 @@ const ctrl = require('../controllers/reservationsController');
 const refunds = require('../controllers/refundsController');
 const { storedBody } = require('../utils/stayOrderLines');
 const { postesLeft } = require('../models/refundInputModel');
-const { create: createAccountingModel } = require('../plugins/accounting-export/accountingModel');
-const { create: createAccountingController } = require('../plugins/accounting-export/controller');
+const { optionalPlugin, skipWithout } = require('../plugins/sdk/testing');
+const { create: createAccountingModel } = optionalPlugin(() => require('../plugins/accounting-export/accountingModel'));
+const { create: createAccountingController } = optionalPlugin(() => require('../plugins/accounting-export/controller'));
+const BOOKS = { skip: skipWithout(['accounting-export']) };
 
 const respond = () => ({ statusCode: 200, body: null, status(s) { this.statusCode = s; return this; }, json(b) { this.body = b; return this; } });
 const call = (handler, params, body) => { const res = respond(); handler({ params, body, query: {}, user: { id: 1, role: 'admin' } }, res); return res; };
@@ -31,7 +33,7 @@ function journal(id) {
 }
 
 for (const platform of ['direct', 'Booking']) {
-  test(`B7-2 — ${platform}: a card note line offered — the trop-perçu reads « Prestations complémentaires » and its avoir books 70600010`, () => {
+  test(`B7-2 — ${platform}: a card note line offered — the trop-perçu reads « Prestations complémentaires » and its avoir books 70600010`, BOOKS, () => {
     const id = stay(20);
     db.prepare('UPDATE reservations SET platform = ? WHERE id = ?').run(platform, id);
     ctrl.performUpdate(id, { ...storedBody(id), restatePricing: true });
