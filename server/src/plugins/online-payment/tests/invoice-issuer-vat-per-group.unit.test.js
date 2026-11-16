@@ -1,6 +1,7 @@
 // specs/outside-booking-sas.md rule 56 (e) (stabilisation loop t4 B4-4) and specs/pricing-components.md rule 62 — Qonto computes the VAT line by line; a sale
 // document's items name their (class, rate) group, and the issuer sends each group's items so that Qonto's VAT for the group is the VAT the journal cuts ONCE
-// on the group's TTC (`groupVatCents`), the TTC unchanged. Items that name no group (a stay, a booking paid on its own) are sent exactly as before.
+// on the group's TTC (`groupVatCents`), the TTC unchanged. Items that name no group (a stay) are sent exactly as before; a booking's names the `booking:`
+// group since loop t5 (rule 57 b, `booking-invoice-vat-booking-journal`).
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { wireItems, foldedItems, ttcOf } = require('../invoiceIssuer');

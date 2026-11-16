@@ -8,8 +8,9 @@
  * is not revenue. The VAT of a (class, rate) group is the VAT component's, cut on the group's cumulative booked TTC and differenced with what the
  * earlier days booked, so a document paid in pieces books exactly the VAT of its whole. Pure: no DB, no clock.
  *
- * `payments[i]` = `{ id, paidAt, tenders: [{ method, amountCents, internal }], allocations: [{ lineRef, amountCents, books }] }` in the order they were taken,
- * `lines[i]` = `{ ref, vatClass, vatRate }`.
+ * `payments[i]` = `{ id, paidAt, tenders: [{ method, amountCents, internal }], allocations: [{ id, lineRef, amountCents, books }] }` in the order they were taken,
+ * `lines[i]` = `{ ref, vatClass, vatRate }`. Loop t5 B5-1 (outside-visit rule 57 a): an allocation's `id` (a refund, kept or transfer row's `seq`) is the
+ * order the money was written in, which the VAT is cut in; rows without one keep the days' order.
  *
  * Loop t1 B-1 (outside-visit rule 49): `refunds[i]` = `{ lineRef, amountCents, books, at }` (the money a « Marquer remboursé » gave back, positive) → one
  * avoir per refund day (`role: 'refund'`, key `…:<day>:refund`), its groups the TTC and VAT that leave the books, the VAT cut on the cumulative TTC like a payment's.
@@ -27,50 +28,77 @@ function salesOfDocument({
   sale, lines, payments, refunds = [], transfers = [], kept = [], client,
 }) {
   const lineOf = new Map(lines.map((line) => [line.ref, line]));
-  const cumulative = new Map();
+  // Every movement of money on the lines, with the entry it books in (`day`, `role`) and the order it was written in (`seq`, its first allocation's id).
+  const moves = [];
+  const move = (day, role, rows) => {
+    const groups = new Map();
+    for (const row of rows) addTo(groups, lineOf.get(row.lineRef), row);
+    const seqs = rows.map((row) => Number(row.seq ?? row.id)).filter(Number.isFinite);
+    if (groups.size) moves.push({ day, role, seq: seqs.length ? Math.min(...seqs) : 0, groups });
+  };
   const byDay = new Map();
-  for (const payment of [...payments].sort((a, b) => String(a.paidAt).localeCompare(String(b.paidAt)) || a.id - b.id)) {
-    const day = byDay.get(payment.paidAt) || {
-      groups: new Map(), receivedCents: 0, cardCents: 0,
-    };
-    byDay.set(payment.paidAt, day);
+  const dayOf = (at) => {
+    const day = byDay.get(at) || { receivedCents: 0, cardCents: 0 };
+    byDay.set(at, day);
+    return day;
+  };
+  for (const payment of payments) {
+    const day = dayOf(payment.paidAt);
     day.receivedCents += payment.tenders.reduce((sum, tender) => sum + Number(tender.amountCents || 0), 0);
     day.cardCents += payment.tenders.filter((tender) => tender.method === 'card').reduce((sum, tender) => sum + Number(tender.amountCents || 0), 0);
-    for (const allocation of payment.allocations) addTo(day.groups, lineOf.get(allocation.lineRef), allocation);
+    move(payment.paidAt, 'sale', payment.allocations);
   }
   // Rule 48 — the money given back, per day, on the lines it left (the caisse interne and what no line held stay off the books).
-  const refundDays = new Map();
+  const refundDays = new Set();
   const leave = (row) => {
-    const groups = refundDays.get(row.at) || new Map();
-    refundDays.set(row.at, groups);
-    addTo(groups, lineOf.get(row.lineRef), row);
+    refundDays.add(row.at);
+    move(row.at, 'refund', [row]);
   };
   for (const refund of refunds) leave(refund);
   for (const row of kept) for (const leg of row.rows || []) leave(leg);
   for (const row of transfers) {
     if (Number(row.amountCents) < 0) { leave(row); continue; }
-    const day = byDay.get(row.at) || { groups: new Map(), receivedCents: 0, cardCents: 0 };
-    byDay.set(row.at, day);
-    addTo(day.groups, lineOf.get(row.lineRef), row);
+    dayOf(row.at);
+    move(row.at, 'sale', [row]);
   }
   const invoiceNumber = sale.invoiceNumber && !sale.invoiceCancelledAt ? sale.invoiceNumber : null;
-  // The VAT of a group is cut on its cumulative TTC, oldest day first and, on one day, the payments before the money given back.
-  const cut = (groups, sign) => {
-    const out = [];
+  // The VAT of a group is cut on its cumulative TTC in the order the money was WRITTEN (loop t5 B5-1, the stay's rule 99: a cut is frozen when it is
+  // taken): each movement takes the cut its group had left when it was recorded, so a payment recorded today and dated before an earlier payment day
+  // books its own day and never re-cuts an entry written before it — a month already exported does not move. Rows with no order (a caller that
+  // hands none) keep the days' order.
+  const RANK = { sale: 0, refund: 1 };
+  const cumulative = new Map();
+  const entries = new Map();
+  const entryOf = (day, role) => {
+    const key = `${day}|${role}`;
+    const entry = entries.get(key) || new Map();
+    entries.set(key, entry);
+    return entry;
+  };
+  const ordered = [...moves].sort((a, b) => a.seq - b.seq || String(a.day).localeCompare(String(b.day)) || RANK[a.role] - RANK[b.role]);
+  for (const { day, role, groups } of ordered) {
+    const sign = role === 'refund' ? -1 : 1;
+    const entry = entryOf(day, role);
     for (const [key, group] of groups) {
       const before = cumulative.get(key) || { ttcCents: 0, vatCents: 0 };
       const ttcCents = before.ttcCents + sign * group.ttcCents;
       const vatCents = vatCentsOf(ttcCents, group.rate);
-      out.push({ vatClass: group.vatClass, rate: group.rate, ttcCents: group.ttcCents, vatCents: sign * (vatCents - before.vatCents) });
       cumulative.set(key, { ttcCents, vatCents });
+      const booked = entry.get(key) || {
+        vatClass: group.vatClass, rate: group.rate, ttcCents: 0, vatCents: 0,
+      };
+      booked.ttcCents += group.ttcCents;
+      booked.vatCents += sign * (vatCents - before.vatCents);
+      entry.set(key, booked);
     }
-    return out.sort((a, b) => a.rate - b.rate || String(a.vatClass).localeCompare(String(b.vatClass)));
-  };
+  }
+  const groupsOf = (day, role) => [...(entries.get(`${day}|${role}`) || new Map()).values()]
+    .sort((a, b) => a.rate - b.rate || String(a.vatClass).localeCompare(String(b.vatClass)));
   const out = [];
-  for (const day of [...new Set([...byDay.keys(), ...refundDays.keys()])].sort()) {
+  for (const day of [...new Set([...byDay.keys(), ...refundDays])].sort()) {
     const data = byDay.get(day);
     if (data) {
-      const groups = cut(data.groups, 1);
+      const groups = groupsOf(day, 'sale');
       out.push({
         key: `standalone:${sale.id}:${day}`,
         date: day,
@@ -85,8 +113,8 @@ function salesOfDocument({
       });
     }
     // Loop t3 B3-1, B3-2 (rule 55) — money that leaves no line (a link surplus given back, or filed on a line) puts nothing in the day's avoir.
-    if (refundDays.has(day) && refundDays.get(day).size) {
-      const groups = cut(refundDays.get(day), -1);
+    const groups = groupsOf(day, 'refund');
+    if (groups.length) {
       out.push({
         key: `standalone:${sale.id}:${day}:refund`,
         date: day,

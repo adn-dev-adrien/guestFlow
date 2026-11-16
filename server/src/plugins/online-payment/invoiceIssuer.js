@@ -46,12 +46,22 @@ function uuidKey(...parts) {
 // line whose TTC falls between two roundings) gets a « Arrondi de TVA » line of a cent or two; when even that cannot
 // reach it, `null`: the caller refuses before Qonto numbers anything. The money guard of `createClientInvoice` still
 // checks Qonto's own figure.
-const { netFirstCents, ttcFromNetCents: ttcOf, vatOf } = sdk.coreModule('vat');
+const {
+  netFirstCents, ttcFromNetCents: ttcOf, vatOf, netFirst,
+} = sdk.coreModule('vat');
 // Rule 62 — the VAT of one (class, rate) group, cut once by the VAT component on the group's TTC: the core's `groupVatCents`, read through `vatOf`
 // (SDK 2.29) so the plugin keeps its SDK floor.
 const groupVatCents = (ttcCents, rate) => (ttcCents > 0
   ? vatOf([{ amountCents: ttcCents, vatClass: 'external', customerContext: 'external' }], { regime: null, settings: { get: () => rate } }).totals.vatCents
   : 0);
+// Loop t5 B5-2 — a group whose key starts with `booking:` is a session the hourly booking journals itself: ONE line whose HT is the net of its TTC
+// (`legacyBucketSplit.netOfTtc`, net first, in euros) and whose VAT is what is left. Its items reach that cut, so the invoice states the booking
+// journal's VAT (20 € − 15 € « 1 h offerte » at 10 % → 0,45, where one cut on the TTC by `groupVatCents` and Qonto's per-line VAT gave 0,46 before).
+const BOOKING_GROUP = 'booking:';
+const bookingVatCents = (ttcCents, rate) => (ttcCents > 0 && Number(rate) > 0
+  ? ttcCents - Math.round(netFirst(ttcCents / 100, Number(rate)).net * 100)
+  : 0);
+const groupCutCents = (group, ttcCents, rate) => (String(group).startsWith(BOOKING_GROUP) ? bookingVatCents(ttcCents, rate) : groupVatCents(ttcCents, rate));
 const NUDGE = [0, -1, 1, -2, 2, -3, 3];
 const ROUNDING_TITLE = 'Arrondi de TVA';
 
@@ -91,9 +101,10 @@ function solveGroup(lines, { htCents, ttcCents }, { width = 0 } = {}) {
   let states = new Map([['0|0', {
     ht: 0, ttc: 0, cost: 0, chosen: [],
   }]]);
-  const nudges = width ? Array.from({ length: 2 * width + 1 }, (_, i) => i - width) : NUDGE;
+  const wide = width ? Array.from({ length: 2 * width + 1 }, (_, i) => i - width) : NUDGE;
   lines.forEach((line) => {
     const base = netFirstCents(line.amountCents, line.vatRate);
+    const nudges = line.rounding ? NUDGE : wide;
     const next = new Map();
     for (const state of states.values()) {
       for (const d of nudges) {
@@ -113,18 +124,26 @@ function solveGroup(lines, { htCents, ttcCents }, { width = 0 } = {}) {
     states = next;
   });
   const found = states.get(`${htCents}|${ttcCents}`);
-  return found ? lines.map((line, i) => ({ ...line, amountCents: found.chosen[i] })) : null;
+  return found ? lines.map(({ rounding, ...line }, i) => ({ ...line, amountCents: found.chosen[i] })) : null;
 }
 
-// The lines of a group within three cents; else moved further, the least TTC moved winning; else an « Arrondi de TVA » line of a cent or two at the
-// group's rate.
+// The lines of a group within three cents; else moved further, the least TTC moved winning; else an « Arrondi de TVA » line at the group's rate: a
+// cent or two with the lines within three cents, then with the lines moved further, then a rounding line as wide as the lines. Loop t5 B5-3 — a
+// discount folded into one line (Q3, no negative line) may leave a group whose cut no single line carries: 14,00 € − 11,69 € at 20 % needs the line
+// moved further AND a rounding line (1,89 + 0,03 HT); 5,50 € − 1,95 € at 5,5 % needs a rounding line that carries a cent of VAT (0,10 HT).
 function solveGroupWithRounding(lines, target, { noNegative }) {
   const rate = lines[0].vatRate;
-  const solved = solveGroup(lines, target) || solveGroup(lines, target, { width: Math.ceil(100 / Math.max(Number(rate) || 0, 1)) + 1 });
+  const wide = { width: Math.ceil(100 / Math.max(Number(rate) || 0, 1)) + 1 };
+  const solved = solveGroup(lines, target) || solveGroup(lines, target, wide);
   if (solved) return solved;
-  for (const cent of noNegative ? [1, 2] : [1, -1, 2, -2]) {
-    const withRounding = solveGroup([...lines, { title: ROUNDING_TITLE, amountCents: ttcOf(cent, rate), vatRate: rate }], target);
-    if (withRounding) return withRounding;
+  const cents = noNegative ? [1, 2] : [1, -1, 2, -2];
+  for (const [options, pinned] of [[{}, true], [wide, true], [wide, false]]) {
+    for (const cent of cents) {
+      const withRounding = solveGroup([...lines, {
+        title: ROUNDING_TITLE, amountCents: ttcOf(cent, rate), vatRate: rate, rounding: pinned,
+      }], target, options);
+      if (withRounding) return withRounding;
+    }
   }
   return null;
 }
@@ -139,9 +158,9 @@ function toExcludingVatByGroup(lines, { noNegative }) {
     groups.set(line.vatGroup, group);
   });
   const out = [];
-  for (const members of groups.values()) {
+  for (const [group, members] of groups) {
     const ttcCents = members.reduce((sum, { line }) => sum + line.amountCents, 0);
-    const target = { ttcCents, htCents: ttcCents - groupVatCents(ttcCents, members[0].line.vatRate) };
+    const target = { ttcCents, htCents: ttcCents - groupCutCents(group, ttcCents, members[0].line.vatRate) };
     const solved = solveGroupWithRounding(members.map(({ line }) => line), target, { noNegative });
     if (!solved) return null;
     solved.forEach((line, i) => out.push({ at: i < members.length ? members[i].index : members[members.length - 1].index + 0.5, line }));

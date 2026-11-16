@@ -47,7 +47,10 @@ test('rule 14 — one item per money line, the deductions as one discount, the t
   assert.equal(out.ok, true);
   const [, request] = issuer.calls.find((c) => c[0] === 'issue');
   assert.deepEqual(request.items.map((i) => [i.amountCents, i.vatRate]), [[5000, 20], [7000, 20]]);
-  assert.deepEqual(request.discount, { title: 'Temps offert', amountCents: 2500, vatRate: 20 });
+  // Loop t5 B5-2 — the items and the discount name the booking's group: the issuer sends them with the booking journal's VAT.
+  assert.deepEqual(request.discount, {
+    title: 'Temps offert', amountCents: 2500, vatRate: 20, vatGroup: 'booking:session|20',
+  });
   assert.equal(request.expectedTotalCents, 9500);
   assert.equal(request.issueDate, `${Y}-11-09`);
   assert.deepEqual(request.client, { firstName: 'Claire', lastName: 'Martin', clientId: null, street: '3 rue des Lilas', postcode: '07000', city: 'Privas', countryCode: 'FR' });
