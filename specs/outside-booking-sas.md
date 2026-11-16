@@ -802,7 +802,7 @@ number; `prefers-reduced-motion` → no movement.
 - [x] (loop t1, rule 48) `plugins/hourly-resources/__tests__/ResourceBookingDialog.no-show.test.jsx` (rewritten on `actions.noShow`, 4), `ResourceArrivalDialog.invoiceable.test.jsx` (3), `ResourceArrivalDialog.vat-rate.test.jsx` (2), `ResourceArrivalDialog.new-sale.test.jsx` (2); `components/__tests__/SalePaymentLink.expires-label.test.jsx` (3), `StandaloneSalesTodayCard.owed-day.test.jsx` (2), `ExternalSaleFields.server-labels.test.jsx` (2)
 
 ### E2E
-- [x] `e2e/specs/planning/outside-visit.spec.js` — book a walk-in session, open « Arrivée » on its day, add 2 drinks, offer 1, partial card payment with reste, card shows « Reste », reopen, pay the reste, invoice offered; _(the link part is not run: the E2E database never connects a provider; the spec asserts the block absent. A second E2E, `finance/standalone-sale.spec.js`, covers the counter dialog.)_
+- [x] `e2e/specs/planning/outside-visit.spec.js` — book a walk-in session, open « Arrivée » on its day, add 2 drinks, offer 1, partial card payment with reste, card shows « Reste », reopen, pay the reste; with Qonto not connected no invoice reason nor « Créer la facture dans Qonto » is shown (rules 51 b, 54; loop t2); _(the link part is not run: the E2E database never connects a provider; the spec asserts the block absent. A second E2E, `finance/standalone-sale.spec.js`, covers the counter dialog.)_
 
 - [x] (C38) `e2e/specs/finance/standalone-sale.spec.js` — the counter dialog at 1280 and 390 px: quantity bound, invalid e-mail, partial card payment, « Nouvelle vente », the day's list; `e2e/specs/settings/suggested-articles.spec.js` — rule 37: add, reorder, save, the server's order
 

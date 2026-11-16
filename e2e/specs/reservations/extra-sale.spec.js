@@ -37,14 +37,16 @@ for (const [name, size] of [['mobile', { width: 390, height: 844 }], ['desktop',
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
     await page.screenshot({ path: testInfo.outputPath(`extra-sale-${name}.png`) });
 
-    // Rule 100 — a typed note holds the panel's writes; the save keeps the line the sale wrote.
+    // Rule 101 — a typed note holds the panel's writes; the save keeps the line the sale wrote. « Enregistrer » leaves the fiche for its
+    // origin, as every fiche save does: the fiche is opened again to read what was stored.
     await page.getByLabel('Notes').fill(`Note ${name}`);
     await expect(page.getByRole('button', { name: 'Ajouter un produit' })).toHaveAttribute('aria-disabled', 'true');
     await expect(page.getByText('Enregistrer d\'abord les modifications.').first()).toBeVisible();
     await page.getByRole('button', { name: 'Enregistrer', exact: true }).click();
-    await expect(page.getByRole('button', { name: 'Ajouter un produit' })).not.toHaveAttribute('aria-disabled', 'true', { timeout: 10_000 });
-    await page.reload();
+    await page.waitForURL((url) => url.pathname !== `/reservations/${stay.id}`, { timeout: 15_000 });
+    await page.goto(`/reservations/${stay.id}`);
     await expect(page.getByRole('list', { name: 'Détail des ventes' })).toContainText(product, { timeout: 15_000 });
+    await expect(page.getByRole('button', { name: 'Ajouter un produit' })).not.toHaveAttribute('aria-disabled', 'true');
     await expect(page.getByLabel('Notes')).toHaveValue(`Note ${name}`);
   });
 }

@@ -1,7 +1,7 @@
 // @ts-check
 // specs/outside-booking-sas.md §7 — the mini SAS of an outside client, at 1280 and 390 px: a walk-in session booked for today, « Arrivée » from the resource planning, two
-// drinks added from « Proposés à l'arrivée » (one offered), a partial card payment with « Reste à percevoir », the card reading « Reste », the reopened visit paying the reste, the invoice
-// block saying Qonto is not connected. The Qonto link cannot be exercised here (the E2E database never connects a provider): the block must be absent, and nothing is e-mailed.
+// drinks added from « Proposés à l'arrivée » (one offered), a partial card payment with « Reste à percevoir », the card reading « Reste », the reopened visit paying the reste, and no invoice
+// block while Qonto is not connected (rule 51 b: a silent refusal). The Qonto link cannot be exercised here (the E2E database never connects a provider): the block must be absent, and nothing is e-mailed.
 import { test, expect } from '@playwright/test';
 import { createHourlyResource, createCounterArticle } from '../../fixtures/apiSeed';
 
@@ -64,8 +64,9 @@ for (const [label, viewport] of [['desktop', { width: 1280, height: 900 }], ['ph
       await expect(dialog.getByTestId('remaining')).toHaveText(euros(quoted.totals.remainingCents));
       await expect(dialog.getByText(/^dont TVA 20 % : /)).toBeVisible();
 
-      // Qonto is not connected: the payment is taken, the invoice block says so.
-      await expect(dialog.getByText(/Facturation Qonto non connectée/)).toBeVisible();
+      // Qonto is not connected: the payment is taken, and the refusal is silent (rule 51 b) — no reason, no « Créer la facture dans Qonto » (rule 54).
+      await expect(dialog.getByText(/Facturation Qonto non connectée/)).toHaveCount(0);
+      await expect(dialog.getByText('Créer la facture dans Qonto')).toHaveCount(0);
 
       // A card payment of 10 € only: the gap is a « Reste à percevoir », « Geste commercial » is not offered here.
       await dialog.getByRole('textbox', { name: 'Montant CB' }).fill('10');
