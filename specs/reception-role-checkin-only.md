@@ -429,8 +429,19 @@ added, no migration, no backfill.
       cross-side drift guard (server `constants/roles.js` mirrored here): `ROLES` = 3 entries,
       `ROLE_LABELS[reception] === 'Accueil'`, and `canSeeRoute` pins the reception scope to
       `/`, `/planning`, `/account` only.
+- [x] `server/src/plugins/hourly-resources/tests/visit-window-and-roles.unit.test.js` (rule 17,
+      2026-11-13) — the outside visit's mini SAS: the window D 00:00 → D+1 04:00, reception opens and
+      commits inside it then reads only, door money only, a paid line / refund / « Client absent »
+      403 `ADMIN_ONLY`, the plugin's reception routes, the payload's allowed actions (7).
+- [x] `tests/reception-sas-paid-line-refusal.unit.test.js` (rule 18, 2026-11-16) — a reception
+      account's SAS commit offering a paid line answers `{ error, code }` without the amount and
+      writes nothing even forced (`toReceptionSasCommit` drops `forceOverpayment`); the admin's
+      commit names the amount and, forced, opens the obligation (3).
 
 ### Client unit tests (vitest)
+- [x] `plugins/sas/__tests__/ReservationSasDialog.reception-paid-line.test.jsx` (rule 18,
+      2026-11-16) — the refusal reads « Ligne déjà payée : à voir avec l’administrateur. », inline
+      and as a toast, with no confirmation (1).
 - [x] `constants/__tests__/roles.test.js` (extended) — `canSeeRoute` admits reception on
       `/`, `/planning`, `/account` **only**; reception denied `/finance`, `/clients`,
       `/comptabilite`, `/settings`, `/devis`, `/emails`, `/calendar`; admin+reception → admin scope.

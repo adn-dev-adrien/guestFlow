@@ -614,6 +614,22 @@ function overpaymentResultOf(reservationId, row, quote, overpaymentTtc, { stored
   return { overpaymentTtc, overpaymentMethod, overpaymentLines, ...(overpaymentCash ? { overpaymentCash } : {}) };
 }
 
+// Rule 113 (loop t8 UI8-2) — the paid-line judgment's trop-perçu (a platform stay, whose formula does not see note money) with its lines,
+// means and cash part, read from the stay the write left: the same split the ledger row's `refundPrefill` serves once it is confirmed.
+function judgedOverpaymentOf(reservationId, quote, overpaymentTtc) {
+  const row = model.getRow(reservationId);
+  let stored = null;
+  try {
+    stored = quoteStoredReservation(db, row);
+  } catch {
+    stored = null;
+  }
+  const { overpaymentMethod, overpaymentLines, overpaymentCash } = overpaymentResultOf(
+    reservationId, row, stored && !stored.error ? stored : quote, overpaymentTtc, { storedOnly: true },
+  );
+  return { overpaymentMethod, overpaymentLines, ...(overpaymentCash ? { overpaymentCash } : {}) };
+}
+
 // What left the stay since its money was collected, per poste (rule 74): each line against what the payments named on it, the
 // quote being the stay as a save would store it. A stored stay is read against its own lines only: today's engine may price a
 // line differently without any edit, which is no excess.
@@ -2745,10 +2761,10 @@ function applyUpdate(req, res, pastUnlocked, {
     model.syncComplementAllocation(id, { autoAmount: quote.complementAmountAuto });
     syncLoweredObligations(id, quote, { confirmed: confirmedLowering, lineDiscounts: req.body.lineDiscounts });
     const paidLineRefusal = paidLines.finish({ overpaid: Boolean(overpaidRefusal), forced: Boolean(req.body.forceOverpayment), lineDiscounts: req.body.lineDiscounts });
-    // Loop t6 B6-2 (rule 106 b) — freed cash note money is given back from the caisse interne by default; read after the write, as the judgment.
-    if (paidLineRefusal && paidLineRefusal.body && paidLineRefusal.body.code === 'OVERPAID' && !paidLineRefusal.body.overpaymentMethod
-      && cashNoteExcessCents(db, id) >= Math.round(Number(paidLineRefusal.body.overpaymentTtc || 0) * 100)) {
-      paidLineRefusal.body.overpaymentMethod = 'internal';
+    // Loop t6 B6-2 (rule 106 b) / loop t8 UI8-2 (rule 113) — the judgment's trop-perçu is split by poste and means as the ledger row's:
+    // read after the write, from the stay as it now stands, so the refund dialog opens on « Prestations complémentaires » with its cash part.
+    if (paidLineRefusal && paidLineRefusal.body && paidLineRefusal.body.code === 'OVERPAID') {
+      Object.assign(paidLineRefusal.body, judgedOverpaymentOf(id, quote, Number(paidLineRefusal.body.overpaymentTtc || 0)));
     }
     if (paidLineRefusal) throw new CreationRefused(paidLineRefusal);
     if (overpaidRefusal) throw new CreationRefused({ status: 409, body: overpaidRefusal });

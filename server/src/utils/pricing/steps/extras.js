@@ -276,6 +276,8 @@ const step = {
           isCustom: true,
           customOptionId: line?.customOptionId != null ? Number(line.customOptionId) : undefined,
           customKey: line?.customKey || `custom_${index + 1}`,
+          // Loop t8 UI8-5 (rule 108) — the server's own key of the line (`extraLineKey`): the fiche matches `refundedLoweredLines` on it.
+          key: extraLineKey({ isCustom: true, title: description }),
           title: description,
           offered,
           quantity: 1,

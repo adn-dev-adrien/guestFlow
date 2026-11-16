@@ -2832,7 +2832,7 @@ export default function ReservationPage() {
         ledgerEditMarkerRef.current = null;
         // Rule 7 — the stored ledger is what the fiche shows once clean again: re-read it after a save (and the live
         // « Dates prises » marker, specs/payment-link-lifecycle.md rule 48).
-        api.getReservation(reservationId).then((r) => { if (overwritten) loadedUpdatedAtRef.current = r.updatedAt || null; setDatesTaken(r.datesTaken || null); setStoredLedger(r.ledger || null); setStoredHeadline(r.storedHeadline || null); setStoredSummary(r.storedSummary || null); setStoredDepositDisabledLockedReason(r.depositDisabledLockedReason || null); setMidStayNoteLocks(r.midStayNoteLocks || {}); setConvertToDevisLockedReason(r.convertToDevisLockedReason || null); setInstallmentPlan(r.installmentPlan || null); }).catch(() => {});
+        api.getReservation(reservationId).then((r) => { if (overwritten) loadedUpdatedAtRef.current = r.updatedAt || null; setDatesTaken(r.datesTaken || null); setStoredLedger(r.ledger || null); setStoredHeadline(r.storedHeadline || null); setStoredSummary(r.storedSummary || null); setStoredDepositDisabledLockedReason(r.depositDisabledLockedReason || null); setMidStayNoteLocks(r.midStayNoteLocks || {}); setRefundedLoweredKeys(new Set((r.refundedLoweredLines || []).map((line) => line.key))); setConvertToDevisLockedReason(r.convertToDevisLockedReason || null); setInstallmentPlan(r.installmentPlan || null); }).catch(() => {});
         clearTypedCountFlags();
         if (safeAfterSaveAction) {
           safeAfterSaveAction();
@@ -2950,7 +2950,7 @@ export default function ReservationPage() {
         });
         if (!proceed) return false;
         return await handleSaveReservation(
-          safeAfterSaveAction || (() => openOverpaymentRefund(Number(err.overpaymentTtc || 0), err.overpaymentLines, err.overpaymentMethod)),
+          safeAfterSaveAction || (() => openOverpaymentRefund(Number(err.overpaymentTtc || 0), err.overpaymentLines, err.overpaymentMethod, err.overpaymentCash)),
           forceMinNights, forceCapacity, forceChangeover, forceMaxNights, true, forceTypedCounts,
         );
       }
@@ -3109,6 +3109,8 @@ export default function ReservationPage() {
     let res;
     try { res = await api.getReservation(editingReservationId); } catch { return; }
     setStoredLedger(res.ledger || null);
+    // specs/pricing-components.md rule 108 — a refund on the trop-perçu (or its deletion) moves the lines that are no longer put back.
+    setRefundedLoweredKeys(new Set((res.refundedLoweredLines || []).map((line) => line.key)));
     // The sold lines moved with the write (specs/reservation-refunds.md rule 43): the refund dialog reads them.
     setRefundRegister({
       refunds: res.refunds || [],
@@ -3290,9 +3292,14 @@ export default function ReservationPage() {
 
   // specs/reservation-refunds.md rule 34 — after a save confirmed over a trop-perçu: re-read the paid
   // state and open the refund dialog on the amount the server announced.
-  const openOverpaymentRefund = useCallback(async (overpaymentTtc, overpaymentLines, method) => {
+  // specs/pricing-components.md rule 112 — the cash part the server named (`overpaymentCash`) opens the dialog's two steps, as the ledger row does.
+  const openOverpaymentRefund = useCallback(async (overpaymentTtc, overpaymentLines, method, cashPart) => {
     await reloadReservationFinance();
-    if (overpaymentTtc > 0) setRefundDialogOpen({ overpaymentTtc, overpaymentLines: Array.isArray(overpaymentLines) ? overpaymentLines : null, method: method || undefined });
+    if (overpaymentTtc > 0) {
+      setRefundDialogOpen({
+        overpaymentTtc, overpaymentLines: Array.isArray(overpaymentLines) ? overpaymentLines : null, method: method || undefined, ...(cashPart ? { cashPart } : {}),
+      });
+    }
   }, [reloadReservationFinance]);
 
   const createRefund = useCallback(async (payload) => {
@@ -3596,7 +3603,7 @@ export default function ReservationPage() {
   // specs/pricing-components.md rule 108 — the server names the offered paid lines whose money a refund gave back; they are not put back.
   const isRefundedOfferedLine = (kind, line) => {
     if (!refundedLoweredKeys.size) return false;
-    if (kind === 'custom') return refundedLoweredKeys.has(`custom:${String(line.description || line.title || '').trim().toLowerCase().replace(/\s+/g, ' ')}`);
+    if (kind === 'custom') return Boolean(line.key) && refundedLoweredKeys.has(line.key);
     return refundedLoweredKeys.has(kind === 'option' ? optionLineKey(line.optionId, line) : resourceLineKey(line.resourceId, line));
   };
   const isFrozenArrivalLine = (kind, line) => {
