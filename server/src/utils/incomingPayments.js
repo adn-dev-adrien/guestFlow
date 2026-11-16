@@ -5,9 +5,11 @@
  * Pure: normalised items × the stays they belong to → the payload of the page, the tile and the detail table. Every
  * date, state, label and total is decided here; the client draws them (rule 26).
  *
- * Item: `{ key, kind, kindLabel, icon, natureLabel, natureDetail, reservationId, amountCents, expectedDate, receivedDate,
- *          late, refs }` — `late` is the provider's word when it has one (a Mollie tranche past its window), else the
- *          expected date decides.
+ * Item: `{ key, kind, kindLabel, icon, natureLabel, natureDetail, reservationId, sale, amountCents, expectedDate,
+ *          receivedDate, late, refs }` — `late` is the provider's word when it has one (a Mollie tranche past its window),
+ *          else the expected date decides. `sale` (`{ key, clientName, label }`, `reservationId` null) is a sale made
+ *          outside any stay: it has no fiche, it groups under its client (a stay's client of the same name, else a
+ *          group of its own), or under its label when it names none.
  * Stay:  `{ reservationId, clientId, clientName, label, startDate, endDate }`.
  */
 
@@ -41,7 +43,7 @@ const euros2 = (cents) => Math.round(cents) / 100;
  * @returns {{ totals: object, kinds: object[], clients: object[] }}
  */
 function buildIncoming({ items, stays, today, recent = false }) {
-  const lines = items.filter((i) => i.amountCents > 0 && i.expectedDate && stays.has(Number(i.reservationId))).map((i) => {
+  const lines = items.filter((i) => i.amountCents > 0 && i.expectedDate && (i.sale || stays.has(Number(i.reservationId)))).map((i) => {
     const found = stateOf(i, today);
     const shown = i.receivedDate || i.expectedDate;
     return {
@@ -49,7 +51,7 @@ function buildIncoming({ items, stays, today, recent = false }) {
       amountCents: Math.round(i.amountCents), expectedDate: i.expectedDate, receivedDate: i.receivedDate || null,
       dateLabel: withWeekday(shown), ...found,
       refs: { qonto: null, mollieSettlement: null, molliePayment: null, ...(i.refs || {}) },
-      reservationId: Number(i.reservationId),
+      reservationId: i.sale ? null : Number(i.reservationId), sale: i.sale || null,
     };
   }).filter((l) => (recent ? l.state === 'received' : l.state !== 'received'));
 
@@ -58,15 +60,30 @@ function buildIncoming({ items, stays, today, recent = false }) {
     : (b.state === 'late') - (a.state === 'late') || a.expectedDate.localeCompare(b.expectedDate) || a.key.localeCompare(b.key));
 
   const byClient = new Map();
-  lines.forEach((line) => {
+  const nameOf = (name) => String(name || '').trim().toLowerCase();
+  const clientKeyByName = new Map();
+  const place = (line, clientKey, base, stayKey, stay) => {
+    const client = byClient.get(clientKey) || { ...base, stays: new Map() };
+    const here = client.stays.get(stayKey) || { ...stay, items: [] };
+    const { reservationId, sale, ...item } = line;
+    here.items.push(item);
+    client.stays.set(stayKey, here);
+    byClient.set(clientKey, client);
+  };
+  lines.filter((l) => !l.sale).forEach((line) => {
     const stay = stays.get(line.reservationId);
     const clientKey = stay.clientId != null ? `c${stay.clientId}` : `r${stay.reservationId}`;
-    const client = byClient.get(clientKey) || { clientId: stay.clientId == null ? null : Number(stay.clientId), name: stay.clientName, stays: new Map() };
-    const here = client.stays.get(line.reservationId) || { reservationId: line.reservationId, label: stay.label, startDate: stay.startDate, endDate: stay.endDate, items: [] };
-    const { reservationId, ...item } = line;
-    here.items.push(item);
-    client.stays.set(line.reservationId, here);
-    byClient.set(clientKey, client);
+    if (!clientKeyByName.has(nameOf(stay.clientName))) clientKeyByName.set(nameOf(stay.clientName), clientKey);
+    place(line, clientKey, { clientId: stay.clientId == null ? null : Number(stay.clientId), name: stay.clientName }, line.reservationId,
+      { reservationId: line.reservationId, saleKey: null, label: stay.label, startDate: stay.startDate, endDate: stay.endDate });
+  });
+  lines.filter((l) => l.sale).forEach((line) => {
+    const { sale } = line;
+    const name = sale.clientName || sale.label;
+    const key = nameOf(name);
+    const clientKey = (sale.clientName && clientKeyByName.get(key)) || `${sale.clientName ? 'n' : 'l'}:${key}`;
+    place(line, clientKey, { clientId: null, name }, `sale:${sale.key}`,
+      { reservationId: null, saleKey: String(sale.key), label: sale.label, startDate: null, endDate: null });
   });
 
   const clients = [...byClient.values()].map((client) => {

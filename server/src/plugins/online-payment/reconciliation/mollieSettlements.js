@@ -4,6 +4,8 @@
  * link each of them is. Read-only; nothing is ever written to Mollie.
  */
 
+const { splitIdOf, SOURCE_TYPES } = require('./molliePaymentSplits');
+
 const MS_MINUTE = 60 * 1000;
 const PAIRING_WINDOW_MS = 10 * MS_MINUTE;
 
@@ -22,11 +24,13 @@ function settlementReferenceOf(tx) {
  * Rule 16 — the GuestFlow side of a Mollie payment, first match wins:
  * 1. its `description` is a link's `providerPaymentId` (the Qonto payment id);
  * 2. its `metadata.payment_link_id` is a link's `providerLinkId`;
- * 3. its `description` is a Qonto invoice number GuestFlow stores (a sale: no link, but known);
+ * 3. its `description` is a Qonto invoice number GuestFlow stores (a sale outside a stay paid by card): the payment IS
+ *    that sale's card payment, gross and date exact;
  * 4. same amount and `paidAt` within 10 minutes of a link's, when exactly one link fits.
- * @returns {{ kind: 'link', paymentLinkId: string } | { kind: 'sale' } | null}
+ * @param {Map<string, object>} [invoiceSources]  invoice number → its source (`invoiceSources` of `mollieCardSources`)
+ * @returns {{ kind: 'link', paymentLinkId: string } | { kind: 'invoice', number: string, source: object } | null}
  */
-function pairPayment(payment, links, invoiceNumbers = new Set()) {
+function pairPayment(payment, links, invoiceSources = new Map()) {
   const description = String(payment.description || '').trim();
   if (description) {
     const byPaymentId = links.find((l) => l.providerPaymentId && String(l.providerPaymentId) === description);
@@ -36,7 +40,7 @@ function pairPayment(payment, links, invoiceNumbers = new Set()) {
     const byLinkId = links.find((l) => l.providerLinkId && String(l.providerLinkId) === String(payment.paymentLinkId));
     if (byLinkId) return { kind: 'link', paymentLinkId: String(byLinkId.id) };
   }
-  if (description && invoiceNumbers.has(description)) return { kind: 'sale' };
+  if (description && invoiceSources.has(description)) return { kind: 'invoice', number: description, source: invoiceSources.get(description) };
   const at = Date.parse(payment.paidAt || '');
   if (Number.isFinite(at)) {
     const close = links.filter((l) => Number(l.amountCents) === payment.amountCents && l.paidAt
@@ -54,10 +58,10 @@ function createSettlementsModel(db) {
       costsCents = excluded.costsCents, reserveHeldCents = excluded.reserveHeldCents,
       reserveReleasedCents = excluded.reserveReleasedCents, fetchedAt = excluded.fetchedAt`);
   const upsertPayment = db.prepare(`INSERT INTO mollie_settlement_payments
-    (settlementId, molliePaymentId, amountCents, paidAt, description, paymentLinkId)
-    VALUES (@settlementId, @molliePaymentId, @amountCents, @paidAt, @description, @paymentLinkId)
+    (settlementId, molliePaymentId, amountCents, paidAt, description, splitId)
+    VALUES (@settlementId, @molliePaymentId, @amountCents, @paidAt, @description, @splitId)
     ON CONFLICT(settlementId, molliePaymentId) DO UPDATE SET amountCents = excluded.amountCents, paidAt = excluded.paidAt,
-      description = excluded.description, paymentLinkId = excluded.paymentLinkId`);
+      description = excluded.description, splitId = excluded.splitId`);
 
   return {
     hasReference(reference) {
@@ -68,7 +72,7 @@ function createSettlementsModel(db) {
         upsertSettlement.run({ ...settlement, fetchedAt: now.toISOString() });
         payments.forEach((p) => upsertPayment.run({
           settlementId: settlement.id, molliePaymentId: p.id, amountCents: p.amountCents, paidAt: p.paidAt,
-          description: p.description, paymentLinkId: p.paymentLinkId,
+          description: p.description, splitId: p.splitId,
         }));
       })();
     },
@@ -94,14 +98,15 @@ function createSettlementsModel(db) {
  * @param {object} deps
  * @param {object} deps.client      `mollieClient`
  * @param {object} deps.model       `createSettlementsModel`
- * @param {object} deps.splits      `createSplitsModel` (gets the payment id and the refunded amount)
+ * @param {object} deps.splits      `createSplitsModel` (gets the payment id and the refunded amount; an invoice's payment creates its split)
+ * @param {object} [deps.settings]  ctx.settings, read for the reserve of a split an invoice's payment creates
  * @param {object[]} deps.credits   the stored bank credits
  * @param {object[]} deps.links     the paid payment links
- * @param {Set<string>} [deps.invoiceNumbers]  the Qonto invoice numbers GuestFlow stores
+ * @param {Map<string, object>} [deps.invoiceSources]  the Qonto invoices GuestFlow stores, by number
  * @param {string} [deps.profileId]
  * @returns {Promise<{ read: number, unknownPayments: number }>}
  */
-async function syncSettlements({ client, model, splits, credits, links, invoiceNumbers = new Set(), profileId = '', now = new Date() }) {
+async function syncSettlements({ client, model, splits, settings, credits, links, invoiceSources = new Map(), profileId = '', now = new Date() }) {
   const references = [...new Set(credits.filter(isMollieCredit).map(settlementReferenceOf).filter(Boolean))]
     .filter((reference) => !model.hasReference(reference));
   let read = 0;
@@ -111,15 +116,17 @@ async function syncSettlements({ client, model, splits, credits, links, invoiceN
     const settlement = await client.getSettlement(reference);
     // eslint-disable-next-line no-await-in-loop
     const payments = await client.listSettlementPayments(settlement.id, { profileId });
-    const paired = payments.map((p) => ({ ...p, pairing: pairPayment(p, links, invoiceNumbers) }));
-    // A payment paired with a Qonto invoice number is known to GuestFlow but has no link: `sale:<number>`.
-    const keyOf = (p) => (!p.pairing ? null : (p.pairing.kind === 'link' ? p.pairing.paymentLinkId : `sale:${p.description}`));
-    model.store({ ...settlement, reference }, paired.map((p) => ({ ...p, paymentLinkId: keyOf(p) })), now);
+    const paired = payments.map((p) => ({ ...p, pairing: pairPayment(p, links, invoiceSources) }));
+    const splitIdOfPairing = (pairing) => (!pairing ? null
+      : (pairing.kind === 'link' ? splitIdOf(SOURCE_TYPES.link, pairing.paymentLinkId) : splitIdOf(SOURCE_TYPES.invoice, pairing.number)));
+    model.store({ ...settlement, reference }, paired.map((p) => ({ ...p, splitId: splitIdOfPairing(p.pairing) })), now);
     paired.forEach((p) => {
       if (!p.pairing) unknownPayments += 1;
-      if (p.pairing && p.pairing.kind === 'link') {
-        splits.setMolliePayment(p.pairing.paymentLinkId, p.id);
-        splits.setRefunded(p.pairing.paymentLinkId, p.refundedCents);
+      else if (p.pairing.kind === 'link') {
+        splits.setMolliePayment(SOURCE_TYPES.link, p.pairing.paymentLinkId, p.id);
+        splits.setRefunded(SOURCE_TYPES.link, p.pairing.paymentLinkId, p.refundedCents);
+      } else {
+        splits.fromMolliePayment(p.pairing.source, p, { settings, now });
       }
     });
     read += 1;

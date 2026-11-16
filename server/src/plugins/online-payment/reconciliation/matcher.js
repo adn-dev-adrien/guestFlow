@@ -249,7 +249,7 @@ function platformProposals(tx, platform, receipts, settings) {
   return out;
 }
 
-const feeEstimate = (receipts) => [...new Map(receipts.map((r) => [r.mollie.paymentLinkId, r.feeCents || 0])).values()].reduce((s, c) => s + c, 0);
+const feeEstimate = (receipts) => [...new Map(receipts.map((r) => [r.mollie.splitId, r.feeCents || 0])).values()].reduce((s, c) => s + c, 0);
 
 /** Can a credit of that day be this tranche? Never before the payment; a reserve not before its window opens. */
 function mollieReachable(receipt, settled) {
@@ -266,9 +266,9 @@ const mollieProposal = (tx, items, confidence, reason, extra = {}) => proposal(t
  * even grouped; a payment GuestFlow does not know turns it into « probable » for the part GuestFlow knows.
  */
 function settlementProposal(tx, detail, open) {
-  const linkIds = new Set(detail.payments.filter((p) => p.paymentLinkId && !String(p.paymentLinkId).startsWith('sale:')).map((p) => String(p.paymentLinkId)));
-  const unknown = detail.payments.filter((p) => !p.paymentLinkId).length;
-  const immediates = open.filter((r) => r.mollie.tranche === 'immediat' && linkIds.has(r.mollie.paymentLinkId));
+  const splitIds = new Set(detail.payments.filter((p) => p.splitId).map((p) => String(p.splitId)));
+  const unknown = detail.payments.filter((p) => !p.splitId).length;
+  const immediates = open.filter((r) => r.mollie.tranche === 'immediat' && splitIds.has(r.mollie.splitId));
   const retenues = open.filter((r) => r.mollie.tranche === 'retenue');
   const released = Number(detail.reserveReleasedCents) > 0
     ? (smallestSubset(retenues.map((r) => ({ receipt: r, cents: r.openCents })), Number(detail.reserveReleasedCents), () => 0, MAX_MOLLIE_TRANCHES) || []).map((i) => i.receipt)

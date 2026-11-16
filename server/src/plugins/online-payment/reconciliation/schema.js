@@ -4,7 +4,7 @@
  */
 
 const TABLES = ['bank_transactions', 'bank_reconciliation_lines', 'bank_reconciliation_fiche_writes',
-  'bank_reconciliation_discards', 'bank_transactions_outside', 'payment_link_splits', 'mollie_settlements',
+  'bank_reconciliation_discards', 'bank_transactions_outside', 'mollie_payment_splits', 'mollie_settlements',
   'mollie_settlement_payments'];
 
 function up(db) {
@@ -56,21 +56,23 @@ function upV2(db) {
 const hasTable = (db, name) => Boolean(db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?").get(name));
 
 /**
- * `reconciliation_v3` (specs/mollie-rolling-reserve-and-incoming-payments.md §5) — the split of a Mollie payment, the
+ * `reconciliation_v3` (specs/mollie-rolling-reserve-and-incoming-payments.md §5) — the split of a Mollie payment (a link, a
+ * Qonto invoice or a card payment recorded on site: `sourceType` + `sourceKey`), the
  * settlements read from Mollie, the Qonto transaction id, and the reconciliation lines of a paid link moved onto its
  * immediate tranche (rule 8). Idempotent: a rerun finds nothing to rewrite.
  */
 function upV3(db) {
   db.exec(`
-    CREATE TABLE IF NOT EXISTS payment_link_splits (
-      paymentLinkId TEXT PRIMARY KEY,
-      reservationId INTEGER NOT NULL, ledgerKey TEXT NOT NULL,
+    CREATE TABLE IF NOT EXISTS mollie_payment_splits (
+      sourceType TEXT NOT NULL, sourceKey TEXT NOT NULL,
+      reservationId INTEGER, ledgerKey TEXT,
       grossCents INTEGER NOT NULL, immediateCents INTEGER NOT NULL, reserveCents INTEGER NOT NULL,
       ratePercent REAL NOT NULL, holdDays INTEGER NOT NULL,
       paidAt TEXT NOT NULL, molliePaymentId TEXT, refundedCents INTEGER NOT NULL DEFAULT 0,
-      createdAt TEXT NOT NULL
+      createdAt TEXT NOT NULL,
+      PRIMARY KEY (sourceType, sourceKey)
     );
-    CREATE INDEX IF NOT EXISTS idx_payment_link_splits_res ON payment_link_splits (reservationId);
+    CREATE INDEX IF NOT EXISTS idx_mollie_payment_splits_res ON mollie_payment_splits (reservationId);
     CREATE TABLE IF NOT EXISTS mollie_settlements (
       id TEXT PRIMARY KEY, reference TEXT NOT NULL, settledAt TEXT,
       amountCents INTEGER NOT NULL DEFAULT 0, costsCents INTEGER NOT NULL DEFAULT 0,
@@ -80,7 +82,7 @@ function upV3(db) {
     CREATE INDEX IF NOT EXISTS idx_mollie_settlements_ref ON mollie_settlements (reference);
     CREATE TABLE IF NOT EXISTS mollie_settlement_payments (
       settlementId TEXT NOT NULL, molliePaymentId TEXT NOT NULL,
-      amountCents INTEGER NOT NULL, paidAt TEXT, description TEXT, paymentLinkId TEXT,
+      amountCents INTEGER NOT NULL, paidAt TEXT, description TEXT, splitId TEXT,
       PRIMARY KEY (settlementId, molliePaymentId)
     );
   `);

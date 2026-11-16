@@ -81,7 +81,7 @@ function buildModel(database) {
   }
 
   function staysOf(items) {
-    const ids = [...new Set(items.map((i) => Number(i.reservationId)))];
+    const ids = [...new Set(items.filter((i) => !i.sale).map((i) => Number(i.reservationId)))];
     if (ids.length === 0) return new Map();
     const rows = database.prepare(`
       SELECT r.id, r.clientId, r.startDate, r.endDate, c.firstName, c.lastName, p.name AS propertyName

@@ -10,7 +10,8 @@ const flag = (v) => Number(v || 0) === 1 || v === true;
 const cents = (n) => Math.round((Number(n) || 0) * 100);
 const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
 const { day } = require('./dates');
-const { afterRefund, expectedDates, trancheKey, LATE_AFTER_DAYS } = require('./molliePaymentSplits');
+const { afterRefund, expectedDates, trancheKey, splitIdOf, LATE_AFTER_DAYS } = require('./molliePaymentSplits');
+const { settlementLedgerRow } = require('./mollieCardSources');
 
 /**
  * Rule 46 — what a platform that took an acompte already paid out for it: the acompte net of its own
@@ -50,17 +51,18 @@ const TRANCHE_WORDS = { immediat: 'versement immédiat', retenue: 'retenue Molli
  * share and its reserve, keyed `<ledgerKey>#immediat` and `<ledgerKey>#retenue`. A refund (rule 6) cuts the immediate
  * share first; a tranche left at 0 expects nothing. The guest still owes one échéance: the receipts are the bank's side.
  */
-function trancheReceipts({ split, ledgerKey, label, brief, platform }) {
+function trancheReceipts({ split, ledgerKey, label, brief, platform, ledgerRow = ledgerKey, reservationId = brief.id }) {
   const left = afterRefund(split);
   const dates = expectedDates({ paidAt: split.paidAt, holdDays: split.holdDays });
   const paidDay = day(split.paidAt);
   return [['immediat', left.immediateCents], ['retenue', left.reserveCents]].filter(([, cents]) => cents > 0).map(([tranche, cents]) => ({
-    reservationId: brief.id, ledgerKey: trancheKey(ledgerKey, tranche), baseKey: ledgerKey,
+    reservationId, ledgerKey: trancheKey(ledgerKey, tranche), baseKey: ledgerKey,
     label: `${label} · ${TRANCHE_WORDS[tranche]}`, channel: 'mollie', platform,
     expectedCents: cents, grossCents: cents, payoutRecorded: true,
     expectedDate: dates[tranche], dueDate: dates[tranche], paid: true, paidDate: paidDay, linkPaidAt: paidDay,
     mollie: {
-      tranche, paymentLinkId: String(split.paymentLinkId), paymentGrossCents: split.grossCents, ratePercent: split.ratePercent,
+      tranche, sourceType: split.sourceType, sourceKey: String(split.sourceKey), splitId: splitIdOf(split.sourceType, split.sourceKey),
+      ledgerRow, paymentGrossCents: split.grossCents, ratePercent: split.ratePercent,
       holdDays: split.holdDays, lateAfterDays: LATE_AFTER_DAYS[tranche], molliePaymentId: split.molliePaymentId || null,
     },
     reservation: brief,
@@ -99,10 +101,11 @@ function basketReceipts(row, links, brief, platform, splitFor) {
  * @param {object[]} [deps.settlements] the reservation's split payments (specs/mixed-method-payments.md rule 28)
  * @param {Function} [deps.settlementFigures] the core's reading of one settlement
  * @param {Function} [deps.splitFor] `(link) → stored Mollie split | null` (specs/mollie-rolling-reserve-and-incoming-payments.md rule 8)
+ * @param {Function} [deps.sourceSplit] `(sourceType, sourceKey) → stored Mollie split | null`, for a card payment recorded on site (rule 1)
  * @param {string} deps.today
  * @returns {object[]} receipts
  */
-function receiptsOfReservation(row, { buildLedger, parseGroup, links, installments = [], settlements = [], settlementFigures = null, splitFor = () => null, today }) {
+function receiptsOfReservation(row, { buildLedger, parseGroup, links, installments = [], settlements = [], settlementFigures = null, splitFor = () => null, sourceSplit = () => null, today }) {
   const ledger = buildLedger({ row, links, today });
   const brief = reservationBrief(row);
   const platform = String(row.platform || 'direct');
@@ -160,7 +163,8 @@ function receiptsOfReservation(row, { buildLedger, parseGroup, links, installmen
     if (paid && ['cash', 'internal'].includes(String(i.paidMethod))) return;
     if (paid && splitInstallments.has(String(i.id))) return;
     const paidLink = links.find((l) => l.status === 'paid' && l.type === 'installment' && Number(l.installmentId) === Number(i.id));
-    const split = paidLink ? splitFor(paidLink) : null;
+    // Rule 1 (second half) — an instalment recorded paid by card without a link went through Mollie as well.
+    const split = paidLink ? splitFor(paidLink) : (paid && i.paidMethod === 'card' ? sourceSplit('tender', `installment:${i.id}`) : null);
     if (split) {
       out.push(...trancheReceipts({ split, ledgerKey: `installment-${i.number}`, label: `Échéance ${i.number}/${installments.length}`, brief, platform }));
       return;
@@ -204,7 +208,17 @@ function receiptsOfReservation(row, { buildLedger, parseGroup, links, installmen
     });
   });
   settlements.forEach((s) => {
-    const bankCents = settlementFigures ? settlementFigures(s).bankCents : 0;
+    const figures = settlementFigures ? settlementFigures(s) : { bankCents: 0, byMethod: {} };
+    let bankCents = figures.bankCents;
+    // Rule 1 (second half) — the CB line of a split payment is Mollie's; its cheque and transfer lines stay one receipt.
+    const cardSplit = (figures.byMethod.card || 0) > 0 ? sourceSplit('tender', `settlement:${s.id}`) : null;
+    if (cardSplit) {
+      out.push(...trancheReceipts({
+        split: cardSplit, ledgerKey: `settlement-${s.id}-card`, label: 'Paiement réparti · CB', brief, platform,
+        ledgerRow: settlementLedgerRow(s, installments),
+      }));
+      bankCents -= figures.byMethod.card;
+    }
     if (!(bankCents > 0)) return;
     out.push({
       reservationId: row.id, ledgerKey: `settlement-${s.id}`, label: 'Paiement réparti (CB, chèque, virement)',
@@ -242,25 +256,45 @@ function installmentsReader(db, listInstallments) {
 }
 
 /** Rule 2 — every in-scope reservation with its receipts. */
-function expectedReceipts({ db, startDate, today, buildLedger, parseGroup, listLinks, listInstallments, splitFor }) {
+function expectedReceipts({ db, startDate, today, buildLedger, parseGroup, listLinks, listInstallments, splitFor, sourceSplit, sales = [] }) {
   const rows = db.prepare(`${RESERVATION_SQL} ORDER BY r.endDate, r.id`).all(startDate);
   const installmentsOf = installmentsReader(db, listInstallments);
   const { settlementsOf, settlementFigures } = settlementsReader(db);
   const receipts = [];
   rows.forEach((row) => {
-    receiptsOfReservation(row, { buildLedger, parseGroup, links: listLinks(row.id), installments: installmentsOf(row.id), settlements: settlementsOf(row.id), settlementFigures, splitFor, today })
+    receiptsOfReservation(row, { buildLedger, parseGroup, links: listLinks(row.id), installments: installmentsOf(row.id), settlements: settlementsOf(row.id), settlementFigures, splitFor, sourceSplit, today })
       .forEach((rc) => receipts.push(rc));
   });
-  return receipts;
+  return [...receipts, ...saleReceipts(sales, sourceSplit)];
+}
+
+/**
+ * Rule 1 (second half) — a sale made outside any stay and paid by card through Mollie: the same two tranches as a link,
+ * with no fiche. Its receipts carry reservation id 0 (no stay) and a brief that names the sale (`saleKey`) and its client.
+ */
+function saleReceipts(sales, sourceSplit = () => null) {
+  return sales.flatMap(({ sale, sourceType, sourceKey }) => {
+    const split = sourceSplit(sourceType, sourceKey);
+    if (!split) return [];
+    const client = [sale.client && sale.client.firstName, sale.client && sale.client.lastName].filter(Boolean).join(' ').trim();
+    const brief = {
+      id: null, saleKey: String(sale.key), clientName: client || sale.label, lastName: (sale.client && sale.client.lastName) || '', hasClient: Boolean(client),
+      propertyName: '', startDate: null, endDate: null, platform: 'direct', reservationNumber: '', createdAt: null, saleLabel: sale.label,
+    };
+    return trancheReceipts({ split, ledgerKey: `sale:${sale.key}`, label: sale.label, brief, platform: 'direct', reservationId: 0, ledgerRow: null });
+  });
 }
 
 /** The receipts of one reservation, scope included (the fiche's block). */
-function expectedReceiptsOfReservation({ db, reservationId, startDate, today, buildLedger, parseGroup, listLinks, listInstallments, splitFor }) {
+function expectedReceiptsOfReservation({ db, reservationId, startDate, today, buildLedger, parseGroup, listLinks, listInstallments, splitFor, sourceSplit }) {
   const row = db.prepare(`${RESERVATION_SQL} AND r.id = ?`).get(startDate, Number(reservationId));
   if (!row) return null;
   const installmentsOf = installmentsReader(db, listInstallments);
   const { settlementsOf, settlementFigures } = settlementsReader(db);
-  return receiptsOfReservation(row, { buildLedger, parseGroup, links: listLinks(row.id), installments: installmentsOf(row.id), settlements: settlementsOf(row.id), settlementFigures, splitFor, today });
+  return receiptsOfReservation(row, { buildLedger, parseGroup, links: listLinks(row.id), installments: installmentsOf(row.id), settlements: settlementsOf(row.id), settlementFigures, splitFor, sourceSplit, today });
 }
 
-module.exports = { expectedReceipts, expectedReceiptsOfReservation, receiptsOfReservation, reservationBrief, platformAcompteNet };
+module.exports = {
+  expectedReceipts, expectedReceiptsOfReservation, receiptsOfReservation, reservationBrief, platformAcompteNet, saleReceipts,
+  RESERVATION_SQL, installmentsReader, settlementsReader,
+};

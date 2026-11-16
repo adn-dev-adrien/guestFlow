@@ -14,8 +14,8 @@
 
 ## 1. Context
 
-A guest who pays by card pays either through a Qonto payment link or on site with **Tap to Pay** in
-the Qonto app; both are acquired by **Mollie** (confirmed by Adrien 2026-11-16). Mollie applies a **rolling reserve** to this merchant: it keeps **20 % of each payment for
+A guest who pays by card pays either through a Qonto payment link or with the Qonto app (an invoice paid by
+card, **Tap to Pay** on site); both are acquired by **Mollie** (confirmed by Adrien 2026-11-16). Mollie applies a **rolling reserve** to this merchant: it keeps **20 % of each payment for
 90 days** and pays it out afterwards. One card payment therefore reaches the Qonto account in **two
 credits, three months apart**.
 
@@ -25,7 +25,7 @@ Measured on the real Qonto export of 2026-10-23 (the only Mollie credits of the 
 |---|---|---|---|---|
 | 2025-12-23 | `Stichting Mollie Payments` | `REF T19274230.2512.01` | 157,44 € | 80 % of 196,80 € |
 | 2026-03-23 | `Stichting Mollie Payments` | `REF T19274230.2603.01` | 39,36 € | 20 % of 196,80 €, **90 days later to the day** |
-| 2026-11 | `Stichting Mollie Payments` | `REF T19274230.2611.01` | 11,20 € | 80 % of a 14,00 € Tap to Pay sale of 2026-11-05 (client Gruat) |
+| 2026-11 | `Stichting Mollie Payments` | `REF T19274230.2611.01` | 11,20 € | 80 % of a 14,00 € card payment of Qonto invoice `F-2026-013` of 2026-11-05 (client Gruat) |
 
 The Gruat payment as Mollie shows it: description `F-2026-013` (the Qonto invoice number; Qonto files it
 as `2610-F-2026-013-SOLIO.pdf`), id `tr_…`, paid 05/11 17:10, **available balance 09/11 17:10**
@@ -89,13 +89,27 @@ brought it; and the accountant receives entries that explain every Mollie credit
 
 ### 3.1 The split of a card payment
 
-1. **Every Mollie payment is split in two bank tranches** — a paid payment link, and a card payment
-   recorded on site (tender « CB » on a fiche, a mid-stay note or a standalone sale) from the date of the
-   setting « CB sur place via Tap to Pay (Mollie) depuis » (empty = off; Adrien sets it to the first Tap
-   to Pay day). Each is split into the **versement immédiat** (gross − reserve) and the **retenue**
-   (the reserve). `reserve = round(gross × rate)` to the cent, the immediate share
+1. **Every Mollie payment is split in two bank tranches** — a paid payment link, a **Qonto invoice paid by
+   card**, and a card payment recorded on site (tender « CB » on a fiche échéance, a mid-stay note or a
+   standalone sale; confirmed by Adrien 2026-11-16: the Qonto app's card payments go through Mollie and bear the
+   same 20 % / 90-day reserve). Each is split into the **versement immédiat** (gross − reserve) and the
+   **retenue** (the reserve). `reserve = round(gross × rate)` to the cent, the immediate share
    absorbs the rounding. The split is computed by the server once, when the payment is seen paid, and stored
-   with the rate and hold it used.
+   with the rate and hold it used. A split belongs to a **source** (`sourceType` + `sourceKey`):
+   - `link` — a paid payment link (key: the link id);
+   - `invoice` — a sale outside a stay that holds a Qonto invoice number (key: the number). When a Mollie payment
+     read with the token has that number as its `description`, the split is made from the Mollie payment
+     itself — **gross and date exact** (rule 16); a split already made from the on-site tender (below) is
+     corrected to it, with the rate and the hold it carries;
+   - `tender` — a card (« CB », tender `card`) payment recorded on a fiche échéance paid without a link, on the
+     CB line of a split payment (one split per settlement: its cheque and transfer lines stay one receipt), or on
+     a sale outside a stay that has no invoice. It is split only from the day of the plugin setting
+     **« CB sur place via Mollie depuis »** (`mollieCardOnSiteSince`; empty = off; validated like rule 3's date).
+     Without a Mollie token this is how such payments are split; before that day, or with the setting empty, a
+     card payment is unchanged and expected in the day's « Paiements-En-Personne » batch
+     (qonto-bank-reconciliation rule 31). From that day a card payment of these sources expects Mollie tranches
+     **instead of** a batch share, and a sale that went through Mollie is no longer counted in the batch's
+     « hors séjour » part.
 2. Rate and hold are settings of the `online-payment` plugin: **« Retenue Mollie » 20 %** and
    **« Durée de la retenue » 90 jours**, plus **« Retenue appliquée depuis »** (date, default: the
    reconciliation start date). A link paid before that date has no reserve (one tranche, 100 %). A rate
@@ -122,8 +136,10 @@ brought it; and the accountant receives entries that explain every Mollie credit
 
 ### 3.2 Reconciliation (extends qonto-bank-reconciliation)
 
-8. A paid link yields **two expected receipts** instead of one, keyed `<ledgerKey>#immediat` and
-   `<ledgerKey>#retenue`, each with its amount and window (rule 4). Existing reconciliation lines on the
+8. A paid link — and any other source of rule 1 — yields **two expected receipts** instead of one, keyed
+   `<ledgerKey>#immediat` and `<ledgerKey>#retenue` (a sale outside a stay: ledger key `sale:<sale key>`, reservation
+   id `0` in the stored lines, `reservation.id` null in the payload; the CB line of a split payment:
+   `settlement-<id>-card`), each with its amount and window (rule 4). Existing reconciliation lines on the
    bare `<ledgerKey>` of a link are migrated to `#immediat` (§5, idempotent, nothing lost).
 9. **Rule 15 is replaced.** A credit classified Mollie (counterparty or label contains « mollie »,
    whatever the operation type) is matched against the open link tranches — immediate and retenue alike —
@@ -166,8 +182,9 @@ brought it; and the accountant receives entries that explain every Mollie credit
     `rollingreserve` and cost lines). Read-only; nothing is ever written to Mollie. The Mollie payment
     `tr_…` is attached to GuestFlow, first match wins (measured, §1): its `description` equals a payment
     link's `providerPaymentId` (the Qonto payment id); its `metadata.payment_link_id` equals a link's
-    `providerLinkId`; its `description` equals a Qonto invoice number GuestFlow stores (standalone sales,
-    hourly-resource bookings); else amount + `paidAt` within 10 minutes, unique match only. The payment's
+    `providerLinkId`; its `description` equals a Qonto invoice number GuestFlow stores (a sale outside a stay —
+    hourly-resource bookings — whatever tender was typed: the Mollie payment is the proof of the card), which
+    creates or corrects the `invoice` split of rule 1; else amount + `paidAt` within 10 minutes, unique match only. The payment's
     `settlementId` names the settlement that paid its immediate share. With an organisation-level token the
     payments are listed with the profile id (setting, filled by « Tester » from `profiles.read`).
 17. A Mollie failure never blocks the reconciliation: the last read stays, the error is shown in words
@@ -199,7 +216,10 @@ brought it; and the accountant receives entries that explain every Mollie credit
     nature is never a colour: words (« Retenue Mollie », « Paiement carte · 80 % », « Échéance 2 sur 4 »,
     « Versement plateforme · Booking ») plus a drawn icon (hourglass, card, calendar, house). Clicking
     the header opens the reservation fiche (a client with several stays: the line names its stay and
-    opens that stay).
+    opens that stay). A **sale outside a stay** (rule 1) has no fiche: it groups under its client (the stay client
+    of the same name, else a group of its own) or, when it names none, under its label; its line carries
+    `saleKey`, never a fiche link. A reserve of such a sale that is late raises the item of rule 13 named by
+    the sale.
 23. The table holds four kinds, each with its own icon and filter chip: **Retenue Mollie** (20 %, J+90),
     **Mollie en transit** (immediate share not reconciled yet), **Échéance** (an unpaid instalment of a
     direct payment plan, due date), **Versement plateforme** (a platform payout expected, its derived due
@@ -218,8 +238,10 @@ brought it; and the accountant receives entries that explain every Mollie credit
 
 28. The accounting export gains a **Mollie journal** (code setting, default `MO`) and a **clearing
     account** (setting « Compte d'attente Mollie », default `46720000`):
-    - at each paid link, on its payment date: **D 46720000 / C client account** (`C+NOM`) for the gross —
-      Mollie owes the money, the client is settled;
+    - at each paid link — or any other split source of rule 1, a sale outside a stay included (its client is the
+      one named on the sale) — on its payment date: **D 46720000 / C client account** (`C+NOM`) for the gross —
+      Mollie owes the money, the client is settled. The sale's own entry (D client / C revenue) is unchanged:
+      the Mollie entry settles it exactly as for a link, so nothing is counted twice;
     - at each reconciled Mollie credit, on its bank date: **D 512 (bank account setting) / C 46720000** for
       the credit amount, the libellé carrying the Mollie settlement reference and the Qonto reference;
     - a settlement cost (rule 5), if any: **D 627 (setting) / C 46720000**.
@@ -237,8 +259,9 @@ brought it; and the accountant receives entries that explain every Mollie credit
 
 | Layer | File | T/C | Responsibility |
 |---|---|---|---|
-| `plugins/online-payment/reconciliation/` | `molliePaymentSplits.js` | C | Rules 1–4, 6: compute and store the split of a paid link; expected dates; refunds. Pure core + model. |
-| | `expectedReceipts.js` | T | Rule 8: a paid link yields `#immediat` and `#retenue` receipts. |
+| `plugins/online-payment/reconciliation/` | `molliePaymentSplits.js` | C | Rules 1–4, 6: compute and store the split of a source (link, invoice, tender); expected dates; refunds. Pure core + model. |
+| | `mollieCardSources.js` | C | Rule 1 (second half): reads the card payments recorded on site (instalments paid by card, the CB line of a split payment, sales outside a stay) and the Qonto invoices GuestFlow holds. |
+| | `expectedReceipts.js` | T | Rule 8: a paid link or any other source yields `#immediat` and `#retenue` receipts; a sale outside a stay has its own (reservation id 0). |
 | | `matcher.js` | T | Rule 9 replaces `acquiringProposals`; rule 10 consumes settlement details; `classify` Mollie by counterparty whatever the type. |
 | | `mollieSettlements.js` | C | Rule 10, 16: map a settlement's payments and reserve lines to tranches. Pure. |
 | | `transactionsReader.js`, `bankTransactionsModel.js` | T | Rule 12: store Qonto `transaction_id` as `qontoReference`. |
@@ -276,7 +299,7 @@ Mollie tranches, later any staged payment) and `TransactionRef` (generic: Qonto,
 
 | Method | Endpoint | Response | Notes |
 |---|---|---|---|
-| GET | `/api/finance/incoming[?recent=1]` | `{ totals: { amount, amountCents, clients, nextDate, nextDateLabel }, kinds: [{ key, label, count }], clients: [{ clientId, name, totalCents, nextDate, nextDateLabel, late, stays: [{ reservationId, label, startDate, endDate, items: [{ key, kind, label, icon, natureLabel, natureDetail, amountCents, expectedDate, receivedDate, dateLabel, state, stateLabel, tone, refs: { qonto, mollieSettlement, molliePayment } }] }] }] }` | Admin + accounting role (`enforceRoleAccess`: accountant `GET /finance/incoming`). |
+| GET | `/api/finance/incoming[?recent=1]` | `{ totals: { amount, amountCents, clients, nextDate, nextDateLabel }, kinds: [{ key, label, count }], clients: [{ clientId, name, totalCents, nextDate, nextDateLabel, late, stays: [{ reservationId (null for a sale outside a stay), saleKey (null for a stay), label, startDate, endDate, items: [{ key, kind, label, icon, natureLabel, natureDetail, amountCents, expectedDate, receivedDate, dateLabel, state, stateLabel, tone, refs: { qonto, mollieSettlement, molliePayment } }] }] }] }` | Admin + accounting role (`enforceRoleAccess`: accountant `GET /finance/incoming`). |
 | GET | `/api/finance/dashboard` | `tiles.incoming: { amount, clients, nextDate }` | Added field. |
 | GET | `/api/reservations/:id` (ledger) | rows gain `bankTranches[]`, summary gains `schedule` | Additive. |
 | POST | `/api/plugins/online-payment/mollie/test` | `{ ok, settlements, error? }` | Never returns the token. |
@@ -284,13 +307,17 @@ Mollie tranches, later any staged payment) and `TransactionRef` (generic: Qonto,
 
 ## 5. Data model (plugin `online-payment`, migration `reconciliation_v3`)
 
-- `payment_link_splits` — `paymentLinkId` PK, `reservationId`, `ledgerKey`, `grossCents`, `immediateCents`,
-  `reserveCents`, `ratePercent`, `holdDays`, `paidAt`, `molliePaymentId` NULL, `refundedCents` 0,
-  `createdAt`. Backfill: every paid link from « Retenue appliquée depuis » on.
+- `mollie_payment_splits` — PK (`sourceType`, `sourceKey`) with `sourceType` ∈ `link | invoice | tender`
+  (`link`: the payment link id; `invoice`: the Qonto invoice number; `tender`: `installment:<id>`, `settlement:<id>`
+  or `sale:<sale key>`), `reservationId` NULL (a sale outside a stay has none), `ledgerKey` NULL, `grossCents`,
+  `immediateCents`, `reserveCents`, `ratePercent`, `holdDays`, `paidAt`, `molliePaymentId` NULL, `refundedCents` 0,
+  `createdAt`. Replaces the `payment_link_splits` of the first draft of this migration (never released: edited in
+  place). Backfill: every paid link from « Retenue appliquée depuis » on; the on-site card payments from
+  « CB sur place via Mollie depuis » on, when the setting is set.
 - `mollie_settlements` — `id` (`stl_…`) PK, `reference`, `settledAt`, `amountCents`, `costsCents`,
   `reserveHeldCents`, `reserveReleasedCents`, `fetchedAt`.
 - `mollie_settlement_payments` — `settlementId`, `molliePaymentId`, `amountCents`, `paidAt`,
-  `description`, `paymentLinkId` NULL; PK (`settlementId`, `molliePaymentId`).
+  `description`, `splitId` NULL (`link:<id>` or `invoice:<number>`: the split the payment is); PK (`settlementId`, `molliePaymentId`).
 - `bank_transactions.qontoReference` TEXT NULL (filled on next read; CSV imports already use it as id).
 - `bank_reconciliation_lines`: rows whose `ledgerKey` is a link's bare key are rewritten to `#immediat`
   — idempotent, a rerun finds nothing to rewrite.
@@ -322,6 +349,7 @@ See the summary page for the interactive mock-ups (fiche, tile + table, settings
   1 release, no fee, measured 157,44/39,36 pair, migration of bare keys).
 - `mollie-settlements.unit.test.js` — rules 10, 16–17 (mapping, unknown payment, failure fallback).
 - `mollie-settings-validation.unit.test.js` — rules 3, 15.
+- `mollie-card-sources.unit.test.js` — rule 1 second half (Gruat invoice case, tender before / after the setting date, split payment CB line, batch exclusion), rule 3 (`mollieCardOnSiteSince`), rules 13, 16, 23, 28 for a sale outside a stay.
 - `incoming-payments.unit.test.js` — rules 21–27 (grouping, sort, late first, without plugin).
 - `accounting-mollie-journal.unit.test.js` — rules 28–31 (balanced entries, clearing balance, switch, unattached).
 
@@ -339,8 +367,12 @@ See the summary page for the interactive mock-ups (fiche, tile + table, settings
 
 - Chargebacks and disputes (Mollie deducts them from a settlement: shown as an unexplained remainder).
 - Writing anything to Mollie or Qonto; Mollie webhooks.
-- The historical « Paiements-En-Personne » daily batches (rule 31 of the reconciliation, unchanged);
-  Tap to Pay through Mollie is in scope (rule 1).
+- The historical « Paiements-En-Personne » daily batches (rule 31 of the reconciliation) stay as they are for
+  every card payment before « CB sur place via Mollie depuis » (or while it is empty); from that day Tap to Pay
+  through Mollie is in scope (rule 1).
+- A direct bucket (acompte, solde) marked paid without a recorded tender: its method is not stored, so it cannot be
+  told to be a card — it stays in the card batch. Bookings tied to a stay that hold a Qonto invoice number are not
+  paired by number (only sales outside a stay are exposed to the plugin).
 - Forecasting cash beyond what is already paid or scheduled.
 
 ## 9. Open questions
@@ -361,14 +393,14 @@ See the summary page for the interactive mock-ups (fiche, tile + table, settings
 
 ### Server (2026-11-16)
 
-- [x] Rules 1-7 — `molliePaymentSplits.js` (split, since-date, refunds, validation), `payment_link_splits` filled the first time a paid link is seen (every compute of the reconciliation, the ledger and the incoming table).
+- [x] Rules 1-7 — `molliePaymentSplits.js` (split, since-date, refunds, validation), `mollie_payment_splits` filled the first time a paid link is seen (every compute of the reconciliation, the ledger and the incoming table).
 - [x] Rules 8-13 — `expectedReceipts.js` (`#immediat` / `#retenue`), `matcher.js` (`classify` Mollie by name, `mollieProposals`, `settlementProposal`), `ficheWriter` untouched (the controller skips the write for a tranche), `qontoReference`, late reserve attention (`mollie-reserve-late`).
 - [x] Rules 14-17 — `mollieClient.js`, `mollieSettlements.js`, `mollieConnection.js`, `POST /api/plugins/online-payment/mollie/test`.
 - [x] Rules 18-20 — `ctx.ledgerBankTranches` → ledger rows `bankTranches[]` and `ledger.schedule` (`utils/pluginLedgerTranches.js`), the fiche's reconciliation card lists the two receipts.
 - [x] Rules 21-27 — `utils/incomingPayments.js`, `models/incomingPaymentsModel.js`, `GET /api/finance/incoming`, `tiles.incoming`, detail `incoming`; `ctx.incomingPayments`.
 - [x] Rules 28-31 — `ctx.journalEntries`, `mollieJournal.js`, accounting-export settings, entries, clearing balance and unattached credits in `GET /api/accounting/sales`.
 - [x] SDK 2.29.0, `online-payment` 1.8.0, `accounting-export` 1.3.0, `reconciliation_v3`.
-- [ ] Rule 1, second half — the on-site card payments recorded with Tap to Pay (setting « CB sur place via Tap to Pay (Mollie) depuis »): not built. Their receipts are the stay's settlement lines and the standalone sales, which have no payment link and no row in `payment_link_splits` (§5 keys it by `paymentLinkId`); they need their own spec section before a split can be stored for them. No setting is declared for it until then.
+- [x] Rule 1, second half (2026-11-16) — `mollie_payment_splits` keyed by `sourceType` (`link | invoice | tender`) + `sourceKey`; `mollieCardSources.js`; setting `mollieCardOnSiteSince` (« CB sur place via Mollie depuis »); `invoice` splits made from the Mollie payment paired by its `description` (Gruat, F-2026-013: 14,00 € → 11,20 € + 2,80 €); `tender` splits for an instalment paid by card without a link, the CB line of a split payment (its cheque / transfer lines stay `settlement-<id>`) and a sale outside a stay without invoice; receipts, matching, ledger `bankTranches`, `incomingPayments` (items carry `sale`), journal and late-reserve attention work for every source; a sale that went through Mollie leaves the day's card batch.
 - [ ] Client (another session).
 
 ### Readings that settled what the rules left open
@@ -379,8 +411,10 @@ See the summary page for the interactive mock-ups (fiche, tile + table, settings
 - **« Versement plateforme » (rule 23).** Listed once the guest has left (`endDate <= today`): its due date is the end date plus the platform's payout delay, its amount the solde net of the platform's commission and penalties — the same figures as « En retard ».
 - **« Reçus récemment » (rule 24)** — instalments paid by transfer or cheque (a card instalment is a Mollie tranche), platform payouts marked received, Mollie tranches reconciled.
 - **Roles (§4.3).** The accountant reads `GET /api/finance/incoming`; the dashboard and its detail endpoints stay admin-only.
-- **Invoice-number pairing (rule 16, third key).** A Mollie payment paired by a Qonto invoice number is stored as `sale:<number>` in `mollie_settlement_payments.paymentLinkId`: known to GuestFlow, but it has no tranche to allocate (see the Tap to Pay line above).
+- **Invoice-number pairing (rule 16, third key).** A Mollie payment paired by a Qonto invoice number is stored as `invoice:<number>` in `mollie_settlement_payments.splitId` and creates (or corrects) the `invoice` split of that sale: its tranches are real receipts.
+- **Sales outside a stay (rule 1, second half).** Their receipts carry reservation id `0` in `bank_reconciliation_lines` (the column is NOT NULL) and `reservation: { id: null, saleKey, saleLabel, hasClient, clientName }` in the payload; they are never written to a fiche. The sale's card amount (`cardCents`) is the estimate until the Mollie payment is read.
+- **Tender sources.** An instalment paid by card via a payment link is the link's split, never a second one; a settlement's `internal` card line cannot exist (only cash goes to the caisse interne).
 
 ### Tests (server)
 
-84 new tests in 9 files: `mollie-payment-split` (10), `mollie-reconciliation-matching` (16), `mollie-settlements` (8), `mollie-settings-validation` (9), `mollie-ledger-tranches` (6), `mollie-incoming-payments` (5), `mollie-journal-entries` (5) under `server/src/plugins/online-payment/tests/`; `accounting-mollie-journal` (11) under `server/src/plugins/accounting-export/tests/`; `incoming-payments` (14) under `server/src/tests/`. Existing suites adjusted: the route census, the env-name list, the VAT golden (`tiles.incoming`), the dashboard payload pin, the accounting settings key lists, the hardening floor. Full server suite: green. The old acquirer test of rule 15 was removed (replaced by rule 9).
+94 new tests in 10 files (the 10 of `mollie-card-sources` are rule 1 second half, 3, 13, 16, 23, 28): `mollie-payment-split` (10), `mollie-reconciliation-matching` (16), `mollie-settlements` (8), `mollie-settings-validation` (9), `mollie-ledger-tranches` (6), `mollie-incoming-payments` (5), `mollie-journal-entries` (5) under `server/src/plugins/online-payment/tests/`; `accounting-mollie-journal` (11) under `server/src/plugins/accounting-export/tests/`; `incoming-payments` (14) under `server/src/tests/`. Existing suites adjusted: the route census, the env-name list, the VAT golden (`tiles.incoming`), the dashboard payload pin, the accounting settings key lists, the hardening floor. Full server suite: green. The old acquirer test of rule 15 was removed (replaced by rule 9).

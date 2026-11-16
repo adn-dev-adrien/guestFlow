@@ -4,9 +4,9 @@
  * Mollie credits. Read-only. The token is never logged, never put in a message, never returned by any endpoint.
  */
 
-const sdk = require('../sdk');
 const { buildMollieClient, explainError } = require('./mollieClient');
 const { syncSettlements } = require('./reconciliation/mollieSettlements');
+const { invoiceSources } = require('./reconciliation/mollieCardSources');
 
 const TOKEN_PREFIX = 'access_';
 const NOT_A_TOKEN = 'Ce n\'est pas un jeton d\'accès Mollie : il commence par access_';
@@ -31,11 +31,7 @@ function createMollieConnection({ settings, db, settlements, buildClient = ({ to
   const parse = (raw) => { try { return raw ? JSON.parse(raw) : null; } catch { return null; } };
 
   const paidLinks = () => db.prepare("SELECT * FROM payment_links WHERE status = 'paid'").all();
-  const invoiceNumbers = () => {
-    const from = '2020-01-01';
-    const to = now().toISOString().slice(0, 10);
-    return new Set(sdk.coreModule('standaloneSales').list({ from, to }).map((s) => s.invoiceNumber).filter(Boolean).map(String));
-  };
+  const invoices = () => invoiceSources(now().toISOString().slice(0, 10));
 
   return {
     configured: () => token() !== '',
@@ -59,8 +55,8 @@ function createMollieConnection({ settings, db, settlements, buildClient = ({ to
       const at = now().toISOString();
       try {
         const result = await syncSettlements({
-          client: buildClient({ token: token() }), model: settlements, splits, credits, links: paidLinks(),
-          invoiceNumbers: invoiceNumbers(), profileId: String(settings.get('mollieProfileId') || ''), now: now(),
+          client: buildClient({ token: token() }), model: settlements, splits, settings, credits, links: paidLinks(),
+          invoiceSources: invoices(), profileId: String(settings.get('mollieProfileId') || ''), now: now(),
         });
         settings.set('mollieLastRead', JSON.stringify({ at, settlements: result.read, unknownPayments: result.unknownPayments }));
         settings.set('mollieLastError', '');

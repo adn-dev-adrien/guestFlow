@@ -106,7 +106,7 @@ test('rule 6 — a tranche left at 0 by a refund expects nothing', () => {
   const { reservationId, link } = paidStay({ cents: 19680, daysAgo: 6 });
   const splits = createSplitsModel(db);
   splits.sync({ settings: settingsOf({ reconciliationStartDate: dayAt(-60) }) });
-  splits.setRefunded(link.id, 19680);
+  splits.setRefunded('link', link.id, 19680);
   const receipts = expectedReceiptsOfReservation({
     db, reservationId, startDate: dayAt(-60), today: TODAY, buildLedger, parseGroup,
     listLinks: (id) => paymentLinks.listForStay(id), listInstallments: () => [], splitFor: (l) => splits.forLink(l.id),

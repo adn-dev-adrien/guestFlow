@@ -3,8 +3,10 @@
  * rules 1-7): the immediate share and the reserve Mollie keeps for a while.
  *
  * Pure core (`computeSplit`, `afterRefund`, `expectedDates`, `linkLedgerKey`, the settings checks) and the model that
- * stores the split once, when a payment link is first seen paid (`payment_link_splits`). A stored split never moves
- * when a setting changes (rule 2): it carries the rate and the hold it used.
+ * stores the split once, when a payment is first seen paid (`mollie_payment_splits`). A split belongs to a source
+ * (`sourceType` + `sourceKey`): a payment `link`, a Qonto `invoice` paid by card (keyed by its number) or a card
+ * `tender` recorded on site. A stored split never moves when a setting changes (rule 2): it carries the rate and the
+ * hold it used.
  */
 
 const { day } = require('./dates');
@@ -24,6 +26,9 @@ const addDays = (iso, n) => new Date(Date.parse(`${iso}T00:00:00Z`) + n * MS_DAY
 const RATE_MESSAGE = 'Le taux doit être compris entre 0 et 50 %';
 const HOLD_MESSAGE = 'La durée est un nombre de jours entre 1 et 365';
 const SINCE_MESSAGE = 'La date doit être un jour valide qui n\'est pas dans le futur';
+const SOURCE_TYPES = Object.freeze({ link: 'link', invoice: 'invoice', tender: 'tender' });
+/** Identity of a split, as the settlement payments and the receipts name it. */
+const splitIdOf = (sourceType, sourceKey) => `${sourceType}:${sourceKey}`;
 
 /** Rule 3 — a number from 0 to 50 with at most 2 decimals; '' keeps the default. */
 function rateMessage(value) {
@@ -52,8 +57,9 @@ function sinceMessage(value, today) {
 }
 
 /**
- * Rule 2 — the reserve settings in force: `{ ratePercent, holdDays, since }`. `since` falls back on the
- * reconciliation start date; a rate of 0 disables the reserve.
+ * Rule 2 — the reserve settings in force: `{ ratePercent, holdDays, since, cardSince }`. `since` falls back on the
+ * reconciliation start date; a rate of 0 disables the reserve. `cardSince` (rule 1, « CB sur place via Mollie depuis »)
+ * is the first day a card payment recorded on site goes through Mollie; null = off.
  */
 function readReserveSettings(settings) {
   const rate = Number(String(settings.get('mollieReservePercent') || '').replace(',', '.'));
@@ -62,6 +68,7 @@ function readReserveSettings(settings) {
     ratePercent: Number.isFinite(rate) && String(settings.get('mollieReservePercent') || '').trim() !== '' ? rate : DEFAULT_RATE_PERCENT,
     holdDays: Number.isInteger(hold) && hold >= 1 ? hold : DEFAULT_HOLD_DAYS,
     since: day(settings.get('mollieReserveSince')) || day(settings.get('reconciliationStartDate')) || null,
+    cardSince: day(settings.get('mollieCardOnSiteSince')) || null,
   };
 }
 
@@ -119,60 +126,100 @@ function createSplitsModel(db) {
     return new Map(db.prepare('SELECT id, number FROM reservation_installments').all().map((i) => [Number(i.id), Number(i.number)]));
   };
 
-  const insert = db.prepare(`INSERT OR IGNORE INTO payment_link_splits
-    (paymentLinkId, reservationId, ledgerKey, grossCents, immediateCents, reserveCents, ratePercent, holdDays, paidAt, createdAt)
-    VALUES (@paymentLinkId, @reservationId, @ledgerKey, @grossCents, @immediateCents, @reserveCents, @ratePercent, @holdDays, @paidAt, @createdAt)`);
+  const insert = db.prepare(`INSERT OR IGNORE INTO mollie_payment_splits
+    (sourceType, sourceKey, reservationId, ledgerKey, grossCents, immediateCents, reserveCents, ratePercent, holdDays, paidAt, molliePaymentId, createdAt)
+    VALUES (@sourceType, @sourceKey, @reservationId, @ledgerKey, @grossCents, @immediateCents, @reserveCents, @ratePercent, @holdDays, @paidAt, @molliePaymentId, @createdAt)`);
+
+  const forSource = (sourceType, sourceKey) => db.prepare('SELECT * FROM mollie_payment_splits WHERE sourceType = ? AND sourceKey = ?')
+    .get(String(sourceType), String(sourceKey)) || null;
+
+  /** Stores the split of one payment with the settings of this moment; one already stored is never touched (rule 2). */
+  const create = ({ sourceType, sourceKey, reservationId = null, ledgerKey = null, grossCents, paidAt, molliePaymentId = null }, { ratePercent, holdDays, since }, now) => {
+    const paidDay = day(paidAt);
+    if (!paidDay || !(Number(grossCents) > 0)) return 0;
+    const split = computeSplit({ grossCents, ratePercent, applyReserve: !since || paidDay >= since });
+    return insert.run({
+      sourceType, sourceKey: String(sourceKey), reservationId: reservationId == null ? null : Number(reservationId), ledgerKey,
+      ...split, ratePercent, holdDays, paidAt: String(paidAt), molliePaymentId, createdAt: now.toISOString(),
+    }).changes;
+  };
 
   return {
     /**
-     * Rule 1 — stores the split of every paid link that has none yet; one already stored is never touched
-     * (rule 2). `since`: a payment before it has no reserve. Idempotent.
+     * Rule 1 — stores the split of every paid link, and of every card payment taken on site, that has none yet; one
+     * already stored is never touched (rule 2). `since`: a payment before it has no reserve. Idempotent.
+     *
+     * `candidates` are the card payments recorded on site, `{ sourceType: 'tender' | 'invoice', sourceKey, reservationId,
+     * ledgerKey, grossCents, paidAt }`: they are split only from the day of « CB sur place via Mollie depuis ».
      */
-    sync({ settings, now = new Date() }) {
-      const { ratePercent, holdDays, since } = readReserveSettings(settings);
+    sync({ settings, candidates = [], now = new Date() }) {
+      const reserve = readReserveSettings(settings);
       const numbers = installmentNumbers();
       const missing = db.prepare(`SELECT l.* FROM payment_links l
         WHERE l.status = 'paid' AND l.paidAt IS NOT NULL AND l.amountCents > 0
-          AND NOT EXISTS (SELECT 1 FROM payment_link_splits s WHERE s.paymentLinkId = CAST(l.id AS TEXT))`).all();
+          AND NOT EXISTS (SELECT 1 FROM mollie_payment_splits s WHERE s.sourceType = 'link' AND s.sourceKey = CAST(l.id AS TEXT))`).all();
       let created = 0;
       db.transaction(() => {
         missing.forEach((link) => {
           const ledgerKey = linkLedgerKey(link, (id) => numbers.get(Number(id)) ?? null);
-          const paidDay = day(link.paidAt);
-          if (!ledgerKey || !paidDay) return;
-          const split = computeSplit({ grossCents: link.amountCents, ratePercent, applyReserve: !since || paidDay >= since });
-          created += insert.run({
-            paymentLinkId: String(link.id), reservationId: Number(link.reservationId), ledgerKey, ...split,
-            ratePercent, holdDays, paidAt: String(link.paidAt), createdAt: now.toISOString(),
-          }).changes;
+          if (!ledgerKey) return;
+          created += create({
+            sourceType: SOURCE_TYPES.link, sourceKey: String(link.id), reservationId: Number(link.reservationId), ledgerKey,
+            grossCents: link.amountCents, paidAt: link.paidAt,
+          }, reserve, now);
+        });
+        candidates.forEach((candidate) => {
+          const paidDay = day(candidate.paidAt);
+          if (!reserve.cardSince || !paidDay || paidDay < reserve.cardSince) return;
+          created += create(candidate, reserve, now);
         });
       })();
       return created;
     },
 
+    /**
+     * Rule 16 — a Mollie payment paired with a Qonto invoice GuestFlow holds IS the payment: its gross and its date are
+     * exact. It creates the split when none exists; one made from the on-site tender (an estimate) is corrected to the
+     * payment, with the rate and the hold it already carries.
+     */
+    fromMolliePayment(source, payment, { settings, now = new Date() }) {
+      const stored = forSource(source.sourceType, source.sourceKey);
+      if (!stored) {
+        create({ ...source, grossCents: payment.amountCents, paidAt: payment.paidAt, molliePaymentId: payment.id }, readReserveSettings(settings), now);
+      } else if (!stored.molliePaymentId && Number(payment.amountCents) > 0 && day(payment.paidAt)) {
+        const split = computeSplit({ grossCents: payment.amountCents, ratePercent: stored.ratePercent, applyReserve: Number(stored.reserveCents) > 0 });
+        db.prepare('UPDATE mollie_payment_splits SET grossCents = ?, immediateCents = ?, reserveCents = ?, paidAt = ?, molliePaymentId = ? WHERE sourceType = ? AND sourceKey = ?')
+          .run(split.grossCents, split.immediateCents, split.reserveCents, String(payment.paidAt), String(payment.id), stored.sourceType, stored.sourceKey);
+      }
+      this.setMolliePayment(source.sourceType, source.sourceKey, payment.id);
+      this.setRefunded(source.sourceType, source.sourceKey, payment.refundedCents || 0);
+    },
+
+    forSource,
     forLink(linkId) {
-      return db.prepare('SELECT * FROM payment_link_splits WHERE paymentLinkId = ?').get(String(linkId)) || null;
+      return forSource(SOURCE_TYPES.link, linkId);
     },
     all() {
-      return db.prepare('SELECT * FROM payment_link_splits ORDER BY paidAt, paymentLinkId').all();
+      return db.prepare('SELECT * FROM mollie_payment_splits ORDER BY paidAt, sourceType, sourceKey').all();
     },
     ofReservation(reservationId) {
-      return db.prepare('SELECT * FROM payment_link_splits WHERE reservationId = ? ORDER BY paidAt, paymentLinkId').all(Number(reservationId));
+      return db.prepare('SELECT * FROM mollie_payment_splits WHERE reservationId = ? ORDER BY paidAt, sourceType, sourceKey').all(Number(reservationId));
     },
-    /** Rule 16 — the Mollie payment a link turned out to be. */
-    setMolliePayment(linkId, molliePaymentId) {
-      db.prepare('UPDATE payment_link_splits SET molliePaymentId = ? WHERE paymentLinkId = ? AND (molliePaymentId IS NULL OR molliePaymentId <> ?)')
-        .run(String(molliePaymentId), String(linkId), String(molliePaymentId));
+    /** Rule 16 — the Mollie payment a source turned out to be. */
+    setMolliePayment(sourceType, sourceKey, molliePaymentId) {
+      db.prepare('UPDATE mollie_payment_splits SET molliePaymentId = ? WHERE sourceType = ? AND sourceKey = ? AND (molliePaymentId IS NULL OR molliePaymentId <> ?)')
+        .run(String(molliePaymentId), String(sourceType), String(sourceKey), String(molliePaymentId));
     },
     /** Rule 6 — what Mollie says was refunded of the payment. */
-    setRefunded(linkId, refundedCents) {
-      db.prepare('UPDATE payment_link_splits SET refundedCents = ? WHERE paymentLinkId = ?').run(Math.max(0, Math.round(refundedCents)), String(linkId));
+    setRefunded(sourceType, sourceKey, refundedCents) {
+      db.prepare('UPDATE mollie_payment_splits SET refundedCents = ? WHERE sourceType = ? AND sourceKey = ?')
+        .run(Math.max(0, Math.round(refundedCents)), String(sourceType), String(sourceKey));
     },
   };
 }
 
 module.exports = {
-  DEFAULT_RATE_PERCENT, DEFAULT_HOLD_DAYS, IMMEDIATE_DELAY_DAYS, LATE_AFTER_DAYS, RESERVE_EARLY_DAYS, TRANCHES,
+  DEFAULT_RATE_PERCENT, DEFAULT_HOLD_DAYS, IMMEDIATE_DELAY_DAYS, LATE_AFTER_DAYS, RESERVE_EARLY_DAYS, TRANCHES, SOURCE_TYPES, splitIdOf,
   rateMessage, holdMessage, sinceMessage, readReserveSettings, computeSplit, afterRefund, expectedDates, linkLedgerKey, trancheKey,
   createSplitsModel, addDays,
 };

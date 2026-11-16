@@ -8,7 +8,8 @@
 
 const { buildProposals, classify, DEFAULT_PATTERNS, DEFAULT_BATCH_PLATFORMS } = require('./matcher');
 const { stateOfReceipt, fixText, isGap, euros } = require('./receiptStates');
-const { expectedReceipts } = require('./expectedReceipts');
+const { expectedReceipts, RESERVATION_SQL, installmentsReader, settlementsReader } = require('./expectedReceipts');
+const { cardCandidates, salesSince, saleSource } = require('./mollieCardSources');
 const { ficheCredits, creditReceipts, anchorOf } = require('./ficheCredits');
 const { allocateFifo, summarize, validatePairs } = require('./allocation');
 const { runAutoConfirm } = require('./autoConfirm');
@@ -53,7 +54,7 @@ const parseJson = (raw, fallback) => { try { return raw ? JSON.parse(raw) : fall
  * @param {() => boolean} deps.qontoConfigured  the Qonto credentials are there (rule 50: the job waits for them)
  * @param {Function} deps.withQonto      `(fn) → Promise`
  * @param {object} deps.core             `{ buildLedger, parseGroup, listLinks, platformDisplay, todayIso }`
- * @param {object} [deps.splits]         the Mollie splits model (`sync`, `forLink`) — specs/mollie-rolling-reserve-and-incoming-payments.md rule 1
+ * @param {object} [deps.splits]         the Mollie splits model (`sync`, `forLink`, `forSource`) — specs/mollie-rolling-reserve-and-incoming-payments.md rule 1
  * @param {object} [deps.mollieSettlements] the settlements model (`byReference`) — rule 10
  * @param {object} [deps.mollie]         the optional Mollie connection (`status`, `sync`) — rules 14-17
  */
@@ -78,6 +79,22 @@ function createReconciliationController({ db, settings, transactions, model, wri
     settings.set('reconciliationStartDate', today);
     return today;
   };
+
+  /**
+   * Rule 1 — the split of every paid link, and of every card payment taken on site (from « CB sur place via Mollie
+   * depuis »), stored once with the settings of that moment.
+   */
+  function splitsSync({ startDate, today }) {
+    let candidates = [];
+    if (day(settings.get('mollieCardOnSiteSince'))) {
+      const rows = db.prepare(`${RESERVATION_SQL} ORDER BY r.endDate, r.id`).all(startDate);
+      const { settlementsOf } = settlementsReader(db);
+      candidates = cardCandidates({
+        rows, linksOf: core.listLinks, installmentsOf: installmentsReader(db, core.listInstallments), settlementsOf, startDate, today,
+      });
+    }
+    return splits.sync({ settings, candidates });
+  }
 
   const matcherSettings = () => {
     const custom = parseJson(settings.get('reconciliationPlatformPatterns'), {});
@@ -113,10 +130,13 @@ function createReconciliationController({ db, settings, transactions, model, wri
     const outside = model.outsideIds();
     const discarded = model.discardedKeys();
 
-    if (splits) splits.sync({ settings });
+    if (splits) splitsSync({ startDate, today });
     const splitFor = splits ? (link) => splits.forLink(link.id) : undefined;
+    const sourceSplit = splits ? (type, key) => splits.forSource(type, key) : undefined;
+    // Rule 1 (second half) — the sales outside a stay that went through Mollie have receipts of their own.
+    const sales = splits ? salesSince(startDate, today) : [];
     const baseReceipts = expectedReceipts({
-      db, startDate, today, buildLedger: core.buildLedger, parseGroup: core.parseGroup, listLinks: core.listLinks, listInstallments: core.listInstallments, splitFor,
+      db, startDate, today, buildLedger: core.buildLedger, parseGroup: core.parseGroup, listLinks: core.listLinks, listInstallments: core.listInstallments, splitFor, sourceSplit, sales,
     });
 
     const allocatedOf = new Map();
@@ -166,7 +186,10 @@ function createReconciliationController({ db, settings, transactions, model, wri
     // specs/resource-booking-pricing-and-invoicing.md rule 20 — the card sales made outside any stay, over the days the
     // credits cover.
     const days = matchable.map((t) => String(t.settledAt).slice(0, 10)).sort();
-    const standalone = days.length ? standaloneSales.list({ from: shiftDay(days[0], -BATCH_LOOKBACK_DAYS), to: days[days.length - 1] }) : [];
+    // A sale that went through Mollie (rule 1) is in a Mollie credit, never in the day's card batch.
+    const throughMollie = (sale) => { const source = saleSource(sale); return Boolean(splits && splits.forSource(source.sourceType, source.sourceKey)); };
+    const standalone = days.length
+      ? standaloneSales.list({ from: shiftDay(days[0], -BATCH_LOOKBACK_DAYS), to: days[days.length - 1] }).filter((sale) => !throughMollie(sale)) : [];
     const { byTransaction } = buildProposals({ transactions: matchable, receipts: openReceipts, discarded, settings: cfg, standalone });
 
     const proposalsByReceipt = new Map();
@@ -730,14 +753,16 @@ function createReconciliationController({ db, settings, transactions, model, wri
       return {
         gaps: gaps.length, unmatched: data.counts.unmatched,
         items: gaps.slice(0, 8).map((i) => ({
-          key: i.key, reservationId: i.reservation.id, clientName: i.reservation.clientName, label: i.label, stateLabel: i.stateLabel, fixText: i.fixText,
+          key: i.key, reservationId: i.reservation.id, saleKey: i.reservation.saleKey || null, clientName: i.reservation.clientName, label: i.label,
+          stateLabel: i.stateLabel, fixText: i.fixText,
         })),
       };
     },
 
     /** Rule 1 — a link seen paid is split at that moment, with the settings of that moment (never moved afterwards). */
     syncSplits() {
-      return splits ? splits.sync({ settings }) : 0;
+      const today = core.todayIso();
+      return splits ? splitsSync({ startDate: day(settings.get('reconciliationStartDate')) || today, today }) : 0;
     },
 
     /** Rule 13 — « Retenue Mollie non reçue »: one item per fiche, with the date it was expected. */
@@ -745,11 +770,14 @@ function createReconciliationController({ db, settings, transactions, model, wri
       if (!connected() || !day(settings.get('reconciliationStartDate'))) return { count: 0, items: [] };
       const byStay = new Map();
       compute().items.filter(isLateReserve).forEach((i) => {
-        const found = byStay.get(i.reservation.id) || {
-          reservationId: i.reservation.id, clientName: i.reservation.clientName, amountCents: 0, expectedDate: i.expectedDate, expectedDateLabel: i.mollie.expectedDateLabel,
+        // A sale outside a stay has no fiche: it is its own subject, named by its client or its label.
+        const subject = i.reservation.saleKey ? `sale:${i.reservation.saleKey}` : i.reservation.id;
+        const found = byStay.get(subject) || {
+          reservationId: i.reservation.id, saleKey: i.reservation.saleKey || null, clientName: i.reservation.clientName, amountCents: 0, expectedDate: i.expectedDate,
+          expectedDateLabel: i.mollie.expectedDateLabel,
         };
         found.amountCents += i.expectedCents;
-        byStay.set(i.reservation.id, found);
+        byStay.set(subject, found);
       });
       const items = [...byStay.values()].sort((a, b) => a.expectedDate.localeCompare(b.expectedDate));
       return { count: items.length, items };
@@ -760,9 +788,9 @@ function createReconciliationController({ db, settings, transactions, model, wri
       if (!connected() || !day(settings.get('reconciliationStartDate'))) return null;
       const mine = compute().items.filter((i) => i.mollie && i.reservation.id === Number(reservationId));
       if (mine.length === 0) return null;
-      const views = mine.map((i) => ({ baseKey: i.mollie.baseKey, view: trancheView(i) }));
+      const views = mine.map((i) => ({ baseKey: i.mollie.ledgerRow, view: trancheView(i) }));
       const rows = {};
-      views.forEach(({ baseKey, view }) => { rows[baseKey] = [...(rows[baseKey] || []), view]; });
+      views.filter(({ baseKey }) => baseKey).forEach(({ baseKey, view }) => { rows[baseKey] = [...(rows[baseKey] || []), view]; });
       return { rows, schedule: scheduleView(views.map((v) => v.view)) };
     },
 
@@ -785,6 +813,8 @@ function createReconciliationController({ db, settings, transactions, model, wri
             ? `${percentLabel(i.mollie.ratePercent)} retenus pendant ${i.mollie.holdDays} jours · ${i.label.split(' · ')[0]}`
             : `Versement immédiat de Mollie · ${i.label.split(' · ')[0]}`,
           reservationId: i.reservation.id,
+          // A sale outside a stay has no fiche: the table groups it under its client, or under its label.
+          sale: i.reservation.saleKey ? { key: i.reservation.saleKey, clientName: i.reservation.hasClient ? i.reservation.clientName : '', label: i.reservation.saleLabel } : null,
           amountCents: i.expectedCents,
           expectedDate: i.expectedDate,
           receivedDate: last ? last.date : null,

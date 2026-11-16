@@ -43,7 +43,7 @@ test('rule 28 — the clearing balance at any date is exactly the money still at
   assert.equal(balance(-100).balanceCents, 19680);
   assert.equal(balance(-96).balanceCents, 19680);
   assert.equal(balance(-95).balanceCents, 3936, 'the immediate share arrived: the reserve is what Mollie still holds');
-  assert.deepEqual(balance(-95).clients, [{ reservationId, clientName: 'Jean Dupont', balanceCents: 3936 }]);
+  assert.deepEqual(balance(-95).clients, [{ reservationId, saleKey: null, clientName: 'Jean Dupont', balanceCents: 3936 }]);
   assert.equal(balance(-5).balanceCents, 0);
   assert.deepEqual(balance(-5).clients, []);
   assert.equal(balance(-101).balanceCents, 0, 'before the payment Mollie owes nothing');

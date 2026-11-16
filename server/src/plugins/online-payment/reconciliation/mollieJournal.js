@@ -13,7 +13,10 @@ const { settlementReferenceOf } = require('./mollieSettlements');
 
 const inWindow = (date, from, to) => Boolean(date) && date >= from && date <= to;
 
-const clientOf = (brief) => {
+const holderOf = (reservationId, saleKey) => (saleKey ? `sale:${saleKey}` : reservationId);
+
+const clientOf = (brief, anonymous = false) => {
+  if (anonymous) return { firstName: '', lastName: '' };
   const lastName = brief.lastName || '';
   const whole = brief.clientName || '';
   return { firstName: whole.endsWith(lastName) ? whole.slice(0, whole.length - lastName.length).trim() : whole, lastName };
@@ -27,20 +30,24 @@ const clientOf = (brief) => {
 function mollieJournal(data, { from, to }, settlements = new Map()) {
   const mollieItems = data.items.filter((i) => i.mollie);
   const linkOnce = new Map();
-  mollieItems.forEach((i) => { if (!linkOnce.has(i.mollie.paymentLinkId)) linkOnce.set(i.mollie.paymentLinkId, i); });
+  mollieItems.forEach((i) => { if (!linkOnce.has(i.mollie.splitId)) linkOnce.set(i.mollie.splitId, i); });
+  // A payment taken on site (rule 1, second half) books like a link: the client settles, Mollie owes the gross. A sale
+  // outside a stay has no stay: its holder is the sale (`holderOf`), its client the one named on the sale, if any.
   const links = [...linkOnce.values()].map((i) => ({
-    kind: 'link', date: i.paidDate, amountCents: i.mollie.paymentGrossCents, reservationId: i.reservation.id,
-    client: clientOf(i.reservation), libelle: i.reservation.clientName, ledgerKey: i.mollie.baseKey,
+    kind: 'link', date: i.paidDate, amountCents: i.mollie.paymentGrossCents, reservationId: i.reservation.id, saleKey: i.reservation.saleKey || null,
+    client: clientOf(i.reservation, i.reservation.hasClient === false), libelle: i.reservation.clientName, ledgerKey: i.mollie.baseKey,
   }));
 
   const mollieByKey = new Set(mollieItems.map((i) => i.key));
+  const saleOf = new Map(mollieItems.map((i) => [i.key, i.reservation.saleKey || null]));
   const perCredit = new Map();
   data.linesByReceipt.forEach((lines, key) => {
     if (!mollieByKey.has(key)) return;
     lines.forEach((l) => {
       const entry = perCredit.get(l.transactionId) || { cents: 0, perReservation: new Map() };
       entry.cents += l.amountCents;
-      entry.perReservation.set(l.reservationId, (entry.perReservation.get(l.reservationId) || 0) + l.amountCents);
+      const holder = holderOf(l.reservationId, saleOf.get(`${l.reservationId}|${l.ledgerKey}`));
+      entry.perReservation.set(holder, (entry.perReservation.get(holder) || 0) + l.amountCents);
       perCredit.set(l.transactionId, entry);
     });
   });
@@ -68,15 +75,16 @@ function mollieJournal(data, { from, to }, settlements = new Map()) {
     - upTo(credits).reduce((t, e) => t + e.amountCents, 0) - upTo(costs).reduce((t, e) => t + e.amountCents, 0);
   const heldBy = new Map();
   upTo(links).forEach((e) => {
-    const held = heldBy.get(e.reservationId) || { clientName: e.libelle, balanceCents: 0 };
+    const holder = holderOf(e.reservationId, e.saleKey);
+    const held = heldBy.get(holder) || { clientName: e.libelle, reservationId: e.reservationId, saleKey: e.saleKey, balanceCents: 0 };
     held.balanceCents += e.amountCents;
-    heldBy.set(e.reservationId, held);
+    heldBy.set(holder, held);
   });
-  upTo(credits).forEach((e) => e.perReservation.forEach((cents, reservationId) => {
-    if (heldBy.has(reservationId)) heldBy.get(reservationId).balanceCents -= cents;
+  upTo(credits).forEach((e) => e.perReservation.forEach((cents, holder) => {
+    if (heldBy.has(holder)) heldBy.get(holder).balanceCents -= cents;
   }));
-  const clients = [...heldBy.entries()].filter(([, v]) => v.balanceCents !== 0)
-    .map(([reservationId, v]) => ({ reservationId, clientName: v.clientName, balanceCents: v.balanceCents }))
+  const clients = [...heldBy.values()].filter((v) => v.balanceCents !== 0)
+    .map((v) => ({ reservationId: v.reservationId, saleKey: v.saleKey, clientName: v.clientName, balanceCents: v.balanceCents }))
     .sort((a, b) => b.balanceCents - a.balanceCents);
 
   return {

@@ -13,7 +13,7 @@ test.beforeEach(() => { reset(); });
 const START = dayAt(-140);
 const settle = (reference, { id, amountCents, costsCents = 0, reserveReleasedCents = 0, payments }) => createSettlementsModel(db).store(
   { id, reference, settledAt: `${dayAt(-1)}T08:00:00Z`, amountCents, costsCents, reserveHeldCents: 0, reserveReleasedCents },
-  payments.map((p) => ({ id: p.id, amountCents: p.amountCents, paidAt: null, description: '', paymentLinkId: p.link })),
+  payments.map((p) => ({ id: p.id, amountCents: p.amountCents, paidAt: null, description: '', splitId: p.link ? `link:${p.link}` : null })),
 );
 const everyItem = (controller) => ['todo', 'waiting', 'done'].flatMap((view) => controller.list({ view }).body.items);
 
@@ -180,7 +180,7 @@ test('rule 12 — a reconciled tranche shows the identifiers of its credit: Qont
   const { controller, transactions } = build({ startDate: START });
   transactions.upsertMany([mollieCredit('c1', 15744, 95, { reference: 'REF T19274230.2512.01', transactionId: 'solio-6791-1-transaction-019d1b2f-aaaa' })], { bankAccountId: 'acc-1' });
   controller.confirm({ transactionId: 'c1', allocations: [{ reservationId, ledgerKey: 'balance#immediat', amountCents: 15744 }], user: { id: 1 } });
-  db.prepare('UPDATE payment_link_splits SET molliePaymentId = ? WHERE paymentLinkId = ?').run('tr_WDqYK6vllg', String(link.id));
+  db.prepare('UPDATE mollie_payment_splits SET molliePaymentId = ? WHERE sourceType = \'link\' AND sourceKey = ?').run('tr_WDqYK6vllg', String(link.id));
   const item = everyItem(controller).find((i) => i.ledgerKey === 'balance#immediat');
   assert.deepEqual(item.bank[0].refs, { qonto: 'solio-6791-1-transaction-019d1b2f-aaaa', mollieSettlement: 'T19274230.2512.01', molliePayment: 'tr_WDqYK6vllg' });
 });
@@ -229,7 +229,7 @@ test('rule 20 — the fiche\'s reconciliation card lists the two tranches as two
 
 test('rule 9 — the matcher alone: a Mollie credit never proposes a platform payout or a guest transfer', () => {
   const receipt = { key: '1|balance#immediat', reservationId: 1, ledgerKey: 'balance#immediat', channel: 'mollie', openCents: 8000, expectedCents: 8000,
-    linkPaidAt: dayAt(-10), expectedDate: dayAt(-6), mollie: { tranche: 'immediat', paymentLinkId: '1', lateAfterDays: 8 }, reservation: { id: 1, lastName: 'Dupont', reservationNumber: '' } };
+    linkPaidAt: dayAt(-10), expectedDate: dayAt(-6), mollie: { tranche: 'immediat', splitId: 'link:1', lateAfterDays: 8 }, reservation: { id: 1, lastName: 'Dupont', reservationNumber: '' } };
   const credit = { id: 't1', amountCents: 8000, remainingCents: 8000, currency: 'EUR', settledAt: `${dayAt(-5)}T08:00:00Z`, counterpartyName: 'Stichting Mollie Payments', label: '', reference: '', note: '' };
   const { byTransaction } = buildProposals({ transactions: [credit], receipts: [receipt], settings: {} });
   assert.equal(byTransaction.t1.kind, 'mollie');

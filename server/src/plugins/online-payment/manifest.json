@@ -168,6 +168,7 @@
       "Compte Mollie facultatif (jeton d'accès avancé, lecture seule) : les versements groupés sont détaillés paiement par paiement.",
       "Chaque virement rapproché montre sa référence Qonto, le règlement Mollie et le paiement Mollie.",
       "Accueil : « Retenue Mollie non reçue » quand une retenue dépasse sa date. Fiche et Suivi financier : les sommes attendues sur le compte.",
+      "Les paiements par carte pris avec l'appli Qonto passent aussi par Mollie : une facture Qonto payée par carte se rattache à son paiement Mollie par son numéro, et, depuis la date « CB sur place via Mollie depuis », une CB saisie sur place (échéance, règlement réparti, vente hors séjour) attend les mêmes deux versements.",
       "Demande le SDK 2.29 de GuestFlow."
     ]
   }

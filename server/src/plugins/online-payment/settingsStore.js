@@ -107,6 +107,7 @@ const mollieDeclared = () => [
   { key: 'mollieReservePercent', default: String(DEFAULT_RATE_PERCENT), validate: rateMessage },
   { key: 'mollieReserveHoldDays', default: String(DEFAULT_HOLD_DAYS), validate: holdMessage },
   { key: 'mollieReserveSince', validate: (v) => sinceMessage(v, sdk.coreModule('reservationHelpers').getTodayIsoDate()) },
+  { key: 'mollieCardOnSiteSince', validate: (v) => sinceMessage(v, sdk.coreModule('reservationHelpers').getTodayIsoDate()) },
   { key: 'mollieAccessToken', secret: true, validate: tokenMessage },
   { key: 'mollieProfileId', validate: (v) => (v == null || String(v).trim() === '' || /^pfl_[A-Za-z0-9]{1,40}$/.test(String(v).trim()) ? null : 'Identifiant de profil Mollie invalide (pfl_…).') },
   { key: 'mollieLastRead', validate: () => 'Réglé par la lecture du compte.' },

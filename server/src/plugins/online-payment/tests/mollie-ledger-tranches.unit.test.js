@@ -84,7 +84,7 @@ test('rule 19 — a late tranche reads « en retard » in the summary; a fiche w
   const done = paidStay({ cents: 10000, daysAgo: 5, clientId: 2 });
   assert.ok(fiche(done.reservationId).ledger.schedule, 'seen paid: its split is stored');
   // fully refunded: both tranches are gone, there is nothing left to expect
-  db.prepare('UPDATE payment_link_splits SET refundedCents = 10000 WHERE reservationId = ?').run(done.reservationId);
+  db.prepare('UPDATE mollie_payment_splits SET refundedCents = 10000 WHERE reservationId = ?').run(done.reservationId);
   const plain = fiche(done.reservationId).ledger;
   assert.equal(plain.schedule, undefined, 'no new key on the ledger');
   assert.ok(plain.rows.every((r) => r.bankTranches === undefined));

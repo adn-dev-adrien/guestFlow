@@ -75,7 +75,8 @@ test('rule 16 — Mollie\'s payment is attached to GuestFlow, first match wins: 
   assert.deepEqual(pairPayment(payment({ description: 'a1b2c3' }), links), { kind: 'link', paymentLinkId: '1' });
   assert.deepEqual(pairPayment(payment({ description: 'F-2025-016', paymentLinkId: 'LINK-2' }), links), { kind: 'link', paymentLinkId: '2' }, 'the 2025 link carried metadata.payment_link_id');
   assert.deepEqual(pairPayment(payment({ description: 'a1b2c3', paymentLinkId: 'LINK-2' }), links), { kind: 'link', paymentLinkId: '1' }, 'the description wins over the metadata');
-  assert.deepEqual(pairPayment(payment({ description: 'F-2026-013' }), links, new Set(['F-2026-013'])), { kind: 'sale' });
+  const gruat = { sourceType: 'invoice', sourceKey: 'F-2026-013', reservationId: null, ledgerKey: 'sale:s1' };
+  assert.deepEqual(pairPayment(payment({ description: 'F-2026-013' }), links, new Map([['F-2026-013', gruat]])), { kind: 'invoice', number: 'F-2026-013', source: gruat });
   assert.deepEqual(pairPayment(payment({ amountCents: 5000, paidAt: `${dayAt(-15)}T10:05:00Z` }), links), { kind: 'link', paymentLinkId: '3' }, 'same amount, within 10 minutes');
   assert.equal(pairPayment(payment({ amountCents: 5000, paidAt: `${dayAt(-15)}T11:05:00Z` }), links), null, 'an hour away is no match');
   assert.equal(pairPayment(payment({ amountCents: 5000, paidAt: `${dayAt(-15)}T10:05:00Z` }), [...links, { ...links[2], id: 4, providerPaymentId: 'ww', providerLinkId: 'LINK-4' }]), null, 'two links at that moment: no guess');
@@ -100,13 +101,13 @@ test('rule 16 — a settlement is read once: its payments are attached to their 
   assert.equal(splits.forLink(link.id).refundedCents, 200, 'what Mollie says was refunded');
   const detail = settlements.byReference().get('T19274230.2611.01');
   assert.equal(detail.costsCents, 45);
-  assert.equal(detail.payments[0].paymentLinkId, String(link.id));
+  assert.equal(detail.payments[0].splitId, `link:${link.id}`);
   const callsAfterFirst = calls.length;
   assert.deepEqual(await syncSettlements({ client: mollie, model: settlements, splits, credits, links }), { read: 0, unknownPayments: 0 });
   assert.equal(calls.length, callsAfterFirst, 'nothing is asked twice');
 });
 
-test('rule 16 — a payment paired with a Qonto invoice number is known (stored as a sale), a payment nobody knows is counted', async () => {
+test('rule 16 — a payment paired with a Qonto invoice number is known (stored as an invoice), a payment nobody knows is counted', async () => {
   const settlements = createSettlementsModel(db);
   const { client: mollie } = client({
     '/v2/settlements/T19274230.2611.07': json(200, { id: 'stl_b2', reference: 'T19274230.2611.07', amount: { value: '25.00' } }),
@@ -116,9 +117,9 @@ test('rule 16 — a payment paired with a Qonto invoice number is known (stored 
     ] } }),
   });
   const credits = [mollieCredit('c1', 2000, 4, { reference: 'REF T19274230.2611.07' })];
-  const result = await syncSettlements({ client: mollie, model: settlements, splits: createSplitsModel(db), credits, links: [], invoiceNumbers: new Set(['F-2026-013']) });
+  const result = await syncSettlements({ client: mollie, model: settlements, splits: createSplitsModel(db), settings: { get: () => '' }, credits, links: [], invoiceSources: new Map([['F-2026-013', { sourceType: 'invoice', sourceKey: 'F-2026-013', reservationId: null, ledgerKey: 'sale:s1' }]]) });
   assert.deepEqual(result, { read: 1, unknownPayments: 1 });
-  assert.deepEqual(settlements.byReference().get('T19274230.2611.07').payments.map((p) => p.paymentLinkId).sort(), [null, 'sale:F-2026-013']);
+  assert.deepEqual(settlements.byReference().get('T19274230.2611.07').payments.map((p) => p.splitId).sort(), ['invoice:F-2026-013', null]);
 });
 
 test('rule 17 — a Mollie failure never blocks the reconciliation: the error is kept in words, the amounts rule still applies', async () => {
