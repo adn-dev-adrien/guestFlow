@@ -4,7 +4,8 @@
  *
  * A last-minute booking arrives unpaid: the whole stay is handed over at the door, so the wizard
  * announces the amount and records how it was settled. Everything shown here is computed server-side
- * (`stayPayment` in the SAS payload) — this page renders it and owns no arithmetic.
+ * (`stayPayment` in the SAS payload, then the latest preview’s: the acompte and solde the commit leaves, pricing-components rule 113) —
+ * this page renders it and owns no arithmetic.
  *
  * Props:
  *   stayPayment  { total, deposit: { due }, balance: { due }, channel, platformLabel } — the payload block

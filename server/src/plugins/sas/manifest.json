@@ -192,6 +192,8 @@
       "Au sas, « Garder » sur une ligne déjà payée la remet à facturer : le récapitulatif reprend son prix et « Valider » ne repose pas la question.",
       "Une ligne payée, offerte puis remboursée reste offerte au sas : « ✓ Offert » n’y est plus proposé, la revendre se fait comme une nouvelle ligne.",
       "Décocher « Offert » au sas d’arrivée sur une ligne déjà payée la remet à facturer comme sur la fiche : le montant à rembourser s’annule, le solde non réglé redemande ce qui en avait été déduit.",
+      "« Séjour à régler » affiche le solde que le sas laissera une fois ses gestes faits (une ligne payée remise à facturer le relève) et c’est ce montant qui est marqué payé ; un récapitulatif dépassé est refusé et relu.",
+      "Offrir au sas d’arrivée une ligne déjà payée déduit son montant du solde non réglé, comme depuis la fiche : plus de montant à rembourser quand le solde l’absorbe.",
       "Demande GuestFlow 4.2 (SDK 2.31)."
     ]
   }

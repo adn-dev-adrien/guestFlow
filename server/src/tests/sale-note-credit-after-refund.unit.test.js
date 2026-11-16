@@ -2,7 +2,7 @@
 // `noteCredit`) is counted less what a refund on the trop-perçu already gave back (the settled `lineLowered` rows, the subtraction
 // `paidLineJudgment.noteExcessCents` makes). A note line offered, its trop-perçu refunded, then a new unpaid line: the new line is asked in full
 // at the departure — direct and Booking, the note paid by card or in cash. Σ received net + still asked = the stay's total. A refund deleted
-// reopens its obligation: the money is owed back again, the new line stays asked, and Σ received − owed + asked = total still holds.
+// reopens its obligation: the money is credit again, it pays the new line first (rule 115) and Σ received − owed + asked = total still holds.
 process.env.DB_PATH = ':memory:';
 process.env.TZ = 'Europe/Paris';
 const test = require('node:test');
@@ -68,7 +68,8 @@ for (const platform of ['direct', 'Booking']) {
   }
 }
 
-test('B7-1 — direct: the refund deleted after the new line, the obligation reopens and the new line stays asked', () => {
+// Rule 115 (loop t8 S8-3) — the reopened money is credit again: it pays the 20 € line first, only the rest is owed back (refund-deleted-note-credit).
+test('B7-1 — direct: the refund deleted after the new line, the obligation reopens and pays the new line first', () => {
   const { id, at, refundId } = offeredAndRefunded('direct', 'card');
   assert.equal(extraSale.sell(id, [{ articleRef: `option:${plank}`, quantity: 1 }], { now: at('14:00') }).status, 200);
   assert.equal(ledgerOf(id).remaining, 20);
@@ -76,7 +77,7 @@ test('B7-1 — direct: the refund deleted after the new line, the obligation reo
   refunds.remove({ params: { id: String(id), refundId: String(refundId) }, query: {}, user: { id: 1, role: 'admin' } }, gone);
   assert.equal(gone.statusCode, 200, JSON.stringify(gone.body));
   const owed = Number(db.prepare("SELECT COALESCE(SUM(amountCents), 0) AS c FROM refund_obligations WHERE reservationId = ? AND origin = 'lineLowered' AND status = 'open'").get(id).c);
-  assert.equal(owed, 3000);
-  assert.equal(ledgerOf(id).remaining, 20);
-  assert.equal(30000 + 3000 - owed + 2000, cents(row(id).finalPrice) + cents(row(id).touristTaxTotal));
+  assert.equal(owed, 1000);
+  assert.equal(ledgerOf(id).remaining, 0);
+  assert.equal(30000 + 3000 - owed, cents(row(id).finalPrice) + cents(row(id).touristTaxTotal));
 });

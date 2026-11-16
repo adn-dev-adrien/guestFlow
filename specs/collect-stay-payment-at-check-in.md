@@ -127,6 +127,10 @@ wizard.
     capture re-reads the reservation: that capture is defined as « what the line still owes **after**
     its acompte snapshot », so a stale row would make it claim the whole line and break its own
     invariant on a stay where both buckets are collected at once.
+13.ter. _Reading of 2026-11-16 (pricing-components rule 113, loop t8 S8-1):_ the amount the step shows and the commit marks paid are the
+    acompte / solde the arrival plan leaves once its gestures moved them (a paid line put back to billed or offered at the recap), never the
+    stored figures it is about to change; a recap read before the move is refused 409 `STAY_DUE_CHANGED`
+    ([sas-arrival-total-server-side.md](sas-arrival-total-server-side.md) rule 25).
 14. **Reversibility on re-open** ([reopen-completed-sas.md](reopen-completed-sas.md)). The two
     `*PaidAtArrival` markers record which buckets **this SAS** settled. Re-opening the SAS pre-selects
     the mode from the stored flags (`cash → « Payé en liquide »`, `paid non-cash → « CB / Chèque »`,

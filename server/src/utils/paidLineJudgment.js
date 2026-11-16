@@ -10,6 +10,8 @@
  *                                         rows): never a credit again — the engine's note credit (rule 110) and `noteExcessCents` both deduct it
  *   noteExcessCents(db, reservationId, lineDiscounts)  → the note money no line claims and no bucket absorbs: received by the establishment
  *                                         beyond the total and not refunded yet (`lineDiscounts`: those a save carries, not stored yet)
+ *   wayBack(db, reservationId, opts) / reopenedCredit(db, reservationId, opts) → `{ settle() }`: a write that bills a paid line again or frees
+ *                                         its money (rules 109, 114), a refund on the trop-perçu deleted (rule 115), follows rule 104's credit
  *   begin(db, reservationId)            → `{ finish({ overpaid, forced, lineDiscounts }) }`, taken before the write; `finish`, called after the
  *                                         write inside the same transaction, answers the refusal that rolls it back, or null (`overpaid`: the
  *                                         save is about to answer the trop-perçu formula's 409 OVERPAID — only a removal is refused before it;
@@ -165,6 +167,58 @@ function begin(db, reservationId) {
   };
 }
 
+// The engine's rule-104 credit on the stored stay: what it takes off each bucket (`noteCreditCuts`), in cents, and the end-of-stay remainder it
+// leaves (`midStayExtrasLines`, credited). A quote that cannot run reads no credit.
+function creditOf(quoteOf, row) {
+  let quote = null;
+  try { quote = typeof quoteOf === 'function' ? quoteOf(row) : null; } catch { quote = null; }
+  const ok = quote && !quote.error;
+  const cuts = ok ? quote.noteCreditCuts || {} : {};
+  return {
+    complementAmount: toCents(cuts.complementAmount), depositAmount: toCents(cuts.depositAmount), balanceAmount: toCents(cuts.balanceAmount),
+    remainder: ok ? toCents(quote.midStayRemainingTotal) : null, midStayLines: ok ? quote.midStayExtrasLines : null,
+  };
+}
+
+// Takes up to `cents` off what the stay still asks, in the order rule 104 credits: the open complement (`complement`), the end-of-stay remainder
+// (`midStay(lines)`, the writer that stores the engine's credited lines), the solde, the acompte — each by at most what the engine's credit now
+// takes off it beyond `before`. → the cents taken.
+function creditToBuckets(db, id, cents, before, after, { complement = false, midStay = null } = {}) {
+  let rest = cents;
+  let taken = 0;
+  const take = (column, paid) => {
+    const row = db.prepare('SELECT * FROM reservations WHERE id = ?').get(id);
+    if (rest <= 0 || Number(row[paid] || 0) === 1) return;
+    const cut = Math.min(rest, Math.max(0, after[column] - before[column]), Math.max(0, toCents(row[column])));
+    if (cut <= 0) return;
+    db.prepare(`UPDATE reservations SET ${column} = ROUND(COALESCE(${column}, 0) - ?, 2) WHERE id = ?`).run(cut / 100, id);
+    rest -= cut;
+    taken += cut;
+  };
+  if (complement && db.prepare('SELECT complementAmountOverride AS o FROM reservations WHERE id = ?').get(id).o == null) take('complementAmount', 'complementPaid');
+  if (midStay && rest > 0 && before.remainder != null && after.remainder != null && before.remainder > after.remainder && Array.isArray(after.midStayLines)) {
+    // The remainder is rewritten from the engine's credited lines only when that moves it down by no more than the credit left: a stored
+    // remainder the engine no longer reproduces (an older stay, an adjustment) is left as it is.
+    const stored = () => toCents(db.prepare('SELECT endOfStayComplementAmount AS a FROM reservations WHERE id = ?').get(id).a);
+    const was = stored();
+    const KEEP = Symbol('keep');
+    try {
+      db.transaction(() => {
+        midStay(after.midStayLines);
+        const cut = was - stored();
+        if (cut <= 0 || cut > Math.min(rest, before.remainder - after.remainder)) throw KEEP;
+        rest -= cut;
+        taken += cut;
+      })();
+    } catch (err) {
+      if (err !== KEEP) throw err;
+    }
+  }
+  take('balanceAmount', 'balancePaid');
+  take('depositAmount', 'depositPaid');
+  return taken;
+}
+
 // Rule 109 (loop t7 S7-1) — the way BACK of a write that bills again a line a note paid (« Offert » unticked) without passing through the
 // fiche's save: the arrival SAS rewrites its lines and lets the engine restate the arrival complement only, so neither `syncLoweredObligations`
 // nor `pinSaleDelta` ran. `wayBack(db, id, { quoteOf })` is taken before the write; `settle()`, called after it in the same transaction, gives
@@ -172,37 +226,41 @@ function begin(db, reservationId) {
 // note pays the line again, nothing is owed back), then the acompte and the solde not yet paid get back what the credit took off them
 // (`noteCreditCuts` of the engine before and after). Bounded by what the stay lost (Σ received − owed − total) and by the note money the
 // lines claim again: a write that bills nothing paid again, or whose complement the engine already restated, moves nothing.
+// Rule 114 (loop t8 S8-2) — and the way OUT, the same gesture the other way: a write that FREES note money (a paid line offered at the SAS)
+// credits it as the line API does (`pinSaleDelta`): the solde, then the acompte, not yet paid lose what the engine's credit now takes off them,
+// bounded by the money freed and by what the stay gained beyond its buckets. What no bucket absorbs is left to the judgment (`begin`), which
+// answers the trop-perçu. Same gesture, same result, whichever screen.
 //   quoteOf(row) → the engine's quote of the stored stay (`quoteStoredReservation`), or null
 //   billedCents() → what the stay's lines bill now, when the writer moves `finalPrice` by it only after `settle` (the SAS: `moveFinalPriceBy`)
-function wayBack(db, reservationId, { quoteOf, billedCents = null } = {}) {
+//   midStay(lines) → stores the engine's credited end-of-stay lines (`syncMidStayComplement`), for the way out
+function wayBack(db, reservationId, { quoteOf, billedCents = null, midStay = null } = {}) {
   const id = Number(reservationId);
   const row = db.prepare('SELECT * FROM reservations WHERE id = ?').get(id);
   const notes = row ? notesByKeyCents(row) : {};
   if (!row || !Object.keys(notes).length) return { settle: () => 0 };
-  const cutsOf = (r) => {
-    let quote = null;
-    try { quote = typeof quoteOf === 'function' ? quoteOf(r) : null; } catch { quote = null; }
-    const cuts = quote && !quote.error ? quote.noteCreditCuts || {} : {};
-    return { depositAmount: toCents(cuts.depositAmount), balanceAmount: toCents(cuts.balanceAmount) };
-  };
   const before = {
-    unclaimed: unclaimedCents(notes, lineFactsOf(db, id)), kept: unabsorbedCents(row) - openLoweredCents(db, id), cuts: cutsOf(row),
+    unclaimed: unclaimedCents(notes, lineFactsOf(db, id)), kept: unabsorbedCents(row) - openLoweredCents(db, id), cuts: creditOf(quoteOf, row),
     billed: billedCents ? billedCents() : 0,
   };
   return {
     settle() {
       const after = db.prepare('SELECT * FROM reservations WHERE id = ?').get(id);
       const reclaimed = before.unclaimed - unclaimedCents(notesByKeyCents(after), lineFactsOf(db, id));
-      if (reclaimed <= 0) return 0;
+      if (reclaimed === 0) return 0;
       const owed = openLoweredCents(db, id);
       const finalShift = billedCents ? billedCents() - before.billed : 0;
-      let rest = Math.min(reclaimed, before.kept - (unabsorbedCents(after) - finalShift - owed));
+      const kept = unabsorbedCents(after) - finalShift - owed;
+      if (reclaimed < 0) {
+        const gained = Math.min(-reclaimed, kept - before.kept);
+        return gained > 0 ? -creditToBuckets(db, id, gained, before.cuts, creditOf(quoteOf, after), { midStay }) : 0;
+      }
+      let rest = Math.min(reclaimed, before.kept - kept);
       if (rest <= 0) return 0;
       const closed = Math.min(owed, rest);
       if (closed > 0) holdLowered(db, id, owed - closed);
       rest -= closed;
       if (rest <= 0) return closed;
-      const cuts = cutsOf(after);
+      const cuts = creditOf(quoteOf, after);
       let given = 0;
       for (const [column, paid] of [['depositAmount', 'depositPaid'], ['balanceAmount', 'balancePaid']]) {
         if (rest <= 0 || Number(after[paid] || 0) === 1) continue;
@@ -217,6 +275,28 @@ function wayBack(db, reservationId, { quoteOf, billedCents = null } = {}) {
   };
 }
 
+// Rule 115 (loop t8 S8-3) — a refund on the trop-perçu deleted gives its money back to the stay (`reopenSettledBy` reopens the `lineLowered`
+// rows): that money is note credit again (rule 110 no longer deducts it), so rule 104 credits it to what is still due before anything is owed
+// back — the open complement, the solde, the acompte not yet paid — exactly as a sale made AFTER the deletion would have. Taken before the
+// reopen, `settle()` after it: the reopened obligation shrinks by what the buckets absorbed. A deletion followed by a sale and a sale followed by
+// a deletion end the same way.
+function reopenedCredit(db, reservationId, { quoteOf, midStay = null } = {}) {
+  const id = Number(reservationId);
+  const row = db.prepare('SELECT * FROM reservations WHERE id = ?').get(id);
+  if (!row || !Object.keys(notesByKeyCents(row)).length) return { settle: () => 0 };
+  const before = { owed: openLoweredCents(db, id), credit: creditOf(quoteOf, row) };
+  return {
+    settle() {
+      const owed = openLoweredCents(db, id);
+      if (owed - before.owed <= 0) return 0;
+      const after = db.prepare('SELECT * FROM reservations WHERE id = ?').get(id);
+      const taken = creditToBuckets(db, id, owed - before.owed, before.credit, creditOf(quoteOf, after), { complement: true, midStay });
+      if (taken > 0) holdLowered(db, id, owed - taken);
+      return taken;
+    },
+  };
+}
+
 module.exports = {
-  begin, wayBack, notesOnKey, noteExcessCents, noteExcessByKey, refundedLoweredLines, refundedLoweredCents, PAID_LINE_REMOVED, LINE_REFUNDED,
+  begin, wayBack, reopenedCredit, notesOnKey, noteExcessCents, noteExcessByKey, refundedLoweredLines, refundedLoweredCents, PAID_LINE_REMOVED, LINE_REFUNDED,
 };

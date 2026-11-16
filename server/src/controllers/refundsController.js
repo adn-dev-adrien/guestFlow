@@ -17,7 +17,7 @@ const database = require('../database');
 const vatRegimeModel = require('../models/vatRegimeModel');
 const { lineAllocationsContext } = require('../models/refundInputModel');
 const { collectedAfterArrival } = require('../utils/pricing/refunds/collected');
-const { noteExcessByKey } = require('../utils/paidLineJudgment');
+const { noteExcessByKey, reopenedCredit } = require('../utils/paidLineJudgment');
 const {
   buildRefundableLines, validateRefundPayload, cancelledRefundBudget, collectedByLine, collectedLinesGone, refundDeletionRefusal, lastBookPaymentDateOf, capCashToLines, overpaymentRefusal,
 } = require('../utils/refunds');
@@ -217,7 +217,19 @@ function createRefundsController(deps = {}) {
       if (refusal) return res.status(409).json(refusal);
       const removed = refundsModel.remove(id, refundId);
       if (!removed) return res.status(404).json({ error: 'Remboursement non trouvé' });
-      require('../models/refundObligationsModel').reopenSettledBy(id, refundId);
+      // Pricing-components rule 115 (loop t8 S8-3) — the money the deleted refund gave back is note credit again: what the stay still asks
+      // absorbs it first (rule 104), only the rest is owed back, as if the refund had never been made — whatever was sold since.
+      const credit = stayDatabase && register && String(register.reservation.kind) === 'reservation'
+        ? reopenedCredit(stayDatabase, id, {
+          quoteOf: (r) => require('../utils/storedReservationQuote').quoteStoredReservation(stayDatabase, r),
+          midStay: (lines) => reservationsModel.syncMidStayComplement(id, lines),
+        })
+        : null;
+      const reopen = () => {
+        require('../models/refundObligationsModel').reopenSettledBy(id, refundId);
+        if (credit) credit.settle();
+      };
+      if (credit) stayDatabase.transaction(reopen)(); else reopen();
       recordRefundDeletion(id, target);
       const refreshed = buildRegister(id);
       if (!refreshed) return res.status(404).json({ error: 'Réservation non trouvée' });

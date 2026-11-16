@@ -331,10 +331,14 @@ function normaliseArrivalDraft(req, reservation) {
   };
 }
 
+// Pricing-components rule 113 (loop t8 S8-1) — the « Séjour à régler » of a recap is the plan's: the acompte and the solde the commit leaves once
+// the paid lines it bills again or offers moved them (rules 109, 114), never the stored ones it is about to change.
+const plannedStay = (reservation, plan) => (plan && plan.stayAfter ? { ...reservation, ...plan.stayAfter } : reservation);
+
 function arrivalRecapFor(req, reservation, plan) {
   const receptionOnly = isReceptionOnly(req.user);
   return shapeArrivalRecap(plan, {
-    stayPayment: buildStayPayment(reservation, { isDeparture: false, receptionOnly }),
+    stayPayment: buildStayPayment(plannedStay(reservation, plan), { isDeparture: false, receptionOnly }),
     arrivalPayment: buildArrivalPayment(reservation, { isDeparture: false, receptionOnly }),
     saleOffers: saleOffersFor(reservation, { isDeparture: false }),
     nothingToCollect: nothingToCollect(reservation, { isDeparture: false, bucketStates, isDirectChannel }),
@@ -646,7 +650,7 @@ function commitArrival(req, res) {
     // true means the operator chose « Régler séparément », and the four fields above are honoured
     // exactly as in v2.8.0.
     arrivalPaymentMode, arrivalPaymentSplit,
-    displayedArrivalTotal,
+    displayedArrivalTotal, displayedStayDue,
   } = draft.body;
 
   // specs/sas-arrival-total-server-side.md rules 8-9 — whether ONE gesture may settle both sides is
@@ -658,9 +662,17 @@ function commitArrival(req, res) {
   const recap = arrivalRecapFor(req, reservation, arrivalPlan);
   const unifiable = isUnifiable({
     complementOpen: recap.complementOpen,
-    stayApplicable: buildStayPayment(reservation, { isDeparture: false, receptionOnly: isReceptionOnly(req.user) }).applicable,
+    stayApplicable: buildStayPayment(plannedStay(reservation, arrivalPlan), { isDeparture: false, receptionOnly: isReceptionOnly(req.user) }).applicable,
     arrivalComplementTotal: recap.arrivalComplementTotal,
   });
+  // Rule 113 (loop t8 S8-1) — the stay is marked paid for what the recap showed, never more: a recap read before the plan moved the acompte or
+  // the solde (`displayedStayDue`, its « Séjour ») is refused and read again rather than booking money nobody asked.
+  const settlesStay = stayPaid === true || arrivalPaymentMode === 'card' || arrivalPaymentMode === 'cash' || arrivalPaymentMode === 'split';
+  if (settlesStay && displayedStayDue != null && Number.isFinite(Number(displayedStayDue)) && round2(displayedStayDue) !== round2(recap.stayDue)) {
+    return res.status(409).json({
+      error: `Le séjour à régler est maintenant de ${formatEuro(recap.stayDue)} : relire le récapitulatif.`, code: 'STAY_DUE_CHANGED', stayDue: recap.stayDue,
+    });
+  }
 
   // specs/single-payment-at-check-in.md §3.1 rule 2 — ONE mode drives both sides. This is a
   // translation, not a second settlement path: the model keeps the two tri-states it has always had,

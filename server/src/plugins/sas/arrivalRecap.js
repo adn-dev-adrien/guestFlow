@@ -3,7 +3,7 @@
  * shaped from a plan of `reservationsModel.planArrivalSas`. Pure: every input is handed in.
  *
  *   plan         — the plan (lines, totals, sales)
- *   stayPayment  — `buildStayPayment()` of the controller ({ applicable, total })
+ *   stayPayment  — `buildStayPayment()` of the controller ({ applicable, total }), on the acompte and solde the plan leaves (rule 113)
  *   arrivalPayment — `buildArrivalPayment()` ({ complementOpen })
  *   saleOffers   — `sasSales` of the SAS payload, to file each sold line under its step
  *   nothingToCollect — the server's « Rien à percevoir » answer for the stored buckets
@@ -84,6 +84,8 @@ function shapeArrivalRecap(plan, {
     addedTotal: round2(plan.addedTotal),
     arrivalComplementTotal,
     stayDue,
+    // Pricing-components rule 113 (loop t8 S8-1) — the « Séjour à régler » block of THIS plan: the stay page renders it once a preview answered.
+    stayPayment,
     totalAtArrival: round2(stayDue + arrivalComplementTotal),
     unifiable: isUnifiable({
       complementOpen: arrivalPayment.complementOpen,

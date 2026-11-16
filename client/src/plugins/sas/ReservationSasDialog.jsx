@@ -790,8 +790,9 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
     offered,
   }) : null), [mode, data, cleaningOk, missingDep, extinguisherOk, extinguisherQty, extinguisherTariffs, storedKeys, offered]);
   // Rule 17 / rule 16 — the pages that show money ask the server; the others leave it alone.
+  // Rule 113 (loop t8 S8-1) — the stay page too: its « Séjour à régler » is the plan's, once the recap's gestures moved the solde.
   const previewShown = mode === 'arrival'
-    ? ['recap', 'breakfastMornings', 'cateringItems'].includes(stepKey)
+    ? ['recap', 'breakfastMornings', 'cateringItems', 'stayPayment'].includes(stepKey)
     : ['recap', 'extinguisherItems'].includes(stepKey);
   const draft = mode === 'arrival' ? arrivalDraft : departureDraft;
   const preview = useSasRecapPreview({
@@ -984,6 +985,9 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
           stayPaidCash: stayPayMode === 'cash',
           // Rule 22 — what the recap showed, compared by the server and never used as an amount.
           displayedArrivalTotal: recap ? recap.arrivalComplementTotal : undefined,
+          // Pricing-components rule 113 (loop t8 S8-1) — the « Séjour » the recap showed: the server marks paid that, or refuses and the
+          // recap is read again.
+          displayedStayDue: recap && activeKeys.includes('stayPayment') ? recap.stayDue : undefined,
         };
         // The composition page ran — either for a booked breakfast or for one just sold (its counts
         // would otherwise be written back as zeros).
@@ -1041,6 +1045,7 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
       // Inline (visible in the fullscreen dialog) + toast (app-wide feedback channel).
       setError(message || "Échec de l'enregistrement.");
       showError(message || "Échec de l'enregistrement du SAS.");
+      if (e?.code === 'STAY_DUE_CHANGED') preview.retry();
     } finally {
       setCommitting(false);
     }
@@ -1301,7 +1306,7 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
         );
       case 'stayPayment':
         return (
-          <SasStayPaymentPage stayPayment={data.stayPayment} value={stayPayMode}>
+          <SasStayPaymentPage stayPayment={recap?.stayPayment?.applicable ? recap.stayPayment : data.stayPayment} value={stayPayMode}>
             <PaymentModeButtons value={stayPayMode} onChange={setStayPayMode} showDefer deferLabel="Pas maintenant" />
           </SasStayPaymentPage>
         );
