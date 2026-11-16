@@ -11,7 +11,8 @@ const { stay, row, beer, todayIso, addDaysToIsoDate } = require('./saleRound1Fix
 const extraSale = require('../utils/extraSale');
 const ctrl = require('../controllers/reservationsController');
 const { storedBody } = require('../utils/stayOrderLines');
-const { shapeArrivalRecap } = require('../plugins/sas/arrivalRecap');
+const { optionalPlugin, skipWithout } = require('../plugins/sdk/testing');
+const { shapeArrivalRecap } = optionalPlugin(() => require('../plugins/sas/arrivalRecap'));
 
 const at = (id, time, offset = 0) => new Date(`${addDaysToIsoDate(row(id).startDate, offset)}T${time}:00`);
 const cents = (v) => Math.round(Number(v || 0) * 100);
@@ -36,7 +37,7 @@ function cashBeer({ collected = false } = {}) {
   return { id, ref: sold.saleDetail.lines.find((line) => line.articleKey === `option:${beer}`).ref };
 }
 
-test('S5-3 — arrival: the paid line discounted 10 €, the e-mail and the SAS recap list the basket at 45 € and « Déjà réglé (Bière ronde) » −10 €', () => {
+test('S5-3 — arrival: the paid line discounted 10 €, the e-mail and the SAS recap list the basket at 45 € and « Déjà réglé (Bière ronde) » −10 €', { skip: skipWithout(['sas']) }, () => {
   const { id, ref } = cashBeer();
   const now = at(id, '13:00', 1);
   assert.equal(extraSale.changeLine(id, ref, { discount: { amount: 10 } }, { now }).status, 200);
@@ -65,9 +66,9 @@ test('S5-3 — departure: the paid line offered, its 30 € come off the basket 
 test('S5-3 — the guest e-mail lists the credit with its negative amount (« Already paid (…) » in English), the total unchanged', () => {
   const { buildContext } = require('../utils/emailContextBuilder');
   const input = (lang) => ({
-    reservation: {
+    reservation: { // date-literal-ok: an e-mail context built from literals, no clock reads it
       startDate: '2026-07-10', endDate: '2026-07-13', checkInTime: '15:00', checkOutTime: '10:00', adults: 2, finalPrice: 380, depositAmount: 0, balanceAmount: 345, complementAmount: 35, complementPaid: 0,
-    }, // date-literal-ok: an e-mail context built from literals, no clock reads it
+    },
     client: { firstName: 'Test', lastName: 'Ronde' },
     property: { name: 'Ronde', defaultCheckIn: '15:00', defaultCheckOut: '10:00' },
     options: [],

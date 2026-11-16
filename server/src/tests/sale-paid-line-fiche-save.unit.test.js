@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rules 23, 104 (stabilisation loop t5, S5-1 and A5-1, 2026-11-16) — a paid line offered, lowered or removed through the
+// specs/pricing-components.md §3 rules 23, 104, 105 (stabilisation loop t5, S5-1 and A5-1, 2026-11-16) — a paid line offered, lowered or removed through the
 // fiche's « Enregistrer » is judged as through its line action: one judgment (`utils/paidLineJudgment`) inside the save. Before: the fiche save
 // asked only the trop-perçu formula, which a platform stay never trips, so a card order paid in the app then offered in the fiche left its 30 €
 // on no bucket (Σ buckets + notes − (price + tax) = +30), and a paid line removed from the fiche was accepted.

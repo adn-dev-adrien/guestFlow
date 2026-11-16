@@ -7,7 +7,10 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const { seed, book, card } = require('./standaloneBookingFixture');
 const { createInvoicing } = require('../invoicing');
-const { wireItems, foldedItems, ttcOf } = require('../../online-payment/invoiceIssuer');
+const { optionalPlugin, skipWithout } = require('../../sdk/testing');
+// The issuer lives in online-payment: without it there is no Qonto invoice to judge.
+const { wireItems, foldedItems, ttcOf } = optionalPlugin(() => require('../../online-payment/invoiceIssuer'));
+const NEEDS_ISSUER = { skip: skipWithout(['online-payment']) };
 const { netOfTtc } = require('../../../utils/accounting/legacyBucketSplit');
 const { FAR_YEAR: Y } = require('../../../tests/farYearFixture');
 
@@ -20,7 +23,7 @@ const session = (rate, amounts, deduction) => ({
   discount: deduction ? { title: '1 h offerte', amountCents: deduction, vatRate: rate, vatGroup: `booking:session|${rate}` } : null,
 });
 
-test('B5-2 — 20 € − 15 € « 1 h offerte » at 10 %: Qonto states 0,45 € of VAT, the booking journal\'s', () => {
+test('B5-2 — 20 € − 15 € « 1 h offerte » at 10 %: Qonto states 0,45 € of VAT, the booking journal\'s', NEEDS_ISSUER, () => {
   const { items, discount } = session(10, [2000], 1500);
   const wired = wireItems(items, discount, 500);
   assert.equal(totalOfWire(wired), 500);
@@ -29,7 +32,7 @@ test('B5-2 — 20 € − 15 € « 1 h offerte » at 10 %: Qonto states 0,45 �
   assert.ok(wired.every((item) => !('vatGroup' in item)));
 });
 
-test('B5-2 — a document\'s session paid on the booking (10,05 € at 20 %) takes the booking journal\'s cut, not the sale cut', () => {
+test('B5-2 — a document\'s session paid on the booking (10,05 € at 20 %) takes the booking journal\'s cut, not the sale cut', NEEDS_ISSUER, () => {
   const items = [
     { title: 'Bain · séance', amountCents: 1005, vatRate: 20, vatGroup: 'booking:resources|20' },
     { title: 'Bière', amountCents: 1005, vatRate: 20, vatGroup: 'drinks|20' },
@@ -44,7 +47,7 @@ test('B5-2 — a document\'s session paid on the booking (10,05 € at 20 %) tak
   assert.equal(vatOfWire(salePart), 168, 'a sale line keeps the sale cut');
 });
 
-test('B5-2 — the booking-only request names the booking group: what the issuer sends is the journal\'s VAT', async () => {
+test('B5-2 — the booking-only request names the booking group: what the issuer sends is the journal\'s VAT', NEEDS_ISSUER, async () => {
   for (const vatRate of [20, 10, 5.5]) {
     const { model, resourceId } = seed({ vatRate });
     let request = null;
@@ -69,7 +72,7 @@ test('B5-2 — the booking-only request names the booking group: what the issuer
 });
 
 // The reviewer's sweep of round 5: realistic breakdowns of a session (20-60 €), an extra part (0-20 €) and a deduction (0-30 €) at 10 / 20 / 5,5 %.
-test('B5-2 sweep — every breakdown states the booking journal\'s VAT, on the wire and on the folded fallback; the ungrouped solver missed some', () => {
+test('B5-2 sweep — every breakdown states the booking journal\'s VAT, on the wire and on the folded fallback; the ungrouped solver missed some', NEEDS_ISSUER, () => {
   let missedBefore = 0;
   let checked = 0;
   for (const rate of [10, 20, 5.5]) {
