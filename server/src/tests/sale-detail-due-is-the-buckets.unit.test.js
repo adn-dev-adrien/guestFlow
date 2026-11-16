@@ -1,6 +1,7 @@
 // specs/pricing-components.md §3 rule 31 and rule 104 e (stabilisation loop t6, UI6-1 / UI6-2 / UI6-3, 2026-11-16) — the sale panel's « Reste à
-// payer » (`totals.dueCents`) is what the stored stay still asks: its open acompte, solde, installments and complements, gross, a rule-104 credit
-// already off the bucket it sits in. Before: Σ lines − Σ line-level settled, so every euro paid through the acompte, the solde or the platform
+// payer » (`totals.dueCents`) is what the stored stay still asks: its open acompte, solde, installments and complements, a rule-104 credit
+// already off the bucket it sits in — since the owner reading of 2026-11-16, the register's « Reste à percevoir » (net of commission on a
+// platform stay). Before: Σ lines − Σ line-level settled, so every euro paid through the acompte, the solde or the platform
 // read as still due (a fully paid stay showed its whole price). The departure section's credit row offers nothing and reads its label once.
 process.env.DB_PATH = ':memory:';
 process.env.TZ = 'Europe/Paris';
@@ -54,14 +55,31 @@ test('UI6-2 — a stay paid in full asks nothing; a platform stay paid by the pl
   assert.equal(extraSale.saleDetailOf(platform).totals.dueCents, 0);
 });
 
-test('UI6-2 — the open figure is gross: no commission or penalty netted out, a cancelled stay asks nothing through its sale', () => {
+// Rule 106 c, owner reading of 2026-11-16 — on a platform stay the panel's « Reste à payer » is the NET still to collect, the register's
+// « Reste à percevoir » (one source, `remainingToPay`); a direct stay carries no commission, so its figure is unchanged.
+test('rule 106 c (2026-11-16) — the open figure is the register\'s: net of the commission and penalty of each unpaid échéance, a cancelled stay asks nothing through its sale', () => {
   const base = {
     kind: 'reservation', depositAmount: 100, depositPaid: 0, balanceAmount: 200, balancePaid: 0, complementAmount: 45, complementPaid: 0,
     endOfStayComplementAmount: 12.5, endOfStayComplementPaid: 0, acompteCommissionAmount: 15, platformCommissionAmount: 30, platformPenaltyAmount: 20,
   };
-  assert.equal(stayOpenCents(base), 35750);
-  assert.equal(stayOpenCents({ ...base, depositPaid: 1, complementPaidCash: 1 }), 21250);
+  assert.equal(stayOpenCents(base), 29250);
+  assert.equal(stayOpenCents({ ...base, depositPaid: 1, complementPaidCash: 1 }), 16250);
+  assert.equal(stayOpenCents({ ...base, acompteCommissionAmount: 0, platformCommissionAmount: 0, platformPenaltyAmount: 0 }), 35750);
   assert.equal(stayOpenCents({ ...base, kind: 'cancelled' }), 0);
+});
+
+test('rule 106 c (2026-11-16) — a Booking stay with its commission unpaid: the panel asks what the register still has to collect, not the gross', () => {
+  const id = stay(20);
+  db.prepare("UPDATE reservations SET platform = 'Booking' WHERE id = ?").run(id);
+  ctrl.performUpdate(id, { ...storedBody(id), restatePricing: true });
+  db.prepare('UPDATE reservations SET platformCommissionAmount = 45, acompteCommissionAmount = 0 WHERE id = ?').run(id);
+  const stored = row(id);
+  const gross = Math.round((Number(stored.depositAmount || 0) + Number(stored.balanceAmount || 0) + Number(stored.complementAmount || 0)) * 100);
+  const res = { status() { return this; }, json(b) { this.body = b; return this; } };
+  ctrl.getById({ params: { id: String(id) }, query: {}, user: { id: 1, role: 'admin' } }, res);
+  const due = extraSale.saleDetailOf(id).totals.dueCents;
+  assert.equal(due, Math.round(res.body.ledger.remaining * 100));
+  assert.equal(due, gross - 4500);
 });
 
 test('UI6-3 — the departure credit row offers nothing and carries no second « Déjà réglé »', () => {

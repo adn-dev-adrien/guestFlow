@@ -298,6 +298,8 @@ export default function FinanceSection() {
     installmentPlan = null, setInstallmentPlan, fichePristine = true,
     // specs/disable-deposit-per-reservation.md rule 13 — why « Sans acompte » cannot be ticked, from the server.
     depositDisabledLockedReason = null,
+    // guest-app rule 113 a — the notes paid online, which the row neither adjusts nor puts back: { [noteId]: reason }, from the server.
+    midStayNoteLocks = {},
     touristTaxInComplementLockedReason = null,
   } = useReservationForm();
   const depositDisabledLockReason = DEPOSIT_DISABLED_LOCK_REASONS[depositDisabledLockedReason] || null;
@@ -887,6 +889,7 @@ export default function FinanceSection() {
                 key={note.id}
                 note={note}
                 settled={endOfStaySettled}
+                lockedReason={(midStayNoteLocks && midStayNoteLocks[note.id]) || null}
                 onCancel={() => onCancelNote(note)}
                 onAdjust={(patch) => onAdjustNote(note, patch)}
               />

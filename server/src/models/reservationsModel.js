@@ -32,7 +32,7 @@ const { isCleaningOption } = require('../utils/cleaningOption');
 const { buildCheckoutComplement, END_OF_STAY_CLEANING_LABEL } = require('../utils/checkoutComplement');
 const {
   buildExtrasBaseline, arrivalBaselineOf, mergeMidStayIntoDetail, parseBaseline, extraLineKey,
-  buildMidStayLine, parseNotes, nextNoteId, storedMidStayLines, resolveMidStaySplit, MID_STAY_SOURCE, settledByKey,
+  buildMidStayLine, parseNotes, nextNoteId, storedMidStayLines, resolveMidStaySplit, MID_STAY_SOURCE, settledByKey, notePaidOnlineReason,
 } = require('../utils/midStayExtras');
 const { buildEditLock } = require('../utils/midStayExtrasWindow');
 const {
@@ -3653,7 +3653,7 @@ function createReservationsModel(database, { arrivalComplementEngine = null } = 
         if (!note) throw midStayError('NOTE_NOT_FOUND', 'Note introuvable.');
         // Loop t5 A5-1 (pricing-components rule 23) — money taken online (an app or shop card payment) is given back through the register,
         // never by deleting its note: the line would be asked again and the money recorded nowhere.
-        if (note.method === 'card') throw midStayError('NOTE_PAID_ONLINE', 'Payée en ligne : offrir la ligne, puis rembourser.');
+        if (notePaidOnlineReason(note)) throw midStayError('NOTE_PAID_ONLINE', notePaidOnlineReason(note));
 
         const detail = parseDetailLines(row.endOfStayComplementDetail);
         const sasLines = detail.filter((l) => l.source !== MID_STAY_SOURCE);
@@ -3702,7 +3702,7 @@ function createReservationsModel(database, { arrivalComplementEngine = null } = 
      * « annuler la note » already makes. The prestations themselves are never un-sold (rule 26): to
      * really write the money off, the operator offers the line in the departure SAS.
      *
-     * @throws {Error} `code` = NOTE_NOT_FOUND | NOTE_AMOUNT_INVALID | END_OF_STAY_SETTLED
+     * @throws {Error} `code` = NOTE_NOT_FOUND | NOTE_AMOUNT_INVALID | END_OF_STAY_SETTLED | NOTE_PAID_ONLINE (amount or means of a note paid online)
      */
     adjustMidStayNote(reservationId, { id, total, paidDate, cash } = {}) {
       if (!HAS_MID_STAY_NOTES) throw midStayError('NOTE_NOT_FOUND', 'Note introuvable.');
@@ -3717,6 +3717,12 @@ function createReservationsModel(database, { arrivalComplementEngine = null } = 
         const notes = parseNotes(row.midStaySettledNotes);
         const note = notes.find((n) => Number(n.id) === Number(id));
         if (!note) throw midStayError('NOTE_NOT_FOUND', 'Note introuvable.');
+        // Loop t6 A6-2 (guest-app rule 113 a) — a note paid online keeps its amount and its means, as it is never put back to the departure:
+        // lowering it asked the guest again for money he paid online, « Caisse interne » took card money off the books. Its date stays editable.
+        const paidOnline = notePaidOnlineReason(note);
+        const totalChanged = !(total === undefined || total === null || total === '') && round2(total) !== round2(note.total);
+        const cashChanged = cash !== undefined && (cash ? 1 : 0) !== (Number(note.paidCash || 0) === 1 ? 1 : 0);
+        if (paidOnline && (totalChanged || cashChanged)) throw midStayError('NOTE_PAID_ONLINE', paidOnline);
 
         if (paidDate !== undefined) note.paidDate = paidDate || note.paidDate;
         if (cash !== undefined) note.paidCash = cash ? 1 : 0;
