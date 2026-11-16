@@ -54,6 +54,22 @@ const creditLine = (credit) => ({
   real: round2(credit.totalCents / 100), billed: round2(credit.totalCents / 100), offerable: false, offered: false,
 });
 
+// Loop t6 (unverified note of the round-6 review) — the credit is the STORED stay's, the plan may be a draft's: a draft that offers the line the
+// credit sat on asks less than its listed lines by less than the credit (or not at all). The recap lists only the part of the credit that explains
+// why this plan's complement is below its listed lines, so the lines always sum to the complement asked.
+function arrivalCredits(plan, credits) {
+  const listed = round2((plan.lines || []).reduce((sum, line) => sum + (Number(line.billed) || 0), 0));
+  let left = round2(listed - round2(plan.arrivalComplementTotal));
+  const shown = [];
+  for (const credit of (credits || []).filter((entry) => entry.bucket === 'arrival')) {
+    const cents = Math.min(-Number(credit.totalCents || 0), Math.round(left * 100));
+    if (cents <= 0) break;
+    shown.push({ ...credit, totalCents: -cents });
+    left = round2(left - cents / 100);
+  }
+  return shown;
+}
+
 function shapeArrivalRecap(plan, {
   stayPayment = {}, arrivalPayment = {}, saleOffers = null, nothingToCollect = false, credits = [],
 } = {}) {
@@ -62,7 +78,7 @@ function shapeArrivalRecap(plan, {
   return {
     lines: [
       ...plan.lines.map(({ optionId, moments, servedPersons, ...line }) => line),
-      ...(credits || []).filter((credit) => credit.bucket === 'arrival').map(creditLine),
+      ...arrivalCredits(plan, credits).map(creditLine),
     ],
     existingTotal: round2(plan.existingTotal),
     addedTotal: round2(plan.addedTotal),

@@ -2,8 +2,9 @@
  * StaySalesSection — what a stay sold apart from the total being collected (specs/pricing-components.md §3 rules 32, 85; mock M3).
  *
  * Props:
- *   `section` = `{ title, lines: [{ ref, label, totalCents, statusLabel, sourceLabel, block, groupLabel, addedOnReopen }], groups, totalCents, dueCents }`
- *     as the server serves it (the SAS payload's `staySales`), or null (renders nothing). Every amount is the server's cents and every label its
+ *   `section` = `{ title, lines: [{ ref, label, totalCents, status, statusLabel, sourceLabel, block, groupLabel, addedOnReopen, offerable }], groups, totalCents,
+ *     dueCents }` as the server serves it (the SAS payload's `staySales`), or null (renders nothing). A line `status: 'credit'` is the rule-104
+ *     « Déjà réglé (…) » money (negative, `offerable: false`, no `statusLabel`): read-only, never offered. Every amount is the server's cents and every label its
  *     French; nothing is summed here.
  *   `onCollectNow(refs)` (optional) — makes the section actionable: each line still to collect shows « Percevoir maintenant » and, from two lines on,
  *     « Tout percevoir maintenant » heads the list; the handler gets the refs asked and returns a promise (the buttons wait for it). The
@@ -86,7 +87,7 @@ export default function StaySalesSection({ section, onCollectNow = null, onOffer
     >
       <Typography id={`${uid}-${line.ref}`} variant="body2" sx={{ minWidth: 0, overflowWrap: 'anywhere' }}>
         {inGroup ? line.groupLabel : line.label}
-        <Typography component="span" variant="caption" color="text.secondary">{` · ${line.statusLabel}`}</Typography>
+        {line.statusLabel && <Typography component="span" variant="caption" color="text.secondary">{` · ${line.statusLabel}`}</Typography>}
         {line.addedOnReopen && (
           <Typography component="span" variant="caption" sx={{ ml: 0.75, px: 0.75, py: 0.125, borderRadius: 1, bgcolor: 'action.hover', color: 'text.primary', whiteSpace: 'nowrap' }}>
             {TEXTS.reopenChip}
@@ -100,7 +101,7 @@ export default function StaySalesSection({ section, onCollectNow = null, onOffer
             {TEXTS.collect}
           </Button>
         )}
-        {onOffer && blockOf(line) === 'paid' && !line.offered && (
+        {onOffer && blockOf(line) === 'paid' && !line.offered && line.offerable !== false && (
           <Button size="small" variant="outlined" disabled={busy} aria-describedby={`${uid}-${line.ref}`} onClick={() => offer(line.ref, false)} sx={{ minHeight: 44, whiteSpace: 'nowrap' }}>
             {TEXTS.offer}
           </Button>

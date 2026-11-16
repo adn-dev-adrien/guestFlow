@@ -75,8 +75,9 @@ function budget({ collectedTtc, cashCollectedTtc = 0, refunds = [] }) {
  * @param {object} [input.planBuckets]  on a live stay, `bookedStayBuckets().installments`: what the lines no reading names
  *                                      share (rule 51)
  * @param {object} [input.reservation]  on a live stay, the row, for the money it collected after arrival (rule 51)
+ * @param {Set}    [input.notePaidKeys] on a cancelled stay, the line keys the stay's notes paid (they collected: never capped first)
  */
-function refundable({ finalPrice, touristTaxTotal, vatRate, options = [], resources = [], refunds = [], nights = 0, cancelled = null, collected = null, cashCollected = null, complementCollected = false, goneLines = [], planBuckets = null, reservation = null }) {
+function refundable({ finalPrice, touristTaxTotal, vatRate, options = [], resources = [], refunds = [], nights = 0, cancelled = null, collected = null, cashCollected = null, complementCollected = false, goneLines = [], planBuckets = null, reservation = null, notePaidKeys = null }) {
   const given = refundedByKey(refunds, (refund) => !isRequalification(refund));
   const fromIndemnity = refundedByKey(refunds, (refund) => !isRequalification(refund), isIndemnityLine);
   const requalified = refundedByKey(refunds, isRequalification, (line) => !isCommissionLine(line));
@@ -198,7 +199,12 @@ function refundable({ finalPrice, touristTaxTotal, vatRate, options = [], resour
     // particular, and a paid solde is one sum the lines share. The excess comes off the lines paid at arrival first,
     // the money a cancelled stay is the least likely to have collected, then off the lines whose own collection is
     // unknown, the lines capped at what they collected last.
-    const atArrival = new Set([...options, ...resources].filter((line) => line && Number(line.inComplement || 0) === 1).map(billedLineKey));
+    // Loop t6 S6-6 (guest-app 110b) — an arrival line a note paid (a card order before the arrival) did collect: it is not ranked as money the
+    // stay is the least likely to hold (`notePaidKeys`, the keys the stay's notes paid). Only a key one line holds: lines sharing a key share
+    // its collected money, which the arrival rank keeps from being offered twice.
+    const keyCount = perLine.reduce((counts, line) => counts.set(line.key, (counts.get(line.key) || 0) + 1), new Map());
+    const atArrival = new Set([...options, ...resources].filter((line) => line && Number(line.inComplement || 0) === 1).map(billedLineKey)
+      .filter((key) => !(notePaidKeys && notePaidKeys.has(key) && keyCount.get(key) === 1)));
     // Reading of 2026-11-05 (audit R22-2) — the arrival rank holds while the complement is unpaid: once paid, those lines
     // are the very lines that collected.
     const rank = (line) => (atArrival.has(line.key) && !complementCollected ? 0 : (collectedLeft(line) === Infinity ? 1 : 2));

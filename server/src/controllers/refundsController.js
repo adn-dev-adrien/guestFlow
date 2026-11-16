@@ -16,6 +16,7 @@ const defaultReservationsModel = require('../models/reservationsModel');
 const database = require('../database');
 const vatRegimeModel = require('../models/vatRegimeModel');
 const { lineAllocationsContext } = require('../models/refundInputModel');
+const { collectedAfterArrival } = require('../utils/pricing/refunds/collected');
 const {
   buildRefundableLines, validateRefundPayload, cancelledRefundBudget, collectedByLine, collectedLinesGone, refundDeletionRefusal, lastBookPaymentDateOf, capCashToLines, overpaymentRefusal,
 } = require('../utils/refunds');
@@ -106,6 +107,7 @@ function createRefundsController(deps = {}) {
       reservation: cancelled ? null : reservation,
       cashCollected: cashReading,
       complementCollected: Number(reservation.complementPaid) === 1,
+      notePaidKeys: cancelled ? new Set(collectedAfterArrival(reservation).keys()) : null,
       goneLines: cancelled ? collectedLinesGone({ reservation, options: reservation.options || [], resources: reservation.resources || [], collected, cashCollected: cashReading }) : [],
     });
     // Rule 48 reading of 2026-11-02 (review of PR #929, F4) — the caisse interne gives back only what its lines carry.
@@ -177,6 +179,13 @@ function createRefundsController(deps = {}) {
       recordRefundHistory(id, validated.refund, refundId);
       if (validated.refund.origin === 'overpayment') {
         require('../models/refundObligationsModel').settleLoweredBy(id, refundId, Math.round(validated.refund.totalTtc * 100));
+      } else if (cancelled) {
+        // Loop t6 S6-1 (pricing-components rule 106 d) — on a cancelled stay the cancellation dialog gives a note-paid line's money back on the
+        // line itself: what it gives back on the lines a note paid settles the `lineLowered` obligation held for that money.
+        const notePaid = collectedAfterArrival(reservation);
+        const onNoteLines = validated.refund.lines.filter((l) => l.lineKey && notePaid.has(l.lineKey))
+          .reduce((sum, l) => sum + Math.round(Number(l.amountTtc || 0) * 100), 0);
+        if (onNoteLines > 0) require('../models/refundObligationsModel').settleLoweredBy(id, refundId, onNoteLines);
       }
       const refreshed = buildRegister(id);
       return res.status(201).json({

@@ -47,6 +47,7 @@ const TEXTS = Object.freeze({
   vatRate: (rate) => `TVA ${rate} %`,
   newSale: 'Nouvelle vente',
   linkAfterSave: 'Enregistrer d’abord les articles ajoutés.',
+  rowsAfterSave: 'Enregistrer d’abord les modifications.',
   refundTitle: 'Remboursement',
   refundAsk: 'Ligne payée : remboursement à confirmer.',
   refundAskAmount: (amount) => `Ligne payée : remboursement à confirmer. ${amount} à rembourser.`,
@@ -399,7 +400,7 @@ export default function ResourceArrivalDialog({ open, bookingId, onClose, onDone
                     <span id={`obligation-${row.id}`}>{row.label}{row.detail ? ` · ${row.detail}` : ''}</span>
                   </Alert>
                 ))}
-                {dirty && (view.refundObligations || []).length > 0 && <Typography variant="caption" color="text.secondary">{TEXTS.linkAfterSave}</Typography>}
+                {dirty && (view.refundObligations || []).length > 0 && <Typography variant="caption" color="text.secondary">{TEXTS.rowsAfterSave}</Typography>}
                 {view.totals.refundUnheldCents > 0 && <Alert severity="warning">{TEXTS.refund(euros(view.totals.refundUnheldCents))}</Alert>}
               </Box>
 
@@ -429,7 +430,7 @@ export default function ResourceArrivalDialog({ open, bookingId, onClose, onDone
                         <Typography variant="caption" color="text.secondary">{TEXTS.laterHint}</Typography>
                       )}
                       {linkBlock}
-                      {dirty && view.paymentLink && view.paymentLink.available && <Typography variant="caption" color="text.secondary">{TEXTS.linkAfterSave}</Typography>}
+                      {dirty && view.paymentLink && view.paymentLink.available && <Typography variant="caption" color="text.secondary">{extras.length > 0 ? TEXTS.linkAfterSave : TEXTS.rowsAfterSave}</Typography>}
                     </>
                   )}
                 </Box>
