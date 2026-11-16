@@ -620,6 +620,9 @@ once on the server by the refonte's components.
     line), that the journal nets per (class, rate) the paid lines an allowed invoice states, and that every owed cent sits in a row. Tests
     `standalone-sale-kept-lowered-line`, `standalone-sale-cancel-refund-order`, `standalone-sale-quote-plan`, `standalone-sale-money-conservation`,
     `visit-invoice-internal-held`, `invoice-issuer-vat-per-group`; Vitest `ResourceArrivalDialog.planned-rows`.
+    _Reading 2026-11-16 (loop t5, UI5-2, UI5-3):_ « Réessayer » on a failed draft also re-sends the payment's answer, so the second message never
+    follows the first; the failed-draft alert spans the whole grid (UI5-1). While a draft is typed and a row is open, « Marquer remboursé » is
+    disabled with « Enregistrer d’abord les articles ajoutés. » shown under the rows.
 
 ---
 
@@ -891,7 +894,7 @@ number; `prefers-reduced-motion` → no movement.
 - [x] (C38) `components/__tests__/StandaloneSaleDialog.counter.test.jsx`, `StandaloneSalesTodayCard.list.test.jsx`, `ExternalSaleFields.fields.test.jsx`; `plugins/hourly-resources/__tests__/ResourceBookingDialog.no-show.test.jsx`; `PlanningResourceCard.test.jsx` gains the « Reste » and « Absent » cases; `SuggestedArticlesStep.worst-case.test.jsx` — the break-ui pass (a 120-character label, an emoji-first label, 99, 1, none, a thousand results)
 - [x] (loop t2, rule 51) `ResourceBookingDialog.no-show.test.jsx` (rewritten on the row's `actions`, no second read, 5), `PlanningResourceCard.test.jsx` and `PlanningResourceCard.open-booking.test.jsx` (« Arrivée » on `actions.arrive`), `ResourceArrivalDialog.invoice-reason.test.jsx` (2), `pages/options/__tests__/externalSaleForm.emptied-rate.test.js` (1); named after the fact (P2-2): `ResourceArrivalDialog.withdraw-link.test.jsx` — rule 45 (`access.withdrawLink`)
 - [x] (loop t2, rules 49 reading, 52-54) server `standalone-sale-lowered-line-in-step` (6), `pricing-refunds-document-rows` (6), plugin `visit-draft-invoiceable` (4); client `ResourceArrivalDialog.invoice-from-server.test.jsx` (2), `ResourceBookingDialog.invoice-from-server.test.jsx` (2); the arrival suites' quote fixtures answer `invoiceable` for a payment typed
-- [x] (loop t3, rule 54 reading) plugin `visit-draft-invoice-reason` (3); client `ResourceArrivalDialog.invoice-answer.test.jsx` (4), `ResourceBookingDialog.invoice-answer.test.jsx` (3)
+- [x] (loop t3, rule 54 reading) plugin `visit-draft-invoice-reason` (3); client `ResourceArrivalDialog.invoice-answer.test.jsx` (7: +2 loop t4 UI4-3, +1 loop t5 UI5-2), `ResourceBookingDialog.invoice-answer.test.jsx` (5: +2 loop t4 UI4-3)
 - [x] (loop t1, rule 48) `plugins/hourly-resources/__tests__/ResourceBookingDialog.no-show.test.jsx` (rewritten on `actions.noShow`, 4), `ResourceArrivalDialog.invoiceable.test.jsx` (3), `ResourceArrivalDialog.vat-rate.test.jsx` (2), `ResourceArrivalDialog.new-sale.test.jsx` (2); `components/__tests__/SalePaymentLink.expires-label.test.jsx` (3), `StandaloneSalesTodayCard.owed-day.test.jsx` (2), `ExternalSaleFields.server-labels.test.jsx` (2)
 
 ### E2E

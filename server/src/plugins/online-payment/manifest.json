@@ -164,8 +164,8 @@
       "Les arrondis en euros et en centimes passent par un calcul commun : aucun montant ne change.",
       "Le rapprochement bancaire lit les montants d'une plateforme dans le calcul commun du cœur : aucun montant ne change.",
       "La TVA des lignes de facture Qonto est coupée par le composant TVA du cœur : mêmes montants que les factures déjà émises.",
-      "Compatible avec GuestFlow 4 (SDK 2.30).",
-      "La facture Qonto d’une vente hors séjour indique la même TVA que la comptabilité, calculée une fois par taux et par type d’article."
+      "La facture Qonto d’une vente hors séjour indique la même TVA que la comptabilité, calculée une fois par taux et par type d’article.",
+      "Compatible avec GuestFlow 4 (SDK 2.30)."
     ]
   }
 }

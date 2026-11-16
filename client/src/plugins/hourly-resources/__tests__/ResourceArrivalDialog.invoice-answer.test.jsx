@@ -93,3 +93,23 @@ test('UI4-3 — a failed draft shows one error with one « Réessayer », not a 
   expect(screen.queryByText('Facture non vérifiée pour ce paiement.')).toBeNull();
   expect(screen.getAllByRole('button', { name: 'Réessayer' })).toHaveLength(1);
 });
+
+test('UI5-2 — « Réessayer » on a failed draft retries the payment answer too: no second error, the arrival can be validated', async () => {
+  let fail = true;
+  api.quoteResourceVisit.mockImplementation(async (id, body) => {
+    if (fail && (body.extras || []).length > 0) throw Object.assign(new Error('Service indisponible'), { status: 503 });
+    return answering({ ok: true, code: null, reason: null })(id, body);
+  });
+  openDialog();
+  fireEvent.click(await screen.findByRole('button', { name: /Bière locale/ }));
+  expect(await screen.findByText('Service indisponible')).toBeInTheDocument();
+  await new Promise((resolve) => { setTimeout(resolve, 200); });
+  fail = false;
+  const paymentCalls = () => api.quoteResourceVisit.mock.calls.filter(([, body]) => body.payment && (body.extras || []).length > 0).length;
+  const before = paymentCalls();
+  fireEvent.click(screen.getByRole('button', { name: 'Réessayer' }));
+  expect(paymentCalls()).toBeGreaterThan(before);
+  await waitFor(() => expect(screen.queryByText('Service indisponible')).toBeNull());
+  expect(screen.queryByText('Facture non vérifiée pour ce paiement.')).toBeNull();
+  await waitFor(() => expect(screen.getByRole('button', { name: 'Valider l’arrivée' })).toBeEnabled());
+});

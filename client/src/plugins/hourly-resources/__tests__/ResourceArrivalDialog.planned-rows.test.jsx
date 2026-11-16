@@ -56,3 +56,11 @@ test('B4-6 — the draft shows the row at the quote\'s amount, its action disabl
   expect(screen.queryByText('13,00 € à rembourser')).toBeNull();
   await waitFor(() => expect(screen.getByRole('button', { name: 'Marquer remboursé' })).toBeDisabled());
 });
+
+test('UI5-3 — while the draft is typed, the dead « Marquer remboursé » states why', async () => {
+  render(<ResourceArrivalDialog open bookingId={5} onClose={() => {}} onDone={() => {}} />);
+  expect(await screen.findByText('13,00 € à rembourser')).toBeInTheDocument();
+  expect(screen.queryByText('Enregistrer d’abord les articles ajoutés.')).toBeNull();
+  fireEvent.click(await screen.findByRole('button', { name: /Bière locale/ }));
+  expect(await screen.findByText('Enregistrer d’abord les articles ajoutés.')).toBeInTheDocument();
+});
