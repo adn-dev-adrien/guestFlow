@@ -956,6 +956,11 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
         const refused = e.overpaymentKeys;
         setOffered((prev) => new Set([...prev].filter((key) => !refused.includes(key))));
       }
+      // Loop t9 A9-4 — a paid line whose money is owed back stays offered for reception: the lines the refusal names go back to offered.
+      if (e?.code === 'LINE_OWED' && Array.isArray(e.owedKeys) && e.owedKeys.length > 0) {
+        const owed = e.owedKeys;
+        setOffered((prev) => new Set([...prev, ...owed]));
+      }
       if (e?.code !== 'OVERPAID' || e.overpaymentTtc === undefined) throw e;
       const amount = formatCurrency(Number(e.overpaymentTtc) || 0);
       const ok = await confirm({

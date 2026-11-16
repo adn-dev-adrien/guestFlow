@@ -266,6 +266,13 @@ emails, settings, or any monetary figure beyond *the caution and complement to c
     > exactly those lines back to billed, as « Garder » does for the admin, so the next « Valider » goes through without guessing which line
     > blocked it. (c) The departure commit is pinned by the suite as the arrival is (offering a paid recalled line: 409 without amount,
     > forced still refused, the unpaid line offered freely).
+    > **Reading of 2026-11-16 (stabilisation loop t9, A9-3 / A9-4) — the scope of (a), and its way out.** (a) holds every offered paid line,
+    > not only the one whose money was confirmed: while ANY `lineLowered` obligation of the stay is open, every offered paid line is locked
+    > for reception (`owedBackByKey` returns every key with note money beyond what its line charges), because billing any of them again takes
+    > from the money owed back (the admin's twin un-offer of a line credited to the solde moves the obligation 30 → 10 €). The lock reads the
+    > stored line, not the dialog's draft: a reception draft read before the admin offered the line still sees it offered and locked. A
+    > reception commit refused 409 `LINE_OWED` names the locked lines' recap keys (`owedKeys`, no amount); the dialog puts exactly those back
+    > to offered, so the next « Valider » goes through — the dialog is never stuck on a refusal it cannot read.
 
 **Edge cases:**
 - **reception + admin** on the same account → admin wins: full payloads, full nav, no stripping,
@@ -314,7 +321,7 @@ emails, settings, or any monetary figure beyond *the caution and complement to c
 | `utils/` | `utils/receptionView.js` | T | _(2026-11-16, rule 18)_ `toReceptionSasCommit` drops `forceOverpayment` from a reception SAS commit. |
 | `plugins/` | `plugins/sas/controller.js` | T | _(2026-11-16, rule 18)_ `paidLineAnswer`: a paid-line refusal answered to reception as « Ligne déjà payée : à voir avec l’administrateur. » + `code` + `overpaymentKeys` (no amount); `receptionPlanOptions` locks owed-back paid lines in the previews; both commits pass `holdOwedLines` and ignore `forceOverpayment` for reception. |
 | `models/` | `models/reservationsModel.js` | T | _(2026-11-16, rule 18)_ `planArrivalSas` / `planDepartureSas` option `lockOwedPaidLines` (`offerLocked` on an offered paid line whose money is owed back); `commitArrivalSas` / `commitDepartureSas` option `holdOwedLines`. |
-| `utils/` | `utils/paidLineJudgment.js` | T | _(2026-11-16, rule 18)_ `owedBackByKey` (the paid lines whose freed money is owed back now) and `finish({ holdOwed })` → 409 `LINE_OWED` on a write that bills one again. |
+| `utils/` | `utils/paidLineJudgment.js` | T | _(2026-11-16, rule 18)_ `owedBackByKey` (every offered paid line while a `lineLowered` obligation is open — loop t9 A9-3) and `finish({ holdOwed })` → 409 `LINE_OWED` on a write that bills one again. |
 
 **Notes:**
 - No new dependency.

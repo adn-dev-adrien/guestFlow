@@ -67,7 +67,7 @@ const insuranceOffer = require('../utils/insuranceOffer');
 const { bookingDayOf } = require('../utils/vatRegime');
 const resourceOffer = require('../utils/resourceOffer');
 const { reservationBlocks } = require('../utils/pluginReservationBlocks');
-const { roundMoneyStrict, toCentsStrict } = require('../utils/pricing/money');
+const { roundMoneyStrict, toCentsStrict, toCents } = require('../utils/pricing/money');
 
 // specs/plugins-phase-3b-neat.md rule 5 — while no plugin offers the cancellation insurance, a booking
 // keeps the line it carries exactly as stored and cannot gain one. Applies the gate to the engine
@@ -1961,6 +1961,21 @@ async function retireStaleLinks(reservationId) {
   } catch { /* the marker stays: the poll retries */ }
 }
 
+// Rule 120 (loop t9 S9-2) — what the engine's open arrival complement (before its note credit) holds above the stored one, in cents: `engine` is
+// the base row of a sale or the run's own quote. The engine's credit on the complement is held by the stored stay except the part owed back
+// beyond what the engine itself leaves unabsorbed; a stored complement equal to the engine's once that held credit is taken off is the
+// engine's (a stay it reproduces): nothing above. Otherwise the stored complement holds none of the credit — it sits in the remainder, the
+// solde, or is owed — and the whole gap is unstored. 0 on a collected or adjusted complement, whose credit the engine never takes.
+function complementCreditPhantomCents(stored, engine, owedCents) {
+  if (!stored || !engine || Number(stored.complementPaid || 0) === 1 || stored.complementAmountOverride != null) return 0;
+  const cuts = engine.noteCreditCuts || {};
+  const cut = toCents(cuts.complementAmount);
+  const pre = toCents(engine.complementAmountAuto ?? engine.complementAmount) + cut;
+  const held = Math.max(0, cut - Math.max(0, (Number(owedCents) || 0) - toCents(cuts.unabsorbed)));
+  const kept = toCents(stored.complementAmount);
+  return kept === pre - held ? 0 : Math.max(0, pre - kept);
+}
+
 // `body` is the full PUT payload of the fiche (the model rewrites every column from it). `unlockPast`
 // is the admin's « Déverrouiller cette fiche » for this one save. `dryRun` plays the save inside a
 // transaction that is rolled back and returns the row it would have stored (`row`), without the
@@ -2436,6 +2451,17 @@ function applyUpdate(req, res, pastUnlocked, {
   // The insurance price a plugin sets (specs/plugins-phase-3b-neat.md rule 2): same as the preview.
   quote = quotePostProcessors.applySync({ engineInput, quote, calculate: calculateReservationQuote });
   if (quote.error) return res.status(quote.status || 400).json({ error: quote.error });
+  // Rule 120 (loop t9 S9-2) — a sale on a stay whose open arrival complement the engine of today sets above the stored one (a stay priced before
+  // 4.2.0): the note credit of a paid line offered or lowered never lands on that unstored part — the stay could not give it back, so the line
+  // API owed it while the end-of-stay remainder still asked it. The part is read on the base (the stored stay before the gesture), or on this
+  // run when it IS the base; the engine then credits the remainder, the solde, the acompte, as the SAS's commit does (rule 118).
+  const phantomCents = sale
+    ? complementCreditPhantomCents(storedPaymentForQuote, saleBase || quote, require('../models/extraSalesModel').openLoweredCents(id)) : 0;
+  if (phantomCents > 0 && toCents(quote.noteCreditCuts && quote.noteCreditCuts.complementAmount) > 0) {
+    engineInput.complementCreditPhantom = phantomCents / 100;
+    quote = quotePostProcessors.applySync({ engineInput, quote: calculateReservationQuote(engineInput), calculate: calculateReservationQuote });
+    if (quote.error) return res.status(quote.status || 400).json({ error: quote.error });
+  }
   // specs/reservation-save-keeps-pricing.md rule 20 — priced without the snapshot, the lines still keep what they collected.
   if (existingReservation && !canReuseLockedPricing) quote = withStoredLineContribs(quote, model.getPricingSnapshot(id));
 

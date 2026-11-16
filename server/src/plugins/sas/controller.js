@@ -54,7 +54,13 @@ const REFUSED = Symbol('refused');
 const RECEPTION_PAID_LINE_REFUSAL = 'Ligne déjà payée : à voir avec l’administrateur.';
 // Loop t8 A8-2 — the recap keys of the lines it refused (`overpaymentKeys`) are no money: they stay, so the dialog puts exactly those back.
 const paidLineAnswer = (req, body) => (isReceptionOnly(req.user)
-  ? { error: RECEPTION_PAID_LINE_REFUSAL, code: body.code, ...(Array.isArray(body.overpaymentKeys) ? { overpaymentKeys: body.overpaymentKeys } : {}) }
+  ? {
+    error: RECEPTION_PAID_LINE_REFUSAL,
+    code: body.code,
+    ...(Array.isArray(body.overpaymentKeys) ? { overpaymentKeys: body.overpaymentKeys } : {}),
+    // Loop t9 A9-4 — and a LINE_OWED names the owed lines to keep offered (keys only).
+    ...(Array.isArray(body.owedKeys) ? { owedKeys: body.owedKeys } : {}),
+  }
   : body);
 // Loop t8 A8-1 — and the reverse gesture: for reception, an offered paid line whose money is owed back is locked offered (`offerLocked`) in
 // the recap, and a commit that bills it again is refused with the same answer. The refund decision is the administrator's.
@@ -348,7 +354,7 @@ function arrivalRecapFor(req, reservation, plan) {
     arrivalPayment: buildArrivalPayment(reservation, { isDeparture: false, receptionOnly }),
     saleOffers: saleOffersFor(reservation, { isDeparture: false }),
     nothingToCollect: nothingToCollect(reservation, { isDeparture: false, bucketStates, isDirectChannel }),
-    credits: ((extraSale.saleDetailOf(reservation.id) || {}).credits) || [],
+    credits: (plan && Array.isArray(plan.credits) ? plan.credits : (extraSale.saleDetailOf(reservation.id) || {}).credits) || [],
   });
 }
 

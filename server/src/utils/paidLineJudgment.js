@@ -184,8 +184,20 @@ function begin(db, reservationId) {
     unabsorbed: unabsorbedCents(row), owed: openLoweredCents(db, id), unclaimed: unclaimedCents(notes, facts), refunded: refundedClaimedCents(db, row),
   };
   const owedBack = before.owed > 0 ? noteExcessByKey(db, id) : {};
+  const excessBefore = before.owed > 0 ? noteExcessCents(db, id) : 0;
+  // Loop t9 A9-1 — a SAS write that SPENDS note money owed back (a sale the rule-104 credit pays) leaves the obligation above what was received
+  // beyond the total: it shrinks by what the write consumed, as `syncLoweredObligations` trims it on the fiche's save. Never below what a way
+  // back of the same write (rule 109) already closed.
+  const trimConsumed = () => {
+    if (before.owed <= 0) return;
+    const consumed = excessBefore - noteExcessCents(db, id);
+    if (consumed <= 0) return;
+    const owedNow = openLoweredCents(db, id);
+    const target = Math.max(0, Math.min(owedNow, before.owed - consumed));
+    if (target < owedNow) holdLowered(db, id, target);
+  };
   return {
-    finish({ overpaid = false, forced = false, lineDiscounts = null, holdOwed = false } = {}) {
+    finish({ overpaid = false, forced = false, lineDiscounts = null, holdOwed = false, trimSpent = false } = {}) {
       const removed = paidLines.find(({ table, lineId }) => !db.prepare(`SELECT 1 FROM ${TABLES[table]} WHERE lineId = ? AND reservationId = ?`).get(lineId, id));
       if (removed) return { status: 409, body: { error: PAID_LINE_REMOVED, code: 'LINE_PAID' } };
       const after = db.prepare('SELECT * FROM reservations WHERE id = ?').get(id);
@@ -202,7 +214,10 @@ function begin(db, reservationId) {
       // A trop-perçu the save is about to ask confirmation of (409 OVERPAID) is that refusal's: once confirmed, it is owed back.
       if (overpaid) return null;
       const freed = unclaimedAfter - before.unclaimed;
-      if (freed <= 0) return null;
+      if (freed <= 0) {
+        if (trimSpent) trimConsumed();
+        return null;
+      }
       const owed = openLoweredCents(db, id);
       const gap = Math.min(freed, unabsorbedCents(after) - before.unabsorbed - (owed - before.owed));
       if (gap <= 0) return null;
