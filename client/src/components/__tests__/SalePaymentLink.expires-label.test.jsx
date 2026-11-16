@@ -8,6 +8,7 @@ import { vi } from 'vitest';
 import SalePaymentLink from '../SalePaymentLink';
 
 const handlers = () => ({ onMint: vi.fn(), onSendEmail: vi.fn(), onWithdraw: vi.fn() });
+// date-literal-ok: a payload input the component prints as served, never compared with a clock
 const OPEN = { id: 3, url: 'https://pay.exemple.fr/l/abc', amountCents: 1300, expiresAt: '2026-11-16T13:30:00.000Z', expiresLabel: '16/11 à 14:30' };
 
 test('the validity is the server\'s label, whatever the browser\'s zone makes of expiresAt', () => {

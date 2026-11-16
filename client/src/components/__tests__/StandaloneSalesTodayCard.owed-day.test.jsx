@@ -19,6 +19,7 @@ const TODAY = row({ id: 40, soldDayLabel: 'Vente du 16/11' });
 beforeEach(() => { vi.clearAllMocks(); });
 
 test('the owed block comes before the day\'s list, titled by the server, each row naming its sale\'s day', async () => {
+  // date-literal-ok: a payload input the component prints as served, never compared with a clock
   api.getStandaloneSales.mockResolvedValue({ day: '2026-11-16', sales: [TODAY], owed: [OWING], owedTitle: 'À rembourser' });
   render(<StandaloneSalesTodayCard onNewSale={() => {}} />);
   const owed = await screen.findByRole('region', { name: 'À rembourser' });
@@ -31,6 +32,7 @@ test('the owed block comes before the day\'s list, titled by the server, each ro
 });
 
 test('nothing owed: no title, no block', async () => {
+  // date-literal-ok: a payload input the component prints as served, never compared with a clock
   api.getStandaloneSales.mockResolvedValue({ day: '2026-11-16', sales: [TODAY], owed: [], owedTitle: 'À rembourser' });
   render(<StandaloneSalesTodayCard onNewSale={() => {}} />);
   await screen.findByText('Vente n° 40 · Passage');
