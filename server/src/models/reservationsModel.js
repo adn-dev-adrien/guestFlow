@@ -3646,6 +3646,9 @@ function createReservationsModel(database, { arrivalComplementEngine = null } = 
         const notes = parseNotes(row.midStaySettledNotes);
         const note = notes.find((n) => Number(n.id) === Number(noteId));
         if (!note) throw midStayError('NOTE_NOT_FOUND', 'Note introuvable.');
+        // Loop t5 A5-1 (pricing-components rule 23) — money taken online (an app or shop card payment) is given back through the register,
+        // never by deleting its note: the line would be asked again and the money recorded nowhere.
+        if (note.method === 'card') throw midStayError('NOTE_PAID_ONLINE', 'Payée en ligne : offrir la ligne, puis rembourser.');
 
         const detail = parseDetailLines(row.endOfStayComplementDetail);
         const sasLines = detail.filter((l) => l.source !== MID_STAY_SOURCE);

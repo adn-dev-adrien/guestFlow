@@ -322,6 +322,7 @@ function arrivalRecapFor(req, reservation, plan) {
     arrivalPayment: buildArrivalPayment(reservation, { isDeparture: false, receptionOnly }),
     saleOffers: saleOffersFor(reservation, { isDeparture: false }),
     nothingToCollect: nothingToCollect(reservation, { isDeparture: false, bucketStates, isDirectChannel }),
+    credits: ((extraSale.saleDetailOf(reservation.id) || {}).credits) || [],
   });
 }
 

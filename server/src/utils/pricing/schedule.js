@@ -28,6 +28,13 @@ const {
   settledByKey, buildMidStayLine, scheduleExcess, ARRIVAL_COMPLEMENT_EXCESS_KEY, ARRIVAL_COMPLEMENT_EXCESS_LABEL,
 } = require('./settlement');
 
+// Loop t5 S5-3 — the end-of-stay line a rule-104 credit lowered, named with the credit and the paid lines it comes from.
+const eurosText = (amount) => `${roundMoney(amount).toFixed(2).replace('.', ',')} €`;
+function creditedLabel(label, cut, sources) {
+  const names = (sources || []).filter(Boolean).join(', ');
+  return `${label} (déjà réglé : ${eurosText(cut)}${names ? ` — ${names}` : ''})`;
+}
+
 function planSchedule({
   totals: {
     finalPrice, totalStayPrice, touristTaxTotal, touristTaxAddedGuestsAmount, touristTaxInComplement,
@@ -390,19 +397,32 @@ function planSchedule({
     noteCredit = roundMoney(noteCredit - cut);
     return cut;
   };
-  if (noteCredit > 0 && !complementPaid && !complementOverridden) resolvedComplementAmount = roundMoney(resolvedComplementAmount - creditOff(resolvedComplementAmount));
+  // Loop t5 S5-2 — what the credit took off each bucket a sale pins (`pinSaleDelta`): the way back gives a bucket only what it took.
+  const noteCreditCuts = { complementAmount: 0, balanceAmount: 0, depositAmount: 0 };
+  if (noteCredit > 0 && !complementPaid && !complementOverridden) {
+    noteCreditCuts.complementAmount = creditOff(resolvedComplementAmount);
+    resolvedComplementAmount = roundMoney(resolvedComplementAmount - noteCreditCuts.complementAmount);
+  }
   let creditedLines = midStayLinesWithExcess;
   if (noteCredit > 0) {
     creditedLines = midStayLinesWithExcess
       .map((line) => {
         const cut = creditOff(line.amount);
-        return cut > 0 ? buildMidStayLine({ label: line.label, unitPrice: line.unitPrice, amount: roundMoney(line.amount - cut), key: line.key }) : line;
+        // Loop t5 S5-3 — the line keeps its own name and says what came off it and whose money it is: the departure reads « Balade
+        // (déjà réglé : 45,00 € — Animaux) », never the line at a price it was not sold at.
+        return cut > 0 ? buildMidStayLine({ label: creditedLabel(line.label, cut, midStayExtras.unclaimedLabels), unitPrice: line.unitPrice, amount: roundMoney(line.amount - cut), key: line.key }) : line;
       })
       .filter((line) => Number(line.amount) > 0);
   }
   if (noteCredit > 0 && !platformIsNonDirect && !installmentPlan) {
-    if (!balancePaid) resolvedBalanceAmount = roundMoney(resolvedBalanceAmount - creditOff(resolvedBalanceAmount));
-    if (!depositPaid) resolvedDepositAmount = roundMoney(resolvedDepositAmount - creditOff(resolvedDepositAmount));
+    if (!balancePaid) {
+      noteCreditCuts.balanceAmount = creditOff(resolvedBalanceAmount);
+      resolvedBalanceAmount = roundMoney(resolvedBalanceAmount - noteCreditCuts.balanceAmount);
+    }
+    if (!depositPaid) {
+      noteCreditCuts.depositAmount = creditOff(resolvedDepositAmount);
+      resolvedDepositAmount = roundMoney(resolvedDepositAmount - noteCreditCuts.depositAmount);
+    }
   }
   const noteCreditApplied = roundMoney(Number(midStayExtras.unclaimed || 0) - noteCredit);
   const creditedRemainder = roundMoney(creditedLines.reduce((sum, line) => sum + Number(line.amount || 0), 0)
@@ -445,6 +465,7 @@ function planSchedule({
     midStayLinesWithExcess: creditedLines,
     midStayRemainingDue,
     midStaySettledAll,
+    noteCreditCuts,
     overCollectedTtc,
     planScheduled,
     platformIsNonDirect,

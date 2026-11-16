@@ -287,8 +287,12 @@ function buildContext({ reservation, client, property, options = [], resources =
   let noticeLines;
   if (usingSasDetail) {
     noticeLines = sasDetailLines
-      .filter((it) => Number(it.amount) > 0)
-      .map((it) => ({ kind: it.kind, addedGuests: Boolean(it.addedGuests), label: safeStr(it.label).trim(), qty: Number(it.qty || 1), unitPrice: Number(it.unitPrice || 0), amount: round2c(it.amount) }));
+      // Pricing-components rule 104 (loop t5 S5-3) — a « Déjà réglé » credit line is listed with its negative amount: the lines sum to the total.
+      .filter((it) => Number(it.amount) > 0 || (it.kind === 'credit' && Number(it.amount) < 0))
+      .map((it) => ({
+        kind: it.kind, addedGuests: Boolean(it.addedGuests), label: safeStr(it.label).trim(), qty: Number(it.qty || 1), unitPrice: Number(it.unitPrice || 0), amount: round2c(it.amount),
+        ...(it.kind === 'credit' ? { paidLabels: Array.isArray(it.paidLabels) ? it.paidLabels.map((name) => safeStr(name).trim()) : [] } : {}),
+      }));
   } else {
     noticeLines = inComplementItems
       .filter((it) => it.label && it.amount > 0)
@@ -303,6 +307,7 @@ function buildContext({ reservation, client, property, options = [], resources =
     if (l.kind === 'tax' && l.addedGuests) return addedGuestsTaxLabel;
     if (l.kind === 'tax') return isEn ? 'Tourist tax' : 'Taxe de séjour';
     if (l.kind === 'remainder') return isEn ? 'Arrival balance' : "Complément d'arrivée";
+    if (l.kind === 'credit' && isEn) return `Already paid${l.paidLabels && l.paidLabels.length ? ` (${l.paidLabels.join(', ')})` : ''}`;
     return l.label;
   };
   const complementSep = isEn ? ': ' : ' : ';
@@ -330,7 +335,7 @@ function buildContext({ reservation, client, property, options = [], resources =
   // Only itemise when there's at least one identifiable prestation (option / resource / tax). A pure
   // accommodation auto-gap (a lone « remainder » line, or nothing) → the one-line amount sentence, which
   // is also what the SAS recap shows (no line items then).
-  const hasRealItems = noticeLines.some((l) => l.kind !== 'remainder');
+  const hasRealItems = noticeLines.some((l) => l.kind !== 'remainder' && l.kind !== 'credit');
   let complementNotice = '';
   const whenEn = complementAtCheckout ? 'on departure' : 'on arrival';
   const whenFr = complementAtCheckout ? 'à votre départ' : 'à votre arrivée';

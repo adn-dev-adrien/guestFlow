@@ -147,7 +147,7 @@ function splitMidStayExtras(lines, baselineRaw, notesRaw) {
   const baseline = parseBaseline(baselineRaw) || prepaidBaseline(lines, settled);
   if (!baseline) return withUnclaimedNotes({
     total: 0, forced: 0, unforced: 0, byKey: {}, remainingTotal: 0, settledTotal: 0, lines: [],
-  }, settled, {});
+  }, settled, {}, notesRaw);
 
   // Aggregate per key first: two custom lines sharing a label are one key on both sides.
   const currentByKey = new Map();
@@ -198,7 +198,7 @@ function splitMidStayExtras(lines, baselineRaw, notesRaw) {
     }));
   }
   result.lines.sort((a, b) => a.label.localeCompare(b.label, 'fr'));
-  return withUnclaimedNotes(result, settled, paidByKey);
+  return withUnclaimedNotes(result, settled, paidByKey, notesRaw);
 }
 
 /**
@@ -207,11 +207,16 @@ function splitMidStayExtras(lines, baselineRaw, notesRaw) {
  * 0); the schedule credits it to the stay's open buckets (`planSchedule`). The carve-out itself is unchanged. The arrival-complement-excess
  * key has its own reading in the schedule; the collected split (`splitFromStoredLines`) already carves every note in full.
  */
-function withUnclaimedNotes(result, settled, paidByKey) {
-  const unclaimed = round2(Object.entries(settled)
-    .filter(([key]) => key !== ARRIVAL_COMPLEMENT_EXCESS_KEY)
-    .reduce((sum, [key, amount]) => sum + Math.max(0, round2(amount) - round2(paidByKey[key] || 0)), 0));
-  return unclaimed > 0 ? { ...result, unclaimed } : result;
+function withUnclaimedNotes(result, settled, paidByKey, notesRaw) {
+  const over = Object.entries(settled)
+    .filter(([key, amount]) => key !== ARRIVAL_COMPLEMENT_EXCESS_KEY && round2(amount) - round2(paidByKey[key] || 0) > 0);
+  const unclaimed = round2(over.reduce((sum, [key, amount]) => sum + round2(amount) - round2(paidByKey[key] || 0), 0));
+  if (!(unclaimed > 0)) return result;
+  // Loop t5 S5-3 — the lines whose paid money it is, named as their notes name them: the credit is read under their names, never as a price cut of another line.
+  const keys = new Set(over.map(([key]) => key));
+  const unclaimedLabels = [...new Set(parseNotes(notesRaw).flatMap((note) => (note && note.lines) || [])
+    .filter((line) => line && keys.has(line.key || extraLineKey(line))).map((line) => String(line.label || '').trim()).filter(Boolean))];
+  return { ...result, unclaimed, unclaimedLabels };
 }
 
 /**

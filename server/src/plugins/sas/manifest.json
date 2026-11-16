@@ -176,6 +176,7 @@
       "Offrir une prestation vise une seule ligne quand un article a été vendu plusieurs fois ; le récapitulatif regroupe ces lignes sous un seul titre."
     ],
     "1.11.0": [
+      "Le récapitulatif d’arrivée affiche « Déjà réglé (…) » quand l’argent d’une ligne payée puis offerte ou remisée est déduit du complément : les lignes font le total.",
       "Le sas d’arrivée perçoit maintenant les ventes prévues au départ : « Percevoir maintenant » ligne par ligne, ou « Tout percevoir maintenant ».",
       "Les lignes déjà payées se replient sous « Déjà payé ».",
       "Le sas de départ liste les ventes déjà payées sous « Déjà payé » : on peut en offrir une, le sas annonce alors le montant à rembourser depuis la fiche.",

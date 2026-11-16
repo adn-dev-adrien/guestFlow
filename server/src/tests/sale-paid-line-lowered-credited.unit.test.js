@@ -73,14 +73,15 @@ test('S4-3 — nothing left to ask (a direct stay): 409 OVERPAID, then the confi
   assert.equal(unabsorbed(id) - owed(id), 0);
 });
 
-test('S4-3 — nothing left to ask on a platform stay: refused, the stay unchanged', () => {
+test('S4-3, loop t5 A5-1 — nothing left to ask on a platform stay: the cash is the establishment\'s, 409 OVERPAID, then owed back', () => {
   const { id, ref } = paidBeerOnOpenComplement({ platform: 'Booking', basket: false });
   const before = row(id);
   const refused = extraSale.changeLine(id, ref, { offered: true }, { now: at(id, '12:30', 1) });
-  assert.equal(refused.status, 409);
-  assert.equal(refused.body.code, 'LINE_PAID');
+  assert.deepEqual([refused.status, refused.body.code], [409, 'OVERPAID']);
   assert.equal(row(id).finalPrice, before.finalPrice);
-  assert.equal(unabsorbed(id), 0);
+  assert.equal(extraSale.changeLine(id, ref, { offered: true }, { now: at(id, '12:30', 1), forceOverpayment: true }).status, 200);
+  assert.equal(owed(id), 3000);
+  assert.equal(unabsorbed(id) - owed(id), 0);
 });
 
 test('S4-3 — the split names the note money no line claims any more', () => {

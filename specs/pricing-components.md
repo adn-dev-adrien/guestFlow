@@ -2127,6 +2127,39 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
     > in cash then offered (then, separately, discounted 10 €): what the stay still asks drops by the lowered amount or the confirmed obligation holds
     > it, and Σ (acompte, solde, complements, notes) − obligations = price + tax, 55 of 55; 22336 asks 15,40 € at both SAS. Offered: 5 credited, 10
     > confirmed as owed, 40 platform stays refused. The price replay moves nothing but the 15 approved differences. Test `sale-paid-line-lowered-credited`.
+    > _Loop t5 (2026-11-16):_ (c) **amended — a note is the establishment's money, whatever the channel** (A5-1): the note a line was paid by was
+    > collected by the establishment (cash, card terminal, an app or shop card link), never by the platform; what no open bucket takes is a
+    > trop-perçu on a platform stay too: 409 `OVERPAID` (« Trop-perçu : X € déjà encaissés au-delà du nouveau total. »), then, confirmed, the
+    > `lineLowered` obligation; the obligation register keeps it on later saves (`syncLoweredObligations` measures the note money no line claims and no
+    > bucket absorbs, `paidLineJudgment.noteExcessCents`). The `LINE_PAID` refusal of a platform stay is gone. A card note (paid online) is never
+    > cancelled (409 `NOTE_PAID_ONLINE` « Payée en ligne : offrir la ligne, puis rembourser. »): cancelling it asked the guest again and left the
+    > money recorded nowhere. Reservation-refunds rule 38 stays about the platform's money. Tests `sale-paid-line-lowered-credited`,
+    > `sale-paid-card-note-kept`.
+    > (b) **The way back is bounded like the way down** (S5-2): the engine names what its credit took off the complement, the solde and the acompte
+    > (`noteCreditCuts`, only on a quote that holds one); when a gesture withdraws that credit from a bucket the stay stores below the engine's own
+    > figure, the withdrawn part first closes the refund the clamp left owed, and only the rest is asked again. A confirmed save that shrinks the
+    > excess shrinks the obligation too. Stay 14 (cash 45 → offered, confirmed → un-offered): nothing asked, the obligation closed. Test
+    > `sale-paid-line-unoffer-drift`.
+    > (e) **The credit is read under its own name** (S5-3): `saleDetail.credits[]` names, per bucket, the credit that explains why it asks less than the
+    > lines it lists — « Déjà réglé (<the paid lines>) », negative —; the arrival e-mail (« Already paid (…) » in English), the arrival SAS recap
+    > (a read-only line) and « Ventes du séjour — au départ » (under « Déjà payé ») list it, so each article keeps its price and the lines sum to the
+    > bucket. The end-of-stay line a credit lowered keeps its name and says it: « Balade (déjà réglé : 30,00 € — Bière ronde) ». The fiche's
+    > sale panel does not render `credits` yet (client, a later round). Test `sale-paid-line-credit-shown`.
+
+105. **One judgment of a paid line, whichever screen saves** _(stabilisation loop t5, S5-1, S5-4 to S5-6, 2026-11-16; completes rules 23, 37, 102,
+    104)_. (a) Every save of a stay (`applyUpdate`: the fiche's « Enregistrer », the line actions, a sale, a restate) passes through
+    `utils/paidLineJudgment`: taken before the write, answered after it inside the same transaction. A line a note paid that leaves the stay is
+    refused 409 `LINE_PAID` « Ligne déjà payée : elle peut être offerte, pas retirée. » (before the trop-perçu question); note money a paid line
+    offered, discounted or lowered frees and no bucket absorbs is the trop-perçu of rule 104 c. Before: the fiche save asked only the trop-perçu
+    formula, which a platform stay never trips — a card order paid in the app then offered in the fiche left 45 € on no bucket (22328, 22298, 37
+    of 38 platform stays at J-3), and a paid line removed from the fiche body was accepted. Test `sale-paid-line-fiche-save`.
+    (b) **A paid line stays paid once offered** (S5-4, S5-5): « paid » is what the notes paid on the line (`findLine.paidCents`), not its
+    allocations, which an offer nets to 0: an offered paid line is neither removed nor moved (409 `LINE_PAID`), as the detail shows it no moment.
+    The allocations key every line of an article, offered ones included, so a note never names the article's next line (which read « Payée » with
+    the offered line's money). Test `sale-paid-line-offered-kept`.
+    (c) **The arrival judge reads the stay clock** (S5-6): `extraSale.arrivalOpenAt` and the `atArrival` sale count the check-in box or the
+    committed SAS from the arrival day only (rule 102); a box ticked days ahead closes nothing. The guest app's editable order reads the same judge
+    and nothing else. Test `sale-arrival-open-early-tick`.
 
 ## 4. Architecture
 
@@ -2444,13 +2477,19 @@ _Rewritten 2026-11-15 (stabilisation loop t1, UI-3) to what shipped._
 - [x] `sale-detail-plan-bucket-stored` — rule 103 g (T3-5)
 - [x] `sale-at-arrival-contract` — rule 103 h (T3-6): the quote announces the arrival bucket; `ARRIVAL_CLOSED` once validated or collected
 - [x] `sas-custom-label-own-number` — rule 103 i (T3-7): linen items with their own « (n) » keep their rows across re-runs
-- [x] `sale-paid-line-lowered-credited` — rule 104 (loop t4, S4-3): a cash line offered or discounted comes off the open arrival complement; nothing open → `OVERPAID` then the obligation on a direct stay, `LINE_PAID` on a platform stay; the split's `unclaimed` (5)
+- [x] `sale-paid-line-lowered-credited` — rule 104 (loop t4, S4-3): a cash line offered or discounted comes off the open arrival complement; nothing open → `OVERPAID` then the obligation, on a direct and (loop t5 A5-1) a platform stay; the split's `unclaimed` (5)
 - [x] `sale-untick-complement-override` — rule 103 b (loop t4, S4-2): an overridden complement keeps the start when unticked before the hour
 - [x] `sale-quote-paid-now-buckets` — rule 30 (loop t4, S4-4): a quote paid now announces the buckets the sale writes (2)
 - [x] `sale-plan-line-move-before-arrival` — rule 95 (loop t4, S4-5): a plan line of a stay carved out early is not moved to the departure before the arrival; a line stamped there goes and comes back (2)
 - [x] `sale-departure-part-of-arrival-line` — rule 103 d (loop t4, S4-6): a discount given back after the validated arrival is listed at the departure and stays there after the next sale (2)
 - [x] `sale-undiscount-open-arrival-then-sale` — rule 103 d (loop t4, S4-1): discount 10 then 0 at the open arrival, ticked, a sale: the departure takes only the sale
 - [x] `stay-line-facts-never-late` — rule 48 (loop t5, D5-6): the line facts of a stay left marked are rebuilt before they are read (1)
+- [x] `sale-paid-line-fiche-save` — rule 105 a (loop t5, S5-1, A5-1): a card-paid line offered in the fiche asks what its line action asks (OVERPAID then owed on a platform stay; OVERPAID then owed on a direct one; credited to an open complement); removed from the body → `LINE_PAID` (4)
+- [x] `sale-paid-line-offered-kept` — rule 105 b (loop t5, S5-4, S5-5): an offered paid line is neither removed nor moved; the article re-sold is a line of its own, unpaid (2)
+- [x] `sale-arrival-open-early-tick` — rule 105 c (loop t5, S5-6): a box or a SAS stamp set before the arrival day closes nothing; on the day, judge and sale refuse together (4)
+- [x] `sale-paid-line-unoffer-drift` — rule 104 b (loop t5, S5-2): offer confirmed then un-offer on a drifted complement asks nothing and closes the refund; `pinSaleDelta` bounds (2)
+- [x] `sale-paid-line-credit-shown` — rule 104 e (loop t5, S5-3): the credit line in the e-mail, the arrival SAS recap, the end-of-stay detail and « Ventes du séjour — au départ » (3)
+- [x] `sale-paid-card-note-kept` — rule 104 c (loop t5, A5-1): a card note is never cancelled, a cash one still is (1)
 
 ### Client Vitest suites (named 2026-11-16, stabilisation loop t2 P2-2)
 - [x] `ReservationPage.extra-sales-panel` — rule 101 (UI2-1 to UI2-4): a started stay with the window open sells and moves its lines, a collected departure does not, the fiche's `saleDetail` read once, a dirty fiche holds the writes and keeps the typed note, a write on a clean fiche re-reads without the loading screen, and while the re-read is in flight the fiche is busy (fields read-only, « Enregistrer » disabled)

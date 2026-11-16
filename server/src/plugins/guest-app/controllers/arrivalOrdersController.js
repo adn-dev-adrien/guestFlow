@@ -62,8 +62,8 @@ function buildArrivalOrdersController({
     return Boolean(stay && stay.endDate) && parisDate(now()) > String(stay.endDate);
   };
   // Loop t4 A4-1 — the core's judge (`extraSale.arrivalOpenAt`) is the one the sale refuses by: a kept false start reads the order read-only.
+  // Loop t5 S5-6 — and its reading of the validation is the stay clock's (a box ticked before the arrival day closes nothing), never the raw marks.
   const editableStay = (reservationId) => sale().arrivalOpenAt(reservationId, now())
-    && !stays().arrivalMarked(reservationId)
     && stays().arrivalComplementState(reservationId) !== 'collected'
     && !pastDeparture(reservationId);
 

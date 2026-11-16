@@ -7,6 +7,7 @@
  *   arrivalPayment — `buildArrivalPayment()` ({ complementOpen })
  *   saleOffers   — `sasSales` of the SAS payload, to file each sold line under its step
  *   nothingToCollect — the server's « Rien à percevoir » answer for the stored buckets
+ *   credits      — the sale detail's rule-104 credits (`saleDetail.credits`): the arrival's is listed as a read-only line
  */
 
 const sdk = require('../sdk');
@@ -46,13 +47,23 @@ function salesBlock(plan, saleOffers) {
   };
 }
 
+// Pricing-components rule 104 (loop t5 S5-3) — the money paid on a line since lowered, which the arrival complement takes: a read-only line of
+// its own (« Déjà réglé : … », negative), so the lines the reception reads sum to the complement it collects. `credits` = the sale detail's.
+const creditLine = (credit) => ({
+  key: null, group: 'existing', kind: 'credit', label: credit.label, qty: 1, unitPrice: round2(credit.totalCents / 100),
+  real: round2(credit.totalCents / 100), billed: round2(credit.totalCents / 100), offerable: false, offered: false,
+});
+
 function shapeArrivalRecap(plan, {
-  stayPayment = {}, arrivalPayment = {}, saleOffers = null, nothingToCollect = false,
+  stayPayment = {}, arrivalPayment = {}, saleOffers = null, nothingToCollect = false, credits = [],
 } = {}) {
   const stayDue = stayPayment.applicable ? round2(stayPayment.total) : 0;
   const arrivalComplementTotal = round2(plan.arrivalComplementTotal);
   return {
-    lines: plan.lines.map(({ optionId, moments, servedPersons, ...line }) => line),
+    lines: [
+      ...plan.lines.map(({ optionId, moments, servedPersons, ...line }) => line),
+      ...(credits || []).filter((credit) => credit.bucket === 'arrival').map(creditLine),
+    ],
     existingTotal: round2(plan.existingTotal),
     addedTotal: round2(plan.addedTotal),
     arrivalComplementTotal,

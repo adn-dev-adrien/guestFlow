@@ -41,6 +41,7 @@ const { arrivalPaymentText, coveredText, historyMoney } = require('../utils/arri
 const { suggestBedDistribution } = require('../utils/bedDistribution');
 const { computePlatformCommission } = require('../utils/platformCommission');
 const { unclaimedRise, unlockedPriceRefusal } = require('../utils/savePriceGuards');
+const paidLineJudgment = require('../utils/paidLineJudgment');
 const { checkGuestCapacity } = require('../utils/capacity');
 const { partyOf, nightsOf, typedCountAlerts, typedCountsErrorPayload } = require('../utils/typedCounts');
 const { clearContribsOnUnflip } = require('../utils/forceItemContribsCapture');
@@ -606,15 +607,20 @@ function leftOfStayOf(reservationId, row, quote, { storedOnly = false } = {}) {
 
 // Rule 23 — what the operator confirmed owing back when a paid line went down is held in the register of obligations, at the
 // trop-perçu the save left (more only when this save is the confirmed one; a save that shrank it shrinks the obligation).
-function syncLoweredObligations(reservationId, quote, { confirmed }) {
+function syncLoweredObligations(reservationId, quote, { confirmed, lineDiscounts = null }) {
   const obligations = require('../models/refundObligationsModel');
   if (!obligations.ready()) return;
   const row = model.getRow(reservationId);
   if (!row) return;
-  const excess = tropPercuCents(reservationId, { autoComplementCents: Math.round(Number(quote.complementRoutedAmount || 0) * 100) });
+  // Loop t5 A5-1 — the note money no line claims any more is the establishment's own receipt, on a platform stay too: it stays owed.
+  const excess = Math.max(
+    tropPercuCents(reservationId, { autoComplementCents: Math.round(Number(quote.complementRoutedAmount || 0) * 100) }),
+    paidLineJudgment.noteExcessCents(db, reservationId, lineDiscounts),
+  );
   const held = obligations.openAmountFor(reservationId, 'lineLowered');
   const { owedCents } = owedOnLineLowered({ overpaymentCents: excess, alreadyOwedCents: held });
-  obligations.trimLowered(reservationId, confirmed ? held + owedCents : Math.min(held, excess));
+  // Loop t5 S5-2 — a confirmed save that SHRANK the excess shrinks the obligation too: what stays owed is never above what was received beyond the total.
+  obligations.trimLowered(reservationId, Math.min(held, excess) + (confirmed ? owedCents : 0));
 }
 
 // The same, for a fiche read from the database (a locked fiche shows the stored ledger): measured against the STORED price and
@@ -1937,7 +1943,14 @@ function performUpdateNow(reservationId, body, {
       applyUpdate({ body: structuredClone(body), params: { id: reservationId } }, res, Boolean(unlockPast), {
         silent: true, sale: sale || null, saleBase, atArrival,
       });
-      preview = { ...res.result(), row: { ...model.getRow(Number(reservationId)), ...(res.enginePreArrivalAmount != null ? { preArrivalAmount: res.enginePreArrivalAmount } : {}) } };
+      preview = {
+        ...res.result(),
+        row: {
+          ...model.getRow(Number(reservationId)),
+          ...(res.enginePreArrivalAmount != null ? { preArrivalAmount: res.enginePreArrivalAmount } : {}),
+          ...(res.engineNoteCreditCuts ? { noteCreditCuts: res.engineNoteCreditCuts } : {}),
+        },
+      };
       throw DRY_RUN;
     })();
   } catch (err) {
@@ -2376,8 +2389,12 @@ function applyUpdate(req, res, pastUnlocked, {
     && !(stayIsOpenForLines(id, pastReservationLocked, midStayWindow) && hasUnstoredAutoOption(model.listCarriedOptionIds(id), quote));
   // The plan the engine gives this save, before any pin: a dry run's base carries it, so a gesture's plan moves by its line only (pinSaleDelta).
   res.enginePreArrivalAmount = quote.preArrivalAmount;
+  res.engineNoteCreditCuts = quote.noteCreditCuts;
   if (keepPricing) quote = pinStoredPricing(quote, storedPaymentForQuote);
-  else if (saleBase) quote = withoutUnstoredAutoLines(pinSaleDelta(quote, storedPaymentForQuote, saleBase), model.listCarriedOptionIds(id));
+  else if (saleBase) {
+    const owedCents = require('../models/extraSalesModel').openLoweredCents(id);
+    quote = withoutUnstoredAutoLines(pinSaleDelta(quote, storedPaymentForQuote, saleBase, { owedCents }), model.listCarriedOptionIds(id));
+  }
   const stayPinned = !keepPricing && Boolean(saleBase);
   // Adrien, 2026-10-29: a custom line renamed alone saves its text, nothing is re-priced.
   const renamedLines = customTextChangesOf(id, reservationCustomOptions);
@@ -2522,10 +2539,12 @@ function applyUpdate(req, res, pastUnlocked, {
   // Rule 23 (owner O-10) — a paid line lowered is refused until the operator confirms; the confirmed excess is then owed back.
   // Owner reading 2026-11-16: offering or removing an UNPAID line is never refused for the excess it leaves — it grows the
   // trop-perçu by that much, refunded through the usual path, and opens no `lineLowered` obligation.
+  // Loop t5 S5-1 — the refusal is answered after the write is played (and rolled back): a paid line the save removes is refused for what it is
+  // (LINE_PAID, never a trop-perçu to confirm first).
   let confirmedLowering = false;
+  let overpaidRefusal = null;
   if (!unpaidLine && !req.body.forceOverpayment) {
-    const overpaid = overpaymentIntroducedBy(id, quote, windowEngineInputs);
-    if (overpaid) return res.status(409).json(overpaid);
+    overpaidRefusal = overpaymentIntroducedBy(id, quote, windowEngineInputs);
   } else if (!unpaidLine) {
     confirmedLowering = Boolean(overpaymentIntroducedBy(id, quote, windowEngineInputs));
   }
@@ -2623,6 +2642,8 @@ function applyUpdate(req, res, pastUnlocked, {
   // The row, its lines and its history land together: a refused resource (409) must not leave the
   // lines half rewritten (specs/mid-stay-extras-on-locked-fiche.md).
   let lineIdsBefore = null;
+  // Rules 23, 104 (loop t5 S5-1) — one judgment of a paid line offered, lowered or removed, whichever screen saved: taken before the write, answered after it.
+  const paidLines = paidLineJudgment.begin(db, id);
   const writeAll = () => {
     // specs/mid-stay-extras-to-end-of-stay-complement.md §3.1 rule 3 — capture the baseline BEFORE the
     // lines are replaced: the state the reservation had entering this save is exactly « what was sold
@@ -2688,7 +2709,10 @@ function applyUpdate(req, res, pastUnlocked, {
     // specs/adjustable-complement-amounts.md §3.6 rule 36 — same ventilation, recomputed at every save
     // so a new option or a re-priced line moves the postes, never the announced total.
     model.syncComplementAllocation(id, { autoAmount: quote.complementAmountAuto });
-    syncLoweredObligations(id, quote, { confirmed: confirmedLowering });
+    syncLoweredObligations(id, quote, { confirmed: confirmedLowering, lineDiscounts: req.body.lineDiscounts });
+    const paidLineRefusal = paidLines.finish({ overpaid: Boolean(overpaidRefusal), forced: Boolean(req.body.forceOverpayment), lineDiscounts: req.body.lineDiscounts });
+    if (paidLineRefusal) throw new CreationRefused(paidLineRefusal);
+    if (overpaidRefusal) throw new CreationRefused({ status: 409, body: overpaidRefusal });
   };
   try {
     if (typeof db.transaction === 'function') db.transaction(writeAll)(); else writeAll();
