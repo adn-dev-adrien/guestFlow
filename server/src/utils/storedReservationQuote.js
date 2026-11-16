@@ -132,12 +132,15 @@ function pinSaleDelta(quote, stored, base, { owedCents = 0 } = {}) {
   // the stay does not store (a figure it no longer reproduces) is money received beyond the total, the trop-perçu rule 23 confirms.
   // Loop t5 S5-2 — and the way back is the same bound: the credit the gesture withdraws from such a bucket (one stored below the engine's own
   // figure) first closes the refund that clamp left owed, and only the rest is asked again — never money already paid.
-  let owed = Math.max(0, Number(owedCents) || 0);
+  // Loop t6 S6-2 — the bound reads the engine's figure BEFORE the credit (`base + cut`), not after it: a credit that took the whole bucket leaves
+  // base = 0 = stored, and the way back was unbounded again. Only the refund the clamp left owed is closed this way: the part of it the engine
+  // itself counts beyond the total (`unabsorbed`) was never a bucket's money, so a bucket stored at the engine's figure gets its credit back.
+  let owed = Math.max(0, (Number(owedCents) || 0) - cutCents(base, 'unabsorbed'));
   const keptBy = { depositAmount: 0, balanceAmount: 0, complementAmount: 0 };
   for (const column of PINNED_BUCKETS) {
     if (pinned[column] < 0 && toCents(quote[column]) < toCents(base[column])) pinned[column] = 0;
     const withdrawn = Math.max(0, cutCents(base, column) - cutCents(quote, column));
-    if (!withdrawn || !owed || toCents(stored[column]) >= toCents(base[column])) continue;
+    if (!withdrawn || !owed || toCents(stored[column]) >= toCents(base[column]) + cutCents(base, column)) continue;
     const kept = Math.min(withdrawn, owed, Math.max(0, toCents(pinned[column]) - toCents(stored[column])));
     pinned[column] = (toCents(pinned[column]) - kept) / 100;
     keptBy[column] = kept;

@@ -6,7 +6,7 @@ process.env.DB_PATH = ':memory:';
 process.env.TZ = 'Europe/Paris';
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { db, stay, row, beer, todayIso, addDaysToIsoDate } = require('./saleRound1Fixtures');
+const { db, stay, row, beer, breakfast, todayIso, addDaysToIsoDate } = require('./saleRound1Fixtures');
 const extraSale = require('../utils/extraSale');
 const ctrl = require('../controllers/reservationsController');
 const { storedBody } = require('../utils/stayOrderLines');
@@ -56,5 +56,53 @@ test('S5-2 — pinSaleDelta: a credit withdrawn from a bucket the stay stores be
   const quote = { ...stored, complementAmount: 50 };
   assert.equal(pinSaleDelta(quote, stored, base, { owedCents: 3000 }).complementAmount, 0);
   assert.equal(pinSaleDelta(quote, stored, base, { owedCents: 1000 }).complementAmount, 20);
-  assert.equal(pinSaleDelta(quote, { ...stored, complementAmount: 20 }, base, { owedCents: 3000 }).complementAmount, 50, 'a bucket stored at the engine figure took the credit: it gets it back');
+  const beyond = { ...base, noteCreditCuts: { complementAmount: 30, unabsorbed: 30 } };
+  assert.equal(pinSaleDelta(quote, { ...stored, complementAmount: 20 }, beyond, { owedCents: 3000 }).complementAmount, 50,
+    'a bucket stored at the engine figure took the credit, the owed refund is the money beyond the total: the bucket gets its credit back');
+});
+
+// specs/pricing-components.md rule 106 a (loop t6 S6-2) — the credit took the WHOLE engine bucket (base 0 = stored 0): the bound reads the engine's figure before the credit.
+test('S6-2 — pinSaleDelta: a credit that emptied the engine bucket closes the clamped refund on the way back, not the money beyond the total', () => {
+  const stored = { totalPrice: 100, finalPrice: 100, depositAmount: 0, balanceAmount: 100, complementAmount: 0 };
+  const base = { ...stored, finalPrice: 35, complementAmount: 0, noteCreditCuts: { complementAmount: 50.5, unabsorbed: 14.5 } };
+  const quote = { ...stored, complementAmount: 50.5 };
+  assert.equal(pinSaleDelta(quote, stored, base, { owedCents: 6500 }).complementAmount, 0, 'stay 14: the 65 € owed = 50,50 clamped + 14,50 beyond');
+  assert.equal(pinSaleDelta(quote, stored, base, { owedCents: 1450 }).complementAmount, 50.5, 'a stay stored at the engine figure: only the 14,50 beyond was owed');
+});
+
+function driftedStayWithCashLines(lines) {
+  const id = stay(20);
+  assert.equal(ctrl.performUpdate(id, { ...storedBody(id), restatePricing: true }).status, 200);
+  assert.equal(patch(id, { balancePaid: true, balancePaidDate: todayIso() }), 200);
+  db.prepare('UPDATE reservations SET balanceAmount = balanceAmount - 50, complementAmount = 0 WHERE id = ?').run(id);
+  assert.equal(patch(id, { checkInDone: true }), 200);
+  const refs = lines.map(([article, quantity]) => {
+    const sold = extraSale.sell(id, [{ articleRef: `option:${article}`, quantity }], { now: at(id, '12:00', 1), payment: 'cash' });
+    assert.equal(sold.status, 200, JSON.stringify(sold.body));
+    return sold.saleDetail.lines.filter((line) => line.articleKey === `option:${article}`).pop().ref;
+  });
+  return { id, refs, start: balance(id) };
+}
+
+const change = (id, ref, offered, time) => {
+  let res = extraSale.changeLine(id, ref, { offered }, { now: at(id, time, 1) });
+  if (res.status === 409 && res.body.code === 'OVERPAID') res = extraSale.changeLine(id, ref, { offered }, { now: at(id, time, 1), forceOverpayment: true });
+  return res;
+};
+
+test('S6-2 — one cash-paid line LARGER than the drifted complement, offered (confirmed) then un-offered: nothing asked, nothing owed, Σ unchanged', () => {
+  const { id, refs: [ref], start } = driftedStayWithCashLines([[beer, 10]]);
+  assert.equal(change(id, ref, true, '12:30').status, 200);
+  assert.deepEqual([cents(row(id).complementAmount), owed(id), balance(id)], [0, 6000, start]);
+  assert.equal(change(id, ref, false, '13:00').status, 200);
+  assert.deepEqual([cents(row(id).complementAmount), owed(id), balance(id)], [0, 0, start]);
+});
+
+test('S6-2 — two cash-paid lines (30 + 60) on the drifted complement: offer A, offer B, un-offer A, un-offer B — balanced at every step, nothing asked at the end', () => {
+  const { id, refs: [a, b], start } = driftedStayWithCashLines([[beer, 5], [breakfast, 1]]);
+  for (const [ref, offered, time] of [[a, true, '12:30'], [b, true, '12:40'], [a, false, '12:50'], [b, false, '13:00']]) {
+    assert.equal(change(id, ref, offered, time).status, 200);
+    assert.equal(balance(id), start, `${offered ? 'offer' : 'un-offer'} at ${time}`);
+  }
+  assert.deepEqual([cents(row(id).complementAmount), owed(id)], [0, 0]);
 });

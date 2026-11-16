@@ -273,7 +273,7 @@ function complementTaxIsAddition(r, tax) {
   return added > 0 && round2(tax) === added;
 }
 
-function arrivalComplementDetailFromReservation(r, { includeOffered = false } = {}) {
+function arrivalComplementDetailFromReservation(r, { includeOffered = false, withLineIds = false } = {}) {
   if (!r) return { amount: 0, paid: 0, detail: [] };
   const lines = [];
   // specs/mid-stay-extras-to-end-of-stay-complement.md §3.2 — une ligne « en complément » peut avoir
@@ -319,7 +319,7 @@ function arrivalComplementDetailFromReservation(r, { includeOffered = false } = 
       kind: 'option', label: String(o.title || o.description || 'Extra').trim(),
       qty: Number(o.billedUnits || o.quantity || 1), unitPrice: round2(o.unitPrice),
       amount: offered ? 0 : real,
-      ref: { kind: isCustom ? 'custom' : 'option', id: Number(isCustom ? o.customOptionId : o.optionId) },
+      ref: { kind: isCustom ? 'custom' : 'option', id: Number(isCustom ? o.customOptionId : o.optionId), ...(withLineIds && !isCustom && o.lineId != null ? { lineId: Number(o.lineId) } : {}) },
       ...(offered ? { offered: 1, originalAmount: real } : {}),
     });
   }
@@ -336,7 +336,7 @@ function arrivalComplementDetailFromReservation(r, { includeOffered = false } = 
       kind: 'resource', label: String(res.name || 'Ressource').trim(),
       qty: Number(res.billedUnits || res.quantity || 1), unitPrice: round2(res.unitPrice),
       amount: offered ? 0 : real,
-      ref: { kind: 'resource', id: Number(res.resourceId) },
+      ref: { kind: 'resource', id: Number(res.resourceId), ...(withLineIds && res.lineId != null ? { lineId: Number(res.lineId) } : {}) },
       ...(offered ? { offered: 1, originalAmount: real } : {}),
     });
   }
@@ -765,6 +765,11 @@ function createReservationsModel(database, { arrivalComplementEngine = null } = 
   };
   const lineRefKey = (kind, id, lineId, first) => (lineId == null || first.get(Number(id)) === Number(lineId) ? `${kind}:${Number(id)}` : `${kind}:${Number(id)}:${Number(lineId)}`);
   const refKeyOf = (ref, firstByKind) => lineRefKey(String(ref.kind), ref.id, ref.lineId, firstByKind[String(ref.kind)] || new Map());
+  // The recap key of a complement line's ref on this stay (rule 85): a ref without `lineId` names the article's first line.
+  const detailRefKeyOf = (reservationId) => {
+    const first = { option: firstLineIds('reservation_options', 'optionId', reservationId), resource: firstLineIds('reservation_resources', 'resourceId', reservationId) };
+    return (ref) => (ref.kind === 'option' || ref.kind === 'resource' ? refKeyOf(ref, first) : `${ref.kind}:${Number(ref.id)}`);
+  };
 
   // specs/sas-offer-complement-lines.md §3.3 rule 9 — apply the operator's « Offrir » decisions to the
   // in-complement extras. `refs` is the AUTHORITATIVE offered set (`[{ kind, id }]`): a line named in it
@@ -3914,6 +3919,8 @@ function createReservationsModel(database, { arrivalComplementEngine = null } = 
       // `(db) => void` already validated by the controller. They run inside this transaction, so a
       // throwing one rolls the whole commit back.
       pluginWrites = [],
+      // Loop t6 S6-4 — the operator confirmed the trop-perçu of a paid line offered on the recap (409 OVERPAID first).
+      forceOverpayment = false,
     } = {}) {
       // Clamp drink/food counts to non-negative integers (authoritative server-side validation).
       // The SAS controller refuses a bad count first; a direct caller gets a throw, never an Infinity stored
@@ -3926,6 +3933,8 @@ function createReservationsModel(database, { arrivalComplementEngine = null } = 
       const clampCount = (v) => (v === undefined ? undefined : Math.max(0, Math.round(usableCount(v))));
       // Bread is counted in baguettes with half steps (specs/sas-breakfast-bread-and-push.md rule 2).
       const clampHalf = (v) => (v === undefined ? undefined : Math.max(0, Math.round(usableCount(v) * 2) / 2));
+      // Rules 23, 104, 105 (loop t6 S6-4) — the SAS commit is a save of the stay: a paid line it offers is judged like the fiche and the line API.
+      const paidLines = require('../utils/paidLineJudgment').begin(database, reservationId);
       const tx = database.transaction(() => {
         const today = localTodayIso();
         // specs/sas-arrival-total-server-side.md rule 2 — the plan is read BEFORE any write, by the very
@@ -4223,6 +4232,8 @@ function createReservationsModel(database, { arrivalComplementEngine = null } = 
 
         moveFinalPriceBy(reservationId, billedBefore);
 
+        const paidLineRefusal = paidLines.finish({ forced: forceOverpayment === true });
+        if (paidLineRefusal) throw Object.assign(new Error(paidLineRefusal.body.error), { refusal: paidLineRefusal });
         return database.prepare('SELECT complementAmount FROM reservations WHERE id = ?').get(reservationId).complementAmount;
       });
       const complementAmount = tx();
@@ -4329,11 +4340,32 @@ function createReservationsModel(database, { arrivalComplementEngine = null } = 
         }
       }
       if (isRecalled({ amount: row.complementAmount, paid: row.complementPaid })) {
-        for (const l of model.buildArrivalComplementDetail(reservationId, { includeOffered: true }).detail) {
-          if (Number(l.offered || 0) === 1 && l.ref) seed.offeredKeys.push(`${l.ref.kind}:${l.ref.id}`);
+        const keyOf = detailRefKeyOf(reservationId);
+        for (const l of model.buildArrivalComplementDetail(reservationId, { includeOffered: true, withLineIds: true }).detail) {
+          if (Number(l.offered || 0) === 1 && l.ref) seed.offeredKeys.push(keyOf(l.ref));
         }
       }
       return seed;
+    },
+
+    // Loop t6 S6-3 — the re-open seed of the ARRIVAL SAS: the keys of the complement lines already offered, by the recap's own key rule
+    // (rule 85: `option:<id>` for an article's first line, `option:<id>:<lineId>` for a later one). The client seeded `option:<id>` for
+    // every line, which the commit read as the article's FIRST line: two lines of one article, the second offered, swapped their gesture.
+    buildArrivalSeed(reservationId) {
+      const keyOf = detailRefKeyOf(reservationId);
+      const offeredKeys = [];
+      for (const l of model.buildArrivalComplementDetail(reservationId, { includeOffered: true, withLineIds: true }).detail) {
+        if (Number(l.offered || 0) === 1 && l.ref) offeredKeys.push(keyOf(l.ref));
+      }
+      // The SAS's own upsell rows are seeded on their own keys (`cleaning`, `bathLinen`, `bed:`, `kept:`), never as a complement line.
+      const ownRows = new Set([
+        ...database.prepare(`SELECT ${hasLineId(database, 'reservation_options') ? 'lineId, ' : ''}optionId FROM reservation_options
+          WHERE reservationId = ? AND ${HAS_RO_SAS_ARRIVAL_ORIGIN ? 'COALESCE(sasArrivalOrigin, 0) = 1' : '0'}`)
+          .all(reservationId).map((x) => keyOf({ kind: 'option', id: x.optionId, lineId: x.lineId })),
+        ...database.prepare('SELECT id FROM reservation_custom_options WHERE reservationId = ? AND COALESCE(sasArrivalOrigin, 0) = 1')
+          .all(reservationId).map((x) => `custom:${Number(x.id)}`),
+      ]);
+      return { offeredKeys: offeredKeys.filter((key) => !ownRows.has(key)) };
     },
 
     /**
@@ -4445,12 +4477,13 @@ function createReservationsModel(database, { arrivalComplementEngine = null } = 
         const { delta } = planOfferedComplementExtras(reservationId, offeredRefs);
         const override = HAS_COMPLEMENT_OVERRIDES && row.complementAmountOverride != null ? Number(row.complementAmountOverride) : null;
         const after = recalledArrivalAfter({ stored: row.complementAmount, delta, override });
+        const keyOf = detailRefKeyOf(reservationId);
         const wanted = offeredRefs
-          ? new Set(offeredRefs.filter((x) => x && x.kind && x.id != null).map((x) => `${x.kind}:${Number(x.id)}`))
+          ? new Set(offeredRefs.filter((x) => x && x.kind && x.id != null).map(keyOf))
           : null;
         if (withLines) {
-          recalledLines = model.buildArrivalComplementDetail(reservationId, { includeOffered: true }).detail.map((l) => {
-            const key = l.ref ? `${l.ref.kind}:${l.ref.id}` : null;
+          recalledLines = model.buildArrivalComplementDetail(reservationId, { includeOffered: true, withLineIds: true }).detail.map((l) => {
+            const key = l.ref ? keyOf(l.ref) : null;
             const real = realOfStoredLine(l);
             const offered = Boolean(key) && (wanted ? wanted.has(key) : Number(l.offered || 0) === 1);
             return {
@@ -4503,7 +4536,9 @@ function createReservationsModel(database, { arrivalComplementEngine = null } = 
       // contract as the arrival `offeredExtras` (every in-complement line is addressable at check-out,
       // including the ones the arrival SAS wrote).
       offeredArrivalExtras,
+      forceOverpayment = false,
     } = {}) {
+      const paidLines = require('../utils/paidLineJudgment').begin(database, reservationId);
       const tx = database.transaction(() => {
         const today = localTodayIso();
         const plan = model.planDepartureSas(reservationId, {
@@ -4589,6 +4624,8 @@ function createReservationsModel(database, { arrivalComplementEngine = null } = 
         // planning coche = dashboard « Parti » (checkOutDone). Same forward-only, never-auto-untick rule
         // as the arrival flags above.
         database.prepare("UPDATE reservations SET checkOutDone = 1, updatedAt = datetime('now') WHERE id = ?").run(reservationId);
+        const paidLineRefusal = paidLines.finish({ forced: forceOverpayment === true });
+        if (paidLineRefusal) throw Object.assign(new Error(paidLineRefusal.body.error), { refusal: paidLineRefusal });
       });
       tx();
     },

@@ -208,8 +208,18 @@ Same endpoints, additive fields (no breaking change):
   the SAS payload only — the **offered** in-complement extras are now listed with
   `offered: 1, amount: 0, originalAmount: <real price>`.
 
+- `arrivalSeed: { offeredKeys: string[] }` (arrival only; stabilisation loop t6, S6-3, 2026-11-16) — the keys of the in-complement lines already
+  offered, by the recap's own key rule (pricing-components rule 85: `option:<id>` / `resource:<id>` for an article's first line,
+  `option:<id>:<lineId>` for a later one, `custom:<id>`, `extraGuests:0`; the arrival SAS's own rows excluded). The dialog seeds its `offered`
+  set from it, so a later line of an article offered on the fiche reopens offered under its own key and the commit keeps exactly that line
+  offered (before: the dialog seeded `option:<id>` for every line, which the server reads as the article's first line).
+
 `POST /api/reservations/:id/sas/arrival`
 - `complementItems[]` gains `offered?: boolean` (bed-linen elements).
+- `forceOverpayment?: true` (also on `/sas/departure`; loop t6, S6-4, 2026-11-16) — the commit is judged like every save of the stay
+  (pricing-components rules 105, 106): offering a line a note paid with nothing left to absorb its money answers 409 `OVERPAID`
+  (`overpaymentTtc`) and writes nothing; the dialog asks « Offrir · X à rembourser » / « Garder » and, confirmed, commits again with this flag
+  (the `lineLowered` obligation opens). A paid line that leaves the stay answers 409 `LINE_PAID`.
 - `offered?: [{ kind: 'option'|'resource'|'custom'|'extraGuests', id: number, lineId? } | { kind: 'upsell', key: 'cleaning'|'bathLinen' }]`
   — ONE input since 2026-11-15 (pricing-components rule 14; it replaces `cleaningOffered`, `bathLinenOffered` and `offeredExtras`): an
   upsell ref activates the upsell billed 0 €; the line refs are the authoritative offered set for the pre-existing in-complement extras
@@ -218,7 +228,7 @@ Same endpoints, additive fields (no breaking change):
 `POST /api/reservations/:id/sas/departure`
 - `endOfStayComplementDetail[]` gains `offered?: boolean`.
 - `extinguisherCharges[]` gains `offered?: boolean`.
-- `offeredArrivalExtras?: [{ kind, id }]` — same contract as `offeredExtras`, applied to the recalled
+- `offeredArrivalExtras?: [{ kind, id, lineId? }]` — same contract as `offeredExtras`, applied to the recalled
   arrival complement. **Sent only when the recap recalled that complement** (§3.2 rule 6.ter); the
   server ignores it otherwise, so an omitted or stale field can never bill an offered line back.
 
