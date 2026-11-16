@@ -100,8 +100,8 @@ const updateLine = (id, fields) => update('standalone_sale_lines', COLUMNS.line,
 
 const bumpVersion = (id) => database().prepare('UPDATE standalone_sales SET version = version + 1 WHERE id = ?').run(Number(id));
 
-// Loop t4 (apps note) — a row closes at the application's clock, in SQLite's UTC text form: the day a kept surplus is booked on (its Paris day,
-// `standalonePaymentsModel.closedDay`) is the day of the gesture's own clock, the one the kept allocation is dated by, never SQLite's own clock.
+// Loop t4 (apps note), t5 D5-5 — a row closes at the application's clock, in SQLite's UTC text form: `settledAt` is the row's displayed stamp; no
+// reader decides money by it, the tip and avoir days are the `at` of the allocations the close writes (`todayIso()`).
 const closedAtNow = () => new Date().toISOString().replace('T', ' ').slice(0, 19);
 
 const findSale = (id) => database().prepare('SELECT * FROM standalone_sales WHERE id = ?').get(Number(id)) || null;

@@ -10,7 +10,8 @@
  *   findLine(reservationId, ref)                 `ref` = `option:<lineId>` | `resource:<lineId>` | `custom:<lineId>` → the stored line or null
  *   momentRefusal(reservationId, line, to, moments) / moveLine(reservationId, line, to)    rule 37: the 409 or null / the move, journaled by the caller
  *   lowerLine(reservationId, line, { discount, offered })  → { body, text, discountCents } | { error }   rule 39 / 14: the PUT body that offers it or carries the discount
- *   storeDiscount(line, cents)                   the line's own discount, stored once the save went through
+ *   storeDiscount(line, cents, { arrivalOpen })  the line's own discount, stored once the save went through; `arrivalOpen` is the caller's
+ *                                                one judge (`extraSale.arrivalOpenAt` at the gesture's `now`)
  *   withoutLine(body, line)                      the fiche's PUT body without that one line (rule 25: an unpaid line removed)
  *   stampCustomQuantities(reservationId, added, requests)  the count a sold custom line carries (« Taie d'oreiller ×2 ») and its seller's key (`fulfilmentRef`)
  *   stampIntakeLines(reservationId, platform, soldAt)  the lines a platform intake wrote and left without a moment: `platform` or `arrival` (rule 17)
@@ -255,10 +256,10 @@ function stampCustomQuantities(reservationId, added, requests) {
 }
 
 // Once the save went through, the line keeps its own discount as a stored fact (rule 39).
-function storeDiscount(line, cents) {
+function storeDiscount(line, cents, { arrivalOpen = false } = {}) {
   if (cents == null) return;
   database().prepare(`UPDATE ${line.table} SET discountCents = ? WHERE lineId = ?`).run(cents, line.lineId);
-  fitArrivalBaseline(line, cents);
+  fitArrivalBaseline(line, cents, arrivalOpen);
 }
 
 // Loop t3, T3-8 — an arrival line discounted where the door can still change it (an open arrival, a collected complement) is held in the
@@ -267,19 +268,19 @@ function storeDiscount(line, cents) {
 // (its baseline at least its worth before the change) takes it back there; a line that already had money at the departure keeps its
 // baseline, and the departure takes it back. Left at the old net, the arrival collected the line whole and the departure billed the
 // given-back part a second time.
-function fitArrivalBaseline(line, cents) {
+function fitArrivalBaseline(line, cents, arrivalOpen) {
   if (line.collectAt !== 'arrival') return;
   const db = database();
-  const row = db.prepare('SELECT arrivalExtrasBaseline, checkInDone, arrivalSasDoneAt, complementPaid, complementPaidCash FROM reservations WHERE id = ?')
-    .get(Number(line.row && line.row.reservationId));
+  const row = db.prepare('SELECT arrivalExtrasBaseline FROM reservations WHERE id = ?').get(Number(line.row && line.row.reservationId));
   const baseline = row && row.arrivalExtrasBaseline ? JSON.parse(row.arrivalExtrasBaseline) : null;
   if (!baseline || baseline[line.key] == null) return;
   const held = Number(baseline[line.key]);
   const worth = roundMoney(Math.max(0, line.totalCents - Number(cents || 0)) / 100);
   const before = roundMoney(Math.max(0, line.totalCents - Number((line.row && line.row.discountCents) || 0)) / 100);
   // Loop t4 S4-6 — the arrival takes the given-back money only while it is open: once validated or its complement collected, the restate
-  // carved it out to the departure, and a raised baseline would let the next save drop it from there.
-  const arrivalOpen = !Number(row.checkInDone || 0) && !row.arrivalSasDoneAt && !Number(row.complementPaid || 0) && !Number(row.complementPaidCash || 0);
+  // carved it out to the departure, and a raised baseline would let the next save drop it from there. Loop t5 D5-1 — « open » is the stay
+  // clock's one judge at the gesture's `now` (`extraSale.arrivalOpenAt`), given by the caller: a kept false start (a baseline stored, unticked
+  // before the check-in hour) is not open either, its restate already routed the given-back money to the departure.
   const fitted = worth < held ? worth : (held >= before && arrivalOpen ? Math.max(held, worth) : held);
   if (fitted === held) return;
   baseline[line.key] = fitted;
