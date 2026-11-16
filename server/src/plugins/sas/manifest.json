@@ -196,6 +196,7 @@
       "Offrir au sas d’arrivée une ligne déjà payée déduit son montant du solde non réglé, comme depuis la fiche : plus de montant à rembourser quand le solde l’absorbe.",
       "Accueil : une ligne payée offerte dont le montant reste à rembourser au client reste offerte au sas, sans bouton ; la remettre à facturer est refusé, c’est à l’administrateur.",
       "Accueil : quand le sas refuse une ligne déjà payée, cette ligne seule est remise à facturer et « Valider » passe ensuite.",
+      "L’étape « Séjour » du sas d’arrivée suit le montant que l’arrivée laissera dû : absente quand le récapitulatif solde le séjour, présente quand il le relève.",
       "Demande GuestFlow 4.2 (SDK 2.31)."
     ]
   }

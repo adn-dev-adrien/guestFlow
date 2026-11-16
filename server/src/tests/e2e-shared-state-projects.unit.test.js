@@ -18,7 +18,6 @@ test('rule 20: the main project ignores every spec that rewrites global state', 
 
 test('rule 20: each of those specs has its own project, after the main one and the plugin toggles, the VAT ones in a chain', () => {
   assert.deepEqual(project('laundry-schedule').dependencies, ['plugin-toggles']);
-  assert.deepEqual(project('vat-regime').dependencies, ['plugin-toggles']);
   assert.deepEqual(project('bank-reconciliation').dependencies, ['plugin-toggles'], 'online-payment reads a database with no provider connected');
   assert.deepEqual(project('vat-franchise').dependencies, ['vat-regime']);
   assert.deepEqual(project('vat-rate').dependencies, ['vat-franchise']);
@@ -68,5 +67,15 @@ test('rule 20: the pre-run wipe clears the support access request beside the dat
     assert.equal(fs.existsSync(db), false, 'the database is gone');
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+// Reading of 2026-11-16 (loop t9, E9-1): the VAT chain ran beside bank-reconciliation, laundry-schedule and support-access. The regime switch is
+// guarded by a fingerprint over the reservations of its period; reconciliation-assisted-matching and laundry-days create reservations, so one
+// created between the preview and the click answered « stale » and the dialog stayed open. The chain starts once all three are done.
+test('rule 20: the VAT chain starts after bank-reconciliation, laundry-schedule and support-access, never beside them', () => {
+  assert.deepEqual([...project('vat-regime').dependencies].sort(), ['bank-reconciliation', 'laundry-schedule', 'support-access']);
+  for (const name of ['bank-reconciliation', 'laundry-schedule', 'support-access']) {
+    assert.deepEqual(project(name).dependencies, ['plugin-toggles'], `${name} still runs after the plugin toggles`);
   }
 });

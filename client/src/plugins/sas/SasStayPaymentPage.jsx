@@ -4,11 +4,12 @@
  *
  * A last-minute booking arrives unpaid: the whole stay is handed over at the door, so the wizard
  * announces the amount and records how it was settled. Everything shown here is computed server-side
- * (`stayPayment` in the SAS payload, then the latest preview’s: the acompte and solde the commit leaves, pricing-components rule 117) —
+ * (the latest preview’s `stayPayment`: the acompte and solde the commit leaves, pricing-components rule 117 — never the stored row) —
  * this page renders it and owns no arithmetic.
  *
  * Props:
- *   stayPayment  { total, deposit: { due }, balance: { due }, channel, platformLabel } — the payload block
+ *   stayPayment  { total, deposit: { due }, balance: { due }, channel, platformLabel } — the preview's block; `null` until the server
+ *                answered, the amount then reads « — »
  *   value        current settlement mode: 'card' | 'cash' | 'defer' (= « Pas maintenant »)
  *   onChange     (mode) => void
  *   children     the shared PaymentModeButtons element, injected by the dialog
@@ -47,7 +48,7 @@ export default function SasStayPaymentPage({ stayPayment, value, children }) {
         <Typography variant="body1">Séjour à régler :</Typography>
         {/* Amounts never render in serif — kpiValue is the sans, tabular role. */}
         <Typography variant="kpiValue" sx={{ fontSize: { xs: '2rem', sm: '2.6rem' }, lineHeight: 1.1 }}>
-          {formatCurrency(stay.total)}
+          {stayPayment ? formatCurrency(stay.total) : '—'}
         </Typography>
         {showBuckets && (
           <Stack spacing={0.25} sx={{ alignItems: 'center' }}>

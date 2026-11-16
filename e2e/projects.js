@@ -27,7 +27,9 @@ const PROJECTS = [
   { name: 'bank-reconciliation', testMatch: BANK_RECONCILIATION_SPEC, dependencies: ['plugin-toggles'] },
   { name: 'laundry-schedule', testMatch: LAUNDRY_SCHEDULE_SPEC, dependencies: ['plugin-toggles'] },
   { name: 'support-access', testMatch: SUPPORT_ACCESS_SPEC, dependencies: ['plugin-toggles'] },
-  { name: 'vat-regime', testMatch: VAT_STATE_SPECS[0], dependencies: ['plugin-toggles'] },
+  // After the three projects above, never beside them: the regime switch is guarded by a fingerprint over the reservations its period
+  // takes, and reconciliation / laundry create reservations — one between the preview and the click made the switch stale (loop t9 E9-1).
+  { name: 'vat-regime', testMatch: VAT_STATE_SPECS[0], dependencies: ['bank-reconciliation', 'laundry-schedule', 'support-access'] },
   { name: 'vat-franchise', testMatch: VAT_STATE_SPECS[1], dependencies: ['vat-regime'] },
   { name: 'vat-rate', testMatch: VAT_STATE_SPECS[2], dependencies: ['vat-franchise'] },
 ];

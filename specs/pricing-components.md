@@ -2320,6 +2320,10 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
     _Reading of 2026-11-16 (loop t8, UI8-4):_ the announcement holds only while the means is « Caisse interne »: another means takes it away
     (it would say the cash goes back to the till when it does not), coming back to « Caisse interne » shows it again. Client
     `RefundDialog.cash-part-means`.
+    _Reading of 2026-11-16 (loop t9, UI9-2):_ the announcement describes the lines the dialog opened with, so it also holds only while they
+    are untouched: another amount (60 typed on the 30 € cash line would leave « Reste 30,00 € » on screen while nothing is left), another poste,
+    a line added or removed, or a refundable line ticked takes it away; putting the proposed amount back shows it again. The dialog compares
+    the typed text with the one it opened on — no amount is computed. Client `RefundDialog.cash-part-amount`.
     _Reading of 2026-11-16 (loop t8, B8-2):_ the cash a caisse-interne refund settled is the NOTE part of the rows it settled (`noteCents`,
     rule 115): a caisse-interne refund of the stay's own trop-perçu took no note's cash.
 113. **« Enregistrer et rembourser » opens the refund dialog on the ledger row's split** _(stabilisation loop t8, UI8-1 / UI8-2, 2026-11-16;
@@ -2383,6 +2387,14 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
     2026-11-11 copy (card order 45 € J-3, offered, the SAS un-offers it at 15:00 and collects the stay): 22303 shown 535,01 and marked 535,01
     (before: shown 490,01, marked 535,01), 22306 1 834,20 / 1 834,20; with the stale figure both answer 409; the seed kept moves nothing.
     Tests `sas-arrival-paid-line-stay-step`, client `ReservationSasDialog.stay-due`.
+    _Reading of 2026-11-16 (loop t9, UI9-1):_ the stay STEP follows the plan too, not only its amount. The dialog still decided from the stored
+    row in two places: the page fell back on the stored block whenever the plan answered « nothing due » (stored solde 300, the recap offers
+    the paid order: the page showed 300,00 € while the commit marked nothing), and the step existed only when the stored row asked something
+    (an offered order un-offered at the recap raised the solde to 300 €, but no « Séjour » page, no « Séjour » line on the recap and no
+    `displayedStayDue`: the 300 € were left unasked at the door). Once a preview answered, the step is shown iff the plan's `stayPayment` is
+    applicable, and the page renders exactly that block (« — » until it answered); the served block only stands in for the step's presence
+    before the first answer — the stay page asks the preview itself, so its amount is always the plan's, and an operator on the stay page when
+    that answer drops it goes on to the page that followed it. Client `ReservationSasDialog.stay-step-plan`.
 118. **The arrival SAS offering a paid line credits it like the line API** _(stabilisation loop t8, S8-2, 2026-11-16; completes rules 104,
     105, 107 d)_. Same gesture, same hour, same result: the SAS commit's shared write (`writeArrivalComplement`) takes `paidLineJudgment.wayBack`
     both ways — a write that FREES note money (the paid line offered) credits it, before the paid-line judgment, to what the stay still asks:
@@ -2747,7 +2759,7 @@ _Rewritten 2026-11-15 (stabilisation loop t1, UI-3) to what shipped._
 - [x] `sas-arrival-paid-line-unoffered` — rule 109 (loop t7, S7-1): « Offert » unticked at the arrival SAS on a card-paid line: plan paid → the 30 € obligation closes, Σ unchanged, no « Trop-perçu »; solde unpaid → 30 € asked again; the seed kept → nothing moves; the recap played alone writes nothing (4)
 - [x] `save-pre-420-stay-lines-kept` — rule 82 reading (loop t7, S7-3): a pre-4.2.0 stay's no-change save keeps its unlinked ménage and its price; a 4.2.0 stay still stores the early-arrival line (2)
 - [x] `sale-note-credit-after-refund` — rule 110 (loop t7, B7-1): `lessRefundedCredit`; offered, refunded, then a 20 € line sold unpaid → asked in full at the departure, direct and Booking × card and cash; the refund deleted reopens the obligation and pays the new line first (rule 119), Σ still balanced (6)
-- [x] `refund-note-overpayment-poste` — rule 111 (loop t7, B7-2): a card note line offered → `postesLeft` options 30, prefill « Prestations complémentaires », avoir on 70600010, direct and Booking; a line still charged leaves nothing (3)
+- [x] `refund-note-overpayment-poste` — rule 111 (loop t7, B7-2): a card note line offered → `postesLeft` options 30, prefill « Prestations complémentaires », avoir on 70600010, direct and Booking; a line still charged leaves nothing (3 of 5; 2 more under reservation-refunds rule 49)
 - [x] `refund-mixed-cash-card-note` — rule 112 (loop t7, B7-3): `cashPartOf`; cash 30 + card 30 offered → 30 « Caisse interne » proposed, then 30 by the booked means, one booked avoir of 30, direct and Booking (3)
 - [x] `fiche-save-overpaid-refund-split` — rule 113 (loop t8, UI8-1, UI8-2): a note line offered in the fiche, direct and Booking → the 409 splits on « Prestations complémentaires », carries the ledger row's cash part, a cash-only one defaults to the caisse interne; the dialog replayed on it books one avoir on 70600010, −30 € booked, card and cash + card (10)
 - [x] `custom-line-server-key` — rule 114 (loop t8, UI8-5): the live quote's (`calculate-price`) and the stored summary's custom line carry `key` = `extraLineKey`; the engine quote carries none (rule 4) (2)
@@ -2760,6 +2772,7 @@ _Rewritten 2026-11-15 (stabilisation loop t1, UI-3) to what shipped._
 
 ### Client Vitest suites (named 2026-11-16, stabilisation loop t2 P2-2)
 - [x] `ReservationSasDialog.stay-due` — rule 117 (loop t8, S8-1): the stay page renders the preview's planned solde, the commit sends `displayedStayDue`; a 409 `STAY_DUE_CHANGED` is shown and the recap read again (2)
+- [x] `ReservationSasDialog.stay-step-plan` — rule 117 reading (loop t9, UI9-1): stored 300, the plan settles it → no stay page, nothing sent; nothing stored, the plan raises 300 → the page comes in with 300 and the commit sends it (2)
 - [x] `ReservationPage.extra-sales-panel` — rule 101 (UI2-1 to UI2-4): a started stay with the window open sells and moves its lines, a collected departure does not, the fiche's `saleDetail` read once, a dirty fiche holds the writes and keeps the typed note, a write on a clean fiche re-reads without the loading screen, and while the re-read is in flight the fiche is busy (fields read-only, « Enregistrer » disabled)
 - [x] `ReservationPage.quiet-reread` — rule 101 (loop t3 UI3-1 to UI3-3): the selects refuse to open during the re-read, before and after its form lands; the summary keeps the last quote and the quote is asked again; a failed re-read keeps the page read-only with « Réessayer », and the retry brings the form back
 - [x] `ExtraSalesPanel.fiche-reload` — rules 27, 30: every accepted write asks the fiche to re-read, a refused one does not; a locked panel offers no action; a failed read shows « Réessayer »
@@ -2768,6 +2781,7 @@ _Rewritten 2026-11-15 (stabilisation loop t1, UI-3) to what shipped._
 - [x] `PricingSummary.refunded-line`, `ReservationSasDialog.refunded-line` — rule 108 (loop t7, D7-1): a refunded offered line reads offered with no toggle, the other offered line keeps « ✓ Offert » (2 + 1)
 - [x] `RefundDialog.cash-part` — rule 112 (loop t7, B7-3): the cash part opens « Caisse interne » with its lines and announces the rest; without it, the whole trop-perçu by transfer (2)
 - [x] `RefundDialog.cash-part-means` — rule 112 reading (loop t8, UI8-4): another means takes the cash announcement away, « Caisse interne » shows it again (1)
+- [x] `RefundDialog.cash-part-amount` — rule 112 reading (loop t9, UI9-2): another amount or a removed line takes the cash announcement away, the proposed amount shows it again (2)
 - [x] `ReservationPage.overpaid-cash-part` — rule 113 (loop t8, UI8-1): the save's 409 `overpaymentCash` opens the dialog « Caisse interne » on 30 with the announcement, and posts it (1)
 - [x] `ReservationPage.refunded-line-reread`, `ReservationPage.refunded-line-key` — rules 108, 114 (loop t8, UI8-3, UI8-5): the refund locks the line at once, its deletion gives the toggle back; the line is matched on the served key only (1 + 2)
 - [x] `SaleDetailList.credit`, `StaySalesSection.credit` — rules 104 e, 106 c (loop t6, UI6-1 to UI6-3): the credit line read-only in the fiche's panel, « Reste à payer » the served figure; no « Offrir » on the departure credit
