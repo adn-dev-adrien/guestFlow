@@ -34,6 +34,13 @@ export const TAX_PAGE = {
   remittedByTooltip: 'La plateforme reverse elle-même cette taxe à la commune.',
 };
 
+// specs/tourist-tax-report-v2.md rule 62 — a « nuitée » is not a night: the hint shown on hover wherever it is counted.
+export const PERSON_NIGHT_HINTS = {
+  all: '1 nuitée = 1 personne pendant 1 nuit.',
+  taxed: '1 nuitée = 1 personne pendant 1 nuit. Taxées : adultes × nuits.',
+  exempt: '1 nuitée = 1 personne pendant 1 nuit. Exonérées : mineurs × nuits.',
+};
+
 export const TAX_COLUMNS = {
   declared: 'Déclarée',
   stay: 'Séjour',
