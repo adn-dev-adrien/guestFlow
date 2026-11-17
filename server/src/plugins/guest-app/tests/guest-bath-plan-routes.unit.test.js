@@ -30,9 +30,11 @@ function withBath(name, fn, { stay = {} } = {}) {
   });
 }
 
+// Hours the stay holds, as guest-app-bath-from-j7 writes them: an included line (offered, 0 €), so placing them never moves the stay's
+// collected price (an order that lowered it would be refused OVERPAID).
 const hold = (stayId, hours, sessions = []) => db.prepare(`INSERT INTO reservation_resources
   (reservationId, resourceId, quantity, unitPrice, billedUnits, totalPrice, offered, inComplement, sessions)
-  VALUES (?, ?, ?, 30, ?, ?, 0, 0, ?)`).run(stayId, BATH, hours, hours, hours * 30, JSON.stringify(sessions));
+  VALUES (?, ?, ?, 30, ?, 0, 1, 0, ?)`).run(stayId, BATH, hours, hours, JSON.stringify(sessions));
 
 const meOf = async (call) => {
   const me = await call('GET', '/public/v1/guest/me');
