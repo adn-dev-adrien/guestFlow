@@ -1,4 +1,4 @@
-// specs/guest-app-home-automation.md rules 7, 10, 12-17, 22 — the « Domotique » routes on the real routers: the
+// specs/guest-app-home-automation.md rules 7, 10, 12-17, 22, 27, 29 — the « Domotique » routes on the real routers: the
 // module's prerequisite and modes, the guest's taps, Studio's save with its refusals and its preview.
 const test = require('node:test');
 const assert = require('node:assert/strict');
@@ -22,7 +22,7 @@ async function setup(t, { house = {}, limiters } = {}) {
   homeOn(db);
   const now = ctx.clock.now;
   home.state.readings = readingsAt(now);
-  home.state.lastReadingsAt = new Date(now.getTime() - 60 * 1000).toISOString();
+  home.state.lastPollAt = new Date(now.getTime() - 60 * 1000).toISOString();
   return { db, home, ...ctx };
 }
 
@@ -49,14 +49,24 @@ test('rule 17 — on, configured, the house heard: the tile shows and the page i
   assert.ok(tileKeys(await ctx.call('GET', '/public/v1/guest/me')).includes('home'));
   const page = await ctx.call('GET', '/public/v1/guest/home');
   assert.equal(page.status, 200);
-  assert.deepEqual(page.body.data.blocks.map((b) => b.kind), ['outdoor', 'rooms', 'lights', 'rain', 'energy']);
+  assert.deepEqual(page.body.data.blocks.map((b) => b.kind), ['outdoor', 'rooms', 'lights', 'rain', 'energy', 'grid']);
   assert.equal(page.body.data.blocks[0].temperature, '8,5');
+});
+
+test('rule 29 — a lodging saved before « Réseau » existed reads back with it, switched off', async (t) => {
+  const ctx = await setup(t);
+  assert.equal((await save(ctx.call)).status, 200);
+  ctx.db.prepare("DELETE FROM guest_home_blocks WHERE kind = 'grid'").run();
+  const read = await ctx.call('GET', '/api/guest-app/lodgings/1/home');
+  const grid = read.body.blocks.find((b) => b.kind === 'grid');
+  assert.deepEqual([grid.on, grid.equipmentId], [false, null]);
+  assert.equal(read.body.blocks.length, 6);
 });
 
 test('rule 17 — the house silent for more than 6 h: the tile goes', async (t) => {
   const ctx = await setup(t);
   await save(ctx.call);
-  ctx.home.state.lastReadingsAt = new Date(ctx.clock.now.getTime() - 7 * 60 * 60 * 1000).toISOString();
+  ctx.home.state.lastPollAt = new Date(ctx.clock.now.getTime() - 7 * 60 * 60 * 1000).toISOString();
   await openStay(ctx.call, ctx.db, addStay(ctx.db));
   assert.ok(!tileKeys(await ctx.call('GET', '/public/v1/guest/me')).includes('home'));
 });
@@ -142,7 +152,8 @@ test('rules 13, 15 — Studio reads the channel, the blocks and the pickers; the
   const read = await ctx.call('GET', '/api/guest-app/lodgings/1/home');
   assert.equal(read.body.channel.state, 'ok');
   assert.equal(read.body.channel.message, 'Reçu de Sowel il y a 1 min.');
-  assert.deepEqual(read.body.pickers.energy.map((p) => p.id), ['m-granja']);
+  assert.deepEqual(read.body.pickers.energy.map((p) => p.id), ['m-granja', 'edf']);
+  assert.deepEqual(read.body.pickers.grid.map((p) => p.id), ['edf']);
   assert.deepEqual(read.body.pickers.lights.map((p) => [p.id, Boolean(p.guestSwitchable)]), [['l-chene', true], ['l-salon', false]]);
   const preview = await ctx.call('POST', '/api/guest-app/lodgings/1/home/preview', {});
   assert.equal(preview.body.blocks[0].temperature, '8,5');

@@ -21,21 +21,21 @@ const parisDateTime = (iso) => new Intl.DateTimeFormat('fr-FR', {
   timeZone: 'Europe/Paris', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit',
 }).format(new Date(iso)).replace(' ', ' à ').replace(':', ' h ');
 
-/** Rule 15 — the channel as Studio says it. */
+/** Rule 15 (amended by rule 27) — the channel as Studio says it, judged on the house's last poll. */
 function channelView(data, now) {
   if (!data) return { state: 'off', message: 'Le connecteur Sowel n’est pas actif dans Réglages › Intégrations.' };
   const c = data.channel();
-  if (!c.lastReadingsAt) {
+  if (!c.lastPollAt) {
     return { state: 'never', message: 'Sowel n’a encore rien envoyé.', equipments: c.equipments };
   }
-  const age = now.getTime() - Date.parse(c.lastReadingsAt);
+  const age = now.getTime() - Date.parse(c.lastPollAt);
   if (age <= FRESH_MS) {
     const minutes = Math.max(1, Math.round(age / MINUTE));
     return { state: 'ok', message: `Reçu de Sowel il y a ${minutes} min.`, equipments: c.equipments };
   }
   return {
     state: age > HIDE_MS ? 'gone' : 'silent',
-    message: `Plus de nouvelles de Sowel depuis le ${parisDateTime(c.lastReadingsAt)}.`
+    message: `Plus de nouvelles de Sowel depuis le ${parisDateTime(c.lastPollAt)}.`
       + (age > HIDE_MS ? ' La tuile Domotique est masquée chez les voyageurs.' : ''),
     equipments: c.equipments,
   };
@@ -74,16 +74,17 @@ function buildHomeController({
     const catalog = data.catalog();
     const pairs = selectionOf([blocks], catalog);
     return buildHomeView({
-      blocks, catalog, readings: data.readings(pairs), series: data.series(pairs), confirmed: confirmedOf(data, pairs), now: now(), lang,
+      blocks, catalog, readings: data.readings(pairs), series: data.series(pairs), confirmed: confirmedOf(data, pairs),
+      lastPollAt: data.channel().lastPollAt, now: now(), lang,
     });
   }
 
-  /** Rule 17 — the module's prerequisite: a live connector heard within 6 h, and a block on with a present equipment. */
+  /** Rule 17 (amended by rule 27) — a live connector that polled within 6 h, and a block on with a present equipment. */
   function ready(propertyId) {
     const data = homeData();
     if (!data) return false;
-    const { lastReadingsAt } = data.channel();
-    if (!lastReadingsAt || now().getTime() - Date.parse(lastReadingsAt) > HIDE_MS) return false;
+    const { lastPollAt } = data.channel();
+    if (!lastPollAt || now().getTime() - Date.parse(lastPollAt) > HIDE_MS) return false;
     const present = new Set(data.catalog().filter((e) => !e.goneAt).map((e) => e.id));
     return homeBlocks().blocksOf(propertyId)
       .some((b) => b.on && equipmentsOf(b).some(({ equipmentId }) => present.has(equipmentId)));
@@ -220,7 +221,8 @@ function buildHomeController({
       }
       const pairs = selectionOf([blocks], catalog);
       return res.json(buildHomeView({
-        blocks, catalog, readings: data.readings(pairs), series: data.series(pairs), confirmed: confirmedOf(data, pairs), now: now(), lang,
+        blocks, catalog, readings: data.readings(pairs), series: data.series(pairs), confirmed: confirmedOf(data, pairs),
+        lastPollAt: data.channel().lastPollAt, now: now(), lang,
       }));
     },
   };

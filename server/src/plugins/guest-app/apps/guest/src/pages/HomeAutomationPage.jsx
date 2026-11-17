@@ -1,7 +1,8 @@
 /**
- * « Domotique » (specs/guest-app-home-automation.md §3.D, §6): the lodging live — outdoors on the photo, the rooms,
- * the lights the owner entrusted to guests, the rain and the electricity. Everything is rendered from `/home` as the
- * server wrote it: no figure is rounded, dated or scaled here. One moment of motion: the light switch.
+ * « Domotique » (specs/guest-app-home-automation.md §3.D, §3.E, §6): the lodging live — outdoors on the photo, the
+ * rooms, the lights the owner entrusted to guests, the rain, the electricity and the exchange with the grid. Everything
+ * is rendered from `/home` as the server wrote it: no figure is rounded, dated or scaled here. One moment of motion:
+ * the light switch.
  */
 import { useCallback } from 'react';
 import AppBar from '../components/AppBar';
@@ -20,7 +21,7 @@ import { useOnline } from '../hooks/useOnline';
 import { useT } from '../i18n';
 import { DEFAULT_HERO } from './HomePage';
 
-const TREND_ICON = { up: 'trendUp', down: 'trendDown', flat: 'trendFlat' };
+const GRID_ICON = { export: 'gridOut', import: 'gridIn', balanced: 'minus' };
 
 function Hero({ outdoor, data, lodging, online, t }) {
   const live = online && data.live;
@@ -59,11 +60,9 @@ function Rooms({ block, t }) {
           <div key={room.id} className={`sh-room${room.state === 'stale' ? ' stale' : ''}`}>
             <span className="n">{room.label}</span>
             {room.temperature !== null ? (
-              <span className="t">
-                <b>{room.temperature}</b><i>°C</i>
-                {room.trend ? <span className={`trend ${room.trend}`} aria-label={t(`smartHome.trend.${room.trend}`)}><Icon name={TREND_ICON[room.trend]} /></span> : null}
-              </span>
+              <span className="t"><b>{room.temperature}</b><i>°C</i></span>
             ) : <span className="t na">{t('smartHome.unavailable')}</span>}
+            {room.min !== null && room.max !== null ? <span className="mm">{t('smartHome.minMax', { min: room.min, max: room.max })}</span> : null}
             {room.humidity || (room.state === 'stale' && room.at) ? (
               <span className="h">{[room.humidity ? t('smartHome.humidity', { v: room.humidity }) : null, room.state === 'stale' ? room.at : null].filter(Boolean).join(' · ')}</span>
             ) : null}
@@ -80,12 +79,16 @@ function Rain({ block, t }) {
       <h2 id="sh-rain">{t('smartHome.rain')}{block.state === 'stale' && block.at ? <small>{block.at}</small> : null}</h2>
       <div className={`sh-card${block.state === 'stale' ? ' stale' : ''}`}>
         <div className="sh-kv">
-          <div><b>{block.today}</b><span>{t('smartHome.today')}</span></div>
+          {block.today ? <div><b>{block.today}</b><span>{t('smartHome.today')}</span></div> : null}
           {block.lastHour ? <div><b>{block.lastHour}</b><span>{t('smartHome.lastHour')}</span></div> : null}
-          <div><b>{block.last24h}</b><span>{t('smartHome.last24h')}</span></div>
+          {block.last24h ? <div><b>{block.last24h}</b><span>{t('smartHome.last24h')}</span></div> : null}
         </div>
-        <Sparkbars values={block.bars} label={t('smartHome.rainChart')} />
-        <div className="sh-axis"><span>{t('smartHome.ago24')}</span><span>{t('smartHome.now')}</span></div>
+        {block.bars.some((v) => v !== null) ? (
+          <>
+            <Sparkbars values={block.bars} label={t('smartHome.rainChart')} />
+            <div className="sh-axis"><span>{t('smartHome.ago24')}</span><span>{t('smartHome.now')}</span></div>
+          </>
+        ) : null}
       </div>
     </section>
   );
@@ -106,6 +109,23 @@ function Energy({ block, t }) {
             <div className="sh-axis"><span>{t('smartHome.ago24')}</span><span>{t('smartHome.now')}</span></div>
           </>
         ) : null}
+      </div>
+    </section>
+  );
+}
+
+/** Rule 29 — the exchange with the grid as Sowel signs it, written unsigned by the server; the phrase says the way. */
+function Grid({ block, t }) {
+  return (
+    <section className="sh-sec" aria-labelledby="sh-grid">
+      <h2 id="sh-grid">{t('smartHome.grid')}{block.state === 'stale' && block.at ? <small>{block.at}</small> : null}</h2>
+      <div className={`sh-card sh-grid${block.direction ? ` ${block.direction}` : ''}${block.state === 'stale' ? ' stale' : ''}`}>
+        {block.power !== null ? (
+          <>
+            <b className="v">{block.power}</b>
+            <span className="dir"><Icon name={GRID_ICON[block.direction]} />{block.label}</span>
+          </>
+        ) : <span className="na">{t('smartHome.unavailable')}</span>}
       </div>
     </section>
   );
@@ -141,6 +161,7 @@ export function SmartHomeBody({
           if (block.kind === 'rooms') return <Rooms key="rooms" block={block} t={t} />;
           if (block.kind === 'rain') return <Rain key="rain" block={block} t={t} />;
           if (block.kind === 'energy') return <Energy key="energy" block={block} t={t} />;
+          if (block.kind === 'grid') return <Grid key="grid" block={block} t={t} />;
           if (block.kind === 'lights') {
             return (
               <section key="lights" className="sh-sec" aria-labelledby="sh-lights">

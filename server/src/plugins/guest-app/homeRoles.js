@@ -4,7 +4,7 @@
  * aliases Sowel's aggregators publish as fall-back. Pure.
  */
 
-const KINDS = Object.freeze(['outdoor', 'rooms', 'lights', 'rain', 'energy']);
+const KINDS = Object.freeze(['outdoor', 'rooms', 'lights', 'rain', 'energy', 'grid']);
 const LIST_KINDS = Object.freeze(['rooms', 'lights']);
 const LIGHT_TYPES = Object.freeze(['light_onoff', 'light_dimmable', 'light_color', 'switch']);
 const MAX_ITEMS = Object.freeze({ rooms: 8, lights: 6 });
@@ -20,6 +20,8 @@ const ROLES = Object.freeze({
   },
   room: {
     temperature: { categories: ['temperature'], aliases: ['temperature'] },
+    min: { aliases: ['temperature_min_today'] },
+    max: { aliases: ['temperature_max_today'] },
     humidity: { categories: ['humidity'], aliases: ['humidity'] },
   },
   light: {
@@ -36,10 +38,14 @@ const ROLES = Object.freeze({
     today: { aliases: ['energy_day'] },
     hourly: { aliases: ['energy_hour'] },
   },
+  // Rule 29 — the main meter's signed power, exactly as Sowel's energy page shows it under « Réseau ».
+  grid: {
+    power: { categories: ['power'], aliases: ['power'] },
+  },
 });
 
-/** The roles a block's equipment plays: outdoor, rain and energy are single; a room and a light are list items. */
-const ROLE_SET = Object.freeze({ outdoor: 'outdoor', rain: 'rain', energy: 'energy', rooms: 'room', lights: 'light' });
+/** The roles a block's equipment plays: outdoor, rain, energy and grid are single; a room and a light are list items. */
+const ROLE_SET = Object.freeze({ outdoor: 'outdoor', rain: 'rain', energy: 'energy', grid: 'grid', rooms: 'room', lights: 'light' });
 
 /** The alias playing `role` on a catalogue entry, or null. */
 function aliasFor(entry, roleDef) {
@@ -67,6 +73,7 @@ function fits(kind, entry) {
   if (kind === 'rain') return Boolean(roles.lastHour || roles.today || roles.last24h);
   if (kind === 'energy') return Boolean(roles.power || roles.today);
   if (kind === 'lights') return LIGHT_TYPES.includes(entry.type);
+  if (kind === 'grid') return entry.type === 'main_energy_meter' && Boolean(roles.power);
   return false;
 }
 

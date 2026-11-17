@@ -1,7 +1,7 @@
 {
   "id": "gate-access",
   "name": "Accès au portail (Sowel)",
-  "version": "1.4.0",
+  "version": "1.4.1",
   "description": "Codes et clés du portail envoyés à Sowel ; mesures et lumières de la maison pour la page Domotique de l’appli séjour.",
   "icon": "key",
   "surfaces": [
@@ -54,6 +54,10 @@
     "1.4.0": [
       "La maison envoie aussi, avec la même clé et la même signature, ses mesures (températures, météo, pluie, électricité) et vient chercher les demandes d’allumage des lumières confiées aux voyageurs.",
       "Nécessite le SDK 2.28 de GuestFlow (échange des données de la maison entre plugins)."
+    ],
+    "1.4.1": [
+      "La maison n’envoie plus que les mesures qui ont changé ; aucune tendance n’est plus calculée sur ses mesures.",
+      "Nécessite le SDK 2.28 de GuestFlow."
     ]
   }
 }
