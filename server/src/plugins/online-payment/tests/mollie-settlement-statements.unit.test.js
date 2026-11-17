@@ -278,7 +278,7 @@ test('rule 9 — a Qonto 403 makes every pending statement reauth and stops the 
   assert.equal(h.statements.status().counts.attached, 2, 'once Qonto is reconnected the credits are joined');
 });
 
-test('rule 9 — 429 and network errors stay pending; 401 or invalid_grant is reauth; any other 4xx is failed at once with its message', async () => {
+test('rule 9 — 429 and network errors stay pending; 401, invalid_grant or missing Qonto credentials is reauth; any other 4xx is failed at once with its message', async () => {
   seedSettlement(1, 6, [{ paymentId: 'tr_a', gross: 10000 }]);
   const h = harness();
   const stateAfter = async (error) => {
@@ -291,6 +291,7 @@ test('rule 9 — 429 and network errors stay pending; 401 or invalid_grant is re
   assert.equal((await stateAfter(new Error('socket hang up'))).state, 'pending');
   assert.equal((await stateAfter(httpError(401))).state, 'reauth');
   assert.equal((await stateAfter(httpError(400, { error: 'invalid_grant' }))).state, 'reauth');
+  assert.equal((await stateAfter(Object.assign(new Error('Identifiants Qonto manquants'), { code: 'QONTO_NOT_CONFIGURED' }))).state, 'reauth');
   const refused = await stateAfter(httpError(422, { errors: [{ code: 'invalid_file' }] }));
   assert.deepEqual([refused.state, refused.lastError], ['failed', 'HTTP 422']);
 });
@@ -333,6 +334,34 @@ test('rule 7 — the job and « Réessayer » never upload the same credit twice
   createMollieStatementsModel(db).save('tx1', 'stl_1', { state: 'pending', attempts: 3, lastError: 'late' });
   const row = db.prepare('SELECT state, attachmentId FROM mollie_settlement_statements WHERE transactionId = ?').get('tx1');
   assert.deepEqual([row.state, row.attachmentId], ['attached', 'att_slow']);
+});
+
+test('rule 7 — a « Réessayer » started on a credit the job has not reached yet is not repeated by the job: uploaded once', async () => {
+  seedSettlement(1, 7, [{ paymentId: 'tr_a', gross: 10000 }]);
+  seedSettlement(2, 6, [{ paymentId: 'tr_b', gross: 20000 }]);
+  const gates = {};
+  const open = (id) => new Promise((resolve) => { gates[id] = resolve; });
+  const waits = { tx1: open('tx1'), tx2: open('tx2') };
+  const h = harness({ attach: async ({ transactionId }) => { await waits[transactionId]; return { attachmentId: `att_${transactionId}` }; } });
+  const running = h.statements.runJob();
+  await new Promise((resolve) => setImmediate(resolve));
+  const retrying = h.statements.retry('tx2');
+  await new Promise((resolve) => setImmediate(resolve));
+  gates.tx1();
+  gates.tx2();
+  await Promise.all([running, retrying]);
+  assert.equal(h.uploads.filter((u) => u.transactionId === 'tx2').length, 1);
+  assert.equal(h.uploads.filter((u) => u.transactionId === 'tx1').length, 1);
+});
+
+test('rule 9 — an error from a concurrent token refresh (overtaken) is transient: the credit stays pending, never reauth', async () => {
+  seedSettlement(1, 6, [{ paymentId: 'tr_a', gross: 10000 }]);
+  const overtaken = Object.assign(new Error('Qonto is not connected'), { code: 'QONTO_NOT_CONNECTED', overtaken: true });
+  const h = harness({ attach: async () => { throw overtaken; } });
+  const result = await h.statements.runJob();
+  assert.equal(result.reauth, undefined);
+  const row = db.prepare('SELECT state, attempts FROM mollie_settlement_statements WHERE transactionId = ?').get('tx1');
+  assert.deepEqual([row.state, row.attempts], ['pending', 1]);
 });
 
 test('rule 7 — two renders of the same statement are byte-identical, and the date is the first attempt\'s', async () => {
@@ -412,4 +441,14 @@ test('the migration reconciliation_v4 is additive and idempotent', () => {
   upV4(db);
   const columns = db.prepare('PRAGMA table_info(mollie_settlement_statements)').all().map((c) => c.name);
   assert.deepEqual(columns, ['transactionId', 'settlementId', 'state', 'attempts', 'lastError', 'attachmentId', 'attachedAt', 'firstAttemptAt', 'updatedAt']);
+});
+
+test('rule 6 — what Mollie kept is gross less net, whatever sign the deductions were stored with', () => {
+  const { shapeStatement } = require('../reconciliation/mollieStatementPdf');
+  const row = (deductionsCents) => ({ type: 'payment', paymentId: 'tr_kept1', createdAt: '2030-01-02T05:00:00Z', initialCents: 73240, resultCents: 58592, deductionsCents }); // date-literal-ok: ordering only, nothing compares it with today
+  for (const deductionsCents of [14648, -14648, 0]) {
+    const { lines } = shapeStatement({ composition: [row(deductionsCents)], lookup: () => ({ reserveCents: 14648 }), ratePercent: 20 });
+    assert.equal(lines[0].reserveCents + lines[0].feeCents, 73240 - 58592, `deductions stored as ${deductionsCents}`);
+    assert.equal(lines[0].reserveCents, 14648);
+  }
 });

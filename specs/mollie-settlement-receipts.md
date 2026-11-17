@@ -74,7 +74,12 @@ with its guest and reservation. An installation with Mollie but without Qonto se
    being handled answers its current state without uploading — and no write ever replaces a recorded `attached` row.
    The PDF is dated by the first attempt (`firstAttemptAt`, kept in the row): footer timestamp, document dates and file ID
    derive from it, so every render of a statement, retry or « Voir le relevé » included, is the same bytes under the same
-   idempotency key.)_
+   idempotency key.)
+   _(Amended 2026-11-17: the in-flight check lives inside the single-credit handler itself, so a « Réessayer » started
+   on a credit the job has not reached yet is not repeated by the job: one upload. Only the footer date depends on the
+   first attempt; the guest names, reservation numbers and company name are read at each attempt. If they change between
+   two attempts Qonto may refuse the same idempotency key with different content: the row goes `failed` (rule 9) and
+   « Réessayer » is the way out. The key itself is never changed.)_
 8. **Hourly, on what is already read.** The job `mollie-statements` runs every hour (first run 7 minutes after boot)
    on the Qonto credits and Mollie balance transactions already stored by the reconciliation read (its own schedule,
    or « Actualiser »), and treats every pending candidate, at most 20 per run (oldest first). A statement therefore
@@ -88,15 +93,23 @@ with its guest and reservation. An installation with Mollie but without Qonto se
    (`invalid_grant`) is `reauth`; any other 4xx is `failed` at once with Qonto's message. `reauth` is applied to the
    statements that are pending or have no row yet, never to `mismatch`, `failed` or `attached`; the job handles a `reauth`
    row like a pending one, and any later outcome — attached, mismatch, failed — clears `reauth`.)_
+   _(Amended 2026-11-17: an error flagged `overtaken` — a concurrent Qonto token refresh that won — is transient, never
+   `reauth`: the credit stays `pending` and the next attempt uses the fresh token. Missing Qonto application credentials
+   (`QONTO_NOT_CONFIGURED`, found on a shadow copy) are `reauth` too: they need the operator, not another hour.)_
 10. **Retry by hand.** A `failed`, `reauth` or `mismatch` statement offers « Réessayer » on its reconciliation line,
     which runs rule 4–7 for that credit at once and resets its attempt count.
 11. **Readable in GuestFlow.** The reconciliation line of a Mollie credit shows its statement state and, once
-    built, « Voir le relevé » opens the same PDF (built on the fly, never stored on disk).
+    built, « Voir le relevé » opens the same PDF (built on the fly, never stored on disk). _(Amended 2026-11-17: the
+    link is offered in every state, « en attente » included — the PDF only needs the composition, which every
+    candidate has.)_
 12. **Read-only towards Mollie.** The feature calls no Mollie endpoint of its own: it reuses the stored balance
     transactions. It writes nothing to Mollie.
 13. **The start date reaches back 2 years at most.** `mollieStatementsSince` older than 2 years before today is refused
     (« La date ne peut pas remonter à plus de 2 ans. »), like a date in the future (rule 3). On the card the date is saved
     when the field loses focus or on Enter, never while it is being typed, and saves are sent one after the other.
+    _(Amended 2026-11-17: the value saved is the one the field holds when it loses focus — a calendar pick blurs the
+    field in the same tick as its change — and a value equal to the one being saved is ignored, so a calendar pick, or
+    Enter followed by the blur, saves exactly once.)_
 
 ## 4. Architecture
 
@@ -209,10 +222,11 @@ Built:
 - Reading of rule 8: the Mollie read stays the reconciliation job's (every 8 hours or « Actualiser »); the statements job runs
   every hour on what is stored, so a statement follows the read within the hour. A `reauth` statement is tried again by the
   job (one refused call stops the run); `mismatch` and `failed` wait for « Réessayer ».
-- Tests: server `mollie-settlement-statements.unit.test.js` (26, rules 1-13 + migration); client
-  `MollieConnectionCard.statements.test.jsx` (8) and `ReconciliationLine.statement.test.jsx` (6).
+- Tests: server `mollie-settlement-statements.unit.test.js` (28, rules 1-13 + migration); client
+  `MollieConnectionCard.statements.test.jsx` (10) and `ReconciliationLine.statement.test.jsx` (7).
 - Review fixes (2026-11-17): credits without a known composition are no candidates (rule 1); `reauth` marks only pending or
   rowless statements and the job clears it (rule 9); one in-flight set shared by the job and « Réessayer », and no write over
   an `attached` row (rule 7); `firstAttemptAt` dates the PDF so every render is the same bytes (rule 7); 429 / 5xx / network
   retried, 401 / `invalid_grant` → `reauth`, other 4xx → `failed` (rule 9); date saved on blur / Enter, at most 2 years back
   (rule 13); « Réessayer » shows an error toast; saving the date refreshes the section only.
+- Verification fixes (2026-11-17): the date is saved from the field's own value (a calendar pick saves once, Enter then blur once); the in-flight check sits inside the single-credit handler (a retry never doubles the job's upload); an `overtaken` refresh error stays pending; a retry's state gives way to the page's new one; a changed statement between attempts is documented in rule 7 (no key change).

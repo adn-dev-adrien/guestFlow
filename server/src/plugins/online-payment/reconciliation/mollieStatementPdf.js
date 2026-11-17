@@ -27,8 +27,8 @@ const formatEuros = (cents) => {
 const frDay = (iso) => { const d = day(iso); return d ? `${d.slice(8, 10)}/${d.slice(5, 7)}/${d.slice(0, 4)}` : ''; };
 
 /**
- * Rule 6 — one line per composition row, in date order, and the totals. Fees of a payment are the deductions less the
- * reserve held (the split's own reserve, else the configured rate); a release has no gross and no fees, its net is the
+ * Rule 6 — one line per composition row, in date order, and the totals. What Mollie kept on a payment is gross less net
+ * (its `deductions`, whatever sign a reader stored them with); the fees are that less the reserve held (the split's own reserve, else the configured rate); a release has no gross and no fees, its net is the
  * reserve.
  *
  * @param {object[]} composition  `compositionOf(settlementId)`
@@ -40,7 +40,7 @@ function shapeStatement({ composition, lookup, ratePercent }) {
     const known = lookup(t.paymentId) || {};
     const base = { at: t.createdAt, paymentId: t.paymentId, description: t.description || '', guest: known.guest || '', reservationNumber: known.reservationNumber || '' };
     if (isReleaseType(t.type)) return { ...base, kind: 'release', grossCents: null, reserveCents: null, feeCents: null, netCents: t.resultCents };
-    const deductions = Math.max(0, Number(t.deductionsCents) || 0);
+    const deductions = Math.max(0, Number(t.initialCents) - Number(t.resultCents));
     const held = known.reserveCents != null ? Number(known.reserveCents) : computeSplit({ grossCents: t.initialCents, ratePercent }).reserveCents;
     const reserveCents = Math.min(deductions, Math.max(0, held));
     return { ...base, kind: 'payment', grossCents: t.initialCents, reserveCents, feeCents: deductions - reserveCents, netCents: t.resultCents };

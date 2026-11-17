@@ -1,5 +1,5 @@
 // specs/mollie-settlement-receipts.md rules 10-11 — the statement of a Mollie credit on its reconciliation line: a chip
-// per state, « Voir le relevé » (the PDF, in a new tab) once it exists, « Réessayer » when it can be tried again.
+// per state, « Voir le relevé » (the PDF, in a new tab, built on the fly whatever the state), « Réessayer » when it can be tried again.
 import React from 'react';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
@@ -41,10 +41,10 @@ test('rule 11: a joined statement shows « Relevé joint » and « Voir le relev
   expect(screen.queryByRole('button', { name: 'Réessayer' })).not.toBeInTheDocument();
 });
 
-test('rule 11: a statement still waiting says so, with no link and no retry', () => {
+test('rule 11: a statement still waiting says so and can already be read, with no retry', () => {
   draw({ state: 'pending', error: null, attachedAt: null, gapCents: null });
   expect(screen.getByText('Relevé en attente')).toBeInTheDocument();
-  expect(screen.queryByRole('link', { name: 'Voir le relevé' })).not.toBeInTheDocument();
+  expect(screen.getByRole('link', { name: 'Voir le relevé' })).toHaveAttribute('target', '_blank');
   expect(screen.queryByRole('button', { name: 'Réessayer' })).not.toBeInTheDocument();
 });
 
@@ -78,4 +78,13 @@ test('rule 10: a retry that fails says so in a toast and leaves the line as it w
   await userEvent.click(screen.getByRole('button', { name: 'Réessayer' }));
   expect(await screen.findByText('Qonto injoignable')).toBeInTheDocument();
   expect(screen.getByRole('button', { name: 'Réessayer' })).not.toBeDisabled();
+});
+
+test('rule 10: the state of a retry gives way to the page\'s own once the page brings a new one', async () => {
+  api.retryMollieStatement.mockResolvedValue({ statement: { state: 'pending', error: null, attachedAt: null, gapCents: null } });
+  const view = draw({ state: 'failed', error: 'HTTP 500', attachedAt: null, gapCents: null });
+  await userEvent.click(screen.getByRole('button', { name: 'Réessayer' }));
+  await waitFor(() => expect(screen.getByText('Relevé en attente')).toBeInTheDocument());
+  view.rerender(<DialogProvider><ReconciliationLine item={item({ state: 'attached', error: null, attachedAt: null, gapCents: null })} onConfirm={noop} onDiscard={noop} onUndo={noop} /></DialogProvider>);
+  await waitFor(() => expect(screen.getByText('Relevé joint')).toBeInTheDocument());
 });

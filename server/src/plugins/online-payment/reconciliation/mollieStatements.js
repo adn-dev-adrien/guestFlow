@@ -16,11 +16,13 @@ const MAX_ATTEMPTS = 24;
 const REAUTH_MESSAGE = 'Reconnecter Qonto pour joindre les relevés.';
 const NOT_FOUND = { status: 404, body: { error: 'Relevé introuvable.', code: 'STATEMENT_NOT_FOUND' } };
 
-// Rule 9 — Qonto no longer lets the connection attach files: a refused scope or session, or a refresh that failed.
-const needsReconnect = (err) => [401, 403].includes(Number(err && err.status)) || (err && err.code) === 'QONTO_NOT_CONNECTED'
-  || /insufficient_scope|invalid_grant/i.test(`${JSON.stringify((err && err.body) || '')} ${(err && err.message) || ''}`);
+// Rule 9 — Qonto no longer lets the connection attach files: a refused scope or session, a refresh that failed, or the
+// application's credentials removed from the settings.
+const needsReconnect = (err) => !(err && err.overtaken) && ([401, 403].includes(Number(err && err.status)) || ['QONTO_NOT_CONNECTED', 'QONTO_NOT_CONFIGURED'].includes(err && err.code)
+  || /insufficient_scope|invalid_grant/i.test(`${JSON.stringify((err && err.body) || '')} ${(err && err.message) || ''}`));
 // Rule 9 — worth trying again next hour: no answer at all, a rate limit, or Qonto's own failure.
-const isTransient = (err) => { const status = Number(err && err.status); return !status || status === 429 || status >= 500; };
+// An `overtaken` error is a concurrent token refresh that won: the next attempt uses its token.
+const isTransient = (err) => { if (err && err.overtaken) return true; const status = Number(err && err.status); return !status || status === 429 || status >= 500; };
 
 /**
  * @param {object} deps
@@ -77,6 +79,17 @@ function createMollieStatements({ db, settings, qontoConnected, settlements, spl
 
   /** The state of one candidate, one run: sum check, build, upload, record (rules 5, 7, 9). */
   async function process(entry) {
+    const key = String(entry.tx.id);
+    if (inFlight.has(key)) return model.get(entry.tx.id);
+    inFlight.add(key);
+    try {
+      return await handle(entry);
+    } finally {
+      inFlight.delete(key);
+    }
+  }
+
+  async function handle(entry) {
     const { tx, settlement } = entry;
     const before = model.get(tx.id);
     if (before && before.state === STATES.attached) return before;
@@ -88,7 +101,6 @@ function createMollieStatements({ db, settings, qontoConnected, settlements, spl
         lastError: `Le relevé totalise ${formatEuros(shape.totals.netCents)}, le virement ${formatEuros(tx.amountCents)}.`,
       }, now());
     }
-    inFlight.add(String(tx.id));
     try {
       model.firstAttemptAt(tx.id, settlement.id, now());
       const bytes = await render(entry, shape);
@@ -110,8 +122,6 @@ function createMollieStatements({ db, settings, qontoConnected, settlements, spl
       if (!isTransient(err)) return model.save(tx.id, settlement.id, { state: STATES.failed, lastError }, now());
       const attempts = ((before && before.attempts) || 0) + 1;
       return model.save(tx.id, settlement.id, { state: attempts >= MAX_ATTEMPTS ? STATES.failed : STATES.pending, attempts, lastError }, now());
-    } finally {
-      inFlight.delete(String(tx.id));
     }
   }
 

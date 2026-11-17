@@ -45,6 +45,7 @@ function StatementsSection({ status, since, onSaved }) {
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const queue = useRef(Promise.resolve());
+  const inFlight = useRef(null);
   useEffect(() => { setDraft(since); }, [since]);
 
   const save = async (value, done) => {
@@ -78,9 +79,11 @@ function StatementsSection({ status, since, onSaved }) {
     else if (today && value > today) setError(FUTURE_DATE);
     else setError('');
   };
-  const commit = () => {
-    if (!draft || draft === since || (today && draft > today)) return;
-    write(draft, 'Date enregistrée.');
+  // The value comes from the event, not from `draft`: a calendar pick blurs the field in the same tick as its change.
+  const commit = (value) => {
+    if (!value || value === since || value === inFlight.current || (today && value > today)) return;
+    inFlight.current = value;
+    write(value, 'Date enregistrée.').finally(() => { inFlight.current = null; });
   };
 
   const { counts } = status;
@@ -100,8 +103,8 @@ function StatementsSection({ status, since, onSaved }) {
             label="À partir du"
             value={draft}
             onChange={(e) => change(e.target.value)}
-            onBlur={commit}
-            onKeyDown={(e) => { if (e.key === 'Enter') commit(); }}
+            onBlur={(e) => commit(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter') commit(e.target.value); }}
             error={Boolean(error)}
             helperText={error || 'Les versements crédités avant cette date ne reçoivent rien.'}
             slotProps={{ inputLabel: { shrink: true }, htmlInput: { max: today || undefined } }}

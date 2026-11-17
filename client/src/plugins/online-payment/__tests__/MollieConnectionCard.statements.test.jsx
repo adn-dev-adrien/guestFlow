@@ -127,3 +127,31 @@ test('rule 3: no credit since the date says so instead of showing zeros', async 
   expect(await screen.findByText('Aucun versement depuis cette date')).toBeInTheDocument();
   expect(screen.queryByText('Qonto refuse les pièces jointes : reconnecter Qonto pour joindre les relevés.')).not.toBeInTheDocument();
 });
+
+test('rule 13: a calendar pick (change without a key, then the field\'s own blur) saves exactly once', async () => {
+  api.getPluginSettings.mockResolvedValue({ ...BASE, mollieStatementsSince: '2026-11-01' }); // date-literal-ok: stored value shown as given
+  api.getMollieStatementsStatus.mockResolvedValue(status({ since: '2026-11-01' })); // date-literal-ok: stored value shown as given
+  renderCard();
+  const field = await screen.findByLabelText('À partir du');
+  await waitFor(() => expect(api.getToday).toHaveBeenCalled());
+  field.focus();
+  fireEvent.change(field, { target: { value: '2026-10-05' } }); // date-literal-ok: a day before the injected today, picked in the calendar
+  await waitFor(() => expect(api.savePluginSettings).toHaveBeenCalledTimes(1));
+  expect(api.savePluginSettings).toHaveBeenCalledWith('online-payment', { mollieStatementsSince: '2026-10-05' }); // date-literal-ok: same day
+});
+
+test('rule 13: Enter then the blur before the answer saves once', async () => {
+  api.getPluginSettings.mockResolvedValue({ ...BASE, mollieStatementsSince: '2026-11-01' }); // date-literal-ok: stored value shown as given
+  api.getMollieStatementsStatus.mockResolvedValue(status({ since: '2026-11-01' })); // date-literal-ok: stored value shown as given
+  let answer;
+  api.savePluginSettings.mockReturnValue(new Promise((resolve) => { answer = resolve; }));
+  renderCard();
+  const field = await screen.findByLabelText('À partir du');
+  await waitFor(() => expect(api.getToday).toHaveBeenCalled());
+  fireEvent.change(field, { target: { value: '2026-10-05' } }); // date-literal-ok: a day before the injected today
+  fireEvent.keyDown(field, { key: 'Enter' });
+  fireEvent.blur(field);
+  answer({});
+  await waitFor(() => expect(api.getMollieStatementsStatus).toHaveBeenCalledTimes(2));
+  expect(api.savePluginSettings).toHaveBeenCalledTimes(1);
+});

@@ -14,7 +14,7 @@
  *   showReservation?  boolean — name the client and the platform (the page; the fiche knows its stay)
  *   onOpenFiche?      (item) => void — « Ouvrir la fiche » on a gap (the page)
  */
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Box, Button, Chip, Stack, Typography } from '@mui/material';
 import { api, PlatformChip, StatusBadge, TransactionRef, useToast } from '../sdk';
 import { money, CONFIDENCE_STATUS } from './reconciliationShared';
@@ -71,17 +71,17 @@ function RetryStatementButton({ transactionId, onRetried }) {
  */
 export function MollieStatementState({ side }) {
   const [fresh, setFresh] = useState(null);
-  const statement = fresh || (side && side.statement);
+  const given = side && side.statement;
+  const givenKey = given ? JSON.stringify(given) : '';
+  useEffect(() => { setFresh(null); }, [givenKey]);
+  const statement = fresh || given;
   if (!statement || !STATEMENT_CHIPS[statement.state]) return null;
   const chip = STATEMENT_CHIPS[statement.state](statement);
-  const canView = statement.state !== 'pending';
   const canRetry = ['failed', 'reauth', 'mismatch'].includes(statement.state);
   return (
     <Box data-testid="mollie-statement" sx={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 1, mt: 0.5 }}>
       <StatusBadge status={chip.status} label={chip.label} wrap />
-      {canView && (
-        <Button component="a" size="small" href={api.mollieStatementUrl(side.transactionId)} target="_blank" rel="noopener" sx={STATEMENT_BUTTON_SX}>Voir le relevé</Button>
-      )}
+      <Button component="a" size="small" href={api.mollieStatementUrl(side.transactionId)} target="_blank" rel="noopener" sx={STATEMENT_BUTTON_SX}>Voir le relevé</Button>
       {canRetry && <RetryStatementButton transactionId={side.transactionId} onRetried={setFresh} />}
     </Box>
   );
