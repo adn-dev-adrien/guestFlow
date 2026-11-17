@@ -59,7 +59,7 @@ input[type=range]{width:100%;accent-color:var(--doc-fir)}
 .hero .big small{font-size:24px;vertical-align:top;margin-left:2px}
 .hero .sub{font-size:14px;color:rgba(243,238,223,.85)}
 .sec{padding:0 16px 18px}
-.sec h4{font:18px var(--display);color:var(--sapin);margin:0 0 10px;font-weight:400}
+.sec h3{font:18px var(--display);color:var(--sapin);margin:0 0 10px;font-weight:400}
 .rooms{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 .room{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:12px 13px;transition:opacity .3s var(--ease)}
 .room .n{font-size:13px;color:var(--ink-soft);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -113,7 +113,7 @@ input[type=range]{width:100%;accent-color:var(--doc-fir)}
 .cmp{display:grid;grid-template-columns:1fr 1fr;gap:18px}
 ul.plain{margin:6px 0 0;padding-left:18px}
 ul.plain li{margin:4px 0}
-.decide{border-left:3px solid #B87B2A;padding:10px 16px;background:#fff;border-radius:0 10px 10px 0;margin:10px 0}
+.decide{border:1px solid #E6D3B3;padding:12px 16px;background:#FBF4E8;border-radius:10px;margin:10px 0}
 @media (max-width:980px){.demo,.cat,.cmp{grid-template-columns:1fr}.phone{position:static;margin:0 auto;width:100%;max-width:380px}.wrap{padding:28px 16px 60px}.grid3{grid-template-columns:1fr}.tally{position:static}}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
 </style>
@@ -185,10 +185,10 @@ manipuler le résultat avant que j'écrive une ligne de code.</p>
     <div class="appbar"><div><div class="eb"><span class="dot"></span><span id="ebTxt">En direct</span></div><div class="t">Domotique</div></div></div>
     <div class="banner">La maison ne donne plus de nouvelles depuis 20 h 50.</div>
     <div class="hero"><div class="eb">Dehors</div><div class="big" id="outT"></div><div class="sub" id="outSub"></div></div>
-    <div class="sec"><h4>Pièces</h4><div class="rooms" id="rooms"></div></div>
-    <div class="sec"><h4>Éclairage</h4><div class="light"><div><div>Arbre de la terrasse</div><div class="cap" id="lightCap" style="font-size:13px;color:var(--ink-soft)">Éteint</div></div><div class="sw" role="switch" aria-checked="false" tabindex="0" id="sw" aria-label="Arbre de la terrasse"></div></div></div>
-    <div class="sec"><h4>Pluie</h4><div class="card"><div class="val">0,5<small> mm</small></div><div class="cap">aujourd'hui · 0 mm la dernière heure</div><div class="bars" id="rainBars" aria-label="Pluie des 24 dernières heures"></div><div class="empty-note" id="rainNote" hidden>Barres disponibles après la modification de Sowel</div></div></div>
-    <div class="sec"><h4>Énergie</h4><div class="two">
+    <div class="sec"><h3>Pièces</h3><div class="rooms" id="rooms"></div></div>
+    <div class="sec"><h3>Éclairage</h3><div class="light"><div><div>Arbre de la terrasse</div><div class="cap" id="lightCap" style="font-size:13px;color:var(--ink-soft)">Éteint</div></div><div class="sw" role="switch" aria-checked="false" tabindex="0" id="sw" aria-label="Arbre de la terrasse"></div></div></div>
+    <div class="sec"><h3>Pluie</h3><div class="card"><div class="val">0,5<small> mm</small></div><div class="cap">aujourd'hui · 0 mm la dernière heure</div><div class="bars" id="rainBars" aria-label="Pluie des 24 dernières heures"></div><div class="empty-note" id="rainNote" hidden>Barres disponibles après la modification de Sowel</div></div></div>
+    <div class="sec"><h3>Énergie</h3><div class="two">
       <div class="card"><div class="cap">Électricité du gîte</div><div class="val" id="gPow"></div><div class="cap" id="gDay"></div><div class="bars" id="bars" aria-label="Consommation des 24 dernières heures"></div><div class="empty-note" id="barsNote" hidden>Courbe disponible après la modification de Sowel</div></div>
       <div class="card grid" id="gridCard"><div class="cap">Réseau</div><div class="val" id="gridV"></div><div class="grid-dir" id="gridDir"></div></div>
     </div></div>
