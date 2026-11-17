@@ -71,16 +71,30 @@ function InstallmentRow({ installment, arrivalDate, dateError, amountError, busy
   const paid = installment.status === 'paid';
   const [dateDraft, setDateDraft] = useState(installment.dueDate);
   const [amountDraft, setAmountDraft] = useState(amountText(installment.amount));
-  // What the server holds wins again once its refusal is gone, or the plan moved under the field.
-  useEffect(() => { if (!dateError) setDateDraft(installment.dueDate); }, [installment.dueDate, dateError]);
-  useEffect(() => { if (!amountError) setAmountDraft(amountText(installment.amount)); }, [installment.amount, amountError]);
+  // What the server holds wins again once its refusal is gone, or the plan moved under the field. Done during
+  // the render that brings the answer, not in an effect: an effect runs later and could overwrite what is typed
+  // right after the field comes back.
+  const [seenDate, setSeenDate] = useState({ value: installment.dueDate, error: dateError });
+  if (seenDate.value !== installment.dueDate || seenDate.error !== dateError) {
+    setSeenDate({ value: installment.dueDate, error: dateError });
+    if (!dateError) setDateDraft(installment.dueDate);
+  }
+  const [seenAmount, setSeenAmount] = useState({ value: installment.amount, error: amountError });
+  if (seenAmount.value !== installment.amount || seenAmount.error !== amountError) {
+    setSeenAmount({ value: installment.amount, error: amountError });
+    if (!amountError) setAmountDraft(amountText(installment.amount));
+  }
 
+  // Nothing is sent while a change is on its way (rule 52): the field is disabled then, and a blur reaching it
+  // anyway must not post the same value twice.
   const commitDate = (value) => {
+    if (busy || locked) return;
     if (!ISO_DAY.test(value) || value === installment.dueDate) return;
     if (dateError && dateError.value === value) return;
     onDate(installment, value);
   };
   const commitAmount = () => {
+    if (busy || locked) return;
     const typed = amountDraft.replace(/\s/g, '').replace(',', '.');
     if (typed === '' || sameCents(typed, installment.amount)) { setAmountDraft(amountText(installment.amount)); return; }
     if (amountError && amountError.value === typed) return;
