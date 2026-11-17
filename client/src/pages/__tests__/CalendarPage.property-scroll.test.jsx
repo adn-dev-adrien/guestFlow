@@ -13,6 +13,7 @@ vi.mock('../../api', () => ({
   default: {
     getProperties: vi.fn(() => Promise.resolve([{ id: 1, name: 'Gite' }, { id: 2, name: 'Aventura lodge' }])),
     getProperty: vi.fn(() => Promise.resolve({ id: 1, name: 'Gite', cleaningHours: 3 })),
+    // date-literal-ok: the server's own « today », mocked with the payload — the page compares nothing with the real calendar
     getCalendar: vi.fn(() => Promise.resolve({ from: '2026-03-01', to: '2026-03-31', today: '2026-03-15', stays: [], closures: [] })),
     getCalendarNotes: vi.fn(() => Promise.resolve([])), getDevis: vi.fn(() => Promise.resolve([])),
     getOccupiedDates: vi.fn(() => Promise.resolve([])), getPublicHolidays: vi.fn(() => Promise.resolve([])),

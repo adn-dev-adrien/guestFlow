@@ -18,6 +18,7 @@ vi.mock('../../api', () => ({
     getPlanningDays: vi.fn(async (range) => (await import('./planningDaysFixtures')).daysPayload(range)),
     // The server's date, in the week the clocks go back: the windows must still be 14 days long,
     // whatever the time zone the suite runs in (specs/ds-sweep-planning.md rule 28).
+    // date-literal-ok: the server's own « today », mocked with the payload — the page compares nothing with the real calendar
     getToday: vi.fn(() => Promise.resolve({ today: '2026-10-25' })),
   },
 }));
