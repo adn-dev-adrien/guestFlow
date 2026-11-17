@@ -1,9 +1,10 @@
 // specs/pricing-components.md §3 rule 94 reading (stabilisation loop t16, S16-2, 2026-11-17) — one request body for every quote of the fiche
 // (live preview, save-time quote, « Actualiser les tarifs », ledger re-quote): what one carries, all carry.
+import { addIsoDays, localIsoToday } from '../isoDay';
 import { ficheQuoteBody, customOptionsPayload, selectedOptionsPayload, selectedResourcesPayload } from '../ficheQuoteBody';
 
 const form = {
-  startDate: '2026-12-01', endDate: '2026-12-04', checkInTime: '16:00', checkOutTime: '10:00', adults: 2, children: 0, teens: 0, babies: '1', babyBeds: '',
+  startDate: addIsoDays(localIsoToday(), 14), endDate: addIsoDays(localIsoToday(), 17), checkInTime: '16:00', checkOutTime: '10:00', adults: 2, children: 0, teens: 0, babies: '1', babyBeds: '',
   extraGuestSurchargeOffered: false, discountPercent: 0, discountTarget: 'nights', customPrice: '', platform: 'Booking',
   platformCommissionAmount: '12', acompteCommissionAmount: '', platformGrossAmount: '300', platformTouristTaxAmount: '4', platformPayoutAmount: '280',
   depositPaid: true, balancePaid: false, complementPaid: false, depositAmount: 90, depositAmountOverride: '', complementAmountOverride: '15',
