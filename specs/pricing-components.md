@@ -1615,6 +1615,15 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
     > **Delivered by PR C** (pass 3g): a custom line the save posts back names the row it was read from (`customOptionId`) and takes THAT row's identity first,
     > its text only when it names none — before, removing the first of two lines of one text gave the second the removed one's `lineId` and sale columns.
     > Proof `extra-sale-custom-and-remove`.
+    > _Reading of 2026-11-17 (loop t13 S13-1)_: « that row's identity first » holds **whatever the line's new text**. A renamed unpaid free
+    > line written by a priced save (its amount changed, another line changed, `restatePricing`) matched its row only when the label was
+    > unchanged: it lost its `lineId`, moment and sale date, and a discounted line its discount (the total grew by it with nothing asked).
+    > `insertCustomOptions` now reserves every row a posted `customOptionId` names before any text match, and the engine reads a renamed
+    > line's facts (discount, moment, sale date) under its new text (`storedCustomLines.renamedCustomLineFacts`, on the save and on its
+    > preview). So a swap of two labels keeps each line on its row with its own discount, a line renamed onto the label of a line the same
+    > save removes keeps its own row (only the removed line's money leaves), and a new line under the old label is a line of its own. The
+    > `STALE_FICHE` check guarantees the posted ids are the ones the fiche read; a paid line still cannot be renamed (rule 123). Test
+    > `custom-line-rename-identity`.
 80. **Delivery cadence of PR B** _(rule 73 applied to PR B)_. Each commit runs the fast check: the price gate, the
     intake replay, the golden test, the pricing and articles units, the settings provider, the duplication guards
     and the files of the commit, plus `scripts/check-spec-coverage.mjs`; the move proof for the move commits. Three
@@ -2925,6 +2934,7 @@ _Rewritten 2026-11-15 (stabilisation loop t1, UI-3) to what shipped._
 - [x] `platform-complement-credit` — rule 116 readings (loop t9, B9-3, B9-1): the complement's freed money pays an unpaid line first (line API, fiche); a credit-paid line offered gives the credit back; refunded complement money is no credit; caisse-interne refund of complement cash stamped no note money, the rest by transfer (5)
 - [x] `stay-sequence-fuzz` — rules 104, 108, 116, 119, 121 (loop t9): the reviewer's stay sequence fuzzer, bounded (direct seeds 1-3, Booking 1-2, 12 runs × 12 steps): the money identity after every step, never asked AND owed (5)
 - [x] `custom-line-rename-paid` — rule 123 (loop t11, S11-1): a card-paid free line renamed → 409 `LINE_PAID_RENAMED`, kept and priced save, direct and Booking, nothing moves; the unpaid line and a case-only change save, the lock names the paid line; a platform stay's collected complement line refused too (3); S12-1: a rename onto another free line's label, paid or not → 409 `LINE_LABEL_TAKEN`, a new line → « (2) » (+2)
+- [x] `custom-line-rename-identity` — rule 79 reading (loop t13, S13-1): a renamed unpaid free line keeps its `lineId`, moment, sale date and discount on a priced save (amount changed, direct and Booking; another line re-priced; discounted, with and without `restatePricing`); a swap of two labels keeps each discount on its line; a rename onto the label of a line removed in the same save; a new line under the old label (6)
 
 ### Client Vitest suites (named 2026-11-16, stabilisation loop t2 P2-2)
 - [x] `ExtrasSection.paid-custom-label` — rule 123 (loop t11, S11-1): the paid free line's description disabled with « Déjà payée : libellé figé », the unpaid one editable; none named → no caption (2)

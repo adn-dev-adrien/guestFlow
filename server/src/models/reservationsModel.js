@@ -2687,9 +2687,11 @@ function createReservationsModel(database, { arrivalComplementEngine = null } = 
       bookingLines.insertOptions(reservationId, optionLines, sasOriginIds);
     },
 
-    // The stored custom lines as { id, description }: what a text-only save compares the posted names to.
+    // The stored custom lines as { id, description, lineId }: what a text-only save compares the posted names to (`lineId` null on a schema
+    // without it).
     customOptionTexts(reservationId) {
-      return database.prepare(`SELECT id, description FROM reservation_custom_options WHERE reservationId = ?${notDepartureCharge(database)}`).all(reservationId);
+      return database.prepare(`SELECT * FROM reservation_custom_options WHERE reservationId = ?${notDepartureCharge(database)}`).all(reservationId)
+        .map((row) => ({ id: row.id, description: row.description, lineId: row.lineId ?? null }));
     },
 
     // A text-only save: the new names, nothing else on the lines moves (ids and amounts stay).

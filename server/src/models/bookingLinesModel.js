@@ -225,11 +225,20 @@ function createBookingLinesModel(database) {
     },
 
     // `carried`: what `deleteCustomOptions` returned for the lines this save replaces, one entry per stored line; a posted
-    // line takes the entry of the row it names (`customOptionId`), else the first entry of its text (rule 79) — two lines of one
-    // text keep their own identity when the first is removed.
+    // line takes the entry of the row it names (`customOptionId`) whatever its new text — a renamed line keeps its number, moment
+    // and discount (loop t13 S13-1) — else the first entry of its text (rule 79). Rows named by a posted line are reserved before
+    // any text match, so two lines of one text keep their own identity when the first is removed, and a line renamed onto the
+    // label of a removed or swapped line never takes that line's row.
     insertCustomOptions(bookingId, optionLines, sasOriginLabels = [], carried = []) {
       const pendingSasLabels = [...sasOriginLabels];
-      const pendingCarried = [...(carried || [])];
+      const named = new Map();
+      const unnamed = [];
+      for (const entry of carried || []) unnamed.push(entry);
+      for (const line of optionLines || []) {
+        if (!line.isCustom || line.customOptionId == null) continue;
+        const at = unnamed.findIndex((entry) => entry.id === Number(line.customOptionId));
+        if (at >= 0) named.set(line, unnamed.splice(at, 1)[0]);
+      }
       let sortOrder = 0;
       for (const line of optionLines || []) {
         if (!line.isCustom) continue;
@@ -237,9 +246,8 @@ function createBookingLinesModel(database) {
         const description = String(line.title || line.description || '').trim();
         const sasIndex = pendingSasLabels.findIndex((l) => l.description === description);
         const sasLine = sasIndex >= 0 ? pendingSasLabels.splice(sasIndex, 1)[0] : null;
-        const named = line.customOptionId != null ? pendingCarried.findIndex((entry) => entry.id === Number(line.customOptionId) && entry.description === description) : -1;
-        const carriedIndex = named >= 0 ? named : pendingCarried.findIndex((entry) => entry.description === description);
-        const kept = carriedIndex >= 0 ? pendingCarried.splice(carriedIndex, 1)[0].columns : {};
+        const byText = named.has(line) ? -1 : unnamed.findIndex((entry) => entry.description === description);
+        const kept = named.has(line) ? named.get(line).columns : (byText >= 0 ? unnamed.splice(byText, 1)[0].columns : {});
         insertCustomOption({
           ...kept,
           reservationId: bookingId,

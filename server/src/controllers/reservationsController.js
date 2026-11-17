@@ -122,7 +122,7 @@ const { toReceptionReservationView, toReceptionReservationList, toReceptionPayme
 const {
   midStayExtrasWindow, arrivalLineFloors, arrivalExtrasViolations, extrasContentChanged,
 } = require('../utils/midStayExtrasWindow');
-const { matchStoredCustomLines } = require('../utils/storedCustomLines');
+const { matchStoredCustomLines, renamedCustomLineFacts } = require('../utils/storedCustomLines');
 const { withStoredLineContribs } = require('../utils/storedLineContribs');
 const {
   buildLiveCheckoutComplement, isComplementDeferred, mergedEndOfStayAmount, markCarriesEndOfStay, deferralRefusal, endOfStayAloneRefusal,
@@ -1225,6 +1225,14 @@ function sameStayAsSold(stored, body) {
     && num(stored.teens) === num(body.teens) && num(stored.babies) === num(body.babies);
 }
 
+// The engine's line facts of a stay for a save posting `postedLines`: a renamed free line reads its own facts under its new text (S13-1).
+function lineFactsForSave(reservationId, postedLines) {
+  const facts = stayRepository.lineFacts(reservationId);
+  const renames = customTextChangesOf(reservationId, postedLines);
+  if (renames.length === 0) return facts;
+  return renamedCustomLineFacts(facts, renames, new Map(model.customOptionTexts(reservationId).map((line) => [Number(line.id), line.lineId])));
+}
+
 // The custom lines of a fiche whose NAME alone differs from the stored one: [{ id, from, to }].
 function customTextChangesOf(reservationId, postedLines) {
   if (!Array.isArray(postedLines) || postedLines.length === 0) return [];
@@ -1374,7 +1382,7 @@ async function calculatePrice(req, res) {
     discountPercent: req.body.discountPercent,
     discountTarget: req.body.discountTarget,
     discountFixedAmount: fixedDiscountEuros(req.body.discountAmountCents),
-    lineFacts: reservationId > 0 ? stayRepository.lineFacts(reservationId) : {},
+    lineFacts: reservationId > 0 ? lineFactsForSave(reservationId, req.body.customOptions) : {},
     customPrice: req.body.customPrice,
     selectedOptions: req.body.selectedOptions,
     customOptions: req.body.customOptions,
@@ -2402,7 +2410,7 @@ function applyUpdate(req, res, pastUnlocked, {
     discountTarget: req.body.discountTarget === undefined ? (model.getRow(id) || {}).discountTarget : req.body.discountTarget,
     discountFixedAmount: fixedDiscountEuros(req.body.discountAmountCents === undefined ? (model.getRow(id) || {}).discountAmountCents : req.body.discountAmountCents),
     // `lineDiscounts` ({ [lineKey]: cents }): a line discount posted by a server caller (the line API) reaches the engine as a line fact.
-    lineFacts: withLineDiscounts(stayRepository.lineFacts(id), req.body.lineDiscounts),
+    lineFacts: withLineDiscounts(lineFactsForSave(id, reservationCustomOptions), req.body.lineDiscounts),
     customPrice: req.body.customPrice,
     selectedOptions: reservationOptions,
     customOptions: reservationCustomOptions,
