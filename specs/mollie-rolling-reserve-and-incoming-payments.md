@@ -378,7 +378,7 @@ brought it; and the accountant receives entries that explain every Mollie credit
 | | `schema.js` | T | Tables of §5, `reconciliation_v3` and the remediation `reconciliation_v3b` (final schema from any state). |
 | | `mollieTranches.js`, `mollieJournal.js` | C | Rules 18-19 (the words and states of a tranche, the recap line); rules 28-31 (the Mollie facts a month books). Pure. |
 | | `receiptStates.js` | T | `trancheDaysLate`: the one definition of a late tranche (rule 4). |
-| `plugins/online-payment/` | `mollieClient.js` | C | Read-only Mollie API client (settlements, settlement payments, balance transactions, primary balance, a payment), `httpRetry`, token from settings. |
+| `plugins/online-payment/` | `mollieClient.js` | C | Read-only Mollie API client (settlements, settlement payments, balance transactions, primary balance, a payment), `httpRetry`, token from settings; reads every amount in cents through `coreModule('money').toCentsStrict` (SDK 2.31, pricing-components rule 38; test `mollie-cents-shared-helper`). |
 | | `mollieConnection.js` | C | « Compte Mollie »: token check, « Tester », the read (settlements + balance), `status()` with `balance`. |
 | | `index.js`, `settingsStore.js`, `manifest.json` | T | Settings of rules 2, 14; registration of the SDK contributions below; version → 1.8.0. |
 | `plugins/sdk/` | `createContext.js`, `version.js` | T | New entries (MINOR, SDK 2.29.0): `ledgerBankTranches(provider)` (rule 18), `incomingPayments(provider)` (rule 23), `journalEntries(provider)` (rule 28). |

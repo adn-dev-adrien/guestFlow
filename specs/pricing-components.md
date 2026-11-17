@@ -679,6 +679,11 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
     inputs. A variant is never swapped for `roundMoney` where the two differ, and a display helper (« 1 234,56 € ») is renamed, never
     swapped for `frenchEuros`, because its bytes differ. Every private copy of the server and of the plugins (a plugin reaches the variants through
     `coreModule('money')`, SDK 2.31.0) is replaced; the `money` allow-list is empty since C30 deleted `midStayOrderCommit`, 2026-11-13.)_
+    > _Reading of 2026-11-17 (loop t10 A10-4, spec synced in loop t11 A11-1):_ master's #1067 brought two more private cents copies
+    > after this note was written — the Mollie client's `centsOf` and its settlement costs rounding (`mollieClient.js`). Both now read
+    > cents through `coreModule('money').toCentsStrict` (the same `Math.round(Number(v) * 100)`: no figure moves), which is why
+    > online-payment ranges `^2.31.0`. The `money` guard was deliberately not widened to the plugins' sources: this copy is held by its
+    > own test, `mollie-cents-shared-helper` (2, under `plugins/online-payment/tests/`).
 39. **A line discount.** The operator may discount one unpaid line (percent or amount), from the fiche or the
     SAS. It is stored on the line (`discountCents`) and journaled. It is the only discount a shop or SAS sale
     receives. `discountCents` holds the line's OWN discount only: the stay discount's share (rule 40) is derived on every quote
