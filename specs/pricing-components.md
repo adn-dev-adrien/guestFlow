@@ -2487,7 +2487,7 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
     trusting the auto-gap): a stay stored at a price the engine no longer reproduces reads an engine drift, not money received. On the
     2026-11-11 copy the replay holds the 15 approved differences only: no stored figure moves. Two synthetic stays of the price gate (18, 19:
     mid-stay notes on lines the paid solde already carried) no longer ask 4,65 € at departure while 43,34 € are owed back — a real error
-    corrected, listed for the owner (loop t9 corrections-books). Tests `solde-credit-pays-unpaid-line`, `stay-sequence-fuzz`
+    corrected, approved by the owner on 2026-11-17 (price-gate allowlist, 40 fields, class `loop-t9`). Tests `solde-credit-pays-unpaid-line`, `stay-sequence-fuzz`
     (the reviewer's sequence fuzzer, bounded: direct seeds 1-3 and Booking seeds 1-2, 12 runs × 12 steps, the identity after every step).
 122. **No money vanishes where the engine of today routes a stay otherwise** _(stabilisation loop t9, S9-1 / S9-2, 2026-11-16; completes rules
     22, 30, 90.1, 104, 118)_. A stay priced before 4.2.0 can store its buckets otherwise than the engine of today would split the same sum.

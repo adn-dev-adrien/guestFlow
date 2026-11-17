@@ -142,7 +142,8 @@ geste commercial is recorded as such instead of being billed, hidden, or left pe
     _Reading of 2026-11-16 (stabilisation loop t9, A9-2):_ the recap says so. Its lines of a collected complement are served
     `offerable: false` and read as stored whatever the draft's offered set (the dialog draws no « Offrir »), and the commit writes no
     « Offrir » on them (the dead `applyOfferedComplementExtras` call is gone). Before, the dialog offered the toggle, the commit answered 200
-    with a recap « offered, billed 0 » and wrote nothing. Test `sas-arrival-collected-complement-not-offerable`.
+    with a recap « offered, billed 0 » and wrote nothing. Test `sas-arrival-collected-complement-not-offerable`. On the 2026-11-11 prod
+    copy the replay moves 12 arrival plans (`offerable` true → false, no amount), approved by the owner on 2026-11-17.
 
 ### 3.4 Re-open
 
