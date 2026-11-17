@@ -271,10 +271,10 @@ const step = {
     // has none and needs none: they move no figure of the quote.
     const customOptionLines = (Array.isArray(customOptions) ? customOptions : [])
       .map((line, index) => {
+        if (!isPricedCustomLine(line)) return null;
         const description = String(line?.description || '').trim();
         const amount = roundMoney(Math.max(0, Number(line?.amount || 0)));
         const offered = Boolean(line?.offered);
-        if (!description || amount <= 0) return null;
         const customOffered = offeredOf(`custom:${line?.customOptionId != null ? Number(line.customOptionId) : index + 1}`, 'options', amount, offered);
         return {
           isCustom: true,
@@ -438,7 +438,14 @@ const step = {
   },
 };
 
+// A posted custom line the engine prices: a blank or 0 € line is no line (the quote drops it, keeping the order of the others).
+// The writer pairs the priced lines with the posted ones through this same rule (storedCustomLines.pricedCustomLinesNamingRows).
+function isPricedCustomLine(line) {
+  return Boolean(String(line?.description || '').trim()) && roundMoney(Math.max(0, Number(line?.amount || 0))) > 0;
+}
+
 module.exports = step;
+module.exports.isPricedCustomLine = isPricedCustomLine;
 module.exports.withQuantityUnit = withQuantityUnit;
 module.exports.withDisplayCount = withDisplayCount;
 module.exports.normalizeCardOccurrences = normalizeCardOccurrences;

@@ -149,6 +149,15 @@ being on the preload's lists fails the run once the suite executes the read (rul
    3rd, the 9th and the last day of 2026-11, 2026-12, 2027-01, 2027-02, 2027-03, 2027-10 and 2028-02, at 09:00Z and
    22:30Z (56 runs), and on 62 consecutive days from 2026-11-05; red before on 2026-11-09 (1), 2026-12-01 and 2026-12-03
    (5). The 274 server files that read the tourist tax are green on the same 56 runs.
+   **Reading of 2026-11-18 (stabilisation loop t17, N17-1).** A date built from today can also hang on the year: a label
+   that names the year only when a day is outside the reference year (`datesTaken.shortDate`) read « 28/12 → 01/01/2027 »
+   for a stay 40 to 44 days out from 18/11, and `devis-held-dates` (« dd/mm → dd/mm ») failed from 18/11 to ~21/11 (also on
+   master); `devis-closed-dates` had the same window. Both now build the expected label from their own dates
+   (`datesTakenFixture.dayLabel`, the year said when a day is outside the document's start year, as
+   `closureConflictsFixture.dayLabel` already did), so the assertion is exact whatever today is. Every other test asserting
+   a « dd/mm » label from today's dates was checked: the dashboard title and the incoming-payment and caution labels never
+   name a year, the closure and link labels already accept or derive it. Proof: both files green with the clock at 19/11,
+   21/11, 23/11 and 30/12/2026, red before on 19/11 (1) and 21/11 (2).
 
 7. **A PR adding a literal date to a test is told so, on the line** (added 2026-10-30, audit R8 M-1, the guard
    audit R7 proposed). `scripts/check-test-dates.mjs --base <ref>` reads only the test lines a PR adds (files of

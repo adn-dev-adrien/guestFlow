@@ -12,6 +12,9 @@ const { localIsoDate } = require('../utils/localDate');
 
 const inDays = (n) => { const d = new Date(); d.setDate(d.getDate() + n); return localIsoDate(d); };
 const compact = (iso) => iso.replace(/-/g, '');
+// « dd/mm », with « /yyyy » when the day is not in the reference year (the document's start): the label a ConflictList row shows for a
+// day built from today, whatever today is (loop t17 N17-1 — J+40 crosses New Year from mid-November).
+const dayLabel = (iso, referenceIso) => `${iso.slice(8, 10)}/${iso.slice(5, 7)}${iso.slice(0, 4) === referenceIso.slice(0, 4) ? '' : `/${iso.slice(0, 4)}`}`;
 
 let propertySeq = 100;
 function freshProperty() {
@@ -86,4 +89,4 @@ function bookingFeed(propertyId) {
   };
 }
 
-module.exports = { db, inDays, freshProperty, addStay, addLink, linkOf, bookingFeed, providerReads };
+module.exports = { db, inDays, dayLabel, freshProperty, addStay, addLink, linkOf, bookingFeed, providerReads };

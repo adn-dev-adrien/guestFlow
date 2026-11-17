@@ -496,7 +496,9 @@ export default function ReservationPage() {
   const pricingQuoteRequestRef = useRef(0);
   // specs/reservation-payment-ledger.md — the body of the last live quote (the amount editors re-send
   // it with `ledgerEdit`) and the ledger edit the next save carries for the history (rule 23).
-  const lastQuoteBodyRef = useRef(null);
+  // The catalogue lines the live quote was asked with: what `applyQuoteToBaseline` reads to pair that quote's answer with the form. No
+  // quote body is ever kept to be sent again (rule 94 reading, loop t17 UI17-1): every request builds its own at call time.
+  const lastQuoteAskedLinesRef = useRef(null);
   // specs/reservation-payment-ledger.md rule 7 — the STORED ledger (GET), outside the form so that
   // re-reading it never makes the fiche « modified ».
   const [storedLedger, setStoredLedger] = useState(null);
@@ -758,7 +760,7 @@ export default function ReservationPage() {
       try {
         const loaded = JSON.parse(cleanBaseline);
         const preserveBlankPrice = isIcalImportedBlankPrice && loaded.form.customPrice === '' && loaded.form.totalPrice === '';
-        cleanBaseline = JSON.stringify({ ...loaded, form: applyQuoteToBaseline(loaded.form, pricingQuote, lastQuoteBodyRef.current?.selectedOptions, { preserveBlankPrice }) });
+        cleanBaseline = JSON.stringify({ ...loaded, form: applyQuoteToBaseline(loaded.form, pricingQuote, lastQuoteAskedLinesRef.current, { preserveBlankPrice }) });
       } catch { /* the loaded form stands */ }
     }
     if (!isExistingRecord || pricingQuote) setInitialSnapshot(cleanBaseline);
@@ -785,7 +787,7 @@ export default function ReservationPage() {
     resnapshotAfterQuoteRef.current = null;
     // The baseline takes what the quote wrote into the form, and nothing else: whatever the operator typed
     // while the quote was on its way (a note, a count) stays an edit, so Enregistrer lights up.
-    const askedLines = lastQuoteBodyRef.current?.selectedOptions;
+    const askedLines = lastQuoteAskedLinesRef.current;
     setInitialSnapshot((prevSnapshot) => {
       // Not frozen yet: the baseline is still derived from the loaded form and the quote, which is right.
       if (!prevSnapshot) return prevSnapshot;
@@ -1582,8 +1584,7 @@ export default function ReservationPage() {
     const refreshBasePrice = async () => {
       try {
         const quoteBody = buildFicheQuoteBody();
-        // specs/reservation-payment-ledger.md rule 21 — the amount editors re-ask this same quote.
-        lastQuoteBodyRef.current = quoteBody;
+        lastQuoteAskedLinesRef.current = quoteBody.selectedOptions;
         const calc = await api.calculatePrice(quoteBody);
 
         if (requestId !== pricingQuoteRequestRef.current) return;
@@ -2118,11 +2119,19 @@ export default function ReservationPage() {
       } catch { return prevSnapshot; }
     });
   };
+  // ONE post-save sequence for every save that keeps the fiche open, a stay's and a devis's (loop t17 S17-1): the sent lines are marked
+  // stored, the clean baseline becomes what was saved, THEN the stored ids and labels are adopted on the form and on that baseline. Returns
+  // the adoption, which the caller runs once the stored lines are known (a devis's save answers them, a stay's re-read does).
+  const settleSavedFiche = (savedSnapshot, sentLines) => {
+    markCustomLinesSaved(sentLines);
+    setInitialSnapshot(savedSnapshot);
+    return (storedOptions) => adoptStoredCustomIds(sentLines, storedOptions);
+  };
   const buildSelectedResourcesPayload = () => selectedResourcesPayload(form);
 
   // ONE body for every quote of the fiche's own figures (rule 94 reading, loop t16 S16-2 — `utils/ficheQuoteBody.js`): the live
-  // preview, the save-time quote (its `resourceLines` are what the save stores), « Actualiser les tarifs » and, through
-  // `lastQuoteBodyRef`, the ledger re-quote.
+  // preview, the save-time quote (its `resourceLines` are what the save stores), « Actualiser les tarifs » and the ledger re-quote — each
+  // built when it is sent, so a save that kept the fiche open (stored row ids, lines no longer new) is in the next one (loop t17 UI17-1).
   const buildFicheQuoteBody = (overrides = {}) => ficheQuoteBody({
     form,
     propertyId: selectedProp,
@@ -2624,8 +2633,7 @@ export default function ReservationPage() {
             ...devisPayload,
             loadedUpdatedAt: overwriteOnceRef.current ? undefined : (loadedUpdatedAtRef.current || undefined),
           });
-          markCustomLinesSaved(devisPayload.customOptions);
-          adoptStoredCustomIds(devisPayload.customOptions, savedDevis?.options);
+          settleSavedFiche(formSnapshot, devisPayload.customOptions)(savedDevis?.options);
           if (overwriteOnceRef.current) loadedUpdatedAtRef.current = savedDevis?.updatedAt || null;
           overwriteOnceRef.current = false;
           if (savedDevis?.retiredPaymentLinks) showSuccess('Devis enregistré. Le lien de paiement en cours est retiré : le montant a changé.');
@@ -2642,7 +2650,6 @@ export default function ReservationPage() {
             });
             if (Boolean(savedDevis.expired) !== devisValidity.expired) setReloadToken((token) => token + 1);
           }
-          setInitialSnapshot(formSnapshot);
           clearTypedCountFlags();
           if (safeAfterSaveAction) {
             safeAfterSaveAction();
@@ -2738,14 +2745,13 @@ export default function ReservationPage() {
           customOptions: sentCustomOptions,
           resources: quote.resourceLines,
         });
-        markCustomLinesSaved(sentCustomOptions);
-        setInitialSnapshot(formSnapshot);
+        const adoptStored = settleSavedFiche(formSnapshot, sentCustomOptions);
         const overwritten = overwriteOnceRef.current;
         overwriteOnceRef.current = false;
         ledgerEditMarkerRef.current = null;
         // Rule 7 — the stored ledger is what the fiche shows once clean again: re-read it after a save (and the live
         // « Dates prises » marker, specs/payment-link-lifecycle.md rule 48).
-        api.getReservation(reservationId).then((r) => { if (overwritten) loadedUpdatedAtRef.current = r.updatedAt || null; setDatesTaken(r.datesTaken || null); setStoredLedger(r.ledger || null); setStoredHeadline(r.storedHeadline || null); setStoredSummary(r.storedSummary || null); setStoredDepositDisabledLockedReason(r.depositDisabledLockedReason || null); setMidStayNoteLocks(r.midStayNoteLocks || {}); setRefundedLoweredKeys(new Set((r.refundedLoweredLines || []).map((line) => line.key))); setConvertToDevisLockedReason(r.convertToDevisLockedReason || null); setInstallmentPlan(r.installmentPlan || null); adoptStoredCustomIds(sentCustomOptions, r.options); }).catch(() => {});
+        api.getReservation(reservationId).then((r) => { if (overwritten) loadedUpdatedAtRef.current = r.updatedAt || null; setDatesTaken(r.datesTaken || null); setStoredLedger(r.ledger || null); setStoredHeadline(r.storedHeadline || null); setStoredSummary(r.storedSummary || null); setStoredDepositDisabledLockedReason(r.depositDisabledLockedReason || null); setMidStayNoteLocks(r.midStayNoteLocks || {}); setRefundedLoweredKeys(new Set((r.refundedLoweredLines || []).map((line) => line.key))); setConvertToDevisLockedReason(r.convertToDevisLockedReason || null); setInstallmentPlan(r.installmentPlan || null); adoptStored(r.options); }).catch(() => {});
         clearTypedCountFlags();
         if (safeAfterSaveAction) {
           safeAfterSaveAction();
@@ -3126,11 +3132,12 @@ export default function ReservationPage() {
 
   // ── specs/reservation-payment-ledger.md — the ledger's round-trips ───────────────────────────────
   // Rule 21 — the amount editor asks the live quote; the server answers the refusal or the effects.
-  const checkLedgerEdit = useCallback(async (row, amount) => {
-    if (!lastQuoteBodyRef.current) return { ok: false, reason: 'Calcul en cours : réessayer.' };
-    const quote = await api.calculatePrice({ ...lastQuoteBodyRef.current, ledgerEdit: { row, amount }, unlockPast: pastUnlocked });
+  // The body is the fiche's as it stands (rule 94 reading, loop t17 UI17-1), never the one the last live quote cached.
+  const checkLedgerEdit = async (row, amount) => {
+    if (!selectedProp || !form.startDate || !form.endDate) return { ok: false, reason: 'Calcul en cours : réessayer.' };
+    const quote = await api.calculatePrice(buildFicheQuoteBody({ ledgerEdit: { row, amount } }));
     return quote.ledgerEdit || { ok: false, reason: 'Calcul impossible.' };
-  }, [pastUnlocked]);
+  };
   // « Valider » applies the server's form fields verbatim; the save traces it (rule 23).
   const applyLedgerPatch = useCallback((patch) => {
     const { ledgerAmountEdit, ...fields } = patch || {};

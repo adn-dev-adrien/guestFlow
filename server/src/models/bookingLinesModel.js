@@ -21,6 +21,7 @@
 
 const db = require('../database');
 const { notDepartureCharge } = require('../utils/departureChargeLines');
+const { matchStoredCustomLines } = require('../utils/storedCustomLines');
 
 function createBookingLinesModel(database) {
   const columnsOf = (table) => {
@@ -204,14 +205,14 @@ function createBookingLinesModel(database) {
       const carriedNames = carriedColumns('reservation_custom_options', CUSTOM_OPTION_COLUMNS);
       // Rule 90.2: the departure charge lines are not the fiche's — no save posts them, none deletes them.
       const own = notDepartureCharge(database);
-      const carried = carriedNames.length === 0 ? [] : database.prepare(`SELECT id AS rowKey, description, ${carriedNames.join(', ')} FROM reservation_custom_options WHERE reservationId = ?${own} ORDER BY sortOrder, id`)
+      const carried = database.prepare(`SELECT ${['id AS rowKey', 'description', ...carriedNames].join(', ')} FROM reservation_custom_options WHERE reservationId = ?${own} ORDER BY sortOrder, id`)
         .all(bookingId).map((row) => ({ id: Number(row.rowKey), description: String(row.description || '').trim(), columns: Object.fromEntries(carriedNames.map((name) => [name, row[name]])) }));
       database.prepare(`DELETE FROM reservation_custom_options WHERE reservationId = ?${own}`).run(bookingId);
       return carried;
     },
 
-    // The labels of the lines the arrival SAS wrote, one entry per row. A fiche save is a DELETE +
-    // INSERT, so `insertCustomOptions` carries the marker over by label; without it the SAS lost its
+    // The lines the arrival SAS wrote, one entry per row. A fiche save is a DELETE +
+    // INSERT, so `insertCustomOptions` carries the marker over to the line that takes the row (by `id`, loop t17 D17-1); without it the SAS lost its
     // own lines at the first save and a re-opened SAS billed them again
     // (specs/hourly-resource-quantity-and-sas-scheduling.md §3.6 rule 33).
     // Each entry is `{ description, sasLineKey, quantity }`: the key of a line a plugin billed rides along
@@ -220,34 +221,28 @@ function createBookingLinesModel(database) {
       if (!CUSTOM_OPTION_COLUMNS.has('sasArrivalOrigin')) return [];
       const key = CUSTOM_OPTION_COLUMNS.has('sasLineKey') ? 'sasLineKey' : 'NULL AS sasLineKey';
       const qty = CUSTOM_OPTION_COLUMNS.has('quantity') ? 'quantity' : '1 AS quantity';
-      return database.prepare(`SELECT description, ${key}, ${qty} FROM reservation_custom_options WHERE reservationId = ? AND COALESCE(sasArrivalOrigin, 0) = 1`)
-        .all(bookingId).map((r) => ({ description: String(r.description || '').trim(), sasLineKey: r.sasLineKey || null, quantity: Number(r.quantity) || 1 }));
+      return database.prepare(`SELECT id, description, ${key}, ${qty} FROM reservation_custom_options WHERE reservationId = ? AND COALESCE(sasArrivalOrigin, 0) = 1`)
+        .all(bookingId).map((r) => ({ id: Number(r.id), description: String(r.description || '').trim(), sasLineKey: r.sasLineKey || null, quantity: Number(r.quantity) || 1 }));
     },
 
-    // `carried`: what `deleteCustomOptions` returned for the lines this save replaces, one entry per stored line; a posted
-    // line takes the entry of the row it names (`customOptionId`) whatever its new text — a renamed line keeps its number, moment
-    // and discount (loop t13 S13-1) — else the first entry of its text (rule 79). Rows named by a posted line are reserved before
-    // any text match, so two lines of one text keep their own identity when the first is removed, and a line renamed onto the
-    // label of a removed or swapped line never takes that line's row.
+    // `carried`: what `deleteCustomOptions` returned for the lines this save replaces, one entry per stored line. Each line takes the row
+    // `matchStoredCustomLines` gives it — the one matcher every judge of the save reads (loop t17 D17-1): by `customOptionId` first, so a
+    // renamed line keeps its number, moment and discount (loop t13 S13-1) and two lines of one text keep their own rows, then by normalised
+    // text (case and spacing), never for a line the caller appends (`newLine`). A save's controller hands the lines already resolved
+    // (`pricedCustomLinesNamingRows`); the SAS marker (rule 33) rides the row it was stored on.
     insertCustomOptions(bookingId, optionLines, sasOriginLabels = [], carried = []) {
-      const pendingSasLabels = [...sasOriginLabels];
-      const named = new Map();
-      const unnamed = [];
-      for (const entry of carried || []) unnamed.push(entry);
-      for (const line of optionLines || []) {
-        if (!line.isCustom || line.customOptionId == null) continue;
-        const at = unnamed.findIndex((entry) => entry.id === Number(line.customOptionId));
-        if (at >= 0) named.set(line, unnamed.splice(at, 1)[0]);
-      }
+      const customLines = (optionLines || []).filter((line) => line.isCustom);
+      const rows = matchStoredCustomLines(customLines.map((line) => ({
+        customOptionId: line.customOptionId, newLine: line.newLine, description: String(line.title || line.description || ''),
+      })), carried || []);
+      const sasOfRow = new Map((sasOriginLabels || []).filter((entry) => entry.id != null).map((entry) => [Number(entry.id), entry]));
       let sortOrder = 0;
-      for (const line of optionLines || []) {
-        if (!line.isCustom) continue;
+      for (const line of customLines) {
         const forced = line.inComplement ? 1 : 0;
         const description = String(line.title || line.description || '').trim();
-        const sasIndex = pendingSasLabels.findIndex((l) => l.description === description);
-        const sasLine = sasIndex >= 0 ? pendingSasLabels.splice(sasIndex, 1)[0] : null;
-        const byText = named.has(line) ? -1 : unnamed.findIndex((entry) => entry.description === description);
-        const kept = named.has(line) ? named.get(line).columns : (byText >= 0 ? unnamed.splice(byText, 1)[0].columns : {});
+        const row = rows[sortOrder];
+        const sasLine = row ? sasOfRow.get(Number(row.id)) || null : null;
+        const kept = row ? row.columns : {};
         insertCustomOption({
           ...kept,
           reservationId: bookingId,

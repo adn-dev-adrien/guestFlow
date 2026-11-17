@@ -65,10 +65,25 @@ function withoutRemovedLineFacts(facts, postedLines, storedRows) {
   return out;
 }
 
-/** The stored rows a save's posted custom lines name (`matchStoredCustomLines`), as a Set of row ids: the rows whose facts the writer carries. */
-function namedStoredCustomRowIds(postedLines, storedRows) {
-  return new Set(matchStoredCustomLines(Array.isArray(postedLines) ? postedLines : [], Array.isArray(storedRows) ? storedRows : [])
-    .filter(Boolean).map((row) => Number(row.id)));
+/**
+ * Pricing-components rule 79 reading (loop t17 D17-1) — the writer takes the row the save's judges chose, never a text comparison of its own:
+ * `matchStoredCustomLines` runs once over the POSTED lines (the list every judge reads), and each priced custom line the writer receives names
+ * its posted line's row by `customOptionId`; a line no row answers is `newLine` (it takes nothing). The engine keeps the posted lines it prices
+ * in order (`isPricedCustomLine`), which pairs the two lists. `pricedLines` is the quote's `optionLines` (catalogue lines pass unchanged).
+ */
+function pricedCustomLinesNamingRows(postedLines, pricedLines, storedRows) {
+  const { isPricedCustomLine } = require('./pricing/steps/extras');
+  const posted = Array.isArray(postedLines) ? postedLines : [];
+  const matches = matchStoredCustomLines(posted, Array.isArray(storedRows) ? storedRows : []);
+  const rowOfPriced = posted.map((line, index) => (isPricedCustomLine(line) ? matches[index] : undefined)).filter((row) => row !== undefined);
+  let at = 0;
+  return (pricedLines || []).map((line) => {
+    if (!line || !line.isCustom) return line;
+    const row = rowOfPriced[at];
+    at += 1;
+    const { customOptionId, newLine, ...rest } = line;
+    return row ? { ...rest, customOptionId: Number(row.id) } : { ...rest, newLine: true };
+  });
 }
 
-module.exports = { matchStoredCustomLines, renamedCustomLineFacts, withoutRemovedLineFacts, namedStoredCustomRowIds };
+module.exports = { matchStoredCustomLines, renamedCustomLineFacts, withoutRemovedLineFacts, pricedCustomLinesNamingRows };

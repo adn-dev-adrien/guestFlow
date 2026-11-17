@@ -122,7 +122,7 @@ const { toReceptionReservationView, toReceptionReservationList, toReceptionPayme
 const {
   midStayExtrasWindow, arrivalLineFloors, arrivalExtrasViolations, extrasContentChanged,
 } = require('../utils/midStayExtrasWindow');
-const { matchStoredCustomLines, renamedCustomLineFacts, withoutRemovedLineFacts, namedStoredCustomRowIds } = require('../utils/storedCustomLines');
+const { matchStoredCustomLines, renamedCustomLineFacts, withoutRemovedLineFacts, pricedCustomLinesNamingRows } = require('../utils/storedCustomLines');
 const { withStoredLineContribs } = require('../utils/storedLineContribs');
 const {
   buildLiveCheckoutComplement, isComplementDeferred, mergedEndOfStayAmount, markCarriesEndOfStay, deferralRefusal, endOfStayAloneRefusal,
@@ -2894,9 +2894,11 @@ function applyUpdate(req, res, pastUnlocked, {
       const sasOriginLabels = model.sasOriginCustomLabels(id);
       const carriedCustomLines = model.deleteCustomOptions(id) || [];
       // Rule 94 reading (loop t16 S16-3 b) — only the rows the posted lines name carry their identity over: a line the fiche appends never
-      // takes, by its text, the number, discount and money of a row this save removes.
-      const named = namedStoredCustomRowIds(reservationCustomOptions, carriedCustomLines);
-      if (reservationCustomOptions) model.insertCustomOptions(id, quote.optionLines, sasOriginLabels, carriedCustomLines.filter((entry) => named.has(Number(entry.id))));
+      // takes, by its text, the number, discount and money of a row this save removes. Rule 79 reading (loop t17 D17-1) — the writer takes
+      // the row the judges' matcher chose over the posted lines, never a text comparison of its own.
+      if (reservationCustomOptions) {
+        model.insertCustomOptions(id, pricedCustomLinesNamingRows(reservationCustomOptions, quote.optionLines, carriedCustomLines), sasOriginLabels, carriedCustomLines);
+      }
     }
     if (!pastReservationLocked && !stayPinned) model.replaceNights(id, quote.nightlyBreakdown);
     // specs/tariff-recipes/spec.md §3 rule 62 — the tariff snapshot follows the nights it describes:

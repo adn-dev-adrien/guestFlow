@@ -299,6 +299,10 @@ Found while mapping phase 3c of the plugins (`specs/plugins-phase-3c-hourly-reso
     a re-opened SAS could neither replace nor see, and the fresh supplement doubled it. The marker is
     now carried over by label, one row per stored SAS line, as it already was for the catalogue options
     the SAS sells. This also protects the linen lines.
+    _Reading 2026-11-18 (pricing-components rule 79 reading, loop t17 D17-1):_ « by label » now means « on the line that
+    takes the SAS line's row »: the writer gives each posted line the stored row `matchStoredCustomLines` chose (its id
+    first, then its label case and spacing aside), and the marker, the plugin key and the count ride that row. A line
+    the caller appends never takes a removed SAS line's marker; a re-cased SAS line, or one renamed under its id, keeps it.
 
 **The recap shows the supplement the server bills.** `getSas` returns each resource's current
 `supplement` and its `supplementLabel`; `GET /api/resources/:id/free-slots` returns the supplement of
