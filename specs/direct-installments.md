@@ -326,6 +326,12 @@ its due date, after the operator validates it.
     was on no month of the page; the same stay paid by solde had its row of 4,80 €. *Reading of 2026-11-05 (D16, D17):* « can be declared » is withdrawn by
     Adrien, the tick waits for every installment paid and the stay over (`tourist-tax-declared-checkbox.md` rule 8); a plan fully
     paid or a paid installment holding a tax share pins the tax (`tourist-tax-matches-the-office-calculation.md` rule 19).
+52. **One change at a time, and the field shows the answer at once** (2026-11-17, flaky-test investigation). While a
+    date or an amount is on its way to the server, nothing else is sent from the card's rows: the fields are disabled,
+    and a blur or an Enter reaching one anyway posts nothing. When the answer lands, each field takes the server's value
+    in the same render (unless its refusal is still shown), not in an effect run afterwards. *Why:* on a loaded CI runner
+    the effect ran after the next keystrokes and overwrote them, so « 250.5 » typed after « 250,50 » was posted as
+    « 250,50250.5 »; and an Enter followed by leaving the field posted the same amount twice.
 
 ---
 
@@ -508,6 +514,7 @@ installment:
 - Footer: « Total séjour 1 001,50 € · Payé 334 € · Reste 667,50 € » (server values).
 - A date or an amount is sent when its field is left (or Enter), never per keystroke; a value the server
   refused is not sent again until it changes; once the error is gone the field shows the server value.
+- While a date or an amount is being saved nothing else is sent, and the answer is in the fields at once (rule 52).
 
 **Responsive:**
 - `xs` (≤600 px): each row becomes a two-line card — number + status on top, date field + amount
@@ -547,7 +554,7 @@ Baseline 6 264 → **6 373** (+109 net, all green; 5 cron tests of money templat
 
 ### Client tests
 Baseline 2 153 → **2 176** (+23, all green).
-- [x] `client/src/components/reservation/__tests__/InstallmentPlanCard.test.jsx` (21) — renders payload, stepper limits, rapid clicks and change of mind during a request, remove waiting for the count, read-only on a dirty fiche (rule 44), date / amount sent on blur only and refusals, create / remove, send / copy, manual mark
+- [x] `client/src/components/reservation/__tests__/InstallmentPlanCard.test.jsx` (26) — one change at a time and the answer in the field at once (rule 52; mocks fully reset between tests, an unplanned API call fails with what it sent), renders payload, stepper limits, rapid clicks and change of mind during a request, remove waiting for the count, read-only on a dirty fiche (rule 44), date / amount sent on blur only and refusals, create / remove, send / copy, manual mark
 - [x] `client/src/components/__tests__/EmailPendingList.installments.test.jsx` (1) and `constants/__tests__/paymentDeadlines.installments.test.js` (1) — one row per installment, the deadline card label
 
 ### Manual UI verification

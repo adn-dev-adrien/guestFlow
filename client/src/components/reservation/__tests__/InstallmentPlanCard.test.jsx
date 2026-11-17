@@ -45,7 +45,15 @@ function Harness({ initial, onMoney = vi.fn(), disabled = false }) {
   );
 }
 
-beforeEach(() => { vi.clearAllMocks(); });
+// Every implementation is reset, not only the calls: a `mockRejectedValue` left by one test must never answer the
+// next one. A call no test planned fails loudly with what was sent.
+const API_CALLS = ['putInstallments', 'deleteInstallments', 'markInstallmentPaid', 'sendInstallmentRequest'];
+beforeEach(() => {
+  vi.resetAllMocks();
+  for (const name of API_CALLS) {
+    api[name].mockImplementation((...args) => Promise.reject(new Error(`unplanned ${name}(${JSON.stringify(args)})`)));
+  }
+});
 afterEach(() => { vi.useRealTimers(); });
 
 const rowOf = (n) => screen.getByTestId(`installment-${n}`);
@@ -203,8 +211,9 @@ test('rule 9a — cents: the field opens the decimal keypad, a comma is sent as 
   await user.clear(field);
   await user.type(field, '250,50{Enter}');
   await waitFor(() => expect(api.putInstallments).toHaveBeenCalledWith(7, { amounts: [{ id: 41, amount: '250.50' }] }));
-  await waitFor(() => expect(within(rowOf(1)).getByLabelText('Montant de l’échéance 1')).toHaveValue('250,50'));
-  expect(within(rowOf(2)).getByLabelText('Montant de l’échéance 2')).toHaveValue('375,50');
+  // Row 1 already reads « 250,50 » as typed: only row 2 proves the answer is applied, effects included.
+  await waitFor(() => expect(within(rowOf(2)).getByLabelText('Montant de l’échéance 2')).toHaveValue('375,50'));
+  expect(within(rowOf(1)).getByLabelText('Montant de l’échéance 1')).toHaveValue('250,50');
 
   await user.clear(within(rowOf(1)).getByLabelText('Montant de l’échéance 1'));
   await user.type(within(rowOf(1)).getByLabelText('Montant de l’échéance 1'), '250.5');
@@ -373,8 +382,44 @@ test('once an error is gone the field shows the server value again, and the amou
   api.putInstallments.mockResolvedValueOnce({ installmentPlan: planOf({ installments: [installment(1, { amount: 400, amountEdited: true }), installment(2, { amount: 301 }), installment(3, { amount: 300.5, amountEditable: false })] }) });
   await user.clear(within(rowOf(1)).getByLabelText('Montant de l’échéance 1'));
   await user.type(within(rowOf(1)).getByLabelText('Montant de l’échéance 1'), '400{Enter}');
-  await waitFor(() => expect(screen.queryByRole('alert')).toBeNull());
+  await waitFor(() => expect(within(rowOf(2)).getByLabelText('Montant de l’échéance 2')).toHaveValue('301'));
+  expect(screen.queryByRole('alert')).toBeNull();
   expect(within(rowOf(1)).getByLabelText('Montant de l’échéance 1')).toHaveValue('400');
+  expect(api.putInstallments.mock.calls).toEqual([[7, { amounts: [{ id: 41, amount: '999' }] }], [7, { amounts: [{ id: 41, amount: '400' }] }]]);
+});
+
+test('rule 52 — nothing is sent while a change is on its way: Enter then leaving the field posts the amount once', async () => {
+  let release;
+  api.putInstallments.mockImplementationOnce(() => new Promise((resolve) => { release = resolve; }));
+  render(<Harness initial={planOf()} />);
+  const amount = () => within(rowOf(1)).getByLabelText('Montant de l’échéance 1');
+  fireEvent.change(amount(), { target: { value: '500' } });
+  fireEvent.keyDown(amount(), { key: 'Enter' });
+  fireEvent.blur(amount());
+  fireEvent.blur(within(rowOf(2)).getByLabelText('Date de l’échéance 2'), { target: { value: '2027-02-11' } });
+  expect(api.putInstallments.mock.calls).toEqual([[7, { amounts: [{ id: 41, amount: '500' }] }]]);
+  await act(async () => { release({ installmentPlan: planOf({ installments: [installment(1, { amount: 500, amountEdited: true }), installment(2, { amount: 251 }), installment(3, { amount: 250.5, amountEditable: false })] }) }); });
+  expect(within(rowOf(2)).getByLabelText('Montant de l’échéance 2')).toHaveValue('251');
+  expect(api.putInstallments).toHaveBeenCalledTimes(1);
+});
+
+test('rule 52 — the server value is in the field in the same render as the answer, so what is typed right after is kept', async () => {
+  // « fixé » is drawn from the answer itself, before any effect: typing as soon as it shows is the race a
+  // late effect lost (`npm run test:slow-scheduler` replays it).
+  const user = userEvent.setup();
+  api.putInstallments
+    .mockResolvedValueOnce({ installmentPlan: planOf({ installments: [installment(1, { amount: 500, amountEdited: true }), installment(2, { amount: 251 }), installment(3, { amount: 250.5, amountEditable: false })] }) })
+    .mockResolvedValueOnce({ installmentPlan: planOf({ installments: [installment(1, { amount: 600, amountEdited: true }), installment(2, { amount: 201 }), installment(3, { amount: 200.5, amountEditable: false })] }) });
+  render(<Harness initial={planOf()} />);
+  const amount = () => within(rowOf(1)).getByLabelText('Montant de l’échéance 1');
+  await user.clear(amount());
+  await user.type(amount(), '500{Enter}');
+  await within(rowOf(1)).findByText('fixé');
+  await user.clear(amount());
+  await user.type(amount(), '600');
+  await user.tab();
+  await waitFor(() => expect(api.putInstallments).toHaveBeenCalledTimes(2));
+  expect(api.putInstallments.mock.calls).toEqual([[7, { amounts: [{ id: 41, amount: '500' }] }], [7, { amounts: [{ id: 41, amount: '600' }] }]]);
 });
 
 test('specs/mixed-method-payments.md rule 44 (mutant C7) — « Plusieurs moyens » on an installment: no caisse interne, the amount whole', async () => {
