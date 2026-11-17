@@ -1,4 +1,4 @@
-// specs/guest-app-home-automation.md rule 14 — what Studio may save: every refusal, all at once, by field.
+// specs/guest-app-home-automation.md rules 14, 28, 29 — what Studio may save: every refusal, all at once, by field.
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
@@ -18,7 +18,7 @@ test('the Granja configuration is accepted, every list item gets a stable id', (
   assert.deepEqual(again.blocks.find((b) => b.kind === 'lights').items.map((i) => i.id), lights.items.map((i) => i.id));
 });
 
-test('the five kinds, each once', () => {
+test('the six kinds, each once', () => {
   assert.equal(validateHomeBlocks(GRANJA_BLOCKS.slice(1), CATALOG).ok, false);
   assert.equal(validateHomeBlocks([...GRANJA_BLOCKS.slice(1), GRANJA_BLOCKS[1]], CATALOG).ok, false);
 });
@@ -71,4 +71,14 @@ test('rule 14 — an item that is not an object is refused field by field, never
   const result = validateHomeBlocks(blocks, CATALOG, () => `item${String(n += 1).padStart(2, '0')}`);
   assert.equal(result.ok, false);
   assert.ok(Object.keys(result.errors).some((k) => k.startsWith(`blocks.${at}.items.0`)));
+});
+
+test('rule 29 — « Réseau » takes the main meter only; switched on it needs one', () => {
+  assert.equal(errorsOf(withBlock('grid', { equipmentId: 'm-granja' }))[`blocks.${indexOf('grid')}.equipmentId`], 'Équipement qui ne convient pas à ce bloc.');
+  assert.equal(errorsOf(withBlock('grid', { equipmentId: null }))[`blocks.${indexOf('grid')}.equipmentId`], 'Choisir un équipement.');
+  assert.equal(validateHomeBlocks(withBlock('grid', { on: false, equipmentId: null }), CATALOG).ok, true);
+});
+
+test('rule 28 — a plain thermometer may fill « Extérieur »', () => {
+  assert.equal(validateHomeBlocks(withBlock('outdoor', { equipmentId: 't-ch1' }), CATALOG).ok, true);
 });

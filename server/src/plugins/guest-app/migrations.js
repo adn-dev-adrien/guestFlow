@@ -172,6 +172,25 @@ const HOME_BLOCKS_SQL = `
   );
 `;
 
+// specs/guest-app-home-automation.md rule 29 — the « Réseau » block: SQLite cannot widen a CHECK, so the table is
+// rebuilt with its rows (the runner wraps each migration in a transaction).
+const HOME_BLOCKS_GRID_SQL = `
+  CREATE TABLE guest_home_blocks_grid (
+    propertyId  INTEGER NOT NULL,
+    kind        TEXT NOT NULL CHECK (kind IN ('outdoor', 'rooms', 'lights', 'rain', 'energy', 'grid')),
+    position    INTEGER NOT NULL,
+    "on"        INTEGER NOT NULL DEFAULT 0,
+    equipmentId TEXT,
+    itemsJson   TEXT NOT NULL DEFAULT '[]',
+    updatedAt   TEXT NOT NULL,
+    PRIMARY KEY (propertyId, kind)
+  );
+  INSERT INTO guest_home_blocks_grid (propertyId, kind, position, "on", equipmentId, itemsJson, updatedAt)
+    SELECT propertyId, kind, position, "on", equipmentId, itemsJson, updatedAt FROM guest_home_blocks;
+  DROP TABLE guest_home_blocks;
+  ALTER TABLE guest_home_blocks_grid RENAME TO guest_home_blocks;
+`;
+
 const TABLES = Object.freeze([
   'guest_app_lodgings', 'guest_app_items', 'guest_app_stock_counts', 'guest_app_service_hours', 'guest_app_service_exceptions',
   'guest_sessions', 'guest_stay_links', 'guest_booklet_pages', 'guest_booklet_placements', 'guest_booklet_blocks',
@@ -181,6 +200,7 @@ const TABLES = Object.freeze([
 const MIGRATIONS = Object.freeze([
   { name: 'guest_app_tables_v1', up: (db) => db.exec(TABLES_SQL) },
   { name: 'guest_home_blocks_v1', up: (db) => db.exec(HOME_BLOCKS_SQL) },
+  { name: 'guest_home_blocks_grid_v1', up: (db) => db.exec(HOME_BLOCKS_GRID_SQL) },
 ]);
 
 module.exports = { MIGRATIONS, TABLES };

@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| **Status** | Implemented — **amendment of 2026-11-17 (§3.E, rules 24-29): Approved** |
+| **Status** | Implemented — amendment of 2026-11-17 (§3.E, rules 24-29) implemented |
 | **Branch** | `feature/guest-app-home-automation`; amendment `feature/guest-home-shared-sensors` |
 | **Created** | 2026-11-15 |
 | **Author** | Adrien |
@@ -203,8 +203,10 @@ numbers and point here.
     written. Presenting a value — rounding it to rule 19's precision, its unit, its phrase, the bars drawn
     proportionally to the tallest — is rendering, not computing, and stays on the server as before.
 26. **The house sends less** (Adrien, 2026-11-17, amends rules 3 and 5). The catalogue is sent on start and when its
-    content changes — never again unchanged, so no hourly resend. A reading is sent only when its value, or its
-    day's min/max, changed since the last send; series are sent once per closed hour. Each order carries only the
+    content changes — never again unchanged by the recipe (the plugin's own hourly re-PUT of its stored catalogue,
+    which refreshes the selection, is no Sowel order and writes nothing to the feed). A reading is sent when its
+    value changed since the last send, or once an hour while it stays the same, so a stable value keeps a recent
+    `measuredAt` and is never hidden by rule 27's 6 h limit; series are sent once per closed hour. Each order carries only the
     changed entries. The bridge still appears in Sowel's activity feed, but once per real change instead of once a
     minute.
 27. **The house's liveness is its poll, not its readings** (amends rules 15, 17 and 20). Since a quiet house no
@@ -439,19 +441,26 @@ Counts after the review of 2026-11-15: server 63 new (`sdk-home-extension-points
       catalogue; the catalogue flags exactly the whitelisted lights (rule 9bis). The plugin refuses an unoccupied
       property after re-reading the stays once.
 
-### Amendment of 2026-11-17 (to do)
-- [ ] `guest-home-view.unit.test.js` — rule 25: no `trend` in the payload; rule 28: min/max formatted under rooms
+### Amendment of 2026-11-17
+
+Counts after the amendment: server home suites 66 (`sdk-home-extension-points` 5 unchanged; `sowel-home-connector` 7,
+`sowel-home-ingest` 11, `sowel-home-commands` 10, `guest-home-view` 13, `guest-home-blocks-validation` 12,
+`guest-home-routes` 12, `guest-home-grid-migration` 1); guest app Vitest 102 (`HomeAutomationPage.render` 8); studio
+Vitest 43 (`HomeAutomationPage` 6); recipe `sowel-recipe-guest-home` 26.
+- [x] `guest-home-view.unit.test.js` — rule 25: no `trend` in the payload; rule 28: min/max formatted under rooms
       and outdoor, omitted when absent; rule 27: live / silent / older-than-6 h from `lastPollAt` and Sowel's own
       timestamp; rule 29: negative → `export`, positive → `import`, |value| < 5 W → `balanced`, the value unsigned.
-- [ ] `guest-home-blocks-validation.unit.test.js` — rule 29: `grid` needs one `main_energy_meter`; rule 28: an
+- [x] `guest-home-blocks-validation.unit.test.js` — rule 29: `grid` needs one `main_energy_meter`; rule 28: an
       outdoor `sensor` with a temperature accepted.
-- [ ] `sowel-home-ingest.unit.test.js` — rule 26: a partial batch leaves the other pairs untouched.
-- [ ] Recipe (`sowel-recipe-guest-home`): the catalogue holds only « Capteurs partagés » plus the entrusted lights;
+- [x] `sowel-home-ingest.unit.test.js` — rule 26: a partial batch leaves the other pairs untouched.
+- [x] Recipe (`sowel-recipe-guest-home`): the catalogue holds only « Capteurs partagés » plus the entrusted lights;
       a selection naming anything else sends nothing; unchanged catalogue and readings are not resent; min/max are
       Sowel's `temperature_min_today` / `_max_today`, buckets come from `ctx.history`, both absent without them.
-- [ ] Manual: the gîte's Studio page with its 7 rooms, the outdoor probe, the rain gauge (« Pluviomètre »),
+- [x] Manual: the gîte's Studio page with its 7 rooms, the outdoor probe, the rain gauge (« Pluviomètre »),
       « ConsommationGite » and « Réseau »;
-      Sowel's activity feed shows the bridge only on real changes.
+      Sowel's activity feed shows the bridge only on real changes. Verified locally on 2026-11-17 against a fake
+      house carrying the gîte's real equipments: 390 / 900 / 1280 px, day and night, « Réseau » export and import, a
+      silent house, the tree switched on and off; Sowel's activity feed is checked once recipe 0.2.0 is installed.
 
 ### Manual UI verification
 - [x] Studio: configure the Granja with 3 rooms, the station, the meter and the tree light; preview matches.

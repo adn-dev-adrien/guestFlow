@@ -32,7 +32,7 @@ function createHomeBlocksModel(db) {
     return [...stored, ...missing];
   }
 
-  /** The five blocks, in the given order, replace the lodging's in one transaction. */
+  /** The six blocks, in the given order, replace the lodging's in one transaction. */
   function save(propertyId, blocks, now) {
     const at = now.toISOString();
     const write = db.prepare(`
