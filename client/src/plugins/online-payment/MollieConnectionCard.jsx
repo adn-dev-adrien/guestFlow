@@ -9,14 +9,23 @@
  * refusal (a token that does not start with `access_`, a malformed profile id) is the server's, shown on the
  * field and nothing is saved. « Tester » asks the server to call Mollie with the typed token — or the stored one —
  * and says in words what it found; the typed token is never stored by the test.
+ *
+ * « Relevés dans Qonto » (specs/mollie-settlement-receipts.md rules 2-3, 13): a switch and a start date (one setting,
+ * `mollieStatementsSince`), saved when the switch moves or the date field loses focus / takes Enter, never while a date is
+ * being typed, and the counters the server computes. Drawn only when the server says the
+ * feature exists — Qonto connected and a Mollie token saved.
  */
-import React, { useCallback, useEffect, useState } from 'react';
-import { Alert, Box, Button, Card, CardContent, Stack, TextField, Typography } from '@mui/material';
-import { api, formatCurrency, MaskedTextField, StatusBadge, useToast } from '../sdk/ui';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { Alert, Box, Button, Card, CardContent, Divider, FormControlLabel, Stack, Switch, TextField, Typography } from '@mui/material';
+import { api, DateField, formatCurrency, MaskedTextField, StatusBadge, useServerToday, useToast } from '../sdk/ui';
 
 const PLUGIN = 'online-payment';
 const HELP = 'Dans Mollie : Développeurs → Clés API → « + Créer une clé API ». Type « Jeton d\'accès avancé », aucune restriction de profil, mode « En direct », autorisations en lecture seule : payments.read, settlements.read, balances.read, balance-reports.read, invoices.read, refunds.read, profiles.read, organizations.read ; signature des demandes désactivée.';
 const WITHOUT_TOKEN = 'Sans jeton, le rapprochement se fait par les montants. Avec un jeton, les versements groupés sont détaillés paiement par paiement.';
+
+const COUNTER_LABELS = [['attached', 'success', 'joint'], ['pending', 'neutral', 'en attente'], ['toReview', 'warning', 'à revoir']];
+const NO_DATE = 'Une date est nécessaire tant que l’envoi est activé.';
+const FUTURE_DATE = 'La date ne peut pas être dans le futur.';
 
 const parse = (raw) => { try { return raw ? JSON.parse(raw) : null; } catch { return null; } };
 const stamp = (iso) => {
@@ -24,9 +33,96 @@ const stamp = (iso) => {
   return d && !Number.isNaN(d.getTime()) ? d.toLocaleString('fr-FR', { dateStyle: 'short', timeStyle: 'short' }) : '';
 };
 
+/**
+ * The « Relevés dans Qonto » section: switch on → the first day of the current month is proposed (the operator may move it
+ * back to cover past credits); a refused date keeps the stored one and says why on the field. Saves go one after the other.
+ * `onSaved(value)` refreshes the section only, so a profile id being typed in the card is left alone.
+ */
+function StatementsSection({ status, since, onSaved }) {
+  const { showError, showSuccess } = useToast();
+  const today = useServerToday();
+  const [draft, setDraft] = useState(since);
+  const [error, setError] = useState('');
+  const [busy, setBusy] = useState(false);
+  const queue = useRef(Promise.resolve());
+  useEffect(() => { setDraft(since); }, [since]);
+
+  const save = async (value, done) => {
+    setBusy(true);
+    try {
+      await api.savePluginSettings(PLUGIN, { mollieStatementsSince: value });
+      setError('');
+      await onSaved(value);
+      showSuccess(done);
+    } catch (err) {
+      setError((err && err.errors && err.errors.mollieStatementsSince) || '');
+      showError((err && err.errors) ? 'Date à vérifier : rien n’a été enregistré.' : ((err && err.message) || 'Enregistrement impossible.'));
+    } finally {
+      setBusy(false);
+    }
+  };
+  const write = (value, done) => {
+    queue.current = queue.current.then(() => save(value, done));
+    return queue.current;
+  };
+
+  const on = since !== '';
+  const toggle = (checked) => {
+    if (!checked) { write('', 'Relevés désactivés : plus aucun envoi.'); return; }
+    const first = `${(today || '').slice(0, 8)}01`;
+    write(first, 'Relevés activés.');
+  };
+  const change = (value) => {
+    setDraft(value);
+    if (!value) setError(NO_DATE);
+    else if (today && value > today) setError(FUTURE_DATE);
+    else setError('');
+  };
+  const commit = () => {
+    if (!draft || draft === since || (today && draft > today)) return;
+    write(draft, 'Date enregistrée.');
+  };
+
+  const { counts } = status;
+  const shown = COUNTER_LABELS.filter(([key]) => counts[key] > 0);
+  return (
+    <Box data-testid="mollie-statements">
+      <Divider sx={{ mb: 2 }} />
+      <Typography variant="sectionHeader" component="h3" sx={{ mb: 1 }}>Relevés dans Qonto</Typography>
+      <FormControlLabel
+        control={<Switch checked={on} disabled={busy || !today} onChange={(e) => toggle(e.target.checked)} />}
+        label="Joindre le relevé de chaque versement Mollie dans Qonto"
+        sx={{ alignItems: 'flex-start', mb: 1 }}
+      />
+      {on && (
+        <Stack gap={1.5}>
+          <DateField
+            label="À partir du"
+            value={draft}
+            onChange={(e) => change(e.target.value)}
+            onBlur={commit}
+            onKeyDown={(e) => { if (e.key === 'Enter') commit(); }}
+            error={Boolean(error)}
+            helperText={error || 'Les versements crédités avant cette date ne reçoivent rien.'}
+            slotProps={{ inputLabel: { shrink: true }, htmlInput: { max: today || undefined } }}
+            sx={{ maxWidth: { sm: 240 } }}
+          />
+          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }} data-testid="mollie-statements-counters">
+            {shown.length === 0
+              ? <StatusBadge status="neutral" label="Aucun versement depuis cette date" />
+              : shown.map(([key, tone, label]) => <StatusBadge key={key} status={tone} label={`${counts[key]} ${label}`} />)}
+          </Box>
+          {status.reauth && <Alert severity="warning">Qonto refuse les pièces jointes : reconnecter Qonto pour joindre les relevés.</Alert>}
+        </Stack>
+      )}
+    </Box>
+  );
+}
+
 export default function MollieConnectionCard() {
   const { showError, showSuccess } = useToast();
   const [stored, setStored] = useState(null);
+  const [statements, setStatements] = useState(null);
   const [tokenDraft, setTokenDraft] = useState(undefined);
   const [profileId, setProfileId] = useState('');
   const [errors, setErrors] = useState({});
@@ -43,11 +139,21 @@ export default function MollieConnectionCard() {
         lastRead: parse(s.mollieLastRead),
         lastError: parse(s.mollieLastError),
         balance: parse(s.mollieBalance),
+        statementsSince: s.mollieStatementsSince || '',
       });
       setProfileId(s.mollieProfileId || '');
-    } catch { setStored(null); }
+    } catch { setStored(null); return; }
+    try {
+      setStatements(await api.getMollieStatementsStatus());
+    } catch { setStatements(null); }
   }, []);
   useEffect(() => { load(); }, [load]);
+  const refreshStatements = useCallback(async (since) => {
+    setStored((prev) => (prev ? { ...prev, statementsSince: since } : prev));
+    try {
+      setStatements(await api.getMollieStatementsStatus());
+    } catch { setStatements(null); }
+  }, []);
 
   if (!stored) return null;
 
@@ -152,6 +258,8 @@ export default function MollieConnectionCard() {
             )}
           </Stack>
         </Stack>
+
+        {statements && statements.available && <Box sx={{ mt: 3 }}><StatementsSection status={statements} since={stored.statementsSince} onSaved={refreshStatements} /></Box>}
       </CardContent>
     </Card>
   );

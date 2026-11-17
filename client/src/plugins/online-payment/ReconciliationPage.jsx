@@ -19,7 +19,7 @@ import { useNavigate, useSearchParams } from 'react-router';
 import {
   api, useToast, PageActionBar, PageTabs, TableCard, EmptyState, ErrorAlert, LoadingState, StatusBadge, PlatformChip, FilterChip, PlatformPenaltyDialog,
 } from '../sdk';
-import ReconciliationLine, { BankCell, BankRefs } from './ReconciliationLine';
+import ReconciliationLine, { BankCell, BankRefs, MollieStatementState } from './ReconciliationLine';
 import LinkTransactionDialog from './LinkTransactionDialog';
 import BulkConfirmDialog from './BulkConfirmDialog';
 import SplitSharesDialog from './SplitSharesDialog';
@@ -277,6 +277,7 @@ export default function ReconciliationPage() {
                           {credit.counterparty}{credit.reference ? ` · « ${credit.reference} »` : ''}
                         </Typography>
                         <BankRefs refs={credit.refs} />
+                        <MollieStatementState side={credit} />
                         {credit.note && <Typography variant="caption" color="text.secondary" component="div">{credit.note}</Typography>}
                       </Box>
                       <StatusBadge status={tone} label={label} />

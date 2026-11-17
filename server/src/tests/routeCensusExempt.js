@@ -191,6 +191,7 @@ const EXEMPT = {
     'POST /api/gdf-intake/:intakeId/dismiss',
     'POST /api/onboarding/done',
     'POST /api/payments/links/:id/settle',
+    'POST /api/payments/reconciliation/mollie-statements/:transactionId/retry',
     'POST /api/payments/reconciliation/read',
     'POST /api/payments/reconciliation/transactions/:id/outside',
     'POST /api/planning/resource-cards/done',

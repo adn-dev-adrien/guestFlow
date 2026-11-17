@@ -1,0 +1,363 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Relevé de versement Mollie joint dans Qonto — résumé de spec</title>
+<style>
+  :root {
+    --primary: #2F5D46; --primary-soft: #E3ECE6;
+    --honey: #C99038; --honey-soft: #F6EDD7;
+    --paper: #F8F5EF; --card: #FFFFFF; --ink: #27251F; --muted: #6E6A5E; --line: #E6E0D4; --sand: #EEE9DF;
+    --success: #3E7D54; --success-soft: #E6EFE7;
+    --error: #A8433A; --error-soft: #F7E8E5;
+    --warning: #8F6A1D; --warning-soft: #F6EDD7;
+    --serif: 'Source Serif 4', 'Iowan Old Style', Charter, Georgia, serif;
+    --sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+    --mono: ui-monospace, 'SF Mono', Menlo, monospace;
+    --radius: 14px;
+    --ease: cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body { margin: 0; background: var(--paper); color: var(--ink); font: 15px/1.55 var(--sans); }
+  :focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; border-radius: 6px; }
+  .wrap { max-width: 1120px; margin: 0 auto; padding: 40px 24px 80px; }
+  h1, h2, h3 { font-family: var(--serif); font-weight: 600; text-wrap: balance; }
+  h1 { font-size: 2.2rem; line-height: 1.1; letter-spacing: -0.02em; margin: 0 0 10px; }
+  h2 { font-size: 1.4rem; line-height: 1.2; letter-spacing: -0.01em; margin: 56px 0 14px; }
+  h3 { font-size: 1.06rem; margin: 0 0 6px; }
+  p { margin: 0 0 12px; max-width: 72ch; }
+  .lede { font-size: 1.06rem; color: var(--muted); max-width: 70ch; }
+  .meta { display: flex; flex-wrap: wrap; gap: 8px; margin: 16px 0 0; }
+  .pill { display: inline-flex; align-items: center; gap: 6px; padding: 4px 11px; border-radius: 999px; background: var(--card); border: 1px solid var(--line); font-size: 13px; color: var(--muted); }
+  .pill.draft { background: var(--warning-soft); border-color: transparent; color: var(--warning); font-weight: 600; }
+  ul.plain { margin: 0; padding-left: 20px; max-width: 74ch; }
+  ul.plain li { margin: 0 0 7px; }
+  .grid2 { display: grid; gap: 20px; grid-template-columns: 1fr; }
+  @media (min-width: 860px) { .grid2 { grid-template-columns: 1fr 1fr; } }
+  .panel { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 20px 22px; }
+  .note { color: var(--muted); font-size: 13.5px; }
+  .num { font-variant-numeric: tabular-nums; }
+  code { font: 13px var(--mono); background: var(--sand); padding: 1px 5px; border-radius: 5px; }
+
+  .stage-bar { display: flex; flex-wrap: wrap; gap: 12px 20px; align-items: center; margin: 0 0 14px; }
+  .label-sm { font-size: 12.5px; color: var(--muted); font-weight: 600; }
+  .seg { display: inline-flex; background: var(--sand); border-radius: 999px; padding: 3px; flex-wrap: wrap; }
+  .seg button { border: 0; background: transparent; font: 600 13px var(--sans); color: var(--muted); padding: 8px 14px; border-radius: 999px; cursor: pointer; min-height: 36px; transition: background 160ms var(--ease), color 160ms var(--ease); }
+  .seg button[aria-pressed="true"] { background: var(--card); color: var(--ink); box-shadow: 0 1px 3px rgba(39,37,31,.12); }
+  .seg button:active { transform: scale(0.97); }
+  .device { background: #E9E3D7; border-radius: 22px; padding: 18px; display: flex; justify-content: center; overflow: hidden; }
+  .screen { width: 100%; max-width: 860px; transition: max-width 420ms var(--ease); }
+  .device.mobile .screen { max-width: 390px; }
+
+  .card { background: var(--card); border-radius: var(--radius); box-shadow: 0 1px 2px rgba(39,37,31,.06), 0 6px 20px rgba(39,37,31,.06); padding: 18px; }
+  .card + .card { margin-top: 14px; }
+  .card-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; margin-bottom: 8px; flex-wrap: wrap; }
+  .card-head h3 { font-size: 1.1rem; margin: 0; }
+  .badge { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; font-weight: 600; padding: 3px 9px; border-radius: 999px; white-space: nowrap; }
+  .badge::before { content: ''; width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+  .b-ok { background: var(--success-soft); color: var(--success); }
+  .b-wait { background: var(--sand); color: var(--muted); }
+  .b-warn { background: var(--warning-soft); color: var(--warning); }
+  .sep { border: 0; border-top: 1px solid var(--line); margin: 16px 0; }
+
+  .switch { display: flex; align-items: center; gap: 10px; font-size: 14px; font-weight: 600; cursor: pointer; min-height: 44px; }
+  .switch input { appearance: none; width: 38px; height: 22px; border-radius: 999px; background: #D6CFC2; position: relative; cursor: pointer; transition: background 160ms var(--ease); margin: 0; flex: none; }
+  .switch input::after { content: ''; position: absolute; top: 2px; left: 2px; width: 18px; height: 18px; border-radius: 50%; background: #fff; box-shadow: 0 1px 2px rgba(0,0,0,.2); transition: transform 200ms var(--ease); }
+  .switch input:checked { background: var(--primary); }
+  .switch input:checked::after { transform: translateX(16px); }
+  .field { display: grid; gap: 4px; margin: 6px 0 12px; }
+  .field label { font-size: 13px; font-weight: 600; }
+  .field input { font: 15px var(--sans); padding: 10px 12px; border: 1px solid #CFC8BA; border-radius: 10px; background: #fff; color: var(--ink); min-height: 44px; width: 100%; max-width: 220px; }
+  .field input:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 3px var(--primary-soft); }
+  .field.bad input { border-color: var(--error); box-shadow: 0 0 0 3px var(--error-soft); }
+  .field .help { font-size: 12.5px; color: var(--muted); }
+  .field.bad .help { color: var(--error); font-weight: 600; }
+  .counters { display: flex; flex-wrap: wrap; gap: 6px 10px; }
+  .hint { display: flex; gap: 10px; align-items: flex-start; padding: 10px 12px; border-radius: 10px; background: var(--warning-soft); color: var(--warning); font-size: 13.5px; font-weight: 600; margin-top: 10px; }
+  .absent { padding: 14px; border: 1px dashed #CFC8BA; border-radius: 12px; color: var(--muted); font-size: 13.5px; }
+  .collapse { display: grid; grid-template-rows: 0fr; transition: grid-template-rows 320ms var(--ease); }
+  .collapse.open { grid-template-rows: 1fr; }
+  .collapse > div { min-height: 0; overflow: hidden; }
+
+  .line { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 6px 16px; padding: 14px 0; border-top: 1px solid var(--line); align-items: center; }
+  .line:first-of-type { border-top: 0; }
+  .line .who { font-weight: 600; }
+  .line .amt { font-weight: 700; font-variant-numeric: tabular-nums; text-align: right; }
+  .line .bar { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+  .ref { display: inline-flex; gap: 6px; font: 12.5px/1.3 var(--mono); color: var(--muted); background: var(--paper); border: 1px solid var(--line); border-radius: 8px; padding: 3px 8px; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .ref b { font-family: var(--sans); color: var(--ink); }
+  .tbtn { border: 0; background: transparent; color: var(--primary); font: 600 13.5px var(--sans); padding: 8px 10px; border-radius: 8px; cursor: pointer; min-height: 40px; }
+  .tbtn:hover { background: var(--primary-soft); }
+  .tbtn:active { transform: scale(0.97); }
+  .err { grid-column: 1 / -1; font-size: 13px; color: var(--warning); }
+  .device.mobile .line .bar { flex-direction: column; align-items: stretch; }
+  .device.mobile .line .bar .tbtn { width: 100%; border: 1px solid var(--line); }
+  .device.mobile .line .bar .badge { align-self: flex-start; }
+
+  /* PDF page */
+  .pdf-wrap { background: #5F5B53; border-radius: 16px; padding: 22px; overflow-x: auto; }
+  .page { background: #fff; width: 760px; margin: 0 auto; padding: 44px 46px 30px; color: #1d1c19; font: 12px/1.45 'Helvetica Neue', Helvetica, Arial, sans-serif; box-shadow: 0 6px 24px rgba(0,0,0,.25); }
+  .page .co { font-size: 11px; color: #555; }
+  .page h4 { font: 700 19px 'Helvetica Neue', Helvetica, Arial, sans-serif; margin: 6px 0 14px; }
+  .page .kv { display: grid; grid-template-columns: 170px 1fr; gap: 3px 10px; margin-bottom: 18px; }
+  .page .kv span:nth-child(odd) { color: #666; }
+  .page table { width: 100%; border-collapse: collapse; font-size: 11px; }
+  .page th { text-align: left; border-bottom: 1.5px solid #1d1c19; padding: 5px 4px; font-weight: 700; }
+  .page td { border-bottom: 1px solid #ddd; padding: 6px 4px; vertical-align: top; }
+  .page td.m, .page th.m { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .page td small { color: #666; display: block; font-family: var(--mono); font-size: 9.5px; }
+  .page tr.tot td { border-top: 1.5px solid #1d1c19; border-bottom: 0; font-weight: 700; }
+  .page .check { margin-top: 12px; padding: 7px 9px; border-radius: 4px; font-weight: 700; }
+  .page .check.ok { background: #E6EFE7; color: #2E6342; }
+  .page .check.ko { background: #F7E8E5; color: #8C3129; }
+  .page .foot { margin-top: 26px; font-size: 9.5px; color: #777; border-top: 1px solid #ddd; padding-top: 6px; }
+
+  .toast { position: fixed; left: 50%; bottom: 24px; transform: translate(-50%, 20px); opacity: 0; background: var(--ink); color: #fff; padding: 10px 16px; border-radius: 10px; font-size: 14px; pointer-events: none; transition: opacity 200ms var(--ease), transform 260ms var(--ease); z-index: 10; max-width: calc(100vw - 32px); }
+  .toast.show { opacity: 1; transform: translate(-50%, 0); }
+  .decisions { display: grid; gap: 12px; }
+  .decision { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 16px 18px; }
+  .decision .q { font-weight: 600; margin-bottom: 4px; }
+  @media (prefers-reduced-motion: reduce) {
+    .screen, .seg button, .switch input, .switch input::after, .collapse, .toast { transition: none; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Le relevé de chaque versement Mollie, joint dans Qonto</h1>
+  <p class="lede">Chaque crédit Mollie sur Qonto (<code>REF T…</code>) reçoit automatiquement un PDF qui l'explique au centime : quels paiements, quelle retenue de 20 % gardée, quelle retenue libérée, quels frais.</p>
+  <div class="meta">
+    <span class="pill">Spec validée le 17/11</span>
+    <span class="pill">specs/mollie-settlement-receipts.md</span>
+    <span class="pill">Plugin Paiements en ligne → 1.9.0</span>
+  </div>
+
+  <h2>Le constat</h2>
+  <div class="grid2">
+    <div class="panel">
+      <h3>Mollie n'expose pas son PDF</h3>
+      <p>L'export PDF que tu télécharges dans le tableau de bord Mollie <strong>n'existe pas dans l'API</strong>. Mesuré le 17/11 : la fiche d'un versement ne répond qu'en JSON, <code>/report</code>, <code>/export</code> et <code>/pdf</code> répondent 404, et le relevé de solde refuse tout autre format que JSON. Les seuls PDF accessibles sont les factures mensuelles des frais.</p>
+      <p class="note">Piloter le tableau de bord avec ton mot de passe et ta double authentification serait fragile et contraire aux conditions de Mollie : écarté.</p>
+    </div>
+    <div class="panel">
+      <h3>Mais l'API donne tout son contenu</h3>
+      <p>Depuis la PR #1067, GuestFlow lit les mouvements du solde Mollie. Un versement, c'est un mouvement <code>outgoing-transfer</code> avec, juste avant, les paiements et les libérations de retenue qui le composent. Pour chacun, l'API donne le brut, la retenue, les frais et le net.</p>
+      <p class="note">Qonto accepte déjà un PDF sur une transaction : le plugin bain hors séjour l'utilise pour ses factures.</p>
+    </div>
+  </div>
+
+  <h2>Ce qu'on propose</h2>
+  <ul class="plain">
+    <li><strong>Un relevé par versement</strong>, fabriqué par GuestFlow à partir des données Mollie, et déposé tout seul sur le crédit Qonto correspondant, une fois par heure après la lecture du compte Mollie.</li>
+    <li><strong>Contrôle au centime avant envoi</strong> : si la somme des lignes ne fait pas exactement le montant crédité, rien n'est envoyé et la ligne passe « À revoir ».</li>
+    <li><strong>Jamais deux fois</strong> : un relevé déposé est mémorisé, et Qonto reçoit une clé d'idempotence.</li>
+    <li><strong>Seulement avec Qonto et Mollie connectés</strong>. Sinon la fonction n'apparaît nulle part.</li>
+    <li><strong>Activée par toi</strong>, à partir d'une date que tu choisis (le 1er du mois par défaut). Tu peux la reculer pour couvrir les anciens versements.</li>
+  </ul>
+
+  <h2>À manipuler : le réglage</h2>
+  <p class="note">Choisis une situation. Active l'interrupteur, puis essaie une date dans le futur pour voir le refus.</p>
+  <div class="stage-bar">
+    <span class="label-sm">Situation</span>
+    <div class="seg" id="scenario">
+      <button type="button" aria-pressed="true" data-v="ok">Qonto et Mollie connectés</button>
+      <button type="button" aria-pressed="false" data-v="noqonto">Mollie sans Qonto</button>
+      <button type="button" aria-pressed="false" data-v="scope">Qonto sans droit pièces jointes</button>
+    </div>
+    <span class="label-sm">Écran</span>
+    <div class="seg" id="dev1">
+      <button type="button" aria-pressed="true" data-v="desk">Ordinateur</button>
+      <button type="button" aria-pressed="false" data-v="mobile">Téléphone</button>
+    </div>
+  </div>
+  <div class="device" id="device1"><div class="screen">
+    <div class="card">
+      <div class="card-head"><h3>Compte Mollie</h3><span class="badge b-ok">Connecté</span></div>
+      <div class="note">Solde Mollie : 149,28 € retenus · lu il y a 12 min</div>
+      <hr class="sep">
+      <div id="stmtSection"></div>
+    </div>
+  </div></div>
+
+  <h2>À manipuler : le rapprochement</h2>
+  <p class="note">Trois crédits Mollie, dans trois états (démarrage au 01/10). Repasse la date au 01/11 dans le réglage : le lot du 29/10 n'est plus concerné. « Voir le relevé » ouvre le PDF ci-dessous ; « Réessayer » relance l'envoi.</p>
+  <div class="stage-bar">
+    <span class="label-sm">Écran</span>
+    <div class="seg" id="dev2">
+      <button type="button" aria-pressed="true" data-v="desk">Ordinateur</button>
+      <button type="button" aria-pressed="false" data-v="mobile">Téléphone</button>
+    </div>
+  </div>
+  <div class="device" id="device2"><div class="screen">
+    <div class="card"><div class="card-head"><h3>Rapprochement · crédits Mollie</h3></div><div id="lines"></div></div>
+  </div></div>
+
+  <h2 id="pdfTitle">Le relevé (PDF A4)</h2>
+  <p class="note">Les noms et identifiants sont fictifs. Le troisième lot est un exemple fictif avec des frais actifs (une fois les 1 000 € offerts consommés) et une libération de retenue.</p>
+  <div class="pdf-wrap"><div class="page" id="page"></div></div>
+
+  <h2>Ce qu'on ne fait pas</h2>
+  <ul class="plain">
+    <li>Récupérer le PDF du tableau de bord Mollie (pas d'API).</li>
+    <li>Joindre les factures mensuelles des frais Mollie.</li>
+    <li>Supprimer ou remplacer une pièce déjà déposée dans Qonto.</li>
+    <li>Les débits Mollie (remboursements, contestations).</li>
+  </ul>
+
+  <h2>Le risque</h2>
+  <ul class="plain">
+    <li><strong>Écrire dans Qonto</strong> : c'est le seul effet extérieur. Il est borné par l'activation explicite, la date de départ, le contrôle au centime et l'idempotence. Au pire, un fichier en trop sur une transaction, à supprimer à la main dans Qonto.</li>
+    <li><strong>Connexion Qonto ancienne</strong> : si elle n'a pas le droit <code>attachment.write</code>, Qonto refuse (403). Les relevés passent « Reconnecter Qonto » et rien d'autre n'est touché.</li>
+    <li><strong>Lecture seule côté Mollie</strong> : aucun nouvel appel Mollie, les mouvements déjà lus suffisent.</li>
+  </ul>
+
+  <h2>Arbitrages tranchés</h2>
+  <div class="decisions">
+    <div class="decision"><div class="q">Q1 — Date de départ proposée à l'activation</div><div>Le 1er du mois en cours (validé le 17/11), modifiable. Les versements plus anciens ne reçoivent rien sauf si tu recules la date.</div></div>
+    <div class="decision"><div class="q">Q2 — Noms des clients sur le relevé</div><div>Oui (validé le 17/11) : le PDF ne va que dans ton propre Qonto, et le comptable relie ainsi chaque ligne à une réservation.</div></div>
+  </div>
+</div>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<script>
+(() => {
+  const eur = (c) => (c / 100).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €';
+  const $ = (id) => document.getElementById(id);
+  const toast = (msg) => { const t = $('toast'); t.textContent = msg; t.classList.add('show'); clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove('show'), 2200); };
+  const today = '2026-11-17';
+  const segs = (id, cb) => $(id).addEventListener('click', (e) => {
+    const b = e.target.closest('button'); if (!b) return;
+    [...$(id).children].forEach((x) => x.setAttribute('aria-pressed', String(x === b))); cb(b.dataset.v);
+  });
+  segs('dev1', (v) => $('device1').classList.toggle('mobile', v === 'mobile'));
+  segs('dev2', (v) => $('device2').classList.toggle('mobile', v === 'mobile'));
+
+  const lots = [
+    { id: 'l1', ref: '10000001.2910.01', stl: 'stl_Fk2aR8', iso: '2026-10-29', date: '29/10/2026', credit: 58592, state: 'attached',
+      rows: [{ d: '28/10', kind: 'Paiement', tr: 'tr_7QmZp3LkX2', desc: 'pl_8c41…e2', who: 'Martin · résa 2026100121', gross: 73240, hold: 14648, fee: 0 }] },
+    { id: 'l2', ref: '10000001.1011.01', stl: 'stl_Wq93Bd', iso: '2026-11-10', date: '10/11/2026', credit: 1120, state: 'pending',
+      rows: [{ d: '09/11', kind: 'Paiement', tr: 'tr_hK4p9oX2', desc: 'F-2026-013', who: 'Durand · résa 2026110043', gross: 1400, hold: 280, fee: 0 }] },
+    { id: 'l3', ref: '10000001.1411.01', stl: 'stl_Zx71Lm', iso: '2026-11-14', date: '14/11/2026', credit: 44750, state: 'mismatch',
+      rows: [
+        { d: '12/11', kind: 'Paiement', tr: 'tr_Pq20sNa8', desc: 'pl_51aa…07', who: 'Bernard · résa 2026120118', gross: 40000, hold: 8000, fee: 585 },
+        { d: '13/11', kind: 'Libération de retenue', tr: 'tr_bE7c1Yw0', desc: 'pl_0f3d…9b', who: 'Petit · résa 2026110089', release: 3936 },
+        { d: '13/11', kind: 'Paiement', tr: 'tr_Hn5g2Ur4', desc: 'F-2026-021', who: 'Robert · résa 2026120131', gross: 12000, hold: 2400, fee: 193 },
+      ] },
+  ];
+  const netOf = (r) => r.release ? r.release : r.gross - r.hold - r.fee;
+  const totals = (lot) => lot.rows.reduce((t, r) => ({
+    gross: t.gross + (r.gross || 0), hold: t.hold + (r.hold || 0), rel: t.rel + (r.release || 0), fee: t.fee + (r.fee || 0), net: t.net + netOf(r),
+  }), { gross: 0, hold: 0, rel: 0, fee: 0, net: 0 });
+
+  let scenario = 'ok';
+  let since = '';
+  let sinceBad = '';
+  const chip = (lot) => {
+    if (lot.iso < since) return '<span class="badge b-wait">Avant la date de départ</span>';
+    if (scenario === 'scope' && lot.state !== 'attached') return '<span class="badge b-warn">Reconnecter Qonto</span>';
+    if (lot.state === 'attached') return '<span class="badge b-ok">Relevé joint</span>';
+    if (lot.state === 'pending') return '<span class="badge b-wait">Relevé en attente</span>';
+    const t = totals(lot); return `<span class="badge b-warn">À revoir : écart de ${eur(Math.abs(t.net - lot.credit))}</span>`;
+  };
+
+  function renderSettings() {
+    const el = $('stmtSection');
+    if (scenario === 'noqonto') {
+      el.innerHTML = '<div class="absent">Rien ici : sans Qonto connecté, la section « Relevés dans Qonto » n\'existe pas. Le rapprochement non plus.</div>';
+      return;
+    }
+    const on = since !== '';
+    const inScope = lots.filter((l) => l.iso >= since);
+    const n = (st) => inScope.filter((l) => (scenario === 'scope' && l.state !== 'attached' ? 'review' : (l.state === 'mismatch' ? 'review' : l.state)) === st).length;
+    const counts = [['attached', 'b-ok', 'joint'], ['pending', 'b-wait', 'en attente'], ['review', 'b-warn', 'à revoir']]
+      .map(([st, cls, label]) => (n(st) ? `<span class="badge ${cls}">${n(st)} ${label}</span>` : '')).join('') || '<span class="badge b-wait">Aucun versement depuis cette date</span>';
+    el.innerHTML = `
+      <h3>Relevés dans Qonto</h3>
+      <label class="switch"><input type="checkbox" id="sw" ${on ? 'checked' : ''}> Joindre le relevé de chaque versement Mollie dans Qonto</label>
+      <div class="collapse ${on ? 'open' : ''}"><div>
+        <div class="field ${sinceBad ? 'bad' : ''}">
+          <label for="since">À partir du</label>
+          <input type="date" id="since" value="${since}" max="${today}">
+          <span class="help">${sinceBad || 'Les versements crédités avant cette date ne reçoivent rien.'}</span>
+        </div>
+        <div class="counters">${counts}</div>
+        ${scenario === 'scope' ? '<div class="hint">Qonto refuse les pièces jointes : reconnecter Qonto pour joindre les relevés.</div>' : ''}
+      </div></div>`;
+    $('sw').addEventListener('change', (e) => {
+      since = e.target.checked ? '2026-11-01' : ''; sinceBad = '';
+      renderSettings(); renderLines();
+      toast(e.target.checked ? 'Activé à partir du 01/11/2026.' : 'Désactivé : plus aucun envoi.');
+    });
+    const inp = $('since');
+    if (inp) inp.addEventListener('change', (e) => {
+      const v = e.target.value;
+      if (!v) { sinceBad = 'Une date est nécessaire tant que l\'envoi est activé.'; }
+      else if (v > today) { sinceBad = 'La date ne peut pas être dans le futur.'; }
+      else { sinceBad = ''; since = v; renderLines(); toast('Enregistré.'); }
+      renderSettings();
+    });
+  }
+
+  function renderLines() {
+    const el = $('lines');
+    if (scenario === 'noqonto') { el.innerHTML = '<div class="absent">Sans Qonto, pas de transactions bancaires : rien à rapprocher, rien à joindre.</div>'; return; }
+    el.innerHTML = lots.map((lot) => {
+      const before = lot.iso < since;
+      const retry = !before && scenario === 'scope' ? lot.state !== 'attached' : lot.state === 'mismatch';
+      const t = totals(lot);
+      const err = !before && lot.state === 'mismatch' && scenario !== 'scope'
+        ? `<div class="err">Les lignes du lot font ${eur(t.net)}, Qonto a crédité ${eur(lot.credit)} : rien n'a été envoyé.</div>` : '';
+      return `<div class="line">
+        <div><div class="who">Mollie · ${lot.date}</div><div class="note">${lot.rows.length} ligne${lot.rows.length > 1 ? 's' : ''}</div></div>
+        <div class="amt">+${eur(lot.credit)}</div>
+        <div class="bar">
+          <span class="ref"><b>Lot Mollie</b>${lot.ref}</span>
+          ${since ? chip(lot) : '<span class="badge b-wait">Relevés désactivés</span>'}
+          <button class="tbtn" data-view="${lot.id}">Voir le relevé</button>
+          ${since && retry ? `<button class="tbtn" data-retry="${lot.id}">Réessayer</button>` : ''}
+        </div>${since ? err : ''}</div>`;
+    }).join('');
+  }
+  $('lines').addEventListener('click', (e) => {
+    const v = e.target.closest('[data-view]'); const r = e.target.closest('[data-retry]');
+    if (v) { renderPdf(v.dataset.view); $('pdfTitle').scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' }); }
+    if (r) {
+      const lot = lots.find((l) => l.id === r.dataset.retry);
+      if (scenario === 'scope') { toast('Qonto refuse encore : reconnecter Qonto d\'abord.'); return; }
+      toast(`Toujours un écart de ${eur(Math.abs(totals(lot).net - lot.credit))} : rien n'est envoyé.`);
+    }
+  });
+
+  function renderPdf(id) {
+    const lot = lots.find((l) => l.id === id); const t = totals(lot); const ok = t.net === lot.credit;
+    $('page').innerHTML = `
+      <div class="co">Domaine Exemple SAS</div>
+      <h4>Relevé de versement Mollie</h4>
+      <div class="kv">
+        <span>Référence du lot</span><span>${lot.ref}</span>
+        <span>Identifiant Mollie</span><span>${lot.stl}</span>
+        <span>Crédit Qonto</span><span>${lot.date} · REF T${lot.ref}</span>
+        <span>Montant crédité</span><span><b>${eur(lot.credit)}</b></span>
+      </div>
+      <table>
+        <thead><tr><th>Date</th><th>Nature</th><th>Client · réservation</th><th class="m">Brut</th><th class="m">Retenue</th><th class="m">Frais</th><th class="m">Net</th></tr></thead>
+        <tbody>
+        ${lot.rows.map((r) => `<tr><td>${r.d}</td><td>${r.kind}<small>${r.tr}</small></td><td>${r.who}<small>${r.desc}</small></td>
+          <td class="m">${r.release ? '—' : eur(r.gross)}</td><td class="m">${r.release ? '+' + eur(r.release) : '−' + eur(r.hold)}</td>
+          <td class="m">${r.release ? '—' : (r.fee ? '−' + eur(r.fee) : eur(0))}</td><td class="m">${eur(netOf(r))}</td></tr>`).join('')}
+        <tr class="tot"><td colspan="3">Total</td><td class="m">${eur(t.gross)}</td><td class="m">−${eur(t.hold)}${t.rel ? '<br>+' + eur(t.rel) : ''}</td><td class="m">−${eur(t.fee)}</td><td class="m">${eur(t.net)}</td></tr>
+        </tbody>
+      </table>
+      <div class="check ${ok ? 'ok' : 'ko'}">${ok ? `Total net = montant crédité (${eur(lot.credit)}).` : `Écart : lignes ${eur(t.net)} ≠ crédit ${eur(lot.credit)}. Ce relevé n'est pas envoyé à Qonto.`}</div>
+      <div class="foot">Établi par GuestFlow à partir des données de l'API Mollie · 17/11/2026 10:00</div>`;
+  }
+
+  segs('scenario', (v) => { scenario = v; renderSettings(); renderLines(); });
+  since = '2026-10-01';
+  renderSettings(); renderLines(); renderPdf('l3');
+})();
+</script>
+</body>
+</html>
