@@ -149,15 +149,31 @@ function noteExcessByKey(db, reservationId) {
 function refundedLoweredLines(db, reservationId) {
   const id = Number(reservationId);
   const row = db.prepare('SELECT * FROM reservations WHERE id = ?').get(id);
+  const listed = [...refundedNoteLines(db, row), ...refundedStayLines(db, row)];
+  return listed.filter((line, index) => listed.findIndex((other) => other.key === line.key) === index);
+}
+
+function refundedNoteLines(db, row) {
   const notes = row ? claimsByKeyCents(row) : {};
   if (!Object.keys(notes).length) return [];
   const refunded = refundedClaimedCents(db, row);
   if (refunded <= 0) return [];
-  const facts = lineFactsOf(db, id);
+  const facts = lineFactsOf(db, row.id);
   const unclaimed = unclaimedCents(notes, facts);
   return Object.entries(notes)
     .filter(([key, paid]) => facts[key] && paid - netOf(facts[key]) > 0 && unclaimed - (paid - netOf(facts[key])) < refunded)
     .map(([key]) => ({ key, table: facts[key].table, lineId: Number(facts[key].lineId) }));
+}
+
+// Loop t9 B9-4 — a line the paid acompte or solde carried whose freed money is more than the stay still holds (`stayRefundGuard`).
+function refundedStayLines(db, row) {
+  const guard = stayRefundGuard(db, row);
+  if (!guard) return [];
+  const facts = lineFactsOf(db, row.id);
+  const keyOf = new Map(Object.entries(facts).map(([key, fact]) => [`${fact.table}:${Number(fact.lineId)}`, key]));
+  return stayFreedLines(db, row.id)
+    .filter((line) => line.cents > guard.held && keyOf.has(`${line.table}:${line.lineId}`))
+    .map((line) => ({ key: keyOf.get(`${line.table}:${line.lineId}`), table: line.table, lineId: line.lineId }));
 }
 
 // reception-role-checkin-only rule 18 (loop t8 A8-1) — the paid lines whose freed money is owed back right now (an open `lineLowered`
@@ -173,11 +189,62 @@ function holdLowered(db, reservationId, cents) {
   if (obligations.ready()) obligations.trimLowered(Number(reservationId), cents);
 }
 
+// Rule 108, reading of 2026-11-16 (loop t9 B9-4) — the same refusal for the stay's OWN money: a line the paid acompte or solde carried
+// (its captured `acompteContribTtc` / `soldeContribTtc`), offered or discounted, the trop-perçu it left refunded, then charged again. The
+// money that would pay it again is what the stay still holds beyond its total (the trop-perçu formula); what a write claims back beyond
+// that was given back already: the guest would keep the line AND the money. Only on a direct stay a refund on the trop-perçu gave its own
+// money back on (a platform's solde is the platform's, rule 38).
+const CONTRIB_TABLES = [['reservation_options', 'option', 'totalPrice'], ['reservation_resources', 'resource', 'totalPrice'], ['reservation_custom_options', 'custom', 'amount']];
+// Per line the paid acompte and solde carried: what they captured on it beyond what it charges now. → [{ table, lineId, cents }]
+function stayFreedLines(db, id, lineDiscounts = null) {
+  const row = db.prepare('SELECT depositPaid, balancePaid FROM reservations WHERE id = ?').get(id);
+  if (!row) return [];
+  // A line discount the save carries is stored after it (`lineDiscounts`, by line key): weighed here already, as `factsWith` does.
+  const carried = new Map();
+  if (lineDiscounts && typeof lineDiscounts === 'object') {
+    const facts = lineFactsOf(db, id);
+    for (const [key, cents] of Object.entries(lineDiscounts)) {
+      if (facts[key]) carried.set(`${facts[key].table}:${Number(facts[key].lineId)}`, Math.max(0, Math.round(Number(cents) || 0)));
+    }
+  }
+  const out = [];
+  for (const [table, short, total] of CONTRIB_TABLES) {
+    const columns = new Set(db.prepare(`PRAGMA table_info(${table})`).all().map((c) => c.name));
+    if (!columns.has('soldeContribTtc') || !columns.has('acompteContribTtc') || !columns.has('lineId')) continue;
+    const discount = columns.has('discountCents') ? 'discountCents' : '0 AS discountCents';
+    for (const line of db.prepare(`SELECT lineId, ${total} AS total, offered, ${discount}, acompteContribTtc, soldeContribTtc FROM ${table} WHERE reservationId = ?`).all(id)) {
+      const contrib = (Number(row.depositPaid || 0) === 1 ? toCents(line.acompteContribTtc) : 0) + (Number(row.balancePaid || 0) === 1 ? toCents(line.soldeContribTtc) : 0);
+      const discount = carried.has(`${short}:${Number(line.lineId)}`) ? carried.get(`${short}:${Number(line.lineId)}`) : Math.max(0, Number(line.discountCents || 0));
+      const net = Number(line.offered || 0) === 1 ? 0 : Math.max(0, toCents(line.total) - discount);
+      if (contrib - net > 0) out.push({ table: short, lineId: Number(line.lineId), cents: contrib - net });
+    }
+  }
+  return out;
+}
+const stayFreedCents = (db, id, lineDiscounts = null) => stayFreedLines(db, id, lineDiscounts).reduce((sum, line) => sum + line.cents, 0);
+
+function stayRefundGuard(db, row) {
+  if (!row || !isDirectChannel(row.platform)) return null;
+  const tables = db.prepare("SELECT COUNT(*) AS n FROM sqlite_master WHERE type = 'table' AND name IN ('reservation_refunds', 'reservation_refund_lines')").get().n;
+  if (tables !== 2) return null;
+  const refundsModel = require('../models/refundsModel').createModel(db);
+  const refundedStay = Math.round(refundsModel.overpaymentRefundedTtc(row.id) * 100) - refundedLoweredCents(db, row.id);
+  if (refundedStay <= 0) return null;
+  const { overpaymentContext } = require('../models/refundInputModel');
+  const { overpayment } = require('./pricing/refunds/overpayment');
+  const ctx = overpaymentContext(db, row.id);
+  return { freed: stayFreedCents(db, row.id), held: ctx ? overpayment(ctx).cents : 0 };
+}
+
 function begin(db, reservationId) {
   const id = Number(reservationId);
   const row = db.prepare('SELECT * FROM reservations WHERE id = ?').get(id);
+  const stayGuard = stayRefundGuard(db, row);
+  const refusedOnStayMoney = (lineDiscounts = null) => stayGuard && stayGuard.freed - stayFreedCents(db, id, lineDiscounts) > stayGuard.held;
   const notes = row ? claimsByKeyCents(row) : {};
-  if (!row || !Object.keys(notes).length) return { finish: () => null };
+  if (!row || !Object.keys(notes).length) {
+    return { finish: ({ lineDiscounts = null } = {}) => (refusedOnStayMoney(lineDiscounts) ? { status: 409, body: { error: LINE_REFUNDED, code: 'LINE_REFUNDED' } } : null) };
+  }
   const facts = lineFactsOf(db, id);
   const paidLines = Object.keys(notes).filter((key) => facts[key]).map((key) => ({ key, table: facts[key].table, lineId: Number(facts[key].lineId) }));
   const before = {
@@ -192,6 +259,7 @@ function begin(db, reservationId) {
       const unclaimedAfter = unclaimedCents(claimsByKeyCents(after), factsWith(db, id, lineDiscounts));
       // Rule 108 — a note claiming again what a refund gave back: the line is sold anew, never put back.
       if (unclaimedAfter < before.unclaimed && unclaimedAfter < before.refunded) return { status: 409, body: { error: LINE_REFUNDED, code: 'LINE_REFUNDED' } };
+      if (refusedOnStayMoney(lineDiscounts)) return { status: 409, body: { error: LINE_REFUNDED, code: 'LINE_REFUNDED' } };
       // Reception-role-checkin-only rule 18 (loop t8 A8-1) — a reception write never bills again a paid line whose money is owed back.
       if (holdOwed) {
         const excessAfter = noteExcessByKey(db, id);
@@ -202,7 +270,15 @@ function begin(db, reservationId) {
       // A trop-perçu the save is about to ask confirmation of (409 OVERPAID) is that refusal's: once confirmed, it is owed back.
       if (overpaid) return null;
       const freed = unclaimedAfter - before.unclaimed;
-      if (freed <= 0) return null;
+      if (freed <= 0) {
+        // Loop t9 (B9-3 follow-up) — no paid line freed money, yet the stay now holds more beyond its total: a line rule 104's credit had paid
+        // was offered, lowered or removed, and the credit comes back. It is owed back again as it was before that line took it — up to what
+        // the claims still hold unclaimed (`noteExcessCents`), never more. On a platform stay the register is the only face of that money.
+        const owedNow = openLoweredCents(db, id);
+        const regained = Math.min(unabsorbedCents(after) - before.unabsorbed - (owedNow - before.owed), noteExcessCents(db, id, lineDiscounts) - owedNow);
+        if (regained > 0) holdLowered(db, id, owedNow + regained);
+        return null;
+      }
       const owed = openLoweredCents(db, id);
       const gap = Math.min(freed, unabsorbedCents(after) - before.unabsorbed - (owed - before.owed));
       if (gap <= 0) return null;
@@ -336,7 +412,8 @@ function wayBack(db, reservationId, { quoteOf, billedCents = null, midStay = nul
 function reopenedCredit(db, reservationId, { quoteOf, midStay = null } = {}) {
   const id = Number(reservationId);
   const row = db.prepare('SELECT * FROM reservations WHERE id = ?').get(id);
-  if (!row || !Object.keys(notesByKeyCents(row)).length) return { settle: () => 0 };
+  // Loop t9 B9-2 (rule 121) — the stay's own over-collected money given back by the deleted refund is credit again too, not only a note's.
+  if (!row) return { settle: () => 0 };
   const before = { owed: openLoweredCents(db, id), credit: creditOf(quoteOf, row) };
   return {
     settle() {
@@ -352,5 +429,5 @@ function reopenedCredit(db, reservationId, { quoteOf, midStay = null } = {}) {
 
 module.exports = {
   begin, wayBack, reopenedCredit, notesOnKey, noteExcessCents, noteExcessByKey, refundedLoweredLines, refundedLoweredCents, platformComplementClaims,
-  owedBackByKey, PAID_LINE_REMOVED, LINE_REFUNDED,
+  owedBackByKey, settledLoweredCents, PAID_LINE_REMOVED, LINE_REFUNDED,
 };

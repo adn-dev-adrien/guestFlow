@@ -86,7 +86,9 @@ function currentByPoste(quote = {}) {
  *   complement carried on each poste beyond what the stay's complement now carries
  * @returns {Array<{ bucket, label, amountTtc, collectedTtc, dueTtc }>} one line per poste in excess
  */
-function overpaymentLinesOf({ row = {}, capturedByPoste = {}, quote = {}, overpaymentTtc = 0, complementLeft = {}, leftover = {}, received = null }) {
+function overpaymentLinesOf({
+  row = {}, capturedByPoste = {}, quote = {}, overpaymentTtc = 0, complementLeft = {}, leftover = {}, received = null, complementCaptured = null,
+}) {
   const total = round2(overpaymentTtc);
   if (!(total > 0)) return [];
   // Rule 47 — a bucket paid with several methods collected on each poste its share of what it received.
@@ -126,7 +128,10 @@ function overpaymentLinesOf({ row = {}, capturedByPoste = {}, quote = {}, overpa
     add(complementExcessPoste(quote), remaining);
     return lines;
   }
-  return scheduleLines({ row, capturedByPoste: byPoste, quote, total, leftover });
+  // Loop t9 B9-2 — a direct stay's collected arrival complement paid its own lines (`complementCaptured`, its frozen split by poste): what
+  // the stay is due on a poste is paid by the acompte, the solde AND that complement, so a solde line offered next to lines the complement
+  // collected leaves its money on its own poste, never on the accommodation.
+  return scheduleLines({ row, capturedByPoste: byPoste, quote, total, leftover, complementCaptured });
 }
 
 function receivedByPoste(capturedByPoste, received) {
@@ -149,12 +154,13 @@ function complementExcessPoste(quote) {
   return { bucket: 'accommodation', label: POSTES[0].label };
 }
 
-function scheduleLines({ row, capturedByPoste, quote, total, leftover = {} }) {
+function scheduleLines({ row, capturedByPoste, quote, total, leftover = {}, complementCaptured = null }) {
   const paid = (flag, cash) => Number(flag || 0) === 1 || Number(cash || 0) === 1;
-  const sources = [
+  const schedule = [
     paid(row.depositPaid, row.depositPaidCash) ? (capturedByPoste || {}).deposit : null,
     paid(row.balancePaid, row.balancePaidCash) ? (capturedByPoste || {}).balance : null,
   ].filter(Boolean);
+  const sources = schedule.length && complementCaptured ? [...schedule, complementCaptured] : schedule;
   const due = currentByPoste(quote);
   const lines = POSTES.map(({ bucket, label }) => {
     const collectedTtc = round2(sources.reduce((sum, s) => sum + Number(s[bucket] || 0), 0));

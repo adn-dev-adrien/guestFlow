@@ -104,6 +104,7 @@ const { grossOf } = require('../utils/pricing/platformPayment');
 const refundObligations = require('../models/refundObligationsModel');
 const { overpaymentContext, postesLeft } = require('../models/refundInputModel');
 const { readSplitReceived } = require('../utils/splitReceived');
+const { readComplementPaidSplit } = require('../utils/complementPaidSplit');
 const { firstSessionConflict, conflictError: sessionConflictError, sessionKey } = require('../utils/resourceSessionConflicts');
 const resourceOtherUsesModel = require('../models/resourceOtherUsesModel');
 const { formatCurrency } = require('../utils/devisHelpers');
@@ -492,7 +493,7 @@ function overpaymentIntroducedBy(reservationId, quote, overrides = {}) {
   const cashCents = cashNoteExcessCents(db, reservationId, { quote });
   const overpaymentMethod = refundMeansOf(row, round2(quote.complementCollectedExcessTtc), after, cashCents);
   const overpaymentLines = overpaymentLinesOf({
-    row, capturedByPoste: model.capturedScheduleContribsByPoste(reservationId), quote, overpaymentTtc: after, received,
+    row, capturedByPoste: model.capturedScheduleContribsByPoste(reservationId), quote, overpaymentTtc: after, received, complementCaptured: complementCapturedOf(row),
     // Computed before the write: the stored lines are still the ones the complement collected.
     complementLeft: Number(quote.complementCollectedExcessTtc) > 0 ? complementLeftOf(reservationId, quote, row) : {},
     leftover: leftOfStayOf(reservationId, row, quote),
@@ -601,12 +602,26 @@ function refundMeansOf(row, complementExcess, overpaymentTtc, cashNoteCents = 0)
 // The trop-perçu `overpaymentTtc` of a stay, with its refund means and its split by poste, the quote being
 // the stay as it would be saved (or as it is stored).
 // Loop t7 B7-3 (rule 112) — `overpaymentCash`, when cash notes took only part of it: that part is proposed « caisse interne », the rest after.
+// Loop t9 B9-2 — what a direct stay's collected arrival complement collected per poste (its frozen split), in euros; null when not collected,
+// adjusted (no split) or on a platform stay (its complement is a claim, `leftOfStayOf`).
+function complementCapturedOf(row) {
+  if (!row || !isDirectChannel(row.platform)) return null;
+  if (Number(row.complementPaid || 0) !== 1 && Number(row.complementPaidCash || 0) !== 1) return null;
+  const split = readComplementPaidSplit(row);
+  if (!split) return null;
+  return {
+    accommodation: Number(split.accommodationCents || 0) / 100, options: Number(split.optionsCents || 0) / 100,
+    resources: Number(split.resourcesCents || 0) / 100, touristTax: Number(split.taxCents || 0) / 100,
+  };
+}
+
 function overpaymentResultOf(reservationId, row, quote, overpaymentTtc, { storedOnly = false } = {}) {
   const complementExcess = round2(quote.complementCollectedExcessTtc);
   const cashCents = overpaymentTtc > 0 ? cashNoteExcessCents(db, reservationId) : 0;
   const overpaymentMethod = refundMeansOf(row, complementExcess, overpaymentTtc, cashCents);
   const overpaymentLines = overpaymentLinesOf({
     row, capturedByPoste: model.capturedScheduleContribsByPoste(reservationId), quote, overpaymentTtc, received: readSplitReceived(db, reservationId),
+    complementCaptured: complementCapturedOf(row),
     complementLeft: complementExcess > 0 && overpaymentTtc > 0 ? complementLeftOf(reservationId, quote, row) : {},
     leftover: overpaymentTtc > 0 ? leftOfStayOf(reservationId, row, quote, { storedOnly }) : {},
   });
@@ -2041,11 +2056,17 @@ function pinStoredRouting(body, routing, newLineInComplement = false) {
     if (stored !== undefined) return { ...rest, inComplement: stored };
     return newLineInComplement ? { ...rest, inComplement: 1 } : rest;
   };
+  // Rule 85 (loop t9 B9-5) — each body line takes its OWN stored routing (by `lineId`); two lines of one article never share one pin.
+  const storedOf = (line, byLine, byArticle, articleId) => {
+    if (line.newLine) return undefined;
+    if (line.lineId != null && byLine && byLine.has(Number(line.lineId))) return byLine.get(Number(line.lineId));
+    return byArticle.get(Number(articleId));
+  };
   if (Array.isArray(body.options)) {
-    body.options = body.options.map((o) => pin(o, o.newLine ? undefined : routing.options.get(Number(o.optionId))));
+    body.options = body.options.map((o) => pin(o, storedOf(o, routing.optionLines, routing.options, o.optionId)));
   }
   if (Array.isArray(body.resources)) {
-    body.resources = body.resources.map((r) => pin(r, r.newLine ? undefined : routing.resources.get(Number(r.resourceId))));
+    body.resources = body.resources.map((r) => pin(r, storedOf(r, routing.resourceLines, routing.resources, r.resourceId)));
   }
   if (Array.isArray(body.customOptions)) {
     const matches = matchStoredCustomLines(body.customOptions, routing.customs);

@@ -18,7 +18,7 @@ const step = {
     'midStayRemainingTotal', 'midStaySettledNotes', 'midStaySettledTotal', 'midStayTotal', 'midStayUnforced',
     'paidSoldeCaptured', 'paymentLedger', 'platform', 'platformGrossPin', 'platformPayoutDueDays',
     'platformTakesDeposit', 'quoteKind', 'settings', 'startDate', 'totalStayPrice', 'touristTaxAddedGuestsAmount',
-    'touristTaxInComplement', 'touristTaxTotal', 'validUntil', 'clock',
+    'touristTaxInComplement', 'touristTaxTotal', 'validUntil', 'clock', 'refundedStayCredit',
   ],
   provides: [
     'accommodationPreArrival', 'autoComplementAmount', 'autoDepositAmount', 'balanceDueDate',
@@ -37,7 +37,7 @@ const step = {
       midStayExtras, midStayRemainingTotal, midStaySettledNotes, midStaySettledTotal, midStayTotal,
       midStayUnforced, paidSoldeCaptured, paymentLedger, platform, platformGrossPin,
       platformPayoutDueDays, platformTakesDeposit, quoteKind, settings, startDate, totalStayPrice,
-      touristTaxAddedGuestsAmount, touristTaxInComplement, touristTaxTotal, validUntil,
+      touristTaxAddedGuestsAmount, touristTaxInComplement, touristTaxTotal, validUntil, refundedStayCredit,
     } = ctx;
     const { bookingDate, existingDepositDueDate } = ctx.clock;
 
@@ -74,7 +74,7 @@ const step = {
       overrides: { depositAmountOverride, complementAmountOverride },
       receipts: {
         depositPaid, balancePaid, complementPaid, depositAmount, balanceAmount, complementAmount, existingDepositDueDate,
-        paidSoldeCaptured, endOfStayComplementSettled,
+        paidSoldeCaptured, endOfStayComplementSettled, refundedStayCredit,
       },
       ledger: { splitReceived, installmentPlan: installmentPlanRead },
     });

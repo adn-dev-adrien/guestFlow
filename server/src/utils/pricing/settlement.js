@@ -234,6 +234,34 @@ function lessRefundedCredit(split, refunded) {
 }
 
 /**
+ * specs/pricing-components.md rule 116, reading of 2026-11-16 (loop t9 B9-3) — a platform stay's collected arrival complement claims what it
+ * collected on each line (`claims`: `complementPaidSplit.lines`, `{ key, cents, label }`), exactly as a note does: what it collected on a line
+ * beyond what the line charges now (`lines`, the engine's) is credit too, less what a refund on the trop-perçu already gave back of it
+ * (`refunded`, euros). Exposed apart (`complementUnclaimed`, its labels `complementUnclaimedLabels`): the schedule bounds it by what the
+ * collected complement holds beyond what is routed to it now — the split is a proportional cut of the money, never a line's exact price —
+ * then credits it to what is still due as rule 104 credits a note's.
+ */
+function withComplementClaims(split, { claims, refunded = 0, lines = [] } = {}) {
+  if (!split || !Array.isArray(claims) || !claims.length) return split;
+  const current = {};
+  for (const line of lines || []) {
+    const key = line ? extraLineKey(line) : null;
+    if (key) current[key] = round2((current[key] || 0) + (Number(line.offered || 0) === 1 ? 0 : round2(line.totalPrice)));
+  }
+  const claimed = {};
+  const labelOf = {};
+  for (const claim of claims) {
+    if (!claim || !claim.key) continue;
+    claimed[claim.key] = round2((claimed[claim.key] || 0) + Number(claim.cents) / 100);
+    labelOf[claim.key] = String(claim.label || '').trim();
+  }
+  const freedKeys = Object.keys(claimed).filter((key) => claimed[key] - (current[key] || 0) > 0);
+  const credit = round2(freedKeys.reduce((sum, key) => sum + claimed[key] - (current[key] || 0), 0) - (Number(refunded) || 0));
+  if (!(credit > 0)) return split;
+  return { ...split, complementUnclaimed: credit, complementUnclaimedLabels: freedKeys.map((key) => labelOf[key]).filter(Boolean) };
+}
+
+/**
  * One ready-to-store end-of-stay detail line. Whole units → « 2 × 12 € = 24 € »; anything else
  * (a partially settled line, a rounded price) stays a flat amount rather than showing a misleading
  * « × ». Shared by the split and by the settle/cancel transactions so a line looks the same
@@ -736,6 +764,7 @@ module.exports = {
   splitFromStoredLines,
   resolveMidStaySplit,
   lessRefundedCredit,
+  withComplementClaims,
   buildMidStayLine,
   parseNotes,
   parseDetail,

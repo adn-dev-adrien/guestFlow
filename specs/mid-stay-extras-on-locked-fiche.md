@@ -87,6 +87,9 @@ arrival stays frozen, and everything else on the fiche stays locked.
    sale goes to the end-of-stay complement whatever its routing, so the switch would do nothing but
    confuse). The bed-count sub-block of a bed-linen option follows its line: frozen if the linen was
    sold at arrival, editable if the linen option is added during the stay.
+   _Reading of 2026-11-16 (pricing-components rule 85, loop t9 B9-5):_ the routing the save carries back
+   is each LINE's own (by `lineId`): two lines of one article — one in the paid solde, one sold at the
+   arrival — keep their own flag; the article's flag is only the fallback of a line sent without `lineId`.
 
 ### 3.3 Server enforcement
 
