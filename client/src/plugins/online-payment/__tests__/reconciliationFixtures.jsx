@@ -11,6 +11,7 @@ export const item = (over = {}) => ({
   key: '7|balance',
   reservation: { id: 7, clientName: 'Luca Rossi', propertyName: 'Estiva', platform: 'Booking', platformDisplay: 'Booking', reservationNumber: '1234567890' },
   ledgerKey: 'balance', label: 'Versement Booking', channel: 'platform:Booking',
+  expectedWording: 'La fiche attend', clientHeading: 'Luca Rossi',
   expectedCents: 59658, expectedDateLabel: '18/11', paid: false, paidDate: null,
   state: 'waiting', stateLabel: 'Attendu', tone: 'neutral', isGap: false, gapCents: 0, receivedCents: 0,
   fixText: null, bank: [], proposal: null, alternatives: [], canUndo: false, ...over,

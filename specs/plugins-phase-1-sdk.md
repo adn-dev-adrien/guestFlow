@@ -677,7 +677,7 @@ Optional: a plugin that declares nothing reads « Actif ».
     only refund-register exposure of 2.31.0. *(Reading of 2026-11-17, loop t10 A10-2:* `refundObligationsModel` (`open`, `openFor`) was removed from
     the unreleased 2.31.0 before it shipped: nothing consumed it, and its `open` was a raw insert into the refund register that would let a plugin
     open an obligation outside `paidLineJudgment` and the refund dialog's judgment.)
-    Tests: `pricing-money-variants`, `plugin-core-hardening-floor`, `plugins-sdk-core-module-floor`.
+    Tests: `pricing-money-variants`, `plugin-core-hardening-floor`, `plugins-sdk-core-module-floor`, `mollie-cents-shared-helper` (2, the Mollie client reads cents through the shared helper).
 54. *(Added 2026-11-15, end review R3-3, R3-10, R3-11; specs/pricing-components.md rules 53, 74, 86, specs/outside-booking-sas.md rules 35-42,
     SDK 2.32.0.)* **A plugin sells outside a stay, and suggests articles, through the core.** SDK 2.32.0 adds `coreModule('standaloneSale')`
     (quote / sell / offerLine / removeLine / pay / cancel / receive / documentOf / paymentsOf of a document with no reservation),

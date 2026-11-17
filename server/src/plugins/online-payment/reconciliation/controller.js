@@ -316,6 +316,9 @@ function createReconciliationController({ db, settings, transactions, model, wri
         key: k,
         reservation: { ...r.reservation, platformDisplay: core.platformDisplay(r.reservation.platform) },
         ledgerKey: r.ledgerKey, label: r.label, channel: r.channel,
+        // A sale outside a stay has no fiche to wait on and, without a client, no name besides its label (loop t11 UI11-2).
+        expectedWording: r.reservation.saleKey ? 'Attendu' : 'La fiche attend',
+        clientHeading: r.reservation.saleKey && !r.reservation.hasClient ? '' : (r.reservation.clientName || r.reservation.saleLabel || 'Client'),
         expectedCents: r.expectedCents, expectedDate: r.expectedDate, expectedDateLabel: frDate(r.expectedDate),
         paid: r.paid, paidDate: r.paidDate,
         state: st.state, stateLabel: st.stateLabel, tone: st.tone, isGap: isGap(st.state),

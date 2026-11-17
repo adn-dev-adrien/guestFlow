@@ -1,1 +1,0 @@
-- The unreleased SDK 2.31.0 no longer exposes `refundObligationsModel` (nothing used it), and the Mollie client reads amounts in cents through the shared money helper; no figure changes.
