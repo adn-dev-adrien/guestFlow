@@ -10,11 +10,12 @@
  * format (the line payloads below are also what the save itself posts).
  *
  *   selectedOptionsPayload(form, catalogue)  the catalogue lines the form edits (engine-derived options left out) + its later lines
- *   customOptionsPayload(customOptions)      the free lines, trimmed; a line with no text or no amount is not sent; a typed one is `newLine`
+ *   customOptionsPayload(customOptions, savedCustomKeys)  the free lines, trimmed; a line with no text or no amount is not sent; a line
+ *                                            typed and not saved yet (`customKey` not in `savedCustomKeys`) is `newLine`
  *   selectedResourcesPayload(form)           the resource lines (with hourly sessions) + the later lines
  *   ficheQuoteBody(input, overrides)         the quote request; `input` = { form, propertyId, offeredOptionIds, lockedOptionUnits,
  *                                            lockedResourceUnits, forceCurrentPricing, refreshTouristTax, reservationId, devisId,
- *                                            newDevisQuoteMarker, unlockPast, catalogue }
+ *                                            newDevisQuoteMarker, unlockPast, catalogue, savedCustomKeys }
  */
 import { toWireOccurrences } from './cardOccurrences.js';
 
@@ -39,14 +40,15 @@ export function selectedOptionsPayload(form, catalogue) {
     .concat(form.laterOptions || []);
 }
 
-export function customOptionsPayload(customOptions) {
+export function customOptionsPayload(customOptions, savedCustomKeys = new Set()) {
   return (customOptions || [])
     .map((line, index) => ({
       customKey: String(line.customKey || `custom_${index + 1}`),
       customOptionId: line.customOptionId != null ? Number(line.customOptionId) : undefined,
-      // A line typed on the fiche names no stored row: it is a new line, whatever its text (rule 94 reading, loop t16 S16-3 b) — never the
-      // row of a line removed in the same save under the same label.
-      ...(line.customOptionId == null ? { newLine: true } : {}),
+      // A line typed on the fiche and not saved yet names no stored row: it is a new line, whatever its text (rule 94 reading, loop t16
+      // S16-3 b) — never the row of a line removed in the same save under the same label. Once a save stored it (`savedCustomKeys`, the fiche
+      // kept open without re-reading its ids — VS16-1) it is not new any more: no flag, the server finds its row by its text (rule 19).
+      ...(line.customOptionId == null && !savedCustomKeys.has(String(line.customKey || `custom_${index + 1}`)) ? { newLine: true } : {}),
       description: String(line.description || '').trim(),
       amount: Number(line.amount || 0),
       offered: Boolean(line.offered),
@@ -73,7 +75,7 @@ export function selectedResourcesPayload(form) {
 export function ficheQuoteBody(input, overrides = {}) {
   const {
     form, propertyId, catalogue, offeredOptionIds, lockedOptionUnits, lockedResourceUnits, forceCurrentPricing, refreshTouristTax,
-    reservationId, devisId, newDevisQuoteMarker, unlockPast,
+    reservationId, devisId, newDevisQuoteMarker, unlockPast, savedCustomKeys,
   } = input;
   return {
     propertyId: Number(propertyId),
@@ -105,7 +107,7 @@ export function ficheQuoteBody(input, overrides = {}) {
     balanceAmount: form.balanceAmount,
     depositDisabled: Boolean(form.depositDisabled),
     selectedOptions: selectedOptionsPayload(form, catalogue),
-    customOptions: customOptionsPayload(form.customOptions),
+    customOptions: customOptionsPayload(form.customOptions, savedCustomKeys),
     selectedResources: selectedResourcesPayload(form),
     offeredOptionIds: Array.from(offeredOptionIds || []),
     lockedOptionUnits: lockedOptionUnits || {},

@@ -45,6 +45,10 @@ test('the line payloads: engine-derived options left out, later lines appended, 
   expect(customOptionsPayload([{ customKey: 'custom_9', description: 'Bois', amount: 10 }])).toEqual([
     { customKey: 'custom_9', newLine: true, description: 'Bois', amount: 10, offered: false, inComplement: null },
   ]);
+  // VS16-1 — once a save stored it (the fiche kept open without its row id) the same line is not new any more.
+  expect(customOptionsPayload([{ customKey: 'custom_9', description: 'Bois', amount: 10 }], new Set(['custom_9']))[0]).not.toHaveProperty('newLine');
+  expect(ficheQuoteBody(input({ savedCustomKeys: new Set(['custom_9']), form: { ...form, customOptions: [{ customKey: 'custom_9', description: 'Bois', amount: 10 }] } })).customOptions[0])
+    .not.toHaveProperty('newLine');
   expect(selectedResourcesPayload(form)).toEqual([{ resourceId: 3, quantity: 1, unitPrice: 30, offered: false, inComplement: null, sessions: [] }]);
 });
 

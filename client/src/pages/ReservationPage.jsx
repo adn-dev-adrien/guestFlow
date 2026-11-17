@@ -487,6 +487,9 @@ export default function ReservationPage() {
   const miniStripDateChangeRef = useRef(false);
   const initialPricingContextRef = useRef({ propertyId: null, startDate: '', endDate: '' });
   const frozenOptionUnitByQuantityRef = useRef({});
+  // Rule 94 reading (loop t16 VS16-1) — the `customKey`s of the free lines typed on this fiche that a save has already stored. A typed line
+  // is sent `newLine` until then; once stored it is not new any more, even though the form, kept open, never learnt its row id.
+  const savedCustomKeysRef = useRef(new Set());
   const frozenResourceUnitByQuantityRef = useRef({});
   const pendingLeaveActionRef = useRef(null);
   const pricingQuoteRequestRef = useRef(0);
@@ -1183,6 +1186,7 @@ export default function ReservationPage() {
 
           setUseCurrentPricing(false);
           frozenOptionUnitByQuantityRef.current = frozenUnitPrices(res.options, 'optionId');
+          savedCustomKeysRef.current = new Set();
           frozenResourceUnitByQuantityRef.current = frozenUnitPrices(res.resources, 'resourceId');
 
           // Load resources
@@ -1301,6 +1305,7 @@ export default function ReservationPage() {
           });
           setDatesTaken(devis.datesTaken || null);
           frozenOptionUnitByQuantityRef.current = frozenUnitPrices(devis.options, 'optionId');
+          savedCustomKeysRef.current = new Set();
           frozenResourceUnitByQuantityRef.current = frozenUnitPrices(devis.resources, 'resourceId');
           initialPricingContextRef.current = {
             propertyId: devis.propertyId,
@@ -2090,7 +2095,12 @@ export default function ReservationPage() {
   // the engine routes the line correctly. They never send the captured contribs — those are
   // owned by the payment-flip code path; the server re-reads them from the DB-side snapshot.
   const buildSelectedOptionsPayload = () => selectedOptionsPayload(form, propertyOptions);
-  const buildCustomOptionsPayload = () => customOptionsPayload(form.customOptions);
+  const buildCustomOptionsPayload = () => customOptionsPayload(form.customOptions, savedCustomKeysRef.current);
+  // Every save that stores the fiche's free lines and keeps it open (« Enregistrer » with an after-save action: PDF, « Accepté », payment
+  // requests, a note, a ledger mark; a devis) passes here: the lines it sent are stored, the next save must not send them as new.
+  const markCustomLinesSaved = (lines) => {
+    for (const line of lines || []) savedCustomKeysRef.current.add(String(line.customKey));
+  };
   const buildSelectedResourcesPayload = () => selectedResourcesPayload(form);
 
   // ONE body for every quote of the fiche's own figures (rule 94 reading, loop t16 S16-2 — `utils/ficheQuoteBody.js`): the live
@@ -2109,6 +2119,7 @@ export default function ReservationPage() {
     devisId: editingDevisId,
     newDevisQuoteMarker,
     unlockPast: pastUnlocked,
+    savedCustomKeys: savedCustomKeysRef.current,
   }, overrides);
 
   // ==================== CLIENT CREATE / EDIT ====================
@@ -2596,6 +2607,7 @@ export default function ReservationPage() {
             ...devisPayload,
             loadedUpdatedAt: overwriteOnceRef.current ? undefined : (loadedUpdatedAtRef.current || undefined),
           });
+          markCustomLinesSaved(devisPayload.customOptions);
           if (overwriteOnceRef.current) loadedUpdatedAtRef.current = savedDevis?.updatedAt || null;
           overwriteOnceRef.current = false;
           if (savedDevis?.retiredPaymentLinks) showSuccess('Devis enregistré. Le lien de paiement en cours est retiré : le montant a changé.');
@@ -2635,6 +2647,7 @@ export default function ReservationPage() {
           return true;
         }
       } else if (reservationId) {
+        const sentCustomOptions = buildCustomOptionsPayload();
         await api.updateReservation(reservationId, {
           ...unlockPayload,
           loadedUpdatedAt: overwriteOnceRef.current ? undefined : (loadedUpdatedAtRef.current || undefined),
@@ -2704,9 +2717,10 @@ export default function ReservationPage() {
           forceTypedCounts,
           offeredOptionIds: Array.from(offeredOptionIds),
           options: buildSelectedOptionsPayload(),
-          customOptions: buildCustomOptionsPayload(),
+          customOptions: sentCustomOptions,
           resources: quote.resourceLines,
         });
+        markCustomLinesSaved(sentCustomOptions);
         setInitialSnapshot(formSnapshot);
         const overwritten = overwriteOnceRef.current;
         overwriteOnceRef.current = false;
