@@ -259,6 +259,8 @@ function createSplitsModel(db) {
      */
     fromMolliePayment(source, payment, { settings, now = new Date() }) {
       const stored = forSource(source.sourceType, source.sourceKey);
+      // Loop t11 B11-1 — a split another Mollie payment already is keeps it: never re-pointed, never re-grossed.
+      if (stored && stored.molliePaymentId && String(stored.molliePaymentId) !== String(payment.id)) return;
       if (!stored) {
         create({ ...source, grossCents: payment.amountCents, paidAt: payment.paidAt, molliePaymentId: payment.id }, readReserveSettings(settings), now);
       } else if (!stored.molliePaymentId && Number(payment.amountCents) > 0 && day(payment.paidAt)) {
