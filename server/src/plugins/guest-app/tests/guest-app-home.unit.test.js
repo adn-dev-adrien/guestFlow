@@ -61,23 +61,14 @@ test('rule 11: eve of departure → the booklet page Départ', () => {
   assert.equal(found.page, 'depart');
 });
 
-test('rule 11: a free bath slot today, mid-stay — « ce soir » from 18 h, « aujourd’hui » before, with the first bookable hour', () => {
-  const evening = pick('2099-07-07T12:00:00+02:00', { bathFirstSlot: '20:00' });
-  assert.deepEqual([evening.key, evening.text, evening.detail], ['bath', 'Un bain nordique ce soir ?', 'Premier créneau libre à 20 h']);
-  const afternoon = pick('2099-07-07T12:00:00+02:00', { bathFirstSlot: '14:30' });
-  assert.deepEqual([afternoon.text, afternoon.detail], ['Un bain nordique aujourd’hui ?', 'Premier créneau libre à 14 h 30']);
-  const english = pick('2099-07-07T12:00:00+02:00', { bathFirstSlot: '20:00', lang: 'en' });
-  assert.deepEqual([english.text, english.detail], ['A nordic bath tonight?', 'First free slot at 8 pm']);
+test('rule 11 (specs/guest-app-bath-home-scheduling.md rule 6): the bath has no highlight — its home card says it', () => {
+  assert.equal(pick('2099-07-07T12:00:00+02:00'), null);
 });
 
 test('rule 11: an order delivered in the last hour comes first, and there is only one card', () => {
-  const found = pick('2099-07-06T15:00:00+02:00', { orderReady: true, bathFirstSlot: '20:00' });
+  const found = pick('2099-07-06T15:00:00+02:00', { orderReady: true });
   assert.equal(found.key, 'order');
   assert.equal(Array.isArray(found), false);
-});
-
-test('rule 11: the departure instructions beat the bath on the eve of departure', () => {
-  assert.equal(pick('2099-07-08T12:00:00+02:00', { bathFirstSlot: '20:00' }).key, 'departure');
 });
 
 test('rule 11: nothing to say → no card', () => {
@@ -87,7 +78,6 @@ test('rule 11: nothing to say → no card', () => {
 test('rule 11: a highlight is only chosen among the shown modules', () => {
   const shown = ALL.filter((key) => key !== 'gate');
   assert.equal(pick('2099-07-06T15:00:00+02:00', { shown }), null);
-  assert.equal(pick('2099-07-07T12:00:00+02:00', { bathFirstSlot: '20:00', shown: ['wifi'] }), null);
   assert.equal(pick('2099-07-08T12:00:00+02:00', { shown: ['wifi'] }), null);
   assert.equal(pick('2099-07-07T12:00:00+02:00', { orderReady: true, shown: ['wifi'] }), null);
 });

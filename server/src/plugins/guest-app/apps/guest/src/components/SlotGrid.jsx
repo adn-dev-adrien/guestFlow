@@ -5,7 +5,8 @@
  * drawn — the server does not even send them.
  *
  * Props: `days` ([{ date, label, available, reasonLabel, openingBands, slots:[{ start, end, state, band, priceLabel }] }]), `day` (selected date),
- * `onDay(date)`, `selected` (Set of `date|start|end`), `onToggle(slot, date)`.
+ * `onDay(date)`, `selected` (Set of `date|start|end`), `onToggle(slot, date)`, `refusedKey` (optional `date|start|end` of a tap just
+ * refused: that slot shakes, specs/guest-app-bath-home-scheduling.md rule 11). A day chip holding a selected slot carries a dot.
  */
 import { useLang, useT } from '../i18n';
 import { clockLabel } from '../utils/format';
@@ -20,7 +21,7 @@ function dayParts(label) {
   return [weekday, number];
 }
 
-export default function SlotGrid({ days, day, onDay, selected, onToggle }) {
+export default function SlotGrid({ days, day, onDay, selected, onToggle, refusedKey = null }) {
   const t = useT();
   const lang = useLang();
   const current = days.find((d) => d.date === day && d.available) || days.find((d) => d.available) || days[0];
@@ -29,8 +30,9 @@ export default function SlotGrid({ days, day, onDay, selected, onToggle }) {
       <div className="daysrow" role="group" aria-label={t('bath.day')}>
         {days.map((d) => {
           const [weekday, number] = dayParts(d.label);
+          const holds = [...selected].some((key) => key.startsWith(`${d.date}|`));
           return (
-            <button key={d.date} type="button" className="day" disabled={!d.available} aria-pressed={current && current.date === d.date} aria-label={d.available ? d.label : `${d.label} · ${d.reasonLabel}`} onClick={() => onDay(d.date)}>
+            <button key={d.date} type="button" className={`day${holds ? ' has' : ''}`} disabled={!d.available} aria-pressed={current && current.date === d.date} aria-label={d.available ? d.label : `${d.label} · ${d.reasonLabel}`} onClick={() => onDay(d.date)}>
               {weekday}<b>{number}</b>
             </button>
           );
@@ -47,7 +49,7 @@ export default function SlotGrid({ days, day, onDay, selected, onToggle }) {
           {current.slots.map((slot) => {
             const key = slotKey(current.date, slot);
             return (
-              <button key={key} type="button" className={`slot ${slot.state}`} aria-pressed={selected.has(key)} onClick={() => onToggle(slot, current.date)}>
+              <button key={key} type="button" className={`slot ${slot.state}${refusedKey === key ? ' refused' : ''}`} aria-pressed={selected.has(key)} onClick={() => onToggle(slot, current.date)}>
                 <b>{clockLabel(slot.start, lang)} – {clockLabel(slot.end, lang)}</b>
                 <span>{slot.priceLabel}</span>
               </button>

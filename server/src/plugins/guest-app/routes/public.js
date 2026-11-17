@@ -30,6 +30,7 @@ function buildPublicRouter({
   const shopRoute = [limiters.read, guestSession.requireSession, requireModule('shop', controller.shownKeysOf)];
   router.get('/shop', ...shopRoute, shop.read);
   router.get('/shop/resources/:id/slots', ...shopRoute, guestSession.requireStayGuest, shop.slots);
+  router.get('/shop/resources/:id/blocks', ...shopRoute, guestSession.requireStayGuest, shop.blocks);
   router.post('/shop/delivery-slots', ...shopRoute, guestSession.requireStayGuest, shop.deliverySlots);
   // Rules 32-38 — a stay's orders: the quote, the order and its page belong to the shop, the list to « Mes commandes ».
   const stayShop = [...shopRoute, guestSession.requireStayGuest];

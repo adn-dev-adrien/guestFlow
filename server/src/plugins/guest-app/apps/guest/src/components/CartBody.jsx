@@ -36,7 +36,7 @@ function quotedLine(quote, line, index) {
 }
 
 /** An Idempotency-Key (§4.3): 128 random bits. */
-function newKey() {
+export function newKey() {
   if (globalThis.crypto && typeof globalThis.crypto.randomUUID === 'function') return globalThis.crypto.randomUUID();
   const bytes = new Uint8Array(16);
   globalThis.crypto.getRandomValues(bytes);

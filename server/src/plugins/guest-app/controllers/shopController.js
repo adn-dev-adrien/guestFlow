@@ -15,7 +15,8 @@ const { BREAKFAST, DEFAULT_BREAKFAST_TIME, remainingMornings, shopItems, stayCon
 const { languageOf } = require('../language');
 const { fail, refusal } = require('../refusals');
 const { shopStockView } = require('../stock');
-const { deliveryQuestion } = require('../orderLabels');
+const { deliveryQuestion, sessionLabel } = require('../orderLabels');
+const bathPlan = require('../bathPlan');
 const {
   deliveryPicker, deliveryTimes, ignitionInHours, serviceState,
 } = require('../serviceHours');
@@ -28,6 +29,7 @@ const paymentProviders = sdk.coreModule('paymentProviders');
 const { roundMoney } = sdk.coreModule('money');
 const { groupOptionsByCategory } = sdk.coreModule('optionGrouping');
 const { isRealIsoDay } = sdk.coreModule('stayDates');
+const { toParisIso } = sdk.coreModule('stayWindow');
 
 // Rule 26 — hourly resources are sold in « Bien-être »; what has no category closes the list.
 const WELLNESS = 'Bien-être';
@@ -431,29 +433,98 @@ function buildShopController({
     });
   }
 
-  /**
-   * Rule 11 — the home's bath card: the first slot still bookable today (`HH:MM`) on an hourly resource the stay's
-   * shop sells while it is open, read from the planning like the slot picker; null when there is none.
-   */
-  function firstBathSlotToday(guest, at) {
-    if (!scheduler()) return null;
+  /** The bookable days of an hourly resource for the stay, judged from now — what the picker and the blocks read. */
+  function bookableDays(guest, resourceId, at) {
     const { stay, lodging } = guest;
-    const today = parisDate(at);
-    const { sold } = soldFor(guest);
-    if (!shopState(collectionOf(stay)).open) return null;
-    const canIgnite = ignitionInHours(scheduleOf(lodging, at));
-    const starts = sold.filter((s) => s.kind === 'resource' && s.hourly).flatMap((s) => {
-      const found = scheduler().slotsForStay({
-        resourceId: Number(s.row.id), propertyId: lodging.propertyId, stay, now: at, heatFrom: at, canIgnite,
-      });
-      const day = found && found.days.find((d) => d.date === today);
-      return day ? day.slots.filter((slot) => BOOKABLE.has(slot.state)).map((slot) => slot.start) : [];
+    const found = scheduler().slotsForStay({
+      resourceId, propertyId: lodging.propertyId, stay, now: at, heatFrom: at, canIgnite: ignitionInHours(scheduleOf(lodging, at)),
     });
-    return starts.length ? starts.sort()[0] : null;
+    if (!found) return null;
+    return found.days.map((day) => ({ date: day.date, slots: day.slots.filter((slot) => BOOKABLE.has(slot.state)) }));
+  }
+
+  /** The hourly rates a stay reads off the planning's own prices: `{ day, evening }` per hour, evening 0 without an evening band. */
+  function ratesOf(days) {
+    const perHour = (slot) => Number(slot.price || 0) / Math.max(1 / 60, (minutesOf(slot.end) - minutesOf(slot.start)) / 60);
+    const slots = days.flatMap((d) => d.slots);
+    const day = slots.find((slot) => slot.band !== 'evening');
+    // A slot that only reaches into the evening is priced across both bands: the evening rate is read on one wholly inside it.
+    const evening = slots.filter((slot) => slot.band === 'evening').sort((a, b) => minutesOf(b.start) - minutesOf(a.start))[0];
+    return { day: day ? roundMoney(perHour(day)) : 0, evening: evening ? roundMoney(perHour(evening)) : 0 };
+  }
+
+  /** A resource's name in the guest's language, as the shop shows it. */
+  const resourceNameOf = (row, lang) => {
+    const tr = typeof translator === 'function' ? translator(lang) : null;
+    return (tr && typeof tr.resourceName === 'function' && tr.resourceName(Number(row.id), row.name)) || row.name;
+  };
+
+  /**
+   * specs/guest-app-bath-home-scheduling.md rules 1-5 — the home's bath cards, one per hourly resource the stay's shop sells while
+   * it takes orders: what the stay owns and has not placed (the hours it holds, then the offered minutes), its sessions to come, or
+   * the offer when a slot is still bookable.
+   */
+  function bathCards(guest, at, lang = 'fr') {
+    if (!scheduler()) return [];
+    const { stay } = guest;
+    if (!shopState(collectionOf(stay)).open) return [];
+    const { sold, extras } = soldFor(guest);
+    const nowIso = (toParisIso(at) || '').slice(0, 16);
+    const today = parisDate(at);
+    return sold.filter((s) => s.kind === 'resource' && s.hourly && !s.included).map((s) => {
+      const resourceId = Number(s.row.id);
+      const days = bookableDays(guest, resourceId, at) || [];
+      const owned = bathPlan.ownedOf({ freeMinutesLeft: s.freeMinutes ? s.freeMinutes.left : 0, heldHours: includedHoursLeft(extras, resourceId) });
+      return bathPlan.cardView({
+        resource: { id: resourceId, name: resourceNameOf(s.row, lang) },
+        owned,
+        upcoming: bathPlan.upcomingSessions(extras.resourceLines, resourceId, nowIso),
+        bookable: days.some((d) => d.slots.length),
+        maxQuantity: Number(s.item.maxQuantity),
+        firstSlotToday: ((days.find((d) => d.date === today) || { slots: [] }).slots.map((slot) => slot.start).sort()[0]) || null,
+        rates: ratesOf(days),
+        priceLabel: (amount) => priceLabel(amount, lang),
+        sessionLabel: (session) => sessionLabel(session, lang),
+        lang,
+      });
+    }).filter(Boolean);
+  }
+
+  /**
+   * Rule 10 — `GET /shop/resources/:id/blocks?hours=N`: per day, the starts of one session of N consecutive hours the guest can
+   * book. Candidates chain the bookable slots; each is then judged whole by the scheduler (heat-up from now, turnover).
+   */
+  function blocks(req, res) {
+    const { stay, lodging } = req.guest;
+    const resourceId = positiveId(req.params.id);
+    const hours = Number(req.query.hours);
+    if (!Number.isInteger(resourceId) || resourceId <= 0) return fail(res, refusal(400, 'INVALID_INPUT', 'invalidId'));
+    if (!Number.isInteger(hours) || hours < 2 || hours > 12) return fail(res, refusal(400, 'INVALID_INPUT', 'invalidQuantity'));
+    const lang = languageOf(req, stay);
+    const L = LABELS[lang];
+    const at = now();
+    const sold = soldFor(req.guest).sold.find((s) => s.kind === 'resource' && s.hourly && Number(s.row.id) === resourceId);
+    if (!sold) return fail(res, refusal(404, 'ITEM_NOT_FOUND', 'itemNotFound'));
+    const state = shopState(collectionOf(stay));
+    if (!state.open) return publicHttp.ok(res, { open: false, closedReason: L[state.closedReason], days: [] });
+    const days = bookableDays(req.guest, resourceId, at);
+    if (!days) return fail(res, refusal(404, 'ITEM_NOT_FOUND', 'itemNotFound'));
+    const canIgnite = ignitionInHours(scheduleOf(lodging, at));
+    const judged = bathPlan.consecutiveBlocks(days, hours).map((day) => ({
+      date: day.date,
+      label: morningLabel(day.date, lang),
+      starts: day.starts.filter((block) => {
+        const verdict = scheduler().validateSessions({
+          resourceId, propertyId: lodging.propertyId, stay, sessions: [{ date: day.date, start: block.start, end: block.end }], now: at, heatFrom: at, canIgnite,
+        });
+        return Boolean(verdict && verdict.ok);
+      }),
+    })).filter((day) => day.starts.length);
+    return publicHttp.ok(res, { open: true, hours, days: judged });
   }
 
   return {
-    read, slots, deliverySlots, soldKeysOf, soldFor, scheduleOf, firstBathSlotToday, collectionOf, includedHoursLeft,
+    read, slots, blocks, bathCards, deliverySlots, soldKeysOf, soldFor, scheduleOf, collectionOf, includedHoursLeft,
   };
 }
 

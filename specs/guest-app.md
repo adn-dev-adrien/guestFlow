@@ -135,11 +135,11 @@ is pushed every order.
     Boutique · Bain nordique · Soliomap · Livret). A module that is off for the lodging is not rendered (no
     greyed tile).
 11. **Contextual highlight.** One card under the tiles, chosen by the server among: « Le portail est
-    actif » (arrival day), « Un bain nordique ce soir ? » (« aujourd'hui » when the first bookable slot starts before 18 h) + the
-    first bookable hour as the card's line « Premier créneau libre à 20 h » (a slot in state `free` or `evening` remains today on an hourly resource sold in the app while the shop is open, read from the resource planning like the slot picker), « Votre commande est prête » (an order marked delivered in the last hour),
+    actif » (arrival day), « Votre commande est prête » (an order marked delivered in the last hour),
     « Départ demain : les consignes » (eve of departure → booklet page *Départ*). At most one highlight, plus at most one suggestion (rule 15bis), never a marketing carousel. A highlight is only chosen among the lodging's enabled modules. Priority: the order,
-    the gate, the departure, the bath: a bath slot is free on nearly every evening, so ahead of the departure
-    it would keep the instructions from ever showing.
+    the gate, the departure. _(Amended 2026-11-15 by specs/guest-app-bath-home-scheduling.md rule 6: the bath has no
+    highlight any more; the home's bath card says what the stay owns and, as an offer, « Un bain nordique ce soir ? » with
+    « Premier créneau libre à 20 h ».)_
 
 #### Per-lodging configuration — each lodging decides what its guests see
 
@@ -877,7 +877,10 @@ arrival.** Everything below is judged by the server; the apps render what it off
     nothing but their evening supplement (rule 81). Beyond those hours, the free minutes left (rule 25), then the
     lodging's price. `midStayOrderCommit.withResource` follows: an order's sessions raise the line's quantity only by
     what they place beyond the hours not yet placed. Such an order needs no payment when its total is 0 € (rule 25,
-    « Réserver »).
+    « Réserver »). One session longer than the hours not yet placed (an « à la suite » block,
+    `guest-app-bath-home-scheduling.md` rule 10) is cut where those hours run out: its first hours join the stay's line,
+    the rest is sold as a line of its own; the two halves touch and make one continuous bath, with no turnover between
+    them (review of 2026-11-15: before, the whole block was sold and the held hours stayed unplaced).
     > **Delivered by PR C** (pass 4, C26-C29, C31-C32): server `guest-app` 1.2.0 on `extraSale` / `saleDetail`; tests listed in §7 (`guest-order-*`, `guest-app-arrival-orders`, `guest-app-orders-from-j7`, …).
     > _Reading of 2026-11-16 (loop t2 N-6, pricing-components rule 102 f):_ the evening supplement line an order writes carries the stable key
     > `fulfilmentRef = evening:resource:<id>`; the arrival recompute (`hourly-resources` `orderChargedFor`) sums the order lines of that key, so a
