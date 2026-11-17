@@ -298,7 +298,8 @@ function createReconciliationController({ db, settings, transactions, model, wri
     const receiptByKey = new Map(receipts.map((r) => [keyOf(r), r]));
 
     // Rule 19 — the other receipts confirmed together with a line (same credit, same group).
-    const labelOf = (l) => { const o = receiptByKey.get(`${l.reservationId}|${l.ledgerKey}`); return o ? { reservationId: l.reservationId, ledgerKey: l.ledgerKey, label: o.label, clientName: o.reservation.clientName } : null; };
+    const headingOf = (reservation) => (reservation.saleKey && !reservation.hasClient ? '' : (reservation.clientName || reservation.saleLabel || 'Client'));
+    const labelOf = (l) => { const o = receiptByKey.get(`${l.reservationId}|${l.ledgerKey}`); return o ? { reservationId: l.reservationId, ledgerKey: l.ledgerKey, label: o.label, clientName: o.reservation.clientName, clientHeading: headingOf(o.reservation) } : null; };
     const coveredWith = (line) => (line.groupId ? lineRows.filter((o) => o.groupId === line.groupId && o.transactionId === line.transactionId && o.id !== line.id
       && `${o.reservationId}|${o.ledgerKey}` !== `${line.reservationId}|${line.ledgerKey}`).map(labelOf).filter(Boolean) : []);
 
@@ -312,7 +313,7 @@ function createReconciliationController({ db, settings, transactions, model, wri
       const mine = primary ? primary.allocations.find((a) => keyOf(a) === k) : null;
       const alsoCovers = primary ? primary.allocations.filter((a) => keyOf(a) !== k).map((a) => {
         const other = receiptByKey.get(keyOf(a));
-        return other ? { reservationId: a.reservationId, ledgerKey: a.ledgerKey, label: other.label, clientName: other.reservation.clientName } : null;
+        return other ? { reservationId: a.reservationId, ledgerKey: a.ledgerKey, label: other.label, clientName: other.reservation.clientName, clientHeading: headingOf(other.reservation) } : null;
       }).filter(Boolean) : [];
       const showProposal = primary && lines.length === 0;
       return {
@@ -321,7 +322,7 @@ function createReconciliationController({ db, settings, transactions, model, wri
         ledgerKey: r.ledgerKey, label: r.label, channel: r.channel,
         // A sale outside a stay has no fiche to wait on and, without a client, no name besides its label (loop t11 UI11-2).
         expectedWording: r.reservation.saleKey ? 'Attendu' : 'La fiche attend',
-        clientHeading: r.reservation.saleKey && !r.reservation.hasClient ? '' : (r.reservation.clientName || r.reservation.saleLabel || 'Client'),
+        clientHeading: headingOf(r.reservation),
         expectedCents: r.expectedCents, expectedDate: r.expectedDate, expectedDateLabel: frDate(r.expectedDate),
         paid: r.paid, paidDate: r.paidDate,
         state: st.state, stateLabel: st.stateLabel, tone: st.tone, isGap: isGap(st.state),

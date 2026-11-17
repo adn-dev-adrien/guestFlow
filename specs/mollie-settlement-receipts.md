@@ -126,7 +126,7 @@ with its guest and reservation. An installation with Mollie but without Qonto se
 | plugin routes | `plugins/online-payment/reconciliation/routes.js` | `GET …/mollie-statements/:transactionId.pdf`, `POST …/mollie-statements/:transactionId/retry`, status in the Mollie connection payload. |
 | plugin reconciliation reader | `plugins/online-payment/reconciliation/controller.js` | Adds `statement: { state, error, attachedAt }` to a Mollie credit's line. |
 | core | `utils/qonto/qontoClient.js` | Reused as is (`uploadTransactionAttachment`). |
-| tests | `plugins/online-payment/tests/mollie-settlement-statements.unit.test.js` _(new)_ | Rules 1–12. |
+| tests | `plugins/online-payment/tests/mollie-settlement-statements.unit.test.js` _(new)_ | Rules 1–13. |
 
 ### 4.2 Client side (`client/src/`)
 
@@ -183,7 +183,7 @@ New plugin setting `mollieStatementsSince` (empty by default = off).
 
 ### Server unit tests
 
-`mollie-settlement-statements.unit.test.js` — one test per rule 1–12 at least: composition shaping and fees, sum
+`mollie-settlement-statements.unit.test.js` — one test per rule 1–13 at least: composition shaping and fees, sum
 check refusal, availability without Qonto / without Mollie token, opt-in date filter, idempotent single upload,
 retries then `failed`, 403 → `reauth`, manual retry, PDF bytes start with `%PDF` and contain the reference.
 
@@ -222,7 +222,7 @@ Built:
 - Reading of rule 8: the Mollie read stays the reconciliation job's (every 8 hours or « Actualiser »); the statements job runs
   every hour on what is stored, so a statement follows the read within the hour. A `reauth` statement is tried again by the
   job (one refused call stops the run); `mismatch` and `failed` wait for « Réessayer ».
-- Tests: server `mollie-settlement-statements.unit.test.js` (28, rules 1-13 + migration); client
+- Tests: server `mollie-settlement-statements.unit.test.js` (29, rules 1-13 + migration); client
   `MollieConnectionCard.statements.test.jsx` (10) and `ReconciliationLine.statement.test.jsx` (7).
 - Review fixes (2026-11-17): credits without a known composition are no candidates (rule 1); `reauth` marks only pending or
   rowless statements and the job clears it (rule 9); one in-flight set shared by the job and « Réessayer », and no write over

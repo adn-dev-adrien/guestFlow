@@ -90,6 +90,11 @@ test('the fiche is read-only and inert from the switch until the new options are
   expect(document.querySelector('fieldset[aria-busy="true"]')).not.toBeNull();
   expect(document.querySelector('fieldset[inert]')).not.toBeNull();
 
+  // Every save-first action (PDF, payment request, « Accepté », unsaved-changes dialog) goes through this entry point.
+  let refused;
+  await act(async () => { refused = await ctx().saveThenRun(() => {}); });
+  expect(refused).toBe(false);
+
   await act(async () => { releaseOccupancy(); await switched; });
   await waitFor(() => expect(ctx().formReadOnly).toBe(false));
   expect(document.querySelector('fieldset[aria-busy="true"]')).toBeNull();
