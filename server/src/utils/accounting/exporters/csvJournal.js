@@ -116,7 +116,12 @@ function createCsvJournal({ accountPlan }) {
   // specs/mollie-rolling-reserve-and-incoming-payments.md rule 28 — the export sets no maximum libellé length: the Qonto
   // transaction id (50 characters) would drown the line, so a Mollie credit or cost names its Mollie settlement and the last
   // 6 characters of Qonto's reference — enough to find it in the bank's search. A paid link reads like a sale: the client.
+  // Loop t10 B10-4: a sale outside a stay with no named client (a passage) has no stay id to fall back on — it reads the sale's label
+  // the plugin sends (`libelle`), else « VENTE HORS SÉJOUR », never « RÉSERVATION #null ».
   function mollieLibelle(entry) {
+    if (entry.mollieKind === 'link' && entry.reservationId == null && !`${entry.client?.firstName || ''}${entry.client?.lastName || ''}`.trim()) {
+      return String(entry.libelle || '').trim().toUpperCase() || 'VENTE HORS SÉJOUR';
+    }
     if (entry.mollieKind === 'link') return libelleFor(entry);
     return [entry.libelle, entry.settlementReference, entry.qontoReference ? String(entry.qontoReference).slice(-6) : ''].filter(Boolean).join(' ');
   }

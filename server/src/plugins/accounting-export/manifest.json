@@ -183,6 +183,8 @@
       "Une vente hors séjour remboursée passe un avoir au journal le jour du remboursement : le chiffre d'affaires et la TVA de la ligne remboursée sortent des comptes.",
       "Un trop-perçu d'un lien de paiement gardé (« rien à rembourser ») est passé en pourboire, sur le compte des pourboires, le jour où il est gardé.",
       "Sur un séjour réservé une fois GuestFlow 4.2 installé, un encaissement garde la ventilation des lignes du jour où il a été payé : une ligne retirée ou offerte ensuite ne déplace plus un mois déclaré.",
+      "La synthèse lit les écritures Mollie avec les réglages de l’export : « Exporter les versements Mollie reçus » désactivé, elle totalise comme le fichier.",
+      "Une vente hors séjour sans client nommé payée via Mollie porte le libellé de la vente, et non plus « RÉSERVATION #null ».",
       "Compatible avec GuestFlow 4 (SDK 2.31)."
     ]
   }

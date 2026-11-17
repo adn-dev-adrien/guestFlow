@@ -9,13 +9,13 @@
 const { buildProposals, classify, DEFAULT_PATTERNS, DEFAULT_BATCH_PLATFORMS } = require('./matcher');
 const { stateOfReceipt, trancheDaysLate, fixText, isGap, euros } = require('./receiptStates');
 const { expectedReceipts, expectedReceiptsOfReservation, RESERVATION_SQL, installmentsReader, settlementsReader } = require('./expectedReceipts');
-const { cardCandidates, salesSince, saleSource } = require('./mollieCardSources');
+const { cardCandidates, salesSince, sourcesOfSales } = require('./mollieCardSources');
 const { ficheCredits, creditReceipts, anchorOf } = require('./ficheCredits');
 const { allocateFifo, summarize, validatePairs } = require('./allocation');
 const { runAutoConfirm } = require('./autoConfirm');
 const { decorateRows } = require('./deadlineDecorator');
 const { settlementReferenceOf, isMollieCredit } = require('./mollieSettlements');
-const { addDays: addDaysIso, splitIdOf } = require('./molliePaymentSplits');
+const { addDays: addDaysIso, splitIdOf, PAID_LINK_FILTER } = require('./molliePaymentSplits');
 const { trancheView, scheduleView, TRANCHE_LABELS, immediateShareLabel, percentLabel } = require('./mollieTranches');
 const { mollieJournal } = require('./mollieJournal');
 const { randomUUID } = require('crypto');
@@ -114,6 +114,12 @@ function createReconciliationController({ db, settings, transactions, model, wri
     splitFor: (link) => splits.forLink(link.id) || splits.provisionalOfLink(link, settings),
     sourceSplit: (type, key) => splits.forSource(type, key) || cards.get(splitIdOf(type, key)) || null,
   } : { splitFor: undefined, sourceSplit: undefined });
+
+  /** Rule 32 — the paid links of sales outside a stay (`saleRef`, no stay) paid on or after `startDate` (a Paris day). */
+  function paidSaleLinks(startDate) {
+    return db.prepare(`SELECT l.* FROM payment_links l WHERE l.saleRef IS NOT NULL AND l.reservationId IS NULL AND ${PAID_LINK_FILTER} ORDER BY l.paidAt, l.id`).all()
+      .filter((l) => (day(l.paidAt) || '') >= startDate);
+  }
 
   /** The provisional splits of the card payments recorded on site (from « CB sur place via Mollie depuis »), keyed by split id. */
   function provisionalCards({ rows, startDate, today, only = null }) {
@@ -221,8 +227,10 @@ function createReconciliationController({ db, settings, transactions, model, wri
     const { splitFor, sourceSplit } = splitReaders(provisionalCards({
       rows: splits && day(settings.get('mollieCardOnSiteSince')) ? db.prepare(`${RESERVATION_SQL} ORDER BY r.endDate, r.id`).all(startDate) : [], startDate, today,
     }));
+    // Rule 32 (loop t10 D10-2) — the paid links of sales outside a stay (no stay to list them under), from the reconciliation start.
+    const saleLinks = splits ? paidSaleLinks(startDate) : [];
     const baseReceipts = expectedReceipts({
-      db, startDate, today, buildLedger: core.buildLedger, parseGroup: core.parseGroup, listLinks: core.listLinks, listInstallments: core.listInstallments, splitFor, sourceSplit, sales,
+      db, startDate, today, buildLedger: core.buildLedger, parseGroup: core.parseGroup, listLinks: core.listLinks, listInstallments: core.listInstallments, splitFor, sourceSplit, sales, saleLinks,
     });
 
     const allocatedOf = new Map();
@@ -266,9 +274,11 @@ function createReconciliationController({ db, settings, transactions, model, wri
     // credits cover.
     const days = matchable.map((t) => String(t.settledAt).slice(0, 10)).sort();
     // A sale that went through Mollie (rule 1) is in a Mollie credit, never in the day's card batch.
-    const throughMollie = (sale) => { const source = saleSource(sale); return Boolean(sourceSplit && sourceSplit(source.sourceType, source.sourceKey)); };
+    // Rule 33 — the same source per sale as the receipts: each invoice number on one day of its document.
+    const throughMollie = (source) => Boolean(sourceSplit && sourceSplit(source.sourceType, source.sourceKey));
     const standalone = days.length
-      ? standaloneSales.list({ from: shiftDay(days[0], -BATCH_LOOKBACK_DAYS), to: days[days.length - 1] }).filter((sale) => !throughMollie(sale)) : [];
+      ? sourcesOfSales(standaloneSales.list({ from: shiftDay(days[0], -BATCH_LOOKBACK_DAYS), to: days[days.length - 1] }), today)
+        .filter((source) => !throughMollie(source)).map((source) => source.sale) : [];
     const { byTransaction } = buildProposals({ transactions: matchable, receipts: openReceipts, discarded, settings: cfg, standalone });
 
     const proposalsByReceipt = new Map();
