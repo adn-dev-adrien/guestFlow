@@ -396,6 +396,7 @@ test('rule 52 — nothing is sent while a change is on its way: Enter then leavi
   fireEvent.change(amount(), { target: { value: '500' } });
   fireEvent.keyDown(amount(), { key: 'Enter' });
   fireEvent.blur(amount());
+  // date-literal-ok: never sent, so never judged against today — only proves a date waits too
   fireEvent.blur(within(rowOf(2)).getByLabelText('Date de l’échéance 2'), { target: { value: '2027-02-11' } });
   expect(api.putInstallments.mock.calls).toEqual([[7, { amounts: [{ id: 41, amount: '500' }] }]]);
   await act(async () => { release({ installmentPlan: planOf({ installments: [installment(1, { amount: 500, amountEdited: true }), installment(2, { amount: 251 }), installment(3, { amount: 250.5, amountEditable: false })] }) }); });
