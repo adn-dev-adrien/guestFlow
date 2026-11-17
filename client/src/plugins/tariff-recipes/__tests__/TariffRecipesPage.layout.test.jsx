@@ -13,9 +13,9 @@ import api from '../../../api';
 vi.mock('../../../api', () => ({
   __esModule: true,
   default: {
-    getTariffRecipes: vi.fn().mockResolvedValue({ recipes: [], invalid: [] }),
-    getTariffChangeJournal: vi.fn().mockResolvedValue({ events: [] }),
-    getProperties: vi.fn().mockResolvedValue([]),
+    getTariffRecipes: vi.fn(() => Promise.resolve({ recipes: [], invalid: [] })),
+    getTariffChangeJournal: vi.fn(() => Promise.resolve({ events: [] })),
+    getProperties: vi.fn(() => Promise.resolve([])),
   },
 }));
 

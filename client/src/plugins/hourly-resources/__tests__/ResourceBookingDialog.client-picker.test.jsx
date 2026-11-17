@@ -8,10 +8,10 @@ import { render, screen, fireEvent, waitFor, within } from '@testing-library/rea
 vi.mock('../../../api', () => ({
   __esModule: true,
   default: {
-    getOccupiedSlots: vi.fn().mockResolvedValue({ occupiedSlots: [] }),
+    getOccupiedSlots: vi.fn(() => Promise.resolve({ occupiedSlots: [] })),
     getClientPicker: vi.fn(),
-    getProperties: vi.fn().mockResolvedValue([]),
-    previewResourceBooking: vi.fn().mockResolvedValue(null),
+    getProperties: vi.fn(() => Promise.resolve([])),
+    previewResourceBooking: vi.fn(() => Promise.resolve(null)),
   },
 }));
 
@@ -42,7 +42,7 @@ function mount(props = {}) {
   render(
     <ResourceBookingDialog
       open resource={RESOURCE} booking={null} initialDate="2099-02-13"
-      onClose={() => {}} onSave={vi.fn().mockResolvedValue({})} onDelete={() => {}} {...props}
+      onClose={() => {}} onSave={vi.fn(() => Promise.resolve({}))} onDelete={() => {}} {...props}
     />,
   );
 }
