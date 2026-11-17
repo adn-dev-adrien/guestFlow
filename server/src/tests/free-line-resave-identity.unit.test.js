@@ -63,3 +63,51 @@ for (const [moment, m] of Object.entries(MOMENTS)) {
     });
   }
 }
+
+// VS16-2 (rule 79 reading, S13-1 family) — the fiche kept open takes the row ids its re-read answers (`storedCustomIdsByKey`): a line typed,
+// saved, discounted from the sale panel, then RENAMED before the next save keeps its row — lineId, discount, moment, sale date.
+let H;
+test.before(async () => { H = await import(pathToFileURL(path.join(__dirname, '../../../client/src/utils/bookingFormHydration.js')).href); });
+const call = (fn, body, params = {}) => new Promise((resolve, reject) => {
+  const res = { statusCode: 200, status(c) { this.statusCode = c; return this; }, json(b) { resolve({ status: this.statusCode, body: b }); return this; }, set() { return this; }, setHeader() {} };
+  Promise.resolve(fn({ body, params, query: {}, user: { role: 'admin', id: 1 }, headers: {} }, res)).catch(reject);
+});
+const factsOf = (id) => db.prepare('SELECT lineId, description, discountCents, collectAt, soldAt FROM reservation_custom_options WHERE reservationId = ? ORDER BY sortOrder, id').all(id);
+
+for (const [moment, m] of Object.entries({ beforeArrival: MOMENTS.beforeArrival, unlockedAfterDeparture: MOMENTS.unlockedAfterDeparture })) {
+  test(`VS16-2 — ${moment}: typed line saved (fiche kept open), discounted, renamed, saved → same row with its discount and moment`, async (t) => {
+    const id = stay(20);
+    t.mock.timers.enable({ apis: ['Date'], now: new Date(`${addDaysToIsoDate(row(id).startDate, m.offset)}T12:00:00`).getTime() });
+    try {
+      db.prepare('UPDATE reservations SET checkInDone = ? WHERE id = ?').run(m.checkIn, id);
+      const line = { ...formOf(Boolean(m.offered))[0], amount: 15 };
+      const saved = new Set();
+      const sent1 = FQ.customOptionsPayload([line], saved);
+      const first = ctrl.performUpdate(id, { ...storedBody(id), customOptions: sent1 }, { now: new Date(), unlockPast: Boolean(m.unlock) });
+      assert.equal(first.status, 200, JSON.stringify(first.body));
+      sent1.forEach((l) => saved.add(l.customKey));
+      // The fiche's quiet re-read after the save: the ids land on the lines it sent.
+      const reread = (await call(ctrl.getById, undefined, { id: String(id) })).body;
+      const ids = H.storedCustomIdsByKey(sent1, reread.options);
+      assert.ok(ids && ids.get(line.customKey) != null, 'the re-read names the typed line');
+      assert.equal(ids.get(line.customKey), db.prepare('SELECT id FROM reservation_custom_options WHERE reservationId = ?').get(id).id, 'the stored row id');
+      const stored = factsOf(id)[0];
+      if (!m.offered) {
+        const { changeLine } = require('../utils/extraSale');
+        assert.equal(changeLine(id, `custom:${stored.lineId}`, { discount: { amount: 2 } }, { now: new Date() }).status, 200);
+      }
+      const before = factsOf(id)[0];
+      // The sale panel's change rewrote nothing of the row id: the fiche re-reads after a panel sale anyway (rule 101); its id is current.
+      const currentId = db.prepare('SELECT id FROM reservation_custom_options WHERE reservationId = ?').get(id).id;
+      const renamed = { ...line, customOptionId: m.offered ? ids.get(line.customKey) : currentId, description: 'Bûches' };
+      const second = ctrl.performUpdate(id, { ...storedBody(id), customOptions: FQ.customOptionsPayload([renamed], saved) }, { now: new Date(), unlockPast: Boolean(m.unlock) });
+      assert.equal(second.status, 200, JSON.stringify(second.body));
+      const after = factsOf(id);
+      assert.equal(after.length, 1);
+      assert.deepEqual({ ...after[0], description: undefined }, { ...before, description: undefined }, 'lineId, discount, moment and sale date kept');
+      assert.equal(after[0].description, 'Bûches');
+    } finally {
+      t.mock.timers.reset();
+    }
+  });
+}

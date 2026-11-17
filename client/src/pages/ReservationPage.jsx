@@ -72,7 +72,7 @@ import { localIsoToday } from '../utils/isoDay';
 import { applyWelcomePack, releaseWelcomePackLine } from '../utils/welcomePackApply';
 import {
   hydrateSelectedOptions, hydrateCustomOptions, hydrateSelectedResources, hydrateLaterLines,
-  hydrateOfferedOptionIds, frozenUnitPrices,
+  hydrateOfferedOptionIds, frozenUnitPrices, storedCustomIdsByKey,
 } from '../utils/bookingFormHydration';
 import {
   ficheQuoteBody, selectedOptionsPayload, customOptionsPayload, selectedResourcesPayload,
@@ -194,6 +194,7 @@ function markMissingLookup(err) {
   throw err;
 }
 const withoutTypedAtTags = (lines) => (lines || []).map(({ typedAtParty, typedAtNights, ...line }) => line);
+const withoutRowIds = (lines) => (lines || []).map(({ customOptionId, ...line }) => line);
 
 export default function ReservationPage() {
   const { reservationId } = useParams();
@@ -631,7 +632,8 @@ export default function ReservationPage() {
   // saved yet lives outside the form and is an edit too (specs/ui-review-2026-10-19-operations.md rule 40, R24-1).
   const formSnapshot = useMemo(() => JSON.stringify({
     selectedProp: selectedProp ? Number(selectedProp) : null,
-    form: { ...form, selectedOptions: withoutTypedAtTags(form.selectedOptions) },
+    // A free line's row id is its identity, never an edit: the save that keeps the fiche open hands the form the ids it wrote (VS16-2).
+    form: { ...form, selectedOptions: withoutTypedAtTags(form.selectedOptions), customOptions: withoutRowIds(form.customOptions) },
     pendingClient,
   }), [selectedProp, form, pendingClient]);
   // specs/tourist-tax-matches-the-office-calculation.md rules 10-12 — the freeze is the SERVER's
@@ -2101,6 +2103,16 @@ export default function ReservationPage() {
   const markCustomLinesSaved = (lines) => {
     for (const line of lines || []) savedCustomKeysRef.current.add(String(line.customKey));
   };
+  // Rule 94 reading (loop t16 VS16-2) — the save rewrote the free lines (new row ids): the fiche kept open takes the ids its re-read answers,
+  // on the lines it sent (by `customKey`, whatever was typed since), so a rename before the next save is found on its row as after a reload.
+  const adoptStoredCustomIds = (sentLines, storedOptions) => {
+    const ids = storedCustomIdsByKey(sentLines, storedOptions);
+    if (!ids) return;
+    setForm((prev) => ({
+      ...prev,
+      customOptions: (prev.customOptions || []).map((line) => (ids.has(String(line.customKey)) ? { ...line, customOptionId: ids.get(String(line.customKey)) } : line)),
+    }));
+  };
   const buildSelectedResourcesPayload = () => selectedResourcesPayload(form);
 
   // ONE body for every quote of the fiche's own figures (rule 94 reading, loop t16 S16-2 — `utils/ficheQuoteBody.js`): the live
@@ -2608,6 +2620,7 @@ export default function ReservationPage() {
             loadedUpdatedAt: overwriteOnceRef.current ? undefined : (loadedUpdatedAtRef.current || undefined),
           });
           markCustomLinesSaved(devisPayload.customOptions);
+          adoptStoredCustomIds(devisPayload.customOptions, savedDevis?.options);
           if (overwriteOnceRef.current) loadedUpdatedAtRef.current = savedDevis?.updatedAt || null;
           overwriteOnceRef.current = false;
           if (savedDevis?.retiredPaymentLinks) showSuccess('Devis enregistré. Le lien de paiement en cours est retiré : le montant a changé.');
@@ -2727,7 +2740,7 @@ export default function ReservationPage() {
         ledgerEditMarkerRef.current = null;
         // Rule 7 — the stored ledger is what the fiche shows once clean again: re-read it after a save (and the live
         // « Dates prises » marker, specs/payment-link-lifecycle.md rule 48).
-        api.getReservation(reservationId).then((r) => { if (overwritten) loadedUpdatedAtRef.current = r.updatedAt || null; setDatesTaken(r.datesTaken || null); setStoredLedger(r.ledger || null); setStoredHeadline(r.storedHeadline || null); setStoredSummary(r.storedSummary || null); setStoredDepositDisabledLockedReason(r.depositDisabledLockedReason || null); setMidStayNoteLocks(r.midStayNoteLocks || {}); setRefundedLoweredKeys(new Set((r.refundedLoweredLines || []).map((line) => line.key))); setConvertToDevisLockedReason(r.convertToDevisLockedReason || null); setInstallmentPlan(r.installmentPlan || null); }).catch(() => {});
+        api.getReservation(reservationId).then((r) => { if (overwritten) loadedUpdatedAtRef.current = r.updatedAt || null; setDatesTaken(r.datesTaken || null); setStoredLedger(r.ledger || null); setStoredHeadline(r.storedHeadline || null); setStoredSummary(r.storedSummary || null); setStoredDepositDisabledLockedReason(r.depositDisabledLockedReason || null); setMidStayNoteLocks(r.midStayNoteLocks || {}); setRefundedLoweredKeys(new Set((r.refundedLoweredLines || []).map((line) => line.key))); setConvertToDevisLockedReason(r.convertToDevisLockedReason || null); setInstallmentPlan(r.installmentPlan || null); adoptStoredCustomIds(sentCustomOptions, r.options); }).catch(() => {});
         clearTypedCountFlags();
         if (safeAfterSaveAction) {
           safeAfterSaveAction();

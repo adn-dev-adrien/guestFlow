@@ -128,3 +128,25 @@ test('VS16-1 — a fiche read again (a locked fiche reloads after the save) star
   expect(sentFree(0)).toEqual([expect.objectContaining({ customOptionId: 41, description: 'Bois' })]);
   expect(sentFree(0)[0]).not.toHaveProperty('newLine');
 });
+
+// VS16-2 (rule 79 reading, S13-1 family) — the save-and-stay re-read hands the form the row ids the save wrote: a line renamed before the next
+// save is sent with its row id (the server keeps its lineId, discount, moment), and taking the ids is no edit (the fiche stays clean).
+test('VS16-2 — typed line saved, re-read answers its row: renamed then saved, the PUT names that row; the ids are no edit', async () => {
+  let stored = [];
+  api.updateReservation.mockImplementation(async (_id, body) => {
+    stored = body.customOptions.map((c, i) => ({ isCustom: 1, customOptionId: 500 + i, lineId: 1 + i, title: c.description, description: c.description, quantity: 1, unitPrice: c.amount, totalPrice: c.amount, originalTotalPrice: c.amount, offered: 0, inComplement: 0 }));
+    return { ok: true };
+  });
+  api.getReservation.mockImplementation(async () => ({ ...FICHE, options: stored }));
+  openPage();
+  await arrivalField(FICHE.startDate);
+  await typeLine('Bois', 15);
+  await saveAndStay(1);
+  // The re-read landed: the stored row id is on the line, and the fiche is clean (Enregistrer disabled).
+  await waitFor(() => expect(screen.getByRole('button', { name: 'Enregistrer' })).toBeDisabled());
+  const field = (await screen.findAllByLabelText('Description'))[0];
+  fireEvent.change(field, { target: { value: 'Bûches' } });
+  await saveAndStay(2);
+  expect(sentFree(1)).toEqual([expect.objectContaining({ customOptionId: 500, description: 'Bûches' })]);
+  expect(sentFree(1)[0]).not.toHaveProperty('newLine');
+});

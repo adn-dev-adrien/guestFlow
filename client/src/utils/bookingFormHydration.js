@@ -135,3 +135,26 @@ function parseSessions(value) {
     return Array.isArray(parsed) ? parsed : [];
   } catch { return []; }
 }
+
+/**
+ * The stored row ids of the free lines a save just wrote, keyed by the `customKey` each was sent under (pricing-components rule 94 reading,
+ * loop t16 VS16-2). A save rewrites the free lines in the order it posted them (blank / 0 € lines are never posted), so the re-read's free
+ * lines answer the sent ones one by one; each must carry the sent text, or that text numbered by the save (« Bois (2) »). Anything else —
+ * a line sold meanwhile, a different count — answers null: the fiche then keeps what it had and the server matches by text (rule 19).
+ */
+export function storedCustomIdsByKey(sentLines, storedOptions) {
+  const norm = (text) => String(text || '').trim().toLowerCase().replace(/\s+/g, ' ');
+  const sent = sentLines || [];
+  const stored = (storedOptions || []).filter((o) => o.isCustom);
+  if (sent.length === 0 || stored.length !== sent.length) return null;
+  const ids = new Map();
+  for (let i = 0; i < sent.length; i += 1) {
+    const typed = norm(sent[i].description);
+    const label = norm(stored[i].title || stored[i].description);
+    const numbered = label.startsWith(`${typed} (`) && /^\(\d+\)$/.test(label.slice(typed.length + 1));
+    if ((label !== typed && !numbered) || stored[i].customOptionId == null) return null;
+    ids.set(String(sent[i].customKey), Number(stored[i].customOptionId));
+  }
+  return ids;
+}
+
