@@ -90,7 +90,8 @@ for (const [moment, m] of Object.entries({ beforeArrival: MOMENTS.beforeArrival,
       const reread = (await call(ctrl.getById, undefined, { id: String(id) })).body;
       const ids = H.storedCustomIdsByKey(sent1, reread.options);
       assert.ok(ids && ids.get(line.customKey) != null, 'the re-read names the typed line');
-      assert.equal(ids.get(line.customKey), db.prepare('SELECT id FROM reservation_custom_options WHERE reservationId = ?').get(id).id, 'the stored row id');
+      const rowId = ids.get(line.customKey).customOptionId;
+      assert.equal(rowId, db.prepare('SELECT id FROM reservation_custom_options WHERE reservationId = ?').get(id).id, 'the stored row id');
       const stored = factsOf(id)[0];
       if (!m.offered) {
         const { changeLine } = require('../utils/extraSale');
@@ -99,7 +100,7 @@ for (const [moment, m] of Object.entries({ beforeArrival: MOMENTS.beforeArrival,
       const before = factsOf(id)[0];
       // The sale panel's change rewrote nothing of the row id: the fiche re-reads after a panel sale anyway (rule 101); its id is current.
       const currentId = db.prepare('SELECT id FROM reservation_custom_options WHERE reservationId = ?').get(id).id;
-      const renamed = { ...line, customOptionId: m.offered ? ids.get(line.customKey) : currentId, description: 'Bûches' };
+      const renamed = { ...line, customOptionId: m.offered ? rowId : currentId, description: 'Bûches' };
       const second = ctrl.performUpdate(id, { ...storedBody(id), customOptions: FQ.customOptionsPayload([renamed], saved) }, { now: new Date(), unlockPast: Boolean(m.unlock) });
       assert.equal(second.status, 200, JSON.stringify(second.body));
       const after = factsOf(id);
@@ -111,3 +112,76 @@ for (const [moment, m] of Object.entries({ beforeArrival: MOMENTS.beforeArrival,
     }
   });
 }
+
+// VS16-3 (the verifier's `probe-adopt` made permanent) — a REPEATED label: the save numbers the second « Bois » « Bois (2) »; the fiche kept open
+// adopts each row id AND, its text unchanged since the send, the stored label (`adoptStoredCustomLines`, as a reload shows it). The next save
+// is then no rename onto the other line's label (was 409 LINE_LABEL_TAKEN) and every row keeps its lineId; with and without the preview's
+// typed-title echo (rule 94 reading S14-1). Then the numbered line renamed keeps its row.
+const rowsOfAmounts = (id) => db.prepare('SELECT id, lineId, description, amount FROM reservation_custom_options WHERE reservationId = ? ORDER BY sortOrder, id').all(id);
+async function previewEcho(id, form, saved) {
+  const body = { ...storedBody(id), reservationId: id, customOptions: FQ.customOptionsPayload(form, saved) };
+  const quote = (await call(ctrl.calculatePrice, { ...body, selectedOptions: body.options, selectedResources: body.resources })).body;
+  const byKey = new Map((quote.optionLines || []).filter((l) => l.isCustom).map((l) => [String(l.customKey), l]));
+  return form.map((l) => (byKey.get(l.customKey) ? { ...l, description: String(byKey.get(l.customKey).title || byKey.get(l.customKey).description).trim() } : l));
+}
+async function saveTwice(id, form, echo) {
+  const saved = new Set();
+  let current = echo ? await previewEcho(id, form, saved) : form;
+  const sent = FQ.customOptionsPayload(current, saved);
+  const first = ctrl.performUpdate(id, { ...storedBody(id), customOptions: sent }, { now: new Date() });
+  assert.equal(first.status, 200, JSON.stringify(first.body));
+  sent.forEach((l) => saved.add(l.customKey));
+  const stored = rowsOfAmounts(id);
+  const reread = (await call(ctrl.getById, undefined, { id: String(id) })).body;
+  current = H.adoptStoredCustomLines(current, sent, reread.options);
+  assert.ok(current, 'the re-read answers the sent lines');
+  for (const l of current) assert.equal(Number(stored.find((r) => r.id === l.customOptionId).amount), Number(l.amount), 'each id on its own line');
+  assert.deepEqual(current.map((l) => l.description).sort(), stored.map((r) => r.description).sort(), 'the fiche shows the stored labels');
+  if (echo) current = await previewEcho(id, current, saved);
+  const second = ctrl.performUpdate(id, { ...storedBody(id), notes: 'x', customOptions: FQ.customOptionsPayload(current, saved) }, { now: new Date() });
+  assert.equal(second.status, 200, JSON.stringify(second.body));
+  assert.deepEqual(rowsOfAmounts(id).map((r) => [r.lineId, r.description, r.amount]), stored.map((r) => [r.lineId, r.description, r.amount]), 'identity kept');
+  return { current, saved, stored };
+}
+const storedBois = async (id) => {
+  const body = storedBody(id);
+  body.customOptions = [{ customKey: 'seed', description: 'Bois', amount: 15, newLine: true }];
+  assert.equal(ctrl.performUpdate(id, body, { now: new Date() }).status, 200);
+  return H.hydrateCustomOptions((await call(ctrl.getById, undefined, { id: String(id) })).body.options);
+};
+const CASES = {
+  twoTyped: async () => [{ customKey: 'custom_1', description: 'Bois', amount: 15 }, { customKey: 'custom_2', description: 'Bois', amount: 10 }],
+  storedThenTyped: async (id) => [...await storedBois(id), { customKey: 'custom_2', description: 'Bois', amount: 10 }],
+  typedThenStored: async (id) => [{ customKey: 'custom_2', description: 'Bois', amount: 10 }, ...await storedBois(id)],
+};
+for (const echo of [false, true]) {
+  for (const [name, build] of Object.entries(CASES)) {
+    test(`VS16-3 — repeated label × ${name} × ${echo ? 'preview echo' : 'no echo'}: saved, kept open, saved again → 200, rows kept`, async (t) => {
+      const id = stay(20);
+      t.mock.timers.enable({ apis: ['Date'], now: new Date(`${addDaysToIsoDate(row(id).startDate, -3)}T12:00:00`).getTime() });
+      try {
+        await saveTwice(id, await build(id), echo);
+      } finally {
+        t.mock.timers.reset();
+      }
+    });
+  }
+}
+
+test('VS16-3 — after the adoption the numbered line renamed keeps its row (rule 79), the other line untouched', async (t) => {
+  const id = stay(20);
+  t.mock.timers.enable({ apis: ['Date'], now: new Date(`${addDaysToIsoDate(row(id).startDate, -3)}T12:00:00`).getTime() });
+  try {
+    const { current, saved, stored } = await saveTwice(id, await CASES.twoTyped(), true);
+    const numbered = current.find((l) => /\(2\)$/.test(l.description));
+    const renamed = current.map((l) => (l === numbered ? { ...l, description: 'Bûches' } : l));
+    const third = ctrl.performUpdate(id, { ...storedBody(id), customOptions: FQ.customOptionsPayload(renamed, saved) }, { now: new Date() });
+    assert.equal(third.status, 200, JSON.stringify(third.body));
+    const after = rowsOfAmounts(id);
+    const was = stored.find((r) => r.id === numbered.customOptionId);
+    assert.deepEqual(after.find((r) => r.lineId === was.lineId).description, 'Bûches');
+    assert.deepEqual(after.map((r) => r.lineId).sort(), stored.map((r) => r.lineId).sort());
+  } finally {
+    t.mock.timers.reset();
+  }
+});

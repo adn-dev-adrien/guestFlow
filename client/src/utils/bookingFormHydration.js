@@ -137,24 +137,42 @@ function parseSessions(value) {
 }
 
 /**
- * The stored row ids of the free lines a save just wrote, keyed by the `customKey` each was sent under (pricing-components rule 94 reading,
- * loop t16 VS16-2). A save rewrites the free lines in the order it posted them (blank / 0 € lines are never posted), so the re-read's free
- * lines answer the sent ones one by one; each must carry the sent text, or that text numbered by the save (« Bois (2) »). Anything else —
- * a line sold meanwhile, a different count — answers null: the fiche then keeps what it had and the server matches by text (rule 19).
+ * The stored rows of the free lines a save just wrote, keyed by the `customKey` each was sent under (pricing-components rule 94 reading,
+ * loop t16 VS16-2): `Map<customKey, { customOptionId, title, sent }>`. A save rewrites the free lines in the order it posted them (blank /
+ * 0 € lines are never posted), so the re-read's free lines answer the sent ones one by one; each must carry the sent text, or that text
+ * numbered by the save (« Bois (2) »). Anything else — a line sold meanwhile, a different count — answers null: the fiche then keeps what it
+ * had and the server matches by text (rule 19).
  */
 export function storedCustomIdsByKey(sentLines, storedOptions) {
   const norm = (text) => String(text || '').trim().toLowerCase().replace(/\s+/g, ' ');
   const sent = sentLines || [];
   const stored = (storedOptions || []).filter((o) => o.isCustom);
   if (sent.length === 0 || stored.length !== sent.length) return null;
-  const ids = new Map();
+  const rows = new Map();
   for (let i = 0; i < sent.length; i += 1) {
     const typed = norm(sent[i].description);
-    const label = norm(stored[i].title || stored[i].description);
+    const title = String(stored[i].title || stored[i].description || '').trim();
+    const label = norm(title);
     const numbered = label.startsWith(`${typed} (`) && /^\(\d+\)$/.test(label.slice(typed.length + 1));
     if ((label !== typed && !numbered) || stored[i].customOptionId == null) return null;
-    ids.set(String(sent[i].customKey), Number(stored[i].customOptionId));
+    rows.set(String(sent[i].customKey), { customOptionId: Number(stored[i].customOptionId), title, sent: String(sent[i].description || '').trim() });
   }
-  return ids;
+  return rows;
 }
 
+/**
+ * The fiche's free lines once a save that keeps it open has been re-read (loop t16 VS16-2, VS16-3): each line the save sent takes its row id,
+ * and — when its text is still the one sent — the label the save stored, as a reload would show it (« Bois (2) » for a repeated « Bois »).
+ * A line whose text changed since keeps that text: the next save reads it as a rename of its row. Without the stored label, a line on the
+ * numbered row would post « Bois » and read as a rename onto the other line's label (409 LINE_LABEL_TAKEN). Returns null when nothing applies.
+ */
+export function adoptStoredCustomLines(customOptions, sentLines, storedOptions) {
+  const rows = storedCustomIdsByKey(sentLines, storedOptions);
+  if (!rows) return null;
+  return (customOptions || []).map((line) => {
+    const row = rows.get(String(line.customKey));
+    if (!row) return line;
+    const unchanged = String(line.description || '').trim() === row.sent;
+    return { ...line, customOptionId: row.customOptionId, ...(unchanged ? { description: row.title } : {}) };
+  });
+}

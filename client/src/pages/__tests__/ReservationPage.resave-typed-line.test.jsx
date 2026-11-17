@@ -150,3 +150,33 @@ test('VS16-2 — typed line saved, re-read answers its row: renamed then saved, 
   expect(sentFree(1)).toEqual([expect.objectContaining({ customOptionId: 500, description: 'Bûches' })]);
   expect(sentFree(1)[0]).not.toHaveProperty('newLine');
 });
+
+// VS16-3 — a repeated label: the save stores « Bois » and « Bois (2) »; the fiche kept open takes each row id AND the stored label (as a reload
+// shows it), stays clean, and its next save names each row with its own label — never « Bois » on the « Bois (2) » row (409 LINE_LABEL_TAKEN).
+test('VS16-3 — two typed « Bois »: after the save-and-stay the fiche shows « Bois (2) », stays clean, and the next save keeps both rows', async () => {
+  let stored = [];
+  api.updateReservation.mockImplementation(async (_id, body) => {
+    const seen = new Map();
+    stored = body.customOptions.map((c, i) => {
+      const n = (seen.get(c.description.toLowerCase()) || 0) + 1;
+      seen.set(c.description.toLowerCase(), n);
+      const title = c.customOptionId != null || n === 1 ? c.description : `${c.description} (${n})`;
+      return { isCustom: 1, customOptionId: 600 + i, lineId: 1 + i, title, description: title, quantity: 1, unitPrice: c.amount, totalPrice: c.amount, originalTotalPrice: c.amount, offered: 0, inComplement: 0 };
+    });
+    return { ok: true };
+  });
+  api.getReservation.mockImplementation(async () => ({ ...FICHE, options: stored }));
+  openPage();
+  await arrivalField(FICHE.startDate);
+  await typeLine('Bois', 15);
+  await typeLine('Bois', 10);
+  await saveAndStay(1);
+  await waitFor(() => expect(screen.getAllByLabelText('Description').map((f) => f.value)).toEqual(['Bois', 'Bois (2)']));
+  await waitFor(() => expect(screen.getByRole('button', { name: 'Enregistrer' })).toBeDisabled());
+  fireEvent.change(await screen.findByLabelText(/^Notes/i), { target: { value: 'Une note' } });
+  await saveAndStay(2);
+  expect(sentFree(1)).toEqual([
+    expect.objectContaining({ customOptionId: 600, description: 'Bois', amount: 15 }),
+    expect.objectContaining({ customOptionId: 601, description: 'Bois (2)', amount: 10 }),
+  ]);
+});

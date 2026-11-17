@@ -72,7 +72,7 @@ import { localIsoToday } from '../utils/isoDay';
 import { applyWelcomePack, releaseWelcomePackLine } from '../utils/welcomePackApply';
 import {
   hydrateSelectedOptions, hydrateCustomOptions, hydrateSelectedResources, hydrateLaterLines,
-  hydrateOfferedOptionIds, frozenUnitPrices, storedCustomIdsByKey,
+  hydrateOfferedOptionIds, frozenUnitPrices, storedCustomIdsByKey, adoptStoredCustomLines,
 } from '../utils/bookingFormHydration';
 import {
   ficheQuoteBody, selectedOptionsPayload, customOptionsPayload, selectedResourcesPayload,
@@ -2106,12 +2106,17 @@ export default function ReservationPage() {
   // Rule 94 reading (loop t16 VS16-2) — the save rewrote the free lines (new row ids): the fiche kept open takes the ids its re-read answers,
   // on the lines it sent (by `customKey`, whatever was typed since), so a rename before the next save is found on its row as after a reload.
   const adoptStoredCustomIds = (sentLines, storedOptions) => {
-    const ids = storedCustomIdsByKey(sentLines, storedOptions);
-    if (!ids) return;
-    setForm((prev) => ({
-      ...prev,
-      customOptions: (prev.customOptions || []).map((line) => (ids.has(String(line.customKey)) ? { ...line, customOptionId: ids.get(String(line.customKey)) } : line)),
-    }));
+    if (!storedCustomIdsByKey(sentLines, storedOptions)) return;
+    setForm((prev) => ({ ...prev, customOptions: adoptStoredCustomLines(prev.customOptions, sentLines, storedOptions) }));
+    // VS16-3 — the stored label a line takes is what the save wrote, not an edit: the clean baseline takes it too (as a reload's would).
+    setInitialSnapshot((prevSnapshot) => {
+      if (!prevSnapshot) return prevSnapshot;
+      try {
+        const snap = JSON.parse(prevSnapshot);
+        if (!snap.form) return prevSnapshot;
+        return JSON.stringify({ ...snap, form: { ...snap.form, customOptions: withoutRowIds(adoptStoredCustomLines(snap.form.customOptions, sentLines, storedOptions)) } });
+      } catch { return prevSnapshot; }
+    });
   };
   const buildSelectedResourcesPayload = () => selectedResourcesPayload(form);
 
