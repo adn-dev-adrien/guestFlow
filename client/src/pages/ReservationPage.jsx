@@ -2473,8 +2473,9 @@ export default function ReservationPage() {
     const safeAfterSaveAction = typeof afterSaveAction === 'function' ? afterSaveAction : null;
 
     // Every save-first caller (PDF, payment or balance request, status « Accepté », the unsaved-changes dialog) passes here:
-    // mid-switch the logement is the new one while the options are still the old one's (per-property-default-options rule 11).
-    if (switchingProperty) return false;
+    // mid-switch the logement is the new one while the options are still the old one's (per-property-default-options rule 11);
+    // during a panel sale's re-read the form is older than the server's and would delete the sold line (pricing-components rule 101).
+    if (switchingProperty || rereading || rereadFailed) return false;
 
     if (!selectedProp) {
       await alert({ title: 'Erreur', message: 'Logement à sélectionner.' });
