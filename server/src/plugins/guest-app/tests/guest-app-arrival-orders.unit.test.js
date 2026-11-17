@@ -123,7 +123,8 @@ withStay('rule 87: a paid order is read-only — 409 ORDER_PAID_READ_ONLY; an or
   const orderId = (await place(call, [{ kind: 'option', id: WINE, quantity: 2 }])).body.data.orderId;
   const tooMany = await amend(call, orderId, { lines: [{ key: `opt:${WINE}`, quantity: 4 }] });
   assert.deepEqual([tooMany.status, tooMany.body.code, tooMany.body.left], [409, 'OUT_OF_STOCK', 1]);
-  db.prepare('UPDATE reservations SET checkInDone = 1 WHERE id = ?').run(stayId);
+  // Pricing-components rule 102 (loop t5 S5-6) — the box counts on the arrival day: the stay arrives today and is ticked.
+  db.prepare('UPDATE reservations SET checkInDone = 1, startDate = ? WHERE id = ?').run(fx.isoPlus(0), stayId);
   const arrived = await amend(call, orderId, { removeOrder: true });
   assert.deepEqual([arrived.status, arrived.body.code, arrived.body.error], [409, 'ORDER_NOT_EDITABLE', 'Commande non modifiable.']);
   assert.equal(orderRow(orderId).status, 'confirmed');

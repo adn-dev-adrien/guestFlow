@@ -18,6 +18,7 @@ const createServiceHoursModel = require('./models/serviceHoursModel');
 const createBookletModel = require('./models/bookletModel');
 const createMediaModel = require('./models/mediaModel');
 const createStockModel = require('./models/stockModel');
+const createHomeBlocksModel = require('./models/homeBlocksModel');
 const { alertPush } = require('./stock');
 const mediaFiles = require('./media');
 const { parisDate } = require('./currentStay');
@@ -36,6 +37,7 @@ const { buildServiceHoursController } = require('./controllers/serviceHoursContr
 const { buildBookletController, buildBookletResolver } = require('./controllers/bookletController');
 const { buildStudioController } = require('./controllers/studioController');
 const { buildStudioSettingsController } = require('./controllers/studioSettingsController');
+const { buildHomeController } = require('./controllers/homeController');
 const { buildPublicRouter } = require('./routes/public');
 const { buildAdminRouter } = require('./routes/admin');
 const { createGuestLimiters } = require('./rateLimiters');
@@ -71,6 +73,9 @@ const coreTranslator = (lang) => sdk.coreModule('translationResolver').forLang(l
 // The hourly slots come from the scheduler `hourly-resources` declares, never from that plugin's files.
 const coreScheduler = () => sdk.core.resourceScheduler();
 
+// The house's data comes from the Sowel connector's declaration, never from its tables (SDK 2.28.0).
+const coreHomeData = () => sdk.core.homeData();
+
 // The booklet photos sit under the instance's uploads, served by `/uploads` (specs/guest-app.md §5).
 const coreUploadsDir = () => sdk.coreModule('instancePaths').uploadsDir();
 
@@ -85,8 +90,9 @@ function buildGuestApi({
   db, soliomapUrl, now = () => new Date(), limiters, translator = coreTranslator, scheduler = coreScheduler,
   appName = () => null, soliomapEmbed = () => false, guestHost = () => null, uploadsDir = coreUploadsDir, maxOrderTotal = () => 500,
   soliomapFeed = createSoliomapFeed({ url: soliomapUrl, now }),
-  sale = () => sdk.coreModule('extraSale'), obligations = () => sdk.coreModule('refundObligationsModel'), payments = corePayments, push = corePush,
+  sale = () => sdk.coreModule('extraSale'), payments = corePayments, push = corePush,
   settingsStore = (() => { const store = memorySettings(); return () => store; })(), readGateUrl, httpsEnabled, publicUrl = () => '',
+  homeData = coreHomeData,
 }) {
   const lodgings = once(() => createLodgingsModel(db()));
   const sessions = once(() => createSessionsModel(db()));
@@ -99,6 +105,7 @@ function buildGuestApi({
   const booklet = once(() => createBookletModel(db()));
   const media = once(() => createMediaModel(db()));
   const stock = once(() => createStockModel(db()));
+  const homeBlocks = once(() => createHomeBlocksModel(db()));
   const fulfilment = () => settings.fulfilmentOf((key) => settingsStore().get(key));
 
   /** Rule 37quater — the low / out pushes a move of the stock made due, each once until the next restock. Best effort. */
@@ -124,22 +131,14 @@ function buildGuestApi({
     alertStock([...new Set([...ids].flatMap((reservationId) => stock().reconcile(reservationId, today)))]);
   }
   /**
-   * Rule 72 — a stay cancelled, superseded or deleted cancels its orders (`cancelled`, stock and holds released). A paid card order is
-   * owed back (rule 88): its money opens a refund obligation of origin `orderConflict` (`pricing-components.md` rule 75), once per
-   * payment link. → the orders moved.
+   * Rule 72 — a stay cancelled, superseded or deleted cancels its orders (`cancelled`, stock and holds released). → the orders moved.
+   * Rule 110 (owner, 2026-11-16, loop t1 B-2) — a card order paid before the cancellation is a collected line of the stay: its money is given back
+   * from the cancellation's refund dialog only (`reservation-refunds.md` D3, D15), so the cancellation opens no register row for it.
    */
   function cancelOrdersOf(reservationId) {
     const stay = stays().byId(reservationId);
     if (stay && stay.kind === 'reservation') return [];
     const moved = orders().cancelForStay(reservationId, { now: now() });
-    moved.filter((order) => order.payment === 'card' && order.paymentLinkId && ['paid', 'delivered'].includes(order.status)).forEach((order) => {
-      const cents = Math.round(Number(order.total) * 100);
-      if (cents <= 0 || obligations().openFor(reservationId).some((row) => Number(row.paymentLinkId) === Number(order.paymentLinkId))) return;
-      obligations().open({
-        reservationId: Number(reservationId), origin: 'orderConflict', paymentLinkId: Number(order.paymentLinkId), amountCents: cents,
-        reason: `séjour annulé : commande client #${order.id} à rembourser`,
-      });
-    });
     reconcileStock(reservationId);
     return moved;
   }
@@ -170,9 +169,13 @@ function buildGuestApi({
     return { shop: true, bath };
   }
 
+  const home = buildHomeController({
+    homeBlocks, lodgings, homeData, now,
+  });
   const controller = buildSessionController({
     lodgings, sessions, stays, stayLinks, orders, guestSession, soliomapUrl, soliomapFeed, now, appName, soliomapEmbed,
     bathCards: shop.bathCards,
+    homeReady: home.ready,
     ...(readGateUrl ? { readGateUrl } : {}),
   });
   const arrivalOrders = buildArrivalOrdersController({
@@ -190,6 +193,7 @@ function buildGuestApi({
   return {
     publicRouter: buildPublicRouter({
       controller, shop, orders: orderBook, booklet: buildBookletController({ resolver, guestSession, lodgings }), guestSession, limiters, appName,
+      home,
     }),
     adminRouter: buildAdminRouter({
       lodgings: buildLodgingsController({
@@ -207,7 +211,10 @@ function buildGuestApi({
       }),
       stayLinks: links,
       orders: { ...buildOrdersAdminController({ orders, stays, lodgings, now }), amend: arrivalOrders.amend },
+      home,
     }),
+    // specs/guest-app-home-automation.md rule 4 — what the house is asked to send.
+    homeSelection: home.selection,
     sessions,
     // Rule 9bis — where the stay link is given: the SAS step and the reminder e-mails.
     stayLinkAvailable: links.available,
@@ -256,6 +263,7 @@ function register(ctx) {
     guestHost() ? null : 'adresse de l’application à configurer',
     api.serviceHoursConfigured() ? null : 'horaires du service à configurer',
   ].filter(Boolean).join(', ') || null);
+  ctx.homeSelection(api.homeSelection);
   // Rules 35-36 — a paid card link of an order commits it, or flags its money « à rembourser ».
   ctx.paymentBasket({
     source: ORDER_SOURCE,

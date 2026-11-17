@@ -141,7 +141,7 @@ test('rule 22 — no plan is read once a bucket is collected', () => {
 
 test('rule 48 — planSchedule takes values, never the port: a ledger whose functions throw is not asked', () => {
   const trap = () => assert.fail('the unit read the port');
-  const plan = planSchedule({ ...input({ receipts: { balancePaid: 1, balanceAmount: 500 } }), paymentLedger: { installments: trap, splitReceived: trap } });
+  const plan = planSchedule({ ...input({ receipts: { balancePaid: 1, balanceAmount: 500 } }), paymentLedger: { installments: trap, splitReceived: trap, receipts: trap } });
   assert.equal(typeof plan.preArrivalAmount, 'number');
 });
 
@@ -150,7 +150,8 @@ test('rule 48 — the schedule step reads the ledger under the conditions the pl
   const reads = [];
   const ledger = {
     installments: (id) => { reads.push(['installments', id]); return { scheduled: 1040, paid: 0, allPaid: false }; },
-    splitReceived: (id) => { reads.push(['splitReceived', id]); return null; },
+    splitReceived: () => assert.fail('the step reads the split from the receipts (rule 48)'),
+    receipts: (id) => { reads.push(['receipts', id]); return { allocations: [], settlements: [], splitReceived: null }; },
   };
   const ctxOf = (patch = {}) => {
     const base = input(patch);
@@ -165,7 +166,7 @@ test('rule 48 — the schedule step reads the ledger under the conditions the pl
   assert.deepEqual(reads, [['installments', 12]]);
   reads.length = 0;
   assert.equal(step.apply(ctxOf({ policy: { bookingId: 12 }, receipts: { depositPaid: 1, depositAmount: 300 } })).installmentPlan, null);
-  assert.deepEqual(reads, [['splitReceived', 12]]);
+  assert.deepEqual(reads, [['receipts', 12]]);
   reads.length = 0;
   assert.equal(step.apply(ctxOf({ policy: { bookingId: 12, platform: 'booking', channel: channelOf('platform') } })).installmentPlan, null);
   assert.deepEqual(reads, []);

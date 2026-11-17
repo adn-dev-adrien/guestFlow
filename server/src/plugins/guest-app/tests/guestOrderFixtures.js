@@ -129,17 +129,20 @@ function livePlugins(api, { card = null } = {}) {
 }
 
 /** The guest app's routes on the app's database, its clock on now, and a stay session on `reservationId`. */
-async function openOrdering(reservationId, { propertyId = 1, card = null, ...options } = {}) {
+// `now` is the moment the session opens and the API's clock: a test of a given hour opens its session at that hour, never at the wall clock's.
+async function openOrdering(reservationId, {
+  propertyId = 1, card = null, now = new Date(), ...options
+} = {}) {
   const pushes = [];
   const ctx = await startApi(db, {
     commit: require('../../../utils/extraSale'),
     push: () => ({ sendToPref: async (key, payload) => { pushes.push({ key, payload }); return { sent: 1 }; } }),
     ...options,
   });
-  ctx.clock.now = new Date();
+  ctx.clock.now = now;
   const teardown = livePlugins(ctx.api, { card });
   require('../models/lodgingsModel')(db).save(propertyId, { enabled: true });
-  const token = require('../models/stayLinksModel')(db).ensure(reservationId, new Date()).token;
+  const token = require('../models/stayLinksModel')(db).ensure(reservationId, now).token;
   const opened = await ctx.call('POST', '/public/v1/guest/sessions', { stayToken: token });
   const cookie = opened.setCookie.split(';')[0];
   const call = (method, url, body) => ctx.call(method, url, body, { cookie });

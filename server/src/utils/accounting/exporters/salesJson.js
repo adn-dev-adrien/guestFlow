@@ -20,11 +20,13 @@ function createSalesJson({ accountPlan, csvJournal }) {
     if (rows.length === 0) return null;
     const [day, month, year] = rows[0];
 
-    const isRefund = entry.direction === 'refund';
+    // A standalone document's avoir and kept surplus (outside-visit rules 49-50) render as an avoir and a tip.
+    const isRefund = entry.direction === 'refund' || entry.standaloneRole === 'refund';
     const isCompensation = entry.direction === 'compensation';
     const isDiscount = entry.direction === 'discount';
-    const isTip = entry.direction === 'tip';
+    const isTip = entry.direction === 'tip' || entry.standaloneRole === 'tip';
     const isPenalty = entry.direction === 'penalty';
+    const isMollie = entry.direction === 'mollie';
     const platformInfo = (entry.platform && entry.platform !== 'direct' && !isRefund && !isCompensation
       && !isDiscount && !isTip && !isPenalty)
       ? {
@@ -82,7 +84,7 @@ function createSalesJson({ accountPlan, csvJournal }) {
       // specs/cancellation-compensation.md §6.3 — « compensation » renders as an indemnity card.
       direction: isRefund ? 'refund'
         : (isCompensation ? 'compensation'
-          : (isDiscount ? 'discount' : (isTip ? 'tip' : (isPenalty ? 'penalty' : 'sale')))),
+          : (isDiscount ? 'discount' : (isTip ? 'tip' : (isPenalty ? 'penalty' : (isMollie ? 'mollie' : 'sale'))))),
       // specs/resource-booking-pricing-and-invoicing.md rule 22 — a sale made outside any stay, and its Qonto invoice.
       standalone: entry.direction === 'standalone' ? { label: entry.standaloneLabel || '', invoiceNumber: entry.piece || null } : null,
       compensationId: entry.compensationId != null ? entry.compensationId : null,

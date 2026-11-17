@@ -5,7 +5,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
-const { wifiPayload } = require('../controllers/sessionController');
+const { wifiPayload, wifiView } = require('../controllers/sessionController');
 
 /** A phone's reading of one field of a WIFI: payload. */
 function readField(payload, name) {
@@ -24,4 +24,13 @@ test('rule 18 reading: the wifi join text reads back the password and the networ
     assert.equal(readField(payload, 'S'), 'Gîte \\ Solio;5G', payload);
   });
   assert.equal(wifiPayload({ network: 'Open', password: '' }), 'WIFI:T:nopass;S:Open;P:;;');
+});
+
+// Reading of 2026-11-13: the QR is shown full screen to another phone's camera, so it is drawn sharp, not at the
+// library's ~100 px default that the screen then blew up.
+test('rule 18 reading: the wifi join QR is a 600 px PNG', async () => {
+  const { joinQr } = await wifiView({ network: 'Solio', password: 'chenes' });
+  const png = Buffer.from(joinQr.replace(/^data:image\/png;base64,/, ''), 'base64');
+  assert.equal(png.readUInt32BE(16), 600);
+  assert.equal(png.readUInt32BE(20), 600);
 });

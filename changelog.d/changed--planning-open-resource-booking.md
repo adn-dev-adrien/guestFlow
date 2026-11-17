@@ -1,0 +1,1 @@
+- Planning: a click on the card of a resource booking outside a stay (bain nordique…) opens that booking in Calendrier › Ressources, on its resource and week.

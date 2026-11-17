@@ -3,7 +3,7 @@
 // line each and shows the next arrival with its date. The shared E2E database holds stays of other
 // specs, so the day's lists are fixed by answering GET /api/planning/today; the real answer's shape is
 // pinned alongside.
-import { test, expect } from '@playwright/test';
+import { test, expect } from '../../fixtures/test.js';
 
 const STAY = {
   id: 4242, kind: 'reservation', startDate: '2026-11-06', endDate: '2026-11-09', checkInTime: '16:00',

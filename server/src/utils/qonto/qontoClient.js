@@ -288,6 +288,8 @@ function buildQontoClient(config = {}) {
       return {
         transactions: (json.transactions || []).map((t) => ({
           id: t.transaction_id || t.id,
+          // specs/mollie-rolling-reserve-and-incoming-payments.md rule 12 — the id Qonto's own search and exports show.
+          transactionId: t.transaction_id || '',
           amountCents: t.amount_cents != null ? Number(t.amount_cents) : Math.round(Number(t.amount) * 100),
           currency: t.currency || 'EUR',
           side: t.side || 'credit',

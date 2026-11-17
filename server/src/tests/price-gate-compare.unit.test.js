@@ -82,7 +82,7 @@ test('rule 68: no rounding slack — 12.345 and 12.35, 0.3 and 0.1 + 0.2, 0 and 
 });
 
 test('rule 68: an entry with removed: true approves a figure that disappeared, never one that became null', () => {
-  const entry = { reservationId: 1, field: 'a', old: 5, corrected: null, removed: true, reason: 'r', rule: 'r', defect: 'd', approvedBy: 'Adrien', approvedAt: '2026-11-12' };
+  const entry = { reservationId: 1, field: 'a', old: 5, corrected: null, removed: true, reason: 'r', rule: 'r', defect: 'd', approvedBy: 'Adrien', approvedAt: '2026-11-12' }; // date-literal-ok — a captured approval date of the fixed price-gate fixture
   assert.deepEqual(compareFigures({ 1: { a: 5 } }, { 1: {} }, [entry]).differences, []);
   assert.deepEqual(compareFigures({ 1: { a: 5 } }, { 1: { a: null } }, [entry]).differences.map((d) => d.field), ['a']);
   const plain = { ...entry, removed: undefined };

@@ -1,5 +1,5 @@
 // specs/guest-app.md rules 72, 88 — a stay cancelled, superseded or deleted cancels its guest orders: status `cancelled`, stock and
-// holds released, out of « À préparer »; a card-paid one is owed back, flagged « à rembourser » on its link.
+// holds released, out of « À préparer »; a card-paid one is owed back from the cancellation's refund dialog (rule 110 b).
 const fx = require('./guestOrderFixtures');
 
 const test = require('node:test');
@@ -83,17 +83,13 @@ withStay('rule 72: the stock a cancelled order held comes back', async ({ stayId
   assert.equal(await left(), 4);
 });
 
-withStay('rule 88: a card-paid order of a cancelled stay is cancelled and owed back — one open refund obligation of origin orderConflict (pricing-components rule 75)', async ({ stayId, call, card, api }) => {
-  const { orderId, link } = await payCard(call, card, 3);
+withStay('rules 88, 110 b: a card-paid order of a cancelled stay is cancelled, « Payée · à rembourser »; its money is the refund dialog\'s, no register row', async ({ stayId, call, card, api }) => {
+  const { orderId } = await payCard(call, card, 3);
   assert.equal(orderRow(orderId).status, 'paid');
   cancelStay(stayId);
   api.cancelOrdersOf(stayId);
   assert.equal(orderRow(orderId).status, 'cancelled');
-  const owed = db.prepare("SELECT * FROM refund_obligations WHERE reservationId = ? AND origin = 'orderConflict'").all(stayId);
-  assert.deepEqual(owed.map((o) => [o.amountCents, o.status, o.paymentLinkId]), [[1800, 'open', link.id]], 'the whole payment is owed (18 €)');
-  assert.match(owed[0].reason, /séjour annulé/);
+  assert.equal(db.prepare('SELECT COUNT(*) AS n FROM refund_obligations WHERE reservationId = ?').get(stayId).n, 0, 'the register does not repeat the refund dialog');
   const staff = (await call('GET', '/api/guest-app/orders?status=all')).body.orders.find((o) => o.id === orderId);
   assert.equal(staff.statusLabel, 'Payée · à rembourser');
-  api.cancelOrdersOf(stayId);
-  assert.equal(db.prepare("SELECT COUNT(*) AS n FROM refund_obligations WHERE reservationId = ? AND origin = 'orderConflict'").get(stayId).n, 1, 'owed once');
 });

@@ -1,1 +1,1 @@
-- La fiche d'une réservation (`GET /api/reservations/:id`) embarque le détail des ventes (`saleDetail`) : plus de seconde requête pour lire les lignes vendues (specs/pricing-components.md, règle 31).
+- A reservation's fiche (`GET /api/reservations/:id`) carries the sales detail (`saleDetail`): no more second request to read the sold lines (specs/pricing-components.md, rule 31).

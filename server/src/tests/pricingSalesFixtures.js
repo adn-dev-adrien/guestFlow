@@ -78,8 +78,10 @@ function seed(db) {
     INSERT INTO platforms (name, countsAsDirect) VALUES ('Booking.com', 0), ('Site', 1);
     INSERT INTO options (id, title, priceType) VALUES (1, 'Petit-déjeuner', 'per_person'), (2, 'Bois', 'per_stay'), (3, 'Bain', 'per_hour');
     INSERT INTO resources (id, name, priceType) VALUES (5, 'Spa', 'per_stay'), (6, 'Sauna', 'per_stay');
+    -- date-literal-ok — migration or backfill fixture: historical values the code under test copies, never compares with today
     INSERT INTO reservations (id, kind, platform, createdAt, finalPrice) VALUES (10, 'reservation', 'direct', '2026-01-05 10:00:00', 400), (11, 'reservation', 'Booking.com', '2026-02-05 10:00:00', 300);
     INSERT INTO reservation_options (reservationId, optionId, quantity, unitPrice, billedUnits, priceType, totalPrice, offered, inComplement, cardOccurrences) VALUES
+      -- date-literal-ok — migration or backfill fixture: historical values the code under test copies, never compares with today
       (10, 3, 1, 15, 1, 'per_hour', 15, 0, 0, NULL), (10, 1, 2, 10, 2, 'per_person', 20, 0, 0, '[{"date":"2026-01-06"}]'), (11, 2, 1, 20, 1, 'per_stay', 35, 0, 1, NULL), (10, 2, 1, 20, 1, 'per_stay', 35, 0, 1, NULL);
     INSERT INTO reservation_resources (reservationId, resourceId, quantity, unitPrice, billedUnits, priceType, totalPrice, inComplement) VALUES (10, 6, 1, 30, 1, 'per_stay', 30, 0), (10, 5, 1, 40, 1, 'per_stay', 40, 1);
     INSERT INTO payment_links (reservationId, type, amountCents, status) VALUES (10, 'full', 40000, 'paid'), (11, 'balance', 1000, 'open');

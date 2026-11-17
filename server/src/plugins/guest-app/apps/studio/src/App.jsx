@@ -12,6 +12,7 @@ import { DirtyGuardProvider } from './hooks/useDirtyGuard';
 import { useLoad } from './hooks/useLoad';
 import { api } from './services/api';
 import ModulesPage from './pages/ModulesPage';
+import HomeAutomationPage from './pages/HomeAutomationPage';
 import LodgingInfoPage from './pages/LodgingInfoPage';
 import BookletPage from './pages/BookletPage';
 import ShopItemsPage from './pages/ShopItemsPage';
@@ -59,6 +60,7 @@ export default function App() {
           <Route path="/:propertyId/livret" element={lodgingScreen(BookletPage)} />
           <Route path="/:propertyId/livret/:pageId" element={lodgingScreen(BookletPage)} />
           <Route path="/:propertyId/boutique" element={lodgingScreen(ShopItemsPage)} />
+          <Route path="/:propertyId/domotique" element={lodgingScreen(HomeAutomationPage)} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </StudioShell>

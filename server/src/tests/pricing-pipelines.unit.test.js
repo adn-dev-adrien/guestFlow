@@ -15,8 +15,10 @@ const END = addDaysToIsoDate(START, 3);
 
 const STEPS_DIR = path.join(__dirname, '..', 'utils', 'pricing', 'steps');
 const allStepFiles = fs.readdirSync(STEPS_DIR).filter((f) => f.endsWith('.js')).map((f) => f.replace(/\.js$/, ''));
-// The steps of `externalSale` (rule 53, PR C) are files of their own, named `external*`.
-const stepFiles = allStepFiles.filter((f) => !f.startsWith('external'));
+// The steps of `externalSale` (rule 53, PR C) are files of their own, named `external*`; `storedNights`, `storedExtraGuests` and
+// `storedTouristTax` are the NIGHTS, EXTRA GUESTS and TOURIST TAX of `staySale` (rules 8, 9).
+const AS_STORED = new Set(['storedNights', 'storedExtraGuests', 'storedTouristTax']);
+const stepFiles = allStepFiles.filter((f) => !f.startsWith('external') && !AS_STORED.has(f));
 
 test('rule 52: stayQuote is built and runs loadStay → clock → nights → extraGuests → extras → … → schedule → settlement', () => {
   assert.equal(stayQuote.steps[0], 'loadStay');
@@ -30,9 +32,11 @@ test('rule 52: stayQuote is built and runs loadStay → clock → nights → ext
   assert.ok(index('schedule') < index('platformPayment') && index('platformPayment') < index('settlement'), 'rule 70: the platform payment follows the schedule');
 });
 
-test('rule 52: every stay step file is in stayQuote, and the only sale use case built is externalSale (ficheSale, sasSale, shopSale are not)', () => {
+test('rule 52: every stay step file is in stayQuote; the sale use cases are staySale (rules 8, 9) under each seller\'s name (rule 54) and externalSale', () => {
   assert.deepEqual([...stayQuote.steps].sort(), [...stepFiles].sort());
-  assert.deepEqual(Object.keys(require('../utils/pricing/pipelines')), ['stayQuote', 'touristTaxFigure', 'externalSale']);
+  assert.deepEqual(Object.keys(require('../utils/pricing/pipelines')), [
+    'stayQuote', 'staySale', 'ficheSale', 'sasSale', 'shopSale', 'salePipelineOf', 'touristTaxFigure', 'externalSale',
+  ]);
 });
 
 test('rule 3: the tourist-tax slice is the head of stayQuote up to the TOURIST TAX step, nothing else', () => {

@@ -258,7 +258,12 @@ function buildOrdersController({
     if (placed.length) out.push({ articleRef: `resource:${line.id}`, quantity: sessionsHours(placed), sessions: placed, placeOnHeld: true });
     if (rest.length) out.push({ articleRef: `resource:${line.id}`, quantity: sessionsHours(rest), sessions: rest });
     // Rules 81-83 — the evening the offered or held hours owe, a line of the stay of its own (pricing-components rules 13, 25), decided once at the quote.
-    if (Number(line.supplement) > 0) out.push({ articleRef: 'custom', label: `${line.title} — supplément soirée`, amount: Number(line.supplement), quantity: 1 });
+    // Loop t2 N-6 — the supplement names its bath by a stable key: a second one may be numbered « … (2) » (pricing-components rule 94).
+    if (Number(line.supplement) > 0) {
+      out.push({
+        articleRef: 'custom', label: `${line.title} — supplément soirée`, amount: Number(line.supplement), quantity: 1, fulfilmentRef: `evening:resource:${line.id}`,
+      });
+    }
     return out;
   };
 
@@ -763,9 +768,11 @@ function buildOrdersController({
    * are still free and its price has not risen above what was paid; else `paid_conflict`, nothing reaches the fiche and the money opens a refund obligation of origin
    * `orderConflict` (rule 75). A sale that now costs less than was paid leaves the gap owed back (`refundCents`).
    */
-  function paid({ reservationId, ref, amountCents, paidDate, paidAt, providerPaymentId }) {
+  function paid({ reservationId, ref, linkId, amountCents, paidDate, paidAt, providerPaymentId }) {
     const order = orders().findById(ref);
     if (!order || Number(order.reservationId) !== Number(reservationId)) return notHonoured('commande introuvable');
+    // Loop t2 D2-2 — a link pays the order it was issued for: another order wearing the same id (counter reused after an erase) is never sold with it.
+    if (order.paymentLinkId != null && linkId != null && Number(order.paymentLinkId) !== Number(linkId)) return notHonoured('commande introuvable');
     if (['paid', 'delivered', 'paid_conflict', 'confirmed'].includes(order.status)) return { effect: 'guest-order-already-settled' };
     const at = now();
     const stay = stays().byId(order.reservationId);
@@ -780,6 +787,9 @@ function buildOrdersController({
       };
       // Rule 35 — abandoned, its lines went back to the cart: a payment landing now is never committed.
       if (order.status === 'abandoned') return conflict('commande abandonnée avant le paiement, commande non honorée');
+      // Loop t1 AG-5, AG-6 (rules 72, 108 d) — an order cancelled with its stay before its payment landed is never sold, even on a stay restored since:
+      // the payment is a conflict, shown « Payée · à rembourser » and pushed to the staff.
+      if (order.status === 'cancelled') return conflict('commande annulée avant le paiement, commande non honorée');
       // Rule 37quater — an unpaid order held nothing: the payment finds what is left at that moment.
       if (!stay || stay.kind !== 'reservation' || !sessionsStillFree(order, stay, at) || !unitsStillLeft(order, at)) return conflict();
       const delivery = deliveryAfterPayment(order, stay, at);

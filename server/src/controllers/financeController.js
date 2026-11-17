@@ -8,7 +8,7 @@ const vatFranchise = require('../models/vatFranchiseModel');
 // specs/finance-dashboard-redesign.md §4.3 — the whole page in one payload, and each tile's table.
 const dashboardParams = (q) => ({
   fiscalYear: q.fiscalYear, period: q.period, month: q.month, from: q.from, to: q.to,
-  propertyId: q.propertyId, until: q.until, scope: q.scope,
+  propertyId: q.propertyId, until: q.until, scope: q.scope, recent: q.recent,
 });
 
 // specs/finance-dashboard-redesign.md rule 57 — a refusal may carry its code (`UNKNOWN_EXERCISE`).
@@ -22,6 +22,14 @@ function getDashboard(req, res) {
 
 function getDashboardDetail(req, res) {
   const result = dashboard.getDashboardDetail(req.params.tile, dashboardParams(req.query));
+  if (!result.ok) return refusal(res, result);
+  return res.json(result.data);
+}
+
+// specs/mollie-rolling-reserve-and-incoming-payments.md rules 21-27 — « Versements à venir », grouped by client; `?recent=1` lists
+// what arrived in the last 30 days. The same payload as the dashboard's `incoming` detail.
+function getIncoming(req, res) {
+  const result = dashboard.getDashboardDetail('incoming', dashboardParams(req.query));
   if (!result.ok) return refusal(res, result);
   return res.json(result.data);
 }
@@ -70,4 +78,4 @@ function setTouristTaxDeclared(req, res) {
   return res.json({ ok: true, declaredAt: result.data.declaredAt });
 }
 
-module.exports = { getVatFranchise, getDashboard, getDashboardDetail, getPace, getPaceMonth, goalContext, touristTax, setTouristTaxDeclared };
+module.exports = { getVatFranchise, getDashboard, getDashboardDetail, getIncoming, getPace, getPaceMonth, goalContext, touristTax, setTouristTaxDeclared };

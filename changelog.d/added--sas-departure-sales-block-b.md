@@ -1,1 +1,1 @@
-- **Le sas d'arrivée liste à part les ventes dues au départ (pricing refonte, PR B)**: bloc « Ventes du séjour — au départ » en tête du récapitulatif, hors du total encaissé à l'arrivée.
+- **The arrival SAS lists the sales due at departure separately (pricing refonte, PR B)**: a « Ventes du séjour — au départ » block at the top of the summary, outside the total collected at the arrival.

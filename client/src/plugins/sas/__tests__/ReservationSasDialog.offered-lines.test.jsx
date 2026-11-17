@@ -77,7 +77,7 @@ test('arrival recap: offering a linen element drops it from the total and rides 
   expect(arg.complementItems).toBeUndefined();
 });
 
-test('arrival recap: offering a pre-existing extra sends its ref in offeredExtras', async () => {
+test('arrival recap: offering a pre-existing extra sends its ref in offered', async () => {
   api.getReservationSas.mockResolvedValue(sasPayload({
     reservation: OFFERABLE_ARRIVAL,
     cleaning: { included: true, price: null },
@@ -99,7 +99,7 @@ test('arrival recap: offering a pre-existing extra sends its ref in offeredExtra
 
   clickBtn('Valider et terminer');
   await waitFor(() => expect(api.commitArrivalSas).toHaveBeenCalledTimes(1));
-  expect(api.commitArrivalSas.mock.calls[0][1].offeredExtras).toEqual([{ kind: 'option', id: 5 }]);
+  expect(api.commitArrivalSas.mock.calls[0][1].offered).toEqual([{ kind: 'option', id: 5 }]);
 });
 
 test('arrival recap reopen: a line offered at the previous commit comes back « ✓ Offert »', async () => {
@@ -128,7 +128,7 @@ test('arrival recap reopen: a line offered at the previous commit comes back « 
   expect(await screen.findByText(/Total : 20,00 €/)).toBeInTheDocument();
   clickBtn('Valider et terminer');
   await waitFor(() => expect(api.commitArrivalSas).toHaveBeenCalledTimes(1));
-  expect(api.commitArrivalSas.mock.calls[0][1].offeredExtras).toEqual([]);
+  expect(api.commitArrivalSas.mock.calls[0][1].offered).toEqual([]);
 });
 
 test('departure recap: offering the end-of-stay ménage drops the total and tags the detail line', async () => {

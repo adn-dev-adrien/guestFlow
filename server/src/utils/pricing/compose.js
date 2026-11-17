@@ -13,7 +13,8 @@
 const { roundMoney } = require('./money');
 const { extraGuestNightSeason } = require('./extraGuests');
 const { quoteHeadline, summaryCascade } = require('../quoteHeadline');
-const { stayQuote, touristTaxFigure: touristTaxSlice } = require('./pipelines');
+const { stayQuote, salePipelineOf, touristTaxFigure: touristTaxSlice } = require('./pipelines');
+const { SALE_FIGURES, saleFiguresOfContext } = require('./storedSaleFigures');
 
 // The engine's own estimate of the tax, and the amount the platform stated it withheld (null when none): the two figures the
 // fiche prints and the report of the platform's tax reads.
@@ -34,7 +35,7 @@ function shape(ctx) {
     frozenTouristTaxAt, grantedFreeUnitsFor, includedGuests, isExtraGuestSurchargeOffered,
     isTouristTaxCollectedOnArrival, isTouristTaxForcedToComplement, isTouristTaxOfferedByPlatform,
     isTouristTaxRemittedByOwnerFlag, lockedTariff, maxNightsBreached, maxNightsRules, mergedNightly,
-    midStayLinesWithExcess, midStayRemainingDue, midStaySettledAll, midStayTotal, minNightsBreached,
+    midStayLinesWithExcess, midStayRemainingDue, midStaySettledAll, midStayTotal, minNightsBreached, noteCreditCuts,
     minNightsRules, nightlyBreakdown, nights, typedDiscountPercent, optionsNetPrice, optionsTotal,
     optionsVatAmount, overCollectedTtc, persons, platformCommissionAmount, platformGrossPin,
     platformIsNonDirect, platformNetReceivedAmount, platformPaidAdults, platformTakesDeposit, preArrivalAmount,
@@ -111,6 +112,9 @@ function shape(ctx) {
     autoDepositAmount,
     balanceAmount: resolvedBalanceAmount,
     complementAmount: resolvedComplementAmount,
+    // Rule 104 (loop t5 S5-2) — what the credit of a paid line's freed money took off each of these three buckets (`pinSaleDelta` reads it);
+    // only on a quote that holds such a credit, so every other quote stays the one it was, key for key (rule 4).
+    ...(Object.values(noteCreditCuts || {}).some((cut) => cut > 0) ? { noteCreditCuts } : {}),
     overCollectedTtc,
     complementCollectedExcessTtc: complementCollectedExcess,
     // What the complement carries on its own (forced lines + tax + the gap), whatever was collected or adjusted.
@@ -325,10 +329,18 @@ function haltedQuote({ property, settings, vatRate, vatRegime }) {
   };
 }
 
-function compose(input) {
-  const ctx = stayQuote({ input });
+// `sale` (rules 8, 9, 54): the stay is not edited, a line is sold on it by the seller it names (`fiche`, `sas`, `shop`) — that seller's sale
+// pipeline, the nights, the extra guests and the tax read as stored (`stored`: the stay's records, `storedSaleFigures`). A sale naming no
+// known seller is refused rather than priced as a stay edit. The quote carries the records it was priced with (rule 8), for the save to
+// store: under a symbol, so no reader of the quote's keys sees them.
+function compose(input, { sale = null, stored = null } = {}) {
+  const pipeline = sale ? salePipelineOf(sale) : stayQuote;
+  if (!pipeline) throw new Error(`SALE_PIPELINE_UNKNOWN ${sale}`);
+  const ctx = pipeline(sale ? { input, storedSaleFigures: stored || null } : { input });
   if (ctx.halt) return haltedQuote(ctx);
-  return shape(ctx);
+  const quote = shape(ctx);
+  quote[SALE_FIGURES] = saleFiguresOfContext(ctx);
+  return quote;
 }
 
 // The two tax figures of a stay, from the TOURIST TAX slice alone (a stay with no night has none: the halted quote carries neither).

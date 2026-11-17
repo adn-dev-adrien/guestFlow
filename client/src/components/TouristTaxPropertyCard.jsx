@@ -14,9 +14,9 @@
  *   onDeclare, onExport: () => void
  */
 import React from 'react';
-import { Box, Button, Typography } from '@mui/material';
+import { Box, Button, Tooltip, Typography } from '@mui/material';
 import { formatCurrency } from '../utils/formatters';
-import { TAX_PROPERTY } from '../constants/touristTaxReport';
+import { TAX_PROPERTY, PERSON_NIGHT_HINTS } from '../constants/touristTaxReport';
 
 const TABULAR = { fontVariantNumeric: 'tabular-nums' };
 
@@ -59,15 +59,18 @@ export default function TouristTaxPropertyCard({ totals, color, busy = false, on
       </Box>
       <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 1 }}>
         {[
-          [totals.taxedPersonNights, TAX_PROPERTY.taxedNights(totals.taxedPersonNights)],
+          [totals.taxedPersonNights, TAX_PROPERTY.taxedNights(totals.taxedPersonNights), PERSON_NIGHT_HINTS.taxed],
           [totals.taxedPersons, TAX_PROPERTY.taxedPersons(totals.taxedPersons)],
           [formatCurrency(declared), TAX_PROPERTY.alreadyDeclared],
-        ].map(([value, label]) => (
-          <Box key={label} sx={{ bgcolor: 'background.default', borderRadius: 2, px: 1.25, py: 1 }}>
-            <Typography component="b" sx={{ display: 'block', fontSize: { xs: '0.95rem', sm: '1.05rem' }, fontWeight: 700, ...TABULAR }}>{value}</Typography>
-            <Typography variant="caption" color="text.secondary">{label}</Typography>
-          </Box>
-        ))}
+        ].map(([value, label, hint]) => {
+          const tile = (
+            <Box key={label} sx={{ bgcolor: 'background.default', borderRadius: 2, px: 1.25, py: 1, ...(hint ? { cursor: 'help' } : {}) }}>
+              <Typography component="b" sx={{ display: 'block', fontSize: { xs: '0.95rem', sm: '1.05rem' }, fontWeight: 700, ...TABULAR }}>{value}</Typography>
+              <Typography variant="caption" color="text.secondary">{label}</Typography>
+            </Box>
+          );
+          return hint ? <Tooltip key={label} title={hint}>{tile}</Tooltip> : tile;
+        })}
       </Box>
       {hasPlatform && (
         <Typography variant="caption" sx={{ display: 'block', mt: 1.25, px: 1.125, py: 0.75, borderRadius: 2, color: 'info.main', bgcolor: 'info.soft' }}>

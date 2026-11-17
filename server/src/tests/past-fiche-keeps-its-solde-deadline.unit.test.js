@@ -117,7 +117,16 @@ function runUpdate({ storedDeadline, startDate = inDays(-109) }) {
     }),
     '../models/settingsModel': { read: () => ({}) },
     '../models/propertyOptionDefaultsModel': { listForProperty: () => [] },
-    '../database': { prepare: () => ({ get: () => undefined, run: () => ({ changes: 0 }), all: () => [] }) },
+    // The stay clock reads the stay's own row (pricing-components rule 102): it answers « started » from these dates, as the lock did.
+    '../database': {
+      prepare: (sql) => ({
+        get: () => (/FROM reservations r\s+WHERE r\.id = \?/.test(sql)
+          ? { propertyId: 1, arrivalDate: startDate, departureDate: inDays(-107), checkInTime: '16:00', checkOutTime: '10:00' }
+          : undefined),
+        run: () => ({ changes: 0 }),
+        all: () => [],
+      }),
+    },
   }, () => {
     const path = '../controllers/reservationsController';
     delete require.cache[require.resolve(path)];

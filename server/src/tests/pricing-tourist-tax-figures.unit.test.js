@@ -6,6 +6,7 @@ process.env.DB_PATH = ':memory:';
 process.env.TZ = 'Europe/Paris';
 
 const test = require('node:test');
+const { skipWithout } = require('../plugins/sdk/testing');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
@@ -22,7 +23,7 @@ test('rule 3: the person-nights of a party and the unit a tax total comes from a
 const DIR = process.env.PRICE_GATE_FIXTURE_DIR || path.join(__dirname, 'fixtures', 'price-gate');
 const captured = fs.existsSync(path.join(DIR, 'inputs.json'));
 
-test('rule 64: the TOURIST TAX slice gives the tax figures the full quote gives, on every stay of the price-gate fixture', { skip: captured ? false : 'price-gate fixture absent' }, () => {
+test('rule 64: the TOURIST TAX slice gives the tax figures the full quote gives, on every stay of the price-gate fixture', { skip: skipWithout(['hourly-resources']) || (captured ? false : 'price-gate fixture absent') }, () => {
   const inputs = JSON.parse(fs.readFileSync(path.join(DIR, 'inputs.json'), 'utf8'));
   const { freezeClock } = require('./vatRegimeGoldenFixture');
   freezeClock(new Date(inputs.meta.capturedAt));

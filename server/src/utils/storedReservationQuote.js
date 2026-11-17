@@ -17,6 +17,7 @@ const { isDeepStrictEqual } = require('node:util');
 const { calculateReservationQuote, calculateTouristTaxFigure } = require('./pricing');
 const { buildReservationEngineInput } = require('./reservationEngineInput');
 const quotePostProcessors = require('./quotePostProcessors');
+const { toCents } = require('./pricing/money');
 const { midStayQuoteInputs, resolvePlatformTakesDeposit, resolvePlatformPayoutDueDays } = require('./reservationQuoteContext');
 
 function storedEngineInput(db, reservation, overrides = {}) {
@@ -114,6 +115,49 @@ function pinStoredPricing(quote, stored) {
   return pinned;
 }
 
+// specs/pricing-components.md rule 30 (owner 2026-11-15) — a sale, a line changed or a line removed moves only the money of its line. `base` is the
+// row the same engine gives the stored stay before the gesture: the difference `quote − base` is what the gesture moved, and it is added to what the
+// stay stores. The figures no line moves (the tax, its rate, the discount, the deadlines, the commissions) stay the stored ones, whatever the engine of
+// today would make of them (a platform's tax mode changed since, a stay stored at a figure the engine no longer reproduces).
+const SALE_DELTA_COLUMNS = ['totalPrice', 'finalPrice', 'depositAmount', 'balanceAmount', 'complementAmount'];
+const PINNED_BUCKETS = ['depositAmount', 'balanceAmount', 'complementAmount'];
+const SALE_STORED_COLUMNS = PRICING_COLUMNS.filter((column) => !SALE_DELTA_COLUMNS.includes(column));
+
+const cutCents = (figures, column) => toCents(figures && figures.noteCreditCuts ? figures.noteCreditCuts[column] : 0);
+
+function pinSaleDelta(quote, stored, base, { owedCents = 0 } = {}) {
+  const pinned = { ...quote };
+  for (const column of SALE_DELTA_COLUMNS) pinned[column] = (toCents(stored[column]) + toCents(quote[column]) - toCents(base[column])) / 100;
+  // Rule 104 (loop t4, S4-3) — a bucket the gesture lowers stops at 0: a paid line's money the engine credited to a complement or a plan bucket
+  // the stay does not store (a figure it no longer reproduces) is money received beyond the total, the trop-perçu rule 23 confirms.
+  // Loop t5 S5-2 — and the way back is the same bound: the credit the gesture withdraws from such a bucket (one stored below the engine's own
+  // figure) first closes the refund that clamp left owed, and only the rest is asked again — never money already paid.
+  // Loop t6 S6-2 — the bound reads the engine's figure BEFORE the credit (`base + cut`), not after it: a credit that took the whole bucket leaves
+  // base = 0 = stored, and the way back was unbounded again. Only the refund the clamp left owed is closed this way: the part of it the engine
+  // itself counts beyond the total (`unabsorbed`) was never a bucket's money, so a bucket stored at the engine's figure gets its credit back.
+  let owed = Math.max(0, (Number(owedCents) || 0) - cutCents(base, 'unabsorbed'));
+  const keptBy = { depositAmount: 0, balanceAmount: 0, complementAmount: 0 };
+  for (const column of PINNED_BUCKETS) {
+    if (pinned[column] < 0 && toCents(quote[column]) < toCents(base[column])) pinned[column] = 0;
+    const withdrawn = Math.max(0, cutCents(base, column) - cutCents(quote, column));
+    if (!withdrawn || !owed || toCents(stored[column]) >= toCents(base[column]) + cutCents(base, column)) continue;
+    const kept = Math.min(withdrawn, owed, Math.max(0, toCents(pinned[column]) - toCents(stored[column])));
+    pinned[column] = (toCents(pinned[column]) - kept) / 100;
+    keptBy[column] = kept;
+    owed -= kept;
+  }
+  for (const column of SALE_STORED_COLUMNS) pinned[column] = stored[column];
+  if (quote.complementAmountAuto != null) {
+    pinned.complementAmountAuto = (toCents(quote.complementAmountAuto) + toCents(stored.complementAmount) - toCents(base.complementAmount) - keptBy.complementAmount) / 100;
+  }
+  // The instalment plan follows the pinned plan bucket, never the engine's restated one (rule 93: a sale never rewrites a plan the stay stores at its own figure).
+  if (quote.preArrivalAmount != null && base.preArrivalAmount != null) {
+    pinned.preArrivalAmount = (toCents(stored.depositAmount) + toCents(stored.balanceAmount) + toCents(quote.preArrivalAmount) - toCents(base.preArrivalAmount)
+      - keptBy.depositAmount - keptBy.balanceAmount) / 100;
+  }
+  return pinned;
+}
+
 module.exports = {
-  quoteStoredReservation, touristTaxFigureOfStoredReservation, pricingUnchangedFromStored, pinStoredPricing,
+  quoteStoredReservation, touristTaxFigureOfStoredReservation, pricingUnchangedFromStored, pinStoredPricing, pinSaleDelta, SALE_DELTA_COLUMNS, pricedProjection,
 };

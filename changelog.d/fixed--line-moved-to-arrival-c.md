@@ -1,1 +1,1 @@
-- Fiche et sas : une prestation passée « à l'arrivée » sur un séjour commencé (« Percevoir maintenant ») entre dans le complément d'arrivée que le sas encaisse, au lieu de grossir le solde (specs/pricing-components.md, règles 31 et 37).
+- Fiche and SAS: an extra switched to « à l'arrivée » on a started stay (« Percevoir maintenant ») enters the arrival complement the SAS collects, instead of swelling the balance (specs/pricing-components.md, rules 31 and 37).

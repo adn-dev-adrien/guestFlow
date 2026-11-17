@@ -23,7 +23,7 @@ const { platformDisplay } = require('./platformDisplay');
 const { localIsoDate, localHourMinute } = require('./localDate');
 const { METHODS: TENDER_METHODS, methodLabel, targetFigures, currentCentsOf } = require('./paymentTenders');
 const { roundedToCents: cents } = require('./pricing/money');
-const { netOfCommission } = require('./pricing/platformPayment');
+const { netOfCommission, storedNet } = require('./pricing/platformPayment');
 
 const NBSP = ' ';
 
@@ -515,15 +515,30 @@ function buildLedger({
           ? { tone: 'done', label: '✓ cohérent avec le virement' }
           : { tone: 'warning', label: `écart : ${formatEuros(gap)}` };
       }
+      // specs/platform-statement-after-payout.md rules 1, 3 — a platform sale's statement stays correctable once received,
+      // with the transfer it is read against; a channel counted as a direct sale keeps its received solde frozen: that
+      // money came from the guest (review H1).
+      const receivedPayoutEdit = () => {
+        if (cancelled) return { editable: false, mode: 'none', min: null, max: null, reason: null };
+        if (!ota) {
+          return {
+            editable: false, mode: 'locked', min: null, max: null,
+            reason: `Versement reçu le ${shortDate(r.balancePaidDate, stayYear)} : annuler la réception pour corriger les montants.`,
+          };
+        }
+        // Rule 4 — read from the stored row only: the live quote of a fiche being edited must not move what already came in.
+        const net = payout != null ? payout : storedNet(r);
+        return {
+          editable: true, mode: 'statement', min: null, max: null, reason: null, correctable: true,
+          received: { date: r.balancePaidDate || null, net, label: `Virement reçu le ${shortDate(r.balancePaidDate, stayYear)} (€)` },
+        };
+      };
       if (paid.balance) {
         base = {
           state: 'paid', tone: 'done',
           stateLabel: paidLabel(ota ? 'Reçu' : 'Perçu', r.balancePaidDate, ota ? platformName : originOf('balance', r.balancePaidCash)),
           action: undo(`Annuler la réception du versement du ${shortDate(r.balancePaidDate, stayYear)} ? L'écriture comptable correspondante disparaît.${groupNote('balance')}`, 'Annuler le versement'),
-          amountEdit: {
-            editable: false, mode: 'locked', min: null, max: null,
-            reason: `Versement reçu le ${shortDate(r.balancePaidDate, stayYear)} : annuler la réception pour corriger les montants.`,
-          },
+          amountEdit: receivedPayoutEdit(),
         };
         detail.warnings.push(...futureWarning(r.balancePaidDate));
       } else {
@@ -532,9 +547,10 @@ function buildLedger({
           action: canAct && balanceAmount > 0
             ? { kind: 'mark', label: ota ? 'Marquer reçu' : 'Marquer perçu', dateLabel: ota ? 'Reçu le' : 'Perçu le', payout: { expected: soldeCommission > 0 ? round2(balanceAmount - soldeCommission) : null } }
             : null,
+          // specs/platform-statement-after-payout.md rule 11 — a platform sale's statement is also written on a locked fiche.
           amountEdit: cancelled
             ? { editable: false, mode: 'none', min: null, max: null, reason: null }
-            : { editable: true, mode: 'statement', min: null, max: null, reason: null },
+            : { editable: true, mode: 'statement', min: null, max: null, reason: null, ...(ota ? { correctable: true } : {}) },
         };
       }
     } else if (paid.balance) {
@@ -702,7 +718,11 @@ function buildLedger({
       action: canAct ? { kind: 'refund', label: 'Rembourser' } : null,
       amountEdit: { editable: false, mode: 'none', min: null, max: null, reason: null },
       // What the refund dialog opens on, so a fiche that shows only the stored ledger still prefills it.
-      refundPrefill: { overpaymentTtc: round2(overpayment.ttc), overpaymentLines: overpayment.lines || [], method: overpayment.method || null },
+      // Loop t7 B7-3 (rule 112) — and the cash notes' part of it, when only a part: proposed first, « caisse interne ».
+      refundPrefill: {
+        overpaymentTtc: round2(overpayment.ttc), overpaymentLines: overpayment.lines || [], method: overpayment.method || null,
+        ...(overpayment.cash ? { cashPart: overpayment.cash } : {}),
+      },
       detail: {
         lines: (overpayment.lines || []).filter((l) => Number(l.collectedTtc) > 0)
           .map((l) => (l.excessOnly

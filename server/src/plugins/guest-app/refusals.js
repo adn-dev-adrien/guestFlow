@@ -67,6 +67,10 @@ const TEXTS = Object.freeze({
     tooManyAttempts: 'Trop de tentatives, réessayez plus tard.',
     tooManyOrders: 'Trop de commandes en une heure, réessayez plus tard.',
     tooManyCardOrders: 'Trop de paiements par carte pour ce séjour en une heure : ajoutez la commande à votre note.',
+    // specs/guest-app-home-automation.md rules 7, 10, 22.
+    lightNotPilotable: 'Cette lumière ne se commande pas depuis l’application.',
+    commandNotFound: 'Demande introuvable.',
+    tooManyLightCommands: 'Trop de demandes. Réessayer dans quelques minutes.',
   }),
   en: Object.freeze({
     unknownCode: 'This code is not recognised.',
@@ -124,6 +128,9 @@ const TEXTS = Object.freeze({
     tooManyAttempts: 'Too many attempts, try again later.',
     tooManyOrders: 'Too many orders in an hour, try again later.',
     tooManyCardOrders: 'Too many card payments for this stay in an hour: add the order to your bill.',
+    lightNotPilotable: 'This light cannot be switched from the app.',
+    commandNotFound: 'Request not found.',
+    tooManyLightCommands: 'Too many requests. Try again in a few minutes.',
   }),
 });
 

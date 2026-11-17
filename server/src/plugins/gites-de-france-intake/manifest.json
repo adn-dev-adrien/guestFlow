@@ -11,7 +11,7 @@
   ],
   "requires": [],
   "guestflow": ">=3.18.0",
-  "sdk": "^2.29.0",
+  "sdk": "^2.31.0",
   "changelog": {
     "1.0.0": [
       "Première version publiée en paquet."
@@ -113,7 +113,7 @@
       "Les arrondis en euros et en centimes passent par un calcul commun du cœur : aucun montant ne change.",
       "Un séjour déjà commencé est refusé d'après l'horloge du séjour du cœur : même résultat qu'avant.",
       "La commission d'un loyer est calculée par le cœur de GuestFlow, comme pour les autres plateformes : même montant qu'avant.",
-      "Compatible avec GuestFlow 4 (SDK 2.29)."
+      "Compatible avec GuestFlow 4 (SDK 2.31)."
     ]
   }
 }

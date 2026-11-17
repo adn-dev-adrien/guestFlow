@@ -276,8 +276,10 @@ decimals is rounded and shown rounded.
     per-échéance commission ([platform-payment-entry.md](platform-payment-entry.md),
     [platform-per-echeance-commission.md](platform-per-echeance-commission.md),
     [platform-tourist-tax-out-of-the-commission.md](platform-tourist-tax-out-of-the-commission.md)),
-    with their labels, helpers and server rules unchanged. Once the payout is received they are
-    locked like a paid row (rule 19).
+    with their labels, helpers and server rules unchanged. ~~Once the payout is received they are
+    locked like a paid row (rule 19).~~ **Amended 2026-11-16** by
+    [platform-statement-after-payout.md](platform-statement-after-payout.md): the statement stays open once the payout
+    is received and on a locked fiche, and is then written by its own PATCH (a re-split of the payout, never a re-price).
 26. **« Marquer reçu » asks for the transfer.** Its form holds the date and « Virement reçu »,
     prefilled with the expected net. When the typed transfer differs from the net, the form shows the
     gap (« Écart : 12,03 € avec le net attendu ») and one button, « Commission solde → 170,00 € »,
@@ -292,6 +294,8 @@ decimals is rounded and shown rounded.
     (−33,60 €), 22198 (0,36 €), 22298 (0,01 €) — whose stored solde and stored brut differ; it is data, not a defect. The
     way out is on the row: « Détail » → the statement with « Calculer la commission » while the versement is unpaid, or
     « Annuler le versement » then retype it once received. No code change.
+    **Reading of 2026-11-16:** the received case no longer needs the undo — « Détail » opens the statement on a received
+    payout too ([platform-statement-after-payout.md](platform-statement-after-payout.md) rules 1-4).
 27. **The pricing summary keeps the hero figure** (decision 6, « Vous percevez »). The ledger does not
     repeat « Net perçu » as a separate line any more.
 
@@ -864,12 +868,13 @@ tariff would fire on every platform stay (the brut is grossed up by the commissi
     the two SAS read theirs with `Boolean()`, so `stayPaid: "false"` booked the solde and `cautionReturned: "false"`
     returned the caution. Every tick of the arrival SAS (`cautionReceived`, `stayPaid`, `stayPaidCash`,
     `complementSettled`, `complementPaidCash`, `arrivalPaymentSplit`, `cleaningAdded`, `bathLinenAdded`,
-    `cleaningOffered`, `bathLinenOffered`, `extinguisherSealOkAtArrival`, the `offered` of `linenItems` /
+    `extinguisherSealOkAtArrival`, the `offered` of `linenItems` /
     `keptLines`) and of the departure SAS (`cautionReturned`, `complementsSettled`, `complementsPaidCash`,
     `cleaningCharged`, `cleaningOffered`, `extinguisherSealOkAtDeparture`, the `offered` of `missingItems` /
     `storedLines` / `extinguisherCharges`) is absent or one of those four, else 400 `INVALID_PAYMENT_FLAG`
     « Valeur invalide. » with its `field` (`<list>.offered` for a line), on the preview and the commit, before anything
-    is planned or written; `1` / `0` read as `true` / `false`. A reception session is held to it after its silent drop of
+    is planned or written; `1` / `0` read as `true` / `false`. _(2026-11-15, pricing-components rule 14: the arrival upsells'
+    « Offrir » is no longer a tick but a ref of the one `offered` list — `cleaningOffered` / `bathLinenOffered` left the arrival ticks.)_ A reception session is held to it after its silent drop of
     the stay settlement (collect-stay-payment-at-check-in rule 25): a `stayPaid` it sends is still dropped, not judged.
     The neighbouring payment writes already read their inputs strictly (single arrival payment: a `mode` text;
     installments and refunds: method, tenders, date; `/arrival`: `invoice === true`). Tests:

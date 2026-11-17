@@ -201,10 +201,12 @@ test('specs/plugins-phase-2-hosts.md rule 19 — the four account and VAT settin
   const controller = createController(buildPluginsModel(db), { registry, settingsModel: () => buildPluginSettingsModel(db) });
   const res = fakeRes();
   controller.getSettings({ params: { id: ID } }, res);
-  // …plus the account plan of specs/plugins-phase-p-productisation.md rule 27.
+  // …plus the account plan of specs/plugins-phase-p-productisation.md rule 27, and the Mollie journal of
+  // specs/mollie-rolling-reserve-and-incoming-payments.md rule 28.
   assert.deepEqual(Object.keys(res.body).sort(), [
     'accommodationAccount', 'activitiesAccount', 'cancellationCompensationAccount', 'commissionVatAccount',
-    'complementaryAccount', 'defaultCommissionAccountNumber', 'discountAccount', 'drinksRevenueAccount', 'journalCode', 'platformPenaltyAccount', 'tipAccount',
+    'complementaryAccount', 'defaultCommissionAccountNumber', 'discountAccount', 'drinksRevenueAccount', 'journalCode',
+    'mollieBankAccount', 'mollieClearingAccount', 'mollieExportBank', 'mollieFeeAccount', 'mollieJournalCode', 'platformPenaltyAccount', 'tipAccount',
     'touristTaxAccount', 'vat10Account', 'vat20Account', 'vatRateCancellationCompensation', 'vatRateCommission',
   ]);
   assert.equal(res.body.defaultCommissionAccountNumber, '62260002');
@@ -314,7 +316,7 @@ test('specs/plugins-phase-2-hosts.md rules 20 + 22 — the plugin writes the pla
   assert.deepEqual(createAccountSettings(db).read(), {
     defaultCommissionAccountNumber: '622600', vatRateCommission: 20,
     cancellationCompensationAccount: '75880000', vatRateCancellationCompensation: 0,
-    ...require('../accountPlan').PLAN_DEFAULTS,
+    ...require('../accountPlan').PLAN_DEFAULTS, ...require('../settings').MOLLIE_DEFAULTS,
   }, 'the reinstall does not bring the erased values back from app_settings');
   const after = boot(db, { installed: true });
   assert.deepEqual(await journal(after.app), reference);

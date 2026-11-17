@@ -1,7 +1,7 @@
 # Re-review: feature/guest-app-from-j7 @ 26405b48 (second pass)
 
 ## Setup
-- **Worktree:** `/Users/adrien/Documents/workspace/guestflow-dev/worktrees/gf-feat-guest-app-j7`, clean before and after.
+- **Worktree:** the `gf-feat-guest-app-j7` worktree, clean before and after.
 - **Experiments:** `scratchpad/rv-guest-app-j7b/` contains:
   - `mut/`: `git archive HEAD`, used for the mutants;
   - `merged/`: `git archive` of the merge-tree of HEAD + current `origin/inte/plugins` 08df46f8 (R43);

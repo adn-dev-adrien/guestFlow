@@ -24,12 +24,6 @@ function createStaysModel(db) {
       return db.prepare('SELECT arrivalSasDoneAt FROM reservations WHERE id = ?').get(Number(id)) || null;
     },
 
-    /** Rule 87 — the arrival is marked (the guests are in): an order is no longer the SAS's to change. */
-    arrivalMarked(id) {
-      const row = db.prepare('SELECT checkInDone, arrivalSasDoneAt FROM reservations WHERE id = ?').get(Number(id));
-      return Boolean(row) && (Number(row.checkInDone || 0) === 1 || Boolean(row.arrivalSasDoneAt));
-    },
-
     /**
      * Rule 76 — where the stay's arrival complement stands, from its stored markers alone (no amount enters the
      * plugin; `SELECT *` because a minimal schema may predate a marker): `collected` (paid, in cash or not), `deferred` to the departure, else `open`.

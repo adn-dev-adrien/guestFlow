@@ -133,6 +133,7 @@ test('rule 48 — PaymentLedger.allocations reads the stay\'s rows (flushing a m
   db.exec(`CREATE TABLE payment_allocations (id INTEGER PRIMARY KEY, paymentRef TEXT, documentRef TEXT, lineRef TEXT, amountCents INTEGER,
       kind TEXT, at TEXT, refundId INTEGER, books INTEGER, origin TEXT);
     INSERT INTO payment_allocations (paymentRef, documentRef, lineRef, amountCents, kind, at, books, origin) VALUES
+      -- date-literal-ok — migration or backfill fixture: historical values the code under test copies, never compares with today
       ('bucket:deposit', 'reservation:4', NULL, 5000, 'payment', '2026-01-02', 1, 'live'), ('x', 'reservation:5', NULL, 1, 'payment', NULL, 1, 'live');`);
   const ledger = paymentLedger.create(db);
   assert.deepEqual(ledger.allocations(4).map((r) => [r.paymentRef, r.amountCents, r.kind]), [['bucket:deposit', 5000, 'payment']]);

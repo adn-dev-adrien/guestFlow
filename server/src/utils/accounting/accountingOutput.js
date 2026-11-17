@@ -18,16 +18,26 @@ const { settlementFigures, targetFigures, currentCentsOf } = require('../payment
 const { netFirst } = require('../pricing/vat');
 const { create: createJournalLines } = require('./journalLines');
 const { isResourceKey } = require('../pricing/lineKeys');
+const { readsSaleLines } = require('../saleLinesReaders');
+const { cutReceipt, cutRefund } = require('./receiptLineCut');
+const { localIsoDate } = require('../localDate');
 const {
   computeBucketTtcsFromContribs, computeTaxTtcForKind, soldeCaptureMatches, legacyGrossUp, parseComplementPaidSplit,
   parsePaidSplit, bucketFromTtc, netOfTtc, nz, round2, CONTRIB_RESIDUE_TOLERANCE_TTC,
 } = require('./legacyBucketSplit');
 
+// Loop t1 B-1, B-6 (outside-visit rules 49-50) — a document's avoir (`role: 'refund'`) and a kept link surplus (`role: 'tip'`) are standalone entries of
+// their own kind, `standaloneRole` telling the journal lines to mirror the sale or to book a tip.
+const STANDALONE_KINDS = Object.freeze({ refund: 'standaloneRefund', tip: 'standaloneTip' });
+
 function buildStandaloneEntry(sale) {
+  const role = STANDALONE_KINDS[sale.role] ? sale.role : null;
   return {
     reservationId: null,
-    kind: 'standalone',
+    kind: role ? STANDALONE_KINDS[role] : 'standalone',
     direction: 'standalone',
+    ...(role ? { standaloneRole: role } : {}),
+    ...(role === 'refund' ? { reason: sale.label } : {}),
     standaloneKey: sale.key,
     standaloneLabel: sale.label,
     paidDate: sale.date,
@@ -883,8 +893,34 @@ function createAccountingOutput({ accountPlan }) {
         }
       }
       // Pure-tax entries are dropped (see `buildEntry`).
-      return entries.filter(Boolean);
+      // Rules 61-63 (owner 2026-11-15) — a stay booked once 4.2.0 is installed cuts each receipt over its sale lines, once per
+      // (class, rate) group; a stay booked before keeps the cut its months were exported with.
+      return entries.filter(Boolean).map(receiptCutOf(row, readModels, salesRegime));
     });
+  }
+
+  // The cut a stay's receipts take: the sale-line cut on a stay the readers serve, the entry as built otherwise.
+  // Rules 61-63 (end review R2-5) — a receipt is cut over the lines sold by its payment day: a line sold after it never re-cuts a month already declared.
+  // Rule 99 (loop t1 B-4) — and over those lines AS THEY WERE when the money was taken (`readModels.frozenSplitsOf`, one row per payment day):
+  // a paid line removed or offered later never re-cuts the month either. A day frozen before this existed has no row: the current lines.
+  function receiptCutOf(row, readModels, regime) {
+    if (!readsSaleLines(row)) return (entry) => entry;
+    let saleLines = null;
+    let frozen = null;
+    const linesOf = () => {
+      if (saleLines === null) saleLines = (readModels.saleLinesOf && readModels.saleLinesOf(row)) || [];
+      return saleLines;
+    };
+    const frozenOf = () => {
+      if (frozen === null) frozen = (readModels.frozenSplitsOf && readModels.frozenSplitsOf(row)) || new Map();
+      return frozen;
+    };
+    const soldBy = (day) => (line) => !day || !line.soldAt || localIsoDate(new Date(line.soldAt)) <= String(day).slice(0, 10);
+    return (entry) => {
+      const day = entry && entry.paidDate ? String(entry.paidDate).slice(0, 10) : null;
+      const held = day ? frozenOf().get(day) : null;
+      return cutReceipt(entry, { regime, saleLines: held || linesOf().filter(soldBy(day)) });
+    };
   }
 
   return {
@@ -901,6 +937,8 @@ function createAccountingOutput({ accountPlan }) {
     addSaleLegs,
     scaleEntry,
     saleEntries,
+    receiptCutOf,
+    cutRefund,
   };
 }
 

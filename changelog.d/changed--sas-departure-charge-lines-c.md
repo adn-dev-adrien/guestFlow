@@ -1,1 +1,1 @@
-- Frais du SAS de départ (ménage, linge manquant, extincteur) : chacun devient une ligne du séjour, écrite avec le détail du complément de fin de séjour et hors du prix du séjour ; totaux, écritures comptables et e-mails inchangés (specs/pricing-components.md, règle 90.2).
+- Departure SAS charges (cleaning, missing linen, fire extinguisher): each becomes a line of the stay, written with the detail of the end-of-stay complement and outside the stay price; totals, accounting entries and e-mails unchanged (specs/pricing-components.md, rule 90.2).

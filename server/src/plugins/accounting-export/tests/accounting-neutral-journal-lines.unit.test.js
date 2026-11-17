@@ -9,7 +9,7 @@ const { entryLines, accountOf } = create({ accountPlan });
 
 const sale = {
   direction: 'sale',
-  paidDate: '2026-05-10',
+  paidDate: '2026-05-10', // date-literal-ok — days handed to a pure function or an injected clock, nothing compares them with the real today
   client: { firstName: 'A', lastName: 'B' },
   encaissementTtc: 220,
   encaissementNetTtc: 200,
@@ -39,7 +39,7 @@ test('the lines balance to the cent and the CSV rows are the lines on their acco
 });
 
 test('a refund mirrors the sale and a negative closing leg is a credit', () => {
-  const refund = { direction: 'refund', paidDate: '2026-06-01', client: { lastName: 'B' }, encaissementTtc: 100, taxTtc: 0, buckets: [{ name: 'accommodation', ht: 90.91, vat: 9.09, ratePercent: 10 }] };
+  const refund = { direction: 'refund', paidDate: '2026-06-01', client: { lastName: 'B' }, encaissementTtc: 100, taxTtc: 0, buckets: [{ name: 'accommodation', ht: 90.91, vat: 9.09, ratePercent: 10 }] }; // date-literal-ok — days handed to a pure function or an injected clock, nothing compares them with the real today
   assert.deepEqual(entryLines(refund).map((l) => [l.role, l.side]), [['customer', 'credit'], ['revenue:accommodation', 'debit'], ['vat:10', 'debit']]);
   const closing = { ...refund, encaissementTtc: 10, closing: [{ role: 'revenue', account: '709000', ratePercent: 0, amount: 12 }, { role: 'touristTax', amount: -2 }] };
   const lines = entryLines(closing);
@@ -49,7 +49,7 @@ test('a refund mirrors the sale and a negative closing leg is a credit', () => {
 });
 
 test('the small kinds name their own class', () => {
-  const base = { paidDate: '2026-06-01', client: { lastName: 'B' }, encaissementTtc: 50 };
+  const base = { paidDate: '2026-06-01', client: { lastName: 'B' }, encaissementTtc: 50 }; // date-literal-ok — days handed to a pure function or an injected clock, nothing compares them with the real today
   assert.deepEqual(entryLines({ ...base, direction: 'tip' }).map((l) => l.role), ['customer', 'revenue:tip']);
   assert.deepEqual(entryLines({ ...base, direction: 'penalty' }).map((l) => l.role), ['penalty', 'customer']);
   assert.deepEqual(entryLines({ ...base, direction: 'standalone', vatRatePercent: 20 }).map((l) => l.role), ['customer', 'revenue:activities', 'vat:20']);

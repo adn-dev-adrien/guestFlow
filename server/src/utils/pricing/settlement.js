@@ -91,6 +91,21 @@ function prepaidBaseline(lines, settled) {
 }
 
 /**
+ * Rule 102 (stabilisation loop t2, N-1) — the arrival baseline laid from the lines the stay carries: a line a card paid before the arrival
+ * (a note `beforeArrival`, `extraSalesModel.writeCardNote`) is in the baseline at what the card left to collect, so once the stay has
+ * started the note still nets it out of the arrival complement, exactly as `prepaidBaseline` does before it (before: from the check-in
+ * hour on, the line went back into the arrival complement and the SAS asked the guest again for what the card paid).
+ */
+function arrivalBaselineOf(lines, notesRaw) {
+  const baseline = buildExtrasBaseline(lines);
+  const prepaid = settledByKey(parseNotes(notesRaw).filter((note) => note && note.beforeArrival));
+  for (const [key, amount] of Object.entries(prepaid)) {
+    if (baseline[key] > 0) baseline[key] = round2(Math.max(0, baseline[key] - amount));
+  }
+  return baseline;
+}
+
+/**
  * Rule 82 — the arrival baseline of a stay whose departure is over, with the automatic options its lines never stored. They are
  * derived from the stay's own times, so they were never sold during the stay: each is part of what the stay carried at arrival.
  * No baseline (null) stays null.
@@ -130,10 +145,9 @@ function parseBaseline(raw) {
 function splitMidStayExtras(lines, baselineRaw, notesRaw) {
   const settled = settledByKey(notesRaw);
   const baseline = parseBaseline(baselineRaw) || prepaidBaseline(lines, settled);
-  const empty = {
+  if (!baseline) return withUnclaimedNotes({
     total: 0, forced: 0, unforced: 0, byKey: {}, remainingTotal: 0, settledTotal: 0, lines: [],
-  };
-  if (!baseline) return empty;
+  }, settled, {}, notesRaw);
 
   // Aggregate per key first: two custom lines sharing a label are one key on both sides.
   const currentByKey = new Map();
@@ -162,6 +176,7 @@ function splitMidStayExtras(lines, baselineRaw, notesRaw) {
   const result = {
     total: 0, forced: 0, unforced: 0, byKey: {}, remainingTotal: 0, settledTotal: 0, lines: [],
   };
+  const paidByKey = {};
   for (const entry of currentByKey.values()) {
     // Removing or shrinking a line brings the mid-stay part back to 0 — never negative.
     const amount = round2(Math.max(0, entry.total - round2(baseline[entry.key])));
@@ -173,6 +188,7 @@ function splitMidStayExtras(lines, baselineRaw, notesRaw) {
     // What is left to collect at check-out: the sale minus what notes already collected. Settling
     // MORE than what is currently sold (a line was removed after payment) clamps here, never below 0.
     const paid = round2(Math.min(round2(settled[entry.key]), amount));
+    paidByKey[entry.key] = paid;
     result.settledTotal = round2(result.settledTotal + paid);
     const remaining = round2(amount - paid);
     if (remaining <= 0) continue;
@@ -182,7 +198,67 @@ function splitMidStayExtras(lines, baselineRaw, notesRaw) {
     }));
   }
   result.lines.sort((a, b) => a.label.localeCompare(b.label, 'fr'));
-  return result;
+  return withUnclaimedNotes(result, settled, paidByKey, notesRaw);
+}
+
+/**
+ * specs/pricing-components.md rule 104 (stabilisation loop t4, S4-3) — what the notes collected on a key beyond what that key now carries
+ * (the line offered or discounted after it was paid): money in the till no line claims any more. It is exposed as `unclaimed` (absent when
+ * 0); the schedule credits it to the stay's open buckets (`planSchedule`). The carve-out itself is unchanged. The arrival-complement-excess
+ * key has its own reading in the schedule; the collected split (`splitFromStoredLines`) already carves every note in full.
+ */
+function withUnclaimedNotes(result, settled, paidByKey, notesRaw) {
+  const over = Object.entries(settled)
+    .filter(([key, amount]) => key !== ARRIVAL_COMPLEMENT_EXCESS_KEY && round2(amount) - round2(paidByKey[key] || 0) > 0);
+  const unclaimed = round2(over.reduce((sum, [key, amount]) => sum + round2(amount) - round2(paidByKey[key] || 0), 0));
+  if (!(unclaimed > 0)) return result;
+  // Loop t5 S5-3 — the lines whose paid money it is, named as their notes name them: the credit is read under their names, never as a price cut of another line.
+  const keys = new Set(over.map(([key]) => key));
+  const unclaimedLabels = [...new Set(parseNotes(notesRaw).flatMap((note) => (note && note.lines) || [])
+    .filter((line) => line && keys.has(line.key || extraLineKey(line))).map((line) => String(line.label || '').trim()).filter(Boolean))];
+  return { ...result, unclaimed, unclaimedLabels };
+}
+
+/**
+ * specs/pricing-components.md rule 110 (loop t7 B7-1) — the note money no line claims, less what a refund on the trop-perçu already gave
+ * back (`refunded`, euros: the settled `lineLowered` rows, the subtraction `paidLineJudgment.noteExcessCents` makes): money refunded is
+ * no credit any more, so a line charged after the refund is asked in full. `unclaimed` disappears at 0, never below.
+ */
+function lessRefundedCredit(split, refunded) {
+  const cut = round2(Number(refunded) || 0);
+  if (!split || !(Number(split.unclaimed) > 0) || !(cut > 0)) return split;
+  const unclaimed = round2(Number(split.unclaimed) - cut);
+  if (unclaimed > 0) return { ...split, unclaimed };
+  const { unclaimed: _gone, unclaimedLabels: _labels, ...rest } = split;
+  return rest;
+}
+
+/**
+ * specs/pricing-components.md rule 116, reading of 2026-11-16 (loop t9 B9-3) — a platform stay's collected arrival complement claims what it
+ * collected on each line (`claims`: `complementPaidSplit.lines`, `{ key, cents, label }`), exactly as a note does: what it collected on a line
+ * beyond what the line charges now (`lines`, the engine's) is credit too, less what a refund on the trop-perçu already gave back of it
+ * (`refunded`, euros). Exposed apart (`complementUnclaimed`, its labels `complementUnclaimedLabels`): the schedule bounds it by what the
+ * collected complement holds beyond what is routed to it now — the split is a proportional cut of the money, never a line's exact price —
+ * then credits it to what is still due as rule 104 credits a note's.
+ */
+function withComplementClaims(split, { claims, refunded = 0, lines = [] } = {}) {
+  if (!split || !Array.isArray(claims) || !claims.length) return split;
+  const current = {};
+  for (const line of lines || []) {
+    const key = line ? extraLineKey(line) : null;
+    if (key) current[key] = round2((current[key] || 0) + (Number(line.offered || 0) === 1 ? 0 : round2(line.totalPrice)));
+  }
+  const claimed = {};
+  const labelOf = {};
+  for (const claim of claims) {
+    if (!claim || !claim.key) continue;
+    claimed[claim.key] = round2((claimed[claim.key] || 0) + Number(claim.cents) / 100);
+    labelOf[claim.key] = String(claim.label || '').trim();
+  }
+  const freedKeys = Object.keys(claimed).filter((key) => claimed[key] - (current[key] || 0) > 0);
+  const credit = round2(freedKeys.reduce((sum, key) => sum + claimed[key] - (current[key] || 0), 0) - (Number(refunded) || 0));
+  if (!(credit > 0)) return split;
+  return { ...split, complementUnclaimed: credit, complementUnclaimedLabels: freedKeys.map((key) => labelOf[key]).filter(Boolean) };
 }
 
 /**
@@ -577,6 +653,14 @@ function settledOnLines(lines, allocations) {
   return lines.map((line) => Math.max(0, byRef.get(line.ref) || 0));
 }
 
+// The money of a document filed on no line, net (`cents`), and its part on the books (`bookedCents`), never negative.
+function unallocatedOf(allocations) {
+  const rows = (allocations || []).filter((row) => row.lineRef == null);
+  const cents = Math.max(0, rows.reduce((sum, row) => sum + Math.round(Number(row.amountCents || 0)), 0));
+  const booked = rows.filter((row) => Number(row.books) === 1).reduce((sum, row) => sum + Math.round(Number(row.amountCents || 0)), 0);
+  return { cents, bookedCents: Math.min(cents, Math.max(0, booked)) };
+}
+
 function allocateDocumentPayment({ lines, allocations = [], amountCents }) {
   const settled = settledOnLines(lines, allocations);
   const out = [];
@@ -589,6 +673,54 @@ function allocateDocumentPayment({ lines, allocations = [], amountCents }) {
   });
   if (left > 0) out.push({ lineRef: null, amountCents: left });
   return out;
+}
+
+/**
+ * Loop t2 B2-3 (outside-visit rule 52) — money a lowered line holds while another line still asks is filed on that line: `refileDocumentExcess({ lines,
+ * allocations })` → `[{ lineRef, amountCents, books }]`, the signed allocation rows of the move (negative on the line that holds more than it asks,
+ * positive on the line it now pays), one row per (line, books), the lines in sale order on both sides, each line's booked part before its
+ * caisse-interne part. Nothing moves when no line holds an excess or no line asks.
+ * Loop t3 B3-1 (outside-visit rule 55) — the money filed on no line (a link paid above the reste, net of what was given back or kept from it) is the
+ * first giver, `lineRef: null`: unallocated money pays the lines still due before anything is owed back.
+ */
+function refileDocumentExcess({ lines, allocations = [] }) {
+  const settled = settledOnLines(lines, allocations);
+  const bookedOn = (ref) => (allocations || []).filter((row) => row.lineRef === ref && Number(row.books) === 1)
+    .reduce((sum, row) => sum + Math.round(Number(row.amountCents || 0)), 0);
+  // The unallocated money gives first: it was never any line's, so a line sold or made payable again takes it before the money of a lowered line
+  // (whose confirmed row the operator was already told about) moves.
+  const unallocated = unallocatedOf(allocations);
+  const givers = [];
+  if (unallocated.bookedCents > 0) givers.push({ ref: null, books: 1, cents: unallocated.bookedCents });
+  if (unallocated.cents - unallocated.bookedCents > 0) givers.push({ ref: null, books: 0, cents: unallocated.cents - unallocated.bookedCents });
+  const takers = [];
+  lines.forEach((line, index) => {
+    const gap = settled[index] - dueOf(line);
+    if (gap > 0) {
+      const booked = Math.min(gap, Math.max(0, bookedOn(line.ref)));
+      if (booked > 0) givers.push({ ref: line.ref, books: 1, cents: booked });
+      if (gap - booked > 0) givers.push({ ref: line.ref, books: 0, cents: gap - booked });
+    } else if (gap < 0) takers.push({ ref: line.ref, cents: -gap });
+  });
+  const rows = new Map();
+  const add = (ref, books, cents) => {
+    const key = `${ref}|${books}`;
+    const row = rows.get(key) || { lineRef: ref, amountCents: 0, books };
+    row.amountCents += cents;
+    rows.set(key, row);
+  };
+  for (const giver of givers) {
+    for (const taker of takers) {
+      if (giver.cents <= 0) break;
+      const move = Math.min(giver.cents, taker.cents);
+      if (move <= 0) continue;
+      add(giver.ref, giver.books, -move);
+      add(taker.ref, giver.books, move);
+      giver.cents -= move;
+      taker.cents -= move;
+    }
+  }
+  return [...rows.values()].filter((row) => row.amountCents !== 0);
 }
 
 function settleDocument({ lines, allocations = [] }) {
@@ -614,7 +746,10 @@ function settleDocument({ lines, allocations = [] }) {
 }
 
 module.exports = {
+  arrivalBaselineOf,
   allocateDocumentPayment,
+  refileDocumentExcess,
+  unallocatedOf,
   settleDocument,
   scheduleExcess,
   PLATFORM_RESERVATION,
@@ -628,6 +763,8 @@ module.exports = {
   splitMidStayExtras,
   splitFromStoredLines,
   resolveMidStaySplit,
+  lessRefundedCredit,
+  withComplementClaims,
   buildMidStayLine,
   parseNotes,
   parseDetail,

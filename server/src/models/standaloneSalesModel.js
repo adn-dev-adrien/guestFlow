@@ -13,6 +13,13 @@
  *   insertSale(fields) / insertLine(saleId, fields) / updateSale(id, fields) / updateLine(id, fields) / bumpVersion(id)
  *   findSale(id) / linesOf(saleId) / findLine(saleId, lineId) / byOrigin(originRef)
  *   addHistory(saleId, text, actor) / historyOf(saleId)   the words of what was done on the document (outside-visit spec rule 23)
+ *   openObligation({ saleId, paymentLinkId, amountCents, reason, origin }) / obligationsOf(saleId)   money owed back with no line to hold it (rule 41):
+ *                                     one row per paying link (a second call for the same link changes nothing), `lineLowered` for a paid line lowered
+ *                                     (no link, one row per lowering, `lineRef` the line lowered — loop t2 B2-1); `obligationsOf` lists the open ones
+ *   resizeObligation(id, amountCents) an open row kept in step with what the document owes (loop t2 B2-2, t3 B3-1): 0 closes it `cancelled`
+ *                                     by `system` — no longer owed, so neither money given back nor money kept (it writes no allocation)
+ *                                     A row the operator closes leaves the document through its allocations (refund or kept, loop t4 B4-2): nothing here
+ *                                     sums the closed rows.
  *   documentRef(id) / lineRef(lineId)  the names the allocations use
  */
 const database = () => require('../database');
@@ -93,6 +100,10 @@ const updateLine = (id, fields) => update('standalone_sale_lines', COLUMNS.line,
 
 const bumpVersion = (id) => database().prepare('UPDATE standalone_sales SET version = version + 1 WHERE id = ?').run(Number(id));
 
+// Loop t4 (apps note), t5 D5-5 — a row closes at the application's clock, in SQLite's UTC text form: `settledAt` is the row's displayed stamp; no
+// reader decides money by it, the tip and avoir days are the `at` of the allocations the close writes (`todayIso()`).
+const closedAtNow = () => new Date().toISOString().replace('T', ' ').slice(0, 19);
+
 const findSale = (id) => database().prepare('SELECT * FROM standalone_sales WHERE id = ?').get(Number(id)) || null;
 const linesOf = (saleId) => database().prepare('SELECT * FROM standalone_sale_lines WHERE saleId = ? ORDER BY id').all(Number(saleId));
 const findLine = (saleId, lineId) => database().prepare('SELECT * FROM standalone_sale_lines WHERE saleId = ? AND id = ?').get(Number(saleId), Number(lineId)) || null;
@@ -101,9 +112,41 @@ function addHistory(saleId, text, actor = null) {
 }
 const historyOf = (saleId) => database().prepare('SELECT at, text, actor FROM standalone_sale_history WHERE saleId = ? ORDER BY id').all(Number(saleId));
 
+function openObligation({
+  saleId, paymentLinkId = null, amountCents, reason = null, origin = 'linkSurplus', lineRef: line = null,
+}) {
+  if (!(Number.isInteger(amountCents) && amountCents > 0)) return null;
+  return database().prepare(`INSERT OR IGNORE INTO standalone_sale_obligations (saleId, origin, paymentLinkId, amountCents, reason, lineRef)
+    VALUES (?, ?, ?, ?, ?, ?)`).run(Number(saleId), origin, paymentLinkId == null ? null : Number(paymentLinkId), amountCents, reason, line).changes;
+}
+const obligationsOf = (saleId) => database().prepare("SELECT id, origin, paymentLinkId, amountCents, reason, lineRef, createdAt FROM standalone_sale_obligations WHERE saleId = ? AND status = 'open' ORDER BY id")
+  .all(Number(saleId));
+function resizeObligation(obligationId, amountCents) {
+  const db = database();
+  if (amountCents > 0) return db.prepare("UPDATE standalone_sale_obligations SET amountCents = ? WHERE id = ? AND status = 'open'").run(amountCents, Number(obligationId)).changes;
+  return db.prepare("UPDATE standalone_sale_obligations SET status = 'cancelled', settledAt = ?, settledBy = 'system' WHERE id = ? AND status = 'open'")
+    .run(closedAtNow(), Number(obligationId)).changes;
+}
+
+const findObligation = (saleId, obligationId) => database().prepare('SELECT * FROM standalone_sale_obligations WHERE saleId = ? AND id = ?').get(Number(saleId), Number(obligationId)) || null;
+const closeObligation = (obligationId, { status, by = null }) => database().prepare("UPDATE standalone_sale_obligations SET status = ?, settledAt = ?, settledBy = ? WHERE id = ? AND status = 'open'")
+  .run(String(status), closedAtNow(), by, Number(obligationId)).changes;
+// The counter's documents (no origin) that still owe money back, any day: the « À rembourser » block of the counter card.
+// Loop t1 D-3, D-4 — a document whose origin booking is gone (deleted, or the hourly plugin purged) is the counter's: no other screen reaches it.
+function counterOwnedSql(alias = 's') {
+  const bookings = database().prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'resource_bookings'").get();
+  const orphan = bookings
+    ? `(${alias}.originRef LIKE 'resource-booking:%' AND NOT EXISTS (SELECT 1 FROM resource_bookings b WHERE 'resource-booking:' || b.id = ${alias}.originRef))`
+    : `${alias}.originRef LIKE 'resource-booking:%'`;
+  return `(${alias}.originRef IS NULL OR ${orphan})`;
+}
+const counterSalesOwing = () => database().prepare(`SELECT DISTINCT s.id FROM standalone_sales s JOIN standalone_sale_obligations o ON o.saleId = s.id
+  WHERE o.status = 'open' AND ${counterOwnedSql('s')} ORDER BY s.id DESC`).all().map((row) => row.id);
+
 const byOrigin = (originRef) => database().prepare('SELECT * FROM standalone_sales WHERE originRef = ? ORDER BY id').all(String(originRef));
 
 module.exports = {
   documentRef, lineRef, passageClientId, clientsByEmail, clientById, createClient, catalogueRow, externalRates, setExternalRate,
-  insertSale, updateSale, insertLine, updateLine, bumpVersion, findSale, linesOf, findLine, byOrigin, addHistory, historyOf,
+  insertSale, updateSale, insertLine, updateLine, bumpVersion, findSale, linesOf, findLine, byOrigin, addHistory, historyOf, openObligation, obligationsOf,
+  resizeObligation, findObligation, closeObligation, counterSalesOwing, counterOwnedSql,
 };

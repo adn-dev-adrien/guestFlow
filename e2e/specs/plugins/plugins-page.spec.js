@@ -4,7 +4,7 @@
 // trace. Only Google Agenda is switched off: no other spec depends on it, so the suite can keep
 // running in parallel locally. The seed installs every catalogue plugin active (seed-e2e.js); the
 // last step puts Google Agenda back in that state.
-import { test, expect } from '@playwright/test';
+import { test, expect } from '../../fixtures/test.js';
 
 const GOOGLE = 'Google Agenda';
 const googleCard = (page) => page.locator('.MuiCard-root').filter({ hasText: GOOGLE });

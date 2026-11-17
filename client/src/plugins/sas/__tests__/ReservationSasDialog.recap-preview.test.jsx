@@ -58,7 +58,7 @@ test('the recap shows the server’s figures, and the draft it sends carries no 
   await openRecap();
   const [, draft] = api.previewArrivalSas.mock.calls[0];
   expect(JSON.stringify(draft)).not.toMatch(/amount|total|price/i);
-  expect(draft.offeredExtras).toEqual([]);
+  expect(draft.offered).toEqual([]);
 });
 
 // rules 17-18

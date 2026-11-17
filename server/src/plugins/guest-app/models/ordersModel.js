@@ -209,7 +209,7 @@ function createOrdersModel(db) {
     },
     /** Rule 36 — paid, but its slots were taken: nothing reached the fiche, the money is to refund. */
     markPaidConflict(id, { now, paidAt }) {
-      return move(id, ['awaiting_payment', 'expired', 'abandoned'], 'paid_conflict', { paidAt: paidAt || now.toISOString(), heldUntil: null, closedAt: now.toISOString() });
+      return move(id, ['awaiting_payment', 'expired', 'abandoned', 'cancelled'], 'paid_conflict', { paidAt: paidAt || now.toISOString(), heldUntil: null, closedAt: now.toISOString() });
     },
     /** Rule 36 — no link could be minted: the order never held a payable slot. */
     markFailed(id, now) {

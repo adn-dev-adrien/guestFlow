@@ -1,0 +1,1 @@
+- After a note's trop-perçu was refunded on « Prestations complémentaires », cancelling the stay no longer takes that refund off « Hébergement »: the cancelled register deducts a refund that names no line from its own poste first, so giving everything back returns each poste exactly what it collected (reservation-refunds rule 49 reading of 2026-11-16).

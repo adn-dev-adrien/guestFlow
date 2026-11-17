@@ -167,6 +167,27 @@ if (process.env.SKIP_MIGRATIONS !== 'true') {
   }
 }
 
+// Self-update rule 31, pricing-components rule 85 (end review R1-2) — the true lines (T10) wait until the update helper has verified this
+// release: until then a rollback lands on a database the previous release runs unchanged. Checked now, then every 3 s until it ran.
+if (process.env.SKIP_MIGRATIONS !== 'true') {
+  const { runTrueLinesWhenVerified } = require('./utils/pricingSalesMigration');
+  const settleTrueLines = () => {
+    try {
+      const outcome = runTrueLinesWhenVerified(db);
+      if (outcome.state === 'ran') console.log(`[migration:true-lines] ${outcome.tables} table(s) keyed by line, schema floor raised (update verified)`);
+      return outcome.state !== 'awaiting';
+    } catch (err) {
+      logErrorMarker(`True lines migration failed: ${err.message}`);
+      return true;
+    }
+  };
+  if (!settleTrueLines()) {
+    console.log('[migration:true-lines] waiting for the update to be verified');
+    const timer = setInterval(() => { if (settleTrueLines()) clearInterval(timer); }, 3000);
+    if (typeof timer.unref === 'function') timer.unref();
+  }
+}
+
 // Rule 36 — once the guest app's table exists: the order each line came from, where a line names exactly one.
 if (process.env.SKIP_MIGRATIONS !== 'true') {
   try {
@@ -174,6 +195,18 @@ if (process.env.SKIP_MIGRATIONS !== 'true') {
     if (orderRefs > 0) console.log(`[migration:order-refs] ${orderRefs} line(s) linked to their order`);
   } catch (err) {
     logErrorMarker(`Order refs backfill failed: ${err.message}`);
+  }
+}
+
+// Rule 8 — once, after the controller can load: the extra guests and the tax each live stay's sale reads as stored.
+if (process.env.SKIP_MIGRATIONS !== 'true') {
+  try {
+    const { written, refused } = require('./utils/pricingStoredFiguresMigration').backfillSaleFiguresOnce(db);
+    if (written.length > 0 || refused.length > 0) {
+      console.log(`[migration:stored-sale-figures] ${written.length} stay(s) recorded; ${refused.length} left to the units (${refused.join(', ') || 'none'})`);
+    }
+  } catch (err) {
+    logErrorMarker(`Stored sale figures backfill failed: ${err.message}`);
   }
 }
 

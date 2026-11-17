@@ -25,6 +25,7 @@
     "adjustMidStayNote",
     "applyEndOfStayAdjustment",
     "buildArrivalComplementDetail",
+    "buildArrivalSeed",
     "buildDepartureSeed",
     "cancelMidStayNote",
     "captureArrivalExtrasBaseline",
@@ -996,6 +997,7 @@
     "create"
   ],
   "extraSale": [
+    "arrivalOpenAt",
     "changeLine",
     "collectionOf",
     "departureSalesOf",
@@ -1022,6 +1024,7 @@
   ],
   "suggestedArticles": [
     "catalogue",
+    "catalogueGroups",
     "kinds",
     "resolve",
     "save",
@@ -1066,13 +1069,15 @@
     "grossOf",
     "payoutWithPenalty"
   ],
-  "refundObligationsModel": [
-    "open",
-    "openFor"
-  ],
   "basketRefundOutcome": [
     "notHonoured",
     "overpaidBy",
     "partlyOwed"
+  ],
+  "refundGivenBack": [
+    "refGivenBack"
+  ],
+  "journalEntries": [
+    "list"
   ]
 }

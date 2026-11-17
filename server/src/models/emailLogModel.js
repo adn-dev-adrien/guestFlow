@@ -356,17 +356,28 @@ function buildModel(database) {
   // Purge every email_log row that is no longer current (specs/email-history-rolling-window.md §3 rule 3):
   // no reservation backs it within the retention window — covers both past-window rows and orphans (the
   // reservation was deleted). Idempotent; returns the number of rows removed. `today` injectable for tests.
+  // End review R1-4 (outside-visit spec rule 42, pricing-components rule 86) — a sale's e-mail (`saleRef`, no reservation) is kept like a stay's: until
+  // the retention window after the later of its sale day and its send, never purged as an orphan the day it was sent.
   function purgeRealizedStays(today) {
     const day = resolveToday(today);
-    const info = database.prepare(`
+    const HAS_SALES = HAS_SALE_REF && Boolean(database.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'standalone_sales'").get());
+    const stays = database.prepare(`
       DELETE FROM email_log
-      WHERE NOT EXISTS (
+      WHERE ${HAS_SALE_REF ? 'email_log.saleRef IS NULL AND ' : ''}NOT EXISTS (
         SELECT 1 FROM reservations r
         WHERE r.id = email_log.reservationId
           AND ${CURRENT_ROW_SQL('email_log')}
       )
-    `).run(STAY_RETENTION_DAYS, day);
-    return info.changes;
+    `).run(STAY_RETENTION_DAYS, day).changes;
+    const sales = HAS_SALES ? database.prepare(`
+      DELETE FROM email_log
+      WHERE email_log.saleRef IS NOT NULL AND email_log.reservationId IS NULL AND NOT EXISTS (
+        SELECT 1 FROM standalone_sales s
+        WHERE 'standalone:' || s.id = email_log.saleRef
+          AND date(max(date(s.soldAt), COALESCE(date(email_log.sentAt), date(s.soldAt))), '+' || ? || ' days') >= date(?)
+      )
+    `).run(STAY_RETENTION_DAYS, day).changes : 0;
+    return stays + sales;
   }
 
   function findById(id) {

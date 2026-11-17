@@ -1,0 +1,3 @@
+- Note money already refunded on the trop-perçu no longer counts as credit: a line sold after the refund is asked in full at the departure, on direct and platform stays, whether the note was paid by card or in cash — before, the stay's total rose and nothing was asked (pricing-components rule 110).
+- The trop-perçu of a note line offered, discounted or lowered is pre-filled on « Prestations complémentaires » (or « Activités »), so its avoir reverses the account that booked the sale instead of the accommodation (rule 111).
+- A trop-perçu made of cash and card notes opens the refund dialog on the cash part « Caisse interne » and announces the rest, which then defaults to the means it came by: the avoir covers only booked money (rule 112).

@@ -70,7 +70,7 @@ function assertValidClient(payload) {
   if (message) throw invalidClient(message);
 }
 
-// SDK 2.28.0 (specs/pricing-components.md rule 71) — `reservations.fromPlatform(id, intake, { label, client, reuseByEmail })`: the
+// SDK 2.30.0 (specs/pricing-components.md rule 71) — `reservations.fromPlatform(id, intake, { label, client, reuseByEmail })`: the
 // platform booking port. `intake` is the port's payload (`utils/platformIntakePort.js`): platform, number, stay, party, beds, money,
 // notes and the lines with the moment each is collected. `update` is the same save fed with a patch.
 // `reuseByEmail: false` — the mail the client comes from is not proven (specs/gites-de-france-mail-intake.md
@@ -126,7 +126,7 @@ function resourceScheduler() {
   return record ? record.resourceScheduler : null;
 }
 
-// SDK 2.28.0 (specs/pricing-components.md rule 48) — the slot availability provider a live plugin declared, or null.
+// SDK 2.30.0 (specs/pricing-components.md rule 48) — the slot availability provider a live plugin declared, or null.
 function slotAvailability() {
   const record = registry().all().find((r) => r.slotAvailability && registry().isLive(r.id));
   return record ? record.slotAvailability : null;
@@ -146,6 +146,26 @@ function resourceHolds({ resourceId, from, to }) {
         return [];
       }
     });
+}
+
+// SDK 2.28.0 (specs/guest-app-home-automation.md §4.1) — the live connector's home data, or null: without it the guest
+// app shows no « Domotique » page.
+function homeData() {
+  const record = registry().all().find((r) => r.homeData && registry().isLive(r.id));
+  return record ? record.homeData : null;
+}
+
+// SDK 2.28.0 (rule 4) — the readings the lodgings use. No live declarer, or one that fails → nothing is asked for.
+function homeSelection() {
+  const record = registry().all().find((r) => r.homeSelection && registry().isLive(r.id));
+  if (!record) return [];
+  try {
+    const list = record.homeSelection();
+    return Array.isArray(list) ? list : [];
+  } catch (err) {
+    console.error(`[plugin:${record.id}] home selection failed:`, err && err.message); // eslint-disable-line no-console
+    return [];
+  }
 }
 
 module.exports = Object.freeze({
@@ -183,6 +203,8 @@ module.exports = Object.freeze({
   resourceScheduler,
   slotAvailability,
   resourceHolds,
+  homeData,
+  homeSelection,
   // SDK 2.26.0 (specs/guest-app.md rules 33, 35, 36) — the card payment of a plugin's basket (a guest order): a
   // `complement` link at the basket's exact total, read on demand, withdrawn; its paid effect is `ctx.paymentBasket`'s.
   payments: Object.freeze({

@@ -282,7 +282,7 @@ summary::-webkit-details-marker{display:none}
 .blocks p{margin:0}
 .blocks h2{font-size:20px}
 .btext{display:grid;gap:10px;font-size:16px}
-.wifi{position:relative;border:1px solid var(--line);border-radius:4px;background:var(--card);display:grid;grid-template-columns:minmax(0,1fr) 68px;gap:12px;padding:15px 20px;align-items:center}
+.wifi{position:relative;border:1px solid var(--line);border-radius:4px;background:var(--card);display:grid;grid-template-columns:minmax(0,1fr) 104px;gap:12px;padding:15px 20px;align-items:center}
 .wifi::before,.wifi::after{content:"";position:absolute;top:50%;width:16px;height:16px;border-radius:50%;background:var(--paper);border:1px solid var(--line);transform:translateY(-50%)}
 .wifi::before{left:-9px} .wifi::after{right:-9px}
 .wifi small{display:block;font:700 10.5px var(--body);letter-spacing:.2em;text-transform:uppercase;color:var(--ink-soft)}
@@ -448,7 +448,14 @@ summary::-webkit-details-marker{display:none}
 .callout .ct{display:grid;gap:3px}
 .callout .ct b{font-weight:700}
 .bstep .sph{margin-top:8px;aspect-ratio:3/2;border-radius:4px}
-.wifi img.qrimg{width:68px;height:68px;border:4px solid #fff;outline:1px solid var(--line);image-rendering:pixelated}
+.wifi .qrthumb{border:0;background:none;padding:0;display:grid;justify-items:center;gap:4px;cursor:zoom-in;color:var(--ink-soft);font:600 11px/1.25 var(--body);text-align:center;transition:transform .1s ease-out}
+.wifi .qrthumb:active{transform:scale(.96)}
+.wifi img.qrimg{width:104px;height:104px;padding:4px;background:#fff;border-radius:4px;outline:1px solid var(--line);image-rendering:pixelated}
+.qrfull{position:absolute;inset:0;z-index:60;background:#fff;color:#22271F;display:grid;place-items:center;align-content:center;gap:14px;padding:calc(24px + var(--sat)) 24px calc(24px + var(--sab));animation:pop .26s var(--ease-out);outline:0}
+.qrfull img{width:min(100%,62vh,420px);height:auto;image-rendering:pixelated}
+.qrfull b{font:400 22px/1.2 var(--display);color:#2E3B2A;text-align:center;word-break:break-all}
+.qrfull span{font-size:14px;color:#5C6153;text-align:center}
+.qrfull .qrfull-close{position:absolute;top:calc(10px + var(--sat));right:10px;color:#22271F}
 .bimg{margin:0;display:grid;gap:6px}
 .bimg img{width:100%;height:auto;border-radius:4px;display:block;background:var(--chip)}
 .bimg figcaption{font-size:12.5px;color:var(--ink-soft)}
@@ -530,3 +537,87 @@ summary::-webkit-details-marker{display:none}
 .cline>.ct{display:grid;gap:1px;min-width:0}
 .timeline .tl{justify-items:stretch;text-align:left}
 .ocard .timeline .tl{display:grid}
+/* « Domotique » (specs/guest-app-home-automation.md §6) — ported from guest-app-home-automation-maquette.html. */
+.smart-home .sh-hero{min-height:260px;display:flex;align-items:flex-end;color:#FBF7EC}
+.smart-home .sh-hero.short{min-height:170px}
+.smart-home .sh-hero-in{position:relative;z-index:2;padding:0 20px 20px;width:100%}
+.smart-home .sh-hero-in .eb{color:#E8C286;display:flex;align-items:center;gap:8px}
+.smart-home .live-dot{width:7px;height:7px;border-radius:999px;background:#8FCB9F;flex:none;animation:sh-pulse 2.4s var(--ease-out) infinite}
+.smart-home .live-dot.muted{background:#C9BFA8;animation:none}
+@keyframes sh-pulse{0%{box-shadow:0 0 0 0 rgba(143,203,159,.55)}70%{box-shadow:0 0 0 9px rgba(143,203,159,0)}100%{box-shadow:0 0 0 0 rgba(143,203,159,0)}}
+.smart-home .sh-big{margin:8px 0 2px;font:400 84px/.95 var(--display);letter-spacing:-.03em;font-variant-numeric:tabular-nums;display:flex;align-items:flex-start}
+.smart-home .sh-big span{font-size:30px;line-height:1.3;opacity:.85}
+.smart-home .sh-big .na{font:600 18px var(--body);opacity:.9}
+.smart-home .sh-big.stale{opacity:.78}
+.smart-home .sh-lbl{margin:0 0 10px;font:600 13px var(--body);letter-spacing:.06em;opacity:.88}
+.smart-home .sh-facts{margin:0;display:flex;flex-wrap:wrap;gap:6px 14px;font:500 14px var(--body);font-variant-numeric:tabular-nums;opacity:.95}
+.smart-home .sh-facts span{display:inline-flex;align-items:center;gap:5px}
+.smart-home .sh-facts svg{width:15px;height:15px}
+.smart-home .sh-rain{margin:10px 0 0;font:600 14.5px var(--body);display:flex;align-items:center;gap:7px}
+.smart-home .sh-rain svg{width:17px;height:17px;color:#E8C286}
+.smart-home .sh-name{font-size:34px;line-height:1.08;color:#FBF7EC;margin:6px 0 0}
+.smart-home .sh-body{padding-top:14px;gap:22px}
+.smart-home .sh-sec h2{font:400 16px var(--display);text-transform:uppercase;letter-spacing:.08em;margin:0 0 12px;display:flex;justify-content:space-between;align-items:baseline;gap:10px}
+.smart-home .sh-sec h2 small{font:500 12px var(--body);letter-spacing:0;text-transform:none;color:var(--ink-soft);font-variant-numeric:tabular-nums}
+.smart-home .sh-rooms{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.smart-home .sh-room{border:1px solid var(--line);border-radius:4px;background:var(--card);padding:12px 13px 13px;min-width:0;display:grid;gap:6px}
+.smart-home .sh-room .n{font:600 13.5px/1.25 var(--body);color:var(--ink-soft);overflow-wrap:anywhere}
+.smart-home .sh-room .t{display:flex;align-items:baseline;gap:6px}
+.smart-home .sh-room .t b{font:700 28px/1 var(--body);font-variant-numeric:tabular-nums;letter-spacing:-.02em}
+.smart-home .sh-room .t i{font:600 15px var(--body);font-style:normal;color:var(--ink-soft)}
+.smart-home .sh-room .t.na{font:600 14px var(--body);color:var(--ink-soft)}
+.smart-home .sh-room .h{font:500 12.5px var(--body);color:var(--ink-soft);font-variant-numeric:tabular-nums}
+.smart-home .stale{opacity:.62}
+.smart-home .trend{display:inline-grid;place-items:center;width:22px;height:22px;border-radius:999px;background:var(--chip);color:var(--ink-soft);margin-left:auto;align-self:center}
+.smart-home .trend svg{width:14px;height:14px}
+.smart-home .trend.up{background:var(--warn-soft);color:var(--warn)}
+.smart-home .trend.down{background:#E4EDF3;color:#31556E}
+.night .smart-home .trend.down,.smart-home.night .trend.down{background:#1d2a33;color:#9cc0d8}
+.smart-home .sh-lights{border:1px solid var(--line);border-radius:4px;background:var(--card)}
+.smart-home .light{display:flex;align-items:center;gap:12px;padding:12px 10px 12px 12px;min-height:68px}
+.smart-home .light+.light{border-top:1px solid var(--line)}
+.smart-home .bulb{width:42px;height:42px;border-radius:4px;display:grid;place-items:center;background:var(--chip);color:var(--ink-soft);flex:none;transition:background-color .45s var(--ease-out),color .45s var(--ease-out),box-shadow .6s var(--ease-out)}
+.smart-home .bulb svg{width:22px;height:22px}
+.smart-home .bulb.on{background:var(--warn-soft);color:var(--ocre-ink);box-shadow:0 0 22px 2px rgba(232,180,90,.5)}
+.smart-home .light .tx{flex:1;min-width:0}
+.smart-home .light .tx b{display:block;font:600 15px/1.25 var(--body);overflow-wrap:anywhere}
+.smart-home .light .tx span{display:block;font:500 13px/1.35 var(--body);color:var(--ink-soft);font-variant-numeric:tabular-nums}
+.smart-home .light .tx span.err{color:var(--bad)}
+.smart-home .sw{position:relative;width:60px;height:44px;border:0;background:none;padding:0;flex:none;display:grid;place-items:center;cursor:pointer}
+.smart-home .sw .tr{width:52px;height:32px;border-radius:999px;background:var(--ctl);position:relative;transition:background-color .25s var(--ease-out)}
+.smart-home .sw .kn{position:absolute;top:3px;left:3px;width:26px;height:26px;border-radius:999px;background:#fff;box-shadow:0 2px 5px rgba(0,0,0,.25);transition:transform .32s var(--ease-sheet),width .12s var(--ease-out)}
+.smart-home .sw[aria-checked="true"] .tr{background:var(--action)}
+.smart-home .sw[aria-checked="true"] .kn{transform:translateX(20px)}
+.smart-home .sw:active:not(:disabled) .kn{width:30px}
+.smart-home .sw[aria-checked="true"]:active:not(:disabled) .kn{transform:translateX(16px)}
+.smart-home .sw.busy .tr{opacity:.7}
+.smart-home .sw:disabled{cursor:not-allowed}
+.smart-home .sw:disabled:not(.busy){opacity:.4}
+.smart-home .ro{font:600 12px var(--body);color:var(--ink-soft);padding:4px 9px;border-radius:999px;background:var(--chip);flex:none}
+.smart-home .sh-card{border:1px solid var(--line);border-radius:4px;background:var(--card);padding:14px 14px 12px}
+.smart-home .sh-kv{display:flex;align-items:baseline;gap:18px;flex-wrap:wrap}
+.smart-home .sh-kv div{display:grid;gap:2px}
+.smart-home .sh-kv b{font:700 26px/1.05 var(--body);font-variant-numeric:tabular-nums;letter-spacing:-.02em}
+.smart-home .sh-kv span{font:500 12.5px var(--body);color:var(--ink-soft)}
+.smart-home .spark{display:block;width:100%;height:70px;margin-top:12px;overflow:visible}
+.smart-home .spark-base{stroke:var(--line)}
+.smart-home .spark-bar{fill:var(--lichen)}
+.smart-home .spark-now{fill:var(--ocre)}
+.smart-home .spark-empty{fill:var(--line)}
+.smart-home .curve-area{fill:var(--lichen);opacity:.16}
+.smart-home .curve-line{fill:none;stroke:var(--lichen);stroke-width:2}
+.smart-home .sh-axis{display:flex;justify-content:space-between;font:500 11px var(--body);color:var(--ink-soft);margin-top:5px;font-variant-numeric:tabular-nums}
+.smart-home .sh-foot{text-align:center;padding:4px 0 10px}
+.app.wide .smart-home .sh-hero{min-height:320px}
+.app.wide .smart-home .sh-hero-in{padding:0 32px 28px}
+.app.wide .smart-home .sh-body{grid-template-columns:repeat(2,minmax(0,1fr));column-gap:22px}
+.app.wide .smart-home .sh-body{padding-top:28px}
+.app.wide .smart-home .sh-body>.banner,.app.wide .smart-home .sh-body>.sh-sec:has(.sh-rooms),.app.wide .smart-home .sh-body>.sh-sec:has(.sh-lights),.app.wide .smart-home .sh-body>.sh-foot{grid-column:1 / -1}
+.app.wide .smart-home .sh-rooms{grid-template-columns:repeat(3,minmax(0,1fr))}
+.app.desk .smart-home .sh-hero-in{max-width:1200px;margin:0 auto}
+.app.desk .smart-home .sh-rooms{grid-template-columns:repeat(4,minmax(0,1fr))}
+@media (prefers-reduced-motion:reduce){
+  .smart-home .live-dot{animation:none}
+  .smart-home .bulb.on{box-shadow:none}
+  .smart-home .sw .kn{transition:none}
+}

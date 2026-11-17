@@ -10,7 +10,7 @@ const { DEFAULTS, DECLARED } = require('../settings');
 const { buildStandaloneEntry } = require('../accountingModel');
 
 const sale = (groups) => buildStandaloneEntry({
-  key: 'standalone:1:2027-03-10', date: '2027-03-10', totalCents: 1000, booksCents: 1000, cardCents: 1000, label: 'Vente hors séjour', client: { firstName: '', lastName: 'Passage' }, vatRate: null, groups, invoiceNumber: null,
+  key: 'standalone:1:2027-03-10', date: '2027-03-10', totalCents: 1000, booksCents: 1000, cardCents: 1000, label: 'Vente hors séjour', client: { firstName: '', lastName: 'Passage' }, vatRate: null, groups, invoiceNumber: null, // date-literal-ok — days handed to a pure function or an injected clock, nothing compares them with the real today
 });
 const drink = sale([{ vatClass: 'drinks', rate: 20, ttcCents: 1000, vatCents: 167 }]);
 const meal = sale([{ vatClass: 'catering', rate: 10, ttcCents: 1000, vatCents: 91 }]);
@@ -47,9 +47,9 @@ test('rule 43 — a period that holds a drink is refused with the setting named,
 test('rule 43 — the synthesis is refused the same way', () => {
   const { buildSynthesis } = require('../synthesisController');
   const model = {
-    today: () => '2027-03-31', fiscalEndMonth: () => 12, meansResolver: () => () => null, entriesBetween: () => [drink],
+    today: () => '2027-03-31', fiscalEndMonth: () => 12, meansResolver: () => () => null, entriesBetween: () => [drink], // date-literal-ok — days handed to a pure function or an injected clock, nothing compares them with the real today
   };
-  const result = buildSynthesis(model, { from: '2027-03-01', to: '2027-03-31' }, {});
+  const result = buildSynthesis(model, { from: '2027-03-01', to: '2027-03-31' }, {}); // date-literal-ok — days handed to a pure function or an injected clock, nothing compares them with the real today
   assert.equal(result.ok, false);
   assert.equal(result.status, 409);
   assert.equal(result.body.code, 'DRINKS_ACCOUNT_REQUIRED');

@@ -75,6 +75,8 @@ const GUARDS = [
       { re: /\bSUM\([^)]*(totalTtc|amountTtc)/, probe: "db.prepare('SELECT SUM(amountTtc) FROM refunds')" },
       { re: /\b(keptFromGuest|writtenOffBalance):\s*round2\(/, probe: 'keptFromGuest: round2(kept),' },
       { re: /\brefundOwed\s*:\s*true|\brefundCents\s*:\s*excess/, probe: 'return { refundOwed: true };' },
+      // Loop t2 B2-4 — what a document line holds beyond what it asks (the money a refund or a lowered row can take from it) is REFUNDS' `refundRowsOfDocument`.
+      { re: /\bsettledCents\)?\s*-\s*(?:whole\()?[\w.]*\bdueCents\b/, probe: ['const take = Math.min(left, Math.max(0, line.settledCents - line.dueCents));', 'whole(line.settledCents) - whole(line.dueCents)'] },
     ],
     // PR B delivered the trop-perçu, the caps and the postes on the allocations (rules 72-76). What stays is read-model SQL (PR C).
     removedBy: () => 'PR C',

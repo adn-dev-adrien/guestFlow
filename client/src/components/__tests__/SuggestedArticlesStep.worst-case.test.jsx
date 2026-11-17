@@ -31,7 +31,8 @@ test('no suggestion and no search leaves only the empty message; a thousand sear
   expect(screen.queryByRole('button')).toBeNull();
   unmount();
   const many = Array.from({ length: 1000 }, (_, i) => ({ articleRef: `option:${i + 1}`, label: `Article ${i + 1}`, unitCents: 100, max: 9, category: i % 2 ? 'Boissons' : 'Repas' }));
-  render(<SuggestedArticlesStep suggestions={[]} search={async () => many} {...handlers()} />);
+  const groups = ['Boissons', 'Repas'].map((category) => ({ category, articles: many.filter((a) => a.category === category) }));
+  render(<SuggestedArticlesStep suggestions={[]} search={async () => groups} {...handlers()} />);
   fireEvent.click(screen.getByRole('button', { name: 'Autre article' }));
   expect(await screen.findByRole('button', { name: /Article 1000/ })).toBeInTheDocument();
 });

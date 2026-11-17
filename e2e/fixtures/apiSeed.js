@@ -11,11 +11,11 @@ const path = require('path');
 // Hit the API through the client dev proxy so the cached storageState cookie — bound to that
 // origin by globalSetup — gets sent. Hitting the backend directly at `127.0.0.1:4000` would
 // silently drop the cookie and every call would 401.
-const { CLIENT_URL: SERVER_URL } = require('../clientUrl');
+const { CLIENT_URL: SERVER_URL, API_TIMEOUT } = require('../clientUrl');
 const STORAGE_STATE = path.join(__dirname, '..', '.auth', 'admin.json');
 
 async function withRequest(fn) {
-  const ctx = await request.newContext({ baseURL: SERVER_URL, storageState: STORAGE_STATE });
+  const ctx = await request.newContext({ baseURL: SERVER_URL, storageState: STORAGE_STATE, timeout: API_TIMEOUT });
   try {
     return await fn(ctx);
   } finally {

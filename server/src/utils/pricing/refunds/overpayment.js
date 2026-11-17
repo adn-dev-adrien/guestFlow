@@ -86,7 +86,9 @@ function currentByPoste(quote = {}) {
  *   complement carried on each poste beyond what the stay's complement now carries
  * @returns {Array<{ bucket, label, amountTtc, collectedTtc, dueTtc }>} one line per poste in excess
  */
-function overpaymentLinesOf({ row = {}, capturedByPoste = {}, quote = {}, overpaymentTtc = 0, complementLeft = {}, leftover = {}, received = null }) {
+function overpaymentLinesOf({
+  row = {}, capturedByPoste = {}, quote = {}, overpaymentTtc = 0, complementLeft = {}, leftover = {}, received = null, complementCaptured = null,
+}) {
   const total = round2(overpaymentTtc);
   if (!(total > 0)) return [];
   // Rule 47 — a bucket paid with several methods collected on each poste its share of what it received.
@@ -126,7 +128,10 @@ function overpaymentLinesOf({ row = {}, capturedByPoste = {}, quote = {}, overpa
     add(complementExcessPoste(quote), remaining);
     return lines;
   }
-  return scheduleLines({ row, capturedByPoste: byPoste, quote, total, leftover });
+  // Loop t9 B9-2 — a direct stay's collected arrival complement paid its own lines (`complementCaptured`, its frozen split by poste): what
+  // the stay is due on a poste is paid by the acompte, the solde AND that complement, so a solde line offered next to lines the complement
+  // collected leaves its money on its own poste, never on the accommodation.
+  return scheduleLines({ row, capturedByPoste: byPoste, quote, total, leftover, complementCaptured });
 }
 
 function receivedByPoste(capturedByPoste, received) {
@@ -149,12 +154,13 @@ function complementExcessPoste(quote) {
   return { bucket: 'accommodation', label: POSTES[0].label };
 }
 
-function scheduleLines({ row, capturedByPoste, quote, total, leftover = {} }) {
+function scheduleLines({ row, capturedByPoste, quote, total, leftover = {}, complementCaptured = null }) {
   const paid = (flag, cash) => Number(flag || 0) === 1 || Number(cash || 0) === 1;
-  const sources = [
+  const schedule = [
     paid(row.depositPaid, row.depositPaidCash) ? (capturedByPoste || {}).deposit : null,
     paid(row.balancePaid, row.balancePaidCash) ? (capturedByPoste || {}).balance : null,
   ].filter(Boolean);
+  const sources = schedule.length && complementCaptured ? [...schedule, complementCaptured] : schedule;
   const due = currentByPoste(quote);
   const lines = POSTES.map(({ bucket, label }) => {
     const collectedTtc = round2(sources.reduce((sum, s) => sum + Number(s[bucket] || 0), 0));
@@ -213,4 +219,32 @@ function postesLeftOf(collected, currentCents) {
   return Object.fromEntries(Object.entries(left).map(([poste, cents]) => [poste, round2(cents / 100)]));
 }
 
-module.exports = { overpayment, overpaymentLinesOf, currentByPoste, postesLeftOf };
+/**
+ * specs/pricing-components.md rule 112 (loop t7 B7-3) — the part of a trop-perçu that cash notes took, when it is only a part: that money
+ * goes back « caisse interne » (rule 106 b) and the rest by the means it came by, so the avoir covers only money the books hold. The cash
+ * part is carved out of the poste split, the prestations first (where note money lives), then the tax and the accommodation.
+ *
+ * @param {Array<{ bucket, label, amountTtc }>} lines  the trop-perçu split by poste (`overpaymentLinesOf`)
+ * @param {number} overpaymentTtc  the trop-perçu
+ * @param {number} cashCents  the cash notes' part of it (`cashNoteExcessCents`)
+ * @returns {{ amountTtc: number, restTtc: number, lines: Array<{ bucket, label, amountTtc }> } | null}  null when no part or the whole is cash
+ */
+function cashPartOf(lines, overpaymentTtc, cashCents) {
+  const totalCents = Math.round(Number(overpaymentTtc || 0) * 100);
+  const cash = Math.min(Math.max(0, Math.round(Number(cashCents) || 0)), totalCents);
+  if (!(cash > 0) || cash >= totalCents) return null;
+  const order = ['options', 'resources', 'touristTax', 'accommodation'];
+  const sorted = [...(lines || [])].filter((l) => Number(l.amountTtc) > 0).sort((a, b) => order.indexOf(a.bucket) - order.indexOf(b.bucket));
+  let left = cash;
+  const part = [];
+  for (const line of sorted) {
+    const take = Math.min(left, Math.round(Number(line.amountTtc) * 100));
+    if (!(take > 0)) continue;
+    part.push({ bucket: line.bucket, label: line.label, amountTtc: take / 100 });
+    left -= take;
+  }
+  if (left > 0) part.push({ bucket: 'options', label: POSTES[1].label, amountTtc: left / 100 });
+  return { amountTtc: cash / 100, restTtc: (totalCents - cash) / 100, lines: part };
+}
+
+module.exports = { overpayment, overpaymentLinesOf, currentByPoste, postesLeftOf, cashPartOf };

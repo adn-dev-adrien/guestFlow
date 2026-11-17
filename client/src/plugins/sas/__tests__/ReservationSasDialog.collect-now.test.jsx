@@ -64,3 +64,26 @@ test('« Tout percevoir maintenant » moves every line, and a refusal of the ser
   expect(await screen.findByText('Ce moment n’est plus possible pour ce séjour.')).toBeInTheDocument();
   expect(screen.getByRole('button', { name: 'Valider et terminer' })).toBeInTheDocument();
 });
+
+test('rule 32 — a line already paid folds under « Déjà payé » and offers nothing at the arrival', async () => {
+  const section = {
+    ...staySales(['option:1']),
+    lines: [
+      ...staySales(['option:1']).lines,
+      { ref: 'option:9', label: 'Panier payé', totalCents: 1300, statusLabel: 'Payée', sourceLabel: 'Boutique', block: 'paid' },
+    ],
+  };
+  api.getReservationSas.mockResolvedValue(sasPayload({ cleaning: { included: true, price: 0 }, reservation: { cautionReceived: 1 }, staySales: section }));
+  api.previewArrivalSas.mockImplementation(previewLikeTheServer(api));
+  renderDialog({ mode: 'arrival' });
+  await screen.findByText('Commencer');
+  clickBtn('Commencer');
+  for (let i = 0; i < 12 && !screen.queryByRole('button', { name: 'Valider et terminer' }); i += 1) {
+    const buttons = document.querySelectorAll('.MuiDialogActions-root button');
+    buttons[buttons.length - 1].click();
+    // eslint-disable-next-line no-await-in-loop
+    await new Promise((r) => setTimeout(r, 0));
+  }
+  expect(await screen.findByText(/Déjà payé · 1 ligne/)).toBeInTheDocument();
+  expect(screen.queryByRole('button', { name: /Offrir/ })).toBeNull();
+});

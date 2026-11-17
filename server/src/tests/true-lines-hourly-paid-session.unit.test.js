@@ -1,3 +1,6 @@
+const { requirePlugins } = require('../plugins/sdk/testing');
+// Loop t1 AS-1 (plugin-removal-resilience rule 4) — the hourly lines are the plugin's: without it the suite has nothing to prove.
+if (!requirePlugins(['hourly-resources'])) return;
 // specs/pricing-components.md §3 rule 85 (owner Q-C7) — a session added to an hourly line that is already PAID becomes a NEW line (the paid line
 // keeps what it was sold with); added to an unpaid line, it stays on that line. Nothing is moved when no session is new.
 const test = require('node:test');
@@ -26,7 +29,9 @@ function stayWithBathLine({ paid }) {
     .run(id, resourceId, JSON.stringify([day]));
   const { lineId } = db.prepare('SELECT lineId FROM reservation_resources WHERE reservationId = ?').get(id);
   if (paid) {
-    db.prepare("INSERT INTO payment_allocations (documentRef, lineRef, amountCents, kind, at, books) VALUES (?, ?, 4000, 'payment', '2030-04-01', 1)")
+    // The stay's own allocations are rebuilt first (loop t5 D5-6: `lineFacts` flushes a dirty stay), so the raw row below is not swept by that rebuild.
+    require('../utils/paymentAllocationsSync').flushDirty(db, id);
+    db.prepare("INSERT INTO payment_allocations (documentRef, lineRef, amountCents, kind, at, books) VALUES (?, ?, 4000, 'payment', '2030-04-01', 1)") // date-literal-ok — fixture rows written by raw SQL and read back by key, no write path checks them against today
       .run(`reservation:${id}`, `line:reservation_resources:${lineId}`);
   }
   return { id, lineId };

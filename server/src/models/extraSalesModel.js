@@ -8,11 +8,13 @@
  *   stampNewLines(reservationId, before, sale)   writes source / moment / date (and the order it belongs to) on the lines that were not in `before` → [{ label }]
  *   keyOfLine / writeCardNote                    the key a line is named by in the notes; the settled note of a card-paid sale before the arrival
  *   findLine(reservationId, ref)                 `ref` = `option:<lineId>` | `resource:<lineId>` | `custom:<lineId>` → the stored line or null
+ *                                                (`settledCents`: its allocations; `paidCents`: what the notes paid on it, kept once it is offered)
  *   momentRefusal(reservationId, line, to, moments) / moveLine(reservationId, line, to)    rule 37: the 409 or null / the move, journaled by the caller
  *   lowerLine(reservationId, line, { discount, offered })  → { body, text, discountCents } | { error }   rule 39 / 14: the PUT body that offers it or carries the discount
- *   storeDiscount(line, cents)                   the line's own discount, stored once the save went through
+ *   storeDiscount(line, cents, { arrivalOpen })  the line's own discount, stored once the save went through; `arrivalOpen` is the caller's
+ *                                                one judge (`extraSale.arrivalOpenAt` at the gesture's `now`)
  *   withoutLine(body, line)                      the fiche's PUT body without that one line (rule 25: an unpaid line removed)
- *   stampCustomQuantities(reservationId, added, requests)  the count a sold custom line carries (« Taie d'oreiller ×2 »)
+ *   stampCustomQuantities(reservationId, added, requests)  the count a sold custom line carries (« Taie d'oreiller ×2 ») and its seller's key (`fulfilmentRef`)
  *   stampIntakeLines(reservationId, platform, soldAt)  the lines a platform intake wrote and left without a moment: `platform` or `arrival` (rule 17)
  *   stampSasLines(reservationId, soldAt, { reopened })  the lines an arrival SAS wrote carry source `sas` and the arrival moment (rule 18); a reopened run flags the lines it appended
  *   openLoweredCents(reservationId)              the open `lineLowered` obligations, in cents
@@ -105,6 +107,11 @@ function storedLineKey(db, table, reservationId, lineId) {
 
 // The key a stored line is named by in the stay's notes and allocations: the article's legacy key for its first line, `line:<table>:<id>` for a later one (rule 85).
 function keyOfLine(reservationId, kind, lineId) {
+  // A custom line has no article: it is named by its label (`extraLineKey`), the key the engine and `lineFacts` give it.
+  if (kind === 'custom') {
+    const row = database().prepare('SELECT description FROM reservation_custom_options WHERE reservationId = ? AND lineId = ?').get(Number(reservationId), Number(lineId));
+    return row ? extraLineKey({ isCustom: true, description: row.description }) : null;
+  }
   return storedLineKey(database(), KINDS[kind].table, Number(reservationId), Number(lineId));
 }
 
@@ -119,8 +126,9 @@ function writeCardNote(reservationId, { items }) {
     return line;
   });
   const notes = parseNotes(row && row.midStaySettledNotes);
+  // `beforeArrival` (pricing-components rule 102): the arrival baseline laid once the stay starts keeps netting this money out of the arrival complement.
   const note = {
-    id: nextNoteId(notes), paidDate: require('../utils/localDate').todayIso(), paidCash: 0, total: roundMoney(lines.reduce((sum, line) => sum + Number(line.amount || 0), 0)), lines,
+    id: nextNoteId(notes), paidDate: require('../utils/localDate').localIsoDate(require('./stayClockModel').gestureNow()), paidCash: 0, total: roundMoney(lines.reduce((sum, line) => sum + Number(line.amount || 0), 0)), lines, beforeArrival: true,
   };
   db.prepare("UPDATE reservations SET midStaySettledNotes = ?, updatedAt = datetime('now') WHERE id = ?").run(JSON.stringify([...notes, note]), Number(reservationId));
   return note;
@@ -140,12 +148,15 @@ function findLine(reservationId, ref) {
     kind: match[1], table: KINDS[match[1]].table, lineId: Number(match[2]), key, label: String(row.label || 'Prestation'), row,
     totalCents: toCents(match[1] === 'custom' ? row.amount : row.totalPrice), offered: Number(row.offered || 0) === 1,
     settledCents: Number(fact.settledCents || 0), collectAt: row.collectAt || null, collectAtDefault: row.collectAtDefault || null,
+    // Loop t5 S5-4 — what the notes paid on the line, gross: an offered paid line carries no allocation any more, but its money is still the note's.
+    paidCents: require('../utils/paidLineJudgment').notesOnKey(db, reservationId, key),
   };
 }
 
 function momentRefusal(reservationId, line, to, moments) {
   if (!moments.includes(to)) return { status: 400, body: { error: 'Moment inconnu.', code: 'INVALID_MOMENT' } };
-  if (line.settledCents > 0) return { status: 409, body: { error: 'Ligne déjà payée : son moment est figé.', code: 'LINE_PAID' } };
+  // Loop t5 S5-5 — a paid line keeps its moment once offered too (the detail shows it none): its money stays where the note put it.
+  if (line.settledCents > 0 || line.paidCents > 0) return { status: 409, body: { error: 'Ligne déjà payée : son moment est figé.', code: 'LINE_PAID' } };
   const stay = database().prepare('SELECT complementPaid, complementPaidCash, endOfStayComplementPaid, endOfStayComplementPaidCash FROM reservations WHERE id = ?').get(Number(reservationId));
   if (!stay) return { status: 404, body: { error: 'Réservation introuvable', code: 'RESERVATION_NOT_FOUND' } };
   const arrivalCollected = Number(stay.complementPaid || 0) === 1 || Number(stay.complementPaidCash || 0) === 1;
@@ -158,16 +169,20 @@ function momentRefusal(reservationId, line, to, moments) {
 }
 
 // The arrival baseline (`{ lineKey → TTC }`) says which part of a line was sold at arrival: what exceeds it is paid at departure (rule 20).
-function moveLine(reservationId, line, to) {
+function moveLine(reservationId, line, to, { started = true } = {}) {
   if ((line.collectAt || null) === to) return null;
   const db = database();
   const reservations = require('./reservationsModel');
-  // Stored, or laid now from the lines as they stand (a stay not started yet has none).
-  const baseline = JSON.parse(reservations.peekArrivalExtrasBaseline(Number(reservationId)) || '{}');
-  const total = line.totalCents / 100;
-  if (to === 'departure') baseline[line.key] = Math.max(0, roundMoney((baseline[line.key] || 0) - total));
-  else if (to === 'arrival') baseline[line.key] = roundMoney((baseline[line.key] || 0) + total);
-  db.prepare("UPDATE reservations SET arrivalExtrasBaseline = ?, updatedAt = datetime('now') WHERE id = ?").run(JSON.stringify(baseline), Number(reservationId));
+  // Rule 95 — only a started stay carries a baseline: before the arrival the line's routing (`inComplement`) is the whole move.
+  if (started) {
+    const baseline = JSON.parse(reservations.peekArrivalExtrasBaseline(Number(reservationId)) || '{}');
+    // What the engine weighs the line at against the baseline: its amount net of its own discount (rule 39) — the gross would leave a discounted
+    // line below the floor it was just given, and the move would be refused as a reduction.
+    const total = Math.max(0, line.totalCents - Number((line.row && line.row.discountCents) || 0)) / 100;
+    if (to === 'departure') baseline[line.key] = Math.max(0, roundMoney((baseline[line.key] || 0) - total));
+    else if (to === 'arrival') baseline[line.key] = roundMoney((baseline[line.key] || 0) + total);
+    db.prepare("UPDATE reservations SET arrivalExtrasBaseline = ?, updatedAt = datetime('now') WHERE id = ?").run(JSON.stringify(baseline), Number(reservationId));
+  }
   const was = line.collectAt || 'arrival';
   // A line moved to the arrival is routed into the arrival complement, as a new line of a stay not started is (rule 19): the moment the line
   // says and the bucket that collects it are one (rule 31). A line sent to the departure keeps its routing: the baseline carves it out.
@@ -220,9 +235,12 @@ function lowerLine(reservationId, line, wants) {
 // The fiche's body without the one line the operator removes: an article sold twice loses the line named, never the other (rule 85).
 function withoutLine(body, line) {
   if (line.kind === 'option') {
+    // Only the removed line's article leaves the offered list, and only when no other line of it is left: an offered line the body does not
+    // name (an automatic one) stays offered (end-review V-5: removing a line billed an older offered arrival line again, refused as « unoffered »).
     const options = body.options.filter((o) => Number(o.lineId) !== line.lineId);
-    const named = new Set(options.map((o) => Number(o.optionId)));
-    return { ...body, options, offeredOptionIds: (body.offeredOptionIds || []).map(Number).filter((id) => named.has(id)) };
+    const article = Number(line.row.optionId);
+    const articleLeft = options.some((o) => Number(o.optionId) === article);
+    return { ...body, options, offeredOptionIds: (body.offeredOptionIds || []).map(Number).filter((id) => articleLeft || id !== article) };
   }
   if (line.kind === 'resource') return { ...body, resources: body.resources.filter((r) => Number(r.lineId) !== line.lineId) };
   return { ...body, customOptions: body.customOptions.filter((c) => Number(c.customOptionId) !== Number(line.row.id)) };
@@ -232,17 +250,45 @@ function withoutLine(body, line) {
 function stampCustomQuantities(reservationId, added, requests) {
   const customs = added.filter((line) => line.kind === 'custom');
   const db = database();
-  if (!db.prepare('PRAGMA table_info(reservation_custom_options)').all().some((c) => c.name === 'quantity')) return;
+  const columns = new Set(db.prepare('PRAGMA table_info(reservation_custom_options)').all().map((c) => c.name));
   customs.forEach((line, index) => {
     const request = requests[index];
-    if (request && request.quantity > 1) db.prepare('UPDATE reservation_custom_options SET quantity = ? WHERE reservationId = ? AND lineId = ?').run(request.quantity, Number(reservationId), line.lineId);
+    if (columns.has('quantity') && request && request.quantity > 1) db.prepare('UPDATE reservation_custom_options SET quantity = ? WHERE reservationId = ? AND lineId = ?').run(request.quantity, Number(reservationId), line.lineId);
+    // Loop t2 N-6 — the seller's stable key of the line.
+    if (columns.has('fulfilmentRef') && request && request.fulfilmentRef) db.prepare('UPDATE reservation_custom_options SET fulfilmentRef = ? WHERE reservationId = ? AND lineId = ?').run(request.fulfilmentRef, Number(reservationId), line.lineId);
   });
 }
 
 // Once the save went through, the line keeps its own discount as a stored fact (rule 39).
-function storeDiscount(line, cents) {
+function storeDiscount(line, cents, { arrivalOpen = false } = {}) {
   if (cents == null) return;
   database().prepare(`UPDATE ${line.table} SET discountCents = ? WHERE lineId = ?`).run(cents, line.lineId);
+  fitArrivalBaseline(line, cents, arrivalOpen);
+}
+
+// Loop t3, T3-8 — an arrival line discounted where the door can still change it (an open arrival, a collected complement) is held in the
+// baseline at what it is now worth, as the engine weighs it: left at its gross, every later save of the started stay reads it as reduced.
+// Loop t4, D4-1 — both ways: a discount reduced or removed gives the money back where the discount took it. A line wholly at the arrival
+// (its baseline at least its worth before the change) takes it back there; a line that already had money at the departure keeps its
+// baseline, and the departure takes it back. Left at the old net, the arrival collected the line whole and the departure billed the
+// given-back part a second time.
+function fitArrivalBaseline(line, cents, arrivalOpen) {
+  if (line.collectAt !== 'arrival') return;
+  const db = database();
+  const row = db.prepare('SELECT arrivalExtrasBaseline FROM reservations WHERE id = ?').get(Number(line.row && line.row.reservationId));
+  const baseline = row && row.arrivalExtrasBaseline ? JSON.parse(row.arrivalExtrasBaseline) : null;
+  if (!baseline || baseline[line.key] == null) return;
+  const held = Number(baseline[line.key]);
+  const worth = roundMoney(Math.max(0, line.totalCents - Number(cents || 0)) / 100);
+  const before = roundMoney(Math.max(0, line.totalCents - Number((line.row && line.row.discountCents) || 0)) / 100);
+  // Loop t4 S4-6 — the arrival takes the given-back money only while it is open: once validated or its complement collected, the restate
+  // carved it out to the departure, and a raised baseline would let the next save drop it from there. Loop t5 D5-1 — « open » is the stay
+  // clock's one judge at the gesture's `now` (`extraSale.arrivalOpenAt`), given by the caller: a kept false start (a baseline stored, unticked
+  // before the check-in hour) is not open either, its restate already routed the given-back money to the departure.
+  const fitted = worth < held ? worth : (held >= before && arrivalOpen ? Math.max(held, worth) : held);
+  if (fitted === held) return;
+  baseline[line.key] = fitted;
+  db.prepare("UPDATE reservations SET arrivalExtrasBaseline = ?, updatedAt = datetime('now') WHERE id = ?").run(JSON.stringify(baseline), Number(line.row.reservationId));
 }
 
 // What the stay owes back for lowered lines, still open (the sale service compares it before and after a confirmed lowering).

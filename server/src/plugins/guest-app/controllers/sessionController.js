@@ -40,8 +40,9 @@ function wifiPayload(wifi) {
   return `WIFI:T:${type};S:${escape(wifi.network)};P:${escape(wifi.password)};;`;
 }
 
+// Drawn at 600 px with a one-module margin: it is shown full screen to another phone's camera (rule 18).
 async function wifiView(wifi) {
-  const joinQr = await QRCode.toDataURL(wifiPayload(wifi));
+  const joinQr = await QRCode.toDataURL(wifiPayload(wifi), { width: 600, margin: 1, errorCorrectionLevel: 'M' });
   return { network: wifi.network, password: wifi.password, ...(wifi.note ? { note: wifi.note } : {}), joinQr };
 }
 
@@ -50,7 +51,7 @@ const DEFAULT_APP_NAME = 'Domaine Solio';
 
 function buildSessionController({
   lodgings, sessions, stays, stayLinks, orders, guestSession, soliomapUrl, soliomapFeed, now, readGateUrl = gate.keyUrlOf,
-  appName = () => null, soliomapEmbed = () => false, bathCards = () => [],
+  appName = () => null, soliomapEmbed = () => false, bathCards = () => [], homeReady = () => false,
 }) {
   function factsOf(lodging) {
     return {
@@ -59,6 +60,7 @@ function buildSessionController({
       wifiConfigured: lodging.wifi.available && lodging.wifi.network !== '',
       soliomapUrl: soliomapUrl(),
       contactCount: lodging.contacts.length,
+      homeReady: homeReady(lodging.propertyId),
     };
   }
 

@@ -11,10 +11,10 @@ const paymentLedger = require('./ports/paymentLedger');
 const stayRepository = require('./ports/stayRepository');
 const { parseParts } = require('../utils/paymentTenders');
 const { storedMidStayLines } = require('../utils/midStayExtras');
-const { readSplitReceived } = require('../utils/splitReceived');
 const { toCents } = require('../utils/pricing/money');
 const { postesLeftOf } = require('../utils/pricing/refunds/overpayment');
-const { extraLineKey } = require('../utils/pricing/storedLines');
+const { extraLineKey, settledByKey } = require('../utils/pricing/storedLines');
+const { ARRIVAL_COMPLEMENT_EXCESS_KEY } = require('../utils/pricing/settlement');
 const { keyLines, lineRef } = require('../utils/pricing/lineKeys');
 const { readComplementPaidSplit } = require('../utils/complementPaidSplit');
 const { parseRemovedLineContribs } = require('../utils/removedLineContribs');
@@ -47,7 +47,7 @@ function departureOwnCents(db, row) {
   const paid = Number(row.endOfStayComplementPaid || 0) === 1 || Number(row.endOfStayComplementPaidCash || 0) === 1;
   const amount = toCents(row.endOfStayComplementAmount);
   if (!paid || amount <= 0) return 0;
-  const received = readSplitReceived(db, row.id);
+  const received = paymentLedger.create(db).receipts(row.id).splitReceived;
   const collected = received && received.endOfStayComplement != null ? Math.min(toCents(received.endOfStayComplement), amount) : amount;
   const inPrice = storedMidStayLines(row.endOfStayComplementDetail).reduce((sum, line) => sum + toCents(line.amount), 0);
   return Math.max(0, collected - Math.round((inPrice * collected) / amount));
@@ -86,18 +86,21 @@ function lineAllocationsContext(db, reservationId) {
   return { allocations, stayLineRefs };
 }
 
-// The stored lines of a stay with the ref a payment allocation names them by (rule 74).
+// The stored lines of a stay with the ref a payment allocation names them by (rule 74). `totalPrice` is what the line charges: its stored
+// amount less its own discount (rule 39 — loop t8 B8-1: a discounted note line leaves its money on its own poste, as an offered one does).
 function storedLinesOf(db, reservationId) {
   const read = (table, sql, make) => (hasTable(db, table) ? db.prepare(sql).all(reservationId).map(make) : []);
+  const discount = (table) => (hasTable(db, table) && db.prepare(`PRAGMA table_info(${table})`).all().some((c) => c.name === 'discountCents') ? ', discountCents' : '');
+  const net = (amount, r) => Math.max(0, toCents(amount) - Math.max(0, Number(r.discountCents || 0))) / 100;
   // Rule 85: an article's first line keeps `opt:<id>` / `res:<id>`, a later sale is named by its ref.
   const keyed = (table, rows, make) => keyLines(table, rows).map(({ row, key }) => make(row, key));
   return [
-    ...keyed('reservation_options', read('reservation_options', 'SELECT lineId, optionId, totalPrice, offered FROM reservation_options WHERE reservationId = ?', (r) => r),
-      (r, key) => ({ ref: lineRef('reservation_options', r.lineId), key, poste: 'options', totalPrice: r.totalPrice, offered: r.offered })),
-    ...keyed('reservation_resources', read('reservation_resources', 'SELECT lineId, resourceId, totalPrice, offered FROM reservation_resources WHERE reservationId = ?', (r) => r),
-      (r, key) => ({ ref: lineRef('reservation_resources', r.lineId), key, poste: 'resources', totalPrice: r.totalPrice, offered: r.offered })),
-    ...read('reservation_custom_options', `SELECT lineId, description, amount, offered FROM reservation_custom_options WHERE reservationId = ?${notDepartureCharge(db)}`,
-      (r) => ({ ref: `line:reservation_custom_options:${r.lineId}`, key: extraLineKey({ isCustom: true, description: r.description }), poste: 'options', totalPrice: r.amount, offered: r.offered })),
+    ...keyed('reservation_options', read('reservation_options', `SELECT lineId, optionId, totalPrice, offered${discount('reservation_options')} FROM reservation_options WHERE reservationId = ?`, (r) => r),
+      (r, key) => ({ ref: lineRef('reservation_options', r.lineId), key, poste: 'options', totalPrice: net(r.totalPrice, r), offered: r.offered })),
+    ...keyed('reservation_resources', read('reservation_resources', `SELECT lineId, resourceId, totalPrice, offered${discount('reservation_resources')} FROM reservation_resources WHERE reservationId = ?`, (r) => r),
+      (r, key) => ({ ref: lineRef('reservation_resources', r.lineId), key, poste: 'resources', totalPrice: net(r.totalPrice, r), offered: r.offered })),
+    ...read('reservation_custom_options', `SELECT lineId, description, amount, offered${discount('reservation_custom_options')} FROM reservation_custom_options WHERE reservationId = ?${notDepartureCharge(db)}`,
+      (r) => ({ ref: `line:reservation_custom_options:${r.lineId}`, key: extraLineKey({ isCustom: true, description: r.description }), poste: 'options', totalPrice: net(r.amount, r), offered: r.offered })),
   ];
 }
 
@@ -108,6 +111,9 @@ const isComplementRef = (paymentRef, complementSettlements) => paymentRef === 'b
  * Rules 74 and 76 — what left the stay since it was paid, per poste, read from its lines and the payments that name them (no audit
  * log): `scope 'schedule'` is the acompte, the solde, the installments and the notes; `'complement'` the arrival complement, whose lines
  * are the allocations that name a line plus the lines of its frozen split (a line the stay no longer holds names none).
+ * Loop t7 B7-2 (rule 111) — the notes are read from their register, by the line key each note line names (a note's allocation loses its
+ * line once that line is offered): a note line offered, discounted or lowered leaves its money on that line's poste (« Prestations
+ * complémentaires », « Activités »), so the refund of it reverses the account its sale was booked on, never « Hébergement ».
  * `quote` is the stay as a save would store it; absent, the stored lines are the reference. Euros per poste.
  */
 function postesLeft(db, reservationId, { scope, quote = null }) {
@@ -144,6 +150,11 @@ function postesLeft(db, reservationId, { scope, quote = null }) {
       collected.push({ key: 'touristTax', poste: 'touristTax', collectedCents: toCents(row.complementCollectedTax) });
     }
   } else {
+    const posteOfKey = new Map(lines.map((line) => [line.key, line.poste]));
+    for (const [key, euros] of Object.entries(settledByKey(row.midStaySettledNotes))) {
+      if (key === ARRIVAL_COMPLEMENT_EXCESS_KEY || !(Number(euros) > 0)) continue;
+      collected.push({ key, poste: posteOfKey.get(key) || (key.startsWith('res:') ? 'resources' : 'options'), collectedCents: toCents(euros) });
+    }
     for (const entry of parseRemovedLineContribs(row.removedLineContribs)) {
       collected.push({ key: entry.key, poste: entry.bucket === 'resources' ? 'resources' : 'options', collectedCents: toCents(Number(entry.acompteContribTtc || 0) + Number(entry.soldeContribTtc || 0)) });
     }

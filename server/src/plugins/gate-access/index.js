@@ -1,7 +1,8 @@
 /**
- * Accès au portail (Sowel) (specs/gate-access-sowel-connector.md; module per
+ * Accès au portail (Sowel) (specs/gate-access-sowel-connector.md, specs/guest-app-home-automation.md; module per
  * specs/plugins-phase-1-sdk.md). Sowel pulls the list of keys and posts the outcomes back; guestFlow
- * shows the stored key in the emails, the SAS and the fiche, and alerts the admins on a failure.
+ * shows the stored key in the emails, the SAS and the fiche, and alerts the admins on a failure. On the same
+ * key and signature, the house pushes what the guests' « Domotique » page shows and collects their light commands.
  *
  * The keypad code of the property (`portalCode`) is not this plugin's: it belongs to the SAS (rule 17).
  */
@@ -16,6 +17,27 @@ const { buildSignGateResponse } = require('./signResponse');
 const { runStaleReadCheck } = require('./results');
 const invitationView = require('./invitationView');
 const { TOKENS, FLAGS, gateEmailContext } = require('./emailContext');
+const { createHomeModel, HOME_TABLES_SQL, HOME_TABLES } = require('./homeModel');
+const { buildHomeController } = require('./homeController');
+const { buildHomeRouter } = require('./homeRoutes');
+
+const { rateLimit, ipKeyGenerator } = require('express-rate-limit');
+
+/**
+ * The house's own budget on `/public/v1/home` (readings every 60 s, a long poll always open, ~210 calls an hour):
+ * a bucket of its own, so guests' phones behind the same address never push the house into 429.
+ */
+const buildHomeChannelLimiter = () => rateLimit({
+  keyGenerator: (req) => `home:${ipKeyGenerator(req.ip)}`,
+  windowMs: 15 * 60 * 1000,
+  max: 600,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: { code: 'TOO_MANY_REQUESTS', message: 'Too many requests' } },
+});
+
+
+const DAY_MS = 24 * 60 * 60 * 1000;
 
 const id = 'gate-access';
 
@@ -50,6 +72,10 @@ function register(ctx) {
     // reservation, so its revoke still names it.
     name: 'stay_property_v1',
     up: (db) => { migratePropertyId(db); },
+  }, {
+    // specs/guest-app-home-automation.md §5 — what the house sends for the guests' « Domotique » page.
+    name: 'home_tables_v1',
+    up: (db) => db.exec(HOME_TABLES_SQL),
   }]);
 
   // Rule 18 — the connector keys exist only once the plugin is installed. Two secrets, distinct from
@@ -68,6 +94,7 @@ function register(ctx) {
   };
   const controller = buildController({
     model: getModel,
+    homeChannel: () => (homeModel || createHomeModel(ctx.db)).channel(),
     pushService: ctx.core.push,
     publicUrl: () => ctx.core.settings.publicUrl(),
   });
@@ -78,6 +105,21 @@ function register(ctx) {
     requireConnector: buildRequireGateConnector(),
     signResponse: buildSignGateResponse(),
   }), { public: true });
+
+  // specs/guest-app-home-automation.md rules 1-2 — the same connector, a second tree.
+  let homeModel = null;
+  const getHomeModel = () => {
+    if (!homeModel) homeModel = createHomeModel(ctx.db);
+    return homeModel;
+  };
+  const home = buildHomeController({ model: getHomeModel, selection: () => ctx.core.homeSelection() });
+  ctx.mount('/public/v1/home', buildHomeRouter({
+    controller: home,
+    limiter: buildHomeChannelLimiter(),
+    requireConnector: buildRequireGateConnector(),
+    signResponse: buildSignGateResponse(),
+  }), { public: true });
+  ctx.homeData(home.provider());
 
   // One route for the fiche's card and the SAS step (rules 24-27): a read, the actions live in Sowel.
   ctx.route('get', '/api/reservations/:id/gate-access', async (req, res) => {
@@ -118,16 +160,28 @@ function register(ctx) {
     },
   });
 
+  // specs/guest-app-home-automation.md §5 — light commands are kept 7 days.
+  ctx.jobs.every({
+    name: 'home-commands-purge',
+    intervalMs: DAY_MS,
+    bootDelayMs: 170 * 1000,
+    run: async () => { getHomeModel().purge(new Date()); },
+  });
+
   ctx.data({
-    tables: ['gate_key_results', 'gate_connector_state'],
+    tables: ['gate_key_results', 'gate_connector_state', ...HOME_TABLES],
     describe: (db) => {
       const n = db.prepare('SELECT COUNT(*) AS n FROM gate_key_results').get().n;
       const lines = [];
       if (n > 0) lines.push({ label: n > 1 ? `${n} résultats de clés` : '1 résultat de clé', count: n });
       lines.push({ label: 'l’état du connecteur', count: 1 });
+      const equipments = db.prepare('SELECT COUNT(*) AS n FROM home_catalog').get().n;
+      if (equipments > 0) lines.push({ label: equipments > 1 ? `${equipments} équipements de la maison` : '1 équipement de la maison', count: equipments });
+      const commands = db.prepare('SELECT COUNT(*) AS n FROM home_commands').get().n;
+      if (commands > 0) lines.push({ label: commands > 1 ? `${commands} commandes de lumière` : '1 commande de lumière', count: commands });
       return lines;
     },
-    purge: () => { model = null; },
+    purge: () => { model = null; homeModel = null; },
   });
 }
 

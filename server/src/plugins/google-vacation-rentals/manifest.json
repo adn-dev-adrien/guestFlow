@@ -14,7 +14,7 @@
     }
   ],
   "guestflow": ">=3.10.0",
-  "sdk": "^2.29.0",
+  "sdk": "^2.31.0",
   "changelog": {
     "1.0.0": [
       "Première version : prix des séjours, disponibilités et restrictions calculés par le moteur du site, en simulation tant que Google n’a pas ouvert le compte (SDK 2.4)."
@@ -44,7 +44,7 @@
     ],
     "1.0.7": [
       "Les arrondis en euros et en centimes passent par un calcul commun du cœur : aucun montant ne change.",
-      "Compatible avec GuestFlow 4 (SDK 2.29)."
+      "Compatible avec GuestFlow 4 (SDK 2.31)."
     ]
   }
 }

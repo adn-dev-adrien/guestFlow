@@ -44,7 +44,7 @@ arrival stays frozen, and everything else on the fiche stays locked.
 ### 3.1 The window
 
 1. A reservation is **open for mid-stay extras** when all of these hold:
-   - it is locked (`startDate ≤ today`, no « Déverrouiller » on this request);
+   - it is locked (the stay has started — `hasStayStarted`, [lock-at-arrival-time-and-arrival-complement-lines.md](lock-at-arrival-time-and-arrival-complement-lines.md) rule 1, reading of 2026-11-13: the arrival time, no longer midnight; no « Déverrouiller » on this request);
    - its end-of-stay complement is **not collected** (`endOfStayComplementPaid = 0` and
      `endOfStayComplementPaidCash = 0`);
    - it is a real reservation (`kind = 'reservation'`) and is not cancelled.
@@ -70,6 +70,16 @@ arrival stays frozen, and everything else on the fiche stays locked.
    added units are a mid-stay sale and go to the end-of-stay complement (mid-stay spec rule 6).
    Offered lines present before the save (outside the baseline by construction, mid-stay spec rule 5)
    are frozen the same way.
+   > _Amended 2026-11-15 (end-review verification V-5):_ except a line collected at the departure
+   > (`collectAt = 'departure'`, pricing-components rule 20): sold during the stay and offered since, it is
+   > a rule 7 line — billed again or removed freely while the end-of-stay complement is not collected (an
+   > operator undoing a mis-click). And removing a line takes only its own article out of the offered list
+   > (only when no other line of it is left), so an offered line the fiche's body does not name (an
+   > automatic one) stays offered instead of being billed again and refused as « unoffered ». Measured on a
+   > fresh copy of the prod database of 2026-11-11: sell, offer, bill again, discount, remove on each of the
+   > 55 open stays — before, 45 refused the bill-again and the removal and 14 the direct removal; after, 54
+   > of 55 pass (the 55th, 22224, refuses the offer as `OVERPAID`, a stay already overpaid). Test
+   > `sale-departure-line-offered-undo`.
 7. **Lines sold during the stay** (absent from the baseline, or the part above it) can be added,
    modified and removed freely — that is how a typo is corrected (arbitrated 2026-10-26).
 8. Still locked inside the window: dates, times, property, guests, notes, deletion, cancellation,
@@ -77,6 +87,9 @@ arrival stays frozen, and everything else on the fiche stays locked.
    sale goes to the end-of-stay complement whatever its routing, so the switch would do nothing but
    confuse). The bed-count sub-block of a bed-linen option follows its line: frozen if the linen was
    sold at arrival, editable if the linen option is added during the stay.
+   _Reading of 2026-11-16 (pricing-components rule 85, loop t9 B9-5):_ the routing the save carries back
+   is each LINE's own (by `lineId`): two lines of one article — one in the paid solde, one sold at the
+   arrival — keep their own flag; the article's flag is only the fallback of a line sent without `lineId`.
 
 ### 3.3 Server enforcement
 

@@ -22,7 +22,7 @@ const { skipWithout } = require('../plugins/sdk/testing');
 
 const DIR = process.env.PRICE_GATE_FIXTURE_DIR || path.join(__dirname, 'fixtures', 'price-gate');
 const captured = ['inputs.json', 'intakes.json'].every((name) => fs.existsSync(path.join(DIR, name)));
-const needs = skipWithout(['booking-intake', 'airbnb-intake', 'gites-de-france-intake']);
+const needs = skipWithout(['booking-intake', 'airbnb-intake', 'gites-de-france-intake', 'hourly-resources']);
 const SKIP = needs || (captured ? false : 'price-gate fixture absent (captured on the price-gate-baseline tag)');
 
 let replayed = [];

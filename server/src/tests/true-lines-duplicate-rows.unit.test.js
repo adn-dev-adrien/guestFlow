@@ -79,14 +79,14 @@ test('rule 85 (LINE: reservationsModel) — the breakfast hour rewrites the mome
   const id = stayWithTwoSales();
   const insert = db.prepare(`INSERT INTO reservation_options (reservationId, optionId, quantity, unitPrice, billedUnits, priceType, totalPrice, cardOccurrences)
     VALUES (?, ?, 1, 8, 2, 'per_person_per_night', 16, ?)`);
-  insert.run(id, breakfast, JSON.stringify([{ date: '2030-01-02', time: '08:00' }, { date: '2030-01-03', time: '08:00' }]));
-  insert.run(id, breakfast, JSON.stringify([{ date: '2030-01-04', time: '08:30' }]));
+  insert.run(id, breakfast, JSON.stringify([{ date: '2030-01-02', time: '08:00' }, { date: '2030-01-03', time: '08:00' }])); // date-literal-ok — fixture rows written by raw SQL and read back by key, no write path checks them against today
+  insert.run(id, breakfast, JSON.stringify([{ date: '2030-01-04', time: '08:30' }])); // date-literal-ok — fixture rows written by raw SQL and read back by key, no write path checks them against today
   require('../models/reservationsModel').commitArrivalSas(id, { breakfastTime: '09:15' });
   const rows = db.prepare('SELECT cardOccurrences FROM reservation_options WHERE reservationId = ? AND optionId = ? ORDER BY lineId').all(id, breakfast)
     .map((r) => JSON.parse(r.cardOccurrences));
   assert.deepEqual(rows.map((list) => list.map((o) => [o.date, o.time])), [
-    [['2030-01-02', '09:15'], ['2030-01-03', '09:15']],
-    [['2030-01-04', '09:15']],
+    [['2030-01-02', '09:15'], ['2030-01-03', '09:15']], // date-literal-ok — fixture rows written by raw SQL and read back by key, no write path checks them against today
+    [['2030-01-04', '09:15']], // date-literal-ok — fixture rows written by raw SQL and read back by key, no write path checks them against today
   ], 'two rows, two sets of dates kept, one hour');
 });
 
@@ -122,27 +122,27 @@ test('rule 85 (LINE: planning option cards) — one card per LINE with its own m
   const id = stayWithTwoSales();
   const insert = db.prepare(`INSERT INTO reservation_options (reservationId, optionId, quantity, unitPrice, billedUnits, priceType, totalPrice, cardOccurrences)
     VALUES (?, ?, 1, 25, 1, 'per_person_per_night', 25, ?)`);
-  insert.run(id, meal, JSON.stringify([{ date: '2030-02-01', time: '12:00' }]));
-  insert.run(id, meal, JSON.stringify([{ date: '2030-02-01', time: '12:00' }, { date: '2030-02-02', time: '19:30' }]));
+  insert.run(id, meal, JSON.stringify([{ date: '2030-02-01', time: '12:00' }])); // date-literal-ok — fixture rows written by raw SQL and read back by key, no write path checks them against today
+  insert.run(id, meal, JSON.stringify([{ date: '2030-02-01', time: '12:00' }, { date: '2030-02-02', time: '19:30' }])); // date-literal-ok — fixture rows written by raw SQL and read back by key, no write path checks them against today
   const [firstMeal, secondMeal] = db.prepare('SELECT lineId FROM reservation_options WHERE reservationId = ? AND optionId = ? ORDER BY lineId').all(id, meal);
   const cards = require('../models/planningOptionCardsModel');
-  const day = cards.cardsInRange({ from: '2030-02-01', to: '2030-02-02' });
+  const day = cards.cardsInRange({ from: '2030-02-01', to: '2030-02-02' }); // date-literal-ok — fixture rows written by raw SQL and read back by key, no write path checks them against today
   const mine = (date) => day[date].items.filter((i) => i.reservationId === id);
-  assert.deepEqual(mine('2030-02-01').map((i) => i.lineId).sort(), [firstMeal.lineId, secondMeal.lineId].sort(), 'two cards at noon: one per line');
-  assert.deepEqual(mine('2030-02-02').map((i) => i.lineId), [secondMeal.lineId]);
-  assert.deepEqual(cards.setOccurrenceDone({ reservationId: id, optionId: meal, lineId: secondMeal.lineId, date: '2030-02-01', time: '12:00', done: true }), { ok: true, done: true });
+  assert.deepEqual(mine('2030-02-01').map((i) => i.lineId).sort(), [firstMeal.lineId, secondMeal.lineId].sort(), 'two cards at noon: one per line'); // date-literal-ok — fixture rows written by raw SQL and read back by key, no write path checks them against today
+  assert.deepEqual(mine('2030-02-02').map((i) => i.lineId), [secondMeal.lineId]); // date-literal-ok — fixture rows written by raw SQL and read back by key, no write path checks them against today
+  assert.deepEqual(cards.setOccurrenceDone({ reservationId: id, optionId: meal, lineId: secondMeal.lineId, date: '2030-02-01', time: '12:00', done: true }), { ok: true, done: true }); // date-literal-ok — fixture rows written by raw SQL and read back by key, no write path checks them against today
   const done = (lineId) => JSON.parse(db.prepare('SELECT cardOccurrences FROM reservation_options WHERE lineId = ?').get(lineId).cardOccurrences).map((o) => Boolean(o.done));
   assert.deepEqual([done(firstMeal.lineId), done(secondMeal.lineId)], [[false], [true, false]], 'the other line is untouched');
-  assert.deepEqual(cards.setOccurrenceDone({ reservationId: id, optionId: meal, date: '2030-02-02', time: '19:30', done: true }), { ok: true, done: true }, 'without a lineId: the first line that holds the moment');
+  assert.deepEqual(cards.setOccurrenceDone({ reservationId: id, optionId: meal, date: '2030-02-02', time: '19:30', done: true }), { ok: true, done: true }, 'without a lineId: the first line that holds the moment'); // date-literal-ok — fixture rows written by raw SQL and read back by key, no write path checks them against today
   assert.deepEqual(done(secondMeal.lineId), [true, true]);
-  assert.equal(cards.setOccurrenceDone({ reservationId: id, optionId: meal, lineId: firstMeal.lineId, date: '2030-02-02', time: '19:30', done: true }).error, 'OCCURRENCE_NOT_FOUND');
+  assert.equal(cards.setOccurrenceDone({ reservationId: id, optionId: meal, lineId: firstMeal.lineId, date: '2030-02-02', time: '19:30', done: true }).error, 'OCCURRENCE_NOT_FOUND'); // date-literal-ok — fixture rows written by raw SQL and read back by key, no write path checks them against today
 });
 
 test('rule 85 (LINE: bookingLinesModel) — a save of two lines of one article gives each the identity of its own stored line; never two the same lineId', () => {
   const bookingLines = require('../models/bookingLinesModel').buildModel(db);
   const id = stayWithTwoSales();
   const [first, second] = rowsOf(id).filter((r) => r.optionId === bath);
-  db.prepare("UPDATE reservation_options SET collectAt = 'departure', soldAt = '2030-01-01' WHERE lineId = ?").run(second.lineId);
+  db.prepare("UPDATE reservation_options SET collectAt = 'departure', soldAt = '2030-01-01' WHERE lineId = ?").run(second.lineId); // date-literal-ok — fixture rows written by raw SQL and read back by key, no write path checks them against today
   const line = (totalPrice, extra = {}) => ({ optionId: bath, quantity: 1, unitPrice: totalPrice, billedUnits: 1, priceType: 'per_stay', totalPrice, ...extra });
   bookingLines.replaceOptions(id, [line(41), line(91, { lineId: second.lineId })]);
   const after = db.prepare('SELECT lineId, totalPrice, collectAt FROM reservation_options WHERE reservationId = ? AND optionId = ? ORDER BY lineId').all(id, bath);
@@ -160,9 +160,9 @@ test('rule 85 (LINE: stored dates and typed counts) — a value ANY line of the 
   const { refuseInvalidServedPersons } = require('../utils/lineInputBounds');
   const id = stayWithTwoSales();
   const [first, second] = rowsOf(id).filter((r) => r.optionId === bath);
-  db.prepare("UPDATE reservation_options SET cardOccurrences = ?, cardPersons = 1 WHERE lineId = ?").run(JSON.stringify([{ date: '2029-01-01', time: '08:00' }]), first.lineId);
-  db.prepare("UPDATE reservation_options SET cardOccurrences = ?, cardPersons = 40 WHERE lineId = ?").run(JSON.stringify([{ date: '2029-01-09', time: '08:00' }]), second.lineId);
-  assert.deepEqual(bookingLines.getStoredItemDates(id).options[bath], ['2029-01-01', '2029-01-09']);
+  db.prepare("UPDATE reservation_options SET cardOccurrences = ?, cardPersons = 1 WHERE lineId = ?").run(JSON.stringify([{ date: '2029-01-01', time: '08:00' }]), first.lineId); // date-literal-ok — fixture rows written by raw SQL and read back by key, no write path checks them against today
+  db.prepare("UPDATE reservation_options SET cardOccurrences = ?, cardPersons = 40 WHERE lineId = ?").run(JSON.stringify([{ date: '2029-01-09', time: '08:00' }]), second.lineId); // date-literal-ok — fixture rows written by raw SQL and read back by key, no write path checks them against today
+  assert.deepEqual(bookingLines.getStoredItemDates(id).options[bath], ['2029-01-01', '2029-01-09']); // date-literal-ok — fixture rows written by raw SQL and read back by key, no write path checks them against today
   const stored = bookingLines.getStoredTypedCounts(id);
   assert.equal(refuseInvalidServedPersons([{ optionId: bath, cardPersons: 40 }], stored), null, 'the second line\'s 40 is kept as stored');
   assert.ok(refuseInvalidServedPersons([{ optionId: bath, cardPersons: 0 }], stored), 'a new out-of-range count is still refused');
@@ -173,10 +173,10 @@ test('rule 85 (AGG: breakfastModel) — the breakfast card reads the UNION of th
   const id = stayWithTwoSales(); // the stay of the other tests: 20 days ahead
   const insert = db.prepare(`INSERT INTO reservation_options (reservationId, optionId, quantity, unitPrice, billedUnits, priceType, totalPrice, cardOccurrences)
     VALUES (?, ?, 1, 8, 1, 'per_person_per_night', 8, ?)`);
-  insert.run(id, breakfast, JSON.stringify([{ date: '2030-05-01', time: '08:00' }]));
-  insert.run(id, breakfast, JSON.stringify([{ date: '2030-05-02', time: '08:00' }]));
-  db.prepare('UPDATE reservations SET startDate = ?, endDate = ? WHERE id = ?').run('2030-04-30', '2030-05-04', id);
-  const days = require('../models/breakfastModel').breakfastByDate({ from: '2030-04-30', to: '2030-05-04' });
+  insert.run(id, breakfast, JSON.stringify([{ date: '2030-05-01', time: '08:00' }])); // date-literal-ok — fixture rows written by raw SQL and read back by key, no write path checks them against today
+  insert.run(id, breakfast, JSON.stringify([{ date: '2030-05-02', time: '08:00' }])); // date-literal-ok — fixture rows written by raw SQL and read back by key, no write path checks them against today
+  db.prepare('UPDATE reservations SET startDate = ?, endDate = ? WHERE id = ?').run('2030-04-30', '2030-05-04', id); // date-literal-ok — fixture rows written by raw SQL and read back by key, no write path checks them against today
+  const days = require('../models/breakfastModel').breakfastByDate({ from: '2030-04-30', to: '2030-05-04' }); // date-literal-ok — fixture rows written by raw SQL and read back by key, no write path checks them against today
   const datesOfStay = Object.entries(days).filter(([, day]) => (day.items || day).some((i) => i.reservationId === id)).map(([date]) => date).sort();
-  assert.deepEqual(datesOfStay, ['2030-05-01', '2030-05-02'], 'both lines\' mornings are served, not only the first row\'s');
+  assert.deepEqual(datesOfStay, ['2030-05-01', '2030-05-02'], 'both lines\' mornings are served, not only the first row\'s'); // date-literal-ok — fixture rows written by raw SQL and read back by key, no write path checks them against today
 });

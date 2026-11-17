@@ -259,7 +259,14 @@
       }
     },
     {
-      "version": "2.27.0",
+      "version": "2.29.0",
+      "modules": [
+        "journalEntries"
+      ],
+      "names": {}
+    },
+    {
+      "version": "2.30.0",
       "modules": [
         "vat",
         "accountingOutput",
@@ -267,13 +274,7 @@
         "refundJournal",
         "csvJournal",
         "salesJson",
-        "synthesisExporter"
-      ],
-      "names": {}
-    },
-    {
-      "version": "2.28.0",
-      "modules": [
+        "synthesisExporter",
         "extraSale",
         "saleDetail",
         "articles",
@@ -283,11 +284,10 @@
       "names": {}
     },
     {
-      "version": "2.29.0",
+      "version": "2.31.0",
       "modules": [
         "money",
         "platformPayment",
-        "refundObligationsModel",
         "basketRefundOutcome"
       ],
       "names": {
@@ -306,15 +306,25 @@
       }
     },
     {
-      "version": "2.30.0",
+      "version": "2.32.0",
       "modules": [
         "standaloneSale",
         "standaloneSaleLinks",
-        "suggestedArticles"
+        "suggestedArticles",
+        "refundGivenBack"
       ],
       "names": {
+        "extraSale": [
+          "arrivalOpenAt"
+        ],
+        "reservationsModel": [
+          "buildArrivalSeed"
+        ],
         "saleDetail": [
           "buildDocumentDetail"
+        ],
+        "suggestedArticles": [
+          "catalogueGroups"
         ]
       }
     }

@@ -43,8 +43,9 @@ test('rule 9 — the mini SAS asks nothing of the client: no name, phone or addr
   await screen.findByText('Sa séance');
   expect(screen.getByText(/Claire Martin/)).toBeInTheDocument();
   expect(screen.queryByLabelText(/téléphone|nom|prénom|adresse e-mail/i)).toBeNull();
-  // The billing address belongs to the invoice (checked for a card): without an invoice, no address is asked.
-  expect(screen.getByLabelText('Code postal')).toBeInTheDocument();
+  // The billing address belongs to the invoice (checked for a card): without an invoice, no address is asked. The checkbox follows the
+  // server's answer to the quote carrying the payment (outside-booking-sas rule 54), so it is awaited.
+  expect(await screen.findByLabelText('Code postal')).toBeInTheDocument();
   fireEvent.click(screen.getByRole('button', { name: 'Pas maintenant' }));
   expect(screen.queryByLabelText('Code postal')).toBeNull();
 });

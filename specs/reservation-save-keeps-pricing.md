@@ -158,6 +158,8 @@ changed something the price depends on; money collected beyond the total is repo
     reduce the excess: the refund of a sold line takes its price off the stay too.
 13. **The live ledger moves both ways.** It reports `max(0, stored + after − before)`: an edit that absorbs the
     stored excess takes it down, so the fiche never invites a refund the edit cancels.
+    _Reading of 2026-11-16 (stabilisation loop t7, N7-1):_ the live figure is floored only by the part of an open `lineLowered` obligation the
+    save keeps — the note money no line claims (pricing-components rule 106 a) — so an edit that absorbs a confirmed excess still reads 0.
 
 14. **One refund basis in the live figure.** The stored trop-perçu is net of the free refunds only (rule 12); the
     two engine excesses the live ledger compares — the posted fiche and the stored stay — are raw (before any

@@ -11,7 +11,6 @@ import HomeWorkIcon from '@mui/icons-material/HomeWork';
 import PersonIcon from '@mui/icons-material/Person';
 import EuroIcon from '@mui/icons-material/Euro';
 import { api, OptionDayCard, useToast, formatCurrency } from '../sdk';
-import { localIsoDate } from './localDate';
 
 // « pour demain 09:00 » / « 22:00 → pour demain 06:00 » — the « démarrer » card says what it prepares
 // (specs/resource-ignition-task.md §3 rule 5). A night-time ignition carries no hour of its own: the
@@ -41,15 +40,36 @@ const softChip = (status) => (t) => ({
 const CARD_TONES = { paid: 'success', toCollect: 'error', remaining: 'warning', absent: 'info' };
 const showsTotal = (state) => state === 'paid' || state === 'toCollect';
 
-function BookingCard({ booking }) {
+// Calendrier › Ressources, on this booking's week, with its editor open (amendment 2026-11-13).
+const resourceBookingPath = (booking) => `/resource-planning?${new URLSearchParams({
+  booking: String(booking.id), resource: String(booking.resourceId), date: booking.date,
+}).toString()}`;
+
+function BookingCard({ booking, openable }) {
   const navigate = useNavigate();
+  const open = () => navigate(resourceBookingPath(booking));
   const turnover = Number(booking.turnoverMinutes || 0);
-  // specs/resource-booking-pricing-and-invoicing.md rule 28 — a guest with no stay arrives from his card, on his day.
-  const canArrive = booking.external === true && !booking.arrived && !booking.noShowAt && booking.date === localIsoDate();
+  // specs/resource-booking-pricing-and-invoicing.md rule 28 — a guest with no stay arrives from his card, on his day: the server's `actions.arrive` (loop t2 UI2-7).
+  const canArrive = Boolean(booking.actions && booking.actions.arrive);
   const { cardState } = booking;
   const tone = cardState && cardState.state === 'paid' ? 'success' : 'info';
   return (
-    <Card variant="outlined" sx={{ mb: 1.5, borderRadius: 2, borderColor: 'divider' }}>
+    <Card
+      variant="outlined"
+      {...(openable ? {
+        role: 'button',
+        tabIndex: 0,
+        'aria-label': `Ouvrir la réservation ${booking.resourceName || 'Ressource'} ${booking.startTime}–${booking.endTime}`,
+        onClick: open,
+        onKeyDown: (e) => { if (e.target === e.currentTarget && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); open(); } },
+      } : {})}
+      sx={{
+        mb: 1.5,
+        borderRadius: 2,
+        borderColor: 'divider',
+        ...(openable && { cursor: 'pointer', '&:hover': { borderColor: 'primary.main' }, '&:focus-visible': { outline: 2, outlineColor: 'primary.main' } }),
+      }}
+    >
       <CardContent sx={{ p: { xs: 1.5, sm: 2 }, '&:last-child': { pb: { xs: 1.5, sm: 2 } } }}>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1, flexWrap: 'wrap' }}>
           <Chip
@@ -66,7 +86,7 @@ function BookingCard({ booking }) {
           />
           <Box sx={{ flexGrow: 1 }} />
           {canArrive && (
-            <Button size="small" variant="outlined" onClick={() => navigate(`/resource-planning?arrival=${booking.id}`)} sx={{ minHeight: 44 }}>
+            <Button size="small" variant="outlined" onClick={(e) => { e.stopPropagation(); navigate(`/resource-planning?arrival=${booking.id}`); }} sx={{ minHeight: 44 }}>
               Arrivée
             </Button>
           )}
@@ -110,7 +130,8 @@ function BookingCard({ booking }) {
 export default function PlanningResourceCard({ entry, reload, onOpenReservation }) {
   const { showError } = useToast();
   const [done, setDone] = useState(Boolean(entry.item.done));
-  if (entry.kind === 'booking') return <BookingCard booking={entry.item} />;
+  // The reception role has no Calendrier › Ressources: its card stays inert, like its reservation cards.
+  if (entry.kind === 'booking') return <BookingCard booking={entry.item} openable={Boolean(onOpenReservation)} />;
 
   const item = entry.item;
   const isIgnition = entry.kind === 'ignition';

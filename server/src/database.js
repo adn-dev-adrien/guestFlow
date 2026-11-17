@@ -2502,26 +2502,16 @@ for (const table of ['ical_export_ranges', 'ical_export_tombstones']) {
   }
 }
 
-// Data repair (specs/arrival-moment-is-the-check-in.md rule 5): drop the arrival-extras baselines that
-// were pinned by the mere arrival DATE, on stays where nobody has checked in and nothing has been
-// collected yet. Those stays are still pre-arrival, so an extra added to them belongs to the arrival
-// complement — with a stale baseline in place it was billed at check-out instead, and listed twice.
-// Naturally idempotent (a filter on « no arrival signal at all »), and money-safe by construction: a
-// stay that collected any complement is excluded, so nothing frozen can lose its reference point.
+// Data repair (specs/arrival-moment-is-the-check-in.md rule 3, amended by pricing-components rules 102 and 103 b): drop the arrival-extras
+// baselines of stays the stay clock has not started, where nobody has checked in and nothing has been collected yet. Those stays are still
+// pre-arrival, so an extra added to them belongs to the arrival complement — with a stale baseline in place it was billed at check-out
+// instead, and listed twice. A clock-started stay keeps the baseline rule 102 laid, and a baseline that carved a line out to the departure
+// stays. Naturally idempotent (a filter), and money-safe by construction: a stay that collected any complement is excluded.
 {
-  const cleared = db.prepare(`
-    UPDATE reservations SET arrivalExtrasBaseline = NULL
-    WHERE arrivalExtrasBaseline IS NOT NULL
-      AND COALESCE(checkInDone, 0) = 0
-      AND arrivalSasDoneAt IS NULL
-      AND COALESCE(complementPaid, 0) = 0
-      AND COALESCE(complementPaidCash, 0) = 0
-      AND COALESCE(endOfStayComplementPaid, 0) = 0
-      AND COALESCE(endOfStayComplementPaidCash, 0) = 0
-      AND COALESCE(midStaySettledNotes, '') IN ('', '[]')
-  `).run();
-  if (cleared.changes > 0) {
-    console.log(`[migration:arrival-baseline] cleared ${cleared.changes} baseline(s) pinned before any check-in`);
+  const { clearPreArrivalBaselines } = require('./utils/complementDataRepairs');
+  const cleared = clearPreArrivalBaselines(db);
+  if (cleared.length > 0) {
+    console.log(`[migration:arrival-baseline] cleared ${cleared.length} baseline(s) pinned before any check-in`);
   }
 }
 
@@ -3003,7 +2993,11 @@ require('./utils/vatRegimeMigration').runVatRegimeMigration(db);
 // data, no amount rewritten, a second boot changes nothing. The nettings that need the models run later (`index.js`).
 require('./utils/pricingLinesMigration').runPricingLinesMigration(db);
 // PR C: the outside-sale tables, the payment link and e-mail log targets, the true lines (and the schema floor), see pricingSalesMigration.js.
-require('./utils/pricingSalesMigration').runPricingSalesMigration(db);
+// T10 (the true lines) waits while this release is the target of an update its helper has not verified (self-update rule 31): a rollback then
+// lands on a database the previous release runs; `index.js` runs it once the helper wrote `done`.
+require('./utils/pricingSalesMigration').runPricingSalesMigration(db, { deferTrueLines: require('./utils/updateVerification').thisReleaseAwaitsVerification() });
+// PR C (rule 8): the extra guests and the tax a sale reads as stored; their backfill needs the models and runs from `index.js`.
+require('./utils/pricingStoredFiguresMigration').runPricingStoredFiguresMigration(db);
 
 // ---------- REJEU DU BASELINE ----------
 // Voir la note en tete de fichier : quand la premiere passe de schema.sql s'est interrompue sur

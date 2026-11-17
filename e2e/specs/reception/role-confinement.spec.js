@@ -3,7 +3,7 @@
 // and the Planning, and never receives a financial figure. That spec shipped without any E2E cover;
 // this is the browser-level guard for it (the unit tests only pin the middleware allowlist and the
 // serializer in isolation).
-import { test, expect } from '@playwright/test';
+import { test, expect } from '../../fixtures/test.js';
 import { createClient, createProperty, createReservation } from '../../fixtures/apiSeed.js';
 import { RECEPTION_STORAGE_STATE } from '../../fixtures/authState.js';
 import { FAR_YEAR } from '../../fixtures/farYear.js';

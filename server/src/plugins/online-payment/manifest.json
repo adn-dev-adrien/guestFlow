@@ -1,18 +1,20 @@
 {
   "id": "online-payment",
   "name": "Paiement en ligne (Qonto)",
-  "version": "1.7.7",
-  "description": "Liens de paiement envoyés aux voyageurs, et rapprochement des virements du compte Qonto avec les fiches.",
+  "version": "1.8.1",
+  "description": "Liens de paiement envoyés aux voyageurs, et rapprochement des virements du compte Qonto avec les fiches, retenue Mollie comprise.",
   "icon": "payments",
   "surfaces": [
     "Paramètres › Paiements en ligne",
     "Les boutons « Envoyer la demande de paiement / de solde »",
     "Suivi financier › Rapprochement bancaire",
-    "Fiche de réservation › Rapprochement bancaire"
+    "Fiche de réservation › Rapprochement bancaire",
+    "Suivi financier › Versements à venir",
+    "Paramètres › Paiements en ligne › Compte Mollie et retenue"
   ],
   "requires": [],
   "guestflow": ">=3.18.0",
-  "sdk": "^2.29.0",
+  "sdk": "^2.31.0",
   "changelog": {
     "1.0.0": [
       "Première version publiée en paquet."
@@ -160,11 +162,24 @@
       "Rapprochement bancaire : sans connexion Qonto, la page l'indique sans erreur dans la console.",
       "Demande le SDK 2.26 de GuestFlow."
     ],
-    "1.7.7": [
+    "1.8.0": [
+      "Un lien payé par carte attend deux versements sur le compte : le versement immédiat et la retenue Mollie (20 % par défaut, 90 jours), chacun avec sa date prévue puis sa date réelle.",
+      "Rapprochement : un versement de « Stichting Mollie Payments » se rattache à ces tranches, même groupé ; les frais Mollie ne créent plus d'écart sur la fiche.",
+      "Compte Mollie facultatif (jeton d'accès avancé, lecture seule) : les versements groupés sont détaillés paiement par paiement.",
+      "Chaque virement rapproché montre sa référence Qonto, le règlement Mollie et le paiement Mollie.",
+      "Accueil : « Retenue Mollie non reçue » quand une retenue dépasse sa date. Fiche et Suivi financier : les sommes attendues sur le compte.",
+      "Les paiements par carte pris avec l'appli Qonto passent aussi par Mollie : une facture Qonto payée par carte se rattache à son paiement Mollie par son numéro, et, depuis la date « CB sur place via Mollie depuis », une CB saisie sur place (échéance, règlement réparti, vente hors séjour) attend les mêmes deux versements.",
+      "Demande le SDK 2.29 de GuestFlow."
+    ],
+    "1.8.1": [
       "Les arrondis en euros et en centimes passent par un calcul commun : aucun montant ne change.",
       "Le rapprochement bancaire lit les montants d'une plateforme dans le calcul commun du cœur : aucun montant ne change.",
       "La TVA des lignes de facture Qonto est coupée par le composant TVA du cœur : mêmes montants que les factures déjà émises.",
-      "Compatible avec GuestFlow 4 (SDK 2.29)."
+      "La facture Qonto d’une vente hors séjour indique la même TVA que la comptabilité, calculée une fois par taux et par type d’article.",
+      "Quand Qonto refuse une ligne de remise, la facture repliée reste possible avec une ligne « Arrondi de TVA » au lieu d’être refusée, et la TVA d’une séance payée sur la réservation est celle de son journal.",
+      "Le lien de paiement d’une vente hors séjour, une fois payé, donne ses deux versements Mollie : rapprochement, « Versements à venir » et journal Mollie.",
+      "Une vente hors séjour payée par carte en plusieurs jours sous une seule facture attend un versement Mollie par paiement, et non plus un seul.",
+      "Compatible avec GuestFlow 4 (SDK 2.31)."
     ]
   }
 }

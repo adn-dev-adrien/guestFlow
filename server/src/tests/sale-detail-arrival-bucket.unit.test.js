@@ -26,8 +26,9 @@ const wine = optionId('Panier vin', 25);
 function stayStarting(offsetDays) {
   const startDate = addDaysToIsoDate(todayIso(), offsetDays);
   const endDate = addDaysToIsoDate(startDate, 4);
-  return Number(db.prepare(`INSERT INTO reservations (propertyId, clientId, startDate, endDate, platform, adults, totalPrice, finalPrice, kind, checkInTime, balanceDueDate)
-    VALUES (9401, 9401, ?, ?, 'direct', 2, 400, 400, 'reservation', '15:00', ?)`).run(startDate, endDate, startDate).lastInsertRowid);
+  // Stored as its nights price it (balance included): a sale moves the stay by its line only (rule 93), never repairs a fixture.
+  return Number(db.prepare(`INSERT INTO reservations (propertyId, clientId, startDate, endDate, platform, adults, totalPrice, finalPrice, balanceAmount, kind, checkInTime, balanceDueDate)
+    VALUES (9401, 9401, ?, ?, 'direct', 2, 400, 400, 400, 'reservation', '15:00', ?)`).run(startDate, endDate, startDate).lastInsertRowid);
 }
 const lineOf = (detail, label) => detail.lines.find((line) => line.label === label);
 const stored = (id) => db.prepare('SELECT complementAmount, balanceAmount, endOfStayComplementAmount FROM reservations WHERE id = ?').get(id);

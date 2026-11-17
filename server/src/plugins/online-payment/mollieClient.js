@@ -1,0 +1,218 @@
+/**
+ * Read-only client of the Mollie API (specs/mollie-rolling-reserve-and-incoming-payments.md rules 14-17).
+ *
+ * Nothing is ever written to Mollie. The advanced access token is passed in by the caller (it lives encrypted in the
+ * plugin settings) and goes into one header: it is never logged, never put in an error message, never returned.
+ * Every request goes through the same `withRetry` back-off as the Qonto client (429 / 5xx only) and ends after a
+ * timeout. The base URL is `MOLLIE_API_BASE` when set (tests), else Mollie's.
+ */
+
+const sdk = require('../sdk');
+
+// The Qonto client's own back-off (fair use: 429 and 5xx only, honouring Retry-After).
+const { withRetry, resolveRetryOptions } = sdk.coreModule('qonto').httpRetry;
+const { toCentsStrict } = sdk.coreModule('money');
+
+const DEFAULT_BASE = 'https://api.mollie.com';
+const TIMEOUT_MS = 20000;
+const MAX_PAGES = 20;
+const PAGE_SIZE = 250;
+const RESTRICTED_TOKEN_FRAGMENT = 'not restricted to a specific profile';
+
+/** « 732.40 » → 73240. Mollie writes amounts as decimal strings. */
+const centsOf = (amount) => (amount && amount.value != null ? toCentsStrict(amount.value) : 0);
+/** The amount as Mollie wrote it, in hundredths of a cent-free euros: summed raw, rounded once (rule 5, « 0,125 − 0,125 = 0 »). */
+const rawEuros = (amount) => (amount && amount.value != null && Number.isFinite(Number(amount.value)) ? Number(amount.value) : 0);
+
+/** Rule 15 — what a Mollie failure means, in words. The token and Mollie's raw body never reach the text. */
+function explainError(err) {
+  const status = Number(err && err.status);
+  const detail = String((err && err.body && err.body.detail) || '');
+  if (status === 401) return 'Mollie refuse ce jeton : il est invalide ou révoqué.';
+  if (status === 403) {
+    return detail.includes(RESTRICTED_TOKEN_FRAGMENT)
+      ? 'Ce jeton est limité à un profil : le recréer sans restriction de profil pour lire les règlements'
+      : 'Ce jeton n\'a pas les droits de lecture nécessaires (règlements, paiements, profils).';
+  }
+  if (status === 404) return 'Mollie ne trouve pas cet élément.';
+  if (status === 429) return 'Mollie limite les appels : réessayer dans quelques minutes.';
+  if (status >= 500) return 'Mollie ne répond pas correctement : réessayer plus tard.';
+  if (err && err.code === 'ETIMEDOUT') return 'Mollie ne répond pas : réessayer plus tard.';
+  return 'Mollie est injoignable.';
+}
+
+function buildMollieClient({ token, fetchImpl = globalThis.fetch, retry = {}, timeoutMs = TIMEOUT_MS } = {}) {
+  const base = String(process.env.MOLLIE_API_BASE || DEFAULT_BASE).replace(/\/+$/, '');
+  const retryOptions = { ...resolveRetryOptions({}), ...retry };
+
+  async function once(url) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+      let res;
+      try {
+        res = await fetchImpl(url, { method: 'GET', headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' }, signal: controller.signal });
+      } catch (cause) {
+        const err = new Error('Mollie request failed');
+        err.code = cause && cause.name === 'AbortError' ? 'ETIMEDOUT' : 'ENETWORK';
+        throw err;
+      }
+      const text = typeof res.text === 'function' ? await res.text() : '';
+      let body = null;
+      try { body = text ? JSON.parse(text) : null; } catch { body = null; }
+      if (!res.ok) {
+        const err = new Error(`Mollie request failed (HTTP ${res.status})`);
+        err.status = res.status;
+        err.body = body;
+        err.retryAfter = res.headers && typeof res.headers.get === 'function' ? res.headers.get('retry-after') : null;
+        throw err;
+      }
+      return body || {};
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
+  // The token travels with every call: a next page is followed only on Mollie's own origin (a body is data, not an address).
+  const sameOrigin = (href) => {
+    if (!href) return null;
+    try { return new URL(href, `${base}/`).origin === new URL(base).origin ? new URL(href, `${base}/`).toString() : null; } catch { return null; }
+  };
+
+  const get = (path) => withRetry(() => once(path.startsWith('http') ? path : `${base}${path}`), retryOptions);
+
+  // A page of a list, then `_links.next` until the end (bounded) or until `stop` says a page reached what is already known.
+  async function listAll(path, embeddedKey, stop = null) {
+    const out = [];
+    let url = path;
+    for (let page = 0; url && page < MAX_PAGES; page += 1) {
+      // eslint-disable-next-line no-await-in-loop
+      const body = await get(url);
+      const items = (body._embedded || {})[embeddedKey] || [];
+      out.push(...items);
+      if (stop && items.some(stop)) break;
+      url = sameOrigin(body._links && body._links.next && body._links.next.href ? body._links.next.href : null);
+    }
+    return out;
+  }
+
+  const query = (params) => {
+    const q = new URLSearchParams();
+    Object.entries(params).forEach(([k, v]) => { if (v != null && v !== '') q.set(k, String(v)); });
+    const text = q.toString();
+    return text ? `?${text}` : '';
+  };
+
+  return {
+    /** Rule 15 — « Tester »: one settlement is enough to prove the token reads them. */
+    async listSettlements({ limit = 1 } = {}) {
+      const body = await get(`/v2/settlements${query({ limit })}`);
+      return ((body._embedded || {}).settlements || []).map((s) => ({ id: s.id, reference: s.reference || '' }));
+    },
+    async listProfiles() {
+      const list = await listAll(`/v2/profiles${query({ limit: 50 })}`, 'profiles');
+      return list.map((p) => ({ id: p.id, name: p.name || '', mode: p.mode || '' }));
+    },
+    /** `GET /v2/settlements/{id|reference}` — rule 16. Costs and reserve lines come from `periods`. */
+    async getSettlement(idOrReference) {
+      const s = await get(`/v2/settlements/${encodeURIComponent(idOrReference)}`);
+      return readSettlement(s);
+    },
+    async listSettlementPayments(settlementId, { profileId = '' } = {}) {
+      const list = await listAll(`/v2/settlements/${encodeURIComponent(settlementId)}/payments${query({ limit: PAGE_SIZE, profileId })}`, 'payments');
+      return list.map(readPayment);
+    },
+    async listPayments({ profileId = '' } = {}) {
+      const list = await listAll(`/v2/payments${query({ limit: PAGE_SIZE, profileId })}`, 'payments');
+      return list.map(readPayment);
+    },
+    /**
+     * Rule 16 — `GET /v2/balances/primary/transactions`, newest first: every transaction of the primary balance, up to a
+     * page that holds one `isKnown` says is already stored (so a re-read costs one page).
+     */
+    async listBalanceTransactions({ isKnown = null } = {}) {
+      const list = await listAll(`/v2/balances/primary/transactions${query({ limit: PAGE_SIZE })}`, 'balance_transactions',
+        isKnown ? (t) => isKnown(t.id) : null);
+      return list.map(readBalanceTransaction);
+    },
+    /** `GET /v2/balances/primary` — what Mollie still holds (`pendingAmount`) and what is ready to be paid out. */
+    async getBalance() {
+      const b = await get('/v2/balances/primary');
+      return {
+        pendingCents: centsOf(b.pendingAmount), availableCents: centsOf(b.availableAmount),
+        transferFrequency: b.transferFrequency || null, transferThresholdCents: centsOf(b.transferThreshold),
+      };
+    },
+    async getPayment(id) {
+      return readPayment(await get(`/v2/payments/${encodeURIComponent(id)}`));
+    },
+  };
+}
+
+function readPayment(p) {
+  let metadata = p.metadata;
+  if (typeof metadata === 'string') { try { metadata = JSON.parse(metadata); } catch { metadata = null; } }
+  return {
+    id: p.id,
+    amountCents: centsOf(p.amount),
+    refundedCents: centsOf(p.amountRefunded),
+    description: String(p.description || ''),
+    paidAt: p.paidAt || null,
+    settlementId: p.settlementId || null,
+    paymentLinkId: metadata && metadata.payment_link_id ? String(metadata.payment_link_id) : null,
+  };
+}
+
+/**
+ * Rule 16 — one line of the primary balance. A `payment` carries the share Mollie made available (`resultCents`), the gross
+ * (`initialCents`) and what it kept (`deductionsCents`, ≥ 0: the reserve and the fees); a reserve release carries the
+ * payment it frees; an `outgoing-transfer` names the settlement that paid the bank.
+ */
+function readBalanceTransaction(t) {
+  const context = t.context || {};
+  return {
+    id: t.id, type: String(t.type || ''), createdAt: t.createdAt || null,
+    resultCents: centsOf(t.resultAmount), initialCents: centsOf(t.initialAmount), deductionsCents: Math.abs(centsOf(t.deductions)),
+    settlementId: context.settlementId || null, paymentId: context.paymentId || null, description: String(context.paymentDescription || ''),
+  };
+}
+
+const RESERVE_LINE = /rolling\s*reserve/i;
+/** « Rolling Reserve Reservation » (a hold, negative) or « Rolling Reserve Release » (a release, positive); the method is null. */
+function reserveLineKind(line, cents) {
+  const text = `${line.description || ''} ${line.method || ''}`;
+  if (!RESERVE_LINE.test(text) && String(line.method || '').toLowerCase() !== 'rollingreserve') return null;
+  if (/release/i.test(text)) return 'release';
+  if (/reserv|hold/i.test(text)) return 'hold';
+  return cents >= 0 ? 'release' : 'hold';
+}
+
+/**
+ * Rule 16 — what a settlement carries: its amount (= Σ revenue − Σ costs), its costs and the reserve held or released,
+ * read from `periods.<year>.<month>.revenue|costs[]`. The reserve lines are told by their description (measured: the method
+ * is null); the costs are signed, so « Fee Discount » cancels the card cost it discounts.
+ */
+function readSettlement(s) {
+  let costs = 0;
+  let held = 0;
+  let released = 0;
+  // Costs are summed as Mollie wrote them (« 0.125 » and « -0.125 »), rounded once: rounding line by line drifts by a cent.
+  let rawCosts = 0;
+  Object.values(s.periods || {}).forEach((year) => Object.values(year || {}).forEach((month) => {
+    ['revenue', 'costs'].forEach((section) => ((month && month[section]) || []).forEach((line) => {
+      const cents = centsOf(line.amountGross || line.amountNet);
+      const reserve = reserveLineKind(line, cents);
+      if (reserve === 'release') released += Math.abs(cents);
+      else if (reserve === 'hold') held += Math.abs(cents);
+      // Costs are signed: « Fee Discount » is a negative cost that cancels the card cost (rule 5).
+      else if (section === 'costs') rawCosts += rawEuros(line.amountGross || line.amountNet);
+    }));
+  }));
+  costs = toCentsStrict(rawCosts) || 0;
+  return {
+    id: s.id, reference: s.reference || '', settledAt: s.settledAt || s.createdAt || null,
+    amountCents: centsOf(s.amount), costsCents: costs, reserveHeldCents: held, reserveReleasedCents: released,
+  };
+}
+
+module.exports = { buildMollieClient, explainError, centsOf, readSettlement, readPayment, readBalanceTransaction, RESTRICTED_TOKEN_FRAGMENT };

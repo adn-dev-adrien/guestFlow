@@ -49,7 +49,7 @@ test('rule 34 — paid at booking time: the session reads « Payée », nothing 
 });
 
 test('A2 — arrived, paid, its invoice cancelled in Qonto: « Créer la facture » again', async () => {
-  api.getResourceVisit.mockResolvedValue(paidBefore({ invoiceReady: true, invoice: { number: 'F-1', cancelled: true } }, { arrived: true, invoice: { number: 'F-1', cancelled: true, attachment: { state: null } } }));
+  api.getResourceVisit.mockResolvedValue(paidBefore({ invoiceReady: true, invoice: { number: 'F-1', cancelled: true }, invoiceable: { ok: true, code: null, reason: null } }, { arrived: true, invoice: { number: 'F-1', cancelled: true, attachment: { state: null } } }));
   api.issueResourceBookingInvoice.mockResolvedValue({});
   render(<ResourceArrivalDialog open bookingId={5} onClose={() => {}} onDone={() => {}} />);
   const buttons = await screen.findAllByRole('button', { name: 'Créer la facture' });

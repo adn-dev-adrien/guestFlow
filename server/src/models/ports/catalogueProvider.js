@@ -6,16 +6,18 @@
  *   applicableResources(propertyId)          the resources of that lodging, each at its effective price and free minutes
  *   resourcePriceOverride(resourceId, propertyId) the lodging's own `property_resource_prices` row `{ price, freeMinutes }`, undefined when none
  *   optionPriceOverride(optionId, propertyId) the lodging's own `property_option_prices` row `{ price }`, undefined when none
+ *   soldArticles(propertyId, reservationId)  `{ options, resources }`: the articles a stored stay holds lines of, at the lodging's effective price, linked
+ *                                            to the lodging today or not — a sold line is kept, never dropped by a catalogue edit (rules 13, 74; owner OD1)
  *
  * The per-property override of an option exists once: in the SettingsProvider's `articles` adapter, which every price,
  * free unit and free minute here is read through. The resources query keeps its `property_resource_prices` join for the
- * shape of the rows it returns. `resourcePriceOverride` is the hourly booking's read of its own price row (SDK 2.28.0).
+ * shape of the rows it returns. `resourcePriceOverride` is the hourly booking's read of its own price row (SDK 2.30.0).
  */
 const settingsProvider = require('./settingsProvider');
 
 const { prepared } = settingsProvider;
 
-function getApplicableOptions(db, propertyId) {
+function getApplicableOptions(db, propertyId, { keep = null } = {}) {
   const pid = Number(propertyId);
   const options = prepared(db, 'SELECT * FROM options ORDER BY title').all();
   const propStmt = prepared(db, 'SELECT propertyId FROM property_options WHERE optionId = ? ORDER BY propertyId');
@@ -36,10 +38,10 @@ function getApplicableOptions(db, propertyId) {
     })
     // specs/option-property-scope.md §3.3: an option is applicable ONLY to the properties it's explicitly
     // linked to. No link = available nowhere (the legacy « empty = all » rule is removed).
-    .filter((option) => option.propertyIds.includes(pid));
+    .filter((option) => option.propertyIds.includes(pid) || (keep && keep.has(Number(option.id))));
 }
 
-function getApplicableResources(db, propertyId) {
+function getApplicableResources(db, propertyId, { keep = null } = {}) {
   let resources;
   try {
     resources = prepared(db, `
@@ -77,10 +79,25 @@ function getApplicableResources(db, propertyId) {
       };
     })
     .filter((resource) => {
-      if (!scopedByResource) return true;
+      if (!scopedByResource || (keep && keep.has(Number(resource.id)))) return true;
       const scoped = scopedByResource.get(resource.id);
       return !scoped || scoped.size === 0 || scoped.has(Number(propertyId));
     });
+}
+
+// Rules 13, 74 (owner OD1 « sold lines kept ») — the articles of the lines a stored stay holds, whether the lodging still offers them or not.
+function soldArticles(db, propertyId, reservationId) {
+  const ids = (table, column) => {
+    try {
+      return new Set(prepared(db, `SELECT DISTINCT ${column} AS id FROM ${table} WHERE reservationId = ?`).all(Number(reservationId)).map((row) => Number(row.id)));
+    } catch { return new Set(); }
+  };
+  const optionIds = ids('reservation_options', 'optionId');
+  const resourceIds = ids('reservation_resources', 'resourceId');
+  return {
+    options: optionIds.size ? getApplicableOptions(db, propertyId, { keep: optionIds }).filter((option) => optionIds.has(Number(option.id))) : [],
+    resources: resourceIds.size ? getApplicableResources(db, propertyId, { keep: resourceIds }).filter((resource) => resourceIds.has(Number(resource.id))) : [],
+  };
 }
 
 function optionPriceOverride(db, optionId, propertyId) {
@@ -108,9 +125,10 @@ function create(db) {
     applicableResources: (propertyId) => getApplicableResources(db, propertyId),
     optionPriceOverride: (optionId, propertyId) => optionPriceOverride(db, optionId, propertyId),
     resourcePriceOverride: (resourceId, propertyId) => resourcePriceOverride(db, resourceId, propertyId),
+    soldArticles: (propertyId, reservationId) => soldArticles(db, propertyId, reservationId),
   };
 }
 
 module.exports = {
-  create, getApplicableOptions, getApplicableResources, optionPriceOverride, resourcePriceOverride,
+  create, getApplicableOptions, getApplicableResources, optionPriceOverride, resourcePriceOverride, soldArticles,
 };

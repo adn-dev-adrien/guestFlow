@@ -42,7 +42,9 @@ const VOLATILE = new Set(['createdAt', 'updatedAt', 'cancelledAt', 'vatRegime', 
   // The columns of PR B of the pricing refonte (specs/pricing-components.md §5) that a payload spreading a whole row now
   // carries: they hold no VAT and no figure of today. Only names no existing payload uses.
   'discountTarget', 'discountAmountCents', 'cancellationKeptCents', 'cancellationIndemnityCents', 'lineId', 'collectAt', 'collectAtDefault', 'soldAt',
-  'settlementRef', 'discountCents', 'allowanceUsed', 'orderRef', 'articleRef', 'fulfilmentRef']);
+  'settlementRef', 'discountCents', 'allowanceUsed', 'orderRef', 'articleRef', 'fulfilmentRef',
+  // PR C (rule 8): the records a sale reads the extra guests and the tax from, the same figures the row already holds.
+  'storedExtraGuests', 'storedTouristTax']);
 
 function canonical(value) {
   if (Array.isArray(value)) return `[${value.map(canonical).join(',')}]`;

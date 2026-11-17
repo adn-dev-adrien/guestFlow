@@ -30,6 +30,10 @@ function validate(body, { kind, stored = null } = {}) {
   if (sent(payload.sellableExternally) && ![true, false, 0, 1, '0', '1', 'true', 'false'].includes(payload.sellableExternally)) details.push({ field: 'sellableExternally', message: 'Choix invalide' });
   if (sent(payload.vatClass) && !ARTICLE_VAT_CLASSES.includes(payload.vatClass)) details.push({ field: 'vatClass', message: 'Choix invalide' });
   const rate = Number(payload.externalVatRate);
+  // Loop t2 UI2-8 — a rate the operator emptied (`''`) is refused, not ignored: the class keeps one rate, which no save clears.
+  if (typeof payload.externalVatRate === 'string' && payload.externalVatRate.trim() === '') {
+    details.push({ field: 'externalVatRate', message: 'Taux du client extérieur requis.', code: 'EXTERNAL_RATE_EMPTY' });
+  }
   if (sent(payload.externalVatRate) && !(Number.isFinite(rate) && rate >= 0 && rate < 100 && Math.abs(Math.round(rate * 100) - rate * 100) < 1e-6)) {
     details.push({ field: 'externalVatRate', message: 'Un taux entre 0 et 100, 2 décimales au plus' });
   }

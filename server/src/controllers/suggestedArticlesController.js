@@ -2,7 +2,7 @@
  * Suggested articles controller — HTTP face of `utils/suggestedArticles.js` (the outside-visit spec §4.3, rules 36-37).
  *
  *   GET /api/suggested-articles?kind=&id=&customerContext=   → { suggestions: [{ articleRef, label, unitCents, max }] }
- *   GET /api/suggested-articles/catalogue?customerContext=&q=  → { articles: [{ articleRef, label, unitCents, max, category }] }   (every article sellable for the caller)
+ *   GET /api/suggested-articles/catalogue?customerContext=&q=  → { articles: [{ articleRef, label, unitCents, max, category }], groups: [{ category, articles }] }   (every article sellable for the caller; `groups` = the same, grouped, for « Autre article »)
  *   GET /api/settings/suggested-articles                     → { kinds: [{ kind, label, contexts: [{ id, label, articleRefs }] }] }   (admin)
  *   PUT /api/settings/suggested-articles/:kind/:id           { articleRefs: [] } → { context }   (admin; ≤ 12, 400 ARTICLE_UNKNOWN, 404 CONTEXT_UNKNOWN)
  * Thin: parse, call the service, answer.
@@ -20,7 +20,8 @@ module.exports = {
   catalogue(req, res) {
     const { customerContext, q } = req.query || {};
     if (customerContext !== undefined && !['hosted', 'external'].includes(customerContext)) return res.status(400).json({ error: 'Client inconnu.', code: 'INVALID_REQUEST' });
-    return res.json({ articles: suggestedArticles.catalogue({ customerContext: customerContext || 'external', q: typeof q === 'string' ? q : '' }) });
+    const args = { customerContext: customerContext || 'external', q: typeof q === 'string' ? q : '' };
+    return res.json({ articles: suggestedArticles.catalogue(args), groups: suggestedArticles.catalogueGroups(args) });
   },
 
   settings(req, res) {

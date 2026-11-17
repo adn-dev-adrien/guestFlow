@@ -12,11 +12,11 @@ const options = [
 ];
 const resources = [
   { lineId: 5, resourceId: 3, quantity: 1, unitPrice: 40, totalPrice: 40, sessions: '[]', laterLine: false },
-  { lineId: 6, resourceId: 3, quantity: 1, unitPrice: 40, totalPrice: 40, sessions: [{ date: '2030-01-02', start: '20:00', end: '21:00' }], laterLine: true },
+  { lineId: 6, resourceId: 3, quantity: 1, unitPrice: 40, totalPrice: 40, sessions: [{ date: '2030-01-02', start: '20:00', end: '21:00' }], laterLine: true }, // date-literal-ok — days handed to a pure function or an injected clock, nothing compares them with the real today
 ];
 
 test('the form keeps one option per article: its first line', () => {
-  const selected = hydrateSelectedOptions(options, { startDate: '2030-01-01', endDate: '2030-01-04' }, [], undefined);
+  const selected = hydrateSelectedOptions(options, { startDate: '2030-01-01', endDate: '2030-01-04' }, [], undefined); // date-literal-ok — days handed to a pure function or an injected clock, nothing compares them with the real today
   expect(selected.map((o) => [o.optionId, o.quantity])).toEqual([[7, 1], [8, 1]]);
   expect(hydrateSelectedResources(resources).map((r) => r.resourceId)).toEqual([3]);
 });
@@ -24,7 +24,7 @@ test('the form keeps one option per article: its first line', () => {
 test('a later line rides as a wire line that names its stored line and its own offered flag', () => {
   const later = hydrateLaterLines(options, resources);
   expect(later.laterOptions).toEqual([{ lineId: 2, optionId: 7, quantity: 2, offered: true, inComplement: 1 }]);
-  expect(later.laterResources).toEqual([expect.objectContaining({ lineId: 6, resourceId: 3, quantity: 1, offered: false, sessions: [{ date: '2030-01-02', start: '20:00', end: '21:00' }] })]);
+  expect(later.laterResources).toEqual([expect.objectContaining({ lineId: 6, resourceId: 3, quantity: 1, offered: false, sessions: [{ date: '2030-01-02', start: '20:00', end: '21:00' }] })]); // date-literal-ok — days handed to a pure function or an injected clock, nothing compares them with the real today
 });
 
 test('an offered later line does not offer the article’s first line, and does not set its frozen unit price', () => {

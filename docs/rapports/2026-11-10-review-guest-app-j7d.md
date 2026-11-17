@@ -1,7 +1,7 @@
 # Re-review #4: feature/guest-app-from-j7 @ 0d5eb152 (fourth pass)
 
 ## Setup
-- **Worktree:** `/Users/adrien/Documents/workspace/guestflow-dev/worktrees/gf-feat-guest-app-j7`. HEAD is `0d5eb152`, the same as `origin/feature/guest-app-from-j7`. The tree was clean before and after the review.
+- **Worktree:** the `gf-feat-guest-app-j7` worktree. HEAD is `0d5eb152`, the same as `origin/feature/guest-app-from-j7`. The tree was clean before and after the review.
 - **Experiments:** everything is in `scratchpad/rv-guest-app-j7d/`:
   - `mut/` is a `git archive HEAD` copy and `mutate.py` holds the 52 mutants;
   - `deep.js` takes a full row and table snapshot before and after `commitOrder`, in note or card mode;

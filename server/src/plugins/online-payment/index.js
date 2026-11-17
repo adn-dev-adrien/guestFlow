@@ -8,7 +8,7 @@
 
 const express = require('express');
 const sdk = require('../sdk');
-const { DECLARED, reconciliationDeclared, KEYS, createSettingsStore, bind } = require('./settingsStore');
+const { DECLARED, reconciliationDeclared, mollieDeclared, KEYS, createSettingsStore, bind } = require('./settingsStore');
 const { mountReconciliation } = require('./reconciliation');
 const { createQontoProvider } = require('./provider');
 const { createQontoInvoiceIssuer } = require('./invoiceIssuer');
@@ -56,6 +56,7 @@ function resetLegacyColumns(db) {
 function register(ctx) {
   ctx.settings.declare(DECLARED);
   ctx.settings.declare(reconciliationDeclared(ctx.settings));
+  ctx.settings.declare(mollieDeclared());
   ctx.migrations([{ name: 'settings_from_app_settings_v1', up: copySettingsFromAppSettings }]);
 
   // The core settings of the plugin's own database (the app's in production, a test's in a suite).

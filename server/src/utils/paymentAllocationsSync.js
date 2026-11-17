@@ -11,7 +11,8 @@
  * allocations read marks the stay, whoever wrote it (a plugin, a script, a statement this module does not know about), and the
  * reader of the allocations flushes the mark first. A path that forgot its call is therefore late, never wrong.
  *
- *   syncStay(db, id)        rebuild the payment rows and the refund rows of one stay; returns the rows changed
+ *   syncStay(db, id)        rebuild the payment rows and the refund rows of one stay; returns the rows changed. On a stay the sale-line
+ *                           readers serve it also freezes the lines each payment day is cut over (`receiptLineSplits`, rule 99)
  *   flushDirty(db, [id])    sync every marked stay (or one); returns the stays synced
  *   ensureTriggers(db)      the dirty table and its triggers (idempotent)
  *
@@ -76,10 +77,13 @@ function taxRoutedToComplement(db, stay) {
 function paymentRowsOfStay(db, stay, { stayLevel = true } = {}) {
   const has = (name) => hasTable(db, name);
   // Rule 85: an article's first line keeps the key `opt:<id>` / `res:<id>` the stored notes and details were written with; a later sale is named by its ref.
-  const refKeyed = (table, rows) => keyLines(table, rows).map(({ row, key }) => ({ ref: lineRef(table, row.lineId), key, ...row }));
+  // Loop t5 S5-4 — the keys are given over every line, offered ones included: an offered first line keeps `opt:<id>`, so the note that paid it
+  // never names the article's next line (which then read « Payée » with the offered line's money).
+  const refKeyed = (table, rows) => keyLines(table, rows).filter(({ row }) => Number(row.offered || 0) === 0)
+    .map(({ row: { offered, ...row }, key }) => ({ ref: lineRef(table, row.lineId), key, ...row }));
   const lines = [
-    ...refKeyed('reservation_options', db.prepare('SELECT lineId, optionId, acompteContribTtc, soldeContribTtc FROM reservation_options WHERE reservationId = ? AND COALESCE(offered, 0) = 0').all(stay.id)),
-    ...refKeyed('reservation_resources', db.prepare('SELECT lineId, resourceId, acompteContribTtc, soldeContribTtc FROM reservation_resources WHERE reservationId = ? AND COALESCE(offered, 0) = 0').all(stay.id)),
+    ...refKeyed('reservation_options', db.prepare('SELECT lineId, optionId, acompteContribTtc, soldeContribTtc, COALESCE(offered, 0) AS offered FROM reservation_options WHERE reservationId = ?').all(stay.id)),
+    ...refKeyed('reservation_resources', db.prepare('SELECT lineId, resourceId, acompteContribTtc, soldeContribTtc, COALESCE(offered, 0) AS offered FROM reservation_resources WHERE reservationId = ?').all(stay.id)),
     ...db.prepare(`SELECT lineId, description, acompteContribTtc, soldeContribTtc FROM reservation_custom_options WHERE reservationId = ? AND COALESCE(offered, 0) = 0${notDepartureCharge(db)}`).all(stay.id)
       .map((r) => ({ ref: `line:reservation_custom_options:${r.lineId}`, key: extraLineKey({ isCustom: true, description: r.description }), ...r })),
   ];
@@ -174,7 +178,10 @@ function syncStay(db, reservationId) {
   if (hasTable(db, 'payment_allocations_dirty')) db.prepare('DELETE FROM payment_allocations_dirty WHERE reservationId = ?').run(id);
   if (!stay || !['reservation', 'cancelled'].includes(stay.kind)) return 0;
   const documentRef = `reservation:${id}`;
-  return reconcile(db, documentRef, 'payment', paymentRowsOfStay(db, stay)) + reconcile(db, documentRef, 'refund', refundRowsOfStay(db, id));
+  const payments = paymentRowsOfStay(db, stay);
+  // Rule 99 (loop t1 B-4) — the lines each payment day is cut over are frozen with the money, on a stay the sale-line readers serve.
+  require('./receiptLineSplits').freezeStay(db, stay, payments.filter((row) => row.amountCents > 0).map((row) => row.at));
+  return reconcile(db, documentRef, 'payment', payments) + reconcile(db, documentRef, 'refund', refundRowsOfStay(db, id));
 }
 
 /** Syncs every stay a write marked (or only `reservationId`). Returns the stays synced. */

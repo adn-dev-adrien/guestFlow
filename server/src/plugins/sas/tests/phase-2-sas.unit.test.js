@@ -237,7 +237,7 @@ const ARRIVAL_BODY = {
   linenItems: [{ itemId: 1, qty: 2, offered: false }],
   keptLines: [{ customOptionId: 31, offered: false }],
   bathLinenAdded: true,
-  bathLinenOffered: true,
+  offered: [{ kind: 'upsell', key: 'bathLinen' }],
   cleaningAdded: true,
 };
 

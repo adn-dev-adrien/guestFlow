@@ -954,6 +954,8 @@ function createModel(database) {
         // specs/force-item-to-complement.md rule 19 — the arrival complement the engine priced, carried
         // to the reservation at conversion.
         complementAmount: roundMoney(quote.complementAmount || 0),
+        // pricing-components rules 31, 61, 63, 91 (owner 2026-11-15) — a devis quoted from now on is served by the sale-line readers.
+        readsSaleLines: 1,
       };
       const names = Object.keys(columns).filter(hasReservationColumn);
       const info = database
@@ -1355,6 +1357,7 @@ function createModel(database) {
       extraGuestSurchargeOffered: sourceRow.extraGuestSurchargeOffered ? 1 : 0,
       touristTaxInComplement: sourceRow.touristTaxInComplement ? 1 : 0,
       tariffSnapshot: sourceRow.tariffSnapshot || null,
+      readsSaleLines: Number(sourceRow.readsSaleLines || 0) === 1 ? 1 : 0,
       ...extra,
     };
     const names = Object.keys(values).filter(hasReservationColumn);

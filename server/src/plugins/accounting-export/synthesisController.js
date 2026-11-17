@@ -48,7 +48,7 @@ function buildSynthesis(model, query = {}, plan = undefined) {
   const meansOf = model.meansResolver();
   let refusal = null;
   const read = (from, to) => {
-    const entries = model.entriesBetween(from, to);
+    const entries = model.entriesBetween(from, to, plan);
     refusal = refusal || drinksAccountRefusal(entries, plan);
     const items = ventilate(entries, plan);
     return { items, units: collectionUnits(items, meansOf) };

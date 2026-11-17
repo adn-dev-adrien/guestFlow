@@ -26,7 +26,7 @@ const { createScheduler } = require('./scheduler');
 const { createSlotAvailability } = require('./slotAvailability');
 const { createBathFulfilment } = require('./bathFulfilment');
 const { createInvoicing } = require('./invoicing');
-const { SETTINGS, standaloneVatRateOf } = require('./settings');
+const { SETTINGS, standaloneVatRateOf, outsideVatRateOf } = require('./settings');
 
 const id = 'hourly-resources';
 
@@ -52,14 +52,18 @@ function register(ctx) {
   };
   // specs/outside-booking-sas.md — the visit of an outside client: its money is the core's sale document, read and written through the visit model.
   let visits = null;
-  const bookings = lazy(() => bookingsModel.create(ctx.db, { standaloneVatRate, visits: () => visits() }));
+  // Loop t1 B-3 (pricing-components rules 61, 88, outside-booking-sas rule 28) — one rate per (class, context): the rate typed on the catalogue for the
+  // `resources` class wins over the plugin's setting, as the core's settings provider reads it, so a session paid in the booking dialog and one sold at
+  // the visit's mini SAS are booked and invoiced at the same rate.
+  const outsideVatRate = () => outsideVatRateOf(ctx.db, standaloneVatRate);
+  const bookings = lazy(() => bookingsModel.create(ctx.db, { standaloneVatRate: outsideVatRate, visits: () => visits() }));
   visits = lazy(() => createVisitModel({ db: ctx.db, bookings }));
   const scheduling = lazy(() => schedulingModel.create(ctx.db));
   const planningCards = lazy(() => planningCardsModel.buildModel(ctx.db));
   const reservations = sdk.coreModule('reservationsModel');
   const invoicing = lazy(() => createInvoicing({ bookings, visits }));
   const controller = lazy(() => createController({ bookings, scheduling, planningCards, reservations, invoicing }));
-  const visitController = lazy(() => createVisitController({ bookings, visits, invoicing }));
+  const visitController = lazy(() => createVisitController({ bookings, visits, invoicing, bookingPayload: (booking, req) => controller().bookingPayload(booking, req) }));
 
   // Rules 20-21 — the sales made outside any stay, for the journal and the card batch.
   ctx.standaloneSales((window) => (hasTable(ctx.db, 'resource_bookings') ? bookings().standaloneSales(window) : []));
@@ -156,6 +160,20 @@ function register(ctx) {
           : 0;
         if (invoiced > 0) {
           lines.push({ label: `${plural(invoiced, 'facture Qonto émise', 'factures Qonto émises')} : elles restent dans Qonto`, count: invoiced, warning: true });
+        }
+        // Loop t1 D-4 — since 4.2.0 a visit's money lives on its sale document: received, and owed back, it stays with the core's sale (the counter lists it).
+        if (hasTable(db, 'standalone_sales') && hasColumn(db, 'resource_bookings', 'saleRef')) {
+          const money = db.prepare(`SELECT COUNT(DISTINCT s.id) AS n, COALESCE(SUM(p.receivedCents), 0) AS cents FROM standalone_sales s
+            JOIN resource_bookings b ON b.saleRef = 'standalone:' || s.id JOIN standalone_sale_payments p ON p.saleId = s.id`).get();
+          const owed = db.prepare(`SELECT COALESCE(SUM(o.amountCents), 0) AS cents FROM standalone_sale_obligations o
+            JOIN resource_bookings b ON b.saleRef = 'standalone:' || o.saleId WHERE o.status = 'open'`).get().cents;
+          if (money.cents > 0) {
+            lines.push({
+              label: `${plural(money.n, 'visite', 'visites')} hors séjour, ${eurosText(money.cents / 100)} encaissés sur leur vente${owed > 0 ? `, dont ${eurosText(owed / 100)} à rembourser` : ''} : la vente reste dans « Ventes hors séjour »`,
+              count: money.n,
+              warning: true,
+            });
+          }
         }
         const unpaid = all - paidRows.length;
         if (unpaid > 0) lines.push({ label: plural(unpaid, 'réservation hors séjour', 'réservations hors séjour'), count: unpaid });

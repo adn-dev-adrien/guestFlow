@@ -3,7 +3,7 @@
 // the plugin active, a resource sold by the hour is in the catalogue and Calendrier › Ressources is in the
 // menu. Switched off, both go and its URLs answer 404; switched back on, they come back with the resource's
 // settings.
-import { test, expect } from '@playwright/test';
+import { test, expect } from '../../fixtures/test.js';
 import { createHourlyResource } from '../../fixtures/apiSeed';
 
 test.describe.configure({ mode: 'serial' });

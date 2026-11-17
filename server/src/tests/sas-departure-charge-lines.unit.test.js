@@ -87,7 +87,10 @@ test('rule 90.2 — the fiche neither lists nor deletes a departure line; its sa
   const legacy = createStay();
   commit(lined, ALL);
   commit(legacy, ALL);
+  // A stay stored before rule 90.2: its lines taken away under the guard's permit (pricingSalesMigration T12).
+  db.prepare("INSERT INTO departure_line_deletes (id) SELECT id FROM reservation_custom_options WHERE reservationId = ? AND sasLineKey LIKE 'departure:%'").run(legacy);
   db.prepare("DELETE FROM reservation_custom_options WHERE reservationId = ? AND sasLineKey LIKE 'departure:%'").run(legacy);
+  db.prepare('DELETE FROM departure_line_deletes').run();
   const fiche = getFiche(lined);
   assert.equal((fiche.options || []).some((o) => String(o.sasLineKey || '').startsWith('departure:')), false);
   assert.deepEqual((fiche.customOptions || []), getFiche(legacy).customOptions || []);

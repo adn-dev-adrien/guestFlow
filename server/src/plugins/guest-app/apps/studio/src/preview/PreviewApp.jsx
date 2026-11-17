@@ -4,7 +4,8 @@
  * components, so the preview cannot drift from what guests see. Nothing here fetches: the studio sends the data.
  *
  * Views: `home` (hero, stay card, tiles — Modules and Infos du logement), `page` (a booklet page — Livret),
- * `shop` (the catalogue — Boutique, Service).
+ * `shop` (the catalogue — Boutique, Service), `smartHome` (the « Domotique » page — specs/guest-app-home-automation.md
+ * rule 16: `data` is the server's preview payload, drawn by the guest page's own body).
  */
 import { useEffect, useMemo, useState } from 'react';
 import { MemoryRouter } from 'react-router';
@@ -21,12 +22,15 @@ import Icon from '@guest/components/Icon';
 import AppBar from '@guest/components/AppBar';
 import ProductCard from '@guest/components/ProductCard';
 import { BlockList } from '@guest/components/BlockRenderer';
+import { SmartHomeBody } from '@guest/pages/HomeAutomationPage';
 import { tabsOf } from '@guest/components/AppShell';
 import defaultHero from '@guest-public/img/hero-domaine.jpg';
 
 export const MESSAGE_SOURCE = 'guestflow-studio';
 
-const TILE_ICON = { gate: 'gate', wifi: 'wifi', shop: 'shop', bath: 'bath', soliomap: 'soliomap', booklet: 'booklet', contacts: 'contacts' };
+const TILE_ICON = {
+  gate: 'gate', wifi: 'wifi', shop: 'shop', bath: 'bath', soliomap: 'soliomap', booklet: 'booklet', contacts: 'contacts', home: 'smartHome',
+};
 const noop = () => {};
 
 function Home({ view, t }) {
@@ -85,8 +89,19 @@ function Shop({ view, t }) {
   );
 }
 
-const SCREENS = { home: Home, page: Page, shop: Shop };
-const TAB_OF = { home: 'home', page: 'booklet', shop: 'shop' };
+function SmartHome({ view, t }) {
+  return (
+    <div className="scroll smart-home">
+      <AppBar title={t('smartHome.title')} back={noop} />
+      {view.data ? <SmartHomeBody data={view.data} lodging={{ name: view.lodgingName, heroUrl: view.heroUrl || defaultHero }} /> : null}
+    </div>
+  );
+}
+
+const SCREENS = {
+  home: Home, page: Page, shop: Shop, smartHome: SmartHome,
+};
+const TAB_OF = { home: 'home', page: 'booklet', shop: 'shop', smartHome: 'home' };
 
 export default function PreviewApp() {
   const [view, setView] = useState(null);

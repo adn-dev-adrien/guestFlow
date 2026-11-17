@@ -30,7 +30,12 @@ function buildStayLinksController({
   function eligibility(reservationId) {
     const stay = stays().byId(reservationId);
     if (!stay) return { status: 404, error: 'Réservation introuvable' };
-    if (!isLiveStay(stay)) return { status: 409, error: 'Ce séjour n’est pas une réservation en cours : il n’a pas de lien Mon séjour.' };
+    if (!isLiveStay(stay)) {
+      // A devis is not a stay at all: the fiche keeps no card for it, where a cancelled stay explains itself.
+      return {
+        status: 409, error: 'Ce séjour n’est pas une réservation en cours : il n’a pas de lien Mon séjour.', ...(stay.kind === 'devis' ? { code: 'NOT_A_STAY' } : {}),
+      };
+    }
     if (!lodgings().findEnabled(stay.propertyId)) return { status: 409, error: 'Ce logement n’est pas dans l’application clients.' };
     const host = guestHost();
     if (!host) return { status: 409, error: 'Il manque l’adresse de l’application (Paramètres › Intégrations).' };
@@ -57,7 +62,7 @@ function buildStayLinksController({
     const id = reservationIdOf(req);
     if (!id) return res.status(400).json({ error: 'Identifiant invalide' });
     const eligible = eligibility(id);
-    if (eligible.error) return res.status(eligible.status).json({ error: eligible.error });
+    if (eligible.error) return res.status(eligible.status).json({ error: eligible.error, ...(eligible.code ? { code: eligible.code } : {}) });
     try {
       const link = write ? stayLinks().regenerate(id, now()) : stayLinks().ensure(id, now());
       // D28, rule 54 — the lookup sessions of the stay end with its link: the operator's one way to close the stay.

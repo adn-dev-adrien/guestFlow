@@ -13,16 +13,24 @@
  *   locked: past-locked fiche
  *   onApply(patch), onCancel()
  *   computeCommission(figures) → { commission } — « Calculer la commission » (server)
+ *   received: { net, label } | null — the payout already received: its transfer is a field, prefilled, editable
+ *     (specs/platform-statement-after-payout.md rules 3, 8)
+ *   preview(statement) → { netLabel } — the server's net against the transfer, nothing written (rules 3-4, 7);
+ *     null when the statement is a draft saved with the fiche
+ *   lockedReason: why the fields are disabled, shown under them
  */
-import React, { useState } from 'react';
-import { Box, Button, Stack, Tooltip, Typography } from '@mui/material';
+import React, { useEffect, useState } from 'react';
+import { Alert, Box, Button, Stack, Tooltip, Typography } from '@mui/material';
 import ArithmeticTextField from '../ArithmeticTextField';
 import { formatCurrency } from '../../utils/formatters';
 
 const blank = (v) => v === '' || v == null;
 
+const PREVIEW_DELAY_MS = 250;
+
 export default function PlatformStatementEditor({
   form, pricingQuote, withDepositCommission, locked, onApply, onCancel, computeCommission, onError,
+  received = null, preview = null, lockedReason = null,
 }) {
   // « Sans TVA » follows the stay's own regime, which its live quote carries.
   const notSubject = pricingQuote?.vatRegime?.regime === 'not_subject';
@@ -31,8 +39,26 @@ export default function PlatformStatementEditor({
     platformTouristTaxAmount: form.platformTouristTaxAmount ?? '',
     acompteCommissionAmount: form.acompteCommissionAmount ?? '',
     platformCommissionAmount: form.platformCommissionAmount ?? '',
+    ...(received ? { platformPayoutAmount: received.net } : {}),
   });
   const set = (patch) => setDraft((d) => ({ ...d, ...patch }));
+  // The server's reading of the typed statement: { tone, label } or a refusal it would answer.
+  const [check, setCheck] = useState(null);
+  useEffect(() => {
+    // A reading of the previous figures is never shown against the new ones (review L3).
+    setCheck(null);
+    if (!preview || locked) return undefined;
+    let live = true;
+    const timer = setTimeout(async () => {
+      try {
+        const answer = await preview(draft);
+        if (live) setCheck(answer?.netLabel ? { tone: answer.netLabel.tone, label: answer.netLabel.label } : null);
+      } catch (err) {
+        if (live) setCheck({ tone: 'error', label: err.message || 'Relevé refusé.' });
+      }
+    }, PREVIEW_DELAY_MS);
+    return () => { live = false; clearTimeout(timer); };
+  }, [preview, locked, draft]);
 
   // Which number to copy off the statement depends on the platform's tourist-tax mode, so the field
   // says it (specs/platform-brut-excludes-offered-tourist-tax.md §6).
@@ -48,13 +74,15 @@ export default function PlatformStatementEditor({
       ? 'Taxe de séjour comprise — la plateforme la reverse avec le virement.'
       : "L'hébergement s'ajuste automatiquement (brut − options). La taxe de séjour est encaissée à l'arrivée.";
   const engineTouristTax = Number(pricingQuote?.touristTaxOriginalTotal || 0);
-  const canCompute = !blank(draft.platformGrossAmount) && !blank(form.platformPayoutAmount) && !locked;
+  // The transfer the commission is computed from: the panel's own field on a received payout (rule 3), else the fiche's.
+  const payoutForCompute = received ? draft.platformPayoutAmount : form.platformPayoutAmount;
+  const canCompute = !blank(draft.platformGrossAmount) && !blank(payoutForCompute) && !locked;
 
   const compute = async () => {
     try {
       const { commission } = await computeCommission({
         gross: draft.platformGrossAmount,
-        payout: form.platformPayoutAmount,
+        payout: payoutForCompute,
         touristTax: draft.platformTouristTaxAmount,
         acompteCommission: draft.acompteCommissionAmount,
       });
@@ -76,6 +104,16 @@ export default function PlatformStatementEditor({
       }}
       onKeyDown={(e) => { if (e.key === 'Escape') { e.preventDefault(); onCancel(); } }}
     >
+      {received && (
+        <ArithmeticTextField
+          label={received.label}
+          value={draft.platformPayoutAmount}
+          onCommit={(v) => set({ platformPayoutAmount: v })}
+          size="small"
+          helperText="Total versé par la plateforme pour ce séjour, tel qu’il est arrivé sur le compte."
+          disabled={locked}
+        />
+      )}
       <ArithmeticTextField
         label={grossLabel}
         value={draft.platformGrossAmount}
@@ -132,7 +170,7 @@ export default function PlatformStatementEditor({
           disabled={locked}
           helperText="Frais retenus sur le solde."
         />
-        {!blank(form.platformPayoutAmount) && (
+        {!blank(payoutForCompute) && (
           <Tooltip title={canCompute ? 'Commission solde = total facturé − virement (− taxe retenue, − commission acompte)' : 'Renseigner le total facturé'}>
             <span>
               <Button size="small" variant="text" disabled={!canCompute} onClick={compute} sx={{ textTransform: 'none', minHeight: 44 }}>
@@ -142,13 +180,21 @@ export default function PlatformStatementEditor({
           </Tooltip>
         )}
       </Box>
+      {check && (
+        <Alert severity={check.tone === 'done' ? 'success' : check.tone === 'error' ? 'error' : 'warning'} sx={{ gridColumn: '1 / -1', fontVariantNumeric: 'tabular-nums' }} role="status">
+          {check.label}
+        </Alert>
+      )}
+      {locked && lockedReason && (
+        <Typography variant="body2" color="text.secondary" sx={{ gridColumn: '1 / -1' }}>{lockedReason}</Typography>
+      )}
       <Stack direction="row" spacing={0.75} sx={{ gridColumn: '1 / -1', flexWrap: 'wrap' }}>
-        <Button variant="contained" disabled={locked} onClick={() => onApply(draft)} sx={{ minHeight: 44, borderRadius: 999, textTransform: 'none' }}>
+        <Button variant="contained" disabled={locked || check?.tone === 'error'} onClick={() => onApply(draft)} sx={{ minHeight: 44, borderRadius: 999, textTransform: 'none' }}>
           Valider
         </Button>
         <Button variant="text" onClick={onCancel} sx={{ minHeight: 44, textTransform: 'none' }}>Annuler</Button>
       </Stack>
-      {!blank(form.platformPayoutAmount) && (
+      {!received && !blank(form.platformPayoutAmount) && (
         <Typography variant="caption" color="text.secondary" sx={{ gridColumn: '1 / -1' }}>
           Virement reçu : {formatCurrency(form.platformPayoutAmount)}
         </Typography>

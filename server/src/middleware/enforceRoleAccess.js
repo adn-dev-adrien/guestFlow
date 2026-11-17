@@ -37,6 +37,8 @@ const SELF_ENDPOINTS = new Set([
 // « Indemnités d'annulation » (specs/plugins-phase-2-hosts.md rule 21). Every write stays admin-only.
 const ACCOUNTANT_MATCHERS = [
   { method: 'GET', re: /^\/accounting\/cancellation-compensations$/ },
+  // specs/mollie-rolling-reserve-and-incoming-payments.md §4.3 — the accountant reads what the bank is about to receive.
+  { method: 'GET', re: /^\/finance\/incoming$/ },
   // specs/vat-optional-mode.md §4.3 — the VAT regime in force is read-only for the accountant.
   { method: 'GET', re: /^\/settings\/vat-regime$/ },
   // Platform badge colours and names (non-sensitive display config, same entry as the reception role): the shell loads them for every role.

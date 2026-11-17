@@ -22,7 +22,8 @@
  * (`index.js`) and in the price gate's recompute.
  */
 const { toCents: cents } = require('./pricing/money');
-const { legacyCollectAt } = require('./pricing/legacyCollectAt');
+const { legacyCollectAt, keysAboveBaseline } = require('./pricing/legacyCollectAt');
+const { extraLineKey } = require('./pricing/storedLines');
 const { storedMidStayLines, resolveMidStaySplit } = require('./pricing/settlement');
 
 const endOfStayCollected = (stay) => Number(stay.endOfStayComplementPaid || 0) === 1 || Number(stay.endOfStayComplementPaidCash || 0) === 1;
@@ -31,7 +32,6 @@ const collectedMidStayKeys = (stay) => Object.entries(resolveMidStaySplit([], {
   settled: true, storedLines: storedMidStayLines(stay.endOfStayComplementDetail), notes: stay.midStaySettledNotes || null,
 }).byKey || {}).filter(([, amount]) => Number(amount) > 0).map(([key]) => key);
 const { paymentRowsOfStay, ensureTriggers, lineRefsByKey } = require('./paymentAllocationsSync');
-const { extraLineKey } = require('./pricing/storedLines');
 const { makeArticle } = require('./pricing/articles');
 const { notDepartureCharge } = require('./departureChargeLines');
 
@@ -97,7 +97,8 @@ const TABLES = [
     createdAt TEXT NOT NULL DEFAULT (datetime('now')),
     status TEXT NOT NULL DEFAULT 'open' CHECK (status IN ('open', 'settled', 'cancelled')),
     settledAt TEXT,
-    settledBy TEXT
+    settledBy TEXT,
+    noteCents INTEGER NOT NULL DEFAULT 0
   )`,
   'CREATE INDEX IF NOT EXISTS idx_refund_obligations_reservation ON refund_obligations (reservationId, status)',
   `CREATE TABLE IF NOT EXISTS payment_allocations (
@@ -153,6 +154,16 @@ function addColumns(db) {
   };
   for (const table of LINE_TABLES) for (const [name, definition] of LINE_COLUMNS) add(table, name, definition);
   for (const [table, name, definition] of COLUMNS) add(table, name, definition);
+  // Loop t8 B8-2 — the note part of the money a settled `lineLowered` row gave back. Rows settled before the column existed were all read
+  // as note money: they keep that reading, so no figure moves. Loop t9 D9-4 — the column and its backfill are one transaction (SQLite DDL is
+  // transactional): a stop between them would leave those rows at 0 for good, the next boot seeing the column and skipping the backfill.
+  if (hasTable(db, 'refund_obligations') && !columnsOf(db, 'refund_obligations').has('noteCents')) {
+    db.transaction(() => {
+      db.exec('ALTER TABLE refund_obligations ADD COLUMN noteCents INTEGER NOT NULL DEFAULT 0');
+      db.exec("UPDATE refund_obligations SET noteCents = amountCents WHERE origin = 'lineLowered' AND status = 'settled'");
+    })();
+    added += 1;
+  }
   return added;
 }
 
@@ -165,9 +176,13 @@ function directChannelNames(db) {
   return names;
 }
 
-function backfillLineColumns(db) {
+// `only` = { reservationId, soldAt, before }: the fiche's own save stamps the lines it wrote, at the moment it wrote them, with the same derivation (loop t1 D-2).
+// A line the stay already held before the save (`before`, the `<kind>:<lineId>` set) was not sold by it: a stay's first lines keep the booking's date, exactly
+// what the boot pass would write (loop t2 D2-1) — a receipt dated between the booking and that save must find them sold.
+function backfillLineColumns(db, only = null) {
   if (!LINE_TABLES.every((table) => hasTable(db, table) && columnsOf(db, table).has('collectAt'))) return 0;
-  const pending = db.prepare(LINE_TABLES.map((table) => `SELECT reservationId FROM ${table} WHERE collectAt IS NULL`).join(' UNION ')).all().map((r) => r.reservationId);
+  const pending = only ? [Number(only.reservationId)]
+    : db.prepare(LINE_TABLES.map((table) => `SELECT reservationId FROM ${table} WHERE collectAt IS NULL`).join(' UNION ')).all().map((r) => r.reservationId);
   if (pending.length === 0) return 0;
   const direct = directChannelNames(db);
   const catalogue = {
@@ -185,13 +200,30 @@ function backfillLineColumns(db) {
       ...db.prepare('SELECT rowid AS rid, * FROM reservation_resources WHERE reservationId = ? ORDER BY rowid').all(reservationId).map((row) => ({ table: 'reservation_resources', row, kind: 'resource', refKind: 'resource', idKey: 'resourceId' })),
       ...db.prepare(`SELECT rowid AS rid, * FROM reservation_custom_options WHERE reservationId = ?${notDepartureCharge(db)} ORDER BY sortOrder, id`).all(reservationId).map((row) => ({ table: 'reservation_custom_options', row, kind: 'custom' })),
     ];
-    const moments = legacyCollectAt(lines.map(({ row, kind, idKey }) => (kind === 'custom'
+    const read = lines.map(({ row, kind, idKey }) => (kind === 'custom'
       ? { isCustom: true, description: row.description, totalPrice: row.amount, offered: row.offered, inComplement: row.inComplement }
-      : { [idKey]: row[idKey], totalPrice: row.totalPrice, offered: row.offered, inComplement: row.inComplement })), {
+      : { [idKey]: row[idKey], totalPrice: row.totalPrice, offered: row.offered, inComplement: row.inComplement }));
+    const moments = legacyCollectAt(read, {
       platformSale: !direct.has(String(stay.platform == null ? 'direct' : stay.platform).trim().toLowerCase() || 'direct'),
       baseline: stay.arrivalExtrasBaseline || null,
       collectedMidStayKeys: endOfStayCollected(stay) ? collectedMidStayKeys(stay) : null,
     });
+    // Loop t3, T3-4 — a line the fiche's own save just wrote is stamped where the engine put its money (rule 103): above the stay's baseline it is
+    // collected at the departure, whatever its routing flag; a line that left the settled plan untouched and grew the arrival complement (the
+    // excess of a paid plan) is collected at the arrival. The boot's reading of older rows is unchanged.
+    if (only) {
+      const above = keysAboveBaseline(read, stay.arrivalExtrasBaseline || null);
+      const before = only.rowBefore || null;
+      const toCents2 = (v) => Math.round(Number(v || 0) * 100);
+      const excessToArrival = before
+        && toCents2(stay.depositAmount) + toCents2(stay.balanceAmount) <= toCents2(before.depositAmount) + toCents2(before.balanceAmount)
+        && toCents2(stay.complementAmount) > toCents2(before.complementAmount);
+      lines.forEach(({ kind, row }, index) => {
+        if (only.before && only.before.has(`${kind}:${row.lineId}`)) return;
+        if (above.has(extraLineKey(read[index]))) moments[index] = 'departure';
+        else if (moments[index] === 'plan' && excessToArrival && Number(row.offered || 0) !== 1) moments[index] = 'arrival';
+      });
+    }
     lines.forEach(({ table, row, kind, refKind, idKey }, index) => {
       let articleRef = `custom:${row.lineId}`;
       let family = null;
@@ -207,7 +239,9 @@ function backfillLineColumns(db) {
           label = '';
         }
       }
-      const soldAt = (kind === 'custom' && row.createdAt) || stay.createdAt || null;
+      const bootSoldAt = (kind === 'custom' && row.createdAt) || stay.createdAt || null;
+      const soldBySave = only && !(only.before && only.before.has(`${kind}:${row.lineId}`));
+      const soldAt = soldBySave ? only.soldAt : bootSoldAt;
       changed += updates[table].run(moments[index], moments[index], soldAt, articleRef, family, label, row.rid).changes;
     });
   }
@@ -344,27 +378,36 @@ function backfillCancellationFigures(db) {
 }
 
 // ── S9 — the refunds owed ───────────────────────────────────────────────────────────────────────────────────────────
+// Read once (marker `pricing_obligations_s9_v1`): it carries into the register what the links said before the live register existed. A link that
+// already holds an obligation, of any origin, is the live register's (the poll's `orderConflict`, a devis's `neverBooked`): never a second row (loop t1
+// D-1, D-5). A link whose stay is gone, or that names none (an outside sale's), holds no stay obligation (D-6).
+const OBLIGATIONS_DONE = 'pricing_obligations_s9_v1';
 function backfillObligations(db) {
   if (!hasTable(db, 'refund_obligations') || !hasTable(db, 'payment_links')) return 0;
+  const marked = hasTable(db, 'migrations');
+  if (marked && db.prepare('SELECT 1 FROM migrations WHERE name = ?').get(OBLIGATIONS_DONE)) return 0;
   const columns = columnsOf(db, 'payment_links');
   let changed = 0;
-  const exists = db.prepare('SELECT 1 FROM refund_obligations WHERE paymentLinkId = ? AND origin = ?');
+  const held = db.prepare('SELECT 1 FROM refund_obligations WHERE paymentLinkId = ? LIMIT 1');
+  const stayOf = db.prepare('SELECT 1 FROM reservations WHERE id = ?');
+  const skip = (link) => link.reservationId == null || !stayOf.get(link.reservationId) || held.get(link.id);
   const insert = db.prepare(`INSERT INTO refund_obligations (reservationId, origin, paymentLinkId, amountCents, createdAt, status, settledAt, settledBy)
     VALUES (?, ?, ?, ?, COALESCE(?, datetime('now')), ?, NULL, ?)`);
   if (columns.has('basketJson')) {
     for (const link of db.prepare("SELECT id, reservationId, amountCents, paidAt, createdAt, basketJson FROM payment_links WHERE basketJson LIKE '%refundOwed%'").all()) {
       const basket = parseJson(link.basketJson);
-      if (!basket || basket.refundOwed !== true || exists.get(link.id, 'basket')) continue;
+      if (!basket || basket.refundOwed !== true || skip(link)) continue;
       const owed = Number.isInteger(basket.refundCents) && basket.refundCents > 0 ? basket.refundCents : Number(link.amountCents);
       if (owed > 0) changed += insert.run(link.reservationId, 'basket', link.id, owed, link.paidAt || link.createdAt, 'open', null).changes;
     }
   }
   if (columns.has('cancelReason')) {
     for (const link of db.prepare("SELECT id, reservationId, amountCents, paidAt, createdAt FROM payment_links WHERE cancelReason = 'refunded'").all()) {
-      if (exists.get(link.id, 'withdrawnLink') || Number(link.amountCents) <= 0) continue;
+      if (skip(link) || Number(link.amountCents) <= 0) continue;
       changed += insert.run(link.reservationId, 'withdrawnLink', link.id, Number(link.amountCents), link.paidAt || link.createdAt, 'settled', 'provider').changes;
     }
   }
+  if (marked) db.prepare('INSERT OR IGNORE INTO migrations (name) VALUES (?)').run(OBLIGATIONS_DONE);
   return changed;
 }
 
@@ -462,6 +505,12 @@ function backfillRefundNettings(db, { force = false } = {}) {
   return changed;
 }
 
+/** The lines a fiche save wrote and left unstamped get their moment, article and sale date now (source `fiche`, the column default); the unstamped lines
+ * listed in `before` (held by the stay before the save) get the boot's reading instead — their sale date is the booking's, never the save's. */
+function stampFicheLines(db, reservationId, soldAt, before = null, { rowBefore = null } = {}) {
+  return backfillLineColumns(db, { reservationId, soldAt, before, rowBefore });
+}
+
 module.exports = {
-  runPricingLinesMigration, backfillRefundNettings, backfillStayLevelAllocations, syncStayLines, LINE_COLUMNS, LINE_TABLES,
+  stampFicheLines, runPricingLinesMigration, backfillRefundNettings, backfillStayLevelAllocations, syncStayLines, LINE_COLUMNS, LINE_TABLES,
 };

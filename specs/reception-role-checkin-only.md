@@ -248,6 +248,33 @@ emails, settings, or any monetary figure beyond *the caution and complement to c
     and notes (rule 12bis). `POST /resource-bookings/:id/no-show`, the booking itself and its payment routes stay admin.
     Test: `visit-window-and-roles.unit.test.js` (plugin `hourly-resources`).
 
+18. **A paid line at the SAS shows no amount to reception and cannot be forced** (added 2026-11-16, loop t7 A7-1; reading of
+    pricing-components rules 105 and 107, `sas-offer-complement-lines.md` §4.3). The refusal a SAS commit meets on a paid line it offers or
+    removes (409 `OVERPAID`, 409 `LINE_PAID`) is answered to a reception-only requester with the same `code` and « Ligne déjà payée : à voir avec
+    l’administrateur. », no `overpaymentTtc`, no `refundCents`: what a line would owe back is not door money (rules 12bis, 16).
+    `toReceptionSasCommit` drops `forceOverpayment` and the arrival and departure commits ignore it for a reception-only requester, so the
+    refusal cannot be confirmed: nothing is written, no `lineLowered` obligation is opened. The dialog shows the refusal as is and offers no
+    « Offrir · X à rembourser » confirmation when the 409 carries no amount. The admin flow is unchanged.
+    Test: `reception-sas-paid-line-refusal.unit.test.js`, `ReservationSasDialog.reception-paid-line.test.jsx`.
+    > **Reading of 2026-11-16 (stabilisation loop t8, A8-1 / A8-2 / A8-3) — both directions, both commits.** (a) The reverse gesture is
+    > held too: an offered paid line whose freed money is owed back right now (an open `lineLowered` obligation, the admin confirmed the
+    > trop-perçu) is shown to reception locked offered (`offerLocked`, no toggle) in the arrival and departure previews, and a reception
+    > commit that bills it again (« Offert » unticked) answers 409 `LINE_OWED` with the same « Ligne déjà payée : à voir avec
+    > l’administrateur. », no amount, nothing written: putting it back to billed would close the administrator's refund decision
+    > (`paidLineJudgment.owedBackByKey`, `finish({ holdOwed })`). Keeping it offered goes through; the admin keeps the toggle and the way
+    > back of pricing-components rule 109. (b) The reception refusal keeps `overpaymentKeys` — recap keys, no money — and the dialog puts
+    > exactly those lines back to billed, as « Garder » does for the admin, so the next « Valider » goes through without guessing which line
+    > blocked it. (c) The departure commit is pinned by the suite as the arrival is (offering a paid recalled line: 409 without amount,
+    > forced still refused, the unpaid line offered freely).
+    > **Reading of 2026-11-16 (stabilisation loop t9, A9-3 / A9-4) — the scope of (a), and its way out.** (a) holds every offered paid line,
+    > not only the one whose money was confirmed: while ANY `lineLowered` obligation of the stay is open, every offered paid line is locked
+    > for reception (`owedBackByKey` returns every key with note money beyond what its line charges), because billing any of them again takes
+    > from the money owed back (the admin's twin un-offer of a line credited to the solde moves the obligation 30 → 10 €). The lock reads the
+    > stored line, not the dialog's draft: a reception draft read before the admin offered the line still sees it offered and locked. A
+    > reception commit refused 409 `LINE_OWED` names the locked lines' recap keys (`owedKeys`, no amount); the dialog puts exactly those back
+    > to offered, so the next « Valider » goes through — the dialog is never stuck on a refusal it cannot read.
+    > Tests: `reception-sas-owed-keys` (1), Vitest `ReservationSasDialog.reception-owed-keys` (1).
+
 **Edge cases:**
 - **reception + admin** on the same account → admin wins: full payloads, full nav, no stripping,
   no confinement (rule 1).
@@ -292,6 +319,10 @@ emails, settings, or any monetary figure beyond *the caution and complement to c
 | `tests/` | `tests/reservations-controller.unit.test.js` (or the payment test file) | T | `updatePayment` as reception writes only the 3 status flags; a payload also carrying `depositPaid`/`balancePaid` leaves those untouched (field guard). `list`/`getById` strip for reception-only, full for admin. |
 | `tests/` | `tests/roles.unit.test.js` (cross-side snapshot) | T | Extended to assert the 3-role taxonomy stays in sync between server + client. |
 | `utils/` | `utils/receptionView.js` | T | _(2026-10-27, rule 13)_ option and resource lines keep `billedUnits` (a count). |
+| `utils/` | `utils/receptionView.js` | T | _(2026-11-16, rule 18)_ `toReceptionSasCommit` drops `forceOverpayment` from a reception SAS commit. |
+| `plugins/` | `plugins/sas/controller.js` | T | _(2026-11-16, rule 18)_ `paidLineAnswer`: a paid-line refusal answered to reception as « Ligne déjà payée : à voir avec l’administrateur. » + `code` + `overpaymentKeys` (no amount); `receptionPlanOptions` locks owed-back paid lines in the previews; both commits pass `holdOwedLines` and ignore `forceOverpayment` for reception; `LINE_OWED` names `owedKeys` (recap keys, no amount) through `runNamingPaidOffers` → `owedOfferKeysOf`, and the plan reads a locked line as stored. |
+| `models/` | `models/reservationsModel.js` | T | _(2026-11-16, rule 18)_ `planArrivalSas` / `planDepartureSas` option `lockOwedPaidLines` (`offerLocked` on an offered paid line whose money is owed back); `commitArrivalSas` / `commitDepartureSas` option `holdOwedLines`; `LINE_OWED` names `owedKeys` (recap keys, no amount) through `runNamingPaidOffers` → `owedOfferKeysOf` in the plugin, and the plan reads a locked line as stored. |
+| `utils/` | `utils/paidLineJudgment.js` | T | _(2026-11-16, rule 18)_ `owedBackByKey` (every offered paid line while a `lineLowered` obligation is open — loop t9 A9-3) and `finish({ holdOwed })` → 409 `LINE_OWED` on a write that bills one again. |
 
 **Notes:**
 - No new dependency.
@@ -329,7 +360,7 @@ No new endpoints. Behavioural changes, gated on **reception-only** requester:
 | GET | `/api/reservations` | Response items → `toReceptionReservationView` (finance + client-PII stripped). | Admin/accountant unchanged. |
 | GET | `/api/reservations/:id` | Response → `toReceptionReservationView`. | |
 | GET | `/api/reservations/:id/sas` | Unchanged (already finance-free). | Allowlisted. |
-| POST | `/api/reservations/:id/sas/arrival`\|`/departure` | Unchanged. | Allowlisted (SAS commit). |
+| POST | `/api/reservations/:id/sas/arrival`\|`/departure` | Rule 18: a paid-line refusal (409 `OVERPAID` / `LINE_PAID` / `LINE_OWED`) is `{ error, code, overpaymentKeys? }`, no amount; `forceOverpayment` ignored. | Allowlisted (SAS commit). The previews (`…/preview`) serve `offerLocked` on an owed-back paid line. |
 | PATCH | `/api/reservations/:id/payment` | Writable set restricted to `{checkInReady, checkInDone, checkOutDone}`; financial fields ignored. | Field guard, rule 10. |
 | GET | `/api/properties` | Response → `toReceptionPropertyView` (pricing stripped). | |
 | GET | `/api/planning/*`, `/api/laundry/*`, `/api/resource-bookings` | Allowed (housekeeping, no money). | |
@@ -420,8 +451,29 @@ added, no migration, no backfill.
       cross-side drift guard (server `constants/roles.js` mirrored here): `ROLES` = 3 entries,
       `ROLE_LABELS[reception] === 'Accueil'`, and `canSeeRoute` pins the reception scope to
       `/`, `/planning`, `/account` only.
+- [x] `server/src/plugins/hourly-resources/tests/visit-window-and-roles.unit.test.js` (rule 17,
+      2026-11-13) — the outside visit's mini SAS: the window D 00:00 → D+1 04:00, reception opens and
+      commits inside it then reads only, door money only, a paid line / refund / « Client absent »
+      403 `ADMIN_ONLY`, the plugin's reception routes, the payload's allowed actions (7).
+- [x] `tests/reception-sas-paid-line-refusal.unit.test.js` (rule 18, 2026-11-16) — a reception
+      account's SAS commit offering a paid line answers `{ error, code }` without the amount and
+      writes nothing even forced (`toReceptionSasCommit` drops `forceOverpayment`); the admin's
+      commit names the amount and, forced, opens the obligation; _(2026-11-16, loop t8)_ the refusal keeps
+      `overpaymentKeys` and nothing else (A8-2); the departure commit offering the paid recalled line is refused the same
+      way, forced too, and the unpaid line is offered freely (A8-3); an offered paid line owed back is `offerLocked` for
+      reception (not for the admin) in the arrival and departure previews, a reception commit un-offering it answers 409
+      `LINE_OWED` without amount and writes nothing, keeping it offered goes through, the admin's un-offer closes the
+      obligation (A8-1) (6).
+- [x] `tests/reception-sas-owed-keys.unit.test.js` (rule 18, 2026-11-16, loop t9 A9-3 / A9-4) — a reception
+      commit refused `LINE_OWED` names the locked lines' recap keys (`owedKeys`, no amount) (1).
 
 ### Client unit tests (vitest)
+- [x] `plugins/sas/__tests__/ReservationSasDialog.reception-paid-line.test.jsx` (rule 18,
+      2026-11-16) — the refusal reads « Ligne déjà payée : à voir avec l’administrateur. », inline
+      and as a toast, with no confirmation; _(2026-11-16, loop t8 A8-2)_ a refusal naming one of two offered lines
+      (`overpaymentKeys`) puts only that one back to billed, and the next « Valider » sends the other still offered (2).
+- [x] `plugins/sas/__tests__/ReservationSasDialog.reception-owed-keys.test.jsx` (rule 18, 2026-11-16, loop t9 A9-4) — a
+      `LINE_OWED` refusal puts exactly the `owedKeys` lines back to offered (1).
 - [x] `constants/__tests__/roles.test.js` (extended) — `canSeeRoute` admits reception on
       `/`, `/planning`, `/account` **only**; reception denied `/finance`, `/clients`,
       `/comptabilite`, `/settings`, `/devis`, `/emails`, `/calendar`; admin+reception → admin scope.

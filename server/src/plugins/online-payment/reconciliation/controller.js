@@ -7,12 +7,17 @@
  */
 
 const { buildProposals, classify, DEFAULT_PATTERNS, DEFAULT_BATCH_PLATFORMS } = require('./matcher');
-const { stateOfReceipt, fixText, isGap, euros } = require('./receiptStates');
-const { expectedReceipts } = require('./expectedReceipts');
+const { stateOfReceipt, trancheDaysLate, fixText, isGap, euros } = require('./receiptStates');
+const { expectedReceipts, expectedReceiptsOfReservation, RESERVATION_SQL, installmentsReader, settlementsReader } = require('./expectedReceipts');
+const { cardCandidates, salesSince, sourcesOfSales } = require('./mollieCardSources');
 const { ficheCredits, creditReceipts, anchorOf } = require('./ficheCredits');
 const { allocateFifo, summarize, validatePairs } = require('./allocation');
 const { runAutoConfirm } = require('./autoConfirm');
 const { decorateRows } = require('./deadlineDecorator');
+const { settlementReferenceOf, isMollieCredit } = require('./mollieSettlements');
+const { addDays: addDaysIso, splitIdOf, PAID_LINK_FILTER } = require('./molliePaymentSplits');
+const { trancheView, scheduleView, TRANCHE_LABELS, immediateShareLabel, percentLabel } = require('./mollieTranches');
+const { mollieJournal } = require('./mollieJournal');
 const { randomUUID } = require('crypto');
 const sdk = require('../../sdk');
 
@@ -22,6 +27,8 @@ const BATCH_LOOKBACK_DAYS = 7;
 const shiftDay = (iso, days) => new Date(Date.parse(`${iso}T12:00:00Z`) + days * 86400000).toISOString().slice(0, 10);
 
 const MIN_READ_GAP_MS = 60 * 1000;
+const JOURNAL_CACHE_MS = 5 * 1000;
+const RECENT_DAYS = 30;
 const CREDIT_WINDOW_DAYS = 31;
 const MAX_BATCH_CREDITS = 10;
 const FILTERS = ['gaps', 'proposed', 'unmatched', 'reconciled', 'auto'];
@@ -33,7 +40,30 @@ const { day } = require('./dates');
 const frDate = (iso) => (day(iso) ? `${iso.slice(8, 10)}/${iso.slice(5, 7)}` : '');
 const addDays = (iso, n) => new Date(Date.parse(`${iso}T00:00:00Z`) + n * 86400000).toISOString().slice(0, 10);
 const keyOf = (r) => `${r.reservationId}|${r.ledgerKey}`;
+// Rule 13 — late whether or not a proposal waits: the state may be « À confirmer », the tranche is late all the same.
+const isLateReserve = (i) => Boolean(i.mollie) && i.mollie.tranche === 'retenue' && Boolean(i.mollie.late);
 const parseJson = (raw, fallback) => { try { return raw ? JSON.parse(raw) : fallback; } catch { return fallback; } };
+
+// Rule 12 — the identifiers of a credit: Qonto's transaction id, and for Mollie the settlement reference and the payment.
+const refsOf = (t, molliePayment = null) => ({
+  qonto: t.qontoReference || (t.id ? String(t.id) : null),
+  mollieSettlement: isMollieCredit(t) ? settlementReferenceOf(t) : null,
+  molliePayment,
+});
+const bankSide = (t, molliePayment = null) => ({
+  transactionId: t.id, amountCents: t.amountCents, date: day(t.settledAt), dateLabel: frDate(t.settledAt),
+  counterparty: t.counterpartyName || t.label || '', reference: t.reference || t.note || '',
+  refs: refsOf(t, molliePayment),
+});
+
+// Rule 4 — the one definition of a tranche's words and lateness, shared by the whole pass and the per-fiche read.
+const mollieMeta = (r, lines, today) => {
+  const daysLate = lines.length === 0 ? trancheDaysLate(r, today) : 0;
+  return {
+    ...r.mollie, label: TRANCHE_LABELS[r.mollie.tranche](r.mollie), baseKey: r.baseKey, expectedDateLabel: frDate(r.expectedDate),
+    late: daysLate > 0, daysLate: daysLate > 0 ? daysLate : 0,
+  };
+};
 
 /**
  * @param {object} deps
@@ -47,6 +77,9 @@ const parseJson = (raw, fallback) => { try { return raw ? JSON.parse(raw) : fall
  * @param {() => boolean} deps.qontoConfigured  the Qonto credentials are there (rule 50: the job waits for them)
  * @param {Function} deps.withQonto      `(fn) → Promise`
  * @param {object} deps.core             `{ buildLedger, parseGroup, listLinks, platformDisplay, todayIso }`
+ * @param {object} [deps.splits]         the Mollie splits model (`sync`, `forLink`, `forSource`) — specs/mollie-rolling-reserve-and-incoming-payments.md rule 1
+ * @param {object} [deps.mollieSettlements] the settlements model (`byReference`) — rule 10
+ * @param {object} [deps.mollie]         the optional Mollie connection (`status`, `sync`) — rules 14-17
  */
 // Hosting-h2 rule 68, reading of 2026-11-05 — the routes' wrap answers a throw with a 500: what `String()` cannot read stops
 // here, and every other value keeps the refusal it always had.
@@ -60,8 +93,10 @@ const listRead = (list) => !Array.isArray(list) || list.every(isScalar);
 const unknownReservation = () => ({ status: 404, body: { error: 'Réservation introuvable.', code: 'UNKNOWN_RESERVATION' } });
 const unknownTransaction = () => ({ status: 404, body: { error: 'Virement introuvable.', code: 'UNKNOWN_TRANSACTION' } });
 
-function createReconciliationController({ db, settings, transactions, model, writer, read, connected, qontoConfigured, withQonto, core }) {
+function createReconciliationController({ db, settings, transactions, model, writer, read, connected, qontoConfigured, withQonto, core, splits = null, mollieSettlements = null, mollie = null }) {
   let lastAttemptAt = 0;
+  // One computed pass serves the journal of every month of a request (the synthesis asks month after month); any write drops it.
+  let journalCache = null;
 
   const startDateOf = (today) => {
     const stored = day(settings.get('reconciliationStartDate'));
@@ -69,6 +104,69 @@ function createReconciliationController({ db, settings, transactions, model, wri
     settings.set('reconciliationStartDate', today);
     return today;
   };
+
+  /**
+   * Rule 1 — what a read sees of the splits: the stored one, else a PROVISIONAL one derived in memory (same formula, the
+   * settings in force now, never stored) for a payment seen paid with no `reservation.paid` event yet — a complement
+   * link ended `noop`, a basket link, a double payment, a card taken on site. The sync stores the real one later.
+   */
+  const splitReaders = (cards = new Map()) => (splits ? {
+    splitFor: (link) => splits.forLink(link.id) || splits.provisionalOfLink(link, settings),
+    sourceSplit: (type, key) => splits.forSource(type, key) || cards.get(splitIdOf(type, key)) || null,
+  } : { splitFor: undefined, sourceSplit: undefined });
+
+  /** Rule 32 — the paid links of sales outside a stay (`saleRef`, no stay) paid on or after `startDate` (a Paris day). */
+  function paidSaleLinks(startDate) {
+    return db.prepare(`SELECT l.* FROM payment_links l WHERE l.saleRef IS NOT NULL AND l.reservationId IS NULL AND ${PAID_LINK_FILTER} ORDER BY l.paidAt, l.id`).all()
+      .filter((l) => (day(l.paidAt) || '') >= startDate);
+  }
+
+  /** The provisional splits of the card payments recorded on site (from « CB sur place via Mollie depuis »), keyed by split id. */
+  function provisionalCards({ rows, startDate, today, only = null }) {
+    const cards = new Map();
+    const since = splits ? day(settings.get('mollieCardOnSiteSince')) : null;
+    if (!since) return cards;
+    const { settlementsOf } = settlementsReader(db);
+    cardCandidates({ rows, linksOf: core.listLinks, installmentsOf: installmentsReader(db, core.listInstallments), settlementsOf, startDate, today })
+      .filter((c) => (only == null || Number(c.reservationId) === Number(only)) && day(c.paidAt) && day(c.paidAt) >= since)
+      .forEach((c) => {
+        const row = splits.provisional(c, settings);
+        if (row) cards.set(splitIdOf(c.sourceType, c.sourceKey), row);
+      });
+    return cards;
+  }
+
+  /**
+   * Rule 1 — the split of every paid link, and of every card payment taken on site (from « CB sur place via Mollie
+   * depuis »), stored once with the settings of that moment. The ONLY writer of the splits besides the Mollie read: a
+   * reading path never calls it (specs/mollie-rolling-reserve-and-incoming-payments.md rule 1, « no write on a read »).
+   */
+  function splitsSync({ startDate, today }) {
+    lastSplitsSyncAt = Date.now();
+    let candidates = [];
+    let scope = null;
+    if (day(settings.get('mollieCardOnSiteSince'))) {
+      const rows = db.prepare(`${RESERVATION_SQL} ORDER BY r.endDate, r.id`).all(startDate);
+      const { settlementsOf } = settlementsReader(db);
+      candidates = cardCandidates({
+        rows, linksOf: core.listLinks, installmentsOf: installmentsReader(db, core.listInstallments), settlementsOf, startDate, today,
+      });
+      scope = { reservationIds: new Set(rows.map((r) => Number(r.id))), salesFrom: startDate, salesTo: today };
+    }
+    return splits.sync({ settings, candidates, scope });
+  }
+
+  // A page that lists the reconciliation brings the splits up to date when a paid link has none yet, or every few minutes
+  // (an on-site card payment has no event). The fiche, the quote preview and the dashboard tile never do: they read.
+  const SPLITS_SYNC_EVERY_MS = 5 * 60 * 1000;
+  let lastSplitsSyncAt = 0;
+  const freshenSplitsNow = () => { journalCache = null; lastSplitsSyncAt = 0; freshenSplits(); };
+  function freshenSplits() {
+    if (!splits || !day(settings.get('reconciliationStartDate'))) return;
+    if (Date.now() - lastSplitsSyncAt < SPLITS_SYNC_EVERY_MS && !splits.hasUnsplitLinks()) return;
+    const today = core.todayIso();
+    splitsSync({ startDate: day(settings.get('reconciliationStartDate')) || today, today });
+  }
 
   const matcherSettings = () => {
     const custom = parseJson(settings.get('reconciliationPlatformPatterns'), {});
@@ -84,8 +182,31 @@ function createReconciliationController({ db, settings, transactions, model, wri
       acquiringFee: fee,
       cardFeePercent: Number.isFinite(card) && card > 0 ? card : DEFAULT_CARD_FEE_PERCENT,
       commissionRates: rates,
+      settlements: mollieSettlements ? mollieSettlements.byReference() : new Map(),
     };
   };
+
+  const feeOf = (acquiringFee, grossCents) => Math.round(grossCents * (Number(acquiringFee.percent) || 0) / 100) + (Number(acquiringFee.fixedCents) || 0);
+  const acquiringFeeOf = () => parseJson(settings.get('reconciliationAcquiringFee'), null) || DEFAULT_ACQUIRING_FEE;
+
+  /**
+   * Rule 4 — the reserve counts from the immediate tranche's real bank date once it is reconciled (`immediateDayOf`).
+   * Rule 5 — the fees Mollie read from its settlements replace the estimate (the formula is only for a payment not read
+   * yet); only the immediate share bears fees: a release is paid whole (rule 15, tolerance 0).
+   */
+  function decorateMollieReceipts(baseReceipts, immediateDayOf, acquiringFee) {
+    const realFees = mollieSettlements && typeof mollieSettlements.realFees === 'function' ? mollieSettlements.realFees() : new Map();
+    return baseReceipts.map((r) => {
+      if (!r.mollie) return r;
+      if (r.mollie.tranche !== 'retenue') {
+        const fee = realFees.has(r.mollie.splitId) ? realFees.get(r.mollie.splitId) : feeOf(acquiringFee, r.mollie.paymentGrossCents);
+        return { ...r, feeCents: fee };
+      }
+      const immediate = immediateDayOf(r);
+      const at = immediate ? addDaysIso(immediate, r.mollie.holdDays) : r.expectedDate;
+      return { ...r, expectedDate: at, dueDate: at, feeCents: 0 };
+    });
+  }
 
   /** One full pass over stored data: receipts, credits, proposals, states. Never calls Qonto. */
   function compute() {
@@ -101,8 +222,15 @@ function createReconciliationController({ db, settings, transactions, model, wri
     const outside = model.outsideIds();
     const discarded = model.discardedKeys();
 
-    const receipts = expectedReceipts({
-      db, startDate, today, buildLedger: core.buildLedger, parseGroup: core.parseGroup, listLinks: core.listLinks, listInstallments: core.listInstallments,
+    // Rule 1 (second half) — the sales outside a stay that went through Mollie have receipts of their own.
+    const sales = splits ? salesSince(startDate, today) : [];
+    const { splitFor, sourceSplit } = splitReaders(provisionalCards({
+      rows: splits && day(settings.get('mollieCardOnSiteSince')) ? db.prepare(`${RESERVATION_SQL} ORDER BY r.endDate, r.id`).all(startDate) : [], startDate, today,
+    }));
+    // Rule 32 (loop t10 D10-2) — the paid links of sales outside a stay (no stay to list them under), from the reconciliation start.
+    const saleLinks = splits ? paidSaleLinks(startDate) : [];
+    const baseReceipts = expectedReceipts({
+      db, startDate, today, buildLedger: core.buildLedger, parseGroup: core.parseGroup, listLinks: core.listLinks, listInstallments: core.listInstallments, splitFor, sourceSplit, sales, saleLinks,
     });
 
     const allocatedOf = new Map();
@@ -115,6 +243,9 @@ function createReconciliationController({ db, settings, transactions, model, wri
       linesByReceipt.get(k).push({ ...l, settledAt: tx ? tx.settledAt : null });
     });
 
+    const receipts = decorateMollieReceipts(baseReceipts, (r) => (linesByReceipt.get(`${r.reservationId}|${r.baseKey}#immediat`) || [])
+      .map((l) => day(l.settledAt)).filter(Boolean).sort().pop(), cfg.acquiringFee);
+
     const matchable = txRows.filter((t) => t.currency === 'EUR' && t.settledAt && !outside.has(t.id))
       .map((t) => ({ ...t, remainingCents: t.amountCents - (allocatedOf.get(t.id) || 0) }))
       .filter((t) => t.remainingCents > 0);
@@ -123,7 +254,9 @@ function createReconciliationController({ db, settings, transactions, model, wri
       const lines = linesByReceipt.get(keyOf(r)) || [];
       const covered = lines.reduce((s, l) => s + l.amountCents, 0);
       const isLink = r.channel === 'link';
-      const open = isLink ? (lines.length > 0 ? 0 : r.expectedCents) : Math.max(0, r.expectedCents - covered);
+      // A Mollie tranche arrives in one credit, short of its fees at most (rule 5): one line settles it, like a link.
+      const isMollie = Boolean(r.mollie);
+      const open = isLink || isMollie ? (lines.length > 0 ? 0 : r.expectedCents) : Math.max(0, r.expectedCents - covered);
       // A platform payout the fiche does not carry yet has no expected amount: the credit is the payout (v1 rule 36).
       const unbounded = r.channel.startsWith('platform:') && !r.payoutRecorded;
       const expectedBank = isLink ? netOf(r.expectedCents) : r.expectedCents;
@@ -133,14 +266,19 @@ function createReconciliationController({ db, settings, transactions, model, wri
       return {
         ...r, key: keyOf(r), openCents: open, order, anchor: anchorOf(r), unbounded,
         fitCents: r.grossCents, capCents: unbounded ? unboundedCap : open, checkCap: !isLink,
-        needCents: unbounded ? unboundedCap : Math.max(0, expectedBank - covered), tolerance: isLink ? Math.max(1, lines.length + 1) : 0,
-        alreadyCovered: !unbounded && r.expectedCents > 0 && covered >= r.expectedCents,
+        needCents: unbounded ? unboundedCap : Math.max(0, expectedBank - covered), tolerance: isMollie ? (r.feeCents || 0) : (isLink ? Math.max(1, lines.length + 1) : 0),
+        alreadyCovered: isMollie ? lines.length > 0 : !unbounded && r.expectedCents > 0 && covered >= r.expectedCents,
       };
     });
     // specs/resource-booking-pricing-and-invoicing.md rule 20 — the card sales made outside any stay, over the days the
     // credits cover.
     const days = matchable.map((t) => String(t.settledAt).slice(0, 10)).sort();
-    const standalone = days.length ? standaloneSales.list({ from: shiftDay(days[0], -BATCH_LOOKBACK_DAYS), to: days[days.length - 1] }) : [];
+    // A sale that went through Mollie (rule 1) is in a Mollie credit, never in the day's card batch.
+    // Rule 33 — the same source per sale as the receipts: each invoice number on one day of its document.
+    const throughMollie = (source) => Boolean(sourceSplit && sourceSplit(source.sourceType, source.sourceKey));
+    const standalone = days.length
+      ? sourcesOfSales(standaloneSales.list({ from: shiftDay(days[0], -BATCH_LOOKBACK_DAYS), to: days[days.length - 1] }), today)
+        .filter((source) => !throughMollie(source)).map((source) => source.sale) : [];
     const { byTransaction } = buildProposals({ transactions: matchable, receipts: openReceipts, discarded, settings: cfg, standalone });
 
     const proposalsByReceipt = new Map();
@@ -154,10 +292,6 @@ function createReconciliationController({ db, settings, transactions, model, wri
       }));
     });
 
-    const bankSide = (t) => ({
-      transactionId: t.id, amountCents: t.amountCents, date: day(t.settledAt), dateLabel: frDate(t.settledAt),
-      counterparty: t.counterpartyName || t.label || '', reference: t.reference || t.note || '',
-    });
     const receiptByKey = new Map(receipts.map((r) => [keyOf(r), r]));
 
     // Rule 19 — the other receipts confirmed together with a line (same credit, same group).
@@ -187,8 +321,9 @@ function createReconciliationController({ db, settings, transactions, model, wri
         state: st.state, stateLabel: st.stateLabel, tone: st.tone, isGap: isGap(st.state),
         gapCents: st.gapCents, receivedCents: st.receivedCents,
         fixText: fixText({ ...st, receipt: r }),
+        mollie: r.mollie ? mollieMeta(r, lines, today) : null,
         bank: lines.map((l) => ({
-          ...bankSide(txById.get(l.transactionId) || { id: l.transactionId, amountCents: l.amountCents, settledAt: l.settledAt }),
+          ...bankSide(txById.get(l.transactionId) || { id: l.transactionId, amountCents: l.amountCents, settledAt: l.settledAt }, r.mollie ? r.mollie.molliePaymentId : null),
           allocatedCents: l.amountCents, auto: Number(l.auto) === 1, alsoCovers: coveredWith(l),
         })),
         allocatedCents: lines.reduce((sum, l) => sum + l.amountCents, 0),
@@ -224,12 +359,14 @@ function createReconciliationController({ db, settings, transactions, model, wri
         if (outside.has(t.id)) status = 'outside';
         else if (remaining <= 0) status = 'reconciled';
         else if (slot && slot.proposal) status = 'proposed';
-        else if (cls.kind === 'platform' || cls.kind === 'acquiring') status = 'unmatched';
+        else if (cls.kind === 'platform' || cls.kind === 'mollie') status = 'unmatched';
         else status = 'other';
         return {
           ...bankSide(t), remainingCents: Math.max(0, remaining), currency: t.currency, status, kind: cls.kind,
           platform: cls.platform || null,
-          note: status === 'unmatched' ? 'Versement attendu d\'une plateforme qu\'aucune fiche ne réclame : fiche manquante ou montant mal saisi.' : null,
+          note: status === 'unmatched'
+            ? (cls.kind === 'mollie' ? 'Versement Mollie qu\'aucun paiement par carte ne couvre : lien payé manquant ou montant différent.'
+              : 'Versement attendu d\'une plateforme qu\'aucune fiche ne réclame : fiche manquante ou montant mal saisi.') : null,
         };
       });
 
@@ -339,6 +476,8 @@ function createReconciliationController({ db, settings, transactions, model, wri
 
   /** Marks the receipt received when its confirmed lines now cover it (v1 rules 34–37). */
   function writeReceipt(data, receipt, { user, auto = false, netOf }) {
+    // Rule 11 — a Mollie tranche is already paid on the fiche (the webhook marked its échéance): confirming stores the lines only.
+    if (receipt.mollie) return { written: false, reason: 'mollie' };
     const lines = model.linesOfReceipt(receipt.reservationId, receipt.ledgerKey)
       .map((l) => ({ ...l, settledAt: (data.txById.get(l.transactionId) || {}).settledAt }));
     const isLink = receipt.channel === 'link';
@@ -351,6 +490,7 @@ function createReconciliationController({ db, settings, transactions, model, wri
   }
 
   function writePairs({ data, list, user, auto = false }) {
+    journalCache = null;
     const marked = [];
     const notWritten = [];
     const cfg = matcherSettings();
@@ -378,6 +518,13 @@ function createReconciliationController({ db, settings, transactions, model, wri
   }
 
   const lastError = () => parseJson(settings.get('reconciliationLastError'), null);
+
+  /** Rules 16-17 — the Mollie settlements of the stored credits; a failure is kept for the card and never stops the pass. */
+  async function syncMollie() {
+    if (!mollie || !mollie.configured()) return;
+    const bankAccountId = settings.get('reconciliationBankAccountId');
+    await mollie.sync({ credits: bankAccountId ? transactions.listForAccount(bankAccountId) : [], splits });
+  }
   const SYSTEM_USER = Object.freeze({ id: null, role: 'admin' });
 
   /** Rules 20–21 — after a read, the certain matches confirm themselves (unless switched off). */
@@ -404,6 +551,7 @@ function createReconciliationController({ db, settings, transactions, model, wri
     lastError: lastError(),
     startDate: data.startDate,
     counts: data.counts,
+    mollie: mollie ? mollie.status() : null,
   });
 
   const VIEWS = {
@@ -441,6 +589,42 @@ function createReconciliationController({ db, settings, transactions, model, wri
     return { ...sumOf(all.filter((p) => p.confidence !== 'verifier')), toVerify: sumOf(all.filter((p) => p.confidence === 'verifier')), withToVerify: sumOf(all), leftOut: needShares.size };
   }
 
+  /**
+   * Rules 18-19 — the Mollie tranches of ONE fiche as reconciliation items (the fields the ledger's lines read): its own
+   * receipts and its own bank lines, no proposal. The state is the same as the whole pass gives, bar « À confirmer »,
+   * which the ledger never shows (a tranche waiting for a click is still in transit or late).
+   */
+  function mollieItemsOfReservation(reservationId) {
+    const today = core.todayIso();
+    const startDate = day(settings.get('reconciliationStartDate'));
+    const row = splits && day(settings.get('mollieCardOnSiteSince')) ? db.prepare(`${RESERVATION_SQL} AND r.id = ?`).get(startDate, Number(reservationId)) : null;
+    const { splitFor, sourceSplit } = splitReaders(provisionalCards({ rows: row ? [row] : [], startDate, today, only: reservationId }));
+    const base = expectedReceiptsOfReservation({
+      db, reservationId, startDate, today, buildLedger: core.buildLedger, parseGroup: core.parseGroup, listLinks: core.listLinks,
+      listInstallments: core.listInstallments, splitFor, sourceSplit,
+    });
+    if (!base || !base.some((r) => r.mollie)) return [];
+    const linesOf = new Map();
+    const linesFor = (r) => {
+      const k = keyOf(r);
+      if (!linesOf.has(k)) {
+        linesOf.set(k, model.linesOfReceipt(r.reservationId, r.ledgerKey).map((l) => ({ ...l, settledAt: (transactions.get(l.transactionId) || {}).settledAt })));
+      }
+      return linesOf.get(k);
+    };
+    const receipts = decorateMollieReceipts(base.filter((r) => r.mollie),
+      (r) => linesFor({ reservationId: r.reservationId, ledgerKey: `${r.baseKey}#immediat` }).map((l) => day(l.settledAt)).filter(Boolean).sort().pop(), acquiringFeeOf());
+    return receipts.map((r) => {
+      const lines = linesFor(r);
+      const st = stateOfReceipt({ receipt: r, lines, hasProposal: false, today });
+      return {
+        key: keyOf(r), ledgerKey: r.ledgerKey, expectedCents: r.expectedCents, expectedDate: r.expectedDate, state: st.state,
+        mollie: mollieMeta(r, lines, today),
+        bank: lines.map((l) => bankSide(transactions.get(l.transactionId) || { id: l.transactionId, amountCents: l.amountCents, settledAt: l.settledAt }, r.mollie.molliePaymentId)),
+      };
+    });
+  }
+
   const notConnected = () => ({ status: 409, body: { error: 'Qonto n\'est pas connecté.', code: 'QONTO_NOT_CONNECTED' } });
 
   return {
@@ -451,6 +635,7 @@ function createReconciliationController({ db, settings, transactions, model, wri
       // A read is answered, not refused: the page draws « Qonto n'est pas connecté » from this body, and a browser
       // logs every 4xx answer as an error in its console (shadow trial of 4.0.0). The writes below still answer 409.
       if (!connected()) return { status: 200, body: { connected: false, code: notConnected().body.code, message: notConnected().body.error } };
+      freshenSplits();
       const pick = VIEWS[view] || VIEWS.todo;
       const data = compute();
       const known = FILTERS.includes(filter) ? filter : null;
@@ -471,7 +656,7 @@ function createReconciliationController({ db, settings, transactions, model, wri
       lastAttemptAt = now;
       compute();
       const result = await read();
-      if (result && result.ok) afterRead();
+      if (result && result.ok) { freshenSplitsNow(); await syncMollie(); afterRead(); }
       return this.list({ view, filter });
     },
 
@@ -481,7 +666,7 @@ function createReconciliationController({ db, settings, transactions, model, wri
       if (!connected() || !qontoConfigured() || !day(settings.get('reconciliationStartDate'))) return { skipped: true };
       lastAttemptAt = Date.now();
       const result = await read();
-      if (result && result.ok) afterRead();
+      if (result && result.ok) { freshenSplitsNow(); await syncMollie(); afterRead(); }
       return result;
     },
 
@@ -579,6 +764,7 @@ function createReconciliationController({ db, settings, transactions, model, wri
 
     /** DELETE /links/:transactionId — « Défaire » (rule 38). */
     undo({ transactionId, user }) {
+      journalCache = null;
       if (!connected()) return notConnected();
       const refusal = writer.undoRefusal({ transactionId: String(transactionId) });
       if (refusal) return refusal;
@@ -596,11 +782,13 @@ function createReconciliationController({ db, settings, transactions, model, wri
     discard({ transactionId, reservationId, ledgerKey }) {
       if (!connected()) return notConnected();
       // A garbage row here is inert but permanent.
-      const id = typeof reservationId === 'string' && /^[1-9]\d*$/.test(reservationId) ? Number(reservationId) : reservationId;
-      if (!isName(transactionId) || !isName(ledgerKey) || !Number.isSafeInteger(id) || id <= 0) return wrongShape();
+      // Reservation id 0 is a sale outside a stay (rule 1): it has no reservation row, its receipt is the proof it exists.
+      const id = typeof reservationId === 'string' && /^(0|[1-9]\d*)$/.test(reservationId) ? Number(reservationId) : reservationId;
+      if (!isName(transactionId) || !isName(ledgerKey) || !Number.isSafeInteger(id) || id < 0) return wrongShape();
       // Rule 68 reading (audit R42-EXT-L1) — a stay or a credit that names nothing is refused, nothing stored: a pair kept
       // for a stay id not yet given hid that stay's proposal once it was created.
-      if (!db.prepare('SELECT 1 FROM reservations WHERE id = ?').get(id)) return unknownReservation();
+      const known = id === 0 ? compute().receiptsByKey.has(`0|${ledgerKey}`) : Boolean(db.prepare('SELECT 1 FROM reservations WHERE id = ?').get(id));
+      if (!known) return unknownReservation();
       if (!transactions.get(transactionId)) return unknownTransaction();
       const txIdsOf = (p) => (p.parts ? p.parts.map((x) => x.transactionId) : [p.transactionId]);
       const shown = Object.values(compute().byTransaction).map((slot) => slot.proposal)
@@ -678,14 +866,108 @@ function createReconciliationController({ db, settings, transactions, model, wri
     attention() {
       if (!connected() || !day(settings.get('reconciliationStartDate'))) return { gaps: 0, unmatched: 0, items: [] };
       const data = compute();
-      // The home's « Échéances » card already shows a late receipt (rule 22): it is not counted twice.
-      const gaps = data.items.filter((i) => i.isGap && i.state !== 'late');
+      // The home's « Échéances » card already shows a late receipt (rule 22): it is not counted twice. A Mollie tranche
+      // is not on that card, so a late immediate share stays here; a late reserve has its own subject (rule 13).
+      const gaps = data.items.filter((i) => i.isGap && !isLateReserve(i) && (i.state !== 'late' || i.mollie));
       return {
         gaps: gaps.length, unmatched: data.counts.unmatched,
         items: gaps.slice(0, 8).map((i) => ({
-          key: i.key, reservationId: i.reservation.id, clientName: i.reservation.clientName, label: i.label, stateLabel: i.stateLabel, fixText: i.fixText,
+          key: i.key, reservationId: i.reservation.id, saleKey: i.reservation.saleKey || null, clientName: i.reservation.clientName, label: i.label,
+          stateLabel: i.stateLabel, fixText: i.fixText,
         })),
       };
+    },
+
+    /** Rule 1 — a link seen paid is split at that moment, with the settings of that moment (never moved afterwards). */
+    syncSplits() {
+      const today = core.todayIso();
+      journalCache = null;
+      return splits ? splitsSync({ startDate: day(settings.get('reconciliationStartDate')) || today, today }) : 0;
+    },
+
+    /**
+     * Rule 13 — « Retenue Mollie non reçue »: one item per fiche (or per sale outside a stay), with the OLDEST date a late
+     * reserve of it was expected and the whole line the home prints (`line`), so the client only draws.
+     */
+    reserveAttention() {
+      if (!connected() || !day(settings.get('reconciliationStartDate'))) return { count: 0, items: [] };
+      const byStay = new Map();
+      compute().items.filter(isLateReserve).forEach((i) => {
+        // A sale outside a stay has no fiche: it is its own subject, named by its client or its label.
+        const subject = i.reservation.saleKey ? `sale:${i.reservation.saleKey}` : i.reservation.id;
+        const found = byStay.get(subject) || {
+          reservationId: i.reservation.id, saleKey: i.reservation.saleKey || null, clientName: i.reservation.clientName, saleLabel: i.reservation.saleLabel || null, amountCents: 0, expectedDate: i.expectedDate,
+          expectedDateLabel: i.mollie.expectedDateLabel,
+        };
+        found.amountCents += i.expectedCents;
+        if (i.expectedDate < found.expectedDate) { found.expectedDate = i.expectedDate; found.expectedDateLabel = i.mollie.expectedDateLabel; }
+        byStay.set(subject, found);
+      });
+      const items = [...byStay.values()].sort((a, b) => a.expectedDate.localeCompare(b.expectedDate)).map((item) => ({
+        ...item, amount: item.amountCents / 100, amountLabel: euros(item.amountCents),
+        line: `${item.clientName} · ${euros(item.amountCents)} · attendue le ${item.expectedDateLabel}`,
+      }));
+      return { count: items.length, items };
+    },
+
+    /**
+     * Rules 18-19 — the dated tranches of a fiche's paid links, by ledger row, and its recap line. Reads ONE fiche (its
+     * receipts and its own bank lines): the fiche's GET never runs the whole reconciliation pass, nor writes.
+     */
+    ledgerTranches(reservationId) {
+      if (!connected() || !day(settings.get('reconciliationStartDate'))) return null;
+      const mine = mollieItemsOfReservation(Number(reservationId));
+      if (mine.length === 0) return null;
+      const views = mine.map((i) => ({ baseKey: i.mollie.ledgerRow, view: trancheView(i) }));
+      const rows = {};
+      views.filter(({ baseKey }) => baseKey).forEach(({ baseKey, view }) => { rows[baseKey] = [...(rows[baseKey] || []), view]; });
+      return { rows, schedule: scheduleView(views.map((v) => v.view)) };
+    },
+
+    /** Rule 23 — what Mollie still owes (or, with `recent`, paid in the last 30 days), as « Versements à venir » items. */
+    incomingItems({ recent = false } = {}) {
+      if (!connected() || !day(settings.get('reconciliationStartDate'))) return [];
+      const data = compute();
+      const since = addDaysIso(data.today, -RECENT_DAYS);
+      return data.items.filter((i) => i.mollie).flatMap((i) => {
+        const last = i.bank[i.bank.length - 1] || null;
+        if (recent ? !(last && last.date >= since) : Boolean(last)) return [];
+        const reserve = i.mollie.tranche === 'retenue';
+        return [{
+          key: `mollie:${i.key}`,
+          kind: reserve ? 'mollieReserve' : 'mollieTransit',
+          kindLabel: reserve ? 'Retenue Mollie' : 'Mollie en transit',
+          icon: reserve ? 'hourglass' : 'card',
+          natureLabel: reserve ? 'Retenue Mollie' : immediateShareLabel(i.mollie),
+          natureDetail: reserve
+            ? `${percentLabel(i.mollie.reservePercent)} retenus pendant ${i.mollie.holdDays} jours · ${i.label.split(' · ')[0]}`
+            : `Versement immédiat de Mollie · ${i.label.split(' · ')[0]}`,
+          reservationId: i.reservation.id,
+          // A sale outside a stay has no fiche: the table groups it under its client, or under its label.
+          sale: i.reservation.saleKey ? { key: i.reservation.saleKey, clientName: i.reservation.hasClient ? i.reservation.clientName : '', label: i.reservation.saleLabel } : null,
+          amountCents: i.expectedCents,
+          expectedDate: i.expectedDate,
+          receivedDate: last ? last.date : null,
+          // Rule 13 — past its window without a credit: late whether or not a proposal waits for the operator's click.
+          late: i.mollie.late,
+          refs: last ? last.refs : { qonto: null, mollieSettlement: null, molliePayment: null },
+        }];
+      });
+    },
+
+    /** Rules 28-31 — the Mollie facts of a month for the accounting export (one pass serves the months asked in a row). */
+    journal({ from, to }) {
+      if (!connected() || !day(settings.get('reconciliationStartDate'))) return { entries: [], unattached: [], clearing: null };
+      const now = Date.now();
+      const stamp = JSON.stringify(db.prepare(`SELECT
+        (SELECT COUNT(*) || ':' || COALESCE(MAX(id), 0) FROM bank_reconciliation_lines) AS lines,
+        (SELECT COUNT(*) || ':' || COALESCE(MAX(fetchedAt), '') FROM bank_transactions) AS credits,
+        (SELECT COUNT(*) || ':' || COALESCE(MAX(rowid), 0) FROM mollie_payment_splits) AS splits,
+        (SELECT COUNT(*) || ':' || COALESCE(MAX(fetchedAt), '') FROM mollie_settlements) AS settlements`).get());
+      if (!journalCache || journalCache.stamp !== stamp || now - journalCache.at > JOURNAL_CACHE_MS) {
+        journalCache = { at: now, stamp, data: compute(), settlements: mollieSettlements ? mollieSettlements.byReference() : new Map() };
+      }
+      return mollieJournal(journalCache.data, { from, to }, journalCache.settlements);
     },
 
     /** « Effacer aussi ses données » (rule 24). */

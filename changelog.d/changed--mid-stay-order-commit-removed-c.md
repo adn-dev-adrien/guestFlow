@@ -1,1 +1,1 @@
-- Le dernier module de commande de l'ancienne boutique est supprimé : toutes les ventes (fiche, sas, boutique) passent par le service de vente unique. Rien ne change pour l'équipe ni pour les clients.
+- The last order module of the old shop is removed: every sale (fiche, SAS, shop) goes through the single sale service. Nothing changes for the team or for guests.

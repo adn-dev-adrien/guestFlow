@@ -7,14 +7,15 @@
  */
 
 const { roundMoney } = require('../money');
-const { resolveMidStaySplit, baselineWithDerivedLines } = require('../settlement');
+const { resolveMidStaySplit, baselineWithDerivedLines, lessRefundedCredit, withComplementClaims } = require('../settlement');
 
 const step = {
   id: 'midStay',
   requires: [
     'endOfStayComplementSettled', 'extraGuestSurcharge', 'finalOptionLines', 'frozenMidStayLines',
     'midStaySettledNotes', 'optionsTotal', 'resourceLines', 'resourcesTotal', 'totalPrice', 'clock', 'extrasDiscountCents',
-    'accommodationDiscountShareCents', 'bookingId', 'lockedOptionLines',
+    'accommodationDiscountShareCents', 'bookingId', 'lockedOptionLines', 'refundedNoteCredit', 'complementClaims',
+    'refundedComplementCredit',
   ],
   provides: [
     'accommodationBaseTotal', 'midStayExtras', 'midStayForced', 'midStayRemainingTotal', 'midStaySettledTotal',
@@ -51,12 +52,13 @@ const step = {
     // pre-arrival split (`midStayUnforced`) and out of the arrival complement (`midStayForced`) below.
     // Once that complement is collected the split is frozen on the STORED lines: the collected money
     // still has to be carved out of the other buckets, but it is never re-priced.
-    const midStayExtras = resolveMidStaySplit([...finalOptionLines, ...resourceLines], {
+    // Rule 110 (loop t7 B7-1) — the note credit (rule 104) is the note money no line claims less what a refund already gave back.
+    const midStayExtras = withComplementClaims(lessRefundedCredit(resolveMidStaySplit([...finalOptionLines, ...resourceLines], {
       baseline: arrivalExtrasBaseline,
       settled: endOfStayComplementSettled,
       storedLines: frozenMidStayLines,
       notes: midStaySettledNotes,
-    });
+    }), ctx.refundedNoteCredit), { claims: ctx.complementClaims, refunded: ctx.refundedComplementCredit, lines: [...finalOptionLines, ...resourceLines] });
     // `midStayTotal` = everything sold during the stay → what leaves the frozen buckets. It splits in
     // two: what the notes already collected, and the remainder still due at check-out.
     const midStayTotal = roundMoney(midStayExtras.total);

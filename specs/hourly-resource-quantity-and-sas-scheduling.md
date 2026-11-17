@@ -7,7 +7,7 @@
 | **Created** | 2026-08-17 |
 | **Author** | Adrien |
 | **Related PR** | (link once opened) |
-| **Amendment** | 2026-11-10 — rules 36-38 (`heatFrom`, free minutes at the day rate, an app order's evening supplement), for `guest-app.md` rules 78-84 — **Draft** on `feature/guest-app-from-j7` |
+| **Amendment** | 2026-11-10 — rules 36-38 (`heatFrom`, free minutes at the day rate, an app order's evening supplement), for `guest-app.md` rules 78-84 — **Implemented** in pricing-components PR C (hourly-resources 1.8.0) |
 
 ---
 
@@ -743,7 +743,7 @@ Covered by automated tests but **not exercised by hand** — worth a pass on the
 ### Amendment 2026-11-10 (rules 36-38)
 
 Code in `server/src/plugins/hourly-resources/` (`availability.js`, `scheduler.js`, `hourlyPricing.js`,
-`schedulingModel.js`; plugin 1.6.0). Tests, one file each: `hourly-heat-from-now.unit.test.js` (rule 36: absent =
+`schedulingModel.js`; plugin 1.6.0, shipped with hourly-resources 1.8.0 in PR C). Tests, one file each: `hourly-heat-from-now.unit.test.js` (rule 36: absent =
 every existing fixture unchanged, J-5 arrival evening offered, same-day heat-up from now, warm path, `staff`),
 `hourly-free-minutes-day-rate.unit.test.js` (rule 37: day 0 €, evening = the supplement, straddling, locked line not
 re-priced), `hourly-order-supplement.unit.test.js` (rule 38: sold / unsold line, the recompute subtracts the order's

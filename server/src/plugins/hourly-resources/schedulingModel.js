@@ -121,10 +121,19 @@ function createModel(database) {
    */
   function orderChargedFor(reservationId, resource) {
     if (!hasColumn('reservation_custom_options', 'orderRef')) return 0;
+    // Loop t2 N-6 — by the stable key the order gave the line (`evening:resource:<id>`), never by its label: a second supplement of the stay
+    // is numbered « … (2) » (pricing-components rule 94). A line written before the key existed is still read by its words.
+    const keyed = hasColumn('reservation_custom_options', 'fulfilmentRef');
+    const label = `${resource.name} — supplément soirée`;
     try {
-      const rows = database.prepare(`SELECT amount FROM reservation_custom_options
-                                      WHERE reservationId = ? AND orderRef LIKE 'order:%' AND description = ?`)
-        .all(Number(reservationId), `${resource.name} — supplément soirée`);
+      const rows = keyed
+        ? database.prepare(`SELECT amount FROM reservation_custom_options
+                             WHERE reservationId = ? AND orderRef LIKE 'order:%'
+                               AND (fulfilmentRef = ? OR (fulfilmentRef IS NULL AND description = ?))`)
+          .all(Number(reservationId), `evening:resource:${Number(resource.id)}`, label)
+        : database.prepare(`SELECT amount FROM reservation_custom_options
+                             WHERE reservationId = ? AND orderRef LIKE 'order:%' AND description = ?`)
+          .all(Number(reservationId), label);
       return round2(rows.reduce((sum, r) => sum + (Number(r.amount) || 0), 0));
     } catch { return 0; }
   }

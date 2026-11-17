@@ -634,7 +634,20 @@ Optional: a plugin that declares nothing reads « Actif ».
     `plugin-core-hardening-floor` holds it); hourly-resources and accounting-export range `^2.27.0`; `coreModuleHistory.json`
     records 2.27.0 (`vat`). Tests: `article-family-sdk.unit.test.js`, `plugin-core-hardening-floor.unit.test.js`,
     `sdk-v2-plugin-ranges.unit.test.js`.
-51. *(Added 2026-11-12, specs/pricing-components.md rules 10, 27, 31, 44-49, SDK 2.28.0.)* **A plugin sells through the same services as the
+    > _Amended 2026-11-15 (stabilisation loop t1, AS-3, AS-4; rule 54):_ v4.1.0 shipped SDK 2.27.0 without `vat` nor `ctx.articleFamily`; both are
+    > first shipped by 2.30.0, which `coreModuleHistory.json` records, the hardening floor holds (`ctx.articleFamily(` asks `^2.30.0`) and the SDK's
+    > comments say. The in-tree plugins that use them range `^2.31.0` or `^2.32.0`.
+51. *(Added 2026-11-16, specs/mollie-rolling-reserve-and-incoming-payments.md rules 18, 23, 28, SDK 2.29.0.)* **A plugin
+    tells the core what is still to arrive on the bank.** `ctx.ledgerBankTranches(({ reservationId }) → { rows: { [ledgerKey]:
+    [tranche] }, schedule } | null)` adds dated tranches under a paid row of the payments ledger and a recap line to the
+    money summary; `ctx.incomingPayments(({ recent }) → [item])` feeds « Versements à venir »; `ctx.journalEntries(({ from, to })
+    → { entries, unattached, clearing })` feeds the accounting export, which reads it through `coreModule('journalEntries')`
+    (`list`). One declaration per plugin each, synchronous, read only while the plugin is live; a provider that throws is
+    logged and skipped. A plugin that calls them asks for `sdk` `^2.29.0` (the hardening floor list holds it); `online-payment`
+    1.8.0 and `accounting-export` 1.3.0 range `^2.29.0`; `coreModuleHistory.json` records 2.29.0 (`journalEntries`). Tests:
+    `plugin-core-hardening-floor.unit.test.js`, `incoming-payments.unit.test.js`, `mollie-ledger-tranches.unit.test.js`,
+    `accounting-mollie-journal.unit.test.js`.
+52. *(Added 2026-11-12, specs/pricing-components.md rules 10, 27, 31, 44-49, SDK 2.30.0.)* **A plugin sells through the same services as the
     core, and declares the booking an article needs.** `coreModule('extraSale')` hands out the sale service (`quote`, `sell`,
     `changeLine`, `saleDetailOf`, `departureSalesOf`), `coreModule('saleDetail')` its read model, `coreModule('articles')` the head's reads
     (`read` prices one candidate line for a stay with no free unit spent, `unitsPerQuantity` the billed units of one quantity),
@@ -646,20 +659,60 @@ Optional: a plugin that declares nothing reads « Actif ».
     `ctx.slotAvailability({ slots(args), validate(args) })` declares the planning's availability, one per instance, handed out as
     `ctx.core.slotAvailability()`. `ctx.core.reservations.fromPlatform(reservationId, intake, { label, client, reuseByEmail })` is the platform booking port
     (`update` is the same save fed with a patch). Four events join `ctx.events.on` — `extraSale.sold`, `extraSale.lineMoved`, `extraSale.lineCancelled`,
-    `extraSale.refundOwed` — published after the sale commits (a plugin may not emit them); google-calendar 1.3.0 listens to the first three. hourly-resources 1.6.0, sas 1.10.0
-    and google-calendar 1.3.0 range `^2.28.0`; a plugin calling `ctx.articleFulfilment(` or
-    `ctx.slotAvailability(` asks for it (the hardening floor list holds both); `coreModuleHistory.json` records 2.28.0. Tests:
+    `extraSale.refundOwed` — published after the sale commits (a plugin may not emit them); google-calendar 1.3.0 listens to the first three. *(Reading of 2026-11-17, loop t10 A10-1:* the versions this branch ships are
+    hourly-resources 1.8.0 and sas 1.11.0, which range `^2.32.0`, and google-calendar 1.3.0, which ranges `^2.31.0`, all at or above 2.30.0;
+    hourly-resources 1.6.0 and sas 1.10.0 are v4.1.0's packages and range lower.) The floor is 2.30.0: a plugin calling `ctx.articleFulfilment(` or
+    `ctx.slotAvailability(` asks for it (the hardening floor list holds both); `coreModuleHistory.json` records 2.30.0. Tests:
     `article-fulfilment-contract`, `bath-fulfilment-contract`, `extra-sale-sas`, `plugin-core-hardening-floor`, `plugins-sdk-core-module-floor`.
-52. *(Added 2026-11-12, specs/pricing-components.md rule 38, SDK 2.29.0.)* **A plugin rounds through the shared money helpers.** `coreModule('money')`
+53. *(Added 2026-11-12, specs/pricing-components.md rule 38, SDK 2.31.0.)* **A plugin rounds through the shared money helpers.** `coreModule('money')`
     hands out the exact variants of `money.js`: `roundMoney`, `roundMoneyOrZero`, `roundMoneyStrict`, `toCents`, `toCentsOrZero`, `toCentsStrict`,
     `fromCentsStrict`, `parseFrenchCents`, `parseFrenchEuros` and `eurosWithSpaces`. Each reproduces one of the private copies the plugins held, so no
     figure moves; the variant is picked by what the copy did with a blank or a non-number, never swapped for `roundMoney`. airbnb-intake, booking-intake,
     gites-de-france-intake, google-calendar, google-vacation-rentals, hourly-resources, online-payment, sas, tariff-recipes, website-booking and
-    accounting-export range `^2.29.0`; the hardening floor list holds the module (`shared money helpers`), `coreModuleHistory.json` records 2.29.0.
+    accounting-export range `^2.31.0` or later (hourly-resources and sas range `^2.32.0`); the hardening floor list holds the module (`shared money helpers`), `coreModuleHistory.json` records 2.31.0.
     `coreModule('stayClock')` also hands out `dayReached(day, today)` / `dayPassed(day, today)` (the day comparisons the intakes and the public form used to write
     inline), `coreModule('platformPayment')` the reads of what a platform pays out (`acompteNet`, `grossOf`, `payoutWithPenalty`), and
     `ctx.core.reservations.platformCommission({ basis: 'rentOnly', rent, netRent })` the rent-only commission of Gîtes de France (the statement basis is unchanged).
+    `coreModule('basketRefundOutcome')` (`notHonoured`, `overpaidBy`, `partlyOwed`) is guest-app's reader of what a basket tells the poller; it is the
+    only refund-register exposure of 2.31.0. *(Reading of 2026-11-17, loop t10 A10-2:* `refundObligationsModel` (`open`, `openFor`) was removed from
+    the unreleased 2.31.0 before it shipped: nothing consumed it, and its `open` was a raw insert into the refund register that would let a plugin
+    open an obligation outside `paidLineJudgment` and the refund dialog's judgment.)
     Tests: `pricing-money-variants`, `plugin-core-hardening-floor`, `plugins-sdk-core-module-floor`.
+54. *(Added 2026-11-15, end review R3-3, R3-10, R3-11; specs/pricing-components.md rules 53, 74, 86, specs/outside-booking-sas.md rules 35-42,
+    SDK 2.32.0.)* **A plugin sells outside a stay, and suggests articles, through the core.** SDK 2.32.0 adds `coreModule('standaloneSale')`
+    (quote / sell / offerLine / removeLine / pay / cancel / receive / documentOf / paymentsOf of a document with no reservation),
+    `coreModule('standaloneSaleLinks')` (linkOf / draftLinkOf / mint / withdraw / emailLink of its payment link), `coreModule('suggestedArticles')`
+    (the articles suggested for a sale context), `saleDetail.buildDocumentDetail`, the context hook `ctx.suggestionContexts({ kind, label, list })`, the
+    event `standaloneSale.sold` (after the commit, an observer), and the client exports `SuggestedArticlesStep`, `SalePaymentLink`
+    and `StandaloneSaleDialog` (optional `client` prop, outside-booking-sas rule 48)
+    (`client/src/plugins/sdk/index.js`; `StaySalesSection` is SDK 2.30.0's). guest-app and hourly-resources range `^2.32.0`.
+    **The SDK history records what each shipped minor exposed:** v4.1.0 shipped SDK 2.27.0 without `vat`, `accountingOutput`, `legacyBucketSplit`,
+    `refundJournal`, `csvJournal`, `salesJson` and `synthesisExporter`, and neither SDK 2.28.0 (the home-data extension points,
+    specs/guest-app-home-automation.md, merged first) nor SDK 2.29.0 (the Mollie tranches and journal, rule 51, merged first) recorded them,
+    so `coreModuleHistory.json` records them under 2.30.0, the first minor of this branch (no in-tree plugin ranges below `^2.30.0` for them).
+    This branch's minors were renumbered 2.28 → 2.29, 2.29 → 2.30, 2.30 → 2.31 on 2026-11-15 when master's 2.28.0 landed first, then
+    2.29 → 2.30, 2.30 → 2.31, 2.31 → 2.32 on 2026-11-17 when master's 2.29.0 landed first (its rule 51 kept its number, this branch's
+    rules 51-56 became 52-57).
+    **The SDK 2.26.0 shape of `coreModule('midStayOrderCommit')` still works:** `priceOrder(id, lines, { pending })` is accepted and `pending` is an
+    explicit no-op since guest-app rule 108 (a card order awaiting its payment reserves nothing; the first call that passes some is logged once);
+    `commitOrder` answers `excessCents` (its 2.26.0 name) beside `overpaidCents`, the same cents. Removing either is a MAJOR.
+    Tests: `mid-stay-order-sdk-2-26-shape`, `plugins-sdk-core-module-floor`, `plugins-sdk-history-shipped-minors`.
+55. *(Added 2026-11-16, loop t1 AS-3.)* **The client SDK exports have floors too.** `plugin-core-hardening-floor` scans server sources only, so a plugin
+    whose CLIENT code imports `StaySalesSection` (2.30.0), `SuggestedArticlesStep`, `SalePaymentLink` or `StandaloneSaleDialog` (2.32.0; the last
+    one added to the list 2026-11-16, loop t2 AS2-1), `TransactionRef` (2.29.0, master's Mollie rule 51), `ClientPickerField` (2.27.0),
+    `usePostalCodeCities` (2.25.0), `TenderLines` / `TENDER_TEXTS` (2.24.0), `FilterChip` or `PlatformPenaltyDialog` (2.9.0) must range that SDK
+    or later in its manifest, or an older core would load a bundle that crashes. Adding a client export means adding its row to
+    `plugin-client-sdk-floor.unit.test.js`. Test: `plugin-client-sdk-floor`. *(Reading of 2026-11-16, loop t2 AS2-1:* every barrel export placed
+    under a comment naming an SDK ≥ 2.24.0 must carry its row at that SDK — the suite reads the barrel, so a new export cannot ship without it.)
+56. *(Added 2026-11-16, loop t2 AG2-2.)* **`coreModule('refundGivenBack')` (SDK 2.32.0)** — `refGivenBack(reservationId, refPrefix)`: whether
+    the stored lines whose `orderRef` starts with `refPrefix` were given back by the stay's refund register (every article key refunded outside
+    a requalification, nothing left refundable on it). guest-app reads it for its staff list's « Remboursée » (`guest-app.md` rule 111 b); a
+    plugin calling it ranges `^2.32.0` (`plugin-core-hardening-floor`). Test: `guest-order-cancelled-refunded-label`.
+57. *(Added 2026-11-16, loop t6 S6-3.)* **`ctx.core.reservations.buildArrivalSeed(reservationId)` (SDK 2.32.0)** — what the arrival SAS opens
+    with: `{ offeredKeys }`, the stored lines already offered, keyed by the recap's key rule (specs/sas-offer-complement-lines.md 4.3,
+    specs/pricing-components.md rule 85), so a later line of an article offered on the fiche reopens as exactly that line. `sas` 1.11.0 serves
+    it as `arrivalSeed` and ranges `^2.32.0` (`plugins-sdk-core-module-floor`); `coreModules.json` lists the name and `coreModuleHistory.json`
+    records it under 2.32.0 (rule 35). Tests: `sas-arrival-paid-line-judged`, `plugins-sdk-core-names-census`, `plugins-sdk-core-module-floor`.
 
 **Edge cases:**
 - **A plugin throws during `register`.** Rule 4 applies: the other plugins and the core boot. The Plugins
@@ -858,7 +911,7 @@ full width (44 px). Nothing else moves.
   (moved from `settings-model-encryption`, which now tests the SMTP secret).
 - `plugins/school-holidays/tests/school-holidays-sync-dates.unit.test.js` (5) — rule 27.
 - Rule 19 is cited on the moved OAuth flow tests (`google-oauth-flow`), whose redirect assertions changed.
-- `plugins-sdk-core-module-floor.unit.test.js` (3, audit 2026-10-27) — every `coreModule()` module and dated
+- `plugins-sdk-core-module-floor.unit.test.js` (5: 3 at the audit 2026-10-27, 4 on master, +1 loop t6 S6-3 — the `buildArrivalSeed` floor of rule 57) — every `coreModule()` module and dated
   name a plugin uses exists at the floor of its `sdk` range; the history dates every contract module.
 
 ### Moved tests

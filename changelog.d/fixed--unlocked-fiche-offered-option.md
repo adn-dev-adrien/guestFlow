@@ -1,0 +1,1 @@
+- Unlocked fiche: offering an option is no longer refused on the grounds that the final price must stay the same; the price is recalculated by deducting what is offered.

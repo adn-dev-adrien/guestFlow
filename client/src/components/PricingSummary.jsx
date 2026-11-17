@@ -58,6 +58,9 @@ function ExtraGuestRow({ label, caption, amount, offered, onToggleOffered, chip 
   );
 }
 
+// specs/pricing-components.md rule 108 — an offered paid line whose money was refunded stays offered: sold again, it is a new line.
+const REFUNDED_SUFFIX = ' · remboursée';
+
 function ComplementChip({ active = true, onClick, readOnly = false }) {
   const clickable = Boolean(onClick) && !readOnly;
   return (
@@ -131,6 +134,8 @@ function getLineSplit(line, totalPrice) {
  *   onToggleResourceInComplement(resourceId, next)
  *   onToggleTouristTaxInComplement(next)
  *   touristTaxInComplementLocked — the server's rule 20 reason is set: the chip reads, it does not toggle
+ *   isRefundedLine(kind, line)     true for an offered paid line whose money a refund gave back (the server's `refundedLoweredLines`,
+ *                                  specs/pricing-components.md rule 108): it reads « ✓ Offert · remboursée » and cannot be put back
  *   mode                           'live' (default) | 'stored' — the quote is then the server's `storedSummary`
  *                                  (specs/reservation-payment-ledger.md rules 50-52): the same sections,
  *                                  labels and rows, with every per-line control left out, since a value
@@ -164,6 +169,7 @@ export default function PricingSummary({
   // line sold at arrival can be neither offered nor un-offered.
   routingLocked = false,
   isFrozenLine = () => false,
+  isRefundedLine = () => false,
   // specs/tourist-tax-freeze-past-with-refresh.md — a past reservation's tourist tax is frozen; show a
   // refresh button next to the label to force a live recompute.
   isTouristTaxFrozen = false,
@@ -481,7 +487,8 @@ export default function PricingSummary({
                 };
 
                 const frozen = isFrozenLine(isCustom ? 'custom' : 'option', so);
-                const renderRow = (row) => renderRowRaw({ ...row, chip: lockChip(row.chip), withOfferedToggle: row.withOfferedToggle && !frozen && !stored });
+                const refunded = isOffered && isRefundedLine(isCustom ? 'custom' : 'option', so);
+                const renderRow = (row) => renderRowRaw({ ...row, chip: lockChip(row.chip), withOfferedToggle: row.withOfferedToggle && !frozen && !stored && !refunded });
                 const renderRowRaw = ({ label, amount, chip /* 'on'|'off'|'readonly'|null */, withOfferedToggle }) => (
                   <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 1 }}>
                     <Box sx={{ flex: 1, display: 'flex', alignItems: 'center', flexWrap: 'wrap' }}>
@@ -523,9 +530,9 @@ export default function PricingSummary({
                       )}
                     </Box>
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                      {stored && isOffered && (
+                      {(stored || refunded) && isOffered && (
                         <Typography variant="caption" sx={{ fontWeight: 600, color: 'success.main' }}>
-                          {isIncludedInRate ? 'Comprise' : '✓ Offert'}
+                          {isIncludedInRate ? 'Comprise' : `✓ Offert${refunded ? REFUNDED_SUFFIX : ''}`}
                         </Typography>
                       )}
                       {withOfferedToggle && (
@@ -635,7 +642,8 @@ export default function PricingSummary({
                 };
 
                 const frozen = isFrozenLine('resource', sr);
-                const renderRow = (row) => renderRowRaw({ ...row, chip: lockChip(row.chip), withOfferedToggle: row.withOfferedToggle && !frozen && !stored });
+                const refunded = isOffered && isRefundedLine('resource', sr);
+                const renderRow = (row) => renderRowRaw({ ...row, chip: lockChip(row.chip), withOfferedToggle: row.withOfferedToggle && !frozen && !stored && !refunded });
                 const renderRowRaw = ({ amount, chip /* 'on'|'off'|'readonly'|null */, withOfferedToggle }) => (
                   <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 1 }}>
                     <Box sx={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', flexWrap: 'wrap' }}>
@@ -660,8 +668,8 @@ export default function PricingSummary({
                       )}
                     </Box>
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                      {stored && isOffered && (
-                        <Typography variant="caption" sx={{ fontWeight: 600, color: 'success.main' }}>✓ Offert</Typography>
+                      {(stored || refunded) && isOffered && (
+                        <Typography variant="caption" sx={{ fontWeight: 600, color: 'success.main' }}>{`✓ Offert${refunded ? REFUNDED_SUFFIX : ''}`}</Typography>
                       )}
                       {withOfferedToggle && (
                         <Button

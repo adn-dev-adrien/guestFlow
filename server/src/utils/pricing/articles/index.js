@@ -357,8 +357,18 @@ function priceHourly(family, article, request, stay, allowance) {
   const quantity = contributed
     ? roundMoney(sold ? Math.max(request.quantity, contributed.quantity) : contributed.quantity)
     : request.quantity;
+  // A sold line a sale reads frozen (`soldFrozen`, rule 74) keeps the hours it billed while it asks no more hours than it sold. The stored `billedUnits`
+  // counts the hours before the lodging's free minutes (a free hour stores 1 billed unit at 0 €), so the hours it billed are its stored total over its
+  // unit price — a reading that only holds while the stored total is a billed one: an offered line (stored at 0 €), or one the request offers or bills
+  // again, is not frozen and is judged by the engine (end-review V-2: an offered hour billed again stayed at 0 €).
+  const { locked } = request;
+  const storedOffered = sold && Boolean(Number(locked.offered));
+  const offerChanges = sold && request.offered !== undefined && Boolean(Number(request.offered)) !== storedOffered;
+  const frozenBilled = sold && locked.soldFrozen && !storedOffered && !offerChanges && Number(locked.unitPrice) > 0
+    && roundMoney(quantity) <= roundMoney(Number(locked.quantity || 0))
+    ? roundMoney(Number(locked.totalPrice || 0) / Number(locked.unitPrice)) : null;
   const result = priceMerged(null, article, {
-    ...request, quantity, targetBilledUnits: applyPerHourFreeMinutes(roundMoney(quantity), config.freeMinutes),
+    ...request, quantity, targetBilledUnits: frozenBilled != null ? frozenBilled : applyPerHourFreeMinutes(roundMoney(quantity), config.freeMinutes),
   }, stay, allowance);
   return contributed && !result.refusals && result.line !== null ? { ...result, extra: contributed.extra } : result;
 }

@@ -32,7 +32,7 @@ test('rule 65 — three rows that round apart: Sous-total HT equals the recap’
     vatPercentageAccommodation: 10, vatPercentageOptions: 10, vatPercentageResources: 10, vatRegime: SUBJECT, finalPrice: 3.15, touristTaxTotal: 0,
   };
   const full = {
-    id: 1, kind: 'devis', startDate: '2027-07-01', endDate: '2027-07-02', adults: 2, children: 0, babies: 0, finalPrice: 3.15, totalPrice: 0,
+    id: 1, kind: 'devis', startDate: '2027-07-01', endDate: '2027-07-02', adults: 2, children: 0, babies: 0, finalPrice: 3.15, totalPrice: 0, // date-literal-ok — quote stay handed to the pure PDF builder
     touristTaxTotal: 0, pdfLanguage: 'fr', vatRegime: SUBJECT, client: {}, options: [row('A'), row('B'), row('C')], resources: [],
   };
   const text = await printed(quote, full);

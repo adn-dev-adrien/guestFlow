@@ -1,9 +1,10 @@
 /**
  * STAY CLOCK — has this stay started, is it over? (specs/pricing-components.md §3 rules 20, 44.)
  *
- * Contract: `phaseOf({ arrivalDate, departureDate, checkInTime, checkOutTime }, now)` answers on the
+ * Contract: `phaseOf({ arrivalDate, departureDate, checkInTime, checkOutTime, arrivalValidated }, now)` answers on the
  * Europe/Paris clock:
- *   phase               'before' until `arrivalDate T checkInTime`, 'during' until `departureDate T checkOutTime`,
+ *   phase               'before' until `arrivalDate T checkInTime` — or until the arrival is validated (`arrivalValidated`: the
+ *                       check-in box or the committed arrival SAS) on the arrival day (rule 102) —, 'during' until `departureDate T checkOutTime`,
  *                       'after' from then on (the minute itself belongs to the later phase)
  *   started             phase !== 'before'
  *   defaultCollectAt    started ? 'departure' : 'arrival'
@@ -76,7 +77,9 @@ function firstInstantOf(day, time) {
   return instant;
 }
 
-function phaseOf({ arrivalDate, departureDate, checkInTime, checkOutTime } = {}, now) {
+function phaseOf({
+  arrivalDate, departureDate, checkInTime, checkOutTime, arrivalValidated = false,
+} = {}, now) {
   const arrival = checkDay(arrivalDate, 'arrivalDate');
   const departure = checkDay(departureDate, 'departureDate');
   const checkIn = checkTime(checkInTime, 'checkInTime');
@@ -84,7 +87,9 @@ function phaseOf({ arrivalDate, departureDate, checkInTime, checkOutTime } = {},
   const wall = parisWallClock(now);
   const nowMs = now instanceof Date ? now.getTime() : now;
   let phase = 'during';
-  if (nowMs < firstInstantOf(arrival, checkIn)) phase = 'before';
+  // Rule 102 — an arrival validated on its day (the check-in box, the committed arrival SAS: the guest is standing there) starts
+  // the stay before its hour, for every reader: the fiche lock, the sale's moment, the extras baseline, the SAS and the app.
+  if (nowMs < firstInstantOf(arrival, checkIn)) phase = arrivalValidated && wall.day >= arrival ? 'during' : 'before';
   else if (nowMs >= firstInstantOf(departure, checkOut)) phase = 'after';
   const started = phase !== 'before';
   return {
@@ -108,6 +113,27 @@ function readableTime(value) {
 // day the caller injects. Same semantics as the comparisons they replace.
 const dayReached = (day, todayIso) => String(todayIso).slice(0, 10) >= String(day).slice(0, 10);
 const dayPassed = (day, todayIso) => String(todayIso).slice(0, 10) > String(day).slice(0, 10);
+
+/**
+ * Has the fiche's stay started? — specs/lock-at-arrival-time-and-arrival-complement-lines.md rule 1.
+ * The fiche locks from here, not from midnight of the arrival day: a day before today, or the arrival day once its
+ * `checkInTime` has passed (no or an unreadable `checkInTime` → from 00:00; « 9:00 », « 09h00 » and « 16h » are read), or
+ * earlier once the arrival was marked (the check-in box or the completed arrival SAS: the guest is standing there).
+ * `today` (`YYYY-MM-DD`) and `nowTime` (`HH:MM`) are the Paris clock the caller read once.
+ */
+function hasStayStarted(row, today, nowTime) {
+  const start = row && row.startDate ? String(row.startDate).slice(0, 10) : '';
+  if (!start || !dayReached(start, today)) return false;
+  if (dayPassed(start, today)) return true;
+  if (isArrivalValidated(row)) return true;
+  const match = String(row.checkInTime || '').match(/^(\d{1,2})[:h](\d{2})?/);
+  return !match || `${match[1].padStart(2, '0')}:${match[2] || '00'}` <= nowTime;
+}
+
+/** Rule 102 — the arrival is validated: the check-in box is ticked or the arrival SAS was committed. */
+function isArrivalValidated(row) {
+  return Boolean(row) && (Number(row.checkInDone || 0) === 1 || Boolean(row.arrivalSasDoneAt));
+}
 
 // 'YYYY-MM-DD' → local midnight Date, or null when the value isn't a usable ISO day.
 function parseIsoDay(dateIso) {
@@ -135,4 +161,6 @@ const settingsSchema = [
   { key: 'defaultCheckOut', type: 'string', default: '10:00', scope: 'property', validate: (value) => (TIME_PATTERN.test(String(value)) ? null : 'Heure invalide (HH:MM).') },
 ];
 
-module.exports = { phaseOf, TIME_ZONE, SAS_WINDOW_END_HOUR, settingsSchema, readableTime, dayReached, dayPassed, sasWindowState };
+module.exports = {
+  phaseOf, TIME_ZONE, SAS_WINDOW_END_HOUR, settingsSchema, readableTime, dayReached, dayPassed, hasStayStarted, isArrivalValidated, sasWindowState,
+};

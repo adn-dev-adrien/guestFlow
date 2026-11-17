@@ -75,20 +75,22 @@ test('rule 29 — an unknown payment mode is refused, an article reference that 
 });
 
 test('rule 37 — the operator moves an unpaid line, both values are journaled; a paid line is frozen (409 LINE_PAID)', () => {
-  const id = stay({ startOffset: 23 });
+  // Rule 95: the move to the departure is a started stay's — the sale of a started stay is collected at the departure, the operator brings it to the arrival.
+  const id = stay({ startOffset: -1, extraSql: 'UPDATE reservations SET checkInDone = 1, balanceDueDate = startDate WHERE id = ?' });
   const sold = extraSale.sell(id, [{ articleRef: `option:${wine}`, quantity: 1 }]);
+  assert.equal(sold.status, 200, JSON.stringify(sold.body));
   const ref = lineOf(sold.saleDetail, 'Panier vin').ref;
-  const moved = extraSale.changeLine(id, ref, { collectAt: 'departure' });
-  assert.equal(moved.status, 200);
-  assert.equal(lineOf(moved.saleDetail, 'Panier vin').collectAt, 'departure');
+  const moved = extraSale.changeLine(id, ref, { collectAt: 'arrival' });
+  assert.equal(moved.status, 200, JSON.stringify(moved.body));
+  assert.equal(lineOf(moved.saleDetail, 'Panier vin').collectAt, 'arrival');
   const entry = db.prepare("SELECT changedFields FROM reservation_history WHERE reservationId = ? ORDER BY id DESC LIMIT 1").get(id);
-  assert.match(entry.changedFields, /à payer au départ \(opérateur\)/);
-  assert.match(entry.changedFields, /à payer à l’arrivée \(horloge\)/);
+  assert.match(entry.changedFields, /à payer à l’arrivée \(opérateur\)/);
+  assert.match(entry.changedFields, /à payer au départ \(horloge\)/);
   assert.equal(extraSale.changeLine(id, ref, { collectAt: 'bogus' }).body.code, 'INVALID_MOMENT');
   const lineId = Number(ref.split(':')[1]);
-  db.prepare("INSERT INTO payment_allocations (paymentRef, documentRef, lineRef, amountCents, kind, at, books, origin) VALUES ('cash:1', ?, ?, 2500, 'payment', '2026-11-12', 1, 'live')")
+  db.prepare("INSERT INTO payment_allocations (paymentRef, documentRef, lineRef, amountCents, kind, at, books, origin) VALUES ('cash:1', ?, ?, 2500, 'payment', '2026-11-12', 1, 'live')") // date-literal-ok — fixture rows written by raw SQL and read back by key, no write path checks them against today
     .run(`reservation:${id}`, `line:reservation_options:${lineId}`);
-  assert.equal(extraSale.changeLine(id, ref, { collectAt: 'arrival' }).body.code, 'LINE_PAID');
+  assert.equal(extraSale.changeLine(id, ref, { collectAt: 'departure' }).body.code, 'LINE_PAID');
 });
 
 test('rule 39 — a line discount comes off one unpaid line and is journaled; the stored total stays the catalogue amount', () => {

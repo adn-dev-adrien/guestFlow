@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rule 55 (SDK 2.28.0) — the sale service publishes what happened after its transaction commits: `extraSale.sold`,
+// specs/pricing-components.md §3 rule 55 (SDK 2.30.0) — the sale service publishes what happened after its transaction commits: `extraSale.sold`,
 // `extraSale.lineMoved`, `extraSale.lineCancelled` (a save removed lines), `extraSale.refundOwed` (a confirmed lowering of a paid line). A handler that throws
 // is logged and never undoes the sale; a refused sale publishes nothing.
 process.env.DB_PATH = ':memory:';
@@ -66,13 +66,17 @@ test('rule 55 — a refused sale publishes nothing', async () => {
 });
 
 test('rule 55 — moving a line publishes extraSale.lineMoved with both moments', async () => {
+  // Rule 95: a started stay (its sale goes to the departure), the operator brings the line to the arrival.
   const id = stay();
+  db.prepare('UPDATE reservations SET startDate = ?, endDate = ?, checkInDone = 1, balanceDueDate = ? WHERE id = ?')
+    .run(addDaysToIsoDate(todayIso(), -1), addDaysToIsoDate(todayIso(), 2), addDaysToIsoDate(todayIso(), -1), id);
   const sold = extraSale.sell(id, request);
+  assert.equal(sold.status, 200, JSON.stringify(sold.body));
   const ref = sold.saleDetail.lines.find((l) => l.label === 'Bain nordique').ref;
   seen.length = 0;
-  assert.equal(extraSale.changeLine(id, ref, { collectAt: 'departure' }).status, 200);
+  assert.equal(extraSale.changeLine(id, ref, { collectAt: 'arrival' }).status, 200);
   await settle();
-  assert.deepEqual(only('extraSale.lineMoved'), [{ reservationId: id, ref, from: 'arrival', to: 'departure' }]);
+  assert.deepEqual(only('extraSale.lineMoved'), [{ reservationId: id, ref, from: 'departure', to: 'arrival' }]);
 });
 
 test('rule 55 — a save that removes a line publishes extraSale.lineCancelled', async () => {
@@ -91,6 +95,7 @@ test('rule 55 — lowering a paid line, once confirmed, publishes extraSale.refu
   const start = addDaysToIsoDate(todayIso(), 40);
   const id = Number(db.prepare(`INSERT INTO reservations (propertyId, clientId, startDate, endDate, platform, adults, totalPrice, finalPrice, kind, checkInTime,
       balanceAmount, balancePaid, balancePaidDate, accommodationSoldeContribTtc)
+    -- date-literal-ok — fixture rows written by raw SQL and read back by key, no write path checks them against today
     VALUES (9261, 9261, ?, ?, 'direct', 2, 300, 340, 'reservation', '15:00', 340, 1, '2026-11-01', 300)`).run(start, addDaysToIsoDate(start, 3)).lastInsertRowid);
   db.prepare(`INSERT INTO reservation_options (reservationId, optionId, quantity, unitPrice, billedUnits, priceType, totalPrice, offered, inComplement, soldeContribTtc)
     VALUES (?, ?, 1, 40, 1, 'per_stay', 40, 0, 0, 40)`).run(id, bath);

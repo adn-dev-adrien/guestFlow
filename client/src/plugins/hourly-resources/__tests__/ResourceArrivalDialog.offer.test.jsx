@@ -76,7 +76,7 @@ test('rule 25 — a paid line asks the confirmation of the refund; « Confirmer 
   api.getResourceVisit.mockResolvedValue(storedVisit());
   const error = Object.assign(new Error('Ligne payée : remboursement à confirmer.'), { code: 'LINE_PAID', status: 409 });
   api.patchResourceVisitLine.mockRejectedValueOnce(error).mockResolvedValueOnce({ visit: storedVisit({
-    totals: { totalCents: 800, paidCents: 12000, remainingCents: 0, refundOwedCents: 1500 },
+    totals: { totalCents: 800, paidCents: 12000, remainingCents: 0, refundOwedCents: 1500, refundUnheldCents: 1500 },
   }) });
   render(<ResourceArrivalDialog open bookingId={5} onClose={() => {}} onDone={() => {}} />);
   fireEvent.click((await screen.findAllByRole('button', { name: 'Offrir' }))[0]);
@@ -85,6 +85,15 @@ test('rule 25 — a paid line asks the confirmation of the refund; « Confirmer 
   fireEvent.click(within(confirm).getByRole('button', { name: 'Confirmer' }));
   await waitFor(() => expect(api.patchResourceVisitLine).toHaveBeenLastCalledWith(5, 11, { offered: true, confirmRefund: true, version: 3 }));
   expect(await screen.findByText('15,00 € à rembourser')).toBeInTheDocument();
+});
+
+test('rule 25, mock M5 — the confirmation names the amount to refund when the server\'s refusal carries it', async () => {
+  api.getResourceVisit.mockResolvedValue(storedVisit());
+  api.patchResourceVisitLine.mockRejectedValueOnce(Object.assign(new Error('Ligne payée : remboursement à confirmer.'), { code: 'LINE_PAID', status: 409, refundCents: 1300 }));
+  render(<ResourceArrivalDialog open bookingId={5} onClose={() => {}} onDone={() => {}} />);
+  fireEvent.click((await screen.findAllByRole('button', { name: 'Offrir' }))[0]);
+  const confirm = await screen.findByRole('dialog', { name: 'Remboursement' });
+  expect(within(confirm).getByText(/13,00\s€ à rembourser\./)).toBeInTheDocument();
 });
 
 test('rule 7 — the reception is never asked to confirm a refund: the server\'s refusal is shown as it is, and it sees no refund amount', async () => {

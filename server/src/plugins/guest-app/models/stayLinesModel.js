@@ -46,11 +46,19 @@ function createStayLinesModel(db) {
      */
     orderLines(reservationId) {
       const id = Number(reservationId);
-      const read = (table, column, kind) => db.prepare(`SELECT lineId, ${column} AS articleId, orderRef FROM ${table} WHERE reservationId = ? AND orderRef LIKE 'order:%'`).all(id)
+      const read = (table, column, kind) => db.prepare(`SELECT lineId, ${column} AS articleId, orderRef${kind === 'resource' ? ', sessions' : ''} FROM ${table} WHERE reservationId = ? AND orderRef LIKE 'order:%'`).all(id)
         .map((row) => ({
           orderId: Number(/^order:(\d+)/.exec(row.orderRef)[1]), kind, articleId: Number(row.articleId), lineId: Number(row.lineId), orderRef: row.orderRef, ref: `${kind}:${row.lineId}`,
+          ...(kind === 'resource' ? { sessionCount: parseJson(row.sessions, []).length } : {}),
         }));
-      return [...read('reservation_options', 'optionId', 'option'), ...read('reservation_resources', 'resourceId', 'resource')].sort((a, b) => a.lineId - b.lineId);
+      // Loop t1 AG-1 — the evening supplement an order sold is a custom line of the stay (rule 83): `kind: 'custom'`, no article. Loop t3 A3-1 — with the
+      // stable key that names its bath (`evening:resource:<id>`) and its words, for a line written before the key existed.
+      const customs = db.prepare("SELECT lineId, orderRef, fulfilmentRef, description FROM reservation_custom_options WHERE reservationId = ? AND orderRef LIKE 'order:%'").all(id)
+        .map((row) => ({
+          orderId: Number(/^order:(\d+)/.exec(row.orderRef)[1]), kind: 'custom', articleId: null, lineId: Number(row.lineId), orderRef: row.orderRef, ref: `custom:${row.lineId}`,
+          fulfilmentRef: row.fulfilmentRef || null, description: row.description,
+        }));
+      return [...read('reservation_options', 'optionId', 'option'), ...read('reservation_resources', 'resourceId', 'resource'), ...customs].sort((a, b) => a.lineId - b.lineId);
     },
   };
 }

@@ -56,10 +56,11 @@ test('switching to a plugin tab never leaves the page without tabs', async ({ pa
   await page.evaluate(() => {
     window.__tabCounts = new Set();
     window.__tabYs = new Set();
-    // A Y counts once it held for two consecutive frames. One-frame readings are out of scope on purpose: a single
-    // sample 238 px lower was seen once on a loaded runner and never reproduced (12 runs at 6x CPU throttling and
-    // 52 under load show one constant Y), so it is read as a sampling artefact, not a flash. A bar that really
-    // jumps stays in the layout for more than one frame and is caught.
+    // The strip is measured in the viewport: a bar that moves on the screen is caught, whatever moved it. The support access request, a
+    // banner of the whole app that once pushed the bar 238 px down mid-switch, is filed in a project of its own (e2e/projects.js).
+    // specs/e2e-playwright-smoke-suite.md rule 20 — never beside this spec.
+    // A Y counts once it held for two consecutive frames: a single-frame reading is a sampling artefact, a bar that really jumps stays in
+    // the layout for more than one frame and is caught.
     let previous = null;
     const sample = () => {
       const tabs = document.querySelectorAll('[role=tab]');

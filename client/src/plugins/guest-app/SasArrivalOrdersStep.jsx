@@ -13,7 +13,7 @@
  */
 import React, { useEffect, useState } from 'react';
 import {
-  Alert, Box, Button, Chip, Collapse, IconButton, Stack, Typography,
+  Alert, Box, Button, Chip, Collapse, IconButton, Stack, Typography, useMediaQuery,
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import RemoveIcon from '@mui/icons-material/Remove';
@@ -43,7 +43,7 @@ function QuantityControl({ line, disabled, onChange }) {
       <IconButton aria-label={`Moins de ${line.label}`} disabled={disabled || line.quantity <= 1} onClick={() => onChange(line.quantity - 1)} sx={{ width: 44, height: 44 }}>
         <RemoveIcon fontSize="small" />
       </IconButton>
-      <Typography component="span" sx={{ minWidth: 28, textAlign: 'center', ...figure }} aria-label={`Quantité de ${line.label}`}>{line.quantity}</Typography>
+      <Typography component="span" role="status" sx={{ minWidth: 28, textAlign: 'center', ...figure }} aria-label={`Quantité de ${line.label}`}>{line.quantity}</Typography>
       <IconButton aria-label={`Plus de ${line.label}`} disabled={disabled || line.quantity >= line.maxQuantity} onClick={() => onChange(line.quantity + 1)} sx={{ width: 44, height: 44 }}>
         <AddIcon fontSize="small" />
       </IconButton>
@@ -105,6 +105,8 @@ export default function SasArrivalOrdersStep({ data, onRefresh }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [removing, setRemoving] = useState(null);
+  // The fold honours « reduce motion » like its chevron (end review R3-8).
+  const reduceMotion = useMediaQuery('(prefers-reduced-motion: reduce)');
   useEffect(() => { setCurrent(served); }, [served]);
   if (!current) return <Typography variant="body2" color="text.secondary">{TEXT.none}</Typography>;
   // Folded when every order is paid, unfolded otherwise (rule 71).
@@ -139,7 +141,7 @@ export default function SasArrivalOrdersStep({ data, onRefresh }) {
         >
           <Typography component="span" variant="subtitle2" sx={{ ...figure, overflowWrap: 'anywhere' }}>{current.summaryLabel}</Typography>
         </Button>
-        <Collapse in={expanded} unmountOnExit>
+        <Collapse in={expanded} unmountOnExit timeout={reduceMotion ? 0 : 'auto'}>
           <Box id="stay-app-orders-list">
             {error ? <Alert severity="error" onClose={() => setError('')} sx={{ m: 1.5 }}>{error}</Alert> : null}
             {current.orders.map((order) => <OrderGroup key={order.id} order={order} busy={busy} onAmend={amend} onRemoveOrder={setRemoving} />)}

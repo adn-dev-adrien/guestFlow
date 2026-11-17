@@ -24,7 +24,8 @@ const { englishMissing, normaliseLang } = require('../utils/emailTemplateLanguag
 const { createEmailService } = require('../utils/emailService');
 const financeModel = require('../models/financeModel');
 const vatRegimeModel = require('../models/vatRegimeModel');
-const { storedLinkComponents } = require('../utils/storedLinkComponents');
+const { storedLinkComponents, saleLineComponents } = require('../utils/storedLinkComponents');
+const { readsSaleLines } = require('../utils/saleLinesReaders');
 const installmentsModel = require('../models/installmentsModel');
 const { requestContext } = require('../utils/installmentPlan');
 const { linkAmountCents } = require('../utils/ledgerLinks');
@@ -144,11 +145,21 @@ function storedReservationComponents(id, type, db = database) {
         FROM reservations r WHERE r.id = ? AND r.kind = 'reservation'`).get(id);
   } catch { row = null; }
   if (!row) return null;
-  return storedLinkComponents(row, type, {
+  return onSaleLines(row, storedLinkComponents(row, type, {
     vatRatePercent: vatRegimeModel.rateForRow(db, { id }),
     taxOnArrival: Boolean(row.taxOnArrival),
     titles: LINK_TITLES,
-  });
+  }));
+}
+
+// pricing-components rule 91 (owner 2026-11-15) — a stay booked once 4.2.0 is installed names, in a new link, the lines its
+// sale detail collects in the acompte and the solde; a stay booked before keeps its basket. A link already minted is a stored
+// record: nothing here touches it.
+function onSaleLines(row, basket, detailOf = (id) => require('../utils/extraSale').saleDetailOf(id)) {
+  if (!basket || !readsSaleLines(row)) return basket;
+  let detail = null;
+  try { detail = detailOf(row.id); } catch { detail = null; }
+  return saleLineComponents(basket, detail);
 }
 
 // specs/direct-installments.md rule 39 — the basket of ONE installment: the tourist tax (when it rides the
@@ -169,7 +180,7 @@ function resolveInstallmentComponents(id, installment, plan, db = database) {
   if (taxable <= 0) return null;
   const components = [{ title: `${LINK_TITLES.installment} ${installment.number}/${plan.length}`, grossCents: taxable, taxable: true }];
   if (share > 0) components.push({ title: 'Taxe de séjour', grossCents: share, taxable: false });
-  return { components, vatRatePercent: vatRegimeModel.rateForRow(db, { id }) };
+  return onSaleLines(row, { components, vatRatePercent: vatRegimeModel.rateForRow(db, { id }) });
 }
 
 const NO_PROVIDER_RESULT = { httpStatus: 409, body: paymentProviders.NO_PROVIDER };
@@ -326,4 +337,4 @@ module.exports = {
 
 // The two money resolvers, with their quote source injectable (specs/payment-link-quote-parity.md §7):
 // a test drives them on an in-memory devis instead of the production database.
-module.exports.__test = { sendError, requestServiceDeps, runDevisEngineQuote, resolveAmountCents, resolveVatComponents, storedReservationComponents, resolveInstallmentComponents };
+module.exports.__test = { onSaleLines, sendError, requestServiceDeps, runDevisEngineQuote, resolveAmountCents, resolveVatComponents, storedReservationComponents, resolveInstallmentComponents };

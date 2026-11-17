@@ -61,6 +61,4 @@ export function paymentBody(value) {
   return { tenders: value.tenders, ...(value.shortfall ? { shortfall: value.shortfall } : {}), paidAt: value.paidAt };
 }
 
-/** Rule 13 — an invoice is offered on a payment entirely on the books. */
-export const allOnTheBooks = (value) => Boolean(value && Array.isArray(value.tenders) && value.tenders.length > 0 && value.tenders.every((t) => !t.internal));
 export const hasCard = (value) => Boolean(value && Array.isArray(value.tenders) && value.tenders.some((t) => t.method === 'card'));

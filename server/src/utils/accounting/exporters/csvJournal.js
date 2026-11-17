@@ -113,6 +113,19 @@ function createCsvJournal({ accountPlan }) {
     return `RÉSERVATION #${entry.reservationId}`;
   }
 
+  // specs/mollie-rolling-reserve-and-incoming-payments.md rule 28 — the export sets no maximum libellé length: the Qonto
+  // transaction id (50 characters) would drown the line, so a Mollie credit or cost names its Mollie settlement and the last
+  // 6 characters of Qonto's reference — enough to find it in the bank's search. A paid link reads like a sale: the client.
+  // Loop t10 B10-4: a sale outside a stay with no named client (a passage) has no stay id to fall back on — it reads the sale's label
+  // the plugin sends (`libelle`), else « VENTE HORS SÉJOUR », never « RÉSERVATION #null ».
+  function mollieLibelle(entry) {
+    if (entry.mollieKind === 'link' && entry.reservationId == null && !`${entry.client?.firstName || ''}${entry.client?.lastName || ''}`.trim()) {
+      return String(entry.libelle || '').trim().toUpperCase() || 'VENTE HORS SÉJOUR';
+    }
+    if (entry.mollieKind === 'link') return libelleFor(entry);
+    return [entry.libelle, entry.settlementReference, entry.qontoReference ? String(entry.qontoReference).slice(-6) : ''].filter(Boolean).join(' ');
+  }
+
   // Replace empty money cells (Débit / Crédit columns) with a literal `0`. Other columns stay
   // untouched — the accountant's example shows `0` only in the two money columns.
   function zerofyMoneyColumns(row) {
@@ -129,7 +142,7 @@ function createCsvJournal({ accountPlan }) {
   // its platform; every other entry leaves the three cells empty.
   function anchorColumns(entry) {
     if (entry.direction === 'compensation') return [entry.platform && entry.platform !== 'direct' ? entry.platform : '', '', ''];
-    const sale = !['refund', 'discount', 'tip', 'penalty', 'standalone'].includes(entry.direction);
+    const sale = !['refund', 'discount', 'tip', 'penalty', 'standalone', 'mollie'].includes(entry.direction);
     if (!sale || !entry.platform || entry.platform === 'direct') return ['', '', ''];
     const commission = entry.commission || null;
     return [entry.platform, entry.clientGrossAmount == null ? '' : Number(entry.clientGrossAmount), commission ? round2(commission.ttc) : ''];
@@ -139,7 +152,10 @@ function createCsvJournal({ accountPlan }) {
   // Σ credits is guaranteed equal to Σ debits by the lines themselves.
   function rowsAtDefaults(entry, splitFrom = TTC_SPLIT_FALLBACK, plan = null) {
     const { day, month, year } = splitIsoDate(entry.paidDate);
-    const libelle = libelleFor(entry);
+    const isMollie = entry.direction === 'mollie';
+    const libelle = isMollie ? mollieLibelle(entry) : libelleFor(entry);
+    // The Mollie journal is its own journal code (rule 28), outside the sales journal's.
+    const journal = isMollie ? String((entry.mollieAccounts && entry.mollieAccounts.journal) || '') : SALES_JOURNAL_CODE;
     const clientAccount = buildClientAccount(entry.client?.lastName);
     // « Pièce » is empty until a numbering scheme is decided (spec §3.4 rule 13b), but for the invoice number of a sale made outside any stay.
     const piece = entry.direction === 'standalone' ? entry.piece || '' : '';
@@ -149,7 +165,7 @@ function createCsvJournal({ accountPlan }) {
       const extra = line.role === 'customer' ? anchorColumns(entry) : ['', '', ''];
       const rate = line.role.startsWith('revenue:') || line.role.startsWith('vat:') ? line.vatRate : null;
       return tagRow(zerofyMoneyColumns([
-        day, month, year, SALES_JOURNAL_CODE, piece, libelle, accountOfLine(line, clientAccount, plan), debit, credit, ...extra,
+        day, month, year, journal, piece, libelle, accountOfLine(line, clientAccount, plan), debit, credit, ...extra,
       ]), metaRoleOf(line), rate == null ? null : rate);
     });
   }
@@ -164,7 +180,8 @@ function createCsvJournal({ accountPlan }) {
    */
   function entryToRows(entry, plan) {
     const rows = rowsAtDefaults(entry, (plan && plan.ttcSplitFrom) || TTC_SPLIT_FALLBACK, plan);
-    if (!plan) return rows;
+    // A Mollie entry already books on the Mollie settings' journal and accounts: the sales plan does not rename them.
+    if (!plan || entry.direction === 'mollie') return rows;
     const mapper = planMapper(plan);
     return rows.map((row) => {
       const out = [...row];

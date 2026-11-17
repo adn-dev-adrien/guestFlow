@@ -13,7 +13,7 @@ const STATUS = 'guest_app_orders_status_v3';
 function v1WithOrders() {
   const db = new Database(':memory:');
   run(db, [V1]);
-  db.prepare("INSERT INTO guest_orders (reservationId, payment, status, linesJson, total, createdAt, clientKey, sessionId) VALUES (10, 'note', 'confirmed', '[]', 12, '2026-11-01', 'k1', 1), (11, 'card', 'paid', '[]', 30, '2026-11-02', NULL, 2)").run();
+  db.prepare("INSERT INTO guest_orders (reservationId, payment, status, linesJson, total, createdAt, clientKey, sessionId) VALUES (10, 'note', 'confirmed', '[]', 12, '2026-11-01', 'k1', 1), (11, 'card', 'paid', '[]', 30, '2026-11-02', NULL, 2)").run(); // date-literal-ok — migration or backfill fixture: historical values the code under test copies, never compares with today
   return db;
 }
 
@@ -31,7 +31,7 @@ test('the status rebuild keeps every row, its id and its indexes, and accepts ca
   const before = db.prepare('SELECT * FROM guest_orders ORDER BY id').all();
   run(db, [STATUS]);
   assert.deepEqual(db.prepare('SELECT * FROM guest_orders ORDER BY id').all().map(({ cancelledAt, cancelReason, amendmentsJson, ...row }) => row), before);
-  db.prepare("UPDATE guest_orders SET status = 'cancelled', cancelledAt = '2026-11-03', cancelReason = 'stay' WHERE id = 1").run();
+  db.prepare("UPDATE guest_orders SET status = 'cancelled', cancelledAt = '2026-11-03', cancelReason = 'stay' WHERE id = 1").run(); // date-literal-ok — migration or backfill fixture: historical values the code under test copies, never compares with today
   const names = db.prepare("SELECT name FROM sqlite_master WHERE type = 'index' AND tbl_name = 'guest_orders'").all().map((r) => r.name);
   assert.ok(['idx_guest_orders_reservation', 'idx_guest_orders_client_key', 'idx_guest_orders_held', 'idx_guest_orders_status'].every((n) => names.includes(n)));
   assert.equal(db.prepare("SELECT seq FROM sqlite_sequence WHERE name = 'guest_orders'").get().seq >= 2, true);

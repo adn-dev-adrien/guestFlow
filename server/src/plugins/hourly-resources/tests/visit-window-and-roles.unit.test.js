@@ -102,13 +102,13 @@ test('rule 7 — the plugin opens the visit routes to the reception, nothing els
 test('rules 5, 7 (C38) — every visit payload says what this caller may do now, so the screen never guesses the window or the role', async () => {
   const id = f.book();
   const open = (await f.call('getVisit', { id, user: f.RECEPTION })).body;
-  assert.deepEqual(open.access, { writable: true, reason: null, reception: true });
+  assert.deepEqual(open.access, { writable: true, reason: null, reception: true, withdrawLink: true });
   assert.equal((await f.call('quote', { id, body: {}, user: f.RECEPTION })).body.access.writable, true);
   f.setNow(`${NEXT_DAY}T10:00:00Z`);
   const late = (await f.call('getVisit', { id, user: f.RECEPTION })).body;
-  assert.deepEqual(late.access, { writable: false, reason: 'Arrivée : le jour de la séance seulement.', reception: true });
+  assert.deepEqual(late.access, { writable: false, reason: 'Arrivée : le jour de la séance seulement.', reception: true, withdrawLink: false });
   const admin = (await f.call('getVisit', { id })).body;
-  assert.deepEqual(admin.access, { writable: false, reason: 'Arrivée : le jour de la séance seulement.', reception: false }, 'an administrator opens nothing outside the window either');
+  assert.deepEqual(admin.access, { writable: false, reason: 'Arrivée : le jour de la séance seulement.', reception: false, withdrawLink: true }, 'an administrator opens nothing outside the window either, but withdraws a link on any day (AV-7)');
   const arrived = f.book();
   f.setNow(`${DAY}T15:00:00Z`);
   await f.call('commit', { id: arrived, body: {} });

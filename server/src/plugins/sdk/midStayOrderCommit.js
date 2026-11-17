@@ -3,9 +3,14 @@
  * (specs/pricing-components.md D24, Q-C10; the module `utils/midStayOrderCommit.js` was deleted by C30). Names and shapes are the
  * SDK 2.26.0 contract; the work is `extraSale`'s:
  *
- *   priceOrder(reservationId, lines)   → { status: 200, byKey, total } | { status, body }     `extraSale.quote`, nothing written
+ *   priceOrder(reservationId, lines, { pending? })   → { status: 200, byKey, total } | { status, body }     `extraSale.quote`, nothing written
  *   commitOrder(reservationId, { source, ref, history: { field, label, text }, lines, paid?, within? })
- *                                      → { status: 200, byKey, total, settledCents, overpaidCents } | { status, body }   `extraSale.sell`
+ *                                      → { status: 200, byKey, total, settledCents, excessCents, overpaidCents } | { status, body }   `extraSale.sell`
+ *
+ * SDK 2.26.0 compatibility (plugins-phase-1-sdk rule 54, end review R3-3): the third argument of `priceOrder` is still accepted; its `pending`
+ * lines are an explicit no-op since guest-app rule 108 (a card order awaiting its payment reserves nothing: every order is priced on the stay as
+ * it is), and a call that passes some is told so once in the log. The answer of `commitOrder` keeps the SDK 2.26.0 name `excessCents` (what the
+ * payment brought beyond the sale) beside `overpaidCents`, the same cents.
  *   mergeOrderLines(body, lines, rows?, nextLineId?)   the fiche body with the lines appended (`utils/stayOrderLines`)
  *
  * `lines` are `{ kind: 'option', id, quantity }`, `{ kind: 'breakfast', id, mornings, time, persons }` and
@@ -43,7 +48,13 @@ function byKeyOf(answered) {
   return byKey;
 }
 
-function priceOrder(reservationId, lines) {
+const SDK_2_26_OVERPAID = 'excessCents';
+let pendingWarned = false;
+function priceOrder(reservationId, lines, options = {}) {
+  if (!pendingWarned && options && Array.isArray(options.pending) && options.pending.length) {
+    pendingWarned = true;
+    console.warn('[sdk] midStayOrderCommit.priceOrder: `pending` is ignored since guest-app rule 108 — a card order awaiting its payment reserves nothing');
+  }
   const quoted = extraSale.quote(reservationId, lines.map(requestOf), { source: 'shop' });
   if (quoted.status !== 200) return quoted;
   return { status: 200, byKey: byKeyOf(quoted.lines), total: quoted.totalCents / 100 };
@@ -55,8 +66,10 @@ function commitOrder(reservationId, {
   if (!/^[a-z][a-zA-Z0-9-]{0,39}$/.test(String(source || ''))) throw new Error('commitOrder needs the caller\'s source');
   if (ref === undefined || ref === null || String(ref) === '') throw new Error('commitOrder needs the order\'s ref');
   if (!history || typeof history !== 'object' || !history.field || !history.label || !history.text) throw new Error('commitOrder needs a history entry { field, label, text }');
+  // The 2.26.0 name of the overpaid cents is an alias of extraSale's figure, never a figure of its own.
   const shaped = (sold) => ({
     status: 200, byKey: byKeyOf(sold.lines), total: sold.totalCents / 100, settledCents: sold.settledCents || 0, overpaidCents: sold.overpaidCents || 0,
+    [SDK_2_26_OVERPAID]: sold.overpaidCents || 0,
   });
   const outcome = extraSale.sell(reservationId, lines.map(requestOf), {
     source: 'shop',

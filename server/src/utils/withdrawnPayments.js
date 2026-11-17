@@ -80,11 +80,16 @@ async function settleWithdrawnPayment(linkId, { database, paymentLinksModel, out
     throw { httpStatus: 409, error: 'STAY_READ_ONLY', message: 'Séjour en lecture seule : paiement à rembourser.' };
   }
   if (outcome === 'stay' && planHoldsBucketPayment(database, link)) throw { ...PLAN_IN_PLACE };
+  // Loop t1 D-6 — an outside sale's link has no stay: its money is the sale document's, settled from the sale.
+  if (link.reservationId == null || link.saleRef) throw { httpStatus: 409, error: 'SALE_LINK', message: 'Lien d’une vente hors séjour : à traiter depuis la vente.' };
   if (outcome === 'refunded') {
-    const info = database.prepare(`UPDATE payment_links SET cancelReason = ? WHERE id = ? AND ${UNSETTLED_SQL}`)
-      .run(LINK_REASONS.REFUNDED, link.id, ...UNSETTLED_REASONS);
-    if (Number(info.changes) === 0) throw { httpStatus: 409, error: 'NOTHING_TO_SETTLE', message: 'Aucun paiement à traiter sur ce lien.' };
-    recordRefundedPayment(database, link);
+    // The reason and the register move together: a refused obligation leaves the link unsettled.
+    database.transaction(() => {
+      const info = database.prepare(`UPDATE payment_links SET cancelReason = ? WHERE id = ? AND ${UNSETTLED_SQL}`)
+        .run(LINK_REASONS.REFUNDED, link.id, ...UNSETTLED_REASONS);
+      if (Number(info.changes) === 0) throw { httpStatus: 409, error: 'NOTHING_TO_SETTLE', message: 'Aucun paiement à traiter sur ce lien.' };
+      recordRefundedPayment(database, link);
+    })();
   } else {
     await bookPaid(link, { paid: true, paymentId: link.providerPaymentId, paidAt: link.paidAt });
   }

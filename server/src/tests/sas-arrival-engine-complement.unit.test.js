@@ -17,10 +17,12 @@ const PANIER = Number(db.prepare("INSERT INTO options (title, priceType, price) 
 db.prepare('INSERT INTO property_options (propertyId, optionId) VALUES (1, ?)').run(PANIER);
 
 let nextId = 300;
+// The stays sit in the future of the real today: the fiche's save judges an upcoming stay's shape (MIN_NIGHTS), never a past one's.
+const isoIn = (days) => new Date(Date.now() + days * 86400000).toISOString().slice(0, 10);
 function stay(columns = {}) {
   const id = nextId++;
   const cols = {
-    id, kind: 'reservation', clientId: 1, propertyId: 1, startDate: '2027-07-10', endDate: '2027-07-12', platform: 'direct', adults: 2, complementAmount: 0, ...columns,
+    id, kind: 'reservation', clientId: 1, propertyId: 1, startDate: isoIn(60), endDate: isoIn(62), platform: 'direct', adults: 2, complementAmount: 0, ...columns,
   };
   const keys = Object.keys(cols);
   db.prepare(`INSERT INTO reservations (${keys.join(', ')}) VALUES (${keys.map(() => '?').join(', ')})`).run(...keys.map((k) => cols[k]));

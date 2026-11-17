@@ -78,6 +78,7 @@ const EXEMPT = {
     'POST /api/payments/poll',
     'POST /api/payments/qonto/connect-provider',
     'POST /api/payments/qonto/test',
+    'POST /api/plugins/online-payment/mollie/test',
     'POST /api/plugins/:id/install',
     'POST /api/plugins/:id/rollback',
     'POST /api/plugins/:id/update',
@@ -100,6 +101,17 @@ const EXEMPT = {
     'POST /preferences/emails',
     'POST /public/booking-intake/page',
     'POST /public/v1/gate/results',
+  ],
+  'The house’s « Domotique » tree, behind the gate connector’s key and signature: judged by sowel-home-connector, sowel-home-ingest and sowel-home-commands (every field, all or nothing).': [
+    'POST /public/v1/home/commands/results',
+    'POST /public/v1/home/readings',
+    'POST /public/v1/home/series',
+    'PUT /public/v1/home/catalog',
+  ],
+  'The « Domotique » page and its studio screen: judged by guest-home-blocks-validation (every refusal, at once, by field) and guest-home-routes (the light tap’s body, the preview of a refused draft).': [
+    'POST /api/guest-app/lodgings/:propertyId/home/preview',
+    'POST /public/v1/guest/home/lights/:lightId',
+    'PUT /api/guest-app/lodgings/:propertyId/home',
   ],
   'Judged by its own suite: sas-quantity-bounds and sas-flag-input-shape, push-subscribe-validation, plugin-settings-input-shape.': [
     'POST /api/push/subscribe',
@@ -157,7 +169,8 @@ const EXEMPT = {
     'POST /api/users/:id/reset-password',
     'PUT /api/school-holidays/:id/unlock',
   ],
-  'Judged by its own suites: standalone-sale and standalone-sale-passage-client (every field of the sale is refused with a code), suggested-articles (the list, its bound and its references).': [
+  'Judged by its own suites: standalone-sale and standalone-sale-passage-client (every field of the sale is refused with a code), suggested-articles (the list, its bound and its references), standalone-sale-obligation-close (the status refused with a code, the row named in the URL).': [
+    'PATCH /api/standalone-sales/:id/obligations/:oid',
     'POST /api/standalone-sales',
     'POST /api/standalone-sales/quote',
     'POST /api/standalone-sales/:id/payment-link',

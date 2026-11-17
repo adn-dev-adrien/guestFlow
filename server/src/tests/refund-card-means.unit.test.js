@@ -19,12 +19,12 @@ test('rule 72 (O-3) — card is selectable, book money, and not off the books', 
 
 test('rule 72 (O-3) — the judge keeps the provider reference of a card refund, trimmed, and none for another means', () => {
   const lines = [{ label: 'Geste', bucket: 'accommodation', amountTtc: 10 }];
-  const base = { refundableLines: [], today: '2026-08-20', liveCollectedTtc: 100, finalPrice: 100, touristTaxTotal: 0 };
-  const card = judge({ refundDate: '2026-08-20', method: 'card', providerRefundRef: '  re_123  ', lines }, base, { today: '2026-08-20' });
+  const base = { refundableLines: [], today: '2026-08-20', liveCollectedTtc: 100, finalPrice: 100, touristTaxTotal: 0 }; // date-literal-ok — the clock is injected (`today`), never read from the calendar
+  const card = judge({ refundDate: '2026-08-20', method: 'card', providerRefundRef: '  re_123  ', lines }, base, { today: '2026-08-20' }); // date-literal-ok — the clock is injected (`today`), never read from the calendar
   assert.equal(card.refund.providerRefundRef, 're_123');
-  const bare = judge({ refundDate: '2026-08-20', method: 'card', lines }, base, { today: '2026-08-20' });
+  const bare = judge({ refundDate: '2026-08-20', method: 'card', lines }, base, { today: '2026-08-20' }); // date-literal-ok — the clock is injected (`today`), never read from the calendar
   assert.equal(bare.refund.providerRefundRef, null);
-  const transfer = validateRefundPayload({ refundDate: '2026-08-20', method: 'transfer', providerRefundRef: 'x', lines }, base);
+  const transfer = validateRefundPayload({ refundDate: '2026-08-20', method: 'transfer', providerRefundRef: 'x', lines }, base); // date-literal-ok — the clock is injected (`today`), never read from the calendar
   assert.equal('providerRefundRef' in transfer.refund, false);
 });
 

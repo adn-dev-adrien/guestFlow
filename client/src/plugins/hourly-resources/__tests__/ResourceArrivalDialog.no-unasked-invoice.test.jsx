@@ -27,6 +27,7 @@ const paidBefore = (payment, arrived = false) => visitPayload({
   lines: [sessionLine({ status: 'paid', statusLabel: 'Payée', settledCents: 12000, legacy: true, draft: false })],
   totals: { totalCents: 12000, paidCents: 12000, remainingCents: 0, refundOwedCents: 0 },
   session: { offeredMinutes: 0, editable: false },
+  invoiceable: { ok: true, code: null, reason: null },
 });
 
 beforeEach(() => { vi.clearAllMocks(); });
