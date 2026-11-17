@@ -221,6 +221,28 @@ function createContext(id, { db, settingsModel, dataDir = null } = {}) {
       if (other) throw new Error(`${prefix} a home selection is already declared by ${other.id}`);
       record.homeSelection = list;
     },
+    // SDK 2.29.0 (specs/mollie-rolling-reserve-and-incoming-payments.md rule 18) — ({ reservationId }) →
+    // { rows: { [ledgerKey]: [tranche] }, schedule: object | null } | null: the dated bank tranches of a paid row of the
+    // payments ledger, and the one-line schedule of the money summary. Synchronous, reads the plugin's own tables.
+    ledgerBankTranches(provider) {
+      if (typeof provider !== 'function') throw new Error(`${prefix} ledgerBankTranches needs a function`);
+      if (record.ledgerBankTranches) throw new Error(`${prefix} ledgerBankTranches is already declared`);
+      record.ledgerBankTranches = provider;
+    },
+    // SDK 2.29.0 (rule 23) — ({ recent }) → [item]: the sums the plugin expects on the bank account (or, with `recent`,
+    // received in the last 30 days), for « Versements à venir ». Synchronous.
+    incomingPayments(provider) {
+      if (typeof provider !== 'function') throw new Error(`${prefix} incomingPayments needs a function`);
+      if (record.incomingPayments) throw new Error(`${prefix} incomingPayments is already declared`);
+      record.incomingPayments = provider;
+    },
+    // SDK 2.29.0 (rule 28) — ({ from, to }) → { entries, unattached, clearing }: the entries of a provider's own
+    // journal for the accounting export, the bank credits it could not attach, and its clearing account's balance.
+    journalEntries(provider) {
+      if (typeof provider !== 'function') throw new Error(`${prefix} journalEntries needs a function`);
+      if (record.journalEntries) throw new Error(`${prefix} journalEntries is already declared`);
+      record.journalEntries = provider;
+    },
     // A commit hook for one of the plugin's arrival SAS steps (rule 6).
     sasCommit(hook) {
       SAS_COMMIT_MEMBERS.forEach((m) => {

@@ -634,6 +634,16 @@ Optional: a plugin that declares nothing reads « Actif ».
     `plugin-core-hardening-floor` holds it); hourly-resources and accounting-export range `^2.27.0`; `coreModuleHistory.json`
     records 2.27.0 (`vat`). Tests: `article-family-sdk.unit.test.js`, `plugin-core-hardening-floor.unit.test.js`,
     `sdk-v2-plugin-ranges.unit.test.js`.
+51. *(Added 2026-11-16, specs/mollie-rolling-reserve-and-incoming-payments.md rules 18, 23, 28, SDK 2.29.0.)* **A plugin
+    tells the core what is still to arrive on the bank.** `ctx.ledgerBankTranches(({ reservationId }) → { rows: { [ledgerKey]:
+    [tranche] }, schedule } | null)` adds dated tranches under a paid row of the payments ledger and a recap line to the
+    money summary; `ctx.incomingPayments(({ recent }) → [item])` feeds « Versements à venir »; `ctx.journalEntries(({ from, to })
+    → { entries, unattached, clearing })` feeds the accounting export, which reads it through `coreModule('journalEntries')`
+    (`list`). One declaration per plugin each, synchronous, read only while the plugin is live; a provider that throws is
+    logged and skipped. A plugin that calls them asks for `sdk` `^2.29.0` (the hardening floor list holds it); `online-payment`
+    1.8.0 and `accounting-export` 1.3.0 range `^2.29.0`; `coreModuleHistory.json` records 2.29.0 (`journalEntries`). Tests:
+    `plugin-core-hardening-floor.unit.test.js`, `incoming-payments.unit.test.js`, `mollie-ledger-tranches.unit.test.js`,
+    `accounting-mollie-journal.unit.test.js`.
 
 **Edge cases:**
 - **A plugin throws during `register`.** Rule 4 applies: the other plugins and the core boot. The Plugins

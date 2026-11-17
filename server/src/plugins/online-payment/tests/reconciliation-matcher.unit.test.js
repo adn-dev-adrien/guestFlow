@@ -21,7 +21,7 @@ test('rule 29 — platforms are recognised by their defaults patterns, a cancell
   assert.deepEqual(classify(tx({ counterpartyName: 'STRIPE', reference: 'STRIPE' }), {}), { kind: 'platform', platform: 'Lodgify' });
   assert.deepEqual(classify(tx({ counterpartyName: 'Mangopay', reference: '123-domainesolio X' }), {}), { kind: 'platform', platform: 'Abracadaroom' });
   assert.equal(classify(tx({ counterpartyName: 'STRIPE', reference: 'GREENGO AOM3I ANNUL' }), {}).kind, 'other');
-  assert.equal(classify(tx({ counterpartyName: 'Stichting Mollie Payments' }), {}).kind, 'acquiring');
+  assert.equal(classify(tx({ counterpartyName: 'Stichting Mollie Payments', operationType: 'Transférer' }), {}).kind, 'mollie');
   assert.deepEqual(classify(tx({ counterpartyName: 'Paiements facturés', reference: 'Paiements-En-Personne-12-10-2026' }), {}), { kind: 'cardBatch', date: '2026-10-12' });
 });
 
@@ -67,17 +67,6 @@ test('rule 30 — the Stripe weekly batch is a combination net of the card fee, 
   assert.deepEqual(out.proposal.allocations.map((a) => a.reservationId).sort(), [1, 2]);
   const single = run([tx({ amountCents: 20000, remainingCents: 20000, counterpartyName: 'STRIPE', reference: 'STRIPE', settledAt: '2026-07-13T05:00:00.000Z' })], [mk(1, 20000), mk(2, 10000)]).t1;
   assert.equal(single.proposal.confidence, 'sur', 'one recorded payout, exact');
-});
-
-test('rule 15 — an acquirer payout is the paid links net of the fee, one cent tolerance per link', () => {
-  const link = (id, cents) => receipt({ reservationId: id, channel: 'link', expectedCents: cents, openCents: cents, linkPaidAt: '2026-10-10', paid: true, reservation: reservation({ id }) });
-  const net = (c) => c - Math.round(c * 0.014) - 25;
-  const credit = tx({ amountCents: net(10000) + net(20000), remainingCents: net(10000) + net(20000), operationType: 'card_acquirer_payout', counterpartyName: 'Mollie', settledAt: '2026-10-12T05:00:00.000Z' });
-  const out = run([credit], [link(1, 10000), link(2, 20000), link(3, 7777)]).t1;
-  assert.equal(out.proposal.confidence, 'probable');
-  assert.deepEqual(out.proposal.allocations.map((a) => a.reservationId).sort(), [1, 2]);
-  const old = run([{ ...credit, settledAt: '2026-10-25T05:00:00.000Z' }], [link(1, 10000), link(2, 20000)]).t1;
-  assert.equal(old.proposal, null, 'links paid more than 7 days before are out of the window');
 });
 
 test('rule 31 — the on-site card batch is proposed against the stays paid by card that day', () => {

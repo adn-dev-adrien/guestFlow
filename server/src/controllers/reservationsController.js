@@ -110,6 +110,7 @@ const { splitComplementBuckets } = require('../utils/complementBuckets');
 const { createResultRecorder } = require('../utils/resultRecorder');
 const { saveWithDraftClient } = require('../utils/draftClient');
 const { buildLedger } = require('../utils/reservationLedger');
+const { decorateLedger } = require('../utils/pluginLedgerTranches');
 const { platformPriceCheck } = require('../utils/platformPriceCheck');
 const { touristTaxStale, platformCommissionOdd } = require('../utils/fichePricingNotices');
 const { isDirectChannel } = require('../utils/platformNameFormat');
@@ -152,7 +153,7 @@ function ledgerFor({ row, quote = null, live = {}, propertyId = null, overpaymen
     const prop = pid ? db.prepare('SELECT defaultCautionAmount FROM properties WHERE id = ?').get(pid) : null;
     cautionAmount = Number(row && row.cautionWaived) === 1 ? 0 : (Number(prop && prop.defaultCautionAmount) || 0);
   }
-  return buildLedger({
+  const ledger = buildLedger({
     row,
     quote,
     live,
@@ -174,6 +175,9 @@ function ledgerFor({ row, quote = null, live = {}, propertyId = null, overpaymen
     settlements: id ? paymentSettlementsModel.listFor(id) : [],
     today: getTodayIsoDate(),
   });
+  // specs/mollie-rolling-reserve-and-incoming-payments.md rules 18-19 — the dated bank tranches of a paid row, on the
+  // stored fiche only: a quote preview (fired on every edit) is the form's live figures, never the bank's.
+  return id && !quote ? decorateLedger(ledger, id) : ledger;
 }
 
 // Payment-schedule rule 55 reading of 2026-11-02 (audit R16-L1) — the refunds the cancellation's avoir read: the

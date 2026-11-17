@@ -139,6 +139,9 @@ const CORE_MODULES = Object.freeze({
   // (specs/resource-booking-pricing-and-invoicing.md rules 1, 14, 20-21, SDK 2.25.0)
   invoiceIssuers: '../../utils/invoiceIssuers',
   standaloneSales: '../../utils/standaloneSales',
+  // accounting-export — the entries a plugin books in its own journal (specs/mollie-rolling-reserve-and-incoming-payments.md
+  // rules 28-31, SDK 2.29.0)
+  journalEntries: '../../utils/pluginJournalEntries',
 });
 
 function coreModule(name) {

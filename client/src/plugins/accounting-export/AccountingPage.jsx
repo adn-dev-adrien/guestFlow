@@ -19,6 +19,7 @@ import {
 } from '../sdk';
 import AccountingSynthesisTab from './AccountingSynthesisTab';
 import AccountingCollectionsTab from './AccountingCollectionsTab';
+import MollieClearingCard from './MollieClearingCard';
 import SynthesisPeriodBar from './SynthesisPeriodBar';
 import { TABS } from './synthesisCopy';
 
@@ -315,6 +316,11 @@ export default function AccountingPage() {
           </CardContent>
         </Card>
 
+        {/* specs/mollie-rolling-reserve-and-incoming-payments.md rules 30-31 — null without a live Mollie journal. */}
+        {!salesLoading && sales && sales.mollie && (
+          <MollieClearingCard mollie={sales.mollie} canOpenReservation={canOpenReservation} onOpenReservation={(id) => navigate(`/reservations/${id}`)} />
+        )}
+
         {/* The compensations have their own core page; the journal above still carries their
             entries (specs/plugins-phase-2-hosts.md rule 21). */}
         <Box sx={{ mt: -1.5, mb: 3, textAlign: { xs: 'left', sm: 'right' } }}>
@@ -472,19 +478,20 @@ function EncaissementRow({ block, canOpenReservation, onOpen }) {
 export function groupEntries(entries) {
   const blocks = [];
   const byGroup = new Map();
-  for (const entry of entries) {
-    const key = `${entry.reservationId}-${entry.kind}-${entry.refundId ?? entry.paidDate}`;
+  entries.forEach((entry, position) => {
+    // A Mollie credit has no reservation: two of the same day would share a key without its position.
+    const key = `${entry.reservationId}-${entry.kind}-${entry.refundId ?? entry.paidDate}${entry.direction === 'mollie' ? `-m${position}` : ''}`;
     const id = entry.paymentGroup?.id;
     if (!id) {
       blocks.push({ key, group: null, entries: [entry] });
-      continue;
+      return;
     }
     const seen = byGroup.get(id);
-    if (seen) { seen.entries.push(entry); continue; }
+    if (seen) { seen.entries.push(entry); return; }
     const block = { key: `g-${id}`, group: entry.paymentGroup, entries: [entry] };
     byGroup.set(id, block);
     blocks.push(block);
-  }
+  });
   // A group that ended up with a single entry (the other bucket fell in another month, or was
   // dropped as a pure-tax entry) reads as an ordinary payment.
   return blocks.map((b) => (b.group && b.entries.length < 2 ? { ...b, group: null } : b));
@@ -528,6 +535,8 @@ const KIND_LABELS = {
   // vraiment remis » pour un paiement unique : une remise consentie à la porte, ou un pourboire.
   discount: 'Rabais accordé',
   tip: 'Pourboire',
+  // specs/mollie-rolling-reserve-and-incoming-payments.md rule 28 — what Mollie owes / has paid, through its clearing account.
+  mollie: 'Mollie',
 };
 
 // Tight single-letter badge so the encaissements table can show the kind without eating a
@@ -638,8 +647,10 @@ export function JournalEntryCard({ entry, canOpenReservation = false }) {
   // libellé « N % du séjour », qui n'aurait aucun sens sur elles.
   const isDiscount = entry.direction === 'discount';
   const isTip = entry.direction === 'tip';
+  // Rules 28-31 — a Mollie entry moves the clearing account: no « share of the stay », and a credit has no fiche to open.
+  const isMollie = entry.direction === 'mollie';
   const isDeduction = isRefund || isDiscount;
-  const clientNode = canOpenReservation && !isCompensation ? (
+  const clientNode = canOpenReservation && !isCompensation && entry.reservationId != null ? (
     <Link
       component={RouterLink}
       to={`/reservations/${entry.reservationId}`}
@@ -670,7 +681,7 @@ export function JournalEntryCard({ entry, canOpenReservation = false }) {
           />
           <Chip
             size="small"
-            color={isDeduction ? 'warning' : ((isCompensation || isTip) ? 'success' : 'default')}
+            color={isDeduction ? 'warning' : ((isCompensation || isTip) ? 'success' : (isMollie ? 'info' : 'default'))}
             label={KIND_LABELS[entry.kind] || entry.kind}
           />
           <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
@@ -702,7 +713,8 @@ export function JournalEntryCard({ entry, canOpenReservation = false }) {
                 : 'Séjour annulé')}
               {isDiscount && "Réduction accordée sur l'hébergement"}
               {isTip && 'Pourboire remis par le client'}
-              {!isRefund && !isCompensation && !isDiscount && !isTip
+              {isMollie && 'Compte d’attente Mollie'}
+              {!isRefund && !isCompensation && !isDiscount && !isTip && !isMollie
                 && `${Math.round(((entry.stayShare ?? entry.fraction) || 0) * 100)} % du séjour (${formatCurrency(entry.finalPrice)})`}
             </Typography>
           </Stack>

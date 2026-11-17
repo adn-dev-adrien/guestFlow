@@ -118,8 +118,10 @@ const PLUGIN_ROUTES = {
     'POST /api/payments/reconciliation/discards',
     'POST /api/payments/reconciliation/links',
     'POST /api/payments/reconciliation/links/batch',
+    'POST /api/payments/reconciliation/mollie-statements/:transactionId/retry',
     'POST /api/payments/reconciliation/read',
     'POST /api/payments/reconciliation/transactions/:id/outside',
+    'POST /api/plugins/online-payment/mollie/test',
     'PUT /api/payments/qonto/credentials',
   ],
   'sas': [

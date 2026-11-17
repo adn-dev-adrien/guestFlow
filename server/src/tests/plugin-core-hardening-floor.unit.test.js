@@ -56,6 +56,8 @@ const HARDENINGS = [
   { feature: 'invoice issuer and sales outside a stay', sdk: '2.25.0', pattern: /coreModule\(\s*['"`](invoiceIssuers|standaloneSales)['"`]|ctx\.(invoiceIssuer|standaloneSales)\(/ },
   // specs/plugins-phase-1-sdk.md rule 50 (specs/pricing-components.md rules 5, 47) — a pricing family for the Articles head.
   { feature: 'article families', sdk: '2.27.0', pattern: /\bctx\.articleFamily\(/ },
+  // specs/plugins-phase-1-sdk.md rule 51.
+  { feature: 'ledger bank tranches, incoming payments and journal entries', sdk: '2.29.0', pattern: /\bctx\.(?:ledgerBankTranches|incomingPayments|journalEntries)\(|coreModule\(\s*['"`]journalEntries['"`]/ },
 ];
 
 function sourceFiles(dir) {

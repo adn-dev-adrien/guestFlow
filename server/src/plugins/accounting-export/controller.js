@@ -7,6 +7,7 @@
 const sdk = require('../sdk');
 const { buildRows, buildStructuredEntries, CSV_HEADERS } = require('./accountingExport');
 const { toLatin1Text } = require('./latin1');
+const { MOLLIE_DEFAULTS } = require('./settings');
 
 const { serializeCsv } = sdk.coreModule('csv');
 
@@ -22,15 +23,47 @@ function parseMonthYear(query) {
 // refund nor a compensation is an encaissement, but both belong to the same journal at their own
 // date (specs/reservation-refunds.md §3.4 rule 21, specs/cancellation-compensation.md §3.3 rule 15).
 // Building the stream here means the CSV and the JSON preview can never drift apart.
-function monthEntries(accountingModel, params) {
+function monthEntries(accountingModel, params, plan = {}, mollie = null) {
   const sales = accountingModel.encaissementsByMonth(params);
   const refunds = accountingModel.refundsByMonth ? accountingModel.refundsByMonth(params) : [];
   const compensations = accountingModel.compensationsByMonth ? accountingModel.compensationsByMonth(params) : [];
   const penalties = accountingModel.platformPenaltiesByMonth ? accountingModel.platformPenaltiesByMonth(params) : [];
   // specs/resource-booking-pricing-and-invoicing.md rule 21 — the sales made outside any stay.
   const standalone = accountingModel.standaloneSalesByMonth ? accountingModel.standaloneSalesByMonth(params) : [];
-  return [...sales, ...refunds, ...compensations, ...penalties, ...standalone]
+  return [...sales, ...refunds, ...compensations, ...penalties, ...standalone, ...(mollie || mollieEntries(accountingModel, params, plan)).entries]
     .sort((a, b) => String(a.paidDate || '').localeCompare(String(b.paidDate || '')));
+}
+
+const MOLLIE_KINDS = new Set(['link', 'credit', 'cost']);
+
+/**
+ * specs/mollie-rolling-reserve-and-incoming-payments.md rules 28-31 — the Mollie facts of the month as journal entries
+ * (their accounts are the plan's), and what the export page shows beside them: the clearing account's balance at month
+ * end (rule 30) and the credits no payment explains yet, which book nothing (rule 31). The bank lines are left out when
+ * the accountant books the bank himself (rule 29).
+ */
+function mollieEntries(accountingModel, params, plan = {}) {
+  const found = accountingModel.mollieByMonth ? accountingModel.mollieByMonth(params) : { entries: [], unattached: [], clearing: null };
+  const accounts = { ...MOLLIE_DEFAULTS, ...plan };
+  const withBank = String(accounts.mollieExportBank) !== '0';
+  const labels = {
+    [String(accounts.mollieClearingAccount)]: 'Compte d\'attente Mollie',
+    [String(accounts.mollieBankAccount)]: 'Banque',
+    [String(accounts.mollieFeeAccount)]: 'Frais Mollie',
+  };
+  const entries = found.entries.filter((e) => MOLLIE_KINDS.has(e.kind) && (withBank || e.kind !== 'credit')).map((e) => ({
+    reservationId: e.reservationId == null ? null : e.reservationId, kind: 'mollie', direction: 'mollie', mollieKind: e.kind, paidDate: e.date,
+    client: e.client || { firstName: '', lastName: '' }, amount: e.amountCents / 100, encaissementTtc: e.amountCents / 100,
+    libelle: e.libelle || '', settlementReference: e.settlementReference || '', qontoReference: e.qontoReference || '', accountLabels: labels,
+  }));
+  return {
+    entries,
+    unattached: found.unattached.map((u) => ({ ...u, amount: u.amountCents / 100 })),
+    clearing: found.clearing ? {
+      account: String(accounts.mollieClearingAccount), asOf: found.clearing.asOf, balance: found.clearing.balanceCents / 100,
+      clients: found.clearing.clients.map((c) => ({ ...c, balance: c.balanceCents / 100 })),
+    } : null,
+  };
 }
 
 const TOURIST_TAX_ACCOUNT = '46710000';
@@ -52,7 +85,7 @@ function createAccountingController(accountingModel, { plan = () => undefined, o
     salesCsv(req, res) {
       const params = parseMonthYear(req.query);
       if (!params) return res.status(400).json({ error: 'INVALID_MONTH_OR_YEAR' });
-      const entries = monthEntries(accountingModel, params);
+      const entries = monthEntries(accountingModel, params, plan());
       const rows = buildRows(entries, plan());
       // ISO-8859-1 (latin1) without BOM — the « Format standard (CSV) », byte-for-byte the
       // accountant's example file. French accounting software (Sage/EBP/Cegid) defaults to
@@ -75,7 +108,9 @@ function createAccountingController(accountingModel, { plan = () => undefined, o
     salesJson(req, res) {
       const params = parseMonthYear(req.query);
       if (!params) return res.status(400).json({ error: 'INVALID_MONTH_OR_YEAR' });
-      const entries = monthEntries(accountingModel, params);
+      // The Mollie facts are read once for the response: the stream and the clearing aid come from the same read.
+      const mollie = mollieEntries(accountingModel, params, plan());
+      const entries = monthEntries(accountingModel, params, plan(), mollie);
       const structured = buildStructuredEntries(entries, plan());
       const totalDebits = structured.reduce((s, e) => s + e.sumDebits, 0);
       const totalCredits = structured.reduce((s, e) => s + e.sumCredits, 0);
@@ -90,6 +125,8 @@ function createAccountingController(accountingModel, { plan = () => undefined, o
           // tourist-tax account carries no revenue and no VAT: shown, never silently exported.
           taxOnlyEntries: taxOnlyEntries(structured),
         },
+        // Rules 30-31 — the aid to the accountant: what Mollie still holds, and the credits left unattached.
+        mollie: mollie.clearing ? { clearing: mollie.clearing, unattached: mollie.unattached } : null,
       });
     },
 
@@ -137,5 +174,5 @@ function createAccountingController(accountingModel, { plan = () => undefined, o
 module.exports = {
   create: createAccountingController,
   monthEntries,
-  __test: { parseMonthYear, monthEntries, taxOnlyEntries },
+  __test: { parseMonthYear, monthEntries, mollieEntries, taxOnlyEntries },
 };

@@ -73,3 +73,5 @@ export { TENDER_TEXTS } from '../../constants/tenderMethods';
 export { default as usePostalCodeCities } from '../../hooks/usePostalCodeCities';
 // hourly-resources — the client picker ordered by stay (specs/resource-booking-client-picker.md §4.2) — SDK 2.27.0.
 export { default as ClientPickerField } from '../../components/ClientPickerField';
+// online-payment — an external identifier shortened in the middle, with a copy button (specs/mollie-rolling-reserve-and-incoming-payments.md rule 12) — SDK 2.29.0.
+export { default as TransactionRef } from '../../components/TransactionRef';

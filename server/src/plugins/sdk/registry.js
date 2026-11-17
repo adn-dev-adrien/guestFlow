@@ -71,6 +71,11 @@ function emptyRecord(id) {
     // and which of it the lodgings use (declared by the guest app).
     homeData: null,
     homeSelection: null,
+    // specs/mollie-rolling-reserve-and-incoming-payments.md rules 18, 23, 28 (SDK 2.29.0) — the bank tranches a plugin
+    // adds to the payments ledger, the sums it expects on the bank, and the journal entries it books.
+    ledgerBankTranches: null,
+    incomingPayments: null,
+    journalEntries: null,
   };
 }
 

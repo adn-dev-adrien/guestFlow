@@ -13,7 +13,8 @@ test('rule 68 — wrong types are refused and nothing is stored', () => {
   const good = { transactionId: 't1', reservationId: id, ledgerKey: 'solde' };
   const wrong = {
     transactionId: [{ a: 1 }, JSON.parse('{"toString":1}'), ['x'], 5, true, null, ''],
-    reservationId: [{ a: 1 }, ['1'], true, 1.5, -1, 0, null, 'x', ''],
+    // 0 is a sale outside a stay (specs/mollie-rolling-reserve-and-incoming-payments.md rule 8): 404 when no such receipt, see mollie-sale-discard.
+    reservationId: [{ a: 1 }, ['1'], true, 1.5, -1, null, 'x', ''],
     ledgerKey: [{ a: 1 }, JSON.parse('{"toString":1}'), ['z'], 5, true, null, ''],
   };
   for (const [key, values] of Object.entries(wrong)) {
