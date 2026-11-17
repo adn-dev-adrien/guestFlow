@@ -8,6 +8,7 @@
 // « Nouvelle note » open (nothing recorded) instead of closing it as if paid.
 // Reading 2026-11-17 (loop t15 UI15-1): the re-read keeps the lock it had — a started stay never reads as unlocked while it is in
 // flight or after it failed — and « Annuler le séjour », « Supprimer », « Transformer en devis » are held with the same reason.
+// Reading 2026-11-17 (loop t16 UI16-1): the hold starts at the panel's write, before the re-read — the in-flight cases wait for its GET.
 import { vi } from 'vitest';
 import { screen, waitFor, fireEvent, within, act } from '@testing-library/react';
 
@@ -203,6 +204,8 @@ for (const how of ['failed', 'in flight']) {
     if (how === 'failed') api.getReservation.mockRejectedValueOnce(Object.assign(new Error('boom'), { status: 503 }));
     else api.getReservation.mockImplementationOnce(() => new Promise((resolve) => { answer = () => resolve(STARTED); }));
     await moveTheLine();
+    // Loop t16 UI16-1: the fiche holds from the panel's write on, so the re-read has started only once its GET is pending.
+    if (how === 'in flight') await waitFor(() => expect(answer).toBeTypeOf('function'));
     if (how === 'failed') await screen.findByText('Fiche non relue après la vente.');
     expect(await screen.findByRole('button', { name: blocked(NOTE) })).toBeDisabled();
     expect(screen.getByRole('button', { name: blocked(BALANCE) })).toBeDisabled();
@@ -285,6 +288,7 @@ for (const how of ['failed', 'in flight']) {
     if (how === 'failed') api.getReservation.mockRejectedValueOnce(Object.assign(new Error('boom'), { status: 503 }));
     else api.getReservation.mockImplementationOnce(() => new Promise((resolve) => { answer = () => resolve(LOCKED); }));
     await moveTheLine();
+    if (how === 'in flight') await waitFor(() => { watch(); expect(answer).toBeTypeOf('function'); });
     await waitFor(() => { watch(); expect(globalThis.__reservationForm.formReadOnly).toBe(true); });
     if (how === 'failed') await screen.findByText('Fiche non relue après la vente.');
     watch();

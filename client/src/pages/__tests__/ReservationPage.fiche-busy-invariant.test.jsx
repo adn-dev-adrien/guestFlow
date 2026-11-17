@@ -60,9 +60,9 @@ import PricingSummary from '../../components/PricingSummary';
 import { STAY, seedFiche, dayIn } from './reservationPageHarness';
 
 const REASON = 'Fiche à relire.';
-const FAILURES = [];
-const PASSES = [];
-const record = (ok, member, state, detail) => (ok ? PASSES : FAILURES).push({ member, state, detail });
+// Each member × state check is asserted where it is made (soft: every member of a test is reported, not only the first), so the
+// verdict does not depend on test order (`npm run test:shuffle`).
+const record = (ok, member, state, detail) => { expect.soft(ok, `[${state}] ${member}: ${detail}`).toBe(true); };
 
 // ─────────────────────────────── 1. ENUMERATION FROM THE SOURCE ───────────────────────────────
 const SRC = fs.readFileSync(PAGE_SRC, 'utf8');
@@ -93,9 +93,10 @@ function barEntries(block) {
     };
   });
 }
+const BAR_BLOCKS = [arrayBlock(/const actionBarBefore = /), arrayBlock(/const actionBarAfter = /)];
 const BAR = [
-  ...barEntries(arrayBlock(/const actionBarBefore = /)),
-  ...barEntries(arrayBlock(/const actionBarAfter = /)),
+  ...barEntries(BAR_BLOCKS[0]),
+  ...barEntries(BAR_BLOCKS[1]),
 ];
 // The policy table: what each bar entry must do while the fiche is not the server's. A new bar entry without a row fails.
 const BAR_POLICY = {
@@ -150,6 +151,13 @@ const OUTSIDE_POLICY = [
 const policyOf = (h) => (OUTSIDE_POLICY.find(([re]) => re.test(h.text)) || [null, null])[1];
 
 describe('1. enumeration from the source', () => {
+  test('every top-level bar entry is a `...(` spread, so the enumeration sees it', () => {
+    // An entry written another way (a bare `{ … }` or `heldWhileRereading({ … })`) would merge into the previous chunk: refuse it.
+    const odd = BAR_BLOCKS.flatMap((block) => block.slice(1, -1)).filter((l) => /^ {4}\S/.test(l) && !/^ {4}(\.\.\.\(|\/\/|\})/.test(l));
+    expect(odd).toEqual([]);
+    expect(BAR.length).toBeGreaterThanOrEqual(12);
+  });
+
   test('every bar entry has a policy row and holds when its row says so', () => {
     for (const entry of BAR) {
       const policy = BAR_POLICY[entry.label];
@@ -255,6 +263,7 @@ describe('2. bar actions while the fiche is re-read (desktop)', () => {
         const finish = await enter(state, stay);
         lockSeen.push(ctx().isReservationLocked);
         const present = BAR.filter((e) => e.label && screen.queryAllByRole('button', { name: new RegExp(`^${e.label.replace(/[()]/g, '\\$&')}( :|$)`) }).length);
+        expect(present.filter((e) => BAR_POLICY[e.label] === 'held').length).toBeGreaterThanOrEqual(stayName === 'started' ? 5 : 4);
         for (const entry of present) {
           if (BAR_POLICY[entry.label] !== 'held') continue;
           const held = screen.queryByRole('button', { name: `${entry.label} : ${REASON}` });
@@ -328,12 +337,15 @@ describe('4. phone overflow menu while the fiche is re-read', () => {
         await enter(state, STARTED);
         fireEvent.click(await screen.findByRole('button', { name: "Plus d'actions" }));
         const items = await screen.findAllByRole('menuitem');
+        let checked = 0;
         for (const item of items) {
           const entry = BAR.find((e) => e.label && item.textContent.startsWith(e.label) && !(e.label === 'Supprimer' && item.textContent.startsWith('Supprimer le')));
           if (!entry || BAR_POLICY[entry.label] !== 'held') continue;
           const ok = item.getAttribute('aria-disabled') === 'true' && item.textContent.includes(REASON);
           record(ok, `phone « ${entry.label} »`, `started/${state}`, ok ? 'aria-disabled + reason' : `aria-disabled=${item.getAttribute('aria-disabled')} text=${item.textContent}`);
+          checked += 1;
         }
+        expect(checked).toBeGreaterThanOrEqual(5);
       } finally { window.matchMedia = saved; }
     });
   }
@@ -563,11 +575,4 @@ describe('9. every control of the pricing summary reads heldReason', () => {
       }
     });
   }
-});
-
-// ─────────────────────────────── VERDICT ───────────────────────────────
-test('INVARIANT — every member acts on fresh data or is held with « Fiche à relire. », and the lock never flips', () => {
-  // 60 member × state checks at the time of loop t16; fewer would mean a section stopped finding its members.
-  expect(PASSES.length + FAILURES.length).toBeGreaterThanOrEqual(60);
-  expect(FAILURES.map((f) => `[${f.state}] ${f.member}: ${f.detail}`)).toEqual([]);
 });
