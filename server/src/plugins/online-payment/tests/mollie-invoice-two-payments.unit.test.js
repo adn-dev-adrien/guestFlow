@@ -72,3 +72,17 @@ test('B11-1 — a split already bound to another payment is never taken again: n
   const withDays = { ...owner, grossCents: 3000, paidAt: dayAt(-3), nextDays: [{ sourceType: 'tender', sourceKey: 'sale:b', reservationId: null, ledgerKey: 'sale:b', grossCents: 2000, paidAt: dayAt(-1) }] };
   assert.equal(pairPayment(payment, [], new Map([[NUMBER, withDays]]), bound('tr_1')), null, 'the next day holds another amount');
 });
+
+test('B12-1 — several card days and none of the payment amount: unknown, never the invoice day (Mollie newest-first order)', () => {
+  const owner = { sourceType: 'invoice', sourceKey: NUMBER, reservationId: null, ledgerKey: 'sale:a', grossCents: 3000, paidAt: dayAt(-3),
+    nextDays: [{ sourceType: 'tender', sourceKey: 'sale:b', reservationId: null, ledgerKey: 'sale:b', grossCents: 2000, paidAt: dayAt(-1) }] };
+  const sources = new Map([[NUMBER, owner]]);
+  const free = () => null;
+  const wrong = { id: 'tr_x', amountCents: 2500, description: NUMBER, paidAt: `${dayAt(-1)}T10:00:00Z` };
+  assert.equal(pairPayment(wrong, [], sources, free), null, 'wrong amount: unknown');
+  const newestFirst = [{ id: 'tr_2', amountCents: 2000, description: NUMBER, paidAt: `${dayAt(-1)}T10:00:00Z` }, wrong];
+  assert.equal(pairPayment(newestFirst[0], [], sources, free).source.sourceKey, 'sale:b');
+  assert.equal(pairPayment(newestFirst[1], [], sources, free), null);
+  const single = { ...owner, nextDays: undefined };
+  assert.equal(pairPayment(wrong, [], new Map([[NUMBER, single]]), free).source.sourceKey, NUMBER, 'single-day invoice keeps the fallback');
+});

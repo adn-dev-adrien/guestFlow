@@ -44,12 +44,12 @@ function invoicePairing(payment, number, owner, boundOf) {
     const bound = boundOf(plain(source));
     return !bound || String(bound) === String(payment.id);
   };
-  if (!owner.nextDays) return free(owner) ? { kind: 'invoice', number, source: owner } : null;
+  if (!owner.nextDays || !owner.nextDays.length) return free(owner) ? { kind: 'invoice', number, source: owner } : null;
   const at = Date.parse(payment.paidAt || '');
   const distance = (source) => (Number.isFinite(at) ? Math.abs(Date.parse(`${String(source.paidAt).slice(0, 10)}T12:00:00Z`) - at) : 0);
   const days = [owner, ...owner.nextDays].filter(free);
   const sameAmount = days.filter((source) => Number(source.grossCents) === Number(payment.amountCents)).sort((a, b) => distance(a) - distance(b));
-  const chosen = sameAmount[0] || (free(owner) ? owner : null);
+  const chosen = sameAmount[0];
   return chosen ? { kind: 'invoice', number, source: plain(chosen) } : null;
 }
 
@@ -60,7 +60,7 @@ function invoicePairing(payment, number, owner, boundOf) {
  * 3. its `description` is a Qonto invoice number GuestFlow stores (a sale outside a stay paid by card): the payment IS
  *    that sale's card payment, gross and date exact. Loop t11 B11-1: a split already bound to ANOTHER Mollie payment is never
  *    taken again — a second payment naming the number goes to the document's next card day of the same amount (closest date,
- *    `source.nextDays`), else it is unknown;
+ *    `source.nextDays`), else it is unknown (several card days and none of that amount: unknown, never the invoice day — loop t12 B12-1);
  * 4. same amount and `paidAt` within 10 minutes of a link's, when exactly one link fits.
  * @param {Map<string, object>} [invoiceSources]  invoice number → its source (`invoiceSources` of `mollieCardSources`)
  * @param {(source: object) => (string|null)} [boundOf]  the Mollie payment a source's stored split is already bound to

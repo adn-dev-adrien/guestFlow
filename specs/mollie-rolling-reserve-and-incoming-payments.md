@@ -355,6 +355,9 @@ brought it; and the accountant receives entries that explain every Mollie credit
     source of its own (`sale:<sale key>`). A document paid by card 30 € then 50 € on two days is two splits, four tranches
     (24 + 6, 40 + 10) and two `link` entries in the journal. (D10-1: before, the two days shared one split whose gross
     followed the last candidate.)
+    > _Reading of 2026-11-17 (loop t12 B12-1):_ when the document has several card days and none free of the payment's amount, the
+    > payment stays unknown — never the invoice day; the invoice-day fallback only serves a single-day invoice.
+    >
     > _Reading of 2026-11-17 (loop t11 B11-1):_ a split already bound to a Mollie payment is never re-pointed to another one
     > (`fromMolliePayment` leaves it as it is). A second Mollie payment whose `description` names the same invoice number pairs
     > with the document's card day of the same amount still free (the invoice day or one of its later card days, `nextDays` of
@@ -487,7 +490,7 @@ See the summary page for the interactive mock-ups (fiche, tile + table, settings
 - `incoming-payments.unit.test.js` — rules 21–27 (grouping, sort, late first, without plugin).
 - `mollie-sale-payment-link.unit.test.js` (6) — rule 32 (split with no stay, two receipts, credit proposed and confirmed under id 0, journal `link` entry, « Versements à venir », a link no sale day lists).
 - `mollie-invoice-several-card-days.unit.test.js` (5) — rule 33 (two candidates, two splits idempotent, four tranches, invoice pairing on the first card day, « Versements à venir » 80 €).
-- `mollie-invoice-two-payments.unit.test.js` (3) — rule 33 reading (loop t11 B11-1): two Mollie payments naming one invoice → two splits bound to their own payment, journal 30 + 20, with and without the on-site card setting; a split bound to another payment is never taken again.
+- `mollie-invoice-two-payments.unit.test.js` (4) — rule 33 readings (loop t11 B11-1, t12 B12-1: wrong amount on a multi-day invoice → unknown): two Mollie payments naming one invoice → two splits bound to their own payment, journal 30 + 20, with and without the on-site card setting; a split bound to another payment is never taken again.
 - `accounting-synthesis-mollie-plan.unit.test.js` (3, accounting-export) — rule 29 in the synthesis: it reads the export's plan (bank lines off, operator's accounts).
 - `accounting-mollie-anonymous-sale-libelle.unit.test.js` (3, accounting-export) — rule 28: an anonymous sale's `link` entry reads the sale's label, never « RÉSERVATION #null ».
 - `accounting-mollie-journal.unit.test.js` — rules 28–31 (balanced entries, clearing balance, switch, unattached).
