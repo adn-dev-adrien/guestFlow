@@ -14,7 +14,7 @@ const { portionCap, clampPortions } = require('../../mealPortions');
 const { buildBabyBedSupplementLine, isBabyBedOption } = require('../../babyBedSupplement');
 const { discountLines } = require('../discounts');
 const { extraLineKey } = require('../storedLines');
-const { keyLines, lineRef } = require('../lineKeys');
+const { keyLines, lineRef, parseLineRef } = require('../lineKeys');
 const { lockedUnitPriceOr } = articles;
 
 // What an option line's `quantity` counts, when the summary has to say it
@@ -79,7 +79,11 @@ const step = {
       selectedResources, settings, startDate, typedDiscountPercent, discountTarget, discountFixedAmount, lineFacts, totalPrice, platform,
     } = ctx;
 
-    const optionUnitOverrides = lockedOptionUnits || {};
+    // A unit override names an article (`<optionId>`) or one stored line (`line:<table>:<lineId>`); any other key — the « undefined » a
+    // free line once produced — names nothing and is dropped, so it can never price a line (loop t16 S16-1).
+    const unitOverridesOf = (map) => Object.fromEntries(Object.entries(map && typeof map === 'object' ? map : {})
+      .filter(([key]) => /^\d+$/.test(key) || parseLineRef(key) != null));
+    const optionUnitOverrides = unitOverridesOf(lockedOptionUnits);
     const resourceUnitOverrides = lockedResourceUnits || {};
     const offeredOptionIdSet = new Set((Array.isArray(offeredOptionIds) ? offeredOptionIds : []).map((id) => Number(id)));
     // Rule 85: an article sold twice is two stored lines. A line that names itself (`lineId`) reads ITS snapshot; a request that names
@@ -171,7 +175,7 @@ const step = {
         const article = articles.makeArticle(option);
         const request = {
           article, locked, offered: isOfferedLine(selected, optionId), ...(selected.noFreeUnits ? { noFreeUnits: true } : {}),
-          unitOverride: optionUnitOverrides[identity.lineKey] !== undefined ? optionUnitOverrides[identity.lineKey] : optionUnitOverrides[optionId],
+          unitOverride: identity.lineKey != null && optionUnitOverrides[identity.lineKey] !== undefined ? optionUnitOverrides[identity.lineKey] : optionUnitOverrides[optionId],
         };
 
         // Option-driven planning card (specs/option-planning-card.md §3.4): the per-reservation

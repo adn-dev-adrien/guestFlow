@@ -75,6 +75,9 @@ import {
   hydrateOfferedOptionIds, frozenUnitPrices,
 } from '../utils/bookingFormHydration';
 import {
+  ficheQuoteBody, selectedOptionsPayload, customOptionsPayload, selectedResourcesPayload,
+} from '../utils/ficheQuoteBody';
+import {
   buildInitialGrid as buildInitialCardGrid,
   buildGridFromStored as buildCardGridFromStored,
   reconcileGrid as reconcileCardGrid,
@@ -1563,56 +1566,7 @@ export default function ReservationPage() {
 
     const refreshBasePrice = async () => {
       try {
-        const quoteBody = {
-          propertyId: selectedProp,
-          startDate: form.startDate,
-          endDate: form.endDate,
-          checkInTime: form.checkInTime,
-          checkOutTime: form.checkOutTime,
-          adults: form.adults,
-          children: form.children,
-          teens: form.teens,
-          babies: Number(form.babies || 0),
-          babyBeds: Number(form.babyBeds || 0),
-          extraGuestSurchargeOffered: form.extraGuestSurchargeOffered,
-          discountPercent: form.discountPercent,
-          discountTarget: form.discountTarget,
-          customPrice: form.customPrice,
-          platformCommissionAmount: form.platformCommissionAmount, // specs/platform-commission-line.md (solde commission)
-          acompteCommissionAmount: form.acompteCommissionAmount, // specs/platform-per-echeance-commission.md (acompte commission)
-          platformGrossAmount: form.platformGrossAmount, // specs/platform-payment-entry.md (pins the total séjour)
-          platformTouristTaxAmount: form.platformTouristTaxAmount, // specs/platform-tourist-tax-out-of-the-commission.md (comes back out of the brut)
-          depositPaid: form.depositPaid,
-          balancePaid: form.balancePaid,
-          complementPaid: form.complementPaid,
-          depositAmount: form.depositAmount,
-          depositAmountOverride: form.depositAmountOverride === '' ? null : Number(form.depositAmountOverride),
-          // specs/adjustable-complement-amounts.md §3.2 — the operator's complement rides every quote and
-          // every save, so the preview, the fiche total and the stored amount can never disagree.
-          complementAmountOverride: form.complementAmountOverride === '' ? null : Number(form.complementAmountOverride),
-          balanceAmount: form.balanceAmount,
-          depositDisabled: Boolean(form.depositDisabled),
-          selectedOptions: buildSelectedOptionsPayload(),
-          customOptions: buildCustomOptionsPayload(),
-          selectedResources: buildSelectedResourcesPayload(),
-          offeredOptionIds: Array.from(offeredOptionIds),
-          lockedOptionUnits: shouldLockExistingPricing ? frozenOptionUnitByQuantityRef.current : {},
-          lockedResourceUnits: shouldLockExistingPricing ? frozenResourceUnitByQuantityRef.current : {},
-          forceCurrentPricing: useCurrentPricing,
-          platform: form.platform,
-        touristTaxInComplement: form.touristTaxInComplement ? 1 : 0,
-        autoOptionsInComplement: form.autoOptionsInComplement || [],
-        refreshTouristTax,
-          ...(editingReservationId ? { reservationId: editingReservationId } : {}),
-        // A saved devis locks its prices while it is still valid — the server replays its stored
-        // lines so this preview equals what the save will store (specs/devis-extras-parity-and-price-lock.md §3 rule 13).
-        ...(editingDevisId ? { devisId: editingDevisId } : {}),
-        ...newDevisQuoteMarker,
-        // specs/reservation-payment-ledger.md rule 7 — the ledger follows the transfer typed on the fiche.
-        platformPayoutAmount: form.platformPayoutAmount,
-        // Rule 94 reading (loop t15 S15-1) — an admin-unlocked fiche is previewed as its save prices it: without the locked fiche's routing.
-        ...(pastUnlocked ? { unlockPast: true } : {}),
-        };
+        const quoteBody = buildFicheQuoteBody();
         // specs/reservation-payment-ledger.md rule 21 — the amount editors re-ask this same quote.
         lastQuoteBodyRef.current = quoteBody;
         const calc = await api.calculatePrice(quoteBody);
@@ -2127,54 +2081,27 @@ export default function ReservationPage() {
   // Payload builders thread `inComplement` (spec force-item-to-complement.md) to the server so
   // the engine routes the line correctly. They never send the captured contribs — those are
   // owned by the payment-flip code path; the server re-reads them from the DB-side snapshot.
-  const buildSelectedOptionsPayload = () => {
-    return (form.selectedOptions || [])
-      // Same discriminator as the snapshot builder above: skip only engine-derived options
-      // (autoEnabled = 1), not the typed-default linen options (autoOptionType set, autoEnabled = 0).
-      .filter((item) => Number(propertyOptions.find((o) => o.id === Number(item.optionId))?.autoEnabled || 0) !== 1)
-      .map((item) => {
-        const line = { optionId: item.optionId, quantity: item.quantity, inComplement: item.inComplement == null ? null : (item.inComplement ? 1 : 0) };
-        // Option-driven planning cards (specs/option-planning-card.md §3.4): send the CHECKED
-        // occurrences ({date,time}). The server derives billedUnits from them (authoritative).
-        if (Array.isArray(item.cardOccurrences)) line.cardOccurrences = toWireCardOccurrences(item.cardOccurrences);
-        // Served persons of that card option (specs/card-option-served-persons.md §3.2 rule 9): an
-        // intent, never a price — the engine clamps it and decides whether to persist it.
-        if (item.cardPersons != null) line.cardPersons = Number(item.cardPersons);
-        if (item.cardNights != null) line.cardNights = Number(item.cardNights);
-        if (item.typedAtParty != null) line.typedAtParty = item.typedAtParty;
-        if (item.typedAtNights != null) line.typedAtNights = item.typedAtNights;
-        return line;
-      })
-      .concat(form.laterOptions || []);
-  };
+  const buildSelectedOptionsPayload = () => selectedOptionsPayload(form, propertyOptions);
+  const buildCustomOptionsPayload = () => customOptionsPayload(form.customOptions);
+  const buildSelectedResourcesPayload = () => selectedResourcesPayload(form);
 
-  const buildCustomOptionsPayload = () => {
-    return (form.customOptions || [])
-      .map((line, index) => ({
-        customKey: String(line.customKey || `custom_${index + 1}`),
-        customOptionId: line.customOptionId != null ? Number(line.customOptionId) : undefined,
-        description: String(line.description || '').trim(),
-        amount: Number(line.amount || 0),
-        offered: Boolean(line.offered),
-        inComplement: line.inComplement == null ? null : (line.inComplement ? 1 : 0),
-      }))
-      .filter((line) => line.description && Number(line.amount || 0) > 0);
-  };
-
-  const buildSelectedResourcesPayload = () => {
-    return (form.selectedResources || [])
-      .map((item) => ({
-        resourceId: item.resourceId,
-        quantity: item.quantity,
-        unitPrice: item.unitPrice,
-        offered: Boolean(item.offered),
-        inComplement: item.inComplement == null ? null : (item.inComplement ? 1 : 0),
-        // Hourly-scheduled sessions (specs/resource-hourly-scheduling.md) — drive the server pricer.
-        sessions: Array.isArray(item.sessions) ? item.sessions : [],
-      }))
-      .filter((item) => Number(item.quantity || 0) > 0 || (Array.isArray(item.sessions) && item.sessions.length > 0))
-      .concat(form.laterResources || []);
-  };
+  // ONE body for every quote of the fiche's own figures (rule 94 reading, loop t16 S16-2 — `utils/ficheQuoteBody.js`): the live
+  // preview, the save-time quote (its `resourceLines` are what the save stores), « Actualiser les tarifs » and, through
+  // `lastQuoteBodyRef`, the ledger re-quote.
+  const buildFicheQuoteBody = (overrides = {}) => ficheQuoteBody({
+    form,
+    propertyId: selectedProp,
+    catalogue: propertyOptions,
+    offeredOptionIds,
+    lockedOptionUnits: shouldLockExistingPricing ? frozenOptionUnitByQuantityRef.current : {},
+    lockedResourceUnits: shouldLockExistingPricing ? frozenResourceUnitByQuantityRef.current : {},
+    forceCurrentPricing: useCurrentPricing,
+    refreshTouristTax,
+    reservationId: editingReservationId,
+    devisId: editingDevisId,
+    newDevisQuoteMarker,
+    unlockPast: pastUnlocked,
+  }, overrides);
 
   // ==================== CLIENT CREATE / EDIT ====================
   const closeCreateClient = () => {
@@ -2301,6 +2228,7 @@ export default function ReservationPage() {
           // lines so this preview equals what the save will store (specs/devis-extras-parity-and-price-lock.md §3 rule 13).
           ...(editingDevisId ? { devisId: editingDevisId } : {}),
           ...newDevisQuoteMarker,
+          ...unlockPayload,
         }) : null,
         api.getReservations({ propertyId: nextPropertyId, view: 'occupancy' }),
       ]);
@@ -2411,45 +2339,12 @@ export default function ReservationPage() {
     if (!proceed) return;
 
     try {
-      const calc = await api.calculatePrice({
-        propertyId: Number(selectedProp),
-        startDate: form.startDate,
-        endDate: form.endDate,
-        checkInTime: form.checkInTime,
-        checkOutTime: form.checkOutTime,
-        adults: form.adults,
-        children: form.children,
-        teens: form.teens,
-        babyBeds: Number(form.babyBeds || 0),
-        extraGuestSurchargeOffered: form.extraGuestSurchargeOffered,
-        discountPercent: form.discountPercent,
-        discountTarget: form.discountTarget,
-        depositPaid: form.depositPaid,
-        balancePaid: form.balancePaid,
-        complementPaid: form.complementPaid,
-        depositAmount: form.depositAmount,
-        depositAmountOverride: form.depositAmountOverride === '' ? null : Number(form.depositAmountOverride),
-        // specs/adjustable-complement-amounts.md §3.2 — the operator's complement rides every quote and
-        // every save, so the preview, the fiche total and the stored amount can never disagree.
-        complementAmountOverride: form.complementAmountOverride === '' ? null : Number(form.complementAmountOverride),
-        balanceAmount: form.balanceAmount,
-        depositDisabled: Boolean(form.depositDisabled),
-        selectedOptions: buildSelectedOptionsPayload(),
-        customOptions: buildCustomOptionsPayload(),
-        selectedResources: buildSelectedResourcesPayload(),
-        offeredOptionIds: Array.from(offeredOptionIds),
-        platform: form.platform,
-        touristTaxInComplement: form.touristTaxInComplement ? 1 : 0,
-        autoOptionsInComplement: form.autoOptionsInComplement || [],
-        refreshTouristTax,
-        ...(editingReservationId ? { reservationId: editingReservationId } : {}),
-        // A saved devis locks its prices while it is still valid — the server replays its stored
-        // lines so this preview equals what the save will store (specs/devis-extras-parity-and-price-lock.md §3 rule 13).
-        ...(editingDevisId ? { devisId: editingDevisId } : {}),
-        ...newDevisQuoteMarker,
+      const calc = await api.calculatePrice(buildFicheQuoteBody({
+        lockedOptionUnits: {},
+        lockedResourceUnits: {},
         forceCurrentPricing: true,
         customPrice: '',
-      });
+      }));
       setPricingQuote(calc);
       applyQuoteMinNights(calc);
       setNightlyBreakdown(calc.nightlyBreakdown || []);
@@ -2580,47 +2475,8 @@ export default function ReservationPage() {
     }
 
     try {
-      const quote = await api.calculatePrice({
-        propertyId: Number(selectedProp),
-        startDate: form.startDate,
-        endDate: form.endDate,
-        checkInTime: form.checkInTime,
-        checkOutTime: form.checkOutTime,
-        adults: form.adults,
-        children: form.children,
-        teens: form.teens,
-        babyBeds: Number(form.babyBeds || 0),
-        extraGuestSurchargeOffered: form.extraGuestSurchargeOffered,
-        discountPercent: form.discountPercent,
-        discountTarget: form.discountTarget,
-        customPrice: form.customPrice,
-        depositPaid: form.depositPaid,
-        balancePaid: form.balancePaid,
-        complementPaid: form.complementPaid,
-        depositAmount: form.depositAmount,
-        depositAmountOverride: form.depositAmountOverride === '' ? null : Number(form.depositAmountOverride),
-        // specs/adjustable-complement-amounts.md §3.2 — the operator's complement rides every quote and
-        // every save, so the preview, the fiche total and the stored amount can never disagree.
-        complementAmountOverride: form.complementAmountOverride === '' ? null : Number(form.complementAmountOverride),
-        balanceAmount: form.balanceAmount,
-        depositDisabled: Boolean(form.depositDisabled),
-        selectedOptions: buildSelectedOptionsPayload(),
-        customOptions: buildCustomOptionsPayload(),
-        selectedResources: buildSelectedResourcesPayload(),
-        offeredOptionIds: Array.from(offeredOptionIds),
-        lockedOptionUnits: shouldLockExistingPricing ? frozenOptionUnitByQuantityRef.current : {},
-        lockedResourceUnits: shouldLockExistingPricing ? frozenResourceUnitByQuantityRef.current : {},
-        forceCurrentPricing: useCurrentPricing,
-        platform: form.platform,
-        touristTaxInComplement: form.touristTaxInComplement ? 1 : 0,
-        autoOptionsInComplement: form.autoOptionsInComplement || [],
-        refreshTouristTax,
-        ...(editingReservationId ? { reservationId: editingReservationId } : {}),
-        // A saved devis locks its prices while it is still valid — the server replays its stored
-        // lines so this preview equals what the save will store (specs/devis-extras-parity-and-price-lock.md §3 rule 13).
-        ...(editingDevisId ? { devisId: editingDevisId } : {}),
-        ...newDevisQuoteMarker,
-      });
+      // Rule 94 reading (loop t16 S16-2) — the save prices the very body the live preview priced, unlock included.
+      const quote = await api.calculatePrice(buildFicheQuoteBody());
       setPricingQuote(quote);
       applyQuoteMinNights(quote);
 

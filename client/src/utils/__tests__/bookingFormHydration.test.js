@@ -129,6 +129,16 @@ test('hydrateOfferedOptionIds keeps only the offered catalogue lines', () => {
 });
 
 describe('frozenUnitPrices', () => {
+  // Loop t16 S16-1 — a free line has no article id: keyed anyway it sat under « undefined » and priced every new option at its amount.
+  test('names catalogue lines only: a free line gives no key', () => {
+    const units = frozenUnitPrices([
+      { optionId: 6, unitPrice: 8, quantity: 1, totalPrice: 8 },
+      { isCustom: 1, customOptionId: 41, title: 'Bois', unitPrice: 105, quantity: 1, totalPrice: 105 },
+    ], 'optionId');
+    expect(units).toEqual({ 6: 8 });
+    expect(Object.keys(units)).not.toContain('undefined');
+  });
+
   test('reads the stored unit price when there is one', () => {
     expect(frozenUnitPrices([{ optionId: 6, unitPrice: 8, quantity: 3, totalPrice: 48 }], 'optionId')).toEqual({ 6: 8 });
   });

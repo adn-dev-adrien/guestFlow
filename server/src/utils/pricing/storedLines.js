@@ -81,17 +81,18 @@ function numberedLabel(label, takenKeys) {
 }
 
 /**
- * Rule 94 (loop t14 S14-1/S14-2, loop t15 S15-3/S15-4) — the one numbering of repeated free labels, shared by the fiche's save, its preview, the
- * creation and the devis writes: a line `kept(index)` names (a stored line, matched) keeps its label; every other line whose label is already
- * taken is numbered. A line with a blank label is left as it is — the engine drops it, and numbering it would price a « (2) » line.
+ * Rule 94 (loop t14 S14-1/S14-2, loop t15 S15-3/S15-4, loop t16 S16-3 a) — the one numbering of repeated free labels, shared by the fiche's
+ * save, its preview, the creation and the devis writes: a line `kept(index)` names (a stored line, matched) keeps its label; every other line
+ * whose label is already taken is numbered. A line the engine drops — a blank label, or no amount (0 €, negative) — is left as it is and takes
+ * no label: numbering it would price a « (2) » line, and counting it would number the only line the stay keeps.
  */
 function numberRepeatedCustomLines(customOptions, kept = () => false) {
   if (!Array.isArray(customOptions)) return customOptions;
   const keyOf = (text) => extraLineKey({ isCustom: true, description: text });
-  const blank = (line) => !String((line && line.description) || '').trim();
-  const taken = new Set(customOptions.filter((line, index) => kept(index) && !blank(line)).map((line) => keyOf(line.description)));
+  const dropped = (line) => !String((line && line.description) || '').trim() || !(Math.round(Number((line && line.amount) || 0) * 100) > 0);
+  const taken = new Set(customOptions.filter((line, index) => kept(index) && !dropped(line)).map((line) => keyOf(line.description)));
   return customOptions.map((line, index) => {
-    if (kept(index) || blank(line)) return line;
+    if (kept(index) || dropped(line)) return line;
     const description = numberedLabel(String(line.description).trim(), taken);
     taken.add(keyOf(description));
     return description === line.description ? line : { ...line, description };

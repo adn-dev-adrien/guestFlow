@@ -2004,6 +2004,26 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
     > drops it as it always did (before: two blank lines from an API caller were stored as one priced « (2) » line). The numbering is one
     > function, `numberRepeatedCustomLines` (`utils/pricing/storedLines.js`), behind the save, the preview, the creation and the devis.
     > Tests `free-label-numbering-devis-and-blank`, `preview-save-routing` (amended), client `ReservationPage.unlocked-preview`.
+    > _Reading 2026-11-17 (loop t16, S16-1, S16-2, S16-3):_ « the preview prices as the save » holds over every request the fiche sends and every
+    > identity a free line carries. (S16-1) A unit override names an article (`<optionId>`) or one stored line (`line:<table>:<lineId>`), nothing
+    > else: the engine drops any other key and reads a line key only when the line has one (`steps/extras.js`), and the fiche no longer keys a
+    > free line's unit (`frozenUnitPrices` skips lines without an article id) — before, a free line's unit rode under « undefined » and priced
+    > every option added or raised on a stay or devis holding a free line at that amount (preview 225 € for a 120 € option the save stored at
+    > 120 €). (S16-2) The fiche builds ONE quote body (`client/src/utils/ficheQuoteBody.js`) for the live preview, the quote taken at
+    > « Enregistrer » (whose `resourceLines` the PUT stores), « Actualiser les tarifs » and the ledger re-quote; the admin unlock rides all of
+    > them (before: the save-time quote had no `unlockPast`, so an unlocked fiche saved the locked routing of a resource the preview had moved,
+    > and it also lacked the babies and the platform fields). (S16-3) The numbering skips every line the engine drops — a blank label or no
+    > amount — so a 0 € line never makes a lone « Ménage (2) » (`numberRepeatedCustomLines`). A line the fiche appends is sent as such
+    > (`newLine`, like a sale's appended line; `customOptionsPayload` marks every typed line that names no stored row) and `matchStoredCustomLines`
+    > never gives it a stored row, whatever its text; any other line is still found by its id, then by its text (reservation-save-keeps-pricing
+    > rule 19). So a line removed and typed again under the same label in one save is a new row (fresh
+    > `lineId`, no discount, no contribs, the window's routing) and the removed row's facts are not read under its key
+    > (`withoutRemovedLineFacts`, save and preview); a PAID line cannot leave that way: the save answers 409 `LINE_PAID` (rule 23 — before, the
+    > new line took the removed row's number, discount and money). The arrival SAS finds its own lines by the key every reader uses (case and
+    > spacing aside), so a re-run that changes only an item's case keeps its row, as the fiche does. A devis keeps matching its lines by text
+    > (its write posts no row ids and its lines carry no line facts). Tests `fiche-preview-save-matrix` (the reviewer's invariant harness: 2
+    > platforms × 11 moments × 19 gestures, the client's own modules), `free-line-unit-override`, `free-line-label-identity`, guest-app
+    > `guest-app-order-lines-preview-save-matrix`, client `ReservationPage.save-quote-body`, `ficheQuoteBody`.
 95. **Before the arrival, a line is moved to the arrival only** _(stabilisation loop t1, S-3, 2026-11-15; completes rules 20, 37)_. The extras baseline
     that carves a line out to the departure is a started stay's: one laid before the arrival carved every later pre-arrival sale out to the departure, then
     vanished at the boot repair and left the moved line in no stored bucket. Before the stay clock reaches the arrival, `changeLine { collectAt: 'departure' }`
@@ -2663,10 +2683,12 @@ All of it is plain CommonJS functions and objects (rule 56).
 | `controllers/` | `extraSalesController.js` | C | the endpoints of §4.3 |
 | `models/` | `reservationsModel.js` | T | `planArrivalSas`/`planDepartureSas`/`commit*Sas` delegate pricing to `extraSale` and buckets to SETTLEMENT; `settleOrderNoteBeforeArrival`, `keepStay` removed |
 | `utils/` | `storedReservationQuote.js` | T | `pinOrderGrowth` removed; `storedStayPrice` added |
-| `utils/pricing/` | `storedLines.js` | T (loop t15 S15-3, S15-4) | `numberRepeatedCustomLines`: the one numbering of repeated free labels (rule 94 reading 2026-11-17, loop t15) — the fiche's save and preview, the creation and the devis writes; a blank label is left as it is |
+| `utils/pricing/` | `storedLines.js` | T (loop t15 S15-3, S15-4; t16 S16-3) | `numberRepeatedCustomLines`: the one numbering of repeated free labels (rule 94 reading 2026-11-17, loop t15) — the fiche's save and preview, the creation and the devis writes; a line the engine drops (blank label, no amount) is left as it is and takes no label |
 | `models/` | `devisModel.js` | T (loop t15 S15-3) | `computeQuote` numbers a devis's repeated free labels with `numberRepeatedCustomLines`, so its conversion copies numbered lines |
 | `controllers/` | `reservationsController.js` | T (loop t15 S15-2) | `midStayWindowBaselines`: the window's arrival floors and engine baseline, shared by the save (`enterMidStayExtrasWindow`) and the preview (`previewRoutedLines`) — rule 102 reading 2026-11-17 |
 | `utils/` | `storedCustomLines.js` | T (loop t13 S13-1) | `renamedCustomLineFacts`: a renamed free line's engine facts (discount, moment, sale date) move to its new text, on the save and on its preview (rule 79 reading 2026-11-17); `customOptionTexts` returns the row's `lineId` |
+| `utils/` | `storedCustomLines.js` | T (loop t16 S16-3) | `matchStoredCustomLines`: a line the caller appends (`newLine`) is never a stored row; `withoutRemovedLineFacts`: a new line never reads a removed row's facts under its key (save and preview); `namedStoredCustomRowIds`: only the named rows carry their identity into the save's write (rule 94 reading 2026-11-17, loop t16) |
+| `utils/pricing/steps/` | `extras.js` | T (loop t16 S16-1) | a unit override is read under an article id or a line key only; a line without a line key reads its article's (rule 94 reading 2026-11-17, loop t16) |
 | `utils/` | `midStayOrderCommit.js` | **removed** (PR C, C30 done 2026-11-13) | replaced by `extraSale`; the line merge, persons ceiling and remainder delta moved to `utils/stayOrderLines.js`; `coreModule('midStayOrderCommit')` is a thin alias (`plugins/sdk/midStayOrderCommit.js`: `priceOrder` → `extraSale.quote`, `commitOrder` → `extraSale.sell`, `mergeOrderLines`; Q-C10) |
 | `utils/` | `sasOptionSale.js`, `complementPaidSplit.js` (`prepaidNetter`), `arrivalPaymentDetail.js`, `paymentLinkItems.js` | T → removed / thinned (PR B) | read `saleDetail`, SETTLEMENT and VAT instead of re-deriving |
 | `utils/` | `financeCalcs.js`, `touristTaxReportModel` | T (PR B) | call TOURIST TAX directly |
@@ -2703,6 +2725,7 @@ _Rewritten 2026-11-15 (stabilisation loop t1, UI-3) to the files PR B and PR C s
 | `hooks/` | `useExternalVatRates.js` | C | the class rates of `GET /api/standalone-sales/vat-rates` |
 | `constants/` | `extraSale.js` | C | the selector and moment words |
 | `utils/` | `applyQuoteToForm.js`, `arrivalLineKey.js`, `bookingFormHydration.js` | T | the fiche form reads the line keys of rule 85 and the later lines (`hydrateLaterLines`) |
+| `utils/` | `ficheQuoteBody.js` | C (loop t16 S16-2) | the ONE quote request of the fiche (`ficheQuoteBody`) and its line payloads — live preview, save-time quote, « Actualiser les tarifs », ledger re-quote (rule 94 reading 2026-11-17, loop t16); a typed free line is sent `newLine` (S16-3); `bookingFormHydration.frozenUnitPrices` keys catalogue lines only (S16-1) |
 | `pages/` | `ReservationPage.jsx`, `FinancePage.jsx`, `PlanningPage.jsx`, `OptionsResourcesPage.jsx`, `options/*`, `settings/SettingsSuggestedArticlesSection.jsx` | T / C | the fiche panel; the « Vente hors séjour » bar icon of Suivi financier (rule 88: a `PageActionBar` action); the visit dialog on the planning; the article forms; the « Proposés à l'arrivée » settings tab |
 | `plugins/sas/` | `ReservationSasDialog.jsx`, `arrivalDraft.js`, `departureDraft.js` | T | recaps render `SaleDetailList` / `StaySalesSection` |
 | `plugins/guest-app/` | `SasArrivalOrdersStep.jsx`, `guestAppApi.js`, `index.js` | C / T | the SAS step « Commandes Mon séjour » (rules 71, 87) |
@@ -2991,9 +3014,15 @@ _Rewritten 2026-11-15 (stabilisation loop t1, UI-3) to what shipped._
 - [x] `preview-save-routing` — rule 94 reading (loop t14, S14-3): preview figures = saved figures for a new line on a paid solde posted with stale flags, a pre-arrival line moved plus a new line on a started (locked) stay, and a line moved on an admin-unlocked started stay — direct and Booking; loop t15 S15-1: the unlocked preview (the flag the fiche now sends) routes the moved line as the save stores it (3)
 - [x] `preview-late-guest-baseline` — rule 102 reading (loop t15, S15-2): late guest (check-in hour passed, arrival not validated), an unpaid arrival line raised at the door: the save keeps the raise in the arrival complement and the preview's figures (complement and end-of-stay complement included) = the saved ones — direct and Booking (2)
 - [x] `free-label-numbering-devis-and-blank` — rule 94 reading (loop t15, S15-3, S15-4): a devis with two « Ménage » stores « Ménage (2) », its converted stay takes a 2 € line discount as 2 € (kept by a no-change save); a saved devis's preview keys the repeat « (2) »; blank labels are left unnumbered by the shared helper and price nothing on the preview, the creation and the save (4)
+- [x] `fiche-preview-save-matrix` — rule 94 reading (loop t16, the reviewer's `pa.js` invariant harness made permanent): the fiche rebuilt from the client's own modules (`bookingFormHydration`, `applyQuoteToForm`, `ficheQuoteBody`), direct and Booking × 11 stay moments (incl. late guest and three admin-unlocked ones) × 19 gestures (free line, option, resource, paid flags): an accepted save stores the live preview's figures and each line's amount and routing; a refusal is a known code (22)
+- [x] `free-line-unit-override` — rule 94 reading (loop t16, S16-1): a stay holding a free line, an option added / a quantity raised with a stray « undefined » unit → priced at its own unit, preview = save; an article key is still read; the same on a devis (4)
+- [x] `free-line-label-identity` — rule 94 reading (loop t16, S16-3, the reviewer's `pb.js` made permanent): creation, its preview, devis write and conversion × 10 label variants (0 € and blank lines included); stored stay × 3 moments × 9 fiche gestures, priced and not (one row per key, preview = stored keys, a renamed row keeps its facts, a line removed and re-typed is a new row without the discount); a paid line removed and re-typed → 409 `LINE_PAID`; a caller naming neither the row nor a new line is still matched by its text (rule 19); a SAS re-run with a case change keeps its rows (40)
+- [x] `guest-app-order-lines-preview-save-matrix` (guest-app plugin tests) — rule 94 reading S14-3 + guest-app rule 110 a (loop t16 apps « ga16 » made permanent): a stay holding app-ordered lines, 2 platforms × 4 moments × 6 mutations: preview = save; the 8 `ARRIVAL_EXTRAS_FROZEN` refusals write nothing and touch a line the fiche's `editLock` freezes (raw API only) (48)
 
 ### Client Vitest suites (named 2026-11-16, stabilisation loop t2 P2-2)
 - [x] `ReservationPage.unlocked-preview` — rule 94 reading (loop t15, S15-1): a locked fiche's live quote sends no unlock; after « Déverrouiller cette fiche » every live quote sends `unlockPast: true` (1)
+- [x] `ReservationPage.save-quote-body` — rule 94 reading (loop t16, S16-1, S16-2): an unlocked fiche's save-time quote carries `unlockPast` and equals the live preview's body; a locked fiche sends no unlock; no quote of a fiche holding a free line names a unit under « undefined » (3)
+- [x] `ficheQuoteBody` — rule 94 reading (loop t16, S16-2, S16-3): the one body carries every preview field (unlock, babies, platform fields), overrides win, the line payloads (a typed free line sent `newLine`), devis / new devis markers (4)
 - [x] `ExtrasSection.paid-custom-label` — rule 123 (loop t11, S11-1): the paid free line's description disabled with « Déjà payée : libellé figé », the unpaid one editable; none named → no caption (2)
 - [x] `ReservationSasDialog.stay-due` — rule 117 (loop t8, S8-1): the stay page renders the preview's planned solde, the commit sends `displayedStayDue`; a 409 `STAY_DUE_CHANGED` is shown and the recap read again (2)
 - [x] `ReservationSasDialog.stay-step-plan` — rule 117 reading (loop t9, UI9-1): stored 300, the plan settles it → no stay page, nothing sent; nothing stored, the plan raises 300 → the page comes in with 300 and the commit sends it (2)

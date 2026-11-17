@@ -122,7 +122,7 @@ const { toReceptionReservationView, toReceptionReservationList, toReceptionPayme
 const {
   midStayExtrasWindow, arrivalLineFloors, arrivalExtrasViolations, extrasContentChanged,
 } = require('../utils/midStayExtrasWindow');
-const { matchStoredCustomLines, renamedCustomLineFacts } = require('../utils/storedCustomLines');
+const { matchStoredCustomLines, renamedCustomLineFacts, withoutRemovedLineFacts, namedStoredCustomRowIds } = require('../utils/storedCustomLines');
 const { withStoredLineContribs } = require('../utils/storedLineContribs');
 const {
   buildLiveCheckoutComplement, isComplementDeferred, mergedEndOfStayAmount, markCarriesEndOfStay, deferralRefusal, endOfStayAloneRefusal,
@@ -1225,12 +1225,15 @@ function sameStayAsSold(stored, body) {
     && num(stored.teens) === num(body.teens) && num(stored.babies) === num(body.babies);
 }
 
-// The engine's line facts of a stay for a save posting `postedLines`: a renamed free line reads its own facts under its new text (S13-1).
+// The engine's line facts of a stay for a save posting `postedLines`: a renamed free line reads its own facts under its new text (S13-1), a
+// new line typed under the text of a line the save removes reads none of the removed line's (S16-3 b). Shared by the save and its preview.
 function lineFactsForSave(reservationId, postedLines) {
   const facts = stayRepository.lineFacts(reservationId);
+  if (!Array.isArray(postedLines) || postedLines.length === 0) return facts;
+  const stored = model.customOptionTexts(reservationId);
   const renames = customTextChangesOf(reservationId, postedLines);
-  if (renames.length === 0) return facts;
-  return renamedCustomLineFacts(facts, renames, new Map(model.customOptionTexts(reservationId).map((line) => [Number(line.id), line.lineId])));
+  const renamed = renames.length === 0 ? facts : renamedCustomLineFacts(facts, renames, new Map(stored.map((line) => [Number(line.id), line.lineId])));
+  return withoutRemovedLineFacts(renamed, postedLines, stored);
 }
 
 // The custom lines of a fiche whose NAME alone differs from the stored one: [{ id, from, to }].
@@ -2889,8 +2892,11 @@ function applyUpdate(req, res, pastUnlocked, {
     if (writesExtras && reservationOptions) model.replaceOptions(id, withPostedLineIds(quote.optionLines, reservationOptions, 'optionId'));
     if (writesExtras) {
       const sasOriginLabels = model.sasOriginCustomLabels(id);
-      const carriedCustomLines = model.deleteCustomOptions(id);
-      if (reservationCustomOptions) model.insertCustomOptions(id, quote.optionLines, sasOriginLabels, carriedCustomLines);
+      const carriedCustomLines = model.deleteCustomOptions(id) || [];
+      // Rule 94 reading (loop t16 S16-3 b) — only the rows the posted lines name carry their identity over: a line the fiche appends never
+      // takes, by its text, the number, discount and money of a row this save removes.
+      const named = namedStoredCustomRowIds(reservationCustomOptions, carriedCustomLines);
+      if (reservationCustomOptions) model.insertCustomOptions(id, quote.optionLines, sasOriginLabels, carriedCustomLines.filter((entry) => named.has(Number(entry.id))));
     }
     if (!pastReservationLocked && !stayPinned) model.replaceNights(id, quote.nightlyBreakdown);
     // specs/tariff-recipes/spec.md §3 rule 62 — the tariff snapshot follows the nights it describes:
