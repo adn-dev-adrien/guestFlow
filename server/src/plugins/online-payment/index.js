@@ -70,7 +70,8 @@ function register(ctx) {
   const provider = createQontoProvider({ settings: store });
   ctx.paymentProvider(provider);
   // specs/resource-booking-pricing-and-invoicing.md rule 14 — Qonto numbers and keeps the invoices a plugin asks for.
-  ctx.invoiceIssuer(createQontoInvoiceIssuer({ store: () => store, iban: () => String(coreSettings().read().companyIban || '') }));
+  const invoiceIssuer = createQontoInvoiceIssuer({ store: () => store, iban: () => String(coreSettings().read().companyIban || '') });
+  ctx.invoiceIssuer(invoiceIssuer);
   // specs/plugins-phase-0-foundation.md rule 25 — the Plugins card says the connection is missing.
   ctx.setupStatus(() => (store.qontoConnected() ? null : 'à connecter'));
 
@@ -102,7 +103,9 @@ function register(ctx) {
   }).forEach((job) => ctx.jobs.every(job));
 
   // specs/qonto-bank-reconciliation.md — the credits read from the account, the operator's decisions.
-  const reconciliation = mountReconciliation(ctx, { store });
+  const reconciliation = mountReconciliation(ctx, {
+    store, attachPdf: invoiceIssuer.attachPdf, companyName: () => String(coreSettings().read().companyName || ''),
+  });
 
   // Rule 16 — the connection and the reconciliation's own tables are plugin data. Payment links, paid
   // buckets and the request emails are the stays' records: they stay (so do the fiches the reconciliation

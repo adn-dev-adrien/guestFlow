@@ -130,5 +130,5 @@ test('rule 14 — the plugin declares what the core reads: ledger tranches, inco
   mountReconciliation(ctx, { store: {} });
   ['ledgerBankTranches', 'incomingPayments', 'journalEntries'].forEach((name) => assert.equal(typeof provided[name], 'function', name));
   assert.deepEqual(ctx.attentions.map((a) => a.key), ['bank-reconciliation', 'mollie-reserve-late']);
-  assert.deepEqual(ctx.migrationList.map((m) => m.name), ['reconciliation_v1', 'reconciliation_v2', 'reconciliation_v3', 'reconciliation_v3b']);
+  assert.deepEqual(ctx.migrationList.map((m) => m.name), ['reconciliation_v1', 'reconciliation_v2', 'reconciliation_v3', 'reconciliation_v3b', 'reconciliation_v4']);
 });
