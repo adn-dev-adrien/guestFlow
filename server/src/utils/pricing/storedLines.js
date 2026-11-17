@@ -80,6 +80,24 @@ function numberedLabel(label, takenKeys) {
   return candidate;
 }
 
+/**
+ * Rule 94 (loop t14 S14-1/S14-2, loop t15 S15-3/S15-4) — the one numbering of repeated free labels, shared by the fiche's save, its preview, the
+ * creation and the devis writes: a line `kept(index)` names (a stored line, matched) keeps its label; every other line whose label is already
+ * taken is numbered. A line with a blank label is left as it is — the engine drops it, and numbering it would price a « (2) » line.
+ */
+function numberRepeatedCustomLines(customOptions, kept = () => false) {
+  if (!Array.isArray(customOptions)) return customOptions;
+  const keyOf = (text) => extraLineKey({ isCustom: true, description: text });
+  const blank = (line) => !String((line && line.description) || '').trim();
+  const taken = new Set(customOptions.filter((line, index) => kept(index) && !blank(line)).map((line) => keyOf(line.description)));
+  return customOptions.map((line, index) => {
+    if (kept(index) || blank(line)) return line;
+    const description = numberedLabel(String(line.description).trim(), taken);
+    taken.add(keyOf(description));
+    return description === line.description ? line : { ...line, description };
+  });
+}
+
 module.exports = {
-  extraLineKey, parseNotes, settledByKey, parseDetail, numberedLabel,
+  extraLineKey, parseNotes, settledByKey, parseDetail, numberedLabel, numberRepeatedCustomLines,
 };

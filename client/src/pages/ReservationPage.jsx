@@ -1606,6 +1606,8 @@ export default function ReservationPage() {
         ...newDevisQuoteMarker,
         // specs/reservation-payment-ledger.md rule 7 — the ledger follows the transfer typed on the fiche.
         platformPayoutAmount: form.platformPayoutAmount,
+        // Rule 94 reading (loop t15 S15-1) — an admin-unlocked fiche is previewed as its save prices it: without the locked fiche's routing.
+        ...(pastUnlocked ? { unlockPast: true } : {}),
         };
         // specs/reservation-payment-ledger.md rule 21 — the amount editors re-ask this same quote.
         lastQuoteBodyRef.current = quoteBody;
@@ -1641,7 +1643,7 @@ export default function ReservationPage() {
     };
 
     refreshBasePrice();
-  }, [selectedProp, pricingQuoteSignature, shouldLockExistingPricing, applyQuoteToForm, applyQuoteMinNights, useCurrentPricing, offeredOptionIds, refundsVersion, windowToday]);
+  }, [selectedProp, pricingQuoteSignature, shouldLockExistingPricing, applyQuoteToForm, applyQuoteMinNights, useCurrentPricing, offeredOptionIds, refundsVersion, windowToday, pastUnlocked]);
 
 
   // ==================== CAPACITY & PRICING CALCULATIONS ====================

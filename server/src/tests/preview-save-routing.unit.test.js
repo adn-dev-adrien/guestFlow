@@ -79,12 +79,22 @@ test('S14-3 — locked fiche (stay started): a line the fiche moves and a new li
   }
 });
 
+// Loop t15 S15-1 — `unlockPast: true` on the preview is what the fiche's live quote sends once « Déverrouiller cette fiche » is clicked
+// (client suite ReservationPage.unlocked-preview); the moved line is previewed with the routing the save stores.
 test('S14-3 — admin-unlocked started stay: the window is skipped by the preview as by the save (a line moved, the price kept)', async () => {
+  const beerRouting = (id) => db.prepare('SELECT COALESCE(inComplement, 0) AS inComplement FROM reservation_options WHERE reservationId = ? AND optionId = ?').get(id, beer).inComplement;
   for (const platform of ['direct', 'Booking']) {
     const id = startedWithEarlySale(platform);
     const body = storedBody(id);
     body.options = body.options.map((line) => (Number(line.optionId) === beer ? { ...line, inComplement: line.inComplement ? 0 : 1 } : line));
+    const wanted = body.options.find((line) => Number(line.optionId) === beer).inComplement;
+    const previewed = await call(ctrl.calculatePrice, JSON.parse(JSON.stringify({
+      ...body, selectedOptions: body.options, selectedResources: body.resources, reservationId: id, unlockPast: true,
+    })));
+    const previewedBeer = previewed.body.optionLines.find((line) => Number(line.optionId) === beer);
+    assert.equal(previewedBeer.inComplement ? 1 : 0, wanted, platform);
     const { preview, stored } = await previewThenSave(id, body, { unlockPast: true });
     assert.deepEqual(preview, stored, platform);
+    assert.equal(beerRouting(id), wanted, platform);
   }
 });

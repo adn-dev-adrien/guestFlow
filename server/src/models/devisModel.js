@@ -53,6 +53,7 @@ const resourceOffer = require('../utils/resourceOffer');
 const { provenComplementAmount } = require('../utils/createdComplementRepair');
 const { roundMoneyStrict } = require('../utils/pricing/money');
 const { notDepartureCharge } = require('../utils/departureChargeLines');
+const { numberRepeatedCustomLines } = require('../utils/pricing/storedLines');
 
 /**
  * Now, in UTC, as `YYYY-MM-DD HH:MM:SS` matching SQLite's `datetime('now')` format. Used as
@@ -436,12 +437,14 @@ function createModel(database) {
       ...(o.cardNights !== undefined ? { cardNights: o.cardNights } : {}),
       inComplement: routing(o.inComplement),
     })).filter((line) => !isEngineManagedAuto(line.optionId));
-    const customOptions = (body.customOptions || []).map((line, index) => ({
+    // Rule 94 (loop t15 S15-3) — a repeated free label is numbered on the devis as on a stay (« Ménage (2) »), so the devis, its PDF and the
+    // stay it converts into each carry lines of their own (a line's discount, payment and removal stay its own).
+    const customOptions = numberRepeatedCustomLines((body.customOptions || []).map((line, index) => ({
       customKey: String(line.customKey || `custom_${index + 1}`),
       description: String(line.description || '').trim(),
       amount: Number(line.amount || 0), offered: Boolean(line.offered),
       inComplement: routing(line.inComplement),
-    })).filter((line) => line.description && Number(line.amount || 0) > 0);
+    })).filter((line) => line.description && Number(line.amount || 0) > 0));
     const selectedResources = (body.selectedResources || []).map((r) => ({
       resourceId: Number(r.resourceId), quantity: Number(r.quantity || 1),
       unitPrice: r.unitPrice != null ? Number(r.unitPrice) : undefined, offered: Boolean(r.offered),

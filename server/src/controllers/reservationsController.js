@@ -54,7 +54,7 @@ const {
   storedMidStayLines, extraLineKey, parseBaseline, settledByKey,
 } = require('../utils/midStayExtras');
 const { isArrivalValidated } = require('../utils/pricing/stayClock');
-const { numberedLabel } = require('../utils/pricing/storedLines');
+const { numberRepeatedCustomLines } = require('../utils/pricing/storedLines');
 const { planMidStayNote } = require('../utils/midStayNotePlan');
 const establishmentClosuresModel = require('../models/establishmentClosuresModel');
 const { emit: emitPluginEvent } = require('../plugins/sdk/eventBus');
@@ -1338,9 +1338,8 @@ async function calculatePrice(req, res) {
   const reservationId = Number(req.body.reservationId || 0);
   // Rule 94 reading (loop t14 S14-1) — the fiche of a stay (stored or new) numbers a repeated free label as its save will, so a new
   // « Bois » beside a stored one is priced as « Bois (2) » without the stored line's facts (`withTypedCustomTitles` keeps the typed text).
-  // A devis keeps its lines as they are.
-  const previewCustomOptions = (reservationId > 0 || !(Number(req.body.devisId || 0) > 0))
-    ? numberedCustomLinesOf(reservationId, req.body.customOptions) : req.body.customOptions;
+  // A devis too (loop t15 S15-3): its write numbers them the same way.
+  const previewCustomOptions = numberedCustomLinesOf(reservationId, req.body.customOptions);
   // Rule 94 reading (loop t14 S14-3) — a stored stay is previewed on the save's routing: its stored payment flags and, on a locked fiche, the
   // window's pins (`midStayWindowRouting` + `pinStoredRouting`, the save's own functions).
   const previewLines = previewRoutedLines(req, reservationId, previewCustomOptions);
@@ -1429,6 +1428,8 @@ async function calculatePrice(req, res) {
     ...frozenTouristTaxInputs(db, reservationId, req.body.refreshTouristTax || (reservationId > 0 && !sameStayAsSold(model.getRow(reservationId), req.body))),
     // Read-only preview: the baseline is only CAPTURED on save, never here.
     ...midStayQuoteInputs(db, reservationId),
+    // The window's engine baseline, as the save prices on it (loop t15 S15-2).
+    ...(previewLines.windowEngineInputs || {}),
     // specs/payment-schedule-and-cancellation.md §3.1 — same booking context as the save, so the
     // échéances shown on the fiche are the ones that will be stored.
     // A new devis (`kind: 'devis'`, no id) is priced as the devis its create stores (rule 19, audit R33-M-L1).
@@ -1582,8 +1583,13 @@ function previewRoutedLines(req, reservationId, customOptions) {
   if (!(reservationId > 0) || pastUnlockRequested(req)) return lines;
   const { today, nowTime } = localNow(stayClockModel.gestureNow());
   const window = midStayWindowRouting(reservationId, today, nowTime);
-  if (window) pinStoredRouting(lines, model.getStoredRouting(reservationId), window.toArrival);
-  return lines;
+  if (!window) return lines;
+  pinStoredRouting(lines, model.getStoredRouting(reservationId), window.toArrival);
+  // Loop t15 S15-2 — and on the save's engine baseline: a late guest's unpaid arrival line raised at the door stays in the arrival complement.
+  const { engineBaseline } = midStayWindowBaselines(reservationId, window, {
+    options: lines.options, resources: lines.resources, customOptions: lines.customOptions,
+  });
+  return { ...lines, windowEngineInputs: { arrivalExtrasBaseline: engineBaseline } };
 }
 
 // Rule 94 reading (loop t14 S14-1) — the preview prices a repeated label under its number (`key`), but echoes the text the operator typed: the
@@ -2194,35 +2200,47 @@ function midStayWindowRouting(id, today, nowTime, { atArrival = false } = {}) {
 function enterMidStayExtrasWindow(id, body, today, nowTime, { atArrival = false } = {}) {
   const window = midStayWindowRouting(id, today, nowTime, { atArrival });
   if (!window) return null;
-  const { row, started, arrivalOpen, toArrival } = window;
+  const { row, toArrival } = window;
   // The fiche is locked, so the stay has started whether or not the check-in was marked: pin what it
   // carries now as « sold at arrival » (rule 10), unconditionally.
-  // Read, not written: the baseline is stored by the write itself, after every refusal of the save.
-  const baseline = model.peekArrivalExtrasBaseline(id);
-  const beforeLines = model.readExtraLinesWithQuantity(id);
   pinStoredRouting(body, model.getStoredRouting(id), toArrival);
   body.refreshPricingToCurrent = false;
+  const baselines = midStayWindowBaselines(id, window, body);
   // Rule 8 — the bed counts follow the linen line: they move only when the payload brings a bed-linen
   // option that was not sold at arrival; in every other case they stay what is stored.
-  const floors = arrivalLineFloors(baseline, beforeLines);
+  const floors = arrivalLineFloors(baselines.peeked, baselines.beforeLines);
   const newLinen = (Array.isArray(body.options) ? body.options : [])
     .filter((option) => !floors[extraLineKey(option)]);
   if (!hasBedLinenOption(newLinen)) {
     body.singleBeds = row.singleBeds;
     body.doubleBeds = row.doubleBeds;
   }
+  return {
+    baseline: baselines.frozenBaseline, beforeLines: baselines.beforeLines, started: window.started,
+    engineBaseline: baselines.engineBaseline, openKeys: baselines.openKeys, rebaseKeys: baselines.arrivalKeys,
+  };
+}
+
+// The baselines an open window prices on (rule 102): the arrival floors, and the engine's, where a key of the open arrival complement (a late
+// guest's unpaid arrival lines, an `atArrival` gesture's new lines) never reads above the baseline. Read, not written: the baseline is stored by
+// the write itself, after every refusal of the save. Shared by the save and its preview (loop t15 S15-2), so both price on one baseline.
+// `lines`: the gesture's lines (`options` / `resources` / `customOptions`), already pinned.
+function midStayWindowBaselines(id, window, lines) {
+  const { row, started, arrivalOpen, toArrival } = window;
+  const peeked = model.peekArrivalExtrasBaseline(id);
+  const beforeLines = model.readExtraLinesWithQuantity(id);
   const openKeys = arrivalOpen ? openArrivalKeys(beforeLines, row.midStaySettledNotes) : [];
-  const newKeys = started && toArrival ? appendedLineKeys(body) : [];
-  const parsed = parseBaseline(baseline) || {};
-  const frozenBaseline = openKeys.length ? JSON.stringify(Object.fromEntries(Object.entries(parsed).filter(([key]) => !openKeys.includes(key)))) : baseline;
+  const newKeys = started && toArrival ? appendedLineKeys(lines) : [];
+  const parsed = parseBaseline(peeked) || {};
+  const frozenBaseline = openKeys.length ? JSON.stringify(Object.fromEntries(Object.entries(parsed).filter(([key]) => !openKeys.includes(key)))) : peeked;
   // Rule 102 d (loop t3, T3-2) — a key of the open arrival complement is the arrival's whatever the gesture does to it (offered, billed again,
   // discounted): the engine never reads it above the baseline, and the rebase after the write holds what its arrival lines then hold.
   const arrivalKeys = [...new Set([...openKeys, ...newKeys])];
   const engineBaseline = started
-    ? (arrivalKeys.length ? JSON.stringify({ ...parsed, ...Object.fromEntries(arrivalKeys.map((key) => [key, ARRIVAL_LINE_NEVER_MID_STAY])) }) : baseline)
+    ? (arrivalKeys.length ? JSON.stringify({ ...parsed, ...Object.fromEntries(arrivalKeys.map((key) => [key, ARRIVAL_LINE_NEVER_MID_STAY])) }) : peeked)
     : (model.getArrivalExtrasBaseline(id) || null);
   return {
-    baseline: frozenBaseline, beforeLines, started, engineBaseline, openKeys, rebaseKeys: arrivalKeys,
+    peeked, beforeLines, openKeys, arrivalKeys, frozenBaseline, engineBaseline,
   };
 }
 
@@ -2274,14 +2292,7 @@ function numberRepeatedCustomLabels(id, body) {
 function numberedCustomLinesOf(id, customOptions) {
   if (!Array.isArray(customOptions) || customOptions.length < 2) return customOptions;
   const matches = matchStoredCustomLines(customOptions, id > 0 ? model.getStoredRouting(id).customs : []);
-  const keyOfLabel = (text) => extraLineKey({ isCustom: true, description: text });
-  const taken = new Set(customOptions.filter((line, index) => matches[index]).map((line) => keyOfLabel(line.description)));
-  return customOptions.map((line, index) => {
-    if (matches[index]) return line;
-    const description = numberedLabel(String(line.description || '').trim(), taken);
-    taken.add(keyOfLabel(description));
-    return description === line.description ? line : { ...line, description };
-  });
+  return numberRepeatedCustomLines(customOptions, (index) => Boolean(matches[index]));
 }
 
 // The priced lines as the writer takes them: a line the engine did not number (the article's FIRST, whose key stays the legacy one) still
