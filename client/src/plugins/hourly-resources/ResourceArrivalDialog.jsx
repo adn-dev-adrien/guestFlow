@@ -9,7 +9,9 @@
  * Specific: it composes the generic components. Full screen on a phone with the « Reste à payer » kept at the top and « Valider l'arrivée » last under the thumb;
  * two columns from `lg` (lines and picker left, recap and payment right).
  *
- * Whether the money on the books can be invoiced now is the server's `invoiceable` ({ ok, code, reason }, admin only): « Créer la facture » iff `ok`, its `reason` otherwise.
+ * Whether the money on the books can be invoiced now is the server's `invoiceable` ({ ok, code, reason, silent }, admin only): « Créer la facture » iff `ok`, its `reason`
+ * otherwise — unless `silent`, or while a draft or a payment is typed (the reason reads the stored visit).
+ * At « Payé maintenant » the checkbox « Créer la facture dans Qonto » reads the same answer from the quote of the draft with the payment typed (loop t2 B2-7).
  * Each line names its VAT rate (`line.vatRate`). An invoiced visit offers « Nouvelle vente » on its client (`newSale.client`, rule 24): the counter's dialog seeded with it.
  *
  * Props: open, bookingId, onClose, onDone (called after a successful commit)
@@ -22,7 +24,7 @@ import {
   api, formatCurrency, LoadingState, ErrorAlert, ConfirmDialog, SuggestedArticlesStep, SalePaymentLink, StatusBadge, StandaloneSaleDialog,
 } from '../sdk';
 import OfferedTimeField from './OfferedTimeField';
-import BookingPaymentFields, { paymentBody, allOnTheBooks, hasCard } from './BookingPaymentFields';
+import BookingPaymentFields, { paymentBody, hasCard } from './BookingPaymentFields';
 import BookingInvoiceBlock from './BookingInvoiceBlock';
 import useVisitQuote from './useVisitQuote';
 
@@ -45,6 +47,7 @@ const TEXTS = Object.freeze({
   vatRate: (rate) => `TVA ${rate} %`,
   newSale: 'Nouvelle vente',
   linkAfterSave: 'Enregistrer d’abord les articles ajoutés.',
+  rowsAfterSave: 'Enregistrer d’abord les modifications.',
   refundTitle: 'Remboursement',
   refundAsk: 'Ligne payée : remboursement à confirmer.',
   refundAskAmount: (amount) => `Ligne payée : remboursement à confirmer. ${amount} à rembourser.`,
@@ -55,6 +58,7 @@ const TEXTS = Object.freeze({
   validate: 'Valider l’arrivée',
   save: 'Enregistrer',
   makeInvoice: 'Créer la facture',
+  invoiceQuoteFailed: 'Facture non vérifiée pour ce paiement.',
   close: 'Fermer',
   cancel: 'Annuler',
   saving: 'Enregistrement…',
@@ -180,16 +184,28 @@ export default function ResourceArrivalDialog({ open, bookingId, onClose, onDone
   const hasChanges = dirty || payNow;
   const quoteReady = !dirty || (quote.fresh && !quote.refusal && refusals.length === 0);
   const qontoReady = Boolean(view && view.invoiceReady);
-  const invoiceOffered = !reception && payNow && allOnTheBooks(payment) && Boolean(payment) && payment.gapCents === 0;
+  // Loop t2 B2-7 (rule 54) — with « Payé maintenant », whether this commit could make the invoice is the server's answer for the payment typed.
+  const paymentDraft = useMemo(() => (!reception && payNow && payment && paymentBody(payment) ? { ...(draft || {}), payment: paymentBody(payment) } : null), [reception, payNow, payment, draft]);
+  const invoiceQuote = useVisitQuote({ bookingId, draft: paymentDraft, enabled: open, version: visit ? visit.document.version : 0 });
+  // Loop t3 UI3-4/UI3-5 — the latest answer stays on screen while a newer one is asked (no caption ↔ checkbox flip per keystroke); the commit
+  // still waits for the answer to the payment typed (`paymentReady`). « Caisse interne » and any other refusal are the server's words too.
+  const draftAnswerFailed = Boolean(quote.refusal || quote.error);
+  const invoiceAnswer = paymentDraft && invoiceQuote.visit ? invoiceQuote.visit.invoiceable || null : null;
+  const invoiceOffered = Boolean(invoiceAnswer && invoiceAnswer.ok);
+  const draftInternalCash = Boolean(invoiceAnswer && invoiceAnswer.code === 'INTERNAL_CASH');
+  const draftRefusal = invoiceAnswer && !invoiceAnswer.ok && !invoiceAnswer.silent && !draftInternalCash ? invoiceAnswer.reason : null;
   // Money already on the books, invoiceable now: the server's `invoiceable` (invoicing rules 13, 44; loop t1 UI-10 / AV-11). It reads the stored visit, so a draft waits for its save.
   const invoiceable = visit && !reception ? visit.invoiceable : null;
   const invoiceStored = !dirty && Boolean(invoiceable && invoiceable.ok);
-  const invoiceReason = !invoiced && !invoiceOutcome && !invoiceOffered && invoiceable && !invoiceable.ok ? invoiceable.reason : null;
+  // Loop t2 UI2-5 — the reason is the STORED visit's: it is shown only while nothing is typed (no draft, no payment being taken, whose save answers
+  // its own invoice), and never for a refusal the server marks `silent` (no Qonto, nothing to invoice, no payment yet).
+  const invoiceReason = !invoiced && !invoiceOutcome && !hasChanges && invoiceable && !invoiceable.ok && !invoiceable.silent ? invoiceable.reason : null;
   const wantsInvoice = invoiceOffered && invoiceChecked && qontoReady;
   const commitMode = !invoiceOutcome && (!booking || !booking.arrived || hasChanges);
   const primaryLabel = invoiceOutcome ? TEXTS.makeInvoice : (!booking || !booking.arrived ? TEXTS.validate : (hasChanges ? TEXTS.save : (invoiceStored ? TEXTS.makeInvoice : TEXTS.close)));
   const closesOnly = !commitMode && !invoiceOutcome && !invoiceStored;
-  const paymentReady = !payNow || Boolean(payment && payment.canSubmit);
+  // The invoice question is answered before the commit, so the checkbox the operator sees is the one the commit carries.
+  const paymentReady = !payNow || (Boolean(payment && payment.canSubmit) && (!paymentDraft || invoiceQuote.fresh));
   const canValidate = Boolean(visit) && !busy && (closesOnly || Boolean(invoiceOutcome) || (commitMode ? quoteReady && paymentReady : invoiceStored));
 
   const adopt = (next) => { setVisit(next); setOfferedMinutes(Number(next.session.offeredMinutes || 0)); };
@@ -375,15 +391,16 @@ export default function ResourceArrivalDialog({ open, bookingId, onClose, onDone
                 {(view.vatByRate || []).filter((row) => row.vatCents > 0).map((row) => (
                   <Typography key={row.rate} variant="caption" color="text.secondary" sx={{ fontVariantNumeric: 'tabular-nums' }}>{TEXTS.vat(String(row.rate).replace('.', ','), euros(row.vatCents))}</Typography>
                 ))}
-                {(visit.refundObligations || []).map((row) => (
+                {(view.refundObligations || []).map((row) => (
                   <Alert
                     key={row.id}
                     severity="warning"
-                    action={<Button color="inherit" size="small" disabled={busy} aria-describedby={`obligation-${row.id}`} onClick={() => setObligationAsk(row)} sx={{ minHeight: 44, textTransform: 'none' }}>{TEXTS.refunded}</Button>}
+                    action={<Button color="inherit" size="small" disabled={busy || dirty} aria-describedby={`obligation-${row.id}`} onClick={() => setObligationAsk(row)} sx={{ minHeight: 44, textTransform: 'none' }}>{TEXTS.refunded}</Button>}
                   >
                     <span id={`obligation-${row.id}`}>{row.label}{row.detail ? ` · ${row.detail}` : ''}</span>
                   </Alert>
                 ))}
+                {dirty && (view.refundObligations || []).length > 0 && <Typography variant="caption" color="text.secondary">{TEXTS.rowsAfterSave}</Typography>}
                 {view.totals.refundUnheldCents > 0 && <Alert severity="warning">{TEXTS.refund(euros(view.totals.refundUnheldCents))}</Alert>}
               </Box>
 
@@ -413,7 +430,7 @@ export default function ResourceArrivalDialog({ open, bookingId, onClose, onDone
                         <Typography variant="caption" color="text.secondary">{TEXTS.laterHint}</Typography>
                       )}
                       {linkBlock}
-                      {dirty && view.paymentLink && view.paymentLink.available && <Typography variant="caption" color="text.secondary">{TEXTS.linkAfterSave}</Typography>}
+                      {dirty && view.paymentLink && view.paymentLink.available && <Typography variant="caption" color="text.secondary">{extras.length > 0 ? TEXTS.linkAfterSave : TEXTS.rowsAfterSave}</Typography>}
                     </>
                   )}
                 </Box>
@@ -432,7 +449,7 @@ export default function ResourceArrivalDialog({ open, bookingId, onClose, onDone
                   <Typography variant="caption" color="text.secondary">{invoiceReason}</Typography>
                 </Box>
               )}
-              {!reception && !invoiceReason && (invoiceOffered || invoiced || invoiceOutcome || invoiceStored) && (
+              {!reception && !invoiceReason && (invoiceOffered || invoiced || invoiceOutcome || invoiceStored || draftInternalCash || draftRefusal) && (
                 <Box sx={{ display: 'grid', gap: 1 }}>
                   <Typography variant="subtitle2">{TEXTS.invoice}</Typography>
                   {invoiceOutcome && invoiceOutcome.code !== 'QONTO_NEEDS_ADDRESS' && <Alert severity="error">{invoiceOutcome.message}</Alert>}
@@ -445,7 +462,8 @@ export default function ResourceArrivalDialog({ open, bookingId, onClose, onDone
                     billing={billing}
                     onBilling={setBilling}
                     addressAsked={Boolean(invoiceOutcome && invoiceOutcome.code === 'QONTO_NEEDS_ADDRESS')}
-                    internalCash={(payNow && Boolean(payment) && !allOnTheBooks(payment)) || Boolean(booking.payment && !booking.payment.onTheBooks)}
+                    internalCash={draftInternalCash || Boolean(booking.payment && !booking.payment.onTheBooks)}
+                    reason={draftRefusal}
                     cardDay={dayMonth((booking.payment && booking.payment.paidAt) || (payment && payment.paidAt))}
                     onIssue={() => validate({ issue: true })}
                     onAttach={() => attachWith({})}
@@ -457,7 +475,10 @@ export default function ResourceArrivalDialog({ open, bookingId, onClose, onDone
               )}
             </Box>
             {quote.refusal && <Alert severity="error" sx={{ gridColumn: '1 / -1' }}>{quote.refusal}</Alert>}
-            {quote.error && <ErrorAlert message={quote.error.message} onRetry={quote.retry} />}
+            {quote.error && <ErrorAlert message={quote.error.message} onRetry={() => { quote.retry(); if (paymentDraft) invoiceQuote.retry(); }} sx={{ gridColumn: '1 / -1' }} />}
+            {/* Loop t4 UI4-3 — the payment request carries the draft: its refusal or failure is shown once, by the draft's own answer. */}
+            {paymentDraft && !draftAnswerFailed && invoiceQuote.refusal && <Alert severity="error" sx={{ gridColumn: '1 / -1' }}>{invoiceQuote.refusal}</Alert>}
+            {paymentDraft && !draftAnswerFailed && invoiceQuote.error && <ErrorAlert message={TEXTS.invoiceQuoteFailed} onRetry={invoiceQuote.retry} sx={{ gridColumn: '1 / -1' }} />}
             {error && <Alert severity="error" sx={{ gridColumn: '1 / -1' }}>{error}</Alert>}
           </Box>
         )}

@@ -53,6 +53,8 @@ function withoutAdded(data) {
   for (const k of ADDED.hero) delete copy.hero[k];
   for (const k of ADDED.data) delete copy[k];
   delete copy.fiscalYears;
+  // specs/mollie-rolling-reserve-and-incoming-payments.md rule 21 — the « Versements à venir » tile.
+  if (copy.tiles) delete copy.tiles.incoming;
   return copy;
 }
 

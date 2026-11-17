@@ -80,3 +80,11 @@ test('rule 37: stayDates is an SDK 2.20.0 module; accounting-export, linen, onli
   assert.deepEqual(consumers, ['accounting-export', 'guest-app', 'hourly-resources', 'linen', 'online-payment', 'school-holidays'].filter((id) => PLUGIN_IDS.includes(id)));
   consumers.forEach((id) => assert.ok(semver.gte(semver.minVersion(readSourceManifest(id).sdk), '2.20.0'), id));
 });
+
+// specs/plugins-phase-1-sdk.md rule 57 — the arrival SAS's re-open seed is a contract name of SDK 2.32.0, and sas ranges that floor.
+test('rule 57: reservationsModel#buildArrivalSeed is an SDK 2.32.0 name; sas reads it and declares ^2.32.0 at least', { skip: skipWithout(['sas']) }, () => {
+  assert.ok(CONTRACT.reservationsModel.includes('buildArrivalSeed'));
+  assert.deepEqual(namesSince.filter((n) => n.name === 'buildArrivalSeed'), [{ module: 'reservationsModel', name: 'buildArrivalSeed', version: '2.32.0' }]);
+  assert.match(pluginSources('sas'), /reservationsModel\.buildArrivalSeed\(/);
+  assert.ok(semver.gte(semver.minVersion(readSourceManifest('sas').sdk), '2.32.0'));
+});

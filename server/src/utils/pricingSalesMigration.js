@@ -25,8 +25,9 @@
  *   T11   `reservations.readsSaleLines` (0 on every existing row): the stays the sale-line readers serve (utils/saleLinesReaders.js).
  *   T13   `receipt_line_splits` (empty): the sale lines each payment day of a stay the readers serve is cut over, frozen when the money
  *         is taken (rule 99, utils/receiptLineSplits.js); a day with no row keeps the cut over the current lines.
+ *   T14   `standalone_sale_obligations.lineRef` (NULL on every existing row): the line a `lineLowered` row was opened for (loop t2 B2-1).
  *
- * Rollback (self-update rule 31): T1-T3, T6, T7, T13 are new tables or columns ignored by the previous release; T4 and T5 only add a
+ * Rollback (self-update rule 31): T1-T3, T6, T7, T13, T14 are new tables or columns ignored by the previous release; T4 and T5 only add a
  * nullable column and relax a constraint, rows with a NULL `reservationId` being invisible to the readers that join reservations;
  * T10 is blocked by the floor, not by a shim.
  */
@@ -120,6 +121,7 @@ const TABLES = [
     paymentLinkId INTEGER UNIQUE,
     amountCents   INTEGER NOT NULL CHECK (amountCents > 0),
     reason        TEXT,
+    lineRef       TEXT,
     createdAt     TEXT NOT NULL DEFAULT (datetime('now')),
     status        TEXT NOT NULL DEFAULT 'open' CHECK (status IN ('open', 'settled', 'cancelled')),
     settledAt     TEXT,
@@ -175,6 +177,8 @@ function addColumns(db) {
     ['email_log', 'saleRef', 'TEXT'],
     // Rules 31, 61, 63, 91 (owner 2026-11-15): the stays the sale-line readers serve — 0 on every stay booked before this version.
     ['reservations', 'readsSaleLines', 'INTEGER NOT NULL DEFAULT 0'],
+    // Loop t2 B2-1 (outside-visit rule 49) — the line a `lineLowered` row was opened for (NULL: the whole document cancelled, a link surplus).
+    ['standalone_sale_obligations', 'lineRef', 'TEXT'],
   ]) {
     if (!hasTable(db, table) || hasColumn(db, table, name)) continue;
     db.exec(`ALTER TABLE ${table} ADD COLUMN ${name} ${definition}`);

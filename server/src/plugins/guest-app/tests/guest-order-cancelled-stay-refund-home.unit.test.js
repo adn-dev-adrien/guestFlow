@@ -12,6 +12,7 @@ const { processPaidLink } = require('../../../utils/paymentPollRunner');
 const { buildPaymentEffectDeps } = require('../../../utils/paymentEffectDeps');
 const paymentLinksModel = require('../../../models/paymentLinksModel');
 const refundsController = require('../../../controllers/refundsController');
+const { localIsoDate } = require('../../../utils/localDate');
 
 const MEAD = addOption({ id: 812, title: 'Hydromel', price: 6 });
 sell('option', MEAD);
@@ -51,7 +52,8 @@ function call(handler, stayId, body) {
   return sent;
 }
 const dialogLine = (stayId) => call('list', stayId).body.refundableLines.find((line) => /Hydromel/.test(line.label));
-const today = () => new Date().toISOString().slice(0, 10);
+// The payment is dated on the local (Paris) day (`paidDayOf`); a UTC day would sit before it between 00:00 and 01:00/02:00 Paris (loop t2 AG2-1).
+const today = () => localIsoDate();
 const refund = (stayId, line, amountTtc) => call('create', stayId, {
   refundDate: today(), method: 'transfer', lines: [{ key: line.key, amountTtc }],
 });

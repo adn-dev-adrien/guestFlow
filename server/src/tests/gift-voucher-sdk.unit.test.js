@@ -13,17 +13,17 @@ const { skipWithout } = require('../plugins/sdk/testing');
 
 const SRC = path.join(__dirname, '..');
 
-test('SDK 2.32.0: the version is bumped by a minor and the history records what it added', () => {
-  assert.equal(SDK_VERSION, '2.32.0');
-  const entry = HISTORY.added.find((a) => a.version === '2.32.0');
+test('SDK 2.33.0: the version is bumped by a minor and the history records what it added', () => {
+  assert.equal(SDK_VERSION, '2.33.0');
+  const entry = HISTORY.added.find((a) => a.version === '2.33.0');
   assert.deepEqual(entry, {
-    version: '2.32.0',
+    version: '2.33.0',
     modules: ['pdfFonts', 'prepaidReceipts', 'prepaidSources'],
     names: { paymentTenders: ['lineLabel', 'METHODS', 'PREPAID'] },
   });
 });
 
-test('SDK 2.32.0: middleware.publicApi is the key guard, the visitor context and the per-visitor limiter, in that order', () => {
+test('SDK 2.33.0: middleware.publicApi is the key guard, the visitor context and the per-visitor limiter, in that order', () => {
   const { middleware } = sdk;
   assert.deepEqual([...middleware.publicApi], [middleware.requirePublicApiKey, middleware.visitorContext, middleware.publicApiLimiter]);
   assert.equal(middleware.requirePublicApiKey, require('../middleware/requirePublicApiKey'));
@@ -32,7 +32,7 @@ test('SDK 2.32.0: middleware.publicApi is the key guard, the visitor context and
   assert.ok(Object.isFrozen(middleware.publicApi));
 });
 
-test('SDK 2.32.0: the guard chain keeps the visitor behind the key — an unknown key never reaches the visitor context', () => {
+test('SDK 2.33.0: the guard chain keeps the visitor behind the key — an unknown key never reaches the visitor context', () => {
   const req = { get: () => '', publicApiCaller: undefined };
   let reached = false;
   const res = { status() { return this; }, json() { return this; } };
@@ -47,14 +47,14 @@ test('SDK 2.32.0: the guard chain keeps the visitor behind the key — an unknow
   }
 });
 
-test('SDK 2.32.0: website-booking reads the guard, the visitor context and the proof of work from the SDK — the same functions', { skip: skipWithout(['website-booking']) }, () => {
+test('SDK 2.33.0: website-booking reads the guard, the visitor context and the proof of work from the SDK — the same functions', { skip: skipWithout(['website-booking']) }, () => {
   assert.equal(require('../plugins/website-booking/requirePublicApiKey'), sdk.middleware.requirePublicApiKey);
   assert.equal(require('../plugins/website-booking/visitorContext'), sdk.middleware.visitorContext);
   assert.equal(require('../plugins/website-booking/challenge'), sdk.proofOfWork);
   assert.equal(sdk.proofOfWork, require('../utils/proofOfWork'));
 });
 
-test('SDK 2.32.0: the proof of work a visitor solves for the booking is the one the code check asks for', () => {
+test('SDK 2.33.0: the proof of work a visitor solves for the booking is the one the code check asks for', () => {
   const pow = sdk.proofOfWork;
   assert.equal(pow.BASE_BITS, 12);
   const challenge = pow.issue({ secret: 's', ipKey: pow.ipKeyOf('203.0.113.9'), difficulty: 12, now: Date.now() - 5000 });
@@ -63,7 +63,7 @@ test('SDK 2.32.0: the proof of work a visitor solves for the booking is the one 
   assert.equal(pow.verify({ secret: 's', challenge, nonce, ipKey: pow.ipKeyOf('203.0.113.10') }).ok, false);
 });
 
-test('SDK 2.32.0: ctx.mail.send sends one e-mail through the operator’s SMTP service and answers its id; the address never reaches the log', async () => {
+test('SDK 2.33.0: ctx.mail.send sends one e-mail through the operator’s SMTP service and answers its id; the address never reaches the log', async () => {
   const sent = [];
   const logs = [];
   const original = console.log;
@@ -84,7 +84,7 @@ test('SDK 2.32.0: ctx.mail.send sends one e-mail through the operator’s SMTP s
   assert.equal(logs.join('\n').includes('paul@example.test'), false);
 });
 
-test('SDK 2.32.0: ctx.mail.send refuses an e-mail with no recipient, subject or text, and lets a transport failure through', async () => {
+test('SDK 2.33.0: ctx.mail.send refuses an e-mail with no recipient, subject or text, and lets a transport failure through', async () => {
   const ctx = createContext('probe', { mailService: () => ({ send: async () => { throw Object.assign(new Error('EMAIL_NOT_CONFIGURED'), { code: 'EMAIL_NOT_CONFIGURED' }); } }) });
   for (const bad of [{}, { to: '', subject: 'S', text: 'T' }, { to: 'a@b.test', subject: '', text: 'T' }, { to: 'a@b.test', subject: 'S', text: ' ' }, { to: ['a@b.test'], subject: 'S', text: 'T' }]) {
     await assert.rejects(() => ctx.mail.send(bad), /needs to, subject and text/);
@@ -93,7 +93,7 @@ test('SDK 2.32.0: ctx.mail.send refuses an e-mail with no recipient, subject or 
   await assert.rejects(() => ctx.mail.send(), /needs to, subject and text/);
 });
 
-test('SDK 2.32.0: the devis and the plugins draw with the same embedded faces — one module, the devis still reads it', () => {
+test('SDK 2.33.0: the devis and the plugins draw with the same embedded faces — one module, the devis still reads it', () => {
   const fonts = sdk.coreModule('pdfFonts');
   assert.deepEqual(Object.keys(fonts.FACES).sort(), ['bold', 'italic', 'regular', 'serif']);
   Object.values(fonts.FACES).forEach((face) => assert.ok(fs.existsSync(face.file), face.file));
@@ -101,12 +101,12 @@ test('SDK 2.32.0: the devis and the plugins draw with the same embedded faces �
   assert.equal(require('../utils/devisPdf').__test.registerFaces, fonts.registerFaces);
 });
 
-test('SDK 2.32.0: the payment methods come from the core list, never copied by a plugin', () => {
+test('SDK 2.33.0: the payment methods come from the core list, never copied by a plugin', () => {
   const methods = sdk.coreModule('paymentTenders').METHODS.map((m) => m.value);
   assert.ok(methods.includes('card') && methods.includes('holidayVoucher'));
 });
 
-test('SDK 2.32.0: nothing the core gained for the plugin names it — no « voucher » in the SDK, the guards, the mail or the fonts', () => {
+test('SDK 2.33.0: nothing the core gained for the plugin names it — no « voucher » in the SDK, the guards, the mail or the fonts', () => {
   ['plugins/sdk/index.js', 'plugins/sdk/createContext.js', 'middleware/requirePublicApiKey.js', 'middleware/visitorContext.js', 'utils/proofOfWork.js', 'utils/pdfFonts.js',
     'utils/prepaidSources.js', 'utils/prepaidReceipts.js', 'plugins/website-booking/publicPrepaid.js']
     .forEach((file) => assert.equal(/voucher|bon cadeau/i.test(fs.readFileSync(path.join(SRC, file), 'utf8')), false, file));
@@ -114,7 +114,7 @@ test('SDK 2.32.0: nothing the core gained for the plugin names it — no « vouc
   assert.equal(/voucher/i.test(controller), false);
 });
 
-test('SDK 2.32.0: ctx.data accepts a refuse(db) and the core answers 409 ERASE_REFUSED with its sentence; a plugin without one is never blocked', () => {
+test('SDK 2.33.0: ctx.data accepts a refuse(db) and the core answers 409 ERASE_REFUSED with its sentence; a plugin without one is never blocked', () => {
   const registry = require('../plugins/sdk/registry');
   registry.reset();
   const ctx = createContext('probe-erase', {});
@@ -123,8 +123,8 @@ test('SDK 2.32.0: ctx.data accepts a refuse(db) and the core answers 409 ERASE_R
   registry.reset();
 });
 
-test('SDK 2.32.0: core.payments.saleLink mints a link with no stay for a plugin’s basket — the paid effect is ctx.paymentBasket’s (src/tests/gift-voucher-sale-link.unit.test.js)', () => {
+test('SDK 2.33.0: core.payments.saleLink mints a link with no stay for a plugin’s basket — the paid effect is ctx.paymentBasket’s (src/tests/gift-voucher-sale-link.unit.test.js)', () => {
   assert.equal(typeof sdk.core.payments.saleLink, 'function');
   assert.deepEqual(Object.keys(sdk.core.payments).sort(), ['basketLink', 'refreshBasketLink', 'saleLink', 'withdrawBasketLink']);
-  assert.equal(HISTORY.added.filter((a) => a.version === '2.32.0').length, 1, 'recorded in the 2.32.0 entry, not a new minor');
+  assert.equal(HISTORY.added.filter((a) => a.version === '2.33.0').length, 1, 'recorded in the 2.33.0 entry, not a new minor');
 });

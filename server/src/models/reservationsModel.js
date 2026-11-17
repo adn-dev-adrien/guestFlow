@@ -31,8 +31,8 @@ const { isNamedChannel } = require('../utils/saleChannel');
 const { isCleaningOption } = require('../utils/cleaningOption');
 const { buildCheckoutComplement, END_OF_STAY_CLEANING_LABEL } = require('../utils/checkoutComplement');
 const {
-  buildExtrasBaseline, mergeMidStayIntoDetail, parseBaseline, extraLineKey,
-  buildMidStayLine, parseNotes, nextNoteId, storedMidStayLines, resolveMidStaySplit, MID_STAY_SOURCE,
+  buildExtrasBaseline, arrivalBaselineOf, mergeMidStayIntoDetail, parseBaseline, extraLineKey,
+  buildMidStayLine, parseNotes, nextNoteId, storedMidStayLines, resolveMidStaySplit, MID_STAY_SOURCE, settledByKey, notePaidOnlineReason,
 } = require('../utils/midStayExtras');
 const { buildEditLock } = require('../utils/midStayExtrasWindow');
 const {
@@ -40,6 +40,7 @@ const {
 } = require('../utils/sasOptionSale');
 const { CATERING_CATEGORY } = require('../utils/optionCategoriesMigration');
 const { syncDepartureChargeLines, notDepartureCharge } = require('../utils/departureChargeLines');
+const { numberedLabel } = require('../utils/pricing/storedLines');
 const { typedCountOf, displayCountOf } = require('../utils/typedCounts');
 const { stampComplementPaidSplit, readComplementPaidSplit } = require('../utils/complementPaidSplit');
 const { parseRemovedLineContribs } = require('../utils/removedLineContribs');
@@ -272,7 +273,7 @@ function complementTaxIsAddition(r, tax) {
   return added > 0 && round2(tax) === added;
 }
 
-function arrivalComplementDetailFromReservation(r, { includeOffered = false } = {}) {
+function arrivalComplementDetailFromReservation(r, { includeOffered = false, withLineIds = false } = {}) {
   if (!r) return { amount: 0, paid: 0, detail: [] };
   const lines = [];
   // specs/mid-stay-extras-to-end-of-stay-complement.md §3.2 — une ligne « en complément » peut avoir
@@ -318,7 +319,7 @@ function arrivalComplementDetailFromReservation(r, { includeOffered = false } = 
       kind: 'option', label: String(o.title || o.description || 'Extra').trim(),
       qty: Number(o.billedUnits || o.quantity || 1), unitPrice: round2(o.unitPrice),
       amount: offered ? 0 : real,
-      ref: { kind: isCustom ? 'custom' : 'option', id: Number(isCustom ? o.customOptionId : o.optionId) },
+      ref: { kind: isCustom ? 'custom' : 'option', id: Number(isCustom ? o.customOptionId : o.optionId), ...(withLineIds && !isCustom && o.lineId != null ? { lineId: Number(o.lineId) } : {}) },
       ...(offered ? { offered: 1, originalAmount: real } : {}),
     });
   }
@@ -335,7 +336,7 @@ function arrivalComplementDetailFromReservation(r, { includeOffered = false } = 
       kind: 'resource', label: String(res.name || 'Ressource').trim(),
       qty: Number(res.billedUnits || res.quantity || 1), unitPrice: round2(res.unitPrice),
       amount: offered ? 0 : real,
-      ref: { kind: 'resource', id: Number(res.resourceId) },
+      ref: { kind: 'resource', id: Number(res.resourceId), ...(withLineIds && res.lineId != null ? { lineId: Number(res.lineId) } : {}) },
       ...(offered ? { offered: 1, originalAmount: real } : {}),
     });
   }
@@ -653,6 +654,12 @@ function createReservationsModel(database, { arrivalComplementEngine = null } = 
     try { return database.prepare('PRAGMA table_info(reservation_custom_options)').all().some((c) => c.name === 'sasLineKey'); } catch { return false; }
   })();
   // A custom line keeps its count (specs/arrival-departure-sas.md rule 29); minimal test schemas lack it.
+  // Loop t3 T3-3 — a custom line carries its moment and its own discount like an option row (`ro.*`), so the readers of the detail (the arrival SAS
+  // recap) judge it the same way. Read when asked: the columns are added by the pricing-lines migration.
+  const customLineFacts = () => {
+    const columns = new Set(database.prepare('PRAGMA table_info(reservation_custom_options)').all().map((c) => c.name));
+    return ['collectAt', 'discountCents'].filter((name) => columns.has(name)).map((name) => `\n          rco.${name} as ${name},`).join('');
+  };
   const HAS_RCO_QUANTITY = (() => {
     try { return database.prepare('PRAGMA table_info(reservation_custom_options)').all().some((c) => c.name === 'quantity'); } catch { return false; }
   })();
@@ -707,7 +714,7 @@ function createReservationsModel(database, { arrivalComplementEngine = null } = 
     if (Number(row.complementPaid || 0) === 1 || Number(row.complementPaidCash || 0) === 1) return true;
     // Rules 20, 44: « started » is the check-in time having passed, answered by the stay clock. The arrival mark and the
     // arrival SAS no longer route a sale (they only change the display).
-    const phase = stayClockModel.create(database).phaseForReservation(row.id, new Date());
+    const phase = stayClockModel.create(database).phaseForReservation(row.id, stayClockModel.gestureNow());
     return Boolean(phase && phase.started);
   };
 
@@ -758,6 +765,66 @@ function createReservationsModel(database, { arrivalComplementEngine = null } = 
   };
   const lineRefKey = (kind, id, lineId, first) => (lineId == null || first.get(Number(id)) === Number(lineId) ? `${kind}:${Number(id)}` : `${kind}:${Number(id)}:${Number(lineId)}`);
   const refKeyOf = (ref, firstByKind) => lineRefKey(String(ref.kind), ref.id, ref.lineId, firstByKind[String(ref.kind)] || new Map());
+  // The recap key of a complement line's ref on this stay (rule 85): a ref without `lineId` names the article's first line.
+  const detailRefKeyOf = (reservationId) => {
+    const first = { option: firstLineIds('reservation_options', 'optionId', reservationId), resource: firstLineIds('reservation_resources', 'resourceId', reservationId) };
+    return (ref) => (ref.kind === 'option' || ref.kind === 'resource' ? refKeyOf(ref, first) : `${ref.kind}:${Number(ref.id)}`);
+  };
+
+  // Loop t7 UI7-2 (rule 107 d) — the recap keys of the lines a SAS commit offers that the guest already paid by a note and that were not
+  // offered before it: what its 409 OVERPAID names, so « Garder » on the SAS puts exactly those lines back to billed. Read after the
+  // refused transaction rolled back (the stored lines are the ones before the commit).
+  const LINE_TABLE_OF = { option: ['reservation_options', 'optionId'], resource: ['reservation_resources', 'resourceId'] };
+  const paidOfferKeysOf = (reservationId, refs) => {
+    if (!Array.isArray(refs) || refs.length === 0) return [];
+    const { notesOnKey } = require('../utils/paidLineJudgment');
+    const facts = require('./ports/stayRepository').create(database).lineFacts(reservationId);
+    const keyOf = detailRefKeyOf(reservationId);
+    const keys = [];
+    for (const ref of refs) {
+      let line = null;
+      if (ref.kind === 'custom') {
+        line = database.prepare(`SELECT lineId, offered FROM reservation_custom_options WHERE id = ? AND reservationId = ?${notDepartureCharge(database)}`).get(Number(ref.id), reservationId);
+      } else if (LINE_TABLE_OF[ref.kind] && hasLineId(database, LINE_TABLE_OF[ref.kind][0])) {
+        const [table, column] = LINE_TABLE_OF[ref.kind];
+        line = ref.lineId != null
+          ? database.prepare(`SELECT lineId, offered FROM ${table} WHERE reservationId = ? AND ${column} = ? AND lineId = ?`).get(reservationId, Number(ref.id), Number(ref.lineId))
+          : database.prepare(`SELECT lineId, offered FROM ${table} WHERE reservationId = ? AND ${column} = ? ORDER BY lineId LIMIT 1`).get(reservationId, Number(ref.id));
+      }
+      if (!line || Number(line.offered || 0) === 1) continue;
+      const factKey = Object.keys(facts).find((k) => facts[k].table === ref.kind && Number(facts[k].lineId) === Number(line.lineId));
+      if (factKey && notesOnKey(database, reservationId, factKey) > 0) keys.push(keyOf(ref));
+    }
+    return keys;
+  };
+  // Loop t9 A9-4 (reception-role-checkin-only rule 18 b) — the recap keys of the offered paid lines whose money is owed back: what a reception
+  // commit's 409 LINE_OWED names (keys only, no amount), so the dialog puts them back to offered and the next « Valider » goes through.
+  const ID_COLUMN_OF = { option: ['reservation_options', 'optionId'], resource: ['reservation_resources', 'resourceId'], custom: ['reservation_custom_options', 'id'] };
+  const owedOfferKeysOf = (reservationId) => {
+    const facts = require('./ports/stayRepository').create(database).lineFacts(reservationId);
+    const keyOf = detailRefKeyOf(reservationId);
+    const keys = [];
+    for (const factKey of Object.keys(require('../utils/paidLineJudgment').owedBackByKey(database, reservationId))) {
+      const fact = facts[factKey];
+      if (!fact || !ID_COLUMN_OF[fact.table] || !hasLineId(database, ID_COLUMN_OF[fact.table][0])) continue;
+      const [table, column] = ID_COLUMN_OF[fact.table];
+      const line = database.prepare(`SELECT ${column} AS id, lineId, offered FROM ${table} WHERE reservationId = ? AND lineId = ?`).get(reservationId, Number(fact.lineId));
+      if (!line || Number(line.offered || 0) !== 1) continue;
+      keys.push(keyOf(fact.table === 'custom' ? { kind: 'custom', id: Number(line.id) } : { kind: fact.table, id: Number(line.id), lineId: Number(line.lineId) }));
+    }
+    return keys;
+  };
+  // A SAS commit's transaction, its OVERPAID refusal naming the paid lines it offered, its LINE_OWED the owed lines to keep offered.
+  const runNamingPaidOffers = (tx, reservationId, refs) => {
+    try {
+      return tx();
+    } catch (err) {
+      const body = err && err.refusal && err.refusal.body;
+      if (body && body.code === 'OVERPAID') body.overpaymentKeys = paidOfferKeysOf(reservationId, refs);
+      if (body && body.code === 'LINE_OWED') body.owedKeys = owedOfferKeysOf(reservationId);
+      throw err;
+    }
+  };
 
   // specs/sas-offer-complement-lines.md §3.3 rule 9 — apply the operator's « Offrir » decisions to the
   // in-complement extras. `refs` is the AUTHORITATIVE offered set (`[{ kind, id }]`): a line named in it
@@ -1047,12 +1114,16 @@ function createReservationsModel(database, { arrivalComplementEngine = null } = 
       }
     }
   };
+  // A SAS line numbered because its label was taken (« Bière locale (2) ») is the line of « Bière locale ».
+  const sasBaseLabel = (label) => String(label).trim().replace(/ \(\d+\)$/, '');
   // The SAS-origin custom lines (linen pieces, a plugin's supplements), shared by the two branches. A re-run changes the line it
   // already wrote in place (same row, same identity: rule 14, reopen-completed-sas rule 4), appends a new one, and removes only the one
   // the selection no longer holds; a line is matched by the key its plugin gave it, else by its label.
   const rewriteSasCustomItems = (reservationId, items) => {
     const rows = database.prepare(`SELECT id, description${HAS_RCO_SAS_LINE_KEY ? ', sasLineKey' : ''} FROM reservation_custom_options
       WHERE reservationId = ? AND sasArrivalOrigin = 1 ORDER BY sortOrder, id`).all(reservationId);
+    // Loop t3 T3-7 — a line is found by its own label first: two items whose labels differ only by a « (n) » of their own (« Drap-housse (140) »,
+    // « Drap-housse (160) », operator-editable) are two lines. Only a row this SAS numbered itself (« Bière locale (2) ») is found by its base label.
     const identity = (key, label) => (key ? `key:${key}` : `label:${String(label).trim()}`);
     const held = new Map();
     for (const row of rows) {
@@ -1069,17 +1140,39 @@ function createReservationsModel(database, { arrivalComplementEngine = null } = 
       : database.prepare('INSERT INTO reservation_custom_options (reservationId, description, amount, offered, sortOrder, inComplement, sasArrivalOrigin) VALUES (?, ?, ?, ?, ?, 1, 1)');
     // The count rides along (« Taie d'oreiller ×2 », rule 29), written apart so the guarded statements above stay valid on a schema without the column.
     const setQuantity = HAS_RCO_QUANTITY ? database.prepare('UPDATE reservation_custom_options SET quantity = ? WHERE id = ?') : null;
-    for (const it of items) {
+    // Rule 94 (loop t2 N-4) — a new SAS line whose label the stay already holds (a sale of the shop, a line of the fiche) is numbered, as a
+    // sale's is; a line this SAS wrote keeps the label it was given, so a re-run finds it again.
+    const description = new Map(rows.map((row) => [row.id, row.description]));
+    const numberedOf = (label) => {
+      const pattern = new RegExp(`^${label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')} \\(\\d+\\)$`);
+      for (const [k, queue] of held) {
+        if (k.startsWith('label:') && queue.length && pattern.test(k.slice(6)) && sasBaseLabel(k.slice(6)) === label) return queue.shift();
+      }
+      return null;
+    };
+    const plan = items.map((it) => {
       const label = String(it.label).trim();
+      const queue = held.get(identity(it.sasLineKey || null, label));
+      return { it, label, id: queue && queue.length ? queue.shift() : null };
+    });
+    for (const step of plan) if (step.id == null && !step.it.sasLineKey) step.id = numberedOf(step.label);
+    const keyOfLabel = (text) => extraLineKey({ isCustom: true, description: text });
+    const taken = new Set([
+      ...database.prepare(`SELECT description FROM reservation_custom_options WHERE reservationId = ? AND COALESCE(sasArrivalOrigin, 0) = 0${notDepartureCharge(database)}`)
+        .all(reservationId).map((row) => keyOfLabel(row.description)),
+      ...plan.filter((step) => step.id != null).map((step) => keyOfLabel(description.get(step.id))),
+    ]);
+    for (const { it, label, id } of plan) {
       const amount = roundMoneyStrict(it.amount);
       const qty = Math.max(1, Math.round(Number(it.qty) || 1));
-      const queue = held.get(identity(it.sasLineKey || null, label));
-      const id = queue && queue.length ? queue.shift() : null;
       if (id != null) {
-        update.run(label, amount, it.offered ? 1 : 0, ...(HAS_RCO_QUANTITY ? [qty] : []), id);
+        const keeps = sasBaseLabel(description.get(id)) === label ? description.get(id) : label;
+        update.run(keeps, amount, it.offered ? 1 : 0, ...(HAS_RCO_QUANTITY ? [qty] : []), id);
         kept.add(id);
       } else {
-        const inserted = insert.run(reservationId, label, amount, it.offered ? 1 : 0, sort, ...(HAS_RCO_SAS_LINE_KEY ? [it.sasLineKey || null] : []));
+        const numbered = numberedLabel(label, taken);
+        taken.add(keyOfLabel(numbered));
+        const inserted = insert.run(reservationId, numbered, amount, it.offered ? 1 : 0, sort, ...(HAS_RCO_SAS_LINE_KEY ? [it.sasLineKey || null] : []));
         if (setQuantity && qty > 1) setQuantity.run(qty, inserted.lastInsertRowid);
         sort += 1;
       }
@@ -1216,9 +1309,37 @@ function createReservationsModel(database, { arrivalComplementEngine = null } = 
   // re-applied. The commit runs it; the plan runs it inside a transaction it rolls back, so the preview and the commit are one computation.
   // A model built on a database the fiche's save does not run on (unit fixtures with partial schemas) has no engine: it keeps the
   // arithmetic the plan hands it (`arithmetic`).
+  // Rule 122 (loop t9 S9-1) — the money of the stored complement the engine of today routes to the acompte / solde instead (the same stay
+  // sum, split otherwise: e.g. the tourist tax the engine puts in a solde made unpaid again). The commit writes only the arrival complement,
+  // so it keeps that money where the stay stores it — the engine's figure plus this gap — and the stay's total never moves. A stored
+  // complement the engine's buckets do not explain (another sum) is not carried: the engine's figure stands (rule 90.1).
+  const complementRoutedElsewhereCents = (reservationId) => {
+    const stored = model.getRow(reservationId);
+    if (!stored) return 0;
+    let quote;
+    try {
+      quote = require('../utils/storedReservationQuote').quoteStoredReservation(database, stored);
+    } catch {
+      return 0;
+    }
+    if (!quote || quote.error || stored.complementAmountOverride != null) return 0;
+    const sum = (r) => toCents(r.depositAmount) + toCents(r.balanceAmount) + toCents(r.complementAmount);
+    const gap = toCents(stored.complementAmount) - toCents(quote.complementAmountAuto ?? quote.complementAmount);
+    return gap !== 0 && sum(stored) === sum({ ...quote, complementAmount: quote.complementAmountAuto ?? quote.complementAmount }) ? gap : 0;
+  };
   const writeArrivalComplement = (reservationId, {
     items, hosted = [], sales, upsells, offeredExtras, cleaningAdded, cleaningOffered, bathLinenAdded, bathLinenOffered, arithmetic,
   }) => {
+    // Rule 109 (loop t7 S7-1) — a paid line whose « Offert » the recap unticks is billed again: the note money it had freed comes back the way
+    // the fiche's save takes it (obligation closed, credit given back to the plan), in the plan and the commit alike. Engine-backed models only.
+    // Rule 118 (loop t8 S8-2) — and a paid line the recap offers frees its note money the way the line API does: credited to what the stay still
+    // asks (the solde, the acompte not yet paid) before the paid-line judgment weighs what is left.
+    const paidWayBack = arrivalComplementEngine ? require('../utils/paidLineJudgment').wayBack(database, reservationId, {
+      quoteOf: (r) => require('../utils/storedReservationQuote').quoteStoredReservation(database, r),
+      billedCents: () => Math.round(Number(billedLinesOf(reservationId) || 0) * 100),
+      midStay: (lines) => model.syncMidStayComplement(reservationId, lines),
+    }) : null;
+    const routedElsewhere = arrivalComplementEngine ? complementRoutedElsewhereCents(reservationId) : 0;
     applyOfferedComplementExtras(reservationId, offeredExtras, { skipSasOrigin: true });
     const upsellOptionIds = new Set([upsells.cleaning.optionId, upsells.bathLinen.optionId].filter((id) => id != null).map(Number));
     rewriteSasCustomItems(reservationId, items);
@@ -1226,9 +1347,10 @@ function createReservationsModel(database, { arrivalComplementEngine = null } = 
     applyUpsell(reservationId, upsells.cleaning, cleaningAdded, cleaningOffered);
     applyUpsell(reservationId, upsells.bathLinen, bathLinenAdded, bathLinenOffered);
     writeSoldOptions(reservationId, sales, upsellOptionIds);
-    const engineAfter = arrivalComplementEngine ? round2(arrivalComplementEngine(reservationId)) : arithmetic;
+    const engineAfter = arrivalComplementEngine ? round2(Math.max(0, toCents(arrivalComplementEngine(reservationId)) + routedElsewhere) / 100) : arithmetic;
     database.prepare("UPDATE reservations SET complementAmount = ?, updatedAt = datetime('now') WHERE id = ?").run(engineAfter, reservationId);
     reapplyComplementOverride(reservationId, engineAfter);
+    if (paidWayBack) paidWayBack.settle();
     const stored = round2(database.prepare('SELECT complementAmount FROM reservations WHERE id = ?').get(reservationId).complementAmount);
     return { engineAfter, stored };
   };
@@ -1472,7 +1594,7 @@ function createReservationsModel(database, { arrivalComplementEngine = null } = 
           ${HAS_RCO_SAS_LINE_KEY ? 'rco.sasLineKey' : 'NULL'} as sasLineKey,
           ${HAS_RCO_LINE_ID ? 'rco.lineId' : 'NULL'} as lineId,
           rco.acompteContribTtc as acompteContribTtc,
-          rco.soldeContribTtc as soldeContribTtc,
+          rco.soldeContribTtc as soldeContribTtc,${customLineFacts()}
           1 as isCustom
         FROM reservation_custom_options rco
         WHERE rco.reservationId = ?${notDepartureCharge(database, 'rco')}
@@ -3043,7 +3165,7 @@ function createReservationsModel(database, { arrivalComplementEngine = null } = 
      * `cleaningAdded` / `bathLinenAdded` (tri-state), `cleaningOffered` / `bathLinenOffered`,
      * `soldOptions` (intent, or undefined), `offeredExtras` (authoritative refs, or undefined).
      */
-    planArrivalSas(reservationId, input = {}, { withExistingLines = true } = {}) {
+    planArrivalSas(reservationId, input = {}, { withExistingLines = true, lockOwedPaidLines = false } = {}) {
       const {
         complementItems = [], cleaningAdded, bathLinenAdded, cleaningOffered, bathLinenOffered, soldOptions, offeredExtras,
       } = input;
@@ -3074,34 +3196,64 @@ function createReservationsModel(database, { arrivalComplementEngine = null } = 
         ? new Set(offeredExtras.filter((x) => x && x.kind && x.id != null).map((x) => refKeyOf(x, recapFirst)))
         : null;
       const isOffered = (key, storedOffered) => (offeredSet ? offeredSet.has(key) : storedOffered);
+      const complementCollected = paid;
       const extras = [
         ...(r.options || []).map((x) => ({ ...x, refKind: Number(x.isCustom || 0) === 1 ? 'custom' : 'option', refId: Number(x.isCustom || 0) === 1 ? x.customOptionId : x.optionId })),
         ...(r.resources || []).map((x) => ({ ...x, refKind: 'resource', refId: x.resourceId })),
       ];
+      // Rule 102 (stabilisation loop t2, N-1) — a line a card paid before the arrival is not asked again: the recap lists what is left of it.
+      const prepaidLeft = withExistingLines && HAS_MID_STAY_NOTES
+        ? { ...settledByKey(model.getMidStaySettledNotes(reservationId).filter((note) => note && note.beforeArrival)) }
+        : {};
+      const noteKeyOf = (x) => (x.refKind === 'custom'
+        ? extraLineKey({ isCustom: true, description: x.title || x.description })
+        : require('./extraSalesModel').keyOfLine(reservationId, x.refKind, x.lineId));
+      // Rule 108 (loop t7 D7-1) — an offered paid line whose money a refund gave back is not put back: the dialog shows it offered, no toggle.
+      const refundedKeys = withExistingLines && HAS_MID_STAY_NOTES
+        ? new Set(require('../utils/paidLineJudgment').refundedLoweredLines(database, reservationId).map((line) => line.key)) : new Set();
+      // Reception-role-checkin-only rule 18 (loop t8 A8-1) — for reception, an offered paid line whose money is owed back stays offered too.
+      const owedKeys = lockOwedPaidLines && withExistingLines && HAS_MID_STAY_NOTES
+        ? new Set(Object.keys(require('../utils/paidLineJudgment').owedBackByKey(database, reservationId))) : new Set();
       for (const x of extras) {
-        if (Number(x.inComplement) !== 1 || Number(x.sasArrivalOrigin || 0) === 1) continue;
+        // A line the fiche stamped at the arrival (the excess of a settled plan, loop t3 T3-4) is collected there whatever its routing flag.
+        if ((Number(x.inComplement) !== 1 && x.collectAt !== 'arrival') || Number(x.sasArrivalOrigin || 0) === 1) continue;
+        // Loop t3, T3-3 — the recap lists what the arrival complement collects: a line moved to the departure (its moment says so, its routing
+        // stays) is collected there, never at the door.
+        if (x.collectAt === 'departure') continue;
         if (!(Number(x.originalTotalPrice ?? x.totalPrice ?? 0) > 0)) continue;
         const storedOffered = Number(x.offered || 0) === 1;
         const hostsEvening = x.refKind === 'resource' && hosted.some((c) => c.lineId === Number(x.lineId));
-        const real = round2((storedOffered ? (x.originalTotalPrice ?? x.totalPrice) : (x.totalPrice ?? x.originalTotalPrice))
-          - (hostsEvening ? eveningCentsOf(x.components) / 100 : 0));
+        const noteKey = Object.keys(prepaidLeft).length ? noteKeyOf(x) : null;
+        // …and a line at what it is worth once its own discount is taken (rule 39), as the complement collects it.
+        const ownDiscount = storedOffered ? 0 : Number(x.discountCents || 0) / 100;
+        const fullReal = round2(Math.max(0, (storedOffered ? (x.originalTotalPrice ?? x.totalPrice) : (x.totalPrice ?? x.originalTotalPrice))
+          - ownDiscount - (hostsEvening ? eveningCentsOf(x.components) / 100 : 0)));
+        const prepaid = !storedOffered && noteKey && prepaidLeft[noteKey] > 0 ? Math.min(fullReal, prepaidLeft[noteKey]) : 0;
+        if (prepaid > 0) prepaidLeft[noteKey] = round2(prepaidLeft[noteKey] - prepaid);
+        const real = round2(fullReal - prepaid);
+        if (prepaid > 0 && real <= 0) continue;
         if (hostsEvening && real <= 0) continue;
         const key = x.refKind === 'custom' ? `custom:${Number(x.refId)}` : lineRefKey(x.refKind, x.refId, x.lineId, recapFirst[x.refKind]);
-        const offered = isOffered(key, storedOffered);
+        const offerLocked = storedOffered && (refundedKeys.size || owedKeys.size) && (refundedKeys.has(noteKeyOf(x)) || owedKeys.has(noteKeyOf(x)));
+        // Loop t9 A9-4 — a locked line reads as stored whatever the draft (a draft read before the line was offered); A9-2 — so does every line
+        // of a collected complement: its lines cannot be offered from the SAS (sas-offer-complement-lines rule 12), nothing would be written.
+        const offered = offerLocked || complementCollected ? storedOffered : isOffered(key, storedOffered);
         lines.push({
           key, group: 'existing', label: String(x.title || x.name || 'Prestation'),
           qty: Number(x.billedUnits || x.quantity || 1), unitPrice: round2(x.unitPrice),
-          real, billed: offered ? 0 : real, offerable: true, offered,
+          real, billed: offered ? 0 : real, offerable: !complementCollected, offered,
+          ...(offerLocked ? { offerLocked: true } : {}),
         });
       }
       const extraGuestsReal = round2(r.extraGuestComplementSurcharge);
       if (extraGuestsReal > 0) {
         const count = Number(r.extraGuestComplementCount || 1);
-        const offered = isOffered('extraGuests:0', Number(r.extraGuestSurchargeOffered || 0) === 1);
+        const storedGuestsOffered = Number(r.extraGuestSurchargeOffered || 0) === 1;
+        const offered = complementCollected ? storedGuestsOffered : isOffered('extraGuests:0', storedGuestsOffered);
         lines.push({
           key: 'extraGuests:0', group: 'existing', label: `Voyageurs ajoutés · ${count} pers.`,
           qty: count, unitPrice: round2(extraGuestsReal / count), real: extraGuestsReal,
-          billed: offered ? 0 : extraGuestsReal, offerable: true, offered,
+          billed: offered ? 0 : extraGuestsReal, offerable: !complementCollected, offered,
         });
       }
       const taxAmount = round2(r.touristTaxInComplementAmount);
@@ -3193,6 +3345,10 @@ function createReservationsModel(database, { arrivalComplementEngine = null } = 
       // Rule 90.1 — the totals are the commit's own: its write played inside a transaction rolled back, the complement read from the
       // stored row it leaves. Only a model without the engine keeps the arithmetic.
       let after = arithmetic;
+      // Rule 117 (loop t8 S8-1) — the acompte and the solde the commit leaves (rules 109, 118 move them with the paid lines it bills again or
+      // offers): the « Séjour à régler » the recap shows and the commit marks paid. Null without the engine: the stored ones stand.
+      let stayAfter = null;
+      let planCredits = null;
       if (arrivalComplementEngine) {
         const ROLLBACK = Symbol('arrival-plan');
         try {
@@ -3201,6 +3357,14 @@ function createReservationsModel(database, { arrivalComplementEngine = null } = 
               items, hosted, sales, upsells, offeredExtras, cleaningAdded, cleaningOffered, bathLinenAdded, bathLinenOffered, arithmetic: arithmetic.engineAfter,
             });
             after = { engineAfter: written.engineAfter, stored: written.stored, existingTotal: Math.max(0, round2(written.engineAfter - addedBilled)) };
+            stayAfter = database.prepare('SELECT depositAmount, balanceAmount FROM reservations WHERE id = ?').get(reservationId) || null;
+            // Loop t9 A9-1 — the rule-104 credit THIS plan takes (a sale paid by note money owed back): read on the row the commit leaves, so
+            // the recap's « Déjà réglé » line explains the complement the plan asks, not the stored one.
+            try {
+              planCredits = (require('../utils/extraSale').saleDetailOf(reservationId) || {}).credits || null;
+            } catch {
+              planCredits = null;
+            }
             throw ROLLBACK;
           })();
         } catch (err) {
@@ -3219,6 +3383,8 @@ function createReservationsModel(database, { arrivalComplementEngine = null } = 
         addedTotal: addedBilled,
         engineAfter: after.engineAfter,
         arrivalComplementTotal: after.stored,
+        stayAfter: stayAfter ? { depositAmount: Number(stayAfter.depositAmount || 0), balanceAmount: Number(stayAfter.balanceAmount || 0) } : null,
+        credits: planCredits,
         supplementOutsideComplement: 0,
         adjusted: override != null && round2(after.stored) !== round2(after.engineAfter)
           ? { amount: after.stored, engineAmount: after.engineAfter } : null,
@@ -3253,24 +3419,30 @@ function createReservationsModel(database, { arrivalComplementEngine = null } = 
     readExtraLines(reservationId) {
       const lineId = (table) => (hasLineId(database, table) ? 'lineId, ' : '');
       // The moment a line is collected (pricing-components rule 20): a line sold for the departure is not an arrival line (end-review V-5).
-      const moment = (table) => (database.prepare(`PRAGMA table_info(${table})`).all().some((c) => c.name === 'collectAt') ? ', collectAt' : '');
-      const options = database.prepare(`SELECT ${lineId('reservation_options')}optionId, totalPrice, offered${moment('reservation_options')} FROM reservation_options WHERE reservationId = ?`).all(reservationId);
-      const resources = database.prepare(`SELECT ${lineId('reservation_resources')}resourceId, totalPrice, offered${moment('reservation_resources')} FROM reservation_resources WHERE reservationId = ?`).all(reservationId);
-      const customs = database.prepare(`SELECT id, description, amount, offered${moment('reservation_custom_options')} FROM reservation_custom_options WHERE reservationId = ?${notDepartureCharge(database)}`).all(reservationId);
+      const columnsOf = (table) => new Set(database.prepare(`PRAGMA table_info(${table})`).all().map((c) => c.name));
+      const moment = (table) => (columnsOf(table).has('collectAt') ? ', collectAt' : '');
+      // A line's own discount (pricing-components rule 39) is weighed as the engine weighs it: the line nets it (loop t3, T3-8). The stored
+      // amount is the gross; a baseline laid from it would hold a discounted line above what it is worth, and every later save would read
+      // it as reduced (ARRIVAL_EXTRAS_FROZEN).
+      const discount = (table) => (columnsOf(table).has('discountCents') ? ', discountCents' : '');
+      const net = (amount, row) => Math.max(0, round2(Number(amount || 0) - Number(row.discountCents || 0) / 100));
+      const options = database.prepare(`SELECT ${lineId('reservation_options')}optionId, totalPrice, offered${moment('reservation_options')}${discount('reservation_options')} FROM reservation_options WHERE reservationId = ?`).all(reservationId);
+      const resources = database.prepare(`SELECT ${lineId('reservation_resources')}resourceId, totalPrice, offered${moment('reservation_resources')}${discount('reservation_resources')} FROM reservation_resources WHERE reservationId = ?`).all(reservationId);
+      const customs = database.prepare(`SELECT id, description, amount, offered${moment('reservation_custom_options')}${discount('reservation_custom_options')} FROM reservation_custom_options WHERE reservationId = ?${notDepartureCharge(database)}`).all(reservationId);
       // Rule 85: a later sale of an article is a line of its own (`lineId` + `lineKey`); the article's first line keeps the legacy key.
       const identified = (table, rows, make) => keyLines(table, rows).map(({ row, key }) => ({
         ...make(row), ...(row.lineId != null ? { lineId: Number(row.lineId) } : {}), ...(key.startsWith('line:') ? { lineKey: key } : {}),
       }));
       const collectAt = (row) => (row.collectAt ? { collectAt: row.collectAt } : {});
       return [
-        ...identified('reservation_options', options, (o) => ({ optionId: Number(o.optionId), totalPrice: Number(o.totalPrice || 0), offered: Number(o.offered || 0), ...collectAt(o) })),
-        ...identified('reservation_resources', resources, (r) => ({ resourceId: Number(r.resourceId), totalPrice: Number(r.totalPrice || 0), offered: Number(r.offered || 0), ...collectAt(r) })),
+        ...identified('reservation_options', options, (o) => ({ optionId: Number(o.optionId), totalPrice: net(o.totalPrice, o), offered: Number(o.offered || 0), ...collectAt(o) })),
+        ...identified('reservation_resources', resources, (r) => ({ resourceId: Number(r.resourceId), totalPrice: net(r.totalPrice, r), offered: Number(r.offered || 0), ...collectAt(r) })),
         // A custom line stores its ORIGINAL amount; an offered one is worth 0 like in the engine.
         ...customs.map((c) => ({
           isCustom: true,
           customOptionId: Number(c.id),
           title: c.description,
-          totalPrice: Number(c.offered || 0) === 1 ? 0 : Number(c.amount || 0),
+          totalPrice: Number(c.offered || 0) === 1 ? 0 : net(c.amount, c),
           offered: Number(c.offered || 0),
           ...collectAt(c),
         })),
@@ -3280,13 +3452,21 @@ function createReservationsModel(database, { arrivalComplementEngine = null } = 
     // specs/mid-stay-extras-on-locked-fiche.md rule 8 — the « Forcer en complément » routing as stored,
     // so a save inside the window can carry it back untouched whatever the payload says.
     // specs/reservation-save-keeps-pricing.md rule 19 — and the custom lines' contribs, carried by every priced save.
+    // Pricing-components rule 85 (loop t9 B9-5) — a stay may hold several lines of one article (a solde line paid, the same article sold again
+    // at the arrival): the routing is stored per LINE (`optionLines` / `resourceLines`, by `lineId`), and the per-article maps are only the
+    // fallback of a body line that carries no `lineId`.
     getStoredRouting(reservationId) {
       const flag = (r) => Number(r.inComplement || 0);
+      const optionRows = database.prepare('SELECT optionId AS id, lineId, COALESCE(inComplement, 0) AS inComplement FROM reservation_options WHERE reservationId = ?')
+        .all(reservationId);
+      const resourceRows = database.prepare('SELECT resourceId AS id, lineId, COALESCE(inComplement, 0) AS inComplement FROM reservation_resources WHERE reservationId = ?')
+        .all(reservationId);
+      const byLine = (rows) => new Map(rows.filter((r) => r.lineId != null).map((r) => [Number(r.lineId), flag(r)]));
       return {
-        options: new Map(database.prepare('SELECT optionId AS id, COALESCE(inComplement, 0) AS inComplement FROM reservation_options WHERE reservationId = ?')
-          .all(reservationId).map((r) => [Number(r.id), flag(r)])),
-        resources: new Map(database.prepare('SELECT resourceId AS id, COALESCE(inComplement, 0) AS inComplement FROM reservation_resources WHERE reservationId = ?')
-          .all(reservationId).map((r) => [Number(r.id), flag(r)])),
+        options: new Map(optionRows.map((r) => [Number(r.id), flag(r)])),
+        resources: new Map(resourceRows.map((r) => [Number(r.id), flag(r)])),
+        optionLines: byLine(optionRows),
+        resourceLines: byLine(resourceRows),
         customs: database.prepare(`SELECT id, description, COALESCE(inComplement, 0) AS inComplement, acompteContribTtc, soldeContribTtc FROM reservation_custom_options WHERE reservationId = ?${notDepartureCharge(database)} ORDER BY sortOrder, id`)
           .all(reservationId).map((r) => ({
             id: Number(r.id), description: r.description, inComplement: flag(r), acompteContribTtc: r.acompteContribTtc, soldeContribTtc: r.soldeContribTtc,
@@ -3296,14 +3476,22 @@ function createReservationsModel(database, { arrivalComplementEngine = null } = 
 
     // specs/mid-stay-extras-on-locked-fiche.md rule 13 — the ready-to-render lock of a fiche: is it
     // locked, may its extras still be edited, and the floor of every line sold at arrival.
-    getEditLock(reservationId, { today, nowTime }) {
+    getEditLock(reservationId, { today, nowTime, now = null }) {
       const row = database.prepare('SELECT * FROM reservations WHERE id = ?').get(reservationId);
       if (!row) return null;
       const lines = model.readExtraLinesWithQuantity(reservationId);
       // A locked fiche has started: with no baseline captured yet, what it carries now IS what was sold
       // at arrival, exactly what the next save will pin.
-      const baseline = model.getArrivalExtrasBaseline(reservationId) || JSON.stringify(buildExtrasBaseline(lines));
-      return buildEditLock(row, today, baseline, lines, nowTime);
+      const baseline = model.getArrivalExtrasBaseline(reservationId) || JSON.stringify(arrivalBaselineOf(lines, row.midStaySettledNotes));
+      // Rule 102 — the lock the fiche shows is the stay clock's, the one the save and the sale read.
+      const at = now || (nowTime ? new Date(`${today}T${nowTime}:00`) : null);
+      let phase = null;
+      try {
+        phase = at && !Number.isNaN(at.getTime()) ? stayClockModel.create(database).phaseForReservation(row.id, at) : null;
+      } catch (err) {
+        if (err.code !== 'STAY_CLOCK_INVALID') throw err;
+      }
+      return buildEditLock(row, today, baseline, lines, nowTime, phase ? phase.started : null);
     },
 
     // `readExtraLines` plus the units of each line — what the arrival floors of a locked fiche count
@@ -3370,7 +3558,21 @@ function createReservationsModel(database, { arrivalComplementEngine = null } = 
       if (!row) return null;
       if (row.arrivalExtrasBaseline) return row.arrivalExtrasBaseline;
       if (!arrivalExtrasBaselineIsDue(row)) return null;
-      return JSON.stringify(buildExtrasBaseline(model.readExtraLines(reservationId)));
+      return JSON.stringify(arrivalBaselineOf(model.readExtraLines(reservationId), row.midStaySettledNotes));
+    },
+
+    // Pricing-components rule 103 — the one judge of « does a sale taken now go to the departure? »: the engine carves the extras above a
+    // baseline out to the end-of-stay complement whenever `resolveArrivalExtrasBaseline` answers one — a stored baseline, or one due (the
+    // stay clock has started, or the arrival complement is collected and closed). The sale's moment, its stamp, the moves and the sale
+    // detail read this same answer, so the label and the bucket the money lands in are never two clocks. Read at the gesture's `now`.
+    extrasCarvedOut(reservationId) {
+      const row = database.prepare('SELECT * FROM reservations WHERE id = ?').get(reservationId);
+      if (!row) return false;
+      if (!HAS_ARRIVAL_EXTRAS_BASELINE) {
+        const phase = stayClockModel.create(database).phaseForReservation(row.id, stayClockModel.gestureNow());
+        return Boolean(phase && phase.started);
+      }
+      return Boolean(row.arrivalExtrasBaseline) || arrivalExtrasBaselineIsDue(row);
     },
 
     // No baseline, and none due: what is sold now joins the ordinary balance (specs/mid-stay-notes.md rule 23).
@@ -3394,7 +3596,7 @@ function createReservationsModel(database, { arrivalComplementEngine = null } = 
       if (!row) return null;
       if (row.arrivalExtrasBaseline) return row.arrivalExtrasBaseline;
       if (!arrivalExtrasBaselineIsDue(row)) return null;
-      const baseline = JSON.stringify(buildExtrasBaseline(model.readExtraLines(reservationId)));
+      const baseline = JSON.stringify(arrivalBaselineOf(model.readExtraLines(reservationId), row.midStaySettledNotes));
       database.prepare("UPDATE reservations SET arrivalExtrasBaseline = ?, updatedAt = datetime('now') WHERE id = ?")
         .run(baseline, reservationId);
       return baseline;
@@ -3409,20 +3611,38 @@ function createReservationsModel(database, { arrivalComplementEngine = null } = 
     // one the extras carried now would pin.
     peekArrivalExtrasBaseline(reservationId) {
       if (!HAS_ARRIVAL_EXTRAS_BASELINE) return null;
-      const row = database.prepare('SELECT arrivalExtrasBaseline FROM reservations WHERE id = ?').get(reservationId);
+      const row = database.prepare('SELECT * FROM reservations WHERE id = ?').get(reservationId);
       if (!row) return null;
-      return row.arrivalExtrasBaseline || JSON.stringify(buildExtrasBaseline(model.readExtraLines(reservationId)));
+      return row.arrivalExtrasBaseline || JSON.stringify(arrivalBaselineOf(model.readExtraLines(reservationId), row.midStaySettledNotes));
     },
 
     captureArrivalExtrasBaseline(reservationId) {
       if (!HAS_ARRIVAL_EXTRAS_BASELINE) return null;
-      const row = database.prepare('SELECT arrivalExtrasBaseline FROM reservations WHERE id = ?').get(reservationId);
+      const row = database.prepare('SELECT * FROM reservations WHERE id = ?').get(reservationId);
       if (!row) return null;
       if (row.arrivalExtrasBaseline) return row.arrivalExtrasBaseline;
-      const baseline = JSON.stringify(buildExtrasBaseline(model.readExtraLines(reservationId)));
+      const baseline = JSON.stringify(arrivalBaselineOf(model.readExtraLines(reservationId), row.midStaySettledNotes));
       database.prepare("UPDATE reservations SET arrivalExtrasBaseline = ?, updatedAt = datetime('now') WHERE id = ?")
         .run(baseline, reservationId);
       return baseline;
+    },
+
+    // Rule 102 (guest-app rule 110 a) — the keys of an open arrival complement (check-in hour passed, arrival not validated, complement not
+    // collected) a gesture touched: each holds in the baseline what its arrival lines now hold (0 → the key goes), so a line removed at the
+    // door leaves nothing behind and a line re-sold there is never read as a sale of the stay.
+    rebaseArrivalExtrasKeys(reservationId, keys) {
+      if (!HAS_ARRIVAL_EXTRAS_BASELINE || !keys || keys.length === 0) return;
+      const row = database.prepare('SELECT arrivalExtrasBaseline, midStaySettledNotes FROM reservations WHERE id = ?').get(reservationId);
+      if (!row || !row.arrivalExtrasBaseline) return;
+      const baseline = parseBaseline(row.arrivalExtrasBaseline) || {};
+      // A touched key's lines are its arrival's: the stamped ones, and the line this very write appended (its moment is stamped after it).
+      const arrival = arrivalBaselineOf(model.readExtraLines(reservationId).filter((line) => line.collectAt !== 'departure'), row.midStaySettledNotes);
+      for (const key of new Set(keys)) {
+        if (Number(arrival[key] || 0) > 0) baseline[key] = arrival[key];
+        else delete baseline[key];
+      }
+      database.prepare("UPDATE reservations SET arrivalExtrasBaseline = ?, updatedAt = datetime('now') WHERE id = ?")
+        .run(JSON.stringify(baseline), reservationId);
     },
 
     // Fold specific keys into the baseline at their CURRENT amount — used by the arrival SAS for the
@@ -3549,6 +3769,9 @@ function createReservationsModel(database, { arrivalComplementEngine = null } = 
         const notes = parseNotes(row.midStaySettledNotes);
         const note = notes.find((n) => Number(n.id) === Number(noteId));
         if (!note) throw midStayError('NOTE_NOT_FOUND', 'Note introuvable.');
+        // Loop t5 A5-1 (pricing-components rule 23) — money taken online (an app or shop card payment) is given back through the register,
+        // never by deleting its note: the line would be asked again and the money recorded nowhere.
+        if (notePaidOnlineReason(note)) throw midStayError('NOTE_PAID_ONLINE', notePaidOnlineReason(note));
 
         const detail = parseDetailLines(row.endOfStayComplementDetail);
         const sasLines = detail.filter((l) => l.source !== MID_STAY_SOURCE);
@@ -3597,7 +3820,7 @@ function createReservationsModel(database, { arrivalComplementEngine = null } = 
      * « annuler la note » already makes. The prestations themselves are never un-sold (rule 26): to
      * really write the money off, the operator offers the line in the departure SAS.
      *
-     * @throws {Error} `code` = NOTE_NOT_FOUND | NOTE_AMOUNT_INVALID | END_OF_STAY_SETTLED
+     * @throws {Error} `code` = NOTE_NOT_FOUND | NOTE_AMOUNT_INVALID | END_OF_STAY_SETTLED | NOTE_PAID_ONLINE (amount or means of a note paid online)
      */
     adjustMidStayNote(reservationId, { id, total, paidDate, cash } = {}) {
       if (!HAS_MID_STAY_NOTES) throw midStayError('NOTE_NOT_FOUND', 'Note introuvable.');
@@ -3612,6 +3835,12 @@ function createReservationsModel(database, { arrivalComplementEngine = null } = 
         const notes = parseNotes(row.midStaySettledNotes);
         const note = notes.find((n) => Number(n.id) === Number(id));
         if (!note) throw midStayError('NOTE_NOT_FOUND', 'Note introuvable.');
+        // Loop t6 A6-2 (guest-app rule 113 a) — a note paid online keeps its amount and its means, as it is never put back to the departure:
+        // lowering it asked the guest again for money he paid online, « Caisse interne » took card money off the books. Its date stays editable.
+        const paidOnline = notePaidOnlineReason(note);
+        const totalChanged = !(total === undefined || total === null || total === '') && round2(total) !== round2(note.total);
+        const cashChanged = cash !== undefined && (cash ? 1 : 0) !== (Number(note.paidCash || 0) === 1 ? 1 : 0);
+        if (paidOnline && (totalChanged || cashChanged)) throw midStayError('NOTE_PAID_ONLINE', paidOnline);
 
         if (paidDate !== undefined) note.paidDate = paidDate || note.paidDate;
         if (cash !== undefined) note.paidCash = cash ? 1 : 0;
@@ -3814,6 +4043,10 @@ function createReservationsModel(database, { arrivalComplementEngine = null } = 
       // `(db) => void` already validated by the controller. They run inside this transaction, so a
       // throwing one rolls the whole commit back.
       pluginWrites = [],
+      // Loop t6 S6-4 — the operator confirmed the trop-perçu of a paid line offered on the recap (409 OVERPAID first).
+      forceOverpayment = false,
+      // Reception-role-checkin-only rule 18 (loop t8 A8-1) — a reception commit never bills again a paid line whose money is owed back.
+      holdOwedLines = false,
     } = {}) {
       // Clamp drink/food counts to non-negative integers (authoritative server-side validation).
       // The SAS controller refuses a bad count first; a direct caller gets a throw, never an Infinity stored
@@ -3826,6 +4059,8 @@ function createReservationsModel(database, { arrivalComplementEngine = null } = 
       const clampCount = (v) => (v === undefined ? undefined : Math.max(0, Math.round(usableCount(v))));
       // Bread is counted in baguettes with half steps (specs/sas-breakfast-bread-and-push.md rule 2).
       const clampHalf = (v) => (v === undefined ? undefined : Math.max(0, Math.round(usableCount(v) * 2) / 2));
+      // Rules 23, 104, 105 (loop t6 S6-4) — the SAS commit is a save of the stay: a paid line it offers is judged like the fiche and the line API.
+      const paidLines = require('../utils/paidLineJudgment').begin(database, reservationId);
       const tx = database.transaction(() => {
         const today = localTodayIso();
         // specs/sas-arrival-total-server-side.md rule 2 — the plan is read BEFORE any write, by the very
@@ -3914,8 +4149,8 @@ function createReservationsModel(database, { arrivalComplementEngine = null } = 
           .filter((id) => id != null).map(Number));
         // Keys the frozen branch must NOT fold into the arrival baseline (they are mid-stay sales).
         let midStaySaleKeys = [];
-        // specs/sas-offer-complement-lines.md §3.3 — on a collected complement the gestes on the pre-existing lines are applied all the same.
-        if (compRow && Number(compRow.complementPaid || 0) === 1) applyOfferedComplementExtras(reservationId, offeredExtras, { skipSasOrigin: true });
+        // specs/sas-offer-complement-lines.md rule 12 (loop t9 A9-2) — a collected complement's lines cannot be offered from the SAS: the plan
+        // shows them as stored, not offerable, and the commit writes no « Offrir » on them.
         if (compRow && Number(compRow.complementPaid || 0) !== 1) {
           // Rule 90.1 — the very write the plan played and rolled back: the gestes commerciaux on the pre-existing lines
           // (specs/sas-offer-complement-lines.md §3.3), the SAS-origin rows replaced, the complement the engine gives them.
@@ -4123,9 +4358,11 @@ function createReservationsModel(database, { arrivalComplementEngine = null } = 
 
         moveFinalPriceBy(reservationId, billedBefore);
 
+        const paidLineRefusal = paidLines.finish({ forced: forceOverpayment === true, holdOwed: holdOwedLines === true, trimSpent: true });
+        if (paidLineRefusal) throw Object.assign(new Error(paidLineRefusal.body.error), { refusal: paidLineRefusal });
         return database.prepare('SELECT complementAmount FROM reservations WHERE id = ?').get(reservationId).complementAmount;
       });
-      const complementAmount = tx();
+      const complementAmount = runNamingPaidOffers(tx, reservationId, offeredExtras);
       if (stayPaid || complementSettled) retireSettledLinksOf(database);
       return complementAmount;
     },
@@ -4229,11 +4466,32 @@ function createReservationsModel(database, { arrivalComplementEngine = null } = 
         }
       }
       if (isRecalled({ amount: row.complementAmount, paid: row.complementPaid })) {
-        for (const l of model.buildArrivalComplementDetail(reservationId, { includeOffered: true }).detail) {
-          if (Number(l.offered || 0) === 1 && l.ref) seed.offeredKeys.push(`${l.ref.kind}:${l.ref.id}`);
+        const keyOf = detailRefKeyOf(reservationId);
+        for (const l of model.buildArrivalComplementDetail(reservationId, { includeOffered: true, withLineIds: true }).detail) {
+          if (Number(l.offered || 0) === 1 && l.ref) seed.offeredKeys.push(keyOf(l.ref));
         }
       }
       return seed;
+    },
+
+    // Loop t6 S6-3 — the re-open seed of the ARRIVAL SAS: the keys of the complement lines already offered, by the recap's own key rule
+    // (rule 85: `option:<id>` for an article's first line, `option:<id>:<lineId>` for a later one). The client seeded `option:<id>` for
+    // every line, which the commit read as the article's FIRST line: two lines of one article, the second offered, swapped their gesture.
+    buildArrivalSeed(reservationId) {
+      const keyOf = detailRefKeyOf(reservationId);
+      const offeredKeys = [];
+      for (const l of model.buildArrivalComplementDetail(reservationId, { includeOffered: true, withLineIds: true }).detail) {
+        if (Number(l.offered || 0) === 1 && l.ref) offeredKeys.push(keyOf(l.ref));
+      }
+      // The SAS's own upsell rows are seeded on their own keys (`cleaning`, `bathLinen`, `bed:`, `kept:`), never as a complement line.
+      const ownRows = new Set([
+        ...database.prepare(`SELECT ${hasLineId(database, 'reservation_options') ? 'lineId, ' : ''}optionId FROM reservation_options
+          WHERE reservationId = ? AND ${HAS_RO_SAS_ARRIVAL_ORIGIN ? 'COALESCE(sasArrivalOrigin, 0) = 1' : '0'}`)
+          .all(reservationId).map((x) => keyOf({ kind: 'option', id: x.optionId, lineId: x.lineId })),
+        ...database.prepare('SELECT id FROM reservation_custom_options WHERE reservationId = ? AND COALESCE(sasArrivalOrigin, 0) = 1')
+          .all(reservationId).map((x) => `custom:${Number(x.id)}`),
+      ]);
+      return { offeredKeys: offeredKeys.filter((key) => !ownRows.has(key)) };
     },
 
     /**
@@ -4247,7 +4505,7 @@ function createReservationsModel(database, { arrivalComplementEngine = null } = 
      * `offeredArrivalExtras` (authoritative refs, honoured only while the arrival is recalled).
      * `withLines: false` skips the itemised recalled lines (the commit never renders them).
      */
-    planDepartureSas(reservationId, input = {}, { withLines = true } = {}) {
+    planDepartureSas(reservationId, input = {}, { withLines = true, lockOwedPaidLines = false } = {}) {
       const {
         endOfStayComplementDetail = null, extinguisherSealOkAtDeparture, extinguisherCharges, offeredArrivalExtras,
       } = input;
@@ -4345,12 +4603,22 @@ function createReservationsModel(database, { arrivalComplementEngine = null } = 
         const { delta } = planOfferedComplementExtras(reservationId, offeredRefs);
         const override = HAS_COMPLEMENT_OVERRIDES && row.complementAmountOverride != null ? Number(row.complementAmountOverride) : null;
         const after = recalledArrivalAfter({ stored: row.complementAmount, delta, override });
+        const keyOf = detailRefKeyOf(reservationId);
         const wanted = offeredRefs
-          ? new Set(offeredRefs.filter((x) => x && x.kind && x.id != null).map((x) => `${x.kind}:${Number(x.id)}`))
+          ? new Set(offeredRefs.filter((x) => x && x.kind && x.id != null).map(keyOf))
           : null;
         if (withLines) {
-          recalledLines = model.buildArrivalComplementDetail(reservationId, { includeOffered: true }).detail.map((l) => {
-            const key = l.ref ? `${l.ref.kind}:${l.ref.id}` : null;
+          // Rule 108 (loop t7 D7-1) — the recalled line whose money a refund gave back stays offered, no toggle.
+          const refundedKeys = HAS_MID_STAY_NOTES
+            ? new Set(require('../utils/paidLineJudgment').refundedLoweredLines(database, reservationId).map((line) => line.key)) : new Set();
+          // Reception-role-checkin-only rule 18 (loop t8 A8-1) — for reception, a recalled paid line whose money is owed back stays offered too.
+          if (lockOwedPaidLines && HAS_MID_STAY_NOTES) {
+            for (const key of Object.keys(require('../utils/paidLineJudgment').owedBackByKey(database, reservationId))) refundedKeys.add(key);
+          }
+          const refundedRef = (ref) => Boolean(ref && ref.lineId != null && refundedKeys.size
+            && refundedKeys.has(ref.kind === 'custom' ? null : require('./extraSalesModel').keyOfLine(reservationId, ref.kind, ref.lineId)));
+          recalledLines = model.buildArrivalComplementDetail(reservationId, { includeOffered: true, withLineIds: true }).detail.map((l) => {
+            const key = l.ref ? keyOf(l.ref) : null;
             const real = realOfStoredLine(l);
             const offered = Boolean(key) && (wanted ? wanted.has(key) : Number(l.offered || 0) === 1);
             return {
@@ -4363,6 +4631,7 @@ function createReservationsModel(database, { arrivalComplementEngine = null } = 
               billed: key ? (offered ? 0 : real) : round2(l.amount),
               offerable: Boolean(key),
               offered,
+              ...(Number(l.offered || 0) === 1 && refundedRef(l.ref) ? { offerLocked: true } : {}),
             };
           });
         }
@@ -4403,7 +4672,10 @@ function createReservationsModel(database, { arrivalComplementEngine = null } = 
       // contract as the arrival `offeredExtras` (every in-complement line is addressable at check-out,
       // including the ones the arrival SAS wrote).
       offeredArrivalExtras,
+      forceOverpayment = false,
+      holdOwedLines = false,
     } = {}) {
+      const paidLines = require('../utils/paidLineJudgment').begin(database, reservationId);
       const tx = database.transaction(() => {
         const today = localTodayIso();
         const plan = model.planDepartureSas(reservationId, {
@@ -4489,8 +4761,10 @@ function createReservationsModel(database, { arrivalComplementEngine = null } = 
         // planning coche = dashboard « Parti » (checkOutDone). Same forward-only, never-auto-untick rule
         // as the arrival flags above.
         database.prepare("UPDATE reservations SET checkOutDone = 1, updatedAt = datetime('now') WHERE id = ?").run(reservationId);
+        const paidLineRefusal = paidLines.finish({ forced: forceOverpayment === true, holdOwed: holdOwedLines === true, trimSpent: true });
+        if (paidLineRefusal) throw Object.assign(new Error(paidLineRefusal.body.error), { refusal: paidLineRefusal });
       });
-      tx();
+      runNamingPaidOffers(tx, reservationId, offeredArrivalExtras);
     },
   };
 

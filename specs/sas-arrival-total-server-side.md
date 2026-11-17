@@ -239,6 +239,15 @@ code the commit runs, so that what the operator is told to collect is what the b
     the response carries `adjusted: { amount, engineAmount }`. The recap adds under the total:
     « Montant ajusté sur la fiche (calcul : 85,00 €) ». Verified on a fixture only (§9 Q3): a
     complement adjusted to 50 € keeps 50 € after a check-in that adds 85 € of lines.
+25. **The stay amount is the plan's, and it is enforced** _(pricing-components rule 117, stabilisation loop t8 S8-1, 2026-11-16)_. A paid
+    line the recap puts back to billed (or offers) moves the acompte / solde not yet paid inside the commit (pricing-components rules 109,
+    118). The plan returns `stayAfter`, the recap's `stayDue`, `totalAtArrival` and `stayPayment` read it, and the stay page renders the
+    preview's `stayPayment`. Unlike the complement (rule 22, compared and warned), the stay is never marked paid on another figure than the
+    recap showed: the commit body carries `displayedStayDue` and a commit that settles the stay on another figure answers 409
+    `STAY_DUE_CHANGED`, nothing written; the dialog says it and reads the recap again.
+    _Reading of 2026-11-16 (pricing-components rule 117 reading, loop t9 UI9-1):_ the stay step exists iff the plan's `stayPayment` is
+    applicable once a preview answered, and the page renders only the plan's block (« — » until the preview it asks on entry answered). The
+    served block stands in for the step's presence only before the first answer; rule 17's list of pages is unchanged.
 
 **Edge cases:**
 - Complement already paid (`complementPaid = 1`) and a prestation sold now → the planner routes the sale

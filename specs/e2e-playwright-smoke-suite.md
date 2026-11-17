@@ -125,6 +125,24 @@ or mutable state.
     selectors. Resilient to MUI structural changes during the Vite migration.
 19. **Timeouts**: action timeout 5 s, navigation 10 s, expect 5 s. Suite-wide
     timeout 30 s per spec. CI total budget < 5 min.
+    > _Reading of 2026-11-16 (pricing-components stabilisation loop t4, UI4-1):_ the 5 s action budget is the UI's, not the
+    > API's. A request context created inside a test inherits `actionTimeout`, so one call stalled on the runner → Vite proxy →
+    > server hop (no response headers in 5 s, while the server answered every other call in 3-29 ms) failed
+    > `settings/suggested-articles` (phone) and once `tariff/sold-reservation-immutable`. Every request context the suite creates
+    > itself (`fixtures/apiSeed.js` and the specs' shared contexts) carries `API_TIMEOUT` (15 s, `e2e/clientUrl.js`), and a direct
+    > read through the `request` fixture passes `{ timeout: API_TIMEOUT }`. A save is observed by its answer, never by a disabled
+    > « Enregistrer » (it flips with `saving`, before the PUT is even sent): wait for the PUT's response, then read the server
+    > back with `expect.poll(…, { timeout: API_TIMEOUT })`. Test: `server/src/tests/e2e-api-timeout.unit.test.js`.
+    > _Reading of 2026-11-16 (loop t6):_ the `request` fixture itself is built with `actionTimeout`, and the per-call
+    > `{ timeout: API_TIMEOUT }` was left out of most read-backs: the same hop stall (status -1 for 5 s on `GET /api/terms`, while
+    > the page's calls before and after answered in 2-13 ms and nothing in the route is asynchronous) failed
+    > `plugins/online-payment` « the public site address… » and skipped the 18 specs after it. Every spec that takes `request`
+    > imports `test` from `e2e/fixtures/test.js`, whose `request` fixture is built with `API_TIMEOUT` (baseURL and storageState
+    > still come from the config). Same test file.
+    > _Reading of 2026-11-16 (loop t7, P7-4):_ `page.request` shares the browser context's timeout settings, which the runner
+    > sets to `actionTimeout`: the 12 read-backs on it (`reservations/payment-ledger` 6, `plugins/booking-intake` 5,
+    > `reservations/fiche-stale-save` 1) carried the same 5 s budget. Each passes `{ timeout: API_TIMEOUT }`, and the guard refuses a
+    > `page.request.<verb>(…)` without it in a spec or a fixture. Same test file (5).
 20. **Specs that rewrite global state never overlap other specs** (2026-10-28 audit). The VAT specs
     (`vat-regime-switch`, `vat-franchise`, `vat-roundtrip`: global regime and rate) and `laundry-days` (global
     laundry schedule) are each their own Playwright project, run after the main `chromium` project (the VAT
@@ -133,6 +151,27 @@ or mutable state.
     The layout lives in `e2e/projects.js` (no dependency, so a server unit test reads it). The serial projects
     must depend on `chromium`: a dependency is the only way Playwright orders projects, so a failure of the main
     project skips them.
+    > _Reading of 2026-11-16 (pricing-components stabilisation loop t2):_ switching a plugin off is global state too — its routes answer 404
+    > and its pages show their empty state meanwhile. `hourly-resources.spec.js` (off and on again) made `planning/outside-visit` and
+    > `plugins/hourly-resources-client-picker` fail in every parallel run while both passed with `--workers=1`. The specs that switch a plugin off
+    > (`hourly-resources`, `neat`, `online-payment`, `plugins-page`, `booking-intake`) run in the project `plugin-toggles`, after `chromium`; the
+    > other global-state projects (`bank-reconciliation`, `laundry-schedule`, `vat-regime` and its chain) depend on `plugin-toggles`, so the
+    > toggles still run before them, as when they were in `chromium`: `online-payment` reads a database where no provider is connected, which
+    > `bank-reconciliation` ends (seen in the first parallel run of the new layout).
+    > _Reading of 2026-11-16 (pricing-components stabilisation loop t3, P3-4):_ a support access request is global state too — it is a banner
+    > of every admin page until it is answered. Filed by `account-security/hosting-h2.spec.js` beside the main project, it pushed the tab strip
+    > of `mobile/page-tabs` 238 px down mid-measure. The support flow is its own spec, `account-security/support-access.spec.js`, in the
+    > project `support-access` after `plugin-toggles`; `page-tabs` measures the strip in the viewport again, so a bar that moves on the screen
+    > is caught whatever moved it.
+    > _Reading of 2026-11-16 (loop t6):_ the request is a file beside the database (`support-request.jws`, read from the database's folder),
+    > and `support-access.spec.js` leaves it there: the next run on a fresh database in the same folder opened with the banner already up and
+    > `page-tabs` measured the strip at 141 then 379 px. `e2e/wipe-db.js` clears that file with the database before every run. Test:
+    > `e2e-shared-state-projects`.
+    > _Reading of 2026-11-16 (loop t9, E9-1):_ global-state projects never overlap one another either. The VAT chain depended on
+    > `plugin-toggles` only, so it ran beside `bank-reconciliation`, `laundry-schedule` and `support-access`; the regime switch is guarded by a
+    > fingerprint over the reservations of its period, and `reconciliation-assisted-matching` and `laundry-days` create reservations — one
+    > created between the preview and the click made `vat-regime-switch` stale (409, the dialog stays open) in parallel runs only. `vat-regime`
+    > now depends on all three, so the chain starts once they are done. Same test file (6).
 21. **The server log is an artifact** (2026-10-29 audit R3). The `webServer` of the main project sends the
     server's stdout/stderr to `playwright-server.log` (`GUESTFLOW_E2E_SERVER_LOG` overrides the path) instead of
     a pipe nobody reads, and the failure upload of `e2e.yml` ships it with `playwright-report/`, so a screenshot

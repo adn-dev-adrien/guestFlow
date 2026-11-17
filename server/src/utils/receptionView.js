@@ -205,6 +205,8 @@ const PLANNING_EVENT_KEEP = [
   'arrived',
   'noShowAt',
   'cardState',
+  // Loop t2 UI2-6, UI2-7 — what the caller may do on the visit now (`{ noShow, arrive }`, booleans the server judged for this caller).
+  'actions',
 ];
 
 function toReceptionPlanningEvent(event) {
@@ -244,7 +246,7 @@ function toReceptionSasCommit(body) {
   // not lose a whole check-in over a field it should not have sent. Dropping the mode leaves the
   // complement to settle through its own field, which reception is allowed to use.
   const {
-    stayPaid, stayPaidCash, arrivalPaymentMode, arrivalPaymentSplit, ...rest
+    stayPaid, stayPaidCash, arrivalPaymentMode, arrivalPaymentSplit, forceOverpayment, ...rest
   } = body || {};
   return rest;
 }

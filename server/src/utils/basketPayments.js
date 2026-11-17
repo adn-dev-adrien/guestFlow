@@ -4,7 +4,7 @@
  * owning plugin's (`ctx.paymentBasket`, settled by `paymentPollRunner.applyPaidEffect`).
  *
  *   basketLink(reservationId, basket, { redirectUrl }) → { linkId, url, amountCents, expiresAt }   throws { httpStatus, error, message }
- *   saleLink({ source, ref, title, amountCents, validityMinutes? }, { redirectUrl }) → { linkId, url, amountCents, expiresAt, reused }   a basket with no stay (SDK 2.32.0)
+ *   saleLink({ source, ref, title, amountCents, validityMinutes? }, { redirectUrl }) → { linkId, url, amountCents, expiresAt, reused }   a basket with no stay (SDK 2.33.0)
  *   refreshBasketLink(linkId)  → the link's status after an on-demand read of the provider (`open`, `paid`, …), or null; a sale link
  *                                past its end is lapsed on the spot (`expired`), its deactivation owed to the poll
  *   withdrawBasketLink(linkId) → the link's status once withdrawn (`cancelled`), `paid` when the guest paid meanwhile

@@ -427,9 +427,11 @@ once on the server by the refonte's components.
     409 `REFUND_OWED` « Remboursement à faire : facture après le remboursement. ». The LINE_PAID refusal names the amount (« Ligne payée : remboursement
     à confirmer. 13,00 € à rembourser. », `refundCents`, mock M5). ~~_Not delivered:_ the negative journal entry of the money given back (an avoir in
     `salesOfDocument`) — the journal still books the line's revenue on its day; the owner decides it with the refund path of rule 25.~~ (delivered
-    2026-11-16 by rule 48)
+    2026-11-16 by rule 49; reference corrected 2026-11-16, loop t2 B2-6)
     Migration: the table's CHECK is widened (rebuilt once, rows and ids kept). Tests `standalone-sale-paid-line-refund`,
     `pricing-sales-document-obligations-widened`, `visit-round1-reception-and-refunds`.
+    > _Reading of 2026-11-16 (loop t3 B3-3):_ the amount the LINE_PAID refusal names is what the confirmed lowering would open (rule 55 d), not what
+    > the line holds; a lowering that opens nothing asks nothing.
 45. **What each caller is served, so the screens rebuild no rule** _(stabilisation loop t1, 2026-11-15)_. The visit payload adds `invoiceable: { ok, code, reason }`
     (the refusals `POST /:id/invoice` would answer before Qonto, admin; `null` for the reception), `access.withdrawLink` (the administrator on any day,
     V-8), and `newSale: { client }` on an invoiced visit; for the reception, `paymentLink.email` is `null` with `hasEmail`, a typed address that matches a
@@ -457,8 +459,9 @@ once on the server by the refonte's components.
 48. **The screens render what rule 45 serves** _(stabilisation loop t1, client round, 2026-11-16)_. « Client absent » shows iff the booking's own
     read (`GET /api/resource-bookings/:id`) answers `actions.noShow` (the planning rows carry no `actions`, so the dialog reads the booking on opening and
     again after the confirmation); no date is compared with the browser's clock. On the mini SAS, « Créer la facture » for money already on the books
-    shows iff `invoiceable.ok`, otherwise the invoice section prints `invoiceable.reason` (the pay-now checkbox « Créer la facture dans Qonto » still
-    depends on the tenders typed and the commit's `invoice` outcome judges it, rule 31). Each visit line names its VAT rate as served (« TVA 20 % »:
+    shows iff `invoiceable.ok`, otherwise the invoice section prints `invoiceable.reason` (~~the pay-now checkbox « Créer la facture dans Qonto » still
+    depends on the tenders typed and the commit's `invoice` outcome judges it, rule 31~~ — superseded 2026-11-16 by rule 54: the pay-now checkbox is
+    served too). Each visit line names its VAT rate as served (« TVA 20 % »:
     beside the session's status, in the detail of a stored or priced draft extra; `SuggestedArticlesStep` gains the optional `showVatRate` prop, set
     by the mini SAS only). An invoiced visit (`newSale` set) offers « Nouvelle vente », which opens « Vente hors séjour » seeded with `newSale.client`
     (« Vente rattachée à ce client. », no name, e-mail or « Enregistrer comme client » asked; the quote and the sale carry `customer: { clientId }`).
@@ -481,11 +484,179 @@ once on the server by the refonte's components.
     `lineLowered` row closed « rien à rembourser » writes nothing: the line keeps the money it was paid, booked on its day. A `linkSurplus` row closed
     `settled` writes nothing either: that money never reached the books (rule 41). No month already booked moves: the avoir sits on its own day. Test
     `standalone-sale-refund-journal`.
+    > _Reading of 2026-11-16 (loop t2 B2-1, B2-4):_ « the line keeps the money it was paid » holds row by row. A `lineLowered` row names the line it was
+    > opened for (`standalone_sale_obligations.lineRef`; NULL for a whole document cancelled), and « Marquer remboursé » takes the money from THAT line
+    > first, then from the other lines holding more than they ask in sale order, then on no line. Before, two rows settled out of order took the plank's
+    > refund from the beers (sale `catering 14 € + drinks 13 €`, avoir `drinks 13 € + catering 1 €`: the books kept the plank at 10 % while the money kept
+    > was the beers' at 20 %). Which line a cent leaves is REFUNDS' `refundRowsOfDocument` (refonte rule 72), no longer computed in `standaloneSale`.
+    > Migration: one nullable column, NULL on the existing rows (they read as before: sale order). Tests `standalone-sale-lowered-line-in-step`,
+    > `pricing-refunds-document-rows`.
+    > _Reading of 2026-11-16 (loop t3 B3-2):_ a `linkSurplus` row closed `settled` now writes its refund on no line (rule 55 c): still off the journal,
+    > but the money leaves the document, so it cannot pay a line sold later.
+    > _Reading of 2026-11-16 (loop t4 B4-1, B4-3, owner):_ a `lineLowered` row closed « rien à rembourser » no longer writes nothing: it writes kept
+    > allocations and is a tip (rule 56 a); a row takes its own line first, then the excess no other open row names (rule 56 b).
+    > _Reading of 2026-11-16 (loop t5 D5-4):_ `refundRowsOfDocument` returns at most one row per (line, caisse): when a row takes a line's unnamed
+    > excess and then what another row names on the same line, the two parts are one row, so the allocations written from them never collide on the
+    > allocation key (before: the close was refused 500 every time). Test `pricing-refunds-document-rows`.
 50. **A link surplus kept is a tip** _(owner decision 2026-11-16, stabilisation loop t1 B-6; completes rules 30, 41)_. A `linkSurplus` row closed
     « rien à rembourser » (`status: 'cancelled'`) is money the business keeps. The history says « 13,00 € gardés en pourboire », and the journal books it
     like a stay's tip: one entry on the day the row was closed (`standaloneSales.list` row `role: 'tip'`, key `standalone:<id>:<day>:tip:<row>`; entry kind
     `standaloneTip`), customer debit and `revenue:tip` credit on the plan's tip account (accounting-export `tipAccount`, named « Pourboire »), no VAT. The
     link's payment day is not moved: the surplus was on no line, so it never was on that day's books. Test `standalone-sale-kept-surplus-tip`.
+    > _Reading of 2026-11-16 (loop t4 B4-1, owner):_ the tip is read from the kept allocations (their booked part, on their day), and a `lineLowered` row
+    > closed « rien » is a tip too (rule 56 a).
+    > _Reading 2026-11-16 (loop t4):_ the day of the tip is the Paris day of the application's clock when the row is closed: `settledAt` is written
+    > from it (in SQLite's UTC text form), never from SQLite's own clock, so the tip and its kept allocation share one day at any hour. Test
+    > `standalone-sale-kept-surplus-paris-day`.
+    > _Reading 2026-11-16 (loop t5 D5-5):_ the tip and avoir days are the `at` of the allocations the close writes; `settledAt` is the row's displayed
+    > stamp, which no reader decides money by.
+51. **Every booking payload carries its actions; the invoice reason is the stored visit's** _(stabilisation loop t2, UI2-5 to UI2-8, 2026-11-16;
+    completes rules 6, 11, 27, 45, 48)_. (a) Every booking payload carries `actions: { noShow, arrive }` for its caller: the booking read, the rows of
+    `GET /api/resource-bookings` (the booking dialog opens on them) and of `GET /api/resource-bookings/planning-events` (the planning cards; the
+    reception's projection keeps `actions`), and the answer of `POST /:id/no-show`. `arrive` (rule 6): a visit with no stay, not arrived nor absent,
+    inside its day window (D 00:00 → D+1 04:00 on the server's clock, rule 5's window); `noShow` as rule 45. The planning card shows « Arrivée » iff
+    `actions.arrive`; the booking dialog shows « Arrivée » iff `actions.arrive` and « Voir l'arrivée » on an arrived visit; neither compares a date with
+    the browser's clock, and the dialog reads the booking a second time for nothing (rule 48's extra read is gone). (b) `invoiceable` adds `silent: true`
+    on the refusals that state no step for the operator (`ISSUER_UNAVAILABLE`, `NOTHING_TO_INVOICE`, `NOT_PAID`, `BOOKING_HAS_STAY`,
+    `BOOKING_NOT_FOUND`, `BOOKING_INVOICED`): the mini SAS prints the reason only when not silent, and only while nothing is typed (no draft, no payment
+    being taken — the reason reads the stored visit; the commit answers its own invoice). A paid visit on an install without Qonto shows no « Facture »
+    block, as before rule 45. (c) Rule 11: a class's external rate the operator emptied in an article form is sent empty and refused
+    (`EXTERNAL_RATE_EMPTY`, « Taux du client extérieur requis. », on the field) — the class keeps one rate, which no save clears; an untouched rate is
+    not sent. Tests `visit-round2-row-actions-and-invoice-reason`, `catalogue-external-rate-emptied`, `reception-planning-and-date-caps`; Vitest
+    `ResourceBookingDialog.no-show`, `PlanningResourceCard`, `ResourceArrivalDialog.invoice-reason`, `externalSaleForm.emptied-rate`.
+52. **Money a lowered line holds pays the lines still due** _(stabilisation loop t2, B2-3, 2026-11-16; completes rules 18-19, 28-30)_. After every change of a
+    stored document (a line offered, removed or made payable again, a line sold on it, a payment, the document cancelled), in the same transaction, the
+    money a line holds beyond what it now asks is filed on the lines that still ask, in sale order, each part kept on or off the books as it was taken
+    (SETTLEMENT's `refileDocumentExcess`): one signed transfer of `payment` allocations (`paymentRef` `standalone-transfer:<sale>:<n>`, `…:internal` for
+    the caisse interne), negative on the line it leaves, positive on the line it pays, **dated the day of the change**. The journal books it on that day:
+    the line it leaves in the day's avoir, the line it pays in the day's sale, no money received (`totalCents 0`); the day the money came in keeps what it
+    booked. Only what no line asks is owed back (rule 53). Before, the allocations were written once at payment: a partly paid document whose paid beers
+    were offered read the 13 € as paying the plank while the journal kept them on the beers (drinks 13 € at 20 % for a document that sold one plank).
+    Tests `standalone-sale-lowered-line-in-step`, `pricing-refunds-document-rows`.
+53. **The open rows follow what the document owes** _(stabilisation loop t2, B2-2, 2026-11-16; completes rules 41, 44 and refonte rule 75)_. After every change
+    of a stored document, after rule 52, the open `lineLowered` rows are kept in step (REFUNDS' `documentRowsInStep`): a row holds at most what its line
+    still holds beyond what it asks, and the rows together at most what the document owes back less its open link surpluses, the newest cut first; a row
+    cut to nothing is closed `cancelled` by `system` — no longer owed, so neither money given back nor money kept (it is not counted as resolved, a later
+    lowering owes the money again). A confirmed lowering opens what no row holds yet, at most its line's excess. Before, a beer offered then made payable
+    again left its 13 € row open (the counter listed it, the invoice waited `REFUND_OWED`, and « Marquer remboursé » wrote 13 € on no line).
+    Test `standalone-sale-lowered-line-in-step`.
+    > _Reading of 2026-11-16 (loop t3 B3-1):_ the open `linkSurplus` rows are kept in step too, each bounded by the unallocated money (rule 55 b).
+54. **« Créer la facture dans Qonto » at « Payé maintenant » is served** _(stabilisation loop t2, B2-7, 2026-11-16; CLAUDE.md §6.0; completes rules 45, 48 and
+    invoicing rules 13, 44, 45)_. With a payment typed, the arrival's quote (`POST …/visit/quote` with `payment: { tenders, shortfall?, paidAt }`) and the
+    booking dialog's preview (`POST /api/resource-bookings/preview` with `payment`) answer `invoiceable: { ok, code, reason }` for the commit of that draft
+    (admin only; `null` for the reception), nothing written: the tenders validated against what is due (`TENDERS_INVALID`), then the refusals `POST
+    /:id/invoice` would answer once the commit is written — on the visit's document as the commit would leave it (`REMAINING_DUE`, `REFUND_OWED`,
+    `INTERNAL_CASH`, `ISSUER_UNAVAILABLE`…), or on a booking paid on its own columns. The dialogs show the checkbox iff `ok`, ask it again when the payment
+    or the draft changes, and the arrival waits for the answer before its commit; they no longer read the tenders to decide it. Tests
+    `visit-draft-invoiceable`, `ResourceArrivalDialog.invoice-from-server`, `ResourceBookingDialog.invoice-from-server`.
+    _Reading 2026-11-16 (loop t3, UI3-4, UI3-5):_ both dialogs wait for that answer — the booking dialog's « Enregistrer » too (before, a save made
+    while it was on its way carried no invoice) — and keep the latest one on screen while a newer one is asked (no caption ↔ checkbox flip on each
+    keystroke). A failed answer shows « Facture non vérifiée pour ce paiement. » with « Réessayer » (before, the arrival's « Valider » stayed disabled
+    with no word); a refusal of the whole request is shown as such. The answer carries `silent` like the stored visit's `invoiceable` (rule 48):
+    « Caisse interne : hors comptabilité, pas de facture » is printed for the server's `INTERNAL_CASH`, never decided from the tenders, any other
+    refusal that is not silent prints the server's `reason` under « Facture » (« La facture se propose une fois le paiement saisi. » stays for a
+    payment not typed yet), and a silent one shows nothing. Tests `visit-draft-invoice-reason`, `ResourceArrivalDialog.invoice-answer`,
+    `ResourceBookingDialog.invoice-answer`.
+    _Reading 2026-11-16 (loop t4, UI4-3):_ the payment's request carries the draft, so a refusal of the draft itself or a failure comes back on both
+    requests; it is shown once. The arrival shows the payment answer's refusal or « Facture non vérifiée pour ce paiement. » only while the draft's
+    own answer is neither refused nor failed (before: the same red message twice, or two « Réessayer »). The booking dialog already shows one: a
+    refused draft has no price, hence no payment preview, and a failed one keeps its last price without a second message. Tests
+    `ResourceArrivalDialog.invoice-answer`, `ResourceBookingDialog.invoice-answer`.
+55. **One money model for a document: every cent on a line or on no line** _(stabilisation loop t3, B3-1, B3-2, B3-3, 2026-11-16; completes rules 41,
+    44, 49, 50, 52, 53 and refonte rules 72, 74, 75)_. Every cent a document received sits either on one of its lines or **on no line** — its
+    *unallocated money*: a link paid above the reste (rule 41), net of what was given back or kept from it (`payment_allocations` with `lineRef` NULL).
+    (a) **The unallocated money pays first.** After every change of a stored document (rule 52), the unallocated money is the FIRST giver of
+    SETTLEMENT's `refileDocumentExcess`: it is filed on the lines still due (a transfer `lineRef` NULL → the line, dated the day of the change, booked
+    that day in the sale like rule 52's legs; the leg leaving no line puts nothing in the avoir), before a lowered line's money moves. Only what is left
+    on no line is a link surplus. (b) **The `linkSurplus` row follows it.** Its row opens in the payment's transaction (`receive`) and is kept in step
+    with the other rows (REFUNDS' `documentRowsInStep`, rule 53 widened to every open row): a `linkSurplus` row holds at most the unallocated money
+    left, every row together at most what the document owes back, the newest cut first; a row cut to nothing is closed `cancelled` by `system` and is
+    **no tip** (rule 50 reads only rows the operator closed). Before, a beer made payable again after a late 14 € link stayed due under a « 13,00 €
+    à rembourser » row (13 € consumed, never asked, never booked; invoice refused `REFUND_OWED`). (c) **Closing a link surplus takes its money off the
+    document.** « Marquer remboursé » writes it as a refund on no line (`kind = 'refund'`, `refundId` = the row, `paymentRef` `standalone-refund:<row>`;
+    REFUNDS' `refundRowsOfDocument` with `unallocated`), off the journal since the surplus never was revenue — this replaces rule 49's « a
+    `linkSurplus` row closed `settled` writes nothing ». « Rien à rembourser » writes a **kept** allocation: one negative `payment` allocation on no line
+    (`paymentRef` `standalone-kept:<row>`, `refundId` = the row), so SETTLEMENT's `paidCents` falls by the tip; the journal still books the tip from the
+    closed row (rule 50). Either way the closed row is counted once (`closedObligationCents` skips a row any allocation names), and a line sold later is
+    asked in full: before, the 13 € given back or tipped kept paying it (« Payé » with nothing received, the beer never booked). (d) **The LINE_PAID
+    refusal names what the confirmation opens** (rule 44's mock M5, reading of 2026-11-16). `refundCents` is the row the confirmed lowering would open:
+    the plan of rule 52-53 run on the document as the change would leave it. A paid line whose money pays the lines still due opens nothing, so the
+    lowering is applied with no question (the money « passe sur le reste »); a line holding 13 € on a document whose plank asks 7 € names 6 €. Before,
+    the dialog asked to give back 13 € the confirmed change then filed on the plank, with no row to record it. In every case the journal nets, per
+    class and rate, exactly the paid lines the Qonto invoice states (rule 31). Tests `standalone-sale-unallocated-money`,
+    `standalone-sale-line-paid-refund-amount`.
+    > _Reading of 2026-11-16 (loop t4 B4-1, B4-2):_ `closedObligationCents` is gone (rule 56 b): every closed row leaves the document through its
+    > allocations, so none is counted apart. The closing claim holds since rule 56 (a) and (e).
+56. **A row closed « rien à rembourser » is a tip; the books, the invoice and the rows follow the money** _(stabilisation loop t4, B4-1 to B4-6,
+    2026-11-16; owner decision 2026-11-16 for (a); completes rules 31, 44, 49, 50, 53, 55 and refonte rules 62, 72, 74, 75)_.
+    (a) **Kept money is a tip, whatever the row.** A `lineLowered` row (a paid line offered or removed, a paid document cancelled) closed « rien à
+    rembourser » is money the business keeps, exactly like a kept link surplus (rule 50): it writes **kept** allocations — negative `payment`
+    allocations, `paymentRef` `standalone-kept:<row>` (`…:internal` for the caisse interne, off the books), `refundId` = the row — on the lines a refund
+    would take (REFUNDS' `refundRowsOfDocument`, (b)), dated the close day. The journal books, that day, the line's part in the document's avoir (its
+    revenue and VAT leave, as for a refund) and the booked part as the tip of rule 50 (`role: 'tip'`, key `standalone:<id>:<day>:tip:<row>`); the
+    history says « 13,00 € gardés en pourboire ». Rule 49's « a `lineLowered` row closed « rien à rembourser » writes nothing: the line keeps the money
+    it was paid, booked on its day » is replaced: before, the invoice stated the plank (14 €) while the journal kept the offered beers' 13 € as drinks
+    revenue at 20 % (VAT on money no invoice states). A cancelled document whose row is closed « rien » tips the lines' money the same way.
+    (b) **What a document owes follows its lines.** No closed row is subtracted on its own any more (`closedObligationCents` removed): the money a row
+    gave back or kept left the document by its allocations, so a line made payable again after a « rien » is asked again (the 13 € tipped pay no line),
+    removing a paid line owes what its money no longer pays, and a late link above the reste is a surplus of exactly what no line asks. Before, a « rien »
+    row counted forever: removing a 14 € plank asked 1 €, a cancel row held 14 € of 27 €, a late link hid 13 € on no line. **Which money a row takes**:
+    its own line first, then the excess no other open row names, in sale order, and only then what another row holds (`refundRowsOfDocument`'s
+    `reserved`, the other open `lineLowered` rows): the whole-document row of a cancelled document no longer takes the offered beers' money their own row
+    was opened for (before: avoir beers 13 € + plank 1 €, the books keeping catering at 10 % while the money kept was the beers' at 20 %).
+    (c) **`INTERNAL_CASH` is judged on the money held.** The document's `totals.internalHeldCents` is the caisse-interne money its lines (or no line)
+    still hold, net of what was given back, kept or moved (`books = 0` allocations); the invoice is refused `INTERNAL_CASH` while it is above 0 (the draft
+    of rule 54 adds the internal tenders typed), no longer whenever a payment once had an internal tender: beers paid in the caisse interne then offered
+    and given back leave a card-paid plank that is invoiced. The reception's payload does not carry it (rule 7).
+    (d) **The preview is the commit's plan.** A quote of a stored document runs the plan of rules 52-55 on the draft (nothing written): the unallocated
+    money and a lowered line's money pay the new lines (« Payée » in the preview, the reste the commit will ask), and the open rows are served at the
+    amounts the plan leaves them, a row planned to nothing left out. The mini SAS renders the quote's rows while a draft is typed and disables « Marquer
+    remboursé » until it is saved (the stored row is not the one shown). Before, the preview showed the new beer « À payer » under « Reste 0 » beside
+    the stored « 13,00 € à rembourser ».
+    (e) **The invoice states the journal's VAT.** Qonto computes VAT item by item; each item of a document's invoice names its (class, rate) group
+    (`vatGroup`, a session paid on the booking a group of its own), and the issuer sends a group's items so that their HT sum is the group's TTC less the
+    VAT cut ONCE on it (the VAT component's `groupVatCents`, which the journal uses too): each item within three cents of HT, else further (one VAT cent
+    moves only every 1 / rate cents of HT at a low rate), the least TTC moved first, else an « Arrondi de TVA » line; a discount folds into its own
+    group only. Before, two beers at 6,50 € (20 %) were invoiced 2,16 € of VAT while the journal declared 2,17 €. Items with no group (a stay, a booking
+    paid on its own columns) are sent exactly as before. (At 2,1 % a group may need lines moved by up to fifty cents; no article of the external
+    catalogue uses that rate.)
+    A fuzz of 300 random document lives (sales, card / caisse-interne / partial payments, offers, removals, late links, cancellation, rows refunded or
+    kept) checks after every step that no cent is created or lost (booked money received − given back = journal revenue + tips + booked money on no
+    line), that the journal nets per (class, rate) the paid lines an allowed invoice states, and that every owed cent sits in a row. Tests
+    `standalone-sale-kept-lowered-line`, `standalone-sale-cancel-refund-order`, `standalone-sale-quote-plan`, `standalone-sale-money-conservation`,
+    `visit-invoice-internal-held`, `invoice-issuer-vat-per-group`; Vitest `ResourceArrivalDialog.planned-rows`.
+    _Reading 2026-11-16 (loop t5, UI5-2, UI5-3):_ « Réessayer » on a failed draft also re-sends the payment's answer, so the second message never
+    follows the first; the failed-draft alert spans the whole grid (UI5-1). While a draft is typed and a row is open, « Marquer remboursé » is
+    disabled with « Enregistrer d’abord les articles ajoutés. » shown under the rows.
+    _Reading 2026-11-16 (loop t6, UI6-4):_ the caption under the rows is « Enregistrer d’abord les modifications. »: the draft is dirty for an added
+    article, offered minutes or an offered session alike, and before the arrival is validated the primary button reads « Valider l’arrivée ». The
+    payment-link caption keeps « … les articles ajoutés. » only when an article was added.
+57. **A month already exported never moves; every invoice states the VAT its own journal declares** _(stabilisation loop t5, B5-1 to B5-3,
+    2026-11-16; completes rules 30, 56 e; pricing-components rule 62)_.
+    (a) **The document journal cuts the VAT in the order the money was written.** A payment may be dated (« Date du paiement », no minimum). The journal
+    cut each group's VAT on its cumulative TTC in the order of the payment DAYS, so a payment recorded on 10 November and dated 20 September re-cut the
+    entry of 5 October, already exported (3 beers at 6,50 € paid in thirds: October moved from 1,09 € to 1,08 € of VAT). The cut now follows the order
+    of writing (the `payment_allocations` row ids: payments, refunds, kept rows and transfers alike): each movement takes the cut its group had left
+    when it was recorded, so a back-dated payment books its own day (1,08 € on 20 September) and no entry written before it moves; the document's whole
+    VAT is still one cut on its whole TTC. Chosen over refusing a date before the last paid day: a stay accepts a back-dated payment and never re-cuts
+    a day already declared (pricing-components rule 99), so the document follows the same rule. With no back-dated payment the entries are the ones
+    the days' order gave.
+    (b) **A booking's invoice states the booking journal's VAT.** The journal books a booking sold outside a stay (and a session paid on the booking
+    before its document) as ONE line whose HT is the net of its TTC (`netOfTtc`, net first). Its invoice's items and discount now name the group
+    `booking:session|<rate>` (resource-booking rule 14), and the issuer sends a `booking:` group — this one, or a document's session paid on the booking
+    (rule 56 e) — with that cut instead of `groupVatCents`. Before, Qonto's per-line VAT of a booking drifted a cent from the books (20 € − 15 €
+    « 1 h offerte » at 10 %: 0,46 € invoiced, 0,45 € declared; 156 of 606 realistic breakdowns), and a document's session took the sale cut where the
+    two cuts part (10,05 € at 20 %: 1,68 € against the booking's 1,67 €). Amends rule 56 e's « items with no group are sent exactly as before » for
+    bookings; a stay's invoice still names no group. Nothing stored moves: an invoice already issued stays as Qonto numbered it.
+    (c) **The folded fallback reaches what the ungrouped solver reached.** When Qonto refuses a negative line (Q3) the discount folds into its group,
+    and no line may be negative. A group whose cut no single line carries then needs the lines moved further AND an « Arrondi de TVA » line (14,00 € −
+    11,69 € at 20 %: 1,89 € HT + 0,03 €), or a rounding line large enough to carry a cent of VAT itself (5,50 € − 1,95 € at 5,5 %: no line under
+    0,10 € HT carries VAT there); the issuer tries the rounding line with the lines within three cents, then moved further, then a wider rounding line.
+    Before, 333 of ≈ 6 000 discounted baskets were `ISSUER_AMOUNT_UNREACHABLE` on the fold although the ungrouped solver invoiced them; now none, the VAT
+    per rate still the journal's.
+    Tests `standalone-journal-backdated-payment` (with the reviewer's multi-day fuzz, bounded: back-dated payments and links up to 40 days, no past
+    day but the back-dated one rewritten), `invoice-issuer-folded-rounding` (4 000-basket fuzz against the ungrouped solver),
+    `booking-invoice-vat-booking-journal` (the 606-breakdown sweep widened, wire and fold).
 
 ---
 
@@ -507,13 +678,13 @@ once on the server by the refonte's components.
 | `utils/` | `standaloneSaleLinks.js` | C | mints / reuses / withdraws the reste link through the payment-provider path (rule 40); the paid effect of the `standalone-sale` basket (rule 41); sends the manual e-mail on click (rule 42) |
 | `utils/` | `defaultEmailTemplatesRegistry.js` | T | seeds `visit_payment_request`, `sendMode: 'manual'` (rule 42) |
 | plugin `accounting-export` | `settings` + exporters | T | `drinksRevenueAccount` and the `DRINKS_ACCOUNT_REQUIRED` guard (rule 43) |
-| `models/` | `standalonePaymentsModel.js` | C | writes `standalone_sale_payments` and their allocations (`payment_allocations`) inside the sale transaction; `recordRefund` writes a `lineLowered` row's refund allocations (rule 48); `documentsPaidBetween` lists the documents with a payment, a refund or a kept surplus in the window |
+| `models/` | `standalonePaymentsModel.js` | C | writes `standalone_sale_payments` and their allocations (`payment_allocations`) inside the sale transaction; `recordRefund` writes a `lineLowered` row's refund allocations (rule 48); `recordTransfer` writes the transfer of rule 52; `documentsPaidBetween` lists the documents with a payment, a refund, a transfer or a kept surplus in the window, each allocation with its row id (loop t5, rule 57 a) |
 | `controllers/` | `standaloneSalesController.js` (from PR C) | T | the counter dialog's routes (§4.3): `GET /` (« Ventes du jour »), the quote's and the sale's `paymentLink` block, the three link routes of a counter sale (C38); exposes the actions above to the SDK |
 | `utils/` | `saleDetail.js` (from PR B) | T | `saleDetail({ documentRef })` for a standalone document: lines, statuses, `totals { totalCents, paidCents, remainingCents, refundOwedCents }` from SETTLEMENT and REFUNDS |
-| `utils/pricing/` | `settlement.js`, `refunds/owed.js` | T | SETTLEMENT and REFUNDS take a standalone document as input (no stay-level parts) — no new formula, rule 4 |
-| `utils/accounting/` | read model of standalone documents | T | lines + VAT output + allocations as `standalone` entries (rule 30); `standaloneDocuments.salesOfDocument` adds the refund day's avoir (rule 48) and the kept surplus's tip (rule 49); `journalLines` mirrors the avoir and books the tip; `exporters/salesJson` renders them as a « Remboursement » and a tip card |
+| `utils/pricing/` | `settlement.js`, `refunds/owed.js` | T | SETTLEMENT and REFUNDS take a standalone document as input (no stay-level parts) — no new formula, rule 4; loop t2: `refileDocumentExcess` (SETTLEMENT, rule 52), `documentRowsInStep` and `refundRowsOfDocument` (REFUNDS, rules 53, 49) |
+| `utils/accounting/` | read model of standalone documents | T | lines + VAT output + allocations as `standalone` entries (rule 30); `standaloneDocuments.salesOfDocument` adds the refund day's avoir (rule 48) and the kept surplus's tip (rule 49), and books a transfer of rule 52 on its day (the avoir of the line it leaves, the sale of the line it pays); `journalLines` mirrors the avoir and books the tip; `exporters/salesJson` renders them as a « Remboursement » and a tip card; loop t5: the VAT of a group is cut in the order the money was written (rule 57 a) |
 | `utils/` | `standaloneSale.js`, `standaloneSaleLinks.js` | T | `writeObligationRefund` (rule 48), called by `closeObligation` on a `lineLowered` row `settled`; a `linkSurplus` row `cancelled` is written « gardés en pourboire » (rule 49) |
-| `models/` | `standaloneSalesModel.js` | T | `closedObligationCents` leaves out a row written as refund allocations (rule 48); `keptSurpluses` (rule 49) |
+| `models/` | `standaloneSalesModel.js` | T | loop t4: `closedObligationCents` and `keptSurpluses` removed — a closed row leaves the document through its allocations (rule 56 b); `recordKept` (`standalonePaymentsModel`) writes the kept rows of any row, the journal reads the tips from them (rule 56 a) |
 | plugin `accounting-export` | `accountingModel.js` | T | a kept surplus's tip on the plan's tip account, named « Pourboire » (rule 49) |
 | `utils/` | `standaloneSales.js` | T | the core lists its own documents beside the plugins' providers (rule 32) |
 | `plugins/sdk/` | `coreModules.json`, `index.js` | T | expose `standaloneSale`, `saleDetail`, `suggestedArticles`, `sasEditWindow` (already) to plugins; add `ctx.suggestionContexts` (rule 37); SDK minor bump |
@@ -522,7 +693,8 @@ once on the server by the refonte's components.
 | plugin | `plugins/hourly-resources/visitController.js` | C | `GET /:id/visit`, `POST /:id/visit/quote`, `POST /:id/visit` (commit), `POST /:id/visit/payment`, `PATCH /:id/visit/lines/:lineId`, `POST /:id/no-show`, the payment-link routes (rules 39-42); window and role guards (rules 5, 7) |
 | plugin | `plugins/hourly-resources/visitModel.js` | C | links a booking to its document (`saleRef`), builds the session `fulfilment` line from the booking (the plugin's hourly pricing) and the `paidElsewhere` session of rule 34, the client of rule 8, the window of rule 5; `view`, `commit`, `pay`, `patchLine`, `noShow`, `ensureDocument`, `moneyOf`, `repriceSession`, `cancelDocument` |
 | plugin | `plugins/hourly-resources/bookingsModel.js` | T | `enrich` adds `visit`, `noShow`, `cardState`; `recordArrival` and `recordPayment` pay the document of a booking that has one; `clearPayment` refuses document money; `update` re-prices an unpaid session line when the slot moves; `standaloneSales` lists only the money on the booking's own columns (rule 32); `remove` cancels the document (rule 26) |
-| plugin | `plugins/hourly-resources/invoicing.js` | T | invoice basis = the document's lines when the session is on a document (rule 31, `issueDocument`, `documentRequestOf`, `REMAINING_DUE`) |
+| plugin | `plugins/hourly-resources/invoicing.js` | T | invoice basis = the document's lines when the session is on a document (rule 31, `issueDocument`, `documentRequestOf`, `REMAINING_DUE`); `draftInvoiceability` judges the commit of a draft with a payment typed (rule 54), on `visitModel.draftMoneyOf`; served by `visitController.quote` and `controller.preview`; loop t4: `INTERNAL_CASH` on `totals.internalHeldCents`, each item names its `vatGroup` (rule 56 c, e); loop t5: a booking's own invoice names the group `booking:session|<rate>` (rule 57 b) |
+| plugin `online-payment` | `invoiceIssuer.js` | T | loop t4 (rule 56 e): items naming a `vatGroup` are solved per group to the group's single VAT cut (`groupVatCents` of the VAT component); loop t5: a `booking:` group takes the booking journal's cut (net of the TTC), the folded fallback widens its rounding line (rule 57 b, c) |
 | plugin | `plugins/hourly-resources/planningCardsModel.js` | T | `bookingCardState`: « À encaisser », « Reste {x} », « Payé », « Absent » from the server's figures (rule 22) |
 | plugin | `plugins/hourly-resources/routes.js` | T | mounts the visit routes before `/:id`; the old `POST /:id/arrival` is removed with `controller.arrival` and `bookingsModel.recordArrival` (C38: no caller left once the screens use the visit routes) |
 | plugin | `plugins/hourly-resources/index.js` (`suggestionContexts`) | T | declares kind `resource` and lists the resources as contexts (rule 37); **no per-resource article list in the plugin's settings** |
@@ -536,7 +708,7 @@ once on the server by the refonte's components.
 | plugin | `plugins/hourly-resources/ResourceArrivalDialog.jsx` | T | becomes the mini SAS: « Sa séance », « Proposés à l'arrivée », « Paiement », « Facture »; reads `visit` payloads only |
 | plugin | `plugins/hourly-resources/useVisitQuote.js` | C | debounced quote of the draft (as `useResourceBookingPreview`), `fresh` / `pending` / `refusal` |
 | plugin | `plugins/hourly-resources/PlanningResourceCard.jsx` | T | « Reste {amount} » / « Payé » / « Absent » from the server |
-| plugin | `plugins/hourly-resources/ResourceBookingDialog.jsx` | T | « Client absent » action; payment through the visit for rule-34 bookings |
+| plugin | `plugins/hourly-resources/ResourceBookingDialog.jsx` | T | « Client absent » action; payment through the visit for rule-34 bookings; « Créer la facture dans Qonto » from the preview's `invoiceable` (rule 54) — `ResourceArrivalDialog.jsx` reads it from the quote the same way |
 | component | `components/SuggestedArticlesStep.jsx` | C | **generic** « Proposés à l'arrivée » step: chips from a `suggestions` payload, « Autre article » search, quantity stepper, « Offrir », « Retirer », server refusal; prop-driven (`suggestions`, `lines`, `refusal`, `onAdd`, `onChange`), no resource, stay or plugin knowledge (rule 35) |
 | component | `components/SalePaymentLink.jsx` | C | **generic** « Envoyer un lien » block: states `unavailable` / `needsEmail` / `ready` / `minted`, copy, e-mail click, withdraw; reads the `paymentLink` payload (rules 39-42); reusable by the Encaissements counter dialog |
 | page section | `pages/settings/SettingsSuggestedArticlesSection.jsx` | C | Réglages → Options & ressources → « Proposés à l'arrivée » (a core tab of `OptionsResourcesPage`): one list per context, reordered with ↑ / ↓ buttons, grouped by kind (rule 37) |
@@ -640,7 +812,7 @@ check; `CREATE TABLE IF NOT EXISTS`).
 | `email_log` | `saleRef` (and `reservationId` nullable) | TEXT NULL | NULL | rule 42, amended 2026-11-12: the link e-mail is logged like every other |
 | `payment_links` | `saleRef` | TEXT NULL | NULL | the document a link bills (rule 40); `reservationId` becomes nullable for those rows. **`reservationId` is `NOT NULL` today** (`database.js`): the table rebuild is done once, in PR C, which already owes a standalone link target (refonte rule 53), and is verified on a copy of production before merge |
 | `standalone_sale_payments` | `source` | TEXT NULL | NULL | `payment-link:<id>` for rule 41 |
-| — | `standalone_sale_obligations` | `id, saleId (FK CASCADE), origin ('linkSurplus', 'lineLowered' since rule 44), paymentLinkId UNIQUE, amountCents > 0, reason, createdAt, status ('open'/'settled'/'cancelled'), settledAt, settledBy` | — | rule 41 amended 2026-11-15: the surplus of a link paid after the reste moved, one row per link (`refund_obligations` has `reservationId NOT NULL`, same reasoning as the payments table) |
+| — | `standalone_sale_obligations` | `id, saleId (FK CASCADE), origin ('linkSurplus', 'lineLowered' since rule 44), paymentLinkId UNIQUE, amountCents > 0, reason, lineRef (rule 49 reading, loop t2: the line a `lineLowered` row was opened for, NULL otherwise), createdAt, status ('open'/'settled'/'cancelled'), settledAt, settledBy ('system' for a row rule 53 cut to nothing)` | — | rule 41 amended 2026-11-15: the surplus of a link paid after the reste moved, one row per link (`refund_obligations` has `reservationId NOT NULL`, same reasoning as the payments table) |
 | `payment_allocations` | refund rows of a document | `paymentRef 'standalone-refund:<row>'` (`…:internal`), `kind 'refund'`, negative, `refundId` = the obligation row | — | rule 48: the money a `lineLowered` row gave back (no new column) |
 | `email_templates` | `visit_payment_request` | row | seeded FR, EN, `sendMode 'manual'` | rule 42 |
 | `plugin_settings` (`accounting-export`) | `drinksRevenueAccount` | TEXT | `''` | rule 43 |
@@ -715,6 +887,9 @@ number; `prefers-reduced-motion` → no movement.
 - [x] `tests/pricing-sales-document-obligations-widened.unit.test.js` — rule 44: the obligations table widened once, rows kept
 - [x] `tests/standalone-sale-refund-journal.unit.test.js` — rule 48 (B-1): the refund allocations of a `lineLowered` row settled, the avoir of the refund day, the caisse interne kept off, nothing refunded twice
 - [x] `tests/standalone-sale-kept-surplus-tip.unit.test.js` — rule 49 (B-6): a link surplus kept is a tip on the day it is kept, on the tip account; refunded, it books nothing
+- [x] (loop t4, rule 56) `tests/standalone-sale-kept-lowered-line.unit.test.js` (5), `tests/standalone-sale-cancel-refund-order.unit.test.js` (4), `tests/standalone-sale-quote-plan.unit.test.js` (2), `tests/standalone-sale-money-conservation.unit.test.js` (1, 300 sequences × 12 steps), `plugins/hourly-resources/tests/visit-invoice-internal-held.unit.test.js` (2), `plugins/online-payment/tests/invoice-issuer-vat-per-group.unit.test.js` (5)
+- [x] `tests/standalone-sale-kept-surplus-paris-day.unit.test.js` — rule 50 (loop t4): a surplus kept at 00:30 Paris is a tip of that Paris day
+- [x] (loop t5, rule 57) `tests/standalone-journal-backdated-payment.unit.test.js` (3, incl. 25 lives × 20 steps), `plugins/online-payment/tests/invoice-issuer-folded-rounding.unit.test.js` (3, incl. 4 000 baskets), `plugins/hourly-resources/tests/booking-invoice-vat-booking-journal.unit.test.js` (4, incl. ≈ 1 700 breakdowns)
 - [x] `plugins/hourly-resources/tests/visit-round1-reception-and-refunds.unit.test.js` — rules 44-46 (AV-1 to AV-8, AV-10, AV-11): the row and the invoice refusal, reception privacy, billing in the commit, `invoiceable`, `newSale`, the document's client follows the booking
 - [x] `plugins/hourly-resources/tests/booking-actions-no-show.unit.test.js` — rule 45 (UI-9): `actions.noShow` by day and role
 - [x] `tests/sale-link-expires-label.unit.test.js` — rule 45 (UI-15): the Paris label of a link's end
@@ -726,6 +901,7 @@ number; `prefers-reduced-motion` → no movement.
 - [x] `plugins/hourly-resources/tests/visit-commit-reopen.unit.test.js` — rules 21-24 (one transaction, `PRICE_CHANGED`, reopen appends, invoiced read-only)
 - [x] `plugins/hourly-resources/tests/visit-refund-cancel-noshow.unit.test.js` — rules 25-27
 - [x] `plugins/hourly-resources/tests/visit-legacy-money.unit.test.js` — rule 34 (paid before: session « Payée », extras on a new document, journal unchanged)
+- [x] (loop t2, rule 51) `plugins/hourly-resources/tests/visit-round2-row-actions-and-invoice-reason.unit.test.js` (4) — the rows', cards' and no-show answer's `actions`, the silent refusal; `tests/catalogue-external-rate-emptied.unit.test.js` (1) — an emptied rate refused
 - [x] `plugins/hourly-resources/tests/visit-card-batch-once.unit.test.js` — rule 32 (no double listing)
 - [x] `plugins/hourly-resources/tests/visit-invoice-document.unit.test.js` — rule 31 (all lines, `REMAINING_DUE`, money guard)
 - [x] `plugins/hourly-resources/tests/visit-invoice-whole-visit.unit.test.js` — rule 31, reading of 2026-11-15 (a session paid on the booking and the document's extras: one invoice; no document: the booking's invoice unchanged)
@@ -745,15 +921,19 @@ number; `prefers-reduced-motion` → no movement.
 - [x] `…/ResourceArrivalDialog.offer.test.jsx` — offered line struck, paid line asks confirmation, the reception is never asked
 - [x] `components/__tests__/SuggestedArticlesStep.generic.test.jsx` — rule 35 (renders any `suggestions`, no resource or stay wording, refusal shown, quantity bounds)
 - [x] `components/__tests__/SalePaymentLink.states.test.jsx` — rules 39-42 (four states, disabled hint, copy, e-mail only on click)
+- [x] (loop t4, rule 56 d; loop t6 UI6-4) `plugins/hourly-resources/__tests__/ResourceArrivalDialog.planned-rows.test.jsx` (3) — the quote's rows while a draft is typed, « Marquer remboursé » disabled; offered minutes alone read « les modifications »
 - [x] `pages/settings/__tests__/SettingsSuggestedArticlesSection.test.jsx` — rule 37 (reorder, limit message, unknown kind hidden)
 - [x] `…/ResourceArrivalDialog.mobile.test.jsx` — full screen, sticky reste, action last, 44 px, read-only with the server's reason (a new file: the arrival dialog had no mobile suite)
 - [x] `components/__tests__/TenderLines.shortfall-kinds.test.jsx` — only « Reste à percevoir » offered
 - [x] (C38) `plugins/hourly-resources/__tests__/ResourceArrivalDialog.test.jsx`, `.paid-before.test.jsx`, `.no-unasked-invoice.test.jsx` — the three former suites, moved onto the visit routes; `arrivalVisitFixtures.jsx` — their shared fixture
 - [x] (C38) `components/__tests__/StandaloneSaleDialog.counter.test.jsx`, `StandaloneSalesTodayCard.list.test.jsx`, `ExternalSaleFields.fields.test.jsx`; `plugins/hourly-resources/__tests__/ResourceBookingDialog.no-show.test.jsx`; `PlanningResourceCard.test.jsx` gains the « Reste » and « Absent » cases; `SuggestedArticlesStep.worst-case.test.jsx` — the break-ui pass (a 120-character label, an emoji-first label, 99, 1, none, a thousand results)
+- [x] (loop t2, rule 51) `ResourceBookingDialog.no-show.test.jsx` (rewritten on the row's `actions`, no second read, 5), `PlanningResourceCard.test.jsx` and `PlanningResourceCard.open-booking.test.jsx` (« Arrivée » on `actions.arrive`), `ResourceArrivalDialog.invoice-reason.test.jsx` (2), `pages/options/__tests__/externalSaleForm.emptied-rate.test.js` (1); named after the fact (P2-2): `ResourceArrivalDialog.withdraw-link.test.jsx` — rule 45 (`access.withdrawLink`)
+- [x] (loop t2, rules 49 reading, 52-54) server `standalone-sale-lowered-line-in-step` (6), `pricing-refunds-document-rows` (7: +1 loop t5 D5-4), plugin `visit-draft-invoiceable` (4); client `ResourceArrivalDialog.invoice-from-server.test.jsx` (2), `ResourceBookingDialog.invoice-from-server.test.jsx` (2); the arrival suites' quote fixtures answer `invoiceable` for a payment typed
+- [x] (loop t3, rule 54 reading) plugin `visit-draft-invoice-reason` (3); client `ResourceArrivalDialog.invoice-answer.test.jsx` (7: +2 loop t4 UI4-3, +1 loop t5 UI5-2), `ResourceBookingDialog.invoice-answer.test.jsx` (5: +2 loop t4 UI4-3)
 - [x] (loop t1, rule 48) `plugins/hourly-resources/__tests__/ResourceBookingDialog.no-show.test.jsx` (rewritten on `actions.noShow`, 4), `ResourceArrivalDialog.invoiceable.test.jsx` (3), `ResourceArrivalDialog.vat-rate.test.jsx` (2), `ResourceArrivalDialog.new-sale.test.jsx` (2); `components/__tests__/SalePaymentLink.expires-label.test.jsx` (3), `StandaloneSalesTodayCard.owed-day.test.jsx` (2), `ExternalSaleFields.server-labels.test.jsx` (2)
 
 ### E2E
-- [x] `e2e/specs/planning/outside-visit.spec.js` — book a walk-in session, open « Arrivée » on its day, add 2 drinks, offer 1, partial card payment with reste, card shows « Reste », reopen, pay the reste, invoice offered; _(the link part is not run: the E2E database never connects a provider; the spec asserts the block absent. A second E2E, `finance/standalone-sale.spec.js`, covers the counter dialog.)_
+- [x] `e2e/specs/planning/outside-visit.spec.js` — book a walk-in session, open « Arrivée » on its day, add 2 drinks, offer 1, partial card payment with reste, card shows « Reste », reopen, pay the reste; with Qonto not connected no invoice reason nor « Créer la facture dans Qonto » is shown (rules 51 b, 54; loop t2); _(the link part is not run: the E2E database never connects a provider; the spec asserts the block absent. A second E2E, `finance/standalone-sale.spec.js`, covers the counter dialog.)_
 
 - [x] (C38) `e2e/specs/finance/standalone-sale.spec.js` — the counter dialog at 1280 and 390 px: quantity bound, invalid e-mail, partial card payment, « Nouvelle vente », the day's list; `e2e/specs/settings/suggested-articles.spec.js` — rule 37: add, reorder, save, the server's order
 
@@ -815,9 +995,17 @@ All nine were decided by the owner on **2026-11-12**. Nothing is open.
   place, numbers kept.
 - 2026-11-13 — Server pass 5 on `feature/pricing-components-c`: C33 (the sale core and the `/api/standalone-sales` routes, §4.3), C34 (rules 30, 32, 43: the documents in the journal and the card batch, the plugin's `bookingsModel.standaloneSales` skips a booking with a `saleRef`, the `drinksRevenueAccount` setting and the 409 `DRINKS_ACCOUNT_REQUIRED` guard of the CSV, the sales JSON and the synthesis; the class → account map is `accommodation`/`options`/`customOptions`/`catering` → 70600010, `resources`/`activities` → 70601000, `drinks` → the setting). Rules 1-9, 20, 27, 31, 34 (the visit's screen and money) wait for C37.
 - 2026-11-13 — C35 (rules 39-42): `utils/standaloneSaleLinks.js` (SDK `standaloneSaleLinks`: `linkOf` → the `paymentLink` payload `{ available, reason: 'PROVIDER_NOT_READY' | 'NO_EMAIL' | 'NOTHING_DUE' | null, email, open: { id, url, amountCents, expiresAt } | null }`, `mint(saleId, { email })` → `{ link: { id, url, amountCents, expiresAt, status, reused }, document }` or 409 `NOTHING_DUE` / `NO_EMAIL` / `PROVIDER_NOT_READY` / `LINK_ALREADY_PAID`, `withdraw(saleId, linkId)`, `emailLink(saleId, linkId)` → `{ sent, recipientEmail }` or 409 `NO_EMAIL` / `TEMPLATE_DISABLED` / `LINK_NOT_OPEN`), the paid effect in `applyPaidEffect` (`standalone-sale-settled`, `standalone-sale-refund-owed` + admin e-mail and push), `standaloneSale.receive` for money that arrives outside the tenders, the document `history` (« Vente enregistrée », « Bière locale ×2 ajoutée », « 12,00 € encaissés : CB », « Lien envoyé à … »). A refund owed on a document is computed (`refundOwedCents` = received − what the lines ask − given back), not a row of `refund_obligations` (whose `reservationId` is NOT NULL).
-- 2026-11-13 — C36 (rules 35-38, server): `utils/suggestedArticles.js` (SDK `suggestedArticles`: `kinds`, `resolve({ context, customerContext, stay })`, `save`, `settingsView`), `models/suggestedArticlesModel.js`, `controllers/suggestedArticlesController.js`, `routes/suggestedArticles.js` (`GET /api/suggested-articles`, `GET` and `PUT /api/settings/suggested-articles[/:kind/:id]`, §4.3), `ctx.suggestionContexts({ kind, label, list })` (SDK 2.31.0), `hourly-resources` declaring the kind `resource` (its `per_hour` resources placed on a planning); the core declares `property`. Saving answers 404 `CONTEXT_UNKNOWN`, 400 `ARTICLE_UNKNOWN` / `ARTICLE_DUPLICATE` / `TOO_MANY` (« 12 articles au plus. »). The catalogue forms carry `sellableExternally`, `vatClass` and `externalVatRate` (the rate of the whole class, `GET /api/standalone-sales/vat-rates` lists them): the server answers 422 `NEEDS_STAY` for an article of a family that reads the stay and 422 `EXTERNAL_RATE_REQUIRED` for a class with no external rate (franchise excepted).
+- 2026-11-13 — C36 (rules 35-38, server): `utils/suggestedArticles.js` (SDK `suggestedArticles`: `kinds`, `resolve({ context, customerContext, stay })`, `save`, `settingsView`), `models/suggestedArticlesModel.js`, `controllers/suggestedArticlesController.js`, `routes/suggestedArticles.js` (`GET /api/suggested-articles`, `GET` and `PUT /api/settings/suggested-articles[/:kind/:id]`, §4.3), `ctx.suggestionContexts({ kind, label, list })` (SDK 2.32.0), `hourly-resources` declaring the kind `resource` (its `per_hour` resources placed on a planning); the core declares `property`. Saving answers 404 `CONTEXT_UNKNOWN`, 400 `ARTICLE_UNKNOWN` / `ARTICLE_DUPLICATE` / `TOO_MANY` (« 12 articles au plus. »). The catalogue forms carry `sellableExternally`, `vatClass` and `externalVatRate` (the rate of the whole class, `GET /api/standalone-sales/vat-rates` lists them): the server answers 422 `NEEDS_STAY` for an article of a family that reads the stay and 422 `EXTERNAL_RATE_REQUIRED` for a class with no external rate (franchise excepted).
 - 2026-11-13 — C37 (rules 1-5, 7, 20, 27, 31, 34 delivered; 6, 9, 35 wait for the screens of C38): `plugins/hourly-resources/visitModel.js`, `visitController.js`, the visit routes of §4.3 (`hourly-resources` 1.7.0), the reception entries of rule 7, `bookingsModel` (`enrich` with `visit` / `cardState`, the document's money in `recordArrival`, `recordPayment`, `clearPayment`, `update`, `remove`), `invoicing.issueDocument`, `planningCardsModel.bookingCardState`; core: the `fulfilments` and `paidElsewhere` lines of `standaloneSale` (`externalSale` pipeline: `loadCatalogue` provides `fulfilments`, `externalVat` taxes them, `externalTotals` appends them), `standaloneSale.paymentsOf`, `standaloneSaleLinks.draftLinkOf`, the `components` of a session line in the document form of `saleDetail`. The three readings of 2026-11-13 (rules 13, 31, 34) are the lead's calls, listed for the owner. Server tests: 10 plugin files of §7 (46 tests) and `plugin-boundary-outside-visit` (3).
 - 2026-11-13 — C38 (rules 6, 9, 35 delivered; the spec is Implemented): the screens. `ResourceArrivalDialog` on the visit routes (the old `POST /:id/arrival`, `controller.arrival` and `bookingsModel.recordArrival` are removed, nothing else calling them; their three suites move onto the visit's commit), `useVisitQuote`, `SuggestedArticlesStep`, `SalePaymentLink`, `TenderLines` `shortfallKinds`, `SettingsSuggestedArticlesSection`, `PlanningResourceCard` (`cardState`), `ResourceBookingDialog` (« Client absent »), `StandaloneSaleDialog` and its « Ventes du jour » card on the Suivi financier, the catalogue block `ExternalSaleFields`. Server additions the screens needed: the catalogue search, `GET /api/standalone-sales`, the link routes of a counter sale, `access` and `invoiceReady` on the visit payload, four fields on the reception's planning events (§4.3, `reception-role-checkin-only.md`). Counts: 59 Vitest tests in 13 new files (the eight suites of §7, the counter, its card, the catalogue block, « Client absent », the break-ui pass) beside the three arrival suites ported onto the visit routes; 17 server tests in 6 files (the old route's three suites removed). E2E: `planning/outside-visit.spec.js` (2 tests), `finance/standalone-sale.spec.js` and `settings/suggested-articles.spec.js` (1 test each) at 1280 and 390 px, 8 runs green inside the whole suite; the Options & ressources tab count of `mobile/page-tabs.spec.js` goes from 3 to 4. Not exercised: the Qonto link (the E2E database never connects a provider: the block is asserted absent) and the manual checks of §7 that need a Qonto sandbox or a reception account, left for the shadow trial.
+- 2026-11-16 — stabilisation loop t2 (books): rules 52-54 and the reading of rule 49 delivered (B2-1 to B2-4, B2-7), rule 44's reference corrected (B2-6). Server: `standaloneSale.reconcile` (transfer then rows in step after every change), `refileDocumentExcess`, `documentRowsInStep`, `refundRowsOfDocument`, `standalone_sale_obligations.lineRef`, the transfer in the journal, `invoicing.draftInvoiceability`; client: the two dialogs read `invoiceable` for the payment typed. Tests: 16 server (3 files), 4 client (2 files).
+- 2026-11-16 — stabilisation loop t4 (books): rule 56 delivered (B4-1 to B4-6, owner decision for B4-1). Server: `standaloneSale.writeKept` (any row
+  closed « rien »), `rowsLeaving` (reserved rows), `owedOf` without `closedObligationCents`, `internalHeldOf`, `quote` on `planOf`; REFUNDS'
+  `refundRowsOfDocument` `reserved`; `standalonePaymentsModel.recordKept` rows and `keptOf`; the journal's kept legs; the VAT component's `groupVatCents`;
+  the Qonto issuer's per-group solve; `invoicing` `INTERNAL_CASH` on the money held. Client: the arrival dialog renders the quote's rows while dirty.
+- 2026-11-16 — stabilisation loop t5 (books): rule 57 delivered (B5-1 to B5-3). Server: `standaloneDocuments.salesOfDocument` cuts in the order of writing
+  (`documentsPaidBetween` hands the allocation ids), the Qonto issuer's `booking:` cut and widened folded rounding, `invoicing.requestOf` names the
+  booking group. Tests: 10 server (3 files).
 - **Delivery (Q9 B).** There is no separate « PR D ». The work lands in refonte PR C, in its external-sale part,
   after PR B. Order: PR B → PR C (external sale + this spec). Consequences to handle in that PR, not before:
   1. _(done 2026-11-12, commit C0)_ `pricing-components.md` PR C row and §8/ordering text gain « mini SAS of an outside visit

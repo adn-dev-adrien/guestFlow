@@ -261,6 +261,13 @@
     {
       "version": "2.29.0",
       "modules": [
+        "journalEntries"
+      ],
+      "names": {}
+    },
+    {
+      "version": "2.30.0",
+      "modules": [
         "vat",
         "accountingOutput",
         "legacyBucketSplit",
@@ -277,11 +284,10 @@
       "names": {}
     },
     {
-      "version": "2.30.0",
+      "version": "2.31.0",
       "modules": [
         "money",
         "platformPayment",
-        "refundObligationsModel",
         "basketRefundOutcome"
       ],
       "names": {
@@ -300,13 +306,20 @@
       }
     },
     {
-      "version": "2.31.0",
+      "version": "2.32.0",
       "modules": [
         "standaloneSale",
         "standaloneSaleLinks",
-        "suggestedArticles"
+        "suggestedArticles",
+        "refundGivenBack"
       ],
       "names": {
+        "extraSale": [
+          "arrivalOpenAt"
+        ],
+        "reservationsModel": [
+          "buildArrivalSeed"
+        ],
         "saleDetail": [
           "buildDocumentDetail"
         ],
@@ -316,7 +329,7 @@
       }
     },
     {
-      "version": "2.32.0",
+      "version": "2.33.0",
       "modules": [
         "pdfFonts",
         "prepaidReceipts",

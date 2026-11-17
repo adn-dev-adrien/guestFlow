@@ -4,7 +4,7 @@
 // to claim at the door, while the guest's unpaid complements are still collected. Pinned through the
 // real server as the admin session: the client renders whatever `stayPayment.applicable` says
 // (covered by the ReservationSasDialog vitest suites), so the server's answer is the contract.
-import { test, expect } from '@playwright/test';
+import { test, expect } from '../../fixtures/test.js';
 import { createClient, createProperty, createReservation } from '../../fixtures/apiSeed.js';
 
 function isoDay(offset) {

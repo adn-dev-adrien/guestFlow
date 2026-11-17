@@ -2,7 +2,7 @@
 // specs/email-client-language-and-fiche-polish.md — the email language lives on the CLIENT and drives
 // every email for them. A client set to English gets reminder emails (body + composed strings) in English.
 // The email-language selector no longer appears on the reservation fiche.
-import { test, expect } from '@playwright/test';
+import { test, expect } from '../../fixtures/test.js';
 import { createClient, createProperty, createReservation } from '../../fixtures/apiSeed.js';
 import { setClientEmailLanguage } from '../../fixtures/dbSeed.js';
 import { FAR_YEAR } from '../../fixtures/farYear.js';

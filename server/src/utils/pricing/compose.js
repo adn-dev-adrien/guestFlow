@@ -35,7 +35,7 @@ function shape(ctx) {
     frozenTouristTaxAt, grantedFreeUnitsFor, includedGuests, isExtraGuestSurchargeOffered,
     isTouristTaxCollectedOnArrival, isTouristTaxForcedToComplement, isTouristTaxOfferedByPlatform,
     isTouristTaxRemittedByOwnerFlag, lockedTariff, maxNightsBreached, maxNightsRules, mergedNightly,
-    midStayLinesWithExcess, midStayRemainingDue, midStaySettledAll, midStayTotal, minNightsBreached,
+    midStayLinesWithExcess, midStayRemainingDue, midStaySettledAll, midStayTotal, minNightsBreached, noteCreditCuts,
     minNightsRules, nightlyBreakdown, nights, typedDiscountPercent, optionsNetPrice, optionsTotal,
     optionsVatAmount, overCollectedTtc, persons, platformCommissionAmount, platformGrossPin,
     platformIsNonDirect, platformNetReceivedAmount, platformPaidAdults, platformTakesDeposit, preArrivalAmount,
@@ -112,6 +112,9 @@ function shape(ctx) {
     autoDepositAmount,
     balanceAmount: resolvedBalanceAmount,
     complementAmount: resolvedComplementAmount,
+    // Rule 104 (loop t5 S5-2) — what the credit of a paid line's freed money took off each of these three buckets (`pinSaleDelta` reads it);
+    // only on a quote that holds such a credit, so every other quote stays the one it was, key for key (rule 4).
+    ...(Object.values(noteCreditCuts || {}).some((cut) => cut > 0) ? { noteCreditCuts } : {}),
     overCollectedTtc,
     complementCollectedExcessTtc: complementCollectedExcess,
     // What the complement carries on its own (forced lines + tax + the gap), whatever was collected or adjusted.

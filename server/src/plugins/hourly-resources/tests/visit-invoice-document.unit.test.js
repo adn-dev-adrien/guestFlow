@@ -45,7 +45,11 @@ test('rule 31 — fully paid: every money line, the session\'s parts and the off
   assert.deepEqual(request.items.map((item) => [item.title, item.amountCents, item.vatRate]), [
     ['Bain fictif · Jour · 18:00–19:00', 5000, 20], ['Bain fictif · Soir · 19:00–20:00', 7000, 20], ['Bière locale', 1300, 20],
   ]);
-  assert.deepEqual(request.discount, { title: 'Temps offert', amountCents: 1250, vatRate: 20 });
+  // Loop t4 B4-4 (rule 56 e) — each item and the discount name their (class, rate) group: the issuer cuts the group's VAT once, like the journal.
+  assert.deepEqual(request.discount, {
+    title: 'Temps offert', amountCents: 1250, vatRate: 20, vatGroup: request.items[0].vatGroup,
+  });
+  assert.deepEqual([...new Set(request.items.map((item) => item.vatGroup))], ['resources|20', 'drinks|20']);
   assert.equal(request.expectedTotalCents, 12050);
   const booking = f.bookings.findById(id);
   assert.deepEqual([booking.invoice.number, booking.frozen, booking.invoice.attachment.state], ['F-1', true, 'pending']);

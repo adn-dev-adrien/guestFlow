@@ -5,7 +5,7 @@ import { render, screen, within } from '@testing-library/react';
 import { vi } from 'vitest';
 import ResourceArrivalDialog from '../ResourceArrivalDialog';
 import api from '../../../api';
-import { visitPayload, sessionLine } from './arrivalVisitFixtures';
+import { visitPayload, sessionLine, fakeQuote } from './arrivalVisitFixtures';
 
 vi.mock('../../../api', () => ({
   default: {
@@ -16,6 +16,9 @@ vi.mock('../../../api', () => ({
   },
 }));
 vi.mock('../../../hooks/usePostalCodeCities', () => ({ default: () => [] }));
+
+// Loop t2 B2-7 — the payment typed asks the server whether the commit could be invoiced.
+beforeEach(() => { api.quoteResourceVisit.mockImplementation(fakeQuote()); });
 
 const STORED_DRINK = {
   id: 12, ref: 'line:standalone_sale_lines:12', kind: 'extra', label: 'Limonade', detail: '1 × 4,00 €', components: [], quantity: 1, unitCents: 400, totalCents: 400, catalogueCents: 400,

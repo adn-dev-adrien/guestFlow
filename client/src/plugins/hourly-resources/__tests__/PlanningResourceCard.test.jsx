@@ -48,6 +48,7 @@ test('a booking outside a stay shows its slot and payment, with nothing to tick'
 test('rule 28 — an unpaid booking outside a stay offers « Arrivée » and says it is to collect', () => {
   render(<MemoryRouter><PlanningResourceCard entry={{ key: 'rb-5', time: '18:00', kind: 'booking', item: {
     id: 5, resourceName: 'Bain nordique', date: localIsoDate(), startTime: '18:00', endTime: '19:00', displayName: 'Martin', paid: false, external: true, arrived: false, cardState: { state: 'toCollect', label: 'À encaisser', remainingCents: 12000 },
+    actions: { noShow: false, arrive: true },
   } }} reload={vi.fn()} /></MemoryRouter>);
   expect(screen.getByText('À encaisser')).toBeInTheDocument();
   expect(screen.getByRole('button', { name: 'Arrivée' })).toBeInTheDocument();
@@ -78,12 +79,12 @@ test('the cards of a window are keyed by day, each with its time', async () => {
   expect(days['2026-10-11'].map((e) => [e.kind, e.time])).toEqual([['booking', '18:00']]);
 });
 
-// specs/resource-booking-pricing-and-invoicing.md rule 28 (R35-C-L4) — « on its day only ».
-test('rule 28 — a booking of another day offers no « Arrivée »', () => {
-  const tomorrow = new Date();
-  tomorrow.setDate(tomorrow.getDate() + 1);
+// specs/resource-booking-pricing-and-invoicing.md rule 28 (R35-C-L4) — « on its day only », judged by the server (loop t2 UI2-7): a row whose `actions.arrive` is false
+// offers no « Arrivée », even dated today on the browser's clock.
+test('rule 28 — a booking the server does not offer the arrival for shows no « Arrivée »', () => {
   render(<MemoryRouter><PlanningResourceCard entry={{ key: 'rb-7', time: '18:00', kind: 'booking', item: {
-    id: 7, resourceName: 'Bain nordique', date: localIsoDate(tomorrow), startTime: '18:00', endTime: '19:00', displayName: 'Martin', paid: true, external: true, arrived: false,
+    id: 7, resourceName: 'Bain nordique', date: localIsoDate(), startTime: '18:00', endTime: '19:00', displayName: 'Martin', paid: true, external: true, arrived: false,
+    actions: { noShow: false, arrive: false },
   } }} reload={vi.fn()} /></MemoryRouter>);
   expect(screen.queryByRole('button', { name: 'Arrivée' })).toBeNull();
 });

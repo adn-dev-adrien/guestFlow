@@ -3,6 +3,9 @@
 // whole years) as before the entry builders became `AccountingOutput` and the writers became exporters. The expected hashes
 // were captured on the code before the move; `ACCOUNTING_OUTPUT_UPDATE=1` rewrites them, which is only ever legitimate on
 // code that is known to answer as before.
+// Re-captured on 2026-11-17 when #1067 (the Mollie journal, specs/mollie-rolling-reserve-and-incoming-payments.md rules 28-31) was
+// merged: the 48 `sales/*` bodies gain `mollie: null` (no Mollie provider on the golden database), every other key unchanged, and
+// each sales body minus that key hashes to the previous capture (checked one by one).
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('fs');

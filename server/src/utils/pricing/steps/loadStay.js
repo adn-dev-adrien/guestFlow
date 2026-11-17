@@ -29,7 +29,9 @@ const step = {
     'endOfStayComplementSettled', 'frozenMidStayLines', 'midStaySettledNotes', 'refundsTotal',
     'platformPenaltyAmount', 'arrivalPaymentReduction', 'arrivalPaymentTip', 'complementDeferredToCheckout',
     'complementCollected', 'quoteKind', 'validUntil', 'devisPromise', 'cancellationInsurancePriceOverride',
-    'channel', 'isDirectBooking', 'persons', 'discountTarget', 'discountFixedAmount', 'lineFacts',
+    'channel', 'isDirectBooking', 'persons', 'discountTarget', 'discountFixedAmount', 'lineFacts', 'refundedNoteCredit',
+    'refundedStayCredit', 'complementClaims', 'refundedComplementCredit',
+    'complementCreditPhantom',
   ],
   apply(ctx) {
     const {
@@ -215,6 +217,16 @@ const step = {
     const discountTarget = ['extras', 'all'].includes(ctx.input.discountTarget) ? ctx.input.discountTarget : 'nights';
     const discountFixedAmount = ctx.input.discountFixedAmount == null || ctx.input.discountFixedAmount === '' ? null : Number(ctx.input.discountFixedAmount);
     const lineFacts = ctx.input.lineFacts || {};
+    // Rule 110 (loop t7 B7-1) — the note money a refund on the trop-perçu already gave back (the settled `lineLowered` rows), in euros.
+    const refundedNoteCredit = Math.max(0, Number(ctx.input.refundedNoteCredit) || 0);
+    // Rule 121 (loop t9 B9-2) — the stay's own over-collected money a refund on the trop-perçu already gave back, in euros.
+    const refundedStayCredit = Math.max(0, Number(ctx.input.refundedStayCredit) || 0);
+    // Rule 116 reading (loop t9 B9-3) — a platform stay's collected arrival complement, per line, and what refunds gave back of it.
+    const complementClaims = Array.isArray(ctx.input.complementClaims) ? ctx.input.complementClaims : null;
+    const refundedComplementCredit = Math.max(0, Number(ctx.input.refundedComplementCredit) || 0);
+    // Rule 122 (loop t9 S9-2) — the part of the open arrival complement the engine gives a sale that the stay does not store (a stay priced
+    // before 4.2.0 the engine of today prices otherwise): no note credit lands on it. 0 outside a sale.
+    const complementCreditPhantom = Math.max(0, Number(ctx.input.complementCreditPhantom) || 0);
 
     const persons = (Number(adults || 1) || 1) + (Number(children || 0) || 0) + (Number(teens || 0) || 0);
     // Resolved here (the fuller platform routing lives further down) because the option lines above
@@ -243,6 +255,7 @@ const step = {
       property, quoteKind, refundsTotal, resourcesById, rules, selectedOptions, selectedResources,
       families, settings, startDate, storedTouristTaxAddedGuests, storedTouristTaxAddedGuestsAdults, teens,
       touristTaxInComplement, validUntil, vatRate, vatRegime, discountTarget, discountFixedAmount, lineFacts,
+      refundedNoteCredit, refundedStayCredit, complementClaims, refundedComplementCredit, complementCreditPhantom,
     };
   },
 };

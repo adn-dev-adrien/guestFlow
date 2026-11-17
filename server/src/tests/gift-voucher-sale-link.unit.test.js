@@ -1,4 +1,4 @@
-// specs/gift-vouchers.md rules 16-17 — what the core gives a plugin for a sale with no stay (SDK 2.32.0, generic, the word « voucher »
+// specs/gift-vouchers.md rules 16-17 — what the core gives a plugin for a sale with no stay (SDK 2.33.0, generic, the word « voucher »
 // appears only in the plugin under test): a link with no reservation billed to `<source>:<ref>`, never withdrawn as an orphan, whose paid
 // effect is the owning plugin's `ctx.paymentBasket` — with `reservationId` null — and idempotent. The full chain runs on the real core
 // database: the plugin mints the link through `core.payments.saleLink`, the poll's `processPaidLink` settles it, the voucher is issued.
@@ -85,7 +85,7 @@ const pay = (linkId, at = '2026-11-15T10:05:00Z') => processPaidLink({
 });
 const vouchers = () => db.prepare('SELECT * FROM gift_vouchers').all();
 
-test('SDK 2.32.0: a sale link has no reservation — it bills `<source>:<ref>` at the exact amount, back to the page, for 30 minutes', async () => {
+test('SDK 2.33.0: a sale link has no reservation — it bills `<source>:<ref>` at the exact amount, back to the page, for 30 minutes', async () => {
   liveOwner(api.orderPaid);
   const order = newOrder(15050);
   const link = await mint(order, 15050);
@@ -100,7 +100,7 @@ test('SDK 2.32.0: a sale link has no reservation — it bills `<source>:<ref>` a
   assert.equal(db.prepare('SELECT COUNT(*) AS n FROM clients').get().n, 0, 'no client fiche');
 });
 
-test('SDK 2.32.0: asking again hands back the open link while it has time; with little time or another amount, the old link is retired and a new one minted', async () => {
+test('SDK 2.33.0: asking again hands back the open link while it has time; with little time or another amount, the old link is retired and a new one minted', async () => {
   liveOwner(api.orderPaid);
   const order = newOrder();
   const first = await mint(order);
@@ -116,7 +116,7 @@ test('SDK 2.32.0: asking again hands back the open link while it has time; with 
   assert.equal(paymentLinksModel.findOpenForSale(`${SOURCE}:${order.id}`).id, third.linkId);
 });
 
-test('SDK 2.32.0: a sale link is refused without a title, an amount or a source, and without a provider — nothing is asked of the provider', async () => {
+test('SDK 2.33.0: a sale link is refused without a title, an amount or a source, and without a provider — nothing is asked of the provider', async () => {
   liveOwner(api.orderPaid);
   const before = created.length;
   for (const sale of [{ source: SOURCE, ref: 1, title: '', amountCents: 100 }, { source: SOURCE, ref: 1, title: 'x', amountCents: 0 }, { source: SOURCE, ref: 1, title: 'x', amountCents: 10.5 }, { source: SOURCE, title: 'x', amountCents: 100 }, { source: '', ref: 1, title: 'x', amountCents: 100 }]) {
@@ -127,7 +127,7 @@ test('SDK 2.32.0: a sale link is refused without a title, an amount or a source,
   assert.equal(created.length, before);
 });
 
-test('SDK 2.32.0: a link with no stay is no orphan — the lifecycle pass keeps it open, and the alert of links to deactivate does not list it', async () => {
+test('SDK 2.33.0: a link with no stay is no orphan — the lifecycle pass keeps it open, and the alert of links to deactivate does not list it', async () => {
   liveOwner(api.orderPaid);
   const order = newOrder();
   const link = await mint(order);
@@ -303,7 +303,7 @@ test('rule 45: paid at 59 minutes, confirmed at 61 — the link was withdrawn me
   assert.equal(status.effect, 'voucher-already-issued', 'a replay issues nothing more');
 });
 
-test('SDK 2.32.0: a sale of the standalone-sale family still settles on its own document — only another source goes to a plugin', () => {
+test('SDK 2.33.0: a sale of the standalone-sale family still settles on its own document — only another source goes to a plugin', () => {
   liveOwner(api.orderPaid);
   const sale = paymentLinksModel.create({
     reservationId: null, type: 'complement', amountCents: 900, provider: 'qonto', providerLinkId: 'rem-x', url: 'https://pay.example.test/x', status: 'open',
@@ -312,7 +312,7 @@ test('SDK 2.32.0: a sale of the standalone-sale family still settles on its own 
   assert.equal(applyPaidEffect({ database: db, link: paymentLinksModel.findById(sale.id) }).effect, 'no-reservation', 'no such document: the standalone path answered, no plugin was called');
 });
 
-test('SDK 2.32.0: nothing the core gained for a sale with no stay names the plugin that uses it', () => {
+test('SDK 2.33.0: nothing the core gained for a sale with no stay names the plugin that uses it', () => {
   const fs = require('fs');
   const path = require('path');
   ['utils/basketPayments.js', 'utils/paymentRequestService.js', 'controllers/paymentsController.js', 'plugins/sdk/coreServices.js', 'plugins/sdk/createContext.js'].forEach((file) => {

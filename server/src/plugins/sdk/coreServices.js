@@ -70,7 +70,7 @@ function assertValidClient(payload) {
   if (message) throw invalidClient(message);
 }
 
-// SDK 2.29.0 (specs/pricing-components.md rule 71) — `reservations.fromPlatform(id, intake, { label, client, reuseByEmail })`: the
+// SDK 2.30.0 (specs/pricing-components.md rule 71) — `reservations.fromPlatform(id, intake, { label, client, reuseByEmail })`: the
 // platform booking port. `intake` is the port's payload (`utils/platformIntakePort.js`): platform, number, stay, party, beds, money,
 // notes and the lines with the moment each is collected. `update` is the same save fed with a patch.
 // `reuseByEmail: false` — the mail the client comes from is not proven (specs/gites-de-france-mail-intake.md
@@ -126,7 +126,7 @@ function resourceScheduler() {
   return record ? record.resourceScheduler : null;
 }
 
-// SDK 2.29.0 (specs/pricing-components.md rule 48) — the slot availability provider a live plugin declared, or null.
+// SDK 2.30.0 (specs/pricing-components.md rule 48) — the slot availability provider a live plugin declared, or null.
 function slotAvailability() {
   const record = registry().all().find((r) => r.slotAvailability && registry().isLive(r.id));
   return record ? record.slotAvailability : null;
@@ -209,7 +209,7 @@ module.exports = Object.freeze({
   // `complement` link at the basket's exact total, read on demand, withdrawn; its paid effect is `ctx.paymentBasket`'s.
   payments: Object.freeze({
     basketLink: (reservationId, basket, options) => basketPayments().basketLink(reservationId, basket, options),
-    // SDK 2.32.0 — the same with no stay: `({ source, ref, title, amountCents, validityMinutes? }, { redirectUrl })` (`validityMinutes`, 1 to 1440, the link's own life, 30 when absent); the link is billed to `<source>:<ref>`
+    // SDK 2.33.0 — the same with no stay: `({ source, ref, title, amountCents, validityMinutes? }, { redirectUrl })` (`validityMinutes`, 1 to 1440, the link's own life, 30 when absent); the link is billed to `<source>:<ref>`
     // and its paid effect is `ctx.paymentBasket`'s, called with `reservationId: null`.
     saleLink: (sale, options) => basketPayments().saleLink(sale, options),
     refreshBasketLink: (linkId) => basketPayments().refreshBasketLink(linkId),

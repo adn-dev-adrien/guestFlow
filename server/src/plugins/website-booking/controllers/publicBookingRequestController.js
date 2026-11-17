@@ -189,7 +189,7 @@ function create(req, res) {
   const resErrors = checkResourceApplicability(v.value.propertyId, v.value.resources);
   if (resErrors) return failT(res, req, 422, 'VALIDATION_FAILED', 'resourceUnavailable', resErrors);
 
-  // SDK 2.32.0 (specs/gift-vouchers.md rule 36) — an amount already paid elsewhere, named by an opaque field this plugin never reads.
+  // SDK 2.33.0 (specs/gift-vouchers.md rule 36) — an amount already paid elsewhere, named by an opaque field this plugin never reads.
   const prepaidInput = publicPrepaid.read(body);
   if (prepaidInput && prepaidInput.error) {
     return failT(res, req, 400, 'PREPAID_UNAVAILABLE', 'prepaidUnavailable', [{ field: 'prepaid', issue: 'unavailable' }]);

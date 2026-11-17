@@ -52,7 +52,7 @@ const STANDALONE_SALE_SOURCE = 'standalone-sale';
 // The bucket goes through the same recorder as a manual tick (rule 1).
 function applyPaidEffect({ database, devisModel, link, checkConflict, paidDate = null, paidAt = null, recordPayment = recordOn(database), settledAlready = false }) {
   if (link.saleRef) {
-    // SDK 2.32.0 — a link with no stay that bills a plugin's own basket is settled by that plugin, like a stay's (below).
+    // SDK 2.33.0 — a link with no stay that bills a plugin's own basket is settled by that plugin, like a stay's (below).
     const basket = basketOfLink(database, link);
     if (basket && basket.source !== STANDALONE_SALE_SOURCE) return settleBasket({ database, link, basket, paidDate, paidAt, stayExists: false });
     // the outside-visit spec rule 41 — a link that bills an outside sale settles that document, never a stay.
@@ -126,7 +126,7 @@ function applyPaidEffect({ database, devisModel, link, checkConflict, paidDate =
     // An already converted devis is compared with the stay it became, which the fiche may have re-priced.
     const priced = effect === 'already-converted' && convertedRow && convertedRow.kind === 'reservation' ? convertedRow : row;
     const hasSplit = priced.depositAmount != null && priced.balanceAmount != null;
-    // SDK 2.32.0 (specs/gift-vouchers.md rule 38) — a quote that holds prepaid money was charged what the mode asks LESS that money.
+    // SDK 2.33.0 (specs/gift-vouchers.md rule 38) — a quote that holds prepaid money was charged what the mode asks LESS that money.
     const prepaidReduction = hasSplit && effect === 'converted' ? prepaidReductionOf(link, priced) : 0;
     const expectedCents = hasSplit ? linkAmountCents(link.type, priced) - prepaidReduction : null;
     const settlePrepaid = () => settlePrepaidOf({ database, link, stayId: reservationId, paidDate });

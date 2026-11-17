@@ -54,11 +54,18 @@ function buildArrivalOrdersController({
 
   /**
    * Rule 110 a (owner, 2026-11-16) — the stay is live, its arrival is not validated (not marked, SAS not committed) and its complement is not
-   * collected, whatever the hour: a guest who arrives after the check-in time still has the order changed at the door.
+   * collected, whatever the hour: a guest who arrives after the check-in time still has the order changed at the door. Never after the
+   * stay's departure day (owner, 2026-11-16, loop t2): an arrival never validated does not keep the order open once the stay is over.
    */
-  const editableStay = (reservationId) => sale().collectionOf(reservationId, now()) !== 'closed'
-    && !stays().arrivalMarked(reservationId)
-    && stays().arrivalComplementState(reservationId) !== 'collected';
+  const pastDeparture = (reservationId) => {
+    const stay = stays().byId(reservationId);
+    return Boolean(stay && stay.endDate) && parisDate(now()) > String(stay.endDate);
+  };
+  // Loop t4 A4-1 — the core's judge (`extraSale.arrivalOpenAt`) is the one the sale refuses by: a kept false start reads the order read-only.
+  // Loop t5 S5-6 — and its reading of the validation is the stay clock's (a box ticked before the arrival day closes nothing), never the raw marks.
+  const editableStay = (reservationId) => sale().arrivalOpenAt(reservationId, now())
+    && stays().arrivalComplementState(reservationId) !== 'collected'
+    && !pastDeparture(reservationId);
 
   /** The article's own per-order bound (rules 37, 37quater): `maxQuantity` of what the shop sells, else what the order holds. */
   function boundOf(line, sold) {
@@ -258,11 +265,15 @@ function buildArrivalOrdersController({
     // A line that is no line of its own (a breakfast merged into the stay's own) is edited on the fiche, never from here; nor a bath placed on held hours (AG-3).
     if (changed.plan.some((step) => !step.unchanged && (!step.own || onHeldHours(step.line, step.own)))) return fail(res, 409, 'ORDER_NOT_EDITABLE', WORDS.notEditable);
     // Loop t1 AG-1 (rules 83, 87) — the order's evening supplement goes with its bath: removed with the bath line; a bath that keeps some sessions keeps
-    // the supplement only whole, so taking one session of a supplemented bath off is the fiche's.
-    const supplements = stored.filter((s) => s.kind === 'custom' && s.orderId === Number(order.id));
+    // the supplement only whole, so taking one session of a supplemented bath off is the fiche's. Loop t3 A3-1 — the supplement of THAT bath, read by
+    // its stable key (`evening:resource:<id>`, loop t2 N-6) or, written before the key, by its words: another bath of the order keeps its own.
+    const supplementsOf = (bath) => stored.filter((s) => s.kind === 'custom' && s.orderId === Number(order.id) && (s.fulfilmentRef
+      ? s.fulfilmentRef === `evening:resource:${Number(bath.id)}`
+      : s.description === `${bath.title} — supplément soirée`));
     const bathChanged = changed.plan.filter((step) => !step.unchanged && step.line.kind === 'resource');
-    if (supplements.length && bathChanged.some((step) => step.next)) return fail(res, 409, 'ORDER_NOT_EDITABLE', WORDS.supplementWhole);
-    const dropSupplements = supplements.length > 0 && bathChanged.length > 0;
+    if (bathChanged.some((step) => step.next && supplementsOf(step.line).length)) return fail(res, 409, 'ORDER_NOT_EDITABLE', WORDS.supplementWhole);
+    const supplements = bathChanged.flatMap((step) => supplementsOf(step.line));
+    const dropSupplements = supplements.length > 0;
 
     const at = now();
     let written = null;

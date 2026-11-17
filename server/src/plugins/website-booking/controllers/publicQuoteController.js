@@ -186,7 +186,7 @@ async function quote(req, res) {
   // Server-decided payment mode: deposit only when the property opted in AND the deposit is positive.
   const paymentMode = resolvePublicPaymentMode(db, v.value.propertyId, Math.round(Number(engineQuote.depositAmount || 0) * 100));
 
-  // SDK 2.32.0 (specs/gift-vouchers.md rules 36-38) — what a typed prepaid code is worth on this stay and what is left to pay
+  // SDK 2.33.0 (specs/gift-vouchers.md rules 36-38) — what a typed prepaid code is worth on this stay and what is left to pay
   // today, priced here and held by nothing: the request holds it. A refused code never fails the quote: the stay stays priced
   // and the refusal travels in `payment.prepaid.refused`, for the field to say.
   const prepaidInput = publicPrepaid.read(req.body);

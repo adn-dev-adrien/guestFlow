@@ -6,12 +6,13 @@
  *
  * Props:
  *   id:                 string   the panel id (aria-controls of its tile)
- *   tile:               'collected' | 'toCollect' | 'late' | 'stays' | 'properties' | 'channels'
+ *   tile:               'collected' | 'toCollect' | 'incoming' | 'late' | 'stays' | 'properties' | 'channels'
  *   data:               the detail payload, or null while loading
  *   loading, error:     request state; `onRetry` retries
  *   windowLabel:        string   « Exercice 2026 »…
  *   staysScope:         'window' | 'upcoming';  onStaysScopeChange(scope)
  *   until:              'YYYY-MM-DD';           onUntilChange(date)
+ *   incomingRecent:     boolean;                onIncomingRecentChange(boolean) — « Versements à venir » (specs/mollie-rolling-reserve-and-incoming-payments.md rule 24)
  *   onClose, onOpenReservation(id), onTogglePayment(row, field), onSettleAll(row), onSettleOverdue(row) (ticks only the row's
  *   `overdueItems`), onSelectProperty(id)
  */
@@ -24,6 +25,7 @@ import CloseIcon from '@mui/icons-material/Close';
 import ResponsiveTable from './ResponsiveTable';
 import OperationalPaymentsTable from './OperationalPaymentsTable';
 import PlatformChip from './PlatformChip';
+import IncomingPaymentsTable from './finance/IncomingPaymentsTable';
 import LoadingState from './LoadingState';
 import ErrorAlert from './ErrorAlert';
 import YearOverYearBadge from './YearOverYearBadge';
@@ -36,6 +38,7 @@ const money = (n) => (n == null ? '—' : formatCurrencyRounded(n));
 
 const TITLES = {
   collected: ['Déjà payé', 'Chaque paiement reçu pour les séjours de la période, du plus récent au plus ancien'],
+  incoming: ['Versements à venir', 'Ce que la banque va recevoir, par client · sans rapport avec la période'],
   toCollect: ['À encaisser', 'Séjours terminés pas encore soldés, tous exercices · cochez un paiement à sa réception'],
   late: ['En retard', 'Échéances dépassées des réservations en direct et versements plateforme attendus, tous exercices'],
   stays: ['Réservations', 'Rattachées à la période par leur date comptable'],
@@ -314,16 +317,17 @@ function ChannelsTable({ data }) {
 }
 
 export default function FinanceDetailPanel({
-  id, tile, data, loading, error, onRetry, windowLabel, staysScope, onStaysScopeChange, until, onUntilChange,
+  id, tile, data, loading, error, onRetry, windowLabel, staysScope, onStaysScopeChange, until, onUntilChange, incomingRecent = false, onIncomingRecentChange = () => {},
   onClose, onOpenReservation, onTogglePayment, onSettleAll, onSettleOverdue, onSelectProperty,
 }) {
   const [title, caption] = TITLES[tile];
-  const windowed = !['toCollect', 'late'].includes(tile) && !(tile === 'stays' && staysScope === 'upcoming');
+  const windowed = !['toCollect', 'late', 'incoming'].includes(tile) && !(tile === 'stays' && staysScope === 'upcoming');
   const staysEmptyText = staysScope === 'unpriced' ? 'Aucun séjour sans montant sur la période.' : 'Aucune réservation sur la période.';
   let body = null;
   if (error) body = <ErrorAlert message="Impossible de charger ce tableau." onRetry={onRetry} />;
   else if (loading || !data) body = <LoadingState label="Chargement du tableau…" />;
   else if (tile === 'collected') body = <CollectedTable data={data} onOpenReservation={onOpenReservation} />;
+  else if (tile === 'incoming') body = <IncomingPaymentsTable data={data} recent={incomingRecent} onRecentChange={onIncomingRecentChange} onOpenReservation={onOpenReservation} />;
   else if (tile === 'late') body = <LateTable data={data} onOpenReservation={onOpenReservation} onSettleOverdue={onSettleOverdue} />;
   else if (tile === 'properties') body = <PropertiesTable data={data} onSelectProperty={onSelectProperty} />;
   else if (tile === 'channels') body = <ChannelsTable data={data} />;

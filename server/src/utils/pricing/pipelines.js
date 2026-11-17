@@ -61,7 +61,8 @@ const externalPayment = require('./steps/externalPayment');
  *     frozenMidStayLines, midStaySettledNotes, refundsTotal, platformPenaltyAmount, arrivalPaymentReduction,
  *     arrivalPaymentTip, complementDeferredToCheckout, complementCollected, quoteKind, validUntil,
  *     devisPromise, cancellationInsurancePriceOverride, channel, isDirectBooking, persons, discountTarget,
- *     discountFixedAmount, lineFacts
+ *     discountFixedAmount, lineFacts, refundedNoteCredit, refundedStayCredit,
+ *     complementClaims, refundedComplementCredit, complementCreditPhantom
  * clock: clock
  * nights: baseAccommodationPrice, changeover, freshUnpricedNights, maxNightsBreached, maxNightsRules,
  *     mergedNightly, minNightsBreached, minNightsRules, nightlyBreakdown, nights, requiredMaxNights,
@@ -92,7 +93,7 @@ const externalPayment = require('./steps/externalPayment');
  * schedule: accommodationPreArrival, autoComplementAmount, autoDepositAmount, balanceDueDate,
  *     complementCollectedExcess, depositDueDate, endOfStayComplementAutoTotal, endOfStayComplementTotal,
  *     installmentPlan, isTouristTaxForcedToComplement, midStayLinesWithExcess, midStayRemainingDue,
- *     midStaySettledAll, overCollectedTtc, planScheduled, platformIsNonDirect, preArrivalAmount, rawComplement,
+ *     midStaySettledAll, noteCreditCuts, overCollectedTtc, planScheduled, platformIsNonDirect, preArrivalAmount, rawComplement,
  *     resolvedBalanceAmount, resolvedComplementAmount, resolvedDepositAmount, taxInComplement
  * platformPayment: acompteCommissionAmount, platformCommissionAmount, platformNetReceivedAmount,
  *     totalPlatformCommission

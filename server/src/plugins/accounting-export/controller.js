@@ -7,7 +7,8 @@
 const sdk = require('../sdk');
 const { csvJournal, salesJson } = require('./accountingExport');
 const { drinksAccountRefusal } = require('./drinksGuard');
-const { roundMoneyStrict } = sdk.coreModule('money');
+const { roundMoneyStrict, fromCentsStrict } = sdk.coreModule('money');
+const { MOLLIE_DEFAULTS } = require('./settings');
 
 const { journalEntries } = sdk.coreModule('accountingOutput');
 
@@ -19,10 +20,51 @@ function parseMonthYear(query) {
   return { month, year };
 }
 
-// Sales + refunds + cancellation compensations of the month, in one chronological stream (the core's `journalEntries`):
-// the CSV and the JSON preview can never drift apart.
-function monthEntries(accountingModel, params) {
-  return journalEntries(params, accountingModel);
+// Sales + refunds + cancellation compensations of the month (the core's `journalEntries`), and the entries a live plugin books
+// in its own journal (the Mollie journal, specs/mollie-rolling-reserve-and-incoming-payments.md rules 28-31), in one
+// chronological stream: the CSV, the JSON preview and the synthesis can never drift apart.
+function monthEntries(accountingModel, params, plan = {}, mollie = null) {
+  return [...journalEntries(params, accountingModel), ...(mollie || mollieEntries(accountingModel, params, plan)).entries]
+    .sort((a, b) => String(a.paidDate || '').localeCompare(String(b.paidDate || '')));
+}
+
+const MOLLIE_KINDS = new Set(['link', 'credit', 'cost']);
+
+/**
+ * specs/mollie-rolling-reserve-and-incoming-payments.md rules 28-31 — the Mollie facts of the month as journal entries
+ * (their accounts are the plan's), and what the export page shows beside them: the clearing account's balance at month
+ * end (rule 30) and the credits no payment explains yet, which book nothing (rule 31). The bank lines are left out when
+ * the accountant books the bank himself (rule 29).
+ */
+function mollieEntries(accountingModel, params, plan = {}) {
+  const found = accountingModel.mollieByMonth ? accountingModel.mollieByMonth(params) : { entries: [], unattached: [], clearing: null };
+  const accounts = { ...MOLLIE_DEFAULTS, ...plan };
+  const withBank = String(accounts.mollieExportBank) !== '0';
+  const labels = {
+    [String(accounts.mollieClearingAccount)]: 'Compte d\'attente Mollie',
+    [String(accounts.mollieBankAccount)]: 'Banque',
+    [String(accounts.mollieFeeAccount)]: 'Frais Mollie',
+  };
+  // The journal code and the three accounts ride on the entry: the core's journal lines book a Mollie entry on them, outside the
+  // sales journal's plan.
+  const mollieAccounts = {
+    journal: String(accounts.mollieJournalCode), clearing: String(accounts.mollieClearingAccount),
+    bank: String(accounts.mollieBankAccount), fee: String(accounts.mollieFeeAccount),
+  };
+  const entries = found.entries.filter((e) => MOLLIE_KINDS.has(e.kind) && (withBank || e.kind !== 'credit')).map((e) => ({
+    reservationId: e.reservationId == null ? null : e.reservationId, kind: 'mollie', direction: 'mollie', mollieKind: e.kind, paidDate: e.date,
+    client: e.client || { firstName: '', lastName: '' }, amount: fromCentsStrict(e.amountCents), encaissementTtc: fromCentsStrict(e.amountCents),
+    libelle: e.libelle || '', settlementReference: e.settlementReference || '', qontoReference: e.qontoReference || '', accountLabels: labels,
+    mollieAccounts,
+  }));
+  return {
+    entries,
+    unattached: found.unattached.map((u) => ({ ...u, amount: fromCentsStrict(u.amountCents) })),
+    clearing: found.clearing ? {
+      account: String(accounts.mollieClearingAccount), asOf: found.clearing.asOf, balance: fromCentsStrict(found.clearing.balanceCents),
+      clients: found.clearing.clients.map((c) => ({ ...c, balance: fromCentsStrict(c.balanceCents) })),
+    } : null,
+  };
 }
 
 
@@ -34,7 +76,7 @@ function createAccountingController(accountingModel, { plan = () => undefined, o
     salesCsv(req, res) {
       const params = parseMonthYear(req.query);
       if (!params) return res.status(400).json({ error: 'INVALID_MONTH_OR_YEAR' });
-      const entries = monthEntries(accountingModel, params);
+      const entries = monthEntries(accountingModel, params, plan());
       const refusal = drinksAccountRefusal(entries, plan());
       if (refusal) return res.status(refusal.status).json(refusal.body);
       const file = csvJournal.export(entries, { plan: plan(), period: params });
@@ -50,10 +92,16 @@ function createAccountingController(accountingModel, { plan = () => undefined, o
     salesJson(req, res) {
       const params = parseMonthYear(req.query);
       if (!params) return res.status(400).json({ error: 'INVALID_MONTH_OR_YEAR' });
-      const entries = monthEntries(accountingModel, params);
+      // The Mollie facts are read once for the response: the stream and the clearing aid come from the same read.
+      const mollie = mollieEntries(accountingModel, params, plan());
+      const entries = monthEntries(accountingModel, params, plan(), mollie);
       const refusal = drinksAccountRefusal(entries, plan());
       if (refusal) return res.status(refusal.status).json(refusal.body);
-      return res.json(salesJson.export(entries, { plan: plan() }).body);
+      // Rules 30-31 — the aid to the accountant: what Mollie still holds, and the credits left unattached.
+      return res.json({
+        ...salesJson.export(entries, { plan: plan() }).body,
+        mollie: mollie.clearing ? { clearing: mollie.clearing, unattached: mollie.unattached } : null,
+      });
     },
 
     // JSON preview of the platform commissions in the month — drives the AccountingPage table.
@@ -100,5 +148,5 @@ function createAccountingController(accountingModel, { plan = () => undefined, o
 module.exports = {
   create: createAccountingController,
   monthEntries,
-  __test: { parseMonthYear, monthEntries, taxOnlyEntries: salesJson.__test.taxOnlyEntries },
+  __test: { parseMonthYear, monthEntries, mollieEntries, taxOnlyEntries: salesJson.__test.taxOnlyEntries },
 };

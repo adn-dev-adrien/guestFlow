@@ -24,7 +24,7 @@ import { ThemeProvider } from '@mui/material/styles';
 import theme from '../../../theme';
 import DialogProvider from '../../../components/DialogProvider';
 import ReservationSasDialog from '../ReservationSasDialog';
-import { departureSeedFor } from './sasPreviewFake';
+import { arrivalSeedFor, departureSeedFor } from './sasPreviewFake';
 
 const BASE_RES = {
   id: 1, firstName: 'Jean', lastName: 'Dupont', propertyName: 'Tente', platform: 'direct',
@@ -63,6 +63,8 @@ export function sasPayload(over = {}) {
     // specs/ui-review-2026-10-19-operations.md rule 4 — the server's « nothing owed before this run »;
     // derived here like the server does for the fixtures' direct, prepaid stays.
     // specs/sas-departure-recap-server-side.md rule 12 — what the stored detail says the check-out decided.
+    // Loop t6 S6-3 — the arrival's offered lines by the recap's keys, as the server serves them.
+    arrivalSeed: over.arrivalSeed || arrivalSeedFor({ ...BASE_RES, ...(over.reservation || {}) }),
     departureSeed: over.departureSeed || departureSeedFor({ ...BASE_RES, ...(over.reservation || {}) }, over.linenItems || [{ id: 1, label: 'Taie d\'oreiller', price: 5, category: 'bed' }]),
     nothingToCollect: over.nothingToCollect ?? !(Number(over.reservation?.complementAmount || 0) > 0
       && !Number(over.reservation?.complementPaid || 0)),

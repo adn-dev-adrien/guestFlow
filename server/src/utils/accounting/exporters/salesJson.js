@@ -26,6 +26,7 @@ function createSalesJson({ accountPlan, csvJournal }) {
     const isDiscount = entry.direction === 'discount';
     const isTip = entry.direction === 'tip' || entry.standaloneRole === 'tip';
     const isPenalty = entry.direction === 'penalty';
+    const isMollie = entry.direction === 'mollie';
     const platformInfo = (entry.platform && entry.platform !== 'direct' && !isRefund && !isCompensation
       && !isDiscount && !isTip && !isPenalty)
       ? {
@@ -83,7 +84,7 @@ function createSalesJson({ accountPlan, csvJournal }) {
       // specs/cancellation-compensation.md §6.3 — « compensation » renders as an indemnity card.
       direction: isRefund ? 'refund'
         : (isCompensation ? 'compensation'
-          : (isDiscount ? 'discount' : (isTip ? 'tip' : (isPenalty ? 'penalty' : 'sale')))),
+          : (isDiscount ? 'discount' : (isTip ? 'tip' : (isPenalty ? 'penalty' : (isMollie ? 'mollie' : 'sale'))))),
       // specs/resource-booking-pricing-and-invoicing.md rule 22 — a sale made outside any stay, and its Qonto invoice.
       standalone: entry.direction === 'standalone' ? { label: entry.standaloneLabel || '', invoiceNumber: entry.piece || null } : null,
       compensationId: entry.compensationId != null ? entry.compensationId : null,

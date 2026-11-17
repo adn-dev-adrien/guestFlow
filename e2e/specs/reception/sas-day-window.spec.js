@@ -6,7 +6,7 @@
 //
 // Runs as the seeded reception account (its own storageState); the fixtures still seed through the
 // ADMIN session, since reception may not create anything.
-import { test, expect } from '@playwright/test';
+import { test, expect } from '../../fixtures/test.js';
 import { createClient, createProperty, createReservation } from '../../fixtures/apiSeed.js';
 import { setReservationDates } from '../../fixtures/dbSeed.js';
 import { RECEPTION_STORAGE_STATE } from '../../fixtures/authState.js';

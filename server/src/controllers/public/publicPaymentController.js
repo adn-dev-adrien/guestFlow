@@ -132,7 +132,7 @@ async function pay(req, res) {
   // by a later emailed link); 'full' charges the whole stay. The client never chooses.
   const mode = resolvePublicPaymentMode(db, row.propertyId, depositPaymentCents(db, id, row));
   const linkType = mode === 'deposit' ? 'deposit' : 'full';
-  // SDK 2.32.0 (specs/gift-vouchers.md rule 38) — prepaid money held for this quote pays the earliest amounts first: the link is
+  // SDK 2.33.0 (specs/gift-vouchers.md rule 38) — prepaid money held for this quote pays the earliest amounts first: the link is
   // minted for what the mode still asks, and when that is nothing the quote is confirmed at once, with no link.
   const fullNow = () => fullPaymentCents({ database: db, devisModel, calc: calculateReservationQuote }, id, row);
   let prepaidReduction = 0;

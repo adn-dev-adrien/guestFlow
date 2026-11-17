@@ -126,6 +126,12 @@ const netOfCommission = ({ amount, commission = 0, penalty = 0 }) => Number(amou
 /** The two per-échéance commissions together. */
 const totalCommission = (acompte, solde) => roundSafe(Number(acompte) + Number(solde));
 
+/** The pre-arrival amount a stored row carries (acompte + solde). */
+const storedPreArrival = (row) => roundSafe(asNumber(row.depositAmount) + asNumber(row.balanceAmount));
+
+/** The net a stored row stands for (specs/platform-statement-after-payout.md rule 4): its pre-arrival amount less both commissions. */
+const storedNet = (row) => roundSafe(storedPreArrival(row) - totalCommission(asNumber(row.acompteCommissionAmount), asNumber(row.platformCommissionAmount)));
+
 /** The payout the platform made, penalty it kept included. */
 const payoutWithPenalty = ({ payout, penalty }) => roundSafe(Number(payout || 0) + Math.max(0, Number(penalty || 0)));
 
@@ -139,5 +145,5 @@ function withheldOnCancellation(row) {
 
 module.exports = {
   computePlatformCommission, commissionOf, clampCommissions, netReceived, acompteNet, grossOf, payoutWithPenalty, withheldOnCancellation,
-  statementRemainder, statementPayout, bankReceived, totalCommission, netOfCommission,
+  statementRemainder, statementPayout, bankReceived, totalCommission, netOfCommission, storedPreArrival, storedNet,
 };

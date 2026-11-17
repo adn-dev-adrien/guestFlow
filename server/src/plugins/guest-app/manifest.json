@@ -16,7 +16,7 @@
   ],
   "requires": [],
   "guestflow": ">=3.10.0",
-  "sdk": "^2.31.0",
+  "sdk": "^2.32.0",
   "changelog": {
     "1.0.0": [
       "Première version : réglages par logement, code QR de chaque logement (livret seul), lien « Mon séjour » propre à chaque séjour (sas d’arrivée, e-mails, fiche), sessions de séjour, page d’accueil, catalogue de la boutique, créneaux des ressources à l’heure lus dans le planning, horaires du service et heures de livraison, livret d’accueil par logement (pages partagées, publication, recherche, photos), suggestion Soliomap, affiche du code QR, commandes du séjour (sur la note, à 0 € ou par carte, inscrites sur la fiche), commandes clients côté équipe, stock par article (épuisé, alertes), commandes livrées ou à retirer, portail du séjour, Studio lu en direct depuis GuestFlow, manifeste d’installation et service de l’application clients et du Studio, l’application clients « Mon séjour » (téléphone, tablette, ordinateur, hors ligne pour le livret), le Studio du livret et, dans GuestFlow, la section « Application clients » des options et ressources, la page « Commandes clients », la carte du planning et le lien « Mon séjour » de la fiche.",
@@ -74,22 +74,28 @@
       "Nécessite le SDK 2.28 de GuestFlow (échange des données de la maison entre plugins)."
     ],
     "1.2.0": [
+      "Une case « arrivé » cochée avant le jour d’arrivée ne fige plus une commande : elle reste modifiable à l’arrivée.",
       "Une commande peut être encaissée à l’arrivée ou au départ, et une commande d’un séjour annulé est marquée annulée ; aucune donnée existante n’est modifiée.",
       "Une commande de la boutique forme sa propre ligne du séjour ; les lignes déjà commandées gardent leur prix.",
       "« Mon séjour » s’ouvre dès J-7 : la boutique, le bain nordique et « Mes commandes » sont utilisables avant l’arrivée, avec le lien du séjour.",
       "Les jours et heures proposés pour une commande sont ceux du séjour, pendant la présence des clients et hors des heures de fermeture de la boutique ; un horaire hors séjour est refusé.",
-      "Le bain nordique se réserve depuis l’application selon les horaires du bain, la chauffe comptée depuis maintenant et les autres réservations ; l’heure offerte vaut le tarif de jour et le supplément de soirée fait partie du prix de la séance ; un créneau non proposé est refusé. Les heures déjà sur le séjour se programment d’abord, sans être refacturées.",
+      "Le bain nordique se réserve depuis l’application selon les horaires du bain, la chauffe comptée depuis maintenant et les autres réservations ; l’heure offerte vaut le tarif de jour et le supplément de soirée forme sa propre ligne du séjour ; un créneau non proposé est refusé. Les heures déjà sur le séjour se programment d’abord, sans être refacturées.",
       "Une commande ajoute ses propres lignes au séjour, sans jamais en recalculer le prix. Un article offert commandé à nouveau est facturé comme une ligne à part ; une boisson offerte est déjà en place à l’arrivée : toute commande de l’application est facturée dès la première.",
       "Le paiement par carte est possible dès J-7, en premier choix et présélectionné ; « Régler à l’arrivée » reste proposé. La ligne d’une commande payée par carte n’apparaît qu’une fois le paiement reçu, et n’est jamais réencaissée à l’arrivée. Une commande par carte non payée ne réserve rien et n’arrive pas à l’équipe ; le client peut en passer une autre.",
-      "Le sas d’arrivée liste, dans une étape repliable, les commandes de l’application prises avant l’arrivée ; une commande non payée s’y modifie (quantité, article, séance, commande entière), une commande payée reste en lecture.",
+      "Le sas d’arrivée liste, dans une étape repliable, les commandes de l’application prises avant l’arrivée ; une commande non payée s’y modifie (quantité, séance, commande entière), une commande payée reste en lecture.",
       "Un séjour annulé annule ses commandes ; une commande payée par carte se rembourse depuis le remboursement de l’annulation, où elle figure parmi les lignes encaissées.",
       "Les e-mails J-7 et J-2 savent si le séjour a une boutique et un bain à programmer, pour ne promettre que ce que le lien donne.",
       "La liste des commandes au sas d’arrivée se replie sans animation quand l’appareil demande de réduire les animations.",
-      "Demande le SDK 2.31 de GuestFlow.",
       "Une commande payée par carte d’un séjour annulé est due une seule fois : le registre « À rembourser » ne la répète pas.",
       "Un paiement qui arrive sur une commande annulée avec son séjour, même rétabli depuis, n’est jamais vendu sur la fiche : « Payée · à rembourser », l’équipe est prévenue.",
-      "Au sas d’arrivée, retirer un bain retire aussi son supplément de soirée ; un bain placé sur des heures que le séjour détenait déjà se modifie sur la fiche.",
-      "Au sas d’arrivée, une commande prise avant l’arrivée se modifie tant que l’arrivée n’est pas validée, quelle que soit l’heure ; ce qui reste se règle à l’arrivée."
+      "Au sas d’arrivée, retirer un bain retire aussi son supplément de soirée, et seulement le sien : un autre bain de la même commande garde le sien ; un bain avec supplément de soirée se retire en entier, et un bain placé sur des heures que le séjour détenait déjà se modifie sur la fiche.",
+      "Au sas d’arrivée, une commande prise avant l’arrivée se modifie tant que l’arrivée n’est pas validée, quelle que soit l’heure, et au plus tard le jour du départ ; ce qui reste se règle à l’arrivée.",
+      "Après un effacement puis une réinstallation, un ancien lien de paiement d’une commande ne règle plus la nouvelle commande qui a repris son numéro : les numéros repartent au-dessus des commandes encore nommées par un lien, et un lien qui n’est pas celui de la commande ne vend rien et reste à rembourser.",
+      "Une commande payée par carte d’un séjour annulé passe à « Remboursée » dans la liste de l’équipe une fois rendue depuis le remboursement de l’annulation ; deux commandes du même article se rendent chacune sur sa propre ligne.",
+      "Passé l’heure d’arrivée, une commande modifiée à la porte tant que l’arrivée n’est pas validée reste réglée à l’arrivée : la ligne se retire et ce qui reste n’est plus compté au départ ; le supplément de soirée d’une commande porte la clé de son bain.",
+      "Une commande ne se modifie plus « à l’arrivée » une fois l’arrivée validée ou son complément encaissé : elle se règle au départ.",
+      "À l’arrivée, une commande d’un séjour dont les ventes se règlent déjà au départ (arrivée cochée puis décochée après un encaissement) est affichée non modifiable jusqu’à l’heure d’arrivée, et le refus le dit sans parler d’arrivée validée.",
+      "Demande GuestFlow 4.2 (SDK 2.32)."
     ]
   }
 }

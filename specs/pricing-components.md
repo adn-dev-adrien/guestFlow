@@ -7,7 +7,7 @@
 | **Created** | 2026-11-11 |
 | **Revised** | 2026-11-11 — owner decisions: discounts on nights and extras, "started" = arrival date and check-in time passed, tourist tax as its own component, finer cut, 3 PRs; the stay clock as its own component consulted by all (rules 44-46); one pricer per article kind, fulfilment and data-access ports, settings provider, VAT per line by customer context, chainable pipeline steps, external sale (rules 47-60, §4.0); Articles head → generic families → instances, VAT as a standalone component fed by tagged amounts, `AccountingOutput` with format adapters, the no-duplication rule (rules 61-67); price non-regression gate and delivery pipeline with the stabilisation loop (rules 68-69); platform payment and platform intakes from the code check (rules 70-71) |
 | **Author** | Adrien |
-| **Related PR** | (link once opened) |
+| **Related PR** | [#1054](https://github.com/adn-dev-adrien/guestFlow/pull/1054) |
 | **Summary for the owner** | [`specs/pricing-components-resume.html`](pricing-components-resume.html) — French, interactive |
 | **Supersedes (on completion)** | the pricing/collection half of `guest-app.md` §4.4 (rules 85, 93-101, and the code-only 104-106), `utils/midStayOrderCommit.js`; `arrival-moment-is-the-check-in.md` for the routing of new sales (rule 20) |
 | **Builds on** | `pricing-engine-thin-client.md`, `reservation-price-arithmetic.md`, `force-extras-complement-on-platform.md`, `mid-stay-extras-to-end-of-stay-complement.md`, `platform-payment-entry.md`, `direct-installments.md`, `mixed-method-payments.md`, `single-vat-rate.md`, `vat-optional-mode.md` (golden fixture and prod-copy proof), `tourist-tax-included-services-deduction.md` |
@@ -398,7 +398,8 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
     CLOCK only, through `phaseForReservation` (rule 44), for the guest app, the e-mails, the SAS and the fiche.
     - **The arrival mark and the arrival SAS do not change the moment of a new sale.** They change only the
       display: once either is done, the arrival section of the fiche reads « Arrivée faite » and the SAS
-      arrival is shown as committed. `arrivalMoment.hasGuestArrived` no longer routes a sale and has no reader left: **PR C deletes the module** (the display reads `checkInDone` / `arrivalSasDoneAt`).
+      arrival is shown as committed. _(Amended 2026-11-16, rule 102: an arrival validated on its day starts the stay — for the lock and the sale
+      alike, as the lock always read it.)_ `arrivalMoment.hasGuestArrived` no longer routes a sale and has no reader left: **PR C deletes the module** (the display reads `checkInDone` / `arrivalSasDoneAt`).
     - **Sale after check-in time while the arrival SAS is still open** (guest late, SAS not yet done): the
       line is `departure` « À payer au départ ». The open SAS arrival shows it in its own section « Ventes du
       séjour — au départ », not in the total to collect. The operator may collect it there (paid now, rule
@@ -441,6 +442,8 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
     > discounting or removing an UNPAID line (`settledCents` 0) is no longer refused (no 409 `OVERPAID`, no `forceOverpayment` needed): the
     > trop-perçu grows by exactly that line and is refunded through the usual trop-perçu path; no `lineLowered` obligation is opened (the line
     > carried no money). A paid line keeps the rules above. Test: `pricing-unpaid-line-on-overpaid-stay`.
+    > **Reading 2026-11-16 (loop t4, S4-3):** a paid line lowered on a stay that still asks money is not refused: the money it gives back comes off
+    > what the stay asks (rule 104); only what no open bucket takes is the trop-perçu refused until confirmed.
 24. **One article, one price path.** The evening supplement of an hourly session is a component of the
     session's priced line (rule 5), priced by HOURLY TARIFF whatever the seller. The SAS no longer adds an
     `evening:<id>` complement line computed elsewhere; the `eveningCredit` worked back from stored totals
@@ -460,7 +463,7 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
     lines with `source = 'sas'` and the moment of rule 19. `planArrivalSas` / `planDepartureSas` become
     SETTLEMENT views over those lines.
     > **Delivered by PR B** (pass 5, class E5): the SAS's prices are the head's (rule 10), what it writes is a sale of source `sas` collected at arrival (rule 18) and its departure sales read
-    > `saleDetail` (rule 32). `sasOptionSale` stays an SDK module under that name (D24, SDK 2.29.0: its names are unchanged, `extraSale` is the service behind it).
+    > `saleDetail` (rule 32). `sasOptionSale` stays an SDK module under that name (D24, SDK 2.30.0: its names are unchanged, `extraSale` is the service behind it).
     > **Delivered by PR C** (C21): the replace-and-delta write is retired for the lines — a re-run changes and appends (reopen-completed-sas rule 4 amended); the lines a reopen appended are flagged
     > (`saleDetail.lines[].addedOnReopen`, served by the SAS payload's `staySales`) and journaled.
     > **Pending** — PR-later: `planArrivalSas` / `planDepartureSas` as SETTLEMENT views over the lines and `sasStep.complementItems` as requests to `extraSale`: the plan still computes the complement by its own
@@ -534,6 +537,8 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
     > `PRICE_CHANGED`.
     > _Amended 2026-11-15 (rule 93):_ the quote, its dry runs and the write all pin on the same base, so what the quote says the stay moves by is
     > exactly what the write adds to the stored row.
+    > _Amended 2026-11-16 (loop t4, S4-4):_ a quote paid now announces the departure net of the note the sale writes in the same transaction
+    > (`buckets.departure` 0 where it said the line's price). Test `sale-quote-paid-now-buckets`.
 
 ### 3.G The detail, everywhere the same
 
@@ -673,7 +678,7 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
     `eurosWithSpaces`. `pricing-money-variants.unit.test.js` proves each against its original on 600 000 values and the awkward
     inputs. A variant is never swapped for `roundMoney` where the two differ, and a display helper (« 1 234,56 € ») is renamed, never
     swapped for `frenchEuros`, because its bytes differ. Every private copy of the server and of the plugins (a plugin reaches the variants through
-    `coreModule('money')`, SDK 2.30.0) is replaced; the `money` allow-list is empty since C30 deleted `midStayOrderCommit`, 2026-11-13.)_
+    `coreModule('money')`, SDK 2.31.0) is replaced; the `money` allow-list is empty since C30 deleted `midStayOrderCommit`, 2026-11-13.)_
 39. **A line discount.** The operator may discount one unpaid line (percent or amount), from the fiche or the
     SAS. It is stored on the line (`discountCents`) and journaled. It is the only discount a shop or SAS sale
     receives. `discountCents` holds the line's OWN discount only: the stay discount's share (rule 40) is derived on every quote
@@ -776,7 +781,7 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
     | `plugins/website-booking/publicInputValidation.js`, `utils/platformIntakePort.js` (the started-stay refusal of the intakes), `utils/sasEditWindow.js`, `utils/receptionView.js` — _rows added 2026-11-11 by the review of PR A (`stay-clock-single-source`, `NOT_IN_THE_TABLE`)_ | a date window of the public form (a start date in the past); the intake port's refusal; the SAS lock reason and the reception view that read it | C (the form and the port, `arrivalDayReached`), B (the SAS lock reason and the reception view) |
     | `plugins/booking-intake/intakeService.js` l. 159, `plugins/airbnb-intake/intakeService.js` l. 119, `plugins/gites-de-france-intake/intakeService.js` l. 136 (`startDate <= today()`) — _row added 2026-11-11 by the code check of rule 71_ | an intake refuses a started stay (« Séjour commencé : fiche à saisir à la main ») | C — **delivered by PR C** (`dayReached` through `coreModule('stayClock')`, same semantics; rule 71) |
 
-    _(Delivered by PR C (C11): every row tagged C is moved but the guest app's (`stockModel`, `sellable`, the shop state), which wait for the J-7 rebuild; the stay clock exports `dayReached` / `dayPassed` (the day comparisons, SDK `stayClock` names since 2.30.0) and `arrivalMoment.js` is deleted. Test: `stay-clock-c-rows`. Reading of 2026-11-15 (sync with master #1046, `lock-at-arrival-time-and-arrival-complement-lines.md` rule 1): the fiche lock, the mid-stay window and the ledger edit's `startedStay` no longer compare days — they ask the stay clock's `hasStayStarted(row, today, nowTime)` (the check-in time on the arrival day, earlier once the arrival is marked); the `dates` allow-list stays empty.)_
+    _(Delivered by PR C (C11): every row tagged C is moved but the guest app's (`stockModel`, `sellable`, the shop state), which wait for the J-7 rebuild; the stay clock exports `dayReached` / `dayPassed` (the day comparisons, SDK `stayClock` names since 2.31.0) and `arrivalMoment.js` is deleted. Test: `stay-clock-c-rows`. Reading of 2026-11-15 (sync with master #1046, `lock-at-arrival-time-and-arrival-complement-lines.md` rule 1): the fiche lock, the mid-stay window and the ledger edit's `startedStay` no longer compare days — they ask the stay clock's `hasStayStarted(row, today, nowTime)` (the check-in time on the arrival day, earlier once the arrival is marked); the `dates` allow-list stays empty.)_
     _(Delivered by PR B pass 4: every row tagged B is moved — the `dates` allow-list holds only PR C entries. `isArrivalNotMarked` is
     `arrivalBaselineNotDue` (the response key `arrivalNotMarked` of the preview is unchanged); `sasLockReason({ stay, side, doneAt, now })`
     takes the stay and the side instead of a date; `isCheckoutDone` and `midStayExtrasWindow` compare through `dayReached`.)_
@@ -865,6 +870,9 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
     > read it) and hands SETTLEMENT the values it plans from; REFUNDS' input (`refundInputModel`) reads the end-of-stay share received there too; the port's `splitReceived(id)` is that same read.
     > The mid-stay notes SETTLEMENT reads are the stay's stored column (what each note sold and settled), not a read of the payment tables. 0 figure: the gate, the golden test and the books
     > are unchanged. Proof `pricing-receipts-single-read`, `pricing-schedule` (the step asks `receipts`, never `splitReceived`).
+    > _Reading of 2026-11-16 (loop t5 D5-6):_ « the read is never late » holds for `StayRepository.lineFacts` too: it rebuilds a stay a write behind
+    > the hooks left marked (`payment_allocations_dirty`, e.g. a platform statement corrected) before it sums each line's allocations, the same flush as
+    > `PaymentLedger.allocations`. Test `stay-line-facts-never-late`.
 49. **Articles with a downstream booking (fulfilment port).** An article may name a fulfilment adapter
     (`fulfilment: 'hourly-slot'`). `ArticleFulfilment` is a plain object `{ id, reserve(draft, ctx) → hold
     {id, expiresAt}, confirm(hold, line, tx), release(hold, reason) }`, registered through
@@ -985,7 +993,7 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
     the journal line and the fulfilment `confirm` stay inside the transaction; an observer's failure is logged
     and never undoes a sale.
     > **Delivered by PR B** (pass 5; `extra-sale-events`): `extraSale.sold`, `extraSale.lineMoved`, `extraSale.lineCancelled` (published by the fiche's save for the lines it removed) and
-    > `extraSale.refundOwed` are in `EVENTS` and published after the commit through `EventPublisher`; Google Calendar (1.3.0) pushes the stay on the first three. **Delivered by PR C** (C33): `standaloneSale.sold` (`{ saleId, ref, clientId, totalCents, lines }`, SDK 2.31.0). **Delivered by PR C** (pass 4, C26-C29): the guest-app observers of `extraSale.sold` — the staff push and the order's e-mail state (`guest-app-order-observers`).
+    > `extraSale.refundOwed` are in `EVENTS` and published after the commit through `EventPublisher`; Google Calendar (1.3.0) pushes the stay on the first three. **Delivered by PR C** (C33): `standaloneSale.sold` (`{ saleId, ref, clientId, totalCents, lines }`, SDK 2.32.0). **Delivered by PR C** (pass 4, C26-C29): the guest-app observers of `extraSale.sold` — the staff push and the order's e-mail state (`guest-app-order-observers`).
 56. **No class hierarchy, no DI framework.** Components, families, instances, adapters, steps and ports are CommonJS
     modules exporting plain functions and objects. Wiring is explicit in `pipelines.js` and in plugin
     `register` functions.
@@ -1058,6 +1066,12 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
     - Consequence: there is **no switch** to per-article rounding and therefore no expected diff for it in PR B.
       A document whose articles get new classes splits into more groups naturally; with today's settings
       (three classes, one rate) nothing moves.
+    > _Reading of 2026-11-16 (stabilisation loop t4 B4-4):_ a sale document's Qonto invoice follows this rule too. Qonto computes VAT per item, so
+    > each item names its (class, rate) group and the issuer sends a group's items with the VAT cut once on the group's TTC (`vat.groupVatCents`, the
+    > cut the journal of a standalone document uses): the invoice and the journal state the same VAT per group (outside-booking-sas rule 56 e).
+    > _Reading of 2026-11-16 (stabilisation loop t5 B5-1, B5-2):_ a document's journal cuts a group's cumulative TTC in the order the money was
+    > WRITTEN, not in the order of the payment days, so a payment dated before an earlier payment day never re-cuts an entry already exported (the
+    > stay's rule 99); a booking's own journal cut (net of the TTC) is the one its invoice states (outside-booking-sas rule 57).
 63. **`AccountingOutput` — one generic journal, format adapters.** `accountingOutput.journalEntries({ from,
     to }, readModels)` reads **only** the read models — sale lines with their VAT output (rule 61), stay-level
     amounts (`storedStayPrice`), settlements, receipts, tenders, refunds and refund lines, compensations,
@@ -1091,7 +1105,11 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
     > returns its neutral role lines `{ role, side, amountCents, vatRate?, vatCents?, account? }` (roles `customer`, `revenue:<class>`, `vat:<rate>`,
     > `touristTax`, `commission`, `commissionVat`, `penalty`; `account` only when the entry itself pins one). The CSV journal maps those lines to its
     > accounts and columns and no longer computes a split or a residue; `addSaleLegs` (and so `closeStayBooks`) reads the roles, not the CSV ventilation.
-    > Every month of the golden database stays byte-identical (`accounting-output-replay`). **Delivered by PR C** (C43): on a stay booked once 4.2.0 is installed,
+    > Every month of the golden database stays byte-identical (`accounting-output-replay`). _(Merge of #1067, 2026-11-17:_ master's Mollie journal
+    > (specs/mollie-rolling-reserve-and-incoming-payments.md rules 28-31) is a `direction: 'mollie'` entry of the same stream: `journalLines` books it as
+    > `mollieDebit` / `customer` or `mollieClearing` on the accounts and journal code the accounting-export plugin's Mollie settings put on the entry
+    > (`mollieAccounts`), the CSV writes it outside the sales plan's renaming, the sales JSON names its direction `mollie`; the rows and the sales JSON's
+    > `mollie` aid are master's, the replay's 48 `sales/*` hashes were re-captured for that key only.) **Delivered by PR C** (C43): on a stay booked once 4.2.0 is installed,
     > `utils/accounting/receiptLineCut.js` cuts every receipt of `saleEntries` (deposit, balance, complement, installment, end-of-stay complement, note, a settlement's share):
     > its revenue (TTC less its tourist tax, in cents) is allocated to the families its stored split names (contribs, paid split, stored money — the per-receipt line
     > allocation the ledger already freezes), inside a family to the VAT classes of the stay's sale lines (`saleLinesOf`, the sale detail through the SDK's `extraSale`),
@@ -1326,7 +1344,7 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
     > asks the channel (`saleChannel` / `isNamedChannel`) instead of comparing the platform to `'direct'` by hand; an unmatched
     > platform keeps the legacy default (collects, does not remit), so no figure moves (Q-B18; `platform-payment-wiring`,
     > `tourist-tax-collector-by-id`). PLATFORM PAYMENT now ranks between SCHEDULE and REFUNDS in the import graph.
-    > **Delivered by PR C** (C12): the reconciliation reads `acompteNet` / `grossOf` / `payoutWithPenalty` (online-payment 1.7.7 through `coreModule('platformPayment')`), the ledger's commission detail `netOfCommission`, and the Gîtes de France intake the rent-only commission through `reservations.platformCommission({ basis: 'rentOnly', rent, netRent })` (gites-de-france-intake 1.4.13); the `platform-payment` allow-list is empty. `grossOf` rounds the sum of deposit and balance and ignores a non-numeric platform gross, where the old inline copy kept the float sum: the two agree to the cent on every stored figure. `pricingNoticesOf` keeps judging unclamped commissions (a cosmetic warning, accepted). Test: `platform-payment-reconciliation-wiring`.
+    > **Delivered by PR C** (C12): the reconciliation reads `acompteNet` / `grossOf` / `payoutWithPenalty` (online-payment 1.8.1 through `coreModule('platformPayment')`), the ledger's commission detail `netOfCommission`, and the Gîtes de France intake the rent-only commission through `reservations.platformCommission({ basis: 'rentOnly', rent, netRent })` (gites-de-france-intake 1.4.13); the `platform-payment` allow-list is empty. `grossOf` rounds the sum of deposit and balance and ignores a non-numeric platform gross, where the old inline copy kept the float sum: the two agree to the cent on every stored figure. `pricingNoticesOf` keeps judging unclamped commissions (a cosmetic warning, accepted). Test: `platform-payment-reconciliation-wiring`.
 71. **Automatic platform intakes keep working, behind one versioned port.** _(Code check 2026-11-11.)_
     - **What exists.**
       - **booking-intake** (SDK `^2.15.0`), **airbnb-intake** and **gites-de-france-intake** (`^2.21.0`) write
@@ -1351,7 +1369,7 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
       accepting today's patch: an adapter maps a line's `inComplement` on a platform stay at intake to
       `collectAt = 'platform'` (0) or `'arrival'` (1), the same derivation as `legacyCollectAt` (§5). No
       plugin is forced to change; no SDK major bump.
-    - **The new port (additive, SDK 2.29.0).** `PlatformBookingIntake`: `reservations.fromPlatform(payload,
+    - **The new port (additive, SDK 2.30.0).** `PlatformBookingIntake`: `reservations.fromPlatform(payload,
       { label, client, reuseByEmail })`, with `payload = { platform, reservationNumber, stay: { propertyId,
       startDate, endDate, checkInTime? }, party: { adults, children, teens, babies }, beds?, money: { gross,
       payout, withheldTax, commission?, basis? }, includedLines: [{ articleRef | description, quantity,
@@ -1360,12 +1378,12 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
       started stay through STAY CLOCK `arrivalDayReached` (`PAST_RESERVATION`, the same message). The old
       `reservations.update` path for an intake patch is implemented on this port internally (adapter), so
       both entries run the same code. The three intake plugins may move to it in PR C, with no behaviour
-      change. `coreModuleHistory.json` records 2.29.0 (2.27.0 is `ctx.articleFamily`, PR A).
+      change. `coreModuleHistory.json` records 2.30.0 (2.27.0 is `ctx.articleFamily`, PR A).
       > **Delivered by PR B** (pass 5; `platform-intake-port`): `reservations.fromPlatform(reservationId, intake, { label, client, reuseByEmail })` takes the port's payload as
       > `toPlatformIntake` shapes it (platform, number, stay, party, beds, money, notes, `lines` with the `collectAt` of each, `includedLines`, `complementLines`, `rest`) for the stay the
       > iCal import already created (a new stay is never created by an intake): `reservations.update` is `toPlatformIntake` then `fromPlatform`, both run the one save. After it, the lines
       > the intake wrote that carry no moment are declared (`source = 'intake'`, `collectAt` / `collectAtDefault` = `platform` or `arrival` from the routing flag, `soldAt`), on a platform
-      > channel only. website-booking 1.8.15 prices a fixed insurance through the head. **Delivered by PR C** (C11): the started-stay refusal reads STAY CLOCK `dayReached` (the port's `isIntakeOnStartedStay`, and the three intake services through `coreModule('stayClock')`, SDK 2.30.0; booking-intake 1.3.16, gites-de-france-intake 1.4.13). **Decided** (Q-C13, 2026-11-12): the intake plugins do not move to the port — they stay on `reservations.update`.
+      > channel only. website-booking 1.8.15 prices a fixed insurance through the head. **Delivered by PR C** (C11): the started-stay refusal reads STAY CLOCK `dayReached` (the port's `isIntakeOnStartedStay`, and the three intake services through `coreModule('stayClock')`, SDK 2.31.0; booking-intake 1.3.16, gites-de-france-intake 1.4.13). **Decided** (Q-C13, 2026-11-12): the intake plugins do not move to the port — they stay on `reservations.update`.
     - **Tests.**
       - Each intake plugin's existing suites stay green, unchanged, at every PR.
       - `platform-intake-port.unit.test.js` (contract and adapter).
@@ -1377,7 +1395,7 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
         lines and figures must equal the baseline capture — **0 diff**.
       - The price gate covers the resulting platform stays (rule 70).
     - **PRs:** A (adapter behind `reservations.update` and the intake replay at 0 diff); B (`fromPlatform` port,
-      SDK 2.29.0, iCal default-option pricing through the Articles head); C (intake date checks through STAY
+      SDK 2.30.0, iCal default-option pricing through the Articles head); C (intake date checks through STAY
       CLOCK, optional plugin migration to `fromPlatform`).
 
 ### 3.O Refunds (owner, 2026-11-11)
@@ -1510,7 +1528,7 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
 
 75. **Refund obligations — money that must leave, kept in one register** _(owner O-2, O-5, O-10, Q16)_. A table
     `refund_obligations (id, reservationId, origin, paymentLinkId, lineRef, amountCents, reason, createdAt,
-    status, settledAt, settledBy)` holds every refund owed and not yet paid out. `origin` is one of `basket`,
+    status, settledAt, settledBy, noteCents)` holds every refund owed and not yet paid out. `origin` is one of `basket`,
     `duplicatePayment`, `withdrawnLink`, `lineLowered`, `orderConflict`, `neverBooked`; `status` is `open`,
     `settled` or `cancelled`. The register holds money that **left** (or must leave) only: nothing in it is a
     sale (conflict C-1). The ledger's « À rembourser » rows are its open rows and offer a close action; the link
@@ -1522,12 +1540,21 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
     code (PR C).
     The close action is `PATCH /api/reservations/:id/refund-obligations/:oid` `{ status: 'settled' | 'cancelled' }` (409 on a row
     already closed, 404 on another stay's); a basket row also clears its link's `refundOwed` flag, and the stay's history says so.
+    A `lineLowered` row never closes there: 409 `OBLIGATION_REFUND_ONLY` (rule 120, loop t9 D9-2).
     The ledger gives the open rows a « Marquer remboursé » action (the server words the row, the client renders it); a
     `lineLowered` row has none of its own, the « Trop-perçu » row being its face.
     > **Delivered by PR B** (pass 3, UI): `FinanceSection` renders the server's `closeObligation` action (confirm, `PATCH`, re-read; Vitest `FinanceSection.obligation`), `RefundDialog` offers « Carte » with the provider reference (`RefundDialog.card-means`); checked in headless Chromium at 390 and 1280 px (no horizontal scroll, 44 px button, row gone after closing).
     > **Delivered by PR B** (pass 3): `refund_obligations` written by `settleBasket`, `recordRefundOwed`,
     > `settleWithdrawnPayment` (opened then settled, `neverBooked` for a devis), the confirmed lowering of a paid line; the close
     > action and its ledger rows (`refund-obligations`, `pricing-refunds-owed`).
+    > _Reading of 2026-11-16 (loop t2 B2-5, owner O-6):_ a stay's `lineLowered` rows are settled by a refund opened on the trop-perçu only. A refund made on a
+    > line — the lowered one (a discounted paid line) or the accommodation — does not lower the trop-perçu (O-6), so the row rightly stays open at the
+    > trop-perçu: the register and the trop-perçu never disagree. Measured: a paid 40 € line offered, then 40 € refunded on the accommodation, trop-perçu 40 €
+    > and row 40 € before and after; a paid line discounted 10 €, then 10 € refunded on that line, 10 € and 10 €. Test `refund-on-lowered-line-o6`.
+    > On a sale document the rows follow what is owed after every change (outside-booking-sas rule 53).
+    > _Reading of 2026-11-16 (loop t3 B3-1, B3-2):_ on a sale document, money on no line is one more bucket of rule 74: a link surplus row is bounded by it
+    > and closed by a refund allocation (« remboursé ») or a kept allocation (« rien à rembourser », the tip), so every cent received is on a line, on no
+    > line, given back or kept — never two of them (outside-booking-sas rule 55).
 76. **One trop-perçu formula for every stay** _(owner O-6, O-7 b, Q16)_. The trop-perçu is the Σ of the stay's
     allocations (rule 74) minus its line totals, for every stay: legacy stays read allocations backfilled from the
     stored contribs, splits and settlements, stay-level through `legacyBucketSplit` where no per-line truth exists
@@ -1617,6 +1644,12 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
     - **a stored fixed price is the sold one** (rule 74): the fixed automatic option is read from its stored `unitPrice`, a catalogue
       edit never reprices it. A proportional one is a function of the time and of the locked nights, both stored.
     Test: `pricing-auto-option-stored`.
+    _Reading of 2026-11-16 (loop t7, S7-3; owner 2026-11-15, existing stays keep their figures):_ « the next save stores the line » is read on
+    a stay booked once 4.2.0 is installed (`readsSaleLines = 1`) only. A stay booked before keeps its lines and its price on a save that moved
+    nothing: the missing automatic option re-priced that save, and the re-price dropped a sold line its lodging no longer offers (rule 13 keeps
+    those on the sale pipelines only) — stay 14 at J-3: « Ménage » 80 € replaced by « Arrivée anticipée » 50,50 €, 807,20 → 777,70 €, where
+    master kept both. Every other open stay of the copy already stores its automatic options: nothing moves. Test
+    `save-pre-420-stay-lines-kept`.
 83. **A resource booking sold before the one hourly grid keeps its price** _(owner, 2026-11-12; class E4, rules 24, 37 and 74)_. The free hour
     of a booking is worth the day rate (rule 24) for a booking **created or re-priced by the operator** after this rule; a booking stored
     before it (`resource_bookings.freeHourAtDayRate` NULL, migration `resource_bookings_v5`) keeps the stored price and the breakdown it was
@@ -1717,6 +1750,12 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
     no « Offert » switch on it (that is done from « Ventes du séjour »). The hourly planning card ticks a session on its own line (`lineId` sent).
     > **Delivered by PR C** (slice d): the appending writers and the readers above; proof `true-lines-append-extra-sale`, `true-lines-fiche-put`,
     > `true-lines-sas-offer-one-line`, `true-lines-hourly-paid-session`, `true-lines-free-units-ledger`, `true-lines-email-grouping`, `true-lines-sale-detail-groups`.
+    > _Reading of 2026-11-16 (loop t9, B9-5):_ the routing a save carries back inside the mid-stay window (mid-stay-extras-on-locked-fiche
+    > rule 8) is stored per LINE too: `reservationsModel.getStoredRouting` serves `optionLines` / `resourceLines` (`lineId` → `inComplement`)
+    > and `pinStoredRouting` pins each body line by its own `lineId`; the per-article maps are only the fallback of a body line with no
+    > `lineId`. Before, two lines of one article shared the last row's flag: the beer paid in the solde (`inComplement` 0) next to the same beer
+    > sold before the arrival (arrival complement, 1) moved to the complement on the next in-stay sale or no-change save, the sale detail read
+    > it « À l'arrivée » and the end-of-stay complement asked its 30 € again (asked 50 instead of 20). Test `sale-routing-per-line`.
 86. **An outside sale's payment link targets the sale** _(owner Q-C2 / lead's call)_. `payment_links` and `email_log` are rebuilt with
     `reservationId` nullable and a `saleRef` column (migration `pricing_sales_v1`, rows copied verbatim): the link e-mail of an outside visit is
     logged in `email_log` like every other e-mail. A link row with a NULL `reservationId` must be invisible to the previous release's poller and
@@ -1774,6 +1813,8 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
     > `END_OF_STAY_ALREADY_COLLECTED`) unchanged. A model built on a database the engine does not run on (unit fixtures with partial schemas)
     > keeps `arrivalComplementAfter`'s arithmetic. Proof: `sas-arrival-engine-complement`; `sas-arrival-plan` fixtures now register the
     > articles with their lodging and give it the tariff the stored tax and added guests come from (the engine prices only what a lodging offers).
+    > _Reading of 2026-11-16 (loop t9, S9-1):_ « the engine's complement » never takes money out of the stay: a stored complement the engine
+    > routes to the acompte or the solde (same sum, split otherwise — a solde made unpaid again) keeps that gap in the written figure (rule 122 a).
     > **Delivered by PR C** (pass 3h, 3): the hourly-resources step names every sold resource's evening (0 € included) as
     > `component: { kind: 'evening', resourceId }`. On a complement not yet collected, a session line routed to it (`inComplement = 1`), not
     > offered and not settled apart takes it: `components` `[base, evening, free]`, `totalPrice` their sum, set (never added) on every run,
@@ -1921,13 +1962,17 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
     then « (3) » — so its discount, its payment and its removal stay its own (before: a 2 € discount on the unpaid second line took 4 €, the paid one read
     « À payer », the paid one was removable). A card sale of a custom line paid before the arrival (the guest app's evening supplement) settles it under
     that key (before: `no such column: resourceId`, the card money on no stay). The fiche's own form, which may type one label twice, keeps the aggregated
-    reading it always had. Test `sale-custom-line-identity`.
+    reading it always had. Test `sale-custom-line-identity`. _(Amended 2026-11-16, rule 102 e: the arrival SAS and the fiche's save number a NEW line
+    too; stored lines keep their labels.)_
 95. **Before the arrival, a line is moved to the arrival only** _(stabilisation loop t1, S-3, 2026-11-15; completes rules 20, 37)_. The extras baseline
     that carves a line out to the departure is a started stay's: one laid before the arrival carved every later pre-arrival sale out to the departure, then
     vanished at the boot repair and left the moved line in no stored bucket. Before the stay clock reaches the arrival, `changeLine { collectAt: 'departure' }`
     is refused 409 `MOMENT_NOT_AVAILABLE` « Avant l’arrivée, une vente se paie à l’arrivée. », a move to the arrival only re-routes the line (no baseline),
     and `saleDetail` serves each line's `moments` (`['arrival']` before the arrival, `['arrival', 'departure']` once started, `[]` for an offered, paid or
     platform line) and `movable`, which the screens render instead of rebuilding the rule (UI-11). Test `sale-move-before-arrival`.
+    > _Amended 2026-11-16 (loop t4, S4-5):_ « before the arrival » is the stay clock's, also on a stay whose extras are carved out early (its arrival
+    > complement collected): there a plan or arrival line is served no departure moment and its move there is refused; only a line the sale stamped
+    > `departure` (`collectAtDefault`) goes to the arrival and back. Test `sale-plan-line-move-before-arrival`.
 96. **A breakfast sold before the arrival is collected at the arrival, card money included** _(stabilisation loop t1, S-4, S-5, 2026-11-15; completes
     rules 19, 29, 85)_. The stay's first breakfast line is a new line like any sale's (numbered, routed to the arrival complement before the arrival —
     before, it fell in the plan or the complement depending on the plan's state). A later morning keeps merging into that line (rule 85), and a card
@@ -1948,7 +1993,7 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
     the open `lineLowered` rows oldest first, the part it takes of a row as a settled row of its own (`settledBy = refund:<id>`); deleting the refund
     opens those rows again, so the SAS's « À rembourser (depuis la fiche) » owes what the trop-perçu owes. Test `refund-deleted-reopens-obligations`.
 99. **A receipt is cut over the lines as they stood when it was paid** _(stabilisation loop t1, B-4, 2026-11-16; completes rule 63 as amended by R2-5)_.
-    On a stay the sale-line readers serve (`readsSaleLines = 1`), the writer every payment path already calls (`paymentAllocationsSync.syncStay`) freezes,
+    On a stay the sale-line readers serve (`readsSaleLines = 1`), `paymentAllocationsSync.syncStay` freezes,
     per payment day, the stay's sale lines sold by that day (`receipt_line_splits`: `ref`, `kind`, `vatClass`, `totalCents` — what the cut weighs). A day
     is frozen the first time a payment dated that day is seen; while the day is today the row follows the lines (a sale of the day after a payment of the
     day is cut like before); once the day is past it never changes; a day that no longer holds a payment (a receipt unticked) loses its row and is frozen
@@ -1957,6 +2002,533 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
     40,08 € moved from 72,88 / 7,28 to 72,87 / 7,29 when one line was removed). A day with no row (a receipt taken before this rule) keeps the cut over the
     current lines sold by its day. A stay booked before 4.2.0 is never frozen and its figures never move (owner 2026-11-15). Migration: one new table,
     empty, ignored by the previous release. Test `accounting-receipt-split-frozen-at-payment`.
+    > _Reading of 2026-11-16 (loop t2 B2-6):_ no payment path calls `syncStay` itself: a payment marks the stay dirty (`payment_allocations_dirty`) and
+    > `syncStay` runs the first time the stay's allocations are read after it (`flushDirty`) — the journal, a fiche read, a lowering of a paid line, which
+    > reads SETTLEMENT before it writes. So a day is frozen the first time the stay's allocations are read after a payment dated that day; no reachable
+    > path re-cuts a frozen day before that read.
+100. **A fiche save dates only the lines it wrote** _(stabilisation loop t2, D2-1, 2026-11-16; completes rule 97 b)_. The save takes the stay's line ids
+    before it writes; an unstamped line it did not hold before is sold by the save (`soldAt` = the save), an unstamped line it already held — a stay's
+    first lines, written by the creation, a devis conversion, an iCal or a plugin — gets the boot's reading (`soldAt` = the booking's `createdAt`, its
+    moment, article, family and label). Before, a notes-only save dated every first line of the stay with the save: a receipt dated between the booking
+    and that save (a transfer ticked with its own date) was frozen without them (rule 99) — 13,00 € of options cut over no options line, for good.
+    Test `fiche-save-keeps-first-lines-booking-date`.
+101. **« Ventes du séjour » on the fiche: sells while the server's window is open, never over typed edits** _(stabilisation loop t2, UI2-1 to UI2-4,
+    2026-11-16; completes rules 27, 31, 37)_. The panel's actions (« Ajouter un produit », the « Moment » menu) are offered on a saved stay unless the
+    fiche is closed (cancelled, superseded) or the stay has started and the server's mid-stay window is closed (`editLock.locked` and not
+    `editLock.extrasEditable`: its departure collected) — a started stay sells, which is the main case of rule 27 (a basket sold during the stay, routed
+    to the departure). A write of the panel re-reads the fiche so a later save keeps the line (rule 30); a fiche holding unsaved edits therefore holds
+    the panel's writes, focusable and inert with « Enregistrer d'abord les modifications. » (the reason under the title, in the tooltip and the
+    accessible name), as « Annuler le séjour » and « Supprimer » are; on a clean fiche the re-read keeps the page on screen (no loading screen, the
+    scroll and the administrator's unlock kept). The panel renders the `saleDetail` the fiche read (`GET /api/reservations/:id`, refreshed by every
+    finance re-read) and asks `GET …/sale-detail` only when the fiche carries none. _Reading 2026-11-16 (E2E `extra-sale`, parallel run after the
+    loop t2 round-2 merge):_ the quiet re-read left the fiche editable while it was in flight, so a note typed in that window was saved on a form
+    older than the server's — sent before the re-read landed, the save carried the note without the sold line and deleted it; typed before it
+    landed and saved after, the re-read overwrote the note and the save carried the line without it. From the write to the moment the re-read's
+    form is applied, the fiche is busy: its fields are read-only (the disabled fieldset of a closed fiche, `aria-busy`), « Enregistrer » is
+    disabled and shows its spinner, and the clean baseline is taken from the form the re-read applied, never from the one it replaces. A save
+    therefore never sends a form older than the last server version. Vitest `ReservationPage.extra-sales-panel`.
+    _Reading 2026-11-16 (loop t3, UI3-1 to UI3-3):_ « read-only » covers every control, not only the native ones the disabled fieldset reaches: the
+    MUI selects (« Logement », « Heure d'arrivée », « Heure de départ », « Plateforme », « Réduction sur ») read the fiche's read-only flag, and the
+    busy fieldset is `inert` — before, « Plateforme » could change during the re-read and the change was dropped, or absorbed into the clean baseline
+    (shown, never saved). The summary keeps the last quote on screen until the re-read's own quote lands (it never blanks on a sale). A re-read
+    that fails keeps the page — the sale is stored — read-only under « Fiche non relue après la vente. » with « Réessayer », instead of replacing the
+    fiche with the load error. Vitest `ReservationPage.quiet-reread`.
+    _Reading 2026-11-16 (loop t4, UI4-2):_ « read-only until a retry succeeds » holds for the controls the disabled fieldset does not reach: after a
+    failed re-read the fieldset stays `inert` (the error and its « Réessayer » sit above it), and the mini-planning strip is locked like a locked
+    stay's (`formReadOnly`, a closed fiche included) — before, a click on one of its days moved the arrival and the departure of the « read-only »
+    fiche, and « Réessayer » then dropped them silently. Vitest `ReservationPage.quiet-reread`.
+102. **One moment per gesture: the stay clock decides the lock, the sale, the baseline, the SAS and the change of an order** _(stabilisation loop t2,
+    N-1 to N-6, 2026-11-16; amends rule 20's first bullet, completes rules 44, 45, 93, 94, guest-app rules 82, 110 a)_. Before, two clocks answered
+    « has this stay started? »: the fiche lock (`hasStayStarted`: the check-in hour, or the arrival marked or the arrival SAS committed) and the sale
+    (`phaseForReservation`: the hour only), and the save read the wall clock whatever `now` its caller injected. So a stay whose arrival was marked
+    before its hour was locked for the fiche and « before » for the sale (a 45 € sale quoted 45 € and written 24 € to the departure, 21 € in no bucket;
+    an unpaid line sold a minute ago could not be removed), and a test at a given hour proved nothing about the core.
+    (a) **Started** = the check-in instant has passed, **or the arrival is validated on its day** (`checkInDone`, `arrivalSasDoneAt`: the guest is
+    standing there). `stayClock.phaseOf` takes `arrivalValidated`, `phaseForReservation` reads the two marks, and the lock, the window of a locked
+    fiche, the moment of a new sale (`collectionOf`, `quote`, `sell`), the extras baseline and the edit lock the fiche shows all read that one answer.
+    An arrival marked early thus routes a new sale to the departure, as the lock always said (lock-at-arrival-time rule 1).
+    (b) **The gesture's `now` is the core's.** `performUpdate(…, { now })` and every `extraSale` entry run inside `localDate.withNow(now, …)`; the lock,
+    the window, the baseline and the sale detail read `gestureNow()`, never the wall clock.
+    (c) **Card money paid before the arrival stays netted once the stay has started.** The note a card order writes before the arrival is marked
+    `beforeArrival`; the arrival baseline laid at the start (`arrivalBaselineOf`) carries such a line at what the card left to collect, so the
+    arrival complement does not take it back at the check-in hour, and the arrival SAS lists only what is left of it (before: 20 € paid by card,
+    the SAS asked 20 € again from 16:00 on and its commit wrote it into the complement).
+    (d) **The arrival complement stays open until the arrival is validated** (guest-app rule 110 a). Past the check-in hour, arrival not validated and
+    complement not collected: the unpaid arrival lines are not frozen (removed or changed at the door), a re-sale `atArrival` is routed to the arrival
+    complement and never read as a sale of the stay, and the baseline keys those gestures touch hold what the arrival lines now hold. Once the arrival
+    is validated or its complement collected, rule 6 of mid-stay-extras-on-locked-fiche freezes them again.
+    (e) **A custom line appended under a label the stay holds is numbered on every writer** — the sale (rule 94), the arrival SAS commit and the fiche's
+    save — so its payment and its gestures stay its own; a stored line keeps its label, and the SAS finds its own numbered line again on a re-run.
+    (f) **A seller reads a custom line back by a stable key, never by its label**: a custom request may carry `fulfilmentRef`, stored on the line; the
+    guest app's evening supplement names its bath (`evening:resource:<id>`), which the arrival recompute sums (guest-app rule 82).
+    (g) `saleDetail.buckets.arrival` / `.departure` are the stored complements (rule 93), never a re-quote at another moment.
+    > _Measured on a fresh copy of the prod database of 2026-11-11 (2026-11-16):_ one 45 € option sold, offered, billed again, discounted and removed on
+    > each of the 55 open stays at J-3, the arrival day 09:00 (marked and not), 17:00 (not marked) and 21:30, and on the day of the copy: 55 of 55
+    > every time (before: 27 of 55 on the arrival morning); `saleDetail` buckets = stored complements on 55 of 55 at every moment. Tests
+    > `sale-one-moment`, `guest-order-evening-stable-key`, `stay-clock-compose-feed` (amended).
+
+103. **One judge for where a sold line is collected: the engine's** _(stabilisation loop t3, T3-1 to T3-8, 2026-11-16; completes rules 20, 37, 39,
+    93, 95, 102)_. Before, two answers remained: the sale's moment (`collectionOf`, the stamp, `moments`) read the stay clock, and the engine carved a
+    line out to the departure whenever it held an extras baseline — stored, or due because the stay started **or its arrival complement was collected**
+    (a complement paid before the arrival, defer-arrival-complement-to-checkout rule 21, closes that bucket: master's money fix). So a 65 € sale at J-3 on a
+    stay whose complement was paid read « À payer à l’arrivée », was listed in the arrival e-mail and SAS, and was written to the departure; and after the
+    arrival box was ticked then unticked before the hour, a sale read « arrival », went to the departure, and « move to the arrival » answered 200 and
+    moved nothing.
+    (a) **The judge.** `reservationsModel.extrasCarvedOut(id)` answers what `resolveArrivalExtrasBaseline` decides: a baseline stored, or one due (the
+    stay clock started — rule 102 a — or the arrival complement collected). The moment of a new sale (`collectionOf`, the quote's and the sale's
+    `collectAt`, the stamp), its routing, the card settlement, the moves (`changeLine { collectAt }`, the baseline they adjust) and the moments the sale
+    detail offers (`['arrival']` before; `['arrival', 'departure']` once carved; `['departure']` when the arrival complement is collected) all read it.
+    The stay clock alone still decides the lock and whether a payment can be taken now (`PAYMENT_BEFORE_ARRIVAL`).
+    (b) **A false start is undone.** The check-in box unticked (payments PATCH `checkInDone: false`, `extraSale.unmarkArrival`) before the check-in hour,
+    on a stay that collected nothing in between (no complement, no settled note of the stay): the lines the tick carved out to the departure go back to
+    the arrival (`collectAt`, routing), the baseline is cleared, and the stored complements follow in the same pinned write (rule 93). Past the hour, or
+    once something was collected, the start stands and the baseline stays — the judge then keeps reading it. The boot repair of
+    arrival-moment-is-the-check-in rule 3 no longer clears a baseline that carved a line out to the departure (a line stamped `departure`),
+    nor _(loop t4, D4-2, 2026-11-16)_ the baseline of a stay the stay clock has started (rule 102 lays it on a save past the check-in hour):
+    only a stay not started at the boot's `now` is still pre-arrival.
+    (c) **An offered line at the open arrival stays the door's** (rule 102 d): an unpaid arrival line offered there is billed again, discounted or removed
+    (before: 400 `ARRIVAL_EXTRAS_FROZEN`); the keys of the open arrival complement are never read above the baseline during the gesture.
+    (d) **A line's own discount is weighed net** by the baseline (`readExtraLines`, the move, the baseline of an arrival line discounted where the door can
+    change it), as the engine weighs it: a line discounted before the arrival no longer freezes every later sale of the started stay (« reduced »), and
+    a discounted line moves to the arrival and back with its net amount. _(Loop t4, D4-1, 2026-11-16.)_ The baseline follows the discount
+    **both ways**: reduced or removed, the money goes back where the discount took it — a line wholly at the arrival (its baseline at least
+    its worth before the change) takes it back at the arrival; a line that already had money at the departure keeps its baseline. Before,
+    the baseline only went down: a discount removed at the open arrival left it at the old net, and the departure billed the given-back
+    part a second time (45 € at the arrival + 16 € at the departure for a 45 € line and a 6 € beer).
+    (e) **The arrival SAS recap lists what it collects**: no line stamped `departure` (a line moved there keeps its routing flag), a line at its amount
+    net of its own discount, and a line the fiche stamped at the arrival. A custom line of the stored detail carries its `collectAt` and `discountCents`.
+    (f) **The fiche's save stamps a line it writes where the engine put its money**: above the baseline of a started stay → `departure`; a line that left
+    the settled plan untouched and grew the arrival complement (the excess of a paid plan) → `arrival`. Older rows keep the boot's reading.
+    (g) `saleDetail.buckets.plan` is the stored deposit + balance (rule 93), like the two complements.
+    (h) **`atArrival` is carried whole**: the quote takes it (it announces the arrival bucket the sale writes), and a quote or a sale `atArrival` is refused
+    409 `ARRIVAL_CLOSED` « Arrivée déjà validée ou complément d’arrivée encaissé : la commande se règle au départ. » once the arrival is validated or its
+    complement collected (before: the line was stamped `arrival` while its money went to the departure).
+    (i) **A SAS custom line is found again by its own label first**: two linen items whose labels end in their own « (n) » (« Drap-housse (140) »,
+    « Drap-housse (160) ») keep their rows, ids and amounts on a re-run in any order; only a row the SAS numbered itself is found by its base label.
+    > _Measured on a fresh copy of the prod database of 2026-11-11 (2026-11-16):_ one 45 € option sold, offered, billed again, discounted 10 €, moved to
+    > the other moment the detail offers and back, and removed, on each of the 55 open stays at J-3, the arrival day 09:00 (as stored, ticked, unticked),
+    > 17:00 (as stored, ticked, unticked), 21:30, the day after, the departure day 09:00 and 11:00 and the day after the departure: 55 of 55 every time,
+    > with the bucket written = the moment announced, the line in the arrival e-mail only at the arrival and in « Ventes du séjour — au départ » only at
+    > the departure, a move answering 200 exactly when the detail offers it and the money following it (before: 37 of 55 at J-3 and unticked at 09:00, 54
+    > of 55 at 09:00 and unticked at 17:00, and 17 discounted lines per started moment refused « reduced »). `atArrival` at 17:00: 43 open arrivals sold
+    > into the arrival complement, 12 refused `ARRIVAL_CLOSED` (before: 2 of 55). The price replay moves nothing but the arrival SAS recap of five past
+    > stays (12, 22269, 22275, 22280, 22293), which no longer lists lines collected at the departure: their totals are unchanged. Tests
+    > `sale-moment-bucket-agree` (the probe, on fixtures), `sale-false-start-undone`, `sale-open-arrival-offered-line`, `sale-discounted-line-baseline`,
+    > `sas-arrival-recap-lists-what-it-collects`, `fiche-line-stamped-where-money-goes`, `sale-detail-plan-bucket-stored`, `sale-at-arrival-contract`,
+    > `sas-custom-label-own-number`.
+    > _Loop t4 (2026-11-16):_ (b) **an overridden complement keeps the start** (S4-2): unticked before the hour, a stay whose arrival complement is the
+    > operator's own amount (`complementAmountOverride`) keeps its baseline and its carved lines at the departure, as one that collected something
+    > (before: the line went back to an arrival complement the override pinned, and its money landed in no bucket). Test `sale-untick-complement-override`.
+    > (d) **the arrival takes given-back money only while it is open** (S4-6): `fitArrivalBaseline` raises a key on a discount reduced or removed only
+    > while the arrival is not validated and its complement not collected; past that, the restate carved the given-back part out to the departure and the
+    > baseline stays (before: raised there, the next save dropped the part from every bucket, Σ −10 €). The part an arrival or plan line holds at the
+    > departure is the line's `departureCents` in `saleDetail`: « Ventes du séjour — au départ » lists it, the arrival lists the rest. Tests
+    > `sale-departure-part-of-arrival-line`, `sale-undiscount-open-arrival-then-sale` (S4-1: discount 10 then 0 at the open arrival, ticked, a sale: the
+    > departure takes only the sale).
+    > _Loop t5 (2026-11-16):_ (d) **« open » is the one judge** (D5-1): `fitArrivalBaseline` raises a key only when `extraSale.arrivalOpenAt` says
+    > the arrival is open at the gesture's `now` (the caller hands it to `storeDiscount`). A **kept false start** (ticked before the hour, a paid note
+    > taken, unticked before the hour: the baseline stays and the stay's sales are already the departure's) is not open: its restate routes a given-back
+    > discount to the departure, and the baseline stays where the discount put it (before: raised, the 10 € left every bucket once the arrival was
+    > ticked). Test `sale-discount-given-back-baseline`. (b) **The boot repair keeps the three reasons of the untick** (D5-2): it never clears the
+    > baseline of a stay whose arrival complement is overridden (S4-2), and a stay whose stored dates the clock cannot read keeps its baseline, logged,
+    > instead of failing the boot (D5-3). Test `arrival-baseline-boot-repair-clock`.
+104. **A paid line lowered: its money stays credited to the stay** _(stabilisation loop t4, S4-3, 2026-11-16; completes rules 23, 29; amends
+    mid-stay-notes rule 13)_. A line paid now (cash, card terminal: one settled note naming it, rule 29) then offered or discounted left the note's
+    money above what its key now carries, and the mid-stay split clamped it away: on stay 22336 (solde paid, 60,40 € arrival complement due) a 45 € line
+    paid in cash the day after the arrival then offered left the arrival and departure SAS asking 60,40 € for a stay that owed 15,40 €.
+    (a) **The surplus is named.** `splitMidStayExtras` exposes `unclaimed`: what the notes collected on a key beyond what the key now carries (the
+    arrival-complement-excess key keeps its own reading). The carve-out itself is unchanged.
+    (b) **The schedule credits it to what the stay still asks**, in this order: the arrival complement while it is not collected and not the
+    operator's own amount, the end-of-stay remainder of the mid-stay lines, then the acompte and the solde not yet paid of a direct stay (a
+    platform's plan is its payout); the part credited counts as settled during the stay (`midStaySettledTotal`). A bucket a sale-pinned write
+    lowers stops at 0 (`pinSaleDelta`): a credit taken from a figure the stay does not store is not money any bucket gives back.
+    (c) **What no open bucket takes is a trop-perçu**: on a direct stay the line API answers 409 `OVERPAID` and, confirmed, opens the `lineLowered`
+    obligation (rule 23); on a platform stay, which holds no trop-perçu (reservation-refunds rule 38), the gesture is refused 409 `LINE_PAID`
+    « Ligne déjà payée : rien à percevoir sur ce séjour ne peut reprendre ce montant. Ajuster d’abord l’encaissement en séjour. » and nothing moves.
+    > _Measured on a fresh copy of the prod database of 2026-11-11 (2026-11-16):_ on the 55 open stays the day after the arrival, a 45 € option sold
+    > in cash then offered (then, separately, discounted 10 €): what the stay still asks drops by the lowered amount or the confirmed obligation holds
+    > it, and Σ (acompte, solde, complements, notes) − obligations = price + tax, 55 of 55; 22336 asks 15,40 € at both SAS. Offered: 5 credited, 10
+    > confirmed as owed, 40 platform stays refused. The price replay moves nothing but the 15 approved differences. Test `sale-paid-line-lowered-credited`.
+    > _Loop t5 (2026-11-16):_ (c) **amended — a note is the establishment's money, whatever the channel** (A5-1): the note a line was paid by was
+    > collected by the establishment (cash, card terminal, an app or shop card link), never by the platform; what no open bucket takes is a
+    > trop-perçu on a platform stay too: 409 `OVERPAID` (« Trop-perçu : X € déjà encaissés au-delà du nouveau total. »), then, confirmed, the
+    > `lineLowered` obligation; the obligation register keeps it on later saves (`syncLoweredObligations` measures the note money no line claims and no
+    > bucket absorbs, `paidLineJudgment.noteExcessCents`). The `LINE_PAID` refusal of a platform stay is gone. A card note (paid online) is never
+    > cancelled (409 `NOTE_PAID_ONLINE` « Payée en ligne : offrir la ligne, puis rembourser. »): cancelling it asked the guest again and left the
+    > money recorded nowhere. Reservation-refunds rule 38 stays about the platform's money. Tests `sale-paid-line-lowered-credited`,
+    > `sale-paid-card-note-kept`.
+    > _Reading of 2026-11-16 (loop t6, A6-2):_ nor adjusted — its amount and its means are refused with the same 409, only its date moves; the
+    > fiche serves the lock and does not draw « Modifier la note » (guest-app rule 113 a). Test `sale-paid-card-note-not-adjusted`.
+    > (b) **The way back is bounded like the way down** (S5-2): the engine names what its credit took off the complement, the solde and the acompte
+    > (`noteCreditCuts`, only on a quote that holds one); when a gesture withdraws that credit from a bucket the stay stores below the engine's own
+    > figure, the withdrawn part first closes the refund the clamp left owed, and only the rest is asked again. A confirmed save that shrinks the
+    > excess shrinks the obligation too. Stay 14 (cash 45 → offered, confirmed → un-offered): nothing asked, the obligation closed. Test
+    > `sale-paid-line-unoffer-drift`.
+    > (e) **The credit is read under its own name** (S5-3): `saleDetail.credits[]` names, per bucket, the credit that explains why it asks less than the
+    > lines it lists — « Déjà réglé (<the paid lines>) », negative —; the arrival e-mail (« Already paid (…) » in English), the arrival SAS recap
+    > (a read-only line) and « Ventes du séjour — au départ » (under « Déjà payé ») list it, so each article keeps its price and the lines sum to the
+    > bucket. The end-of-stay line a credit lowered keeps its name and says it: « Balade (déjà réglé : 30,00 € — Bière ronde) ». Test
+    > `sale-paid-line-credit-shown`.
+    > _Reading of 2026-11-16 (stabilisation loop t6, UI6-1 to UI6-3, delivered)_: the fiche's sale panel (`SaleDetailList`) draws each `credits[]`
+    > entry after the lines, read-only — its label, one outlined chip « Déjà réglé », its negative amount, no moment button. « Ventes du séjour — au
+    > départ » serves its credit row `offerable: false` with no `statusLabel` (the label already says « Déjà réglé »): no « Offrir » on it (before:
+    > the button answered 404 « Ligne introuvable »). The arrival recap of a SAS **draft** lists the stored credit only for the part that explains
+    > why the draft's complement is below its listed lines: a draft offering the line the credit sat on lists no negative line against a 0 € total.
+    > Tests `sale-detail-due-is-the-buckets`, `sas-arrival-draft-credit`, `SaleDetailList.credit`, `StaySalesSection.credit`.
+
+105. **One judgment of a paid line, whichever screen saves** _(stabilisation loop t5, S5-1, S5-4 to S5-6, 2026-11-16; completes rules 23, 37, 102,
+    104)_. (a) Every save of a stay (`applyUpdate`: the fiche's « Enregistrer », the line actions, a sale, a restate) passes through
+    `utils/paidLineJudgment`: taken before the write, answered after it inside the same transaction. A line a note paid that leaves the stay is
+    refused 409 `LINE_PAID` « Ligne déjà payée : elle peut être offerte, pas retirée. » (before the trop-perçu question); note money a paid line
+    offered, discounted or lowered frees and no bucket absorbs is the trop-perçu of rule 104 c. Before: the fiche save asked only the trop-perçu
+    formula, which a platform stay never trips — a card order paid in the app then offered in the fiche left 45 € on no bucket (22328, 22298, 37
+    of 38 platform stays at J-3), and a paid line removed from the fiche body was accepted. Test `sale-paid-line-fiche-save`.
+    (b) **A paid line stays paid once offered** (S5-4, S5-5): « paid » is what the notes paid on the line (`findLine.paidCents`), not its
+    allocations, which an offer nets to 0: an offered paid line is neither removed nor moved (409 `LINE_PAID`), as the detail shows it no moment.
+    The allocations key every line of an article, offered ones included, so a note never names the article's next line (which read « Payée » with
+    the offered line's money). Test `sale-paid-line-offered-kept`.
+    (c) **The arrival judge reads the stay clock** (S5-6): `extraSale.arrivalOpenAt` and the `atArrival` sale count the check-in box or the
+    committed SAS from the arrival day only (rule 102); a box ticked days ahead closes nothing. The guest app's editable order reads the same judge
+    and nothing else. Test `sale-arrival-open-early-tick`.
+
+106. **What the fiche shows as owed back, it pays back** _(stabilisation loop t6, UI6-5 / D6-2 / B6-1, B6-2, 2026-11-16; completes rules 23, 31,
+    75, 104 c, 105)_. (a) The stored trop-perçu of a fiche (`storedOverpayment`: the ledger's « Trop-perçu » row, its « Rembourser » and refund
+    prefill, and the cap of a refund opened on it) is the larger of the trop-perçu formula and the open `lineLowered` obligations — the same money
+    when both exist, never added. On a platform stay the formula reads 0 while a note paid to the establishment (cash, card terminal, app card
+    order) and then offered stays owed (rule 104 c): before, the obligation was opened and shown nowhere on the fiche (the ledger hides `lineLowered`
+    rows because the trop-perçu row carries them), the refund dialog opened on 0 and a refund on the trop-perçu answered 409 « Le trop-perçu est
+    déjà remboursé. ». Now the row reads « Trop-perçu · À rembourser » with « Rembourser », the dialog opens pre-filled, the refund is accepted and
+    settles the obligation, and the row goes. The live preview of an edit keeps the formula alone: the save trims the obligation to what it leaves.
+    _Reading of 2026-11-16 (loop t7, UI7-1):_ the live preview is floored like the stored figure — `liveOverpayment` returns the larger of the
+    formula and the open `lineLowered` obligations. Before, typing anything on the fiche of a platform stay (the dirty fiche shows the live
+    ledger) made the 30 € owed and its « Rembourser » disappear until the save, which kept the obligation. A draft that puts the paid line back to
+    billed still shows the obligation until it is saved (the save trims it, as above). Display only: no stored amount moves. Test
+    `sale-paid-line-live-ledger-obligation`.
+    _Reading of 2026-11-16 (loop t7, N7-1):_ the floor is the part of the obligation the save keeps — `syncLoweredObligations` holds
+    min(open obligation, excess), so the live preview is floored at min(open `lineLowered`, the note money no line claims,
+    `paidLineJudgment.noteExcessCents`), never at the whole register. A confirmed trop-perçu that is no note money (a discount on a stay paid in
+    full) is absorbed live by a draft that takes the discount back, as the save absorbs it (reservation-save-keeps-pricing rules 13, 14); the
+    platform stay's note money still floors the dirty fiche. Tests `trop-percu-stored-measure` (rules 13, 14), `sale-paid-line-live-ledger-obligation`.
+    (b) **Cash note money goes back the way it came**: when the excess is note money a cash note took (caisse interne, never booked), the refund's
+    default means is « Caisse interne » (`overpaymentMethod: 'internal'`, on the stored row and on the 409 `OVERPAID` of the line actions and of the
+    fiche save), so the default refund writes no avoir for money the journal never held; a card note's keeps no default. The operator can change
+    it. Test `sale-paid-line-platform-refund-row`.
+    _Reading of 2026-11-16 (loop t7, data observation):_ on a save not written yet the cash part is read on the quote and capped by what the
+    quote charges anew — the growth of every line above its stored figure (a new line, a line un-offered or raised) takes the freed note money
+    first (rule 104) — so a mixed save (cash freed on one line, an unpaid line added, a booked trop-perçu elsewhere) never defaults booked money
+    to « Caisse interne ». Before, the quote branch was uncapped. A 409 default only: no stored amount moves. Test `cash-note-excess-quote-capped`.
+    (c) **The sale panel's « Reste à payer » is what the stay still asks** (UI6-2, completes rule 31): `saleDetail.totals.dueCents` of a stored stay
+    is its open buckets — acompte, solde, installments, arrival and departure complements not collected — gross (no commission or penalty netted
+    out; a rule-104 credit is already off its bucket); a cancelled stay asks nothing through its sale. Before: Σ lines − Σ line-level settled, and
+    the accommodation and platform lines carry no settled share, so every euro of the acompte and the solde read as still due (36 of 44 fiches of
+    the 2026-11-11 copy overstated, a paid stay showing its whole price). A display figure: no stored amount moves. Test
+    `sale-detail-due-is-the-buckets`.
+    _Reading of 2026-11-16 (owner decision, loop t6 finishing pass):_ on a **platform** stay the panel's « Reste à payer » is the NET still to
+    collect — the same figure as the payment register's « Reste à percevoir » (each unpaid échéance net of its commission and penalty). One
+    source: `stayOpenCents(row)` is `reservationSettlement.remainingToPay` of the stored row, the function the register closes on (rule 5 of
+    reservation-payment-ledger), with no second formula. A direct stay carries no commission: its figure is unchanged. On the 2026-11-11 copy the
+    panel equals the register on all 62 stays; the 8 unpaid platform stays (22270, 22282, 22301, 22304, 22308, 22324, 22326, 22329) now read their
+    net figure instead of the gross one. Display only: no stored amount moves. Test `sale-detail-due-is-the-buckets` (rule 106 c, 2026-11-16).
+    (d) **A cancelled stay gives the order back on its own line, and that closes what was owed** (S6-1, S6-6; guest-app rule 110b, reservation-refunds
+    rule 49): in the cancellation's refund register an arrival line a note paid (a card app order before the arrival) collected — it is not among
+    the lines capped first when the money left is short (that rank stays for arrival lines nobody collected, and for a key several lines share);
+    and a refund that gives money back on a line a note paid settles the open `lineLowered` obligation by that much (deleted, it reopens it).
+    Before: on 13 of 38 cancelled platform stays of the copy the order sat inside « Hébergement » (wrong class and rate), and the obligation stayed
+    open at 45 € after the refund on 23. The copy holds no cancelled stay: no existing register moves. Test `cancelled-stay-note-paid-line-refund`.
+    _Reading of 2026-11-16 (loop t7, D7-2):_ the refund settles the obligation **of the line it gives money back on**, never the stay's whole
+    register: per line key, at most the note money beyond what the line still charges (`paidLineJudgment.noteExcessByKey`) less what earlier
+    refunds on that key settled; the settled rows carry the key (`refund_obligations.lineRef`). Before, a refund on a breakfast still charged
+    in full settled the obligation held for the offered beer, and the beer's own refund then settled nothing. Test
+    `cancelled-stay-note-paid-line-refund` (the two-line case; the reopening on deletion asserted unconditionally).
+107. **A paid line's money is counted once, on every path** _(stabilisation loop t6, S6-2 to S6-4 and D6-1, 2026-11-16; completes rules 23, 85,
+    104, 105; sas-offer-complement-lines §4.3)_.
+    (a) **The way back reads the engine's figure before the credit** (S6-2): rule 104 b bounded the way back only on a bucket stored BELOW the
+    engine, but a credit that took the whole engine bucket leaves engine = 0 = stored, and the bound vanished again — stay 14 (direct, engine
+    complement 50,50 €, stored 0): a 65 € line paid in cash, offered (confirmed, 65 € owed), un-offered asked 50,50 € at the arrival for a line
+    paid in cash. `pinSaleDelta` now bounds when the stay stores the bucket below the engine's figure before the credit (`base + cut`), and closes
+    with the withdrawn credit only the refund the clamp left owed: the open `lineLowered` refund minus what the engine itself counts beyond the
+    total (`noteCreditCuts.unabsorbed`, the credit no bucket nor line absorbed), so a bucket stored at the engine's figure gets its credit back.
+    Tests `sale-paid-line-unoffer-drift` (one line larger than the complement; two lines 30 + 60, offer A, offer B, un-offer A, un-offer B).
+    (b) **A refund already made is not owed twice** (D6-1): the obligation a confirmed lowering opens is the note money received beyond the total
+    MINUS the `lineLowered` rows a refund on the trop-perçu already settled (`paidLineJudgment.noteExcessCents`). Before, a second paid line
+    offered after a refund opened 90 € owed while the trop-perçu read 60 €. Test `sale-paid-line-refunded-then-lowered`.
+    (c) **The arrival SAS addresses the exact line** (S6-3): the SAS payload serves `arrivalSeed.offeredKeys`, the offered complement lines by the
+    recap's own keys (rule 85, a later line `option:<id>:<lineId>`); the dialog seeds from it instead of naming every line `option:<id>`, which
+    the commit read as the article's first line (22328, 22331: the fiche's gift and the guest's paid card line swapped). The departure recall
+    keys its lines the same way. Tests `sas-arrival-paid-line-judged`, client `ReservationSasDialog.arrival-seed`.
+    (d) **The SAS commits are saves like the others** (S6-4): `commitArrivalSas` and `commitDepartureSas` take the paid-line judgment of rule 105
+    inside their transaction: a paid line offered with nothing left to absorb its money answers 409 `OVERPAID` and writes nothing; the dialog
+    asks « Ligne déjà payée — Offrir · X à rembourser / Garder » and, confirmed, commits again with `forceOverpayment` (the `lineLowered`
+    obligation opens); a paid line its money still pays elsewhere (another line still due) is credited by rule 104 b without a question.
+    Before, 40 of 54 stays offered the paid card line at the arrival SAS with no question and 17 left its 45 € credited nowhere. Tests
+    `sas-arrival-paid-line-judged`, client `ReservationSasDialog.paid-line-offer`.
+    _Reading of 2026-11-16 (loop t7, UI7-2 / UI7-3):_ the 409 `OVERPAID` of both SAS commits names the paid lines it offered, by the recap's
+    keys (`overpaymentKeys`: a line the guest paid by a note and not offered before the commit). « Garder » takes exactly those lines back out
+    of the offered set: the recap bills them again and « Valider et terminer » does not ask the same question twice (before, the recap still
+    read « ✓ Offert » at 0 € after « Garder »). The confirm button is red, as in « Ventes du séjour ». The SAS controller answers the refusal as
+    is and records no `sas_arrival` / `sas_departure` history for it. Tests `sas-departure-paid-line-judged` (the check-out half, both
+    controllers), client `ReservationSasDialog.paid-line-offer` (arrival and departure, confirmed and kept).
+108. **A paid line offered whose money was refunded is sold anew, never put back** _(stabilisation loop t7, D7-1, owner decision 2026-11-16;
+    completes rules 23, 104, 105, 107)_. Once a refund on the trop-perçu gave back the money of a paid line offered (or lowered), un-offering
+    or un-discounting it would make its note claim that money again: the guest would keep the line AND the money (Σ buckets + notes − owed −
+    refunded − total read −30 € on a 30 € beer). Every save refuses it through the one paid-line judgment of rule 105 — the fiche's
+    « Enregistrer », the line API (`extraSale.changeLine`), `commitArrivalSas` and `commitDepartureSas` — with 409 `LINE_REFUNDED`
+    « Ligne remboursée : la revendre comme une nouvelle ligne. », and nothing is written. The test: the note money no line claims falls by the
+    write AND below the `lineLowered` rows refunds settled. A refund deleted gives the money back to the stay and the line can be un-offered
+    again; a save that claims nothing back is never refused. The client does not offer the gesture: `GET /api/reservations/:id` serves
+    `refundedLoweredLines` (`[{ key, table, lineId }]`, `paidLineJudgment.refundedLoweredLines`) and the fiche's summary reads
+    « ✓ Offert · remboursée » with no toggle; the SAS recap lines carry `offerLocked: true` (arrival existing lines, departure recalled lines)
+    and the dialog draws them offered with no « ✓ Offert ». The 2026-11-11 copy holds no note: no stay moves. Tests
+    `sale-paid-line-refunded-not-unoffered` (fiche direct and Booking, line API direct cash / card and Booking card, partial refund, refund
+    deleted, not refunded, arrival and departure SAS, the payload), client `PricingSummary.refunded-line`, `ReservationSasDialog.refunded-line`.
+    _Reading of 2026-11-16 (loop t8, UI8-3 / UI8-5):_ the fiche re-reads `refundedLoweredLines` with the rest of its finance — after a refund,
+    after a refund deleted, after a save — not only on a full load: in the canonical flow (offer the paid line → « Enregistrer et rembourser »
+    → refund) the line reads « ✓ Offert · remboursée » at once, and a deleted refund gives the toggle back at once. The fiche matches the list
+    on the key the server serves on the line (rule 114), never on a key it rebuilds from a label. Client `ReservationPage.refunded-line-reread`,
+    `ReservationPage.refunded-line-key`.
+    _Reading of 2026-11-16 (loop t9, B9-4, OLD — also on master through the fiche):_ the same refusal holds for a line the paid ACOMPTE or
+    SOLDE carried (its captured `acompteContribTtc` / `soldeContribTtc`), not only a note's. On a direct stay a refund on the trop-perçu gave
+    the stay's own money back on, a write that charges such a line again (un-offer, discount taken back) beyond what the stay still holds over
+    its total (the trop-perçu formula, read before the write) answers 409 `LINE_REFUNDED` on every path of rule 105, and
+    `refundedLoweredLines` lists the line so the fiche and the SAS do not offer the gesture. Beer 30 € in the paid solde of 330 €, offered,
+    its 30 € refunded, then un-offered: before, 200, total 330 €, nothing asked — the guest kept the beer AND the 30 €. A line whose freed
+    money the stay still holds (a refund of other money) is put back as before; a refund deleted gives the toggle back. The copy holds no
+    such stay. Test `solde-line-refunded-not-unoffered`.
+109. **A paid line put back to billed at the arrival SAS comes back the fiche's way** _(stabilisation loop t7, S7-1, 2026-11-16; completes rules
+    23, 104, 105, 107; sas-offer-complement-lines §4.3)_. The arrival SAS rewrites its lines and lets the engine restate the arrival complement
+    only: « Offert » unticked on a line the guest paid by a note billed the line again (its note pays it again) but neither closed the
+    `lineLowered` obligation the offer had opened nor gave back the credit the offer had taken off a solde not yet paid — the two halves of the
+    fiche's way back (`syncLoweredObligations`, `pinSaleDelta`). On the 2026-11-11 copy (card order 45 € J-3, offered, the arrival SAS at 15:00
+    committed without it), 34 stays kept 45 € owed for money that pays a billed line (the fiche offered to refund it) and 22303 / 22306 never
+    asked the 45 € again (solde 490,01 instead of 535,01). Now the shared write of the plan and the commit (`writeArrivalComplement`, rule 90.1)
+    takes `paidLineJudgment.wayBack` before it and settles it after: of the note money the lines claim again, bounded by what the stay lost
+    (Σ received − owed − total, the total moved by the lines the run bills), the open obligation closes first, then the acompte and the solde
+    not yet paid get back what the engine's credit took off them (`noteCreditCuts` before and after) — the reverse of rule 104's order. A
+    complement the engine already restated, a commit that bills no paid line again, and a refunded line (rule 108, refused) move nothing. On the
+    copy: 55/55 stays balanced, the 34 obligations closed, 22303 / 22306 / 22336 / 22282 / 22308 asked their 45 €. The departure SAS does not
+    reach a note-paid line through its recall (probe: Σ unchanged on all 55). Test `sas-arrival-paid-line-unoffered`.
+110. **Money already refunded is never credited again** _(stabilisation loop t7, B7-1, 2026-11-16; completes rules 104, 106 a, 107)_. Rule
+    104's note credit — the note money no line claims, which the schedule takes off the open complement, the end-of-stay remainder, then the
+    acompte and the solde not yet paid (`midStayExtras.unclaimed` → `noteCredit`) — is counted less what a refund on the trop-perçu already gave
+    back of it: the `lineLowered` rows refunds settled, the same subtraction `paidLineJudgment.noteExcessCents` makes (D6-1). Before, a note line
+    offered, its 30 € refunded, then a 20 € line sold unpaid read « Reste à payer 0 »: the refunded money still absorbed the new charge (received
+    net 300 for a stay of 320). Now the 20 € are asked at the departure — direct and Booking, the note paid by card or in cash. The engine reads
+    it as one input, `refundedNoteCredit` (euros, `reservationQuoteContext` → `loadStay`), applied in the midStay step (`lessRefundedCredit`,
+    `unclaimed` gone at 0); a refund deleted reopens its rows and the money is credit again (_reading of 2026-11-16, loop t8 S8-3:_ what the stay still asks absorbs it first, only the rest is owed back — rule 119). The 2026-11-11 copy holds no settled
+    `lineLowered` row: no stay moves (replay = the 15 approved differences). Tests `sale-note-credit-after-refund`,
+    `stay-note-refund-money-conservation`.
+111. **The trop-perçu of note money is refunded on the poste that sold it** _(stabilisation loop t7, B7-2, 2026-11-16; completes rule 74 and
+    reservation-refunds rule 35)_. `postesLeft` (scope `schedule`) reads the notes from their register, by the line key each note line names (a
+    note's allocation loses its line once that line is offered): a note line offered, discounted or lowered leaves its money on its line's poste
+    — « Prestations complémentaires » for an option or a custom line, « Activités » for a resource. The refund dialog's prefill
+    (`overpaymentLines`, the ledger's `refundPrefill`, the fiche-save 409) therefore reads « Prestations complémentaires » and the avoir reverses
+    70600010, the account the note booked, never 70600000. A note line still charged at what its note paid leaves nothing. The arrival-complement
+    excess key keeps its own reading (rule 104). Test `refund-note-overpayment-poste`.
+    > **Reading of 2026-11-16 (stabilisation loop t8, D8-1).** A later cancellation keeps the poste: that refund names no line, and the cancelled
+    > register deducts it from its own bucket first (reservation-refunds rule 49 reading of the same day), so « Hébergement » gives back all it
+    > collected and the options never more than the notes sold.
+    _Reading of 2026-11-16 (loop t8, B8-1):_ « discounted » included — `postesLeft` reads what a stored line charges as its amount less its
+    own discount (`discountCents`, rule 39), as the engine does: a card note's beer 30 discounted 24 reads « Prestations complémentaires » 24
+    and its avoir reverses 70600010, no longer « Hébergement » / 70600000. Test `refund-note-discount-poste`.
+112. **A trop-perçu of cash and card notes is refunded in two parts** _(stabilisation loop t7, B7-3, 2026-11-16; completes rule 106 b)_. When cash
+    notes took only part of the trop-perçu, the stored and live figures carry `overpaymentCash` `{ amountTtc, restTtc, lines }` (`cashPartOf`:
+    the cash cents carved from the poste split, the prestations first) and the ledger's `refundPrefill.cashPart`. The refund dialog opens on that
+    part « Caisse interne » with its lines, and says « X payés en espèces : rendus en caisse interne. Reste Y à rembourser ensuite. »; once it is
+    given back, the ledger's « Trop-perçu » row holds the rest, which defaults to the means it came by — `cashNoteExcessCents` deducts the cash a
+    caisse-interne refund on the trop-perçu settled (the `lineLowered` rows settled by a refund of method `internal`). The avoir thus covers only
+    booked money (cash 30 + card 30 offered: one avoir of 30 on 70600010, not 60). The operator can still change the amount and the means. Tests
+    `refund-mixed-cash-card-note`, client `RefundDialog.cash-part`.
+    _Reading of 2026-11-16 (loop t8, UI8-4):_ the announcement holds only while the means is « Caisse interne »: another means takes it away
+    (it would say the cash goes back to the till when it does not), coming back to « Caisse interne » shows it again. Client
+    `RefundDialog.cash-part-means`.
+    _Reading of 2026-11-16 (loop t9, UI9-2):_ the announcement describes the lines the dialog opened with, so it also holds only while they
+    are untouched: another amount (60 typed on the 30 € cash line would leave « Reste 30,00 € » on screen while nothing is left), another poste,
+    a line added or removed, or a refundable line ticked takes it away; putting the proposed amount back shows it again. The dialog compares
+    the typed text with the one it opened on — no amount is computed. Client `RefundDialog.cash-part-amount`.
+    _Reading of 2026-11-16 (loop t8, B8-2):_ the cash a caisse-interne refund settled is the NOTE part of the rows it settled (`noteCents`,
+    rule 115): a caisse-interne refund of the stay's own trop-perçu took no note's cash.
+113. **« Enregistrer et rembourser » opens the refund dialog on the ledger row's split** _(stabilisation loop t8, UI8-1 / UI8-2, 2026-11-16;
+    completes rules 104, 111, 112, reservation-refunds rule 34)_. The 409 `OVERPAID` a save answers carries what the ledger's « Trop-perçu »
+    row serves once the save is confirmed (`refundPrefill`): `overpaymentLines` by poste, `overpaymentMethod`, and `overpaymentCash` when cash
+    notes took only part of it. On a platform stay the refusal comes from the paid-line judgment (rule 105: the trop-perçu formula does not see
+    note money); its body is now built by `overpaymentResultOf` from the stay the write left (`judgedOverpaymentOf`), instead of an empty split
+    that made the dialog fall back on « Hébergement » (Booking, a card note line offered in the fiche: avoir 27,27 on 70600000 while the note
+    booked 70600010; cash + card: 54,55 on 70600000 and −60 € booked). The client hands `overpaymentCash` to the dialog as the ledger row does
+    (`cashPart`), so the dialog opens « Caisse interne » on the cash part and announces the rest (before, 60 € « Virement »: an avoir of 54,55
+    for 27,27 of booked money). A cash-only trop-perçu still defaults to the caisse interne (rule 106 b). Replayed as the dialog posts it: one
+    avoir on 70600010, on the booked money only, direct and Booking, card and cash + card. The 2026-11-11 copy holds no note: no stay moves.
+    Test `fiche-save-overpaid-refund-split`, client `ReservationPage.overpaid-cash-part`.
+114. **A custom line carries the server's key** _(stabilisation loop t8, UI8-5, 2026-11-16; completes rules 85, 108)_. The custom lines of the
+    fiche's live quote (`POST /reservations/calculate-price`, `withCustomLineKeys`) and of the stored summary (`storedSummary`) carry `key`, the
+    server's own key of the line (`extraLineKey`: `custom:<normalised label>`), the same the notes, the allocations and `refundedLoweredLines`
+    name it by. The fiche compares that key; it never copies the label normalisation (which had already drifted: description before title).
+    Option and resource lines keep their `opt:` / `res:` / `lineKey` keys. The engine's quote itself (`steps/extras`) is not touched: it stays
+    key for key what it was (rule 4, `pricing-compose`; first written on the engine, moved to the endpoint at the round-8 merge). No figure
+    moves. Test `custom-line-server-key`, client `ReservationPage.refunded-line-key`.
+115. **Note money refunded is told apart from the stay's own** _(stabilisation loop t8, B8-2, 2026-11-16; completes rules 106, 108, 110, 112
+    and D6-1)_. A `lineLowered` row holds the larger of the stay's trop-perçu and the note money no line claims (`syncLoweredObligations`):
+    it can be solde money (a line of the solde discounted before the arrival), not note money. A refund opened on the trop-perçu therefore
+    stamps on the rows it settles how much of what it gave back was note money — `refund_obligations.noteCents`, the note money freed and
+    not given back yet first (`paidLineJudgment.noteExcessCents(…, { notesOnly: true })` read before the settlement), the rest being the
+    stay's own; a cancellation refund on a note line's key (D7-2) is note money whole; a refund deleted clears the stamp with the rows it
+    reopens. « Note money already refunded » (`refundedLoweredCents`) is the Σ of that stamp, and its four readers read nothing else: the
+    engine's note credit (rule 110, `refundedNoteCredit`), the rule-108 refusal (`begin`/`finish`, `refundedLoweredLines`), the cash part of
+    rule 112 (`cashReturnedCents`) and `noteExcessCents` (D6-1), which now takes every cent given back off what the buckets hold beyond the
+    total and only the note part off what the notes leave unclaimed (`min(unabsorbed − settled, unclaimed − noteCents)`, never below the old
+    figure). Review scenario (direct): beer 30 in the solde (paid 330) discounted 24 at J-2 and the 24 refunded by transfer, a plank 20 paid
+    by a note then offered, a jam 15 sold unpaid — before: « À percevoir au départ 15 » AND « Trop-perçu 5 » (336 ≠ 321), the plank's
+    un-offer refused `LINE_REFUNDED` although nobody refunded it, and a cash note's freed 20 defaulted to a transfer; now: the jam absorbed,
+    5 owed, the un-offer accepted, « Caisse interne ». Rows settled before the column existed keep their reading (the migration stamps them
+    whole); the 2026-11-11 copy holds no settled `lineLowered` row: no stay moves. Test `refund-solde-money-not-note-credit`.
+    > _Reading of 2026-11-16 (loop t9, D9-1, D9-4):_ `cashReturnedCents` (the cash part of rule 112) reads what a caisse-interne refund gave
+    > back of the CLAIMED money, as `refundedClaimedCents` does: the note part on a direct stay, every settled cent on a platform stay (no
+    > trop-perçu opens a lowered row there, so it is all note or arrival-complement money, rule 116). Booking: beer 30 in the complement
+    > collected « caisse interne » offered and refunded through the till, then a card-note breakfast 60 offered → 60 € trop-perçu, no
+    > « Caisse interne » part (before: 30 cash + 30 rest, the till's 30 € counted twice). The column and its backfill are one transaction:
+    > a stop between the ALTER and the UPDATE can no longer leave the old settled rows at 0. Tests `platform-complement-cash-refunded-once`,
+    > `obligation-note-cents-migration-atomic`.
+    > _Reading of 2026-11-16 (loop t9, B9-1):_ on a platform stay the arrival complement collected « caisse interne » is cash the till holds,
+    > so a caisse-interne refund on the trop-perçu gives that cash back first: its note part (`noteCents`) is only what it gives beyond the
+    > complement's freed money. Booking, complement (beer 30) collected caisse interne and a card note (plank 20), both offered: the till's
+    > 30 € are stamped 0 note money and the rest (20) is proposed by transfer, never « Caisse interne » (before: the 30 were stamped as the
+    > card note's 20 and the rest was split 10 till + 10 transfer). Test `platform-complement-credit`.
+116. **A platform stay's collected arrival complement is the establishment's money** _(stabilisation loop t8, B8-5 OLD, B8-6, 2026-11-16;
+    completes rules 23, 104-108, 111 and reservation-refunds rules 34, 38)_. On a platform stay the guest pays the platform its share, but the
+    arrival complement is collected by the establishment (a link, a transfer, the caisse interne), and no trop-perçu formula reads it
+    (reservation-refunds rule 38 is about the platform's money). Collected before the arrival, then a line of it offered or discounted, the
+    line fell to 0 or 6 and the establishment kept 30 € for nothing (also on master, through the fiche). Now, once collected and while its
+    split is frozen (`complementPaidSplit.lines`; none on a complement collected before that column or adjusted by the operator), each line it
+    named claims what it collected on it, exactly as a note does (`paidLineJudgment.platformComplementClaims`, read with the notes by the
+    one paid-line judgment of rule 105): a line offered, discounted or lowered answers 409 OVERPAID, confirmed it opens the `lineLowered`
+    obligation the ledger shows « Trop-perçu · À rembourser »; removed it answers 409 `LINE_PAID`; put back it closes the obligation; refunded
+    then put back it answers `LINE_REFUNDED` (rule 108). On such a stay every settled `lineLowered` row is establishment money (no trop-perçu
+    opens one there). The refund is split on the line's poste (`leftOfStayOf` adds the complement's `postesLeft` on a platform stay), so its
+    avoir reverses 70600010, the account the complement booked; a complement collected « caisse interne » refunds through it
+    (`cashNoteExcessCents`). A direct stay's collected complement stays the trop-perçu formula's (`complementCollectedExcess`), never read
+    twice. And the in-stay « sold at arrival » floor (`arrivalExtrasViolations`) measures a line against the smaller of its baseline and what
+    it held entering the save: a line lowered before the arrival (its excess owed back) is no reduction of a later save, which no longer
+    refuses every sale of the stay (B8-6); a reduction the save itself makes is still refused. Test `platform-collected-complement-lowered`.
+    > _Reading of 2026-11-16 (loop t9, B9-3):_ « exactly as a note does » includes rule 104's credit. The engine reads the collected
+    > complement's claims (`complementClaims`, `settlement.withComplementClaims`): what it collected on a line beyond what the line charges now,
+    > less what a refund on the trop-perçu gave back of it (`refundedComplementCredit`: the settled `lineLowered` cents less their note part),
+    > bounded by what the collected complement holds beyond what is routed to it now (its split is a proportional cut, never a line's exact
+    > price), is credited to what is still due — on a platform stay the end-of-stay remainder — like a note's money, under the line's name
+    > (« déjà réglé : … — Bière »). Booking, beer 30 in the collected complement, a plank 20 sold unpaid before the arrival, then the beer
+    > offered (line API or fiche): 409 OVERPAID 10, then nothing asked and 10 € owed (before: 20 asked AND 30 owed). And the way back: a
+    > line rule 104's credit paid, offered or lowered, gives the credit back — the paid-line judgment holds the regained money owed again
+    > (up to what the claims leave unclaimed), on a note's credit as on the complement's (before, on a platform stay the register stayed at
+    > the smaller figure and 20 € left the identity). Tests `platform-complement-credit`, `stay-sequence-fuzz`.
+117. **The arrival SAS's « Séjour à régler » is the plan's** _(stabilisation loop t8, S8-1, 2026-11-16; completes rules 90.1, 109;
+    collect-stay-payment-at-check-in rules 13-14, sas-arrival-total-server-side rule 2)_. Rule 109's way back raises the acompte or the solde
+    not yet paid INSIDE the commit, so the stay amount read from the stored row before the commit is not what the commit marks paid. The plan
+    (`planArrivalSas`, its write played and rolled back) now returns `stayAfter` `{ depositAmount, balanceAmount }`, the figures the commit
+    leaves; the SAS controller builds the recap's stay block from them (`plannedStay`): `recap.stayDue`, `recap.totalAtArrival`, the one-gesture
+    decision, and a new `recap.stayPayment` (the full « Séjour à régler » block) that the dialog's stay page renders once a preview answered
+    (the stay page now asks the preview too). The dialog sends `displayedStayDue` (the « Séjour » the recap showed); a commit that settles the
+    stay on another figure is refused 409 `STAY_DUE_CHANGED` « Le séjour à régler est maintenant de X : relire le récapitulatif. », nothing
+    written, and the dialog reads the recap again. Without `displayedStayDue` (an older client) the commit goes through on its own plan. On the
+    2026-11-11 copy (card order 45 € J-3, offered, the SAS un-offers it at 15:00 and collects the stay): 22303 shown 535,01 and marked 535,01
+    (before: shown 490,01, marked 535,01), 22306 1 834,20 / 1 834,20; with the stale figure both answer 409; the seed kept moves nothing.
+    Tests `sas-arrival-paid-line-stay-step`, client `ReservationSasDialog.stay-due`.
+    _Reading of 2026-11-16 (loop t9, UI9-1):_ the stay STEP follows the plan too, not only its amount. The dialog still decided from the stored
+    row in two places: the page fell back on the stored block whenever the plan answered « nothing due » (stored solde 300, the recap offers
+    the paid order: the page showed 300,00 € while the commit marked nothing), and the step existed only when the stored row asked something
+    (an offered order un-offered at the recap raised the solde to 300 €, but no « Séjour » page, no « Séjour » line on the recap and no
+    `displayedStayDue`: the 300 € were left unasked at the door). Once a preview answered, the step is shown iff the plan's `stayPayment` is
+    applicable, and the page renders exactly that block (« — » until it answered); the served block only stands in for the step's presence
+    before the first answer — the stay page asks the preview itself, so its amount is always the plan's, and an operator on the stay page when
+    that answer drops it goes on to the page that followed it. Client `ReservationSasDialog.stay-step-plan`.
+118. **The arrival SAS offering a paid line credits it like the line API** _(stabilisation loop t8, S8-2, 2026-11-16; completes rules 104,
+    105, 107 d)_. Same gesture, same hour, same result: the SAS commit's shared write (`writeArrivalComplement`) takes `paidLineJudgment.wayBack`
+    both ways — a write that FREES note money (the paid line offered) credits it, before the paid-line judgment, to what the stay still asks:
+    the solde, then the acompte not yet paid lose what the engine's credit (`noteCreditCuts` before and after) now takes off them, and the
+    end-of-stay remainder is rewritten from the engine's credited lines when that moves it by no more than the credit; bounded by the money
+    freed and by what the stay gained beyond its buckets (the total moved by the lines the run bills). What no bucket absorbs is still the
+    judgment's 409 `OVERPAID`, then owed back once confirmed. The plan plays the same write, so the recap shows the lowered solde (rule 117).
+    On the copy at the arrival day: 22303, 22306 → 200, solde −45, owed 0 (before: 409, forced → 45 owed while the solde was asked in full);
+    every stay the SAS reaches ends as the line API does at the same hour, Σ unchanged on all 55. Test `sas-arrival-paid-line-stay-step`.
+119. **A refund deleted gives its money back as credit first** _(stabilisation loop t8, S8-3, 2026-11-16; completes rules 104, 106, 110)_.
+    Deleting a refund on the trop-perçu reopens the `lineLowered` rows it settled; that money is rule 104's credit again (rule 110 no longer
+    deducts it), so `refundsController.remove` runs `paidLineJudgment.reopenedCredit` around the reopen: what the stay still asks absorbs it in
+    rule 104's order — the open arrival complement (not adjusted), the end-of-stay remainder (rewritten from the engine's credited lines,
+    bounded), the solde, the acompte not yet paid, each by at most what the engine's credit now takes off it — and the reopened obligation
+    shrinks by what they absorbed. Only the rest is owed back. « Refund deleted, then a 65 € line sold » and « line sold, then refund deleted »
+    now end the same: the line asks 20 €, nothing owed (before, the second order owed 45 € AND asked 65 €). A cancelled stay's refund keeps
+    the plain reopen. On the copy (r8b, 13 stays): both orders agree except stay 14, whose SALE does not credit an open obligation (a stay
+    booked before 4.2.0 whose engine figure differs from the stored one, observation O8-1 — the sale path, not the deletion), and 22209's
+    known 0,60 €. Test `refund-deleted-note-credit`; `sale-note-credit-after-refund` reads the new outcome.
+    > _Reading of 2026-11-16 (loop t9, D9-3):_ the deletion of the refund row, the reopen of the rows it settled, the credit written to the
+    > buckets and the `refundDeleted` history entry are ONE transaction: a failure on the way leaves the refund and its settled rows (with their
+    > `noteCents`) as they were — never a row settled by a refund that no longer exists. Test `refund-deletion-one-transaction`. The same holds
+    > at creation: the refund, its `refund` history entry and the `lineLowered` rows it settles (with their `noteCents`, trop-perçu and
+    > cancelled-stay paths) are one transaction — a failure leaves no refund and the row open. Test `refund-creation-one-transaction`.
+120. **A lowered paid line's obligation closes through a refund only** _(stabilisation loop t9, D9-2, 2026-11-16; completes rules 75, 108,
+    110, 115)_. A `lineLowered` row is the trop-perçu (rule 75, the same money with one face: the ledger gives it no « Marquer remboursé »).
+    `PATCH /refund-obligations/:oid` refuses it, settled or cancelled, with 409 `OBLIGATION_REFUND_ONLY` (« Se rembourse depuis le
+    trop-perçu. »): it is settled by a refund opened on the trop-perçu, which stamps its note part (rule 115), and cancelled by the system as
+    the excess shrinks (`trimLowered`). Stamping `noteCents = amountCents` on a hand close was set aside: a lowered row can hold the stay's own
+    trop-perçu (rule 115), and the trop-perçu would still ask for the money said given back. Before, a hand-settled row read as nothing
+    refunded: the beer (30 €, card note) offered, its row closed by hand, then put back to billed was accepted while the guest kept the 30 €,
+    and the trop-perçu still showed 30 € to refund. Rows hand-settled by earlier builds keep the migration's whole stamp. The prod copy holds
+    no `lineLowered` row: no stay moves. Other origins still close by hand. Test `lowered-obligation-refund-only`.
+121. **A direct stay's own money beyond its total pays a new line first** _(stabilisation loop t9, B9-2, 2026-11-16; completes rules 23, 93,
+    104, 106 c, 119 and reservation-refunds rule 34)_. When a line of the PAID acompte or solde is offered, discounted or lowered, the money
+    the paid buckets hold beyond what they now cover (the engine's `overCollectedTtc`) is credit exactly as a note's freed money is (rule
+    104): `planSchedule` adds it, less what the refunds on the trop-perçu already gave back of the stay's own money (`refundedStayCredit` =
+    the overpayment refunds less their note part, rule 115), to the credit pool, which comes off the open arrival complement, the
+    end-of-stay remainder, then the acompte and the solde not yet paid; what nothing absorbs stays the trop-perçu (the formula of rule 76,
+    unchanged). So a line sold UNPAID through the sale API (whose pinned bucket, rule 93, holds the line in full) and the same line added
+    in the fiche end the same: beer 30 € in the paid solde of 330 €, (a) discounted 6 then a jam 15 sold → 9 asked, nothing owed (before
+    15 asked); (b) offered then the jam sold → nothing asked, 15 owed (before 15 asked AND 15 owed); (d) the same in the stay → nothing at
+    departure; (c) a plank 20 and a jam 15 sold unpaid (35 asked), then the beer offered in the fiche → 5 asked, no trop-perçu to confirm —
+    as with lines added in the fiche (before 35 asked for a 335 € stay with 330 paid). Once those 35 € were collected, the beer offered
+    answers 409 on « Prestations complémentaires » and the stored row proposes the refund there too (avoir 70600010): what a direct stay is
+    due on a poste is paid by the acompte, the solde AND the collected arrival complement (its frozen split, `complementCapturedOf`), so the
+    solde line's money is no longer read on « Hébergement ». (e) A refund on that trop-perçu deleted (rule 119) after a line was sold gives
+    the credit back to the line first (`reopenedCredit` now runs on a stay without notes, taken before the refund row goes): 10 owed,
+    nothing asked (before 30 owed AND 20 asked). A platform stay holds no such credit (reservation-refunds rule 38). The credit needs the
+    proof the paid buckets agreed with the lines (the solde's contribs captured and the pre-arrival money settled, as rule 20 asks before
+    trusting the auto-gap): a stay stored at a price the engine no longer reproduces reads an engine drift, not money received. On the
+    2026-11-11 copy the replay holds the 15 approved differences only: no stored figure moves. Two synthetic stays of the price gate (18, 19:
+    mid-stay notes on lines the paid solde already carried) no longer ask 4,65 € at departure while 43,34 € are owed back — a real error
+    corrected, approved by the owner on 2026-11-17 (price-gate allowlist, 40 fields, class `loop-t9`). Tests `solde-credit-pays-unpaid-line`, `stay-sequence-fuzz`
+    (the reviewer's sequence fuzzer, bounded: direct seeds 1-3 and Booking seeds 1-2, 12 runs × 12 steps, the identity after every step).
+122. **No money vanishes where the engine of today routes a stay otherwise** _(stabilisation loop t9, S9-1 / S9-2, 2026-11-16; completes rules
+    22, 30, 90.1, 104, 118)_. A stay priced before 4.2.0 can store its buckets otherwise than the engine of today would split the same sum.
+    a) **The arrival SAS keeps a stored complement the engine routes elsewhere.** The commit writes only the arrival complement (rule 90.1);
+    when the stored complement holds money the engine now puts in the acompte or the solde — the engine's three buckets hold the SAME sum as
+    the stored ones, split otherwise — that gap is kept in the complement (`complementRoutedElsewhereCents`, read before the write): the
+    written figure is the engine's plus the gap, so the stay's total never moves. A stored complement the engine's buckets do not explain
+    (another sum) still takes the engine's figure, an operator's adjustment still has the last word. On the 2026-11-11 copy, 22336 (solde
+    1 732,20 paid, complement 60,40 holding the tourist tax): the solde un-marked from the fiche, then the arrival SAS validated with nothing
+    changed → complement 60,40 kept, solde 1 732,20, asked 1 792,60, Σ 0 (before: complement 0, asked 1 732,20, Σ −60,40; master keeps it
+    too). Test `sas-arrival-complement-routed-elsewhere`.
+    b) **A note credit never lands on a complement the stay does not store.** On a sale (`performUpdate` with `sale`: the line API's offer,
+    discount, sale), when the engine's open arrival complement, before its credit, is above the stored one, the part above
+    (`complementCreditPhantomCents`: read on the sale's base, net of the credit the stored complement already absorbed — the open
+    `lineLowered` obligation beyond what the engine leaves unabsorbed is credit the stored stay did not take) is passed to the engine
+    (`complementCreditPhantom`) and rule 104's credit skips it: it goes on to the end-of-stay remainder, the solde, the acompte not yet paid,
+    as the arrival SAS's offer does (rule 118). Before, the credit landed on that unstored part, `pinSaleDelta` clamped it at 0, and the money
+    was owed back while the remainder still asked it. On the copy, stay 14 (engine 777,70 ≠ stored): card order 45 € J-3, arrival validated,
+    a 65 € line sold at d+1, the paid line offered through the line API → 200, remainder 20, owed 0 (before: 409, forced → owed 45 AND 65
+    asked) = the SAS's result; offered before the arrival (forced, 45 owed), the 65 € line sold at d+1 → remainder 20, owed 0 (before: owed
+    45, asked 65). Every other stay is unchanged (engine and stored agree: no part above). Test `sale-paid-line-credit-unstored-complement`.
+    c) **Instalments.** A direct stay paying by instalments has no acompte nor solde the credit takes (rule 104: the engine skips them with a
+    plan), so rules 104, 118 and 119 leave its instalments, `installmentsTarget` and buckets as they are: the paid line offered through the
+    line API or at the arrival SAS asks the same confirmation and owes the same money back; a refund on it deleted owes it again. Test
+    `sale-paid-line-credit-installments`.
+    d) **A SAS sale paid by money owed back shrinks what is owed** _(loop t9, A9-1)_. A SAS commit that does not free note money but spends
+    it (a sale the rule-104 credit pays while a `lineLowered` obligation is open) trims the obligation by the note excess it consumed, as
+    `syncLoweredObligations` does on the fiche's save (`paidLineJudgment.begin(…).finish({ trimSpent: true })`, both SAS commits; never
+    below what a way back of the same write already closed). The plan reads the credit it takes on the row it leaves (`plan.credits`), so
+    the recap's « Déjà réglé » line explains the complement it asks. Beer 30 € paid and offered (30 owed), the SAS sells a 12 € basket:
+    complement 0, « Déjà réglé (Bière ronde) » −12, owed 30 → 18, the refund dialog proposes 18, admin and reception alike (before: owed 30
+    and the basket paid by the same money). Test `sas-arrival-sale-trims-owed`.
+    > _Reading of 2026-11-17 (loop t9 merge, b with rule 121):_ the stored complement holds the engine's credit except the part owed back
+    > beyond what the engine leaves unabsorbed — the notes' rest AND the stay's own credit of rule 121 (`noteCreditCuts.stayUnabsorbed`, set
+    > only beside a complement cut). Before, the stay's own credit left over was read as owed beyond it: a direct stay whose offered solde
+    > line paid an unpaid jam (15 € owed back) read the whole 15 € complement as unstored, and the next line sold asked nothing (identity
+    > broken by 14 €). Test `stay-sequence-fuzz` (direct seed 1).
 
 ## 4. Architecture
 
@@ -2000,7 +2572,8 @@ All of it is plain CommonJS functions and objects (rule 56).
 | `models/` | `pricingInputModel.js` | C | the loader: property, rules, VAT regime, catalogue, platform tax rows, installments, split receipts, stored lines; takes the phase from `stayClockModel` |
 | `models/` | `stayClockModel.js` | C | `phaseForReservation(id, now)` — the only resolver of the stay phase (rule 44) |
 | `models/` | `extraSalesModel.js` | C | writes appended lines with moment/status/source/discount, bucket columns, history |
-| `utils/` | `extraSale.js` | C | `quote` / `sell` orchestration (rules 27-30) |
+| `utils/` | `extraSale.js` | C | `quote` / `sell` orchestration (rules 27-30); `unmarkArrival` undoes a false start (rule 103 b) |
+| `models/` | `reservationsModel.js` | C | `extrasCarvedOut(id)` — the one judge of where a sold line is collected (rule 103 a) |
 | `utils/` | `saleDetail.js` | C | the read model of rule 31 |
 | `utils/pricing/` | `storedSaleFigures.js`, `steps/storedExtraGuests.js`, `steps/storedTouristTax.js` | C (PR C) | rule 8: the records a sale reads EXTRA GUESTS and TOURIST TAX from (their keys, their basis, the row check) and the two `staySale` steps that read them |
 | `utils/` | `pricingStoredFiguresMigration.js` | C (PR C) | rule 8: the two record columns and their backfill (once after boot: `index.js`, the replay, the gate's recompute) |
@@ -2035,12 +2608,12 @@ _Rewritten 2026-11-15 (stabilisation loop t1, UI-3) to the files PR B and PR C s
 |---|---|---|---|
 | `components/` | `SaleDetailList.jsx` | C | generic: renders `saleDetail` lines with source, status and discount chips (`StatusBadge`), grouped by article (`groups`); the « Moment » menu of a line the server serves `movable` (rule 95) — the fiche, both SAS, the devis view |
 | `components/` | `AddProductDialog.jsx` | C | « Ajouter un produit » (`FormDialog`): product, quantity, the server's price and moment, sells at the accepted price (`payment: 'later'`) |
-| `components/` | `ExtraSalesPanel.jsx` | C | « Ventes du séjour » of a saved stay: `SaleDetailList` + `AddProductDialog`, the moment menu |
-| `components/` | `StaySalesSection.jsx` | C | the SAS sections « Ventes du séjour — au départ » and « Déjà payé » (rule 32), « Percevoir maintenant » / « Offrir »; SDK client export (2.29.0) |
-| `components/` | `SuggestedArticlesStep.jsx` | C | « Proposés à l'arrivée »: suggestion chips, « Autre article » search, steppers; SDK client export (2.31.0) |
-| `components/` | `SalePaymentLink.jsx` | C | the payment-link block of a sale outside a stay (mint, copy, e-mail on click, withdraw); SDK client export (2.31.0) |
+| `components/` | `ExtraSalesPanel.jsx` | C | « Ventes du séjour » of a saved stay: `SaleDetailList` + `AddProductDialog`, the moment menu; seeded with the fiche's `saleDetail` (`initialDetail`), `locked` (closed fiche or closed mid-stay window), `heldReason` (writes held on a dirty fiche), `onChanged` (the fiche's quiet re-read), an error with « Réessayer » when it reads alone (rule 101) |
+| `components/` | `StaySalesSection.jsx` | C | the SAS sections « Ventes du séjour — au départ » and « Déjà payé » (rule 32), « Percevoir maintenant » / « Offrir »; SDK client export (2.30.0) |
+| `components/` | `SuggestedArticlesStep.jsx` | C | « Proposés à l'arrivée »: suggestion chips, « Autre article » search, steppers; SDK client export (2.32.0) |
+| `components/` | `SalePaymentLink.jsx` | C | the payment-link block of a sale outside a stay (mint, copy, e-mail on click, withdraw); SDK client export (2.32.0) |
 | `components/` | `StandaloneSaleDialog.jsx` | C | « Vente hors séjour »: articles, quantity, client, payment (tenders or link); reuses `FormDialog`, `SaleDetailList`, `TenderLines` |
-| `components/` | `StandaloneSalesTodayCard.jsx` | C | « Ventes hors séjour · aujourd'hui » of Suivi financier, its « À rembourser » block and « Nouvelle vente » |
+| `components/` | `StandaloneSalesTodayCard.jsx` | C | « Ventes hors séjour · aujourd'hui » of Suivi financier, its « À rembourser » block and « Vente hors séjour » (only when given `onNewSale`: on a phone the page carries the button) |
 | `components/` | `ExternalSaleFields.jsx` | C | « Vendable hors séjour » and the class VAT rate on the article forms |
 | `components/` | `TenderLines.jsx`, `PricingSummary.jsx`, `reservation/FinanceSection.jsx`, `reservation/RefundDialog.jsx` | T | the tender lines of a document; the « Réduction sur » selector (Nuits / Articles / Tout); the open refund obligations; « Carte » as a refund means |
 | `hooks/` | `useExternalVatRates.js` | C | the class rates of `GET /api/standalone-sales/vat-rates` |
@@ -2064,10 +2637,11 @@ _Rewritten 2026-11-15 (stabilisation loop t1, UI-3) to the files PR B and PR C s
 |---|---|---|---|---|
 | POST | `/api/reservations/:id/extras/quote` | `{ requests:[{ articleRef, quantity, persons?, mornings?, sessions?, offered? } \| { articleRef: 'custom', label, amount, quantity? }], payment: 'later'\|'card'\|'cash' }` | `{ lines:[…priced, collectAt, status], buckets:{ arrival, departure, plan }, totalCents, refusals:[] }` | no write |
 | POST | `/api/reservations/:id/extras` | same + `acceptedTotalCents` | `{ saleDetail, paymentLink? }` | 409 `PRICE_CHANGED` if the re-quote differs |
-| PATCH | `/api/reservations/:id/extras/:ref` | `{ collectAt?, offered?, discount?:{percent\|amount}, forceOverpayment? }` (`ref` = `option:<lineId>` / `resource:<lineId>` / `custom:<lineId>`) | `{ saleDetail }` | 409 `LINE_PAID`, 409 `OVERPAID` (rule 23), 409 `MOMENT_NOT_AVAILABLE` for a move to the departure before the arrival (rule 95); journaled. Each `saleDetail.lines[]` carries `moments: ('arrival'\|'departure')[]` and `movable: boolean` (rule 95) |
+| PATCH | `/api/reservations/:id/extras/:ref` | `{ collectAt?, offered?, discount?:{percent\|amount}, forceOverpayment? }` (`ref` = `option:<lineId>` / `resource:<lineId>` / `custom:<lineId>`) | `{ saleDetail }` | 409 `LINE_PAID`, 409 `OVERPAID` (rule 23), 409 `LINE_REFUNDED` (rule 108), 409 `MOMENT_NOT_AVAILABLE` for a move to the departure before the arrival (rule 95); journaled. Each `saleDetail.lines[]` carries `moments: ('arrival'\|'departure')[]` and `movable: boolean` (rule 95) |
 | DELETE | `/api/reservations/:id/extras/:ref` | — (same `ref`) | `{ saleDetail }` | an unpaid line taken off the stay through the fiche's save; 409 `LINE_PAID`, 409 `ARRIVAL_EXTRAS_FROZEN`; journaled `lineRemoved` (pass 3g) |
 | GET | `/api/reservations/:id/sale-detail` | — | `saleDetail` | also embedded in `GET /sas` and the fiche payload |
 | PUT | `/api/reservations/:id` (existing) | `discountTarget` added (`nights` default); `discountAmountCents` (positive integer, else none; absent keeps the stored one) | unchanged | rule 16 |
+| GET / PUT | `/api/reservations/:id` (existing) | — | GET adds `refundedLoweredLines: [{ key, table, lineId }]` | rule 108: PUT answers 409 `LINE_REFUNDED` on a line that list names; the SAS recap lines add `offerLocked`. Rule 113: PUT's 409 `OVERPAID` carries `overpaymentLines`, `overpaymentMethod` and `overpaymentCash` (the ledger row's `refundPrefill`), the paid-line judgment's too. Rule 114: the quote's and the stored summary's custom lines carry `key` |
 | guest-app | `/public/v1/stay/…/orders` (existing) | unchanged shape | unchanged shape | implementation moves to `extraSale` (PR C) |
 | POST | `/api/standalone-sales/quote` | `{ requests[], payment }` | `{ lines[], vatByRate[], totalCents, refusals[] }` | `externalSale` pipeline, no write (PR C) |
 | POST | `/api/standalone-sales` | same + `acceptedTotalCents`, `customer?:{name, email}` | `{ sale, paymentLink? }` | records `standalone_sales` (PR C) |
@@ -2171,13 +2745,20 @@ _Rewritten 2026-11-15 (stabilisation loop t1, UI-3) to what shipped._
   « Ajouter un produit » on a sold stay opens a `FormDialog` (article, quantity) with the server quote live; the sale is written « À payer »
   (`payment: 'later'`). A line the server serves `movable` has a « Moment » menu listing its `moments` (« À l'arrivée », « Au départ » once the stay
   has started, rule 95). The discount field has a target selector « Nuits », « Articles », « Tout ». Mobile (`xs`): the dialog is full screen,
-  lines stack label / quantity × unit / status, the moment button is full width.
+  lines stack label / quantity × unit / status, the moment button is full width. _Reading of 2026-11-16 (loop t2, rule 101):_ a started stay keeps
+  the panel's actions while the server's mid-stay window is open; a write re-reads the fiche without its loading screen; a fiche with unsaved edits
+  holds the panel's writes with « Enregistrer d'abord les modifications. »; a failed read of the panel shows « Ventes du séjour indisponibles. » with
+  « Réessayer ». While the re-read is in flight the fiche is busy: every field read-only, the selects (« Logement », the hours, « Plateforme »,
+  « Réduction sur ») included, « Enregistrer » disabled with its spinner, the summary still showing the last quote; a re-read that fails keeps the
+  page, read-only, under « Fiche non relue après la vente. » with « Réessayer » (_reading of 2026-11-16, loop t3_).
 - **SAS arrivée:** « À percevoir maintenant » (arrival lines + stay due), « Déjà payé » (offers nothing, rule 32) and, after check-in time,
   « Ventes du séjour — au départ » (`StaySalesSection`) with « Percevoir maintenant » on each line still to collect (C25, mock M3; « Passer à
   l'arrivée » was dropped by M3). **SAS départ:** « À percevoir au départ » and « Déjà payé », with « Offrir » on a paid line (the lowered money
   then owed back, rule 23). Same `SaleDetailList` / `StaySalesSection`, same wording.
 - **Suivi financier:** the bar gains the « Vente hors séjour » icon (rule 88) and the card « Ventes hors
-  séjour · aujourd'hui » with its « À rembourser » block.
+  séjour · aujourd'hui » with its « À rembourser » block. Mobile (`xs`, loop t1 UI-17 and t2 UI2-9): the bar drops the icon and the page shows one
+  full-width « Vente hors séjour » button at its top from the first frame, whatever the dashboard's state; the day's card then shows no button of its
+  own, so nothing moves when the dashboard arrives.
 - **Guest app** (`apps/guest/`): « Payer par carte » first and preselected (guest-app rule 86), the slot grid greys the days outside the stay and
   shows the opening hours, the delivery chips; every label from the server.
 - Copy (French, impersonal, short): « Payée par carte le {date} », « À payer à l'arrivée », « À payer au
@@ -2243,6 +2824,9 @@ _Rewritten 2026-11-15 (stabilisation loop t1, UI-3) to what shipped._
 - [ ] Regression tests named after each review defect (D1-D9) on the rebuilt guest app (PR C)
 - [x] `sale-custom-line-identity` — rule 94 (loop t1 S-1, S-2): a custom line paid by card before the arrival settles; a second sale of one label is numbered, its discount and removal its own
 - [x] `sale-move-before-arrival` — rule 95 (S-3): a move to the departure before the arrival is refused, no baseline, `moments` served
+- [x] `sale-one-moment` — rule 102 (loop t2 N-1 to N-6): card money before the arrival not asked again at the hour (detail, SAS plan, commit); an order line changed
+  at the door past the hour until the arrival is validated, re-sold into the arrival complement on the injected clock; an arrival marked early starts the stay
+  for the lock and the sale; numbered custom labels on the SAS and the fiche; the seller's stable key of a custom line
 - [x] `sale-breakfast-card-before-arrival` — rule 96 (S-4, S-5): the first breakfast at the arrival, a morning paid by card settled on its line
 - [x] `sale-installments-pinned` — rule 96 (S-6): a sale to the arrival rewrites no instalment row of a plan the engine would restate
 - [x] `sale-quote-payment-refusals` — rule 96 (S-7): the quote refuses a payment before the arrival like the sale
@@ -2251,6 +2835,95 @@ _Rewritten 2026-11-15 (stabilisation loop t1, UI-3) to what shipped._
 - [x] `fiche-lines-stamped-at-save` — rule 97 (D-2): a fiche-added line stamped by its save, nothing left for the boot
 - [x] `refund-deleted-reopens-obligations` — rule 98 (B-5)
 - [x] `accounting-receipt-split-frozen-at-payment` — rule 99 (B-4): a payment day frozen with the lines sold by it, today's row following the lines, a stay booked before never frozen, the receipt's cut kept when a paid line is removed
+- [x] `fiche-save-keeps-first-lines-booking-date` — rule 100 (D2-1): a notes-only save leaves a stay's first lines on the booking date and a receipt of yesterday frozen with them; a line the save adds is sold today
+- [x] `sale-moment-bucket-agree` — rule 103 (loop t3 T3-1): the 55-stay probe on fixtures — a plain stay and a stay whose arrival complement was collected before the arrival, at twelve moments (J-3 to the day after the departure, ticked, unticked, false start): sale, offer, re-bill, discount, move there and back, removal; the moment, the bucket, the e-mail, the departure section and the move agree
+- [x] `sale-false-start-undone` — rule 103 b: unticked before the hour, the carved lines and their money back at the arrival; past the hour or once collected, the start stands
+- [x] `sale-open-arrival-offered-line` — rule 103 c (T3-2): an offered arrival line billed again, discounted and removed at the open arrival; frozen once validated
+- [x] `sale-discounted-line-baseline` — rule 103 d (T3-8): a discounted arrival line does not freeze the started stay; a discounted line moves with its net amount
+- [x] `sale-discount-given-back-baseline` — rule 103 d (loop t4, D4-1): a discount removed or reduced before or at the open arrival gives the money back to the arrival, never billed again at the departure; a kept false start keeps the given-back money at the departure (loop t5, D5-1) (6)
+- [x] `arrival-baseline-boot-repair-clock` — rule 103 b (loop t4, D4-2, D4-3): the boot repair clears only the baseline of a stay the clock has not started, never one that carved a line out, nor one whose complement is overridden; an unreadable stored date never fails the boot (loop t5, D5-2, D5-3) (8)
+- [x] `sas-arrival-recap-lists-what-it-collects` — rule 103 e (T3-3): a moved line not listed, a discounted line at its net amount
+- [x] `fiche-line-stamped-where-money-goes` — rule 103 f (T3-4): a fiche line beyond a settled plan reads « À payer à l’arrivée » and the SAS lists it; a fiche line of a started stay reads « À payer au départ »
+- [x] `sale-detail-plan-bucket-stored` — rule 103 g (T3-5)
+- [x] `sale-at-arrival-contract` — rule 103 h (T3-6): the quote announces the arrival bucket; `ARRIVAL_CLOSED` once validated or collected
+- [x] `sas-custom-label-own-number` — rule 103 i (T3-7): linen items with their own « (n) » keep their rows across re-runs
+- [x] `sale-paid-line-lowered-credited` — rule 104 (loop t4, S4-3): a cash line offered or discounted comes off the open arrival complement; nothing open → `OVERPAID` then the obligation, on a direct and (loop t5 A5-1) a platform stay; the split's `unclaimed` (5)
+- [x] `sale-untick-complement-override` — rule 103 b (loop t4, S4-2): an overridden complement keeps the start when unticked before the hour
+- [x] `sale-quote-paid-now-buckets` — rule 30 (loop t4, S4-4): a quote paid now announces the buckets the sale writes (2)
+- [x] `sale-plan-line-move-before-arrival` — rule 95 (loop t4, S4-5): a plan line of a stay carved out early is not moved to the departure before the arrival; a line stamped there goes and comes back (2)
+- [x] `sale-departure-part-of-arrival-line` — rule 103 d (loop t4, S4-6): a discount given back after the validated arrival is listed at the departure and stays there after the next sale (2)
+- [x] `sale-undiscount-open-arrival-then-sale` — rule 103 d (loop t4, S4-1): discount 10 then 0 at the open arrival, ticked, a sale: the departure takes only the sale
+- [x] `stay-line-facts-never-late` — rule 48 (loop t5, D5-6): the line facts of a stay left marked are rebuilt before they are read (1)
+- [x] `sale-paid-line-fiche-save` — rule 105 a (loop t5, S5-1, A5-1): a card-paid line offered in the fiche asks what its line action asks (OVERPAID then owed on a platform stay; OVERPAID then owed on a direct one; credited to an open complement); removed from the body → `LINE_PAID` (4)
+- [x] `sale-paid-line-offered-kept` — rule 105 b (loop t5, S5-4, S5-5): an offered paid line is neither removed nor moved; the article re-sold is a line of its own, unpaid (2)
+- [x] `sale-arrival-open-early-tick` — rule 105 c (loop t5, S5-6): a box or a SAS stamp set before the arrival day closes nothing; on the day, judge and sale refuse together (4)
+- [x] `sale-paid-line-unoffer-drift` — rule 104 b (loop t5, S5-2), rule 107 a: offer confirmed then un-offer on a drifted complement asks nothing and closes the refund; `pinSaleDelta` bounds (5: +3 loop t6 S6-2)
+- [x] `sale-paid-line-credit-shown` — rule 104 e (loop t5, S5-3): the credit line in the e-mail, the arrival SAS recap, the end-of-stay detail and « Ventes du séjour — au départ » (3)
+- [x] `sale-paid-card-note-kept` — rule 104 c (loop t5, A5-1): a card note is never cancelled, a cash one still is (1)
+- [x] `sale-paid-card-note-not-adjusted` — rule 104 c, guest-app 113 a (loop t6, A6-2): a card note's amount and means refused (409 `NOTE_PAID_ONLINE`), its date still moves, the fiche serves the lock; a cash note adjusted as before (4); Vitest `MidStayNoteRow.paid-online` (2)
+- [x] `sale-paid-line-platform-refund-row` — rule 106 a, b (loop t6, UI6-5, D6-2, B6-1, B6-2): direct and Booking, cash and card note offered → the « Trop-perçu » row, the prefill, the default means, the refund accepted and the obligation settled, a second refused (3)
+- [x] `sale-detail-due-is-the-buckets` — rules 106 c, 104 e (loop t6, UI6-1 to UI6-3; reading of 2026-11-16): « Reste à payer » = the open buckets (solde paid → the basket; credit → 35; paid in full and platform paid → 0; net of commission and penalty = the register's « Reste à percevoir », a Booking stay's panel = its ledger, cancelled 0); the departure credit row not offerable (6)
+- [x] `sas-arrival-draft-credit` — rule 104 e (loop t6): a draft offering the line the credit sat on lists no credit, its lines sum to its complement (1)
+- [x] `cancelled-stay-note-paid-line-refund` — rule 106 d (loop t6, S6-1, S6-6; loop t7 D7-2): the order on its own line of a cancelled platform stay; its refund settles the obligation, its deletion reopens it (asserted unconditionally); a refund on another order settles nothing, the order's own settles its 30 € stamped with its key; the rank of a note-paid arrival line (4)
+- [x] `sale-paid-line-refunded-then-lowered` — rule 107 b (loop t6, D6-1): a second paid line offered after a refund owes only what is left beyond the total (1)
+- [x] `sas-arrival-paid-line-judged` — rule 107 c, d (loop t6, S6-3, S6-4): the re-open seed names the exact line of two of one article; the arrival commit offering the paid line answers OVERPAID and writes nothing, confirmed owes it; a line still due absorbs it (4)
+- [x] `sale-paid-line-live-ledger-obligation` — rule 106 a reading (loop t7, UI7-1): direct and Booking, the dirty fiche's live ledger keeps the owed « Trop-perçu » row (2)
+- [x] `sas-departure-paid-line-judged` — rule 107 d reading (loop t7, UI7-2, UI7-3): the check-out offering the paid recalled line → OVERPAID naming it, nothing written, confirmed owes it; the arrival 409 names its line; both SAS controllers answer 409 and record no history (3)
+- [x] `sale-paid-line-refunded-not-unoffered` — rule 108 (loop t7, D7-1): offered, refunded, un-offered → 409 `LINE_REFUNDED`, nothing written, on the fiche (direct, Booking), the line API (direct cash, card, Booking card), the arrival and departure SAS commits (plans serve `offerLocked`); partial refund; refund deleted; not refunded; the fiche payload (11)
+- [x] `cash-note-excess-quote-capped` — rule 106 b reading (loop t7): the quote's cash part capped by what the quote charges anew (4)
+- [x] `sas-arrival-paid-line-unoffered` — rule 109 (loop t7, S7-1): « Offert » unticked at the arrival SAS on a card-paid line: plan paid → the 30 € obligation closes, Σ unchanged, no « Trop-perçu »; solde unpaid → 30 € asked again; the seed kept → nothing moves; the recap played alone writes nothing (4)
+- [x] `save-pre-420-stay-lines-kept` — rule 82 reading (loop t7, S7-3): a pre-4.2.0 stay's no-change save keeps its unlinked ménage and its price; a 4.2.0 stay still stores the early-arrival line (2)
+- [x] `sale-note-credit-after-refund` — rule 110 (loop t7, B7-1): `lessRefundedCredit`; offered, refunded, then a 20 € line sold unpaid → asked in full at the departure, direct and Booking × card and cash; the refund deleted reopens the obligation and pays the new line first (rule 119), Σ still balanced (6)
+- [x] `refund-note-overpayment-poste` — rule 111 (loop t7, B7-2): a card note line offered → `postesLeft` options 30, prefill « Prestations complémentaires », avoir on 70600010, direct and Booking; a line still charged leaves nothing (3 of 5; 2 more under reservation-refunds rule 49)
+- [x] `refund-mixed-cash-card-note` — rule 112 (loop t7, B7-3): `cashPartOf`; cash 30 + card 30 offered → 30 « Caisse interne » proposed, then 30 by the booked means, one booked avoir of 30, direct and Booking (3)
+- [x] `fiche-save-overpaid-refund-split` — rule 113 (loop t8, UI8-1, UI8-2): a note line offered in the fiche, direct and Booking → the 409 splits on « Prestations complémentaires », carries the ledger row's cash part, a cash-only one defaults to the caisse interne; the dialog replayed on it books one avoir on 70600010, −30 € booked, card and cash + card (10)
+- [x] `custom-line-server-key` — rule 114 (loop t8, UI8-5): the live quote's (`calculate-price`) and the stored summary's custom line carry `key` = `extraLineKey`; the engine quote carries none (rule 4) (2)
+- [x] `refund-solde-money-not-note-credit` — rule 115 (loop t8, B8-2): solde line discounted and refunded, then a note line offered: a 15 € line sold unpaid absorbed and 5 owed (card and cash), the control without refund, the un-offer accepted by the line API and the fiche, rule 108 still refusing the refunded plank, the cash note's « Caisse interne », a mixed refund stamping only its note part and its deletion clearing it — Σ balanced after each (7)
+- [x] `refund-note-discount-poste` — rule 111 reading (loop t8, B8-1): a note line discounted 24 → « Prestations complémentaires » 24, prefill and avoir on 70600010, direct and Booking; a cash note through the caisse interne (3)
+- [x] `platform-collected-complement-lowered` — rule 116 (loop t8, B8-5, B8-6): Booking complement collected before the arrival, a line offered / discounted → 409 OVERPAID, owed, refunded on 70600010; « caisse interne »; removal LINE_PAID; the way back and LINE_REFUNDED; direct stays not claimed; later sales after a pre-arrival discount; the floor's own reduction still refused — Σ balanced (8)
+- [x] `sas-arrival-paid-line-stay-step` — rules 117, 118 (loop t8, S8-1, S8-2): « Offert » unticked → the recap's « Séjour » and `stayPayment` are the plan's (+30 €), marked paid = shown; a stale `displayedStayDue` → 409 `STAY_DUE_CHANGED`, nothing written; « Pas maintenant » asks it again; the SAS offering the paid line ends like the line API at the same hour, no 409, nothing owed (4)
+- [x] `refund-deleted-note-credit` — rule 119 (loop t8, S8-3): both orders of « refund deleted » and « line sold » end the same during the stay (direct, Booking) and before the arrival; with nothing to pay the whole money is owed back (4)
+- [x] `platform-complement-cash-refunded-once` — rules 112, 115 reading (loop t9, D9-1): Booking complement cash refunded through the till, then a card-note line offered → no « Caisse interne » part (1)
+- [x] `lowered-obligation-refund-only` — rule 120 (loop t9, D9-2): a `lineLowered` row refused by the close action (settled and cancelled), the trop-perçu still 30; refunded through the trop-perçu → LINE_REFUNDED on the way back; another origin still closes (3)
+- [x] `refund-deletion-one-transaction` — rule 119 reading (loop t9, D9-3): an error injected in the reopen keeps the refund, its settled row and its `noteCents`, no history; without it the row reopens (2)
+- [x] `refund-creation-one-transaction` — rule 119 reading (loop t9, D9-3 follow-up): an error injected in the settlement leaves no refund, no history, the row open and the trop-perçu 30; without it the row is settled and stamped (2)
+- [x] `obligation-note-cents-migration-atomic` — rule 115 reading (loop t9, D9-4): ALTER + backfill once, idempotent; a failing backfill leaves no column and the next run does both (2)
+- [x] `sas-arrival-complement-routed-elsewhere` — rule 122 a (loop t9, S9-1): solde un-marked, the engine routes the 20 € complement to it → the SAS validated with nothing changed keeps the complement, Σ and what is asked unchanged, a re-run too; a stored complement nothing explains still takes the engine's (2)
+- [x] `sale-paid-line-credit-unstored-complement` — rule 122 b (loop t9, S9-2): a pre-4.2.0 stay whose engine complement is above the stored one → the paid line offered through the line API credits the end-of-stay remainder, nothing owed; offered before the arrival then a line sold during the stay → the obligation pays the line (2)
+- [x] `sale-paid-line-credit-installments` — rule 122 c (loop t9): a stay paying by instalments → the line API and the arrival SAS offer the paid line alike (409, forced → owed), plan and `installmentsTarget` untouched; a refund on it deleted owes it again (2)
+- [x] `sas-arrival-sale-trims-owed` — rule 122 d (loop t9, A9-1): owed 30, the SAS sells 12 € → recap « Déjà réglé » −12, complement 0, owed 18, refund proposed 18, conserved, admin and reception; a commit selling nothing keeps 30 (3)
+- [x] `sas-arrival-collected-complement-not-offerable` — sas-offer-complement-lines rule 12 reading (loop t9, A9-2): collected complement, card and « caisse interne », admin and reception → not offerable, nothing written, the answer not « offered » (3)
+- [x] `reception-sas-owed-keys` — reception rule 18 reading (loop t9, A9-3, A9-4): a stale draft reads the owed line offered and locked; LINE_OWED names its key, no amount; put back, the commit goes through (1)
+- [x] `stay-note-refund-money-conservation` — rules 104, 106-112 (loop t7): random sequences of notes by card / cash, unpaid sales, offers, refunds as proposed, refunds deleted; after every step Σ buckets + notes − owed − refunded = total, booked avoirs ≤ booked note money, no note money refunded on the accommodation (6 seeds × 12 steps)
+- [x] `sale-routing-per-line` — rule 85 reading (loop t9, B9-5): a solde beer and the same beer sold before the arrival keep their own routing through an in-stay sale and a no-change fiche save; only the new line is asked at departure (2)
+- [x] `solde-credit-pays-unpaid-line` — rule 121 (loop t9, B9-2): (a) discount, (b) offer, (d) in the stay, by the sale API and the fiche; (c) unpaid lines then the beer offered; (c) collected then offered → 409 and stored row on « options »; (e) refund deleted after a sale (9)
+- [x] `solde-line-refunded-not-unoffered` — rule 108 reading (loop t9, B9-4): a refunded solde line refused on the line API, the fiche and a discount taken back; listed in `refundedLoweredLines`; not refunded / refund deleted / other money refunded → put back (5)
+- [x] `platform-complement-credit` — rule 116 readings (loop t9, B9-3, B9-1): the complement's freed money pays an unpaid line first (line API, fiche); a credit-paid line offered gives the credit back; refunded complement money is no credit; caisse-interne refund of complement cash stamped no note money, the rest by transfer (5)
+- [x] `stay-sequence-fuzz` — rules 104, 108, 116, 119, 121 (loop t9): the reviewer's stay sequence fuzzer, bounded (direct seeds 1-3, Booking 1-2, 12 runs × 12 steps): the money identity after every step, never asked AND owed (5)
+
+### Client Vitest suites (named 2026-11-16, stabilisation loop t2 P2-2)
+- [x] `ReservationSasDialog.stay-due` — rule 117 (loop t8, S8-1): the stay page renders the preview's planned solde, the commit sends `displayedStayDue`; a 409 `STAY_DUE_CHANGED` is shown and the recap read again (2)
+- [x] `ReservationSasDialog.stay-step-plan` — rule 117 reading (loop t9, UI9-1): stored 300, the plan settles it → no stay page, nothing sent; nothing stored, the plan raises 300 → the page comes in with 300 and the commit sends it (2)
+- [x] `ReservationSasDialog.stay-step-credit` — rules 117, 118 (loop t9, O9-1): stored solde 30, the plan credits it to 0 → the stored 30 € is never shown, no stay page, nothing marked paid (1)
+- [x] `ReservationSasDialog.reception-owed-keys` — reception rule 18 reading (loop t9, A9-4): LINE_OWED's `owedKeys` go back to offered, the next « Valider » sends them (1)
+- [x] `ReservationPage.extra-sales-panel` — rule 101 (UI2-1 to UI2-4): a started stay with the window open sells and moves its lines, a collected departure does not, the fiche's `saleDetail` read once, a dirty fiche holds the writes and keeps the typed note, a write on a clean fiche re-reads without the loading screen, and while the re-read is in flight the fiche is busy (fields read-only, « Enregistrer » disabled)
+- [x] `ReservationPage.quiet-reread` — rule 101 (loop t3 UI3-1 to UI3-3): the selects refuse to open during the re-read, before and after its form lands; the summary keeps the last quote and the quote is asked again; a failed re-read keeps the page read-only with « Réessayer », and the retry brings the form back
+- [x] `ExtraSalesPanel.fiche-reload` — rules 27, 30: every accepted write asks the fiche to re-read, a refused one does not; a locked panel offers no action; a failed read shows « Réessayer »
+- [x] `SaleDetailList.moment`, `SaleDetailList.groups`, `SaleDetailList.discount` — rules 13, 31, 95: the moment menu lists the line's `moments`, the groups, the discount chips
+- [x] `StaySalesSection.accessibility` — rules 31, 32: the SAS sections' accessible names and targets
+- [x] `PricingSummary.refunded-line`, `ReservationSasDialog.refunded-line` — rule 108 (loop t7, D7-1): a refunded offered line reads offered with no toggle, the other offered line keeps « ✓ Offert » (2 + 1)
+- [x] `RefundDialog.cash-part` — rule 112 (loop t7, B7-3): the cash part opens « Caisse interne » with its lines and announces the rest; without it, the whole trop-perçu by transfer (2)
+- [x] `RefundDialog.cash-part-means` — rule 112 reading (loop t8, UI8-4): another means takes the cash announcement away, « Caisse interne » shows it again (1)
+- [x] `RefundDialog.cash-part-amount` — rule 112 reading (loop t9, UI9-2): another amount or a removed line takes the cash announcement away, the proposed amount shows it again (2)
+- [x] `ReservationPage.overpaid-cash-part` — rule 113 (loop t8, UI8-1): the save's 409 `overpaymentCash` opens the dialog « Caisse interne » on 30 with the announcement, and posts it (1)
+- [x] `ReservationPage.refunded-line-reread`, `ReservationPage.refunded-line-key` — rules 108, 114 (loop t8, UI8-3, UI8-5): the refund locks the line at once, its deletion gives the toggle back; the line is matched on the served key only (1 + 2)
+- [x] `SaleDetailList.credit`, `StaySalesSection.credit` — rules 104 e, 106 c (loop t6, UI6-1 to UI6-3): the credit line read-only in the fiche's panel, « Reste à payer » the served figure; no « Offrir » on the departure credit
+- [x] `ReservationSasDialog.arrival-seed` — rule 107 c (loop t6, S6-3): the dialog seeds the offered lines from `arrivalSeed.offeredKeys` (2)
+- [x] `ReservationSasDialog.paid-line-offer` — rule 107 d (loop t6 S6-4, loop t7 UI7-2, UI7-3): arrival and departure, the 409 asks, confirmed commits again with `forceOverpayment`, « Garder » bills the named line again and commits nothing (4)
+- [x] `SuggestedArticlesStep.stored-groups` — rule 13: the stored groups placed as the server serves them
+- [x] `StandaloneSaleDialog.link-lost` — rule 53: a link the server no longer holds is said, never re-minted silently
+- [x] `FinancePage.phone-sale-button` — rule 88 (UI-17, UI2-9): on a phone one « Vente hors séjour » button at the top, drawn while the dashboard loads and when it is refused
+- [x] `StandaloneSalesTodayCard.no-button` — rule 88 (UI2-9): without `onNewSale` the day's card draws no button
 
 ### Proof
 - [ ] Price gate (rule 68): `price-gate.unit.test.js` green on every commit of A, B and C, with the allowlist reviewed by the owner; `price-gate-anonymity`, `price-gate-anonymise`, `price-gate-figures`, `price-gate-compare`, `price-gate-move-proof` unit tests green
@@ -2364,7 +3037,7 @@ PR, one commit per unit so the replay can be bisected.
 | PR | Content | Proof | Size |
 |---|---|---|---|
 | **A — Units, byte-identical** | price-gate fixture captured on `price-gate-baseline` and the gate test (rule 68); `scripts/pricing-replay.mjs` and baseline; extract, one commit each: `money`, NIGHTS, EXTRA GUESTS, TOURIST TAX, EXTRAS host + ALLOWANCES (read-only form of today's free units), STAY CLOCK (`phaseOf` + `stayClockModel`; feeding the phase to COMPOSE in place of `todayIso`/`midStayWindow` is PR B, rule 45), PLATFORM PRICE, DISCOUNTS (target `nights` only active), VAT (per (family, rate) group, every line `hosted`; the line allocation is PR B, rule 51), TOTALS (aggregation only), SCHEDULE, SETTLEMENT (reading `inComplement`); the Articles head, family registry, instance factory and the 7 core families, with `hourly` wrapped from the contributor alias; the VAT component fed by tagged amounts, and the five VAT copies (engine, `accountingModel.bucketFromTtc`, `financeModel.htAmount`, `paymentLinkItems.buildVatItems`, `bookingPricing.vatOf`) switched to it; the ports with core adapters and `SettingsProvider` reading today's columns, each component's `settingsSchema`; `pipeline.js` and `stayQuote`; `calculateReservationQuote` = COMPOSE | also PLATFORM PAYMENT (engine clamp, net received, `computePlatformCommission` re-exported) and the intake adapter behind `reservations.update` (rules 70-71) | price gate green with an **empty** allowlist; intake replay 0 diff; intake plugin suites green; golden + replay **0 diff at every commit** (quotes, links, CSV months, finance); `article-family-contract`, `articles-head-contract`, `vat-component`, `pipeline-composition`, `settings-provider` green | XL — ~5 300 LOC moved or new, ~2 900 LOC of tests (~33 files); 7-9 coder passes; review by commit; A1/A2 split available |
-| **B — Lines, sale service, detail, accounting output** | commit 1: line columns + `discountTarget` + backfill (0 diff). Commit 2: `AccountingOutput`, `legacyBucketSplit` and the `csvJournal` / `salesJson` / `synthesis` exporters replace the accounting-export entry builders; tourist-tax report on TOURIST TAX (0 diff on every export file). Then: the B call sites of rule 45 go through `phaseForReservation` (routing by date and check-in time), and the phase is fed to COMPOSE in place of `todayIso` / `midStayWindow` (listed diff 1); VAT line allocation (rule 51); `extraSale` quote/sell + API; fiche « Ajouter un produit », moment menu, discount targets and line discount; SAS upsells and departure charges through EXTRAS; one HOURLY TARIFF (evening supplement as component, `bookingPricing` on the same grid); `saleDetail` + `SaleDetailList` in fiche and both SAS; platform card link separate; `ficheSale` / `sasSale` pipelines; FULFILMENT port + bath adapter (`SlotAvailabilityProvider`, SAS bath sessions confirmed in the sale transaction); domain events of rule 55 with the calendar observer; `vatRate` / `fulfilmentRef` line columns; external-context VAT keys (`standaloneVatRate` moved); retire `sasOptionSale`, bath-linen offer, `prepaidNetter`, `arrivalPaymentDetail.billableLines`, VAT copies; PLATFORM PAYMENT in penalties, settlement, cancellation and `linkAllowed`; the `PlatformBookingIntake` port (`reservations.fromPlatform`, SDK 2.29.0); iCal default options through the Articles head | price gate green, allowlist entries = the listed diffs only, owner-reviewed; commits 1-2: 0 diff (quotes and every export file); head: **listed diffs only** (below) | XL — ~4 000 LOC + tests; 6-8 passes |
+| **B — Lines, sale service, detail, accounting output** | commit 1: line columns + `discountTarget` + backfill (0 diff). Commit 2: `AccountingOutput`, `legacyBucketSplit` and the `csvJournal` / `salesJson` / `synthesis` exporters replace the accounting-export entry builders; tourist-tax report on TOURIST TAX (0 diff on every export file). Then: the B call sites of rule 45 go through `phaseForReservation` (routing by date and check-in time), and the phase is fed to COMPOSE in place of `todayIso` / `midStayWindow` (listed diff 1); VAT line allocation (rule 51); `extraSale` quote/sell + API; fiche « Ajouter un produit », moment menu, discount targets and line discount; SAS upsells and departure charges through EXTRAS; one HOURLY TARIFF (evening supplement as component, `bookingPricing` on the same grid); `saleDetail` + `SaleDetailList` in fiche and both SAS; platform card link separate; `ficheSale` / `sasSale` pipelines; FULFILMENT port + bath adapter (`SlotAvailabilityProvider`, SAS bath sessions confirmed in the sale transaction); domain events of rule 55 with the calendar observer; `vatRate` / `fulfilmentRef` line columns; external-context VAT keys (`standaloneVatRate` moved); retire `sasOptionSale`, bath-linen offer, `prepaidNetter`, `arrivalPaymentDetail.billableLines`, VAT copies; PLATFORM PAYMENT in penalties, settlement, cancellation and `linkAllowed`; the `PlatformBookingIntake` port (`reservations.fromPlatform`, SDK 2.30.0); iCal default options through the Articles head | price gate green, allowlist entries = the listed diffs only, owner-reviewed; commits 1-2: 0 diff (quotes and every export file); head: **listed diffs only** (below) | XL — ~4 000 LOC + tests; 6-8 passes |
 | **C — « Mon séjour dès le J-7 » rebuilt** | _(scope widened 2026-11-12: the mini SAS of an outside visit, `outside-booking-sas.md`; the generic `SuggestedArticlesStep`; the standalone payment link, rules 53 and 86; size XL, about 5 passes; rules 84-89)_ guest app on the `shopSale` pipeline: judge = `extraSale.quote`, commit = `extraSale.sell`, bath card holds = fulfilment holds, e-mail observer; the external sale (`externalSale` pipeline, `standalone_sales`, API, « Vente hors séjour » dialog, journal through `standaloneSales`, Q13); keep UI, slots, stock, e-mail, spec rules on UI/slots/stock/e-mail; move the C call sites of rule 45 to `phaseForReservation` (same semantics, 0 diff on them) and turn on the static single-source test; remove `arrivalMoment.js`; delete `midStayOrderCommit.js` and W1-W12 (`pinOrderGrowth`, `beforeArrival`, `orderGrowth`, `exactMergedTotals`, `keepStay`, `settleOrderNoteBeforeArrival`, `deferredCents`/`PRICE_ROSE`, `heldInStayPrice`, `orderChargeKey`); rewrite `guest-app.md` rules 85, 93-101 as references to this spec, and **add the missing rules 104-106** (cited by the WIP code and tests, absent from `guest-app.md`, which ends at 103) at the end of its §3; retire `inComplement` readers, `priceLineContributor` alias, the `money` copies the replay proves identical; empty the allow-lists of rule 66 so the static guards are strict; intake date checks through STAY CLOCK; reconciliation helpers on PLATFORM PAYMENT; optional intake migration to `fromPlatform` | price gate green (allowlist unchanged unless listed); review-defect tests D1-D9 green; `standalone-sale` green; replay of non-guest-app stays 0 diff vs PR B head | L — −2 000 / +1 300 LOC; 3-4 passes |
 
 The fourth candidate PR (retiring duplicates) is folded into B (SAS and VAT duplicates) and C (guest-app,

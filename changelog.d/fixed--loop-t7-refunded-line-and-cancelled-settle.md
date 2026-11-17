@@ -1,0 +1,3 @@
+- A paid line offered and whose money was then refunded can no longer be un-offered or un-discounted: every save (fiche, line actions, arrival and departure SAS) answers 409 « Ligne remboursée : la revendre comme une nouvelle ligne. », and the fiche and the SAS no longer offer « ✓ Offert » on it — before, the guest kept the line and the money (pricing-components rule 108).
+- On a cancelled stay, a refund given back on a line a note paid settles only the obligation of that line (the note money beyond what the line still charges), never another line's (rule 106 d).
+- The « Caisse interne » default of a save's trop-perçu is capped by what the save charges anew, so a save that adds an unpaid line never defaults booked money to the caisse interne (rule 106 b).

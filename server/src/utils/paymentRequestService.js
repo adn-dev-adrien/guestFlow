@@ -162,7 +162,7 @@ async function mintBasketLink(deps, id, basket) {
   return { id: row.id, type: 'complement', amountCents, url: link.url, status: link.status, providerLinkId: link.id, expiresAt: row.expiresAt, reused: false };
 }
 
-// SDK 2.32.0 — a basket with no stay: one link at the exact amount, labelled by the plugin, billed to its own `saleRef` (`<source>:<ref>`) so no stay-orphan
+// SDK 2.33.0 — a basket with no stay: one link at the exact amount, labelled by the plugin, billed to its own `saleRef` (`<source>:<ref>`) so no stay-orphan
 // rule withdraws it. An open link of the same amount with time left is handed back; any other is retired first, so only the newest can be paid.
 // `deps`: { paymentLinksModel, provider, redirectUrl?, now? } — `sale`: { source, ref, title, amountCents, validityMinutes? }.
 // `validityMinutes` (1 to 1440) is the sale's own life for its link, 30 minutes when absent; a sale that states it holds the end as a hard bound: its open

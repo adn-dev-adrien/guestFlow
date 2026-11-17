@@ -30,3 +30,10 @@ test('with the dashboard refused, a phone still has « Vente hors séjour »', a
   expect(await screen.findByText('Période inconnue.')).toBeInTheDocument();
   expect(screen.getByRole('button', { name: 'Vente hors séjour' })).toBeInTheDocument();
 });
+
+// Loop t2 UI2-9 — one stable entry on a phone: the page's button is drawn from the first frame, before the dashboard answers, so nothing moves when it does.
+test('a phone has « Vente hors séjour » at the top while the dashboard is still loading', async () => {
+  api.getFinanceDashboard.mockReset().mockReturnValue(new Promise(() => {}));
+  renderAt('/finance');
+  expect(await screen.findByRole('button', { name: 'Vente hors séjour' })).toBeInTheDocument();
+});

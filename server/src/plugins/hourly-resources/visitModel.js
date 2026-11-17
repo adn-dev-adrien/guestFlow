@@ -19,6 +19,7 @@
  *   ensureDocument(row, { actor })       the document of the visit, created with its session line when it has none
  *   documentOf(row)                      the document payload with the legacy session, or null
  *   moneyOf(row)                         `{ totalCents, paidCents, remainingCents, payments }` of a booking whose money is on a document, else null
+ *   draftMoneyOf(row, draft)             the same for the visit as a commit of `draft` would find it, nothing written (loop t2 B2-7)
  *   repriceSession(row)                  the session line of an unpaid visit follows its booking's new slot (a retired line and a new one, journaled)
  */
 
@@ -147,11 +148,10 @@ function createVisitModel({ db, bookings, now = () => new Date() }) {
   }
 
   /** The visit payload (§4.3). `draft` (the quote body) adds the extras and the session's offered time; nothing is written. */
-  function view(row, { reception = false, draft = null } = {}) {
+  // The core's quote of the visit for `draft` (nothing written): the stored document, the session still to sell, the extras typed.
+  function quoteOf(row, draft) {
     const saleId = saleIdOf(row);
-    const stored = documentOf(row);
-    const session = pendingSession(row, stored, draft);
-    const refusals = session.refusal ? [{ field: session.refusal.field, code: session.refusal.code, error: session.refusal.error }] : [];
+    const session = pendingSession(row, documentOf(row), draft);
     const quoted = core().quote({
       saleId: saleId || undefined,
       lines: extrasOf(draft),
@@ -159,6 +159,12 @@ function createVisitModel({ db, bookings, now = () => new Date() }) {
       paidElsewhere: legacySession(row),
       customer: saleId ? undefined : customerOf(row, draft || {}),
     });
+    return { saleId, session, quoted };
+  }
+
+  function view(row, { reception = false, draft = null } = {}) {
+    const { saleId, session, quoted } = quoteOf(row, draft);
+    const refusals = session.refusal ? [{ field: session.refusal.field, code: session.refusal.code, error: session.refusal.error }] : [];
     if (quoted.status !== 200) return { status: quoted.status, body: quoted.body };
     refusals.push(...quoted.refusals.map((r) => ({ field: r.articleRef, code: r.code, error: r.message })));
     const document = quoted.document;
@@ -184,7 +190,7 @@ function createVisitModel({ db, bookings, now = () => new Date() }) {
       draft: line.id == null && line.source !== 'paidElsewhere',
     }));
     // Rule 7 — the reception sees the door money only: never a refund amount (reception-role-checkin-only rule 12bis).
-    if (reception) { delete totals.refundOwedCents; delete totals.refundUnheldCents; }
+    if (reception) { delete totals.refundOwedCents; delete totals.refundUnheldCents; delete totals.internalHeldCents; }
     const payload = {
       booking: bookingView(row, { reception }),
       document: {
@@ -396,6 +402,21 @@ function createVisitModel({ db, bookings, now = () => new Date() }) {
     };
   }
 
+  /** Loop t2 B2-7 — `moneyOf` of the visit as the commit of `draft` would find it (the quoted document, the stored payments), or null; nothing written. */
+  function draftMoneyOf(row, draft) {
+    const { saleId, quoted } = quoteOf(row, draft);
+    if (quoted.status !== 200) return null;
+    const { document } = quoted;
+    return {
+      saleId,
+      totalCents: document.totals.totalCents,
+      paidCents: document.totals.paidCents,
+      remainingCents: document.totals.remainingCents,
+      payments: saleId ? core().paymentsOf(saleId) : [],
+      document,
+    };
+  }
+
   /**
    * Edge case of §3 — a booking moved after its session was sold is re-priced only while the session line is unpaid: the line is retired and the new
    * price appended, both journaled on the document (rule 23: explicit actions, never a rewrite). A paid session answers 409 `BOOKING_PAID`.
@@ -428,7 +449,7 @@ function createVisitModel({ db, bookings, now = () => new Date() }) {
   }
 
   return {
-    view, commit, pay, patchLine, linePaid, noShow, ensureDocument, documentOf, moneyOf, repriceSession, cancelDocument, windowOf, inTransaction, saleIdOf, paidOnBooking,
+    view, commit, pay, patchLine, linePaid, noShow, ensureDocument, documentOf, moneyOf, draftMoneyOf, repriceSession, cancelDocument, windowOf, inTransaction, saleIdOf, paidOnBooking,
   };
 }
 

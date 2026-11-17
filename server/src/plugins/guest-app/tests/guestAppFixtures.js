@@ -57,7 +57,7 @@ const NO_FEED = Object.freeze({ activities: async () => null });
  * of the stay, which this database does not hold. `collection` is moved by the test; the order suites hand the real one.
  */
 function fakeCommit(collection = 'departure') {
-  const commit = { collection, collectionOf: () => commit.collection };
+  const commit = { collection, collectionOf: () => commit.collection, arrivalOpenAt: () => commit.collection !== 'closed' };
   return commit;
 }
 

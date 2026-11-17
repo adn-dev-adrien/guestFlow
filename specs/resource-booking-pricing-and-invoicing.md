@@ -361,6 +361,11 @@ Rules are numbered once and never renumbered (new rules go at the end).
     Its invoice (owner, 2026-11-15; `outside-booking-sas.md` rule 31): once that booking's document holds a money line, the one invoice
     covers the session and the document's lines, after everything is settled; with no such line, rules 13-14 and 36 unchanged.
     Tests: `visit-remaining-and-payment.unit.test.js`, `visit-legacy-money.unit.test.js`, `visit-refund-cancel-noshow.unit.test.js` (plugin).
+53. **The invoice of a booking states the booking journal's VAT** _(stabilisation loop t5, B5-2, B5-3, 2026-11-16; reading of rules 14, 40, 48;
+    `outside-booking-sas.md` rule 57)_. The journal books the booking as one line, HT = the net of its TTC; the invoice's items and its discount name
+    the group `booking:session|<rate>`, so the issuer sends them with that VAT (20 € − 15 € at 10 %: 0,45 €, not Qonto's per-line 0,46 €), within
+    rule 40's moves and its « Arrondi de TVA » line. On the folded fallback (rule 48) the rounding line may be wider than two cents when no smaller one
+    reaches the cut (a cent of VAT at 5,5 % needs 0,10 € HT); it stays positive. Test `booking-invoice-vat-booking-journal`.
 
 **Edge cases:**
 - Booking edited before payment → priced again, as today.
@@ -412,7 +417,7 @@ Rules are numbered once and never renumbered (new rules go at the end).
 | plugin | `plugins/hourly-resources/BookingPaymentFields.jsx` | C | `TenderLines` (one CB line of the total by default) + payment date. |
 | plugin | `plugins/hourly-resources/SettingsSection.jsx` | C | « TVA des ventes hors séjour » card of Réglages › Intégrations. |
 | plugin | `plugins/hourly-resources/PlanningResourceCard.jsx` | T | « À encaisser » chip and « Arrivée » button on a booking outside a stay. |
-| plugin | `plugins/hourly-resources/BookingInvoiceBlock.jsx` | C | Invoice state, number, attachment state, retry. |
+| plugin | `plugins/hourly-resources/BookingInvoiceBlock.jsx` | C | Invoice state, number, attachment state, retry; before issue, the server's refusal `reason` for the payment typed (`reason`, outside-booking-sas rule 54 reading 2026-11-16). |
 | component | `components/TenderLines` (via client SDK) | — | Consumed as is for the payment (rule 11); no fork. |
 | plugin | `plugins/hourly-resources/ResourcePlanningPage.jsx` | T | Card of a booking shows « Payé CB · F-2026-0142 » / « À encaisser » and « Arrivée ». |
 | plugin | `plugins/hourly-resources/ResourceArrivalDialog.jsx` | C | Rules 28–33: the one-screen arrival SAS (recap, offered time, payment, invoice) — since C38 the mini SAS of the visit (`outside-booking-sas.md` §4.2), on the `/visit` routes. |

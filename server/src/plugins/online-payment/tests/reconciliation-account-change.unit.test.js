@@ -3,7 +3,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const Database = require('better-sqlite3');
-const { up } = require('../reconciliation/schema');
+const { up, upV3 } = require('../reconciliation/schema');
 const { createBankTransactionsModel } = require('../reconciliation/bankTransactionsModel');
 const { readTransactions, firstReadFrom } = require('../reconciliation/transactionsReader');
 const { todayIso } = require('../../../utils/localDate');
@@ -16,6 +16,7 @@ const instant = (days, hour = 10) => new Date(Date.now() + days * 864e5 + (hour 
 function fixture() {
   const db = new Database(':memory:');
   up(db);
+  upV3(db);
   const model = createBankTransactionsModel(db);
   const store = new Map();
   const settings = { get: (k) => store.get(k) || '', set: (k, v) => store.set(k, v) };

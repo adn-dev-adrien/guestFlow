@@ -12,6 +12,7 @@
  *   lineFacts(id)              `{ [lineKey]: { discountCents, source, soldAt, lineId, table, collectAt, collectAtDefault, settledCents, paidAt, storedCents } }` of the stored lines (rules 21, 39;
  *                              `storedCents` = the stored line's amount before its discounts, 0 when offered — rules 12, 74), `{}` on a schema
  *                              that predates the line columns; `settledCents` is the Σ of the line's allocations, never a stored column
+ *                              (a stay a write left dirty is rebuilt first, as `paymentLedger.allocations` does: the read is never late)
  *
  *   stay(id)                   the stored stay: `{ row, options, customOptions, resources }` (the rows `stayRow` and the line readers return)
  *   storedStayPrice(id)        the price the stay was sold at, in cents: `{ totalCents, accommodationCents, touristTaxCents, extrasCents }`;
@@ -155,6 +156,8 @@ function lineFacts(db, id) {
   const settled = new Map();
   const paidAt = new Map();
   if (hasAllocations) {
+    // Loop t5 D5-6 — rule 48: the read is never late, the same flush as `paymentLedger.allocationsOf`.
+    require('../../utils/paymentAllocationsSync').flushDirty(db, id);
     for (const r of db.prepare("SELECT lineRef, SUM(amountCents) AS cents, MAX(CASE WHEN kind = 'payment' THEN at END) AS paidAt FROM payment_allocations WHERE documentRef = ? AND lineRef IS NOT NULL GROUP BY lineRef").all(`reservation:${id}`)) {
       settled.set(r.lineRef, r.cents);
       paidAt.set(r.lineRef, r.paidAt);

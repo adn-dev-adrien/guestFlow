@@ -79,8 +79,9 @@ function budget({ collectedTtc: receivedTtc, prepaidTtc = 0, cashCollectedTtc = 
  * @param {object} [input.planBuckets]  on a live stay, `bookedStayBuckets().installments`: what the lines no reading names
  *                                      share (rule 51)
  * @param {object} [input.reservation]  on a live stay, the row, for the money it collected after arrival (rule 51)
+ * @param {Set}    [input.notePaidKeys] on a cancelled stay, the line keys the stay's notes paid (they collected: never capped first)
  */
-function refundable({ finalPrice, touristTaxTotal, vatRate, options = [], resources = [], refunds = [], nights = 0, cancelled = null, collected = null, cashCollected = null, complementCollected = false, goneLines = [], planBuckets = null, reservation = null }) {
+function refundable({ finalPrice, touristTaxTotal, vatRate, options = [], resources = [], refunds = [], nights = 0, cancelled = null, collected = null, cashCollected = null, complementCollected = false, goneLines = [], planBuckets = null, reservation = null, notePaidKeys = null }) {
   const given = refundedByKey(refunds, (refund) => !isRequalification(refund));
   const fromIndemnity = refundedByKey(refunds, (refund) => !isRequalification(refund), isIndemnityLine);
   const requalified = refundedByKey(refunds, isRequalification, (line) => !isCommissionLine(line));
@@ -129,9 +130,11 @@ function refundable({ finalPrice, touristTaxTotal, vatRate, options = [], resour
   }
   all.push(...extras);
   // Rule 49 reading of 2026-11-05 (D11) — a paid line removed since is offered back on what it collected, under its name.
+  const goneKeys = new Set();
   if (cancelled) {
     for (const line of goneLines) {
       if (all.some((other) => other.key === line.key)) continue;
+      goneKeys.add(line.key);
       all.push({ key: line.key, label: line.label, bucket: line.bucket, quantity: null, unitPrice: null, billedTtc: line.collectedTtc, vatRate: rate });
     }
   }
@@ -202,11 +205,39 @@ function refundable({ finalPrice, touristTaxTotal, vatRate, options = [], resour
     // particular, and a paid solde is one sum the lines share. The excess comes off the lines paid at arrival first,
     // the money a cancelled stay is the least likely to have collected, then off the lines whose own collection is
     // unknown, the lines capped at what they collected last.
-    const atArrival = new Set([...options, ...resources].filter((line) => line && Number(line.inComplement || 0) === 1).map(billedLineKey));
+    // Loop t6 S6-6 (guest-app rule 110 b) — an arrival line a note paid (a card order before the arrival) did collect: it is not ranked as money the
+    // stay is the least likely to hold (`notePaidKeys`, the keys the stay's notes paid). Only a key one line holds: lines sharing a key share
+    // its collected money, which the arrival rank keeps from being offered twice.
+    const keyCount = perLine.reduce((counts, line) => counts.set(line.key, (counts.get(line.key) || 0) + 1), new Map());
+    const atArrival = new Set([...options, ...resources].filter((line) => line && Number(line.inComplement || 0) === 1).map(billedLineKey)
+      .filter((key) => !(notePaidKeys && notePaidKeys.has(key) && keyCount.get(key) === 1)));
     // Reading of 2026-11-05 (audit R22-2) — the arrival rank holds while the complement is unpaid: once paid, those lines
     // are the very lines that collected.
     const rank = (line) => (atArrival.has(line.key) && !complementCollected ? 0 : (collectedLeft(line) === Infinity ? 1 : 2));
     const order = perLine.map((line, index) => index).sort((a, b) => rank(perLine[a]) - rank(perLine[b]) || a - b);
+    // Rule 49 reading of 2026-11-16 (loop t8 D8-1) — a book refund line keyed by no line (a trop-perçu refunded on its poste, rule 111 of
+    // pricing-components) gave back money of ITS poste: the excess it leaves comes off the lines of that bucket first, the lines holding money they no
+    // longer bill (offered or removed since, lowered after they were paid) before the others, and only the rest by the rank above. So every poste
+    // gives back at most what it holds: a note's overpayment refunded on « Prestations complémentaires » never comes off « Hébergement » again.
+    const keyless = {};
+    for (const line of (refunds || []).filter((refund) => !isRequalification(refund) && !isOffBooks(refund.method)).flatMap((refund) => refund.lines || [])) {
+      if (line.lineKey || isIndemnityLine(line) || !line.bucket) continue;
+      keyless[line.bucket] = (keyless[line.bucket] || 0) + Math.round(Number(line.amountTtc || 0) * 100);
+    }
+    const holdsUnbilled = (line) => goneKeys.has(line.key) || line.ceilingTtc > line.billedTtc;
+    let saleExcess = saleRooms.reduce((total, cents) => total + cents, 0) - Math.round(cancelled.saleLeftTtc * 100);
+    for (const [bucket, cents] of Object.entries(keyless)) {
+      if (saleExcess <= 0) break;
+      const inBucket = order.filter((index) => perLine[index].bucket === bucket);
+      const ownFirst = [...inBucket.filter((index) => holdsUnbilled(perLine[index])), ...inBucket.filter((index) => !holdsUnbilled(perLine[index]))];
+      let left = Math.min(saleExcess, cents);
+      for (const index of ownFirst) {
+        const taken = Math.min(left, saleRooms[index]);
+        saleRooms[index] -= taken;
+        left -= taken;
+        saleExcess -= taken;
+      }
+    }
     capInOrder(saleRooms, Math.round(cancelled.saleLeftTtc * 100), order);
     capInOrder(indemnityRooms, Math.round(cancelled.indemnityLeftTtc * 100), order);
     // Rule 49 reading of 2026-11-02 (second review of PR #926) — the cents the per-line caps leave unoffered (the

@@ -330,7 +330,7 @@ const ensureBasketLinkFor = (id, basket, { redirectUrl = null } = {}) => withPro
   origin: 'basket',
 }, Number(id), 'complement', { basket }));
 
-// SDK 2.32.0 — the link of a plugin's basket with no stay (`ctx.paymentBasket`'s paid effect, `reservationId` null): the exact amount, back to `redirectUrl` once paid.
+// SDK 2.33.0 — the link of a plugin's basket with no stay (`ctx.paymentBasket`'s paid effect, `reservationId` null): the exact amount, back to `redirectUrl` once paid.
 const ensureSaleLinkFor = (sale, { redirectUrl = null } = {}) => withProviderLink((deps) => paymentRequestService.ensureSaleLink({
   ...deps,
   ...(redirectUrl ? { redirectUrl } : {}),

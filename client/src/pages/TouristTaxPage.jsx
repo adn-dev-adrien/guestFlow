@@ -24,7 +24,7 @@ import api from '../api';
 import { withFrom } from '../utils/navigation';
 import { displayDate, formatCurrency } from '../utils/formatters';
 import { localIsoToday } from '../utils/isoDay';
-import { TAX_PAGE, TAX_COLUMNS, TAX_PROPERTY } from '../constants/touristTaxReport';
+import { TAX_PAGE, TAX_COLUMNS, TAX_PROPERTY, PERSON_NIGHT_HINTS } from '../constants/touristTaxReport';
 
 const TABULAR = { fontVariantNumeric: 'tabular-nums' };
 const MONEY = { ...TABULAR, whiteSpace: 'nowrap' };
@@ -340,7 +340,7 @@ export default function TouristTaxPage() {
       <TableRow sx={{ '& th': { borderBottom: 0, pb: 0 } }}>
         <TableCell colSpan={3} />
         <TableCell sx={GROUP} align="center" colSpan={3}>{TAX_COLUMNS.personsLong}</TableCell>
-        <TableCell sx={GROUP} align="center" colSpan={2}>{TAX_COLUMNS.personNights}</TableCell>
+        <Tooltip title={PERSON_NIGHT_HINTS.all}><TableCell sx={{ ...GROUP, cursor: 'help' }} align="center" colSpan={2}>{TAX_COLUMNS.personNights}</TableCell></Tooltip>
         <TableCell colSpan={base ? 3 : 1} />
       </TableRow>
       <TableRow>
@@ -350,8 +350,8 @@ export default function TouristTaxPage() {
         <TableCell sx={HEAD} align="right">{TAX_COLUMNS.persons}</TableCell>
         <TableCell sx={HEAD} align="right">{TAX_COLUMNS.taxed}</TableCell>
         <TableCell sx={HEAD} align="right">{TAX_COLUMNS.exempt}</TableCell>
-        <TableCell sx={HEAD} align="right" aria-label={TAX_COLUMNS.taxedNights}>{TAX_COLUMNS.taxed}</TableCell>
-        <TableCell sx={HEAD} align="right" aria-label={TAX_COLUMNS.exemptNights}>{TAX_COLUMNS.exempt}</TableCell>
+        <Tooltip title={PERSON_NIGHT_HINTS.taxed}><TableCell sx={{ ...HEAD, cursor: 'help' }} align="right" aria-label={TAX_COLUMNS.taxedNights}>{TAX_COLUMNS.taxed}</TableCell></Tooltip>
+        <Tooltip title={PERSON_NIGHT_HINTS.exempt}><TableCell sx={{ ...HEAD, cursor: 'help' }} align="right" aria-label={TAX_COLUMNS.exemptNights}>{TAX_COLUMNS.exempt}</TableCell></Tooltip>
         {/* specs/tourist-tax-included-services-deduction.md rule 15 — the base the commune's percentage form asks for. */}
         {base && <TableCell sx={{ ...HEAD, whiteSpace: 'normal', maxWidth: 84 }} align="right">{TAX_COLUMNS.nightPrice}</TableCell>}
         {base && <TableCell sx={{ ...HEAD, whiteSpace: 'normal', maxWidth: 84 }} align="right">{TAX_COLUMNS.accommodation}</TableCell>}

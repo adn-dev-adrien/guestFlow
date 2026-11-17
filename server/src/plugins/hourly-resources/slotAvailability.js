@@ -1,5 +1,5 @@
 /**
- * The SlotAvailabilityProvider of the hourly resources (specs/pricing-components.md §3 rule 48, SDK 2.29.0): what a planning can
+ * The SlotAvailabilityProvider of the hourly resources (specs/pricing-components.md §3 rule 48, SDK 2.30.0): what a planning can
  * offer and refuse, asked by the bath fulfilment adapter and, from the core, by `ctx.core.slotAvailability()`.
  *
  *   slots({ resourceId, propertyId, stay, now? })        the free slots of each day of a stay, priced (the scheduler's `slotsForStay`)

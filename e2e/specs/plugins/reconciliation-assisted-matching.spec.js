@@ -4,7 +4,7 @@
 // then the page's counters as filters and « Tout confirmer ». One file, serial: the specs share the seeded
 // bank connection, which is removed afterwards so the other specs see Qonto as not connected.
 // The credits are loaded straight into the plugin's table: no Qonto call is ever made.
-import { test, expect } from '@playwright/test';
+import { test, expect } from '../../fixtures/test.js';
 import { createClient, createProperty, createReservation } from '../../fixtures/apiSeed.js';
 import { seedBankCredits, clearBankSeed, setReservationAmounts } from '../../fixtures/dbSeed.js';
 

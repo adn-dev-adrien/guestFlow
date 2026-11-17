@@ -4,7 +4,8 @@
  *
  * The VAT cut of a receipt on a stay the sale-line readers serve weighs the VAT classes of a family by the stay's sale lines
  * (`receiptLineCut.cutReceipt`). Read from the CURRENT lines, a paid line removed or offered later would re-cut a month already
- * declared. So the lines are frozen per (stay, payment day) by the writer every payment path already calls (`paymentAllocationsSync.syncStay`):
+ * declared. So the lines are frozen per (stay, payment day) by `paymentAllocationsSync.syncStay`, which runs the first time the stay's allocations are read
+ * after a payment marked it dirty (`payment_allocations_dirty` → `flushDirty`; loop t2 B2-6):
  *
  *   - a day is frozen the first time a payment dated that day is seen, with the lines sold by that day as they stand
  *     (`[{ ref, kind, vatClass, totalCents }]`, the fields the cut reads);

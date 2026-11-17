@@ -352,6 +352,13 @@ including the ones added later.
     still named (`plugins/sdk/citedIdCounterFloor.js`), never lowers it, and is a no-op where nothing is cited. Tests:
     `cited-id-counter-floor.unit.test.js`, `guest-orders-counter-floor.unit.test.js`,
     `resource-bookings-counter-floor.unit.test.js`.
+23. **A card link pays the order it was issued for** (loop t2 D2-2, 2026-11-16; completes rule 22). An unpaid card order
+    records nothing on the fiche (guest-app rule 108): only its payment link names it (`payment_links.basketJson.ref`, source
+    `guestOrder`), and a Qonto link never expires. `guest_orders_counter_floor_v5` also counts those refs
+    (`highestBasketRef`), and the guest app's paid basket refuses an order whose own `paymentLinkId` is another link
+    (« commande introuvable »: the money opens an `orderConflict` refund obligation). Before, after a purge and a
+    reinstall, an old 30 € link paid sold the NEW order that took its id, and that order's own 18 € link was then kept with no
+    obligation. Tests: `guest-orders-counter-floor.unit.test.js`, `guest-order-link-pays-its-own-order.unit.test.js`.
 
 **Edge cases:**
 - A plugin folder exists on one side only (server without client, or the reverse) → rule 13's guard
@@ -462,6 +469,7 @@ Every new rule (1–20) is cited by at least one test (spec-rules CI).
 - [x] `tests/plugin-removal-workflow.unit.test.js` — rules 7, 18 (4 cases).
 - [x] `tests/plugin-engine-fixture.unit.test.js` — rule 5 (4 cases on a module of its own).
 - [x] The 12 suites that probed `isLive` without a module register a fixture record (Q3: 12 cases in 8 files).
+- [x] Rules 22-23 (loop t1 D-4b, loop t2 D2-2): `cited-id-counter-floor` (2 cases), `guest-orders-counter-floor` (3 cases: lines, fresh install, an open card link), `resource-bookings-counter-floor`, `guest-order-link-pays-its-own-order` (1 case).
 
 ### 7.2 Client unit tests
 - [x] `plugins/sdk/__tests__/registry.test.jsx`, `settingsIntegrations.contributions.test.js` read the shipped folders; `ReservationSasDialog.plugins.test.jsx` skips with `lacksPlugins`.

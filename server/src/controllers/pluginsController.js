@@ -856,7 +856,7 @@ function createController(model = defaultModel, deps = {}) {
     });
   }
 
-  // SDK 2.32.0 — a plugin holding money says why its data cannot be erased yet; one that cannot say does not block.
+  // SDK 2.33.0 — a plugin holding money says why its data cannot be erased yet; one that cannot say does not block.
   function eraseRefusal(id) {
     const { refuse } = reg.get(id).data;
     if (!refuse) return null;

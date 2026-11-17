@@ -7,7 +7,7 @@
  *   commitOrder(reservationId, { source, ref, history: { field, label, text }, lines, paid?, within? })
  *                                      → { status: 200, byKey, total, settledCents, excessCents, overpaidCents } | { status, body }   `extraSale.sell`
  *
- * SDK 2.26.0 compatibility (plugins-phase-1-sdk rule 53, end review R3-3): the third argument of `priceOrder` is still accepted; its `pending`
+ * SDK 2.26.0 compatibility (plugins-phase-1-sdk rule 54, end review R3-3): the third argument of `priceOrder` is still accepted; its `pending`
  * lines are an explicit no-op since guest-app rule 108 (a card order awaiting its payment reserves nothing: every order is priced on the stay as
  * it is), and a call that passes some is told so once in the log. The answer of `commitOrder` keeps the SDK 2.26.0 name `excessCents` (what the
  * payment brought beyond the sale) beside `overpaidCents`, the same cents.

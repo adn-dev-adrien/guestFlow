@@ -14,7 +14,7 @@
   ],
   "requires": [],
   "guestflow": ">=3.18.0",
-  "sdk": "^2.32.0",
+  "sdk": "^2.33.0",
   "changelog": {
     "1.0.0": [
       "Première version publiée en paquet."
@@ -168,18 +168,28 @@
       "Retirer le lien de paiement d’une visite ou l’envoyer par e-mail suit les règles des autres gestes : l’accueil le jour de la séance seulement, personne sur une visite close (client absent, facturée). Un paiement qui solde le reste retire le lien encore ouvert, et un lien payé malgré tout est gardé comme remboursement dû, visible par l’administrateur.",
       "Un remboursement dû sur une visite s’affiche dans l’arrivée pour l’administrateur, avec « Marquer remboursé » ; l’accueil ne le voit pas.",
       "L’administrateur peut retirer le lien de paiement d’une visite le lendemain de la séance, même sans arrivée enregistrée.",
-      "Demande le SDK 2.31 de GuestFlow.",
       "Offrir ou retirer une ligne payée d’une visite, avec confirmation, inscrit la somme dans « À rembourser » (bouton « Marquer remboursé ») ; la facture attend ce remboursement.",
+      "Un lien de paiement payé au-delà du reste règle d’abord les lignes encore dues de la visite ; seul ce qui reste est « À rembourser ». Une fois remboursé ou gardé en pourboire, cet argent ne paie plus une ligne ajoutée ensuite, et la confirmation d’une ligne payée annonce la somme réellement à rendre.",
       "L’accueil ne voit plus l’adresse e-mail du client ni le nom d’un client reconnu, et ne peut plus demander la facture ni saisir l’adresse de facturation.",
       "L’adresse de facturation n’est enregistrée qu’avec l’arrivée acceptée ; changer le client d’une réservation change celui de sa vente.",
       "Le serveur dit si « Client absent », « Créer la facture » et « Retirer le lien » sont possibles, et ouvre une nouvelle vente sur le même client après la facture.",
       "Le taux de TVA saisi au catalogue pour les ressources vaut aussi pour le paiement d’une réservation et sa facture : un seul taux hors séjour.",
       "Une ressource, un logement ou un client dont une visite a de l’argent sur sa vente ne peut plus être supprimé de force.",
-      "L’avertissement de désinstallation nomme l’argent des visites encaissé sur leur vente ; une vente dont la réservation a disparu reste dans « Ventes hors séjour »."
+      "L’avertissement de désinstallation nomme l’argent des visites encaissé sur leur vente ; une vente dont la réservation a disparu reste dans « Ventes hors séjour ».",
+      "« Arrivée » et « Client absent » ne s’affichent que si le serveur les propose, selon l’heure du serveur : le planning ne compare plus le jour avec l’horloge du navigateur.",
+      "L’arrivée d’une visite n’affiche plus de raison de facture qui ne s’applique pas : rien sans Qonto ni pendant un encaissement en cours.",
+      "« Créer la facture dans Qonto » au paiement immédiat est proposé quand le serveur, interrogé avec le paiement saisi, répond que la facture peut être faite : ni l’arrivée ni la réservation ne le devinent plus d’après les moyens de paiement.",
+      "Le sas d’arrivée lit les suppléments de soirée des commandes par la clé de leur bain : un second supplément, numéroté « (2) », n’est plus facturé une seconde fois.",
+      "Au paiement immédiat, l’arrivée et la réservation attendent la réponse du serveur sur la facture avant d’enregistrer, et affichent « Facture non vérifiée pour ce paiement. » avec « Réessayer » si elle échoue ; « Caisse interne » et les autres refus viennent du serveur.",
+      "Au paiement immédiat, un refus ou un échec de la vente de l’arrivée ne s’affiche qu’une fois, sans second message ni second « Réessayer » pour le paiement saisi.",
+      "Vente d’une visite : une ligne payée puis offerte ou retirée, close « rien à rembourser », devient un pourboire et quitte le chiffre d’affaires ; la facture n’est refusée « Caisse interne » que tant que la visite garde de l’argent de la caisse interne ; pendant la saisie, « À rembourser » montre le montant que l’enregistrement laissera.",
+      "La facture Qonto d’une séance indique la TVA que le journal déclare pour cette séance : une séance avec du temps offert à 10 % ne s’écarte plus d’un centime.",
+      "Dans l’arrivée d’une visite, « Réessayer » relance aussi la vérification de la facture du paiement saisi, et la raison sous « Marquer remboursé » dit d’enregistrer d’abord les modifications, quelles qu’elles soient.",
+      "Demande GuestFlow 4.2 (SDK 2.32)."
     ],
     "1.8.1": [
       "Aucun changement visible : GuestFlow sait désormais qu'une part d'un paiement peut avoir été reçue d'avance (un bon cadeau), ce que ce module lit sans le compter à part.",
-      "Compatible avec GuestFlow 4 (SDK 2.32)."
+      "Compatible avec GuestFlow 4 (SDK 2.33)."
     ]
   }
 }

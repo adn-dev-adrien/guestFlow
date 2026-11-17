@@ -10,7 +10,8 @@ import { Button, Stack, Typography } from '@mui/material';
  *                 (« libellé : 2 × 8 € = 16 € ») — struck through once offered.
  * - `offered`   : true when the operator gave this line away (it then counts 0 € in the total).
  * - `onToggle`  : toggles the gesture. Omit it to render a line that can never be offered
- *                 (taxe de séjour, read-only reminders) — no button at all.
+ *                 (taxe de séjour, read-only reminders) or an offered line the server locks
+ *                 (`offerLocked`: its money was refunded, pricing-components rule 108) — no button at all.
  * - `prefix`    : optional leading marker, e.g. « + » for the lines the SAS just added.
  */
 export default function OfferableLine({ text, offered = false, onToggle, prefix = '' }) {

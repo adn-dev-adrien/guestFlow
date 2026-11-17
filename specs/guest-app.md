@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| **Status** | In progress — rules 65-108 are delivered by pass 4 of pricing-components PR C and ship with it in **4.2.0** (`midStayOrderCommit` was removed by C30, 2026-11-13); rules 1-64 Implemented (2026-11-09) — approved 2026-11-04 |
+| **Status** | In progress — rules 65-113 are delivered by pass 4 of pricing-components PR C and the stabilisation loop and ship with it in **4.2.0** (`midStayOrderCommit` was removed by C30, 2026-11-13); rules 1-64 Implemented (2026-11-09) — approved 2026-11-04 |
 | **Branch** | `claude/granja-estival-app-spec-77uvgj` (spec) — implementation base `master` (`inte/plugins` retired 2026-11-13) |
 | **Created** | 2026-11-04 |
 | **Author** | Adrien |
@@ -879,6 +879,9 @@ arrival.** Everything below is judged by the server; the apps render what it off
     what they place beyond the hours not yet placed. Such an order needs no payment when its total is 0 € (rule 25,
     « Réserver »).
     > **Delivered by PR C** (pass 4, C26-C29, C31-C32): server `guest-app` 1.2.0 on `extraSale` / `saleDetail`; tests listed in §7 (`guest-order-*`, `guest-app-arrival-orders`, `guest-app-orders-from-j7`, …).
+    > _Reading of 2026-11-16 (loop t2 N-6, pricing-components rule 102 f):_ the evening supplement line an order writes carries the stable key
+    > `fulfilmentRef = evening:resource:<id>`; the arrival recompute (`hourly-resources` `orderChargedFor`) sums the order lines of that key, so a
+    > second supplement numbered « … (2) » (rule 94) is read too (a line without the key is still read by its words). Test `guest-order-evening-stable-key`.
 83. **The evening supplement of an app session is billed once, with its order.** _(Reworded in PR C, 2026-11-15, end review R3-5: the
     `orderChargeKey` charge described before was never built — hourly spec rule 38.)_ The order's quote and commit carry the evening supplement
     of its sessions, computed by `hourly-resources` (the scheduler's `orderSupplement({ resourceId, propertyId, sessions, lineGain })`: the
@@ -1072,14 +1075,58 @@ arrival.** Everything below is judged by the server; the apps render what it off
     and a stay that is no live reservation or whose departure is settled close it too (409 `ORDER_NOT_EDITABLE`). The check-in hour no longer
     closes it: a guest who arrives after it has the order changed at the door. What the change keeps is re-sold **into the arrival complement**
     (`extraSale.sell(…, { atArrival: true })`: an unpaid re-sale routed to the arrival whatever the clock), so the door collects it in the same
-    piece and nothing moves to the departure. Test: `guest-order-arrival-amend-after-check-in`.
+    piece and nothing moves to the departure. Test: `guest-order-arrival-amend-after-check-in`. **Bounded 2026-11-16 by rule 111 a:** never
+    after the stay's departure day.
+    > _Reading of 2026-11-16 (loop t2 N-2, pricing-components rule 102 d):_ the core now reads the amend's own `now` (it read the wall clock, so the
+    > suite proved nothing past the hour): the removal of the unpaid arrival line is no longer refused `ARRIVAL_EXTRAS_FROZEN` while the arrival is
+    > not validated, and the re-sale lands in the arrival complement (it was written to the end-of-stay complement). Test `sale-one-moment`.
     (b) **The refund of a card order paid before the stay was cancelled lives in the cancellation's refund dialog only.** The order's note is a
     collected line of the cancelled stay (`reservation-refunds.md` D3, D15): the dialog offers it, at most what it collected, and once given
     back it leaves the dialog — a second refund of it is refused (`REFUND_UNKNOWN_LINE` / `REFUND_EXCEEDS_LINE`). The cancellation
     (`cancelOrdersOf`) opens **no** `orderConflict` row any more, so the « À rembourser » register never repeats that money and it cannot be paid
     out twice. The register keeps only money that never reached the fiche: the gap of an order sold below its payment (rule 108 d) and a payment
-    that lands after the cancellation (`paid_conflict`, rule 109 b) — those the dialog does not offer. The staff list still reads « Payée · à
-    rembourser » on the cancelled order. Test: `guest-order-cancelled-stay-refund-home` (both paths, and the gap case).
+    that lands after the cancellation (`paid_conflict`, rule 109 b) — those the dialog does not offer. The staff list reads « Payée · à
+    rembourser » on the cancelled order until the dialog gave it back, then « Remboursée » (rule 111 b). Test: `guest-order-cancelled-stay-refund-home`
+    (both paths, and the gap case).
+111. **Owner decisions of 2026-11-16 on the end of an order's edit and on a refunded order's label** _(stabilisation loop t2, AG2-2 and the
+    observation on rule 110 a; readings of rules 87, 110 a and b)_. (a) **An app order is never editable at the arrival SAS after the stay's
+    departure day.** Rule 110 a's edit stays open until the arrival is validated, but an arrival never validated (no SAS, no check-in mark, the
+    departure not settled) no longer keeps it open once the stay is over: from the day after `endDate` (Paris day) the step shows the order not
+    editable and the change is refused, 409 `ORDER_NOT_EDITABLE`. The departure day itself is still editable. The order is then changed on the
+    fiche. Test: `guest-order-arrival-amend-departure-day`. _(Loop t4, A4-1, 2026-11-16:)_ « the arrival still open » has one judge, the core's
+    `extraSale.arrivalOpenAt` (SDK 2.32): the step's `editable` and the sale's `atArrival` refusal both read it. A stay whose false start was kept
+    (a baseline stored, unticked before the hour) already carves its sales out to the departure: until the check-in hour the order is shown not
+    editable, and the sale refuses `atArrival` 409 `ARRIVAL_CLOSED` « Les ventes de ce séjour se règlent déjà au départ : la commande aussi. »
+    (never « Arrivée déjà validée » when it is not). Test: `guest-order-arrival-kept-false-start`. (b) **A paid card order of a cancelled stay reads « Remboursée » in the staff list
+    once the cancellation's refund dialog gave it back** (before: « Payée · à rembourser » for ever). The register keys a line by its article,
+    not by its order, so « given back » means: every article key of the lines the order placed on the fiche (`orderRef` `order:<id>:…`) has
+    been refunded outside a requalification **and** the dialog offers nothing more on it; a part given back, or a key still holding refundable
+    money, reads « Payée · à rembourser ». The reading is the core's (`refundGivenBack`, `plugins-phase-1-sdk.md` rule 56); a `paid_conflict`
+    order (paid after the cancellation, the register's row) keeps « Payée · à rembourser ». Test: `guest-order-cancelled-refunded-label`.
+112. **Readings of 2026-11-16 on an order with two baths and on two orders of one article** _(stabilisation loop t3, A3-1 and A3-2; readings of
+    rules 109 d and 111 b)_. (a) **The evening supplement goes with ITS bath, not with the order.** The arrival SAS reads the supplement of the bath it
+    changes by the stable key the order gave it (`fulfilmentRef = evening:resource:<id>`, rule 82 reading N-6; a line written before the key, by its
+    words « <bain> — supplément soirée »). Removing a bath removes its own supplement only; another bath of the same order — supplemented or not —
+    keeps its line and its money. The « Supplément soirée : retirer le bain entier » refusal (rule 109 d) applies to a supplemented bath only: taking a
+    session off an unsupplemented bath of the same order is accepted. Test: `guest-order-arrival-amend-two-baths`. (b) **« Remboursée » keys a line
+    as the register does.** The first line of an article on the stay is keyed by the article (`opt:<id>` / `res:<id>`), every later line of that
+    article `line:<table>:<lineId>` (`pricing-components.md` rule 85); `refundGivenBack` keys the order's lines with the same scheme over every line of
+    the stay. Two paid orders of one article are two keys: giving back the first order's line leaves the second « Payée · à rembourser » until its
+    own line is given back; giving back the stay's own line of the article does not read a later order's line « Remboursée ». Test:
+    `guest-order-cancelled-refunded-label`.
+113. **Readings of 2026-11-16 on a paid card order given back on a live stay and on an early check-in mark** _(stabilisation loop t5, A5-1 and
+    S5-6; readings of rules 87, 110 a)_. (a) **A paid card order given back on a live stay is owed back, on any channel.** Its money was taken by
+    the establishment (the Qonto link), never by the platform: its line offered on a Booking or Airbnb stay asks the trop-perçu confirmation (409
+    `OVERPAID`) and then holds the `lineLowered` refund, as on a direct stay (`pricing-components.md` rule 104 c, loop t5 reading). Its note is
+    never cancelled (409 `NOTE_PAID_ONLINE`): the money is given back through the register. Tests: `sale-paid-line-lowered-credited`,
+    `sale-paid-card-note-kept`. _Reading of 2026-11-16 (loop t6, A6-2):_ nor adjusted — « Modifier la note » refuses a new amount or « Caisse
+    interne » on a note paid online (`method 'card'`: an app or shop card order, a payment link) with the same 409 `NOTE_PAID_ONLINE`; only its
+    date moves. Before, lowering a 12 € card note to 6 € put 6 € back in the departure remainder (the guest asked again for money paid online),
+    and « Caisse interne » took the card money off the books. The fiche's GET serves the lock (`midStayNoteLocks`: `{ [noteId]: reason }`), and
+    the note's row draws neither « Modifier la note » nor « Reporter au départ » but the reason. Tests: `sale-paid-card-note-not-adjusted`,
+    Vitest `MidStayNoteRow.paid-online`. (b) **A check-in box ticked before the arrival day closes no order.** The step's `editable` reads the core's judge
+    (`extraSale.arrivalOpenAt`) and nothing else; the judge counts the box or the committed SAS from the arrival day only (`pricing-components.md`
+    rule 105 c). Test: `sale-arrival-open-early-tick`; `guest-app-arrival-orders` ticks the box on the arrival day.
 
 **Edge cases:**
 - Guest scans the La Granja poster while staying at L'Estiva → La Granja's visitor mode; their own stay opens
@@ -1567,7 +1614,11 @@ le nom et le numéro. »
 - [x] `guest-order-cancelled-stay-money` — rule 109 a-b (loop t1 B-2, AG-4, AG-5, AG-6): the cancellation leaves the register alone (rule 110 b); a payment on a cancelled order is a conflict
 - [x] `guest-order-cancelled-stay-refund-home` — rule 110 b (owner 2026-11-16, B-2): paid before the cancellation → the refund dialog only, never twice; paid after → the register only
 - [x] `guest-order-arrival-amend-after-check-in` — rule 110 a (owner 2026-11-16, AG-2): editable past the check-in hour until the arrival is validated, re-sold into the arrival complement
+- [x] `guest-order-arrival-kept-false-start` — rule 111 a reading (loop t4, A4-1): a kept false start before the hour shows the order read-only and refuses `atArrival` without « validée »; editable again from the check-in hour
+- [x] `guest-order-evening-stable-key` — rule 82 (loop t2 N-6): the supplement carries its bath's key; the recompute reads every supplement of that bath
 - [x] `guest-order-arrival-amend-bath` — rule 109 d (AG-1, AG-3): the supplement goes with its bath; a bath on held hours is not changed from the SAS
+- [x] `guest-order-cancelled-refunded-label` — rules 111 b, 112 b (loop t2 AG2-2, t3 A3-2): « Remboursée » once given back; two orders of one article are two keys
+- [x] `guest-order-arrival-amend-two-baths` — rule 112 a (loop t3 A3-1): an order with two baths — the supplement goes with its own bath only; a session off the unsupplemented bath is accepted
 - [x] `guest-app-fulfilment` — rule 41ter: the pickup push names the day of a slot past midnight
 - [x] `plugins/guest-app/tests/guest-app-current-stay.unit.test.js` (15) — rules 2, 4, 5, 6, 9 (window edges and
   DST, what the link opens before J-7 / from J-7 / in the window / after, cancelled, a pre-arrival link session

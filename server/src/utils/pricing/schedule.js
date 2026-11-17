@@ -28,6 +28,13 @@ const {
   settledByKey, buildMidStayLine, scheduleExcess, ARRIVAL_COMPLEMENT_EXCESS_KEY, ARRIVAL_COMPLEMENT_EXCESS_LABEL,
 } = require('./settlement');
 
+// Loop t5 S5-3 — the end-of-stay line a rule-104 credit lowered, named with the credit and the paid lines it comes from.
+const eurosText = (amount) => `${roundMoney(amount).toFixed(2).replace('.', ',')} €`;
+function creditedLabel(label, cut, sources) {
+  const names = (sources || []).filter(Boolean).join(', ');
+  return `${label} (déjà réglé : ${eurosText(cut)}${names ? ` — ${names}` : ''})`;
+}
+
 function planSchedule({
   totals: {
     finalPrice, totalStayPrice, touristTaxTotal, touristTaxAddedGuestsAmount, touristTaxInComplement,
@@ -44,7 +51,7 @@ function planSchedule({
   overrides: { depositAmountOverride, complementAmountOverride },
   receipts: {
     depositPaid, balancePaid, complementPaid, depositAmount, balanceAmount, complementAmount, existingDepositDueDate,
-    paidSoldeCaptured, endOfStayComplementSettled,
+    paidSoldeCaptured, endOfStayComplementSettled, refundedStayCredit = 0, complementCreditPhantom = 0,
   },
   ledger: { splitReceived, installmentPlan },
 }) {
@@ -380,8 +387,75 @@ function planSchedule({
       key: ARRIVAL_COMPLEMENT_EXCESS_KEY,
     })]
     : midStayExtras.lines;
-  const midStayRemainingDue = roundMoney(midStayRemainingTotal + excessStillDue);
-  const midStaySettledAll = roundMoney(midStaySettledTotal + excessSettledByNotes);
+  // Rule 104 (stabilisation loop t4, S4-3) — money a note collected on a line since offered or discounted stays credited to the stay: it
+  // comes off what the stay still asks, the open arrival complement first (never a collected or adjusted one), then the end-of-stay
+  // remainder, then the acompte and the solde not yet paid of a direct stay (a platform's are its payout). What no open bucket absorbs is
+  // money received beyond the total: the trop-perçu of rule 23, refused until confirmed.
+  // Rule 121 (loop t9 B9-2) — and the stay's OWN money received beyond what its paid buckets now cover (`overCollectedTtc`: a solde line
+  // offered, discounted or lowered after the solde was paid), less what a refund on the trop-perçu already gave back of it: a line sold
+  // unpaid since is paid by it first, exactly as by a note's money. Without it the stay asked the new line in full AND owed the trop-perçu
+  // back (the trop-perçu formula already nets the line). A platform stay holds none (reservation-refunds rule 38).
+  // Rule 116 reading (loop t9 B9-3) — on a platform stay, the collected arrival complement's money a line no longer charges, the same way;
+  // bounded by what that complement holds beyond what is routed to it now (a proportional split never invents credit).
+  const complementBeyond = complementPaid && !complementOverridden
+    ? Math.max(0, roundMoney(complementAmount) - roundMoney(complementForcedItemsTotal + taxInComplement)) : 0;
+  const complementCredit = platformIsNonDirect ? roundMoney(Math.min(Number(midStayExtras.complementUnclaimed || 0), complementBeyond)) : 0;
+  // Only with the proof the paid buckets agreed with the lines (`bucketsAgreed`, the solde's contribs captured, and the pre-arrival money
+  // settled — the same proof rule 20 asks before trusting the auto-gap): a stay stored at a price the engine no longer reproduces reads an
+  // `overCollectedTtc` that is the engine's drift, never money received beyond the total.
+  const ownCredit = !platformIsNonDirect && bucketsAgreed && preArrivalSettled
+    ? roundMoney(Math.max(0, Number(overCollectedTtc || 0) - Number(refundedStayCredit || 0))) : 0;
+  const stayCredit = platformIsNonDirect ? complementCredit : ownCredit;
+  let noteCredit = roundMoney(Number(midStayExtras.unclaimed || 0) + stayCredit);
+  const creditOff = (amount) => {
+    const cut = roundMoney(Math.max(0, Math.min(noteCredit, amount)));
+    noteCredit = roundMoney(noteCredit - cut);
+    return cut;
+  };
+  // Loop t5 S5-2 — what the credit took off each bucket a sale pins (`pinSaleDelta`): the way back gives a bucket only what it took.
+  const noteCreditCuts = { complementAmount: 0, balanceAmount: 0, depositAmount: 0 };
+  if (noteCredit > 0 && !complementPaid && !complementOverridden) {
+    // Rule 122 (loop t9 S9-2) — never on the part of it a sale's stay does not store (`complementCreditPhantom`): that credit would be money no
+    // stored bucket gives back, owed while the end-of-stay remainder still asks it. It goes on to the remainder, the solde, the acompte.
+    noteCreditCuts.complementAmount = creditOff(Math.max(0, roundMoney(resolvedComplementAmount - Number(complementCreditPhantom || 0))));
+    resolvedComplementAmount = roundMoney(resolvedComplementAmount - noteCreditCuts.complementAmount);
+  }
+  let creditedLines = midStayLinesWithExcess;
+  if (noteCredit > 0) {
+    creditedLines = midStayLinesWithExcess
+      .map((line) => {
+        const cut = creditOff(line.amount);
+        // Loop t5 S5-3 — the line keeps its own name and says what came off it and whose money it is: the departure reads « Balade
+        // (déjà réglé : 45,00 € — Animaux) », never the line at a price it was not sold at.
+        return cut > 0 ? buildMidStayLine({ label: creditedLabel(line.label, cut, [...(midStayExtras.unclaimedLabels || []), ...(complementCredit > 0 ? midStayExtras.complementUnclaimedLabels || [] : [])]), unitPrice: line.unitPrice, amount: roundMoney(line.amount - cut), key: line.key }) : line;
+      })
+      .filter((line) => Number(line.amount) > 0);
+  }
+  if (noteCredit > 0 && !platformIsNonDirect && !installmentPlan) {
+    if (!balancePaid) {
+      noteCreditCuts.balanceAmount = creditOff(resolvedBalanceAmount);
+      resolvedBalanceAmount = roundMoney(resolvedBalanceAmount - noteCreditCuts.balanceAmount);
+    }
+    if (!depositPaid) {
+      noteCreditCuts.depositAmount = creditOff(resolvedDepositAmount);
+      resolvedDepositAmount = roundMoney(resolvedDepositAmount - noteCreditCuts.depositAmount);
+    }
+  }
+  // Loop t6 S6-2 — and what no bucket nor line absorbed: money beyond the total, the part of the owed refund that is not a clamp of `pinSaleDelta`.
+  // Loop t9 B9-2 — the notes' part only: the stay's own credit is spent last, so what it leaves is its own (the trop-perçu formula's), and a
+  // stay whose credit absorbed nothing reads exactly as before.
+  const noteLeft = roundMoney(Math.max(0, noteCredit - stayCredit));
+  if (noteLeft > 0) noteCreditCuts.unabsorbed = noteLeft;
+  // Rule 122 b with rule 121 — the stay's own credit left once the complement took its part: owed back like the notes' rest, so the sale's
+  // reading of what the stored complement held (`complementCreditPhantomCents`) counts it too. Only beside a complement cut, the one quote
+  // that reading weighs: every other quote stays key for key.
+  const stayLeft = roundMoney(Math.min(noteCredit, stayCredit));
+  if (stayLeft > 0 && noteCreditCuts.complementAmount > 0) noteCreditCuts.stayUnabsorbed = stayLeft;
+  const noteCreditApplied = roundMoney(Number(midStayExtras.unclaimed || 0) + stayCredit - noteCredit);
+  const creditedRemainder = roundMoney(creditedLines.reduce((sum, line) => sum + Number(line.amount || 0), 0)
+    - midStayLinesWithExcess.reduce((sum, line) => sum + Number(line.amount || 0), 0));
+  const midStayRemainingDue = roundMoney(midStayRemainingTotal + excessStillDue + creditedRemainder);
+  const midStaySettledAll = roundMoney(midStaySettledTotal + excessSettledByNotes + noteCreditApplied);
   // What the engine would collect on its own — the « Calcul auto (X €) » the fiche shows under the
   // adjustment field, and the base the accounting ventilation is spread over (§3.6 rule 36).
   const autoComplementAmount = roundMoney(resolvedComplementAmount);
@@ -415,9 +489,10 @@ function planSchedule({
     endOfStayComplementTotal,
     installmentPlan,
     isTouristTaxForcedToComplement,
-    midStayLinesWithExcess,
+    midStayLinesWithExcess: creditedLines,
     midStayRemainingDue,
     midStaySettledAll,
+    noteCreditCuts,
     overCollectedTtc,
     planScheduled,
     platformIsNonDirect,

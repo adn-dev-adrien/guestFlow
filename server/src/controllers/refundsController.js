@@ -16,6 +16,9 @@ const defaultReservationsModel = require('../models/reservationsModel');
 const database = require('../database');
 const vatRegimeModel = require('../models/vatRegimeModel');
 const { lineAllocationsContext } = require('../models/refundInputModel');
+const { collectedAfterArrival } = require('../utils/pricing/refunds/collected');
+const paidLineJudgment = require('../utils/paidLineJudgment');
+const { noteExcessByKey, noteExcessCents, reopenedCredit } = paidLineJudgment;
 const {
   buildRefundableLines, validateRefundPayload, cancelledRefundBudget, collectedByLine, collectedLinesGone, refundDeletionRefusal, lastBookPaymentDateOf, capCashToLines, overpaymentRefusal,
 } = require('../utils/refunds');
@@ -109,6 +112,7 @@ function createRefundsController(deps = {}) {
       reservation: cancelled ? null : reservation,
       cashCollected: cashReading,
       complementCollected: Number(reservation.complementPaid) === 1,
+      notePaidKeys: cancelled ? new Set(collectedAfterArrival(reservation).keys()) : null,
       goneLines: cancelled ? collectedLinesGone({ reservation, options: reservation.options || [], resources: reservation.resources || [], collected, cashCollected: cashReading }) : [],
     });
     // Rule 48 reading of 2026-11-02 (review of PR #929, F4) — the caisse interne gives back only what its lines carry.
@@ -176,11 +180,42 @@ function createRefundsController(deps = {}) {
 
       // Owner O-6 — only a refund opened on the trop-perçu lowers it; the origin is what says so.
       if (req.body && req.body.fromOverpayment === true) validated.refund.origin = 'overpayment';
-      const refundId = refundsModel.create(id, validated.refund);
-      recordRefundHistory(id, validated.refund, refundId);
-      if (validated.refund.origin === 'overpayment') {
-        require('../models/refundObligationsModel').settleLoweredBy(id, refundId, Math.round(validated.refund.totalTtc * 100));
-      }
+      // Loop t9 (D9-3 follow-up) — the refund, its history entry and the `lineLowered` rows it settles (with their `noteCents`) are one write:
+      // a failure on the way leaves no refund without its settlement, nor a row settled by a refund that was never written.
+      const writeRefund = () => {
+        const refundId = refundsModel.create(id, validated.refund);
+        recordRefundHistory(id, validated.refund, refundId);
+        if (validated.refund.origin === 'overpayment') {
+          // Loop t8 B8-2 — the note money freed and not given back yet goes first: the rest is the stay's own trop-perçu (a solde line lowered).
+          const totalCents = Math.round(validated.refund.totalTtc * 100);
+          let noteCents = stayDatabase && reservation.midStaySettledNotes ? noteExcessCents(stayDatabase, id, null, { notesOnly: true }) : 0;
+          // Loop t9 B9-1 — a platform stay's arrival complement collected « caisse interne » is cash the till holds: a caisse-interne refund gives
+          // that cash back first, so only what it gives beyond the complement's freed money is note money (rule 115 stamp, by means).
+          if (noteCents > 0 && stayDatabase && validated.refund.method === 'internal' && Number(reservation.complementPaidCash || 0) === 1
+            && paidLineJudgment.platformComplementClaims(reservation)) {
+            const complementFreed = Math.max(0, noteExcessCents(stayDatabase, id) - noteCents);
+            noteCents = Math.min(noteCents, Math.max(0, totalCents - complementFreed));
+          }
+          require('../models/refundObligationsModel').settleLoweredBy(id, refundId, totalCents, { noteCents });
+        } else if (cancelled) {
+          // Loop t6 S6-1 (pricing-components rule 106 d) — on a cancelled stay the cancellation dialog gives a note-paid line's money back on the
+          // line itself: what it gives back on a line a note paid settles the `lineLowered` obligation held for that money. Loop t7 D7-2 — only on
+          // the line it was held for: a key settles at most its note money beyond what the line charges now (`noteExcessByKey`), less what earlier
+          // refunds on that key settled; a refund on a line still charged in full (another order) settles nothing.
+          const obligations = require('../models/refundObligationsModel');
+          const excess = stayDatabase ? noteExcessByKey(stayDatabase, id) : {};
+          const given = new Map();
+          for (const l of validated.refund.lines) {
+            if (l.lineKey && excess[l.lineKey] > 0) given.set(l.lineKey, (given.get(l.lineKey) || 0) + Math.round(Number(l.amountTtc || 0) * 100));
+          }
+          for (const [key, cents] of given) {
+            const settles = Math.min(cents, excess[key] - obligations.settledLoweredOn(id, key));
+            if (settles > 0) obligations.settleLoweredBy(id, refundId, settles, { lineRef: key, noteCents: settles });
+          }
+        }
+        return refundId;
+      };
+      const refundId = stayDatabase ? stayDatabase.transaction(writeRefund)() : writeRefund();
       const refreshed = buildRegister(id);
       return res.status(201).json({
         refund: refundsModel.getById(refundId),
@@ -200,10 +235,26 @@ function createRefundsController(deps = {}) {
       const nettedIds = register && String(register.reservation.kind) === 'cancelled' ? refundsModel.nettedRefundIds(id) : null;
       const refusal = register && refundDeletionRefusal(target, refunds, register.reservation, nettedIds);
       if (refusal) return res.status(409).json(refusal);
-      const removed = refundsModel.remove(id, refundId);
+      // Loop t9 D9-3 — the deletion, the reopen of what it settled and the rule-119 credit are one write: a failure on the way leaves the
+      // refund in place, never a settled obligation pointing at a refund that no longer exists.
+      const deleteRefund = () => {
+        // Pricing-components rule 119 (loop t8 S8-3) — the money the deleted refund gave back is note credit again: what the stay still asks
+        // absorbs it first (rule 104), only the rest is owed back, as if the refund had never been made — whatever was sold since.
+        // Loop t9 B9-2 (rule 121) — taken BEFORE the refund row goes: the engine reads the stay's own money refunded from it.
+        const credit = stayDatabase && register && String(register.reservation.kind) === 'reservation'
+          ? reopenedCredit(stayDatabase, id, {
+            quoteOf: (r) => require('../utils/storedReservationQuote').quoteStoredReservation(stayDatabase, r),
+            midStay: (lines) => reservationsModel.syncMidStayComplement(id, lines),
+          })
+          : null;
+        if (!refundsModel.remove(id, refundId)) return false;
+        require('../models/refundObligationsModel').reopenSettledBy(id, refundId);
+        if (credit) credit.settle();
+        recordRefundDeletion(id, target);
+        return true;
+      };
+      const removed = stayDatabase ? stayDatabase.transaction(deleteRefund)() : deleteRefund();
       if (!removed) return res.status(404).json({ error: 'Remboursement non trouvé' });
-      require('../models/refundObligationsModel').reopenSettledBy(id, refundId);
-      recordRefundDeletion(id, target);
       const refreshed = buildRegister(id);
       if (!refreshed) return res.status(404).json({ error: 'Réservation non trouvée' });
       return res.json(refreshed.payload);

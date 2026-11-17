@@ -7,7 +7,7 @@
 import { test, expect, request as playwrightRequest } from '@playwright/test';
 import { createClient, createProperty, createReservation } from '../../fixtures/apiSeed.js';
 import { setPublicUrl, markIcalImported, setPlatformPayout } from '../../fixtures/dbSeed.js';
-import { CLIENT_URL, SERVER_PORT } from '../../clientUrl.js';
+import { CLIENT_URL, SERVER_PORT, API_TIMEOUT } from '../../clientUrl.js';
 import { FAR_YEAR } from '../../fixtures/farYear.js';
 
 const { PAGE_6300000001, replaceOnce } = require('../../../server/src/plugins/booking-intake/tests/fixtures.js');
@@ -40,7 +40,7 @@ async function setActive(page, active) {
 }
 
 async function sendPage(ids, secret) {
-  const ctx = await playwrightRequest.newContext({ baseURL: BACKEND });
+  const ctx = await playwrightRequest.newContext({ baseURL: BACKEND, timeout: API_TIMEOUT });
   try {
     const res = await ctx.post('/public/booking-intake/page', {
       headers: { 'X-Booking-Intake-Key': secret },
@@ -66,7 +66,7 @@ test('booking intake: activation, mapping, dashboard line, fiche filled and reco
 
   // Rule 1 — inactive: no card, no route.
   await setActive(page, false);
-  expect((await page.request.get('/api/booking-intake/pending')).status()).toBe(404);
+  expect((await page.request.get('/api/booking-intake/pending', { timeout: API_TIMEOUT })).status()).toBe(404);
   await page.goto('/settings/integrations?tab=booking-intake');
   await expect(page.getByRole('heading', { name: 'Intégrations' }).first()).toBeVisible({ timeout: 10_000 });
   await expect(page.getByText('N° d’établissement Booking de chaque logement')).toHaveCount(0);
@@ -79,7 +79,7 @@ test('booking intake: activation, mapping, dashboard line, fiche filled and reco
   const secretAction = page.getByRole('button', { name: /^(Créer|Régénérer) le secret$/ });
   await expect(secretAction).toBeVisible({ timeout: 10_000 });
   // Asked of the server, not read off the button: a repetition finds the secret an earlier one created.
-  if ((await page.request.get('/api/booking-intake/userscript.user.js')).status() === 409) {
+  if ((await page.request.get('/api/booking-intake/userscript.user.js', { timeout: API_TIMEOUT })).status() === 409) {
     await secretAction.click();
   }
   await expect(page.getByRole('link', { name: 'Installer le script' })).toHaveAttribute('href', '/api/booking-intake/userscript.user.js');
@@ -89,7 +89,7 @@ test('booking intake: activation, mapping, dashboard line, fiche filled and reco
   await page.getByRole('button', { name: 'Enregistrer' }).first().click();
   await expect(page.getByRole('button', { name: 'Enregistrer' }).first()).toBeDisabled({ timeout: 10_000 });
 
-  const script = await (await page.request.get('/api/booking-intake/userscript.user.js')).text();
+  const script = await (await page.request.get('/api/booking-intake/userscript.user.js', { timeout: API_TIMEOUT })).text();
   expect(script).toContain('// ==UserScript==');
   const secret = (script.match(/var KEY = "([^"]+)"/) || [])[1];
   expect(secret).toBeTruthy();
@@ -116,7 +116,7 @@ test('booking intake: activation, mapping, dashboard line, fiche filled and reco
   await page.goto(`/reservations/${reservation.id}`);
   await expect(page.getByText(/Rempli depuis l’extranet Booking le \d{2}\/\d{2} à \d{2}:\d{2}\./)).toBeVisible({ timeout: 10_000 });
   await expect(page.getByText(/cohérent avec le virement/i)).toBeVisible();
-  const stored = await (await page.request.get(`/api/reservations/${reservation.id}`)).json();
+  const stored = await (await page.request.get(`/api/reservations/${reservation.id}`, { timeout: API_TIMEOUT })).json();
   expect(stored).toMatchObject({
     platform: 'Booking', reservationNumber: ids.resId, firstName: 'Camille', lastName: 'Sierra', adults: 10, checkInTime: '20:00',
     platformGrossAmount: 721.82, platformTouristTaxAmount: 20.02, platformPayoutAmount: 606.44, platformCommissionAmount: 95.36,
@@ -139,7 +139,7 @@ test('booking intake: activation, mapping, dashboard line, fiche filled and reco
   await expect(page.getByText('Virement reçu : 600 → 606.44')).toBeVisible();
   await page.getByRole('button', { name: 'Appliquer' }).click();
   await expect(page.getByText('La page Booking propose')).toHaveCount(0, { timeout: 10_000 });
-  const after = await (await page.request.get(`/api/reservations/${reservation.id}`)).json();
+  const after = await (await page.request.get(`/api/reservations/${reservation.id}`, { timeout: API_TIMEOUT })).json();
   expect(after.platformPayoutAmount).toBe(606.44);
 
   // Rule 1 — switched off, the door is a 404 again, even with the right secret.

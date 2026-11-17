@@ -42,9 +42,12 @@ function createSynthesisModel(database, deps = {}) {
     today: () => H.todayIso(),
     fiscalEndMonth: () => H.getFiscalYearEndMonth(database),
 
-    /** Rule 4 — every journal entry dated in [from, to]: the months' streams of the CSV, cut to the days. */
-    entriesBetween(from, to) {
-      const entries = monthsOf(from, to).flatMap((ym) => monthEntries(accounting, { year: Number(ym.slice(0, 4)), month: Number(ym.slice(5, 7)) }))
+    /**
+     * Rule 4 — every journal entry dated in [from, to]: the months' streams of the CSV, cut to the days. Loop t10 B10-3: read with the export's
+     * own plan (`plan`), so the Mollie entries follow its settings — « Exporter les versements Mollie reçus » off leaves the bank lines out here too.
+     */
+    entriesBetween(from, to, plan = {}) {
+      const entries = monthsOf(from, to).flatMap((ym) => monthEntries(accounting, { year: Number(ym.slice(0, 4)), month: Number(ym.slice(5, 7)) }, plan || {}))
         .filter((entry) => entry.paidDate && entry.paidDate >= from && entry.paidDate <= to);
       // Rule 10 (R2-1) — a compensation says where its money comes from (`origin`, core data): a retained acompte is
       // money already booked. Read here, beside the journal's entries, so the export's own entries stay as they are.

@@ -80,6 +80,10 @@ per-property defaults table (`property_option_defaults`) backs it, so the proper
    alphabetical order (L'Estiva, where the Ménage is an offered default); after switching to La Granja,
    taking the Ménage showed it « ✓ Offert » at 0 € instead of 80 €, because its id was still in the
    offered set. Covered by `e2e/specs/reservations/devis-property-switch-offered.spec.js`.
+   Reading 2026-11-17 (loop t10 UI10-1): from the switch until the new defaults are applied the fiche is
+   read-only and `inert` (the re-read pattern), so an option ticked while the context, the quote and the
+   occupancy are being read cannot be cleared by the switch's own reset; it is released even when a read
+   fails. Covered by `ReservationPage.property-switch-inert.test.jsx` (2).
 
 **Edge cases:**
 - Removing a property from the option's applicable list (`propertyIds`) → its default row is cleared too

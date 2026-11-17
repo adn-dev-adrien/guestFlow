@@ -27,7 +27,7 @@ const PLUGIN_ENV_NAMES = {
     'GUEST_SESSION_RATELIMIT_MAX', 'GUEST_SESSION_RATELIMIT_WINDOW_MS',
   ],
   neat: ['NEAT_API_BASE'],
-  'online-payment': ['PAYMENT_POLL_TICK_MINUTES'],
+  'online-payment': ['PAYMENT_POLL_TICK_MINUTES', 'MOLLIE_API_BASE'],
   'gift-vouchers': ['GIFT_VOUCHER_PEPPER'],
   'website-booking': ['PUBLIC_API_KEY', 'ROOSTVIEW_API_KEY'],
 };
