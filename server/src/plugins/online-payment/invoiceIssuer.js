@@ -326,6 +326,15 @@ function createQontoInvoiceIssuer({ store, iban, env = process.env, withQontoImp
     }
   }
 
+  // specs/mollie-settlement-receipts.md rule 7 — a PDF GuestFlow wrote itself, joined to a bank transaction. The caller's
+  // errors are thrown as they come (`isScopeRefusal` tells a connection that predates `attachment.write`).
+  async function attachPdf({ transactionId, bytes, fileName, idempotencyKey }) {
+    return call('mollie-statement', async (client, accessToken) => {
+      const att = await client.uploadTransactionAttachment({ accessToken, transactionId, bytes, fileName, idempotencyKey });
+      return { attachmentId: att.id };
+    });
+  }
+
   // Rule 38 — `{ done: true }` marked paid, `{ done: false }` Qonto does not offer it; a failure is thrown (retried).
   async function markPaid({ invoiceId, paidAt }) {
     const marked = await call('invoicing', (client, accessToken) => client.markClientInvoicePaid({ accessToken, id: invoiceId, paidAt }));
@@ -343,6 +352,7 @@ function createQontoInvoiceIssuer({ store, iban, env = process.env, withQontoImp
     issue,
     findCardBatch,
     attach,
+    attachPdf,
     markPaid,
     invoiceStatus,
   };

@@ -32,6 +32,7 @@ const ORIGINS = {
   'webhook-register': 'abonnement au webhook',
   reconciliation: 'rapprochement bancaire',
   invoicing: 'facture d’une vente hors séjour',
+  'mollie-statement': 'relevé de versement Mollie',
   admin: 'réglages',
   billing: 'facturation des abonnements',
   basket: 'paiement d’un panier en ligne',

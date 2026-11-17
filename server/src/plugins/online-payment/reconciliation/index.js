@@ -6,7 +6,7 @@
 
 const sdk = require('../../sdk');
 const express = require('express');
-const { up, upV2, upV3, upV3b, TABLES } = require('./schema');
+const { up, upV2, upV3, upV3b, upV4, TABLES } = require('./schema');
 const { createBankTransactionsModel } = require('./bankTransactionsModel');
 const { createReconciliationModel } = require('./reconciliationModel');
 const { readTransactions } = require('./transactionsReader');
@@ -16,15 +16,27 @@ const { buildRouter } = require('./routes');
 const { summarize, summarizeReserve } = require('./attention');
 const { createSplitsModel } = require('./molliePaymentSplits');
 const { createSettlementsModel } = require('./mollieSettlements');
+const { createMollieStatements } = require('./mollieStatements');
 const { createMollieConnection } = require('../mollieConnection');
 
 const READ_INTERVAL_MS = 8 * 60 * 60 * 1000;
+const STATEMENTS_INTERVAL_MS = 60 * 60 * 1000;
 
-function mountReconciliation(ctx, { store }) {
-  ctx.migrations([{ name: 'reconciliation_v1', up }, { name: 'reconciliation_v2', up: upV2 }, { name: 'reconciliation_v3', up: upV3 }, { name: 'reconciliation_v3b', up: upV3b }]);
+function mountReconciliation(ctx, { store, attachPdf, companyName }) {
+  ctx.migrations([{ name: 'reconciliation_v1', up }, { name: 'reconciliation_v2', up: upV2 }, { name: 'reconciliation_v3', up: upV3 }, { name: 'reconciliation_v3b', up: upV3b }, { name: 'reconciliation_v4', up: upV4 }]);
 
   let controller = null;
   let mollieConnection = null;
+  let statements = null;
+  const buildStatements = () => {
+    if (!statements) {
+      statements = createMollieStatements({
+        db: ctx.db, settings: ctx.settings, qontoConnected: () => store.qontoConnected(),
+        settlements: createSettlementsModel(ctx.db), splits: createSplitsModel(ctx.db), attachPdf, companyName,
+      });
+    }
+    return statements;
+  };
   const build = () => {
     if (controller) return controller;
     const { withQonto } = sdk.coreModule('qonto').qontoService;
@@ -47,7 +59,7 @@ function mountReconciliation(ctx, { store }) {
     const mollie = createMollieConnection({ settings: ctx.settings, db: ctx.db, settlements });
     controller = createReconciliationController({
       splits: createSplitsModel(ctx.db), mollieSettlements: settlements, mollie,
-      db: ctx.db, settings: ctx.settings, transactions, model, writer,
+      db: ctx.db, settings: ctx.settings, transactions, model, writer, mollieStatements: buildStatements(),
       connected: () => store.qontoConnected(),
       qontoConfigured: () => resolveQontoConfig({ settings: store }).configured,
       withQonto: qonto,
@@ -69,6 +81,8 @@ function mountReconciliation(ctx, { store }) {
     linkBatch: (...a) => build().linkBatch(...a), previewAllocation: (...a) => build().previewAllocation(...a),
     confirmAll: (...a) => build().confirmAll(...a), ficheCredits: (...a) => build().ficheCredits(...a),
     candidates: (...a) => build().candidates(...a), reserveAttention: () => build().reserveAttention(), bankAccounts: (...a) => build().bankAccounts(...a),
+  }, {
+    status: () => buildStatements().status(), pdf: (id) => buildStatements().pdf(id), retry: (id) => buildStatements().retry(id),
   }));
 
   // specs/mollie-rolling-reserve-and-incoming-payments.md rule 15 — « Tester » on the optional Mollie account.
@@ -100,6 +114,20 @@ function mountReconciliation(ctx, { store }) {
         await build().runJob();
       } catch (err) {
         ctx.log.error('reconciliation read error:', err && err.message ? err.message : err);
+      }
+    },
+  });
+
+  // specs/mollie-settlement-receipts.md rule 8 — the statements of the Mollie credits, hourly, once the settlements are read.
+  ctx.jobs.every({
+    name: 'mollie-statements',
+    intervalMs: STATEMENTS_INTERVAL_MS,
+    bootDelayMs: 7 * 60 * 1000,
+    run: async () => {
+      try {
+        await buildStatements().runJob();
+      } catch (err) {
+        ctx.log.error('Mollie statements error:', err && err.message ? err.message : err);
       }
     },
   });

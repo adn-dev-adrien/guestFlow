@@ -5,7 +5,7 @@
 
 const TABLES = ['bank_transactions', 'bank_reconciliation_lines', 'bank_reconciliation_fiche_writes',
   'bank_reconciliation_discards', 'bank_transactions_outside', 'mollie_payment_splits', 'mollie_settlements',
-  'mollie_settlement_payments', 'mollie_balance_transactions', 'mollie_settlement_failures'];
+  'mollie_settlement_payments', 'mollie_balance_transactions', 'mollie_settlement_failures', 'mollie_settlement_statements'];
 
 function up(db) {
   db.exec(`
@@ -176,4 +176,22 @@ function upV3b(db) {
   rewriteLinkKeys(db);
 }
 
-module.exports = { TABLES, up, upV2, upV3, upV3b };
+/**
+ * `reconciliation_v4` (specs/mollie-settlement-receipts.md §5) — what became of the statement of each Mollie credit.
+ * Additive: no existing row is touched.
+ */
+function upV4(db) {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS mollie_settlement_statements (
+      transactionId TEXT PRIMARY KEY,
+      settlementId TEXT NOT NULL,
+      state TEXT NOT NULL,
+      attempts INTEGER NOT NULL DEFAULT 0,
+      lastError TEXT,
+      attachmentId TEXT, attachedAt TEXT,
+      firstAttemptAt TEXT,
+      updatedAt TEXT NOT NULL
+    );`);
+}
+
+module.exports = { TABLES, up, upV2, upV3, upV3b, upV4 };

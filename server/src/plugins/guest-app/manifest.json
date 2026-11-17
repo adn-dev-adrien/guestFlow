@@ -73,6 +73,14 @@
       "Studio : écran « Domotique » par logement pour choisir les blocs, les capteurs, les noms et les lumières pilotables, avec l’aperçu des vraies mesures.",
       "Nécessite le SDK 2.28 de GuestFlow (échange des données de la maison entre plugins)."
     ],
+    "1.1.1": [
+      "Application « Mon séjour » : bibliothèque d’icônes et outils de construction passés à leurs versions suivantes, sans changement visible.",
+      "Prévu pour le SDK 2.28 de GuestFlow."
+    ],
+    "1.1.2": [
+      "Studio du livret : bibliothèques et outils de construction passés à leurs versions suivantes, sans changement visible.",
+      "Prévu pour le SDK 2.28 de GuestFlow."
+    ],
     "1.2.0": [
       "Une case « arrivé » cochée avant le jour d’arrivée ne fige plus une commande : elle reste modifiable à l’arrivée.",
       "Une commande peut être encaissée à l’arrivée ou au départ, et une commande d’un séjour annulé est marquée annulée ; aucune donnée existante n’est modifiée.",

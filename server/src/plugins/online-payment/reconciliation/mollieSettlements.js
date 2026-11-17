@@ -126,6 +126,11 @@ function createSettlementsModel(db) {
         payments: payments.filter((p) => p.settlementId === s.id),
       }]));
     },
+    /** One stored settlement by the reference a bank credit names (« REF T… » or Mollie's own form), without its payments. */
+    findByReference(reference) {
+      const wanted = normalizeReference(reference);
+      return db.prepare('SELECT * FROM mollie_settlements WHERE reference = ? OR reference = ?').get(wanted, `T${wanted}`) || null;
+    },
     count() {
       return db.prepare('SELECT COUNT(*) AS n FROM mollie_settlements').get().n;
     },

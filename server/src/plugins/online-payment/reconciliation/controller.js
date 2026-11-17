@@ -50,7 +50,7 @@ const refsOf = (t, molliePayment = null) => ({
   mollieSettlement: isMollieCredit(t) ? settlementReferenceOf(t) : null,
   molliePayment,
 });
-const bankSide = (t, molliePayment = null) => ({
+const baseBankSide = (t, molliePayment = null) => ({
   transactionId: t.id, amountCents: t.amountCents, date: day(t.settledAt), dateLabel: frDate(t.settledAt),
   counterparty: t.counterpartyName || t.label || '', reference: t.reference || t.note || '',
   refs: refsOf(t, molliePayment),
@@ -80,6 +80,7 @@ const mollieMeta = (r, lines, today) => {
  * @param {object} [deps.splits]         the Mollie splits model (`sync`, `forLink`, `forSource`) — specs/mollie-rolling-reserve-and-incoming-payments.md rule 1
  * @param {object} [deps.mollieSettlements] the settlements model (`byReference`) — rule 10
  * @param {object} [deps.mollie]         the optional Mollie connection (`status`, `sync`) — rules 14-17
+ * @param {object} [deps.mollieStatements] the Mollie statements (`lineOf`) — specs/mollie-settlement-receipts.md rule 11
  */
 // Hosting-h2 rule 68, reading of 2026-11-05 — the routes' wrap answers a throw with a 500: what `String()` cannot read stops
 // here, and every other value keeps the refusal it always had.
@@ -93,8 +94,10 @@ const listRead = (list) => !Array.isArray(list) || list.every(isScalar);
 const unknownReservation = () => ({ status: 404, body: { error: 'Réservation introuvable.', code: 'UNKNOWN_RESERVATION' } });
 const unknownTransaction = () => ({ status: 404, body: { error: 'Virement introuvable.', code: 'UNKNOWN_TRANSACTION' } });
 
-function createReconciliationController({ db, settings, transactions, model, writer, read, connected, qontoConfigured, withQonto, core, splits = null, mollieSettlements = null, mollie = null }) {
+function createReconciliationController({ db, settings, transactions, model, writer, read, connected, qontoConfigured, withQonto, core, splits = null, mollieSettlements = null, mollie = null, mollieStatements = null }) {
   let lastAttemptAt = 0;
+  // specs/mollie-settlement-receipts.md rule 11 — the statement of a Mollie credit rides on its bank side.
+  const bankSide = (t, molliePayment = null) => ({ ...baseBankSide(t, molliePayment), statement: mollieStatements && isMollieCredit(t) ? mollieStatements.lineOf(t) : null });
   // One computed pass serves the journal of every month of a request (the synthesis asks month after month); any write drops it.
   let journalCache = null;
 

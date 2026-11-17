@@ -344,6 +344,10 @@ const api = {
   declarePlatformPenalty: (reservationId, payload) => request(`/reservations/${reservationId}/platform-penalties`, { method: 'POST', body: payload }),
   removePlatformPenalty: (reservationId, penaltyId) => request(`/reservations/${reservationId}/platform-penalties/${penaltyId}`, { method: 'DELETE' }),
   // specs/mollie-rolling-reserve-and-incoming-payments.md rule 15 — « Tester » on the optional Mollie account (the typed token, else the stored one).
+  // specs/mollie-settlement-receipts.md §4.3 — the card's counters, and « Réessayer » on one credit.
+  getMollieStatementsStatus: () => request('/payments/reconciliation/mollie-statements/status'),
+  mollieStatementUrl: (transactionId) => `${API}/payments/reconciliation/mollie-statements/${encodeURIComponent(transactionId)}.pdf`,
+  retryMollieStatement: (transactionId) => request(`/payments/reconciliation/mollie-statements/${encodeURIComponent(transactionId)}/retry`, { method: 'POST', body: {} }),
   testMollieConnection: (token) => request('/plugins/online-payment/mollie/test', { method: 'POST', body: token ? { token } : {} }),
   getReconciliationBankAccounts: () => request('/payments/reconciliation/bank-accounts'),
   getPluginSettings: (id) => request(`/plugins/${encodeURIComponent(id)}/settings`),
