@@ -446,6 +446,11 @@ function planSchedule({
   // stay whose credit absorbed nothing reads exactly as before.
   const noteLeft = roundMoney(Math.max(0, noteCredit - stayCredit));
   if (noteLeft > 0) noteCreditCuts.unabsorbed = noteLeft;
+  // Rule 122 b with rule 121 — the stay's own credit left once the complement took its part: owed back like the notes' rest, so the sale's
+  // reading of what the stored complement held (`complementCreditPhantomCents`) counts it too. Only beside a complement cut, the one quote
+  // that reading weighs: every other quote stays key for key.
+  const stayLeft = roundMoney(Math.min(noteCredit, stayCredit));
+  if (stayLeft > 0 && noteCreditCuts.complementAmount > 0) noteCreditCuts.stayUnabsorbed = stayLeft;
   const noteCreditApplied = roundMoney(Number(midStayExtras.unclaimed || 0) + stayCredit - noteCredit);
   const creditedRemainder = roundMoney(creditedLines.reduce((sum, line) => sum + Number(line.amount || 0), 0)
     - midStayLinesWithExcess.reduce((sum, line) => sum + Number(line.amount || 0), 0));

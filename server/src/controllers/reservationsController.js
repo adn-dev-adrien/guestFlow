@@ -1978,7 +1978,7 @@ async function retireStaleLinks(reservationId) {
 
 // Rule 122 (loop t9 S9-2) — what the engine's open arrival complement (before its note credit) holds above the stored one, in cents: `engine` is
 // the base row of a sale or the run's own quote. The engine's credit on the complement is held by the stored stay except the part owed back
-// beyond what the engine itself leaves unabsorbed; a stored complement equal to the engine's once that held credit is taken off is the
+// beyond what the engine itself leaves unabsorbed (the notes' part and the stay's own credit of rule 121 alike); a stored complement equal to the engine's once that held credit is taken off is the
 // engine's (a stay it reproduces): nothing above. Otherwise the stored complement holds none of the credit — it sits in the remainder, the
 // solde, or is owed — and the whole gap is unstored. 0 on a collected or adjusted complement, whose credit the engine never takes.
 function complementCreditPhantomCents(stored, engine, owedCents) {
@@ -1986,7 +1986,7 @@ function complementCreditPhantomCents(stored, engine, owedCents) {
   const cuts = engine.noteCreditCuts || {};
   const cut = toCents(cuts.complementAmount);
   const pre = toCents(engine.complementAmountAuto ?? engine.complementAmount) + cut;
-  const held = Math.max(0, cut - Math.max(0, (Number(owedCents) || 0) - toCents(cuts.unabsorbed)));
+  const held = Math.max(0, cut - Math.max(0, (Number(owedCents) || 0) - toCents(cuts.unabsorbed) - toCents(cuts.stayUnabsorbed)));
   const kept = toCents(stored.complementAmount);
   return kept === pre - held ? 0 : Math.max(0, pre - kept);
 }

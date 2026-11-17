@@ -2520,6 +2520,11 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
     the recap's « Déjà réglé » line explains the complement it asks. Beer 30 € paid and offered (30 owed), the SAS sells a 12 € basket:
     complement 0, « Déjà réglé (Bière ronde) » −12, owed 30 → 18, the refund dialog proposes 18, admin and reception alike (before: owed 30
     and the basket paid by the same money). Test `sas-arrival-sale-trims-owed`.
+    > _Reading of 2026-11-17 (loop t9 merge, b with rule 121):_ the stored complement holds the engine's credit except the part owed back
+    > beyond what the engine leaves unabsorbed — the notes' rest AND the stay's own credit of rule 121 (`noteCreditCuts.stayUnabsorbed`, set
+    > only beside a complement cut). Before, the stay's own credit left over was read as owed beyond it: a direct stay whose offered solde
+    > line paid an unpaid jam (15 € owed back) read the whole 15 € complement as unstored, and the next line sold asked nothing (identity
+    > broken by 14 €). Test `stay-sequence-fuzz` (direct seed 1).
 
 ## 4. Architecture
 
