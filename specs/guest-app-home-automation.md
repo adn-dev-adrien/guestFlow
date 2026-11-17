@@ -315,7 +315,7 @@ gains a « Domotique » line (last catalogue, last readings).
 |---|---|---|---|
 | GET | `/ping` | — | `{ ok, contract: 1 }` |
 | PUT | `/catalog` | `{ equipments: [{ id, name, zonePath, type, guestSwitchable?, readings: [{ alias, category, unit }] }] }` | `{ selection: [{ equipmentId, alias }] }` |
-| POST | `/readings` | `{ readings: [{ equipmentId, alias, value, unit, measuredAt, dayMin?, dayMax? }] }` — only the changed pairs (rule 26) | `{ stored, dropped }` |
+| POST | `/readings` | `{ readings: [{ equipmentId, alias, value, unit, measuredAt }] }` — only the changed pairs (rule 26); the day's min/max are readings of `temperature_min_today` / `_max_today` | `{ stored, dropped }` |
 | POST | `/series` | `{ series: [{ equipmentId, alias, buckets: [{ time, value }] }] }` | `{ stored, dropped }` |
 | GET | `/commands?wait=25` | — | `{ commands: [{ id, propertyId, equipmentId, value: 'on'\|'off', issuedAt }] }` (empty after `wait` s) |
 | POST | `/commands/results` | `{ results: [{ id, ok, reason? }] }` | `{ stored }` |
@@ -340,11 +340,10 @@ gains a « Domotique » line (last catalogue, last readings).
 
 | Layer | File | T/C | Responsibility |
 |---|---|---|---|
-| models | `plugins/gate-access/homeModel.js` | T | Readings carry `dayMin` / `dayMax`; `samplesJson` no longer written; a reading batch may hold only the changed pairs (nothing else is cleared). |
-| utils | `plugins/gate-access/homePayloads.js` | T | `dayMin` / `dayMax` optional numbers on a reading. |
+| models | `plugins/gate-access/homeModel.js` | T | `samplesJson` no longer written; a reading batch may hold only the changed pairs (nothing else is cleared). |
 | plugin | `plugins/gate-access/manifest.json` | T | Version bump, changelog line. |
 | utils | `plugins/guest-app/homeView.js` | T | No trend; the day's min/max under rooms and outdoor; freshness from `lastPollAt` (rule 27); the `grid` block (rule 29). |
-| utils | `plugins/guest-app/homeRoles.js` | T | Outdoor = any equipment with a temperature reading; `grid` = a `main_energy_meter`'s `power`. |
+| utils | `plugins/guest-app/homeRoles.js` | T | Rooms gain the `min` / `max` roles (aliases `temperature_min_today` / `_max_today`, as outdoor already has): the day's extremes travel as ordinary readings of their own Sowel aliases, so no payload changes; outdoor = any equipment with a temperature reading; `grid` = a `main_energy_meter`'s `power`. |
 | utils | `plugins/guest-app/homeBlocksValidation.js` | T | Kind `grid`, one equipment, a `main_energy_meter`. |
 | database | `plugins/guest-app/migrations.js` | T | `guest_home_blocks.kind` accepts `grid` (new migration appended; existing rows untouched). |
 | plugin | `plugins/guest-app/manifest.json` | T | Version bump, changelog line. |
@@ -353,8 +352,8 @@ gains a « Domotique » line (last catalogue, last readings).
 | studio `pages/` | `HomeAutomationPage.jsx`; `constants/studio.js` | T | The « Réseau » block card and its picker; `HOME_BLOCKS` label. |
 
 Sowel side, outside this repository: `sowel-recipe-guest-home` v0.2.0 (slot « Capteurs partagés », history reads,
-send-on-change, no sampling) and `sowel-core` spec 211. `sowel-plugin-guestflow` relays the payloads unchanged and
-needs only its `HomeReading` type widened.
+send-on-change, no sampling) and `sowel-core` spec 211. `sowel-plugin-guestflow` relays the payloads unchanged: no
+change.
 
 ---
 
@@ -375,8 +374,9 @@ All new tables; nothing existing changes.
 - `home_readings` keeps `samplesJson` (≈ 45 min of numeric samples) rather than a single previous value: a trend
   measured against one anchor reads « flat » right after each refresh.
 
-- **Amendment of 2026-11-17:** `home_readings` gains `dayMin`, `dayMax` (nullable REAL, appended migration);
-  `samplesJson` stays in the schema but is no longer written. `guest_home_blocks.kind` gains `grid`.
+- **Amendment of 2026-11-17:** `home_readings` unchanged in shape — `samplesJson` stays in the schema but is no
+  longer written. `guest_home_blocks.kind` gains `grid` (the CHECK constraint is widened by a table rebuild, rows
+  kept).
 
 **Data impact:** new tables only, empty on first start. No guest personal data is sent to Sowel beyond what the
 gate already sends (`propertyId`).
@@ -445,8 +445,7 @@ Counts after the review of 2026-11-15: server 63 new (`sdk-home-extension-points
       timestamp; rule 29: negative → `export`, positive → `import`, |value| < 5 W → `balanced`, the value unsigned.
 - [ ] `guest-home-blocks-validation.unit.test.js` — rule 29: `grid` needs one `main_energy_meter`; rule 28: an
       outdoor `sensor` with a temperature accepted.
-- [ ] `sowel-home-ingest.unit.test.js` — rule 25: `dayMin` / `dayMax` stored; rule 26: a partial batch leaves the
-      other pairs untouched.
+- [ ] `sowel-home-ingest.unit.test.js` — rule 26: a partial batch leaves the other pairs untouched.
 - [ ] Recipe (`sowel-recipe-guest-home`): the catalogue holds only « Capteurs partagés » plus the entrusted lights;
       a selection naming anything else sends nothing; unchanged catalogue and readings are not resent; min/max are
       Sowel's `temperature_min_today` / `_max_today`, buckets come from `ctx.history`, both absent without them.
