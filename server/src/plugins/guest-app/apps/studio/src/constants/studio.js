@@ -60,13 +60,14 @@ export const GUESTFLOW_LINKS = Object.freeze({
 
 export const DEFAULT_HERO_LABEL = 'Vue aérienne du domaine (par défaut)';
 
-/** specs/guest-app-home-automation.md rule 12 — the « Domotique » blocks, as the studio names them. */
+/** specs/guest-app-home-automation.md rules 12, 28, 29 — the « Domotique » blocks, as the studio names them. */
 export const HOME_BLOCKS = Object.freeze({
-  outdoor: { title: 'Extérieur', description: 'Température, minimum et maximum du jour, humidité, vent.', picker: 'Station météo' },
-  rooms: { title: 'Pièces', description: 'Une température par pièce, avec sa tendance.', picker: 'Thermomètre', add: 'Ajouter une pièce', max: 8 },
+  outdoor: { title: 'Extérieur', description: 'Température, minimum et maximum du jour, humidité, vent.', picker: 'Station météo ou thermomètre' },
+  rooms: { title: 'Pièces', description: 'Une température par pièce, avec son minimum et son maximum du jour.', picker: 'Thermomètre', add: 'Ajouter une pièce', max: 8 },
   lights: { title: 'Éclairage', description: 'Les lumières montrées, pilotables ou non.', picker: 'Lumière', add: 'Ajouter une lumière', max: 6 },
   rain: { title: 'Pluie', description: 'Dernière heure, aujourd’hui, 24 dernières heures.', picker: 'Pluviomètre' },
   energy: { title: 'Électricité', description: 'Puissance en ce moment, kWh du jour, courbe sur 24 h.', picker: 'Compteur' },
+  grid: { title: 'Réseau', description: 'Échange avec EDF en ce moment, tel que la page Énergie de Sowel.', picker: 'Compteur principal' },
 });
 
 /** Rule 15 — the channel's state as a badge. */

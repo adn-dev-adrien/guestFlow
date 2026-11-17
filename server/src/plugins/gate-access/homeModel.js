@@ -1,11 +1,10 @@
 /**
  * What the house sends for the guests' « Domotique » page, and the light commands waiting for it
  * (specs/guest-app-home-automation.md §3.A-§3.B, §5). Four tables, all overwritten in place: the latest catalogue,
- * the latest reading of each selected pair with ~45 min of samples for the trend, the latest 24 buckets of a series,
+ * the latest reading of each selected pair (no history of it: rule 25), the latest 24 buckets of a series,
  * and the commands of the last 7 days.
  */
 
-const SAMPLE_WINDOW_MS = 45 * 60 * 1000;
 const COLLECT_WINDOW_MS = 30 * 1000;
 const RESULT_WINDOW_MS = 60 * 1000;
 const DEDUPE_MS = 2 * 1000;
@@ -142,17 +141,17 @@ function createHomeModel(db) {
       return db.prepare('SELECT * FROM home_catalog ORDER BY zonePath, name').all().map(catalogRow);
     },
 
-    /** Rules 5-6 — only the selected pairs of a known, present equipment are kept; the rest is counted as dropped. */
+    /** Rules 5-6, 26 — a batch holds only the changed pairs, the others stay as stored; only the selected pairs of a known, present equipment are kept; the rest is counted as dropped. */
     storeReadings(readings, selection, now) {
       const wanted = new Set(selection.map((p) => pairKey(p.equipmentId, p.alias)));
       const present = new Set(db.prepare('SELECT equipmentId FROM home_catalog WHERE goneAt IS NULL').all().map((r) => r.equipmentId));
       const at = now.toISOString();
-      const read = db.prepare('SELECT samplesJson, measuredAt FROM home_readings WHERE equipmentId = ? AND alias = ?');
+      const read = db.prepare('SELECT measuredAt FROM home_readings WHERE equipmentId = ? AND alias = ?');
       const write = db.prepare(`
         INSERT INTO home_readings (equipmentId, alias, valueJson, unit, measuredAt, receivedAt, samplesJson)
-        VALUES (@equipmentId, @alias, @valueJson, @unit, @measuredAt, @at, @samplesJson)
+        VALUES (@equipmentId, @alias, @valueJson, @unit, @measuredAt, @at, '[]')
         ON CONFLICT(equipmentId, alias) DO UPDATE SET valueJson = excluded.valueJson, unit = excluded.unit,
-          measuredAt = excluded.measuredAt, receivedAt = excluded.receivedAt, samplesJson = excluded.samplesJson
+          measuredAt = excluded.measuredAt, receivedAt = excluded.receivedAt, samplesJson = '[]'
       `);
       let stored = 0;
       db.transaction(() => {
@@ -164,9 +163,6 @@ function createHomeModel(db) {
           const measuredAt = new Date(measuredMs).toISOString();
           // A batch retried after a reconnection never replaces a newer value.
           if (previous && Date.parse(previous.measuredAt) >= measuredMs) return;
-          const samples = (previous ? parse(previous.samplesJson, []) : [])
-            .filter(([t]) => measuredMs - Date.parse(t) <= SAMPLE_WINDOW_MS && Date.parse(t) < measuredMs);
-          if (typeof r.value === 'number') samples.push([measuredAt, r.value]);
           write.run({
             equipmentId: r.equipmentId,
             alias: r.alias,
@@ -174,7 +170,6 @@ function createHomeModel(db) {
             unit: r.unit == null ? null : r.unit,
             measuredAt,
             at,
-            samplesJson: JSON.stringify(samples),
           });
           stored += 1;
         });
@@ -192,7 +187,6 @@ function createHomeModel(db) {
         unit: r.unit,
         measuredAt: r.measuredAt,
         receivedAt: r.receivedAt,
-        samples: parse(r.samplesJson, []).map(([at, value]) => ({ at, value })),
       }));
     },
 

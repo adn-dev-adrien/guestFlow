@@ -1,16 +1,17 @@
 /**
- * The guest's « Domotique » page, ready to render (specs/guest-app-home-automation.md rules 18-20, 23). Pure: the
- * lodging's blocks, the catalogue, the readings and series the connector holds, the clock and the language in; every
- * figure rounded and formatted, every phrase written, the bars scaled out. The client computes nothing.
+ * The guest's « Domotique » page, ready to render (specs/guest-app-home-automation.md rules 18, 19, 23, 25, 27-29).
+ * Pure: the lodging's blocks, the catalogue, the readings and series the connector holds, the house's last poll, the
+ * clock and the language in; every figure rounded and formatted, every phrase written, the bars scaled out. Every
+ * number shown is a value Sowel holds (rule 25): nothing here derives one. The client computes nothing.
  */
 
 const { rolesOf, equipmentsOf, LIST_KINDS } = require('./homeRoles');
 
 const MINUTE = 60 * 1000;
 const FRESH_MS = 5 * MINUTE;
+const LIVE_MS = 2 * MINUTE;
 const HIDE_MS = 6 * 60 * MINUTE;
-const TREND_MS = 25 * MINUTE;
-const TREND_FLAT = 0.3;
+const GRID_BALANCED_W = 5;
 const HOUR = 60 * MINUTE;
 
 const WORDS = Object.freeze({
@@ -22,6 +23,7 @@ const WORDS = Object.freeze({
     unknown: 'État inconnu',
     rainToday: (v) => `${v} mm aujourd’hui`,
     noRainToday: 'Pas de pluie aujourd’hui',
+    grid: { export: 'Renvoyé au réseau', import: 'Consommé du réseau', balanced: 'Équilibre' },
   },
   en: {
     live: (n) => `${n} min ago`,
@@ -31,6 +33,7 @@ const WORDS = Object.freeze({
     unknown: 'Unknown',
     rainToday: (v) => `${v} mm today`,
     noRainToday: 'No rain today',
+    grid: { export: 'Sent to the grid', import: 'Drawn from the grid', balanced: 'Balanced' },
   },
 });
 
@@ -59,26 +62,17 @@ function parisTime(iso, lang) {
   return lang === 'en' ? `${h}:${m}` : `${h} h ${m}`;
 }
 
-const parisDay = (date) => new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Paris' }).format(date);
+/** Rule 27 — the house is live while it long-polled within 2 min: an unchanged value is not an old one. */
+const houseLive = (lastPollAt, now) => Boolean(lastPollAt) && now.getTime() - Date.parse(lastPollAt) <= LIVE_MS;
 
-/** Rule 20 — fresh under 5 min, stale (muted, dated) up to 6 h, unavailable beyond. */
-function freshness(reading, now) {
+/**
+ * Rule 27 — a value Sowel last updated more than 6 h ago is unavailable; otherwise it is fresh while the house is live
+ * and stale (muted) while it is silent.
+ */
+function freshness(reading, now, live = true) {
   if (!reading) return 'unavailable';
-  const age = now.getTime() - Date.parse(reading.measuredAt);
-  if (age <= FRESH_MS) return 'fresh';
-  if (age <= HIDE_MS) return 'stale';
-  return 'unavailable';
-}
-
-/** Rule 18 — up / down / flat against the latest sample at least 25 min older; null without one. */
-function trendOf(reading) {
-  if (!reading || !isNumber(reading.value)) return null;
-  const nowMs = Date.parse(reading.measuredAt);
-  const past = (reading.samples || []).filter((s) => nowMs - Date.parse(s.at) >= TREND_MS).pop();
-  if (!past) return null;
-  const diff = reading.value - past.value;
-  if (Math.abs(diff) < TREND_FLAT) return 'flat';
-  return diff > 0 ? 'up' : 'down';
+  if (now.getTime() - Date.parse(reading.measuredAt) > HIDE_MS) return 'unavailable';
+  return live ? 'fresh' : 'stale';
 }
 
 const isOn = (value) => value === true || (typeof value === 'string' && /^on$/i.test(value)) || value === 1;
@@ -99,7 +93,7 @@ function hourly(series, now) {
   };
 }
 
-function buildHomeView({ blocks, catalog, readings, series, confirmed = [], now, lang = 'fr' }) {
+function buildHomeView({ blocks, catalog, readings, series, confirmed = [], lastPollAt = null, now, lang = 'fr' }) {
   const w = wordsOf(lang);
   const byId = new Map(catalog.map((e) => [e.id, e]));
   const present = (equipmentId) => Boolean(byId.get(equipmentId)) && !byId.get(equipmentId).goneAt;
@@ -108,17 +102,14 @@ function buildHomeView({ blocks, catalog, readings, series, confirmed = [], now,
   const roles = (kind, equipmentId) => rolesOf(kind, byId.get(equipmentId));
 
   const shown = [];
-  const used = [];
-  const read = (equipmentId, alias) => {
-    const r = alias ? readingOf(equipmentId, alias) : null;
-    if (r) used.push(r);
-    return r;
-  };
+  const read = (equipmentId, alias) => (alias ? readingOf(equipmentId, alias) : null);
+  const live = houseLive(lastPollAt, now);
+  const fresh = (r) => freshness(r, now, live);
   const dated = (r) => {
-    const state = freshness(r, now);
-    return { state, ...(state === 'stale' ? { at: w.lastAt(parisTime(r.measuredAt, lang)) } : {}) };
+    const state = fresh(r);
+    return { state, ...(state === 'stale' && lastPollAt ? { at: w.lastAt(parisTime(lastPollAt, lang)) } : {}) };
   };
-  const value = (r, format) => (r && isNumber(r.value) && freshness(r, now) !== 'unavailable' ? format(r.value) : null);
+  const value = (r, format) => (r && isNumber(r.value) && fresh(r) !== 'unavailable' ? format(r.value) : null);
 
   blocks.filter((b) => b.on).forEach((block) => {
     if (LIST_KINDS.includes(block.kind)) {
@@ -135,7 +126,8 @@ function buildHomeView({ blocks, catalog, readings, series, confirmed = [], now,
               id: item.id,
               label: item.label,
               temperature: value(t, (v) => number(v, 0.1, lang)),
-              trend: freshness(t, now) === 'unavailable' ? null : trendOf(t),
+              min: value(read(equipmentId, r.min), (v) => number(v, 0.1, lang)),
+              max: value(read(equipmentId, r.max), (v) => number(v, 0.1, lang)),
               humidity: value(h, (v) => `${number(v, 1, lang)} %`),
               ...dated(t),
             };
@@ -152,7 +144,7 @@ function buildHomeView({ blocks, catalog, readings, series, confirmed = [], now,
             const s = done && (!measured || Date.parse(done.answeredAt) > Date.parse(measured.measuredAt))
               ? { equipmentId, value: done.value, measuredAt: done.answeredAt }
               : measured;
-            const usable = s && freshness(s, now) !== 'unavailable';
+            const usable = s && fresh(s) !== 'unavailable';
             const on = usable && isOn(s.value) ? true : (usable && isOff(s.value) ? false : null);
             return {
               id: item.id,
@@ -182,24 +174,19 @@ function buildHomeView({ blocks, catalog, readings, series, confirmed = [], now,
         ...dated(t),
       });
     } else if (block.kind === 'rain') {
-      const bars = hourly(seriesOf(block.equipmentId, r.hourly), now);
+      // Rule 25 — only Sowel's own cumuls: a missing one is omitted, never summed from the bars.
       const today = read(block.equipmentId, r.today);
-      const last24 = read(block.equipmentId, r.last24h);
       const lastHour = read(block.equipmentId, r.lastHour);
-      const todayParis = parisDay(now);
-      const end = Math.floor(now.getTime() / HOUR) * HOUR;
-      const todayFromBars = bars.values.reduce((sum, v, i) => (
-        v !== null && parisDay(new Date(end - (23 - i) * HOUR)) === todayParis ? sum + v : sum), 0);
-      const todayMm = today && isNumber(today.value) && freshness(today, now) !== 'unavailable' ? today.value : todayFromBars;
-      const last24Mm = last24 && isNumber(last24.value) && freshness(last24, now) !== 'unavailable'
-        ? last24.value : bars.values.reduce((sum, v) => sum + (v || 0), 0);
+      const last24 = read(block.equipmentId, r.last24h);
+      const todayMm = today && isNumber(today.value) && fresh(today) !== 'unavailable' ? today.value : null;
+      const mm = (v) => `${number(v, 0.1, lang)} mm`;
       shown.push({
         kind: 'rain',
-        today: `${number(todayMm, 0.1, lang)} mm`,
-        lastHour: value(lastHour, (v) => `${number(v, 0.1, lang)} mm`),
-        last24h: `${number(last24Mm, 0.1, lang)} mm`,
-        summary: todayMm > 0 ? w.rainToday(number(todayMm, 0.1, lang)) : w.noRainToday,
-        bars: bars.scaled,
+        today: todayMm === null ? null : mm(todayMm),
+        lastHour: value(lastHour, mm),
+        last24h: value(last24, mm),
+        summary: todayMm === null ? null : (todayMm > 0 ? w.rainToday(number(todayMm, 0.1, lang)) : w.noRainToday),
+        bars: hourly(seriesOf(block.equipmentId, r.hourly), now).scaled,
         ...dated(lastHour || today || last24),
       });
     } else if (block.kind === 'energy') {
@@ -212,24 +199,36 @@ function buildHomeView({ blocks, catalog, readings, series, confirmed = [], now,
         curve: hourly(seriesOf(block.equipmentId, r.hourly), now).scaled,
         ...dated(p || today),
       });
+    } else if (block.kind === 'grid') {
+      // Rule 29 — Sowel signs it: negative is sent back to EDF, positive drawn from it. Shown without its sign.
+      const p = read(block.equipmentId, r.power);
+      const watts = p && isNumber(p.value) && fresh(p) !== 'unavailable' ? p.value : null;
+      let direction = null;
+      if (watts !== null) direction = Math.abs(watts) < GRID_BALANCED_W ? 'balanced' : (watts < 0 ? 'export' : 'import');
+      shown.push({
+        kind: 'grid',
+        power: direction === null ? null : (direction === 'balanced' ? power(0, lang) : power(Math.abs(watts), lang)),
+        direction,
+        label: direction === null ? null : w.grid[direction],
+        ...dated(p),
+      });
     }
   });
 
   // The hero's rain sentence comes from the rain block when both are shown.
   const outdoor = shown.find((b) => b.kind === 'outdoor');
   const rain = shown.find((b) => b.kind === 'rain');
-  if (outdoor && rain) outdoor.rain = rain.summary;
+  if (outdoor && rain && rain.summary) outdoor.rain = rain.summary;
 
-  const freshest = used.reduce((latest, r) => (Date.parse(r.measuredAt) > latest ? Date.parse(r.measuredAt) : latest), 0);
-  const age = freshest ? now.getTime() - freshest : Infinity;
-  const live = age <= FRESH_MS;
+  const silentFor = lastPollAt ? now.getTime() - Date.parse(lastPollAt) : Infinity;
+  let updated = null;
+  if (live) updated = w.live(Math.max(1, Math.round(silentFor / MINUTE)));
+  else if (lastPollAt) updated = w.lastAt(parisTime(lastPollAt, lang));
   return {
     live,
-    updated: freshest
-      ? (live ? w.live(Math.max(1, Math.round(age / MINUTE))) : w.lastAt(parisTime(new Date(freshest).toISOString(), lang)))
-      : null,
+    updated,
     blocks: shown,
   };
 }
 
-module.exports = { buildHomeView, number, power, freshness, trendOf, hourly, FRESH_MS, HIDE_MS };
+module.exports = { buildHomeView, number, power, freshness, houseLive, hourly, FRESH_MS, LIVE_MS, HIDE_MS };
