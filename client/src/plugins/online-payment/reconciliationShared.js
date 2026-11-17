@@ -36,9 +36,12 @@ export const readFailureLabel = (lastError) => {
   return `Lecture du compte impossible${when} · ${lastError.message}`;
 };
 
+/** « Heading (label) » of a receipt covered by the same credit; the label alone for an anonymous sale (no doubled label). */
+export const coveredLabel = (c) => (c.clientHeading ? `${c.clientHeading} (${c.label})` : c.label);
+
 /** The names of the stays of a group proposal, by `reservationId|ledgerKey`, for the shares dialog. */
 export const shareLabels = (item) => {
-  const labels = { [`${item.reservation.id == null ? 0 : item.reservation.id}|${item.ledgerKey}`]: `${item.reservation.clientName || 'Client'} · ${item.label}` };
-  (item.proposal ? item.proposal.alsoCovers : []).forEach((c) => { labels[`${c.reservationId}|${c.ledgerKey}`] = `${c.clientName || 'Client'} · ${c.label}`; });
+  const labels = { [`${item.reservation.id == null ? 0 : item.reservation.id}|${item.ledgerKey}`]: `${item.clientHeading ? `${item.clientHeading} · ` : ''}${item.label}` };
+  (item.proposal ? item.proposal.alsoCovers : []).forEach((c) => { labels[`${c.reservationId}|${c.ledgerKey}`] = `${c.clientHeading ? `${c.clientHeading} · ` : ''}${c.label}`; });
   return labels;
 };

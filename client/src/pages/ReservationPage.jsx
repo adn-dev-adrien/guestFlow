@@ -2471,7 +2471,11 @@ export default function ReservationPage() {
 
   const handleSaveReservation = async (afterSaveAction = null, forceMinNights = false, forceCapacity = false, forceChangeover = false, forceMaxNights = false, forceOverpayment = false, forceTypedCounts = false) => {
     const safeAfterSaveAction = typeof afterSaveAction === 'function' ? afterSaveAction : null;
-    
+
+    // Every save-first caller (PDF, payment or balance request, status « Accepté », the unsaved-changes dialog) passes here:
+    // mid-switch the logement is the new one while the options are still the old one's (per-property-default-options rule 11).
+    if (switchingProperty) return false;
+
     if (!selectedProp) {
       await alert({ title: 'Erreur', message: 'Logement à sélectionner.' });
       return false;

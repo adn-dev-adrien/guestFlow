@@ -83,7 +83,7 @@ per-property defaults table (`property_option_defaults`) backs it, so the proper
    Reading 2026-11-17 (loop t10 UI10-1): from the switch until the new defaults are applied the fiche is
    read-only and `inert` (the re-read pattern), so an option ticked while the context, the quote and the
    occupancy are being read cannot be cleared by the switch's own reset; it is released even when a read
-   fails. *(Reading of 2026-11-17, loop t11 UI11-1:* « Enregistrer » is disabled and busy, and `handleSaveClick` returns, for the whole switch, so a save cannot take the new logement with the old one's options.) Covered by `ReservationPage.property-switch-inert.test.jsx` (2).
+   fails. *(Reading of 2026-11-17, loop t11 UI11-1:* « Enregistrer » is disabled and busy, and `handleSaveClick` returns, for the whole switch, so a save cannot take the new logement with the old one's options. Reading of loop t12 UI12-1: the guard sits at the top of `handleSaveReservation`, so every save-first action — « Télécharger PDF », the payment and balance requests, status « Accepté », the unsaved-changes dialog — is refused during the switch too.) Covered by `ReservationPage.property-switch-inert.test.jsx` (2, the first one also calls the shared save entry point mid-switch).
 
 **Edge cases:**
 - Removing a property from the option's applicable list (`propertyIds`) → its default row is cleared too

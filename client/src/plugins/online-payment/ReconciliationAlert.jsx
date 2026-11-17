@@ -39,7 +39,7 @@ export default function ReconciliationAlert({ attention }) {
               } : {})}
               sx={{ py: 0.75, minHeight: 44, cursor: to ? 'pointer' : 'default' }}
             >
-              <Typography variant="body2" sx={{ fontWeight: 600 }}>{item.reservation.clientName || 'Client'} · {item.label}</Typography>
+              <Typography variant="body2" sx={{ fontWeight: 600 }}>{item.clientHeading ? `${item.clientHeading} · ` : ''}{item.label}</Typography>
               <Typography variant="caption" color="text.secondary">{item.fixText || item.stateLabel}</Typography>
             </Box>
             );
