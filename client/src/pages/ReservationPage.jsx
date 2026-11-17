@@ -272,6 +272,8 @@ export default function ReservationPage() {
   // Rule 101 (reading 2026-11-16) — while that re-read is in flight the fiche is busy: fields read-only, « Enregistrer » spinning.
   // A note typed in that window was saved on a form older than the server's (the sold line dropped, or the note overwritten).
   const [rereading, setRereading] = useState(false);
+  // Between the new logement showing in the select and its option list being applied, the extras take no input.
+  const [switchingProperty, setSwitchingProperty] = useState(false);
   // A quiet re-read that failed keeps the page (the sale is already stored) but not the form: it stays read-only, with a retry,
   // until the fiche has read the server's version again.
   const [rereadFailed, setRereadFailed] = useState(false);
@@ -604,7 +606,7 @@ export default function ReservationPage() {
   const isClosedFiche = isCancelledReservation || isSupersededReservation;
   // Rule 101 — a closed fiche and a fiche being re-read after a sale take no input. The fieldset disables the native
   // fields; an MUI Select is a div, so the sections read this flag for their selects too.
-  const formReadOnly = isClosedFiche || rereading || rereadFailed;
+  const formReadOnly = isClosedFiche || rereading || rereadFailed || switchingProperty;
   // `typedAtParty` / `typedAtNights` only say what a number was typed against during this edit: they
   // are not a change of their own (specs/non-card-option-served-persons.md rule 23). A client typed for a stay not
   // saved yet lives outside the form and is an edit too (specs/ui-review-2026-10-19-operations.md rule 40, R24-1).
@@ -2260,70 +2262,74 @@ export default function ReservationPage() {
   const handleReservationPropertyChange = async (propertyId) => {
     const nextPropertyId = Number(propertyId);
     if (!nextPropertyId) return;
+    setSwitchingProperty(true);
+    try {
+      // specs/reservations-backend-mvc.md rule 12 — only a complete, sound stay is quoted (the server refuses
+      // the rest): a « Nouveau devis » switched before its dates are typed has no quote yet, like on opening.
+      const hasStayRange = isQuotableStay(form.startDate, form.endDate, { stored: initialPricingContextRef.current, today: windowToday });
+      const [{ property: prop }, calc, allRes] = await Promise.all([
+        loadPropertyContext(nextPropertyId, properties),
+        hasStayRange ? api.calculatePrice({
+          propertyId: nextPropertyId,
+          startDate: form.startDate,
+          endDate: form.endDate,
+          checkInTime: form.checkInTime,
+          checkOutTime: form.checkOutTime,
+          adults: form.adults,
+          children: form.children,
+          teens: form.teens,
+          babyBeds: Number(form.babyBeds || 0),
+          extraGuestSurchargeOffered: form.extraGuestSurchargeOffered,
+          offeredOptionIds: Array.from(offeredOptionIds),
+          platform: form.platform,
+          touristTaxInComplement: form.touristTaxInComplement ? 1 : 0,
+          autoOptionsInComplement: form.autoOptionsInComplement || [],
+          refreshTouristTax,
+          ...(editingReservationId ? { reservationId: editingReservationId } : {}),
+          // A saved devis locks its prices while it is still valid — the server replays its stored
+          // lines so this preview equals what the save will store (specs/devis-extras-parity-and-price-lock.md §3 rule 13).
+          ...(editingDevisId ? { devisId: editingDevisId } : {}),
+          ...newDevisQuoteMarker,
+        }) : null,
+        api.getReservations({ propertyId: nextPropertyId, view: 'occupancy' }),
+      ]);
 
-    // specs/reservations-backend-mvc.md rule 12 — only a complete, sound stay is quoted (the server refuses
-    // the rest): a « Nouveau devis » switched before its dates are typed has no quote yet, like on opening.
-    const hasStayRange = isQuotableStay(form.startDate, form.endDate, { stored: initialPricingContextRef.current, today: windowToday });
-    const [{ property: prop }, calc, allRes] = await Promise.all([
-      loadPropertyContext(nextPropertyId, properties),
-      hasStayRange ? api.calculatePrice({
-        propertyId: nextPropertyId,
-        startDate: form.startDate,
-        endDate: form.endDate,
-        checkInTime: form.checkInTime,
-        checkOutTime: form.checkOutTime,
-        adults: form.adults,
-        children: form.children,
-        teens: form.teens,
-        babyBeds: Number(form.babyBeds || 0),
-        extraGuestSurchargeOffered: form.extraGuestSurchargeOffered,
-        offeredOptionIds: Array.from(offeredOptionIds),
-        platform: form.platform,
-        touristTaxInComplement: form.touristTaxInComplement ? 1 : 0,
-        autoOptionsInComplement: form.autoOptionsInComplement || [],
-        refreshTouristTax,
-        ...(editingReservationId ? { reservationId: editingReservationId } : {}),
-        // A saved devis locks its prices while it is still valid — the server replays its stored
-        // lines so this preview equals what the save will store (specs/devis-extras-parity-and-price-lock.md §3 rule 13).
-        ...(editingDevisId ? { devisId: editingDevisId } : {}),
-        ...newDevisQuoteMarker,
-      }) : null,
-      api.getReservations({ propertyId: nextPropertyId, view: 'occupancy' }),
-    ]);
+      // A different logement is a different pack — the refusals of the previous one mean nothing here.
+      setWelcomePackOptOut(new Set());
+      setReservations(allRes || []);
+      setPricingQuote(calc);
+      applyQuoteMinNights(calc);
+      setUseCurrentPricing(false);
+      setForm(prev => ({
+        ...prev,
+        selectedOptions: [],
+        customOptions: [],
+        selectedResources: [],
+        singleBeds: '',
+        doubleBeds: '',
+        babyBeds: '',
+        totalPrice: Number(calc?.totalPrice || 0),
+        cautionAmount: prop?.defaultCautionAmount ?? 0,
+        checkInTime: prev.checkInTime || calc?.defaultCheckIn || prop?.defaultCheckIn || '15:00',
+        checkOutTime: prev.checkOutTime || calc?.defaultCheckOut || prop?.defaultCheckOut || '10:00',
+      }));
+      // specs/per-property-default-options.md rule 11 — the offered set belongs to the option list just
+      // cleared: kept, the previous logement's « offert » defaults would make the same option free here.
+      setOfferedOptionIds(new Set());
 
-    // A different logement is a different pack — the refusals of the previous one mean nothing here.
-    setWelcomePackOptOut(new Set());
-    setReservations(allRes || []);
-    setPricingQuote(calc);
-    applyQuoteMinNights(calc);
-    setUseCurrentPricing(false);
-    setForm(prev => ({
-      ...prev,
-      selectedOptions: [],
-      customOptions: [],
-      selectedResources: [],
-      singleBeds: '',
-      doubleBeds: '',
-      babyBeds: '',
-      totalPrice: Number(calc?.totalPrice || 0),
-      cautionAmount: prop?.defaultCautionAmount ?? 0,
-      checkInTime: prev.checkInTime || calc?.defaultCheckIn || prop?.defaultCheckIn || '15:00',
-      checkOutTime: prev.checkOutTime || calc?.defaultCheckOut || prop?.defaultCheckOut || '10:00',
-    }));
-    // specs/per-property-default-options.md rule 11 — the offered set belongs to the option list just
-    // cleared: kept, the previous logement's « offert » defaults would make the same option free here.
-    setOfferedOptionIds(new Set());
-
-    await Promise.all([
-      loadResourcesAvailability(form.startDate, form.endDate, nextPropertyId, editingReservationId || null),
-      loadBabyBedAvailability(form.startDate, form.endDate, nextPropertyId, editingReservationId || null),
-    ]);
-    // §3.7 — re-apply defaults for the NEW property. We skip this when the user is editing an
-    // existing reservation BUT switched property: per rule 30 the historical state stays frozen
-    // — except the operator just reset their option list by changing property, so re-applying
-    // the new property's defaults is the only sane behaviour. The `editingReservationId`
-    // discriminator is intentionally NOT used here: changing property is an explicit reset.
-    await applyPropertyDefaultsAsync(nextPropertyId);
+      await Promise.all([
+        loadResourcesAvailability(form.startDate, form.endDate, nextPropertyId, editingReservationId || null),
+        loadBabyBedAvailability(form.startDate, form.endDate, nextPropertyId, editingReservationId || null),
+      ]);
+      // §3.7 — re-apply defaults for the NEW property. We skip this when the user is editing an
+      // existing reservation BUT switched property: per rule 30 the historical state stays frozen
+      // — except the operator just reset their option list by changing property, so re-applying
+      // the new property's defaults is the only sane behaviour. The `editingReservationId`
+      // discriminator is intentionally NOT used here: changing property is an explicit reset.
+      await applyPropertyDefaultsAsync(nextPropertyId);
+    } finally {
+      setSwitchingProperty(false);
+    }
   };
 
   // ==================== CONFLICT CHECKING ====================
@@ -4135,8 +4141,8 @@ export default function ReservationPage() {
         <Box
           component="fieldset"
           disabled={formReadOnly}
-          inert={rereading || rereadFailed || undefined}
-          aria-busy={rereading || undefined}
+          inert={rereading || rereadFailed || switchingProperty || undefined}
+          aria-busy={rereading || switchingProperty || undefined}
           sx={{
             position: 'relative', border: 0, p: 0, m: 0, minWidth: 0,
           }}
