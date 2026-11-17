@@ -2520,6 +2520,9 @@ function applyUpdate(req, res, pastUnlocked, {
   if (midStayWindow && renamedLines.length > 0) {
     return res.status(400).json({ error: ARRIVAL_LINE_RENAME_MESSAGE, code: 'ARRIVAL_LINE_RENAME' });
   }
+  // Rule 123 (loop t11 S11-1) — a free line a note or a collected platform complement paid keeps its label, whatever the window.
+  const renameRefusal = renamedLines.length > 0 ? paidLineJudgment.paidLineRenameRefusal(db.prepare('SELECT * FROM reservations WHERE id = ?').get(Number(id)), renamedLines) : null;
+  if (renameRefusal) return res.status(renameRefusal.status).json(renameRefusal.body);
 
   // specs/platform-payout-due-date.md §3.5 rule 38 — a started or finished stay keeps the solde
   // deadline it was stored with. « Existing rows re-derive on their next save » (§3.0 arbitrage) can

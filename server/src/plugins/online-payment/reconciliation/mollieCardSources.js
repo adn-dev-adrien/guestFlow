@@ -87,9 +87,16 @@ function salesSince(from, to) {
  * is looked up in. Every invoice counts, whatever tender was typed: the Mollie payment is the proof of the card.
  */
 function invoiceSources(today) {
-  // Rule 33 — one sale per number: the day that carries the invoice (`invoiceOwners`), never the last day listed.
-  return new Map(salesSince('2020-01-01', today).filter((s) => s.sourceType === SOURCE_TYPES.invoice)
-    .map((s) => [String(s.sale.invoiceNumber), { sourceType: s.sourceType, sourceKey: s.sourceKey, reservationId: null, ledgerKey: s.ledgerKey }]));
+  // Rule 33 — one sale per number: the day that carries the invoice (`invoiceOwners`), never the last day listed. Loop t11 B11-1: the
+  // document's later card days (`nextDays`, tender sources in date order) are where a second Mollie payment naming the same number goes.
+  const sources = salesSince('2020-01-01', today);
+  const plain = (s) => ({ sourceType: s.sourceType, sourceKey: s.sourceKey, reservationId: null, ledgerKey: s.ledgerKey });
+  return new Map(sources.filter((s) => s.sourceType === SOURCE_TYPES.invoice).map((s) => {
+    const number = String(s.sale.invoiceNumber);
+    const nextDays = sources.filter((o) => o.sourceType === SOURCE_TYPES.tender && o.sale.invoiceNumber && String(o.sale.invoiceNumber) === number
+      && !o.sale.role && o.grossCents > 0).map((o) => ({ ...plain(o), grossCents: o.grossCents, paidAt: o.paidAt }));
+    return [number, { ...plain(s), ...(nextDays.length ? { grossCents: s.grossCents, paidAt: s.paidAt, nextDays } : {}) }];
+  }));
 }
 
 /**

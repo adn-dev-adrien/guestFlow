@@ -37,17 +37,36 @@ function normalizeReference(reference) {
   return text.replace(/^T(?=\d)/i, '');
 }
 
+// Rule 16 step 3, rule 33 (loop t11 B11-1) — which card day of an invoiced document a Mollie payment naming its number is.
+function invoicePairing(payment, number, owner, boundOf) {
+  const plain = ({ grossCents, paidAt, nextDays, ...source }) => source;
+  const free = (source) => {
+    const bound = boundOf(plain(source));
+    return !bound || String(bound) === String(payment.id);
+  };
+  if (!owner.nextDays) return free(owner) ? { kind: 'invoice', number, source: owner } : null;
+  const at = Date.parse(payment.paidAt || '');
+  const distance = (source) => (Number.isFinite(at) ? Math.abs(Date.parse(`${String(source.paidAt).slice(0, 10)}T12:00:00Z`) - at) : 0);
+  const days = [owner, ...owner.nextDays].filter(free);
+  const sameAmount = days.filter((source) => Number(source.grossCents) === Number(payment.amountCents)).sort((a, b) => distance(a) - distance(b));
+  const chosen = sameAmount[0] || (free(owner) ? owner : null);
+  return chosen ? { kind: 'invoice', number, source: plain(chosen) } : null;
+}
+
 /**
  * Rule 16 — the GuestFlow side of a Mollie payment, first match wins:
  * 1. its `description` is a link's `providerPaymentId` (the Qonto payment id);
  * 2. its `metadata.payment_link_id` is a link's `providerLinkId`;
  * 3. its `description` is a Qonto invoice number GuestFlow stores (a sale outside a stay paid by card): the payment IS
- *    that sale's card payment, gross and date exact;
+ *    that sale's card payment, gross and date exact. Loop t11 B11-1: a split already bound to ANOTHER Mollie payment is never
+ *    taken again — a second payment naming the number goes to the document's next card day of the same amount (closest date,
+ *    `source.nextDays`), else it is unknown;
  * 4. same amount and `paidAt` within 10 minutes of a link's, when exactly one link fits.
  * @param {Map<string, object>} [invoiceSources]  invoice number → its source (`invoiceSources` of `mollieCardSources`)
+ * @param {(source: object) => (string|null)} [boundOf]  the Mollie payment a source's stored split is already bound to
  * @returns {{ kind: 'link', paymentLinkId: string } | { kind: 'invoice', number: string, source: object } | null}
  */
-function pairPayment(payment, links, invoiceSources = new Map()) {
+function pairPayment(payment, links, invoiceSources = new Map(), boundOf = () => null) {
   const description = String(payment.description || '').trim();
   if (description) {
     const byPaymentId = links.find((l) => l.providerPaymentId && String(l.providerPaymentId) === description);
@@ -57,7 +76,7 @@ function pairPayment(payment, links, invoiceSources = new Map()) {
     const byLinkId = links.find((l) => l.providerLinkId && String(l.providerLinkId) === String(payment.paymentLinkId));
     if (byLinkId) return { kind: 'link', paymentLinkId: String(byLinkId.id) };
   }
-  if (description && invoiceSources.has(description)) return { kind: 'invoice', number: description, source: invoiceSources.get(description) };
+  if (description && invoiceSources.has(description)) return invoicePairing(payment, description, invoiceSources.get(description), boundOf);
   const at = Date.parse(payment.paidAt || '');
   if (Number.isFinite(at)) {
     const close = links.filter((l) => Number(l.amountCents) === payment.amountCents && l.paidAt
@@ -106,6 +125,11 @@ function createSettlementsModel(db) {
         ...s,
         payments: payments.filter((p) => p.settlementId === s.id),
       }]));
+    },
+    /** One stored settlement by the reference a bank credit names (« REF T… » or Mollie's own form), without its payments. */
+    findByReference(reference) {
+      const wanted = normalizeReference(reference);
+      return db.prepare('SELECT * FROM mollie_settlements WHERE reference = ? OR reference = ?').get(wanted, `T${wanted}`) || null;
     },
     count() {
       return db.prepare('SELECT COUNT(*) AS n FROM mollie_settlements').get().n;
@@ -213,7 +237,11 @@ async function syncSettlements({ client, model, splits, settings, credits, links
     } catch { balances = false; }
   }
   const splitIdOfPairing = (pairing) => (!pairing ? null
-    : (pairing.kind === 'link' ? splitIdOf(SOURCE_TYPES.link, pairing.paymentLinkId) : splitIdOf(SOURCE_TYPES.invoice, pairing.number)));
+    : (pairing.kind === 'link' ? splitIdOf(SOURCE_TYPES.link, pairing.paymentLinkId) : splitIdOf(pairing.source.sourceType, pairing.source.sourceKey)));
+  const boundOf = (source) => {
+    const stored = splits.forSource(source.sourceType, source.sourceKey);
+    return stored ? stored.molliePaymentId : null;
+  };
   // Attaches a Mollie payment to its GuestFlow source and returns the split it is.
   const attach = (payment, pairing) => {
     if (!pairing) return null;
@@ -238,13 +266,13 @@ async function syncSettlements({ client, model, splits, settings, credits, links
       let rows;
       if (composition) {
         // eslint-disable-next-line no-await-in-loop
-        rows = await composeFromBalance({ composition, settlement, client, splits, links, invoiceSources, attach });
+        rows = await composeFromBalance({ composition, settlement, client, splits, links, invoiceSources, attach, boundOf });
       } else {
         // eslint-disable-next-line no-await-in-loop
         const payments = await client.listSettlementPayments(settlement.id, { profileId });
         rows = payments.map((p) => ({
           id: p.id, kind: 'immediate', amountCents: p.amountCents, grossCents: p.amountCents, paidAt: p.paidAt, description: p.description,
-          splitId: attach(p, pairPayment(p, links, invoiceSources)),
+          splitId: attach(p, pairPayment(p, links, invoiceSources, boundOf)),
         }));
       }
       model.store({ ...settlement, reference, source: composition ? 'balance' : 'payments' }, rows, now);
@@ -293,7 +321,7 @@ async function refreshRefunds({ client, splits, now = new Date() }) {
  * the fees. Fees are the settlement's costs: with one payment they are all its; with several and no cost they are zero;
  * with several and some cost, which payment bore it is unknown, so the reserve is left as stored.
  */
-async function composeFromBalance({ composition, settlement, client, splits, links, invoiceSources, attach }) {
+async function composeFromBalance({ composition, settlement, client, splits, links, invoiceSources, attach, boundOf }) {
   const payments = composition.filter((t) => isImmediateType(t.type));
   const costs = Math.max(0, Number(settlement.costsCents) || 0);
   const resolved = new Map();
@@ -302,7 +330,7 @@ async function composeFromBalance({ composition, settlement, client, splits, lin
     if (stored) { resolved.set(id, splitIdOf(stored.sourceType, stored.sourceKey)); continue; }
     // eslint-disable-next-line no-await-in-loop
     const payment = await client.getPayment(id);
-    resolved.set(id, attach(payment, pairPayment(payment, links, invoiceSources)));
+    resolved.set(id, attach(payment, pairPayment(payment, links, invoiceSources, boundOf)));
   }
   return composition.map((t) => {
     const row = {

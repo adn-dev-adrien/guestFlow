@@ -3491,7 +3491,10 @@ function createReservationsModel(database, { arrivalComplementEngine = null } = 
       } catch (err) {
         if (err.code !== 'STAY_CLOCK_INVALID') throw err;
       }
-      return buildEditLock(row, today, baseline, lines, nowTime, phase ? phase.started : null);
+      // Rule 123 (loop t11 S11-1) — a free line the stay's claims name keeps its label whatever the window: the fiche greys it.
+      const paidKeys = new Set(require('../utils/paidLineJudgment').paidCustomKeys(row));
+      const paidCustomOptionIds = lines.filter((line) => line.isCustom && paidKeys.has(extraLineKey(line))).map((line) => Number(line.customOptionId));
+      return { ...buildEditLock(row, today, baseline, lines, nowTime, phase ? phase.started : null), paidCustomOptionIds };
     },
 
     // `readExtraLines` plus the units of each line — what the arrival floors of a locked fiche count

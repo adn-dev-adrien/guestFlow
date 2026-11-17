@@ -3091,7 +3091,7 @@ export default function ReservationPage() {
   const rereadFiche = () => { quietReloadRef.current = true; setRereading(true); setReloadToken((token) => token + 1); };
 
   const handleSaveClick = async () => {
-    if (rereading || rereadFailed) return;
+    if (rereading || rereadFailed || switchingProperty) return;
     setSaving(true);
     try {
       await handleSaveReservation();
@@ -3606,6 +3606,8 @@ export default function ReservationPage() {
   const salesPanelLocked = Boolean(isClosedFiche || (editLock?.locked && !editLock?.extrasEditable));
   const arrivalLines = extrasWindowOpen ? (editLock.arrivalLines || {}) : NO_ARRIVAL_LINES;
   const frozenCustomOptionIds = extrasWindowOpen ? (editLock.frozenCustomOptionIds || []) : NO_FROZEN_CUSTOM_IDS;
+  // Rule 123 — the free lines a note or a collected complement paid, whatever the window: their label stays.
+  const paidCustomOptionIds = editLock?.paidCustomOptionIds || NO_FROZEN_CUSTOM_IDS;
   // specs/pricing-components.md rule 108 — the server names the offered paid lines whose money a refund gave back; they are not put back.
   const isRefundedOfferedLine = (kind, line) => {
     if (!refundedLoweredKeys.size) return false;
@@ -3873,7 +3875,7 @@ export default function ReservationPage() {
     arrivalMin, arrivalMax, departureMin, departureMax, handleManualDateInputChange,
     datesUnavailableForProperty, datesUnavailableMessage, stayDatesHint, minNightsState, minNightsWarning,
     liveTimeConflictState, liveTimeConflictMessage, defaultCheckInTime, defaultCheckOutTime,
-    isReservationLocked, formReadOnly, extrasWindowOpen, arrivalLines, frozenCustomOptionIds,
+    isReservationLocked, formReadOnly, extrasWindowOpen, arrivalLines, frozenCustomOptionIds, paidCustomOptionIds,
     refundHost: isCancelledReservation ? refundHost : null,
     closedActionsHost: isClosedFiche ? refundHost : null,
     // guests / beds
@@ -4046,8 +4048,8 @@ export default function ReservationPage() {
         actionsBefore={actionBarBefore}
         onSave={isClosedFiche ? undefined : handleSaveClick}
         saveTooltip={isDevisMode ? 'Enregistrer le devis' : 'Enregistrer'}
-        saveDisabled={saving || rereading || rereadFailed || !(isDirty || touristTaxRefreshRequested)}
-        saveBusy={saving || rereading}
+        saveDisabled={saving || rereading || rereadFailed || switchingProperty || !(isDirty || touristTaxRefreshRequested)}
+        saveBusy={saving || rereading || switchingProperty}
         onCancel={goBackToOrigin}
         actionsAfter={actionBarAfter}
       />

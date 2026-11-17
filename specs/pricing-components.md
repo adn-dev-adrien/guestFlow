@@ -679,6 +679,11 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
     inputs. A variant is never swapped for `roundMoney` where the two differ, and a display helper (« 1 234,56 € ») is renamed, never
     swapped for `frenchEuros`, because its bytes differ. Every private copy of the server and of the plugins (a plugin reaches the variants through
     `coreModule('money')`, SDK 2.31.0) is replaced; the `money` allow-list is empty since C30 deleted `midStayOrderCommit`, 2026-11-13.)_
+    > _Reading of 2026-11-17 (loop t10 A10-4, spec synced in loop t11 A11-1):_ master's #1067 brought two more private cents copies
+    > after this note was written — the Mollie client's `centsOf` and its settlement costs rounding (`mollieClient.js`). Both now read
+    > cents through `coreModule('money').toCentsStrict` (the same `Math.round(Number(v) * 100)`: no figure moves), which is why
+    > online-payment ranges `^2.31.0`. The `money` guard was deliberately not widened to the plugins' sources: this copy is held by its
+    > own test, `mollie-cents-shared-helper` (2, under `plugins/online-payment/tests/`).
 39. **A line discount.** The operator may discount one unpaid line (percent or amount), from the fiche or the
     SAS. It is stored on the line (`discountCents`) and journaled. It is the only discount a shop or SAS sale
     receives. `discountCents` holds the line's OWN discount only: the stay discount's share (rule 40) is derived on every quote
@@ -1344,7 +1349,7 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
     > asks the channel (`saleChannel` / `isNamedChannel`) instead of comparing the platform to `'direct'` by hand; an unmatched
     > platform keeps the legacy default (collects, does not remit), so no figure moves (Q-B18; `platform-payment-wiring`,
     > `tourist-tax-collector-by-id`). PLATFORM PAYMENT now ranks between SCHEDULE and REFUNDS in the import graph.
-    > **Delivered by PR C** (C12): the reconciliation reads `acompteNet` / `grossOf` / `payoutWithPenalty` (online-payment 1.8.1 through `coreModule('platformPayment')`), the ledger's commission detail `netOfCommission`, and the Gîtes de France intake the rent-only commission through `reservations.platformCommission({ basis: 'rentOnly', rent, netRent })` (gites-de-france-intake 1.4.13); the `platform-payment` allow-list is empty. `grossOf` rounds the sum of deposit and balance and ignores a non-numeric platform gross, where the old inline copy kept the float sum: the two agree to the cent on every stored figure. `pricingNoticesOf` keeps judging unclamped commissions (a cosmetic warning, accepted). Test: `platform-payment-reconciliation-wiring`.
+    > **Delivered by PR C** (C12): the reconciliation reads `acompteNet` / `grossOf` / `payoutWithPenalty` (online-payment 1.9.1 through `coreModule('platformPayment')`), the ledger's commission detail `netOfCommission`, and the Gîtes de France intake the rent-only commission through `reservations.platformCommission({ basis: 'rentOnly', rent, netRent })` (gites-de-france-intake 1.4.13); the `platform-payment` allow-list is empty. `grossOf` rounds the sum of deposit and balance and ignores a non-numeric platform gross, where the old inline copy kept the float sum: the two agree to the cent on every stored figure. `pricingNoticesOf` keeps judging unclamped commissions (a cosmetic warning, accepted). Test: `platform-payment-reconciliation-wiring`.
 71. **Automatic platform intakes keep working, behind one versioned port.** _(Code check 2026-11-11.)_
     - **What exists.**
       - **booking-intake** (SDK `^2.15.0`), **airbnb-intake** and **gites-de-france-intake** (`^2.21.0`) write
@@ -2529,6 +2534,17 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
     > only beside a complement cut). Before, the stay's own credit left over was read as owed beyond it: a direct stay whose offered solde
     > line paid an unpaid jam (15 € owed back) read the whole 15 € complement as unstored, and the next line sold asked nothing (identity
     > broken by 14 €). Test `stay-sequence-fuzz` (direct seed 1).
+123. **A paid free line keeps its label** _(stabilisation loop t11, S11-1, 2026-11-17; completes rules 23, 102, 105, 116)_. A free (custom)
+    line is keyed by its label (`custom:<label>`), and so is the money that paid it: a note (a card order of the guest app, a sale paid at
+    once) and, on a platform stay, the collected arrival complement's `complementPaidSplit.lines`. Renamed in the fiche, the line kept its
+    `lineId` but the money no longer found it: no figure moved (the commit asked 0 more), yet the arrival recap listed the 20 € line as still
+    to pay and its lines no longer added up to its total. A fiche save that renames such a line is refused **409 `LINE_PAID_RENAMED`**
+    (« Ligne déjà payée : son libellé ne change pas. »), on the save that keeps the pricing and on the priced save alike
+    (`paidLineJudgment.paidLineRenameRefusal`, before any write); a change of case or spacing keeps the key and passes, an unpaid free line
+    is renamed as before. The fiche's lock names those lines whatever the window (`editLock.paidCustomOptionIds`, the stored custom line
+    ids whose key the claims name): their description is greyed with the caption « Déjà payée : libellé figé ». Rewriting the notes' and
+    the split's keys on rename was not chosen: it changes stored history and the export's labels. Tests `custom-line-rename-paid`,
+    `ExtrasSection.paid-custom-label`.
 
 ## 4. Architecture
 
@@ -2641,7 +2657,7 @@ _Rewritten 2026-11-15 (stabilisation loop t1, UI-3) to the files PR B and PR C s
 | DELETE | `/api/reservations/:id/extras/:ref` | — (same `ref`) | `{ saleDetail }` | an unpaid line taken off the stay through the fiche's save; 409 `LINE_PAID`, 409 `ARRIVAL_EXTRAS_FROZEN`; journaled `lineRemoved` (pass 3g) |
 | GET | `/api/reservations/:id/sale-detail` | — | `saleDetail` | also embedded in `GET /sas` and the fiche payload |
 | PUT | `/api/reservations/:id` (existing) | `discountTarget` added (`nights` default); `discountAmountCents` (positive integer, else none; absent keeps the stored one) | unchanged | rule 16 |
-| GET / PUT | `/api/reservations/:id` (existing) | — | GET adds `refundedLoweredLines: [{ key, table, lineId }]` | rule 108: PUT answers 409 `LINE_REFUNDED` on a line that list names; the SAS recap lines add `offerLocked`. Rule 113: PUT's 409 `OVERPAID` carries `overpaymentLines`, `overpaymentMethod` and `overpaymentCash` (the ledger row's `refundPrefill`), the paid-line judgment's too. Rule 114: the quote's and the stored summary's custom lines carry `key` |
+| GET / PUT | `/api/reservations/:id` (existing) | — | GET adds `refundedLoweredLines: [{ key, table, lineId }]` | rule 108: PUT answers 409 `LINE_REFUNDED` on a line that list names; the SAS recap lines add `offerLocked`. Rule 113: PUT's 409 `OVERPAID` carries `overpaymentLines`, `overpaymentMethod` and `overpaymentCash` (the ledger row's `refundPrefill`), the paid-line judgment's too. Rule 114: the quote's and the stored summary's custom lines carry `key`. Rule 123: GET's `editLock` adds `paidCustomOptionIds: number[]`; PUT answers 409 `LINE_PAID_RENAMED` on a paid free line renamed |
 | guest-app | `/public/v1/stay/…/orders` (existing) | unchanged shape | unchanged shape | implementation moves to `extraSale` (PR C) |
 | POST | `/api/standalone-sales/quote` | `{ requests[], payment }` | `{ lines[], vatByRate[], totalCents, refusals[] }` | `externalSale` pipeline, no write (PR C) |
 | POST | `/api/standalone-sales` | same + `acceptedTotalCents`, `customer?:{name, email}` | `{ sale, paymentLink? }` | records `standalone_sales` (PR C) |
@@ -2782,6 +2798,7 @@ _Rewritten 2026-11-15 (stabilisation loop t1, UI-3) to what shipped._
 - [x] `accounting-receipt-line-cut` — rules 61-63: a receipt books exactly its revenue (fraction folded, no residue), the sale lines' classes share a family, the commission cut VAT first, an avoir cut per group, a stay booked before keeps its entries _(PR C, C43)_
 - [x] `finance-ht-sale-lines` — rules 31, 67: the HT share of the lines (tax in the TTC only, « Complément d'arrivée » out), no earnings read off the lines (rule 36's double refund), a stay booked before / a devis / a cancelled stay keep today's HT _(PR C, C43)_
 - [x] `pricing-receipts-single-read` — rule 48: `PaymentLedger.receipts(id).splitReceived` equals the direct read (a pool included), none without a settlement, the allocations read only when asked, the fiche's save plans the same buckets _(PR C, C42)_
+- [x] `mollie-cents-shared-helper` (2, under `plugins/online-payment/tests/`) — rule 38: the Mollie client's cents come from the shared money helper, same figures as its former private copy _(loop t10 A10-4)_
 - [x] `pricing-allowances`, `pricing-timed-options` — rules 41, 43 (PR A: the read-only form of today's free units, the early check-in and late check-out options)
 - [x] `pricing-extras`, hourly `hourly-tariff` — rules 10-14, 24, 26 (PR B: free hour stays with its line; evening supplement identical from shop, SAS, fiche) _(PR B: `hourly-booking-free-hour`, `pricing-allowance-ledger`; the evening component is PR C)_
 - [x] `pricing-stored-lines` — rule 72: the four stored-line parsers SETTLEMENT and REFUNDS share
@@ -2900,8 +2917,10 @@ _Rewritten 2026-11-15 (stabilisation loop t1, UI-3) to what shipped._
 - [x] `solde-line-refunded-not-unoffered` — rule 108 reading (loop t9, B9-4): a refunded solde line refused on the line API, the fiche and a discount taken back; listed in `refundedLoweredLines`; not refunded / refund deleted / other money refunded → put back (5)
 - [x] `platform-complement-credit` — rule 116 readings (loop t9, B9-3, B9-1): the complement's freed money pays an unpaid line first (line API, fiche); a credit-paid line offered gives the credit back; refunded complement money is no credit; caisse-interne refund of complement cash stamped no note money, the rest by transfer (5)
 - [x] `stay-sequence-fuzz` — rules 104, 108, 116, 119, 121 (loop t9): the reviewer's stay sequence fuzzer, bounded (direct seeds 1-3, Booking 1-2, 12 runs × 12 steps): the money identity after every step, never asked AND owed (5)
+- [x] `custom-line-rename-paid` — rule 123 (loop t11, S11-1): a card-paid free line renamed → 409 `LINE_PAID_RENAMED`, kept and priced save, direct and Booking, nothing moves; the unpaid line and a case-only change save, the lock names the paid line; a platform stay's collected complement line refused too (3)
 
 ### Client Vitest suites (named 2026-11-16, stabilisation loop t2 P2-2)
+- [x] `ExtrasSection.paid-custom-label` — rule 123 (loop t11, S11-1): the paid free line's description disabled with « Déjà payée : libellé figé », the unpaid one editable; none named → no caption (2)
 - [x] `ReservationSasDialog.stay-due` — rule 117 (loop t8, S8-1): the stay page renders the preview's planned solde, the commit sends `displayedStayDue`; a 409 `STAY_DUE_CHANGED` is shown and the recap read again (2)
 - [x] `ReservationSasDialog.stay-step-plan` — rule 117 reading (loop t9, UI9-1): stored 300, the plan settles it → no stay page, nothing sent; nothing stored, the plan raises 300 → the page comes in with 300 and the commit sends it (2)
 - [x] `ReservationSasDialog.stay-step-credit` — rules 117, 118 (loop t9, O9-1): stored solde 30, the plan credits it to 0 → the stored 30 € is never shown, no stay page, nothing marked paid (1)

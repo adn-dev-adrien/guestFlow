@@ -13,3 +13,6 @@ export const MID_STAY_EXTRAS_BANNER = 'Séjour commencé : options, client, plat
 export const ARRIVAL_LINE_CAPTION = 'Vendu à l\'arrivée';
 
 export const OFFERED_LINE_CAPTION = 'Offerte';
+
+// specs/pricing-components.md rule 123 — a free line already paid keeps its label (the server names it: `editLock.paidCustomOptionIds`).
+export const PAID_LABEL_CAPTION = 'Déjà payée : libellé figé';
