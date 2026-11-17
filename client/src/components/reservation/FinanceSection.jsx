@@ -7,7 +7,7 @@ import ArithmeticTextField from '../ArithmeticTextField';
 import { AMOUNT_FIELD_SX } from '../../utils/amountFieldSx';
 import DateField from '../DateField';
 import StatusBadge from '../StatusBadge';
-import MidStayNoteDialog from './MidStayNoteDialog';
+import MidStayNoteDialog, { saveRefused } from './MidStayNoteDialog';
 import MidStayNoteRow from './MidStayNoteRow';
 import { createPortal } from 'react-dom';
 import RefundDialog from './RefundDialog';
@@ -513,7 +513,12 @@ export default function FinanceSection() {
       }
       try { await reloadReservationFinance(); } catch { /* the settlement's outcome is already known */ }
       if (refusal) reject(refusal); else resolve();
-    })).then((saved) => { if (saved !== true) resolve(); }, reject);
+    })).then((saved) => { if (saved !== true) reject(saveRefused()); }, reject);
+  });
+  // Pricing-components rule 101 (reading 2026-11-17, loop t14 UI14-1) — a save the fiche refused (a validation alert, a declined
+  // confirmation, the fiche re-reading) is a failure too: the dialog stays open, nothing was recorded.
+  const saveThenSellOnly = () => Promise.resolve(saveThenRun(reloadReservationFinance)).then((saved) => {
+    if (saved !== true) throw saveRefused();
   });
 
   // ── Ledger actions (rules 8-14, 19, 25-26, 28) ─────────────────────────────
@@ -1348,7 +1353,7 @@ export default function FinanceSection() {
               // specs/mixed-method-payments.md rule 1 — the note's lines, checked against its total by the server.
               ...(split ? { expectedAmountCents: split.expectedAmountCents, tenders: split.tenders, ...(split.shortfall ? { shortfall: split.shortfall } : {}) } : {}),
             }))}
-            onSellOnly={() => saveThenRun(reloadReservationFinance)}
+            onSellOnly={saveThenSellOnly}
           />
         )}
         {editingReservationId && (

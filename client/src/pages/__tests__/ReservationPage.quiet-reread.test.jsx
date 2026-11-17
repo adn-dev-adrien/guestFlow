@@ -4,6 +4,8 @@
 // Reading 2026-11-16 (loop t4 UI4-2): read-only after a failed re-read covers the mini-planning days too.
 // Reading 2026-11-17 (loop t13 UI13-1): every save refuses during the re-read — the bar's save-first actions
 // (« Nouvelle note », « Envoyer la demande de solde ») share handleSaveReservation with « Enregistrer ».
+// Reading 2026-11-17 (loop t14 UI14-1/UI14-2): those bar actions are disabled while the save refuses, and a refused save keeps
+// « Nouvelle note » open (nothing recorded) instead of closing it as if paid.
 import { vi } from 'vitest';
 import { screen, waitFor, fireEvent, within, act } from '@testing-library/react';
 
@@ -48,7 +50,7 @@ vi.mock('../../components/reservation/FinanceSection', async (importOriginal) =>
 });
 
 import api from '../../api';
-import { STAY, seedFiche, openPage } from './reservationPageHarness';
+import { STAY, seedFiche, openPage, dayIn } from './reservationPageHarness';
 
 const LINE = {
   ref: 'custom:7', kind: 'custom', label: 'Panier', quantity: 1, totalCents: 2500, sourceLabel: 'Fiche', status: 'dueAtDeparture',
@@ -173,3 +175,83 @@ for (const how of ['failed', 'in flight']) {
     expect(api.updateReservation).not.toHaveBeenCalled();
   });
 }
+
+const STARTED = {
+  ...FICHE, startDate: dayIn(-1), endDate: dayIn(2), onlinePayment: { label: 'Paiement en ligne' },
+  endOfStayComplementDetail: JSON.stringify([{ label: 'Panier', amount: 25, source: 'midStayExtra', key: 'custom:7' }]),
+};
+const NOTE = 'Nouvelle note (encaissement en séjour)';
+const BALANCE = 'Envoyer la demande de solde';
+const blocked = (name) => `${name} : Fiche à relire.`;
+
+function startedStay() {
+  seedFiche(api, STARTED);
+  api.calculatePrice.mockResolvedValue({ optionLines: [], resourceLines: [], balanceAmount: 210 });
+  api.previewMidStayNote.mockImplementation(async (body) => ({ items: [], total: (body.checkedKeys || []).length ? 25 : 0 }));
+}
+
+for (const how of ['failed', 'in flight']) {
+  test(`the bar's save-first actions are disabled, with the reason, while the re-read is ${how}`, async () => {
+    startedStay();
+    openPage();
+    await screen.findByText('Panier');
+    expect(await screen.findByRole('button', { name: BALANCE })).toBeEnabled();
+    expect(screen.getByRole('button', { name: NOTE })).toBeEnabled();
+    let answer;
+    if (how === 'failed') api.getReservation.mockRejectedValueOnce(Object.assign(new Error('boom'), { status: 503 }));
+    else api.getReservation.mockImplementationOnce(() => new Promise((resolve) => { answer = () => resolve(STARTED); }));
+    await moveTheLine();
+    if (how === 'failed') await screen.findByText('Fiche non relue après la vente.');
+    expect(await screen.findByRole('button', { name: blocked(NOTE) })).toBeDisabled();
+    expect(screen.getByRole('button', { name: blocked(BALANCE) })).toBeDisabled();
+    if (how === 'failed') {
+      fireEvent.click(within(screen.getByText('Fiche non relue après la vente.').closest('[role="alert"]')).getByRole('button', { name: 'Réessayer' }));
+    } else {
+      await act(async () => { answer(); });
+    }
+    expect(await screen.findByRole('button', { name: NOTE })).toBeEnabled();
+    expect(screen.getByRole('button', { name: BALANCE })).toBeEnabled();
+    expect(api.updateReservation).not.toHaveBeenCalled();
+  });
+}
+
+test('a refused save keeps « Nouvelle note » open: nothing settled, nothing drawn as paid', async () => {
+  startedStay();
+  api.updateReservation.mockRejectedValue(new Error('Refusé.'));
+  openPage();
+  await screen.findByText('Panier');
+  fireEvent.click(await screen.findByRole('button', { name: NOTE }));
+  const dialog = await screen.findByRole('dialog');
+  fireEvent.click(within(dialog).getByRole('checkbox'));
+  const pay = within(dialog).getByRole('button', { name: 'CB / Chèque' });
+  await waitFor(() => expect(pay).toBeEnabled());
+  await act(async () => { fireEvent.click(pay); });
+  await waitFor(() => expect(dialogs.alert).toHaveBeenCalled());
+  await act(async () => { await new Promise((resolve) => { setTimeout(resolve, 600); }); });
+  expect(screen.getByRole('dialog')).toBe(dialog);
+  expect(within(dialog).getByRole('button', { name: 'CB / Chèque' })).toBeEnabled();
+  expect(api.markPayment).not.toHaveBeenCalled();
+});
+
+test('phone: in « Plus d\'actions » the save-first items are disabled with the reason beneath during a failed re-read', async () => {
+  const saved = window.matchMedia;
+  window.matchMedia = (query) => ({ matches: /max-width/.test(query), media: query, addEventListener() {}, removeEventListener() {}, addListener() {}, removeListener() {} });
+  try {
+    startedStay();
+    openPage();
+    await screen.findByText('Panier');
+    api.getReservation.mockRejectedValueOnce(Object.assign(new Error('boom'), { status: 503 }));
+    await moveTheLine();
+    await screen.findByText('Fiche non relue après la vente.');
+    fireEvent.click(await screen.findByRole('button', { name: "Plus d'actions" }));
+    const items = (await screen.findAllByRole('menuitem')).filter((el) => [NOTE, BALANCE].some((name) => el.textContent.includes(name)));
+    expect(items.length).toBeGreaterThan(0);
+    for (const item of items) {
+      expect(item).toHaveAttribute('aria-disabled', 'true');
+      expect(within(item).getByText('Fiche à relire.')).toBeInTheDocument();
+    }
+    fireEvent.click(items[0]);
+    expect(api.updateReservation).not.toHaveBeenCalled();
+    expect(api.sendBalanceRequestEmail).not.toHaveBeenCalled();
+  } finally { window.matchMedia = saved; }
+});

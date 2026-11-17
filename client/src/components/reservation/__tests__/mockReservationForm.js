@@ -91,7 +91,8 @@ export function makeMockContext(overrides = {}) {
     accommodationBasePriceDisplay: '100.00', pricingQuote: null,
     // specs/mid-stay-notes.md — the « Encaissements en séjour » block delegates the save + reload
     // to the page; the mocks let the block be exercised in isolation.
-    saveThenRun: vi.fn((action) => (typeof action === 'function' ? action() : undefined)),
+    // Like the page: the save runs the action without waiting for it and answers `true` (a refused save answers `false`).
+    saveThenRun: vi.fn(async (action) => { if (typeof action === 'function') action(); return true; }),
     reloadReservationFinance: vi.fn(),
     midStayNoteOpen: false,
     setMidStayNoteOpen: vi.fn(),

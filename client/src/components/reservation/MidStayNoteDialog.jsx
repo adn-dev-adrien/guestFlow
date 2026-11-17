@@ -33,8 +33,14 @@ import { TENDER_TEXTS } from '../../constants/tenderMethods';
  *  - `pendingLines` — the current remainder lines (`[{ label, amount, key }]`), before any addition.
  *  - `onSettle({ checkedKeys, opening }, cash)` — save (if the form changed) then settle the note.
  *  - `onSellOnly()` — save only: everything stays due at check-out.
+ *  Both reject on a refusal; a refused SAVE rejects with `saveRefused()` (nothing was stored).
  */
 const NO_PREVIEW = { items: [], total: 0, arrivalNotMarked: false };
+
+// Pricing-components rule 101 (reading 2026-11-17, loop t14 UI14-1) — the fiche refused the save itself: unlike a refused
+// settlement, nothing was stored, so the dialog keeps its opening and « Annuler » still puts the form back.
+const SAVE_REFUSED = 'SAVE_REFUSED';
+export const saveRefused = () => Object.assign(new Error('Enregistrement refusé.'), { code: SAVE_REFUSED });
 
 export default function MidStayNoteDialog({ open, onClose, pendingLines = [], onSettle, onSellOnly }) {
   const theme = useTheme();
@@ -116,10 +122,11 @@ export default function MidStayNoteDialog({ open, onClose, pendingLines = [], on
     try {
       await fn();
       onClose();
-    } catch {
-      // Refused: the fiche already shows why; the dialog stays open on what was ticked. A refusal only comes after the
-      // fiche was saved, so the stored state is the new opening « Annuler » returns to (mid-stay-notes rule 24, R31-C-L1).
-      setOpeningOptions(captureOptionsState());
+    } catch (err) {
+      // Refused: the fiche already shows why; the dialog stays open on what was ticked. A refused settlement only comes
+      // after the fiche was saved, so the stored state is the new opening « Annuler » returns to (mid-stay-notes rule 24,
+      // R31-C-L1); a refused save stored nothing and keeps the opening.
+      if (err?.code !== SAVE_REFUSED) setOpeningOptions(captureOptionsState());
     } finally {
       setBusy(false);
     }
