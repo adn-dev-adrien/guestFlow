@@ -979,8 +979,12 @@ export default function ReservationPage() {
         const initialPropId = reservationId || editingDevisId
           ? null
           : (urlPropId ? Number(urlPropId) : (props.length > 0 ? props[0].id : ''));
-        setExistingReservationLocked(false);
-        setFrozenResources([]);
+        // Rule 101 (reading 2026-11-17, loop t15 UI15-1) — a quiet re-read keeps the lock it had until the stay read back
+        // replaces it: a failed or in-flight re-read never shows a started stay as unlocked.
+        if (!quiet) {
+          setExistingReservationLocked(false);
+          setFrozenResources([]);
+        }
 
         if (prefillDevis?.form) {
           const prefillPropertyId = Number(prefillDevis.propertyId || prefillDevis.form.propertyId || 0) || null;
@@ -3776,7 +3780,7 @@ export default function ReservationPage() {
     // Réservation PLATEFORME → pas de devis : le tarif a été fixé par la plateforme, nous ne
     // devisons pas ce séjour. Le bouton n'a de sens que sur une réservation directe.
     ...(!isDevisMode && reservationId && !isPlatformReservation
-      ? [{
+      ? [heldWhileRereading({
           icon: <DescriptionIcon />,
           label: 'Transformer en devis',
           tooltip: convertToDevisBlockedReason || 'Transformer en devis',
@@ -3785,7 +3789,7 @@ export default function ReservationPage() {
           color: 'info',
           // Focusable while blocked, so Tab reaches the reason in the tooltip.
           ariaDisabled: Boolean(convertToDevisBlockedReason),
-        }] : []),
+        })] : []),
     // specs/email-automation.md §6.6 — manual email send on an existing reservation. Disabled
     // when the client has no email; the dialog otherwise surfaces SMTP / template errors clearly.
     ...(!isDevisMode && reservationId
@@ -3867,12 +3871,13 @@ export default function ReservationPage() {
     // cancelled through the iCal alert flow (specs/cancellation-compensation.md).
     // Audit R44-C-L2 — held while the fiche has unsaved changes, as « Transformer en devis » (#918): the stay would leave
     // and the typed edits with it, or the leave guard would offer a save the server can only refuse.
+    // Rule 101 (reading 2026-11-17, loop t15 UI15-1) — and held while the fiche is re-read: they act on a stay not read back.
     ...(!isDevisMode && reservationId && !isPlatformReservation && !isClosedFiche
-      ? [heldWhileDirty({ icon: <EventBusyIcon />, label: 'Annuler le séjour', onClick: () => setCancelDialogOpen(true), color: 'error', disabled: isReservationLocked })] : []),
+      ? [heldWhileRereading(heldWhileDirty({ icon: <EventBusyIcon />, label: 'Annuler le séjour', onClick: () => setCancelDialogOpen(true), color: 'error', disabled: isReservationLocked }))] : []),
     ...(!isDevisMode && reservationId
-      ? [heldWhileDirty({ icon: <DeleteIcon />, label: 'Supprimer', onClick: handleDeleteReservation, color: 'error', disabled: isReservationLocked })] : []),
+      ? [heldWhileRereading(heldWhileDirty({ icon: <DeleteIcon />, label: 'Supprimer', onClick: handleDeleteReservation, color: 'error', disabled: isReservationLocked }))] : []),
     ...(isDevisMode && editingDevisId
-      ? [{ icon: <DeleteIcon />, tooltip: 'Supprimer le devis', onClick: handleDeleteDevis, color: 'error' }] : []),
+      ? [heldWhileRereading({ icon: <DeleteIcon />, label: 'Supprimer le devis', onClick: handleDeleteDevis, color: 'error' })] : []),
   ];
 
   // Single bundle exposed to the form section components (StaySection / GuestsBedsSection /

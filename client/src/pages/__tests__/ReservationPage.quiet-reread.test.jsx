@@ -6,6 +6,8 @@
 // (« Nouvelle note », « Envoyer la demande de solde ») share handleSaveReservation with « Enregistrer ».
 // Reading 2026-11-17 (loop t14 UI14-1/UI14-2): those bar actions are disabled while the save refuses, and a refused save keeps
 // « Nouvelle note » open (nothing recorded) instead of closing it as if paid.
+// Reading 2026-11-17 (loop t15 UI15-1): the re-read keeps the lock it had — a started stay never reads as unlocked while it is in
+// flight or after it failed — and « Annuler le séjour », « Supprimer », « Transformer en devis » are held with the same reason.
 import { vi } from 'vitest';
 import { screen, waitFor, fireEvent, within, act } from '@testing-library/react';
 
@@ -253,5 +255,81 @@ test('phone: in « Plus d\'actions » the save-first items are disabled with the
     fireEvent.click(items[0]);
     expect(api.updateReservation).not.toHaveBeenCalled();
     expect(api.sendBalanceRequestEmail).not.toHaveBeenCalled();
+  } finally { window.matchMedia = saved; }
+});
+
+const LOCKED = {
+  ...STARTED,
+  editLock: { locked: true, extrasEditable: true, extrasClosedReason: null, arrivalLines: {}, frozenCustomOptionIds: [] },
+};
+const CANCEL = 'Annuler le séjour';
+const DELETE = 'Supprimer';
+const CONVERT = 'Transformer en devis';
+
+function lockedStay() {
+  startedStay();
+  seedFiche(api, LOCKED);
+}
+
+for (const how of ['failed', 'in flight']) {
+  test(`a started stay stays locked, and its structural actions held, while the re-read is ${how}`, async () => {
+    lockedStay();
+    openPage();
+    await screen.findByText('Panier');
+    expect(await screen.findByRole('button', { name: CANCEL })).toBeDisabled();
+    expect(screen.getByRole('button', { name: DELETE })).toBeDisabled();
+    const lockSeen = [];
+    const watch = () => { lockSeen.push(globalThis.__reservationForm.isReservationLocked); };
+    watch();
+    let answer;
+    if (how === 'failed') api.getReservation.mockRejectedValueOnce(Object.assign(new Error('boom'), { status: 503 }));
+    else api.getReservation.mockImplementationOnce(() => new Promise((resolve) => { answer = () => resolve(LOCKED); }));
+    await moveTheLine();
+    await waitFor(() => { watch(); expect(globalThis.__reservationForm.formReadOnly).toBe(true); });
+    if (how === 'failed') await screen.findByText('Fiche non relue après la vente.');
+    watch();
+    expect(screen.getByRole('button', { name: blocked(CANCEL) })).toBeDisabled();
+    expect(screen.getByRole('button', { name: blocked(DELETE) })).toBeDisabled();
+    expect(screen.getByRole('button', { name: blocked(CONVERT) })).toBeDisabled();
+    fireEvent.click(screen.getByRole('button', { name: blocked(DELETE) }));
+    expect(dialogs.confirm).not.toHaveBeenCalled();
+    expect(api.deleteReservation).not.toHaveBeenCalled();
+    if (how === 'failed') {
+      fireEvent.click(within(screen.getByText('Fiche non relue après la vente.').closest('[role="alert"]')).getByRole('button', { name: 'Réessayer' }));
+    } else {
+      await act(async () => { answer(); });
+    }
+    await waitFor(() => { watch(); expect(globalThis.__reservationForm.formReadOnly).toBe(false); });
+    watch();
+    expect(lockSeen.every(Boolean)).toBe(true);
+    expect(await screen.findByRole('button', { name: CANCEL })).toBeDisabled();
+    expect(screen.getByRole('button', { name: DELETE })).toBeDisabled();
+    expect(api.cancelReservation).not.toHaveBeenCalled();
+  });
+}
+
+test('phone: a failed re-read leaves « Annuler le séjour » and « Supprimer » disabled in « Plus d\'actions », with the reason', async () => {
+  const saved = window.matchMedia;
+  window.matchMedia = (query) => ({ matches: /max-width/.test(query), media: query, addEventListener() {}, removeEventListener() {}, addListener() {}, removeListener() {} });
+  try {
+    lockedStay();
+    openPage();
+    await screen.findByText('Panier');
+    api.getReservation.mockRejectedValueOnce(Object.assign(new Error('boom'), { status: 503 }));
+    await moveTheLine();
+    await screen.findByText('Fiche non relue après la vente.');
+    expect(globalThis.__reservationForm.isReservationLocked).toBe(true);
+    fireEvent.click(await screen.findByRole('button', { name: "Plus d'actions" }));
+    const items = await screen.findAllByRole('menuitem');
+    for (const name of [CANCEL, DELETE]) {
+      const item = items.find((el) => el.textContent.startsWith(name) && !el.textContent.startsWith(`${name} le`));
+      expect(item).toBeDefined();
+      expect(item).toHaveAttribute('aria-disabled', 'true');
+      expect(within(item).getByText('Fiche à relire.')).toBeInTheDocument();
+      fireEvent.click(item);
+    }
+    expect(dialogs.confirm).not.toHaveBeenCalled();
+    expect(api.deleteReservation).not.toHaveBeenCalled();
+    expect(screen.queryByRole('dialog')).toBeNull();
   } finally { window.matchMedia = saved; }
 });
