@@ -2548,6 +2548,10 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
     ids whose key the claims name): their description is greyed with the caption « Déjà payée : libellé figé ». Rewriting the notes' and
     the split's keys on rename was not chosen: it changes stored history and the export's labels. Tests `custom-line-rename-paid`,
     `ExtrasSection.paid-custom-label`.
+    _Reading, loop t12 S12-1 (2026-11-17)_: the same fiche save is also refused **409 `LINE_LABEL_TAKEN`** (« Libellé déjà utilisé sur
+    ce séjour. », before any write) when it renames a free line onto the label of **another** free line of the stay, paid or not, under the same
+    case- and space-insensitive key (`paidLineJudgment.labelTakenRefusal`): both lines would share one key, so the unpaid one read as paid and
+    could be neither renamed back nor removed. A NEW line under an existing label keeps « (2) » (rule 94).
 
 ## 4. Architecture
 
@@ -2920,7 +2924,7 @@ _Rewritten 2026-11-15 (stabilisation loop t1, UI-3) to what shipped._
 - [x] `solde-line-refunded-not-unoffered` — rule 108 reading (loop t9, B9-4): a refunded solde line refused on the line API, the fiche and a discount taken back; listed in `refundedLoweredLines`; not refunded / refund deleted / other money refunded → put back (5)
 - [x] `platform-complement-credit` — rule 116 readings (loop t9, B9-3, B9-1): the complement's freed money pays an unpaid line first (line API, fiche); a credit-paid line offered gives the credit back; refunded complement money is no credit; caisse-interne refund of complement cash stamped no note money, the rest by transfer (5)
 - [x] `stay-sequence-fuzz` — rules 104, 108, 116, 119, 121 (loop t9): the reviewer's stay sequence fuzzer, bounded (direct seeds 1-3, Booking 1-2, 12 runs × 12 steps): the money identity after every step, never asked AND owed (5)
-- [x] `custom-line-rename-paid` — rule 123 (loop t11, S11-1): a card-paid free line renamed → 409 `LINE_PAID_RENAMED`, kept and priced save, direct and Booking, nothing moves; the unpaid line and a case-only change save, the lock names the paid line; a platform stay's collected complement line refused too (3)
+- [x] `custom-line-rename-paid` — rule 123 (loop t11, S11-1): a card-paid free line renamed → 409 `LINE_PAID_RENAMED`, kept and priced save, direct and Booking, nothing moves; the unpaid line and a case-only change save, the lock names the paid line; a platform stay's collected complement line refused too (3); S12-1: a rename onto another free line's label, paid or not → 409 `LINE_LABEL_TAKEN`, a new line → « (2) » (+2)
 
 ### Client Vitest suites (named 2026-11-16, stabilisation loop t2 P2-2)
 - [x] `ExtrasSection.paid-custom-label` — rule 123 (loop t11, S11-1): the paid free line's description disabled with « Déjà payée : libellé figé », the unpaid one editable; none named → no caption (2)

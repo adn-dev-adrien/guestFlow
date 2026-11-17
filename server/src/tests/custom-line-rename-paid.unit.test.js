@@ -83,3 +83,29 @@ test('S11-1 — a platform stay\'s collected arrival complement names its free l
   assert.deepEqual([saved.status, saved.body.code], [409, 'LINE_PAID_RENAMED']);
   assert.ok(labels(id).includes('Ménage'));
 });
+
+// Loop t12 S12-1 — a rename onto another free line's label is refused 409 LINE_LABEL_TAKEN, paid or not; a NEW line keeps « (2) » (rule 94).
+const TAKEN = 'Libellé déjà utilisé sur ce séjour.';
+
+test('S12-1 — an unpaid line renamed onto the paid line\'s label, or onto an unpaid line\'s, is refused 409 LINE_LABEL_TAKEN; nothing written', () => {
+  const { id, now } = cardPaidCustom('direct');
+  assert.equal(extraSale.sell(id, [{ articleRef: 'custom', label: 'Fagots', amount: 5 }], { now }).status, 200);
+  const before = [labels(id), row(id).finalPrice];
+  for (const target of ['Ménage', ' ménage ', 'Fagots']) {
+    const saved = ctrl.performUpdate(id, renamed(id, 'Bois', target), { now });
+    assert.deepEqual([saved.status, saved.body.code, saved.body.error], [409, 'LINE_LABEL_TAKEN', TAKEN], target);
+    const priced = ctrl.performUpdate(id, { ...renamed(id, 'Bois', target), restatePricing: true }, { now });
+    assert.deepEqual([priced.status, priced.body.code], [409, 'LINE_LABEL_TAKEN'], target);
+  }
+  assert.deepEqual([labels(id), row(id).finalPrice], before);
+  assert.equal(ctrl.performUpdate(id, renamed(id, 'Bois', 'Bois sec'), { now }).status, 200);
+});
+
+test('S12-1 — a NEW free line under an existing label is numbered « (2) », not refused', () => {
+  const { id, now } = cardPaidCustom('direct');
+  const body = storedBody(id);
+  body.customOptions = [...body.customOptions, { description: 'Ménage', amount: 10, offered: false, inComplement: 0 }];
+  const saved = ctrl.performUpdate(id, { ...body, restatePricing: true }, { now });
+  assert.equal(saved.status, 200, JSON.stringify(saved.body));
+  assert.ok(labels(id).includes('Ménage (2)'), labels(id).join('|'));
+});
