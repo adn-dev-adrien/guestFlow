@@ -216,6 +216,11 @@ changed something the price depends on; money collected beyond the total is repo
     routing pin reads the same match, so a line's routing and contribs come from one row. A contrib in a save's request
     is never read, and a line with no stored row has none. As for a catalogue option: a line that grows keeps its contrib and the growth goes to the complement,
     a line forced to the complement drops it, a line removed takes it along. Stored rows already at NULL are not repaired.
+    > _Reading 2026-11-17 (stabilisation loop t16, S16-3 b, pricing-components rule 94 reading):_ a line its caller appends (`newLine`: every
+    > line typed on the fiche, as a sale's appended line) is never matched by its text: it takes no row, no contribs and no routing of a stored
+    > line, even one this save removes under the same label (before: a line removed and typed again in one save took the removed row's
+    > contribs, number and discount). Any other line is matched as above (id, then text). The save's write carries the identity of the rows
+    > the posted lines name, nothing else.
 20. **A save priced without the snapshot keeps what each catalogue line collected (review of #954, 2026-11-03).**
     « Utiliser les tarifs actuels » and a change of logement drop `getPricingSnapshot` so the catalogue prices the lines
     again, and the contribs travelled in that snapshot: an option or resource came back with none. The journal held on

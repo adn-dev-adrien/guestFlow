@@ -2,6 +2,9 @@
  * specs/reservation-save-keeps-pricing.md rule 19 — which stored row a posted custom line is. A custom line's id
  * rolls at every priced save, so a form loaded earlier may carry none or a stale one: by id first, over every line so
  * a new line sharing the text never takes a row another line names, then by normalised text. Each row answers once.
+ * A line its caller appends (`newLine`: the fiche's typed line, a sale's line) is no stored row whatever its text
+ * (pricing-components rule 94 reading, loop t16 S16-3 b): a line removed and typed again under the same label in one
+ * save is a new line, never the removed row with its number, discount and money.
  */
 const { extraLineKey } = require('./midStayExtras');
 
@@ -15,6 +18,7 @@ function matchStoredCustomLines(postedLines, storedRows) {
   ));
   return postedLines.map((line, index) => {
     if (matches[index]) return matches[index];
+    if (line?.newLine) return null;
     const key = textKey(line?.description);
     return key ? take(free.findIndex((row) => textKey(row.description) === key)) : null;
   });
@@ -40,4 +44,31 @@ function renamedCustomLineFacts(facts, renames, lineIdOf) {
   return out;
 }
 
-module.exports = { matchStoredCustomLines, renamedCustomLineFacts };
+/**
+ * Pricing-components rule 94 reading (loop t16 S16-3 b) — the engine reads a free line's facts (discount, moment, sale date) under its text key.
+ * A stored row the save removes leaves its fact behind under that key: a NEW posted line of the same text (no stored row answers it) would read
+ * it and take the removed line's discount. The fact of a removed row is dropped when a new line takes its key; a removed row whose key no line
+ * takes keeps its fact (the readers of a removed line — its payment, its refusal — still find it). `storedRows`: `[{ id, description, lineId }]`.
+ */
+function withoutRemovedLineFacts(facts, postedLines, storedRows) {
+  const posted = Array.isArray(postedLines) ? postedLines : [];
+  const rows = Array.isArray(storedRows) ? storedRows : [];
+  if (posted.length === 0 || rows.length === 0) return facts;
+  const matches = matchStoredCustomLines(posted, rows);
+  const named = new Set(matches.filter(Boolean).map((row) => Number(row.id)));
+  const removedLineIds = new Set(rows.filter((row) => !named.has(Number(row.id)) && row.lineId != null).map((row) => Number(row.lineId)));
+  const freed = posted.filter((line, index) => !matches[index]).map((line) => textKey(line?.description))
+    .filter((key) => key && facts[key] && facts[key].table === 'custom' && removedLineIds.has(Number(facts[key].lineId)));
+  if (freed.length === 0) return facts;
+  const out = { ...facts };
+  for (const key of freed) delete out[key];
+  return out;
+}
+
+/** The stored rows a save's posted custom lines name (`matchStoredCustomLines`), as a Set of row ids: the rows whose facts the writer carries. */
+function namedStoredCustomRowIds(postedLines, storedRows) {
+  return new Set(matchStoredCustomLines(Array.isArray(postedLines) ? postedLines : [], Array.isArray(storedRows) ? storedRows : [])
+    .filter(Boolean).map((row) => Number(row.id)));
+}
+
+module.exports = { matchStoredCustomLines, renamedCustomLineFacts, withoutRemovedLineFacts, namedStoredCustomRowIds };

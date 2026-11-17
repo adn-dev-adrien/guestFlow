@@ -113,11 +113,13 @@ export function hydrateOfferedOptionIds(options) {
 }
 
 /**
- * The unit prices a saved booking was sold at, keyed by line id — what the fiche sends back as
- * `lockedOptionUnits` / `lockedResourceUnits` so a re-save can't silently re-price it.
+ * The unit prices a saved booking was sold at, keyed by article id — what the fiche sends back as
+ * `lockedOptionUnits` / `lockedResourceUnits` so a re-save can't silently re-price it. Only the
+ * catalogue lines carry one: a free line has no article id, and keying it anyway put its unit under
+ * « undefined », which priced every new option at that free line's amount (loop t16 S16-1).
  */
 export function frozenUnitPrices(lines, idKey) {
-  return Object.fromEntries((lines || []).filter((line) => !line.laterLine).map((line) => [
+  return Object.fromEntries((lines || []).filter((line) => !line.laterLine && !line.isCustom && line[idKey] != null).map((line) => [
     line[idKey],
     line.unitPrice !== undefined
       ? Number(line.unitPrice || 0)

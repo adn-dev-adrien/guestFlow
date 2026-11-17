@@ -1124,7 +1124,10 @@ function createReservationsModel(database, { arrivalComplementEngine = null } = 
       WHERE reservationId = ? AND sasArrivalOrigin = 1 ORDER BY sortOrder, id`).all(reservationId);
     // Loop t3 T3-7 — a line is found by its own label first: two items whose labels differ only by a « (n) » of their own (« Drap-housse (140) »,
     // « Drap-housse (160) », operator-editable) are two lines. Only a row this SAS numbered itself (« Bière locale (2) ») is found by its base label.
-    const identity = (key, label) => (key ? `key:${key}` : `label:${String(label).trim()}`);
+    // Loop t16 S16-3 c — a label is the line's key as everywhere else (`extraLineKey`: case and spacing aside), so a re-run that changes only
+    // the case of an item keeps its row, as the fiche does.
+    const labelKey = (label) => String(label).trim().toLowerCase().replace(/\s+/g, ' ');
+    const identity = (key, label) => (key ? `key:${key}` : `label:${labelKey(label)}`);
     const held = new Map();
     for (const row of rows) {
       const k = identity(HAS_RCO_SAS_LINE_KEY ? row.sasLineKey : null, row.description);
@@ -1144,9 +1147,10 @@ function createReservationsModel(database, { arrivalComplementEngine = null } = 
     // sale's is; a line this SAS wrote keeps the label it was given, so a re-run finds it again.
     const description = new Map(rows.map((row) => [row.id, row.description]));
     const numberedOf = (label) => {
-      const pattern = new RegExp(`^${label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')} \\(\\d+\\)$`);
+      const base = labelKey(label);
+      const pattern = new RegExp(`^${base.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')} \\(\\d+\\)$`);
       for (const [k, queue] of held) {
-        if (k.startsWith('label:') && queue.length && pattern.test(k.slice(6)) && sasBaseLabel(k.slice(6)) === label) return queue.shift();
+        if (k.startsWith('label:') && queue.length && pattern.test(k.slice(6)) && sasBaseLabel(k.slice(6)) === base) return queue.shift();
       }
       return null;
     };
@@ -1166,7 +1170,9 @@ function createReservationsModel(database, { arrivalComplementEngine = null } = 
       const amount = roundMoneyStrict(it.amount);
       const qty = Math.max(1, Math.round(Number(it.qty) || 1));
       if (id != null) {
-        const keeps = sasBaseLabel(description.get(id)) === label ? description.get(id) : label;
+        // A row this SAS numbered (« Bière locale (2) ») keeps its number; any other row takes the item's text (a case change included).
+        const stored = description.get(id);
+        const keeps = stored !== sasBaseLabel(stored) && labelKey(sasBaseLabel(stored)) === labelKey(label) ? stored : label;
         update.run(keeps, amount, it.offered ? 1 : 0, ...(HAS_RCO_QUANTITY ? [qty] : []), id);
         kept.add(id);
       } else {
