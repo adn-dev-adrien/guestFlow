@@ -1341,6 +1341,12 @@ async function calculatePrice(req, res) {
   // A devis keeps its lines as they are.
   const previewCustomOptions = (reservationId > 0 || !(Number(req.body.devisId || 0) > 0))
     ? numberedCustomLinesOf(reservationId, req.body.customOptions) : req.body.customOptions;
+  // Rule 94 reading (loop t14 S14-3) — a stored stay is previewed on the save's routing: its stored payment flags and, on a locked fiche, the
+  // window's pins (`midStayWindowRouting` + `pinStoredRouting`, the save's own functions).
+  const previewLines = previewRoutedLines(req, reservationId, previewCustomOptions);
+  const previewPaidFlags = reservationId > 0 && model.getRow(reservationId)
+    ? storedPaymentFlagsOf(model.getRow(reservationId), depositDisabledOf(reservationId, req.body.depositDisabled))
+    : { depositPaid: req.body.depositPaid, balancePaid: req.body.balancePaid };
   // A devis being edited locks its prices too, for as long as the quote is valid — same snapshot, same
   // engine inputs (specs/devis-extras-parity-and-price-lock.md §3 rule 13). The fiche sends `devisId`
   // so this preview shows exactly what the save will store; without it the operator saw today's
@@ -1387,13 +1393,13 @@ async function calculatePrice(req, res) {
     discountPercent: req.body.discountPercent,
     discountTarget: req.body.discountTarget,
     discountFixedAmount: fixedDiscountEuros(req.body.discountAmountCents),
-    lineFacts: reservationId > 0 ? lineFactsForSave(reservationId, previewCustomOptions) : {},
+    lineFacts: reservationId > 0 ? lineFactsForSave(reservationId, previewLines.customOptions) : {},
     customPrice: req.body.customPrice,
-    selectedOptions: req.body.selectedOptions,
-    customOptions: previewCustomOptions,
-    selectedResources: req.body.selectedResources,
-    depositPaid: req.body.depositPaid,
-    balancePaid: req.body.balancePaid,
+    selectedOptions: previewLines.options,
+    customOptions: previewLines.customOptions,
+    selectedResources: previewLines.resources,
+    depositPaid: previewPaidFlags.depositPaid,
+    balancePaid: previewPaidFlags.balancePaid,
     extraGuestSurchargeOffered: req.body.extraGuestSurchargeOffered,
     // specs/reservation-payment-ledger.md rule 46, reading of 2026-11-05 — a solde paid before its acompte: the acompte
     // still owed is judged from the stored one, as the save does, never from a figure an earlier preview answered.
@@ -1418,7 +1424,7 @@ async function calculatePrice(req, res) {
     lockedResourceLines: lockedPricing.lockedResourceLines,
     platform: req.body.platform,
     touristTaxInComplement: req.body.touristTaxInComplement,
-    autoOptionsInComplement: req.body.autoOptionsInComplement,
+    autoOptionsInComplement: previewLines.autoOptionsInComplement,
     // Same lift as the save below: a changed party or date re-prices, so the preview shows what the save stores.
     ...frozenTouristTaxInputs(db, reservationId, req.body.refreshTouristTax || (reservationId > 0 && !sameStayAsSold(model.getRow(reservationId), req.body))),
     // Read-only preview: the baseline is only CAPTURED on save, never here.
@@ -1563,14 +1569,28 @@ async function calculatePrice(req, res) {
     }
   }
 
-  res.json(withTypedCustomTitles(withCustomLineKeys(quote), req.body.customOptions, previewCustomOptions));
+  res.json(withTypedCustomTitles(withCustomLineKeys(quote), req.body.customOptions, previewLines.customOptions));
+}
+
+// The lines a preview prices, routed as the save will route them (S14-3): on a locked fiche whose window is open, each line keeps its stored
+// routing and a new line takes the window's — the very pins `enterMidStayExtrasWindow` lays on the save's body. An admin unlock skips the window,
+// as it does on the save.
+function previewRoutedLines(req, reservationId, customOptions) {
+  const lines = {
+    options: req.body.selectedOptions, resources: req.body.selectedResources, customOptions, autoOptionsInComplement: req.body.autoOptionsInComplement,
+  };
+  if (!(reservationId > 0) || pastUnlockRequested(req)) return lines;
+  const { today, nowTime } = localNow(stayClockModel.gestureNow());
+  const window = midStayWindowRouting(reservationId, today, nowTime);
+  if (window) pinStoredRouting(lines, model.getStoredRouting(reservationId), window.toArrival);
+  return lines;
 }
 
 // Rule 94 reading (loop t14 S14-1) — the preview prices a repeated label under its number (`key`), but echoes the text the operator typed: the
 // fiche writes each quote line's title back into its field on every keystroke, and a « (2) » appearing under the cursor would be typed over.
 // The save stores the numbered label, and the fiche shows it once it re-reads.
 function withTypedCustomTitles(quote, postedLines, pricedLines) {
-  if (!quote || !Array.isArray(quote.optionLines) || !Array.isArray(postedLines) || postedLines === pricedLines) return quote;
+  if (!quote || !Array.isArray(quote.optionLines) || !Array.isArray(postedLines) || !Array.isArray(pricedLines)) return quote;
   const typed = new Map();
   postedLines.forEach((line, index) => {
     const priced = pricedLines[index];
@@ -2099,6 +2119,16 @@ const ARRIVAL_LINE_RENAME_MESSAGE = 'Une prestation ne peut plus être renommée
 const ARRIVAL_EXTRAS_FROZEN_MESSAGE = 'Une prestation vendue à l\'arrivée ne peut être ni retirée ni réduite.';
 const MID_STAY_EXTRAS_CLOSED_MESSAGE = 'Complément de fin de séjour déjà encaissé : décocher « payé » d’abord.';
 
+// The payment flags a stored stay is priced on: the stored ones, never the request's (reservation-payment-ledger rule 13). Shared by the save
+// and its preview (loop t14 S14-3): a fiche posting stale flags saw a new line in the paid solde that the save put in the arrival complement.
+function storedPaymentFlagsOf(stored, depositDisabledFlag) {
+  return {
+    depositPaid: depositDisabledFlag ? false : Number(stored.depositPaid || 0) === 1,
+    balancePaid: Number(stored.balancePaid || 0) === 1,
+    complementPaid: Number(stored.complementPaid || 0) === 1,
+  };
+}
+
 // specs/mid-stay-extras-on-locked-fiche.md rule 8 — inside the window the routing of every line is
 // the stored one (a mid-stay sale goes to the end-of-stay complement whatever it is), so the payload
 // cannot move it; a line with no stored counterpart falls back to the engine's default.
@@ -2147,22 +2177,29 @@ function carryStoredCustomContribs(id, body) {
 // locked and its end-of-stay complement is not collected. Pins everything rule 8 keeps locked
 // (routing, tariff refresh, the bed counts of a linen sold at arrival) and returns the state the
 // arrival floors are checked against; null when the window is closed or the fiche is unlocked.
-function enterMidStayExtrasWindow(id, body, today, nowTime, { atArrival = false } = {}) {
+// The window's routing (rule 102): open or not, and where a new line goes. Shared by the save and its preview (loop t14 S14-3).
+function midStayWindowRouting(id, today, nowTime, { atArrival = false } = {}) {
   // Rule 102 — one moment: the window, the lock and the routing of a new line read the stay clock at the gesture's `now`.
   const started = stayStartedNow(id);
   const row = model.getRow(id);
   if (!midStayExtrasWindow(row, today, nowTime, started).extrasEditable) return null;
-  // The fiche is locked, so the stay has started whether or not the check-in was marked: pin what it
-  // carries now as « sold at arrival » (rule 10), unconditionally.
-  // Read, not written: the baseline is stored by the write itself, after every refusal of the save.
-  const baseline = model.peekArrivalExtrasBaseline(id);
-  const beforeLines = model.readExtraLinesWithQuantity(id);
   // Guest-app rule 110 a, pricing-components rule 102 — the check-in hour has passed but the arrival is not validated and its complement is not
   // collected (the guest is late): the arrival complement is still open. Its unpaid arrival lines are not frozen (an order is changed at the
   // door), and an `atArrival` gesture routes its new line to that complement and never reads it as a sale of the stay.
   const arrivalOpen = started && !isArrivalValidated(row)
     && Number(row.complementPaid || 0) !== 1 && Number(row.complementPaidCash || 0) !== 1;
-  const toArrival = !started || (atArrival && arrivalOpen);
+  return { row, started, arrivalOpen, toArrival: !started || (atArrival && arrivalOpen) };
+}
+
+function enterMidStayExtrasWindow(id, body, today, nowTime, { atArrival = false } = {}) {
+  const window = midStayWindowRouting(id, today, nowTime, { atArrival });
+  if (!window) return null;
+  const { row, started, arrivalOpen, toArrival } = window;
+  // The fiche is locked, so the stay has started whether or not the check-in was marked: pin what it
+  // carries now as « sold at arrival » (rule 10), unconditionally.
+  // Read, not written: the baseline is stored by the write itself, after every refusal of the save.
+  const baseline = model.peekArrivalExtrasBaseline(id);
+  const beforeLines = model.readExtraLinesWithQuantity(id);
   pinStoredRouting(body, model.getStoredRouting(id), toArrival);
   body.refreshPricingToCurrent = false;
   // Rule 8 — the bed counts follow the linen line: they move only when the payload brings a bed-linen
@@ -2414,10 +2451,10 @@ function applyUpdate(req, res, pastUnlocked, {
     req.body.depositDueDate = storedPaymentForQuote.depositDueDate ?? null;
   }
   req.body.depositDisabled = depositDisabledFlag;
-  const effectiveDepositPaid = depositDisabledFlag ? false : Number(storedPaymentForQuote.depositPaid || 0) === 1;
+  const {
+    depositPaid: effectiveDepositPaid, balancePaid: effectiveBalancePaid, complementPaid: effectiveComplementPaid,
+  } = storedPaymentFlagsOf(storedPaymentForQuote, depositDisabledFlag);
   const effectiveDepositPaidDate = depositDisabledFlag ? null : (storedPaymentForQuote.depositPaidDate || null);
-  const effectiveBalancePaid = Number(storedPaymentForQuote.balancePaid || 0) === 1;
-  const effectiveComplementPaid = Number(storedPaymentForQuote.complementPaid || 0) === 1;
 
   // specs/frozen-complement-trusts-client.md §3 rules 1-2 — a collected complement is frozen at what
   // was COLLECTED, so the engine must be fed the stored amount, never the one the browser computed:

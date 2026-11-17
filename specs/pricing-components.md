@@ -1990,6 +1990,11 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
     > devis being edited keeps its lines as posted. A
     > stay created with two free lines of one label stores « Ménage », « Ménage (2) » (before: one key for both, a 2 € line discount on one took
     > 4 €). Two rows of one label stored before this reading (none in production) keep their labels. Test `custom-label-numbering-preview`.
+    > _Reading 2026-11-17 (loop t14, S14-3):_ the preview of a stored stay routes its lines as the save does, through the save's own functions:
+    > it prices on the STORED payment flags (`storedPaymentFlagsOf`, reservation-payment-ledger rule 13 — before, a fiche posting a stale
+    > « solde non payé » saw a new line in the paid solde that the save put in the arrival complement), and on a locked fiche whose window is
+    > open it lays the window's pins (`midStayWindowRouting` + `pinStoredRouting`, the routing `enterMidStayExtrasWindow` applies: each line
+    > keeps its stored routing, a new line takes the window's). An admin unlock skips the window on both. Test `preview-save-routing`.
 95. **Before the arrival, a line is moved to the arrival only** _(stabilisation loop t1, S-3, 2026-11-15; completes rules 20, 37)_. The extras baseline
     that carves a line out to the departure is a started stay's: one laid before the arrival carved every later pre-arrival sale out to the departure, then
     vanished at the boot repair and left the moved line in no stored bucket. Before the stay clock reaches the arrival, `changeLine { collectAt: 'departure' }`
@@ -2950,6 +2955,7 @@ _Rewritten 2026-11-15 (stabilisation loop t1, UI-3) to what shipped._
 - [x] `custom-line-rename-paid` — rule 123 (loop t11, S11-1): a card-paid free line renamed → 409 `LINE_PAID_RENAMED`, kept and priced save, direct and Booking, nothing moves; the unpaid line and a case-only change save, the lock names the paid line; a platform stay's collected complement line refused too (3); S12-1: a rename onto another free line's label, paid or not → 409 `LINE_LABEL_TAKEN`, a new line → « (2) » (+2)
 - [x] `custom-line-rename-identity` — rule 79 reading (loop t13, S13-1): a renamed unpaid free line keeps its `lineId`, moment, sale date and discount on a priced save (amount changed, direct and Booking; another line re-priced; discounted, with and without `restatePricing`); a swap of two labels keeps each discount on its line; a rename onto the label of a line removed in the same save; a new line under the old label (6)
 - [x] `custom-label-numbering-preview` — rule 94 reading (loop t14, S14-1, S14-2): a new line repeating a discounted label is priced under `custom:bois (2)` with its typed title and preview = save (direct and Booking); a rename plus a new line under the new label, preview = save; a fresh fiche previews two « Ménage » under two keys; a stay created with two « Ménage » stores « Ménage (2) » and a 2 € line discount takes exactly 2 € (4)
+- [x] `preview-save-routing` — rule 94 reading (loop t14, S14-3): preview figures = saved figures for a new line on a paid solde posted with stale flags, a pre-arrival line moved plus a new line on a started (locked) stay, and a line moved on an admin-unlocked started stay — direct and Booking (3)
 
 ### Client Vitest suites (named 2026-11-16, stabilisation loop t2 P2-2)
 - [x] `ExtrasSection.paid-custom-label` — rule 123 (loop t11, S11-1): the paid free line's description disabled with « Déjà payée : libellé figé », the unpaid one editable; none named → no caption (2)
