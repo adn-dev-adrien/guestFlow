@@ -2,6 +2,8 @@
 // « Ventes du séjour »: every field is inert while it is in flight, MUI selects included (a div the fieldset does not disable);
 // the summary keeps the last quote until the new one lands; a failed re-read keeps the page, read-only, with « Réessayer ».
 // Reading 2026-11-16 (loop t4 UI4-2): read-only after a failed re-read covers the mini-planning days too.
+// Reading 2026-11-17 (loop t13 UI13-1): every save refuses during the re-read — the bar's save-first actions
+// (« Nouvelle note », « Envoyer la demande de solde ») share handleSaveReservation with « Enregistrer ».
 import { vi } from 'vitest';
 import { screen, waitFor, fireEvent, within, act } from '@testing-library/react';
 
@@ -31,6 +33,19 @@ vi.mock('../../hooks/useAuth', () => ({
   useAuth: () => ({ user: { id: 1, roles: ['admin'] } }),
 }));
 vi.mock('../../hooks/usePlugins', () => ({ usePlugin: () => false, usePlugins: () => ({ plugins: [], isActive: () => false }) }));
+vi.mock('../../components/reservation/FinanceSection', async (importOriginal) => {
+  const original = await importOriginal();
+  const { useReservationForm } = await import('../../components/reservation/ReservationFormContext');
+  const FinanceSection = original.default;
+  return {
+    ...original,
+    __esModule: true,
+    default: function FinanceSectionProbe(props) {
+      globalThis.__reservationForm = useReservationForm();
+      return <FinanceSection {...props} />;
+    },
+  };
+});
 
 import api from '../../api';
 import { STAY, seedFiche, openPage } from './reservationPageHarness';
@@ -140,3 +155,21 @@ test('after a failed re-read a mini-planning day does not move the dates', async
   expect(screen.getByLabelText("Date d'arrivée").value).toBe(before);
   expect(screen.getByRole('button', { name: 'Enregistrer' })).toBeDisabled();
 });
+
+for (const how of ['failed', 'in flight']) {
+  test(`a save-first action saves nothing while the re-read is ${how}`, async () => {
+    openPage();
+    await screen.findByText('Panier');
+    if (how === 'failed') api.getReservation.mockRejectedValueOnce(Object.assign(new Error('boom'), { status: 503 }));
+    else api.getReservation.mockImplementationOnce(() => new Promise(() => {}));
+    await moveTheLine();
+    if (how === 'failed') await screen.findByText('Fiche non relue après la vente.');
+    await waitFor(() => expect(globalThis.__reservationForm.formReadOnly).toBe(true));
+    const action = vi.fn();
+    let saved;
+    await act(async () => { saved = await globalThis.__reservationForm.saveThenRun(action); });
+    expect(saved).toBe(false);
+    expect(action).not.toHaveBeenCalled();
+    expect(api.updateReservation).not.toHaveBeenCalled();
+  });
+}

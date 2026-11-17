@@ -8,7 +8,7 @@ import { renderFinance, dueRow, ledgerOf } from './ledgerFixtures';
 
 vi.mock('../../../api', () => ({
   __esModule: true,
-  default: { closeRefundObligation: vi.fn().mockResolvedValue({}), markPayment: vi.fn() },
+  default: { closeRefundObligation: vi.fn(() => Promise.resolve({})), markPayment: vi.fn() },
 }));
 import api from '../../../api';
 

@@ -16,9 +16,9 @@ vi.mock('../../../api', () => ({
   default: {
     getReservationSas: vi.fn(),
     previewArrivalSas: vi.fn(),
-    commitArrivalSas: vi.fn().mockResolvedValue({ ok: true }),
-    commitDepartureSas: vi.fn().mockResolvedValue({ ok: true }),
-    getReservationWeatherAlerts: vi.fn().mockResolvedValue({ configured: false, resolved: false, department: null, alerts: [] }),
+    commitArrivalSas: vi.fn(() => Promise.resolve({ ok: true })),
+    commitDepartureSas: vi.fn(() => Promise.resolve({ ok: true })),
+    getReservationWeatherAlerts: vi.fn(() => Promise.resolve({ configured: false, resolved: false, department: null, alerts: [] })),
   },
 }));
 vi.mock('../../guest-app/guestAppApi', () => ({ default: { amendOrder: vi.fn() } }));

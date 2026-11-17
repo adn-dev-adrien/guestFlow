@@ -44,9 +44,9 @@ const PAID_LINE_REMOVED = 'Ligne déjà payée : elle peut être offerte, pas re
 const LINE_REFUNDED = 'Ligne remboursée : la revendre comme une nouvelle ligne.';
 // Loop t11 S11-1 (rule 123) — a paid free line is named by its label: renamed, the money it holds would no longer find it.
 const PAID_LINE_RENAMED = 'Ligne déjà payée : son libellé ne change pas.';
-// Reception-only: the rule-18 answer itself, no amount and no refund word (reception-role-checkin-only rule 18).
 // Loop t12 S12-1 (rule 123) — a free line renamed onto the label of another free line of the stay would share its key, and with it its payment.
 const LINE_LABEL_TAKEN = 'Libellé déjà utilisé sur ce séjour.';
+// Reception-only: the rule-18 answer itself, no amount and no refund word (reception-role-checkin-only rule 18).
 const LINE_OWED = 'Ligne déjà payée : à voir avec l’administrateur.';
 const eurosText = (cents) => `${(cents / 100).toFixed(2).replace('.', ',')} €`;
 
