@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import { Box, Card, CardContent, Typography, Stack, Divider, Grid, TextField, Button, Switch, FormControlLabel, Tooltip, IconButton } from '@mui/material';
 import { alpha } from '@mui/material/styles';
 import api from '../../api';
@@ -18,6 +18,7 @@ import PlatformPenaltyDialog from './PlatformPenaltyDialog';
 import DeleteIcon from '@mui/icons-material/Delete';
 import LedgerList from '../LedgerList';
 import InstallmentPlanCard from './InstallmentPlanCard';
+import { BankTranches, BankScheduleSummary } from './BankTranches';
 import LedgerAmountEditor from '../LedgerAmountEditor';
 import { useAppDialogs, useToast } from '../DialogProvider';
 import { useReservationForm } from './ReservationFormContext';
@@ -254,6 +255,7 @@ const MARK_FIELDS = {
   cautionReturned: { flag: 'cautionReturned', date: 'cautionReturnedDate' },
 };
 const LOCKED_AMOUNT_REASON = 'Séjour commencé : déverrouiller la fiche pour modifier les montants.';
+const STATEMENT_DIRTY_REASON = 'Fiche modifiée : enregistrer ou annuler les modifications avant de corriger le relevé.';
 const AMOUNT_ROWS = new Set(['deposit', 'balance', 'complement', 'checkoutComplement', 'endOfStayComplement']);
 const EDITOR_LABELS = { deposit: "Montant de l'acompte (€)", balance: 'Montant du solde (€)' };
 
@@ -561,11 +563,29 @@ export default function FinanceSection() {
     const mode = row.amountEdit?.mode;
     // Review of #727 (M1) — on a past, locked fiche the amounts and the split are read-only; only the
     // marks stay. The complement detail still unfolds.
-    if (isReservationLocked && mode !== 'complement') { setPanel({ key: row.key, kind: 'locked', reason: LOCKED_AMOUNT_REASON }); return; }
+    // specs/platform-statement-after-payout.md rule 1 — the platform's statement stays open on a locked fiche.
+    if (isReservationLocked && mode !== 'complement' && !(mode === 'statement' && row.amountEdit?.correctable)) { setPanel({ key: row.key, kind: 'locked', reason: LOCKED_AMOUNT_REASON }); return; }
     if (mode === 'complement') { toggleFold(row.key); return; }
     if (mode === 'statement') { setPanel({ key: row.key, kind: 'statement' }); return; }
     if (mode === 'locked') { setPanel({ key: row.key, kind: 'locked' }); return; }
     setPanel({ key: row.key, kind: 'edit' });
+  };
+
+  // Stable across renders, so the editor's preview only runs when its figures change (review L3).
+  const previewStatement = useCallback(
+    (statement) => api.previewPlatformStatement(editingReservationId, statement),
+    [editingReservationId],
+  );
+
+  const writeStatement = async (statement) => {
+    try {
+      const answer = await api.updatePlatformStatement(editingReservationId, statement);
+      showSuccess(answer?.netLabel?.tone === 'warning' ? 'Relevé enregistré avec un écart sur le virement.' : 'Relevé enregistré.');
+      close();
+      await reloadReservationFinance();
+    } catch (err) {
+      showError(err.message || 'Relevé non enregistré.');
+    }
   };
 
   const submitMark = async (row, { date, cash, payout, commission, tenders, shortfall }) => {
@@ -766,7 +786,7 @@ export default function FinanceSection() {
     const foldable = Boolean(slot) || row.state === 'paid-group';
     const groupFirst = row.state === 'paid-group' && rows.find((r) => r.state === 'paid-group')?.key === row.key;
     const hasFold = slot || (groupFirst && form.arrivalPayment?.covers);
-    if (bits.length === 0 && warnings.length === 0 && lines.length === 0 && penaltyLines.length === 0 && !row.penaltyAction && !d.reconciliation && !d.note && !hasFold && !d.link?.resend && !d.link?.withdraw && !d.link?.settle && otherLinks.length === 0) return null;
+    if (bits.length === 0 && warnings.length === 0 && lines.length === 0 && penaltyLines.length === 0 && !row.penaltyAction && !d.reconciliation && !d.note && !row.bankTranches && !hasFold && !d.link?.resend && !d.link?.withdraw && !d.link?.settle && otherLinks.length === 0) return null;
     const open = folds.has(row.key);
     return (
       <Box sx={{ mt: 0.5 }}>
@@ -815,6 +835,7 @@ export default function FinanceSection() {
           </Tooltip>
         )}
         {d.note && <Typography variant="caption" color="text.secondary" sx={{ fontStyle: 'italic' }}>{d.note}</Typography>}
+        <BankTranches row={row} />
         {open && slot === 'complement' && (
           <ComplementDetail
             lines={arrivalComplementLines}
@@ -903,15 +924,22 @@ export default function FinanceSection() {
       );
     }
     if (panel.kind === 'statement') {
+      // specs/platform-statement-after-payout.md rules 5, 11 — a received payout or a locked fiche writes the
+      // statement at once through its own PATCH; otherwise it is a draft saved with the fiche, as before.
+      const received = row.amountEdit?.received || null;
+      const writesNow = Boolean(editingReservationId) && Boolean(row.amountEdit?.correctable) && (Boolean(received) || isReservationLocked);
       return (
         <PlatformStatementEditor
           form={form}
           pricingQuote={pricingQuote}
           withDepositCommission={Boolean(pricingQuote?.platformTakesDeposit)}
-          locked={isReservationLocked}
+          locked={writesNow ? !fichePristine : isReservationLocked}
+          lockedReason={writesNow && !fichePristine ? STATEMENT_DIRTY_REASON : null}
+          received={received}
+          preview={writesNow ? previewStatement : null}
           computeCommission={api.computePlatformCommission}
           onError={showError}
-          onApply={(patch) => { updateForm(patch); close(); }}
+          onApply={writesNow ? (patch) => writeStatement(patch) : (patch) => { updateForm(patch); close(); }}
           onCancel={close}
         />
       );
@@ -1203,6 +1231,8 @@ export default function FinanceSection() {
                   />
                 </Box>
               )}
+
+              <BankScheduleSummary schedule={ledger?.schedule} />
 
               <LedgerList
                 rows={ledgerRows}

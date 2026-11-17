@@ -8,9 +8,13 @@
  */
 
 const { euros } = require('./receiptStates');
+const { settlementReferenceOf, normalizeReference } = require('./mollieSettlements');
+const { addDays, RESERVE_EARLY_DAYS } = require('./molliePaymentSplits');
 
 const CONFIDENCE_RANK = { sur: 3, probable: 2, verifier: 1 };
 const MAX_SUBSET = 6;
+// specs/mollie-rolling-reserve-and-incoming-payments.md rule 9 — one Mollie settlement may group many payments.
+const MAX_MOLLIE_TRANCHES = 8;
 const MAX_CANDIDATES = 22;
 const MAX_NODES = 250000;
 const MAX_EARLY_DAYS = 400;
@@ -89,29 +93,35 @@ function patternMatches(pattern, tx) {
 
 function classify(tx, settings) {
   // A platform pays by transfer: a card operation named like it is a refund or a purchase, never a payout.
-  if (/^(card|carte)$/i.test(String(tx.operationType || ''))) return { kind: 'other' };
+  const cardOperation = /^(card|carte)$/i.test(String(tx.operationType || ''));
   const patterns = settings.patterns || DEFAULT_PATTERNS;
-  for (const [platform, list] of Object.entries(patterns)) {
-    if ((list || []).some((p) => patternMatches(p, tx))) {
-      // A cancellation compensation (« … ANNUL ») is not a stay's payout (spec §8).
-      return /\bannul/.test(normalize(tx.reference)) ? { kind: 'other' } : { kind: 'platform', platform };
+  // Rule 9 of specs/mollie-rolling-reserve-and-incoming-payments.md — a platform that pays through Mollie (Mollie Connect)
+  // stays a platform: its patterns are read first, Mollie is the fallback by name.
+  if (!cardOperation) {
+    for (const [platform, list] of Object.entries(patterns)) {
+      if ((list || []).some((p) => patternMatches(p, tx))) {
+        // A cancellation compensation (« … ANNUL ») is not a stay's payout (spec §8).
+        return /\bannul/.test(normalize(tx.reference)) ? { kind: 'other' } : { kind: 'platform', platform };
+      }
     }
   }
-  if (tx.operationType === 'card_acquirer_payout' || /mollie/.test(textOf(tx))) return { kind: 'acquiring' };
+  // Mollie is known by its name, whatever the operation type (its credits are « Transférer », never a card operation).
+  if (/mollie/.test(normalize(`${tx.counterpartyName || ''} ${tx.label || ''}`)) || tx.operationType === 'card_acquirer_payout') return { kind: 'mollie' };
+  if (cardOperation) return { kind: 'other' };
   const m = /paiements?-en-personne-(\d{2})-(\d{2})-(\d{4})/i.exec(String(tx.reference || ''));
   if (m) return { kind: 'cardBatch', date: `${m[3]}-${m[2]}-${m[1]}` };
   return { kind: 'other' };
 }
 
 /** The smallest combination (≤ MAX_SUBSET) of items whose sum is within `tolerance` of `target`. */
-function smallestSubset(items, target, tolerance) {
+function smallestSubset(items, target, tolerance, maxSize = MAX_SUBSET) {
   const list = [...items].sort((a, b) => b.cents - a.cents).slice(0, MAX_CANDIDATES);
   let nodes = 0;
   let best = null;
   const walk = (start, chosen, sum) => {
     if (best && chosen.length >= best.length) return;
     if (chosen.length > 0 && Math.abs(sum - target) <= tolerance(chosen)) { best = chosen; return; }
-    if (chosen.length >= MAX_SUBSET || nodes > MAX_NODES) return;
+    if (chosen.length >= maxSize || nodes > MAX_NODES) return;
     for (let i = start; i < list.length; i += 1) {
       nodes += 1;
       if (sum + list[i].cents > target + tolerance([...chosen, list[i]])) continue;
@@ -243,18 +253,131 @@ function platformProposals(tx, platform, receipts, settings) {
   return out;
 }
 
-/** Rule 15 — the acquirer's payout of payment links, net of its fee. */
-function acquiringProposals(tx, receipts, settings) {
+// Rule 5 — a payment's fees come off its immediate share; a release (the reserve) bears none (resolved 2026-11-16, tolerance 0).
+const feeEstimate = (receipts) => [...new Map(receipts.filter((r) => r.mollie.tranche === 'immediat').map((r) => [r.mollie.splitId, r.feeCents || 0])).values()].reduce((s, c) => s + c, 0);
+
+/**
+ * Can a credit of that day be this tranche, when only its amount says so? Never before the payment; the immediate share
+ * not later than its window (expected date + `lateAfterDays`); a reserve not before its window opens.
+ */
+function mollieReachable(receipt, settled) {
+  if (!settled) return true;
+  if (receipt.linkPaidAt && settled < receipt.linkPaidAt) return false;
+  if (receipt.mollie.tranche === 'immediat') return !receipt.expectedDate || settled <= addDays(receipt.expectedDate, receipt.mollie.lateAfterDays);
+  return !receipt.expectedDate || settled >= addDays(receipt.expectedDate, -RESERVE_EARLY_DAYS);
+}
+
+const mollieProposal = (tx, items, confidence, reason, extra = {}) => proposal(tx, items, confidence, 'mollie', reason, extra);
+
+/**
+ * Rule 10 — a settlement composed from Mollie's balance transactions names, per payment, the share it paid: the immediate
+ * share of a `payment`, the reserve of a release. Each is allocated exactly, so the proposal is « sûr » even grouped,
+ * whatever the reserve rate or the fees. Nothing to propose when a tranche is not open or the sum is not the credit.
+ */
+function compositionProposal(tx, detail, open) {
+  const known = detail.payments.filter((p) => p.splitId);
+  const unknown = detail.payments.length - known.length;
+  const allocations = [];
+  for (const p of known) {
+    const tranche = p.kind === 'release' ? 'retenue' : 'immediat';
+    const receipt = open.find((r) => r.mollie.splitId === p.splitId && r.mollie.tranche === tranche);
+    if (!receipt) return null;
+    allocations.push({ receipt, allocCents: Math.min(Number(p.amountCents), receipt.openCents) });
+  }
+  if (allocations.length === 0) return null;
+  const sum = allocations.reduce((t, a) => t + a.allocCents, 0);
+  if (sum > tx.remainingCents || (unknown === 0 && sum !== tx.remainingCents)) return null;
+  const grouped = allocations.length > 1 ? `Versement groupé Mollie ${detail.reference} : ${allocations.length} tranches` : `Versement Mollie ${detail.reference}`;
+  if (unknown > 0) {
+    return mollieProposal(tx, allocations, 'probable',
+      `${grouped} · ${unknown} paiement${unknown > 1 ? 's' : ''} Mollie inconnu${unknown > 1 ? 's' : ''} de GuestFlow`, { unknownPayments: unknown, settlement: detail.reference });
+  }
+  return mollieProposal(tx, allocations, 'sur', grouped, { settlement: detail.reference, feeCents: 0 });
+}
+
+/**
+ * Rule 10 — the settlement the credit's reference names decides: the immediate tranches of the payments it paid, plus
+ * the reserves it declares released. « sûr » when that explains the credit to the cent, even grouped; a payment GuestFlow
+ * does not know turns it into « probable » for the part GuestFlow knows. The fees are the settlement's own costs (rule 5):
+ * the estimate is only for a credit without a settlement.
+ */
+function settlementProposal(tx, detail, open) {
+  if (detail.source === 'balance') return compositionProposal(tx, detail, open);
+  const splitIds = new Set(detail.payments.filter((p) => p.splitId).map((p) => String(p.splitId)));
+  const unknown = detail.payments.filter((p) => !p.splitId).length;
+  const immediates = open.filter((r) => r.mollie.tranche === 'immediat' && splitIds.has(r.mollie.splitId));
+  // Only the payments list was read: it does not name which payment a release frees, so a reserve is picked by amount and
+  // must at least be reachable on the credit's day (the balance composition names it exactly, whatever the date).
   const settled = day(tx.settledAt);
-  const fee = settings.acquiringFee || { percent: 1.4, fixedCents: 25 };
-  const netOf = (c) => c - Math.round(c * (Number(fee.percent) || 0) / 100) - (Number(fee.fixedCents) || 0);
-  const links = receipts.filter((r) => r.channel === 'link' && r.openCents > 0 && r.linkPaidAt && settled
-    && daysBetween(r.linkPaidAt, settled) >= 0 && daysBetween(r.linkPaidAt, settled) <= 7);
-  const found = smallestSubset(links.map((r) => ({ receipt: r, cents: netOf(r.openCents) })), tx.remainingCents, (chosen) => chosen.length);
-  if (!found) return [];
-  const gap = tx.remainingCents - found.reduce((s, f) => s + f.cents, 0);
-  return [proposal(tx, found.map((f, i) => ({ receipt: f.receipt, allocCents: f.cents + (i === 0 ? gap : 0) })),
-    found.length === 1 ? 'sur' : 'probable', 'acquiring', 'Versement du prestataire de paiement, net de ses frais')];
+  const retenues = open.filter((r) => r.mollie.tranche === 'retenue' && mollieReachable(r, settled));
+  const releasable = retenues.map((r) => ({ receipt: r, cents: r.openCents }));
+  const releasedItems = Number(detail.reserveReleasedCents) > 0
+    ? (smallestSubset(releasable, Number(detail.reserveReleasedCents), () => 0, MAX_MOLLIE_TRANCHES) || []) : [];
+  const released = releasedItems.map((i) => i.receipt);
+  // Rule 10 — several reserves can make the released sum: which ones were freed is a guess, never « sûr ».
+  const ambiguousRelease = releasedItems.some((item) => smallestSubset(releasable.filter((o) => o !== item), Number(detail.reserveReleasedCents), () => 0, MAX_MOLLIE_TRANCHES));
+  const chosen = [...immediates, ...released];
+  if (chosen.length === 0) return null;
+  const sum = chosen.reduce((t, r) => t + r.openCents, 0);
+  const costs = Math.max(0, Number(detail.costsCents) || 0);
+  if (sum > tx.remainingCents + costs) return null;
+  const gap = sum - tx.remainingCents;
+  const grouped = chosen.length > 1 ? `Versement groupé Mollie ${detail.reference} : ${chosen.length} tranches` : `Versement Mollie ${detail.reference}`;
+  if (unknown > 0) {
+    return mollieProposal(tx, chosen.map((r) => ({ receipt: r, allocCents: r.openCents })), 'probable',
+      `${grouped} · ${unknown} paiement${unknown > 1 ? 's' : ''} Mollie inconnu${unknown > 1 ? 's' : ''} de GuestFlow`, { unknownPayments: unknown, settlement: detail.reference });
+  }
+  if (gap !== 0 && gap !== costs) return null;
+  const note = gap > 0 ? ` · frais Mollie : ${euros(gap)}` : '';
+  return mollieProposal(tx, chosen.map((r, i) => ({ receipt: r, allocCents: r.openCents - (i === 0 ? Math.max(0, gap) : 0) })), ambiguousRelease ? 'probable' : 'sur',
+    `${grouped}${note}${ambiguousRelease ? ' · réserve libérée à confirmer' : ''}`, { settlement: detail.reference, feeCents: Math.max(0, gap) });
+}
+
+/**
+ * Rule 9 (replaces the acquirer's rule 15 of the Qonto reconciliation) — a Mollie credit is matched against the open
+ * tranches of paid links, immediate and reserve alike, by the smallest combination (≤ 8) whose sum is the credit to the
+ * cent, or the credit plus the estimated fees of those payments. One tranche → « sûr »; several → « probable »; nothing
+ * that fits → no proposal, the credit stays « non rattaché ».
+ */
+function mollieProposals(tx, receipts, settings) {
+  const settled = day(tx.settledAt);
+  const everyOpen = receipts.filter((r) => r.channel === 'mollie' && r.openCents > 0);
+  if (everyOpen.length === 0) return [];
+  const detail = (settings.settlements || new Map()).get(normalizeReference(settlementReferenceOf(tx)));
+  if (detail) {
+    // Rule 10 — a settlement read from Mollie names what it paid: its composition is exact, whatever the dates.
+    const fromSettlement = settlementProposal(tx, detail, everyOpen);
+    if (fromSettlement) return [fromSettlement];
+  }
+  const byAmount = amountProposals(tx, everyOpen.filter((r) => mollieReachable(r, settled)));
+  // Rule 10 — Mollie's own account of the credit does not match what GuestFlow expects (an unknown payment, a tranche
+  // not open): an amount that happens to fit is a coincidence to look at, never a fact — never « sûr », never automatic.
+  return detail ? byAmount.map((p) => ({
+    ...p, confidence: p.confidence === 'sur' ? 'probable' : p.confidence,
+    reason: `${p.reason} · le règlement Mollie ${detail.reference} ne détaille pas ces tranches : rapprochement par le montant seul`,
+  })) : byAmount;
+}
+
+/** Rule 9 — the amount alone: the smallest combination of open tranches that makes the credit, to the cent or less its estimated fees. */
+function amountProposals(tx, open) {
+  if (open.length === 0) return [];
+  const items = open.map((r) => ({ receipt: r, cents: r.openCents }));
+  const same = open.filter((r) => r.openCents === tx.remainingCents);
+  if (same.length === 1) return [mollieProposal(tx, [{ receipt: same[0], allocCents: same[0].openCents }], 'sur', `Versement Mollie : ${same[0].label}`)];
+  if (same.length > 1) {
+    const [first] = earliestPerAmount(same);
+    return [mollieProposal(tx, [{ receipt: first, allocCents: first.openCents }], 'probable', 'Plusieurs paiements Mollie de ce montant : le plus ancien')];
+  }
+  const exact = smallestSubset(items, tx.remainingCents, () => 0, MAX_MOLLIE_TRANCHES);
+  if (exact) return [mollieProposal(tx, exact.map((f) => ({ receipt: f.receipt, allocCents: f.cents })), 'probable', `Versement Mollie groupé : ${exact.length} tranches`)];
+  // Rule 5 — Mollie's fees come off the credit: short by at most the estimated fees of the payments it paid.
+  const withFees = smallestSubset(items, tx.remainingCents, (chosen) => feeEstimate(chosen.map((c) => c.receipt)), MAX_MOLLIE_TRANCHES);
+  if (!withFees) return [];
+  const sum = withFees.reduce((t, f) => t + f.cents, 0);
+  const gap = sum - tx.remainingCents;
+  if (gap < 0 || gap > feeEstimate(withFees.map((f) => f.receipt))) return [];
+  return [mollieProposal(tx, withFees.map((f, i) => ({ receipt: f.receipt, allocCents: f.cents - (i === 0 ? gap : 0) })),
+    withFees.length === 1 ? 'sur' : 'probable', `Versement Mollie · frais Mollie estimés : ${euros(gap)}`, { feeCents: gap })];
 }
 
 /**
@@ -405,7 +528,7 @@ function splitProposals(transactions, receipts, singleExact) {
  * @param {object[]} p.transactions  credits with `remainingCents` > 0 (not outside, EUR)
  * @param {object[]} p.receipts      receipts with `openCents` (expected minus what is reconciled)
  * @param {Set<string>} p.discarded  `transactionId|reservationId|ledgerKey`
- * @param {object} p.settings        `{ patterns, batchPlatforms, acquiringFee, cardFeePercent, commissionRates }`
+ * @param {object} p.settings        `{ patterns, batchPlatforms, acquiringFee, cardFeePercent, commissionRates, settlements }`
  * @param {object[]} [p.standalone] the card sales made outside any stay (`standaloneSales`), `{ date, cardCents }`
  * @returns {{ byTransaction: Object<string, {kind: string, proposal: object|null, alternatives: object[]}> }}
  */
@@ -418,7 +541,7 @@ function buildProposals({ transactions, receipts, discarded = new Set(), setting
     kinds[tx.id] = cls;
     let found = [];
     if (cls.kind === 'platform') found = platformProposals(tx, cls.platform, receipts, settings);
-    else if (cls.kind === 'acquiring') found = acquiringProposals(tx, receipts, settings);
+    else if (cls.kind === 'mollie') found = mollieProposals(tx, receipts, settings);
     else if (cls.kind === 'cardBatch') found = cardBatchProposals(tx, cls.date, receipts, standalone);
     else found = directProposals(tx, receipts);
     found.forEach((p) => {

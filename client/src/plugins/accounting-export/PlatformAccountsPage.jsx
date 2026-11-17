@@ -12,6 +12,7 @@ import {
   api, PageActionBar, ErrorAlert, LoadingState, ConfirmDialog, useDirtyFormGuard, useToast, formatPlatformLabel,
 } from '../sdk';
 import { accountGroupsFor } from './accountGroups';
+import MollieJournalCard from './MollieJournalCard';
 
 /**
  * PlatformAccountsPage — `/comptabilite/plateformes`.
@@ -334,6 +335,9 @@ export default function PlatformAccountsPage() {
               </Stack>
             </CardContent>
           </Card>
+
+          {/* specs/mollie-rolling-reserve-and-incoming-payments.md rules 28-29 — its own settings, saved by its own button. */}
+          <MollieJournalCard />
 
           <Card variant="outlined">
             <CardContent sx={{ p: { xs: 1, sm: 2 } }}>

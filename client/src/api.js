@@ -328,6 +328,7 @@ const api = {
   dismissTariffRecipeRun: (runId) => request(`/tariff-recipes/runs/${runId}/dismiss`, { method: 'POST' }),
   // Rapprochement bancaire Qonto (specs/qonto-bank-reconciliation.md §4.3) + the generic plugin settings
   getReconciliation: (view, filter) => request(`/payments/reconciliation?view=${encodeURIComponent(view || 'todo')}${filter ? `&filter=${encodeURIComponent(filter)}` : ''}`),
+  getMollieReserveAttention: () => request('/payments/reconciliation/reserve-attention'),
   readReconciliation: (view, filter) => request(`/payments/reconciliation/read?view=${encodeURIComponent(view || 'todo')}${filter ? `&filter=${encodeURIComponent(filter)}` : ''}`, { method: 'POST' }),
   confirmReconciliation: (payload) => request('/payments/reconciliation/links', { method: 'POST', body: payload }),
   undoReconciliation: (transactionId) => request(`/payments/reconciliation/links/${encodeURIComponent(transactionId)}`, { method: 'DELETE' }),
@@ -342,6 +343,12 @@ const api = {
   previewPlatformPenalty: (reservationId, payload) => request(`/reservations/${reservationId}/platform-penalties/preview`, { method: 'POST', body: payload }),
   declarePlatformPenalty: (reservationId, payload) => request(`/reservations/${reservationId}/platform-penalties`, { method: 'POST', body: payload }),
   removePlatformPenalty: (reservationId, penaltyId) => request(`/reservations/${reservationId}/platform-penalties/${penaltyId}`, { method: 'DELETE' }),
+  // specs/mollie-rolling-reserve-and-incoming-payments.md rule 15 — « Tester » on the optional Mollie account (the typed token, else the stored one).
+  // specs/mollie-settlement-receipts.md §4.3 — the card's counters, and « Réessayer » on one credit.
+  getMollieStatementsStatus: () => request('/payments/reconciliation/mollie-statements/status'),
+  mollieStatementUrl: (transactionId) => `${API}/payments/reconciliation/mollie-statements/${encodeURIComponent(transactionId)}.pdf`,
+  retryMollieStatement: (transactionId) => request(`/payments/reconciliation/mollie-statements/${encodeURIComponent(transactionId)}/retry`, { method: 'POST', body: {} }),
+  testMollieConnection: (token) => request('/plugins/online-payment/mollie/test', { method: 'POST', body: token ? { token } : {} }),
   getReconciliationBankAccounts: () => request('/payments/reconciliation/bank-accounts'),
   getPluginSettings: (id) => request(`/plugins/${encodeURIComponent(id)}/settings`),
   savePluginSettings: (id, payload) => request(`/plugins/${encodeURIComponent(id)}/settings`, { method: 'PUT', body: payload }),
@@ -477,6 +484,9 @@ const api = {
   createReservation: (data) => request('/reservations', { method: 'POST', body: data }),
   updateReservation: (id, data) => request(`/reservations/${id}`, { method: 'PUT', body: data }),
   markPayment: (id, data) => request(`/reservations/${id}/payment`, { method: 'PATCH', body: data }),
+  // specs/platform-statement-after-payout.md §4.3 — the platform statement on a received payout or a locked fiche.
+  previewPlatformStatement: (id, statement) => request(`/reservations/${id}/platform-statement/preview`, { method: 'POST', body: statement, readOnly: true }),
+  updatePlatformStatement: (id, statement) => request(`/reservations/${id}/platform-statement`, { method: 'PATCH', body: statement }),
   // specs/single-payment-from-the-fiche.md §4.3 — the stay and the complement collected as ONE
   // payment, at a date the operator chooses. `mode` is 'card' | 'cash' | 'undo'.
   // specs/mixed-method-payments.md — `extra` carries `{ expectedAmountCents, tenders, shortfall }` with mode 'split'.
@@ -507,6 +517,8 @@ const api = {
   // Omitted → the server answers on the current exercise.
   // specs/finance-dashboard-redesign.md §4.3 — the Suivi financier and the table behind each tile.
   getFinanceDashboard: (params = {}) => request(`/finance/dashboard?${financeQuery(params)}`),
+  // specs/mollie-rolling-reserve-and-incoming-payments.md rules 21-26 — what the bank is still to receive, by client.
+  getIncomingPayments: ({ recent = false } = {}) => request(`/finance/incoming${recent ? '?recent=1' : ''}`),
   getFinanceDashboardDetail: (tile, params = {}) => request(`/finance/dashboard/detail/${encodeURIComponent(tile)}?${financeQuery(params)}`),
   // specs/stay-profile.md §4.3 — the « Profil des séjours »: same window and logement parameters as the dashboard.
   getFinanceStayProfile: (params = {}) => request(`/finance/stay-profile?${financeQuery(params)}`),

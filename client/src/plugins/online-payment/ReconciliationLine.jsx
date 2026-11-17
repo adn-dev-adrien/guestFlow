@@ -14,15 +14,84 @@
  *   showReservation?  boolean — name the client and the platform (the page; the fiche knows its stay)
  *   onOpenFiche?      (item) => void — « Ouvrir la fiche » on a gap (the page)
  */
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Box, Button, Chip, Stack, Typography } from '@mui/material';
-import { PlatformChip, StatusBadge } from '../sdk';
+import { api, PlatformChip, StatusBadge, TransactionRef, useToast } from '../sdk';
 import { money, CONFIDENCE_STATUS } from './reconciliationShared';
+
+/**
+ * BankRefs — the identifiers of a bank credit (specs/mollie-rolling-reserve-and-incoming-payments.md rule 12): the
+ * Qonto transaction reference, the Mollie settlement (« lot ») and, when a Mollie token read it, the Mollie payment.
+ * Draws nothing for a credit that carries none.
+ */
+export function BankRefs({ refs }) {
+  if (!refs || !(refs.qonto || refs.mollieSettlement || refs.molliePayment)) return null;
+  return (
+    <Box sx={{ display: 'flex', flexWrap: 'wrap', columnGap: 2, mt: 0.25 }}>
+      <TransactionRef label="Qonto" value={refs.qonto} />
+      <TransactionRef label="Lot Mollie" value={refs.mollieSettlement} />
+      <TransactionRef label="Paiement Mollie" value={refs.molliePayment} />
+    </Box>
+  );
+}
+
+const STATEMENT_CHIPS = {
+  attached: () => ({ status: 'success', label: 'Relevé joint' }),
+  pending: () => ({ status: 'neutral', label: 'Relevé en attente' }),
+  mismatch: (s) => ({ status: 'warning', label: s.gapCents == null ? 'À revoir : écart' : `À revoir : écart de ${money(Math.abs(s.gapCents))}` }),
+  failed: () => ({ status: 'warning', label: 'À revoir : envoi impossible' }),
+  reauth: () => ({ status: 'warning', label: 'Reconnecter Qonto' }),
+};
+
+const STATEMENT_BUTTON_SX = { minHeight: 44, textTransform: 'none', width: { xs: '100%', sm: 'auto' } };
+
+// Its own component: the toast hook is only needed once a retry is on offer.
+function RetryStatementButton({ transactionId, onRetried }) {
+  const { showError } = useToast();
+  const [busy, setBusy] = useState(false);
+  const retry = async () => {
+    setBusy(true);
+    try {
+      const answer = await api.retryMollieStatement(transactionId);
+      if (answer && answer.statement) onRetried(answer.statement);
+    } catch (err) {
+      showError((err && err.message) || 'Réessai impossible.');
+    } finally {
+      setBusy(false);
+    }
+  };
+  return <Button size="small" onClick={retry} disabled={busy} sx={STATEMENT_BUTTON_SX}>Réessayer</Button>;
+}
+
+/**
+ * MollieStatementState — the state of the statement written for a Mollie credit and joined to it in Qonto
+ * (specs/mollie-settlement-receipts.md rules 10-11): a chip (colour = state only), « Voir le relevé » (the PDF, in a new
+ * tab) and, when it can be tried again, « Réessayer ». Draws nothing for a credit without a statement. The retry answers
+ * with the new state, which replaces the one the page gave.
+ */
+export function MollieStatementState({ side }) {
+  const [fresh, setFresh] = useState(null);
+  const given = side && side.statement;
+  const givenKey = given ? JSON.stringify(given) : '';
+  useEffect(() => { setFresh(null); }, [givenKey]);
+  const statement = fresh || given;
+  if (!statement || !STATEMENT_CHIPS[statement.state]) return null;
+  const chip = STATEMENT_CHIPS[statement.state](statement);
+  const canRetry = ['failed', 'reauth', 'mismatch'].includes(statement.state);
+  return (
+    <Box data-testid="mollie-statement" sx={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 1, mt: 0.5 }}>
+      <StatusBadge status={chip.status} label={chip.label} wrap />
+      <Button component="a" size="small" href={api.mollieStatementUrl(side.transactionId)} target="_blank" rel="noopener" sx={STATEMENT_BUTTON_SX}>Voir le relevé</Button>
+      {canRetry && <RetryStatementButton transactionId={side.transactionId} onRetried={setFresh} />}
+    </Box>
+  );
+}
 
 const BANK_ROW_SX = { display: 'flex', gap: 1, flexWrap: 'wrap', alignItems: 'baseline', mt: 0.75, fontSize: 13 };
 
 function BankRow({ label, side, amountCents, auto = false, alsoCovers = [] }) {
   return (
+    <>
     <Box sx={BANK_ROW_SX}>
       <Typography component="span" variant="caption" color="text.secondary" sx={{ minWidth: { sm: 120 } }}>{label}</Typography>
       <Typography component="span" variant="body2" sx={{ fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>
@@ -34,6 +103,9 @@ function BankRow({ label, side, amountCents, auto = false, alsoCovers = [] }) {
       </Typography>
       {auto && <Chip size="small" variant="outlined" label="auto" />}
     </Box>
+    <BankRefs refs={side.refs} />
+    <MollieStatementState side={side} />
+    </>
   );
 }
 
@@ -55,6 +127,8 @@ export function BankCell({ item }) {
             {b.counterparty}
             {(b.alsoCovers || []).length > 0 && ` · couvre aussi ${b.alsoCovers.map((c) => `${c.clientName || 'client'} (${c.label})`).join(', ')}`}
           </Typography>
+          <BankRefs refs={b.refs} />
+          <MollieStatementState side={b} />
         </Box>
       ))}
       {item.bank.length === 0 && proposal && (
@@ -86,7 +160,7 @@ export default function ReconciliationLine({ item, busy = false, blocked = '', o
       <Stack direction="row" gap={1} sx={{ justifyContent: 'space-between', alignItems: 'flex-start' }}>
         <Box sx={{ minWidth: 0 }}>
           <Typography component="div" variant="body2" sx={{ fontWeight: 600 }}>
-            {showReservation && `${item.reservation.clientName || 'Client'} · `}{item.label}
+            {showReservation && `${item.reservation.clientName || item.reservation.saleLabel || 'Client'} · `}{item.label}
             {showReservation && <PlatformChip platform={item.reservation.platform} sx={{ ml: 1 }} />}
           </Typography>
           <Typography variant="caption" color="text.secondary">
@@ -148,7 +222,7 @@ export default function ReconciliationLine({ item, busy = false, blocked = '', o
             Déclarer une pénalité de {money(item.declarePenalty.amountCents)}
           </Button>
         )}
-        {onOpenFiche && item.isGap && <Button variant="outlined" onClick={() => onOpenFiche(item)} sx={buttonSx}>Ouvrir la fiche</Button>}
+        {onOpenFiche && item.isGap && item.reservation.id != null && <Button variant="outlined" onClick={() => onOpenFiche(item)} sx={buttonSx}>Ouvrir la fiche</Button>}
       </Stack>
       {blocked && proposal && <Typography variant="caption" color="text.secondary" component="div" sx={{ mt: 0.5 }}>{blocked}</Typography>}
     </Box>

@@ -6,14 +6,15 @@
 function createBankTransactionsModel(db) {
   const upsertStmt = db.prepare(`
     INSERT INTO bank_transactions (id, bankAccountId, amountCents, currency, settledAt, emittedAt, updatedAt,
-      operationType, label, counterpartyName, reference, note, source, fetchedAt)
+      operationType, label, counterpartyName, reference, note, source, fetchedAt, qontoReference)
     VALUES (@id, @bankAccountId, @amountCents, @currency, @settledAt, @emittedAt, @updatedAt,
-      @operationType, @label, @counterpartyName, @reference, @note, @source, @fetchedAt)
+      @operationType, @label, @counterpartyName, @reference, @note, @source, @fetchedAt, @qontoReference)
     ON CONFLICT(id) DO UPDATE SET
       bankAccountId = excluded.bankAccountId, amountCents = excluded.amountCents, currency = excluded.currency,
       settledAt = excluded.settledAt, emittedAt = excluded.emittedAt, updatedAt = excluded.updatedAt,
       operationType = excluded.operationType, label = excluded.label, counterpartyName = excluded.counterpartyName,
-      reference = excluded.reference, note = excluded.note, source = excluded.source, fetchedAt = excluded.fetchedAt
+      reference = excluded.reference, note = excluded.note, source = excluded.source, fetchedAt = excluded.fetchedAt,
+      qontoReference = COALESCE(excluded.qontoReference, bank_transactions.qontoReference)
   `);
 
   const clean = (v) => (v == null ? '' : String(v));
@@ -37,6 +38,7 @@ function createBankTransactionsModel(db) {
           note: clean(t.note),
           source: t.source || source,
           fetchedAt,
+          qontoReference: t.transactionId ? String(t.transactionId) : null,
         }));
       })();
       return rows.length;

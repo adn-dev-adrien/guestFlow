@@ -11,7 +11,7 @@
 
 const fs = require('fs');
 const Database = require('better-sqlite3');
-const { up } = require('../src/plugins/online-payment/reconciliation/schema');
+const { up, upV3 } = require('../src/plugins/online-payment/reconciliation/schema');
 const { createBankTransactionsModel } = require('../src/plugins/online-payment/reconciliation/bankTransactionsModel');
 
 const ACCOUNT_ID = 'csv-account';
@@ -60,6 +60,7 @@ function creditsFromCsv(text) {
     .filter((r) => r[col.status] === 'Exécuté' && r[col.credit] !== '')
     .map((r) => ({
       id: `csv:${r[col.id]}`,
+      transactionId: r[col.id],
       bankAccountId: ACCOUNT_ID,
       amountCents: parseAmountCents(r[col.credit]),
       currency: r[col.currency] || 'EUR',
@@ -77,6 +78,7 @@ function creditsFromCsv(text) {
 function load({ dbPath, csvPath, startDate }) {
   const db = new Database(dbPath);
   up(db);
+  upV3(db);
   db.exec(`CREATE TABLE IF NOT EXISTS plugin_settings (plugin_id TEXT NOT NULL, key TEXT NOT NULL, value TEXT NOT NULL DEFAULT '', PRIMARY KEY (plugin_id, key))`);
   const credits = creditsFromCsv(fs.readFileSync(csvPath, 'utf8'));
   createBankTransactionsModel(db).upsertMany(credits, { bankAccountId: ACCOUNT_ID, source: 'csv' });

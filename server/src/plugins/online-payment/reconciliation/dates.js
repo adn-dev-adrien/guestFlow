@@ -7,11 +7,17 @@
  */
 const PARIS = new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Paris', year: 'numeric', month: '2-digit', day: '2-digit' });
 const INSTANT = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}.*(Z|[+-]\d{2}:?\d{2})$/;
+// SQLite's `datetime('now')` (« 2026-10-26 23:30:00 ») is an instant in UTC with neither a `T` nor a zone.
+const SQLITE_UTC = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}(:\d{2})?$/;
 
 function day(value) {
   const text = String(value == null ? '' : value);
   if (INSTANT.test(text)) {
     const at = new Date(text);
+    if (!Number.isNaN(at.getTime())) return PARIS.format(at);
+  }
+  if (SQLITE_UTC.test(text)) {
+    const at = new Date(`${text.replace(' ', 'T')}${text.length === 16 ? ':00' : ''}Z`);
     if (!Number.isNaN(at.getTime())) return PARIS.format(at);
   }
   const s = text.slice(0, 10);

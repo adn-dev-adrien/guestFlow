@@ -26,17 +26,24 @@ export default function ReconciliationAlert({ attention }) {
     <AttentionCard attention={attention} actions={[{ label: 'Ouvrir le rapprochement', onClick: () => navigate('/finance/rapprochement'), primary: true }]}>
       {items.length > 0 && (
         <Stack divider={<Divider flexItem />} spacing={0.5}>
-          {items.slice(0, 8).map((item) => (
+          {items.slice(0, 8).map((item) => {
+            // A sale outside a stay (`reservation.id` null) has no fiche to open.
+            const to = item.reservation.id == null ? null : `/reservations/${item.reservation.id}`;
+            return (
             <Box
-              key={item.key} role="button" tabIndex={0}
-              onClick={() => navigate(`/reservations/${item.reservation.id}`)}
-              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') navigate(`/reservations/${item.reservation.id}`); }}
-              sx={{ py: 0.75, cursor: 'pointer', minHeight: 44 }}
+              key={item.key}
+              {...(to ? {
+                role: 'button', tabIndex: 0,
+                onClick: () => navigate(to),
+                onKeyDown: (e) => { if (e.key === 'Enter' || e.key === ' ') navigate(to); },
+              } : {})}
+              sx={{ py: 0.75, minHeight: 44, cursor: to ? 'pointer' : 'default' }}
             >
               <Typography variant="body2" sx={{ fontWeight: 600 }}>{item.reservation.clientName || 'Client'} · {item.label}</Typography>
               <Typography variant="caption" color="text.secondary">{item.fixText || item.stateLabel}</Typography>
             </Box>
-          ))}
+            );
+          })}
         </Stack>
       )}
     </AttentionCard>

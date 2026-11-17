@@ -12,6 +12,8 @@
  */
 
 const sdk = require('../sdk');
+const { DEFAULT_RATE_PERCENT, DEFAULT_HOLD_DAYS, rateMessage, holdMessage, sinceMessage } = require('./reconciliation/molliePaymentSplits');
+const { tokenMessage } = require('./mollieConnection');
 
 const KEYS = Object.freeze([
   'qontoAccessTokenEncrypted',
@@ -96,6 +98,37 @@ const reconciliationDeclared = (settings) => [
   { key: 'reconciliationAutoConfirmed', validate: () => 'Réglé par la lecture du compte.' },
   { key: 'reconciliationLastReadAt', validate: () => 'Réglé par la lecture du compte.' },
   { key: 'reconciliationLastError', validate: () => 'Réglé par la lecture du compte.' },
+];
+
+// The Mollie reserve and the optional Mollie account (specs/mollie-rolling-reserve-and-incoming-payments.md rules 2-3,
+// 14-15). The refusals are the server's word: a refused value keeps the stored one. The token is a secret (encrypted at
+// rest, read back only as `mollieAccessTokenSet`); the last two are written by the reader only.
+const STATEMENTS_FUTURE_MESSAGE = 'La date ne peut pas être dans le futur.';
+const STATEMENTS_TOO_OLD_MESSAGE = 'La date ne peut pas remonter à plus de 2 ans.';
+// specs/mollie-settlement-receipts.md rules 3 and 13 — empty = off; else a real day, never in the future, never over 2 years back.
+function statementsSinceMessage(value) {
+  const text = String(value ?? '').trim();
+  if (text === '') return null;
+  const at = /^\d{4}-\d{2}-\d{2}$/.test(text) ? new Date(`${text}T00:00:00Z`) : null;
+  if (!at || Number.isNaN(at.getTime()) || at.toISOString().slice(0, 10) !== text) return 'La date doit être un jour valide.';
+  const today = sdk.coreModule('reservationHelpers').getTodayIsoDate();
+  if (text > today) return STATEMENTS_FUTURE_MESSAGE;
+  const oldest = new Date(`${today}T00:00:00Z`);
+  oldest.setUTCFullYear(oldest.getUTCFullYear() - 2);
+  return text < oldest.toISOString().slice(0, 10) ? STATEMENTS_TOO_OLD_MESSAGE : null;
+}
+
+const mollieDeclared = () => [
+  { key: 'mollieReservePercent', default: String(DEFAULT_RATE_PERCENT), validate: rateMessage },
+  { key: 'mollieReserveHoldDays', default: String(DEFAULT_HOLD_DAYS), validate: holdMessage },
+  { key: 'mollieReserveSince', validate: (v) => sinceMessage(v, sdk.coreModule('reservationHelpers').getTodayIsoDate()) },
+  { key: 'mollieCardOnSiteSince', validate: (v) => sinceMessage(v, sdk.coreModule('reservationHelpers').getTodayIsoDate()) },
+  { key: 'mollieStatementsSince', validate: statementsSinceMessage },
+  { key: 'mollieAccessToken', secret: true, validate: tokenMessage },
+  { key: 'mollieProfileId', validate: (v) => (v == null || String(v).trim() === '' || /^pfl_[A-Za-z0-9]{1,40}$/.test(String(v).trim()) ? null : 'Identifiant de profil Mollie invalide (pfl_…).') },
+  { key: 'mollieLastRead', validate: () => 'Réglé par la lecture du compte.' },
+  { key: 'mollieLastError', validate: () => 'Réglé par la lecture du compte.' },
+  { key: 'mollieBalance', validate: () => 'Réglé par la lecture du compte.' },
 ];
 
 /**
@@ -225,4 +258,4 @@ const current = () => {
   return bound;
 };
 
-module.exports = { KEYS, SECRET_KEYS, DECLARED, reconciliationDeclared, createSettingsStore, bind, current };
+module.exports = { KEYS, SECRET_KEYS, DECLARED, reconciliationDeclared, mollieDeclared, createSettingsStore, bind, current };

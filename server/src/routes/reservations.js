@@ -6,6 +6,7 @@ const upcomingController = require('../controllers/upcomingReservationsControlle
 const installmentsController = require('../controllers/installmentsController');
 const platformPenalties = require('../controllers/platformPenaltiesController');
 const settlementsController = require('../controllers/paymentSettlementsController');
+const platformStatementController = require('../controllers/platformStatementController');
 const { isReceptionOnly } = require('../constants/roles');
 const db = require('../database');
 const { guardReadOnly, guardNotDevis } = require('../utils/reservationReadOnly');
@@ -70,6 +71,9 @@ router.post('/calculate-price', controller.calculatePrice);
 router.post('/', controller.create);
 router.put('/:id', stayId, notDevis, controller.update);
 router.patch('/:id/payment', stayId, notDevis, controller.updatePayment);
+// specs/platform-statement-after-payout.md §4.3 — the platform's statement on a received payout or a locked fiche.
+router.patch('/:id/platform-statement', stayId, notDevis, noWriteOnDuplicate, notReception(platformStatementController.update));
+router.post('/:id/platform-statement/preview', stayId, notDevis, noWriteOnDuplicate, notReception(platformStatementController.preview));
 // specs/single-payment-from-the-fiche.md §4.3 — record (or undo) the single arrival payment
 // without running the SAS: `{ mode: 'card' | 'cash' | 'undo', date }`.
 router.post('/:id/arrival-payment', stayId, notDevis, noWriteOnClosedStay, controller.settleArrivalPayment);

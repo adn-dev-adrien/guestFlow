@@ -8,7 +8,7 @@
 
 const express = require('express');
 const sdk = require('../sdk');
-const { DECLARED, reconciliationDeclared, KEYS, createSettingsStore, bind } = require('./settingsStore');
+const { DECLARED, reconciliationDeclared, mollieDeclared, KEYS, createSettingsStore, bind } = require('./settingsStore');
 const { mountReconciliation } = require('./reconciliation');
 const { createQontoProvider } = require('./provider');
 const { createQontoInvoiceIssuer } = require('./invoiceIssuer');
@@ -56,6 +56,7 @@ function resetLegacyColumns(db) {
 function register(ctx) {
   ctx.settings.declare(DECLARED);
   ctx.settings.declare(reconciliationDeclared(ctx.settings));
+  ctx.settings.declare(mollieDeclared());
   ctx.migrations([{ name: 'settings_from_app_settings_v1', up: copySettingsFromAppSettings }]);
 
   // The core settings of the plugin's own database (the app's in production, a test's in a suite).
@@ -69,7 +70,8 @@ function register(ctx) {
   const provider = createQontoProvider({ settings: store });
   ctx.paymentProvider(provider);
   // specs/resource-booking-pricing-and-invoicing.md rule 14 — Qonto numbers and keeps the invoices a plugin asks for.
-  ctx.invoiceIssuer(createQontoInvoiceIssuer({ store: () => store, iban: () => String(coreSettings().read().companyIban || '') }));
+  const invoiceIssuer = createQontoInvoiceIssuer({ store: () => store, iban: () => String(coreSettings().read().companyIban || '') });
+  ctx.invoiceIssuer(invoiceIssuer);
   // specs/plugins-phase-0-foundation.md rule 25 — the Plugins card says the connection is missing.
   ctx.setupStatus(() => (store.qontoConnected() ? null : 'à connecter'));
 
@@ -101,7 +103,9 @@ function register(ctx) {
   }).forEach((job) => ctx.jobs.every(job));
 
   // specs/qonto-bank-reconciliation.md — the credits read from the account, the operator's decisions.
-  const reconciliation = mountReconciliation(ctx, { store });
+  const reconciliation = mountReconciliation(ctx, {
+    store, attachPdf: invoiceIssuer.attachPdf, companyName: () => String(coreSettings().read().companyName || ''),
+  });
 
   // Rule 16 — the connection and the reconciliation's own tables are plugin data. Payment links, paid
   // buckets and the request emails are the stays' records: they stay (so do the fiches the reconciliation

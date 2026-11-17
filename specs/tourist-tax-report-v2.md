@@ -314,10 +314,18 @@ declared and what remains, and, apart, what the platforms remit themselves. The 
     `taxe-de-sejour-{logement}-{du}_{au}.csv` (`csvFileName`, slug of the logement's name). Tests: `tourist-tax-by-property.unit.test.js`,
     `TouristTaxDock.readings.test.jsx`.
 61. **The banner on a phone is a strip, not a panel** (same date): below `sm` it is a two-column grid — « À reverser » (1.5 rem)
-    with « sur X au total » on one line at the left, « Déclaré » and « Plateformes » stacked at 1 rem at the right — about 80 px
+    with « sur X au total » under it at the left (wrapping if it must, rule 62), « Déclaré » and « Plateformes » stacked at 1 rem at the right — about 80 px
     high, bottom margin `calc(env(safe-area-inset-bottom) + 4px)`; the pills are hidden there (the cards and tables hold the
     detail). From `sm` up the full banner of rule 59.
     > **Sans test** — layout only, measured headless at 375 / 900 / 1280 px (the banner is 82 px high at 375).
+62. **A « nuitée » says what it is on hover** (2026-11-16, operator feedback on 202605014: 1 night, 2 adults → « 2 nuitées
+    taxées » read as a bug). A tooltip — « 1 nuitée = 1 personne pendant 1 nuit. » plus « Taxées : adultes × nuits. » or
+    « Exonérées : mineurs × nuits. » (`PERSON_NIGHT_HINTS`) — sits on the « Nuitées » group header and its two « Taxées » /
+    « Exonérées » headers, on the card's « nuitées taxées » tile and on the banner's « nuitées taxées » pill; the cursor
+    reads `help` there. The banner's inner padding grows to `px: { xs: 2, sm: 3 }, py: { xs: 1.25, sm: 2 }` so « À
+    reverser » no longer brushes the rounded corner; below `sm` its caption may wrap (the left column shrinks, `minWidth: 0`), as
+    « rien à déclarer sur cette période » kept on one line pushed the right column 20 px past the banner at 375 px.
+    > **Sans test** — hover copy and spacing only.
 
 ---
 
