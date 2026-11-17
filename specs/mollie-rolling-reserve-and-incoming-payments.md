@@ -566,6 +566,7 @@ See the summary page for the interactive mock-ups (fiche, tile + table, settings
 - [x] Discard of a sale outside a stay (reservation id 0); the client sends 0 for a null `reservation.id`, hides « Ouvrir la fiche » and the fiche links of a sale (`IncomingPaymentsTable`, `MollieReserveAlert`, `ReconciliationAlert`, `ReconciliationLine`, `ReconciliationPage`).
 - Migration `reconciliation_v3` was edited in place while unreleased; `reconciliation_v3b` (review 2026-11-16) makes the final schema reachable from any state, including a development or shadow database that ran a draft.
 - Tests: `mollie-balance-composition` (9), `mollie-sale-discard` (2) on the server; 4 new files / 7 tests on the client.
+- Reading of 2026-11-17 (loop t11 UI11-2): the reconciliation items carry `expectedWording` (« Attendu » for a sale outside a stay, « La fiche attend » for a stay) and `clientHeading` (empty for a sale without a client, so its label is printed once). Tests: `reconciliation-sale-wording` (1) on the server, `ReconciliationLine.sale-wording` (2) on the client.
 
 ### Review corrections (2026-11-16, server)
 

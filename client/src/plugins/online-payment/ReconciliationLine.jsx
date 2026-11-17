@@ -106,11 +106,11 @@ export default function ReconciliationLine({ item, busy = false, blocked = '', o
       <Stack direction="row" gap={1} sx={{ justifyContent: 'space-between', alignItems: 'flex-start' }}>
         <Box sx={{ minWidth: 0 }}>
           <Typography component="div" variant="body2" sx={{ fontWeight: 600 }}>
-            {showReservation && `${item.reservation.clientName || item.reservation.saleLabel || 'Client'} · `}{item.label}
+            {showReservation && item.clientHeading && `${item.clientHeading} · `}{item.label}
             {showReservation && <PlatformChip platform={item.reservation.platform} sx={{ ml: 1 }} />}
           </Typography>
           <Typography variant="caption" color="text.secondary">
-            La fiche attend <span style={{ fontVariantNumeric: 'tabular-nums' }}>{money(item.expectedCents)}</span>
+            {item.expectedWording} <span style={{ fontVariantNumeric: 'tabular-nums' }}>{money(item.expectedCents)}</span>
             {item.expectedDateLabel ? ` · ${item.paid ? 'reçu' : 'attendu'} le ${item.expectedDateLabel}` : ''}
           </Typography>
         </Box>

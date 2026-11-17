@@ -3091,7 +3091,7 @@ export default function ReservationPage() {
   const rereadFiche = () => { quietReloadRef.current = true; setRereading(true); setReloadToken((token) => token + 1); };
 
   const handleSaveClick = async () => {
-    if (rereading || rereadFailed) return;
+    if (rereading || rereadFailed || switchingProperty) return;
     setSaving(true);
     try {
       await handleSaveReservation();
@@ -4046,8 +4046,8 @@ export default function ReservationPage() {
         actionsBefore={actionBarBefore}
         onSave={isClosedFiche ? undefined : handleSaveClick}
         saveTooltip={isDevisMode ? 'Enregistrer le devis' : 'Enregistrer'}
-        saveDisabled={saving || rereading || rereadFailed || !(isDirty || touristTaxRefreshRequested)}
-        saveBusy={saving || rereading}
+        saveDisabled={saving || rereading || rereadFailed || switchingProperty || !(isDirty || touristTaxRefreshRequested)}
+        saveBusy={saving || rereading || switchingProperty}
         onCancel={goBackToOrigin}
         actionsAfter={actionBarAfter}
       />
