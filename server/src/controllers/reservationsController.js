@@ -1336,6 +1336,11 @@ async function calculatePrice(req, res) {
   }
 
   const reservationId = Number(req.body.reservationId || 0);
+  // Rule 94 reading (loop t14 S14-1) — the fiche of a stay (stored or new) numbers a repeated free label as its save will, so a new
+  // « Bois » beside a stored one is priced as « Bois (2) » without the stored line's facts (`withTypedCustomTitles` keeps the typed text).
+  // A devis keeps its lines as they are.
+  const previewCustomOptions = (reservationId > 0 || !(Number(req.body.devisId || 0) > 0))
+    ? numberedCustomLinesOf(reservationId, req.body.customOptions) : req.body.customOptions;
   // A devis being edited locks its prices too, for as long as the quote is valid — same snapshot, same
   // engine inputs (specs/devis-extras-parity-and-price-lock.md §3 rule 13). The fiche sends `devisId`
   // so this preview shows exactly what the save will store; without it the operator saw today's
@@ -1382,10 +1387,10 @@ async function calculatePrice(req, res) {
     discountPercent: req.body.discountPercent,
     discountTarget: req.body.discountTarget,
     discountFixedAmount: fixedDiscountEuros(req.body.discountAmountCents),
-    lineFacts: reservationId > 0 ? lineFactsForSave(reservationId, req.body.customOptions) : {},
+    lineFacts: reservationId > 0 ? lineFactsForSave(reservationId, previewCustomOptions) : {},
     customPrice: req.body.customPrice,
     selectedOptions: req.body.selectedOptions,
-    customOptions: req.body.customOptions,
+    customOptions: previewCustomOptions,
     selectedResources: req.body.selectedResources,
     depositPaid: req.body.depositPaid,
     balancePaid: req.body.balancePaid,
@@ -1558,7 +1563,24 @@ async function calculatePrice(req, res) {
     }
   }
 
-  res.json(withCustomLineKeys(quote));
+  res.json(withTypedCustomTitles(withCustomLineKeys(quote), req.body.customOptions, previewCustomOptions));
+}
+
+// Rule 94 reading (loop t14 S14-1) — the preview prices a repeated label under its number (`key`), but echoes the text the operator typed: the
+// fiche writes each quote line's title back into its field on every keystroke, and a « (2) » appearing under the cursor would be typed over.
+// The save stores the numbered label, and the fiche shows it once it re-reads.
+function withTypedCustomTitles(quote, postedLines, pricedLines) {
+  if (!quote || !Array.isArray(quote.optionLines) || !Array.isArray(postedLines) || postedLines === pricedLines) return quote;
+  const typed = new Map();
+  postedLines.forEach((line, index) => {
+    const priced = pricedLines[index];
+    if (line && priced && priced.description !== line.description) typed.set(String(line.customKey || `custom_${index + 1}`), String(line.description || '').trim());
+  });
+  if (typed.size === 0) return quote;
+  return {
+    ...quote,
+    optionLines: quote.optionLines.map((line) => (line && line.isCustom && typed.has(String(line.customKey)) ? { ...line, title: typed.get(String(line.customKey)) } : line)),
+  };
 }
 
 // Pricing-components rule 114 (loop t8 UI8-5, reading of 2026-11-16) — the fiche's live quote names each custom line by the server's own key
@@ -1623,6 +1645,9 @@ function createStay(req, res) {
     if (!req.body.checkInTime) req.body.checkInTime = defaultTimes.checkInTime;
     if (!req.body.checkOutTime) req.body.checkOutTime = defaultTimes.checkOutTime;
   }
+
+  // Rule 94 (loop t14 S14-2) — two free lines of one label are numbered at creation too: each keeps its own discount and payment.
+  numberRepeatedCustomLabels(0, req.body);
 
   const {
     propertyId, clientId, startDate, endDate, adults, children, teens, babies,
@@ -2204,12 +2229,17 @@ function numberAppendedLines(body) {
 // Rule 94 (loop t2 N-4) — a custom line the save appends (no stored line answers it) under a label another custom line of the stay holds is
 // numbered (« Bière locale (2) »), as a sale's and the arrival SAS's are: its payment, its discount and its removal stay its own. A stored line
 // keeps its label, so a stay that already holds two lines of one label (stored before this rule) keeps them as they are.
+// The preview (S14-1) and the creation (S14-2, `id` 0: nothing stored, every repeat is numbered) take the same numbering.
 function numberRepeatedCustomLabels(id, body) {
-  if (!Array.isArray(body.customOptions) || body.customOptions.length < 2) return;
-  const matches = matchStoredCustomLines(body.customOptions, model.getStoredRouting(id).customs);
+  body.customOptions = numberedCustomLinesOf(id, body.customOptions);
+}
+
+function numberedCustomLinesOf(id, customOptions) {
+  if (!Array.isArray(customOptions) || customOptions.length < 2) return customOptions;
+  const matches = matchStoredCustomLines(customOptions, id > 0 ? model.getStoredRouting(id).customs : []);
   const keyOfLabel = (text) => extraLineKey({ isCustom: true, description: text });
-  const taken = new Set(body.customOptions.filter((line, index) => matches[index]).map((line) => keyOfLabel(line.description)));
-  body.customOptions = body.customOptions.map((line, index) => {
+  const taken = new Set(customOptions.filter((line, index) => matches[index]).map((line) => keyOfLabel(line.description)));
+  return customOptions.map((line, index) => {
     if (matches[index]) return line;
     const description = numberedLabel(String(line.description || '').trim(), taken);
     taken.add(keyOfLabel(description));

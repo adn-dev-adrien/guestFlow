@@ -1,0 +1,1 @@
+- **Reservation fiche — a repeated free-line label is numbered in the price preview and at creation** (`specs/pricing-components.md` rule 94, loop t14 S14-1/S14-2): a new « Bois » beside a discounted « Bois » is previewed as « Bois (2) » at its own price, as the save stores it, and a stay created with two lines of one label keeps each line's discount its own.

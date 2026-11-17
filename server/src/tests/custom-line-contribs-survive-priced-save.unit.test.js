@@ -138,6 +138,8 @@ test('rule 19 — without an id (or with a stale one) the line is matched by its
 
 test('rule 19 — two lines with the same text: each stored row is consumed once', () => {
   const id = createStay({ depositDisabled: 1, customOptions: [free('Bois', 40), free('Bois', 60)] });
+  // The creation numbers the second (pricing-components rule 94, loop t14 S14-2): this is a pair stored before that reading.
+  db.prepare("UPDATE reservation_custom_options SET description = 'Bois' WHERE reservationId = ? AND description = 'Bois (2)'").run(id);
   paySolde(id);
   assert.deepEqual(customs(id).map((line) => line.s), [40, 60]);
 

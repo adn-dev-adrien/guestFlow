@@ -1981,6 +1981,15 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
     that key (before: `no such column: resourceId`, the card money on no stay). The fiche's own form, which may type one label twice, keeps the aggregated
     reading it always had. Test `sale-custom-line-identity`. _(Amended 2026-11-16, rule 102 e: the arrival SAS and the fiche's save number a NEW line
     too; stored lines keep their labels.)_
+    > _Reading 2026-11-17 (loop t14, S14-1, S14-2):_ « every path » includes the price preview and the creation. `calculatePrice` numbers the
+    > posted free lines of a stay (stored or new) exactly as the save will (`numberedCustomLinesOf`, the save's `numberRepeatedCustomLabels`)
+    > before it reads the line facts, so a new « Bois » beside a discounted « Bois » is previewed as « Bois (2) » at its own price (before: the
+    > preview lent it the stored line's discount and moment — 2 € less than the save stored). The preview line carries the numbered `key` but
+    > echoes the text the operator typed as its title (`withTypedCustomTitles`): the fiche writes each quote title back into its field on every
+    > keystroke, and a « (2) » appearing under the cursor would be typed over; the fiche shows the numbered label once the save re-reads it. A
+    > devis being edited keeps its lines as posted. A
+    > stay created with two free lines of one label stores « Ménage », « Ménage (2) » (before: one key for both, a 2 € line discount on one took
+    > 4 €). Two rows of one label stored before this reading (none in production) keep their labels. Test `custom-label-numbering-preview`.
 95. **Before the arrival, a line is moved to the arrival only** _(stabilisation loop t1, S-3, 2026-11-15; completes rules 20, 37)_. The extras baseline
     that carves a line out to the departure is a started stay's: one laid before the arrival carved every later pre-arrival sale out to the departure, then
     vanished at the boot repair and left the moved line in no stored bucket. Before the stay clock reaches the arrival, `changeLine { collectAt: 'departure' }`
@@ -2940,6 +2949,7 @@ _Rewritten 2026-11-15 (stabilisation loop t1, UI-3) to what shipped._
 - [x] `stay-sequence-fuzz` — rules 104, 108, 116, 119, 121 (loop t9): the reviewer's stay sequence fuzzer, bounded (direct seeds 1-3, Booking 1-2, 12 runs × 12 steps): the money identity after every step, never asked AND owed (5)
 - [x] `custom-line-rename-paid` — rule 123 (loop t11, S11-1): a card-paid free line renamed → 409 `LINE_PAID_RENAMED`, kept and priced save, direct and Booking, nothing moves; the unpaid line and a case-only change save, the lock names the paid line; a platform stay's collected complement line refused too (3); S12-1: a rename onto another free line's label, paid or not → 409 `LINE_LABEL_TAKEN`, a new line → « (2) » (+2)
 - [x] `custom-line-rename-identity` — rule 79 reading (loop t13, S13-1): a renamed unpaid free line keeps its `lineId`, moment, sale date and discount on a priced save (amount changed, direct and Booking; another line re-priced; discounted, with and without `restatePricing`); a swap of two labels keeps each discount on its line; a rename onto the label of a line removed in the same save; a new line under the old label (6)
+- [x] `custom-label-numbering-preview` — rule 94 reading (loop t14, S14-1, S14-2): a new line repeating a discounted label is priced under `custom:bois (2)` with its typed title and preview = save (direct and Booking); a rename plus a new line under the new label, preview = save; a fresh fiche previews two « Ménage » under two keys; a stay created with two « Ménage » stores « Ménage (2) » and a 2 € line discount takes exactly 2 € (4)
 
 ### Client Vitest suites (named 2026-11-16, stabilisation loop t2 P2-2)
 - [x] `ExtrasSection.paid-custom-label` — rule 123 (loop t11, S11-1): the paid free line's description disabled with « Déjà payée : libellé figé », the unpaid one editable; none named → no caption (2)
