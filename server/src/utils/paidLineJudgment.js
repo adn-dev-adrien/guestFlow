@@ -45,6 +45,8 @@ const LINE_REFUNDED = 'Ligne remboursée : la revendre comme une nouvelle ligne.
 // Loop t11 S11-1 (rule 123) — a paid free line is named by its label: renamed, the money it holds would no longer find it.
 const PAID_LINE_RENAMED = 'Ligne déjà payée : son libellé ne change pas.';
 // Reception-only: the rule-18 answer itself, no amount and no refund word (reception-role-checkin-only rule 18).
+// Loop t12 S12-1 (rule 123) — a free line renamed onto the label of another free line of the stay would share its key, and with it its payment.
+const LINE_LABEL_TAKEN = 'Libellé déjà utilisé sur ce séjour.';
 const LINE_OWED = 'Ligne déjà payée : à voir avec l’administrateur.';
 const eurosText = (cents) => `${(cents / 100).toFixed(2).replace('.', ',')} €`;
 
@@ -91,6 +93,16 @@ function paidLineRenameRefusal(row, renames) {
   const keyOf = (label) => extraLineKey({ isCustom: true, description: label });
   const hit = (renames || []).some(({ from, to }) => paid.has(keyOf(from)) && keyOf(to) !== keyOf(from));
   return hit ? { status: 409, body: { error: PAID_LINE_RENAMED, code: 'LINE_PAID_RENAMED' } } : null;
+}
+
+// Rule 123 — the refusal of a save renaming a free line onto another stored free line's label (`lines`: the posted lines' `{ customOptionId,
+// description }`, `renames`: the fiche's `[{ id, from, to }]`), or null. A case or spacing change of its own label keeps its key and passes.
+function labelTakenRefusal(lines, renames) {
+  const keyOf = (label) => extraLineKey({ isCustom: true, description: label });
+  const stored = (lines || []).filter((line) => line && line.customOptionId != null);
+  const hit = (renames || []).some(({ id, from, to }) => keyOf(to) !== keyOf(from)
+    && stored.some((line) => Number(line.customOptionId) !== Number(id) && keyOf(String(line.description || '')) === keyOf(to)));
+  return hit ? { status: 409, body: { error: LINE_LABEL_TAKEN, code: 'LINE_LABEL_TAKEN' } } : null;
 }
 
 function notesOnKey(db, reservationId, key) {
@@ -461,6 +473,6 @@ function reopenedCredit(db, reservationId, { quoteOf, midStay = null } = {}) {
 }
 
 module.exports = {
-  paidCustomKeys, paidLineRenameRefusal, begin, wayBack, reopenedCredit, notesOnKey, noteExcessCents, noteExcessByKey, refundedLoweredLines, refundedLoweredCents, platformComplementClaims,
+  paidCustomKeys, paidLineRenameRefusal, labelTakenRefusal, begin, wayBack, reopenedCredit, notesOnKey, noteExcessCents, noteExcessByKey, refundedLoweredLines, refundedLoweredCents, platformComplementClaims,
   owedBackByKey, settledLoweredCents, PAID_LINE_REMOVED, LINE_REFUNDED,
 };

@@ -2523,6 +2523,9 @@ function applyUpdate(req, res, pastUnlocked, {
   // Rule 123 (loop t11 S11-1) — a free line a note or a collected platform complement paid keeps its label, whatever the window.
   const renameRefusal = renamedLines.length > 0 ? paidLineJudgment.paidLineRenameRefusal(db.prepare('SELECT * FROM reservations WHERE id = ?').get(Number(id)), renamedLines) : null;
   if (renameRefusal) return res.status(renameRefusal.status).json(renameRefusal.body);
+  // Rule 123 (loop t12 S12-1) — nor onto the label of another free line of the stay: two lines would share one key, one payment.
+  const takenRefusal = renamedLines.length > 0 ? paidLineJudgment.labelTakenRefusal(reservationCustomOptions, renamedLines) : null;
+  if (takenRefusal) return res.status(takenRefusal.status).json(takenRefusal.body);
 
   // specs/platform-payout-due-date.md §3.5 rule 38 — a started or finished stay keeps the solde
   // deadline it was stored with. « Existing rows re-derive on their next save » (§3.0 arbitrage) can
