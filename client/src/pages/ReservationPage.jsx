@@ -279,6 +279,11 @@ export default function ReservationPage() {
   // A quiet re-read that failed keeps the page (the sale is already stored) but not the form: it stays read-only, with a retry,
   // until the fiche has read the server's version again.
   const [rereadFailed, setRereadFailed] = useState(false);
+  // Rule 101 (reading 2026-11-17, loop t16 UI16-1) — a « Ventes du séjour » write on its way: its re-read follows, so what is typed
+  // meanwhile would be wiped by it. The panel reports the write; the fiche holds until the re-read answers.
+  const [panelWriting, setPanelWriting] = useState(false);
+  // A save in flight, whichever caller started it (bar, leave dialog, note, ledger mark, devis actions): a second one is refused.
+  const saveInFlightRef = useRef(false);
   // The figures on screen while a quiet re-read and its quote are on their way: the last quote, never a blank summary.
   // Display only — the clean baseline and the quote effects read `pricingQuote`.
   const [heldQuote, setHeldQuote] = useState(null);
@@ -610,7 +615,10 @@ export default function ReservationPage() {
   // fields; an MUI Select is a div, so the sections read this flag for their selects too.
   // Rule 101 (reading 2026-11-17, loop t14 UI14-1) — the one flag every save, and every bar action that saves first, reads:
   // the save refuses while it is set, so those actions are disabled rather than doing nothing.
-  const saveBlocked = rereading || rereadFailed || switchingProperty;
+  // Rule 101 (reading 2026-11-17, loop t16 UI16-1) — ONE state « this fiche is not the server's, or is being written »: the re-read
+  // in flight or failed, a panel write before its re-read, a save in flight, a logement switch. Every write path reads it: the
+  // fieldset (disabled + inert), the bar and its overflow menu, the pricing summary's toggles, the leave dialog and the save itself.
+  const saveBlocked = rereading || rereadFailed || switchingProperty || panelWriting || saving;
   const formReadOnly = isClosedFiche || saveBlocked;
   // `typedAtParty` / `typedAtNights` only say what a number was typed against during this edit: they
   // are not a change of their own (specs/non-card-option-served-persons.md rule 23). A client typed for a stay not
@@ -2480,13 +2488,8 @@ export default function ReservationPage() {
     return true;
   };
 
-  const handleSaveReservation = async (afterSaveAction = null, forceMinNights = false, forceCapacity = false, forceChangeover = false, forceMaxNights = false, forceOverpayment = false, forceTypedCounts = false) => {
+  const saveReservationOnce = async (afterSaveAction = null, forceMinNights = false, forceCapacity = false, forceChangeover = false, forceMaxNights = false, forceOverpayment = false, forceTypedCounts = false) => {
     const safeAfterSaveAction = typeof afterSaveAction === 'function' ? afterSaveAction : null;
-
-    // Every save-first caller (PDF, payment or balance request, status « Accepté », the unsaved-changes dialog) passes here:
-    // mid-switch the logement is the new one while the options are still the old one's (per-property-default-options rule 11);
-    // during a panel sale's re-read the form is older than the server's and would delete the sold line (pricing-components rule 101).
-    if (saveBlocked) return false;
 
     if (!selectedProp) {
       await alert({ title: 'Erreur', message: 'Logement à sélectionner.' });
@@ -2559,7 +2562,7 @@ export default function ReservationPage() {
         confirmColor: 'warning',
       });
       if (proceed) {
-        return await handleSaveReservation(safeAfterSaveAction, forceMinNights, true, forceChangeover, forceMaxNights, forceOverpayment, forceTypedCounts);
+        return await saveReservationOnce(safeAfterSaveAction, forceMinNights, true, forceChangeover, forceMaxNights, forceOverpayment, forceTypedCounts);
       }
       return false;
     }
@@ -2633,7 +2636,7 @@ export default function ReservationPage() {
           confirmColor: 'warning',
         });
         if (!proceed) return false;
-        return await handleSaveReservation(safeAfterSaveAction, true, forceCapacity, forceChangeover, forceMaxNights, forceOverpayment, forceTypedCounts);
+        return await saveReservationOnce(safeAfterSaveAction, true, forceCapacity, forceChangeover, forceMaxNights, forceOverpayment, forceTypedCounts);
       }
 
       // specs/tariff-recipes/spec.md §3.4 rule 23 — changeover breach: same confirm + force-override
@@ -2650,7 +2653,7 @@ export default function ReservationPage() {
           confirmColor: 'warning',
         });
         if (!proceed) return false;
-        return await handleSaveReservation(safeAfterSaveAction, forceMinNights, forceCapacity, true, forceMaxNights, forceOverpayment, forceTypedCounts);
+        return await saveReservationOnce(safeAfterSaveAction, forceMinNights, forceCapacity, true, forceMaxNights, forceOverpayment, forceTypedCounts);
       }
 
       // specs/tariff-recipes/spec.md §3.4 rule 20bis — maximum stay, mirror of the minimum guard.
@@ -2663,7 +2666,7 @@ export default function ReservationPage() {
           confirmColor: 'warning',
         });
         if (!proceed) return false;
-        return await handleSaveReservation(safeAfterSaveAction, forceMinNights, forceCapacity, forceChangeover, true, forceOverpayment, forceTypedCounts);
+        return await saveReservationOnce(safeAfterSaveAction, forceMinNights, forceCapacity, forceChangeover, true, forceOverpayment, forceTypedCounts);
       }
 
       // specs/non-card-option-served-persons.md rule 22 — same confirm + force-override as the stay
@@ -2677,7 +2680,7 @@ export default function ReservationPage() {
           confirmColor: 'warning',
         });
         if (!proceed) return false;
-        return await handleSaveReservation(safeAfterSaveAction, forceMinNights, forceCapacity, forceChangeover, forceMaxNights, forceOverpayment, true);
+        return await saveReservationOnce(safeAfterSaveAction, forceMinNights, forceCapacity, forceChangeover, forceMaxNights, forceOverpayment, true);
       }
 
       if (isDevisMode) {
@@ -2943,7 +2946,7 @@ export default function ReservationPage() {
           confirmColor: 'warning',
         });
         if (proceed) {
-          return await handleSaveReservation(safeAfterSaveAction, true, forceCapacity, forceChangeover, forceMaxNights, forceOverpayment, forceTypedCounts);
+          return await saveReservationOnce(safeAfterSaveAction, true, forceCapacity, forceChangeover, forceMaxNights, forceOverpayment, forceTypedCounts);
         }
         return false;
       }
@@ -2956,7 +2959,7 @@ export default function ReservationPage() {
           confirmColor: 'warning',
         });
         if (proceed) {
-          return await handleSaveReservation(safeAfterSaveAction, forceMinNights, forceCapacity, true, forceMaxNights, forceOverpayment, forceTypedCounts);
+          return await saveReservationOnce(safeAfterSaveAction, forceMinNights, forceCapacity, true, forceMaxNights, forceOverpayment, forceTypedCounts);
         }
         return false;
       }
@@ -2971,7 +2974,7 @@ export default function ReservationPage() {
           confirmColor: 'warning',
         });
         if (!proceed) return false;
-        return await handleSaveReservation(
+        return await saveReservationOnce(
           safeAfterSaveAction || (() => openOverpaymentRefund(Number(err.overpaymentTtc || 0), err.overpaymentLines, err.overpaymentMethod, err.overpaymentCash)),
           forceMinNights, forceCapacity, forceChangeover, forceMaxNights, true, forceTypedCounts,
         );
@@ -2985,7 +2988,7 @@ export default function ReservationPage() {
           confirmColor: 'warning',
         });
         if (proceed) {
-          return await handleSaveReservation(safeAfterSaveAction, forceMinNights, forceCapacity, forceChangeover, true, forceOverpayment, forceTypedCounts);
+          return await saveReservationOnce(safeAfterSaveAction, forceMinNights, forceCapacity, forceChangeover, true, forceOverpayment, forceTypedCounts);
         }
         return false;
       }
@@ -3003,7 +3006,7 @@ export default function ReservationPage() {
         if (choice === 'secondary') {
           overwriteOnceRef.current = true;
           try {
-            return await handleSaveReservation(safeAfterSaveAction, forceMinNights, forceCapacity, forceChangeover, forceMaxNights, forceOverpayment, forceTypedCounts);
+            return await saveReservationOnce(safeAfterSaveAction, forceMinNights, forceCapacity, forceChangeover, forceMaxNights, forceOverpayment, forceTypedCounts);
           } finally {
             overwriteOnceRef.current = false;
           }
@@ -3093,6 +3096,23 @@ export default function ReservationPage() {
     if (action) action();
   };
 
+  // Every save-first caller (PDF, payment or balance request, status « Accepté », the unsaved-changes dialog, a note, a ledger mark)
+  // passes here: mid-switch the logement is the new one while the options are still the old one's (per-property-default-options
+  // rule 11); during a panel sale's re-read the form is older than the server's and would delete the sold line (pricing-components
+  // rule 101); and while a save is on its way a second one would send the same version and be refused STALE_FICHE after the first
+  // lands (rule 101 reading loop t16). The ref answers before React re-renders, so two clicks in one frame cannot both pass.
+  const handleSaveReservation = async (...args) => {
+    if (saveBlocked || saveInFlightRef.current) return false;
+    saveInFlightRef.current = true;
+    setSaving(true);
+    try {
+      return await saveReservationOnce(...args);
+    } finally {
+      saveInFlightRef.current = false;
+      setSaving(false);
+    }
+  };
+
   const handleSaveAndLeave = async () => {
     setUnsavedDialogOpen(false);
     const action = pendingLeaveActionRef.current;
@@ -3100,21 +3120,18 @@ export default function ReservationPage() {
     await handleSaveReservation(action);
   };
 
-  // Bar-button entry point: toggles the `saving` flag around the (recursive) save so the bar Save
-  // shows a spinner and can't be double-submitted. The internal recursion stays on
-  // handleSaveReservation (no nested toggle). specs/ds-sweep-reservations.md rule 1.
+  // Bar-button entry point: handleSaveReservation toggles the `saving` flag around the (recursive) save so the bar Save shows a
+  // spinner and can't be double-submitted. specs/ds-sweep-reservations.md rule 1.
   // Rule 101 — the quiet re-read after a write of « Ventes du séjour » (and its retry when it failed).
+  // Rule 94 (reading 2026-11-17, loop t16 UI16-2) — the admin unlock re-asks the quote with `unlockPast`; what that quote writes
+  // (an unlocked routing's balance) is not an edit: a clean fiche takes its baseline again once it lands, as after a mark.
+  const unlockFiche = () => {
+    if (!isDirtyRef.current) resnapshotAfterQuoteRef.current = { quote: pricingQuoteRef.current };
+    setPastUnlocked(true);
+  };
   const rereadFiche = () => { quietReloadRef.current = true; setRereading(true); setReloadToken((token) => token + 1); };
 
-  const handleSaveClick = async () => {
-    if (saveBlocked) return;
-    setSaving(true);
-    try {
-      await handleSaveReservation();
-    } finally {
-      setSaving(false);
-    }
-  };
+  const handleSaveClick = () => handleSaveReservation();
 
   // specs/mid-stay-notes.md §4.2 — a note validated with a catalogue addition must go through the
   // STANDARD save (pricing engine, planning cards, laundry counts…) before it can be settled: the
@@ -3776,7 +3793,7 @@ export default function ReservationPage() {
       disabled: midStayNote.disabled,
     })] : []),
     ...(!isDevisMode && !reservationId
-      ? [{ icon: <DescriptionIcon />, tooltip: 'Créer un devis', onClick: handleCreateDevisFromForm, color: 'info' }] : []),
+      ? [heldWhileRereading({ icon: <DescriptionIcon />, label: 'Créer un devis', onClick: handleCreateDevisFromForm, color: 'info' })] : []),
     // Réservation PLATEFORME → pas de devis : le tarif a été fixé par la plateforme, nous ne
     // devisons pas ce séjour. Le bouton n'a de sens que sur une réservation directe.
     ...(!isDevisMode && reservationId && !isPlatformReservation
@@ -3990,7 +4007,7 @@ export default function ReservationPage() {
       ledgerRows={storedLedger ? storedLedger.rows : null}
       topNotice={(
         <>
-          <PricingNotices notices={shownQuote?.notices} onAction={(action) => { if (action === 'refreshTouristTax') setTouristTaxRefreshRequested(true); }} />
+          <PricingNotices notices={shownQuote?.notices} actionDisabled={saveBlocked} onAction={(action) => { if (action === 'refreshTouristTax') setTouristTaxRefreshRequested(true); }} />
           <PlatformPriceAlert check={shownQuote?.platformPriceCheck} />
         </>
       )}
@@ -4029,6 +4046,7 @@ export default function ReservationPage() {
       isRefundedLine={isRefundedOfferedLine}
       isTouristTaxFrozen={isTouristTaxFrozen}
       onRefreshTouristTax={() => setTouristTaxRefreshRequested(true)}
+      heldReason={saveBlocked && !showStoredSummary ? SAVE_BLOCKED_REASON : null}
     />
   );
 
@@ -4073,7 +4091,7 @@ export default function ReservationPage() {
         onSave={isClosedFiche ? undefined : handleSaveClick}
         saveTooltip={isDevisMode ? 'Enregistrer le devis' : 'Enregistrer'}
         saveDisabled={saving || saveBlocked || !(isDirty || touristTaxRefreshRequested)}
-        saveBusy={saving || rereading || switchingProperty}
+        saveBusy={saving || rereading || switchingProperty || panelWriting}
         onCancel={goBackToOrigin}
         actionsAfter={actionBarAfter}
       />
@@ -4136,7 +4154,7 @@ export default function ReservationPage() {
               {extrasWindowOpen ? MID_STAY_EXTRAS_BANNER : LOCKED_FICHE_BANNER}
             </Typography>
             {isAdmin && (
-              <Button size="small" variant="outlined" color="warning" onClick={() => setPastUnlocked(true)}>
+              <Button size="small" variant="outlined" color="warning" onClick={unlockFiche}>
                 Déverrouiller cette fiche
               </Button>
             )}
@@ -4155,7 +4173,7 @@ export default function ReservationPage() {
             <Typography variant="body2" color="warning.main" sx={{ flex: 1 }}>
               L&apos;arrivée est dans le passé : pour enregistrer une réservation passée, déverrouillez la fiche.
             </Typography>
-            <Button size="small" variant="outlined" color="warning" onClick={() => setPastUnlocked(true)}>
+            <Button size="small" variant="outlined" color="warning" onClick={unlockFiche}>
               Déverrouiller cette fiche
             </Button>
           </Box>
@@ -4168,7 +4186,7 @@ export default function ReservationPage() {
           component="fieldset"
           disabled={formReadOnly}
           inert={saveBlocked || undefined}
-          aria-busy={rereading || switchingProperty || undefined}
+          aria-busy={rereading || switchingProperty || panelWriting || saving || undefined}
           sx={{
             position: 'relative', border: 0, p: 0, m: 0, minWidth: 0,
           }}
@@ -4295,6 +4313,7 @@ export default function ReservationPage() {
               heldReason={isDirty ? SAVE_FIRST_REASON : null}
               initialDetail={storedSaleDetail}
               onChanged={rereadFiche}
+              onWriting={setPanelWriting}
               articles={propertyOptions
                 .filter((option) => Number(option.autoEnabled || 0) !== 1)
                 .map((option) => ({ articleRef: `option:${option.id}`, label: option.title }))}
@@ -4391,6 +4410,7 @@ export default function ReservationPage() {
         onStay={() => setUnsavedDialogOpen(false)}
         onDiscard={handleDiscardChanges}
         onSaveAndQuit={handleSaveAndLeave}
+        saveDisabledReason={saveBlocked ? SAVE_BLOCKED_REASON : null}
       />
 
       <EmailManualSendDialog

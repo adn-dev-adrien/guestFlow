@@ -4,7 +4,9 @@
  * Props: `reservationId` (a saved stay), `articles` (`[{ articleRef, label }]`), `locked` (no sale: a closed stay, or a started stay whose
  * mid-stay window the server closed), `heldReason` (a string while the fiche has unsaved edits: the writes are held, read-only, with this
  * reason — a write re-reads the fiche, which would drop the typed edits), `initialDetail` (the `saleDetail` the fiche already read; when
- * given, the panel does not ask for it again), `onChanged()` (called after every write the server accepted, so the fiche re-reads the new line).
+ * given, the panel does not ask for it again), `onChanged()` (called after every write the server accepted, so the fiche re-reads the new line),
+ * `onWriting(busy)` (true while a moment write is on its way, false once it is answered: the fiche holds its form meanwhile —
+ * specs/pricing-components.md rule 101 reading loop t16 — and `onChanged()` is called before the false, so no gap opens).
  * Renders the server's `saleDetail`; every change goes through the server, which answers the new payload.
  */
 import React, { useCallback, useEffect, useState } from 'react';
@@ -16,7 +18,7 @@ import AddProductDialog from './AddProductDialog';
 import ErrorAlert from './ErrorAlert';
 import { EXTRA_SALES_PANEL_TEXTS as TEXTS } from '../constants/extraSale';
 
-export default function ExtraSalesPanel({ reservationId, articles = [], locked = false, heldReason = null, initialDetail, onChanged }) {
+export default function ExtraSalesPanel({ reservationId, articles = [], locked = false, heldReason = null, initialDetail, onChanged, onWriting }) {
   const [detail, setDetail] = useState(initialDetail || null);
   const [open, setOpen] = useState(false);
   const [busyRef, setBusyRef] = useState(null);
@@ -36,6 +38,7 @@ export default function ExtraSalesPanel({ reservationId, articles = [], locked =
   const changeMoment = async (line, collectAt) => {
     setBusyRef(line.ref);
     setError('');
+    if (onWriting) onWriting(true);
     try {
       const result = await api.patchExtraLine(reservationId, line.ref, { collectAt });
       setDetail(result.saleDetail);
@@ -44,6 +47,7 @@ export default function ExtraSalesPanel({ reservationId, articles = [], locked =
       setError((err && err.message) || TEXTS.changeRefused);
     } finally {
       setBusyRef(null);
+      if (onWriting) onWriting(false);
     }
   };
 

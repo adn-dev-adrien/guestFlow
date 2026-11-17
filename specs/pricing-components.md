@@ -2004,6 +2004,11 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
     > drops it as it always did (before: two blank lines from an API caller were stored as one priced « (2) » line). The numbering is one
     > function, `numberRepeatedCustomLines` (`utils/pricing/storedLines.js`), behind the save, the preview, the creation and the devis.
     > Tests `free-label-numbering-devis-and-blank`, `preview-save-routing` (amended), client `ReservationPage.unlocked-preview`.
+    > _Reading 2026-11-17 (loop t16, UI16-2):_ the unlock is a change of view, not an edit. On a clean fiche the first quote that follows
+    > « Déverrouiller cette fiche » moves the clean baseline with what it writes (the unlocked routing's solde), as after a mark: the summary
+    > shows the unlocked figures, « Enregistrer » stays off and « Supprimer » / « Annuler le séjour » stay available. On a fiche already
+    > modified the edits stay edits. Before, a stay whose unlocked routing differed (one prod stay, solde 15 € apart) became « modified » by
+    > the unlock alone, so an admin had to save the re-routed money before deleting or cancelling it. Vitest `ReservationPage.fiche-busy-invariant` (§8).
 95. **Before the arrival, a line is moved to the arrival only** _(stabilisation loop t1, S-3, 2026-11-15; completes rules 20, 37)_. The extras baseline
     that carves a line out to the departure is a started stay's: one laid before the arrival carved every later pre-arrival sale out to the departure, then
     vanished at the boot repair and left the moved line in no stored bucket. Before the stay clock reaches the arrival, `changeLine { collectAt: 'departure' }`
@@ -2098,6 +2103,20 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
     d'actions » on a phone): « Annuler le séjour », « Supprimer », « Transformer en devis » and, on a devis being switched, « Supprimer le
     devis ». Before, the re-read reset the lock before reading the stay, so a failed re-read showed a started stay as unlocked and its
     « Supprimer » deleted it. Vitest `ReservationPage.quiet-reread`.
+    _Reading 2026-11-17 (loop t16, UI16-1):_ « the fiche is not the server's » is ONE state, `saveBlocked`, and every write path reads it.
+    It is set while the re-read is in flight or has failed, while a « Ventes du séjour » moment write is on its way (the panel reports it
+    through `onWriting`, and asks for the re-read before it clears, so no gap opens), while a save is in flight (whichever caller started
+    it: bar, leave dialog, note, ledger mark, devis actions) and during a logement switch. Its readers: the form fieldset (disabled and
+    inert), every bar and « Plus d'actions » entry that writes or leaves with the form (« Créer un devis » included), the pricing summary
+    (desktop column and phone sheet: « Offrir », the « compl. » chips, the added-guests « Offrir », « Recalculer la taxe de séjour » and the
+    notice's action are disabled, and « Fiche à relire. » reads under the title), the leave dialog (« Enregistrer et quitter » disabled with
+    the reason in its body) and the save itself, which also refuses a second entry while one is in flight. The reason is « Fiche à relire. »
+    in every state, a save in flight included (the fiche reads the server's answer once it lands; no new wording). Before, a click on
+    « Offrir » during the re-read re-priced the old form and was dropped silently once the fiche was read back; a note typed while a moment
+    write was on its way was wiped by the re-read; « Nouvelle note » or « Envoyer la demande de solde » during a save sent a second PUT that
+    the server then refused STALE_FICHE; and mid-switch « Créer un devis » carried a half-switched form while « Enregistrer et quitter »
+    closed the dialog, saved nothing and said nothing. Vitest `ReservationPage.fiche-busy-invariant` (enumerates the bar entries, the
+    handlers outside the fieldset and the summary's controls from the source).
 102. **One moment per gesture: the stay clock decides the lock, the sale, the baseline, the SAS and the change of an order** _(stabilisation loop t2,
     N-1 to N-6, 2026-11-16; amends rule 20's first bullet, completes rules 44, 45, 93, 94, guest-app rules 82, 110 a)_. Before, two clocks answered
     « has this stay started? »: the fiche lock (`hasStayStarted`: the check-in hour, or the arrival marked or the arrival SAS committed) and the sale
@@ -2994,6 +3013,7 @@ _Rewritten 2026-11-15 (stabilisation loop t1, UI-3) to what shipped._
 
 ### Client Vitest suites (named 2026-11-16, stabilisation loop t2 P2-2)
 - [x] `ReservationPage.unlocked-preview` — rule 94 reading (loop t15, S15-1): a locked fiche's live quote sends no unlock; after « Déverrouiller cette fiche » every live quote sends `unlockPast: true` (1)
+- [x] `ReservationPage.fiche-busy-invariant` — rule 101 reading (loop t16, UI16-1) and rule 94 reading (loop t16, UI16-2): table-driven, the bar entries and the handlers outside the fieldset enumerated from the page's source and the summary's `onClick` sites from PricingSummary's, each with a policy row; desktop bar and phone « Plus d'actions » held in four states (started / not started × re-read in flight / failed), the lock never flips, the summary's controls disabled during the re-read and the switch (and, rendered with every kind of line, none reaches the page while held), a field typed during a panel write is read-only, a save in flight sends no second PUT, mid-switch « Créer un devis » and « Enregistrer et quitter » are disabled with the reason, and the admin unlock alone leaves the fiche clean (22)
 - [x] `ExtrasSection.paid-custom-label` — rule 123 (loop t11, S11-1): the paid free line's description disabled with « Déjà payée : libellé figé », the unpaid one editable; none named → no caption (2)
 - [x] `ReservationSasDialog.stay-due` — rule 117 (loop t8, S8-1): the stay page renders the preview's planned solde, the commit sends `displayedStayDue`; a 409 `STAY_DUE_CHANGED` is shown and the recap read again (2)
 - [x] `ReservationSasDialog.stay-step-plan` — rule 117 reading (loop t9, UI9-1): stored 300, the plan settles it → no stay page, nothing sent; nothing stored, the plan raises 300 → the page comes in with 300 and the commit sends it (2)

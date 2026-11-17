@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { createContext, useContext, useState } from 'react';
 import { Box, Card, Stack, Typography, Divider, Button, Chip, IconButton, Tooltip } from '@mui/material';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import StatusBadge from './StatusBadge';
@@ -17,6 +17,7 @@ import { COMPLEMENT_LABELS, COMPLEMENT_BREAKDOWN_LABELS } from '../constants/com
  * platform already billed can't be offered).
  */
 function ExtraGuestRow({ label, caption, amount, offered, onToggleOffered, chip = null }) {
+  const held = useContext(HeldContext);
   return (
     <>
       <Divider />
@@ -35,6 +36,7 @@ function ExtraGuestRow({ label, caption, amount, offered, onToggleOffered, chip 
               variant={offered ? 'contained' : 'outlined'}
               color={offered ? 'success' : 'inherit'}
               onClick={onToggleOffered}
+              disabled={held}
               sx={{ minWidth: 60, fontSize: 11, textTransform: 'none' }}
             >
               {offered ? '✓ Offert' : 'Offrir'}
@@ -60,9 +62,13 @@ function ExtraGuestRow({ label, caption, amount, offered, onToggleOffered, chip 
 
 // specs/pricing-components.md rule 108 — an offered paid line whose money was refunded stays offered: sold again, it is a new line.
 const REFUNDED_SUFFIX = ' · remboursée';
+// specs/pricing-components.md rule 101 (reading 2026-11-17, loop t16 UI16-1) — while the fiche is not the server's, every
+// per-line control of the summary reads and takes no click: one flag, read by each control.
+const HeldContext = createContext(false);
 
 function ComplementChip({ active = true, onClick, readOnly = false }) {
-  const clickable = Boolean(onClick) && !readOnly;
+  const held = useContext(HeldContext);
+  const clickable = Boolean(onClick) && !readOnly && !held;
   return (
     <Chip
       size="small"
@@ -141,6 +147,9 @@ function getLineSplit(line, totalPrice) {
  *                                  labels and rows, with every per-line control left out, since a value
  *                                  shown as stored is never edited in place
  *   topNotice                      node rendered above « Prix hébergement » (the platform price alert)
+ *   heldReason                     string|null — set while the fiche is not the server's (re-read, save, logement switch):
+ *                                  every « Offrir » and « compl. » toggle and « Recalculer la taxe de séjour » is disabled, and
+ *                                  the reason reads under the title (specs/pricing-components.md rule 101)
  *   ledgerRows                     the stored ledger's rows: a paid acompte, solde or complement whose split payment left a reste
  *                                  reads the server's state (« Perçu en partie »), not « payé »
  *                                  (specs/mixed-method-payments.md rule 16, audit R34-C-L3)
@@ -177,7 +186,9 @@ export default function PricingSummary({
   mode = 'live',
   topNotice = null,
   ledgerRows = null,
+  heldReason = null,
 }) {
+  const held = Boolean(heldReason);
   const stored = mode === 'stored';
   // Rule 16 — a target paid with a reste still due is not settled: its badge says what the ledger says.
   const partialLabel = (keys) => {
@@ -274,6 +285,7 @@ export default function PricingSummary({
   const unpricedNights = Array.isArray(quote?.unpricedNights) ? quote.unpricedNights : [];
 
   return (
+    <HeldContext.Provider value={held}>
     <Box
       sx={{
         // Beside the form from lg (the fiche's two-column breakpoint), in the page flow below it.
@@ -295,6 +307,11 @@ export default function PricingSummary({
         <Typography variant="body2" color="text.secondary" sx={{ mb: 2, overflowWrap: 'anywhere' }}>
           {selectedProperty?.label || selectedProperty?.name || 'Logement non sélectionné'}
         </Typography>
+        {held && (
+          <Typography variant="caption" color="text.secondary" role="status" sx={{ display: 'block', mt: -1.5, mb: 2 }}>
+            {heldReason}
+          </Typography>
+        )}
 
         {topNotice}
 
@@ -549,6 +566,7 @@ export default function PricingSummary({
                             }
                             onToggleOptionOffered(so.optionId, !isOffered);
                           }}
+                          disabled={held}
                           sx={{ minWidth: 60, fontSize: 11, textTransform: 'none' }}
                         >
                           {isIncludedInRate ? 'Comprise' : (isOffered ? '✓ Offert' : 'Offrir')}
@@ -677,6 +695,7 @@ export default function PricingSummary({
                           variant={isOffered ? 'contained' : 'outlined'}
                           color={isOffered ? 'success' : 'inherit'}
                           onClick={() => onToggleResourceOffered(sr.resourceId, !isOffered)}
+                          disabled={held}
                           sx={{ minWidth: 60, fontSize: 11, textTransform: 'none' }}
                         >
                           {isOffered ? '✓ Offert' : 'Offrir'}
@@ -730,9 +749,11 @@ export default function PricingSummary({
                         recompute (then Save persists it). */}
                     {!stored && isTouristTaxFrozen && onRefreshTouristTax && (
                       <Tooltip title="Recalculer la taxe de séjour (figée — déjà encaissée ou déclarée)">
-                        <IconButton size="small" onClick={onRefreshTouristTax} aria-label="Recalculer la taxe de séjour" sx={{ ml: 0.25, p: 0.25 }}>
-                          <RefreshIcon sx={{ fontSize: 16 }} />
-                        </IconButton>
+                        <span>
+                          <IconButton size="small" onClick={onRefreshTouristTax} disabled={held} aria-label="Recalculer la taxe de séjour" sx={{ ml: 0.25, p: 0.25 }}>
+                            <RefreshIcon sx={{ fontSize: 16 }} />
+                          </IconButton>
+                        </span>
                       </Tooltip>
                     )}
                     {/* Manual routing to Complément (spec force-item-to-complement.md §6.2).
@@ -1076,5 +1097,6 @@ export default function PricingSummary({
         </Stack>
       </Card>
     </Box>
+    </HeldContext.Provider>
   );
 }
