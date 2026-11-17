@@ -13,7 +13,7 @@ import OptionCategorySection from './OptionCategorySection';
 import { COMPLEMENT_TOOLTIP, PRICE_TYPE_LABELS } from './extrasLabels';
 import { useSlot } from '../../plugins/sdk/useSlot';
 import { Contribution } from '../../plugins/sdk/Slot';
-import { ARRIVAL_LINE_CAPTION, OFFERED_LINE_CAPTION } from '../../constants/reservationLock';
+import { ARRIVAL_LINE_CAPTION, OFFERED_LINE_CAPTION, PAID_LABEL_CAPTION } from '../../constants/reservationLock';
 import { resourceLineKey, displayedFloor } from '../../utils/arrivalLineKey';
 
 const NO_ARRIVAL_LINES = {};
@@ -31,7 +31,7 @@ export default function ExtrasSection() {
     addCustomOption, updateCustomOption, removeCustomOption, isReservationLocked,
     // specs/mid-stay-extras-on-locked-fiche.md — the server-decided window and the floor of each line
     // sold at arrival; absent (older context) → the card behaves as before.
-    extrasWindowOpen, arrivalLines: rawArrivalLines, frozenCustomOptionIds,
+    extrasWindowOpen, arrivalLines: rawArrivalLines, frozenCustomOptionIds, paidCustomOptionIds,
     setResourceInComplement,
     bedLinenForcedOptionIds, lockedIncludedOptionIds,
     isDevisMode, isPlatformSale,
@@ -147,6 +147,8 @@ export default function ExtrasSection() {
                   {(form.customOptions || []).map((line) => {
                     const soldAtArrival = line.customOptionId != null && (frozenCustomOptionIds || []).includes(Number(line.customOptionId));
                     const lineLocked = extrasLocked || soldAtArrival;
+                    // Rule 123 — a free line already paid is named by its label: the server refuses its renaming, the field says so first.
+                    const labelPaid = !soldAtArrival && line.customOptionId != null && (paidCustomOptionIds || []).includes(Number(line.customOptionId));
                     return (
                     <Card key={line.customKey} variant="outlined" sx={{ bgcolor: 'background.paper' }}>
                       <CardContent sx={{ p: 1.5, '&:last-child': { pb: 1.5 } }}>
@@ -156,9 +158,14 @@ export default function ExtrasSection() {
                             label="Description"
                             value={line.description || ''}
                             onChange={(e) => updateCustomOption(line.customKey, { description: e.target.value })}
-                            disabled={lineLocked}
+                            disabled={lineLocked || labelPaid}
                             fullWidth
                           />
+                          {labelPaid && !extrasLocked && (
+                            <Typography variant="caption" color="text.secondary" sx={{ mt: '4px !important' }}>
+                              {PAID_LABEL_CAPTION}
+                            </Typography>
+                          )}
                           {soldAtArrival && (
                             <Typography variant="caption" color="text.secondary" sx={{ mt: '4px !important' }}>
                               {line.offered ? OFFERED_LINE_CAPTION : ARRIVAL_LINE_CAPTION}
