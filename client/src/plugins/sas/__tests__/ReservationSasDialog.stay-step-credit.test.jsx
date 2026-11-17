@@ -49,6 +49,8 @@ test('O9-1 — the credit brings the stay due to 0: the stored 30 € is never s
   clickBtn('Suivant');
   await screen.findByText('Récapitulatif — complément à percevoir');
   expect(screen.queryByText(/Séjour :/)).not.toBeInTheDocument();
+  // The button reads « Calcul du total… » while the recap's preview is in flight: wait for its own label, as the sibling suites do.
+  await screen.findByRole('button', { name: 'Valider et terminer' });
   clickBtn('Valider et terminer');
   await waitFor(() => expect(api.commitArrivalSas).toHaveBeenCalledTimes(1));
   const payload = api.commitArrivalSas.mock.calls[0][1];
