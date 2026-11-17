@@ -188,6 +188,10 @@ numbers and point here.
     the house is ever named, so it can never be selected, read or sent, whatever GuestFlow asks. As for rule 9bis,
     this is code in the recipe, not a GuestFlow setting: it is the reading boundary, as 9bis is the acting one. An
     empty list describes no sensor at all.
+
+> **Sans test** — the boundary is code in the Sowel recipe, tested in `sowel-recipe-guest-home` (`src/index.test.ts`):
+> GuestFlow only ever receives the catalogue the recipe builds.
+
 25. **Every figure is a value Sowel holds** (Adrien, 2026-11-17, amends rules 5 and 18). The house sends, and the
     guest sees, only values Sowel already has: an equipment's current value, the day's minimum and maximum of a
     temperature as Sowel tracks them since local midnight (`temperature_min_today` / `temperature_max_today`,
@@ -229,8 +233,8 @@ numbers and point here.
     direction, the phrase says it too, so the block reads without colour vision. Studio offers it like any block,
     off by default.
 
-> **Sans test** — rule 24's boundary and rule 26's sending policy are code in the Sowel recipe, tested in
-> `sowel-recipe-guest-home` (`src/index.test.ts`).
+> Rule 26's sending policy is code in the Sowel recipe too, tested in `sowel-recipe-guest-home`; GuestFlow's side of
+> it (a batch of changed pairs leaves the others untouched) is `sowel-home-ingest.unit.test.js`.
 
 **Edge cases of the amendment:**
 - An equipment removed from « Capteurs partagés » → the next catalogue omits it, rule 13 flags it « Introuvable dans

@@ -117,6 +117,6 @@ describe('HomeAutomationPage (rules 12-16)', () => {
     await user.click(screen.getByRole('switch', { name: 'Pluie pour La Granja' }));
     await user.click(screen.getByRole('button', { name: 'Enregistrer' }));
     expect(await screen.findByText('Une saisie à corriger.')).toBeInTheDocument();
-    expect(screen.getByText('Choisir un équipement.')).toBeInTheDocument();
+    expect(await screen.findByText('Choisir un équipement.')).toBeInTheDocument();
   });
 });
