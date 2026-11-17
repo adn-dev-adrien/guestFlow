@@ -210,7 +210,7 @@ for (const how of ['failed', 'in flight']) {
       await act(async () => { answer(); });
     }
     expect(await screen.findByRole('button', { name: NOTE })).toBeEnabled();
-    expect(screen.getByRole('button', { name: BALANCE })).toBeEnabled();
+    expect(await screen.findByRole('button', { name: BALANCE })).toBeEnabled();
     expect(api.updateReservation).not.toHaveBeenCalled();
   });
 }
