@@ -2,7 +2,7 @@
 //
 // Once a preview answered, the « Séjour » step exists iff the plan asks a stay amount, and shows exactly that amount: a recap gesture that
 // settles the stored solde removes the page (nothing shown, nothing sent), one that raises a stay the stored row left at 0 brings it in.
-import { screen, waitFor } from '@testing-library/react';
+import { fireEvent, screen, waitFor } from '@testing-library/react';
 import { vi } from 'vitest';
 
 import api from '../../../api';
@@ -64,7 +64,7 @@ test('UI9-1 a — stored 300 €, the plan settles it at the recap: no « Séjou
   await screen.findByText(OPTIONS);
   clickBtn('Suivant');
   await screen.findByText('Récapitulatif — complément à percevoir');
-  clickBtn('Valider et terminer');
+  fireEvent.click(await screen.findByRole('button', { name: 'Valider et terminer' }));
   await waitFor(() => expect(api.commitArrivalSas).toHaveBeenCalledTimes(1));
   const payload = api.commitArrivalSas.mock.calls[0][1];
   expect([payload.stayPaid, payload.displayedStayDue]).toEqual([undefined, undefined]);
@@ -92,7 +92,7 @@ test('UI9-1 b — nothing stored, the plan raises 300 € at the recap: the « S
   await screen.findByText(OPTIONS);
   clickBtn('Suivant');
   await screen.findByText('Récapitulatif — à percevoir');
-  clickBtn('Valider et terminer');
+  fireEvent.click(await screen.findByRole('button', { name: 'Valider et terminer' }));
   await waitFor(() => expect(api.commitArrivalSas).toHaveBeenCalledTimes(1));
   const payload = api.commitArrivalSas.mock.calls[0][1];
   expect([payload.stayPaid, payload.displayedStayDue]).toEqual([true, 300]);
