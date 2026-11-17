@@ -149,6 +149,8 @@ export function recapFor(payload, draft = {}) {
     addedTotal: addedSum,
     arrivalComplementTotal: total,
     stayDue,
+    // The « Séjour à régler » block the stay page renders (pricing-components rule 117): the server serves it on every arrival preview.
+    stayPayment: payload.stayPayment || { applicable: false, total: 0 },
     totalAtArrival: round2(stayDue + total),
     unifiable: Boolean(payload.arrivalPayment?.complementOpen) && Boolean(payload.stayPayment?.applicable) && total > 0,
     complementOpen: Boolean(payload.arrivalPayment?.complementOpen),

@@ -62,7 +62,7 @@ const externalPayment = require('./steps/externalPayment');
  *     arrivalPaymentTip, complementDeferredToCheckout, complementCollected, quoteKind, validUntil,
  *     devisPromise, cancellationInsurancePriceOverride, channel, isDirectBooking, persons, discountTarget,
  *     discountFixedAmount, lineFacts, refundedNoteCredit, refundedStayCredit,
- *     complementClaims, refundedComplementCredit
+ *     complementClaims, refundedComplementCredit, complementCreditPhantom
  * clock: clock
  * nights: baseAccommodationPrice, changeover, freshUnpricedNights, maxNightsBreached, maxNightsRules,
  *     mergedNightly, minNightsBreached, minNightsRules, nightlyBreakdown, nights, requiredMaxNights,

@@ -38,7 +38,8 @@ import { evaluateArithmetic } from '../../utils/arithmetic';
  *    taken « caisse interne »), which the operator can change.
  *  - `cashPart` — `{ amountTtc, restTtc, lines }` when cash notes took only part of the trop-perçu (pricing-components rule 112):
  *    the dialog opens on that part « Caisse interne » (its lines), and says what is left to refund afterwards by the means it came by.
- *    The announcement shows only while the means stays « Caisse interne ».
+ *    The announcement shows only while the means stays « Caisse interne » and the lines are the ones it opened with (amount, poste,
+ *    no line added, removed or ticked): it describes that proposal, not what the operator typed since.
  *  - `openOverpaymentTtc`, `onUseOverpayment()` — a trop-perçu still open on the stay (the ledger's row, rule 44),
  *    when the dialog was NOT opened on it: a warning with an action that reopens the dialog on the trop-perçu.
  *    A refund of a sold line stays independent of it.
@@ -90,6 +91,8 @@ export default function RefundDialog({
 
   const [selected, setSelected] = useState({}); // key → { amount, quantity }
   const [freeLines, setFreeLines] = useState([]);
+  // The free lines the dialog opened on (rule 112): the cash-part announcement describes them, not what the operator typed since.
+  const [openedLines, setOpenedLines] = useState([]);
   const [refundDate, setRefundDate] = useState(todayIso());
   const [method, setMethod] = useState('transfer');
   const [providerRefundRef, setProviderRefundRef] = useState('');
@@ -102,11 +105,11 @@ export default function RefundDialog({
     setSelected({});
     const cashSplit = cashPart && Array.isArray(cashPart.lines) ? cashPart.lines.filter((l) => Number(l.amountTtc) > 0) : [];
     const split = cashSplit.length > 0 ? cashSplit : (Array.isArray(overpaymentLines) ? overpaymentLines.filter((l) => Number(l.amountTtc) > 0) : []);
-    if (split.length > 0) {
-      setFreeLines(split.map((l) => ({ label: 'Trop-perçu', bucket: l.bucket, amount: amountText(l.amountTtc) })));
-    } else {
-      setFreeLines(overpaymentTtc > 0 ? [{ label: 'Trop-perçu', bucket: 'accommodation', amount: amountText(overpaymentTtc) }] : []);
-    }
+    const opened = split.length > 0
+      ? split.map((l) => ({ label: 'Trop-perçu', bucket: l.bucket, amount: amountText(l.amountTtc) }))
+      : (overpaymentTtc > 0 ? [{ label: 'Trop-perçu', bucket: 'accommodation', amount: amountText(overpaymentTtc) }] : []);
+    setFreeLines(opened);
+    setOpenedLines(opened);
     setRefundDate(todayIso());
     setMethod(cashSplit.length > 0 ? 'internal' : defaultMethod);
     setReason('');
@@ -206,14 +209,18 @@ export default function RefundDialog({
     }
   };
 
+  const cashPartUntouched = Object.keys(selected).length === 0 && freeLines.length === openedLines.length
+    && freeLines.every((l, i) => l.amount === openedLines[i].amount && l.bucket === openedLines[i].bucket);
+
   return (
     <Dialog open={open} onClose={busy ? undefined : onClose} fullWidth maxWidth="sm" fullScreen={isMobile}>
       <DialogTitle>Nouveau remboursement</DialogTitle>
       <DialogContent dividers>
         <Stack spacing={2}>
           {error && <ErrorAlert message={error} />}
-          {/* Rule 112 (loop t8 UI8-4) — the announcement holds while the dialog gives the cash part back « Caisse interne »: another means drops it. */}
-          {overpaymentTtc > 0 && cashPart && Number(cashPart.amountTtc) > 0 && method === 'internal' && (
+          {/* Rule 112 (loop t8 UI8-4, loop t9 UI9-2) — the announcement holds while the dialog gives the cash part back « Caisse interne »,
+              on the lines it opened with: another means, another amount, another line or a ticked line drop it. */}
+          {overpaymentTtc > 0 && cashPart && Number(cashPart.amountTtc) > 0 && method === 'internal' && cashPartUntouched && (
             <Alert severity="info">
               {formatCurrency(cashPart.amountTtc)} payés en espèces : rendus en caisse interne. Reste {formatCurrency(cashPart.restTtc)} à rembourser ensuite.
             </Alert>

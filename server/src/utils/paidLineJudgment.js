@@ -251,8 +251,20 @@ function begin(db, reservationId) {
     unabsorbed: unabsorbedCents(row), owed: openLoweredCents(db, id), unclaimed: unclaimedCents(notes, facts), refunded: refundedClaimedCents(db, row),
   };
   const owedBack = before.owed > 0 ? noteExcessByKey(db, id) : {};
+  const excessBefore = before.owed > 0 ? noteExcessCents(db, id) : 0;
+  // Loop t9 A9-1 — a SAS write that SPENDS note money owed back (a sale the rule-104 credit pays) leaves the obligation above what was received
+  // beyond the total: it shrinks by what the write consumed, as `syncLoweredObligations` trims it on the fiche's save. Never below what a way
+  // back of the same write (rule 109) already closed.
+  const trimConsumed = () => {
+    if (before.owed <= 0) return;
+    const consumed = excessBefore - noteExcessCents(db, id);
+    if (consumed <= 0) return;
+    const owedNow = openLoweredCents(db, id);
+    const target = Math.max(0, Math.min(owedNow, before.owed - consumed));
+    if (target < owedNow) holdLowered(db, id, target);
+  };
   return {
-    finish({ overpaid = false, forced = false, lineDiscounts = null, holdOwed = false } = {}) {
+    finish({ overpaid = false, forced = false, lineDiscounts = null, holdOwed = false, trimSpent = false } = {}) {
       const removed = paidLines.find(({ table, lineId }) => !db.prepare(`SELECT 1 FROM ${TABLES[table]} WHERE lineId = ? AND reservationId = ?`).get(lineId, id));
       if (removed) return { status: 409, body: { error: PAID_LINE_REMOVED, code: 'LINE_PAID' } };
       const after = db.prepare('SELECT * FROM reservations WHERE id = ?').get(id);
@@ -271,6 +283,7 @@ function begin(db, reservationId) {
       if (overpaid) return null;
       const freed = unclaimedAfter - before.unclaimed;
       if (freed <= 0) {
+        if (trimSpent) trimConsumed();
         // Loop t9 (B9-3 follow-up) — no paid line freed money, yet the stay now holds more beyond its total: a line rule 104's credit had paid
         // was offered, lowered or removed, and the credit comes back. It is owed back again as it was before that line took it — up to what
         // the claims still hold unclaimed (`noteExcessCents`), never more. On a platform stay the register is the only face of that money.

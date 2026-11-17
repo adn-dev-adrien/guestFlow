@@ -139,6 +139,10 @@ geste commercial is recorded as such instead of being billed, hidden, or left pe
 12. **A collected complement is frozen, as today.** The arrival complement already marked
     `complementPaid = 1` is not re-priced by the SAS commit, so its lines cannot be offered from the SAS
     (existing rule, unchanged); the fiche stays the way to fix an over-collected stay.
+    _Reading of 2026-11-16 (stabilisation loop t9, A9-2):_ the recap says so. Its lines of a collected complement are served
+    `offerable: false` and read as stored whatever the draft's offered set (the dialog draws no « Offrir »), and the commit writes no
+    « Offrir » on them (the dead `applyOfferedComplementExtras` call is gone). Before, the dialog offered the toggle, the commit answered 200
+    with a recap « offered, billed 0 » and wrote nothing. Test `sas-arrival-collected-complement-not-offerable`.
 
 ### 3.4 Re-open
 

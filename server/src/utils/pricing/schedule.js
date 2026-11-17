@@ -51,7 +51,7 @@ function planSchedule({
   overrides: { depositAmountOverride, complementAmountOverride },
   receipts: {
     depositPaid, balancePaid, complementPaid, depositAmount, balanceAmount, complementAmount, existingDepositDueDate,
-    paidSoldeCaptured, endOfStayComplementSettled, refundedStayCredit = 0,
+    paidSoldeCaptured, endOfStayComplementSettled, refundedStayCredit = 0, complementCreditPhantom = 0,
   },
   ledger: { splitReceived, installmentPlan },
 }) {
@@ -415,7 +415,9 @@ function planSchedule({
   // Loop t5 S5-2 — what the credit took off each bucket a sale pins (`pinSaleDelta`): the way back gives a bucket only what it took.
   const noteCreditCuts = { complementAmount: 0, balanceAmount: 0, depositAmount: 0 };
   if (noteCredit > 0 && !complementPaid && !complementOverridden) {
-    noteCreditCuts.complementAmount = creditOff(resolvedComplementAmount);
+    // Rule 122 (loop t9 S9-2) — never on the part of it a sale's stay does not store (`complementCreditPhantom`): that credit would be money no
+    // stored bucket gives back, owed while the end-of-stay remainder still asks it. It goes on to the remainder, the solde, the acompte.
+    noteCreditCuts.complementAmount = creditOff(Math.max(0, roundMoney(resolvedComplementAmount - Number(complementCreditPhantom || 0))));
     resolvedComplementAmount = roundMoney(resolvedComplementAmount - noteCreditCuts.complementAmount);
   }
   let creditedLines = midStayLinesWithExcess;

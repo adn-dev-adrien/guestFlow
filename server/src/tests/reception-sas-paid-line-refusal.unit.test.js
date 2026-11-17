@@ -149,7 +149,10 @@ test('A8-1 — arrival: the admin offered a paid line (30 € owed); reception s
   const un = call('commitArrival', id, { offered: [], complementSettled: false }, RECEPTION);
   assert.equal(un.statusCode, 409);
   assert.deepEqual([un.body.error, un.body.code], [RECEPTION_ANSWER, 'LINE_OWED']);
-  assert.doesNotMatch(JSON.stringify(un.body), /\d/);
+  // Loop t9 A9-4 — the refusal names the owed line's recap key (`owedKeys`), and still no amount.
+  const { owedKeys, ...answer } = un.body;
+  assert.deepEqual(owedKeys, [key]);
+  assert.doesNotMatch(JSON.stringify(answer), /\d/);
   assert.deepEqual([row(id), offeredOf(id), owed(id)], [before.row, before.offered, 3000], 'nothing written, still owed');
 
   const kept = call('commitArrival', id, { offered: [{ kind: 'option', id: beer }], complementSettled: false }, RECEPTION);

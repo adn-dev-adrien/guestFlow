@@ -167,6 +167,11 @@ or mutable state.
     > and `support-access.spec.js` leaves it there: the next run on a fresh database in the same folder opened with the banner already up and
     > `page-tabs` measured the strip at 141 then 379 px. `e2e/wipe-db.js` clears that file with the database before every run. Test:
     > `e2e-shared-state-projects`.
+    > _Reading of 2026-11-16 (loop t9, E9-1):_ global-state projects never overlap one another either. The VAT chain depended on
+    > `plugin-toggles` only, so it ran beside `bank-reconciliation`, `laundry-schedule` and `support-access`; the regime switch is guarded by a
+    > fingerprint over the reservations of its period, and `reconciliation-assisted-matching` and `laundry-days` create reservations — one
+    > created between the preview and the click made `vat-regime-switch` stale (409, the dialog stays open) in parallel runs only. `vat-regime`
+    > now depends on all three, so the chain starts once they are done. Same test file (6).
 21. **The server log is an artifact** (2026-10-29 audit R3). The `webServer` of the main project sends the
     server's stdout/stderr to `playwright-server.log` (`GUESTFLOW_E2E_SERVER_LOG` overrides the path) instead of
     a pipe nobody reads, and the failure upload of `e2e.yml` ships it with `playwright-report/`, so a screenshot

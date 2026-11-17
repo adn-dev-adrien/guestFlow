@@ -373,6 +373,8 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
   // A plugin step that changed what the server holds (an order amended at the SAS) asks for the SAS data again: the payload is
   // replaced in place, the wizard keeps its page, and the recap's last answer is forgotten so its figures are read afresh.
   const [dataRevision, setDataRevision] = useState(0);
+  // Rule 117 (loop t9 UI9-1) — whether the plan asks a stay amount, from the latest preview; `null` until one answered in this run.
+  const [planAsksStay, setPlanAsksStay] = useState(null);
   const refreshSasData = useCallback(async () => {
     try {
       setData(await api.getReservationSas(reservationId, mode));
@@ -637,7 +639,9 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
         // specs/collect-stay-payment-at-check-in.md §3.2 rule 5 — the door-money pages are grouped,
         // caution first. Served `applicable: false` when there is nothing to collect (the ordinary
         // prepaid stay) and for a reception-only user, who never sees the stay amounts.
-        data.stayPayment?.applicable ? 'stayPayment' : null,
+        // pricing-components rule 117 (loop t9 UI9-1): once a preview answered, the PLAN decides — a gesture can raise the stay the
+        // stored row leaves at 0, or settle the one it asks. The served block only stands in before the first answer.
+        (planAsksStay ?? Boolean(data.stayPayment?.applicable)) ? 'stayPayment' : null,
         hasOptions ? 'options' : null,
         data.breakfast?.applicable ? 'breakfast' : null,
         r.bedLinenAlert ? 'linen' : null,
@@ -678,7 +682,7 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
       'recap',
     ].filter(Boolean), shownPluginSteps);
   }, [data, mode, r, linenOk, missingAsk, extinguisherOk, pluginSteps, pluginStepData, sasLock,
-    breakfastSold, cateringWanted, portalLead]);
+    breakfastSold, cateringWanted, portalLead, planAsksStay]);
 
   const goNext = useCallback(() => {
     const i = activeKeys.indexOf(stepKey);
@@ -707,6 +711,17 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
     if (!stepKey || activeKeys.length === 0 || activeKeys.includes(stepKey) || !pluginSteps.some((c) => c.key === stepKey)) return;
     setStepKey(activeKeys.includes('recap') ? 'recap' : activeKeys[activeKeys.length - 1]);
   }, [activeKeys, stepKey, pluginSteps]);
+
+  // The stay page left by the plan (rule 117, loop t9 UI9-1): the operator is on it when the answer says nothing is due — go on to the
+  // page that followed it rather than leave « Suivant » reading an index of -1.
+  const previousKeysRef = useRef(activeKeys);
+  useEffect(() => {
+    const previous = previousKeysRef.current;
+    previousKeysRef.current = activeKeys;
+    if (stepKey !== 'stayPayment' || activeKeys.length === 0 || activeKeys.includes(stepKey)) return;
+    const after = previous.slice(previous.indexOf(stepKey) + 1).find((key) => activeKeys.includes(key));
+    setStepKey(after || 'recap');
+  }, [activeKeys, stepKey]);
 
   // ---- totals ----
   // specs/sas-offer-complement-lines.md §3.1 — every billable line carries `offerKey` (its identity in
@@ -803,6 +818,10 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
     resetKey: `${open ? 1 : 0}:${reservationId}:${mode}:${dataRevision}`,
   });
   const recap = preview.recap;
+  useEffect(() => { setPlanAsksStay(null); }, [open, reservationId, mode, dataRevision]);
+  useEffect(() => {
+    if (mode === 'arrival' && recap) setPlanAsksStay(Boolean(recap.stayPayment?.applicable));
+  }, [mode, recap]);
   // Mock M3 — « Percevoir maintenant »: the lines the stay sold for its departure join what is collected at the door. The line API moves
   // them (the server refuses a moment that is no longer possible); the SAS payload and the recap are read again, the wizard stays where it is.
   const collectSalesNow = async (refs) => {
@@ -936,6 +955,11 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
       if (e?.code === 'OVERPAID' && e.overpaymentTtc === undefined && Array.isArray(e.overpaymentKeys) && e.overpaymentKeys.length > 0) {
         const refused = e.overpaymentKeys;
         setOffered((prev) => new Set([...prev].filter((key) => !refused.includes(key))));
+      }
+      // Loop t9 A9-4 — a paid line whose money is owed back stays offered for reception: the lines the refusal names go back to offered.
+      if (e?.code === 'LINE_OWED' && Array.isArray(e.owedKeys) && e.owedKeys.length > 0) {
+        const owed = e.owedKeys;
+        setOffered((prev) => new Set([...prev, ...owed]));
       }
       if (e?.code !== 'OVERPAID' || e.overpaymentTtc === undefined) throw e;
       const amount = formatCurrency(Number(e.overpaymentTtc) || 0);
@@ -1311,7 +1335,7 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
         );
       case 'stayPayment':
         return (
-          <SasStayPaymentPage stayPayment={recap?.stayPayment?.applicable ? recap.stayPayment : data.stayPayment} value={stayPayMode}>
+          <SasStayPaymentPage stayPayment={recap ? recap.stayPayment : null} value={stayPayMode}>
             <PaymentModeButtons value={stayPayMode} onChange={setStayPayMode} showDefer deferLabel="Pas maintenant" />
           </SasStayPaymentPage>
         );
