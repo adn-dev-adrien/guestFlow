@@ -29,9 +29,15 @@ function settlementLedgerRow(settlement, installments) {
   return null;
 }
 
-/** What a sale outside a stay is, as a Mollie source. */
-function saleSource(sale) {
-  const invoiceNumber = sale.invoiceNumber ? String(sale.invoiceNumber) : null;
+/**
+ * What a sale outside a stay is, as a Mollie source. Loop t10 D10-1 (rule 33): a document paid on several days lists one sale per day, each
+ * carrying the same invoice number; only ONE of them is the `invoice` source (`owners`: invoice number → the key of that sale, see
+ * `invoiceOwners`), every other day is a `tender` source of its own — two card payments are two splits, never one. Without `owners` the
+ * sale keeps its number (a plugin's booking is one sale per invoice).
+ */
+function saleSource(sale, owners = null) {
+  const numbered = sale.invoiceNumber ? String(sale.invoiceNumber) : null;
+  const invoiceNumber = numbered && (!owners || !owners.has(numbered) || owners.get(numbered) === String(sale.key)) ? numbered : null;
   return {
     sourceType: invoiceNumber ? SOURCE_TYPES.invoice : SOURCE_TYPES.tender,
     sourceKey: invoiceNumber || `sale:${sale.key}`,
@@ -40,9 +46,40 @@ function saleSource(sale) {
   };
 }
 
+const listSales = (from, to) => sdk.coreModule('standaloneSales').list({ from, to });
+
+/**
+ * Rule 33 — the sale that carries each invoice number of `sales`: the first day of its document paid by card (the Mollie payment the
+ * invoice was paid by), else its first day. Read over every sale up to `to`, so a later day never takes the number from an earlier one
+ * outside the window. A refund or a tip is never the invoice's day.
+ */
+function invoiceOwners(sales, to) {
+  const numbers = new Set(sales.filter((s) => s.invoiceNumber).map((s) => String(s.invoiceNumber)));
+  if (numbers.size === 0) return new Map();
+  const last = [to, ...sales.map((s) => s.date)].filter(Boolean).sort().pop();
+  const days = new Map();
+  listSales('2020-01-01', last).forEach((sale) => {
+    const number = sale.invoiceNumber ? String(sale.invoiceNumber) : null;
+    if (!number || !numbers.has(number) || sale.role) return;
+    days.set(number, [...(days.get(number) || []), sale]);
+  });
+  const owners = new Map();
+  days.forEach((list, number) => {
+    const owner = list.find((sale) => Number(sale.cardCents) > 0) || list[0];
+    owners.set(number, String(owner.key));
+  });
+  return owners;
+}
+
+/** The sources of `sales` (a list of `standaloneSales`), one per sale, each invoice number on one sale only (rule 33). */
+function sourcesOfSales(sales, to) {
+  const owners = invoiceOwners(sales, to);
+  return sales.map((sale) => saleSource(sale, owners));
+}
+
 /** Every sale outside a stay since `from`, with the source it would be. */
 function salesSince(from, to) {
-  return sdk.coreModule('standaloneSales').list({ from, to }).map(saleSource);
+  return sourcesOfSales(listSales(from, to), to);
 }
 
 /**
@@ -50,7 +87,8 @@ function salesSince(from, to) {
  * is looked up in. Every invoice counts, whatever tender was typed: the Mollie payment is the proof of the card.
  */
 function invoiceSources(today) {
-  return new Map(salesSince('2020-01-01', today).filter((s) => s.sale.invoiceNumber)
+  // Rule 33 — one sale per number: the day that carries the invoice (`invoiceOwners`), never the last day listed.
+  return new Map(salesSince('2020-01-01', today).filter((s) => s.sourceType === SOURCE_TYPES.invoice)
     .map((s) => [String(s.sale.invoiceNumber), { sourceType: s.sourceType, sourceKey: s.sourceKey, reservationId: null, ledgerKey: s.ledgerKey }]));
 }
 
@@ -100,4 +138,6 @@ function cardCandidates({ rows, linksOf, installmentsOf, settlementsOf, startDat
   return out;
 }
 
-module.exports = { cardCandidates, salesSince, saleSource, invoiceSources, settlementLedgerRow };
+module.exports = {
+  cardCandidates, salesSince, saleSource, sourcesOfSales, invoiceOwners, invoiceSources, settlementLedgerRow,
+};
