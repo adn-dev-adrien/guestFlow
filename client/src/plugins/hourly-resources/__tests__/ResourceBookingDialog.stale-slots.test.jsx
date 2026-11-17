@@ -8,9 +8,9 @@ vi.mock('../../../api', () => ({
   __esModule: true,
   default: {
     getOccupiedSlots: vi.fn(),
-    getClientPicker: vi.fn().mockResolvedValue({ options: [] }),
-    getProperties: vi.fn().mockResolvedValue([]),
-    previewResourceBooking: vi.fn().mockResolvedValue({ total: 0 }),
+    getClientPicker: vi.fn(() => Promise.resolve({ options: [] })),
+    getProperties: vi.fn(() => Promise.resolve([])),
+    previewResourceBooking: vi.fn(() => Promise.resolve({ total: 0 })),
   },
 }));
 

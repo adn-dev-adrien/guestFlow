@@ -497,6 +497,16 @@ being on the preload's lists fails the run once the suite executes the read (rul
    unchanged: a detached instance is what the systemd units it stands for do. *Why:* a cut-off
    `hosting-lifecycle.integration.test.js` left its GuestFlow instance listening under ppid 1 and its `cp-h1-*` tree
    (≈ 1.6 GB) in the temp directory: the `finally` that stops it never ran.
+21. **A client test never inherits a mock another test set** (added 2026-11-17, flaky `InstallmentPlanCard`).
+   `client/vitest.config.js` sets `mockReset: true`: before each test every mock goes back to the implementation given
+   to `vi.fn(impl)` and loses every `mockReturnValue` / `mockResolvedValue` / `mockRejectedValue` / `mockImplementation`
+   and every pending « once » answer set since. A default a whole file needs is therefore written as `vi.fn(impl)` (in
+   the `vi.mock` factory or at the top of the file), or set in a `beforeEach` — never as `vi.fn().mockResolvedValue(x)`,
+   which the reset empties. State a module keeps across tests (a registry that only grows) is reloaded per test
+   (`vi.resetModules()` + `await import`). `npm run test:shuffle` runs the suite in a random order to find what still
+   depends on it; like the rule 11 sweep it is manual, never part of CI. *Why:* `vi.clearAllMocks()` clears the calls,
+   not the implementations — a `mockRejectedValue('Échéance 2 : date passée…')` of one test answered an extra call of the
+   next one on a loaded runner, and 222 files carried that pattern.
 
 **Edge cases:**
 - A targeted `node --test <file>` used to open and migrate `server/guestflow.db` for 389 test files (audit R2,
@@ -553,7 +563,7 @@ being on the preload's lists fails the run once the suite executes the read (rul
 
 ### 4.2 Client side
 
-API, data model and UI are unchanged. Rules 11 and 17 only:
+API, data model and UI are unchanged. Rules 11, 17 and 21 only:
 
 | Layer | File | T/C | Responsibility in this change |
 |---|---|---|---|
@@ -561,6 +571,9 @@ API, data model and UI are unchanged. Rules 11 and 17 only:
 | `src/` | `setupSlowScheduler.js` | C | Delays every `setImmediate` (React's scheduler) by `SCHED_DELAY` ms, and drains the delayed ones before each file's jsdom is torn down. |
 | `client/` | `package.json` | T | `test:slow-scheduler` script. |
 | `client/` | `vitest.config.js` | T | Rule 17: `testTimeout: 30000` for every test. |
+| `client/` | `vitest.config.js` | T | Rule 21: `mockReset: true`. |
+| `client/` | `package.json` | T | Rule 21: `test:shuffle` script. |
+| `src/**/__tests__/` | the 25 files that leaned on a lasting mock answer, and `PlatformChip.display-name` | T | Rule 21: `vi.fn(impl)` defaults; a fresh `constants/platforms` per test (tests only, no plugin version bump). |
 | `src/` | `setupTests.js` | T | Rule 17: `configure({ asyncUtilTimeout: 5000 })` for every `findBy*` / `waitFor`. |
 | `src/**/__tests__/` | the rule-16 files | T | Rule 17: per-test timeouts dropped (tests only, no plugin version bump). |
 | `src/**/__tests__/` | `VatRegimeSwitchDialog.switch`, `SupportAccessBanner.states`, `LazyPage.loading`, `UpdateAvailableAlert`, `EmailSettingsPage.identity`, `EmailSettingsPage.social-links`, `PlatformAccountsPage`, `ReconciliationPage.filters`, `TariffRecipeCard`, `TariffRecipeCard.cleaning-fee`, `TariffRecipeCard.extra-guest-config`, `TariffRecipesPage`, `SettingsGoogleCalendarSection`, `ResourcePlanningPage.stale-bookings`, `ReservationSasDialog.plugins`, `CompensationsPage` | T | Await the post-condition (tests only, no plugin version bump). |
@@ -569,6 +582,8 @@ Server side, rule 11: `tests/client-effect-race-sweep.unit.test.js` (C) pins the
 delay, and the sweep's absence from the normal config and from every CI workflow.
 Server side, rule 17: `tests/client-test-budget.unit.test.js` (C) pins the two budgets and the rule-16 files'
 dropped timeouts.
+Server side, rule 21: `tests/client-mock-reset.unit.test.js` (C) pins `mockReset`, the shuffle script and its
+absence from CI.
 
 ## 7. Test plan
 
@@ -614,6 +629,14 @@ dropped timeouts.
   test` preloads `fileTempRoot.js` and the lifecycle integration test requires it first. The two cut-offs were red with
   an empty preload (the instance outlived its file). Replayed on the real `hosting-lifecycle.integration.test.js`: its
   file process SIGKILLed 3 s in, with its instance up, left no process and an empty `TMPDIR`.
+- [x] Rule 21 (2026-11-17): `server/src/tests/client-mock-reset.unit.test.js` (3 tests) — `mockReset: true` in
+  `client/vitest.config.js`, the `test:shuffle` script, and the shuffle absent from the normal config and every workflow;
+  the first 2 red on master. Turning the reset on failed 72 tests in 25 client files, each one leaning on a
+  `vi.fn().mockResolvedValue(x)` default the reset empties; rewritten as `vi.fn(() => Promise.resolve(x))` (and the
+  `mockReturnValue` / `mockRejectedValue` / `mockImplementation` forms alike), the whole suite is green: 906 files, 4 112
+  tests. Four `npm run test:shuffle` runs (seeds 7919 to 31676): one order-dependent test found,
+  `PlatformChip.display-name` (the display names of a previous test already loaded), fixed by a fresh module per test;
+  the four seeds then green.
 
 ## 8. Out of scope
 

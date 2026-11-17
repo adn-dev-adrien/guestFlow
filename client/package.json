@@ -8,7 +8,8 @@
     "build": "vite build",
     "preview": "vite preview",
     "test": "vitest run",
-    "test:slow-scheduler": "vitest run --config vitest.slow-scheduler.config.js"
+    "test:slow-scheduler": "vitest run --config vitest.slow-scheduler.config.js",
+    "test:shuffle": "vitest run --sequence.shuffle.tests"
   },
   "dependencies": {
     "@emotion/react": "^11.11.0",

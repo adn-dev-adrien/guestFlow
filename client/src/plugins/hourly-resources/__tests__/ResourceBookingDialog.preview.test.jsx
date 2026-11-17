@@ -8,9 +8,9 @@ import { render, screen, fireEvent, waitFor, act } from '@testing-library/react'
 vi.mock('../../../api', () => ({
   __esModule: true,
   default: {
-    getOccupiedSlots: vi.fn().mockResolvedValue({ occupiedSlots: [] }),
-    getClientPicker: vi.fn().mockResolvedValue({ options: [] }),
-    getProperties: vi.fn().mockResolvedValue([]),
+    getOccupiedSlots: vi.fn(() => Promise.resolve({ occupiedSlots: [] })),
+    getClientPicker: vi.fn(() => Promise.resolve({ options: [] })),
+    getProperties: vi.fn(() => Promise.resolve([])),
     previewResourceBooking: vi.fn(),
   },
 }));
@@ -31,7 +31,7 @@ const PRICE = (total, extra = {}) => ({
 });
 
 function mount(props = {}) {
-  const onSave = vi.fn().mockResolvedValue({});
+  const onSave = vi.fn(() => Promise.resolve({}));
   const onClose = vi.fn();
   render(<ResourceBookingDialog open resource={RESOURCE} booking={BOOKING} onClose={onClose} onSave={onSave} onDelete={() => {}} {...props} />);
   return { onSave, onClose };

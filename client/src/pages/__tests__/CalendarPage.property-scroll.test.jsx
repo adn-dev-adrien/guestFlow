@@ -11,11 +11,11 @@ import theme from '../../theme';
 vi.mock('../../api', () => ({
   __esModule: true,
   default: {
-    getProperties: vi.fn().mockResolvedValue([{ id: 1, name: 'Gite' }, { id: 2, name: 'Aventura lodge' }]),
-    getProperty: vi.fn().mockResolvedValue({ id: 1, name: 'Gite', cleaningHours: 3 }),
-    getCalendar: vi.fn().mockResolvedValue({ from: '2026-03-01', to: '2026-03-31', today: '2026-03-15', stays: [], closures: [] }),
-    getCalendarNotes: vi.fn().mockResolvedValue([]), getDevis: vi.fn().mockResolvedValue([]),
-    getOccupiedDates: vi.fn().mockResolvedValue([]), getPublicHolidays: vi.fn().mockResolvedValue([]),
+    getProperties: vi.fn(() => Promise.resolve([{ id: 1, name: 'Gite' }, { id: 2, name: 'Aventura lodge' }])),
+    getProperty: vi.fn(() => Promise.resolve({ id: 1, name: 'Gite', cleaningHours: 3 })),
+    getCalendar: vi.fn(() => Promise.resolve({ from: '2026-03-01', to: '2026-03-31', today: '2026-03-15', stays: [], closures: [] })),
+    getCalendarNotes: vi.fn(() => Promise.resolve([])), getDevis: vi.fn(() => Promise.resolve([])),
+    getOccupiedDates: vi.fn(() => Promise.resolve([])), getPublicHolidays: vi.fn(() => Promise.resolve([])),
     upsertCalendarNote: vi.fn(), deleteCalendarNote: vi.fn(),
   },
 }));

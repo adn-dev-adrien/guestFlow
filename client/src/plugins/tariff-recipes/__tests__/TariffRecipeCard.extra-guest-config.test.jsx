@@ -11,10 +11,10 @@ vi.mock('../../../api', () => ({
   __esModule: true,
   default: {
     getTariffRecipes: vi.fn(),
-    getTariffRecipe: vi.fn().mockResolvedValue({ recipe: null }),
+    getTariffRecipe: vi.fn(() => Promise.resolve({ recipe: null })),
     previewTariffRecipe: vi.fn(),
-    applyTariffRecipe: vi.fn().mockResolvedValue({ applied: true }),
-    detachTariffRecipe: vi.fn().mockResolvedValue({ ok: true }),
+    applyTariffRecipe: vi.fn(() => Promise.resolve({ applied: true })),
+    detachTariffRecipe: vi.fn(() => Promise.resolve({ ok: true })),
   },
 }));
 

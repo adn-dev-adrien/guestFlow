@@ -14,7 +14,7 @@ vi.mock('../../components/sas/ReservationSasDialog', () => ({ default: () => nul
 vi.mock('../../api', () => ({
   default: {
     getPlanningDays: vi.fn(async (range) => (await import('./planningDaysFixtures')).daysPayload(range)),
-    getToday: vi.fn().mockResolvedValue({ today: '2026-10-25' }),
+    getToday: vi.fn(() => Promise.resolve({ today: '2026-10-25' })),
   },
 }));
 

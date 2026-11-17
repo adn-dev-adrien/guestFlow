@@ -24,6 +24,9 @@ export default defineConfig({
     // specs/server-test-isolation.md rule 17 — one budget for every test on a loaded runner, instead of Vitest's 5 s
     // default and per-file overrides; `setupTests.js` gives Testing Library's waits their share of it.
     testTimeout: 30000,
+    // specs/server-test-isolation.md rule 21 — every mock goes back to its own `vi.fn(impl)` before each test, "once"
+    // answers included: an implementation one test set never answers the next one's call.
+    mockReset: true,
     // Single-run mode in CI; honor --watch from the CLI for local dev.
     watch: false,
   },
