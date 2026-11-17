@@ -221,6 +221,11 @@ becomes **the remainder** — collected at check-out exactly as today.
     whose outcome is already known, so a failed one never turns a stored write into an error (a ledger mark, the arrival
     payment, a penalty removed, a link settled) nor leaves a mark waiting. Test: client
     `FinanceSection.settle-reread-fails` (2 cases).
+    *Reading 2026-11-17 (stabilisation loop t14, UI14-1).* A refused SAVE is a refusal too: when the fiche's save before the
+    settlement (or before « En fin de séjour ») answers no — a validation alert, a declined confirmation, the fiche re-reading
+    after a sale (pricing-components rule 101) — the dialog stays open on what was ticked and nothing is settled. The opening
+    snapshot is kept, since nothing was stored. Before, the dialog closed as on a payment. Test: client
+    `ReservationPage.quiet-reread`.
 
 **Edge cases:**
 

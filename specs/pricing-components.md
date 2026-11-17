@@ -2073,6 +2073,15 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
     payment requests) share the one save, which refuses while the re-read is in flight or has failed, as it does mid-switch (per-property-default-options
     rule 11). Before, « Envoyer la demande de solde » during a failed re-read saved the pre-sale form, deleting the sold line, and sent the link
     without it. Vitest `ReservationPage.quiet-reread`.
+    _Reading 2026-11-17 (loop t14, UI14-1/UI14-2):_ a refused save is shown, never silent. One flag (`saveBlocked` = re-read in flight, re-read
+    failed, logement being switched) refuses the save and disables every bar action that saves first: « Nouvelle note (encaissement en séjour) »,
+    « Télécharger PDF », the devis « Statut » select (« Accepté » saves then converts), « Envoyer la demande de paiement » and « Envoyer la
+    demande de solde ». Their tooltip, and on a phone the line beneath the item in « Plus d'actions », reads « Fiche à relire. »; they come back
+    when the re-read lands or « Réessayer » succeeds. And the note dialog treats a refused save as a failure: « CB / Chèque », « Caisse interne », the split
+    collection and « En fin de séjour » keep it open on what was ticked, nothing recorded, its opening kept so « Annuler » still puts the form back
+    (mid-stay-notes rule 24). Before, during a failed re-read the bar's « Nouvelle note » opened, « CB / Chèque » closed the dialog as on a
+    payment, and nothing was saved nor settled, with no message; the PDF and the payment requests did nothing. Vitest
+    `ReservationPage.quiet-reread`.
 102. **One moment per gesture: the stay clock decides the lock, the sale, the baseline, the SAS and the change of an order** _(stabilisation loop t2,
     N-1 to N-6, 2026-11-16; amends rule 20's first bullet, completes rules 44, 45, 93, 94, guest-app rules 82, 110 a)_. Before, two clocks answered
     « has this stay started? »: the fiche lock (`hasStayStarted`: the check-in hour, or the arrival marked or the arrival SAS committed) and the sale
@@ -2634,6 +2643,7 @@ All of it is plain CommonJS functions and objects (rule 56).
 | `controllers/` | `extraSalesController.js` | C | the endpoints of §4.3 |
 | `models/` | `reservationsModel.js` | T | `planArrivalSas`/`planDepartureSas`/`commit*Sas` delegate pricing to `extraSale` and buckets to SETTLEMENT; `settleOrderNoteBeforeArrival`, `keepStay` removed |
 | `utils/` | `storedReservationQuote.js` | T | `pinOrderGrowth` removed; `storedStayPrice` added |
+| `utils/` | `storedCustomLines.js` | T (loop t13 S13-1) | `renamedCustomLineFacts`: a renamed free line's engine facts (discount, moment, sale date) move to its new text, on the save and on its preview (rule 79 reading 2026-11-17); `customOptionTexts` returns the row's `lineId` |
 | `utils/` | `midStayOrderCommit.js` | **removed** (PR C, C30 done 2026-11-13) | replaced by `extraSale`; the line merge, persons ceiling and remainder delta moved to `utils/stayOrderLines.js`; `coreModule('midStayOrderCommit')` is a thin alias (`plugins/sdk/midStayOrderCommit.js`: `priceOrder` → `extraSale.quote`, `commitOrder` → `extraSale.sell`, `mergeOrderLines`; Q-C10) |
 | `utils/` | `sasOptionSale.js`, `complementPaidSplit.js` (`prepaidNetter`), `arrivalPaymentDetail.js`, `paymentLinkItems.js` | T → removed / thinned (PR B) | read `saleDetail`, SETTLEMENT and VAT instead of re-deriving |
 | `utils/` | `financeCalcs.js`, `touristTaxReportModel` | T (PR B) | call TOURIST TAX directly |
@@ -2964,7 +2974,7 @@ _Rewritten 2026-11-15 (stabilisation loop t1, UI-3) to what shipped._
 - [x] `ReservationSasDialog.stay-step-credit` — rules 117, 118 (loop t9, O9-1): stored solde 30, the plan credits it to 0 → the stored 30 € is never shown, no stay page, nothing marked paid (1)
 - [x] `ReservationSasDialog.reception-owed-keys` — reception rule 18 reading (loop t9, A9-4): LINE_OWED's `owedKeys` go back to offered, the next « Valider » sends them (1)
 - [x] `ReservationPage.extra-sales-panel` — rule 101 (UI2-1 to UI2-4): a started stay with the window open sells and moves its lines, a collected departure does not, the fiche's `saleDetail` read once, a dirty fiche holds the writes and keeps the typed note, a write on a clean fiche re-reads without the loading screen, and while the re-read is in flight the fiche is busy (fields read-only, « Enregistrer » disabled)
-- [x] `ReservationPage.quiet-reread` — rule 101 (loop t3 UI3-1 to UI3-3): the selects refuse to open during the re-read, before and after its form lands; the summary keeps the last quote and the quote is asked again; a failed re-read keeps the page read-only with « Réessayer », and the retry brings the form back; a save-first action saves nothing while the re-read is in flight or has failed (loop t13 UI13-1)
+- [x] `ReservationPage.quiet-reread` — rule 101 (loop t3 UI3-1 to UI3-3): the selects refuse to open during the re-read, before and after its form lands; the summary keeps the last quote and the quote is asked again; a failed re-read keeps the page read-only with « Réessayer », and the retry brings the form back; a save-first action saves nothing while the re-read is in flight or has failed (loop t13 UI13-1); the bar's save-first actions are disabled with « Fiche à relire. » (desktop and the phone's « Plus d'actions »), and a refused save keeps « Nouvelle note » open with nothing settled (loop t14 UI14-1/UI14-2)
 - [x] `ExtraSalesPanel.fiche-reload` — rules 27, 30: every accepted write asks the fiche to re-read, a refused one does not; a locked panel offers no action; a failed read shows « Réessayer »
 - [x] `SaleDetailList.moment`, `SaleDetailList.groups`, `SaleDetailList.discount` — rules 13, 31, 95: the moment menu lists the line's `moments`, the groups, the discount chips
 - [x] `StaySalesSection.accessibility` — rules 31, 32: the SAS sections' accessible names and targets

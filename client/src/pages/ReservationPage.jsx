@@ -147,6 +147,8 @@ function parseCustomPrice(value) {
 // specs/payment-link-lifecycle.md rule 46 (audit R12-C1) — the devis is built from the stored stay, not the typed values;
 // payment-schedule-and-cancellation §6 (audit R44-C-L2) — « Annuler le séjour » and « Supprimer » wait for the save too.
 const SAVE_FIRST_REASON = "Enregistrer d'abord les modifications.";
+// Pricing-components rule 101 (reading 2026-11-17, loop t14) — why a save-first action of the bar is disabled while the fiche re-reads.
+const SAVE_BLOCKED_REASON = 'Fiche à relire.';
 // Rule 101 — the sale is stored, the fiche could not read it back: it stays read-only until a retry succeeds.
 const REREAD_FAILED_MESSAGE = 'Fiche non relue après la vente.';
 // The clean baseline of a prefilled devis: no form snapshot equals it (rule 51).
@@ -606,7 +608,10 @@ export default function ReservationPage() {
   const isClosedFiche = isCancelledReservation || isSupersededReservation;
   // Rule 101 — a closed fiche and a fiche being re-read after a sale take no input. The fieldset disables the native
   // fields; an MUI Select is a div, so the sections read this flag for their selects too.
-  const formReadOnly = isClosedFiche || rereading || rereadFailed || switchingProperty;
+  // Rule 101 (reading 2026-11-17, loop t14 UI14-1) — the one flag every save, and every bar action that saves first, reads:
+  // the save refuses while it is set, so those actions are disabled rather than doing nothing.
+  const saveBlocked = rereading || rereadFailed || switchingProperty;
+  const formReadOnly = isClosedFiche || saveBlocked;
   // `typedAtParty` / `typedAtNights` only say what a number was typed against during this edit: they
   // are not a change of their own (specs/non-card-option-served-persons.md rule 23). A client typed for a stay not
   // saved yet lives outside the form and is an edit too (specs/ui-review-2026-10-19-operations.md rule 40, R24-1).
@@ -2475,7 +2480,7 @@ export default function ReservationPage() {
     // Every save-first caller (PDF, payment or balance request, status « Accepté », the unsaved-changes dialog) passes here:
     // mid-switch the logement is the new one while the options are still the old one's (per-property-default-options rule 11);
     // during a panel sale's re-read the form is older than the server's and would delete the sold line (pricing-components rule 101).
-    if (switchingProperty || rereading || rereadFailed) return false;
+    if (saveBlocked) return false;
 
     if (!selectedProp) {
       await alert({ title: 'Erreur', message: 'Logement à sélectionner.' });
@@ -3096,7 +3101,7 @@ export default function ReservationPage() {
   const rereadFiche = () => { quietReloadRef.current = true; setRereading(true); setReloadToken((token) => token + 1); };
 
   const handleSaveClick = async () => {
-    if (rereading || rereadFailed || switchingProperty) return;
+    if (saveBlocked) return;
     setSaving(true);
     try {
       await handleSaveReservation();
@@ -3749,14 +3754,21 @@ export default function ReservationPage() {
     today: todayStr,
   });
 
+  // Rule 101 (reading 2026-11-17, loop t14 UI14-1/UI14-2) — a bar action that saves first is disabled while the save refuses;
+  // the phone's overflow menu prints its name with the reason beneath.
+  const heldWhileRereading = (action) => (saveBlocked
+    ? { ...action, tooltip: SAVE_BLOCKED_REASON, ariaLabel: `${action.label} : ${SAVE_BLOCKED_REASON}`, disabled: true }
+    : { ...action, tooltip: action.tooltip || action.label });
+
   const actionBarBefore = isClosedFiche ? [] : [
-    ...(midStayNote.visible ? [{
+    ...(midStayNote.visible ? [heldWhileRereading({
       icon: <PointOfSaleIcon />,
+      label: 'Nouvelle note (encaissement en séjour)',
       tooltip: midStayNote.disabled ? midStayNote.reason : 'Nouvelle note (encaissement en séjour)',
       onClick: () => setMidStayNoteOpen(true),
       color: 'success',
       disabled: midStayNote.disabled,
-    }] : []),
+    })] : []),
     ...(!isDevisMode && !reservationId
       ? [{ icon: <DescriptionIcon />, tooltip: 'Créer un devis', onClick: handleCreateDevisFromForm, color: 'info' }] : []),
     // Réservation PLATEFORME → pas de devis : le tarif a été fixé par la plateforme, nous ne
@@ -3784,7 +3796,7 @@ export default function ReservationPage() {
         }] : []),
     ...(isDevisMode ? [{
       node: (
-        <FormControl size="small" sx={{ minWidth: 150 }}>
+        <FormControl size="small" sx={{ minWidth: 150 }} disabled={saveBlocked}>
           <InputLabel>Statut</InputLabel>
           <Select value={form.status || 'draft'} label="Statut" onChange={(e) => handleDevisStatusChange(e.target.value)}>
             {DEVIS_STATUS_OPTIONS.map((opt) => (
@@ -3814,18 +3826,18 @@ export default function ReservationPage() {
       ),
     }] : []),
     ...(isDevisMode
-      ? [{ icon: <DescriptionIcon />, tooltip: 'Télécharger PDF', onClick: handleOpenDevisPdf, color: 'info', disabled: !editingDevisId }] : []),
+      ? [heldWhileRereading({ icon: <DescriptionIcon />, label: 'Télécharger PDF', onClick: handleOpenDevisPdf, color: 'info', disabled: !editingDevisId })] : []),
     // specs/online-payments-qonto.md §3.4 — generate + send the deposit payment link for this devis,
     // while a payment provider is ready (specs/plugins-phase-3a-online-payment.md rule 18).
     ...(onlinePayment && isDevisMode && editingDevisId
-      ? [{ icon: <PaymentsIcon />, tooltip: 'Envoyer la demande de paiement', onClick: handleSendPaymentRequest, color: 'success' }] : []),
+      ? [heldWhileRereading({ icon: <PaymentsIcon />, label: 'Envoyer la demande de paiement', onClick: handleSendPaymentRequest, color: 'success' })] : []),
     // specs/public-online-deposit.md §3 rule 8 — send/re-send the balance link when the deposit was
     // collected online but the solde is still due (reservation, positive balance, not yet paid).
     // Réservation PLATEFORME exclue : le solde est encaissé par la plateforme et nous est reversé,
     // on ne le réclame jamais au client — envoyer ce lien serait une double demande de paiement.
     ...(onlinePayment && !isDevisMode && editingReservationId && !isPlatformReservation
       && !form.balancePaid && Number(shownQuote?.balanceAmount || 0) > 0
-      ? [{ icon: <RequestQuoteIcon />, tooltip: 'Envoyer la demande de solde', onClick: handleSendBalanceRequest, color: 'info' }] : []),
+      ? [heldWhileRereading({ icon: <RequestQuoteIcon />, label: 'Envoyer la demande de solde', onClick: handleSendBalanceRequest, color: 'info' })] : []),
   ];
 
   // specs/calendar-property-parity.md rules 22, 24, 31 — « Rétablir » a duplicate set aside; the server refuses
@@ -4053,7 +4065,7 @@ export default function ReservationPage() {
         actionsBefore={actionBarBefore}
         onSave={isClosedFiche ? undefined : handleSaveClick}
         saveTooltip={isDevisMode ? 'Enregistrer le devis' : 'Enregistrer'}
-        saveDisabled={saving || rereading || rereadFailed || switchingProperty || !(isDirty || touristTaxRefreshRequested)}
+        saveDisabled={saving || saveBlocked || !(isDirty || touristTaxRefreshRequested)}
         saveBusy={saving || rereading || switchingProperty}
         onCancel={goBackToOrigin}
         actionsAfter={actionBarAfter}
@@ -4148,7 +4160,7 @@ export default function ReservationPage() {
         <Box
           component="fieldset"
           disabled={formReadOnly}
-          inert={rereading || rereadFailed || switchingProperty || undefined}
+          inert={saveBlocked || undefined}
           aria-busy={rereading || switchingProperty || undefined}
           sx={{
             position: 'relative', border: 0, p: 0, m: 0, minWidth: 0,
