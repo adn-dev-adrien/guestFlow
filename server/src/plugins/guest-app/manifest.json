@@ -16,7 +16,7 @@
   ],
   "requires": [],
   "guestflow": ">=3.10.0",
-  "sdk": "^2.31.0",
+  "sdk": "^2.32.0",
   "changelog": {
     "1.0.0": [
       "Première version : réglages par logement, code QR de chaque logement (livret seul), lien « Mon séjour » propre à chaque séjour (sas d’arrivée, e-mails, fiche), sessions de séjour, page d’accueil, catalogue de la boutique, créneaux des ressources à l’heure lus dans le planning, horaires du service et heures de livraison, livret d’accueil par logement (pages partagées, publication, recherche, photos), suggestion Soliomap, affiche du code QR, commandes du séjour (sur la note, à 0 € ou par carte, inscrites sur la fiche), commandes clients côté équipe, stock par article (épuisé, alertes), commandes livrées ou à retirer, portail du séjour, Studio lu en direct depuis GuestFlow, manifeste d’installation et service de l’application clients et du Studio, l’application clients « Mon séjour » (téléphone, tablette, ordinateur, hors ligne pour le livret), le Studio du livret et, dans GuestFlow, la section « Application clients » des options et ressources, la page « Commandes clients », la carte du planning et le lien « Mon séjour » de la fiche.",
@@ -95,7 +95,7 @@
       "Passé l’heure d’arrivée, une commande modifiée à la porte tant que l’arrivée n’est pas validée reste réglée à l’arrivée : la ligne se retire et ce qui reste n’est plus compté au départ ; le supplément de soirée d’une commande porte la clé de son bain.",
       "Une commande ne se modifie plus « à l’arrivée » une fois l’arrivée validée ou son complément encaissé : elle se règle au départ.",
       "À l’arrivée, une commande d’un séjour dont les ventes se règlent déjà au départ (arrivée cochée puis décochée après un encaissement) est affichée non modifiable jusqu’à l’heure d’arrivée, et le refus le dit sans parler d’arrivée validée.",
-      "Demande GuestFlow 4.2 (SDK 2.31)."
+      "Demande GuestFlow 4.2 (SDK 2.32)."
     ]
   }
 }

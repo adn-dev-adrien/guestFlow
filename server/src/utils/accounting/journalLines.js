@@ -5,7 +5,7 @@
  *   { role, side: 'debit' | 'credit', amountCents, vatRate?, vatCents?, account? }
  * `role` is `customer`, `revenue:<class>` (`accommodation`, `options`, `customOptions`, `resources`, `activities`,
  * `compensation`, `indemnity`, `discount`, `tip`, `closing`), `vat:<rate>`, `touristTax`, `commission`, `commissionVat`
- * or `penalty`. `account` is present only when the entry itself pins one (a configured compensation account, a platform's
+ * `penalty`, or the Mollie journal's `mollieDebit` / `mollieClearing`. `account` is present only when the entry itself pins one (a configured compensation account, a platform's
  * commission account, the account a closing refund found left on the stay's books). An exporter maps the roles to its own
  * accounts and columns; the amounts, the VAT split and the rounding residue are decided here, once.
  *
@@ -224,6 +224,19 @@ function create({ accountPlan }) {
     ];
   }
 
+  // specs/mollie-rolling-reserve-and-incoming-payments.md rule 28 — the Mollie journal: a paid link debits the clearing account
+  // (what Mollie owes) and credits the client; a reconciled credit debits the bank, a settlement's costs the fee account, both
+  // crediting the clearing account. Two lines of one amount, on the accounts the entry carries (`mollieAccounts`).
+  function mollieLines(entry) {
+    const ttc = round2(entry.amount);
+    const accounts = entry.mollieAccounts || {};
+    if (entry.mollieKind === 'link') {
+      return [line('mollieDebit', 'debit', ttc, { account: accounts.clearing }), line('customer', 'credit', ttc)];
+    }
+    const debitAccount = entry.mollieKind === 'credit' ? accounts.bank : accounts.fee;
+    return [line('mollieDebit', 'debit', ttc, { account: debitAccount }), line('mollieClearing', 'credit', ttc, { account: accounts.clearing })];
+  }
+
   /** The role lines of one entry, in the order the journal writes them. */
   function entryLines(entry, { splitFrom = TTC_SPLIT_FALLBACK } = {}) {
     switch (entry && entry.direction) {
@@ -233,6 +246,7 @@ function create({ accountPlan }) {
       case 'tip': return tipLines(entry);
       case 'penalty': return penaltyLines(entry);
       case 'standalone': return standaloneLines(entry);
+      case 'mollie': return mollieLines(entry);
       default: return saleLines(entry, splitFrom);
     }
   }

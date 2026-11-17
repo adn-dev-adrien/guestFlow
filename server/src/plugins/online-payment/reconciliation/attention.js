@@ -13,4 +13,19 @@ function summarize(payload) {
   return { count, title: 'Écarts de règlement', detail: parts.join(' · '), severity: 'todo' };
 }
 
-module.exports = { summarize };
+/**
+ * Rule 13 of specs/mollie-rolling-reserve-and-incoming-payments.md — « Retenue Mollie non reçue »: one item per fiche
+ * whose reserve is late, naming the earliest date it was expected.
+ */
+function summarizeReserve(payload) {
+  const items = (payload && payload.items) || [];
+  if (items.length === 0) return null;
+  const first = items[0];
+  return {
+    count: items.length, title: 'Retenue Mollie non reçue',
+    detail: items.length === 1 ? `${first.clientName} · attendue le ${first.expectedDateLabel}` : `${items.length} fiches · la plus ancienne attendue le ${first.expectedDateLabel}`,
+    severity: 'todo',
+  };
+}
+
+module.exports = { summarize, summarizeReserve };

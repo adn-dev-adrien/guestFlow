@@ -128,6 +128,7 @@ const PLUGIN_ROUTES = {
     'POST /api/payments/reconciliation/links/batch',
     'POST /api/payments/reconciliation/read',
     'POST /api/payments/reconciliation/transactions/:id/outside',
+    'POST /api/plugins/online-payment/mollie/test',
     'PUT /api/payments/qonto/credentials',
   ],
   'sas': [

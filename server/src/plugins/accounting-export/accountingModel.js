@@ -395,6 +395,16 @@ function createAccountingModel(database, { settings = createAccountSettings(data
         .map(buildStandaloneEntry)
         .map((entry) => (entry.standaloneRole === 'tip' ? { ...entry, tipAccount, accountLabels: { [tipAccount]: 'Pourboire' } } : entry));
     },
+
+    // specs/mollie-rolling-reserve-and-incoming-payments.md rules 28-31 — what a live plugin books of Mollie in the month:
+    // its entries (a paid link, a reconciled credit, a settlement's costs), the credits it could not attach, and the
+    // balance of the clearing account at month end.
+    mollieByMonth({ month, year }) {
+      const mm = String(month).padStart(2, '0');
+      const yyyy = String(year);
+      const last = new Date(Date.UTC(Number(yyyy), Number(mm), 0)).getUTCDate();
+      return sdk.coreModule('journalEntries').list({ from: `${yyyy}-${mm}-01`, to: `${yyyy}-${mm}-${String(last).padStart(2, '0')}` });
+    },
   };
 }
 

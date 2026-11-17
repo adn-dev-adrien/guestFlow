@@ -11,7 +11,7 @@
  *
  * The per-property override of an option exists once: in the SettingsProvider's `articles` adapter, which every price,
  * free unit and free minute here is read through. The resources query keeps its `property_resource_prices` join for the
- * shape of the rows it returns. `resourcePriceOverride` is the hourly booking's read of its own price row (SDK 2.29.0).
+ * shape of the rows it returns. `resourcePriceOverride` is the hourly booking's read of its own price row (SDK 2.30.0).
  */
 const settingsProvider = require('./settingsProvider');
 

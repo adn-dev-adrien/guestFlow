@@ -12,6 +12,16 @@ const { TTC_SPLIT_FALLBACK } = sdk.coreModule('legacyBucketSplit');
 
 const PLUGIN_ID = 'accounting-export';
 
+// specs/mollie-rolling-reserve-and-incoming-payments.md rules 28-29 — the Mollie journal: its code, the clearing account
+// (« compte d'attente »: the money Mollie still holds), the bank and the fee accounts, and whether the bank lines are exported.
+const MOLLIE_DEFAULTS = Object.freeze({
+  mollieJournalCode: 'MO',
+  mollieClearingAccount: '46720000',
+  mollieBankAccount: '51200000',
+  mollieFeeAccount: '62780000',
+  mollieExportBank: '1',
+});
+
 const DEFAULTS = Object.freeze({
   defaultCommissionAccountNumber: DEFAULT_COMMISSION_ACCOUNT,
   vatRateCommission: 20,
@@ -19,6 +29,7 @@ const DEFAULTS = Object.freeze({
   vatRateCancellationCompensation: 0,
   // The account plan (specs/plugins-phase-p-productisation.md rule 27).
   ...PLAN_DEFAULTS,
+  ...MOLLIE_DEFAULTS,
 });
 
 const KEYS = Object.freeze(Object.keys(DEFAULTS));
@@ -48,9 +59,16 @@ function validateJournalCode(value) {
   return /^[A-Z0-9]{1,4}$/.test(String(value).trim()) ? null : 'De 1 à 4 majuscules ou chiffres.';
 }
 
+// A switch is stored as '0' / '1': the generic PUT refuses a boolean on a validated key.
+function validateSwitch(value) {
+  if (value == null || String(value).trim() === '') return null;
+  return ['0', '1'].includes(String(value).trim()) ? null : 'Doit être 0 ou 1.';
+}
+
 const validatorOf = (key) => {
   if (RATE_KEYS.has(key)) return validateRate;
-  return key === 'journalCode' ? validateJournalCode : validateAccount;
+  if (key === 'mollieExportBank') return validateSwitch;
+  return key === 'journalCode' || key === 'mollieJournalCode' ? validateJournalCode : validateAccount;
 };
 
 // What `ctx.settings.declare` receives: the generic GET/PUT /api/plugins/accounting-export/settings.
@@ -182,7 +200,7 @@ function storeLastCsvExport(database, month, now = new Date()) {
 }
 
 module.exports = {
-  PLUGIN_ID, DEFAULTS, KEYS, DECLARED, createAccountSettings, validateAccount, validateJournalCode,
+  PLUGIN_ID, DEFAULTS, MOLLIE_DEFAULTS, KEYS, DECLARED, createAccountSettings, validateAccount, validateJournalCode,
   TTC_SPLIT_KEY, TTC_SPLIT_FALLBACK, firstOfNextMonth, readTtcSplitFrom, storeTtcSplitFrom,
   STAY_CLOSING_KEY, STAY_CLOSING_FALLBACK, readStayClosingFrom, storeStayClosingFrom,
   LAST_CSV_EXPORT_KEY, readLastCsvExport, storeLastCsvExport,

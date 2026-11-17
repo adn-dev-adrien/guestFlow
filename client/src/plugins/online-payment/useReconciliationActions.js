@@ -59,7 +59,8 @@ export default function useReconciliationActions({ onChanged }) {
       item.proposal.allocations.map((a) => ({ reservationId: a.reservationId, ledgerKey: a.ledgerKey, amountCents: a.amountCents })))), [link, linkBatch]);
 
   const discard = useCallback((item) => run(item.key, () => api.discardReconciliation({
-    transactionId: item.proposal.bank.transactionId, reservationId: item.reservation.id, ledgerKey: item.ledgerKey,
+    transactionId: item.proposal.bank.transactionId, // A sale outside a stay has no reservation: the server names its receipts with reservation id 0.
+    reservationId: item.reservation.id == null ? 0 : item.reservation.id, ledgerKey: item.ledgerKey,
   })), [run]);
 
   const undo = useCallback(async (item) => {

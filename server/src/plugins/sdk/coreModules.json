@@ -1080,5 +1080,8 @@
   ],
   "refundGivenBack": [
     "refGivenBack"
+  ],
+  "journalEntries": [
+    "list"
   ]
 }

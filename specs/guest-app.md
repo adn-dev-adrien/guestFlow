@@ -1094,14 +1094,14 @@ arrival.** Everything below is judged by the server; the apps render what it off
     departure not settled) no longer keeps it open once the stay is over: from the day after `endDate` (Paris day) the step shows the order not
     editable and the change is refused, 409 `ORDER_NOT_EDITABLE`. The departure day itself is still editable. The order is then changed on the
     fiche. Test: `guest-order-arrival-amend-departure-day`. _(Loop t4, A4-1, 2026-11-16:)_ « the arrival still open » has one judge, the core's
-    `extraSale.arrivalOpenAt` (SDK 2.31): the step's `editable` and the sale's `atArrival` refusal both read it. A stay whose false start was kept
+    `extraSale.arrivalOpenAt` (SDK 2.32): the step's `editable` and the sale's `atArrival` refusal both read it. A stay whose false start was kept
     (a baseline stored, unticked before the hour) already carves its sales out to the departure: until the check-in hour the order is shown not
     editable, and the sale refuses `atArrival` 409 `ARRIVAL_CLOSED` « Les ventes de ce séjour se règlent déjà au départ : la commande aussi. »
     (never « Arrivée déjà validée » when it is not). Test: `guest-order-arrival-kept-false-start`. (b) **A paid card order of a cancelled stay reads « Remboursée » in the staff list
     once the cancellation's refund dialog gave it back** (before: « Payée · à rembourser » for ever). The register keys a line by its article,
     not by its order, so « given back » means: every article key of the lines the order placed on the fiche (`orderRef` `order:<id>:…`) has
     been refunded outside a requalification **and** the dialog offers nothing more on it; a part given back, or a key still holding refundable
-    money, reads « Payée · à rembourser ». The reading is the core's (`refundGivenBack`, `plugins-phase-1-sdk.md` rule 55); a `paid_conflict`
+    money, reads « Payée · à rembourser ». The reading is the core's (`refundGivenBack`, `plugins-phase-1-sdk.md` rule 56); a `paid_conflict`
     order (paid after the cancellation, the register's row) keeps « Payée · à rembourser ». Test: `guest-order-cancelled-refunded-label`.
 112. **Readings of 2026-11-16 on an order with two baths and on two orders of one article** _(stabilisation loop t3, A3-1 and A3-2; readings of
     rules 109 d and 111 b)_. (a) **The evening supplement goes with ITS bath, not with the order.** The arrival SAS reads the supplement of the bath it

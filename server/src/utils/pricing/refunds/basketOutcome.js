@@ -1,5 +1,5 @@
 /**
- * What a plugin tells the payment poller about a basket it sold or could not honour (specs/pricing-components.md §3 rules 72, 75; SDK 2.30.0).
+ * What a plugin tells the payment poller about a basket it sold or could not honour (specs/pricing-components.md §3 rules 72, 75; SDK 2.31.0).
  * The figures of a refund live in `refunds/` only, so a plugin never writes `refundOwed`, a refund part or an overpayment itself: it asks here.
  *
  *   notHonoured(reason)            the whole payment is owed back — the order could no longer be honoured (origin `orderConflict`)

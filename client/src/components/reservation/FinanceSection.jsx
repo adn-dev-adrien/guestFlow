@@ -19,6 +19,7 @@ import PlatformPenaltyDialog from './PlatformPenaltyDialog';
 import DeleteIcon from '@mui/icons-material/Delete';
 import LedgerList from '../LedgerList';
 import InstallmentPlanCard from './InstallmentPlanCard';
+import { BankTranches, BankScheduleSummary } from './BankTranches';
 import LedgerAmountEditor from '../LedgerAmountEditor';
 import { useAppDialogs, useToast } from '../DialogProvider';
 import { useReservationForm } from './ReservationFormContext';
@@ -799,7 +800,7 @@ export default function FinanceSection() {
     const foldable = Boolean(slot) || row.state === 'paid-group';
     const groupFirst = row.state === 'paid-group' && rows.find((r) => r.state === 'paid-group')?.key === row.key;
     const hasFold = slot || (groupFirst && form.arrivalPayment?.covers);
-    if (bits.length === 0 && warnings.length === 0 && lines.length === 0 && penaltyLines.length === 0 && !row.penaltyAction && !d.reconciliation && !d.note && !hasFold && !d.link?.resend && !d.link?.withdraw && !d.link?.settle && otherLinks.length === 0) return null;
+    if (bits.length === 0 && warnings.length === 0 && lines.length === 0 && penaltyLines.length === 0 && !row.penaltyAction && !d.reconciliation && !d.note && !row.bankTranches && !hasFold && !d.link?.resend && !d.link?.withdraw && !d.link?.settle && otherLinks.length === 0) return null;
     const open = folds.has(row.key);
     return (
       <Box sx={{ mt: 0.5 }}>
@@ -848,6 +849,7 @@ export default function FinanceSection() {
           </Tooltip>
         )}
         {d.note && <Typography variant="caption" color="text.secondary" sx={{ fontStyle: 'italic' }}>{d.note}</Typography>}
+        <BankTranches row={row} />
         {open && slot === 'complement' && (
           <ComplementDetail
             lines={arrivalComplementLines}
@@ -1256,6 +1258,8 @@ export default function FinanceSection() {
                   />
                 </Box>
               )}
+
+              <BankScheduleSummary schedule={ledger?.schedule} />
 
               <LedgerList
                 rows={ledgerRows}

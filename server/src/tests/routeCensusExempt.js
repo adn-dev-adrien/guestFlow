@@ -78,6 +78,7 @@ const EXEMPT = {
     'POST /api/payments/poll',
     'POST /api/payments/qonto/connect-provider',
     'POST /api/payments/qonto/test',
+    'POST /api/plugins/online-payment/mollie/test',
     'POST /api/plugins/:id/install',
     'POST /api/plugins/:id/rollback',
     'POST /api/plugins/:id/update',

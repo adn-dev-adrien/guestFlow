@@ -50,7 +50,7 @@ const {
   netFirstCents, ttcFromNetCents: ttcOf, vatOf, netFirst,
 } = sdk.coreModule('vat');
 // Rule 62 — the VAT of one (class, rate) group, cut once by the VAT component on the group's TTC: the core's `groupVatCents`, read through `vatOf`
-// (SDK 2.29) so the plugin keeps its SDK floor.
+// (SDK 2.30) so the plugin keeps its SDK floor.
 const groupVatCents = (ttcCents, rate) => (ttcCents > 0
   ? vatOf([{ amountCents: ttcCents, vatClass: 'external', customerContext: 'external' }], { regime: null, settings: { get: () => rate } }).totals.vatCents
   : 0);

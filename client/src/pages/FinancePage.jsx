@@ -39,6 +39,7 @@ const DETAIL_ID = 'finance-detail';
 const NEW_SALE_LABEL = 'Vente hors séjour';
 const percent = (x) => (x == null ? '—' : `${Math.round(x * 100)} %`);
 const shortDate = (iso) => (iso ? new Date(`${String(iso).slice(0, 10)}T12:00:00`).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' }) : '');
+// « prochain le 18/11 » — the ISO day of the tile, written the way the server writes its own short dates.
 const FORMAT = { amount: formatCurrencyRounded, perNight: perNightAmount, percent, date: shortDate };
 // The browser's own calendar day, never the UTC one (rule 37).
 const iso = (d) => localIsoToday(d);
@@ -47,6 +48,7 @@ const iso = (d) => localIsoToday(d);
 const TILES = [
   { key: 'collected', label: 'Déjà payé', dot: 'success.main', read: (t) => [formatCurrencyRounded(t.amount), t.shareOfRevenue == null ? '' : `${percent(t.shareOfRevenue)} du chiffre d'affaires`] },
   { key: 'toCollect', label: 'À encaisser', dot: 'secondary.main', read: (t) => [formatCurrencyRounded(t.amount), `${plural(t.stays, 'séjour')} · tous exercices`] },
+  { key: 'incoming', label: 'Versements à venir', dot: 'info.main', read: (t) => [formatCurrencyRounded(t.amount), t.clients ? `${plural(t.clients, 'client')}${t.nextDateLabel ? ` · prochain le ${t.nextDateLabel}` : ''}` : 'rien à recevoir'] },
   { key: 'late', label: 'En retard', dot: 'error.main', read: (t) => [formatCurrencyRounded(t.amount), t.stays ? `${plural(t.stays, 'séjour')} · tous exercices` : 'rien à relancer'], alert: (t) => t.stays > 0 },
   { key: 'stays', label: 'Réservations', dot: 'info.main', read: (t) => [plural(t.count, 'séjour'), `${t.upcoming} à venir`] },
   { key: 'properties', label: 'Logements', dot: 'primary.main', read: (t) => (t.count === 1 && t.name ? [formatCurrencyRounded(t.revenue), t.name] : [plural(t.count, 'logement'), t.leader ? `en tête : ${t.leader}` : '']) },
@@ -96,6 +98,8 @@ export default function FinancePage() {
   const [tile, setTile] = useState(null);
   const [detail, setDetail] = useState({ key: null, data: null, loading: false, error: false });
   const [staysScope, setStaysScope] = useState('window');
+  // « Reçus ces 30 derniers jours » of « Versements à venir » (specs/mollie-rolling-reserve-and-incoming-payments.md rule 24).
+  const [incomingRecent, setIncomingRecent] = useState(false);
   // Empty until the operator picks a date: the server's default (today + 1 month) applies.
   const [until, setUntil] = useState('');
 
@@ -121,18 +125,21 @@ export default function FinancePage() {
     }
   }, [paramsKey, periodRefusal]);
 
-  const detailKey = `${tile}|${paramsKey}|${until}|${staysScope}`;
+  const detailKey = `${tile}|${paramsKey}|${until}|${staysScope}|${incomingRecent}`;
   const loadDetail = useCallback(async () => {
     const current = beginDetail();
     if (!tile) return;
     setDetail((d) => ({ key: detailKey, data: d.key === detailKey ? d.data : null, loading: true, error: false }));
     try {
-      const data = await api.getFinanceDashboardDetail(tile, { ...params, ...(until ? { until } : {}), scope: staysScope });
+      // « Versements à venir » ignores the window (rule 21): it has its own endpoint.
+      const data = tile === 'incoming'
+        ? await api.getIncomingPayments({ recent: incomingRecent })
+        : await api.getFinanceDashboardDetail(tile, { ...params, ...(until ? { until } : {}), scope: staysScope });
       if (current()) setDetail({ key: detailKey, data, loading: false, error: false });
     } catch {
       if (current()) setDetail({ key: detailKey, data: null, loading: false, error: true });
     }
-  }, [tile, paramsKey, until, staysScope]);
+  }, [tile, paramsKey, until, staysScope, incomingRecent]);
 
   // specs/vat-optional-mode.md rule 35 — the franchise card, whatever the window; a failed read hides it.
   // `undefined` until the first read has settled: the page waits for it, so the card never pops in late.
@@ -331,10 +338,10 @@ export default function FinancePage() {
 
             {/* Rule 13 — six tiles; the open one shows its table just below the row. */}
             <Grid container spacing={1.5}>
-              {TILES.map((t) => {
+              {TILES.filter((t) => d.tiles[t.key]).map((t) => {
                 const [value, caption] = t.read(d.tiles[t.key]);
                 return (
-                  <Grid key={t.key} size={{ xs: 6, md: 4, xl: 2 }}>
+                  <Grid key={t.key} size={{ xs: 6, md: 4, xl: 'grow' }}>
                     <SelectableTile
                       label={t.label}
                       value={value}
@@ -365,6 +372,8 @@ export default function FinancePage() {
                 onStaysScopeChange={setStaysScope}
                 until={until}
                 onUntilChange={setUntil}
+                incomingRecent={incomingRecent}
+                onIncomingRecentChange={setIncomingRecent}
                 onClose={() => setTile(null)}
                 onOpenReservation={(id) => navigate(`/reservations/${id}`)}
                 onTogglePayment={handleTogglePayment}

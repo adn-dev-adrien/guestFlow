@@ -73,10 +73,12 @@ export { TENDER_TEXTS } from '../../constants/tenderMethods';
 export { default as usePostalCodeCities } from '../../hooks/usePostalCodeCities';
 // hourly-resources — the client picker ordered by stay (specs/resource-booking-client-picker.md §4.2) — SDK 2.27.0.
 export { default as ClientPickerField } from '../../components/ClientPickerField';
-// sas — the sale lines of a stay, offered / moved / removed from the SAS (specs/pricing-components.md rules 31, 37) — SDK 2.29.0.
+// online-payment — an external identifier shortened in the middle, with a copy button (specs/mollie-rolling-reserve-and-incoming-payments.md rule 12) — SDK 2.29.0.
+export { default as TransactionRef } from '../../components/TransactionRef';
+// sas — the sale lines of a stay, offered / moved / removed from the SAS (specs/pricing-components.md rules 31, 37) — SDK 2.30.0.
 export { default as StaySalesSection } from '../../components/StaySalesSection';
-// hourly-resources — the generic « Proposés à l'arrivée » step and the payment-link block (specs/outside-booking-sas.md rules 35, 39-42) — SDK 2.31.0.
+// hourly-resources — the generic « Proposés à l'arrivée » step and the payment-link block (specs/outside-booking-sas.md rules 35, 39-42) — SDK 2.32.0.
 export { default as SuggestedArticlesStep } from '../../components/SuggestedArticlesStep';
 export { default as SalePaymentLink } from '../../components/SalePaymentLink';
-// hourly-resources — « Nouvelle vente » on the client of an invoiced visit (specs/outside-booking-sas.md rule 24, loop t1 AV-8) — SDK 2.31.0.
+// hourly-resources — « Nouvelle vente » on the client of an invoiced visit (specs/outside-booking-sas.md rule 24, loop t1 AV-8) — SDK 2.32.0.
 export { default as StandaloneSaleDialog } from '../../components/StandaloneSaleDialog';

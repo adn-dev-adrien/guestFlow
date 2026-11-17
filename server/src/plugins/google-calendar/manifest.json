@@ -9,7 +9,7 @@
   ],
   "requires": [],
   "guestflow": ">=3.18.0",
-  "sdk": "^2.30.0",
+  "sdk": "^2.31.0",
   "changelog": {
     "1.0.0": [
       "Première version publiée en paquet."
@@ -70,7 +70,7 @@
     "1.3.0": [
       "L’événement d’un séjour est remis à jour dès qu’une prestation est vendue, déplacée ou retirée.",
       "Les arrondis en euros et en centimes passent par un calcul commun du cœur : aucun montant ne change.",
-      "Compatible avec GuestFlow 4 (SDK 2.30)."
+      "Compatible avec GuestFlow 4 (SDK 2.31)."
     ]
   }
 }

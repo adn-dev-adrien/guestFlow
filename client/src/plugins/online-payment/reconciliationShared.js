@@ -38,7 +38,7 @@ export const readFailureLabel = (lastError) => {
 
 /** The names of the stays of a group proposal, by `reservationId|ledgerKey`, for the shares dialog. */
 export const shareLabels = (item) => {
-  const labels = { [`${item.reservation.id}|${item.ledgerKey}`]: `${item.reservation.clientName || 'Client'} · ${item.label}` };
+  const labels = { [`${item.reservation.id == null ? 0 : item.reservation.id}|${item.ledgerKey}`]: `${item.reservation.clientName || 'Client'} · ${item.label}` };
   (item.proposal ? item.proposal.alsoCovers : []).forEach((c) => { labels[`${c.reservationId}|${c.ledgerKey}`] = `${c.clientName || 'Client'} · ${c.label}`; });
   return labels;
 };

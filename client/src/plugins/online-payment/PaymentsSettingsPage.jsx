@@ -26,6 +26,7 @@ import {
 } from '../sdk/ui';
 import QontoConnectionCard from './QontoConnectionCard';
 import ReconciliationSettingsCard from './ReconciliationSettingsCard';
+import MollieConnectionCard from './MollieConnectionCard';
 
 /** An untouched secret stays `undefined`, which the server reads as "keep the stored one". */
 const EMPTY_CREDENTIALS = {
@@ -265,6 +266,9 @@ export default function PaymentsSettingsPage() {
           onConnect={() => { window.location.href = '/api/payments/qonto/authorize'; }}
           onTest={handleTestConnection}
         />
+
+        {/* specs/mollie-rolling-reserve-and-incoming-payments.md rule 14 — the optional Mollie account, under the bank connection. */}
+        <MollieConnectionCard />
 
         {/* specs/qonto-bank-reconciliation.md rule 23 — the reconciliation reads the account of this connection. */}
         <ReconciliationSettingsCard connected={connected} />

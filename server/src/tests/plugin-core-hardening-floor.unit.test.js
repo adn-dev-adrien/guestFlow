@@ -55,17 +55,19 @@ const HARDENINGS = [
   // specs/resource-booking-pricing-and-invoicing.md rules 1, 14, 20-21 — the invoice issuer and the sales outside a stay.
   { feature: 'invoice issuer and sales outside a stay', sdk: '2.25.0', pattern: /coreModule\(\s*['"`](invoiceIssuers|standaloneSales)['"`]|ctx\.(invoiceIssuer|standaloneSales)\(/ },
   // specs/plugins-phase-1-sdk.md rule 50 (specs/pricing-components.md rules 5, 47) — a pricing family for the Articles head.
-  // Loop t1 AS-3 — v4.1.0 (SDK 2.27.0) shipped no `ctx.articleFamily`: the first minor that ships it is 2.29.0 (plugins-phase-1-sdk rule 53).
-  { feature: 'article families', sdk: '2.29.0', pattern: /\bctx\.articleFamily\(/ },
-  { feature: 'article fulfilment', sdk: '2.29.0', pattern: /\bctx\.articleFulfilment\(/ },
-  // specs/plugins-phase-1-sdk.md rule 55 (specs/guest-app.md rule 110 b reading of 2026-11-16, loop t2 AG2-2).
-  { feature: 'lines given back by the refund register', sdk: '2.31.0', pattern: /coreModule\(\s*['"`]refundGivenBack['"`]/ },
-  { feature: 'slot availability', sdk: '2.29.0', pattern: /\bctx\.slotAvailability\(/ },
-  // specs/plugins-phase-1-sdk.md rule 52 (specs/pricing-components.md rule 38) — the shared money helpers.
-  { feature: 'shared money helpers', sdk: '2.30.0', pattern: /coreModule\(\s*['"`]money['"`]/ },
-  // specs/outside-booking-sas.md rules 36-37 (SDK 2.31.0) — the generic suggested-articles lists and their sale contexts.
-  { feature: 'suggestion contexts and the sale with no stay', sdk: '2.31.0', pattern: /\bctx\.suggestionContexts\(|coreModule\(\s*['"`](suggestedArticles|standaloneSale|standaloneSaleLinks)['"`]/ },
-  { feature: 'sale events', sdk: '2.29.0', pattern: /['"]extraSale\.(sold|lineMoved|lineCancelled|refundOwed)['"]/ },
+  // Loop t1 AS-3 — v4.1.0 (SDK 2.27.0) shipped no `ctx.articleFamily`: the first minor that ships it is 2.30.0 (plugins-phase-1-sdk rule 54).
+  { feature: 'article families', sdk: '2.30.0', pattern: /\bctx\.articleFamily\(/ },
+  { feature: 'article fulfilment', sdk: '2.30.0', pattern: /\bctx\.articleFulfilment\(/ },
+  // specs/plugins-phase-1-sdk.md rule 56 (specs/guest-app.md rule 110 b reading of 2026-11-16, loop t2 AG2-2).
+  { feature: 'lines given back by the refund register', sdk: '2.32.0', pattern: /coreModule\(\s*['"`]refundGivenBack['"`]/ },
+  { feature: 'slot availability', sdk: '2.30.0', pattern: /\bctx\.slotAvailability\(/ },
+  // specs/plugins-phase-1-sdk.md rule 53 (specs/pricing-components.md rule 38) — the shared money helpers.
+  { feature: 'shared money helpers', sdk: '2.31.0', pattern: /coreModule\(\s*['"`]money['"`]/ },
+  // specs/outside-booking-sas.md rules 36-37 (SDK 2.32.0) — the generic suggested-articles lists and their sale contexts.
+  { feature: 'suggestion contexts and the sale with no stay', sdk: '2.32.0', pattern: /\bctx\.suggestionContexts\(|coreModule\(\s*['"`](suggestedArticles|standaloneSale|standaloneSaleLinks)['"`]/ },
+  { feature: 'sale events', sdk: '2.30.0', pattern: /['"]extraSale\.(sold|lineMoved|lineCancelled|refundOwed)['"]/ },
+  // specs/plugins-phase-1-sdk.md rule 51.
+  { feature: 'ledger bank tranches, incoming payments and journal entries', sdk: '2.29.0', pattern: /\bctx\.(?:ledgerBankTranches|incomingPayments|journalEntries)\(|coreModule\(\s*['"`]journalEntries['"`]/ },
 ];
 
 function sourceFiles(dir) {
@@ -133,8 +135,8 @@ for (const [id, hits] of relying) {
   });
 }
 
-// specs/plugins-phase-1-sdk.md rule 51 (SDK 2.29.0) — declaring a fulfilment adapter or a slot availability provider asks for the 2.29.0 floor.
-test('rule 51: ctx.articleFulfilment and ctx.slotAvailability force the 2.29.0 floor', () => {
-  assert.equal(hardeningsIn("ctx.articleFulfilment('hourly-slot', adapter);")[0].sdk, '2.29.0');
-  assert.equal(hardeningsIn('ctx.slotAvailability(provider);')[0].sdk, '2.29.0');
+// specs/plugins-phase-1-sdk.md rule 52 (SDK 2.30.0) — declaring a fulfilment adapter or a slot availability provider asks for the 2.30.0 floor.
+test('rule 52: ctx.articleFulfilment and ctx.slotAvailability force the 2.30.0 floor', () => {
+  assert.equal(hardeningsIn("ctx.articleFulfilment('hourly-slot', adapter);")[0].sdk, '2.30.0');
+  assert.equal(hardeningsIn('ctx.slotAvailability(provider);')[0].sdk, '2.30.0');
 });

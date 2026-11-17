@@ -16,13 +16,30 @@
  */
 import React from 'react';
 import { Box, Button, Chip, Stack, Typography } from '@mui/material';
-import { PlatformChip, StatusBadge } from '../sdk';
+import { PlatformChip, StatusBadge, TransactionRef } from '../sdk';
 import { money, CONFIDENCE_STATUS } from './reconciliationShared';
+
+/**
+ * BankRefs — the identifiers of a bank credit (specs/mollie-rolling-reserve-and-incoming-payments.md rule 12): the
+ * Qonto transaction reference, the Mollie settlement (« lot ») and, when a Mollie token read it, the Mollie payment.
+ * Draws nothing for a credit that carries none.
+ */
+export function BankRefs({ refs }) {
+  if (!refs || !(refs.qonto || refs.mollieSettlement || refs.molliePayment)) return null;
+  return (
+    <Box sx={{ display: 'flex', flexWrap: 'wrap', columnGap: 2, mt: 0.25 }}>
+      <TransactionRef label="Qonto" value={refs.qonto} />
+      <TransactionRef label="Lot Mollie" value={refs.mollieSettlement} />
+      <TransactionRef label="Paiement Mollie" value={refs.molliePayment} />
+    </Box>
+  );
+}
 
 const BANK_ROW_SX = { display: 'flex', gap: 1, flexWrap: 'wrap', alignItems: 'baseline', mt: 0.75, fontSize: 13 };
 
 function BankRow({ label, side, amountCents, auto = false, alsoCovers = [] }) {
   return (
+    <>
     <Box sx={BANK_ROW_SX}>
       <Typography component="span" variant="caption" color="text.secondary" sx={{ minWidth: { sm: 120 } }}>{label}</Typography>
       <Typography component="span" variant="body2" sx={{ fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>
@@ -34,6 +51,8 @@ function BankRow({ label, side, amountCents, auto = false, alsoCovers = [] }) {
       </Typography>
       {auto && <Chip size="small" variant="outlined" label="auto" />}
     </Box>
+    <BankRefs refs={side.refs} />
+    </>
   );
 }
 
@@ -55,6 +74,7 @@ export function BankCell({ item }) {
             {b.counterparty}
             {(b.alsoCovers || []).length > 0 && ` · couvre aussi ${b.alsoCovers.map((c) => `${c.clientName || 'client'} (${c.label})`).join(', ')}`}
           </Typography>
+          <BankRefs refs={b.refs} />
         </Box>
       ))}
       {item.bank.length === 0 && proposal && (
@@ -86,7 +106,7 @@ export default function ReconciliationLine({ item, busy = false, blocked = '', o
       <Stack direction="row" gap={1} sx={{ justifyContent: 'space-between', alignItems: 'flex-start' }}>
         <Box sx={{ minWidth: 0 }}>
           <Typography component="div" variant="body2" sx={{ fontWeight: 600 }}>
-            {showReservation && `${item.reservation.clientName || 'Client'} · `}{item.label}
+            {showReservation && `${item.reservation.clientName || item.reservation.saleLabel || 'Client'} · `}{item.label}
             {showReservation && <PlatformChip platform={item.reservation.platform} sx={{ ml: 1 }} />}
           </Typography>
           <Typography variant="caption" color="text.secondary">
@@ -148,7 +168,7 @@ export default function ReconciliationLine({ item, busy = false, blocked = '', o
             Déclarer une pénalité de {money(item.declarePenalty.amountCents)}
           </Button>
         )}
-        {onOpenFiche && item.isGap && <Button variant="outlined" onClick={() => onOpenFiche(item)} sx={buttonSx}>Ouvrir la fiche</Button>}
+        {onOpenFiche && item.isGap && item.reservation.id != null && <Button variant="outlined" onClick={() => onOpenFiche(item)} sx={buttonSx}>Ouvrir la fiche</Button>}
       </Stack>
       {blocked && proposal && <Typography variant="caption" color="text.secondary" component="div" sx={{ mt: 0.5 }}>{blocked}</Typography>}
     </Box>

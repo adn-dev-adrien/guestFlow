@@ -135,7 +135,7 @@ function createContext(id, { db, settingsModel, dataDir = null } = {}) {
       });
       record.priceLineContributor = contributor;
     },
-    // SDK 2.29.0 (specs/pricing-components.md rules 5, 47; plugins-phase-1-sdk rule 53) — a pricing family for the Articles head:
+    // SDK 2.30.0 (specs/pricing-components.md rules 5, 47; plugins-phase-1-sdk rule 54) — a pricing family for the Articles head:
     // `{ id, configSchema, validate(config, request, ctx), price(config, request, ctx), describe(config, line) }`.
     // `ctx.priceLineContributor` stays as the alias of the hourly one. A family id is declared once
     // (DUPLICATE_FAMILY); it prices only while this plugin is live (FAMILY_UNAVAILABLE otherwise).
@@ -156,14 +156,14 @@ function createContext(id, { db, settingsModel, dataDir = null } = {}) {
       if (other) throw new Error(`${prefix} a resource scheduler is already declared by ${other.id}`);
       record.resourceScheduler = provider;
     },
-    // SDK 2.29.0 (specs/pricing-components.md rule 49) — the downstream booking an article names (`fulfilment: 'hourly-slot'`):
+    // SDK 2.30.0 (specs/pricing-components.md rule 49) — the downstream booking an article names (`fulfilment: 'hourly-slot'`):
     // `{ reserve(draft, ctx), confirm(hold, line, tx), release(hold, reason) }`. A fulfilment id is declared once (DUPLICATE_FULFILMENT);
     // it is asked only while this plugin is live.
     articleFulfilment(fulfilmentId, adapter) {
       articleFulfilment.register(fulfilmentId, adapter, { owner: id, isLive: () => registry.isLive(id) });
       record.articleFulfilments.push(fulfilmentId);
     },
-    // SDK 2.29.0 (specs/pricing-components.md rule 48) — the SlotAvailabilityProvider: `slots(resourceId, range)` and
+    // SDK 2.30.0 (specs/pricing-components.md rule 48) — the SlotAvailabilityProvider: `slots(resourceId, range)` and
     // `validate(sessions)`, one per instance, handed out as `ctx.core.slotAvailability()`.
     slotAvailability(provider) {
       SLOT_AVAILABILITY_MEMBERS.forEach((m) => {
@@ -216,7 +216,7 @@ function createContext(id, { db, settingsModel, dataDir = null } = {}) {
       if (other) throw new Error(`${prefix} an invoice issuer is already declared by ${other.id}`);
       record.invoiceIssuer = issuer;
     },
-    // `{ kind, label, list }` — a kind of sale context the generic « Proposés à l'arrivée » lists are kept for (the outside-visit spec rule 37, SDK 2.31.0): `kind` names it
+    // `{ kind, label, list }` — a kind of sale context the generic « Proposés à l'arrivée » lists are kept for (the outside-visit spec rule 37, SDK 2.32.0): `kind` names it
     // (`resource`), `label` heads it in Réglages → Articles, `list() → [{ id, label }]` says which contexts of that kind exist now. `property` is the core's own kind. While the
     // plugin is off its kind disappears from the settings page and from `suggestedArticles.resolve`; the stored lists stay.
     suggestionContexts({ kind, label, list } = {}) {
@@ -252,6 +252,28 @@ function createContext(id, { db, settingsModel, dataDir = null } = {}) {
       const other = registry.all().find((r) => r.id !== id && r.homeSelection);
       if (other) throw new Error(`${prefix} a home selection is already declared by ${other.id}`);
       record.homeSelection = list;
+    },
+    // SDK 2.29.0 (specs/mollie-rolling-reserve-and-incoming-payments.md rule 18) — ({ reservationId }) →
+    // { rows: { [ledgerKey]: [tranche] }, schedule: object | null } | null: the dated bank tranches of a paid row of the
+    // payments ledger, and the one-line schedule of the money summary. Synchronous, reads the plugin's own tables.
+    ledgerBankTranches(provider) {
+      if (typeof provider !== 'function') throw new Error(`${prefix} ledgerBankTranches needs a function`);
+      if (record.ledgerBankTranches) throw new Error(`${prefix} ledgerBankTranches is already declared`);
+      record.ledgerBankTranches = provider;
+    },
+    // SDK 2.29.0 (rule 23) — ({ recent }) → [item]: the sums the plugin expects on the bank account (or, with `recent`,
+    // received in the last 30 days), for « Versements à venir ». Synchronous.
+    incomingPayments(provider) {
+      if (typeof provider !== 'function') throw new Error(`${prefix} incomingPayments needs a function`);
+      if (record.incomingPayments) throw new Error(`${prefix} incomingPayments is already declared`);
+      record.incomingPayments = provider;
+    },
+    // SDK 2.29.0 (rule 28) — ({ from, to }) → { entries, unattached, clearing }: the entries of a provider's own
+    // journal for the accounting export, the bank credits it could not attach, and its clearing account's balance.
+    journalEntries(provider) {
+      if (typeof provider !== 'function') throw new Error(`${prefix} journalEntries needs a function`);
+      if (record.journalEntries) throw new Error(`${prefix} journalEntries is already declared`);
+      record.journalEntries = provider;
     },
     // A commit hook for one of the plugin's arrival SAS steps (rule 6).
     sasCommit(hook) {
