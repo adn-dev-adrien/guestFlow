@@ -104,7 +104,7 @@ test('rule 54: the discovery sees double quotes, a destructured readMailsFrom an
   assert.deepEqual(features('sdk.coreModule("dateFr")'), []);
 });
 
-test('rule 50: ctx.articleFamily forces the 2.27.0 floor, so a plugin declaring ^2.26.0 and calling it is refused', () => {
+test('rule 50: ctx.articleFamily forces the 2.30.0 floor, so a plugin declaring ^2.26.0 and calling it is refused', () => {
   const [hit] = hardeningsIn("ctx.articleFamily('hourly', family);");
   assert.equal(hit.feature, 'article families');
   const [major, minor] = hit.sdk.split('.').map(Number);

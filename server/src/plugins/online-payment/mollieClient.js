@@ -11,6 +11,7 @@ const sdk = require('../sdk');
 
 // The Qonto client's own back-off (fair use: 429 and 5xx only, honouring Retry-After).
 const { withRetry, resolveRetryOptions } = sdk.coreModule('qonto').httpRetry;
+const { toCentsStrict } = sdk.coreModule('money');
 
 const DEFAULT_BASE = 'https://api.mollie.com';
 const TIMEOUT_MS = 20000;
@@ -19,7 +20,7 @@ const PAGE_SIZE = 250;
 const RESTRICTED_TOKEN_FRAGMENT = 'not restricted to a specific profile';
 
 /** « 732.40 » → 73240. Mollie writes amounts as decimal strings. */
-const centsOf = (amount) => (amount && amount.value != null ? Math.round(Number(amount.value) * 100) : 0);
+const centsOf = (amount) => (amount && amount.value != null ? toCentsStrict(amount.value) : 0);
 /** The amount as Mollie wrote it, in hundredths of a cent-free euros: summed raw, rounded once (rule 5, « 0,125 − 0,125 = 0 »). */
 const rawEuros = (amount) => (amount && amount.value != null && Number.isFinite(Number(amount.value)) ? Number(amount.value) : 0);
 
@@ -207,7 +208,7 @@ function readSettlement(s) {
       else if (section === 'costs') rawCosts += rawEuros(line.amountGross || line.amountNet);
     }));
   }));
-  costs = Math.round(rawCosts * 100) || 0;
+  costs = toCentsStrict(rawCosts) || 0;
   return {
     id: s.id, reference: s.reference || '', settledAt: s.settledAt || s.createdAt || null,
     amountCents: centsOf(s.amount), costsCents: costs, reserveHeldCents: held, reserveReleasedCents: released,

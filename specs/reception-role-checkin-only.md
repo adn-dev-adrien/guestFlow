@@ -273,6 +273,7 @@ emails, settings, or any monetary figure beyond *the caution and complement to c
     > stored line, not the dialog's draft: a reception draft read before the admin offered the line still sees it offered and locked. A
     > reception commit refused 409 `LINE_OWED` names the locked lines' recap keys (`owedKeys`, no amount); the dialog puts exactly those back
     > to offered, so the next « Valider » goes through — the dialog is never stuck on a refusal it cannot read.
+    > Tests: `reception-sas-owed-keys` (1), Vitest `ReservationSasDialog.reception-owed-keys` (1).
 
 **Edge cases:**
 - **reception + admin** on the same account → admin wins: full payloads, full nav, no stripping,
@@ -319,8 +320,8 @@ emails, settings, or any monetary figure beyond *the caution and complement to c
 | `tests/` | `tests/roles.unit.test.js` (cross-side snapshot) | T | Extended to assert the 3-role taxonomy stays in sync between server + client. |
 | `utils/` | `utils/receptionView.js` | T | _(2026-10-27, rule 13)_ option and resource lines keep `billedUnits` (a count). |
 | `utils/` | `utils/receptionView.js` | T | _(2026-11-16, rule 18)_ `toReceptionSasCommit` drops `forceOverpayment` from a reception SAS commit. |
-| `plugins/` | `plugins/sas/controller.js` | T | _(2026-11-16, rule 18)_ `paidLineAnswer`: a paid-line refusal answered to reception as « Ligne déjà payée : à voir avec l’administrateur. » + `code` + `overpaymentKeys` (no amount); `receptionPlanOptions` locks owed-back paid lines in the previews; both commits pass `holdOwedLines` and ignore `forceOverpayment` for reception. |
-| `models/` | `models/reservationsModel.js` | T | _(2026-11-16, rule 18)_ `planArrivalSas` / `planDepartureSas` option `lockOwedPaidLines` (`offerLocked` on an offered paid line whose money is owed back); `commitArrivalSas` / `commitDepartureSas` option `holdOwedLines`. |
+| `plugins/` | `plugins/sas/controller.js` | T | _(2026-11-16, rule 18)_ `paidLineAnswer`: a paid-line refusal answered to reception as « Ligne déjà payée : à voir avec l’administrateur. » + `code` + `overpaymentKeys` (no amount); `receptionPlanOptions` locks owed-back paid lines in the previews; both commits pass `holdOwedLines` and ignore `forceOverpayment` for reception; `LINE_OWED` names `owedKeys` (recap keys, no amount) through `runNamingPaidOffers` → `owedOfferKeysOf`, and the plan reads a locked line as stored. |
+| `models/` | `models/reservationsModel.js` | T | _(2026-11-16, rule 18)_ `planArrivalSas` / `planDepartureSas` option `lockOwedPaidLines` (`offerLocked` on an offered paid line whose money is owed back); `commitArrivalSas` / `commitDepartureSas` option `holdOwedLines`; `LINE_OWED` names `owedKeys` (recap keys, no amount) through `runNamingPaidOffers` → `owedOfferKeysOf` in the plugin, and the plan reads a locked line as stored. |
 | `utils/` | `utils/paidLineJudgment.js` | T | _(2026-11-16, rule 18)_ `owedBackByKey` (every offered paid line while a `lineLowered` obligation is open — loop t9 A9-3) and `finish({ holdOwed })` → 409 `LINE_OWED` on a write that bills one again. |
 
 **Notes:**
@@ -463,12 +464,16 @@ added, no migration, no backfill.
       reception (not for the admin) in the arrival and departure previews, a reception commit un-offering it answers 409
       `LINE_OWED` without amount and writes nothing, keeping it offered goes through, the admin's un-offer closes the
       obligation (A8-1) (6).
+- [x] `tests/reception-sas-owed-keys.unit.test.js` (rule 18, 2026-11-16, loop t9 A9-3 / A9-4) — a reception
+      commit refused `LINE_OWED` names the locked lines' recap keys (`owedKeys`, no amount) (1).
 
 ### Client unit tests (vitest)
 - [x] `plugins/sas/__tests__/ReservationSasDialog.reception-paid-line.test.jsx` (rule 18,
       2026-11-16) — the refusal reads « Ligne déjà payée : à voir avec l’administrateur. », inline
       and as a toast, with no confirmation; _(2026-11-16, loop t8 A8-2)_ a refusal naming one of two offered lines
       (`overpaymentKeys`) puts only that one back to billed, and the next « Valider » sends the other still offered (2).
+- [x] `plugins/sas/__tests__/ReservationSasDialog.reception-owed-keys.test.jsx` (rule 18, 2026-11-16, loop t9 A9-4) — a
+      `LINE_OWED` refusal puts exactly the `owedKeys` lines back to offered (1).
 - [x] `constants/__tests__/roles.test.js` (extended) — `canSeeRoute` admits reception on
       `/`, `/planning`, `/account` **only**; reception denied `/finance`, `/clients`,
       `/comptabilite`, `/settings`, `/devis`, `/emails`, `/calendar`; admin+reception → admin scope.

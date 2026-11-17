@@ -659,8 +659,9 @@ Optional: a plugin that declares nothing reads « Actif ».
     `ctx.slotAvailability({ slots(args), validate(args) })` declares the planning's availability, one per instance, handed out as
     `ctx.core.slotAvailability()`. `ctx.core.reservations.fromPlatform(reservationId, intake, { label, client, reuseByEmail })` is the platform booking port
     (`update` is the same save fed with a patch). Four events join `ctx.events.on` — `extraSale.sold`, `extraSale.lineMoved`, `extraSale.lineCancelled`,
-    `extraSale.refundOwed` — published after the sale commits (a plugin may not emit them); google-calendar 1.3.0 listens to the first three. hourly-resources 1.6.0, sas 1.10.0
-    and google-calendar 1.3.0 range `^2.30.0`; a plugin calling `ctx.articleFulfilment(` or
+    `extraSale.refundOwed` — published after the sale commits (a plugin may not emit them); google-calendar 1.3.0 listens to the first three. *(Reading of 2026-11-17, loop t10 A10-1:* the versions this branch ships are
+    hourly-resources 1.8.0 and sas 1.11.0, which range `^2.32.0`, and google-calendar 1.3.0, which ranges `^2.31.0`, all at or above 2.30.0;
+    hourly-resources 1.6.0 and sas 1.10.0 are v4.1.0's packages and range lower.) The floor is 2.30.0: a plugin calling `ctx.articleFulfilment(` or
     `ctx.slotAvailability(` asks for it (the hardening floor list holds both); `coreModuleHistory.json` records 2.30.0. Tests:
     `article-fulfilment-contract`, `bath-fulfilment-contract`, `extra-sale-sas`, `plugin-core-hardening-floor`, `plugins-sdk-core-module-floor`.
 53. *(Added 2026-11-12, specs/pricing-components.md rule 38, SDK 2.31.0.)* **A plugin rounds through the shared money helpers.** `coreModule('money')`
@@ -668,10 +669,14 @@ Optional: a plugin that declares nothing reads « Actif ».
     `fromCentsStrict`, `parseFrenchCents`, `parseFrenchEuros` and `eurosWithSpaces`. Each reproduces one of the private copies the plugins held, so no
     figure moves; the variant is picked by what the copy did with a blank or a non-number, never swapped for `roundMoney`. airbnb-intake, booking-intake,
     gites-de-france-intake, google-calendar, google-vacation-rentals, hourly-resources, online-payment, sas, tariff-recipes, website-booking and
-    accounting-export range `^2.31.0`; the hardening floor list holds the module (`shared money helpers`), `coreModuleHistory.json` records 2.31.0.
+    accounting-export range `^2.31.0` or later (hourly-resources and sas range `^2.32.0`); the hardening floor list holds the module (`shared money helpers`), `coreModuleHistory.json` records 2.31.0.
     `coreModule('stayClock')` also hands out `dayReached(day, today)` / `dayPassed(day, today)` (the day comparisons the intakes and the public form used to write
     inline), `coreModule('platformPayment')` the reads of what a platform pays out (`acompteNet`, `grossOf`, `payoutWithPenalty`), and
     `ctx.core.reservations.platformCommission({ basis: 'rentOnly', rent, netRent })` the rent-only commission of Gîtes de France (the statement basis is unchanged).
+    `coreModule('basketRefundOutcome')` (`notHonoured`, `overpaidBy`, `partlyOwed`) is guest-app's reader of what a basket tells the poller; it is the
+    only refund-register exposure of 2.31.0. *(Reading of 2026-11-17, loop t10 A10-2:* `refundObligationsModel` (`open`, `openFor`) was removed from
+    the unreleased 2.31.0 before it shipped: nothing consumed it, and its `open` was a raw insert into the refund register that would let a plugin
+    open an obligation outside `paidLineJudgment` and the refund dialog's judgment.)
     Tests: `pricing-money-variants`, `plugin-core-hardening-floor`, `plugins-sdk-core-module-floor`.
 54. *(Added 2026-11-15, end review R3-3, R3-10, R3-11; specs/pricing-components.md rules 53, 74, 86, specs/outside-booking-sas.md rules 35-42,
     SDK 2.32.0.)* **A plugin sells outside a stay, and suggests articles, through the core.** SDK 2.32.0 adds `coreModule('standaloneSale')`
@@ -694,7 +699,7 @@ Optional: a plugin that declares nothing reads « Actif ».
     Tests: `mid-stay-order-sdk-2-26-shape`, `plugins-sdk-core-module-floor`, `plugins-sdk-history-shipped-minors`.
 55. *(Added 2026-11-16, loop t1 AS-3.)* **The client SDK exports have floors too.** `plugin-core-hardening-floor` scans server sources only, so a plugin
     whose CLIENT code imports `StaySalesSection` (2.30.0), `SuggestedArticlesStep`, `SalePaymentLink` or `StandaloneSaleDialog` (2.32.0; the last
-    one added to the list 2026-11-16, loop t2 AS2-1), `ClientPickerField` (2.27.0),
+    one added to the list 2026-11-16, loop t2 AS2-1), `TransactionRef` (2.29.0, master's Mollie rule 51), `ClientPickerField` (2.27.0),
     `usePostalCodeCities` (2.25.0), `TenderLines` / `TENDER_TEXTS` (2.24.0), `FilterChip` or `PlatformPenaltyDialog` (2.9.0) must range that SDK
     or later in its manifest, or an older core would load a bundle that crashes. Adding a client export means adding its row to
     `plugin-client-sdk-floor.unit.test.js`. Test: `plugin-client-sdk-floor`. *(Reading of 2026-11-16, loop t2 AS2-1:* every barrel export placed
