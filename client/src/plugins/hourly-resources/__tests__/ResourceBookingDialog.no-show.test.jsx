@@ -8,9 +8,9 @@ import { render, screen, fireEvent, waitFor, within } from '@testing-library/rea
 vi.mock('../../../api', () => ({
   __esModule: true,
   default: {
-    getOccupiedSlots: vi.fn().mockResolvedValue({ occupiedSlots: [] }),
-    getClientPicker: vi.fn().mockResolvedValue({ options: [] }),
-    getProperties: vi.fn().mockResolvedValue([]),
+    getOccupiedSlots: vi.fn(() => Promise.resolve({ occupiedSlots: [] })),
+    getClientPicker: vi.fn(() => Promise.resolve({ options: [] })),
+    getProperties: vi.fn(() => Promise.resolve([])),
     previewResourceBooking: vi.fn(),
     markResourceNoShow: vi.fn(),
     getResourceBooking: vi.fn(),
