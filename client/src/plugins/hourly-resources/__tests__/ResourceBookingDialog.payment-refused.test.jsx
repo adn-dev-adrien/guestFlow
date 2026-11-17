@@ -11,9 +11,9 @@ import { localIsoDate } from '../localDate';
 vi.mock('../../../api', () => ({
   __esModule: true,
   default: {
-    getOccupiedSlots: vi.fn().mockResolvedValue({ occupiedSlots: [] }),
-    getClientPicker: vi.fn().mockResolvedValue({ options: [] }),
-    getProperties: vi.fn().mockResolvedValue([]),
+    getOccupiedSlots: vi.fn(() => Promise.resolve({ occupiedSlots: [] })),
+    getClientPicker: vi.fn(() => Promise.resolve({ options: [] })),
+    getProperties: vi.fn(() => Promise.resolve([])),
     previewResourceBooking: vi.fn(),
     recordResourceBookingPayment: vi.fn(),
     issueResourceBookingInvoice: vi.fn(),
@@ -55,7 +55,7 @@ test('rule 44 — the payment is paid whole: no « Reste à percevoir » nor « 
 });
 
 test('rule 44 — a refused payment is shown, the booking is not created twice, the planning reloads after each step', async () => {
-  const onSave = vi.fn().mockResolvedValue({ id: 41 });
+  const onSave = vi.fn(() => Promise.resolve({ id: 41 }));
   const onCommitted = vi.fn();
   const onClose = vi.fn();
   api.recordResourceBookingPayment.mockRejectedValueOnce(new Error('Date du paiement invalide.')).mockResolvedValueOnce({ id: 41, paid: true });

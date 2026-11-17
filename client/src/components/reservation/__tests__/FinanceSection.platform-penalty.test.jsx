@@ -8,8 +8,8 @@ import { renderFinance, paidRow, ledgerOf } from './ledgerFixtures';
 vi.mock('../../../api', () => ({
   __esModule: true,
   default: {
-    markPayment: vi.fn(), computePlatformCommission: vi.fn(), listPlatformPenalties: vi.fn().mockResolvedValue({ items: [], suggestions: [] }),
-    previewPlatformPenalty: vi.fn().mockResolvedValue({ valid: false, needsChoice: false, warnings: [], errors: [], before: {}, after: {} }),
+    markPayment: vi.fn(), computePlatformCommission: vi.fn(), listPlatformPenalties: vi.fn(() => Promise.resolve({ items: [], suggestions: [] })),
+    previewPlatformPenalty: vi.fn(() => Promise.resolve({ valid: false, needsChoice: false, warnings: [], errors: [], before: {}, after: {} })),
     removePlatformPenalty: vi.fn(),
   },
 }));

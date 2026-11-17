@@ -4,8 +4,18 @@
 import React from 'react';
 import { act, render, screen } from '@testing-library/react';
 
-import PlatformChip from '../PlatformChip';
-import { formatPlatformLabel, setPlatformDisplayNames } from '../../constants/platforms';
+import { vi } from 'vitest';
+
+// The display names live in a module-level map that only grows: each test loads a fresh copy, so the
+// « before the names load » case never sees names another test already set.
+let PlatformChip;
+let formatPlatformLabel;
+let setPlatformDisplayNames;
+beforeEach(async () => {
+  vi.resetModules();
+  ({ default: PlatformChip } = await import('../PlatformChip'));
+  ({ formatPlatformLabel, setPlatformDisplayNames } = await import('../../constants/platforms'));
+});
 
 test('before the names load, the stored spelling; once loaded, the server display name', () => {
   render(<PlatformChip platform="GitesDeFrance" />);

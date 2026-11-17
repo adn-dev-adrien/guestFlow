@@ -12,8 +12,8 @@ vi.mock('../../../api', () => ({
   __esModule: true,
   default: {
     getOccupiedSlots: vi.fn(),
-    getClientPicker: vi.fn().mockResolvedValue({ options: [] }),
-    getProperties: vi.fn().mockResolvedValue([]),
+    getClientPicker: vi.fn(() => Promise.resolve({ options: [] })),
+    getProperties: vi.fn(() => Promise.resolve([])),
     previewResourceBooking: vi.fn(),
     recordResourceBookingPayment: vi.fn(),
     issueResourceBookingInvoice: vi.fn(),
@@ -47,7 +47,7 @@ beforeEach(() => {
 });
 
 test('rule 44 — after a refused payment, the slot moved is previewed as the booking created, never against itself', async () => {
-  const onSave = vi.fn().mockResolvedValue({ id: 41 });
+  const onSave = vi.fn(() => Promise.resolve({ id: 41 }));
   api.recordResourceBookingPayment.mockRejectedValueOnce(new Error('Date du paiement invalide.'));
   render(<ResourceBookingDialog open resource={RESOURCE} initialDate={today} booking={null} onClose={() => {}} onSave={onSave} onDelete={() => {}} />);
   await pick('17:00', '18:00');

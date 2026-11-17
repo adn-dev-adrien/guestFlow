@@ -11,7 +11,7 @@ import { MAX_TYPED_NIGHTS } from '../../../utils/optionTypedCount';
 vi.mock('../../../hooks/usePlugins', () => ({ usePlugin: () => true }));
 vi.mock('../../../api', () => ({
   __esModule: true,
-  default: { previewMidStayNote: vi.fn().mockResolvedValue({ items: [], total: 0 }) },
+  default: { previewMidStayNote: vi.fn(() => Promise.resolve({ items: [], total: 0 })) },
 }));
 
 const PLAIN = { id: 50, title: 'Jus de pomme', price: 1, priceType: 'per_stay', autoEnabled: 0, displayToClient: 1 };

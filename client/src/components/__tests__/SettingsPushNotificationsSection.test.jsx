@@ -11,24 +11,24 @@ import * as push from '../../push/registerPush';
 vi.mock('../../api', () => ({
   __esModule: true,
   default: {
-    getPushPreferences: vi.fn().mockResolvedValue({
+    getPushPreferences: vi.fn(() => Promise.resolve({
       newReservation: true, arrivals: true, departures: true, breakfast: true,
       channels: [
         { key: 'newReservation', label: 'Nouvelle réservation' }, { key: 'arrivals', label: 'Arrivées' },
         { key: 'departures', label: 'Départs' }, { key: 'breakfast', label: 'Petit déjeuner' },
       ],
-    }),
-    updatePushPreferences: vi.fn().mockResolvedValue({}),
-    getPushPublicKey: vi.fn().mockResolvedValue({ publicKey: 'k', configured: true }),
-    sendPushTest: vi.fn().mockResolvedValue({ sent: 1 }),
+    })),
+    updatePushPreferences: vi.fn(() => Promise.resolve({})),
+    getPushPublicKey: vi.fn(() => Promise.resolve({ publicKey: 'k', configured: true })),
+    sendPushTest: vi.fn(() => Promise.resolve({ sent: 1 })),
   },
 }));
 
 vi.mock('../../push/registerPush', () => ({
   pushSupported: vi.fn(),
   getPushState: vi.fn(),
-  enablePush: vi.fn().mockResolvedValue(true),
-  disablePush: vi.fn().mockResolvedValue(true),
+  enablePush: vi.fn(() => Promise.resolve(true)),
+  disablePush: vi.fn(() => Promise.resolve(true)),
 }));
 
 beforeEach(() => {
