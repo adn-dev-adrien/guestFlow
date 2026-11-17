@@ -76,7 +76,6 @@ const CORE_MODULES = Object.freeze({
   refundsModel: '../../models/refundsModel', // refunds by month, mirrored as avoirs in the journal
   basketRefundOutcome: '../../utils/pricing/refunds/basketOutcome', // guest-app — what a basket tells the poller: not honoured, partly owed (pricing-components rule 75, SDK 2.31.0)
   refundGivenBack: '../../utils/refundGivenBack', // guest-app — whether an order's lines were given back by the refund register: the staff list's « Remboursée » (guest-app rule 110 b reading of 2026-11-16, SDK 2.32.0)
-  refundObligationsModel: '../../models/refundObligationsModel', // pricing-components rule 75, SDK 2.31.0 — guest-app no longer opens a row through it since guest-app rule 110 b (2026-11-16)
   cancellationCompensationsModel: '../../models/cancellationCompensationsModel', // compensations received by month, booked in the journal
   midStayExtras: '../../utils/midStayExtras', // the mid-stay share of a complement, kept out of its entry
   storedMoneySplit: '../../utils/storedMoneySplit', // accounting-export — the stored-money split, shared with the cancellation (payment-schedule rule 55)

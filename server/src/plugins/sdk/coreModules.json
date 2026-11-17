@@ -1069,10 +1069,6 @@
     "grossOf",
     "payoutWithPenalty"
   ],
-  "refundObligationsModel": [
-    "open",
-    "openFor"
-  ],
   "basketRefundOutcome": [
     "notHonoured",
     "overpaidBy",
