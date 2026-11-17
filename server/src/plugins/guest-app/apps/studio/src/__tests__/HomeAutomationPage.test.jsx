@@ -111,6 +111,8 @@ describe('HomeAutomationPage (rules 12-16)', () => {
 
   it('a refused save shows the server’s message and its field errors', async () => {
     api.saveHome.mockRejectedValue(Object.assign(new Error('Une saisie à corriger.'), { errors: { 'blocks.3.equipmentId': 'Choisir un équipement.' } }));
+    // The live preview refuses the same draft, as the server does: a preview answering later never clears the error.
+    api.homePreview.mockRejectedValue(Object.assign(new Error('Aperçu impossible.'), { errors: { 'blocks.3.equipmentId': 'Choisir un équipement.' } }));
     const user = userEvent.setup();
     renderStudio(<HomeAutomationPage lodging={LA_GRANJA} />);
     await screen.findByText('Reçu de Sowel il y a 1 min.');
