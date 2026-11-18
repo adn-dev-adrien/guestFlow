@@ -359,6 +359,13 @@ including the ones added later.
     (« commande introuvable »: the money opens an `orderConflict` refund obligation). Before, after a purge and a
     reinstall, an old 30 € link paid sold the NEW order that took its id, and that order's own 18 € link was then kept with no
     obligation. Tests: `guest-orders-counter-floor.unit.test.js`, `guest-order-link-pays-its-own-order.unit.test.js`.
+    _Reading of 2026-11-18 (loop t18 A18-1, rule 3)_: the `removal: accounting-export` cell was red on two price-gate tests (rule 68
+    « 988 figure(s) moved on stay(s) 22271 », rule 72 « 7108 figure(s) moved »), on origin/master too. `scripts/price-gate/recompute.js`
+    `refundInputsOf` required the plugin's journal for every refunded stay; without the folder that threw and the stay's figures became one
+    `quote.error`. The journal is now read through `optionalPlugin` (a tree without the plugin has no journal, the other figures are still read),
+    and `price-gate.unit` / `price-gate-synthetic`, whose captured figures hold that journal, skip without `accounting-export` beside
+    `hourly-resources` (rule 4). Both: the shared loader degrades like every other plugin read, and a test whose expectation needs the plugin
+    says so.
 
 **Edge cases:**
 - A plugin folder exists on one side only (server without client, or the reverse) → rule 13's guard

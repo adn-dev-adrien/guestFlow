@@ -24,7 +24,8 @@ const read = (name) => JSON.parse(fs.readFileSync(path.join(DIR, name), 'utf8'))
 const captured = ['inputs.json', 'expected.json'].every((name) => fs.existsSync(path.join(DIR, name)));
 const present = captured && read('inputs.json').synthetic && read('expected.json').synthetic;
 // loop t1 AS-2 — the fixture holds `resource_bookings` rows, a table of the hourly-resources plugin: skipped in the cell that removes it.
-const SKIP = skipWithout(['hourly-resources']) || (present ? false : 'price-gate synthetic section absent (captured on the price-gate-baseline tag: node scripts/price-gate/buildFixture.mjs)');
+// loop t18 A18-1 — the captured figures hold the accounting-export journal of the refunded stays: skipped in that plugin's cell too.
+const SKIP = skipWithout(['hourly-resources', 'accounting-export']) || (present ? false : 'price-gate synthetic section absent (captured on the price-gate-baseline tag: node scripts/price-gate/buildFixture.mjs)');
 
 let recomputed = null;
 let recomputedBookings = null;

@@ -494,8 +494,6 @@ export default function ReservationPage() {
   const frozenResourceUnitByQuantityRef = useRef({});
   const pendingLeaveActionRef = useRef(null);
   const pricingQuoteRequestRef = useRef(0);
-  // specs/reservation-payment-ledger.md — the body of the last live quote (the amount editors re-send
-  // it with `ledgerEdit`) and the ledger edit the next save carries for the history (rule 23).
   // The catalogue lines the live quote was asked with: what `applyQuoteToBaseline` reads to pair that quote's answer with the form. No
   // quote body is ever kept to be sent again (rule 94 reading, loop t17 UI17-1): every request builds its own at call time.
   const lastQuoteAskedLinesRef = useRef(null);
@@ -516,6 +514,7 @@ export default function ReservationPage() {
   const [convertToDevisLockedReason, setConvertToDevisLockedReason] = useState(null);
   // specs/direct-installments.md — the plan of a direct reservation, as the server last sent it.
   const [installmentPlan, setInstallmentPlan] = useState(null);
+  // specs/reservation-payment-ledger.md rule 23 — the ledger edit the next save carries for the history.
   const ledgerEditMarkerRef = useRef(null);
 
   const [form, setForm] = useState({

@@ -2,7 +2,7 @@
  * The fiche's pricing request bodies (specs/pricing-components.md rule 94 reading, loop t16 S16-2).
  *
  * `ReservationPage` asks the server for a quote in several places — the live preview, the quote taken at « Enregistrer » (whose
- * `resourceLines` the save stores), « Actualiser les tarifs », and the ledger's re-quote (which re-sends the live body). Each used to
+ * `resourceLines` the save stores), « Actualiser les tarifs », and the ledger's re-quote (built when sent, like the others). Each used to
  * build its own body, and a field added to one was missing from the others: the admin unlock reached the live preview only, so the
  * save stored the locked fiche's routing the preview had just lifted. One builder now, so they price the same request.
  *

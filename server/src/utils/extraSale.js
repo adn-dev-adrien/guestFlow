@@ -39,7 +39,7 @@ const {
   storedBody, optionRows, mergeOrderLines, personsRefusal, remainderByKey, deltaOf,
 } = require('./stayOrderLines');
 const { toCents } = require('./pricing/money');
-const { extraLineKey, numberedLabel, settledByKey } = require('./pricing/storedLines');
+const { extraLineKey, numberedLabel, settledByKey, isPricedCustomLine } = require('./pricing/storedLines');
 const { parseNotes } = require('./midStayExtras');
 const { syncStay: syncAllocations } = require('./paymentAllocationsSync');
 const {
@@ -69,11 +69,13 @@ const PAYMENTS = Object.freeze({ later: null, cash: { cash: true }, 'card-termin
 const refuse = (status, code, error, extra = {}) => ({ status, body: { error, code, ...extra } });
 
 // Rule 25 — a line that is no article (linen pieces, a plugin's supplement): its label and its TTC total are the request's, in cents' precision.
+// Loop t18 O18-1 — judged by the engine's own predicate (`isPricedCustomLine`: a label and at least one cent): an amount under half a cent
+// is refused here, instead of answering 200 for a line the engine drops and leaving a « Vente » history entry for a sale that wrote nothing.
 function customRequest(request) {
   const label = String(request.label || '').trim();
   const amount = Number(request.amount);
   const quantity = request.quantity == null ? 1 : Number(request.quantity);
-  if (!label || !(amount > 0) || !Number.isFinite(amount) || !(quantity >= 1) || !Number.isInteger(quantity)) return null;
+  if (!Number.isFinite(amount) || !isPricedCustomLine({ description: label, amount }) || !(quantity >= 1) || !Number.isInteger(quantity)) return null;
   // `fulfilmentRef` (loop t2 N-6): the stable key a seller gives the line (the guest app's evening supplement names its bath), read back by
   // that key, never by the label the line may have been numbered under (rule 94).
   const fulfilmentRef = typeof request.fulfilmentRef === 'string' && /^[a-z][\w:.-]{0,63}$/i.test(request.fulfilmentRef) ? request.fulfilmentRef : null;
