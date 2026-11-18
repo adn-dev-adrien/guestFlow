@@ -2,7 +2,7 @@
   "id": "gift-vouchers",
   "name": "Bons cadeaux",
   "version": "1.3.0",
-  "description": "Des bons cadeaux d’un montant libre : créés à la main, imprimables en PDF, vérifiés par leur code.",
+  "description": "Des bons cadeaux vendus en ligne, au téléphone ou par carte commerçant : un montant pour un séjour, ou un contenu composé (bain nordique et options) réservé en ligne par le bénéficiaire.",
   "icon": "gift",
   "surfaces": [
     "La page « Bons cadeaux »",

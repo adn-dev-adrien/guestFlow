@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| **Status** | Approved |
+| **Status** | Implemented |
 | **Owner** | Adrien |
 | **Created** | 2026-11-18 |
 | **Revised** | 2026-11-18 (second review: composition from the catalogue, degressive hourly pricing, one-shot vouchers, visual library, terms per activity, outside-booking fiche, cancellation, booking horizons) |
