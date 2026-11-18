@@ -30,6 +30,16 @@
     } catch (e) { return fallback; }
   })();
 
+  // The same, abbreviated, for the month chips (« janv. », « févr. »).
+  var MONTHS_SHORT = (function () {
+    try {
+      var f = new Intl.DateTimeFormat(GF.locale || 'fr-FR', { month: 'short' });
+      var out = [];
+      for (var m = 0; m < 12; m++) { out.push(f.format(new Date(2024, m, 1))); }
+      return out;
+    } catch (e) { return MONTHS; }
+  })();
+
   var DOW = GF.weekdays();
 
   function pad(n) { return n < 10 ? '0' + n : '' + n; }
@@ -306,9 +316,17 @@
       if (known !== undefined) return Promise.resolve(known);
       return GF.api('GET', '/properties/' + propertyId + '/availability?from=' + startIso + '&to=' + untilIso).then(function (res) {
         var data = res.status >= 200 && res.status < 300 && res.body && res.body.data;
+        recordHorizon(data);
         recordNext(startIso, data);
         return (data && data.nextAvailableDate) || null;
       });
+    }
+
+    // The last day the server lets the public book (rule 51 of the gift-voucher campaigns spec): it comes with
+    // every availability answer, and the calendar only greys out and stops at what it says.
+    var horizonUntil = null;
+    function recordHorizon(data) {
+      if (data && typeof data.horizonUntil === 'string') horizonUntil = data.horizonUntil;
     }
 
     function forgetAvailability() {
@@ -322,9 +340,11 @@
     function ensureAvailability(untilIso) {
       if (loadedTo && untilIso <= loadedTo) return Promise.resolve();
       var from = loadedTo || todayIso();
+      if (horizonUntil && from >= horizonUntil) return Promise.resolve();
       return GF.api('GET', '/properties/' + propertyId + '/availability?from=' + from + '&to=' + untilIso).then(function (res) {
         if (res.status >= 200 && res.status < 300 && res.body && res.body.data) {
           var data = res.body.data;
+          recordHorizon(data);
           (data.blockedDates || []).forEach(function (x) { blocked[x] = true; });
           recordNext(from, data);
           if (Array.isArray(data.arrivals)) {
@@ -351,29 +371,66 @@
       GF.el('span', {}, GF.el('i', { class: 'gf-sw-stay' }), GF.t('stayRecap'))
     );
     var calPrev = GF.el('button', { class: 'gf-cal-nav', type: 'button', 'aria-label': GF.t('calPrevMonth'), onClick: function () { navCal(-1); } }, '‹');
+    var calNextBtn = GF.el('button', { class: 'gf-cal-nav', type: 'button', 'aria-label': GF.t('calNextMonth'), onClick: function () { navCal(1); } }, '›');
+    // A row of month chips to jump straight to a month, from this one to the horizon's (drawn once the server has said where it is).
+    var calChips = GF.el('div', { class: 'gf-cal-chips', role: 'group', 'aria-label': GF.t('calJumpToMonth') });
     var calBox = GF.el('div', { class: 'gf-cal-box' },
       GF.el('div', { class: 'gf-cal-topbar' },
         calPrev,
         GF.el('strong', {}, GF.t('selectDates')),
-        GF.el('button', { class: 'gf-cal-nav', type: 'button', 'aria-label': GF.t('calNextMonth'), onClick: function () { navCal(1); } }, '›')
+        calNextBtn
       ),
-      calNext, calMonths, calHint, calLegend
+      calChips, calNext, calMonths, calHint, calLegend
     );
 
     // The month strip slides the way the visitor asked to go (CSS handles reduced motion).
     var slideDir = 0;
-    function navCal(dir) {
-      var next = addMonths(calBase, dir);
-      if (next < firstOfMonth(new Date())) return; // past months hold nothing selectable
-      calBase = next;
-      slideDir = dir;
+    // The two panes end on the horizon's month: going further would only show closed days.
+    function lastBase() {
+      var current = firstOfMonth(new Date());
+      if (!horizonUntil) return null;
+      var before = addMonths(firstOfMonth(new Date(horizonUntil + 'T00:00:00')), -1);
+      return before < current ? current : before;
+    }
+    function goToMonth(target) {
+      var last = lastBase();
+      var first = firstOfMonth(new Date());
+      if (target < first) target = first;
+      if (last && target > last) target = last;
+      if (target.getTime() === calBase.getTime()) return;
+      slideDir = target > calBase ? 1 : -1;
+      calBase = target;
       renderCal();
+    }
+    function navCal(dir) {
+      goToMonth(addMonths(calBase, dir));
+    }
+    function renderChips() {
+      calChips.innerHTML = '';
+      if (!horizonUntil) return;
+      var last = firstOfMonth(new Date(horizonUntil + 'T00:00:00'));
+      var year = null;
+      for (var m = firstOfMonth(new Date()); m <= last; m = addMonths(m, 1)) {
+        var withYear = m.getFullYear() !== year;
+        year = m.getFullYear();
+        var label = MONTHS_SHORT[m.getMonth()] + (withYear ? ' ' + year : '');
+        var shown = m.getTime() === calBase.getTime() || m.getTime() === addMonths(calBase, 1).getTime();
+        calChips.appendChild(GF.el('button', {
+          type: 'button', class: 'gf-cal-chip' + (shown ? ' gf-on' : ''), 'aria-pressed': shown ? 'true' : 'false',
+          'aria-label': MONTHS[m.getMonth()] + ' ' + year,
+          onClick: (function (target) { return function () { goToMonth(target); }; })(m),
+        }, label));
+      }
+      var on = calChips.querySelector('.gf-on');
+      if (on && on.scrollIntoView && calChips.scrollWidth > calChips.clientWidth) on.scrollIntoView({ inline: 'center', block: 'nearest' });
     }
     // « Voir » rebuilds the grid under the button that held the focus: the focus moves to the day
     // the box announced, so a keyboard or screen-reader user lands where the eye does.
     var focusDay = null;
     function jumpTo(iso) {
       var target = firstOfMonth(new Date(iso + 'T00:00:00'));
+      var last = lastBase();
+      if (last && target > last) target = last;
       slideDir = target > calBase ? 1 : -1;
       calBase = target;
       focusDay = iso;
@@ -387,10 +444,14 @@
     var renderSeq = 0;
     function renderCal(hint) {
       var windowStart = isoOf(calBase);
-      var windowEnd = isoOf(addMonths(calBase, 2));
       var seq = ++renderSeq;
+      var windowEnd = isoOf(addMonths(calBase, 2));
+      if (horizonUntil && horizonUntil < windowEnd) windowEnd = horizonUntil;
       ensureAvailability(windowEnd).then(function () {
         if (seq !== renderSeq) return;
+        // The first answer says where the horizon is: the window ends there, and the chips can be drawn.
+        if (horizonUntil && horizonUntil < windowEnd) windowEnd = horizonUntil;
+        renderChips();
         // A re-render rebuilds every day: the one that held the focus gets it back.
         var focused = focusDay || (document.activeElement && document.activeElement.dataset ? document.activeElement.dataset.gfDay : null);
         focusDay = null;
@@ -407,6 +468,8 @@
           slideDir = 0;
         }
         calPrev.disabled = calBase <= firstOfMonth(new Date());
+        var last = lastBase();
+        calNextBtn.disabled = Boolean(last && calBase >= last);
         renderNextFree(seq, windowStart, windowEnd, hint);
         if (hint) { setHint(hint.msg, hint.isError); return; }
         setHint(defaultHint());
@@ -464,7 +527,7 @@
         // Only a night that is actually taken is closed. A date sitting before the arrival, or one
         // whose range would cross a taken night, stays clickable and lands a new arrival: closing
         // them killed half the calendar as soon as an arrival was picked.
-        var past = ds < today;
+        var past = ds < today || Boolean(horizonUntil && ds > horizonUntil);
         var taken = !past && isBlocked(ds);
         // With the server's windows, a date that can neither start a stay nor end the current one
         // is closed like a taken night (specs/booking-drawer-friction.md rule 10, first edge case).

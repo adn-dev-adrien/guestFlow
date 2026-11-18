@@ -65,6 +65,8 @@ const COLUMNS = [
   // Accounting closing month, 1..12 (specs/fiscal-year-and-nights-sold.md §3.1). Drives every annual
   // window of the Suivi financier. Plain integer — nothing secret, no encryption.
   'fiscalYearEndMonth',
+  // How far ahead the public may book a lodging, in months (specs/gift-voucher-campaigns.md rule 51).
+  'bookingHorizonMonths',
   // Revenue goal per exercise, JSON (specs/finance-dashboard-redesign.md §3.8). Validated and merged
   // by the settings controller through utils/revenueGoals.js.
   'revenueGoals',
@@ -110,6 +112,7 @@ const COLUMNS = [
 
 const NUMERIC_DEFAULTS = {
   quoteValidityDays: 30,
+  bookingHorizonMonths: 12,
   vatRate: 10,
   smtpSecure: 0,
   notificationsEnabled: 1,

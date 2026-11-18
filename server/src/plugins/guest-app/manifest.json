@@ -112,6 +112,7 @@
     "1.4.0": [
       "Un panier qui contient le bain nordique demande d’accepter les conditions générales de l’activité, une fois par version et par séjour, avant « Commander » : une case à cocher et un lien pour lire le texte ; une fois acceptées, « Conditions acceptées le … » remplace la case.",
       "L’acceptation est inscrite sur la réservation (version, date, appli séjour) et figure dans son historique. Tant que l’équipe n’a pas publié ces conditions, rien n’est demandé.",
+      "Les créneaux du bain s’arrêtent à l’horizon de la ressource (« Réservable jusqu’à ») ; la réponse annonce la date limite et les jours au-delà s’affichent fermés.",
       "Compatible avec GuestFlow 4 (SDK 2.33)."
     ]
   }

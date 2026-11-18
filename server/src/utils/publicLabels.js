@@ -129,6 +129,8 @@ const FR = Object.freeze({
     prepaidUnavailable: 'Ce moyen de paiement n’est pas disponible.',
     optionUnavailable: 'Option non disponible pour ce logement.',
     periodInvalid: 'Paramètres de période invalides.',
+    // Rule 51 of the gift-voucher campaigns spec — a date past how far ahead the public may book.
+    beyondHorizon: (dateText) => `Réservable jusqu'au ${dateText}`,
     resourceUnavailable: 'Ressource non disponible pour ce logement.',
     paymentProviderError: 'Erreur du fournisseur de paiement.',
     termsNotConfigured: 'Les conditions générales ne sont pas encore publiées.',
@@ -248,6 +250,7 @@ const EN = Object.freeze({
     prepaidUnavailable: 'This means of payment is unavailable.',
     optionUnavailable: 'This option is not available for this property.',
     periodInvalid: 'Invalid period parameters.',
+    beyondHorizon: (dateText) => `Bookable until ${dateText}`,
     resourceUnavailable: 'This resource is not available for this property.',
     paymentProviderError: 'Payment provider error.',
     termsNotConfigured: 'The terms and conditions have not been published yet.',

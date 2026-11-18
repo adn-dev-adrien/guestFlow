@@ -90,4 +90,5 @@ export const FIELD = {
   percentMax: '100 % max',
   wholeNumber: 'Nombre entier attendu',
   afterOpening: 'Après l’ouverture',
+  horizonMonths: 'Nombre entier de mois entre 1 et 24',
 };

@@ -50,6 +50,7 @@ const CORE_MODULES = Object.freeze({
   pricing: '../../utils/pricing', // the quote engine
   directQuote: '../../utils/directQuote', // the website's quote (default options merged), also priced by google-vacation-rentals (SDK 2.4.0)
   reservationHelpers: '../../utils/reservationHelpers', // today's date, as the engine reads it
+  bookingHorizon: '../../utils/bookingHorizon', // how far ahead the public may book: the lodging's setting, the refusal sentence (SDK 2.33.0)
   capacity: '../../utils/capacity', // guest capacity of a property
   devisHelpers: '../../utils/devisHelpers', // the extra-guest row of a quote, read from its pricing
   blockedDates: '../../utils/blockedDates', // availability, shared with the public payment

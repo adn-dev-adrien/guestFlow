@@ -276,6 +276,9 @@ tryAddAppSettingsCol('vatRate', "ALTER TABLE app_settings ADD COLUMN vatRate REA
 // year, i.e. exactly the behaviour of every annual figure before this spec, so existing rows keep
 // reading the same way until the operator changes it.
 tryAddAppSettingsCol('fiscalYearEndMonth', "ALTER TABLE app_settings ADD COLUMN fiscalYearEndMonth INTEGER NOT NULL DEFAULT 12");
+// 2026-11-18 — how far ahead the public may book a lodging, in months (specs/gift-voucher-campaigns.md rule 51).
+// It replaces the 730 days the public API hard-coded: existing installs move to 12 months.
+tryAddAppSettingsCol('bookingHorizonMonths', "ALTER TABLE app_settings ADD COLUMN bookingHorizonMonths INTEGER NOT NULL DEFAULT 12");
 // Annual revenue goal per exercise, JSON `{ "<exercise key>": amount }` (specs/finance-dashboard-redesign.md
 // §5). NULL = no goal anywhere, which is what every existing install starts with.
 tryAddAppSettingsCol('revenueGoals', "ALTER TABLE app_settings ADD COLUMN revenueGoals TEXT");
@@ -639,6 +642,7 @@ if (process.env.SKIP_MIGRATIONS !== 'true') {
   if (!rcols.includes('hourlyExternalDayRate')) db.exec('ALTER TABLE resources ADD COLUMN hourlyExternalDayRate REAL NOT NULL DEFAULT 0');
   if (!rcols.includes('hourlyExternalEveningRate')) db.exec('ALTER TABLE resources ADD COLUMN hourlyExternalEveningRate REAL NOT NULL DEFAULT 0');
   if (!rcols.includes('hourlyDegressiveTiers')) db.exec("ALTER TABLE resources ADD COLUMN hourlyDegressiveTiers TEXT NOT NULL DEFAULT '[]'");
+  if (!rcols.includes('bookingHorizonMonths')) db.exec('ALTER TABLE resources ADD COLUMN bookingHorizonMonths INTEGER NOT NULL DEFAULT 3');
   const rrcols = db.prepare('PRAGMA table_info(reservation_resources)').all().map((c) => c.name);
   if (!rrcols.includes('sessions')) db.exec('ALTER TABLE reservation_resources ADD COLUMN sessions TEXT');
 }

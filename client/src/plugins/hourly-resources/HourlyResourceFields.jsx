@@ -84,6 +84,16 @@ export default function HourlyResourceFields({ draft, onChange }) {
             />
           </Box>
           <TextField
+            label="Réservable jusqu'à (mois)"
+            type="number"
+            size="small"
+            value={draft.bookingHorizonMonths ?? 3}
+            onChange={(e) => onChange({ bookingHorizonMonths: e.target.value })}
+            helperText="Jusqu'où le public peut réserver, à partir d'aujourd'hui (3 par défaut)"
+            fullWidth
+            slotProps={{ htmlInput: { min: 1, max: 24, step: 1 } }}
+          />
+          <TextField
             label="Temps de remise en état (min)"
             type="number"
             size="small"

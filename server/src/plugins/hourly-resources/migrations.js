@@ -75,7 +75,7 @@ function tagEveningSupplements(db) {
 const HOURLY_COLUMN_RESETS = [
   ['isComplex', '0'], ['showsPlanningCard', '0'], ['hourlyEveningStart', 'NULL'], ['hourlyEveningRate', '0'],
   ['hourlyExternalDayRate', '0'], ['hourlyExternalEveningRate', '0'], ['hourlyDegressiveTiers', "'[]'"], ['heatUpMinutes', '0'],
-  ['heatRetentionMinutes', '0'], ['turnoverMinutes', '0'],
+  ['heatRetentionMinutes', '0'], ['turnoverMinutes', '0'], ['bookingHorizonMonths', '3'],
 ];
 
 function presentResets(db) {

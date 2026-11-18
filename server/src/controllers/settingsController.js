@@ -134,13 +134,18 @@ const ACCOUNTING_FIELDS = [
   { input: 'fiscalYearEndMonth', column: 'fiscalYearEndMonth', validator: validation.validateFiscalYearEndMonth },
 ];
 
+// Booking group — how far ahead the public may book a lodging (specs/gift-voucher-campaigns.md rule 51).
+const BOOKING_FIELDS = [
+  { input: 'horizonMonths', column: 'bookingHorizonMonths', validator: validation.validateBookingHorizonMonths },
+];
+
 // Boolean-shaped columns stored as INTEGER 0/1 in SQLite. Listed once so applyGroup can
 // coerce them consistently — any new BOOL column should go in here.
 const BOOLEAN_INT_COLUMNS = new Set(['smtpSecure', 'notificationsEnabled', 'notifyIcalReservationEnabled']);
 
 // Everything else in the groups is text: a wrong type is refused, it used to land as « [object Object] »
 // (specs/hosting-h2-account-security.md rule 68, reading of 2026-11-05).
-const NOT_TEXT_COLUMNS = new Set([...BOOLEAN_INT_COLUMNS, 'quoteValidityDays', 'fiscalYearEndMonth']);
+const NOT_TEXT_COLUMNS = new Set([...BOOLEAN_INT_COLUMNS, 'quoteValidityDays', 'fiscalYearEndMonth', 'bookingHorizonMonths']);
 
 // Columns whose value ends up VERBATIM inside an email header — `From: "<name>" <address>` and
 // `To: <address>` (specs/admin-account-management.md §3.4 rule 16b). `validateHeaderSafeText`
@@ -207,6 +212,7 @@ async function updateSettings(req, res) {
   const quote = pickGroup(body, 'quote');
   const vat = pickGroup(body, 'vat');
   const accounting = pickGroup(body, 'accounting');
+  const booking = pickGroup(body, 'booking');
   const smtp = pickGroup(body, 'smtp');
   const notifications = pickGroup(body, 'notifications');
   const emails = pickGroup(body, 'emails');
@@ -249,6 +255,7 @@ async function updateSettings(req, res) {
   applyGroup(emails, EMAILS_FIELDS);
   applySocialLinks(emails, payload, errors);
   applyGroup(accounting, ACCOUNTING_FIELDS);
+  applyGroup(booking, BOOKING_FIELDS);
 
   // `fiscalYearEndMonth` is NOT NULL: an empty/null value (a Select cleared client-side) must
   // preserve the stored month rather than write 0. A valid one is coerced to a plain integer.
@@ -256,6 +263,13 @@ async function updateSettings(req, res) {
     const month = payload.fiscalYearEndMonth;
     if (month === '' || month == null) delete payload.fiscalYearEndMonth;
     else payload.fiscalYearEndMonth = Math.trunc(Number(month));
+  }
+
+  // NOT NULL as well: a cleared field keeps the stored horizon.
+  if (Object.prototype.hasOwnProperty.call(payload, 'bookingHorizonMonths')) {
+    const months = payload.bookingHorizonMonths;
+    if (months === '' || months == null) delete payload.bookingHorizonMonths;
+    else payload.bookingHorizonMonths = Math.trunc(Number(months));
   }
 
   // Revenue goals (specs/finance-dashboard-redesign.md rule 27): one error per exercise, keyed

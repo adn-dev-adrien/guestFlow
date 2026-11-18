@@ -433,6 +433,14 @@
     "parseJsonArray",
     "roundMoney"
   ],
+  "bookingHorizon": [
+    "DEFAULT_LODGING_MONTHS",
+    "addMonthsIso",
+    "horizonUntil",
+    "lodgingHorizonUntil",
+    "lodgingMonths",
+    "refusalSentence"
+  ],
   "capacity": [
     "checkGuestCapacity",
     "publicGuestCap"

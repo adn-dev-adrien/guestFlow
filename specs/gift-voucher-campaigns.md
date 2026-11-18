@@ -472,8 +472,9 @@ Rules are identities: a rule is never renumbered, new rules are appended
 
 51. **How far ahead the public may book is a setting**, never a constant (owner decision of
     2026-11-18).
-    - **Lodging**: Réglages → Réservations, « Horizon de réservation en ligne », default **12
-      months**. It replaces the hard-coded 730 days of `website-booking`, and bounds the booking
+    - **Lodging**: Réglages → Établissement (section « Réservation en ligne » — there is no separate
+      « Réservations » page), « Horizon de réservation en ligne », default **12 months**, whole
+      months from 1 to 36. It replaces the hard-coded 730 days of `website-booking`, and bounds the booking
       engine, its availability calendar, the next-availability search and the redemption of a lodging
       voucher.
     - **Resources**: on each resource's form, beside its opening hours, « Réservable jusqu'à »,
@@ -483,6 +484,14 @@ Rules are identities: a rule is never renumbered, new rules are appended
     - The pickers stay quick over a long horizon: a row of month chips to jump to a month, a month
       grid with the days beyond the horizon disabled, and « Prochaine disponibilité ». The server
       refuses a date past the horizon with « Réservable jusqu'au … ».
+    - **As built (step 3)**: the limit is « today + N months » on the server's clock (Europe/Paris)
+      in `utils/bookingHorizon.js` (core module `bookingHorizon`, SDK 2.33.0). The public availability
+      answer carries `horizonUntil`; its window and the next-availability search stop there; a stay
+      or a window past it is refused with the sentence (French or English, per the visitor's
+      language) on the `beyondHorizon` reason. A resource's horizon (1 to 24 months) bounds the
+      scheduler's slots (`closed` past it) and is read through `horizonUntil(resource, now)` of the
+      hourly-resources plugin; the guest app's slots answer carries it. `MonthJumpCalendar` is the
+      generic picker; the WordPress calendar draws its own month chips from `horizonUntil`.
 
 ### 3.P Outside-booking fiche (added 2026-11-18)
 
@@ -569,7 +578,7 @@ Rules are identities: a rule is never renumbered, new rules are appended
 | component | `components/ImageDropField.jsx` | C (generic) | Upload field with preview, refusal from the server |
 | component | `components/MonthJumpCalendar.jsx` | C (generic) | Month chips + month grid with disabled days, for long horizons |
 | page | `pages/settings/TermsSettingsPage.jsx` | T | One tab per activity |
-| page | settings « Réservations » | T | Lodging booking horizon |
+| page | settings « Établissement » (`SettingsBookingSection`) | T | Lodging booking horizon |
 
 ### 4.3 WordPress (`integrations/wordpress/guestflow-booking/`)
 

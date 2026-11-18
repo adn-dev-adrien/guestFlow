@@ -15,7 +15,7 @@ export const emptyResource = {
   propertyPricing: {},
   isComplex: false, slotDuration: 5, minimumUsageMinutes: 0, openTime: '08:00', closeTime: '22:00', openDays: ALL_DAYS, turnoverMinutes: 0,
   showsPlanningCard: false, hourlyEveningStart: '', hourlyEveningRate: 0, hourlyExternalDayRate: 0, hourlyExternalEveningRate: 0, hourlyDegressiveTiers: [],
-  heatUpMinutes: 0, heatRetentionMinutes: 0,
+  heatUpMinutes: 0, heatRetentionMinutes: 0, bookingHorizonMonths: 3,
   emailBookedText: '', emailBookedTextEn: '',
   ...emptyExternalSale,
 };
@@ -24,7 +24,7 @@ const DEFAULT_HOURLY_SETTINGS = {
   isComplex: 0, slotDuration: 5, minimumUsageMinutes: 0, openTime: '08:00', closeTime: '22:00',
   openDays: JSON.stringify(ALL_DAYS), turnoverMinutes: 0, showsPlanningCard: 0,
   hourlyEveningStart: null, hourlyEveningRate: 0, hourlyExternalDayRate: 0, hourlyExternalEveningRate: 0, hourlyDegressiveTiers: [],
-  heatUpMinutes: 0, heatRetentionMinutes: 0,
+  heatUpMinutes: 0, heatRetentionMinutes: 0, bookingHorizonMonths: 3,
 };
 
 function hourlySettings(form) {
@@ -49,6 +49,7 @@ function hourlySettings(form) {
       : [],
     heatUpMinutes: Math.max(0, Number(form.heatUpMinutes) || 0),
     heatRetentionMinutes: Math.max(0, Number(form.heatRetentionMinutes) || 0),
+    bookingHorizonMonths: slotted ? (Number(form.bookingHorizonMonths) || 3) : 3,
   };
 }
 
@@ -136,6 +137,7 @@ export function formFromResource(item) {
     turnoverMinutes: Number(item.turnoverMinutes || 0),
     heatUpMinutes: Number(item.heatUpMinutes || 0),
     heatRetentionMinutes: Number(item.heatRetentionMinutes || 0),
+    bookingHorizonMonths: Number(item.bookingHorizonMonths || 3),
     emailBookedText: item.emailBookedText || '',
     emailBookedTextEn: item.emailBookedTextEn || '',
     ...externalSaleFromItem(item),
@@ -159,6 +161,10 @@ export function validateResourceForm(form) {
   });
   if (form.priceType === 'per_hour' && form.isComplex && form.openTime && form.closeTime && form.closeTime <= form.openTime) {
     errors.closeTime = FIELD.afterOpening;
+  }
+  if (form.priceType === 'per_hour' && form.isComplex && form.bookingHorizonMonths !== undefined) {
+    const months = Number(form.bookingHorizonMonths);
+    if (!Number.isInteger(months) || months < 1 || months > 24) errors.bookingHorizonMonths = FIELD.horizonMonths;
   }
   return errors;
 }

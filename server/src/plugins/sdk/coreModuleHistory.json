@@ -331,6 +331,7 @@
     {
       "version": "2.33.0",
       "modules": [
+        "bookingHorizon",
         "pdfFonts",
         "prepaidReceipts",
         "prepaidSources",

@@ -218,6 +218,7 @@ final class GF_Blocks
                 // screen showed them (specs/site-english-version.md rule 49).
                 'calPrevMonth'    => __('Mois précédent', 'guestflow-booking'),
                 'calNextMonth'    => __('Mois suivant', 'guestflow-booking'),
+                'calJumpToMonth'  => __('Aller à un mois', 'guestflow-booking'),
                 'honeypot'        => __('Ne pas remplir', 'guestflow-booking'),
                 // Stepper buttons, read by screen readers with the line they count (rule 15).
                 'stepAdd'         => __('Ajouter : %s', 'guestflow-booking'),

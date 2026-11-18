@@ -19,7 +19,7 @@ const devisModel = sdk.coreModule('devisModel');
 const notificationService = sdk.coreModule('notificationService');
 const settings = require('../settings');
 const termsModel = sdk.coreModule('termsModel');
-const { validateStayInput, validateGuest, validateAttribution, cleanFreeText, withFieldMessages } = require('../publicInputValidation');
+const { validateStayInput, validateGuest, validateAttribution, cleanFreeText, withFieldMessages, withHorizonMessages } = require('../publicInputValidation');
 const { classifyAttribution } = sdk.coreModule('attributionChannel');
 const { checkGuestCapacity, publicGuestCap } = sdk.coreModule('capacity');
 const { generateToken, tokensMatch } = sdk.coreModule('publicDevisToken');
@@ -170,8 +170,11 @@ function create(req, res) {
     return ok(res, { status: 'pending' }, 201);
   }
 
-  const v = validateStayInput(body, { todayIso: sdk.coreModule('reservationHelpers').getTodayIsoDate() });
-  if (!v.ok) return failT(res, req, 422, 'VALIDATION_FAILED', 'requestInvalid', v.errors);
+  const v = validateStayInput(body, {
+    todayIso: sdk.coreModule('reservationHelpers').getTodayIsoDate(),
+    horizonUntil: sdk.coreModule('bookingHorizon').lodgingHorizonUntil(),
+  });
+  if (!v.ok) return failT(res, req, 422, 'VALIDATION_FAILED', 'requestInvalid', withHorizonMessages(v.errors, langOf(req)));
 
   const g = validateGuest(body.guest);
   // Each refused field carries its own sentence, so the site can print it under that field

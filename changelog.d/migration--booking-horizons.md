@@ -1,0 +1,1 @@
+- `app_settings.bookingHorizonMonths` (default 12) and `resources.bookingHorizonMonths` (default 3) are added on startup. Existing installs move from the 730-day public limit to 12 months; existing resources are bookable 3 months ahead in the guest app. Both can be changed in Paramètres › Établissement and on the resource form.

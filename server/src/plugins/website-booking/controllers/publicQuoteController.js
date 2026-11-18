@@ -16,7 +16,7 @@ const resourcesModel = sdk.coreModule('resourcesModel');
 const { hideUnoffered } = sdk.coreModule('resourceOffer');
 const { isBabyBedResource } = sdk.coreModule('babyBedResource');
 const { checkGuestCapacity, publicGuestCap } = sdk.coreModule('capacity');
-const { validateStayInput } = require('../publicInputValidation');
+const { validateStayInput, withHorizonMessages } = require('../publicInputValidation');
 const {
   toPublicQuote, toPublicCancellationInsurance, toPublicOptionLimits, hasUnpricedNights,
 } = require('../publicProjections');
@@ -141,8 +141,11 @@ async function quote(req, res) {
   // One resolver for the whole quote: the lines, the insurance block and the portion hints all name
   // labels, and one catalogue read serves them all (specs/translation-catalogue.md rule 21).
   const translate = translationResolver.forLang(lang);
-  const v = validateStayInput(req.body, { todayIso: sdk.coreModule('reservationHelpers').getTodayIsoDate() });
-  if (!v.ok) return failT(res, req, 422, 'VALIDATION_FAILED', 'devisInvalid', v.errors);
+  const v = validateStayInput(req.body, {
+    todayIso: sdk.coreModule('reservationHelpers').getTodayIsoDate(),
+    horizonUntil: sdk.coreModule('bookingHorizon').lodgingHorizonUntil(),
+  });
+  if (!v.ok) return failT(res, req, 422, 'VALIDATION_FAILED', 'devisInvalid', withHorizonMessages(v.errors, lang));
 
   const optErrors = checkOptionApplicability(v.value.propertyId, v.value.options);
   if (optErrors) return failT(res, req, 422, 'VALIDATION_FAILED', 'optionUnavailable', optErrors);

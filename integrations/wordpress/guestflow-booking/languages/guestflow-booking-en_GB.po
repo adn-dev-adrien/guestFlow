@@ -901,3 +901,7 @@ msgstr "To pay today"
 #: includes/class-gf-blocks.php
 msgid "Confirmer la réservation"
 msgstr "Confirm the booking"
+
+#: includes/class-gf-blocks.php
+msgid "Aller à un mois"
+msgstr "Jump to a month"

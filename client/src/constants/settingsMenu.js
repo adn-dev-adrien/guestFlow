@@ -120,7 +120,7 @@ export const INTEGRATIONS_PATH = '/settings/integrations';
  * (specs/platform-settings-relay-and-review.md rule 10), so the core names no plugin feature.
  */
 export const SETTINGS_KEYWORDS = Object.freeze({
-  '/settings/etablissement': ['IBAN', 'BIC', 'Banque', 'SIRET', 'TVA intracommunautaire', 'Logo', 'Adresse', 'Téléphone', 'Raison sociale', 'Pied de devis'],
+  '/settings/etablissement': ['IBAN', 'BIC', 'Banque', 'SIRET', 'TVA intracommunautaire', 'Logo', 'Adresse', 'Téléphone', 'Raison sociale', 'Pied de devis', 'Horizon de réservation', 'Réservation en ligne'],
   [PROPERTIES_PATH]: ['Wi-Fi', 'Adresse du logement', 'Code de la boîte à clés', 'Accès', 'Caution', 'Ménage', 'Linge de lit', 'Serviettes', 'Tarifs', 'Saisons', 'Taxe de séjour', 'Acompte', 'Calendrier iCal', 'Photos', 'Lits'],
   '/settings/plateformes': ['Airbnb', 'Booking', 'Abritel', 'Gîtes de France', 'Commission', 'iCal'],
   '/parametres/conditions-generales': ['CGV', 'CGL', 'Conditions de vente', 'Annulation'],
