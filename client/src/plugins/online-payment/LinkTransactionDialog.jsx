@@ -179,7 +179,7 @@ export default function LinkTransactionDialog({ open, onClose, busy = false, onS
   return (
     <FormDialog
       open={open} onClose={onClose} maxWidth="sm" title="Rattacher des virements" submitLabel="Rattacher"
-      onSubmit={submit} submitDisabled={!answer || !answer.valid || manualInvalid} submitBusy={busy}
+      onSubmit={submit} submitDisabled={!base || !answer || !answer.valid || manualInvalid} submitBusy={busy}
     >
       <FocusKeeper>
         {creditMode && (

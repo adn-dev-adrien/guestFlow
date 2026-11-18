@@ -313,3 +313,13 @@ test.each(Object.keys(ROWS))('%s — a recompute that fails after an answer: no 
   await row.recover(state);
   expect(focusLost()).toBe(false);
 });
+
+test('LinkTransactionDialog — a list that fails after a tick hides the ticked rows, so « Rattacher » waits for the list again', async () => {
+  const state = {};
+  await ROWS.LinkTransactionDialog.answer(state);
+  expect(screen.getByRole('button', { name: 'Rattacher' })).toBeEnabled();
+  api.getReconciliationFicheCredits.mockRejectedValue(offline());
+  fireEvent.change(screen.getByRole('searchbox'), { target: { value: '12/03' } });
+  await screen.findByText(/Service indisponible|Lecture impossible/);
+  expect(screen.getByRole('button', { name: 'Rattacher' })).toBeDisabled();
+});

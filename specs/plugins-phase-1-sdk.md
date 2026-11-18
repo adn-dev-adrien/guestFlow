@@ -766,10 +766,11 @@ Optional: a plugin that declares nothing reads « Actif ».
     amount the answer's remainder fills). The hook keeps `error` until a new answer as it keeps `failed`, so the alert and its « Réessayer »
     stay drawn while the retry is asked and the focus stays on the button. The booking's price block, the penalty, the payout split and the
     credit link dialog are `FocusKeeper` regions like the other sale dialogs, so a control an answer does take away leaves the focus on the
-    nearest region, never on the dialog's root. Test `useLatestPreview.failed-recompute` (9: the hook through a failure and a pending retry;
+    nearest region, never on the dialog's root. A credit-link list that fails after a tick hides the ticked rows, so « Rattacher » waits
+    for the list again (no action on a selection the screen no longer shows). Test `useLatestPreview.failed-recompute` (10: the hook through a failure and a pending retry;
     the consumers read from the code equal the table; one row per consumer — no figure of the older answer, no live money field set from it,
     every draft input still mounted, the focus neither on the page nor on the dialog root after the failing edit, still on « Réessayer »
-    while the retry is asked, and not lost when the new answer lands).
+    while the retry is asked, and not lost when the new answer lands; the credit link's « Rattacher » disabled while its list is unknown).
     **The SDK history records what each shipped minor exposed:** v4.1.0 shipped SDK 2.27.0 without `vat`, `accountingOutput`, `legacyBucketSplit`,
     `refundJournal`, `csvJournal`, `salesJson` and `synthesisExporter`, and neither SDK 2.28.0 (the home-data extension points,
     specs/guest-app-home-automation.md, merged first) nor SDK 2.29.0 (the Mollie tranches and journal, rule 51, merged first) recorded them,
@@ -1027,10 +1028,10 @@ still in the core. Server: 4,611 tests after, of which 37 are new. Client: 1,416
   consumer starts nothing, an active one the four imports, once; once loaded every block is in the first paint. Each test of this file and of
   `LazySaleComponents.lazy` takes a fresh module registry (`vi.resetModules` + `vi.doMock`), so the session-wide memoised imports never leak
   from one test to the next and the outcome is the same in any order (loop t21 A21-1, shuffled seeds 1-12).
-- `hooks/__tests__/useLatestPreview.failed-recompute.test.jsx` (9) — rule 54 (reading of 2026-11-18, loop t23 S23-1): a failed request
+- `hooks/__tests__/useLatestPreview.failed-recompute.test.jsx` (10) — rule 54 (reading of 2026-11-18, loop t23 S23-1): a failed request
   makes the answer unknown until a new one; every money preview screen, read from the code, shows no figure of the older answer, no live
   money field set from it, the reason with « Réessayer » (kept while the retry is asked), a disabled commit, every draft input still
-  mounted, the focus never on the page or the dialog root, then the new answer.
+  mounted, the focus never on the page or the dialog root, then the new answer; « Rattacher » disabled while the credit list is unknown.
 - `components/__tests__/LazySaleComponents.late-chunks.test.jsx` (3) — rule 54 (reading of 2026-11-18, loop t22 A22-1, loop t23 UI23-1;
   specs/server-test-isolation.md rule 23): every TEST gets the four blocks' code cold and late (`src/setupLateSaleChunks.js` resets
   them before each test), a later test of the same file included; the dialogs waiting for it, read from the code, each have a suite.
