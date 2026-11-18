@@ -365,7 +365,8 @@ export default function ResourceBookingDialog({
   const draftRefusal = invoiceAnswer && !invoiceAnswer.ok && !invoiceAnswer.silent && !draftInternalCash ? invoiceAnswer.reason : null;
   const wantsInvoice = invoiceOffered && invoiceChecked && qontoReady;
   // Loop t21 UI21-1 — until the server answers for the payment typed, the block is drawn pending at the offered state's height (checkbox
-  // disabled, ticked as the default card line will tick it), so the answer fills it instead of swapping a caption for the checkbox.
+  // disabled, ticked as the default card line will tick it), so the answer fills it instead of swapping a caption for the checkbox; any
+  // outcome keeps that height while « Maintenant » can invoice (`reserve`).
   const invoicePending = qontoReady && payNow && Boolean(draft) && !invoiceAnswer && (!payment || Boolean(invoiceDraft));
   const durationForOffer = durationMinutes - Number(price?.freeMinutesApplied || 0);
   const canSave = Boolean(
@@ -694,6 +695,7 @@ export default function ResourceBookingDialog({
                   offered={invoiceOffered || Boolean(invoiceOutcome)}
                   checked={invoiceChecked || (invoicePending && !payment)}
                   pending={invoicePending}
+                  reserve={qontoReady && payNow}
                   onCheck={setInvoiceChecked}
                   billing={billing}
                   onBilling={setBilling}

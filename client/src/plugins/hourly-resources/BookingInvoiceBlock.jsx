@@ -17,17 +17,36 @@
  *                 « une fois le paiement saisi » caption, which stays for a payment not typed yet
  *   pending       boolean — the server's answer for the payment being typed is on its way: the checkbox is drawn, disabled, in the place and height the
  *                 offered state takes, so the answer fills the block instead of pushing the dialog (outside-booking-sas rule 54 reading, loop t21 UI21-1)
+ *   reserve       boolean — the block was or may be drawn pending in this payment (« Payé maintenant » can invoice): every outcome keeps at least the
+ *                 height the pending block took (a refusal's caption, « Caisse interne », a silent answer the dialog hides), so the answer never
+ *                 moves what is drawn around it (loop t21, verifier's reserve on UI21-1)
  *   cardDay       'JJ/MM' — the day of the card batch
  *   onIssue, onAttach  () => void — the buttons of a booking whose invoice is still to make / to join
  *   onPickTransaction (transactionId) => void
  *   busy          boolean
  *   showAddress   boolean — a guest with no client record
  */
-import React, { useState } from 'react';
+import React, { useLayoutEffect, useRef, useState } from 'react';
 import { Alert, Box, Button, Checkbox, FormControlLabel, TextField, Typography } from '@mui/material';
 import BillingAddressFields from './BillingAddressFields';
 
-export default function BookingInvoiceBlock({
+export default function BookingInvoiceBlock({ reserve = false, ...props }) {
+  const inner = useRef(null);
+  const [reserved, setReserved] = useState(0);
+  const { pending = false, checked, showAddress = true } = props;
+  // The pending block's own height, measured before paint; the outcome that replaces it keeps that height while `reserve` holds.
+  useLayoutEffect(() => {
+    if (pending && inner.current) setReserved(inner.current.offsetHeight);
+  }, [pending, checked, showAddress]);
+  useLayoutEffect(() => { if (!reserve) setReserved(0); }, [reserve]);
+  return (
+    <Box data-testid="invoice-block" data-reserve={reserve ? 'on' : undefined} sx={{ minHeight: reserve ? reserved : 0 }}>
+      <Box ref={inner}><InvoiceBlockContent {...props} /></Box>
+    </Box>
+  );
+}
+
+function InvoiceBlockContent({
   booking = null, qontoReady, offered, checked, onCheck, billing, onBilling, addressAsked = false, internalCash = false, reason = null,
   pending = false, cardDay = '', onIssue, onAttach, onPickTransaction, busy = false, showAddress = true,
 }) {
@@ -84,7 +103,7 @@ export default function BookingInvoiceBlock({
   }
   const stored = Boolean(booking && booking.payment);
   return (
-    <Box sx={{ display: 'grid', gap: 1.25 }} aria-busy={pending || undefined} data-testid="invoice-block">
+    <Box sx={{ display: 'grid', gap: 1.25 }} aria-busy={pending || undefined}>
       {addressAsked && <Alert severity="error">Paiement enregistré. La facture n'a pas été créée : Qonto demande l'adresse de facturation.</Alert>}
       {stored ? (
         <Box>

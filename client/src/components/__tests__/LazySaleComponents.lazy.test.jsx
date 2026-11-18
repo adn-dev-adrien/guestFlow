@@ -8,15 +8,20 @@ import { vi } from 'vitest';
 
 const { loaded } = vi.hoisted(() => ({ loaded: vi.fn() }));
 const stub = (name) => ({ __esModule: true, default: (props) => <div data-testid={name} data-open={String(Boolean(props.open))}>{props.label}</div> });
-vi.mock('../StaySalesSection', () => stub('stay-sales'));
-vi.mock('../SuggestedArticlesStep', () => stub('suggested'));
-vi.mock('../SalePaymentLink', () => stub('payment-link'));
-vi.mock('../StandaloneSaleDialog', () => { loaded(); return stub('sale-dialog'); });
+// Each test takes a fresh module registry: the wrappers memoise their imports for the session, so a test that opened « Vente hors séjour »
+// would otherwise have loaded it for the next one, whatever their order (loop t21 A21-1, shuffled seeds).
+async function fresh() {
+  vi.resetModules();
+  loaded.mockClear();
+  vi.doMock('../StaySalesSection', () => stub('stay-sales'));
+  vi.doMock('../SuggestedArticlesStep', () => stub('suggested'));
+  vi.doMock('../SalePaymentLink', () => stub('payment-link'));
+  vi.doMock('../StandaloneSaleDialog', () => { loaded(); return stub('sale-dialog'); });
+  return { Lazy: await import('../LazySaleComponents'), sdk: await import('../../plugins/sdk') };
+}
 
-import * as Lazy from '../LazySaleComponents';
-import * as sdk from '../../plugins/sdk';
-
-test('the SDK exports are the lazy wrappers', () => {
+test('the SDK exports are the lazy wrappers', async () => {
+  const { Lazy, sdk } = await fresh();
   expect(sdk.StaySalesSection).toBe(Lazy.LazyStaySalesSection);
   expect(sdk.SuggestedArticlesStep).toBe(Lazy.LazySuggestedArticlesStep);
   expect(sdk.SalePaymentLink).toBe(Lazy.LazySalePaymentLink);
@@ -28,18 +33,21 @@ test.each([
   ['LazySuggestedArticlesStep', 'suggested'],
   ['LazySalePaymentLink', 'payment-link'],
 ])('%s renders the real component with its props', async (name, testId) => {
+  const { Lazy } = await fresh();
   const Component = Lazy[name];
   render(<Component label="Ligne 1" />);
   expect(await screen.findByTestId(testId)).toHaveTextContent('Ligne 1');
 });
 
-test('« Vente hors séjour » never opened: nothing rendered, its code not loaded', () => {
+test('« Vente hors séjour » never opened: nothing rendered, its code not loaded', async () => {
+  const { Lazy } = await fresh();
   render(<Lazy.LazyStandaloneSaleDialog open={false} onClose={() => {}} onSold={() => {}} />);
   expect(screen.queryByTestId('sale-dialog')).toBeNull();
   expect(loaded).not.toHaveBeenCalled();
 });
 
 test('« Vente hors séjour » opened: the real dialog with its props, still mounted once closed', async () => {
+  const { Lazy } = await fresh();
   const { rerender } = render(<Lazy.LazyStandaloneSaleDialog open={false} label="Client 42" onClose={() => {}} onSold={() => {}} />);
   rerender(<Lazy.LazyStandaloneSaleDialog open label="Client 42" onClose={() => {}} onSold={() => {}} />);
   const dialog = await screen.findByTestId('sale-dialog');

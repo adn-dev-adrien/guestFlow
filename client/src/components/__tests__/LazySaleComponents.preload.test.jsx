@@ -10,15 +10,24 @@ const stub = (name, key) => {
   imported[key] += 1;
   return { __esModule: true, default: (props) => <div data-testid={name}>{props.label}</div> };
 };
-vi.mock('../StaySalesSection', () => stub('stay-sales', 'stay'));
-vi.mock('../SuggestedArticlesStep', () => stub('suggested', 'suggested'));
-vi.mock('../SalePaymentLink', () => stub('payment-link', 'link'));
-vi.mock('../StandaloneSaleDialog', () => stub('sale-dialog', 'dialog'));
 
-import * as Lazy from '../LazySaleComponents';
+// Each test takes a fresh module (its own import promises and counters): the memoised imports live for the whole session in the app, and
+// would otherwise leak from one test to the next, making the outcome depend on the order (loop t21 A21-1, shuffled seeds).
+async function freshModule({ preloaded = false } = {}) {
+  vi.resetModules();
+  Object.keys(imported).forEach((key) => { imported[key] = 0; });
+  // Registered again on each fresh registry, so each block's import is counted for this test only.
+  vi.doMock('../StaySalesSection', () => stub('stay-sales', 'stay'));
+  vi.doMock('../SuggestedArticlesStep', () => stub('suggested', 'suggested'));
+  vi.doMock('../SalePaymentLink', () => stub('payment-link', 'link'));
+  vi.doMock('../StandaloneSaleDialog', () => stub('sale-dialog', 'dialog'));
+  const Lazy = await import('../LazySaleComponents');
+  if (preloaded) await Lazy.preloadSaleComponents();
+  return Lazy;
+}
 
-// The order matters: the module keeps its loaded code for the whole file, as it does for the whole session.
 test('an inactive consumer starts nothing; an active one starts the four imports and answers ready once they are there', async () => {
+  const Lazy = await freshModule();
   const { result, rerender } = renderHook(({ active }) => Lazy.useSaleComponentsReady(active), { initialProps: { active: false } });
   expect(result.current).toBe(false);
   expect(imported).toEqual({ stay: 0, suggested: 0, link: 0, dialog: 0 });
@@ -29,7 +38,7 @@ test('an inactive consumer starts nothing; an active one starts the four imports
 });
 
 test('preloading again imports nothing more, and a later consumer is ready on its first render', async () => {
-  await Lazy.preloadSaleComponents();
+  const Lazy = await freshModule({ preloaded: true });
   await Lazy.preloadSaleComponents();
   expect(imported).toEqual({ stay: 1, suggested: 1, link: 1, dialog: 1 });
   const seen = [];
@@ -41,13 +50,15 @@ test.each([
   ['LazyStaySalesSection', 'stay-sales'],
   ['LazySuggestedArticlesStep', 'suggested'],
   ['LazySalePaymentLink', 'payment-link'],
-])('%s, once preloaded, is in the first paint with its props (no suspension)', (name, testId) => {
+])('%s, once preloaded, is in the first paint with its props (no suspension)', async (name, testId) => {
+  const Lazy = await freshModule({ preloaded: true });
   const Component = Lazy[name];
   render(<Component label="Ligne 1" />);
   expect(screen.getByTestId(testId)).toHaveTextContent('Ligne 1');
 });
 
-test('« Vente hors séjour », once preloaded, opens on the click\'s own paint', () => {
+test('« Vente hors séjour », once preloaded, opens on the click\'s own paint', async () => {
+  const Lazy = await freshModule({ preloaded: true });
   const { rerender } = render(<Lazy.LazyStandaloneSaleDialog open={false} label="Client 42" onClose={() => {}} onSold={() => {}} />);
   expect(screen.queryByTestId('sale-dialog')).toBeNull();
   rerender(<Lazy.LazyStandaloneSaleDialog open label="Client 42" onClose={() => {}} onSold={() => {}} />);

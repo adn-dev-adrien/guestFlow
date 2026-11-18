@@ -200,11 +200,12 @@ export default function ResourceArrivalDialog({ open, bookingId, onClose, onDone
   const draftRefusal = invoiceAnswer && !invoiceAnswer.ok && !invoiceAnswer.silent && !draftInternalCash ? invoiceAnswer.reason : null;
   // Loop t21 UI21-1 — the block is drawn with the content whenever « Payé maintenant » can invoice, in a pending state of the offered
   // block's height until the server answers for the payment typed (the tenders report it on mount, so that answer always comes one quote
-  // after the content); the answer then fills it. A `silent` answer still removes it (UI3-5), and a payment no longer readable shows the
-  // block's own « une fois le paiement saisi » caption. Before the tenders' first report the box reads as their default card line will set it.
+  // after the content); the answer then fills it, and every outcome keeps that height (`reserve`): a refusal's caption, « Caisse interne »,
+  // and a `silent` answer, which shows nothing (UI3-5) — its section is hidden in place. A payment no longer readable shows the block's own
+  // « une fois le paiement saisi » caption. Before the tenders' first report the box reads as their default card line will set it.
   const invoiceSilenced = Boolean(invoiceAnswer && !invoiceAnswer.ok && invoiceAnswer.silent);
   const invoicePending = !reception && payNow && qontoReady && !invoiceAnswer && (!payment || Boolean(paymentDraft));
-  const invoiceAsked = !reception && payNow && qontoReady && !invoiceSilenced;
+  const invoiceAsked = !reception && payNow && qontoReady;
   // Money already on the books, invoiceable now: the server's `invoiceable` (invoicing rules 13, 44; loop t1 UI-10 / AV-11). It reads the stored visit, so a draft waits for its save.
   const invoiceable = visit && !reception ? visit.invoiceable : null;
   const invoiceStored = !dirty && Boolean(invoiceable && invoiceable.ok);
@@ -461,7 +462,7 @@ export default function ResourceArrivalDialog({ open, bookingId, onClose, onDone
                 </Box>
               )}
               {!reception && !invoiceReason && (invoiceAsked || invoiceOffered || invoiced || invoiceOutcome || invoiceStored || draftInternalCash || draftRefusal) && (
-                <Box sx={{ display: 'grid', gap: 1 }}>
+                <Box sx={{ display: 'grid', gap: 1, ...(invoiceSilenced ? { visibility: 'hidden' } : {}) }} aria-hidden={invoiceSilenced || undefined} data-testid="invoice-section">
                   <Typography variant="subtitle2">{TEXTS.invoice}</Typography>
                   {invoiceOutcome && invoiceOutcome.code !== 'QONTO_NEEDS_ADDRESS' && <Alert severity="error">{invoiceOutcome.message}</Alert>}
                   <BookingInvoiceBlock
@@ -476,6 +477,7 @@ export default function ResourceArrivalDialog({ open, bookingId, onClose, onDone
                     internalCash={draftInternalCash || Boolean(booking.payment && !booking.payment.onTheBooks)}
                     reason={draftRefusal}
                     pending={invoicePending}
+                    reserve={invoiceAsked}
                     cardDay={dayMonth((booking.payment && booking.payment.paidAt) || (payment && payment.paidAt))}
                     onIssue={() => validate({ issue: true })}
                     onAttach={() => attachWith({})}

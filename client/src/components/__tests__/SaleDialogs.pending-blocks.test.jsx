@@ -1,8 +1,10 @@
-// specs/plugins-phase-1-sdk.md rule 54 (reading 2026-11-18, loop t21 UI21-1) — a block of a sale dialog that reads a SECOND request (a quote, a
-// preview of the payment typed) is drawn with the content, in a pending state of the place it takes, and the answer fills it: nothing lands under
-// content already drawn. The dialogs are enumerated from the code — every file that asks a quote/preview hook and renders a sale block — and a new
-// one fails here until its late blocks are in the table. Each row holds the second request, checks the pending block is there with the content,
-// then releases the answer and checks the block is filled in place.
+// specs/plugins-phase-1-sdk.md rule 54 (reading 2026-11-18, loop t21 UI21-1), specs/outside-booking-sas.md rule 54 (reading 2026-11-18, loop
+// t21 UI21-1 and the verifier's reserve), specs/pricing-components.md rule 117 (reading 2026-11-18, loop t21 UI21-1) — a block of a sale dialog
+// that reads a SECOND request (a quote, a preview of the payment typed) is drawn with the content, in a pending state of the place it takes, and
+// the answer fills it: nothing lands under content already drawn. The dialogs are enumerated from the code — every file that asks a quote/preview
+// hook and renders a sale block — and a new one fails here until its late blocks are in the table. Each row holds the second request, checks the
+// pending block is there with the content, then releases the answer and checks the block is filled in place. The « Facture » block is run
+// through every outcome of its answer (accepted, a refusal's caption, a silent refusal, a failed quote), each keeping the pending block's height.
 import fs from 'fs';
 import path from 'path';
 import React from 'react';
@@ -69,6 +71,52 @@ const dialogs = sourcesOf(SRC)
 
 const invoiceBox = () => screen.getByRole('checkbox', { name: /Créer la facture dans Qonto/ });
 
+// jsdom lays nothing out: the pending block (the one holding `aria-busy`) is given a height, so the reserve the block keeps can be read.
+const PENDING_HEIGHT = 137;
+const realOffsetHeight = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'offsetHeight');
+beforeAll(() => {
+  Object.defineProperty(HTMLElement.prototype, 'offsetHeight', {
+    configurable: true,
+    get() { return this.querySelector && this.querySelector('[aria-busy="true"]') ? PENDING_HEIGHT : 20; },
+  });
+});
+afterAll(() => { Object.defineProperty(HTMLElement.prototype, 'offsetHeight', realOffsetHeight); });
+
+const answeredWith = (invoiceable) => (quote) => async (id, body) => ({ ...(await quote(id, body)), invoiceable });
+const INVOICE_OUTCOMES = [
+  {
+    name: 'accepted',
+    answer: answeredWith({ ok: true, code: null, reason: null }),
+    filled: async () => { await waitFor(() => expect(invoiceBox()).toBeEnabled()); expect(invoiceBox()).toBeChecked(); },
+  },
+  {
+    name: 'refused (caption)',
+    answer: answeredWith({ ok: false, code: 'TARIFF_CHANGED', reason: 'Le tarif a changé : facture à établir dans Qonto.', silent: false }),
+    filled: async () => {
+      expect(await screen.findByText('Le tarif a changé : facture à établir dans Qonto.')).toBeInTheDocument();
+      expect(screen.queryByRole('checkbox', { name: /Créer la facture dans Qonto/ })).toBeNull();
+    },
+  },
+  {
+    name: 'silent refusal',
+    answer: answeredWith({ ok: false, code: 'ISSUER_UNAVAILABLE', reason: 'Qonto non connecté.', silent: true }),
+    filled: async () => {
+      await waitFor(() => expect(screen.getByTestId('invoice-section')).toHaveAttribute('aria-hidden', 'true'));
+      expect(screen.getByTestId('invoice-section')).toHaveStyle({ visibility: 'hidden' });
+      expect(screen.queryByText('Qonto non connecté.')).toBeNull();
+      expect(screen.queryByRole('checkbox', { name: /Créer la facture dans Qonto/ })).toBeNull();
+    },
+  },
+  {
+    name: 'failed quote',
+    answer: () => async () => { throw Object.assign(new Error('Service indisponible'), { status: 503 }); },
+    filled: async () => {
+      expect(await screen.findByText('Facture non vérifiée pour ce paiement.')).toBeInTheDocument();
+      expect(invoiceBox()).toBeDisabled();
+    },
+  },
+];
+
 const RESOURCE = {
   id: 3, name: 'Bain fictif', isComplex: 1, priceType: 'per_hour', openTime: '08:00', closeTime: '22:00', slotDuration: 30, minimumUsageMinutes: 60,
 };
@@ -93,12 +141,12 @@ const PLATFORM_STAY = stayDue({
 // One row per late block of each dialog: `open` mounts the dialog with the second request held and goes to the block, `pending` checks the block
 // is drawn with the content, `filled` checks the answer filled it.
 const DIALOGS = {
-  'plugins/hourly-resources/ResourceArrivalDialog.jsx': [{
-    block: '« Facture » of « Payé maintenant »',
+  'plugins/hourly-resources/ResourceArrivalDialog.jsx': INVOICE_OUTCOMES.map((outcome) => ({
+    block: `« Facture » of « Payé maintenant », answer: ${outcome.name}`,
     open: async () => {
       const quote = fakeQuote();
       api.getResourceVisit.mockResolvedValue(visitPayload());
-      api.quoteResourceVisit.mockImplementation(async (id, body) => (body.payment ? afterHold(quote)(id, body) : quote(id, body)));
+      api.quoteResourceVisit.mockImplementation(async (id, body) => (body.payment ? afterHold(outcome.answer(quote))(id, body) : quote(id, body)));
       render(<ResourceArrivalDialog open bookingId={5} onClose={() => {}} onDone={() => {}} />);
       await screen.findByText('Sa séance');
     },
@@ -107,12 +155,14 @@ const DIALOGS = {
       expect(invoiceBox()).toBeDisabled();
       expect(invoiceBox()).toBeChecked();
       expect(screen.getByText('Adresse de facturation · facultative')).toBeInTheDocument();
+      expect(screen.getByTestId('invoice-block')).toHaveStyle({ minHeight: `${PENDING_HEIGHT}px` });
     },
     filled: async () => {
-      await waitFor(() => expect(invoiceBox()).toBeEnabled());
-      expect(invoiceBox()).toBeChecked();
+      await outcome.filled();
+      // Whatever the answer, the block keeps the pending block's height: nothing around it moves.
+      expect(screen.getByTestId('invoice-block')).toHaveStyle({ minHeight: `${PENDING_HEIGHT}px` });
     },
-  }],
+  })),
   'plugins/hourly-resources/ResourceBookingDialog.jsx': [{
     block: '« Facture » of « Maintenant »',
     open: async () => {
