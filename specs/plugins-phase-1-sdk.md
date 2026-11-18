@@ -740,7 +740,7 @@ Optional: a plugin that declares nothing reads « Actif ».
     Chromium: the address typed in while a second answer refuses → focus on the « Facture » block (refusal, « Caisse interne ») or the
     dialog's content (silent: the section is hidden), never the page. **Every failure has its way out:** « Vente hors séjour » says a failed
     quote and a catalogue that did not load with « Réessayer » (`ErrorAlert`). Tests `SaleDialogs.pending-blocks` (no live control in a
-    pending block, every row), `SaleDialogs.focus-on-answer` (14: every file drawing a `FocusKeeper` has its rows; the four « Facture »
+    pending block, every row), `SaleDialogs.focus-on-answer` (14, 17 since loop t23: every file drawing a `FocusKeeper` has its rows; the four « Facture »
     outcomes in the arrival), `FocusKeeper` (7), `ReservationSasDialog.failed-preview` (7, pricing-components rule 117). Initial JavaScript 310.1 kB gzip (budget 313.3 kB).
     _Reading of 2026-11-18 (loop t23 S23-1):_ **a recompute that FAILS after an earlier answer leaves nothing of that answer on screen.**
     `useLatestPreview` (SDK export, part of the unpublished 2.32.0) kept `data` on a failure — right while a newer request is pending
@@ -755,10 +755,21 @@ Optional: a plugin that declares nothing reads « Actif ».
     `LinkTransactionDialog` — then shows the reason with « Réessayer », no figure of the older answer and no money field set from it (the
     counter's payment reads « — », the visit's « Total », « Reste à payer », VAT and session amounts read « — » and its payment is not
     typed, the booking dialog reads « Prix indisponible »), keeps its commit disabled, and draws the new answer once « Réessayer » brings it.
-    The draft's own inputs (quantities, the penalty's amount, the payout shares) stay editable: they are the request. The arrival therefore
-    no longer asks the payment's invoice answer while its draft's amounts are unknown (outside-booking-sas rule 54 reading of the same day).
-    Test `useLatestPreview.failed-recompute` (9: the hook through a failure and a pending retry; the consumers read from the code equal the
-    table; one row per consumer).
+    The arrival therefore no longer asks the payment's invoice answer while its draft's amounts are unknown (outside-booking-sas rule 54
+    reading of the same day). **What holds for the operator's own inputs** (second pass of the same day, the loop's verifier in Chromium:
+    « Plus 15 minutes » took the booking's « min offertes » away, a click on a penalty radio took the choice away, and « Réessayer » dropped
+    the focus on the dialog): a **draft input is never drawn from the answer** — the article quantities and their steppers, the visit's
+    offered time, the booking's times and its « Temps offert » stepper (the summary keeps the last answer's layout with every amount and
+    detail « — », `ResourceBookingSummary` prop `unknown`), the SAS « Offrir » toggles, the penalty's amount, motif, date and its before /
+    after choice once asked (`choice` set, or the last answer needed it), the payout shares and the ticked credits — so each stays mounted,
+    where the operator left it, through a failure and its retry; only what is set FROM an answer goes (the figures, the tender lines whose
+    amount the answer's remainder fills). The hook keeps `error` until a new answer as it keeps `failed`, so the alert and its « Réessayer »
+    stay drawn while the retry is asked and the focus stays on the button. The booking's price block, the penalty, the payout split and the
+    credit link dialog are `FocusKeeper` regions like the other sale dialogs, so a control an answer does take away leaves the focus on the
+    nearest region, never on the dialog's root. Test `useLatestPreview.failed-recompute` (9: the hook through a failure and a pending retry;
+    the consumers read from the code equal the table; one row per consumer — no figure of the older answer, no live money field set from it,
+    every draft input still mounted, the focus neither on the page nor on the dialog root after the failing edit, still on « Réessayer »
+    while the retry is asked, and not lost when the new answer lands).
     **The SDK history records what each shipped minor exposed:** v4.1.0 shipped SDK 2.27.0 without `vat`, `accountingOutput`, `legacyBucketSplit`,
     `refundJournal`, `csvJournal`, `salesJson` and `synthesisExporter`, and neither SDK 2.28.0 (the home-data extension points,
     specs/guest-app-home-automation.md, merged first) nor SDK 2.29.0 (the Mollie tranches and journal, rule 51, merged first) recorded them,
@@ -1018,7 +1029,8 @@ still in the core. Server: 4,611 tests after, of which 37 are new. Client: 1,416
   from one test to the next and the outcome is the same in any order (loop t21 A21-1, shuffled seeds 1-12).
 - `hooks/__tests__/useLatestPreview.failed-recompute.test.jsx` (9) — rule 54 (reading of 2026-11-18, loop t23 S23-1): a failed request
   makes the answer unknown until a new one; every money preview screen, read from the code, shows no figure of the older answer, no live
-  money field set from it, the reason with « Réessayer », a disabled commit, then the new answer.
+  money field set from it, the reason with « Réessayer » (kept while the retry is asked), a disabled commit, every draft input still
+  mounted, the focus never on the page or the dialog root, then the new answer.
 - `components/__tests__/LazySaleComponents.late-chunks.test.jsx` (3) — rule 54 (reading of 2026-11-18, loop t22 A22-1, loop t23 UI23-1;
   specs/server-test-isolation.md rule 23): every TEST gets the four blocks' code cold and late (`src/setupLateSaleChunks.js` resets
   them before each test), a later test of the same file included; the dialogs waiting for it, read from the code, each have a suite.
@@ -1029,7 +1041,8 @@ still in the core. Server: 4,611 tests after, of which 37 are new. Client: 1,416
   (SAS) and « Total » (counter) are drawn pending with the content, then filled; the arrival's « Facture » through its four outcomes
   (accepted, refused with a caption, silent, failed), each keeping the pending block's height (outside-booking-sas rule 54); unticking the box gives the reserved height back (a gesture resizes).
   Loop t22 UI22-1: every row also finds no usable control inside a `data-pending-block` (the « Facture » address disabled while pending).
-- `components/__tests__/SaleDialogs.focus-on-answer.test.jsx` (14) — rule 54 (reading of 2026-11-18, loop t22 UI22-1): every file that
+- `components/__tests__/SaleDialogs.focus-on-answer.test.jsx` (17: +3 loop t23, the « Réessayer » of the penalty, the payout split and the
+  credit link dialogs, now `FocusKeeper` regions, goes with the failure and the focus stays in the content, not on the dialog root) — rule 54 (reading of 2026-11-18, loop t22 UI22-1): every file that
   draws a `FocusKeeper`, enumerated from the code, has its rows; the control an answer (or « Réessayer ») takes away held the focus, and the
   focus ends in the dialog, never on the page — the arrival's « Facture » address through a second answer accepted / refused / silent /
   « Caisse interne », the booking dialog's, the block alone, the counter's « Réessayer », « Retirer », « Percevoir maintenant », the minted

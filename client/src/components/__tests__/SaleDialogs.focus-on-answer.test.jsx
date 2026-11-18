@@ -17,6 +17,11 @@ import StandaloneSaleDialog from '../StandaloneSaleDialog';
 import SuggestedArticlesStep from '../SuggestedArticlesStep';
 import StaySalesSection from '../StaySalesSection';
 import SalePaymentLink from '../SalePaymentLink';
+import DialogProvider from '../DialogProvider';
+import PlatformPenaltyDialog from '../reservation/PlatformPenaltyDialog';
+import SplitSharesDialog from '../../plugins/online-payment/SplitSharesDialog';
+import LinkTransactionDialog from '../../plugins/online-payment/LinkTransactionDialog';
+import { ficheCreditsPayload, previewPayload } from '../../plugins/online-payment/__tests__/reconciliationFixtures';
 import { localIsoDate } from '../../plugins/hourly-resources/localDate';
 import { visitPayload, fakeQuote } from '../../plugins/hourly-resources/__tests__/arrivalVisitFixtures';
 import { sasPayload, stayDue, renderDialog, clickBtn } from '../../plugins/sas/__tests__/sasFixtures';
@@ -44,6 +49,12 @@ vi.mock('../../api', () => ({
     getSuggestedArticlesCatalogue: vi.fn(),
     quoteStandaloneSale: vi.fn(),
     sellStandaloneSale: vi.fn(),
+    listPlatformPenalties: vi.fn(),
+    previewPlatformPenalty: vi.fn(),
+    declarePlatformPenalty: vi.fn(),
+    previewReconciliationAllocation: vi.fn(),
+    getReconciliationFicheCredits: vi.fn(),
+    getReconciliationCandidates: vi.fn(),
   },
 }));
 
@@ -251,6 +262,58 @@ const ROWS = [
       expect(screen.getByRole('dialog').contains(document.activeElement)).toBe(true);
     },
   },
+  // Loop t23 (verifier of S23-1) — the preview dialogs of the books: their « Réessayer » goes once the new answer lands; the focus stays in
+  // the dialog's content, never on the page or the dialog's root.
+  ...[
+    {
+      file: 'components/reservation/PlatformPenaltyDialog.jsx',
+      name: '« Réessayer » of a failed penalty preview goes with the failure',
+      mock: () => {
+        api.listPlatformPenalties.mockResolvedValue({ items: [], suggestions: [] });
+        api.previewPlatformPenalty.mockRejectedValueOnce(Object.assign(new Error('Service indisponible'), { status: 503 }));
+        api.previewPlatformPenalty.mockResolvedValue({ valid: true, needsChoice: false, warnings: [], errors: [], before: { payout: 570.02, commission: 229.98, netReceived: 570.02 }, after: { payout: 610.02, commission: 189.98, netReceived: 570.02 } });
+      },
+      render: () => render(<DialogProvider><PlatformPenaltyDialog open onClose={() => {}} reservationId={7} source="fiche" onDone={() => {}} initialAmount={40} /></DialogProvider>),
+      after: () => screen.findByText(/Commission 229,98 € → 189,98 €/),
+    },
+    {
+      file: 'plugins/online-payment/SplitSharesDialog.jsx',
+      name: '« Réessayer » of a failed share check goes with the failure',
+      mock: () => {
+        api.previewReconciliationAllocation.mockRejectedValueOnce(Object.assign(new Error('Service indisponible'), { status: 503 }));
+        api.previewReconciliationAllocation.mockResolvedValue(previewPayload({ valid: false, errors: [{ code: 'SHARES_DO_NOT_SUM', field: 'shares', message: 'Il manque 9,00 €.' }] }));
+      },
+      render: () => render(<SplitSharesDialog open onClose={() => {}} onSubmit={() => {}} proposal={{ id: 'p', bank: { transactionId: 'p', amountCents: 70000, dateLabel: '15/10' }, pairs: [{ transactionId: 'p', reservationId: 7, ledgerKey: 'balance', amountCents: 41800 }] }} labels={{ '7|balance': 'Séjour 7' }} />),
+      after: () => screen.findByText('Il manque 9,00 €.'),
+    },
+    {
+      file: 'plugins/online-payment/LinkTransactionDialog.jsx',
+      name: '« Réessayer » of a failed allocation preview goes with the failure',
+      mock: () => {
+        api.getReconciliationFicheCredits.mockResolvedValue(ficheCreditsPayload());
+        api.previewReconciliationAllocation.mockRejectedValueOnce(Object.assign(new Error('Service indisponible'), { status: 503 }));
+        api.previewReconciliationAllocation.mockResolvedValue(previewPayload());
+      },
+      render: async () => { render(<LinkTransactionDialog open onClose={() => {}} onSubmit={() => {}} reservationId={7} />); fireEvent.click((await screen.findAllByRole('checkbox'))[0]); },
+      after: () => screen.findByText('1 virement · 300,00 €'),
+    },
+  ].map((row) => ({
+    file: row.file,
+    name: row.name,
+    run: async () => {
+      row.mock();
+      await row.render();
+      const retry = await screen.findByRole('button', { name: 'Réessayer' });
+      retry.focus();
+      await act(async () => { fireEvent.click(retry); });
+      await row.after();
+      await waitFor(() => expect(screen.queryByRole('button', { name: 'Réessayer' })).toBeNull());
+      await offBody();
+      const dialog = screen.getByRole('dialog');
+      expect(dialog.contains(document.activeElement)).toBe(true);
+      expect(document.activeElement).not.toBe(dialog);
+    },
+  })),
 ];
 
 beforeEach(() => {

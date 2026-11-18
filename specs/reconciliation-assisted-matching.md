@@ -187,8 +187,9 @@ on the right account, on the fiche, in the finance pages and in the accounting e
     (rule 7) prefilled with the estimates; the server refuses (422 `SHARES_DO_NOT_SUM`) until the shares sum
     to the credit to the cent. Each typed share becomes that fiche's payout (v1 rule 36).
     _Reading of 2026-11-18 (loop t23 S23-1, plugins-phase-1-sdk rule 54 reading):_ when the split's check fails after an earlier answer,
-    the older answer's message is no longer kept: « Vérification impossible. » (or the server's reason) with « Réessayer », the shares stay
-    editable and « Répartir et confirmer » disabled until a new answer. Test `useLatestPreview.failed-recompute` (row `SplitSharesDialog`).
+    the older answer's message is no longer kept: « Vérification impossible. » (or the server's reason) with « Réessayer », which stays
+    drawn while the retry is asked; the shares are draft inputs, never drawn from the answer, so they stay mounted and editable, with the
+    focus where it was; « Répartir et confirmer » stays disabled until a new answer. Test `useLatestPreview.failed-recompute` (row `SplitSharesDialog`).
 19. **A group is shown as one.** Every fiche of a group proposal shows « Versement groupé · couvre aussi
     Dupont (Versement Booking), Martin (Versement Booking) »; confirming it from any of them confirms the
     whole group; « Écarter » discards the group pairing for that credit (v1 rule 11).
@@ -234,7 +235,10 @@ on the right account, on the fiche, in the finance pages and in the accounting e
     conformité »), **date** (default: the payout's received date, else today; never in the future).
     _Reading of 2026-11-18 (loop t23 S23-1, plugins-phase-1-sdk rule 54 reading):_ a preview that fails after an earlier answer no longer
     leaves that answer's figures (« Commission … → … ») and choice drawn with no word: they go, « Calcul impossible. » (or the server's
-    reason) shows with « Réessayer », the fields stay editable and « Enregistrer » disabled until a new answer. Test
+    reason) shows with « Réessayer », which stays drawn while the retry is asked. The amount, motif, date and the before / after choice
+    are draft inputs and stay mounted: the choice, once asked (chosen, or needed by the last answer), is no longer drawn from the answer
+    in hand, so the radio just clicked is not taken away by the failed request (its payout figure reads « — » meanwhile). « Enregistrer »
+    stays disabled until a new answer. Test
     `useLatestPreview.failed-recompute` (row `PlatformPenaltyDialog`).
 25. **Before or after the penalty.** The server needs to know whether the payout recorded on the fiche is
     the platform's statement figure (before the penalty) or the bank amount (after it):

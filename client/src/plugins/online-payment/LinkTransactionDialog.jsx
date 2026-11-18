@@ -16,7 +16,7 @@ import {
 } from '@mui/material';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import {
-  api, FormDialog, PlatformChip, LoadingState, ErrorAlert, useLatestPreview,
+  api, FormDialog, FocusKeeper, PlatformChip, LoadingState, ErrorAlert, useLatestPreview,
 } from '../sdk';
 import AmountPairFields from './AmountPairFields';
 import { money, parseEuroInput, centsToInput } from './reconciliationShared';
@@ -181,94 +181,96 @@ export default function LinkTransactionDialog({ open, onClose, busy = false, onS
       open={open} onClose={onClose} maxWidth="sm" title="Rattacher des virements" submitLabel="Rattacher"
       onSubmit={submit} submitDisabled={!answer || !answer.valid || manualInvalid} submitBusy={busy}
     >
-      {creditMode && (
-        <Typography variant="body2" sx={{ mt: 0.5 }}>
-          <b>{money(credit.remainingCents)}</b> · {credit.dateLabel} · {credit.counterparty}
-        </Typography>
-      )}
-      <TextField
-        fullWidth size="small" sx={{ mt: 1.5, mb: 1 }} value={q} onChange={(e) => setQ(e.target.value)} type="search"
-        label={creditMode ? 'Client, logement, date (12/03) ou montant' : 'Nom, date (12/03) ou montant (596,58)'}
-        slotProps={{ htmlInput: { autoComplete: 'off', style: { fontSize: 16 } } }}
-      />
-      {!base && !list.error && <LoadingState />}
-      {list.error && <ErrorAlert message={list.error.message || 'Lecture impossible.'} onRetry={list.retry} />}
-      {base && !creditMode && (base.receipts || []).length > 0 && (
-        <Box sx={{ mb: 1 }}>
-          {base.receipts.map((r) => (
-            <Typography key={r.key} variant="caption" color="text.secondary" component="div">
-              {r.label} · <span style={{ whiteSpace: 'nowrap' }}>{money(r.openCents)}</span>{r.anchorDateLabel ? ` · ${r.anchorDateLabel}` : ''}
-            </Typography>
-          ))}
-        </Box>
-      )}
-      {empty && searching && (
-        <Box sx={{ py: 2 }}>
-          <Typography variant="body2">Aucun virement ne correspond à « {q.trim()} ».</Typography>
-          <Button size="small" onClick={() => setQ('')} sx={{ textTransform: 'none', minHeight: 44 }}>Effacer la recherche</Button>
-        </Box>
-      )}
-      {empty && !searching && (
-        <Typography variant="body2" color="text.secondary" sx={{ py: 2 }}>
-          {creditMode ? 'Aucune échéance à rattacher.' : 'Aucun virement disponible : tous les crédits lus sont déjà rattachés.'}
-        </Typography>
-      )}
-      {base && !empty && (
-        <>
-          <Typography variant="subtitle2" sx={{ mt: 1 }}>{creditMode ? 'Échéances probables' : 'Correspondances probables'}</Typography>
-          {noLikely
-            ? <Typography variant="body2" color="text.secondary" sx={{ py: 1 }}>{creditMode ? 'Aucune échéance proche du montant du virement.' : 'Aucun virement proche du montant attendu.'}</Typography>
-            : <Box>{base.likely.map(renderItem)}</Box>}
-          {base.others.total > 0 && (
-            <Box component="details" open={noLikely || searching} sx={{ mt: 1 }}>
-              <Box component="summary" sx={{ cursor: 'pointer', color: 'primary.main', fontWeight: 600, minHeight: 44, display: 'flex', alignItems: 'center', gap: 0.5, listStyle: 'none', '&::-webkit-details-marker': { display: 'none' }, '& .chev': { transition: 'transform 150ms' }, 'details[open] > & .chev': { transform: 'rotate(180deg)' }, '@media (prefers-reduced-motion: reduce)': { '& .chev': { transition: 'none' } } }}>
-                <ExpandMoreIcon className="chev" fontSize="small" />
-                {creditMode ? `Toutes les échéances ouvertes (${base.others.total})` : `Tous les virements disponibles (${base.others.total})`}
-              </Box>
-              <Box>{others.map(renderItem)}</Box>
-              {others.length < base.others.total && (
-                <Button fullWidth variant="text" disabled={moreBusy} onClick={showMore} sx={{ textTransform: 'none', minHeight: 44 }}>Afficher plus</Button>
-              )}
-            </Box>
-          )}
-        </>
-      )}
-
-      {tickedIds.length > 0 && (
-        <Box sx={{ position: 'sticky', bottom: 0, bgcolor: 'background.paper', borderTop: 1, borderColor: 'divider', mt: 1.5, py: 1.25 }} aria-live="polite">
-          {shown ? (
-            <>
-              <Typography variant="body2" sx={{ fontWeight: 600 }}>{shown.summaryLabel}</Typography>
-              {shown.receipts.map((r) => (
-                <Typography key={r.key} variant="caption" component="div" color="text.secondary">
-                  {r.label} · {r.statusLabel}
-                </Typography>
-              ))}
-              {shown.leftover.map((l) => <Typography key={l.transactionId} variant="caption" component="div" color="warning.main">{l.message}</Typography>)}
-              {shown.errors.filter((e) => !refusalsInFields.has(e.field) && (!String(e.field || '').startsWith('pairs.') || !manual)).map((e) => (
-                <Typography key={`${e.code}-${e.field}`} variant="caption" component="div" color="error.main" role="alert">{e.message}</Typography>
-              ))}
-              {!manual && shown.pairs.length > 0 && (
-                <Button size="small" onClick={startManual} sx={{ textTransform: 'none', minHeight: 44 }}>Modifier la répartition</Button>
-              )}
-            </>
-          ) : (preview.error
-            ? (
-              <Typography variant="caption" component="div" color="error.main" role="alert">
-                {preview.error.message || 'Calcul impossible.'}
-                <Button size="small" onClick={preview.retry} sx={{ textTransform: 'none', minHeight: 44 }}>Réessayer</Button>
+      <FocusKeeper>
+        {creditMode && (
+          <Typography variant="body2" sx={{ mt: 0.5 }}>
+            <b>{money(credit.remainingCents)}</b> · {credit.dateLabel} · {credit.counterparty}
+          </Typography>
+        )}
+        <TextField
+          fullWidth size="small" sx={{ mt: 1.5, mb: 1 }} value={q} onChange={(e) => setQ(e.target.value)} type="search"
+          label={creditMode ? 'Client, logement, date (12/03) ou montant' : 'Nom, date (12/03) ou montant (596,58)'}
+          slotProps={{ htmlInput: { autoComplete: 'off', style: { fontSize: 16 } } }}
+        />
+        {!base && !list.error && <LoadingState />}
+        {list.error && <ErrorAlert message={list.error.message || 'Lecture impossible.'} onRetry={list.retry} />}
+        {base && !creditMode && (base.receipts || []).length > 0 && (
+          <Box sx={{ mb: 1 }}>
+            {base.receipts.map((r) => (
+              <Typography key={r.key} variant="caption" color="text.secondary" component="div">
+                {r.label} · <span style={{ whiteSpace: 'nowrap' }}>{money(r.openCents)}</span>{r.anchorDateLabel ? ` · ${r.anchorDateLabel}` : ''}
               </Typography>
-            )
-            : <Typography variant="caption" color="text.secondary">Calcul de la répartition…</Typography>)}
-          {manual && (
-            <AmountPairFields
-              pairs={manual.map((m) => ({ id: `${m.transactionId}|${m.reservationId}|${m.ledgerKey}`, label: nameOfPair(m), text: m.text }))}
-              onChange={(i, text) => setManual((cur) => cur.map((x, j) => (j === i ? { ...x, text } : x)))}
-              refusalFor={errorFor}
-            />
-          )}
-        </Box>
-      )}
+            ))}
+          </Box>
+        )}
+        {empty && searching && (
+          <Box sx={{ py: 2 }}>
+            <Typography variant="body2">Aucun virement ne correspond à « {q.trim()} ».</Typography>
+            <Button size="small" onClick={() => setQ('')} sx={{ textTransform: 'none', minHeight: 44 }}>Effacer la recherche</Button>
+          </Box>
+        )}
+        {empty && !searching && (
+          <Typography variant="body2" color="text.secondary" sx={{ py: 2 }}>
+            {creditMode ? 'Aucune échéance à rattacher.' : 'Aucun virement disponible : tous les crédits lus sont déjà rattachés.'}
+          </Typography>
+        )}
+        {base && !empty && (
+          <>
+            <Typography variant="subtitle2" sx={{ mt: 1 }}>{creditMode ? 'Échéances probables' : 'Correspondances probables'}</Typography>
+            {noLikely
+              ? <Typography variant="body2" color="text.secondary" sx={{ py: 1 }}>{creditMode ? 'Aucune échéance proche du montant du virement.' : 'Aucun virement proche du montant attendu.'}</Typography>
+              : <Box>{base.likely.map(renderItem)}</Box>}
+            {base.others.total > 0 && (
+              <Box component="details" open={noLikely || searching} sx={{ mt: 1 }}>
+                <Box component="summary" sx={{ cursor: 'pointer', color: 'primary.main', fontWeight: 600, minHeight: 44, display: 'flex', alignItems: 'center', gap: 0.5, listStyle: 'none', '&::-webkit-details-marker': { display: 'none' }, '& .chev': { transition: 'transform 150ms' }, 'details[open] > & .chev': { transform: 'rotate(180deg)' }, '@media (prefers-reduced-motion: reduce)': { '& .chev': { transition: 'none' } } }}>
+                  <ExpandMoreIcon className="chev" fontSize="small" />
+                  {creditMode ? `Toutes les échéances ouvertes (${base.others.total})` : `Tous les virements disponibles (${base.others.total})`}
+                </Box>
+                <Box>{others.map(renderItem)}</Box>
+                {others.length < base.others.total && (
+                  <Button fullWidth variant="text" disabled={moreBusy} onClick={showMore} sx={{ textTransform: 'none', minHeight: 44 }}>Afficher plus</Button>
+                )}
+              </Box>
+            )}
+          </>
+        )}
+
+        {tickedIds.length > 0 && (
+          <Box sx={{ position: 'sticky', bottom: 0, bgcolor: 'background.paper', borderTop: 1, borderColor: 'divider', mt: 1.5, py: 1.25 }} aria-live="polite">
+            {shown ? (
+              <>
+                <Typography variant="body2" sx={{ fontWeight: 600 }}>{shown.summaryLabel}</Typography>
+                {shown.receipts.map((r) => (
+                  <Typography key={r.key} variant="caption" component="div" color="text.secondary">
+                    {r.label} · {r.statusLabel}
+                  </Typography>
+                ))}
+                {shown.leftover.map((l) => <Typography key={l.transactionId} variant="caption" component="div" color="warning.main">{l.message}</Typography>)}
+                {shown.errors.filter((e) => !refusalsInFields.has(e.field) && (!String(e.field || '').startsWith('pairs.') || !manual)).map((e) => (
+                  <Typography key={`${e.code}-${e.field}`} variant="caption" component="div" color="error.main" role="alert">{e.message}</Typography>
+                ))}
+                {!manual && shown.pairs.length > 0 && (
+                  <Button size="small" onClick={startManual} sx={{ textTransform: 'none', minHeight: 44 }}>Modifier la répartition</Button>
+                )}
+              </>
+            ) : (preview.error
+              ? (
+                <Typography variant="caption" component="div" color="error.main" role="alert">
+                  {preview.error.message || 'Calcul impossible.'}
+                  <Button size="small" onClick={preview.retry} sx={{ textTransform: 'none', minHeight: 44 }}>Réessayer</Button>
+                </Typography>
+              )
+              : <Typography variant="caption" color="text.secondary">Calcul de la répartition…</Typography>)}
+            {manual && (
+              <AmountPairFields
+                pairs={manual.map((m) => ({ id: `${m.transactionId}|${m.reservationId}|${m.ledgerKey}`, label: nameOfPair(m), text: m.text }))}
+                onChange={(i, text) => setManual((cur) => cur.map((x, j) => (j === i ? { ...x, text } : x)))}
+                refusalFor={errorFor}
+              />
+            )}
+          </Box>
+        )}
+      </FocusKeeper>
     </FormDialog>
   );
 }

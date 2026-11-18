@@ -1162,7 +1162,7 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
   // when the server answers, and until then the last figures stay, dimmed. No figure of ours fills the gap.
   function renderDepartureRecap() {
     if (!recap) {
-      return preview.error && !preview.pending
+      return preview.error
         ? <RecapPreviewError error={preview.error} onRetry={preview.retry} onBack={backToRefusingStep} />
         : <LoadingState />;
     }
@@ -1376,7 +1376,7 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
             <SasStayPaymentPage stayPayment={recap ? recap.stayPayment : data.stayPayment} pending={stayUnknown} value={stayPayMode}>
               <PaymentModeButtons value={stayPayMode} onChange={setStayPayMode} showDefer deferLabel="Pas maintenant" disabled={stayUnknown} />
             </SasStayPaymentPage>
-            {preview.error && !preview.pending && (
+            {preview.error && (
               <RecapPreviewError error={preview.error} onRetry={preview.retry} onBack={backToRefusingStep} unavailable="Montant indisponible" />
             )}
           </Stack>
@@ -1733,7 +1733,7 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
                   Sous-total : {recap && !preview.failed ? formatCurrency(recap.extinguisherTotal) : '—'}
                 </Typography>
                 {/* Loop t22 UI22-3 — a failed preview says so, with its way out, instead of « — » for ever. */}
-                {preview.error && !preview.pending && (
+                {preview.error && (
                   <RecapPreviewError error={preview.error} onRetry={preview.retry} onBack={backToRefusingStep} unavailable="Montant indisponible" />
                 )}
               </>
@@ -1751,7 +1751,7 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
           // may be deferred to the check-out while the other is collected at the door.
           const stayStep = activeKeys.includes('stayPayment');
           if (!recap) {
-            return preview.error && !preview.pending
+            return preview.error
               ? <RecapPreviewError error={preview.error} onRetry={preview.retry} onBack={backToRefusingStep} />
               : <LoadingState />;
           }

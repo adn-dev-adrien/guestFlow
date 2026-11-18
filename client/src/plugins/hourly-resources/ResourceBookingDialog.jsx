@@ -383,9 +383,12 @@ export default function ResourceBookingDialog({
     && (!payNow || Boolean(payment && payment.canSubmit))
     && (!invoiceDraft || invoicePreview.fresh)
   );
-  const shownPrice = draft ? price : null;
+  // Loop t23 — after a failed request the last answer keeps the summary's layout with every amount « — » (`priceUnknown`), so the
+  // « Temps offert » stepper the operator is using stays mounted; the reason and « Réessayer » stay until a new answer.
+  const priceUnknown = Boolean(draft && !price && preview.failed && preview.last);
+  const shownPrice = draft ? (price || (priceUnknown ? preview.last : null)) : null;
   const showRefusal = Boolean(draft && preview.refusal && !preview.pending);
-  const showUnavailable = Boolean(draft && preview.error && !preview.pending);
+  const showUnavailable = Boolean(draft && preview.error);
 
 
   return (
@@ -444,7 +447,7 @@ export default function ResourceBookingDialog({
           </Box>
 
           {/* Price summary — every figure is the server's answer */}
-          <Box
+          <FocusKeeper
             sx={{
               gridArea: 'summary',
               minWidth: 0,
@@ -469,6 +472,7 @@ export default function ResourceBookingDialog({
                   <ResourceBookingSummary
                     price={shownPrice}
                     pending={preview.pending}
+                    unknown={priceUnknown}
                     heading={`${selectedStart} → ${selectedEnd} · ${formatDuration(durationMinutes)}`}
                     offerSlot={(
                       <OfferedTimeField
@@ -483,16 +487,16 @@ export default function ResourceBookingDialog({
                 ) : (
                   <Typography variant="body2" sx={{ fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>
                     {selectedStart} → {selectedEnd} · {formatDuration(durationMinutes)}
-                    {draft && preview.pending && (
+                    {draft && preview.pending && !showUnavailable && (
                       <Box component="span" sx={{ fontWeight: 400, color: 'text.secondary' }}> · Calcul du prix…</Box>
                     )}
-                    {showUnavailable && (
-                      <>
-                        <Box component="span" sx={{ fontWeight: 400, color: 'error.main' }}> · Prix indisponible</Box>
-                        <Button size="small" onClick={preview.retry} sx={{ ml: 1, minHeight: 44, minWidth: 44 }}>Réessayer</Button>
-                      </>
-                    )}
                   </Typography>
+                )}
+                {showUnavailable && (
+                  <Box sx={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', columnGap: 1 }}>
+                    <Typography variant="body2" sx={{ color: 'error.main' }}>Prix indisponible</Typography>
+                    <Button size="small" onClick={preview.retry} sx={{ minHeight: 44, minWidth: 44 }}>Réessayer</Button>
+                  </Box>
                 )}
                 {showRefusal ? (
                   <Typography variant="caption" color="error.main" sx={{ display: 'block' }}>{preview.refusal}</Typography>
@@ -525,7 +529,7 @@ export default function ResourceBookingDialog({
                 </Typography>
               </Box>
             )}
-          </Box>
+          </FocusKeeper>
 
           {/* RIGHT: client + form — loop t22 UI22-1: an answer that removes the control holding the focus (the « Facture » address on a
               refusal, « Caisse interne », a silent answer) leaves the focus on the nearest region still drawn, never on the page. */}

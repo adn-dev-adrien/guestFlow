@@ -19,7 +19,9 @@
  * 2026-11-18): `data` turns null and `failed` stays true — through a « Réessayer » still pending — until a new
  * answer arrives, so no screen keeps drawing the figures of an older draft, or a money control set from them,
  * next to its error. `last` keeps the latest answer for a screen that draws its layout from it and shows every
- * amount « — » and every money control disabled while `failed` (the SAS recap pages); nothing else reads it.
+ * amount « — » and every money control disabled while `failed` (the SAS recap pages, the booking dialog's price layout). `error`
+ * stays too until a new answer — through a pending « Réessayer » — so the alert and its button never vanish under the focus while
+ * the retry is asked (loop t23 verifier).
  */
 import {
   useCallback, useEffect, useMemo, useRef, useState,
@@ -45,7 +47,6 @@ export default function useLatestPreview({
     const controller = typeof AbortController === 'function' ? new AbortController() : null;
     abortRef.current = controller;
     setPending(true);
-    setAnswer((prev) => (prev.error ? { ...prev, error: null } : prev));
     fetcherRef.current(JSON.parse(sig), { signal: controller ? controller.signal : undefined })
       .then((data) => {
         if (seq !== seqRef.current) return;

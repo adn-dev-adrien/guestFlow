@@ -1,7 +1,8 @@
 // specs/plugins-phase-1-sdk.md rule 54 (reading of 2026-11-18, loop t23 S23-1) — a recompute that FAILS after an earlier answer leaves no
 // figure of that answer on screen and no money control set from it: `useLatestPreview` turns `data` null and `failed` true until a new
 // answer, and every screen that previews money through it (enumerated from the code below) shows the reason with « Réessayer », keeps its
-// commit disabled, and draws the new answer once « Réessayer » brings it. A screen added to that list fails here until it has its row.
+// commit disabled, keeps every draft input mounted and the focus in place, and draws the new answer once « Réessayer » brings it. A screen
+// added to that list fails here until it has its row.
 import fs from 'fs';
 import path from 'path';
 import React from 'react';
@@ -59,7 +60,13 @@ vi.mock('../usePlugins', () => ({ usePlugin: () => true }));
 
 const offline = () => Object.assign(new Error('Service indisponible'), { status: 503 });
 const pause = (ms) => new Promise((resolve) => { setTimeout(resolve, ms); });
-const retry = () => fireEvent.click(screen.getByRole('button', { name: 'Réessayer' }));
+// The focus is never left on the page or on the dialog's own root (loop t23 verifier): after a draft edit whose request fails, and after a
+// click on « Réessayer » — whose alert stays until the new answer.
+const focusLost = () => {
+  const active = document.activeElement;
+  return !active || active === document.body || active.getAttribute('role') === 'dialog' || active.classList.contains('MuiDialog-container');
+};
+const press = (control) => { control.focus(); fireEvent.click(control); };
 // No money field set from an answer may stay live on an unknown amount (a tender amount, « Montant CB »…). The draft's own inputs — what
 // the operator types to be priced (the penalty's amount) — stay editable: they are the request, not a figure of the answer.
 const labelOf = (input) => input.getAttribute('aria-label') || input.labels?.[0]?.textContent || '';
@@ -109,8 +116,10 @@ const SAS_STAY = sasPayload({
   stayPayment: stayDue(),
 });
 
-// Each row: `answer()` reaches a first accepted answer, `fail()` makes the next request fail and triggers it, `stale` matches what the first
-// answer drew, `check()` the row's own placeholders and disabled controls, `recover()` the new answer once « Réessayer » brings it.
+// Each row: `answer()` reaches a first accepted answer, `fail()` makes the next request fail and triggers it from a draft control it
+// focuses first, `stale` matches what the first answer drew, `check()` the row's own placeholders and disabled controls, `drafts()` the
+// draft inputs that must still be mounted after the failure (never rendered from the answer), `recover()` the new answer once « Réessayer »
+// brings it.
 const ROWS = {
   StandaloneSaleDialog: {
     async answer(state) {
@@ -120,8 +129,9 @@ const ROWS = {
       fireEvent.click(await screen.findByRole('button', { name: /Bière locale/ }));
       await waitFor(() => expect(screen.getByTestId('sale-total')).toHaveTextContent('6,50'));
     },
-    async fail(state) { state.fail = true; fireEvent.click(screen.getByRole('button', { name: /Bière locale/ })); await screen.findByText('Service indisponible'); },
+    async fail(state) { state.fail = true; press(screen.getByRole('button', { name: /Bière locale/ })); await screen.findByText('Service indisponible'); },
     stale: /× 6,50 €|encaisser 6,50/,
+    drafts: () => [screen.getByRole('textbox', { name: /Quantité/ })],
     check() {
       expect(screen.getByTestId('sale-total')).toHaveTextContent('—');
       expect(screen.getByRole('button', { name: /^Enregistrer la vente/ })).toBeDisabled();
@@ -138,8 +148,9 @@ const ROWS = {
       await waitFor(() => expect(screen.getByTestId('remaining')).toHaveTextContent('126,50'));
       await pause(300);
     },
-    async fail(state) { state.fail = true; fireEvent.click(screen.getByRole('button', { name: /Bière locale/ })); await screen.findByText('Service indisponible'); await pause(300); },
+    async fail(state) { state.fail = true; press(screen.getByRole('button', { name: /Bière locale/ })); await screen.findByText('Service indisponible'); await pause(300); },
     stale: /126,50|× 6,50 €/,
+    drafts: () => [screen.getByRole('textbox', { name: /Quantité/ }), screen.getByRole('button', { name: 'Plus 15 minutes' })],
     check() {
       expect(screen.getByTestId('remaining')).toHaveTextContent('—');
       expect(screen.getByRole('button', { name: 'Valider l’arrivée' })).toBeDisabled();
@@ -154,11 +165,11 @@ const ROWS = {
     },
     async fail(state) {
       state.fail = true;
-      fireEvent.mouseDown(screen.getAllByRole('combobox')[1]);
-      fireEvent.click(await screen.findByRole('option', { name: '19:00' }));
+      press(screen.getByRole('button', { name: 'Plus 15 minutes' }));
       await screen.findByText(/Prix indisponible/);
     },
     stale: /70,00 €/,
+    drafts: () => [screen.getByRole('button', { name: 'Plus 15 minutes' }), screen.getByText('min offertes')],
     check() { expect(screen.getByRole('button', { name: /^Enregistrer/ })).toBeDisabled(); },
     async recover(state) { state.total = 35; await screen.findAllByText(/35,00 €/); },
     beforeRetry(state) { state.total = 35; },
@@ -181,8 +192,9 @@ const ROWS = {
       fireEvent.click(screen.getByRole('button', { name: /Régler séparément/ }));
       await screen.findByText('Règlement du séjour');
     },
-    async fail(state) { state.fail = true; fireEvent.click(screen.getAllByRole('button', { name: 'Offrir' })[0]); await screen.findByText(/Total indisponible/); },
+    async fail(state) { state.fail = true; press(screen.getAllByRole('button', { name: 'Offrir' })[0]); await screen.findByText(/Total indisponible/); },
     stale: null,
+    drafts: () => [screen.getAllByRole('button', { name: /Offrir|Offert/ })[0]],
     check() {
       expect(screen.getAllByText(/^Séjour : /).map((n) => n.textContent)).toEqual(['Séjour : —']);
       const box = screen.getByText('Règlement du séjour').nextElementSibling;
@@ -195,13 +207,24 @@ const ROWS = {
   },
   PlatformPenaltyDialog: {
     async answer(state) {
-      api.previewPlatformPenalty.mockImplementation(async () => { if (state.fail) throw offline(); return FIGURES(state.commission || 189.98); });
+      api.previewPlatformPenalty.mockImplementation(async (id, body) => {
+        if (state.fail) throw offline();
+        return { ...FIGURES(state.commission || 189.98), needsChoice: true, valid: body.payoutIncludesPenalty != null };
+      });
       render(<DialogProvider><PlatformPenaltyDialog open onClose={() => {}} reservationId={7} source="fiche" onDone={() => {}} initialAmount={40} /></DialogProvider>);
       await screen.findByText(/Commission 229,98 € → 189,98 €/);
     },
-    async fail(state) { state.fail = true; fireEvent.change(screen.getByLabelText('Montant (€)'), { target: { value: '50' } }); await screen.findByText('Service indisponible'); },
+    async fail(state) {
+      press(screen.getAllByRole('radio')[0]);
+      await waitFor(() => expect(api.previewPlatformPenalty).toHaveBeenCalledTimes(2));
+      await pause(300);
+      state.fail = true;
+      press(screen.getAllByRole('radio')[1]);
+      await screen.findByText('Service indisponible');
+    },
     stale: /189,98/,
     draftInputs: ['Montant (€)'],
+    drafts: () => [screen.getByLabelText('Montant (€)'), ...screen.getAllByRole('radio')],
     check() { expect(screen.getByRole('button', { name: 'Enregistrer' })).toBeDisabled(); },
     beforeRetry(state) { state.commission = 179.98; },
     async recover() { await screen.findByText(/Commission 229,98 € → 179,98 €/); },
@@ -215,8 +238,14 @@ const ROWS = {
       render(<SplitSharesDialog open onClose={() => {}} onSubmit={() => {}} proposal={PROPOSAL} labels={{ '7|balance': 'Séjour 7', '8|balance': 'Séjour 8' }} />);
       await screen.findByText(/Il manque 9,00 €/);
     },
-    async fail(state) { state.fail = true; fireEvent.change(screen.getByLabelText('Séjour 8 (€)'), { target: { value: '252,00' } }); await screen.findByText('Service indisponible'); },
+    async fail(state) {
+      state.fail = true;
+      screen.getByLabelText('Séjour 8 (€)').focus();
+      fireEvent.change(screen.getByLabelText('Séjour 8 (€)'), { target: { value: '252,00' } });
+      await screen.findByText('Service indisponible');
+    },
     stale: /Il manque 9,00 €/,
+    drafts: () => [screen.getByLabelText('Séjour 7 (€)'), screen.getByLabelText('Séjour 8 (€)')],
     check() { expect(screen.getByRole('button', { name: 'Répartir et confirmer' })).toBeDisabled(); },
     beforeRetry(state) { state.message = 'Il manque 8,00 € : les parts doivent faire 700,00 €.'; },
     async recover() { await screen.findByText(/Il manque 8,00 €/); },
@@ -229,8 +258,9 @@ const ROWS = {
       fireEvent.click((await screen.findAllByRole('checkbox'))[0]);
       await screen.findByText('1 virement · 300,00 €');
     },
-    async fail(state) { state.fail = true; fireEvent.click(screen.getAllByRole('checkbox')[1]); await screen.findByText(/Service indisponible/); },
+    async fail(state) { state.fail = true; press(screen.getAllByRole('checkbox')[1]); await screen.findByText(/Service indisponible/); },
     stale: /1 virement · 300,00 €/,
+    drafts: () => screen.getAllByRole('checkbox').slice(0, 2),
     check() { expect(screen.getByRole('button', { name: 'Rattacher' })).toBeDisabled(); },
     beforeRetry(state) { state.summary = '2 virements · 450,00 €'; },
     async recover() { await screen.findByText('2 virements · 450,00 €'); },
@@ -253,7 +283,8 @@ test('the hook: a failed request makes the answer unknown until a new one, throu
   expect(result.current).toMatchObject({ data: null, last: { n: 1 }, failed: true, fresh: false, pending: false });
   fail = false;
   act(() => { result.current.retry(); });
-  expect(result.current).toMatchObject({ data: null, failed: true, pending: true, error: null });
+  expect(result.current).toMatchObject({ data: null, failed: true, pending: true });
+  expect(result.current.error).not.toBeNull();
   await act(async () => { release(); });
   expect(result.current).toMatchObject({ data: { n: 2 }, last: { n: 2 }, failed: false, fresh: true });
 });
@@ -262,16 +293,23 @@ test('every screen that previews money through the hook, read from the code, has
   expect(CONSUMERS).toEqual(Object.keys(ROWS).sort());
 });
 
-test.each(Object.keys(ROWS))('%s — a recompute that fails after an answer: no figure of that answer, no live money field, reason + « Réessayer », then the new answer', async (name) => {
+test.each(Object.keys(ROWS))('%s — a recompute that fails after an answer: no figure of that answer, no live money field, the draft inputs kept, the focus kept, reason + « Réessayer » until the new answer', async (name) => {
   const row = ROWS[name];
   const state = {};
   await row.answer(state);
   await row.fail(state);
   if (row.stale) expect(screen.queryAllByText(row.stale)).toHaveLength(0);
   expect(liveMoneyFields(row.draftInputs)).toHaveLength(0);
+  row.drafts().forEach((control) => expect(control).toBeInTheDocument());
+  expect(focusLost()).toBe(false);
   row.check();
   state.fail = false;
   if (row.beforeRetry) row.beforeRetry(state);
-  retry();
+  const again = screen.getByRole('button', { name: 'Réessayer' });
+  press(again);
+  // The alert and its button stay while the new request is asked: the focus stays on « Réessayer ».
+  expect(again).toBeInTheDocument();
+  expect(document.activeElement).toBe(again);
   await row.recover(state);
+  expect(focusLost()).toBe(false);
 });
