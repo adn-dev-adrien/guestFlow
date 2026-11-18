@@ -694,8 +694,9 @@ Optional: a plugin that declares nothing reads « Actif ».
     content and pushed it down (+186 px in the outside visit's arrival at 1280 px, « Récapitulatif » and « Encaisser » 126 px lower on a
     phone, +56 px in the departure SAS). A dialog that renders a sale block now starts the four imports when it opens, in parallel with
     its own data, and shows its content once both are there: `useSaleComponentsReady(open)` (client export of SDK 2.32.0, its rule 55
-    floor row in `plugin-client-sdk-floor`) answers false until the code is loaded (or its loading failed, which the chunk boundary then
-    shows), and the dialog's loading state covers the wait — `ResourceArrivalDialog` (body, phone « Reste à payer » bar, « Nouvelle
+    floor row in `plugin-client-sdk-floor`) answers false until the code is loaded (or its loading failed: `React.lazy` retries the import and the error reaches the
+    nearest boundary — the plugin route's `ChunkBoundary` for the arrival dialog, the slot's `ContributionBoundary` for the SAS, which
+    closes the dialog and shows « Module mis à jour. Recharger »), and the dialog's loading state covers the wait — `ResourceArrivalDialog` (body, phone « Reste à payer » bar, « Nouvelle
     vente », « Valider l’arrivée ») and `ReservationSasDialog` (body and footer). The imports are made once per session
     (`preloadSaleComponents()`, memoised, a failure tried again); a block whose code is already there renders on its first paint without
     suspending, so nothing lands under drawn content and the Suspense fallback stays `null`. « Vente hors séjour » opens on its click's
