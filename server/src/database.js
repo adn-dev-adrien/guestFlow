@@ -2646,41 +2646,14 @@ try {
 // ---------- CGV (specs/terms-acceptance-record.md §5) ----------
 // The draft the operator edits, the published versions (insert-only: a version is never edited nor
 // deleted — it is what a guest accepted), and the acceptances recorded on public booking requests.
-db.exec(`
-  CREATE TABLE IF NOT EXISTS terms_draft (
-      id INTEGER PRIMARY KEY CHECK (id = 1),
-      markdownFr TEXT NOT NULL DEFAULT '',
-      markdownEn TEXT NOT NULL DEFAULT '',
-      updatedAt TEXT
-    );
-
-  CREATE TABLE IF NOT EXISTS terms_versions (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      version INTEGER NOT NULL UNIQUE,
-      markdownFr TEXT NOT NULL,
-      markdownEn TEXT NOT NULL,
-      htmlFr TEXT NOT NULL,
-      htmlEn TEXT NOT NULL,
-      variablesJson TEXT NOT NULL,
-      contentHash TEXT NOT NULL,
-      publishedAt TEXT NOT NULL,
-      publishedBy INTEGER REFERENCES users(id) ON DELETE SET NULL
-    );
-
-  CREATE TABLE IF NOT EXISTS terms_acceptances (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      reservationId INTEGER NOT NULL,
-      termsVersionId INTEGER NOT NULL,
-      acceptedAt TEXT NOT NULL,
-      ip TEXT,
-      userAgent TEXT,
-      pluginVersion TEXT,
-      FOREIGN KEY (reservationId) REFERENCES reservations(id) ON DELETE CASCADE,
-      FOREIGN KEY (termsVersionId) REFERENCES terms_versions(id)
-    );
-  CREATE INDEX IF NOT EXISTS idx_terms_acceptances_reservation ON terms_acceptances (reservationId);
-`);
-// Enforcement ON from the first start (rule 15, X release) — the emergency switch of rule 17.
+// specs/gift-voucher-campaigns.md rule 37 — one document per activity: a database from before it holds the
+// single-document tables, rebuilt here with every row kept as the `lodging` activity.
+{
+  const termsPerActivity = require('./utils/termsPerActivityMigration');
+  if (termsPerActivity.migrateTermsPerActivity(db)) console.log('[migration:terms-per-activity] CGV tables rebuilt, existing rows kept as the lodging activity');
+  // Not in schema.sql: on an older database the baseline runs before the rebuild adds these columns.
+  db.exec('CREATE INDEX IF NOT EXISTS idx_terms_acceptances_subject ON terms_acceptances (activity, subjectType, subjectRef)');
+}
 tryAddAppSettingsCol('requireTermsAcceptance', 'ALTER TABLE app_settings ADD COLUMN requireTermsAcceptance INTEGER NOT NULL DEFAULT 1');
 tryAddAppSettingsCol('lastSeenPluginVersion', "ALTER TABLE app_settings ADD COLUMN lastSeenPluginVersion TEXT DEFAULT ''");
 // One-shot: the confirmation email links to the CGV the guest accepted (rules 26-27).

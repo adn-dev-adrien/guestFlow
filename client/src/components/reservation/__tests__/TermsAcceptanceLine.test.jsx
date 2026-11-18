@@ -40,7 +40,7 @@ test('« Voir le texte accepté » loads the frozen version', async () => {
   render(<TermsAcceptanceLine block={recorded} />);
   fireEvent.click(screen.getByRole('button', { name: 'Détails' }));
   await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Voir le texte accepté' })); });
-  expect(api.getTermsVersion).toHaveBeenCalledWith(3);
+  expect(api.getTermsVersion).toHaveBeenCalledWith(3, 'lodging');
   expect(await screen.findByTitle('Français')).toBeInTheDocument();
 });
 

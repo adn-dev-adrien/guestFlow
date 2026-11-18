@@ -58,6 +58,8 @@ function emptyRecord(id) {
     // specs/guest-app.md rules 28-31, 35 (SDK 2.26.0) — the hourly slots of a stay, and the slots a plugin holds.
     resourceScheduler: null,
     resourceHolds: null,
+    // specs/gift-voucher-campaigns.md rule 37 (SDK 2.33.0) — [{ key, label, seed? }]: the activities whose core terms (CGV) a plugin declares.
+    termsActivities: [],
     // specs/pricing-components.md rules 48-49 (SDK 2.30.0) — the ids of the fulfilment adapters, and the slot availability provider.
     articleFulfilments: [],
     slotAvailability: null,

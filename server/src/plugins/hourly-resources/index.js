@@ -27,6 +27,7 @@ const { createSlotAvailability } = require('./slotAvailability');
 const { createBathFulfilment } = require('./bathFulfilment');
 const { createInvoicing } = require('./invoicing');
 const { SETTINGS, standaloneVatRateOf, outsideVatRateOf } = require('./settings');
+const termsSeed = require('./termsSeed');
 
 const id = 'hourly-resources';
 
@@ -76,6 +77,8 @@ function register(ctx) {
       ? ctx.db.prepare("SELECT id, name AS label FROM resources WHERE priceType = 'per_hour' AND showsPlanningCard = 1 ORDER BY name, id").all()
       : []),
   });
+  // specs/gift-voucher-campaigns.md rule 37 — the bath's own general terms: a draft, versions and a tab of Réglages → Conditions générales, kept like the lodging's. The first draft is seeded, never published.
+  ctx.termsActivity({ key: 'resource', label: 'Bain nordique et activités', seed: termsSeed });
   // Rules 18, A2 — the attachments still to join, the invoices cancelled by hand in Qonto.
   ctx.jobs.every({ name: 'resource-invoices-watch', intervalMs: 60 * 60 * 1000, bootDelayMs: 5 * 60 * 1000, run: () => invoicing().watch() });
 

@@ -160,6 +160,7 @@
     "1.9.0": [
       "Un moyen de paiement déjà versé (le bon cadeau) peut accompagner la demande : le devis le retient, le prix à payer aujourd’hui est calculé par GuestFlow, et sans rien à payer la réservation est confirmée tout de suite.",
       "Le devis du site annonce, tant qu’un tel moyen est proposé, de quoi afficher le champ de saisie.",
+      "Les conditions générales publiques se lisent aussi par activité (?activity=) ; sans ce paramètre, ce sont celles de l’hébergement, comme avant.",
       "Demande le SDK 2.33 de GuestFlow."
     ]
   }

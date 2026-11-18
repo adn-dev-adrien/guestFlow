@@ -333,13 +333,21 @@
       "modules": [
         "pdfFonts",
         "prepaidReceipts",
-        "prepaidSources"
+        "prepaidSources",
+        "termsAcceptance",
+        "termsActivities"
       ],
       "names": {
         "paymentTenders": [
           "lineLabel",
           "METHODS",
           "PREPAID"
+        ],
+        "termsModel": [
+          "LODGING",
+          "findAcceptanceBySubject",
+          "hasDraft",
+          "listOtherAcceptancesByReservation"
         ]
       }
     }

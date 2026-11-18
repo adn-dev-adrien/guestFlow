@@ -1,7 +1,8 @@
 /**
  * Paramètres → Conditions générales (specs/terms-acceptance-record.md §3.1, §6).
  *
- * The CGV draft (Markdown FR + EN, rendered by the server), its publication as an immutable version
+ * One tab per activity (GET /api/terms/activities: the lodging, then those a plugin declares, specs/gift-voucher-campaigns.md
+ * rule 37) — each is its own draft and its own numbered versions. The CGV draft (Markdown FR + EN, rendered by the server), its publication as an immutable version
  * and the published versions, and the public site's address the CGV link is built on
  * (specs/plugins-phase-3a-online-payment.md rule 15). Every label, date and verdict (can publish? stale facts?) comes from
  * GET /api/terms. The online enforcement belongs to the website-booking plugin: its alerts and its
@@ -47,6 +48,8 @@ export default function TermsSettingsPage() {
   const isXs = useMediaQuery(theme.breakpoints.down('sm'));
   const { showSuccess, showError } = useToast();
   const navigate = useNavigate();
+  const [activities, setActivities] = useState([]);
+  const [activity, setActivity] = useState('lodging');
   const [overview, setOverview] = useState(null);
   const [loadError, setLoadError] = useState('');
   const [draft, setDraft] = useState({ fr: '', en: '' });
@@ -57,6 +60,7 @@ export default function TermsSettingsPage() {
   const [confirmPublish, setConfirmPublish] = useState(false);
   const [versionView, setVersionView] = useState(null);
   const previewSeq = useRef(0);
+  const isLodging = activity === 'lodging';
 
   const applyOverview = useCallback((o) => {
     setOverview(o);
@@ -64,10 +68,16 @@ export default function TermsSettingsPage() {
   }, []);
 
   useEffect(() => {
-    api.getTerms()
+    api.getTermsActivities()
+      .then((r) => setActivities(r.activities))
+      .catch(() => setLoadError('Impossible de charger les conditions générales.'));
+  }, []);
+
+  useEffect(() => {
+    api.getTerms(activity)
       .then(applyOverview)
       .catch(() => setLoadError('Impossible de charger les conditions générales.'));
-  }, [applyOverview]);
+  }, [activity, applyOverview]);
 
   // Server-side rendering of the draft being typed (the client never parses Markdown).
   useEffect(() => {
@@ -76,13 +86,13 @@ export default function TermsSettingsPage() {
     previewSeq.current = seq;
     setPreviewLoading(true);
     const timer = setTimeout(() => {
-      api.previewTerms(draft)
+      api.previewTerms({ ...draft, activity })
         .then((r) => { if (previewSeq.current === seq) setPreview(r.html); })
         .catch(() => {})
         .finally(() => { if (previewSeq.current === seq) setPreviewLoading(false); });
     }, PREVIEW_DELAY_MS);
     return () => clearTimeout(timer);
-  }, [draft, overview]);
+  }, [draft, overview, activity]);
 
   // Before the early return: the guard is off until the page knows what is stored (saved = draft).
   const leaveGuard = useDirtyFormGuard({
@@ -107,7 +117,7 @@ export default function TermsSettingsPage() {
   const handleSave = async () => {
     setSaving(true);
     try {
-      applyOverview(await api.saveTermsDraft(draft));
+      applyOverview(await api.saveTermsDraft({ ...draft, activity }));
       showSuccess('Brouillon enregistré');
       return true;
     } catch (e) {
@@ -127,7 +137,7 @@ export default function TermsSettingsPage() {
     setConfirmPublish(false);
     setSaving(true);
     try {
-      const o = await api.publishTerms();
+      const o = await api.publishTerms(activity);
       applyOverview(o);
       showSuccess(`Version ${o.current.version} publiée`);
     } catch (e) {
@@ -140,7 +150,7 @@ export default function TermsSettingsPage() {
   const openVersion = async (version) => {
     setVersionView({ version, loading: true, documents: [], subtitle: null, error: '' });
     try {
-      const v = await api.getTermsVersion(version);
+      const v = await api.getTermsVersion(version, activity);
       setVersionView({
         version,
         loading: false,
@@ -154,6 +164,14 @@ export default function TermsSettingsPage() {
     } catch {
       setVersionView((prev) => ({ ...prev, loading: false, error: 'Impossible de charger cette version.' }));
     }
+  };
+
+  const changeActivity = (next) => {
+    if (dirty) {
+      showError('Enregistrez ou annulez le brouillon avant de changer d’activité.');
+      return;
+    }
+    setActivity(next);
   };
 
   const variablesHelp = (
@@ -191,7 +209,15 @@ export default function TermsSettingsPage() {
         }]}
       />
       <Box sx={{ p: { xs: 1.5, sm: 3 }, display: 'flex', flexDirection: 'column', gap: 2, maxWidth: 1280, mx: 'auto' }}>
-        <Slot name="terms.settings" placement="alerts" currentVersion={overview.current?.version ?? null} />
+        {activities.length > 1 && (
+          <PageTabs
+            value={activity}
+            onChange={changeActivity}
+            ariaLabel="Activité"
+            items={activities.map((a) => ({ value: a.key, label: a.label }))}
+          />
+        )}
+        {isLodging && <Slot name="terms.settings" placement="alerts" currentVersion={overview.current?.version ?? null} />}
         {overview.current && overview.staleVariables.length > 0 && (
           <Alert severity="warning">
             Un élément cité a changé depuis la version {overview.current.version} (
@@ -282,9 +308,9 @@ export default function TermsSettingsPage() {
           </CardContent>
         </Card>
 
-        <PublicSiteOriginCard value={overview.publicSiteOrigin} onSaved={(o) => setOverview(o)} />
+        {isLodging && <PublicSiteOriginCard value={overview.publicSiteOrigin} onSaved={(o) => setOverview(o)} />}
 
-        <Slot name="terms.settings" placement="card" currentVersion={overview.current?.version ?? null} />
+        {isLodging && <Slot name="terms.settings" placement="card" currentVersion={overview.current?.version ?? null} />}
       </Box>
 
       <ConfirmDialog

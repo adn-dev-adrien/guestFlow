@@ -341,16 +341,35 @@
     "updateStatus"
   ],
   "termsModel": [
+    "LODGING",
     "create",
     "findAcceptanceByReservation",
+    "findAcceptanceBySubject",
     "getById",
     "getByVersion",
     "getCurrent",
     "getDraft",
+    "hasDraft",
     "insertAcceptance",
+    "listOtherAcceptancesByReservation",
     "listVersionsWithCounts",
     "publishVersion",
     "saveDraft"
+  ],
+  "termsActivities": [
+    "LODGING",
+    "find",
+    "list",
+    "resolve",
+    "seedDrafts"
+  ],
+  "termsAcceptance": [
+    "CHANNELS",
+    "NOT_ACCEPTED",
+    "OUTDATED",
+    "SUBJECT_TYPES",
+    "accept",
+    "requireAccepted"
   ],
   "updateStateModel": [
     "HISTORY_MAX",

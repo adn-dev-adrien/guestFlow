@@ -607,7 +607,8 @@ CREATE TABLE IF NOT EXISTS user_roles (
   );
 
 CREATE TABLE IF NOT EXISTS terms_draft (
-    id INTEGER PRIMARY KEY CHECK (id = 1),
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    activity TEXT NOT NULL UNIQUE DEFAULT 'lodging',
     markdownFr TEXT NOT NULL DEFAULT '',
     markdownEn TEXT NOT NULL DEFAULT '',
     updatedAt TEXT
@@ -615,7 +616,8 @@ CREATE TABLE IF NOT EXISTS terms_draft (
 
 CREATE TABLE IF NOT EXISTS terms_versions (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    version INTEGER NOT NULL UNIQUE,
+    activity TEXT NOT NULL DEFAULT 'lodging',
+    version INTEGER NOT NULL,
     markdownFr TEXT NOT NULL,
     markdownEn TEXT NOT NULL,
     htmlFr TEXT NOT NULL,
@@ -623,17 +625,22 @@ CREATE TABLE IF NOT EXISTS terms_versions (
     variablesJson TEXT NOT NULL,
     contentHash TEXT NOT NULL,
     publishedAt TEXT NOT NULL,
-    publishedBy INTEGER REFERENCES users(id) ON DELETE SET NULL
+    publishedBy INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    UNIQUE (activity, version)
   );
 
 CREATE TABLE IF NOT EXISTS terms_acceptances (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    reservationId INTEGER NOT NULL,
+    reservationId INTEGER,
     termsVersionId INTEGER NOT NULL,
     acceptedAt TEXT NOT NULL,
     ip TEXT,
     userAgent TEXT,
     pluginVersion TEXT,
+    activity TEXT NOT NULL DEFAULT 'lodging',
+    subjectType TEXT NOT NULL DEFAULT 'reservation',
+    subjectRef TEXT,
+    channel TEXT NOT NULL DEFAULT 'site',
     FOREIGN KEY (reservationId) REFERENCES reservations(id) ON DELETE CASCADE,
     FOREIGN KEY (termsVersionId) REFERENCES terms_versions(id)
   );

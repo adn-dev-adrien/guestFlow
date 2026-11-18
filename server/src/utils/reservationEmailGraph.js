@@ -36,12 +36,13 @@ function loadTermsVersion(database, reservationId) {
   try {
     const accepted = database.prepare(`
       SELECT v.version FROM terms_acceptances a JOIN terms_versions v ON v.id = a.termsVersionId
-       WHERE a.reservationId = @id
-          OR a.reservationId IN (SELECT id FROM reservations WHERE convertedReservationId = @id)
+       WHERE a.activity = 'lodging'
+         AND (a.reservationId = @id
+              OR a.reservationId IN (SELECT id FROM reservations WHERE convertedReservationId = @id))
        ORDER BY a.id DESC LIMIT 1
     `).get({ id: Number(reservationId) });
     if (accepted) return accepted.version;
-    const current = database.prepare('SELECT MAX(version) AS v FROM terms_versions').get();
+    const current = database.prepare("SELECT MAX(version) AS v FROM terms_versions WHERE activity = 'lodging'").get();
     return current && current.v ? current.v : null;
   } catch {
     return null;

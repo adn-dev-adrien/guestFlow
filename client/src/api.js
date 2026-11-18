@@ -904,13 +904,14 @@ const api = {
   testGoogleCalendarConnection: () => request('/google-calendar/test-connection', { method: 'POST' }),
 
   // CGV — draft, preview, publication, versions, enforcement (specs/terms-acceptance-record.md §4.4).
-  getTerms: () => request('/terms'),
+  getTermsActivities: () => request('/terms/activities'),
+  getTerms: (activity = 'lodging') => request(`/terms?activity=${encodeURIComponent(activity)}`),
   saveTermsDraft: (payload) => request('/terms/draft', { method: 'PUT', body: payload }),
   // specs/plugins-phase-3a-online-payment.md rule 15.
   saveTermsPublicSiteOrigin: (publicSiteOrigin) => request('/terms/public-site-origin', { method: 'PUT', body: { publicSiteOrigin } }),
   previewTerms: (payload) => request('/terms/preview', { method: 'POST', body: payload, readOnly: true }),
-  publishTerms: () => request('/terms/publish', { method: 'POST' }),
-  getTermsVersion: (version) => request(`/terms/versions/${version}`),
+  publishTerms: (activity = 'lodging') => request('/terms/publish', { method: 'POST', body: { activity } }),
+  getTermsVersion: (version, activity = 'lodging') => request(`/terms/versions/${version}?activity=${encodeURIComponent(activity)}`),
   // The « Réservation en ligne » card of the website-booking plugin (specs/plugins-phase-2-hosts.md rule 25).
   getOnlineBooking: () => request('/terms/online-booking'),
   updateTermsEnforcement: (requireTermsAcceptance) => request('/terms/enforcement', { method: 'PUT', body: { requireTermsAcceptance } }),

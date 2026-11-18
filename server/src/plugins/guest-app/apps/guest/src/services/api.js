@@ -102,6 +102,8 @@ export const api = {
   quote: (lines, deliverAt) => request('POST', '/orders/quote', { body: { lines, ...(deliverAt ? { deliverAt } : {}) } }),
   // §4.3 — `key` (Idempotency-Key): the same order sent again after a lost answer is not created twice.
   order: (body, { key } = {}) => request('POST', '/orders', { body, ...(key ? { headers: { 'Idempotency-Key': key } } : {}) }),
+  // specs/gift-voucher-campaigns.md rule 37 — the text of the terms an activity of the cart asks the guest to accept.
+  terms: (activity) => request('GET', `/terms/${encodeURIComponent(activity)}`),
   orders: () => request('GET', '/orders'),
   orderById: (id) => request('GET', `/orders/${encodeURIComponent(id)}`),
   abandon: (id) => request('POST', `/orders/${encodeURIComponent(id)}/abandon`),

@@ -40,7 +40,7 @@ function controller(versions) {
 
 test('rule 7 — current version: frozen HTML only, no Markdown source, currentVersion given', () => {
   const res = fakeRes();
-  controller([V1, V2]).getCurrent({}, res);
+  controller([V1, V2]).getCurrent({ query: {} }, res);
   assert.equal(res.statusCode, 200);
   assert.deepEqual(res.body.data, {
     version: 2, publishedAt: V2.publishedAt, html: { fr: '<p>v2</p>', en: '<p>v2 en</p>' }, currentVersion: 2,
@@ -49,7 +49,7 @@ test('rule 7 — current version: frozen HTML only, no Markdown source, currentV
 
 test('rule 7 — a given older version, with the current one named', () => {
   const res = fakeRes();
-  controller([V1, V2]).getVersion({ params: { version: '1' } }, res);
+  controller([V1, V2]).getVersion({ params: { version: '1' }, query: {} }, res);
   assert.equal(res.body.data.version, 1);
   assert.equal(res.body.data.currentVersion, 2);
   assert.equal(res.body.data.html.fr, '<p>v1</p>');
@@ -57,7 +57,7 @@ test('rule 7 — a given older version, with the current one named', () => {
 
 test('rule 7 — nothing published → 503 TERMS_NOT_CONFIGURED', () => {
   const res = fakeRes();
-  controller([]).getCurrent({}, res);
+  controller([]).getCurrent({ query: {} }, res);
   assert.equal(res.statusCode, 503);
   assert.equal(res.body.error.code, 'TERMS_NOT_CONFIGURED');
 });
@@ -65,7 +65,7 @@ test('rule 7 — nothing published → 503 TERMS_NOT_CONFIGURED', () => {
 test('rule 7 — unknown or malformed version → 404 TERMS_NOT_FOUND', () => {
   for (const version of ['9', '0', 'abc']) {
     const res = fakeRes();
-    controller([V1]).getVersion({ params: { version } }, res);
+    controller([V1]).getVersion({ params: { version }, query: {} }, res);
     assert.equal(res.statusCode, 404, version);
     assert.equal(res.body.error.code, 'TERMS_NOT_FOUND');
   }

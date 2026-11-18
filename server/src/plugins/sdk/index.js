@@ -43,7 +43,9 @@ const CORE_MODULES = Object.freeze({
   propertyDefaultOptions: '../../utils/propertyDefaultOptions', // the merge of those defaults
   clientsModel: '../../models/clientsModel', // find or create the guest of a booking request
   devisModel: '../../models/devisModel', // a booking request creates a draft devis
-  termsModel: '../../models/termsModel', // current CGV version, the acceptance record (rule 26)
+  termsModel: '../../models/termsModel', // current CGV version per activity, the acceptance record (rule 26; per activity since the campaigns spec rule 37)
+  termsActivities: '../../utils/termsActivities', // the activities whose terms exist: list / find / resolve (declared with `ctx.termsActivity`, SDK 2.33.0)
+  termsAcceptance: '../../utils/termsAcceptance', // `requireAccepted`: the refusal code owed for an activity's current terms (SDK 2.33.0)
   updateStateModel: '../../models/updateStateModel', // the WordPress plugin release the manifest serves
   pricing: '../../utils/pricing', // the quote engine
   directQuote: '../../utils/directQuote', // the website's quote (default options merged), also priced by google-vacation-rentals (SDK 2.4.0)

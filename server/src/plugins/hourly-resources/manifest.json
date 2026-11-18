@@ -196,6 +196,7 @@
     "1.9.0": [
       "Une ressource peut dégresser selon le rang de l’heure : par exemple la 2ᵉ heure à −10 % et la 3ᵉ et suivantes à −20 %. Le tableau se règle sous les tarifs de la ressource, vide il laisse les prix inchangés.",
       "Chaque créneau garde le tarif de sa tranche (jour ou soir), puis reçoit la remise de son heure.",
+      "Les conditions générales du bain nordique ont leur propre onglet sous Réglages › Conditions générales : un brouillon prérempli, à relire puis à publier.",
       "Compatible avec GuestFlow 4 (SDK 2.33)."
     ]
   }

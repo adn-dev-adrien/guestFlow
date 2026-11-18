@@ -222,6 +222,18 @@ function createContext(id, {
         source, label: label.trim(), apply, held, settle, release,
       });
     },
+    // `{ key, label, seed? }` — an activity whose core terms (CGV) the plugin declares (core terms per activity, rule 37 of the campaigns spec, SDK 2.33.0): one draft, one
+    // versioned publication and one tab of Réglages → Conditions générales, stored exactly like the lodging's. `seed: { fr, en }` is the first draft, written
+    // once while the activity has none and never published. While the plugin is off the tab and the public text go; the versions and acceptances stay.
+    termsActivity({ key, label, seed } = {}) {
+      if (!/^[a-z][a-z0-9-]{0,39}$/.test(String(key || ''))) throw new Error(`${prefix} a terms activity needs a key like "resource"`);
+      if (key === 'lodging') throw new Error(`${prefix} the "lodging" terms are the core's`);
+      if (typeof label !== 'string' || !label.trim()) throw new Error(`${prefix} terms activity "${key}" needs a label`);
+      if (seed !== undefined && (!seed || typeof seed.fr !== 'string' || typeof seed.en !== 'string')) throw new Error(`${prefix} terms activity "${key}": seed needs fr and en`);
+      const other = registry.all().find((r) => r.id !== id && (r.termsActivities || []).some((a) => a.key === key));
+      if (other) throw new Error(`${prefix} the terms activity "${key}" is already declared by ${other.id}`);
+      record.termsActivities.push({ key, label: label.trim(), seed: seed || null });
+    },
     // (resource, { properties }) → { lines?: [{ label, value }], footer?: string } | null — what the plugin
     // adds to a resource's card on Options & ressources while it is live (specs/options-resources-ux.md
     // rule 19). Synchronous, no I/O; a plugin declares one.
@@ -388,23 +400,37 @@ function createContext(id, {
     // French sentence when the erasure must not run now (money the plugin still holds), else null: the core answers 409 ERASE_REFUSED.
     data(declaration) { record.data = declaration; },
     isLive: () => registry.isLive(id),
-    // SDK 2.33.0 — one e-mail that belongs to no stay (a receipt, a ticket): `{ to, subject, text, html?, key }`, sent through
+    // SDK 2.33.0 — one e-mail that belongs to no stay (a receipt, a ticket): `{ to, subject, text, html?, key, attachments? }` (`attachments`: `[{ filename, content (Buffer), contentType }]`), sent through
     // the operator's own SMTP settings. `key` names the message in the log (never the address). The e-mail history is keyed by
     // reservation, so the plugin records the send on its own rows. → `{ messageId }`; throws `EMAIL_NOT_CONFIGURED`.
     mail: Object.freeze({
       async send({
-        to, subject, text, html, key,
+        to, subject, text, html, key, attachments,
       } = {}) {
         if (typeof to !== 'string' || !to.trim() || typeof subject !== 'string' || !subject.trim() || typeof text !== 'string' || !text.trim()) {
           throw new Error(`${prefix} mail.send needs to, subject and text`);
         }
         const service = mailService ? mailService() : require('../../utils/emailService').createEmailService(require('../../models/settingsModel').decryptedSmtpSettings());
         const info = await service.send({
-          to, subject, text, ...(html ? { html } : {}),
+          to, subject, text, ...(html ? { html } : {}), ...(Array.isArray(attachments) && attachments.length ? { attachments } : {}),
         });
         console.log(prefix, `mail sent${key ? ` (${key})` : ''}`); // eslint-disable-line no-console
         return { messageId: (info && info.messageId) || null };
       },
+    }),
+    // SDK 2.33.0 (core terms per activity, rules 37-38 of the campaigns spec) — the core terms of an activity a plugin declared with `termsActivity` (or `lodging`).
+    // `current(activity)` → `{ id, version, publishedAt }` | null (nothing published: nothing to ask). `requireAccepted({ activity, versionId, subjectType, subjectRef })`
+    // → `TERMS_NOT_ACCEPTED` | `TERMS_OUTDATED` | null (null also when the subject already accepted the current version). `accept({ activity, versionId, subjectType
+    // (reservation | outsideBooking | a plugin's own order), subjectRef, reservationId?, channel (site | guest-app | payment-link | mon-bain), ip, userAgent, pluginVersion?, onAccepted? })`
+    // records the acceptance (a reservation's history gets its line; `onAccepted(row)` is the owning plugin's hook for any other subject) and throws the refusal code
+    // when `versionId` is not the current version.
+    terms: Object.freeze({
+      current(activity) {
+        const v = require('../../models/termsModel').getCurrent(activity);
+        return v ? { id: v.id, version: v.version, publishedAt: v.publishedAt } : null;
+      },
+      requireAccepted: (input) => require('../../utils/termsAcceptance').requireAccepted(input),
+      accept: (input) => require('../../utils/termsAcceptance').accept({ ...input, pluginId: id }),
     }),
     // specs/plugins-phase-4-registry.md rule 15 — the plugin's own directory, kept across updates,
     // removed only by « Effacer aussi ses données ». Created on first read.

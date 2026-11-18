@@ -18,8 +18,11 @@ test('SDK 2.33.0: the version is bumped by a minor and the history records what 
   const entry = HISTORY.added.find((a) => a.version === '2.33.0');
   assert.deepEqual(entry, {
     version: '2.33.0',
-    modules: ['pdfFonts', 'prepaidReceipts', 'prepaidSources'],
-    names: { paymentTenders: ['lineLabel', 'METHODS', 'PREPAID'] },
+    modules: ['pdfFonts', 'prepaidReceipts', 'prepaidSources', 'termsAcceptance', 'termsActivities'],
+    names: {
+      paymentTenders: ['lineLabel', 'METHODS', 'PREPAID'],
+      termsModel: ['LODGING', 'findAcceptanceBySubject', 'hasDraft', 'listOtherAcceptancesByReservation'],
+    },
   });
 });
 

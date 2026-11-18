@@ -52,7 +52,7 @@ function buildSummary(deps, user) {
   });
   put('/settings/plateformes', () => neutral(plural(count('SELECT COUNT(*) AS n FROM platforms'), 'plateforme', 'plateformes')));
   put('/parametres/conditions-generales', () => {
-    const v = deps.db.prepare('SELECT MAX(version) AS v FROM terms_versions').get().v;
+    const v = deps.db.prepare("SELECT MAX(version) AS v FROM terms_versions WHERE activity = 'lodging'").get().v;
     return v ? neutral(`Version ${v} en vigueur`) : neutral('Aucune version publiée');
   });
   put('/parametres/options-ressources', () => {
