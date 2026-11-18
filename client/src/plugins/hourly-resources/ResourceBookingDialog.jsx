@@ -5,7 +5,7 @@ import {
   FormControlLabel, Typography, Divider, Switch, LinearProgress, ToggleButton, ToggleButtonGroup, useMediaQuery, useTheme,
 } from '@mui/material';
 import MiniDayPlanner from './MiniDayPlanner';
-import { api, formatCurrency, ConfirmDialog, ClientPickerField, ErrorAlert } from '../sdk';
+import { api, formatCurrency, ConfirmDialog, ClientPickerField, ErrorAlert, FocusKeeper } from '../sdk';
 import resourceBookingDraft from './resourceBookingDraft';
 import useResourceBookingPreview from './useResourceBookingPreview';
 import { localIsoDate } from './localDate';
@@ -368,6 +368,9 @@ export default function ResourceBookingDialog({
   // disabled, ticked as the default card line will tick it), so the answer fills it instead of swapping a caption for the checkbox; any
   // outcome keeps that height while « Maintenant » can invoice (`reserve`).
   const invoicePending = qontoReady && payNow && Boolean(draft) && !invoiceAnswer && (!payment || Boolean(invoiceDraft));
+  // Loop t22 UI22-2 — the save button already names the invoice the pending block draws ticked, so the accepted answer (the nominal path)
+  // changes nothing on screen but the box's enabled state; a refusal gives the plain label back.
+  const invoiceDrawn = wantsInvoice || (invoicePending && (invoiceChecked || !payment));
   const durationForOffer = durationMinutes - Number(price?.freeMinutesApplied || 0);
   const canSave = Boolean(
     date
@@ -524,8 +527,9 @@ export default function ResourceBookingDialog({
             )}
           </Box>
 
-          {/* RIGHT: client + form */}
-          <Box sx={{ gridArea: 'form', minWidth: 0, display: 'flex', flexDirection: 'column', gap: 2 }}>
+          {/* RIGHT: client + form — loop t22 UI22-1: an answer that removes the control holding the focus (the « Facture » address on a
+              refusal, « Caisse interne », a silent answer) leaves the focus on the nearest region still drawn, never on the page. */}
+          <FocusKeeper sx={{ gridArea: 'form', minWidth: 0, display: 'flex', flexDirection: 'column', gap: 2 }}>
             <Box sx={{ display: 'flex', gap: 1.25 }}>
               <FormControl fullWidth size="small">
                 <InputLabel>Heure début</InputLabel>
@@ -711,7 +715,7 @@ export default function ResourceBookingDialog({
                 />
               </Box>
             )}
-          </Box>
+          </FocusKeeper>
         </Box>
         )}
       </DialogContent>
@@ -736,7 +740,7 @@ export default function ResourceBookingDialog({
             )}
             <Button onClick={onClose} disabled={saving}>Annuler</Button>
             <Button variant="contained" onClick={handleSave} disabled={invoiceOutcome ? saving : (!canSave || !preview.fresh || saving)} sx={{ minHeight: 44 }}>
-              {saving ? 'Enregistrement…' : (invoiceOutcome ? 'Créer la facture' : (draft && preview.pending ? 'Calcul du prix…' : (wantsInvoice ? 'Enregistrer et facturer' : 'Enregistrer')))}
+              {saving ? 'Enregistrement…' : (invoiceOutcome ? 'Créer la facture' : (draft && preview.pending ? 'Calcul du prix…' : (invoiceDrawn ? 'Enregistrer et facturer' : 'Enregistrer')))}
             </Button>
           </>
         )}

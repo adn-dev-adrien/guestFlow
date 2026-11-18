@@ -19,6 +19,7 @@
 import React, { useId, useState } from 'react';
 import { Box, Button, Stack, Typography } from '@mui/material';
 import { formatCurrency } from '../utils/formatters';
+import FocusKeeper from './FocusKeeper';
 
 const euros = (cents) => formatCurrency((Number(cents) || 0) / 100);
 const TEXTS = Object.freeze({
@@ -135,7 +136,8 @@ export default function StaySalesSection({ section, onCollectNow = null, onOffer
   const dueLines = inBlock('due');
   const heads = groups.length > 0 && paidLines.length > 0 && dueLines.length > 0;
   return (
-    <Box component="section" aria-label={section.title} sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 1, p: { xs: 1.25, sm: 1.5 } }}>
+    // Loop t22 UI22-1 — a collected line folds under « Déjà payé » and its button goes: the focus stays on the section, never on the page.
+    <FocusKeeper component="section" aria-label={section.title} sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 1, p: { xs: 1.25, sm: 1.5 } }}>
       <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'baseline', gap: 1, flexWrap: 'wrap' }}>
         <Typography variant="body2" sx={{ fontWeight: 600 }}>{section.title}</Typography>
         <Typography variant="body2" sx={{ fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>{section.lines.length > 0 ? euros(dueLines.length > 0 ? section.dueCents : section.totalCents) : ''}</Typography>
@@ -166,6 +168,6 @@ export default function StaySalesSection({ section, onCollectNow = null, onOffer
       ) : paidLines.length > 0 && (
         <Box component="ul" sx={{ listStyle: 'none', m: 0, mt: 0.5, p: 0 }}>{blockList('paid')}</Box>
       )}
-    </Box>
+    </FocusKeeper>
   );
 }

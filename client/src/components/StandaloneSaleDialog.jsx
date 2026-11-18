@@ -13,7 +13,9 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Alert, Box, Checkbox, Chip, FormControlLabel, TextField, ToggleButton, ToggleButtonGroup, Typography } from '@mui/material';
 import api from '../api';
 import FormDialog from './FormDialog';
+import FocusKeeper from './FocusKeeper';
 import LoadingState from './LoadingState';
+import ErrorAlert from './ErrorAlert';
 import SuggestedArticlesStep from './SuggestedArticlesStep';
 import SalePaymentLink from './SalePaymentLink';
 import TenderLines from './TenderLines';
@@ -53,6 +55,7 @@ const TEXTS = Object.freeze({
   saved: (id, client) => `Vente n° ${id} enregistrée · ${client}`,
   saveFailed: 'Vente non enregistrée.',
   loadFailed: 'Articles indisponibles.',
+  quoteFailed: 'Montant indisponible.',
   empty: 'Aucun article vendable hors séjour.',
 });
 
@@ -75,17 +78,21 @@ export default function StandaloneSaleDialog({ open, onClose, onSold, client = n
   const [saved, setSaved] = useState(null);
   const [link, setLink] = useState({ busy: false, error: null, sentTo: null });
 
+  const [catalogueTry, setCatalogueTry] = useState(0);
   useEffect(() => {
-    if (!open) return undefined;
-    let current = true;
+    if (!open) return;
     setDraft(emptyDraft());
     setSaved(null);
     setError(null);
     setPayment(null);
+  }, [open]);
+  useEffect(() => {
+    if (!open) return undefined;
+    let current = true;
     setCatalogueError(false);
     api.getSuggestedArticlesCatalogue({ q: '' }).then((res) => { if (current) setCatalogue(res.articles); }).catch(() => { if (current) setCatalogueError(true); });
     return () => { current = false; };
-  }, [open]);
+  }, [open, catalogueTry]);
 
   const clientId = client ? client.id : null;
   const customer = useMemo(() => (clientId ? { clientId } : {
@@ -174,7 +181,7 @@ export default function StandaloneSaleDialog({ open, onClose, onSold, client = n
     const { sale } = saved;
     const saleId = saved.document.document.id;
     return (
-      <FormDialog open={open} onClose={onClose} title={TEXTS.title} cancelLabel={TEXTS.close} submitLabel={TEXTS.again} onSubmit={again}>
+      <FormDialog open={open} onClose={onClose} title={TEXTS.title} cancelLabel={TEXTS.close} submitLabel={TEXTS.again} onSubmit={again} sheet>
         <Box sx={{ display: 'grid', gap: 1.25, pt: 0.5 }}>
           <Alert severity="success" role="status">{TEXTS.saved(sale.id, sale.clientLabel)}</Alert>
           {sale.lines.map((text) => <Typography key={text} variant="body2">{text}</Typography>)}
@@ -202,10 +209,13 @@ export default function StandaloneSaleDialog({ open, onClose, onSold, client = n
   else if (payNow && payment && payment.receivedCents > 0) submitLabel = TEXTS.saveAndCollect(euros(payment.receivedCents));
 
   return (
-    <FormDialog open={open} onClose={onClose} title={TEXTS.title} cancelLabel={TEXTS.cancel} submitLabel={submitLabel} onSubmit={save} submitDisabled={!ready} submitBusy={busy}>
-      <Box sx={{ display: 'grid', gap: 2.5, pt: 0.5 }}>
+    // Loop t22 UI22-2 — a sheet: the payment the first answer draws under the Total fills room already there, so neither the content
+    // nor the actions move (a centred dialog re-centres and moves everything). Loop t22 UI22-1 — the content keeps the focus.
+    <FormDialog open={open} onClose={onClose} title={TEXTS.title} cancelLabel={TEXTS.cancel} submitLabel={submitLabel} onSubmit={save} submitDisabled={!ready} submitBusy={busy} sheet>
+      <FocusKeeper sx={{ display: 'grid', gap: 2.5, pt: 0.5 }}>
         {!catalogue && !catalogueError && <LoadingState />}
-        {catalogueError && <Alert severity="error">{TEXTS.loadFailed}</Alert>}
+        {/* Loop t22 UI22-3 — every failure of this dialog says so with its way out. */}
+        {catalogueError && <ErrorAlert message={TEXTS.loadFailed} onRetry={() => setCatalogueTry((n) => n + 1)} />}
         {catalogue && catalogue.length === 0 && <Alert severity="info">{TEXTS.empty}</Alert>}
         {catalogue && catalogue.length > 0 && (
           <Box sx={{ display: 'grid', gap: 1, opacity: preview.pending ? 0.6 : 1, transition: 'opacity 120ms' }}>
@@ -221,16 +231,19 @@ export default function StandaloneSaleDialog({ open, onClose, onSold, client = n
               onDraftChange={(index, changes) => patch({ extras: draft.extras.map((entry, i) => (i === index ? { ...entry, ...changes } : entry)) })}
               onDraftRemove={(index) => patch({ extras: draft.extras.filter((_, i) => i !== index) })}
             />
-            {/* Loop t21 UI21-1 — the Total row is drawn with the first article, « — » until the quote answers, so the answer fills it. */}
+            {/* Loop t21 UI21-1 — the Total row is drawn with the first article, « — » until the quote answers, so the answer fills it; loop t22
+                UI22-2 — with the place of its VAT line kept, rates side by side, so the answer lands without moving anything. */}
             {(document || draft.extras.length > 0) && (
-              <Box sx={{ display: 'grid', gap: 0.5, mt: 0.5 }}>
+              <Box sx={{ display: 'grid', gap: 0.5, mt: 0.5 }} data-pending-block={document ? undefined : ''}>
                 <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
                   <Typography variant="body1" sx={{ fontWeight: 700 }}>{TEXTS.total}</Typography>
                   <Typography data-testid="sale-total" variant="body1" sx={{ fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>{document ? euros(document.totals.totalCents) : '—'}</Typography>
                 </Box>
-                {document && document.vatByRate.filter((row) => row.vatCents > 0).map((row) => (
-                  <Typography key={row.rate} variant="caption" color="text.secondary" sx={{ fontVariantNumeric: 'tabular-nums' }}>{TEXTS.vat(String(row.rate).replace('.', ','), euros(row.vatCents))}</Typography>
-                ))}
+                <Box sx={{ display: 'flex', flexWrap: 'wrap', columnGap: 1.5, minHeight: (t) => `calc(${t.typography.caption.fontSize} * ${t.typography.caption.lineHeight})` }}>
+                  {document && document.vatByRate.filter((row) => row.vatCents > 0).map((row) => (
+                    <Typography key={row.rate} variant="caption" color="text.secondary" sx={{ fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>{TEXTS.vat(String(row.rate).replace('.', ','), euros(row.vatCents))}</Typography>
+                  ))}
+                </Box>
               </Box>
             )}
           </Box>
@@ -314,10 +327,10 @@ export default function StandaloneSaleDialog({ open, onClose, onSold, client = n
             </>
           )}
         </Box>
-        {preview.error && !refused && <Alert severity="error">{preview.error.message}</Alert>}
+        {preview.error && !refused && <ErrorAlert message={preview.error.message || TEXTS.quoteFailed} onRetry={preview.retry} />}
         {refused && <Alert severity="error">{preview.error.message}</Alert>}
         {error && <Alert severity="error">{error}</Alert>}
-      </Box>
+      </FocusKeeper>
     </FormDialog>
   );
 }

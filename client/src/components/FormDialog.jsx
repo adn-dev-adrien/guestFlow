@@ -9,6 +9,9 @@
  *        submitBusy (true while the submit is in flight: the button is disabled and spins, so a
  *        double click cannot send twice),
  *        secondaryAction (ReactNode, start-aligned in the actions row — e.g. a « Supprimer » button).
+ *        sheet (boolean, default false) — for a form whose content grows when the server answers: from `sm` up the dialog hangs from
+ *        the top at the full height of the screen, its content scrolling inside, so neither what is drawn nor the actions move when an
+ *        answer adds a section (loop t22 UI22-2). Under `sm` the dialog is full screen anyway.
  *        Under `sm` the actions stack at full width, primary last, 44 px high.
  */
 import React from 'react';
@@ -30,12 +33,21 @@ export default function FormDialog({
   submitBusy = false,
   hideSubmit = false,
   secondaryAction,
+  sheet = false,
 }) {
   const theme = useTheme();
   const fullScreen = useMediaQuery(theme.breakpoints.down('sm'));
   const reduceMotion = useMediaQuery('(prefers-reduced-motion: reduce)');
   return (
-    <Dialog open={open} onClose={onClose} maxWidth={maxWidth} fullWidth={fullWidth} fullScreen={fullScreen} transitionDuration={reduceMotion ? 0 : undefined}>
+    <Dialog
+      open={open}
+      onClose={onClose}
+      maxWidth={maxWidth}
+      fullWidth={fullWidth}
+      fullScreen={fullScreen}
+      transitionDuration={reduceMotion ? 0 : undefined}
+      sx={sheet && !fullScreen ? { '& .MuiDialog-container': { alignItems: 'flex-start' }, '& .MuiDialog-paper': { height: 'calc(100% - 64px)', my: 4 } } : undefined}
+    >
       <DialogTitle>{title}</DialogTitle>
       <DialogContent>{children}</DialogContent>
       <DialogActions

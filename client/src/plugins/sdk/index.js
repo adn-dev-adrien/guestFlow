@@ -84,3 +84,5 @@ export { LazySuggestedArticlesStep as SuggestedArticlesStep, LazySalePaymentLink
 export { LazyStandaloneSaleDialog as StandaloneSaleDialog } from '../../components/LazySaleComponents';
 // sas, hourly-resources — a dialog that renders a sale block starts its code when it opens and shows its content once it is there (specs/plugins-phase-1-sdk.md rule 54, reading 2026-11-18, loop t20 UI20-1) — SDK 2.32.0.
 export { useSaleComponentsReady } from '../../components/LazySaleComponents';
+// sas, hourly-resources — a region that keeps the focus when a server answer removes the control holding it (specs/plugins-phase-1-sdk.md rule 54, reading 2026-11-18, loop t22 UI22-1) — SDK 2.32.0.
+export { default as FocusKeeper } from '../../components/FocusKeeper';

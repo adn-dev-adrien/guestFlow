@@ -5,6 +5,8 @@
 // hook and renders a sale block — and a new one fails here until its late blocks are in the table. Each row holds the second request, checks the
 // pending block is there with the content, then releases the answer and checks the block is filled in place. The « Facture » block is run
 // through every outcome of its answer (accepted, a refusal's caption, a silent refusal, a failed quote), each keeping the pending block's height.
+// Loop t22 UI22-1 (outside-booking-sas rule 54 reading, pricing-components rule 117 reading) — every row also checks that no control of a pending
+// block (`data-pending-block`) can be used while it waits: nothing is typed into or chosen on a placeholder.
 import fs from 'fs';
 import path from 'path';
 import React from 'react';
@@ -70,6 +72,14 @@ const dialogs = sourcesOf(SRC)
   .sort();
 
 const invoiceBox = () => screen.getByRole('checkbox', { name: /Créer la facture dans Qonto/ });
+const CONTROLS = 'input, textarea, select, button, [role="button"], [role="checkbox"], [role="combobox"], [tabindex]:not([tabindex="-1"])';
+// The pending blocks drawn now, and the controls inside them that could still be used.
+function pendingBlocksAndLiveControls() {
+  const blocks = Array.from(document.querySelectorAll('[data-pending-block]'));
+  const live = blocks.flatMap((block) => Array.from(block.querySelectorAll(CONTROLS)))
+    .filter((control) => !control.disabled && control.getAttribute('aria-disabled') !== 'true' && !control.classList.contains('Mui-disabled'));
+  return { blocks, live };
+}
 
 // jsdom lays nothing out: the pending block (the one holding `aria-busy`) is given a height, so the reserve the block keeps can be read.
 const PENDING_HEIGHT = 137;
@@ -155,6 +165,7 @@ const DIALOGS = {
       expect(invoiceBox()).toBeDisabled();
       expect(invoiceBox()).toBeChecked();
       expect(screen.getByText('Adresse de facturation · facultative')).toBeInTheDocument();
+      expect(screen.getByRole('textbox', { name: 'Adresse' })).toBeDisabled();
       expect(screen.getByTestId('invoice-block')).toHaveStyle({ minHeight: `${PENDING_HEIGHT}px` });
     },
     filled: async () => {
@@ -245,6 +256,9 @@ describe.each(Object.keys(DIALOGS))('%s', (file) => {
     await row.open();
     await new Promise((resolve) => { setTimeout(resolve, 50); });
     row.pending();
+    const { blocks, live } = pendingBlocksAndLiveControls();
+    expect(blocks.length).toBeGreaterThan(0);
+    expect(live.map((control) => control.outerHTML.slice(0, 120))).toEqual([]);
     release();
     await row.filled();
   });

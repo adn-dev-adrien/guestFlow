@@ -11,7 +11,8 @@
  *   stayPayment  { total, deposit: { due }, balance: { due }, channel, platformLabel } — the preview's block
  *   pending      boolean — no preview answered yet: `stayPayment` is then the SAS payload's served block, read for the page's shape only
  *                (the platform notice, whether the acompte and solde lines are drawn), and every amount reads « — » until the plan's
- *                figures fill it — so the answer fills the page instead of pushing it (loop t21 UI21-1)
+ *                figures fill it — so the answer fills the page instead of pushing it (loop t21 UI21-1). The dialog also passes it while the
+ *                preview fails, and then draws the settlement buttons disabled: nothing is chosen on « — » (loop t22 UI22-3)
  *   value        current settlement mode: 'card' | 'cash' | 'defer' (= « Pas maintenant »)
  *   onChange     (mode) => void
  *   children     the shared PaymentModeButtons element, injected by the dialog
@@ -38,7 +39,7 @@ export default function SasStayPaymentPage({ stayPayment, pending = false, value
   const amount = (cents) => (stayPayment && !pending ? formatCurrency(cents) : '—');
 
   return (
-    <Stack spacing={1.5}>
+    <Stack spacing={1.5} aria-busy={pending || undefined} data-pending-block={pending ? '' : undefined}>
       {/* On a platform booking the solde is the payout the OTA wires after the stay, not the guest's
           money: say so before showing an amount someone could tick as collected. */}
       {stay.channel === 'platform' && (

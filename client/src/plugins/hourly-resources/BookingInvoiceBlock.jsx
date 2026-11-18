@@ -15,8 +15,10 @@
  *   internalCash  boolean — the server answers `INTERNAL_CASH` for the payment (typed or stored)
  *   reason        string | null — the server's refusal for the payment typed (`invoiceable.reason`, not `silent`); shown instead of the
  *                 « une fois le paiement saisi » caption, which stays for a payment not typed yet
- *   pending       boolean — the server's answer for the payment being typed is on its way: the checkbox is drawn, disabled, in the place and height the
- *                 offered state takes, so the answer fills the block instead of pushing the dialog (outside-booking-sas rule 54 reading, loop t21 UI21-1)
+ *   pending       boolean — the server's answer for the payment being typed is on its way: the checkbox and the address are drawn, disabled, in the
+ *                 place and height the offered state takes, so the answer fills the block instead of pushing the dialog (outside-booking-sas rule 54
+ *                 reading, loop t21 UI21-1); nothing in a pending block can be typed into (loop t22 UI22-1). The block is a FocusKeeper: an answer that
+ *                 removes the control holding the focus leaves it on the block, never on the page
  *   reserve       boolean — the block was or may be drawn pending in this payment (« Payé maintenant » can invoice): every outcome keeps at least the
  *                 height the pending block took (a refusal's caption, « Caisse interne », a silent answer the dialog hides), so the answer never
  *                 moves what is drawn around it (loop t21, verifier's reserve on UI21-1)
@@ -28,6 +30,7 @@
  */
 import React, { useLayoutEffect, useRef, useState } from 'react';
 import { Alert, Box, Button, Checkbox, FormControlLabel, TextField, Typography } from '@mui/material';
+import { FocusKeeper } from '../sdk';
 import BillingAddressFields from './BillingAddressFields';
 
 export default function BookingInvoiceBlock({ reserve = false, ...props }) {
@@ -42,9 +45,9 @@ export default function BookingInvoiceBlock({ reserve = false, ...props }) {
   // The reservation shields the operator from the server's answer, not from their own gesture: ticking or unticking resizes freely.
   const onCheck = props.onCheck && ((value) => { setReserved(0); props.onCheck(value); });
   return (
-    <Box data-testid="invoice-block" data-reserve={reserve ? 'on' : undefined} sx={{ minHeight: reserve ? reserved : 0 }}>
+    <FocusKeeper data-testid="invoice-block" data-reserve={reserve ? 'on' : undefined} sx={{ minHeight: reserve ? reserved : 0 }}>
       <Box ref={inner}><InvoiceBlockContent {...props} onCheck={onCheck} /></Box>
-    </Box>
+    </FocusKeeper>
   );
 }
 
@@ -105,7 +108,7 @@ function InvoiceBlockContent({
   }
   const stored = Boolean(booking && booking.payment);
   return (
-    <Box sx={{ display: 'grid', gap: 1.25 }} aria-busy={pending || undefined}>
+    <Box sx={{ display: 'grid', gap: 1.25 }} aria-busy={pending || undefined} data-pending-block={pending ? '' : undefined}>
       {addressAsked && <Alert severity="error">Paiement enregistré. La facture n'a pas été créée : Qonto demande l'adresse de facturation.</Alert>}
       {stored ? (
         <Box>
@@ -123,7 +126,7 @@ function InvoiceBlockContent({
           )}
         />
       )}
-      {showAddress && (checked || stored || addressAsked) && <BillingAddressFields value={billing} onChange={onBilling} required={addressAsked} disabled={busy} />}
+      {showAddress && (checked || stored || addressAsked) && <BillingAddressFields value={billing} onChange={onBilling} required={addressAsked} disabled={busy || pending} />}
     </Box>
   );
 }

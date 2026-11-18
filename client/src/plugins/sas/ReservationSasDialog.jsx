@@ -50,7 +50,7 @@ import {
   api, getPlatformColor, formatPlatformLabel, ConfirmDialog, OccurrenceGrid, LoadingState, ErrorAlert,
   useToast, useAppDialogs, SasKeypadCode, formatCurrency, displayDate, displayDateLong, PRICE_TYPE_LABELS,
   sasLockTitle, sasLockMessage, Slot, Contribution, useSlot, WheatIcon, BaguetteIcon, StatusBadge,
-  TenderLines, TENDER_TEXTS, StaySalesSection, useSaleComponentsReady,
+  TenderLines, TENDER_TEXTS, StaySalesSection, useSaleComponentsReady, FocusKeeper,
 } from '../sdk';
 import OfferableLine from './OfferableLine';
 import buildArrivalDraft from './arrivalDraft';
@@ -132,7 +132,8 @@ function StepLayout({ Icon, color, children }) {
           <Icon sx={{ fontSize: 48 }} />
         </Box>
       )}
-      <Box sx={{ width: '100%', '& .MuiTypography-body1': { fontSize: '1.1rem' }, '& .MuiTypography-body2': { fontSize: '0.95rem' } }}>{children}</Box>
+      {/* Loop t22 UI22-1 — an answer (or « Réessayer ») that removes the control holding the focus leaves it on the page's content. */}
+      <FocusKeeper sx={{ width: '100%', '& .MuiTypography-body1': { fontSize: '1.1rem' }, '& .MuiTypography-body2': { fontSize: '0.95rem' } }}>{children}</FocusKeeper>
     </Stack>
   );
 }
@@ -207,6 +208,12 @@ const MAX_SAS_COUNT = 999;
 // an end-of-stay complement collected elsewhere takes no charge nor sale).
 const saidByTheServer = (error) => error?.error === 'INVALID_QUANTITY' || error?.code === 'END_OF_STAY_ALREADY_COLLECTED';
 function RecapPreviewError({ error, onRetry, onBack, unavailable = 'Total indisponible : pas de réponse du serveur.' }) {
+  // Loop t22 UI22-3 — the failure disables the page's money buttons: if one of them held the focus, the way out takes it.
+  const action = useRef(null);
+  useLayoutEffect(() => {
+    const active = document.activeElement;
+    if (action.current && (!active || active === document.body || active.disabled)) action.current.focus({ preventScroll: true });
+  }, []);
   if (saidByTheServer(error)) {
     return (
       <Box role="alert" sx={(t) => ({ bgcolor: alpha(t.palette.error.main, 0.08), color: 'error.dark', borderRadius: 1.5, px: 1.5, py: 1 })}>
@@ -221,7 +228,7 @@ function RecapPreviewError({ error, onRetry, onBack, unavailable = 'Total indisp
         <Typography variant="body2" sx={{ fontWeight: 600 }}>
           {refused ? (RECAP_REFUSALS[error?.error] || 'Le récapitulatif est refusé.') : unavailable}
         </Typography>
-        <Button size="small" color="inherit" onClick={refused ? onBack : onRetry} sx={{ minHeight: 44 }}>
+        <Button ref={action} size="small" color="inherit" onClick={refused ? onBack : onRetry} sx={{ minHeight: 44 }}>
           {refused ? 'Revenir à l’étape' : 'Réessayer'}
         </Button>
       </Stack>
@@ -1339,12 +1346,21 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
             {caution === 'aucune' && <Chip label="Aucune caution pour ce séjour" color="error" variant="outlined" sx={{ alignSelf: 'flex-start' }} />}
           </Stack>
         );
-      case 'stayPayment':
+      case 'stayPayment': {
+        // Rule 117 (loop t22 UI22-3) — the amounts are the plan's: « — » until it answered, and while it fails. A failure says so with
+        // « Réessayer » (as the breakfast page), and the settlement buttons wait for an amount: none can be chosen on « — ».
+        const stayUnknown = !recap || Boolean(preview.error);
         return (
-          <SasStayPaymentPage stayPayment={recap ? recap.stayPayment : data.stayPayment} pending={!recap} value={stayPayMode}>
-            <PaymentModeButtons value={stayPayMode} onChange={setStayPayMode} showDefer deferLabel="Pas maintenant" />
-          </SasStayPaymentPage>
+          <Stack spacing={1.5}>
+            <SasStayPaymentPage stayPayment={recap ? recap.stayPayment : data.stayPayment} pending={stayUnknown} value={stayPayMode}>
+              <PaymentModeButtons value={stayPayMode} onChange={setStayPayMode} showDefer deferLabel="Pas maintenant" disabled={stayUnknown} />
+            </SasStayPaymentPage>
+            {preview.error && !preview.pending && (
+              <RecapPreviewError error={preview.error} onRetry={preview.retry} onBack={backToRefusingStep} unavailable="Montant indisponible" />
+            )}
+          </Stack>
         );
+      }
       case 'options': {
         const opts = (r.options || []);
         const reslist = (r.resources || []);
@@ -1695,6 +1711,10 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
                 <Typography variant="body2" sx={{ fontWeight: 700, fontVariantNumeric: 'tabular-nums', ...previewDim }}>
                   Sous-total : {recap && !preview.error ? formatCurrency(recap.extinguisherTotal) : '—'}
                 </Typography>
+                {/* Loop t22 UI22-3 — a failed preview says so, with its way out, instead of « — » for ever. */}
+                {preview.error && !preview.pending && (
+                  <RecapPreviewError error={preview.error} onRetry={preview.retry} onBack={backToRefusingStep} unavailable="Montant indisponible" />
+                )}
               </>
             )}
           </Stack>

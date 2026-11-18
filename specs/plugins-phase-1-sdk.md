@@ -716,6 +716,32 @@ Optional: a plugin that declares nothing reads « Actif ».
     payment once its total is known) is the answer to that gesture, dimmed while pending — not a late block. Test
     `SaleDialogs.pending-blocks` (the dialogs enumerated from the code equal the table; each row holds the second request, finds its block
     pending with the content, then filled).
+    _Reading of 2026-11-18 (loop t22 UI22-1/UI22-2/UI22-3, owner decision of 2026-11-18 on layout shifts):_ what holds exactly is **the
+    nominal path is steady** — on the answer accepted and the normal flow, nothing drawn moves; on another outcome (a refusal, « Caisse
+    interne », a silent refusal, a failed request) content may move, and that is not a defect. Three things hold on **every** path: the
+    focus, the typed input, and a way out. Measured frame by frame in Chromium (2026-11-11 copy, 1280 and 390 px, answer +0 and +800 ms):
+    « Vente hors séjour » — its « Total » row stayed at 253 / 297 px from the first article to the answer (before: −101 / +24 px) because the
+    dialog is now a **sheet** (`FormDialog` prop `sheet`: from `sm` up it hangs from the top at the screen's full height, its content
+    scrolling inside, so the payment the answer adds below the Total fills room already there and the actions stay at 816 px), its VAT line
+    keeps its place and the draft row draws its detail and amount « — » until priced (`SuggestedArticlesStep`, every dialog using it); the
+    outside visit's « Récapitulatif » puts the VAT rates side by side on one line, so an article of another rate no longer pushes « Paiement »
+    down 26 px when the answer lands; the booking dialog's save button already reads « Enregistrer et facturer » when the pending « Facture »
+    block is drawn ticked, so the accepted answer no longer rewraps it at 390 px (784 → 775). **No control of a pending block can be used:**
+    a block drawn with placeholder values carries `data-pending-block`, and nothing inside it is enabled — the « Facture » address fields too
+    (they stayed live while the box was disabled, and a refusal, « Caisse interne » or a silent answer removed the field being typed in:
+    the focus fell to the page and the text was lost), the « Séjour » page's settlement buttons while its amount is « — » (pricing-components
+    rule 117 reading of 2026-11-18). **The focus never falls to the page:** `FocusKeeper` (`components/FocusKeeper.jsx`, client export of
+    SDK 2.32.0 with its rule 55 floor row) is a region that, when the control holding the focus is removed, disabled or hidden by a change of
+    its subtree, moves the focus to the nearest region still drawn around it (`data-focus-anchor`, `tabIndex -1`, no Tab stop, no outline);
+    it never takes the focus from a control the operator chose, and it acts after a dialog's focus trap caught the loss. Members, enumerated
+    from the code: `BookingInvoiceBlock` (the block), the contents of `ResourceArrivalDialog`, of the booking dialog's form side, of
+    `StandaloneSaleDialog` and of each `ReservationSasDialog` page, and the roots of `SuggestedArticlesStep`, `StaySalesSection` and
+    `SalePaymentLink` (one root for both states, so the link that replaces « Créer le lien » keeps the focus in the block). Measured in
+    Chromium: the address typed in while a second answer refuses → focus on the « Facture » block (refusal, « Caisse interne ») or the
+    dialog's content (silent: the section is hidden), never the page. **Every failure has its way out:** « Vente hors séjour » says a failed
+    quote and a catalogue that did not load with « Réessayer » (`ErrorAlert`). Tests `SaleDialogs.pending-blocks` (no live control in a
+    pending block, every row), `SaleDialogs.focus-on-answer` (14: every file drawing a `FocusKeeper` has its rows; the four « Facture »
+    outcomes in the arrival), `FocusKeeper` (7), `ReservationSasDialog.failed-preview` (7, pricing-components rule 117). Initial JavaScript 310.1 kB gzip (budget 313.3 kB).
     **The SDK history records what each shipped minor exposed:** v4.1.0 shipped SDK 2.27.0 without `vat`, `accountingOutput`, `legacyBucketSplit`,
     `refundJournal`, `csvJournal`, `salesJson` and `synthesisExporter`, and neither SDK 2.28.0 (the home-data extension points,
     specs/guest-app-home-automation.md, merged first) nor SDK 2.29.0 (the Mollie tranches and journal, rule 51, merged first) recorded them,
@@ -834,6 +860,7 @@ No new npm dependency. `googleapis` and `qrcode` stay in `server/package.json`.
 | `components/` | `LazySaleComponents.jsx` | C | The four sale blocks as the SDK hands them out, their code apart from the first page; `preloadSaleComponents()` (once per session) and `useSaleComponentsReady(active)`; a block already loaded renders without suspending (rule 54, readings of 2026-11-18) |
 | `plugins/hourly-resources/`, `plugins/sas/` | `ResourceArrivalDialog.jsx`, `ReservationSasDialog.jsx` | T | Start the sale blocks' code on open and show their content once it is there (rule 54, reading of 2026-11-18, loop t20 UI20-1) |
 | `plugins/hourly-resources/`, `plugins/sas/`, `components/` | `ResourceArrivalDialog.jsx`, `ResourceBookingDialog.jsx`, `BookingInvoiceBlock.jsx`, `ReservationSasDialog.jsx`, `SasStayPaymentPage.jsx`, `StandaloneSaleDialog.jsx` | T | A block that waits for a second request is drawn pending with the content and filled by the answer (rule 54, reading of 2026-11-18, loop t21 UI21-1) |
+| `components/` | `FocusKeeper.jsx`, `FormDialog.jsx` (prop `sheet`) | C | A region that keeps the focus when an answer removes, disables or hides the control holding it; a form dialog that hangs from the top at full height so an answer adds content without moving anything (rule 54, reading of 2026-11-18, loop t22) |
 | `plugins/sdk/` | `registry.js`, `useSlot.js`, `Slot.jsx` | C | Contributions by slot; the active ones (`usePlugin` once per module); lazy rendering in place |
 | `plugins/` | `index.js` | C | The list of client modules |
 | `plugins/weather-alerts/` | `index.js`, `SettingsWeatherSection.jsx`, `SasWeatherAlertPage.jsx`, `sasStep.jsx`, `__tests__/` | C (moved) | The settings card saves through `/api/plugins/weather-alerts/settings`; the SAS step loads its alerts |
@@ -978,6 +1005,14 @@ still in the core. Server: 4,611 tests after, of which 37 are new. Client: 1,416
   second request and render a sale block, enumerated from the code, equal the table; « Facture » (arrival, booking), « Séjour à régler »
   (SAS) and « Total » (counter) are drawn pending with the content, then filled; the arrival's « Facture » through its four outcomes
   (accepted, refused with a caption, silent, failed), each keeping the pending block's height (outside-booking-sas rule 54); unticking the box gives the reserved height back (a gesture resizes).
+  Loop t22 UI22-1: every row also finds no usable control inside a `data-pending-block` (the « Facture » address disabled while pending).
+- `components/__tests__/SaleDialogs.focus-on-answer.test.jsx` (14) — rule 54 (reading of 2026-11-18, loop t22 UI22-1): every file that
+  draws a `FocusKeeper`, enumerated from the code, has its rows; the control an answer (or « Réessayer ») takes away held the focus, and the
+  focus ends in the dialog, never on the page — the arrival's « Facture » address through a second answer accepted / refused / silent /
+  « Caisse interne », the booking dialog's, the block alone, the counter's « Réessayer », « Retirer », « Percevoir maintenant », the minted
+  link, the SAS « Séjour » page's « Réessayer ».
+- `components/__tests__/FocusKeeper.test.jsx` (7) — a focused control removed, disabled, hidden, or hidden with its nearest region: the
+  focus lands on the nearest region still drawn; a control that stays keeps it; a control the operator left is never taken back; no Tab stop.
 
 ### E2E
 - `plugins/plugins-page.spec.js`: + Météo uninstalled with erasure, then reinstalled → the key is gone.

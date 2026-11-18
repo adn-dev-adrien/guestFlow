@@ -23,7 +23,7 @@ import {
 } from '@mui/material';
 import {
   api, formatCurrency, LoadingState, ErrorAlert, ConfirmDialog, SuggestedArticlesStep, SalePaymentLink, StatusBadge, StandaloneSaleDialog,
-  useSaleComponentsReady,
+  useSaleComponentsReady, FocusKeeper,
 } from '../sdk';
 import OfferedTimeField from './OfferedTimeField';
 import BookingPaymentFields, { paymentBody, hasCard } from './BookingPaymentFields';
@@ -343,7 +343,9 @@ export default function ResourceArrivalDialog({ open, bookingId, onClose, onDone
         {(!visit || !salesReady) && !loadError && <LoadingState />}
         {loadError && <ErrorAlert message={loadError} onRetry={load} />}
         {view && salesReady && (
-          <Box sx={{ display: 'grid', gap: 2.5, gridTemplateColumns: { xs: '1fr', lg: 'minmax(0, 1.2fr) minmax(0, 1fr)' }, alignItems: 'start' }}>
+          // Loop t22 UI22-1 — an answer that removes or hides the control holding the focus (the « Facture » address on a refusal, its whole
+          // section on a silent one) leaves the focus in the dialog, on the nearest region still drawn.
+          <FocusKeeper sx={{ display: 'grid', gap: 2.5, gridTemplateColumns: { xs: '1fr', lg: 'minmax(0, 1.2fr) minmax(0, 1fr)' }, alignItems: 'start' }}>
             <Box sx={{ display: 'grid', gap: 2.5, minWidth: 0 }}>
               {readOnly && <Alert severity="info">{visit.access.reason}</Alert>}
               <Box sx={{ display: 'grid', gap: 1 }}>
@@ -400,9 +402,13 @@ export default function ResourceArrivalDialog({ open, bookingId, onClose, onDone
                   <Typography variant="body1" sx={{ fontWeight: 700 }}>{TEXTS.remaining}</Typography>
                   <Typography data-testid="remaining" sx={{ fontFamily: (t) => t.typography.pageTitle?.fontFamily, fontWeight: 700, fontSize: '1.6rem', fontVariantNumeric: 'tabular-nums' }}>{euros(view.totals.remainingCents)}</Typography>
                 </Box>
-                {(view.vatByRate || []).filter((row) => row.vatCents > 0).map((row) => (
-                  <Typography key={row.rate} variant="caption" color="text.secondary" sx={{ fontVariantNumeric: 'tabular-nums' }}>{TEXTS.vat(String(row.rate).replace('.', ','), euros(row.vatCents))}</Typography>
-                ))}
+                {/* Loop t22 UI22-2 — the rates sit side by side on one line: an article of another rate adds its VAT beside the first one
+                    instead of a row that would push the payment down when the answer lands. */}
+                <Box sx={{ display: 'flex', flexWrap: 'wrap', columnGap: 1.5 }}>
+                  {(view.vatByRate || []).filter((row) => row.vatCents > 0).map((row) => (
+                    <Typography key={row.rate} variant="caption" color="text.secondary" sx={{ fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>{TEXTS.vat(String(row.rate).replace('.', ','), euros(row.vatCents))}</Typography>
+                  ))}
+                </Box>
                 {(view.refundObligations || []).map((row) => (
                   <Alert
                     key={row.id}
@@ -494,7 +500,7 @@ export default function ResourceArrivalDialog({ open, bookingId, onClose, onDone
             {paymentDraft && !draftAnswerFailed && invoiceQuote.refusal && <Alert severity="error" sx={{ gridColumn: '1 / -1' }}>{invoiceQuote.refusal}</Alert>}
             {paymentDraft && !draftAnswerFailed && invoiceQuote.error && <ErrorAlert message={TEXTS.invoiceQuoteFailed} onRetry={invoiceQuote.retry} sx={{ gridColumn: '1 / -1' }} />}
             {error && <Alert severity="error" sx={{ gridColumn: '1 / -1' }}>{error}</Alert>}
-          </Box>
+          </FocusKeeper>
         )}
       </DialogContent>
       <DialogActions sx={{ flexDirection: { xs: 'column', sm: 'row' }, gap: 1, p: 2, '& > :not(style) ~ :not(style)': { ml: { xs: 0, sm: 1 } } }}>

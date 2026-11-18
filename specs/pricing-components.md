@@ -2625,6 +2625,17 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
     notice and whether the « Acompte » / « Solde » lines are drawn — with every amount still « — »; no served figure is shown. The plan's
     answer then fills it in place (or, when it disagrees, reshapes it). The plan's step decision is applied before paint, so the frame the
     recap lands in already shows the plan's steps and headings. Client `SaleDialogs.pending-blocks`.
+    _Reading of 2026-11-18 (loop t22, UI22-3):_ a FAILED preview is said on the stay page as on the breakfast and catering pages: « Séjour
+    à régler : — » with « Montant indisponible » and « Réessayer » (`RecapPreviewError`; a 409 gives « Revenir à l’étape »), instead of
+    « — » for ever with no reason. The settlement buttons (« CB / Chèque », « Payé en liquide », « Pas maintenant ») are disabled whenever
+    the amount is « — » — before the first answer and while the preview fails — so no settlement is chosen on an unknown amount; « Suivant »
+    stays (the recap is guarded by `displayedStayDue`). When the failure takes the focus from a disabled button, « Réessayer » takes it. The
+    same way out is given to every SAS page that shows the preview's money (enumerated from `previewShown`): the departure's extinguisher
+    page « Sous-total : — » now says « Montant indisponible » with « Réessayer » too (specs/sas-departure-recap-server-side.md rule 15).
+    Measured in Chromium on stay 22303 (2026-11-11 copy, 1280 / 390 px): nominal answer +0 and +800 ms, « Règlement du séjour » 495 / 296
+    and « Suivant » 648 / 776 in every frame; a forced 503 shows « — », « Montant indisponible », the three buttons disabled, focus on
+    « Réessayer ». Client `ReservationSasDialog.failed-preview` (7: the pages from the code equal the table; each fails, says why, disables
+    what acts on the amount, and « Réessayer » brings the figures back with the focus kept in the dialog).
 118. **The arrival SAS offering a paid line credits it like the line API** _(stabilisation loop t8, S8-2, 2026-11-16; completes rules 104,
     105, 107 d)_. Same gesture, same hour, same result: the SAS commit's shared write (`writeArrivalComplement`) takes `paidLineJudgment.wayBack`
     both ways — a write that FREES note money (the paid line offered) credits it, before the paid-line judgment, to what the stay still asks:
@@ -3141,6 +3152,7 @@ _Rewritten 2026-11-15 (stabilisation loop t1, UI-3) to what shipped._
 - [x] `ExtrasSection.paid-custom-label` — rule 123 (loop t11, S11-1): the paid free line's description disabled with « Déjà payée : libellé figé », the unpaid one editable; none named → no caption (2)
 - [x] `ReservationSasDialog.stay-due` — rule 117 (loop t8, S8-1): the stay page renders the preview's planned solde, the commit sends `displayedStayDue`; a 409 `STAY_DUE_CHANGED` is shown and the recap read again (2)
 - [x] `ReservationSasDialog.stay-step-plan` — rule 117 reading (loop t9, UI9-1): stored 300, the plan settles it → no stay page, nothing sent; nothing stored, the plan raises 300 → the page comes in with 300 and the commit sends it (2)
+- [x] `ReservationSasDialog.failed-preview` — rule 117 reading (loop t22, UI22-3): the SAS pages that show the preview's money, enumerated from `previewShown`, equal the table; each with a failing preview says why with « Réessayer », disables what acts on the amount, and « Réessayer » brings the figures back with the focus kept in the dialog (7)
 - [x] `ReservationSasDialog.stay-step-credit` — rules 117, 118 (loop t9, O9-1): stored solde 30, the plan credits it to 0 → the stored 30 € is never shown, no stay page, nothing marked paid (1)
 - [x] `ReservationSasDialog.reception-owed-keys` — reception rule 18 reading (loop t9, A9-4): LINE_OWED's `owedKeys` go back to offered, the next « Valider » sends them (1)
 - [x] `ReservationPage.extra-sales-panel` — rule 101 (UI2-1 to UI2-4): a started stay with the window open sells and moves its lines, a collected departure does not, the fiche's `saleDetail` read once, a dirty fiche holds the writes and keeps the typed note, a write on a clean fiche re-reads without the loading screen, and while the re-read is in flight the fiche is busy (fields read-only, « Enregistrer » disabled)

@@ -573,11 +573,25 @@ once on the server by the refonte's components.
     enabled; a refusal that is not silent (a VAT or tariff rule, rule 36, …) → its one-line reason, the space below it kept; « Caisse
     interne » → its notice; a `silent` refusal → nothing shown, as before (UI3-5), the arrival's « Facture » section hidden in place
     (`visibility: hidden`, `aria-hidden`) instead of removed; a failed answer → the block stays pending (checkbox disabled) beside
-    « Facture non vérifiée pour ce paiement. ». The booking dialog keeps the same height for its outcomes (its silent answer shows « La
-    facture se propose une fois le paiement saisi. »). Only a gesture changes the block's size (« Pas maintenant », another payment, or the operator ticking or unticking the box, which
+    « Facture non vérifiée pour ce paiement. ». The booking dialog's block keeps the same minimum height for its outcomes; its silent answer
+    is not hidden but shows the block's own caption « La facture se propose une fois le paiement saisi. » (corrected 2026-11-18, loop t22:
+    the round-21 text said a silent refusal shows nothing in both dialogs — that is the arrival only). Only a gesture changes the block's size (« Pas maintenant », another payment, or the operator ticking or unticking the box, which
     drops the reserved height). A payment
     no longer readable shows « La facture se propose une fois le paiement saisi. ». The commit waits for the answer as before. Test
     `SaleDialogs.pending-blocks` (the four outcomes, table-driven, and the unticking gesture).
+    _Reading 2026-11-18 (loop t22, UI22-1/UI22-2; owner decision of 2026-11-18 on layout shifts):_ what the reserve guarantees, exactly:
+    on the **accepted** answer (the nominal path) nothing moves in either dialog — measured in Chromium at 1280 and 390 px, answer +0 and
+    +800 ms: « Récapitulatif » 120 / 492, « Paiement » 288 / 660, the actions 792 / 716 and the block 274 px in the arrival; « Facture »
+    1044 / 989 and the actions 808 / 767 in the booking dialog, whose save button now reads « Enregistrer et facturer » from the moment the
+    pending block is drawn ticked (it rewrapped at 390 px when the answer came: 784 → 775). On **another** outcome content may move and that
+    is accepted: in the arrival a refusal, « Caisse interne » or a silent answer drops the address fields, so the block's content moves
+    12 px up inside a section 316 → 304 px tall (nothing outside the section moves); in the booking dialog a failed check or a refused draft
+    shows its alert above the « Facture » section (+64 px at 1280, +84 px at 390). On **every** outcome: the address fields of a pending
+    block are disabled like its checkbox (`disabled={busy || pending}` — they stayed live, and an answer that removed the field being typed
+    in dropped the focus on the page and the text with it), and the block and both dialogs' contents are `FocusKeeper` regions
+    (plugins-phase-1-sdk rule 54 reading of 2026-11-18): an answer that removes or hides the field holding the focus leaves it on the block,
+    or on the dialog's content when the section is hidden. Tests `SaleDialogs.pending-blocks` (no usable control in a pending block),
+    `SaleDialogs.focus-on-answer` (the four outcomes of a second answer while the address holds the focus).
 55. **One money model for a document: every cent on a line or on no line** _(stabilisation loop t3, B3-1, B3-2, B3-3, 2026-11-16; completes rules 41,
     44, 49, 50, 52, 53 and refonte rules 72, 74, 75)_. Every cent a document received sits either on one of its lines or **on no line** — its
     *unallocated money*: a link paid above the reste (rule 41), net of what was given back or kept from it (`payment_allocations` with `lineRef` NULL).
