@@ -531,6 +531,17 @@ being on the preload's lists fails the run once the suite executes the read (rul
    and 120 refused cells, 13.0 → 6.7 s). The same round found the larger cause in the application, not in the tests:
    one fiche save prepared `SELECT * FROM reservations WHERE id = ?` dozens of times, fixed by the handle-wide
    statement cache of specs/pricing-components.md rule 48 (reading of 2026-11-18).
+23. **A client test acts only on a dialog that is ready; the code a dialog waits for arrives late in every suite** (added
+   2026-11-18, loop t22 A22-1). `ResourceArrivalDialog.invoiceable` failed once in a shuffled run: it clicked the footer's
+   « Créer la facture » as soon as it was drawn, while the dialog still waited for the four SDK sale blocks' code
+   (`useSaleComponentsReady`, specs/plugins-phase-1-sdk.md rule 54) and kept the button disabled; the click did nothing.
+   Whether the code was already there depended on the test order and the machine's load. The test now waits for the
+   button to be enabled, and `client/src/setupLateSaleChunks.js` (a `setupFiles` entry of `vitest.config.js`) makes the
+   four blocks' modules resolve `SALE_CHUNK_DELAY` ms late (default 25, on the real timer captured at load, so fake timers
+   never block it) in every suite: a test acting before its dialog is ready now fails every time. A first fix (round 22,
+   719e568c) loaded the blocks in the fixtures' `beforeAll`; it hid the cause and kept the suites off the real late path,
+   and was withdrawn. Tests `LazySaleComponents.late-chunks` (the setup is in place; every dialog waiting for the code,
+   read from the code, has a suite), the whole client suite with the delay.
 
 **Edge cases:**
 - A targeted `node --test <file>` used to open and migrate `server/guestflow.db` for 389 test files (audit R2,
@@ -588,7 +599,7 @@ being on the preload's lists fails the run once the suite executes the read (rul
 
 ### 4.2 Client side
 
-API, data model and UI are unchanged. Rules 11, 17 and 21 only:
+API, data model and UI are unchanged. Rules 11, 17, 21 and 23 only:
 
 | Layer | File | T/C | Responsibility in this change |
 |---|---|---|---|
@@ -600,6 +611,9 @@ API, data model and UI are unchanged. Rules 11, 17 and 21 only:
 | `client/` | `package.json` | T | Rule 21: `test:shuffle` script. |
 | `src/**/__tests__/` | the 25 files that leaned on a lasting mock answer, and `PlatformChip.display-name` | T | Rule 21: `vi.fn(impl)` defaults; a fresh `constants/platforms` per test (tests only, no plugin version bump). |
 | `src/` | `setupTests.js` | T | Rule 17: `configure({ asyncUtilTimeout: 5000 })` for every `findBy*` / `waitFor`. |
+| `src/` | `setupLateSaleChunks.js` | C | Rule 23: the four SDK sale blocks' modules resolve `SALE_CHUNK_DELAY` ms (25) late in every suite, on the real timer. |
+| `client/` | `vitest.config.js` | T | Rule 23: `setupLateSaleChunks.js` in `setupFiles`. |
+| `src/**/__tests__/` | `ResourceArrivalDialog.invoiceable`, `LazySaleComponents.late-chunks` (C) | T | Rule 23: act once the button is enabled; the delay and the consumers' suites pinned. |
 | `src/**/__tests__/` | the rule-16 files | T | Rule 17: per-test timeouts dropped (tests only, no plugin version bump). |
 | `src/**/__tests__/` | `VatRegimeSwitchDialog.switch`, `SupportAccessBanner.states`, `LazyPage.loading`, `UpdateAvailableAlert`, `EmailSettingsPage.identity`, `EmailSettingsPage.social-links`, `PlatformAccountsPage`, `ReconciliationPage.filters`, `TariffRecipeCard`, `TariffRecipeCard.cleaning-fee`, `TariffRecipeCard.extra-guest-config`, `TariffRecipesPage`, `SettingsGoogleCalendarSection`, `ResourcePlanningPage.stale-bookings`, `ReservationSasDialog.plugins`, `CompensationsPage` | T | Await the post-condition (tests only, no plugin version bump). |
 
@@ -662,6 +676,7 @@ absence from CI.
   tests. Four `npm run test:shuffle` runs (seeds 7919 to 31676): one order-dependent test found,
   `PlatformChip.display-name` (the display names of a previous test already loaded), fixed by a fresh module per test;
   the four seeds then green.
+- [x] Rule 23 (loop t22 A22-1): `LazySaleComponents.late-chunks` (2); with the old `ResourceArrivalDialog.invoiceable` (click on the drawn button) the late chunks fail it 2 runs out of 2, the fixed test passes; the whole client suite runs green with the delay.
 
 ## 8. Out of scope
 

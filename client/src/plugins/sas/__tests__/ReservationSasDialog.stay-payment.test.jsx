@@ -6,7 +6,7 @@ import { screen, waitFor } from '@testing-library/react';
 import { vi } from 'vitest';
 
 import api from '../../../api';
-import { sasPayload, stayDue, renderDialog, clickBtn } from './sasFixtures';
+import { sasPayload, stayDue, renderDialog, clickBtn, stayPageReady } from './sasFixtures';
 import { previewLikeTheServer } from './sasPreviewFake';
 
 // Every plugin active — the Solio configuration these tests describe (specs/plugins-phase-0-foundation.md).
@@ -85,7 +85,7 @@ test('arrival SAS: « Payé en liquide » on the stay commits the caisse interne
   await screen.findByText('Commencer');
   clickBtn('Commencer');
 
-  await screen.findByText('Séjour à régler :');
+  await stayPageReady();
   clickBtn('Payé en liquide');
   expect(screen.getByText('Encaissé en caisse interne (hors comptabilité).')).toBeInTheDocument();
   clickBtn('Suivant');

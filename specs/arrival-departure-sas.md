@@ -66,8 +66,9 @@ confirmation — records the caution status and the complement(s) on the reserva
    extinguisher, « Suivant » became « Valider et terminer »: a second Enter answered or committed a page never read). The
    « Quantités ≠ personnes » confirmation hands the focus to the title when it leaves (`ConfirmDialog` prop `onExited`).
    Measured in Chromium on stay 22303 (2026-11-11 copy, 1280 / 390 px): arrival 16 transitions (with the resource
-   scheduling plugin page), departure 12, every one on the new title. Client `ReservationSasDialog.step-focus` (3: the
-   pages read from the footer's `case` keys, both walks forward and back, every page visited).
+   scheduling plugin page), departure 12, every one on the new title. Client `ReservationSasDialog.step-focus` (1: the
+   pages read from the footer's `case` keys, both walks forward and back in one test, every page visited — one test so the
+   coverage never depends on the order; the stay page's settlement is chosen once its buttons are enabled, `stayPageReady`).
 3. **All writes happen once**, at the final **« Valider et terminer »** of the recap page (decision: write at
    final validation). Quitting before then changes nothing. (One server commit endpoint per SAS.)
 4. State accumulated during the SAS (caution decision, selected missing linen elements, cleaning-added flag)

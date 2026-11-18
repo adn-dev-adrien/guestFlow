@@ -1,14 +1,5 @@
 // Shared fixtures of the mini SAS suites (specs/outside-booking-sas.md §7): a visit payload as `GET /:id/visit` answers it, and a stand-in for the server's quote so a suite can
 // drive the draft. The stand-in prices only what the suites ask for; the dialog under test renders what it answers and computes nothing.
-import { beforeAll } from 'vitest';
-import { preloadSaleComponents } from '../../../components/LazySaleComponents';
-
-// Loop t22 O22-1 — the dialogs under test show their content once the SDK's sale blocks are loaded (useSaleComponentsReady). Left to the
-// first test of a file, that cold import (four MUI blocks, transformed on first use) ran inside the test's 5 s budget and, on a busy
-// machine, past it (`ResourceArrivalDialog.invoiceable`, 5.1 s once). Every suite importing these fixtures loads them once, before its tests,
-// in a hook with its own budget; the tests then measure the dialog, not the import.
-beforeAll(() => preloadSaleComponents(), 30000);
-
 export const BOOKING = {
   id: 5, resourceId: 3, resourceName: 'Bain nordique', date: '2099-02-13', startTime: '18:00', endTime: '20:00', propertyId: null,
   displayName: 'Claire Martin', external: true, arrived: false, paid: false, frozen: false, payment: null, invoice: null, noShowAt: null,

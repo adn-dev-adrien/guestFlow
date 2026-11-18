@@ -37,7 +37,9 @@ test('ok — « Créer la facture » is offered and issues the invoice of the ar
   api.issueResourceBookingInvoice.mockResolvedValue({});
   const onDone = vi.fn();
   render(<ResourceArrivalDialog open bookingId={5} onClose={() => {}} onDone={onDone} />);
-  const buttons = await screen.findAllByRole('button', { name: 'Créer la facture' });
+  // Loop t22 A22-1 — the footer button is drawn, disabled, until the dialog's sale code is there (useSaleComponentsReady): act once it is enabled.
+  await waitFor(() => expect(screen.getAllByRole('button', { name: 'Créer la facture' }).at(-1)).toBeEnabled());
+  const buttons = screen.getAllByRole('button', { name: 'Créer la facture' });
   fireEvent.click(buttons[buttons.length - 1]);
   await waitFor(() => expect(api.issueResourceBookingInvoice).toHaveBeenCalledWith(5, expect.anything()));
   expect(onDone).toHaveBeenCalled();

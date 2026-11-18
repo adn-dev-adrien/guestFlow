@@ -999,6 +999,9 @@ still in the core. Server: 4,611 tests after, of which 37 are new. Client: 1,416
   consumer starts nothing, an active one the four imports, once; once loaded every block is in the first paint. Each test of this file and of
   `LazySaleComponents.lazy` takes a fresh module registry (`vi.resetModules` + `vi.doMock`), so the session-wide memoised imports never leak
   from one test to the next and the outcome is the same in any order (loop t21 A21-1, shuffled seeds 1-12).
+- `components/__tests__/LazySaleComponents.late-chunks.test.jsx` (2) — rule 54 (reading of 2026-11-18, loop t22 A22-1;
+  specs/server-test-isolation.md rule 23): every suite gets the four blocks' code late (`src/setupLateSaleChunks.js`); the dialogs
+  waiting for it, read from the code, each have a suite.
 - `components/__tests__/LazySaleComponents.consumers.test.jsx` (5) — rule 54 (loop t20 UI20-1): the consumers enumerated from the code
   equal the table; each asks for the blocks when opened, keeps its content back until they are there, and starts nothing when closed.
 - `components/__tests__/SaleDialogs.pending-blocks.test.jsx` (9) — rule 54 (reading of 2026-11-18, loop t21 UI21-1): the dialogs that ask a

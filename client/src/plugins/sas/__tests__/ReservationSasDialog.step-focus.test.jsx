@@ -7,7 +7,7 @@
 // One file per subject (CLAUDE.md §9). Fixtures used by more than one subject live in ./sasFixtures.
 import fs from 'fs';
 import path from 'path';
-import { screen, fireEvent, act, waitFor } from '@testing-library/react';
+import { screen, fireEvent, act, waitFor, cleanup } from '@testing-library/react';
 import { vi } from 'vitest';
 
 import api from '../../../api';
@@ -93,17 +93,11 @@ beforeEach(() => {
   api.previewDepartureSas.mockImplementation(departurePreviewLikeTheServer(api));
 });
 
-const visitedPages = new Set();
-
-test('arrival: every step change, forward and back, keeps the focus off the page', async () => {
-  (await walk('arrival', ARRIVAL)).forEach((key) => visitedPages.add(key));
-});
-
-test('departure: every step change, forward and back, keeps the focus off the page', async () => {
-  (await walk('departure', DEPARTURE)).forEach((key) => visitedPages.add(key));
-});
-
-test('the walks went through every page of the footer, read from the code', () => {
+// One test for both walks and their coverage: the coverage reads what the walks visited, so it cannot depend on the tests' order.
+test('arrival and departure: every step change, forward and back, puts the focus on the new title; every footer page is visited', async () => {
+  const visited = new Set(await walk('arrival', ARRIVAL));
+  cleanup();
+  (await walk('departure', DEPARTURE)).forEach((key) => visited.add(key));
   expect(PAGES.length).toBeGreaterThanOrEqual(20);
-  expect(PAGES.filter((key) => !visitedPages.has(key))).toEqual([]);
+  expect(PAGES.filter((key) => !visited.has(key))).toEqual([]);
 });
