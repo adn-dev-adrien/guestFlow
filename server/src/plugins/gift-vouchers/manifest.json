@@ -18,6 +18,10 @@
   "sdk": "^2.33.0",
   "changelog": {
     "1.3.0": [
+      "Les bons se vendent par campagne : un montant libre pour un séjour (les bornes, la validité, la TVA et les idées de prix des réglages deviennent la campagne « séjour »), ou un contenu composé à partir du catalogue — une séance de ressource à l’heure dans la journée ou la soirée, des options comprises, des options et du temps en plus au choix de l’acheteur.",
+      "Chaque prix vient du moteur de prix de GuestFlow, au tarif extérieur de la tranche, avec la remise de chaque heure et la TVA de chaque ligne ; rien n’existe avant la confirmation de la banque que la commande, dont le prix est recalculé au moment du lien de paiement.",
+      "« Nouveau bon » propose « Payé », « Offert » (aucune vente ni TVA, le registre le dit) et « Envoyer un lien de paiement » (le lien d’une heure part par e-mail au clic), pour une campagne en vente ou un bon sur mesure.",
+      "Un bon ne paie que son genre : un bon séjour est refusé sur une ressource, un bon composé sur un séjour ou sur une autre ressource, avec une phrase qui nomme la ressource.",
       "Le lien de paiement d’un bon dure une heure (30 minutes avant) ; passé ce délai il est retiré chez le prestataire et la page de retour propose de recommencer. Un paiement fait dans l’heure mais confirmé après émet quand même le bon.",
       "Une commande jamais payée reste 7 jours en coulisse, invisible, puis disparaît.",
       "Un réglage « TVA des bons cadeaux » (10 % par défaut, de 0 à 100 %, deux décimales au plus) : le taux est figé sur chaque bon à sa vente, le reçu de l’acheteur indique la TVA (variable {vat}), la fiche du bon montre HT et TVA, et la vente entre dans l’export comptable en HT + TVA.",

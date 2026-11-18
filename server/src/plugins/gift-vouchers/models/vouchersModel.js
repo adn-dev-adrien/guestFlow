@@ -25,10 +25,12 @@ function createVouchersModel(db) {
   }
 
   const insert = ({
-    orderId, number, codeHash, codeEncrypted, amountCents, issuedAt, expiresOn, vatRatePercent,
+    orderId, number, codeHash, codeEncrypted, amountCents, issuedAt, expiresOn, vatRatePercent, campaignId = null, contents = { kind: 'lodging' }, vatLines = null,
   }) => Number(db.prepare(`
-    INSERT INTO gift_vouchers (orderId, number, codeHash, codeEncrypted, amountCents, issuedAt, expiresOn, vatRatePercent) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-  `).run(orderId, number, codeHash, codeEncrypted, amountCents, issuedAt, expiresOn, vatRatePercent).lastInsertRowid);
+    INSERT INTO gift_vouchers (orderId, number, codeHash, codeEncrypted, amountCents, issuedAt, expiresOn, vatRatePercent, campaignId, contents, vatLines)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(orderId, number, codeHash, codeEncrypted, amountCents, issuedAt, expiresOn, vatRatePercent, campaignId, JSON.stringify(contents),
+    vatLines ? JSON.stringify(vatLines) : null).lastInsertRowid);
 
   const find = (id) => db.prepare(`${SELECT} WHERE v.id = ?`).get(Number(id)) || null;
   const findByCodeHash = (hash) => db.prepare(`${SELECT} WHERE v.codeHash = ?`).get(String(hash)) || null;

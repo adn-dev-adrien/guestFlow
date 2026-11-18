@@ -27,6 +27,7 @@ const MESSAGES = Object.freeze({
   VOUCHER_CHECKS_EXCEEDED: 'Trop d’essais. Nouvelle saisie possible plus tard.',
   VOUCHER_CHECKS_PAUSED: 'Vérification indisponible pour le moment.',
   VOUCHER_BALANCE_CHANGED: 'Le solde de ce bon a changé : vérifier à nouveau.',
+  VOUCHER_WRONG_KIND: 'Ce bon ne convient pas à cet achat.',
 });
 
 const failure = (status, errorCode, extra = {}) => ({
@@ -36,7 +37,7 @@ const failure = (status, errorCode, extra = {}) => ({
 const lastFour = (normalised) => normalised.slice(-4);
 
 function createRedemption({
-  db, vouchers, movements, checks, limits, pepper, ipOf, now = () => new Date(), transaction = (fn) => db.transaction(fn)(),
+  db, vouchers, movements, checks, limits, pepper, ipOf, resourceName = () => null, now = () => new Date(), transaction = (fn) => db.transaction(fn)(),
 }) {
   const today = () => rules.parisDate(now());
   const visitorHashFor = (visitor) => visitorHashOf(pepper(), ipOf(visitor || {}));
@@ -68,15 +69,36 @@ function createRedemption({
   }
 
   /**
+   * Rule 12 — a voucher pays only for its kind: a lodging voucher is refused on a resource, a composed one on a stay and on any other resource than its own.
+   * `consumer` is what the caller sells: `lodging`, or `resource:<id>`. → the refusal, or null.
+   */
+  function kindRefusal(voucher, consumer) {
+    const contents = rules.contentsOf(voucher);
+    const sold = String(consumer || 'lodging');
+    const name = (id) => `« ${resourceName(id) || 'cette activité'} »`;
+    if (contents.kind === 'lodging') {
+      if (sold === 'lodging') return null;
+      return failure(409, 'VOUCHER_WRONG_KIND', { message: `Ce bon est valable pour un séjour dans nos logements, pas pour ${name(Number(sold.split(':')[1]))}.` });
+    }
+    if (sold === `resource:${contents.resource.id}`) return null;
+    const own = `« ${contents.resource.name} »`;
+    return failure(409, 'VOUCHER_WRONG_KIND', {
+      message: sold === 'lodging' ? `Ce bon est valable pour ${own}, pas pour un séjour.` : `Ce bon est valable pour ${own}, pas pour ${name(Number(sold.split(':')[1]))}.`,
+    });
+  }
+
+  /**
    * `ctx.prepaid`'s `apply` (rule 36): the amount the code is worth on a quote, held for it unless `dryRun`. Never above
    * `capCents`, the stay's pre-arrival total. A hold lost to a concurrent one is answered with the balance left.
    */
   function apply({
-    devisId, input, capCents, visitor, dryRun = false,
+    devisId, input, capCents, visitor, dryRun = false, consumer = 'lodging',
   }) {
     const judged = judgeCode(input, visitor);
     if (!judged.ok) return judged;
     const { voucher, normalised } = judged;
+    const wrongKind = kindRefusal(voucher, consumer);
+    if (wrongKind) return wrongKind;
     const heldCents = Math.min(voucher.balanceCents, Math.max(0, capCents));
     const display = { label: `${LABEL} ····${lastFour(normalised)}`, balanceCents: voucher.balanceCents };
     if (dryRun || !(heldCents > 0)) return { ok: true, heldCents, display };
@@ -183,7 +205,7 @@ function createRedemption({
   const redeemed = (movementId) => db.prepare("SELECT * FROM gift_voucher_movements WHERE id = ? AND kind = 'redeem'").get(Number(movementId)) || null;
 
   return {
-    apply, held, release, settle, releaseLapsed, refund, redeemed, judgeCode, today, openHolds,
+    apply, held, release, settle, releaseLapsed, refund, redeemed, judgeCode, kindRefusal, today, openHolds,
   };
 }
 

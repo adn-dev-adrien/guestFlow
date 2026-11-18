@@ -51,7 +51,7 @@ function buildPublicCheckController({
     const state = rules.stateOf({ voucher, balanceCents: voucher.balanceCents, today: rules.parisDate(now()) });
     checks.record({ visitorHash, outcome: rules.isUsable(state) ? 'usable' : state });
     res.set('Cache-Control', 'no-store');
-    if (rules.isUsable(state)) return respond.ok(res, { usable: true, balanceCents: voucher.balanceCents, expiresOn: voucher.expiresOn });
+    if (rules.isUsable(state)) return respond.ok(res, { usable: true, kind: rules.contentsOf(voucher).kind, balanceCents: voucher.balanceCents, expiresOn: voucher.expiresOn });
     return respond.ok(res, { usable: false, reason: state, ...(state === 'expired' ? { expiresOn: voucher.expiresOn } : {}) });
   }
 

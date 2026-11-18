@@ -339,6 +339,10 @@
         "termsActivities"
       ],
       "names": {
+        "articles": [
+          "liveFamilies",
+          "makeArticle"
+        ],
         "paymentTenders": [
           "lineLabel",
           "METHODS",

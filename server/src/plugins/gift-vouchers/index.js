@@ -1,19 +1,20 @@
 /**
- * Gift vouchers (specs/gift-vouchers.md). Owns `/public/v1/gift-vouchers/**`, `/api/gift-vouchers/**`, its four tables and
+ * Gift vouchers (specs/gift-vouchers.md, specs/gift-voucher-campaigns.md). Owns `/public/v1/gift-vouchers/**`, `/api/gift-vouchers/**`, its tables and
  * its settings. Nothing in the core behaves differently while it is absent (rule 1); a voucher is an amount in euros
- * whose balance is the sum of its ledger (rules 5, 11).
+ * whose balance is the sum of its ledger (rules 5, 11), sold from a campaign — a free amount for a stay, or a composed content.
  */
 
 const sdk = require('../sdk');
 const { MIGRATIONS, TABLES } = require('./migrations');
 const settings = require('./settings');
-const rules = require('./voucherRules');
 const createVouchersModel = require('./models/vouchersModel');
 const createOrdersModel = require('./models/ordersModel');
 const createMovementsModel = require('./models/movementsModel');
 const createChecksModel = require('./models/checksModel');
 const { createIssuance } = require('./issuance');
-const { createIdeas } = require('./ideas');
+const createCampaignsModel = require('./models/campaignsModel');
+const { createCatalogueView } = require('./catalogueView');
+const { createOfferService } = require('./offerService');
 const { createCheckLimits } = require('./rateLimiters');
 const { createProof } = require('./proof');
 const { createReceipt } = require('./receipt');
@@ -25,6 +26,7 @@ const { buildStayController } = require('./controllers/stayController');
 const { buildAdminController } = require('./controllers/adminController');
 const { buildPublicCheckController } = require('./controllers/publicCheckController');
 const { buildPublicOrdersController } = require('./controllers/publicOrdersController');
+const { buildCampaignsController } = require('./controllers/campaignsController');
 const { buildAdminRouter } = require('./routes/admin');
 const { buildPublicRouter } = require('./routes/public');
 
@@ -92,19 +94,22 @@ function buildGiftVouchersApi({
   sendMail, paymentMethods, userName = userNameFrom(db), companyName, pageUrl, bookingUrl, termsVersionId = () => null, onlineSaleAvailable = () => false,
   payments, siteOrigin = () => '', limiters = {}, isConverted = () => false, stayOf = () => null, collectedCents = () => 0, receipts = null,
   randomBytes, onCheckLimitsTrip = () => {}, transaction = (fn) => db.transaction(fn)(),
+  // The engine and the catalogue the campaigns are priced and picked from: the core's, unless a suite stands in.
+  engine = { quote: (request) => sdk.coreModule('standaloneSale').quote(request) },
+  catalogue = createCatalogueView({ db, articles: sdk.coreModule('articles') }),
 }) {
   const get = (key) => settingsStore().get(key);
-  const limits = () => settings.limitsOf(get);
   const vouchers = createVouchersModel(db);
   const orders = createOrdersModel(db, { now });
   const movements = createMovementsModel(db, { now });
   const checks = createChecksModel(db, { now });
+  const campaigns = createCampaignsModel(db, { now });
   const issuance = createIssuance({
-    db, vouchers, orders, movements, pepper, encrypt, now, randomBytes, vatRatePercent: () => settings.vatRateOf(get),
+    db, vouchers, orders, movements, campaigns, pepper, encrypt, now, randomBytes,
   });
   const checkLimits = createCheckLimits({ checks, now, onTrip: onCheckLimitsTrip });
-  const ideas = createIdeas({
-    ideas: () => settings.ideasOf(get), bounds: limits, quote, now, todayOf: rules.parisDate,
+  const offerService = createOfferService({
+    campaigns, orders, issuance, catalogue, engine, quoteStay: quote, payments, transaction, now,
   });
   const respond = sdk.coreModule('publicHttp');
   const ipOf = (req) => pow.ipKeyOf(req.visitor && req.visitor.ip ? req.visitor.ip : req.ip) || 'unknown';
@@ -115,25 +120,35 @@ function buildGiftVouchersApi({
   const books = createBooks({ vouchers });
   const proof = createProof({ pow, secret: powSecret });
   const admin = buildAdminController({
-    vouchers, orders, movements, issuance, transaction, limits, paymentMethods, userName, decrypt, receipt, renderPdf: renderVoucherPdf,
-    brand: companyName, bookingUrl, now,
+    vouchers, movements, offerService, campaigns, transaction, paymentMethods, userName, decrypt, receipt, renderPdf: renderVoucherPdf,
+    brand: companyName, bookingUrl, sendMail, now,
   });
+  const campaignsAdmin = buildCampaignsController({ campaigns, catalogue, offerService });
   const check = buildPublicCheckController({
     vouchers, checks, limits: checkLimits, pepper, proof, ipOf, now, respond,
   });
   const redemption = createRedemption({
-    db, vouchers, movements, checks, limits: checkLimits, pepper, ipOf: (visitor) => pow.ipKeyOf(visitor.ip) || 'unknown', now, transaction,
+    db,
+    vouchers,
+    movements,
+    checks,
+    limits: checkLimits,
+    pepper,
+    ipOf: (visitor) => pow.ipKeyOf(visitor.ip) || 'unknown',
+    resourceName: (id) => (catalogue.element(`resource:${id}`) || {}).label || null,
+    now,
+    transaction,
   });
   const stays = buildStayController({
     vouchers, movements, redemption, pepper, transaction, stayOf, collectedCents, receipts, now,
   });
   const offer = buildPublicOrdersController({
-    ideas, limits, termsVersionId, available: onlineSaleAvailable, brand: companyName, respond, orders, vouchers, proof, pepper, ipOf, payments, siteOrigin,
+    offerService, termsVersionId, available: onlineSaleAvailable, brand: companyName, respond, orders, vouchers, proof, pepper, ipOf, payments, siteOrigin,
     decrypt, renderPdf: renderVoucherPdf, bookingUrl, now,
   });
 
   return {
-    adminRouter: buildAdminRouter({ admin, stays }),
+    adminRouter: buildAdminRouter({ admin, stays, campaigns: campaignsAdmin }),
     publicRouter: buildPublicRouter({
       guard, offer, check, limiters,
     }),
@@ -141,14 +156,15 @@ function buildGiftVouchersApi({
     orders,
     movements,
     checks,
+    campaigns,
+    offerService,
+    catalogue,
     issuance,
     receipt,
     orderPaid: createOrderPaid({
-      orders, movements, issuance, limits, receipt,
+      orders, movements, issuance, receipt,
     }),
-    ideas,
     checkLimits,
-    limits,
     salesBetween: (window) => books.salesBetween(window),
     purgeStaleOrders: () => orders.purgeStalePending(),
     retryReceipts: () => receipt.retryPending(),
@@ -253,7 +269,7 @@ function register(ctx) {
     settle: (args) => api().redemption.settle(args),
     release: (args) => api().redemption.release(args),
   });
-  ctx.events.on('pricing.changed', () => { if (built) built.ideas.invalidate(); });
+  ctx.events.on('pricing.changed', () => { if (built) built.offerService.invalidateIdeas(); });
 
   ctx.jobs.every({
     name: 'pending-orders-purge', intervalMs: DAY_MS, bootDelayMs: 300 * 1000, run: async () => { api().purgeStaleOrders(); },

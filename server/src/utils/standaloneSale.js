@@ -18,6 +18,9 @@
  * a line of its own (rule 13). `sell` re-quotes inside its transaction: a price that moved since the quote answers 409 `PRICE_CHANGED`, a document changed
  * underneath (its `version`) the same. Every figure comes from the server; money in cents; errors `{ error, code }` in French.
  *
+ * A `quote` also takes a dateless session — `{ articleRef: 'resource:<id>', session: { band: 'day' | 'evening', minutes, rankOffsetMinutes? } }` — priced by the family that owns the hourly
+ * resource for the customer with no stay (its external rate of the band, its degressive tiers by hour rank, the VAT of its class). It is a price, never a sale: `sell` refuses it (`NEEDS_FULFILMENT`).
+ *
  * `fulfilments` are lines a plugin's family priced for a booking it fulfils — the session of an outside visit (the outside-visit spec rule 10):
  * `[{ articleRef, label, quantity, unitCents, totalCents, catalogueCents, offered, vatClass, components: [{ label, detail, amountCents }], fulfilmentRef }]`, stored with
  * their `fulfilmentRef` and taxed by the VAT step. `paidElsewhere` are lines whose money was taken outside the document before it existed (a session paid on the
@@ -124,6 +127,7 @@ function requestsOf(lines, { families = COUNTER_FAMILIES } = {}) {
   const refusals = [];
   for (const raw of Array.isArray(lines) ? lines : []) {
     const articleRef = asString(raw && raw.articleRef);
+    if (raw && raw.session != null) { refusals.push({ articleRef, code: 'NEEDS_FULFILMENT', message: 'Une séance se réserve au planning.' }); continue; }
     const found = sales.catalogueRow(articleRef);
     if (!found) { refusals.push({ articleRef, code: 'ARTICLE_UNKNOWN', message: 'Article inconnu.' }); continue; }
     const article = articles.makeArticle(found.row, { kind: found.kind });
@@ -141,6 +145,28 @@ function requestsOf(lines, { families = COUNTER_FAMILIES } = {}) {
     requests.push({ article, quantity, offered: raw.offered === true });
   }
   return { requests, refusals };
+}
+
+// A session with no date, quoted and never sold (`session: { band, minutes, rankOffsetMinutes? }`): the family that owns the hourly resource prices it for the
+// customer with no stay, and answers a line of the shape a fulfilled booking has. The sale itself still takes a booked session (`sell` refuses it).
+function sessionQuotesOf(lines) {
+  const fulfilments = [];
+  const refusals = [];
+  const families = articles.liveFamilies();
+  for (const raw of Array.isArray(lines) ? lines : []) {
+    if (!raw || raw.session == null) continue;
+    const articleRef = asString(raw.articleRef);
+    const found = sales.catalogueRow(articleRef);
+    if (!found) { refusals.push({ articleRef, code: 'ARTICLE_UNKNOWN', message: 'Article inconnu.' }); continue; }
+    const article = articles.makeArticle(found.row, { kind: found.kind });
+    if (!article.config.sellableExternally) { refusals.push({ articleRef, code: 'NOT_SELLABLE', message: 'Article non vendable hors séjour.' }); continue; }
+    const family = article.family === 'hourly' ? families.hourly : null;
+    if (!family || typeof family.quoteSession !== 'function') { refusals.push({ articleRef, code: 'NEEDS_FULFILMENT', message: 'Une séance se réserve au planning.' }); continue; }
+    const answer = family.quoteSession(article.config, raw.session);
+    if (answer.refusal) refusals.push({ articleRef, ...answer.refusal });
+    else fulfilments.push(answer.line);
+  }
+  return { fulfilments, refusals };
 }
 
 // Rule 34 of the outside-visit spec — a line paid before the document existed: counted whole, paid whole, by one allocation SETTLEMENT reads like any other.
@@ -260,11 +286,13 @@ function quote(request = {}) {
   if (body.saleId && !sale) return refuse(404, 'SALE_NOT_FOUND', 'Vente introuvable.');
   const customer = resolveCustomer(body.customer || (sale ? { clientId: sale.clientId } : null), { write: false });
   if (customer.error) return customer.error;
-  const { requests, refusals } = requestsOf(body.lines, { families: body.families });
+  const sessions = sessionQuotesOf(body.lines);
+  const { requests, refusals: own } = requestsOf((Array.isArray(body.lines) ? body.lines : []).filter((line) => !(line && line.session != null)), { families: body.families });
+  const refusals = [...sessions.refusals, ...own];
   // Loop t4 B4-6 (rule 56 d) — the preview is the plan the commit runs (rules 52-55), nothing written: the unallocated money and a lowered line's
   // money pay the new lines, and the open rows are shown at the amounts that plan leaves them.
   const plan = planOf(sale ? sale.id : null, {
-    stored, allocations, requests, fulfilments: body.fulfilments,
+    stored, allocations, requests, fulfilments: [...(body.fulfilments || []), ...sessions.fulfilments],
   });
   const client = sale ? clientView(sale) : { id: customer.clientId, label: customer.label, kind: customer.kind };
   return {

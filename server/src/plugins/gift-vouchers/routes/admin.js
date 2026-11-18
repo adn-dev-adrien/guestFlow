@@ -1,14 +1,24 @@
-/** `/api/gift-vouchers/**` — the operator's side (specs/gift-vouchers.md §4.3). Admin only: no reception entry is declared. */
+/** `/api/gift-vouchers/**` — the operator's side (specs/gift-vouchers.md §4.3, specs/gift-voucher-campaigns.md §4.4). Admin only: no reception entry is declared. */
 
 const express = require('express');
 
-function buildAdminRouter({ admin, stays }) {
+function buildAdminRouter({ admin, stays, campaigns }) {
   const router = express.Router();
   // A voucher on a fiche (rules 40-41): declared before `/:id`, which would read « stays » as a voucher.
   router.get('/stays/:reservationId', stays.read);
   router.post('/stays/:reservationId/pay', stays.pay);
   router.post('/stays/:reservationId/recredit', stays.recredit);
   router.delete('/stays/:reservationId/payments/:ref', stays.undo);
+  // The campaigns and the offer (specs/gift-voucher-campaigns.md §4.4): declared before `/:id` too.
+  router.get('/catalogue', campaigns.catalogue);
+  router.get('/campaigns', campaigns.list);
+  router.post('/campaigns', campaigns.create);
+  router.post('/campaigns/preview-price', campaigns.previewPrice);
+  router.get('/campaigns/:id', campaigns.read);
+  router.put('/campaigns/:id', campaigns.update);
+  router.post('/campaigns/:id/duplicate', campaigns.duplicate);
+  router.get('/offer', campaigns.offer);
+  router.post('/offer/price', campaigns.offerPrice);
   router.get('/', admin.list);
   router.post('/', admin.create);
   router.get('/:id', admin.read);

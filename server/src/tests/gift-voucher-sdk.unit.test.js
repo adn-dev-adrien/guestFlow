@@ -20,6 +20,7 @@ test('SDK 2.33.0: the version is bumped by a minor and the history records what 
     version: '2.33.0',
     modules: ['bookingHorizon', 'pdfFonts', 'prepaidReceipts', 'prepaidSources', 'termsAcceptance', 'termsActivities'],
     names: {
+      articles: ['liveFamilies', 'makeArticle'],
       paymentTenders: ['lineLabel', 'METHODS', 'PREPAID'],
       termsModel: ['LODGING', 'findAcceptanceBySubject', 'hasDraft', 'listOtherAcceptancesByReservation'],
     },

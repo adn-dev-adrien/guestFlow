@@ -136,7 +136,7 @@ test('rule 34: a known code answers its balance and expiry; a cancelled one answ
   const typed = code.format(plain).toLowerCase();
   const ok = await check(typed);
   assert.equal(ok.status, 200);
-  assert.deepEqual(ok.body.data, { usable: true, balanceCents: 20000, expiresOn: '2028-05-15' });
+  assert.deepEqual(ok.body.data, { usable: true, kind: 'lodging', balanceCents: 20000, expiresOn: '2028-05-15' });
   assert.equal(ok.headers.get('cache-control'), 'no-store');
   await server.call('POST', `/api/gift-vouchers/${voucher.id}/cancel`, {});
   const gone = await check(plain);

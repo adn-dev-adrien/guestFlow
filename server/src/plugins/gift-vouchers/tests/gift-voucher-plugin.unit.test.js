@@ -81,7 +81,7 @@ test('rules 1, 4: it mounts one public tree and one admin tree, declares its set
   });
   withPepper(undefined, () => gv.register(ctx));
   assert.deepEqual(calls.mounts, [['/public/v1/gift-vouchers', true], ['/api/gift-vouchers', false]]);
-  assert.deepEqual(calls.settings, ['validityMonths', 'minAmountCents', 'maxAmountCents', 'vatRatePercent', 'ideas', 'pageUrl', 'bookingUrl', 'mailSubjectFr', 'mailBodyFr', 'mailSubjectEn', 'mailBodyEn']);
+  assert.deepEqual(calls.settings, ['pageUrl', 'bookingUrl', 'mailSubjectFr', 'mailBodyFr', 'mailSubjectEn', 'mailBodyEn']);
   assert.deepEqual(calls.jobs, ['pending-orders-purge', 'receipts-retry', 'holds-release', 'checks-purge']);
   assert.deepEqual(calls.prepaid, [['giftVoucher', 'Bon cadeau']]);
   assert.deepEqual(calls.attention, ['gift-voucher-checks']);
@@ -178,10 +178,9 @@ test('rule 23: the mail template accepts only its placeholders — a {code} is r
   assert.equal(settings.DECLARED.map((d) => d.default).filter((v) => typeof v === 'string').some((v) => /\{code\}/.test(v)), false);
 });
 
-test('rules 6, 7: the numeric settings and the page addresses refuse a wrong shape', () => {
+test('rule 22: the page addresses refuse a wrong shape — the bounds, validity, VAT rate and ideas are a campaign\'s now, judged in gift-voucher-campaign-rules', () => {
   const validate = (key) => settings.DECLARED.find((d) => d.key === key).validate;
-  assert.equal(validate('minAmountCents')('2000'), null);
-  ['50', 'abc', '1.5', [], {}, -5].forEach((v) => assert.notEqual(validate('minAmountCents')(v), null, JSON.stringify(v)));
+  ['validityMonths', 'minAmountCents', 'maxAmountCents', 'vatRatePercent', 'ideas'].forEach((key) => assert.equal(settings.DECLARED.some((d) => d.key === key), false, key));
   assert.equal(validate('pageUrl')('https://site.test/bon'), null);
   assert.equal(validate('pageUrl')(''), null);
   ['http://site.test', 'javascript:alert(1)', 'not a url'].forEach((v) => assert.notEqual(validate('bookingUrl')(v), null, v));

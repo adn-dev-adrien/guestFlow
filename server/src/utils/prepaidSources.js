@@ -3,9 +3,10 @@
  * amount a guest already paid, somewhere else, and that a plugin keeps the balance of (a stored credit, a prepaid card...).
  * The core never names one: it asks the live plugin that owns a `source`, through the five calls it declared —
  *
- *   apply({ devisId, input, capCents, visitor, dryRun }) → { ok: true, heldCents, display } | { ok: false, status, code, message }
+ *   apply({ devisId, input, capCents, visitor, dryRun, consumer }) → { ok: true, heldCents, display } | { ok: false, status, code, message }
  *       holds (or, with `dryRun`, only prices) what `input` — the opaque `prepaid` field of the booking request — is worth
- *       on that quote, never more than `capCents`; it runs inside the caller's transaction;
+ *       on that quote, never more than `capCents`; it runs inside the caller's transaction. `consumer` names what the caller sells —
+ *       `lodging` (the default: a stay) or `resource:<id>` — so an instrument that is good for one kind only can refuse the other;
  *   held(devisId)                      → { amountCents, display } | null     what is held for the quote now
  *   settle({ devisId, reservationId, amountCents, paidDate }) → { ref } | null
  *       the quote became a stay: `amountCents` is used, the rest of the hold is given back;
@@ -60,10 +61,14 @@ function reduceComponents(built, reduction) {
 }
 
 /** The request's `prepaid` field, held for the quote just created. → the source's answer, or `{ ok: false, ... }` for an unknown kind. */
-function apply(devisId, input, { capCents, visitor, dryRun = false } = {}) {
+function apply(devisId, input, {
+  capCents, visitor, dryRun = false, consumer = 'lodging',
+} = {}) {
   const source = input && typeof input === 'object' ? byKind(input.kind) : null;
   if (!source) return { ok: false, status: 400, code: 'PREPAID_UNAVAILABLE', message: 'Moyen de paiement indisponible.' };
-  const answer = source.apply({ devisId: devisId == null ? null : Number(devisId), input, capCents, visitor, dryRun });
+  const answer = source.apply({
+    devisId: devisId == null ? null : Number(devisId), input, capCents, visitor, dryRun, consumer,
+  });
   return { ...answer, source: source.source, label: source.label };
 }
 

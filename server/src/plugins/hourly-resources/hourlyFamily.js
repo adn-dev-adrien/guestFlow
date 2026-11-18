@@ -8,12 +8,16 @@
  * hours: the head bills it at the lodging's rate after the free minutes. No answer (`null`) is no contribution: the head
  * prices the line as if the plugin were not there, and it guards the call itself (a throw, a malformed answer).
  *
+ * Beyond the registry's contract it answers `sessionModes(config)` and `quoteSession(config, session)` (`sessionQuote.js`): the tariff modes a customer with no
+ * stay may buy, and the price of « N minutes of a band » with no date.
+ *
  * `config.resource` is the catalogue row of the resource (makeArticle, kind 'resource'); `request` carries
  * `{ quantity, selected, sold, startDate, endDate }`, `ctx` the stay's `{ nights, persons }`.
  */
 const NBSP = ' ';
 const eurosText = (value) => `${roundMoneyOrZero(value).toFixed(2).replace('.', ',')}${NBSP}€`;
 const sdk = require('../sdk');
+const { sessionModesOf, quoteSession } = require('./sessionQuote');
 const { toCentsOrZero: toCents } = sdk.coreModule('money');
 const { roundMoneyOrZero } = sdk.coreModule('money');
 const nonNegative = (value) => (Number.isFinite(Number(value)) && Number(value) >= 0 ? null : 'Un nombre positif ou nul est attendu.');
@@ -71,7 +75,14 @@ function createHourlyFamily(contributor) {
   }
 
   return {
-    id: 'hourly', configSchema, validate, price, describe,
+    id: 'hourly',
+    configSchema,
+    validate,
+    price,
+    describe,
+    // Dateless sessions for a customer with no stay (specs/gift-voucher-campaigns.md rules 4, 44): the core's sale quote asks them, and a catalogue view lists the modes.
+    sessionModes: (config) => sessionModesOf(config.resource),
+    quoteSession,
   };
 }
 

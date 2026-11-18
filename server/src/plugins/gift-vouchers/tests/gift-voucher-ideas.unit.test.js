@@ -3,10 +3,11 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
-const settings = require('../settings');
+const campaignRules = require('../campaignRules');
 const fx = require('./giftVoucherFixtures');
 
-const validate = settings.DECLARED.find((d) => d.key === 'ideas').validate;
+const validate = campaignRules.ideasError;
+const boundsOf = (api) => { const c = api.campaigns.firstLodging(); return { minAmountCents: c.minAmountCents, maxAmountCents: c.maxAmountCents }; };
 const stay = { label: 'Un week-end', propertyId: 1, nights: 2, guests: 2 };
 
 /** A quote whose season and price depend on the month of arrival: July–August « Haute » 400 €, December « Fêtes » 650 €, else « Basse » 180 €. */
@@ -34,7 +35,7 @@ async function withIdeas(over, fn) {
   }
 }
 
-test('rule 14: an idea is always a stay { label, propertyId, nights, guests } — a bare amount is refused by the settings', () => {
+test('rule 14: an idea is always a stay { label, propertyId, nights, guests } — a bare amount is refused by the campaign', () => {
   assert.equal(validate('[]'), null);
   assert.equal(validate(JSON.stringify([stay])), null);
   assert.equal(validate([stay]), null, 'a list as well as its JSON');
@@ -64,10 +65,10 @@ test('rule 14: at most six ideas', () => {
 });
 
 test('rule 14: the stored ideas read back as a list; an unreadable value is no idea at all', () => {
-  assert.deepEqual(settings.ideasOf(() => JSON.stringify([stay])), [stay]);
-  assert.deepEqual(settings.ideasOf(() => ''), []);
-  assert.deepEqual(settings.ideasOf(() => 'garbage'), []);
-  assert.deepEqual(settings.ideasOf(() => JSON.stringify([{ label: 'x', amountCents: 5 }])), []);
+  assert.deepEqual(campaignRules.ideasOf(JSON.stringify([stay])), [stay]);
+  assert.deepEqual(campaignRules.ideasOf(''), []);
+  assert.deepEqual(campaignRules.ideasOf('garbage'), []);
+  assert.deepEqual(campaignRules.ideasOf(JSON.stringify([{ label: 'x', amountCents: 5 }])), []);
 });
 
 test('rule 14: one lowest amount per tariff season the stay falls in, from the quote engine, over the next 12 months', () => withIdeas({
@@ -75,7 +76,7 @@ test('rule 14: one lowest amount per tariff season the stay falls in, from the q
 }, async ({ api }) => {
   const calls = [];
   const priced = await require('../ideas').priceIdea(stay, {
-    quote: seasonalQuote(calls), today: '2026-11-15', bounds: api.limits(),
+    quote: seasonalQuote(calls), today: '2026-11-15', bounds: boundsOf(api),
   });
   assert.deepEqual(priced, {
     label: 'Un week-end',
@@ -88,13 +89,13 @@ test('rule 14: one lowest amount per tariff season the stay falls in, from the q
 
 test('rule 14: a property with no named season gets a single « À partir de » amount', () => withIdeas({}, async ({ api }) => {
   const flat = () => ({ totalStayPrice: 220, nightlyBreakdown: [{ seasonLabel: 'Standard' }, { seasonLabel: 'Standard' }], unpricedNights: [] });
-  const priced = await require('../ideas').priceIdea(stay, { quote: flat, today: '2026-11-15', bounds: api.limits() });
+  const priced = await require('../ideas').priceIdea(stay, { quote: flat, today: '2026-11-15', bounds: boundsOf(api) });
   assert.deepEqual(priced, { label: 'Un week-end', amounts: [{ label: 'À partir de', amountCents: 22000 }] });
 }));
 
 test('rule 14: a stay that straddles two seasons, an unpriced night, a breached rule or a thrown quote prices nothing', () => withIdeas({}, async ({ api }) => {
   const { priceIdea } = require('../ideas');
-  const args = (quote) => ({ quote, today: '2026-11-15', bounds: api.limits() });
+  const args = (quote) => ({ quote, today: '2026-11-15', bounds: boundsOf(api) });
   const base = { totalStayPrice: 300, nightlyBreakdown: [{ seasonLabel: 'A' }], unpricedNights: [] };
   assert.equal(await priceIdea(stay, args(() => ({ ...base, nightlyBreakdown: [{ seasonLabel: 'A' }, { seasonLabel: 'B' }] }))), null);
   assert.equal(await priceIdea(stay, args(() => ({ ...base, unpricedNights: ['2027-01-01'] }))), null);
@@ -110,9 +111,14 @@ test('rule 14: an amount the form could not accept (below the minimum, above the
   const { priceIdea } = require('../ideas');
   const cheap = () => ({ totalStayPrice: 15, nightlyBreakdown: [{ seasonLabel: 'Basse' }], unpricedNights: [] });
   const dear = () => ({ totalStayPrice: 2500, nightlyBreakdown: [{ seasonLabel: 'Haute' }], unpricedNights: [] });
-  assert.equal(await priceIdea(stay, { quote: cheap, today: '2026-11-15', bounds: api.limits() }), null);
-  assert.equal(await priceIdea(stay, { quote: dear, today: '2026-11-15', bounds: api.limits() }), null);
+  assert.equal(await priceIdea(stay, { quote: cheap, today: '2026-11-15', bounds: boundsOf(api) }), null);
+  assert.equal(await priceIdea(stay, { quote: dear, today: '2026-11-15', bounds: boundsOf(api) }), null);
 }));
+
+const IDEAS = [{
+  label: 'Un week-end',
+  amounts: [{ label: 'Basse', amountCents: 18000 }, { label: 'Haute', amountCents: 40000 }, { label: 'Fêtes', amountCents: 65000 }],
+}];
 
 test('rule 14: GET /offer answers the bounds, the validity, the priced ideas and the terms version — the brand is the company name, and with no online payment configured available is false', () => withIdeas({
   settings: { ideas: JSON.stringify([stay]), minAmountCents: '3000', validityMonths: '12' },
@@ -127,9 +133,9 @@ test('rule 14: GET /offer answers the bounds, the validity, the priced ideas and
     minAmountCents: 3000,
     maxAmountCents: 200000,
     validityMonths: 12,
-    ideas: [{
-      label: 'Un week-end',
-      amounts: [{ label: 'Basse', amountCents: 18000 }, { label: 'Haute', amountCents: 40000 }, { label: 'Fêtes', amountCents: 65000 }],
+    ideas: IDEAS,
+    campaigns: [{
+      slug: 'sejour', kind: 'lodging', title: 'Bon cadeau', validityMonths: 12, minAmountCents: 3000, maxAmountCents: 200000, ideas: IDEAS,
     }],
     termsVersionId: 4,
   });
@@ -146,36 +152,37 @@ test('rule 14: ideas are priced at most once a day, and again after pricing.chan
   const calls = [];
   const fixture = fx.buildApi(db, { settings: { ideas: JSON.stringify([stay]) }, deps: { quote: seasonalQuote(calls) } });
   fixture.clock.at = clock.at;
-  const { ideas } = fixture.api;
-  await ideas.read();
+  const { offerService } = fixture.api;
+  const read = () => offerService.offer();
+  await read();
   const first = calls.length;
   assert.ok(first > 300);
-  await ideas.read();
-  await ideas.read();
+  await read();
+  await read();
   assert.equal(calls.length, first, 'served from the cache');
   fixture.clock.at = new Date(fixture.clock.at.getTime() + 23 * 3600 * 1000);
-  await ideas.read();
+  await read();
   assert.equal(calls.length, first, 'still the same day');
   fixture.clock.at = new Date(fixture.clock.at.getTime() + 2 * 3600 * 1000);
-  await ideas.read();
+  await read();
   assert.equal(calls.length, 2 * first, 'a day later it is priced again');
-  ideas.invalidate();
-  await ideas.read();
+  offerService.invalidateIdeas();
+  await read();
   assert.equal(calls.length, 3 * first, 'pricing.changed drops the cache');
 }));
 
 test('rule 14: two readers at once share one pricing run; a change during a run is not served stale', () => withIdeas({}, async ({ db }) => {
   const calls = [];
   const fixture = fx.buildApi(db, { settings: { ideas: JSON.stringify([stay]) }, deps: { quote: seasonalQuote(calls) } });
-  const { ideas } = fixture.api;
-  const [a, b] = await Promise.all([ideas.read(), ideas.read()]);
+  const { offerService } = fixture.api;
+  const [a, b] = await Promise.all([offerService.offer(), offerService.offer()]);
   assert.deepEqual(a, b);
   const once = calls.length;
-  ideas.invalidate();
-  const running = ideas.read();
-  ideas.invalidate();
+  offerService.invalidateIdeas();
+  const running = offerService.offer();
+  offerService.invalidateIdeas();
   await running;
-  await ideas.read();
+  await offerService.offer();
   assert.equal(calls.length, once * 3, 'the run begun before the second change is thrown away and priced again');
 }));
 

@@ -9,6 +9,15 @@ const DEFAULT_VALIDITY_MONTHS = 18;
 const MAX_VALIDITY_MONTHS = 120;
 const DEFAULT_VAT_PERCENT = 10;
 
+function parseJson(value, fallback) {
+  if (value === null || value === undefined || value === '') return fallback;
+  if (typeof value !== 'string') return value;
+  try { return JSON.parse(value); } catch { return fallback; }
+}
+
+// Rule 41 — the `paymentMethod` of an order issued « Offert » (no sale, no VAT): never one of the tenders of the core.
+const OFFERED_METHOD = 'offered';
+
 const MONEY_KINDS = Object.freeze(['issue', 'hold', 'release', 'redeem', 'refund', 'adjust', 'cancel']);
 const NOTE_KINDS = Object.freeze(['extend', 'reveal', 'mail']);
 const KINDS = Object.freeze([...MONEY_KINDS, ...NOTE_KINDS]);
@@ -61,6 +70,22 @@ function vatSplit(amountCents, percent) {
   const basisPoints = Math.round(Number(percent) * 100);
   const htCents = Math.round((amountCents * 10000) / (10000 + basisPoints));
   return { ratePercent: Number(percent), htCents, vatCents: amountCents - htCents };
+}
+
+/**
+ * Rules 11, 43 — the VAT of a voucher as lines `[{ ratePercent, htCents, vatCents }]`: the frozen lines of a composed voucher (one per rate its contents carry),
+ * else the single rate of an amount voucher cut from its TTC.
+ */
+function vatLinesOf(voucher) {
+  const stored = parseJson(voucher.vatLines, null);
+  if (Array.isArray(stored) && stored.length) return stored;
+  return [vatSplit(voucher.amountCents, voucher.vatRatePercent)];
+}
+
+/** Rule 11 — the frozen contents of a voucher or an order: `{ kind: 'lodging' }` or a composed resource; an unreadable value reads as the lodging kind it started as. */
+function contentsOf(row) {
+  const parsed = parseJson(row && row.contents, null);
+  return parsed && typeof parsed === 'object' && (parsed.kind === 'lodging' || parsed.kind === 'resource') ? parsed : { kind: 'lodging' };
 }
 
 /** `10 %`, `5,5 %` — the rate as the French read it. */
@@ -137,6 +162,10 @@ module.exports = {
   checkVatRate,
   vatSplit,
   formatPercent,
+  OFFERED_METHOD,
+  vatLinesOf,
+  contentsOf,
+  parseJson,
   addMonths,
   expiryFor,
   balanceOf,

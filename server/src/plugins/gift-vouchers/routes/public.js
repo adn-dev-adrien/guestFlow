@@ -18,6 +18,7 @@ function buildPublicRouter({
     next();
   });
   router.get('/offer', offer.read);
+  router.post('/offer/price', offer.price);
   router.post('/check', check.check);
   router.post('/orders', offer.create);
   router.post('/orders/:id/pay', payStart, offer.pay);

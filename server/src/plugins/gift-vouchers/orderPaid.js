@@ -14,7 +14,7 @@ function unhonoured(reason) {
 }
 
 function createOrderPaid({
-  orders, movements, issuance, limits, receipt,
+  orders, movements, issuance, receipt,
 }) {
   /** `{ ref, linkId, amountCents }` → `{ effect }`, or `{ refundOwed, reason }`. */
   return function paid({ ref, linkId, amountCents }) {
@@ -24,9 +24,7 @@ function createOrderPaid({
     if (movements.byKey(idempotencyKey)) return { effect: 'voucher-already-issued' };
     if (order.state === 'issued') return unhonoured('bon cadeau déjà émis par un autre paiement');
     if (Number(amountCents) !== order.amountCents) return unhonoured('montant payé différent de celui du bon cadeau');
-    const issued = issuance.issue({
-      orderId: order.id, actor: 'public', validityMonths: limits().validityMonths, idempotencyKey,
-    });
+    const issued = issuance.issue({ orderId: order.id, actor: 'public', idempotencyKey });
     receipt.deliverReceipt(issued.voucherId).catch(() => {});
     return { effect: 'voucher-issued' };
   };

@@ -1,18 +1,20 @@
 /**
  * `/api/gift-vouchers/**` — the operator's side (specs/gift-vouchers.md rules 24-28, §4.3). Thin handlers over the models
  * and rules: they validate the shape of what they receive, ask the models, and answer. Every action that changes a voucher
- * writes a movement carrying its author (rule 25).
+ * writes a movement carrying its author (rule 25). A voucher is sold through the same `offerService` as on the site (specs/gift-voucher-campaigns.md
+ * rules 41, 52): this side adds the session and the three outcomes — « Payé », « Offert », « Envoyer un lien ».
  */
 
 const crypto = require('crypto');
 const code = require('../code');
 const rules = require('../voucherRules');
 const { presentMovement } = require('../movementView');
+const { statusOf } = require('../offerService');
+const { renderPaymentLinkMail } = require('../mailTemplate');
 
-const MAX_NAME = 40;
-const MAX_MESSAGE = 200;
+const OUTCOMES = Object.freeze(['paid', 'offered', 'link']);
+const REQUEST_KEYS = Object.freeze(['slug', 'composition', 'title', 'validityMonths', 'offeredAddOns', 'extraTimeMaxMinutes', 'extraMinutes', 'addOns', 'amountCents']);
 const MAX_REASON = 200;
-const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 const REFUSALS = Object.freeze({
   BODY_INVALID: [400, 'Corps de requête invalide.'],
@@ -20,6 +22,7 @@ const REFUSALS = Object.freeze({
   AMOUNT_INVALID: [400, 'Montant invalide : un nombre entier de centimes.'],
   VOUCHER_AMOUNT_OUT_OF_BOUNDS: [400, 'Montant hors des bornes.'],
   EMAIL_INVALID: [400, 'Adresse e-mail invalide.'],
+  OUTCOME_INVALID: [400, 'Issue invalide : payé, offert ou envoyer un lien.'],
   PAYMENT_METHOD_INVALID: [400, 'Moyen de paiement inconnu.'],
   DATE_INVALID: [400, 'Date invalide.'],
   DATE_NOT_IN_FUTURE: [400, 'La nouvelle date doit être dans le futur.'],
@@ -45,7 +48,7 @@ class Refusal extends Error {
   }
 }
 
-/** An optional text of at most `max` characters; a non-string is refused, never coerced. */
+/** An optional text of at most `max` characters; a non-string is refused, never coerced (the reason of a correction). */
 function optionalText(value, max) {
   if (value === undefined || value === null) return '';
   if (typeof value !== 'string' || value.length > max) throw new Refusal('FIELD_INVALID');
@@ -53,8 +56,8 @@ function optionalText(value, max) {
 }
 
 function buildAdminController({
-  vouchers, orders, movements, issuance, transaction, limits, paymentMethods, userName = () => null, decrypt, receipt, renderPdf,
-  brand, bookingUrl, now = () => new Date(),
+  vouchers, movements, offerService, campaigns, transaction, paymentMethods, userName = () => null, decrypt, receipt, renderPdf,
+  brand, bookingUrl, sendMail, now = () => new Date(),
 }) {
   const today = () => rules.parisDate(now());
   const actorOf = (req) => `user:${req.user && req.user.id ? req.user.id : 'unknown'}`;
@@ -64,6 +67,14 @@ function buildAdminController({
     const refusal = REFUSALS[error && error.code];
     if (!refusal) throw error;
     return res.status(refusal[0]).json({ error: refusal[1], code: error.code });
+  }
+
+  /** A refusal of the shared sale service: the operator's own sentence for a code this side words, else the service's. */
+  function answerSale(res, result) {
+    const known = REFUSALS[result.code];
+    return res.status(known ? known[0] : statusOf(result.code)).json({
+      error: known ? known[1] : result.message, code: result.code, ...(result.errors ? { errors: result.errors } : {}),
+    });
   }
 
   const guarded = (handler) => async (req, res) => {
@@ -84,6 +95,10 @@ function buildAdminController({
   const summary = (v) => ({
     id: v.id,
     number: v.number,
+    kind: rules.contentsOf(v).kind,
+    campaignId: v.campaignId,
+    campaignName: v.campaignId && campaigns.find(v.campaignId) ? campaigns.find(v.campaignId).name : null,
+    offered: v.paymentMethod === rules.OFFERED_METHOD,
     state: stateOf(v),
     amountCents: v.amountCents,
     balanceCents: v.balanceCents,
@@ -116,7 +131,10 @@ function buildAdminController({
     return {
       ...summary(v),
       message: v.message,
-      vat: rules.vatSplit(v.amountCents, v.vatRatePercent),
+      contents: rules.contentsOf(v),
+      oneShot: Boolean(v.campaignId && campaigns.find(v.campaignId) && campaigns.find(v.campaignId).oneShot),
+      vatLines: summary(v).offered ? [] : rules.vatLinesOf(v),
+      vat: summary(v).offered || rules.vatLinesOf(v).length !== 1 ? null : rules.vatLinesOf(v)[0],
       codeMasked: plain ? code.mask(plain) : null,
       canCancel: !v.cancelledAt && !movements.hasKind(v.id, 'redeem'),
       movements: movements.list(v.id).map((m) => presentMovement(m, userName)),
@@ -138,37 +156,52 @@ function buildAdminController({
 
   const read = guarded((req, res) => res.json(detail(find(req))));
 
-  const create = guarded((req, res) => {
+  /** The voucher asked for, as the sale service reads it: a campaign's slug (none = the lodging voucher) or a one-shot composition, with what the buyer chose. */
+  const requestOf = (body) => Object.fromEntries(REQUEST_KEYS.filter((k) => body[k] !== undefined).map((k) => [k, body[k]]));
+
+  async function sendLink({
+    orderId, email, language, url, label,
+  }) {
+    try {
+      await sendMail({ to: email, ...renderPaymentLinkMail({ url, language, label }), key: `gift-voucher-link:${orderId}` });
+    } catch {
+      throw new Refusal('MAIL_FAILED');
+    }
+  }
+
+  const create = guarded(async (req, res) => {
     const body = bodyOf(req);
-    const amount = rules.checkAmountCents(body.amountCents, limits());
-    if (!amount.ok) throw new Refusal(amount.code);
-    const email = optionalText(body.email, 254);
-    if (email && !EMAIL.test(email)) throw new Refusal('EMAIL_INVALID');
-    if (typeof body.paymentMethod !== 'string' || !paymentMethods().some((m) => m.value === body.paymentMethod)) throw new Refusal('PAYMENT_METHOD_INVALID');
+    const outcome = body.outcome === undefined ? 'paid' : body.outcome;
+    if (!OUTCOMES.includes(outcome)) throw new Refusal('OUTCOME_INVALID');
+    const parties = offerService.partiesOf(body, { emailRequired: outcome === 'link' });
+    if (!parties.ok) throw new Refusal(parties.code);
+    const actor = actorOf(req);
+    if (outcome === 'link') {
+      const created = offerService.createOrder({
+        request: requestOf(body), parties: parties.value, source: 'site', createdBy: actor, admin: true,
+      });
+      if (!created.ok) return answerSale(res, created);
+      const started = await offerService.startPayment(created.order.id);
+      if (!started.ok) return answerSale(res, started);
+      await sendLink({
+        orderId: created.order.id, email: parties.value.email, language: parties.value.language, url: started.url, label: started.label,
+      });
+      return res.status(201).json({
+        orderId: created.order.id, outcome, emailedTo: parties.value.email, totalCents: started.totalCents,
+      });
+    }
+    if (outcome === 'paid' && (typeof body.paymentMethod !== 'string' || !paymentMethods().some((m) => m.value === body.paymentMethod))) throw new Refusal('PAYMENT_METHOD_INVALID');
     let issueDate = today();
     if (body.date !== undefined && body.date !== null) {
       if (typeof body.date !== 'string' || !rules.isIsoDate(body.date)) throw new Refusal('DATE_INVALID');
       if (body.date > issueDate) throw new Refusal('DATE_IN_FUTURE');
       issueDate = body.date;
     }
-    const actor = actorOf(req);
-    const created = transaction(() => {
-      const order = orders.create({
-        amountCents: amount.cents,
-        recipientName: optionalText(body.recipientName, MAX_NAME),
-        senderName: optionalText(body.senderName, MAX_NAME),
-        message: optionalText(body.message, MAX_MESSAGE),
-        email,
-        language: body.language === 'en' ? 'en' : 'fr',
-        source: 'manual',
-        paymentMethod: body.paymentMethod,
-        createdBy: actor,
-      });
-      return issuance.issue({
-        orderId: order.id, actor, validityMonths: limits().validityMonths, issueDate,
-      });
+    const issued = offerService.issueDirect({
+      request: requestOf(body), parties: parties.value, outcome, paymentMethod: body.paymentMethod, actor, issueDate,
     });
-    return res.status(201).json(detail(vouchers.find(created.voucherId)));
+    if (!issued.ok) return answerSale(res, issued);
+    return res.status(201).json(detail(vouchers.find(issued.voucherId)));
   });
 
   const key = (kind, id) => `${kind}:${id}:${crypto.randomUUID()}`;

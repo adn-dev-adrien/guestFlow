@@ -13,7 +13,16 @@ const { MIGRATIONS } = require('../migrations');
 const { skipWithout } = require('../../sdk/testing');
 const fx = require('./giftVoucherFixtures');
 
-const setting = settings.DECLARED.find((d) => d.key === 'vatRatePercent');
+const campaignRules = require('../campaignRules');
+
+// The rate is a lodging campaign's field (specs/gift-voucher-campaigns.md rule 3): its form judges it.
+const rateError = (value) => {
+  const found = campaignRules.validateCampaign({
+    name: 'N', title: 'T', kind: 'lodging', validityMonths: 18, minAmountCents: 2000, maxAmountCents: 200000, vatRatePercent: value,
+  }, { catalogue: {}, campaigns: { findBySlug: () => null } });
+  const error = found.ok ? null : found.errors.find((e) => e.field === 'vatRatePercent');
+  return error ? error.message.replace(/^Taux de TVA : /, '') : null;
+};
 
 async function withShop(fn, over = {}) {
   const fixture = fx.buildApi(undefined, over);
@@ -25,17 +34,18 @@ async function withShop(fn, over = {}) {
   }
 }
 
-test('rule 43: the setting is declared with 10 % as its default, and reads 10 when what is stored cannot be read', () => {
-  assert.equal(setting.default, '10');
-  const get = (value) => () => value;
-  assert.equal(settings.vatRateOf(get('5,5')), 5.5);
-  assert.equal(settings.vatRateOf(get('0')), 0);
-  assert.equal(settings.vatRateOf(get('abc')), 10);
-  assert.equal(settings.vatRateOf(get(undefined)), 10);
+test('rule 43: the lodging campaign starts at 10 %, whatever the settings held before, and reads the rate it was saved with', () => {
+  assert.equal(rules.DEFAULT_VAT_PERCENT, 10);
+  assert.equal(fx.buildApi().api.campaigns.firstLodging().vatRatePercent, 10);
+  const { api } = fx.buildApi();
+  fx.setLodging(api, { vatRatePercent: '5,5' });
+  assert.equal(api.campaigns.firstLodging().vatRatePercent, 5.5);
+  fx.setLodging(api, { vatRatePercent: '0' });
+  assert.equal(api.campaigns.firstLodging().vatRatePercent, 0);
 });
 
 test('rule 43: a rate is 0 to 100 with at most two decimals — each refusal has its own sentence, a comma or a point is accepted', () => {
-  const refused = (v) => setting.validate(v);
+  const refused = rateError;
   assert.equal(refused(''), 'Saisir un taux (0 si les bons ne portent pas de TVA).');
   assert.equal(refused('   '), 'Saisir un taux (0 si les bons ne portent pas de TVA).');
   assert.equal(refused('abc'), 'Saisir un nombre, par exemple 10 ou 5,5.');
@@ -66,11 +76,11 @@ test('rule 43: HT = round(TTC / (1 + rate)), VAT = TTC − HT, to the cent — 1
 });
 
 test('rule 43: a voucher sold by hand carries the rate in force that day — a later change never moves it, a new voucher takes the new one', () => withShop(async ({
-  server, settingsStore, db,
+  server, api, db,
 }) => {
   const first = await fx.issueManual(server);
   assert.deepEqual(first.vat, { ratePercent: 10, htCents: 13636, vatCents: 1364 });
-  settingsStore.set('vatRatePercent', '5,5');
+  fx.setLodging(api, { vatRatePercent: '5,5' });
   const second = await fx.issueManual(server);
   assert.deepEqual(second.vat, { ratePercent: 5.5, htCents: 14218, vatCents: 782 });
   const reread = await server.call('GET', `/api/gift-vouchers/${first.id}`);
@@ -79,14 +89,14 @@ test('rule 43: a voucher sold by hand carries the rate in force that day — a l
 }));
 
 test('rule 43: a voucher sold on the site is frozen when the bank confirms it, at the rate then in force', () => withShop(async ({
-  api, settingsStore, db,
+  api, db,
 }) => {
   const placed = (amountCents) => api.orders.create({ amountCents, email: 'paul@example.test', source: 'site' });
   const a = placed(15000);
   const b = placed(15000);
-  settingsStore.set('vatRatePercent', '20');
+  fx.setLodging(api, { vatRatePercent: '20' });
   api.orderPaid({ ref: String(a.id), linkId: 51, amountCents: 15000 });
-  settingsStore.set('vatRatePercent', '0');
+  fx.setLodging(api, { vatRatePercent: '0' });
   api.orderPaid({ ref: String(b.id), linkId: 52, amountCents: 15000 });
   assert.deepEqual(db.prepare('SELECT orderId, vatRatePercent FROM gift_vouchers ORDER BY id').all(), [
     { orderId: a.id, vatRatePercent: 20 }, { orderId: b.id, vatRatePercent: 0 },
@@ -95,7 +105,7 @@ test('rule 43: a voucher sold on the site is frozen when the bank confirms it, a
 }));
 
 test('rule 43: the receipt says the VAT in the buyer’s language — « dont TVA 10 % : 13,64 € » — and says nothing for a voucher with no VAT', () => withShop(async ({
-  api, sent, settingsStore,
+  api, sent,
 }) => {
   const placed = (extra) => api.orders.create({
     amountCents: 15000, email: 'paul@example.test', source: 'site', ...extra,
@@ -104,7 +114,7 @@ test('rule 43: the receipt says the VAT in the buyer’s language — « dont TV
   const en = placed({ language: 'en' });
   api.orderPaid({ ref: String(fr.id), linkId: 61, amountCents: 15000 });
   api.orderPaid({ ref: String(en.id), linkId: 62, amountCents: 15000 });
-  settingsStore.set('vatRatePercent', '0');
+  fx.setLodging(api, { vatRatePercent: '0' });
   const free = placed();
   api.orderPaid({ ref: String(free.id), linkId: 63, amountCents: 15000 });
   await api.receipt.idle();
@@ -143,10 +153,10 @@ test('rule 43: the migration adds the column and the vouchers sold before it are
 });
 
 test('rule 44: each voucher is a sale of its collection day, at its frozen rate; a card taken by hand is a card sale, the site’s payment is not', () => withShop(async ({
-  api, server, settingsStore, clock,
+  api, server, clock,
 }) => {
   await fx.issueManual(server, { paymentMethod: 'card' });
-  settingsStore.set('vatRatePercent', '5,5');
+  fx.setLodging(api, { vatRatePercent: '5,5' });
   await fx.issueManual(server, { paymentMethod: 'transfer', amountCents: 5000, senderName: 'Paul' });
   const site = api.orders.create({ amountCents: 20000, email: 'x@example.test', source: 'site' });
   clock.at = new Date('2026-11-16T23:30:00Z');

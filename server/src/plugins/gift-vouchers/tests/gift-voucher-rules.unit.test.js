@@ -4,7 +4,6 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 
 const rules = require('../voucherRules');
-const settings = require('../settings');
 const fx = require('./giftVoucherFixtures');
 
 const BOUNDS = { minAmountCents: 2000, maxAmountCents: 200000 };
@@ -22,14 +21,15 @@ test('rule 6: a fraction of a cent, a string, NaN, Infinity, nothing — all ref
   });
 });
 
-test('rule 6: defaults are 20 € and 2 000 €, and the bounds come from the settings', () => {
+test('rule 6: defaults are 20 € and 2 000 €, and the bounds come from the lodging campaign', () => {
   assert.deepEqual([rules.DEFAULT_MIN_CENTS, rules.DEFAULT_MAX_CENTS], [2000, 200000]);
   assert.equal(rules.checkAmountCents(1000).ok, false);
   assert.equal(rules.checkAmountCents(1000, { minAmountCents: 500, maxAmountCents: 5000 }).ok, true);
-  const get = (values) => (key) => values[key] ?? null;
-  assert.deepEqual(settings.limitsOf(get({})), { validityMonths: 18, ...BOUNDS });
-  assert.deepEqual(settings.limitsOf(get({ minAmountCents: '5000', maxAmountCents: '10000', validityMonths: '12' })), { validityMonths: 12, minAmountCents: 5000, maxAmountCents: 10000 });
-  assert.deepEqual(settings.limitsOf(get({ minAmountCents: '9000', maxAmountCents: '1000' })), { validityMonths: 18, ...BOUNDS }, 'a min above the max falls back');
+  const { api } = fx.buildApi();
+  const read = () => { const c = api.campaigns.firstLodging(); return { validityMonths: c.validityMonths, minAmountCents: c.minAmountCents, maxAmountCents: c.maxAmountCents }; };
+  assert.deepEqual(read(), { validityMonths: 18, ...BOUNDS });
+  fx.setLodging(api, { minAmountCents: '5000', maxAmountCents: '10000', validityMonths: '12' });
+  assert.deepEqual(read(), { validityMonths: 12, minAmountCents: 5000, maxAmountCents: 10000 });
 });
 
 test('rule 7: the expiry is the issue date plus the validity — 18 months by default, a 31st landing on the last day of a short month', () => {
@@ -41,25 +41,19 @@ test('rule 7: the expiry is the issue date plus the validity — 18 months by de
   assert.equal(rules.expiryFor('2026-11-15', 12), '2027-11-15');
 });
 
-test('rule 7: the expiry is stored at issue — changing the validity setting never moves an issued voucher', async () => {
+test('rule 7: the expiry is stored at issue — changing the campaign’s validity never moves an issued voucher', async () => {
   const fixture = fx.buildApi();
   const server = await fx.start(fixture);
   try {
     const first = await fx.issueManual(server);
     assert.equal(first.expiresOn, '2028-05-15');
-    fixture.settingsStore.set('validityMonths', '6');
+    fx.setLodging(fixture.api, { validityMonths: 6 });
     const second = await fx.issueManual(server);
     assert.equal(second.expiresOn, '2027-05-15');
     assert.equal((await server.call('GET', `/api/gift-vouchers/${first.id}`)).body.expiresOn, '2028-05-15');
   } finally {
     await server.close();
   }
-});
-
-test('rule 7: the validity setting accepts 1 to 120 whole months and nothing else', () => {
-  const validate = settings.DECLARED.find((d) => d.key === 'validityMonths').validate;
-  ['1', '18', 120, '120'].forEach((v) => assert.equal(validate(v), null, String(v)));
-  ['0', '121', '-1', '1.5', 'abc', '', [], {}].forEach((v) => assert.notEqual(validate(v), null, JSON.stringify(v)));
 });
 
 test('rule 10: pending without a voucher; cancelled from its date; exhausted from its balance; expired the day after its expiry; else started (balance below the issued amount) or active', () => {

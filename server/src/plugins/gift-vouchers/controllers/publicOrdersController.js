@@ -1,32 +1,27 @@
 /**
- * The public side of the online sale (specs/gift-vouchers.md rules 14-21, §4.3): the offer, the order, its payment and the
- * voucher page. `available` is true only while a payment can be taken online (rule 2). The order's texts and amount are judged
- * here again; the voucher is issued by the core's paid-link path (`orderPaid.js`), never by anything this controller reads
- * from the browser. An order is reached by its id and its token only — a wrong token and an unknown id answer the same 404.
+ * The public side of the online sale (specs/gift-vouchers.md rules 14-21, specs/gift-voucher-campaigns.md rules 16-19, 52, §4.3): the offer, its price, the order, its payment
+ * and the voucher page. `available` is true only while a payment can be taken online (rule 2). It adds what only the site needs — the key guard of the router, the proof of work,
+ * the per-visitor limits, the terms version — and leaves every rule of the sale to `offerService`, the path the back-office takes too. The voucher is issued by the core's
+ * paid-link path (`orderPaid.js`), never by anything this controller reads from the browser. An order is reached by its id and its token only — a wrong token and an unknown
+ * id answer the same 404.
  */
 
 const rules = require('../voucherRules');
 const { visitorHashOf } = require('../visitorHash');
+const { statusOf } = require('../offerService');
 
-const MAX_NAME = 40;
-const MAX_MESSAGE = 200;
-const MAX_EMAIL = 254;
 const MAX_RETURN_PATH = 200;
 const ORDERS_PER_HOUR = 5;
 const HOUR_MS = 60 * 60 * 1000;
-const LINK_MINUTES = 60;
 const DEAD_LINK = new Set(['expired', 'cancelled']);
-const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const REQUEST_KEYS = Object.freeze(['slug', 'amountCents', 'extraMinutes', 'addOns']);
 
 const STATUS = Object.freeze({
   CHALLENGE_INVALID: 403,
   VOUCHER_ORDER_NOT_FOUND: 404,
   TOO_MANY_ORDERS: 429,
-  ONLINE_SALE_UNAVAILABLE: 409,
   VOUCHER_ALREADY_ISSUED: 409,
-  PAYMENT_PENDING: 409,
   PAYMENT_LINK_EXPIRED: 409,
-  PAYMENT_PROVIDER_ERROR: 502,
 });
 
 const MESSAGES = Object.freeze({
@@ -47,41 +42,38 @@ const MESSAGES = Object.freeze({
 });
 
 class Refusal extends Error {
-  constructor(refusalCode) {
+  constructor(refusalCode, message = null) {
     super(refusalCode);
     this.code = refusalCode;
+    this.detail = message;
   }
 }
 
 const isObject = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
 
-/** An optional text of at most `max` characters; a non-string or a longer one is refused, never coerced or cut. */
-function optionalText(value, max) {
-  if (value === undefined || value === null) return '';
-  if (typeof value !== 'string' || value.length > max) throw new Refusal('FIELD_INVALID');
-  return value.trim();
-}
-
 function buildPublicOrdersController({
-  ideas, limits, termsVersionId, available, brand, respond, orders, vouchers, proof, pepper, ipOf, payments, siteOrigin,
+  offerService, termsVersionId, available, brand, respond, orders, vouchers, proof, pepper, ipOf, payments, siteOrigin,
   decrypt, renderPdf, bookingUrl, now = () => new Date(),
 }) {
   const langOf = (req) => {
     const stated = (req.body && req.body.language) || (req.query && req.query.lang);
     return stated === 'en' ? 'en' : 'fr';
   };
-  const refuse = (req, res, refusalCode, headers = {}) => {
+  // A refusal of this controller has its sentence in both languages; one of the sale service (an offer closed, a price the engine refuses) carries its own, in French.
+  const refuse = (req, res, refusalCode, headers = {}, detail = null) => {
     Object.entries(headers).forEach(([k, v]) => res.set(k, String(v)));
-    return respond.fail(res, STATUS[refusalCode] || 400, refusalCode, MESSAGES[refusalCode][langOf(req)]);
+    const words = MESSAGES[refusalCode];
+    return respond.fail(res, STATUS[refusalCode] || statusOf(refusalCode), refusalCode, words ? words[langOf(req)] : detail);
   };
   const guarded = (handler) => async (req, res) => {
     try {
       return await handler(req, res);
     } catch (error) {
       if (!(error instanceof Refusal)) throw error;
-      return refuse(req, res, error.code);
+      return refuse(req, res, error.code, {}, error.detail);
     }
   };
+  const requestOf = (body) => Object.fromEntries(REQUEST_KEYS.filter((k) => body[k] !== undefined).map((k) => [k, body[k]]));
 
   const idOf = (req) => { const n = Number(req.params.id); return Number.isInteger(n) && n > 0 ? n : null; };
   const orderOf = (req, token) => {
@@ -96,18 +88,21 @@ function buildPublicOrdersController({
   };
 
   async function read(req, res) {
-    const { minAmountCents, maxAmountCents, validityMonths } = limits();
-    const priced = await ideas.read();
     return respond.ok(res, {
       available: available(),
       brand: brand(),
-      minAmountCents,
-      maxAmountCents,
-      validityMonths,
-      ideas: priced,
+      ...await offerService.offer(),
       termsVersionId: termsVersionId(),
     });
   }
+
+  /** Rule 17 — the price of what the giver composed: the engine's lines, the total incl. VAT and the VAT per rate. The page renders it and computes nothing. */
+  const price = guarded((req, res) => {
+    if (!isObject(req.body)) throw new Refusal('BODY_INVALID');
+    const answered = offerService.price(requestOf(req.body));
+    if (!answered.ok) throw new Refusal(answered.code, answered.message);
+    return respond.ok(res, { lines: answered.lines, totalCents: answered.totalCents, vat: answered.vat });
+  });
 
   const create = guarded((req, res) => {
     if (!isObject(req.body)) throw new Refusal('BODY_INVALID');
@@ -115,25 +110,20 @@ function buildPublicOrdersController({
     if (!proof(req).ok) throw new Refusal('CHALLENGE_INVALID');
     const visitorHash = visitorHashOf(pepper(), ipOf(req));
     if (orders.countSince(visitorHash, HOUR_MS) >= ORDERS_PER_HOUR) return refuse(req, res, 'TOO_MANY_ORDERS', { 'Retry-After': HOUR_MS / 1000 });
-    const amount = rules.checkAmountCents(body.amountCents, limits());
-    if (!amount.ok) throw new Refusal(amount.code);
-    const email = typeof body.email === 'string' ? body.email.trim() : '';
-    if (!email || email.length > MAX_EMAIL || !EMAIL.test(email)) throw new Refusal('EMAIL_INVALID');
+    const parties = offerService.partiesOf(body, { emailRequired: true });
+    if (!parties.ok) throw new Refusal(parties.code);
     const current = termsVersionId();
     if (Number(body.termsVersionId || 0) !== Number(current || 0)) throw new Refusal('TERMS_REQUIRED');
-    if (body.language !== undefined && body.language !== 'fr' && body.language !== 'en') throw new Refusal('FIELD_INVALID');
-    const order = orders.create({
-      amountCents: amount.cents,
-      recipientName: optionalText(body.recipientName, MAX_NAME),
-      senderName: optionalText(body.senderName, MAX_NAME),
-      message: optionalText(body.message, MAX_MESSAGE),
-      email,
-      language: body.language === 'en' ? 'en' : 'fr',
+    const created = offerService.createOrder({
+      request: requestOf(body),
+      parties: parties.value,
+      source: 'site',
+      visitorHash,
       termsVersionId: current || null,
       termsAcceptedAt: now().toISOString(),
-      visitorHash,
-      source: 'site',
     });
+    if (!created.ok) throw new Refusal(created.code, created.message);
+    const { order } = created;
     return respond.ok(res, { orderId: order.id, token: order.token }, 201);
   });
 
@@ -156,18 +146,9 @@ function buildPublicOrdersController({
       if (DEAD_LINK.has(known)) throw new Refusal('PAYMENT_LINK_EXPIRED');
       if (known === 'paid') throw new Refusal('PAYMENT_PENDING');
     }
-    let link;
-    try {
-      link = await payments.saleLink({
-        ref: order.id, title: `Bon cadeau de ${rules.formatEuros(order.amountCents)}`, amountCents: order.amountCents, validityMinutes: LINK_MINUTES,
-      }, { redirectUrl: returnUrlOf(order, body.token, body.returnPath) });
-    } catch (error) {
-      if (error && error.error === 'LINK_ALREADY_PAID') throw new Refusal('PAYMENT_PENDING');
-      if (error && error.error === 'NO_PAYMENT_PROVIDER') throw new Refusal('ONLINE_SALE_UNAVAILABLE');
-      throw new Refusal('PAYMENT_PROVIDER_ERROR');
-    }
-    orders.setLink(order.id, link.linkId);
-    return respond.ok(res, { paymentUrl: link.url });
+    const started = await offerService.startPayment(order.id, { returnUrl: returnUrlOf(order, body.token, body.returnPath) });
+    if (!started.ok) throw new Refusal(started.code, started.message);
+    return respond.ok(res, { paymentUrl: started.url });
   });
 
   /**
@@ -216,7 +197,7 @@ function buildPublicOrdersController({
   });
 
   return {
-    read, create, pay, status, pdf,
+    read, price, create, pay, status, pdf,
   };
 }
 

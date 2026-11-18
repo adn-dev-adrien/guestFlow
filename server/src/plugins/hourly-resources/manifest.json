@@ -198,6 +198,7 @@
       "Chaque créneau garde le tarif de sa tranche (jour ou soir), puis reçoit la remise de son heure.",
       "Les conditions générales du bain nordique ont leur propre onglet sous Réglages › Conditions générales : un brouillon prérempli, à relire puis à publier.",
       "Chaque ressource a son horizon « Réservable jusqu’à » (3 mois par défaut, 1 à 24), à côté de ses horaires d’ouverture : l’appli du séjour n’offre pas de créneau au-delà.",
+      "Le prix d’une séance sans date peut être demandé à GuestFlow pour un client sans séjour : une durée dans la journée ou la soirée, au tarif extérieur de la tranche, avec la remise de chaque heure.",
       "Compatible avec GuestFlow 4 (SDK 2.33)."
     ]
   }

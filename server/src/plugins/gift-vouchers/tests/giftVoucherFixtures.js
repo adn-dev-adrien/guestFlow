@@ -27,6 +27,22 @@ function freshDb() {
   return db;
 }
 
+// The bounds, validity, VAT rate and ideas of the lodging voucher are the `lodging` campaign's (specs/gift-voucher-campaigns.md rule 3): a suite that states them as
+// the settings they used to be reads them as that campaign's values.
+const LODGING_FIELDS = Object.freeze(['validityMonths', 'minAmountCents', 'maxAmountCents', 'vatRatePercent', 'ideas']);
+
+/** Changes the lodging campaign of `api` (the one the migration made): `{ validityMonths, minAmountCents, maxAmountCents, vatRatePercent, ideas }` as numbers or as the text a form sent. */
+function setLodging(api, values) {
+  const current = api.campaigns.firstLodging();
+  const next = { ...current };
+  Object.entries(values).forEach(([key, value]) => {
+    if (key === 'ideas') next.ideas = typeof value === 'string' ? JSON.parse(value) : value;
+    else next[key] = Number(String(value).replace(',', '.'));
+  });
+  api.campaigns.update(current.id, next);
+  api.offerService.invalidateIdeas();
+}
+
 /** A visitor behind the proxy: the address the stand-in `visitorContext` reads from `x-test-ip`. */
 const visitorGuard = (req, res, next) => {
   req.visitor = { ip: req.get('x-test-ip') || '', userAgent: '', pluginVersion: '' };
@@ -58,6 +74,11 @@ function buildApi(db = freshDb(), over = {}) {
     onCheckLimitsTrip: (event) => trips.push(event),
     ...over.deps,
   });
+  // The shop of a suite is set up: its lodging campaign is on sale (a fresh install starts it as a draft).
+  const lodgingCampaign = api.campaigns.firstLodging();
+  api.campaigns.update(lodgingCampaign.id, { ...lodgingCampaign, state: 'on_sale' });
+  const lodging = Object.fromEntries(LODGING_FIELDS.filter((key) => over.settings && over.settings[key] !== undefined).map((key) => [key, over.settings[key]]));
+  if (Object.keys(lodging).length) setLodging(api, lodging);
   return {
     api, db, clock, sent, trips, settingsStore,
   };
@@ -109,5 +130,5 @@ function solvedProof({ difficulty = 12, ip = '' } = {}) {
 }
 
 module.exports = {
-  freshDb, buildApi, start, issueManual, revealedCode, solvedProof, PEPPER, METHODS, sdk,
+  freshDb, buildApi, setLodging, start, issueManual, revealedCode, solvedProof, PEPPER, METHODS, sdk,
 };
