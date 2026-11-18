@@ -87,6 +87,7 @@ import {
 import { formatCurrency, displayDate } from '../utils/formatters';
 import LoadingState from '../components/LoadingState';
 import ErrorAlert from '../components/ErrorAlert';
+import FocusKeeper from '../components/FocusKeeper';
 import EmptyState from '../components/EmptyState';
 import { useAuth } from '../hooks/useAuth';
 import { ADMIN, userHasRole } from '../constants/roles';
@@ -154,6 +155,8 @@ const SAVE_FIRST_REASON = "Enregistrer d'abord les modifications.";
 const SAVE_BLOCKED_REASON = 'Fiche à relire.';
 // Rule 101 — the sale is stored, the fiche could not read it back: it stays read-only until a retry succeeds.
 const REREAD_FAILED_MESSAGE = 'Fiche non relue après la vente.';
+// Loop t24 S24-3 — the live quote failed: the figures below are the older quote's, not this fiche's.
+const QUOTE_FAILED_MESSAGE = 'Tarif non recalculé : les montants ci-dessous ne sont pas à jour.';
 // The clean baseline of a prefilled devis: no form snapshot equals it (rule 51).
 const PREFILLED_DEVIS_BASELINE = 'prefilled-devis';
 // Thrown by a page load once a newer load of the page has started: it stops there, silently.
@@ -338,6 +341,12 @@ export default function ReservationPage() {
   const [nightlyBreakdown, setNightlyBreakdown] = useState([]);
   const [pricingQuote, setPricingQuote] = useState(null);
   const pricingQuoteRef = useRef(null);
+  // Loop t24 S24-3 (specs/plugins-phase-1-sdk.md rule 54 reading) — a live quote that fails: its reason with « Réessayer », the finance
+  // figures dimmed as not up to date, until a quote lands. The failure is about the quote it failed over (`over`): any new quote — this
+  // effect's, the save's, a reset — ends it. « Réessayer » (`quoteRetry`) keeps it while it asks; a request for an edited fiche drops it.
+  const [quoteFailure, setQuoteFailure] = useState(null);
+  const [quoteRetry, setQuoteRetry] = useState(0);
+  const quoteRetryRef = useRef(0);
   // What the last resource-availability read was for: the effect that follows the dates does not ask again
   // for the answer the init just got, and a new property context forgets it (specs/inte-performance.md rule 23).
   const availabilityKey = useRef('');
@@ -1568,6 +1577,9 @@ export default function ReservationPage() {
 
   // Auto-refresh base price when reservation parameters change
   useEffect(() => {
+    const retrying = quoteRetryRef.current !== quoteRetry;
+    quoteRetryRef.current = quoteRetry;
+    if (!retrying) setQuoteFailure(null);
     if (!selectedProp || !form.startDate || !form.endDate) return;
 
     const start = new Date(`${form.startDate}T00:00:00`);
@@ -1611,12 +1623,15 @@ export default function ReservationPage() {
           return next;
         });
       } catch (err) {
-        // Keep current form state if quote refresh fails
+        // The form keeps its state (the save quotes again before writing); the screen says the figures are not up to date.
+        if (requestId !== pricingQuoteRequestRef.current) return;
+        setQuoteFailure({ error: err, over: pricingQuoteRef.current });
       }
     };
 
     refreshBasePrice();
-  }, [selectedProp, pricingQuoteSignature, shouldLockExistingPricing, applyQuoteToForm, applyQuoteMinNights, useCurrentPricing, offeredOptionIds, refundsVersion, windowToday, pastUnlocked]);
+  }, [selectedProp, pricingQuoteSignature, shouldLockExistingPricing, applyQuoteToForm, applyQuoteMinNights, useCurrentPricing, offeredOptionIds, refundsVersion, windowToday, pastUnlocked, quoteRetry]);
+  const quoteFailed = Boolean(quoteFailure && quoteFailure.over === pricingQuote);
 
 
   // ==================== CAPACITY & PRICING CALCULATIONS ====================
@@ -4214,7 +4229,18 @@ export default function ReservationPage() {
             />
           )}
 
-          <FinanceSection />
+          <FocusKeeper>
+            {quoteFailed && (
+              <ErrorAlert
+                message={quoteFailure.error && quoteFailure.error.message ? `${QUOTE_FAILED_MESSAGE} ${quoteFailure.error.message}` : QUOTE_FAILED_MESSAGE}
+                onRetry={() => setQuoteRetry((n) => n + 1)}
+                sx={{ mb: 1 }}
+              />
+            )}
+            <Box data-testid="finance-figures" data-stale={quoteFailed ? "true" : undefined} sx={quoteFailed ? { opacity: 0.55, transition: 'opacity 150ms ease-out' } : { transition: 'opacity 150ms ease-out' }}>
+              <FinanceSection />
+            </Box>
+          </FocusKeeper>
 
           {/* Cards of plugin modules (specs/plugins-phase-1-sdk.md rule 13) — e.g. the key Sowel
               reported for this stay (specs/gate-access-sowel-connector.md §3.5 rule 26). */}
