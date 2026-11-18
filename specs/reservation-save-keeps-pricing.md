@@ -251,6 +251,9 @@ changed something the price depends on; money collected beyond the total is repo
     afresh without the older message, and only its own failure shows one; any quote that lands (the live one, the
     save's, a reset) ends it. The form keeps its state and the save is unchanged: it quotes again before writing and
     stops on a failure, so no money is ever written from the older figures. OLD (the same silent catch on master).
+    A refusal (4xx other than 408/429: the server will not price what the fiche asks) shows its reason the same way but
+    without « Réessayer » — the same request would be refused again; the next edit asks afresh. « Réessayer » is for a
+    network or server failure (verification of 2026-11-18).
 
 ---
 
@@ -329,7 +332,7 @@ nothing else moves; at 390 px the alert is full width like the others.
 - [x] `custom-line-contribs-survive-priced-save.unit.test.js` (21) — rule 19: solde only, acompte + solde, renamed, stale id, same text, removed, grown, forced, posted contribs, trop-perçu, mid-stay window, routing pin, admin unlock, dry run, tariff refresh, replayed SAS commit, cancellation; journal byte-identical, catalogue option as the control.
 - [x] `tariff-refresh-keeps-line-contribs.unit.test.js` (15) — rule 20: option, resource, engine-derived line, refresh then a later save, refresh and addition in one save, raised and lowered catalogue price, change of logement, line the new logement does not sell, admin unlock, forced, removed, added, unpaid; journal byte-identical.
 - [x] `fiche-pricing-notices.unit.test.js` (6) — rules 5-6; client `PricingNotices.test.jsx` (3).
-- [x] Client `ReservationPage.live-quote-failure.test.jsx` (3) — rule 21: a failed live quote shows its reason with
+- [x] Client `ReservationPage.live-quote-failure.test.jsx` (4) — rule 21: a refusal (4xx) shows its reason without « Réessayer »; a failed live quote shows its reason with
       « Réessayer » and dims the finance card, the retry keeps both and the focus until the quote lands; an edit asks
       afresh without the older message and its own failure shows again; the save still quotes before writing.
 - [x] Client `RefundDialog.overpayment.test.jsx` (5, `defaultMethod`) and `FinanceSection.refunds.test.jsx`

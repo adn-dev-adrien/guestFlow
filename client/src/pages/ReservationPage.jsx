@@ -1625,7 +1625,11 @@ export default function ReservationPage() {
       } catch (err) {
         // The form keeps its state (the save quotes again before writing); the screen says the figures are not up to date.
         if (requestId !== pricingQuoteRequestRef.current) return;
-        setQuoteFailure({ error: err, over: pricingQuoteRef.current });
+        // A refusal (4xx: the fiche asks something the server will not price) is not retried as is: its reason shows without
+        // « Réessayer », and the next edit asks again. A network or server failure keeps « Réessayer ».
+        const status = Number(err && err.status);
+        const refused = status >= 400 && status < 500 && status !== 408 && status !== 429;
+        setQuoteFailure({ error: err, refused, over: pricingQuoteRef.current });
       }
     };
 
@@ -4233,7 +4237,7 @@ export default function ReservationPage() {
             {quoteFailed && (
               <ErrorAlert
                 message={quoteFailure.error && quoteFailure.error.message ? `${QUOTE_FAILED_MESSAGE} ${quoteFailure.error.message}` : QUOTE_FAILED_MESSAGE}
-                onRetry={() => setQuoteRetry((n) => n + 1)}
+                onRetry={quoteFailure.refused ? undefined : () => setQuoteRetry((n) => n + 1)}
                 sx={{ mb: 1 }}
               />
             )}

@@ -115,3 +115,15 @@ test('a fiche whose live quote failed can still be saved: the save quotes again 
   await waitFor(() => expect(api.updateReservation).toHaveBeenCalled());
   expect(api.calculatePrice.mock.calls.length).toBeGreaterThan(quotesBefore);
 });
+
+test('a refused live quote (4xx) shows its reason without « Réessayer »; the next edit asks again', async () => {
+  const refusal = Object.assign(new Error('Séjour trop long.'), { status: 400 });
+  api.calculatePrice.mockRejectedValueOnce(refusal).mockResolvedValue(QUOTE);
+  openFiche();
+  expect(await screen.findByText(ALERT)).toHaveTextContent('Séjour trop long.');
+  expect(screen.queryByRole('button', { name: 'Réessayer' })).toBeNull();
+  expect(dimmed()).toBe(true);
+  fireEvent.change(screen.getByRole('spinbutton', { name: /Adultes/ }), { target: { value: '3' } });
+  await waitFor(() => expect(screen.queryByText(ALERT)).toBeNull());
+  await waitFor(() => expect(dimmed()).toBe(false));
+});
