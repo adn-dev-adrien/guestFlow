@@ -484,9 +484,10 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
     > _2026-11-15 (pass C43):_ `planDepartureSas` as a view over the lines is stopped by a figure move measured on the prod copy — rule 32's note (22281, 22280).
     > _Reading of 2026-11-18 (loop t18 O18-1)_: a `custom` request is judged by the engine's own priced-line predicate (`isPricedCustomLine`: a label
     > and at least one cent once rounded, rule 79 reading loop t17). Before, `customRequest` took any `amount > 0`: 0.004 € answered 200 « totalCents 0 »,
-    > wrote no line (the engine drops it) and still journaled a « Vente : Ligne complétée » entry. Such an amount is now refused 400 `INVALID_REQUEST`
+    > wrote no line (the engine drops it) and still wrote a « Vente : Ligne complétée » entry in the stay's history (`reservation_history`, not the accounting journal). Such an amount is now refused 400 `INVALID_REQUEST`
     > (« Libellé ou montant invalide. ») by `quote` and `sell` alike, as a blank label or a 0 € amount already were; 0.005 € and above sell a 1-cent line.
-    > Raw API only: the guest-app supplement is rounded and the SAS hooks round before their `> 0`. Test `extra-sale-sub-cent-custom-line`.
+    > Raw API only: the only caller that sends `articleRef: 'custom'` is the guest-app evening supplement, rounded to the cent by `roundMoney`; the SAS
+    > writers and the intake never go through `customRequest`. Test `extra-sale-sub-cent-custom-line`.
 26. **Free allowances are consumed by a line and stay with it** (ALLOWANCES unit, rule 41). The free bath
     hour, free units (« 2 offerts ») and included hours are a ledger per stay; a line records the allowance
     it consumed (`allowanceUsed`). Removing a line gives its allowance back for **future** sales; it never
