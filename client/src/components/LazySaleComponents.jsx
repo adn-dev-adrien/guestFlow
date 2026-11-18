@@ -25,23 +25,30 @@ import React, { Suspense, lazy, useEffect, useState } from 'react';
 function lazySale(loader) {
   let loading = null;
   let loaded = null;
+  let gate = null;
   const preload = () => {
     if (!loading) {
-      loading = loader().then(
+      loading = (gate ? gate().then(loader) : loader()).then(
         (module) => { loaded = module; return module; },
         (error) => { loading = null; throw error; },
       );
     }
     return loading;
   };
-  const Lazy = lazy(preload);
+  let Lazy = lazy(preload);
   function LazySale(props) {
     // Chosen once per mount: switching from the lazy element to the loaded one would remount the block and drop its state.
     const [Ready] = useState(() => (loaded ? loaded.default : null));
     if (Ready) return <Ready {...props} />;
     return <Suspense fallback={null}><Lazy {...props} /></Suspense>;
   }
-  return { Component: LazySale, preload, isLoaded: () => Boolean(loaded) };
+  const forget = (arrive) => {
+    loading = null;
+    loaded = null;
+    gate = arrive || null;
+    Lazy = lazy(preload);
+  };
+  return { Component: LazySale, preload, isLoaded: () => Boolean(loaded), forget };
 }
 
 const blocks = {
@@ -66,6 +73,13 @@ export function useSaleComponentsReady(active) {
     return () => { live = false; };
   }, [active, ready]);
   return ready;
+}
+
+// Test seam only (specs/server-test-isolation.md rule 23, reading of 2026-11-18, loop t23 UI23-1): forgets the four blocks' loaded code,
+// so the next dialog meets it cold, and makes each block's next import wait for `arrive()` first. `setupLateSaleChunks.js` calls it
+// before every client test, so every test — not only the first of its file — runs the late path. The app never calls it.
+export function resetSaleComponentsForTests(arrive) {
+  Object.values(blocks).forEach((block) => block.forget(arrive));
 }
 
 export const LazyStaySalesSection = blocks.StaySalesSection.Component;

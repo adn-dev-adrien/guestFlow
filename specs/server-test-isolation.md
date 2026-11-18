@@ -542,6 +542,20 @@ being on the preload's lists fails the run once the suite executes the read (rul
    719e568c) loaded the blocks in the fixtures' `beforeAll`; it hid the cause and kept the suites off the real late path,
    and was withdrawn. Tests `LazySaleComponents.late-chunks` (the setup is in place; every dialog waiting for the code,
    read from the code, has a suite), the whole client suite with the delay.
+   *Reading of 2026-11-18 (loop t23 UI23-1):* the delay above sat on the four modules' mocks, and
+   `LazySaleComponents` keeps a block's loaded code for the rest of its test file — so only the FIRST test of each file
+   met cold code; a later test found its dialog ready at once, and `ResourceArrivalDialog.paid-before` A2 (a click on a
+   still-disabled « Créer la facture ») passed in file order and failed alone or first in a shuffled run. What the
+   harness does now: `setupLateSaleChunks.js` runs a `beforeEach` before every client test that calls
+   `resetSaleComponentsForTests(late)` of `LazySaleComponents` — a test-only seam the app never calls — which forgets the
+   four blocks' loaded code (their import promises and their `React.lazy` wrappers) and makes each block's next import
+   wait `SALE_CHUNK_DELAY` ms (default 25, real timer captured at load) before it resolves. Every test that opens a sale
+   dialog therefore meets cold code that arrives late, whatever its place in the file; a suite that imports a block
+   directly (`import StaySalesSection from '../StaySalesSection'`) is untouched, and a suite that takes a fresh module
+   (`vi.resetModules()`) is cold by construction. A2 now waits for the button to be enabled. The proof that no other test
+   acts early: every test of the 105 sale-dialog suites (361 runs) alone, first in its file, passes, and the whole client suite
+   passes under the cold harness, as do the related suites on three shuffled seeds. Tests `LazySaleComponents.late-chunks` (3: the setup is in
+   place; a LATER test of the same file still waits for the delay; every waiting dialog has a suite).
 
 **Edge cases:**
 - A targeted `node --test <file>` used to open and migrate `server/guestflow.db` for 389 test files (audit R2,
@@ -611,9 +625,10 @@ API, data model and UI are unchanged. Rules 11, 17, 21 and 23 only:
 | `client/` | `package.json` | T | Rule 21: `test:shuffle` script. |
 | `src/**/__tests__/` | the 25 files that leaned on a lasting mock answer, and `PlatformChip.display-name` | T | Rule 21: `vi.fn(impl)` defaults; a fresh `constants/platforms` per test (tests only, no plugin version bump). |
 | `src/` | `setupTests.js` | T | Rule 17: `configure({ asyncUtilTimeout: 5000 })` for every `findBy*` / `waitFor`. |
-| `src/` | `setupLateSaleChunks.js` | C | Rule 23: the four SDK sale blocks' modules resolve `SALE_CHUNK_DELAY` ms (25) late in every suite, on the real timer. |
+| `src/` | `setupLateSaleChunks.js` | C | Rule 23 (reading of 2026-11-18, loop t23 UI23-1): before every test, `resetSaleComponentsForTests(late)` — the four SDK sale blocks are cold again and their next import waits `SALE_CHUNK_DELAY` ms (25), on the real timer. |
+| `src/components/` | `LazySaleComponents.jsx` | T | Rule 23 (loop t23 UI23-1): test-only seam `resetSaleComponentsForTests(arrive)` — forgets the blocks' loaded code and gates their next import; the app never calls it. |
 | `client/` | `vitest.config.js` | T | Rule 23: `setupLateSaleChunks.js` in `setupFiles`. |
-| `src/**/__tests__/` | `ResourceArrivalDialog.invoiceable`, `LazySaleComponents.late-chunks` (C) | T | Rule 23: act once the button is enabled; the delay and the consumers' suites pinned. |
+| `src/**/__tests__/` | `ResourceArrivalDialog.invoiceable`, `ResourceArrivalDialog.paid-before`, `LazySaleComponents.late-chunks` (C) | T | Rule 23: act once the button is enabled; the delay (first and later test of a file) and the consumers' suites pinned. |
 | `src/**/__tests__/` | the rule-16 files | T | Rule 17: per-test timeouts dropped (tests only, no plugin version bump). |
 | `src/**/__tests__/` | `VatRegimeSwitchDialog.switch`, `SupportAccessBanner.states`, `LazyPage.loading`, `UpdateAvailableAlert`, `EmailSettingsPage.identity`, `EmailSettingsPage.social-links`, `PlatformAccountsPage`, `ReconciliationPage.filters`, `TariffRecipeCard`, `TariffRecipeCard.cleaning-fee`, `TariffRecipeCard.extra-guest-config`, `TariffRecipesPage`, `SettingsGoogleCalendarSection`, `ResourcePlanningPage.stale-bookings`, `ReservationSasDialog.plugins`, `CompensationsPage` | T | Await the post-condition (tests only, no plugin version bump). |
 
@@ -677,6 +692,7 @@ absence from CI.
   `PlatformChip.display-name` (the display names of a previous test already loaded), fixed by a fresh module per test;
   the four seeds then green.
 - [x] Rule 23 (loop t22 A22-1): `LazySaleComponents.late-chunks` (2); with the old `ResourceArrivalDialog.invoiceable` (click on the drawn button) the late chunks fail it 2 runs out of 2, the fixed test passes; the whole client suite runs green with the delay.
+- [x] Rule 23 reading (loop t23 UI23-1): `LazySaleComponents.late-chunks` (3, + a later test of the same file waits for the delay); every test of the 105 suites rendering a sale dialog (enumerated from the code: the consumers of the sale blocks and the components rendering them, plus `StandaloneSalesTodayCard`), run alone, first in its file (listed from `vitest list`, 361 runs, `test.each` templates as one run): 361/361 green after `ResourceArrivalDialog.paid-before` A2 waits for an enabled button; the whole client suite green under the cold harness (1 000 files, 4 463 tests, 303 s against 327 s before in one local process: no measurable cost) and the related suites on three shuffled seeds.
 
 ## 8. Out of scope
 

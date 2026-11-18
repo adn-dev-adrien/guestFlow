@@ -52,8 +52,9 @@ test('A2 — arrived, paid, its invoice cancelled in Qonto: « Créer la facture
   api.getResourceVisit.mockResolvedValue(paidBefore({ invoiceReady: true, invoice: { number: 'F-1', cancelled: true }, invoiceable: { ok: true, code: null, reason: null } }, { arrived: true, invoice: { number: 'F-1', cancelled: true, attachment: { state: null } } }));
   api.issueResourceBookingInvoice.mockResolvedValue({});
   render(<ResourceArrivalDialog open bookingId={5} onClose={() => {}} onDone={() => {}} />);
-  const buttons = await screen.findAllByRole('button', { name: 'Créer la facture' });
-  fireEvent.click(buttons[buttons.length - 1]);
+  // The footer button is drawn disabled until the dialog has the sale blocks' code (specs/server-test-isolation.md rule 23, loop t23 UI23-1).
+  await waitFor(() => expect(screen.getAllByRole('button', { name: 'Créer la facture' }).at(-1)).toBeEnabled());
+  fireEvent.click(screen.getAllByRole('button', { name: 'Créer la facture' }).at(-1));
   await waitFor(() => expect(api.issueResourceBookingInvoice).toHaveBeenCalledWith(5, expect.anything()));
 });
 

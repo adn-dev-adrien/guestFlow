@@ -1,6 +1,6 @@
-// specs/plugins-phase-1-sdk.md rule 54 (reading of 2026-11-18, loop t22 A22-1) and specs/server-test-isolation.md rule 23 —
-// every suite runs with the four SDK sale blocks' code
-// arriving late (`src/setupLateSaleChunks.js`, a setup file of vitest.config.js), so a test that acts before its dialog has the code fails
+// specs/plugins-phase-1-sdk.md rule 54 (reading of 2026-11-18, loop t22 A22-1) and specs/server-test-isolation.md rule 23 (readings
+// of 2026-11-18, loops t22 A22-1 and t23 UI23-1) — every TEST, not only the first of its file, runs
+// with the four SDK sale blocks' code cold and arriving late (`src/setupLateSaleChunks.js`, a setup file of vitest.config.js), so a test that acts before its dialog has the code fails
 // every time. This file checks that the delay is in place, and that every dialog waiting for that code (`useSaleComponentsReady`,
 // enumerated from the code) is rendered by at least one suite — each such suite therefore runs the real late path.
 import fs from 'fs';
@@ -21,12 +21,25 @@ const CONSUMERS = sources
   .map((f) => path.basename(f).replace(/\.jsx?$/, ''))
   .sort();
 
+// A test takes the module its dialogs import (no fresh registry): the code a previous test of this file loaded is forgotten by the
+// setup's `beforeEach`, so each test below meets it cold and late — the first one and a later one alike, in either order (loop t23 UI23-1).
+async function coldAndLate() {
+  const Lazy = await import('../LazySaleComponents');
+  expect(Lazy.saleComponentsLoaded()).toBe(false);
+  const started = performance.now();
+  await Lazy.preloadSaleComponents();
+  expect(Lazy.saleComponentsLoaded()).toBe(true);
+  return performance.now() - started;
+}
+
 test('the sale blocks\' code arrives late in every suite', async () => {
   const config = fs.readFileSync(path.resolve(SRC, '..', 'vitest.config.js'), 'utf8');
   expect(config).toMatch(/setupFiles:\s*\[[^\]]*'\.\/src\/setupLateSaleChunks\.js'/);
-  const started = performance.now();
-  await import('../SalePaymentLink');
-  expect(performance.now() - started).toBeGreaterThanOrEqual(15);
+  expect(await coldAndLate()).toBeGreaterThanOrEqual(15);
+});
+
+test('a later test of the same file meets the code cold and late again', async () => {
+  expect(await coldAndLate()).toBeGreaterThanOrEqual(15);
 });
 
 test('every dialog that waits for the sale code, read from the code, is rendered by a suite', () => {
