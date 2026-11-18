@@ -15,7 +15,8 @@ const { storedBody } = require('../utils/stayOrderLines');
 const alloc = require('../utils/paymentAllocationsSync');
 const { applyPaymentMark } = require('../utils/reservationPaymentMark');
 const { changeLine } = require('../utils/extraSale');
-const acct = require('../plugins/accounting-export/accountingModel');
+const { optionalPlugin, skipWithout } = require('../plugins/sdk/testing');
+const acct = optionalPlugin(() => require('../plugins/accounting-export/accountingModel'));
 
 let FQ;
 test.before(async () => { FQ = await import(pathToFileURL(path.join(__dirname, '../../../client/src/utils/ficheQuoteBody.js')).href); });
@@ -56,7 +57,7 @@ for (const [moment, m] of Object.entries(MOMENTS)) {
   for (const gesture of ['kept', 'retyped']) {
     for (const discountCents of [0, 200]) {
       for (const readsSaleLines of [0, 1]) {
-        test(`${moment} × ${gesture} × discount ${discountCents} × readsSaleLines ${readsSaleLines}: the books of the paid solde do not move`, (t) => {
+        test(`${moment} × ${gesture} × discount ${discountCents} × readsSaleLines ${readsSaleLines}: the books of the paid solde do not move`, { skip: skipWithout(['accounting-export']) }, (t) => {
           try {
             const id = paidStay(t, { discountCents, readsSaleLines });
             const before = { alloc: allocations(id), journal: journal(id), splits: splits(id) };
