@@ -24,7 +24,7 @@ import { ficheCreditsPayload, previewPayload } from '../../plugins/online-paymen
 import {
   sasPayload, stayDue, renderDialog as renderSas, clickBtn, stayPageReady,
 } from '../../plugins/sas/__tests__/sasFixtures';
-import { recapFor } from '../../plugins/sas/__tests__/sasPreviewFake';
+import { recapFor, departurePreviewLikeTheServer } from '../../plugins/sas/__tests__/sasPreviewFake';
 
 vi.mock('../../api', () => ({
   __esModule: true,
@@ -457,3 +457,65 @@ test.each(Object.keys(EMPTIED))('%s — the draft emptied after a failure: no me
   expect(EMPTIED[name].empty()).toBe(false);
   expect(focusLost()).toBe(false);
 });
+
+// Loop t24 A24-2 — the SAS with « Plusieurs moyens » open: after a failed recompute no amount of the older answer stays in the tender
+// lines or in the commit button (« Encaisser — », disabled); the next answer brings both back.
+const figuresIn = (text) => (text.match(/\d+,\d\d\s?€/g) || []);
+const SAS_SPLIT = {
+  arrival: {
+    async open(state) {
+      api.getReservationSas.mockResolvedValue(SAS_STAY);
+      api.previewArrivalSas.mockImplementation(async (id, draft) => { if (state.fail) throw offline(); return recapFor(SAS_STAY, draft); });
+      renderSas({ mode: 'arrival' });
+      await screen.findByText('Commencer');
+      clickBtn('Commencer');
+      for (let i = 0; i < 12 && !screen.queryByText(/Récapitulatif — /); i += 1) {
+        if (screen.queryByText('Séjour à régler :')) await stayPageReady();
+        await waitFor(() => expect(screen.getByRole('button', { name: 'Suivant' })).toBeEnabled());
+        clickBtn('Suivant');
+        await pause(50);
+      }
+      await waitFor(() => expect(screen.getByRole('button', { name: 'Valider et terminer' })).toBeEnabled());
+      fireEvent.click(document.querySelector('[data-split-toggle="arrival"]'));
+      await waitFor(() => expect(document.querySelector('[data-tender-amount]')).not.toBeNull(), { timeout: 5000 });
+    },
+  },
+  departure: {
+    async open(state) {
+      const real = departurePreviewLikeTheServer(api);
+      api.previewDepartureSas.mockImplementation(async (...a) => { if (state.fail) throw offline(); return real(...a); });
+      api.getReservationSas.mockResolvedValue(sasPayload({ reservation: { cautionAmount: 0 }, cleaning: { included: false, price: 80 } }));
+      renderSas({ mode: 'departure' });
+      await screen.findByText('Commencer'); clickBtn('Commencer');
+      await screen.findByText(/fait correctement/); clickBtn('Pas OK');
+      await screen.findByText(/serviettes et les draps sont-ils tous là/); clickBtn('Oui');
+      await screen.findByText(/Clés du logement récupérées/); clickBtn('Oui');
+      await screen.findByText(/bon état/i); clickBtn('Oui');
+      await screen.findByText(/Total à percevoir : 80,00 €/);
+      fireEvent.click(document.querySelector('[data-split-toggle="departure"]'));
+      await waitFor(() => expect(document.querySelector('[data-tender-amount]')).not.toBeNull(), { timeout: 5000 });
+    },
+  },
+};
+test.each(Object.keys(SAS_SPLIT))('ReservationSasDialog %s, « Plusieurs moyens » open — a failed recompute leaves no amount in the lines or the button', async (end) => {
+  const state = {};
+  await SAS_SPLIT[end].open(state);
+  const collect = () => screen.getAllByRole('button').find((b) => /^Encaisser/.test(b.textContent));
+  expect(figuresIn(collect().textContent)).not.toHaveLength(0);
+  state.fail = true;
+  press(screen.getAllByRole('button', { name: 'Offrir' })[0]);
+  await screen.findByText(/Total indisponible/);
+  await pause(300);
+  expect(collect().textContent).toBe('Encaisser —');
+  expect(collect()).toBeDisabled();
+  expect(document.querySelectorAll('[data-tender-amount]')).toHaveLength(0);
+  expect(focusLost()).toBe(false);
+  state.fail = false;
+  press(screen.getByRole('button', { name: 'Réessayer' }));
+  // The new answer is drawn (here the offered line leaves nothing to split): no « — » placeholder stays.
+  await waitFor(() => expect(document.body.textContent).not.toMatch(/Total indisponible/));
+  expect(screen.queryByText('Encaisser —')).toBeNull();
+  expect(screen.queryByTestId('tenders-unknown')).toBeNull();
+  expect(focusLost()).toBe(false);
+});
+

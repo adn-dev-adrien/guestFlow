@@ -206,6 +206,7 @@
       "Étape « Séjour » : si le calcul échoue, « Montant indisponible » et « Réessayer » s’affichent, et les boutons de règlement attendent un montant ; la page extincteur du départ dit aussi « Montant indisponible ».",
       "Au clavier, chaque changement d’étape du sas, en avant comme en arrière, place le curseur sur le titre de la nouvelle étape : il ne se perd plus et ne reste plus sur un bouton qui change de sens.",
       "Récapitulatif d’arrivée avec « Régler séparément » : quand le calcul échoue, les boutons de règlement du séjour sont désactivés comme ceux du complément.",
+      "Récapitulatif avec « Plusieurs moyens » : après un calcul en échec, plus aucun ancien montant dans les lignes ni dans « Encaisser » (« — ») jusqu’à la réponse suivante.",
       "Demande GuestFlow 4.2 (SDK 2.32)."
     ]
   }

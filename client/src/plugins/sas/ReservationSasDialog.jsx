@@ -1878,8 +1878,13 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
                   {!arrivalTenderOpen && (
                     <PaymentModeButtons value={arrivalPayMode} onChange={setArrivalPayMode} showDefer deferLabel="Plus tard" disabled={settleBlocked} />
                   )}
-                  {arrivalTenderOpen && (
+                  {/* Loop t24 A24-2 — the lines are typed against the answer's total: after a failed recompute no line keeps the
+                      older amount; they come back, filled from the new total, with the next answer. */}
+                  {arrivalTenderOpen && !failed && (
                     <TenderLines dueCents={Math.round(Number(recap.totalAtArrival) * 100)} onChange={setArrivalTenders} disabled={settleBlocked} autoFocus />
+                  )}
+                  {arrivalTenderOpen && failed && (
+                    <Typography variant="body2" color="text.secondary" data-testid="tenders-unknown">À encaisser : —</Typography>
                   )}
                   <Button
                     size="small"
@@ -2074,7 +2079,8 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
         const tenders = mode === 'departure' ? (departureSplitActive ? departureTenders : null) : (arrivalSplitActive ? arrivalTenders : null);
         const splitting = mode === 'departure' ? departureSplitActive : arrivalSplitActive;
         const splitDue = recap ? Number(mode === 'departure' ? recap.grandTotal : recap.totalAtArrival) || 0 : 0;
-        const splitLabel = TENDER_TEXTS.collect(formatCurrency(tenders && tenders.gapCents > 0 ? tenders.receivedCents / 100 : splitDue));
+        // Loop t24 A24-2 — after a failed recompute the amount is unknown: the button names no figure of the older answer.
+        const splitLabel = TENDER_TEXTS.collect(preview.failed ? '—' : formatCurrency(tenders && tenders.gapCents > 0 ? tenders.receivedCents / 100 : splitDue));
         return <>{quit}
           <Button
             variant="contained"

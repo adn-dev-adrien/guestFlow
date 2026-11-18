@@ -789,6 +789,12 @@ Optional: a plugin that declares nothing reads « Actif ».
     invalid e-mail, the screen closed — ends the failure too, and `retry` asks nothing while disabled (before: the message and « Réessayer »
     outlived the draft, and « Réessayer » posted an empty draft, `lines: []` or `{}`). Tests `useLatestPreview.failed-recompute` (+2 hook rows;
     +2 consumer cases, counter and visit: the only line removed after a failure leaves no message, no « Réessayer », no empty draft asked).
+    _Same day (loop t24 A24-2):_ the SAS recap with « Plusieurs moyens » open no longer keeps the older answer's amount after a failed
+    recompute: the arrival's tender lines (typed against the answer's total) give way to « À encaisser : — » and come back filled from the
+    new total; the commit button reads « Encaisser — », disabled (arrival and departure; the departure's lines were already hidden). Every
+    label or field of the 7 consumers that carries an amount of the answer was read from the code: the counter's « encaisser X » and the
+    visit/booking tender lines already go with `payNow` on an unknown amount; the SAS lines and button were the last. Tests
+    `useLatestPreview.failed-recompute` (+2: SAS arrival and departure with « Plusieurs moyens » open).
     **The SDK history records what each shipped minor exposed:** v4.1.0 shipped SDK 2.27.0 without `vat`, `accountingOutput`, `legacyBucketSplit`,
     `refundJournal`, `csvJournal`, `salesJson` and `synthesisExporter`, and neither SDK 2.28.0 (the home-data extension points,
     specs/guest-app-home-automation.md, merged first) nor SDK 2.29.0 (the Mollie tranches and journal, rule 51, merged first) recorded them,
@@ -1046,7 +1052,7 @@ still in the core. Server: 4,611 tests after, of which 37 are new. Client: 1,416
   consumer starts nothing, an active one the four imports, once; once loaded every block is in the first paint. Each test of this file and of
   `LazySaleComponents.lazy` takes a fresh module registry (`vi.resetModules` + `vi.doMock`), so the session-wide memoised imports never leak
   from one test to the next and the outcome is the same in any order (loop t21 A21-1, shuffled seeds 1-12).
-- `hooks/__tests__/useLatestPreview.failed-recompute.test.jsx` (21: +7 loop t24 UI24-2, the hook's table of a failure owned by its draft; +4 loop t24 S24-2, a disabled draft ends the failure) — rule 54 (reading of 2026-11-18, loop t23 S23-1): a failed request
+- `hooks/__tests__/useLatestPreview.failed-recompute.test.jsx` (23: +7 loop t24 UI24-2, the hook's table of a failure owned by its draft; +4 loop t24 S24-2, a disabled draft ends the failure; +2 loop t24 A24-2, the SAS tender lines and button) — rule 54 (reading of 2026-11-18, loop t23 S23-1): a failed request
   makes the answer unknown until a new one; every money preview screen, read from the code, shows no figure of the older answer, no live
   money field set from it, the reason with « Réessayer » (kept while the retry is asked), a disabled commit, every draft input still
   mounted, the focus never on the page or the dialog root, then the new answer; « Rattacher » disabled while the credit list is unknown.
