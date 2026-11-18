@@ -562,6 +562,14 @@ once on the server by the refonte's components.
     own answer is neither refused nor failed (before: the same red message twice, or two « Réessayer »). The booking dialog already shows one: a
     refused draft has no price, hence no payment preview, and a failed one keeps its last price without a second message. Tests
     `ResourceArrivalDialog.invoice-answer`, `ResourceBookingDialog.invoice-answer`.
+    _Reading 2026-11-18 (loop t21, UI21-1):_ that answer always comes one quote after the content — the tender lines report their default card
+    line on mount, and only then is the payment asked — so the « Facture » block landed late and moved the dialog (+34 px at 1280 px in the
+    arrival: « Récapitulatif » and « Encaisser » 17 px up, the actions 17 px down; in the booking dialog « La facture se propose une fois le
+    paiement saisi. » first, then the checkbox). Both dialogs now draw the block with the content whenever « Payé maintenant » can invoice
+    (`qontoReady`, not the reception), **pending** until the answer for the payment typed comes: the offered state's checkbox, disabled, ticked
+    as the default card line ticks it, the address fields of a guest with no client record in place (`BookingInvoiceBlock` prop `pending`).
+    The answer fills it; a `silent` refusal still removes it in the arrival, and a payment no longer readable shows « La facture se propose
+    une fois le paiement saisi. ». The commit waits for the answer as before. Test `SaleDialogs.pending-blocks`.
 55. **One money model for a document: every cent on a line or on no line** _(stabilisation loop t3, B3-1, B3-2, B3-3, 2026-11-16; completes rules 41,
     44, 49, 50, 52, 53 and refonte rules 72, 74, 75)_. Every cent a document received sits either on one of its lines or **on no line** — its
     *unallocated money*: a link paid above the reste (rule 41), net of what was given back or kept from it (`payment_allocations` with `lineRef` NULL).

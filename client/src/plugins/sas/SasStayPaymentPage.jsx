@@ -8,8 +8,10 @@
  * this page renders it and owns no arithmetic.
  *
  * Props:
- *   stayPayment  { total, deposit: { due }, balance: { due }, channel, platformLabel } — the preview's block; `null` until the server
- *                answered, the amount then reads « — »
+ *   stayPayment  { total, deposit: { due }, balance: { due }, channel, platformLabel } — the preview's block
+ *   pending      boolean — no preview answered yet: `stayPayment` is then the SAS payload's served block, read for the page's shape only
+ *                (the platform notice, whether the acompte and solde lines are drawn), and every amount reads « — » until the plan's
+ *                figures fill it — so the answer fills the page instead of pushing it (loop t21 UI21-1)
  *   value        current settlement mode: 'card' | 'cash' | 'defer' (= « Pas maintenant »)
  *   onChange     (mode) => void
  *   children     the shared PaymentModeButtons element, injected by the dialog
@@ -25,7 +27,7 @@ const MODE_CAPTION = {
   defer: "Le séjour reste dû (rien n'est encaissé).",
 };
 
-export default function SasStayPaymentPage({ stayPayment, value, children }) {
+export default function SasStayPaymentPage({ stayPayment, pending = false, value, children }) {
   const stay = stayPayment || {};
   // `collectible` — what is owed, or what this SAS already collected when the wizard is re-opened.
   const depositDue = Number(stay.deposit?.collectible || 0);
@@ -33,6 +35,7 @@ export default function SasStayPaymentPage({ stayPayment, value, children }) {
   // The per-bucket lines only earn their place when BOTH are owed — a lone bucket would just repeat
   // the hero amount underneath itself.
   const showBuckets = depositDue > 0 && balanceDue > 0;
+  const amount = (cents) => (stayPayment && !pending ? formatCurrency(cents) : '—');
 
   return (
     <Stack spacing={1.5}>
@@ -48,12 +51,12 @@ export default function SasStayPaymentPage({ stayPayment, value, children }) {
         <Typography variant="body1">Séjour à régler :</Typography>
         {/* Amounts never render in serif — kpiValue is the sans, tabular role. */}
         <Typography variant="kpiValue" sx={{ fontSize: { xs: '2rem', sm: '2.6rem' }, lineHeight: 1.1 }}>
-          {stayPayment ? formatCurrency(stay.total) : '—'}
+          {amount(stay.total)}
         </Typography>
         {showBuckets && (
           <Stack spacing={0.25} sx={{ alignItems: 'center' }}>
-            <Typography variant="body2" color="text.secondary">Acompte : {formatCurrency(depositDue)}</Typography>
-            <Typography variant="body2" color="text.secondary">Solde : {formatCurrency(balanceDue)}</Typography>
+            <Typography variant="body2" color="text.secondary">Acompte : {amount(depositDue)}</Typography>
+            <Typography variant="body2" color="text.secondary">Solde : {amount(balanceDue)}</Typography>
           </Stack>
         )}
       </Stack>

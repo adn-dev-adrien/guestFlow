@@ -11,7 +11,8 @@
  *
  * Whether the money on the books can be invoiced now is the server's `invoiceable` ({ ok, code, reason, silent }, admin only): « Créer la facture » iff `ok`, its `reason`
  * otherwise — unless `silent`, or while a draft or a payment is typed (the reason reads the stored visit).
- * At « Payé maintenant » the checkbox « Créer la facture dans Qonto » reads the same answer from the quote of the draft with the payment typed (loop t2 B2-7).
+ * At « Payé maintenant » the checkbox « Créer la facture dans Qonto » reads the same answer from the quote of the draft with the payment typed (loop t2 B2-7);
+ * the block is drawn with the content, pending (checkbox disabled, same height) until that answer comes (loop t21 UI21-1).
  * Each line names its VAT rate (`line.vatRate`). An invoiced visit offers « Nouvelle vente » on its client (`newSale.client`, rule 24): the counter's dialog seeded with it.
  *
  * Props: open, bookingId, onClose, onDone (called after a successful commit)
@@ -197,6 +198,13 @@ export default function ResourceArrivalDialog({ open, bookingId, onClose, onDone
   const invoiceOffered = Boolean(invoiceAnswer && invoiceAnswer.ok);
   const draftInternalCash = Boolean(invoiceAnswer && invoiceAnswer.code === 'INTERNAL_CASH');
   const draftRefusal = invoiceAnswer && !invoiceAnswer.ok && !invoiceAnswer.silent && !draftInternalCash ? invoiceAnswer.reason : null;
+  // Loop t21 UI21-1 — the block is drawn with the content whenever « Payé maintenant » can invoice, in a pending state of the offered
+  // block's height until the server answers for the payment typed (the tenders report it on mount, so that answer always comes one quote
+  // after the content); the answer then fills it. A `silent` answer still removes it (UI3-5), and a payment no longer readable shows the
+  // block's own « une fois le paiement saisi » caption. Before the tenders' first report the box reads as their default card line will set it.
+  const invoiceSilenced = Boolean(invoiceAnswer && !invoiceAnswer.ok && invoiceAnswer.silent);
+  const invoicePending = !reception && payNow && qontoReady && !invoiceAnswer && (!payment || Boolean(paymentDraft));
+  const invoiceAsked = !reception && payNow && qontoReady && !invoiceSilenced;
   // Money already on the books, invoiceable now: the server's `invoiceable` (invoicing rules 13, 44; loop t1 UI-10 / AV-11). It reads the stored visit, so a draft waits for its save.
   const invoiceable = visit && !reception ? visit.invoiceable : null;
   const invoiceStored = !dirty && Boolean(invoiceable && invoiceable.ok);
@@ -452,7 +460,7 @@ export default function ResourceArrivalDialog({ open, bookingId, onClose, onDone
                   <Typography variant="caption" color="text.secondary">{invoiceReason}</Typography>
                 </Box>
               )}
-              {!reception && !invoiceReason && (invoiceOffered || invoiced || invoiceOutcome || invoiceStored || draftInternalCash || draftRefusal) && (
+              {!reception && !invoiceReason && (invoiceAsked || invoiceOffered || invoiced || invoiceOutcome || invoiceStored || draftInternalCash || draftRefusal) && (
                 <Box sx={{ display: 'grid', gap: 1 }}>
                   <Typography variant="subtitle2">{TEXTS.invoice}</Typography>
                   {invoiceOutcome && invoiceOutcome.code !== 'QONTO_NEEDS_ADDRESS' && <Alert severity="error">{invoiceOutcome.message}</Alert>}
@@ -460,13 +468,14 @@ export default function ResourceArrivalDialog({ open, bookingId, onClose, onDone
                     booking={booking}
                     qontoReady={qontoReady}
                     offered={invoiceOffered || Boolean(invoiceOutcome) || invoiceStored}
-                    checked={invoiceChecked || invoiceStored || Boolean(invoiceOutcome)}
+                    checked={invoiceChecked || invoiceStored || Boolean(invoiceOutcome) || (invoicePending && !payment)}
                     onCheck={setInvoiceChecked}
                     billing={billing}
                     onBilling={setBilling}
                     addressAsked={Boolean(invoiceOutcome && invoiceOutcome.code === 'QONTO_NEEDS_ADDRESS')}
                     internalCash={draftInternalCash || Boolean(booking.payment && !booking.payment.onTheBooks)}
                     reason={draftRefusal}
+                    pending={invoicePending}
                     cardDay={dayMonth((booking.payment && booking.payment.paidAt) || (payment && payment.paidAt))}
                     onIssue={() => validate({ issue: true })}
                     onAttach={() => attachWith({})}

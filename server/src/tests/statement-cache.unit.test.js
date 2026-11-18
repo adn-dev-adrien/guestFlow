@@ -1,8 +1,8 @@
 // specs/pricing-components.md rule 48 (reading of 2026-11-18, loop t19) — one compiled statement per SQL text and database
 // handle: `db.prepare(sql)` hands back the statement it already compiled, the cache empties when the schema changes, a text
 // that fails to compile is never kept, the cache is bounded, the stay-write trail still sees each UPDATE once, and no
-// module of server/src or scripts/ sets a statement mode a cached statement would share with another caller (the guard and
-// its self-test: loop t20 O20-1).
+// module of server/src, server/scripts or scripts/ sets a statement mode a cached statement would share with another caller (the guard and
+// its self-test: loop t20 O20-1; server/scripts and the roots' enumeration: loop t21).
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
@@ -226,28 +226,51 @@ test('rule 48 — the mode guard catches every form: any argument, across lines,
   assert.deepEqual(statementModeCalls("const a = 1;\nconst read = db.prepare(\n  sql,\n);\n\nread.raw(1);"), [6], 'reported at its line');
 });
 
-test('rule 48 — the application database is cached, and no module of server/src or scripts/ sets a statement mode or iterates', () => {
+// Every directory whose code opens the application database (`require('…/database')`, the cached handle): the server, its own scripts and the
+// repository's scripts. control-plane/ and deploy/hosting/ open the console's own database, not this one. Loop t21 (data note) added server/scripts/.
+const REPO = path.join(__dirname, '..', '..', '..');
+const MODE_GUARD_ROOTS = [
+  { dir: path.join(REPO, 'server', 'src'), skip: ['tests', 'apps'], atLeast: 200 },
+  { dir: path.join(REPO, 'server', 'scripts'), skip: [], atLeast: 1 },
+  { dir: path.join(REPO, 'scripts'), skip: [], atLeast: 1 },
+];
+
+test('rule 48 — the application database is cached, and no module of server/src, server/scripts or scripts/ sets a statement mode or iterates', () => {
   const db = require('../database');
   assert.equal(db.__statementCache, true);
-  const SRC = path.join(__dirname, '..');
-  const SCRIPTS = path.join(__dirname, '..', '..', '..', 'scripts');
-  const ROOT = path.join(SCRIPTS, '..');
   const offenders = [];
-  let scanned = 0;
-  const walk = (dir, skip) => fs.readdirSync(dir, { withFileTypes: true }).forEach((entry) => {
+  const walk = (dir, skip) => fs.readdirSync(dir, { withFileTypes: true }).reduce((scanned, entry) => {
     const full = path.join(dir, entry.name);
-    if (entry.isDirectory()) {
-      if (entry.name === 'node_modules' || skip.includes(entry.name)) return;
-      walk(full, skip);
-    } else if (/\.(c|m)?js$/.test(entry.name) && full !== path.join(SRC, 'utils', 'statementCache.js')) {
-      scanned += 1;
-      for (const line of statementModeCalls(fs.readFileSync(full, 'utf8'))) offenders.push(`${path.relative(ROOT, full)}:${line}`);
-    }
-  });
-  walk(SRC, ['tests', 'apps']);
-  const fromSrc = scanned;
-  if (fs.existsSync(SCRIPTS)) walk(SCRIPTS, []);
-  assert.ok(fromSrc > 200, `only ${fromSrc} files of server/src read`);
-  assert.ok(!fs.existsSync(SCRIPTS) || scanned > fromSrc, 'scripts/ was not read');
+    if (entry.isDirectory()) return entry.name === 'node_modules' || skip.includes(entry.name) ? scanned : scanned + walk(full, skip);
+    if (!/\.(c|m)?js$/.test(entry.name) || full === path.join(REPO, 'server', 'src', 'utils', 'statementCache.js')) return scanned;
+    for (const line of statementModeCalls(fs.readFileSync(full, 'utf8'))) offenders.push(`${path.relative(REPO, full)}:${line}`);
+    return scanned + 1;
+  }, 0);
+  for (const root of MODE_GUARD_ROOTS) {
+    const scanned = walk(root.dir, root.skip);
+    assert.ok(scanned >= root.atLeast, `${path.relative(REPO, root.dir)}/ was not read (${scanned} files)`);
+  }
   assert.deepEqual(offenders, []);
 });
+
+test('rule 48 — the mode guard reads every directory outside server/src that opens the application database', () => {
+  const DATABASE = path.join(REPO, 'server', 'src', 'database');
+  const opening = [];
+  const look = (dir) => fs.readdirSync(dir, { withFileTypes: true }).forEach((entry) => {
+    const full = path.join(dir, entry.name);
+    if (entry.isDirectory()) {
+      // Dot-directories hold tooling and other checkouts (.claude/worktrees), never code of this repository.
+      if (!entry.name.startsWith('.') && !['node_modules', 'client'].includes(entry.name) && full !== path.join(REPO, 'server', 'src')) look(full);
+      return;
+    }
+    if (!/\.(c|m)?js$/.test(entry.name)) return;
+    const targets = [...fs.readFileSync(full, 'utf8').matchAll(/require\(\s*['"](\.{1,2}\/[^'"]*)['"]\s*\)/g)].map((m) => path.resolve(path.dirname(full), m[1]).replace(/\.js$/, ''));
+    if (targets.includes(DATABASE)) opening.push(full);
+  });
+  look(REPO);
+  assert.ok(opening.some((file) => file.startsWith(path.join(REPO, 'server', 'scripts') + path.sep)), 'no script opens the application database: the search is broken');
+  for (const file of opening) {
+    assert.ok(MODE_GUARD_ROOTS.some((root) => file.startsWith(root.dir + path.sep)), `${path.relative(REPO, file)} opens the application database outside the guard's roots`);
+  }
+});
+

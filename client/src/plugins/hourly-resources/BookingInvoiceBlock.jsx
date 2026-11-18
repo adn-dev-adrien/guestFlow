@@ -15,6 +15,8 @@
  *   internalCash  boolean — the server answers `INTERNAL_CASH` for the payment (typed or stored)
  *   reason        string | null — the server's refusal for the payment typed (`invoiceable.reason`, not `silent`); shown instead of the
  *                 « une fois le paiement saisi » caption, which stays for a payment not typed yet
+ *   pending       boolean — the server's answer for the payment being typed is on its way: the checkbox is drawn, disabled, in the place and height the
+ *                 offered state takes, so the answer fills the block instead of pushing the dialog (outside-booking-sas rule 54 reading, loop t21 UI21-1)
  *   cardDay       'JJ/MM' — the day of the card batch
  *   onIssue, onAttach  () => void — the buttons of a booking whose invoice is still to make / to join
  *   onPickTransaction (transactionId) => void
@@ -27,7 +29,7 @@ import BillingAddressFields from './BillingAddressFields';
 
 export default function BookingInvoiceBlock({
   booking = null, qontoReady, offered, checked, onCheck, billing, onBilling, addressAsked = false, internalCash = false, reason = null,
-  cardDay = '', onIssue, onAttach, onPickTransaction, busy = false, showAddress = true,
+  pending = false, cardDay = '', onIssue, onAttach, onPickTransaction, busy = false, showAddress = true,
 }) {
   const [picking, setPicking] = useState(false);
   const [transactionId, setTransactionId] = useState('');
@@ -74,24 +76,24 @@ export default function BookingInvoiceBlock({
   if (internalCash) {
     return <Alert severity="info">Caisse interne : hors comptabilité, pas de facture. Décocher « Caisse interne » pour la passer en compta et la facturer.</Alert>;
   }
-  if (!offered && reason) {
+  if (!offered && !pending && reason) {
     return <Typography variant="caption" color="text.secondary">{reason}</Typography>;
   }
-  if (!offered) {
+  if (!offered && !pending) {
     return <Typography variant="caption" color="text.secondary">La facture se propose une fois le paiement saisi.</Typography>;
   }
   const stored = Boolean(booking && booking.payment);
   return (
-    <Box sx={{ display: 'grid', gap: 1.25 }}>
+    <Box sx={{ display: 'grid', gap: 1.25 }} aria-busy={pending || undefined} data-testid="invoice-block">
       {addressAsked && <Alert severity="error">Paiement enregistré. La facture n'a pas été créée : Qonto demande l'adresse de facturation.</Alert>}
       {stored ? (
         <Box>
-          <Button variant="outlined" onClick={onIssue} disabled={busy} sx={{ minHeight: 44 }}>Créer la facture</Button>
+          <Button variant="outlined" onClick={onIssue} disabled={busy || pending} sx={{ minHeight: 44 }}>Créer la facture</Button>
           {booking.invoice && booking.invoice.cancelled && <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5 }}>La facture précédente a été annulée dans Qonto.</Typography>}
         </Box>
       ) : (
         <FormControlLabel
-          control={<Checkbox checked={checked} onChange={(e) => onCheck(e.target.checked)} />}
+          control={<Checkbox checked={checked} disabled={pending} onChange={(e) => onCheck(e.target.checked)} />}
           label={(
             <Box>
               <Typography variant="body2">Créer la facture dans Qonto</Typography>

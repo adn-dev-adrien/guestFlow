@@ -201,8 +201,9 @@
       "Une vente au sas payée par l’argent d’une ligne offerte réduit d’autant le montant à rembourser, et le récapitulatif affiche la ligne « Déjà réglé ».",
       "Les lignes d’un complément d’arrivée déjà encaissé ne se proposent plus à « Offrir » au sas : rien n’y était enregistré.",
       "Accueil : une ligne offerte par l’administrateur après l’ouverture du sas reste offerte, et le refus la remet offerte pour que « Valider » passe ensuite.",
-      "Demande GuestFlow 4.2 (SDK 2.32).",
-      "Le sas s’affiche d’un bloc : « Déjà payé » et les ventes du séjour arrivent avec le reste, sans décaler le récapitulatif ni les boutons."
+      "Le sas s’affiche d’un bloc : « Déjà payé » et les ventes du séjour arrivent avec le reste, sans décaler le récapitulatif ni les boutons.",
+      "L’étape « Séjour » affiche dès son ouverture l’avis plateforme et les lignes « Acompte » et « Solde » ; les montants les remplissent sans décaler la page, et la barre « Calcul du total » ne décale plus le récapitulatif.",
+      "Demande GuestFlow 4.2 (SDK 2.32)."
     ]
   }
 }

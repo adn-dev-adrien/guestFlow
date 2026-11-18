@@ -221,13 +221,14 @@ export default function StandaloneSaleDialog({ open, onClose, onSold, client = n
               onDraftChange={(index, changes) => patch({ extras: draft.extras.map((entry, i) => (i === index ? { ...entry, ...changes } : entry)) })}
               onDraftRemove={(index) => patch({ extras: draft.extras.filter((_, i) => i !== index) })}
             />
-            {document && (
+            {/* Loop t21 UI21-1 — the Total row is drawn with the first article, « — » until the quote answers, so the answer fills it. */}
+            {(document || draft.extras.length > 0) && (
               <Box sx={{ display: 'grid', gap: 0.5, mt: 0.5 }}>
                 <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
                   <Typography variant="body1" sx={{ fontWeight: 700 }}>{TEXTS.total}</Typography>
-                  <Typography data-testid="sale-total" variant="body1" sx={{ fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>{euros(document.totals.totalCents)}</Typography>
+                  <Typography data-testid="sale-total" variant="body1" sx={{ fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>{document ? euros(document.totals.totalCents) : '—'}</Typography>
                 </Box>
-                {document.vatByRate.filter((row) => row.vatCents > 0).map((row) => (
+                {document && document.vatByRate.filter((row) => row.vatCents > 0).map((row) => (
                   <Typography key={row.rate} variant="caption" color="text.secondary" sx={{ fontVariantNumeric: 'tabular-nums' }}>{TEXTS.vat(String(row.rate).replace('.', ','), euros(row.vatCents))}</Typography>
                 ))}
               </Box>

@@ -901,6 +901,11 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
     > `.raw(flag)`). Its self-test proves each form is caught and that `settings.raw(key)` or `fn.bind(this)` are not. The feed of
     > google-vacation-rentals kept its own per-run statement cache over the same handle; it is removed, the core's cache serves it
     > (same statements, same rows, the plugin's suites unchanged).
+    > _Reading of 2026-11-18 (loop t21, data note):_ the guard's roots are every directory that opens the application database:
+    > `server/src`, `server/scripts` (the admin, seed and scheduled-pass scripts) and `scripts/`, each asserted read. A second test
+    > walks the repository (dot-directories, `node_modules` and `client/` aside), resolves every relative `require` to
+    > `server/src/database` and fails on a file outside those roots; `control-plane/` and `deploy/hosting/` open the console's own
+    > database, not this one.
 49. **Articles with a downstream booking (fulfilment port).** An article may name a fulfilment adapter
     (`fulfilment: 'hourly-slot'`). `ArticleFulfilment` is a plain object `{ id, reserve(draft, ctx) → hold
     {id, expiresAt}, confirm(hold, line, tx), release(hold, reason) }`, registered through
@@ -2616,6 +2621,10 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
     applicable, and the page renders exactly that block (« — » until it answered); the served block only stands in for the step's presence
     before the first answer — the stay page asks the preview itself, so its amount is always the plan's, and an operator on the stay page when
     that answer drops it goes on to the page that followed it. Client `ReservationSasDialog.stay-step-plan`.
+    _Reading of 2026-11-18 (loop t21, UI21-1):_ before the first answer the served block also gives the page its **shape** — the platform
+    notice and whether the « Acompte » / « Solde » lines are drawn — with every amount still « — »; no served figure is shown. The plan's
+    answer then fills it in place (or, when it disagrees, reshapes it). The plan's step decision is applied before paint, so the frame the
+    recap lands in already shows the plan's steps and headings. Client `SaleDialogs.pending-blocks`.
 118. **The arrival SAS offering a paid line credits it like the line API** _(stabilisation loop t8, S8-2, 2026-11-16; completes rules 104,
     105, 107 d)_. Same gesture, same hour, same result: the SAS commit's shared write (`writeArrivalComplement`) takes `paidLineJudgment.wayBack`
     both ways — a write that FREES note money (the paid line offered) credits it, before the paid-line judgment, to what the stay still asks:
@@ -3058,7 +3067,7 @@ _Rewritten 2026-11-15 (stabilisation loop t1, UI-3) to what shipped._
 - [x] `sale-departure-part-of-arrival-line` — rule 103 d (loop t4, S4-6): a discount given back after the validated arrival is listed at the departure and stays there after the next sale (2)
 - [x] `sale-undiscount-open-arrival-then-sale` — rule 103 d (loop t4, S4-1): discount 10 then 0 at the open arrival, ticked, a sale: the departure takes only the sale
 - [x] `stay-line-facts-never-late` — rule 48 (loop t5, D5-6): the line facts of a stay left marked are rebuilt before they are read (1)
-- [x] `statement-cache` — rule 48 (reading of 2026-11-18, loop t19): one compiled statement per text and handle, emptied on a schema change, never keeps a text that fails, bounded, the stay-write trail sees each UPDATE once, the application database is cached and no module of `server/src` or `scripts/` sets a statement mode, with the guard's self-test (loop t20 O20-1) (7)
+- [x] `statement-cache` — rule 48 (reading of 2026-11-18, loop t19): one compiled statement per text and handle, emptied on a schema change, never keeps a text that fails, bounded, the stay-write trail sees each UPDATE once, the application database is cached and no module of `server/src`, `server/scripts` or `scripts/` sets a statement mode, with the guard's self-test (loop t20 O20-1), and every file opening the application database lies in those roots (loop t21) (8)
 - [x] `sale-paid-line-fiche-save` — rule 105 a (loop t5, S5-1, A5-1): a card-paid line offered in the fiche asks what its line action asks (OVERPAID then owed on a platform stay; OVERPAID then owed on a direct one; credited to an open complement); removed from the body → `LINE_PAID` (4)
 - [x] `sale-paid-line-offered-kept` — rule 105 b (loop t5, S5-4, S5-5): an offered paid line is neither removed nor moved; the article re-sold is a line of its own, unpaid (2)
 - [x] `sale-arrival-open-early-tick` — rule 105 c (loop t5, S5-6): a box or a SAS stamp set before the arrival day closes nothing; on the day, judge and sale refuse together (4)

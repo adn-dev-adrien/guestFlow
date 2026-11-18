@@ -11,7 +11,7 @@
  * Other plugins add read-only pages through `sas.arrival.steps` / `sas.departure.steps` (rule 10).
  */
 
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
   Dialog, DialogContent, DialogActions, Button, Box, Typography, Stack,
   CircularProgress, TextField, Link, Divider, Chip, Switch, useMediaQuery,
@@ -823,7 +823,8 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
   });
   const recap = preview.recap;
   useEffect(() => { setPlanAsksStay(null); }, [open, reservationId, mode, dataRevision]);
-  useEffect(() => {
+  // Before paint: the steps and the recap's headings follow the plan in the frame the recap lands in (loop t21 UI21-1).
+  useLayoutEffect(() => {
     if (mode === 'arrival' && recap) setPlanAsksStay(Boolean(recap.stayPayment?.applicable));
   }, [mode, recap]);
   // Mock M3 — « Percevoir maintenant »: the lines the stay sold for its departure join what is collected at the door. The line API moves
@@ -1209,9 +1210,10 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
               </Typography>
             </>
           )}
-          {preview.pending && (
-            <LinearProgress aria-label="Calcul du total" sx={{ height: 2, mt: 0.5, borderRadius: 1 }} color="secondary" />
-          )}
+          {/* Its 2 px are kept while idle: a re-price never moves what follows (loop t21 UI21-1). */}
+          <Box sx={{ height: 2, mt: 0.5 }}>
+            {preview.pending && <LinearProgress aria-label="Calcul du total" sx={{ height: 2, borderRadius: 1 }} color="secondary" />}
+          </Box>
         </Box>
         {/* Rule 24 — the operator's adjustment on the fiche wins; the computed figure stays visible. */}
         {!failed && recap.adjusted?.endOfStay && (
@@ -1339,7 +1341,7 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
         );
       case 'stayPayment':
         return (
-          <SasStayPaymentPage stayPayment={recap ? recap.stayPayment : null} value={stayPayMode}>
+          <SasStayPaymentPage stayPayment={recap ? recap.stayPayment : data.stayPayment} pending={!recap} value={stayPayMode}>
             <PaymentModeButtons value={stayPayMode} onChange={setStayPayMode} showDefer deferLabel="Pas maintenant" />
           </SasStayPaymentPage>
         );
@@ -1808,9 +1810,10 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
                     Total à percevoir à l'arrivée : {formatCurrency(recap.totalAtArrival)}
                   </Typography>
                 )}
-                {preview.pending && (
-                  <LinearProgress aria-label="Calcul du total" sx={{ height: 2, mt: 0.5, borderRadius: 1 }} color="secondary" />
-                )}
+                {/* Its 2 px are kept while idle: a re-price never moves what follows (loop t21 UI21-1). */}
+                <Box sx={{ height: 2, mt: 0.5 }}>
+                  {preview.pending && <LinearProgress aria-label="Calcul du total" sx={{ height: 2, borderRadius: 1 }} color="secondary" />}
+                </Box>
               </Box>
               {/* Rule 24 — the operator's adjustment on the fiche wins; the computed figure stays visible. */}
               {!failed && recap.adjusted && (
