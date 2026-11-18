@@ -690,6 +690,17 @@ Optional: a plugin that declares nothing reads « Actif ».
     LazyReportCharts pattern): same names, same props, their code fetched on first render (« Vente hors séjour » on its first `open`), so
     the SDK no longer puts them in every first page (specs/inte-performance.md rule 4: 315.3 → 309.1 kB gzip measured locally, budget
     313.3 kB). Test `LazySaleComponents.lazy`.
+    _Reading of 2026-11-18 (loop t20 UI20-1):_ fetched on first render, a block arrived one round trip after its dialog had drawn its own
+    content and pushed it down (+186 px in the outside visit's arrival at 1280 px, « Récapitulatif » and « Encaisser » 126 px lower on a
+    phone, +56 px in the departure SAS). A dialog that renders a sale block now starts the four imports when it opens, in parallel with
+    its own data, and shows its content once both are there: `useSaleComponentsReady(open)` (client export of SDK 2.32.0, its rule 55
+    floor row in `plugin-client-sdk-floor`) answers false until the code is loaded (or its loading failed, which the chunk boundary then
+    shows), and the dialog's loading state covers the wait — `ResourceArrivalDialog` (body, phone « Reste à payer » bar, « Nouvelle
+    vente », « Valider l’arrivée ») and `ReservationSasDialog` (body and footer). The imports are made once per session
+    (`preloadSaleComponents()`, memoised, a failure tried again); a block whose code is already there renders on its first paint without
+    suspending, so nothing lands under drawn content and the Suspense fallback stays `null`. « Vente hors séjour » opens on its click's
+    own paint. Initial JavaScript 309.4 kB gzip (budget 313.3 kB). Tests `LazySaleComponents.preload`, `LazySaleComponents.consumers`
+    (the consumers enumerated from the code).
     **The SDK history records what each shipped minor exposed:** v4.1.0 shipped SDK 2.27.0 without `vat`, `accountingOutput`, `legacyBucketSplit`,
     `refundJournal`, `csvJournal`, `salesJson` and `synthesisExporter`, and neither SDK 2.28.0 (the home-data extension points,
     specs/guest-app-home-automation.md, merged first) nor SDK 2.29.0 (the Mollie tranches and journal, rule 51, merged first) recorded them,
@@ -804,7 +815,9 @@ No new npm dependency. `googleapis` and `qrcode` stay in `server/package.json`.
 
 | Layer | File | T/C | Responsibility |
 |---|---|---|---|
-| `plugins/sdk/` | `index.js` | C | What a plugin may import (rule 16) |
+| `plugins/sdk/` | `index.js` | C | What a plugin may import (rule 16); the four sale blocks re-pointed to their lazy wrappers and `useSaleComponentsReady` (rule 54, readings of 2026-11-18, loops t19 A19-1 and t20 UI20-1) |
+| `components/` | `LazySaleComponents.jsx` | C | The four sale blocks as the SDK hands them out, their code apart from the first page; `preloadSaleComponents()` (once per session) and `useSaleComponentsReady(active)`; a block already loaded renders without suspending (rule 54, readings of 2026-11-18) |
+| `plugins/hourly-resources/`, `plugins/sas/` | `ResourceArrivalDialog.jsx`, `ReservationSasDialog.jsx` | T | Start the sale blocks' code on open and show their content once it is there (rule 54, reading of 2026-11-18, loop t20 UI20-1) |
 | `plugins/sdk/` | `registry.js`, `useSlot.js`, `Slot.jsx` | C | Contributions by slot; the active ones (`usePlugin` once per module); lazy rendering in place |
 | `plugins/` | `index.js` | C | The list of client modules |
 | `plugins/weather-alerts/` | `index.js`, `SettingsWeatherSection.jsx`, `SasWeatherAlertPage.jsx`, `sasStep.jsx`, `__tests__/` | C (moved) | The settings card saves through `/api/plugins/weather-alerts/settings`; the SAS step loads its alerts |
@@ -937,6 +950,12 @@ still in the core. Server: 4,611 tests after, of which 37 are new. Client: 1,416
 - `components/sas/__tests__/ReservationSasDialog.plugins.test.jsx` (5) — the portal step without Sowel,
   with a Sowel key, and absent (rule 17); the weather step gated and shown (rule 13).
 - `components/__tests__/SettingsCompanySection.portal-code.test.jsx` (2) — rule 17.
+- `components/__tests__/LazySaleComponents.lazy.test.jsx` (6) — rule 54 (reading of 2026-11-18, loop t19 A19-1): the SDK exports are the
+  lazy wrappers, each renders the real block with its props, « Vente hors séjour » is not fetched until its first `open`.
+- `components/__tests__/LazySaleComponents.preload.test.jsx` (6) — rule 54 (reading of 2026-11-18, loop t20 UI20-1): an inactive
+  consumer starts nothing, an active one the four imports, once; once loaded every block is in the first paint.
+- `components/__tests__/LazySaleComponents.consumers.test.jsx` (5) — rule 54 (loop t20 UI20-1): the consumers enumerated from the code
+  equal the table; each asks for the blocks when opened, keeps its content back until they are there, and starts nothing when closed.
 
 ### E2E
 - `plugins/plugins-page.spec.js`: + Météo uninstalled with erasure, then reinstalled → the key is gone.

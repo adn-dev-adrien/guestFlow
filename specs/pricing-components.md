@@ -895,6 +895,12 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
     > still throws at `prepare`), keeps no text that fails to compile, and holds at most 2 000 texts (least recently used dropped). No module of
     > `src/` sets a statement mode (`pluck`, `raw`, `expand`, `bind`) or iterates, which a shared statement would leak between callers. No
     > figure moves: the same statements run on the same rows. Test `statement-cache`.
+    > _Reading of 2026-11-18 (loop t20 O20-1):_ the « no statement mode » guard reads `server/src` and `scripts/`, comments and string
+    > texts set aside: `pluck`, `expand`, `safeIntegers` and `iterate` on any receiver; `raw` and `bind` on a statement — chained on
+    > `prepare(…)` whatever its argument, across lines, or on a name assigned from `prepare(…)` — with any argument (`.raw(1)`,
+    > `.raw(flag)`). Its self-test proves each form is caught and that `settings.raw(key)` or `fn.bind(this)` are not. The feed of
+    > google-vacation-rentals kept its own per-run statement cache over the same handle; it is removed, the core's cache serves it
+    > (same statements, same rows, the plugin's suites unchanged).
 49. **Articles with a downstream booking (fulfilment port).** An article may name a fulfilment adapter
     (`fulfilment: 'hourly-slot'`). `ArticleFulfilment` is a plain object `{ id, reserve(draft, ctx) → hold
     {id, expiresAt}, confirm(hold, line, tx), release(hold, reason) }`, registered through
@@ -3052,7 +3058,7 @@ _Rewritten 2026-11-15 (stabilisation loop t1, UI-3) to what shipped._
 - [x] `sale-departure-part-of-arrival-line` — rule 103 d (loop t4, S4-6): a discount given back after the validated arrival is listed at the departure and stays there after the next sale (2)
 - [x] `sale-undiscount-open-arrival-then-sale` — rule 103 d (loop t4, S4-1): discount 10 then 0 at the open arrival, ticked, a sale: the departure takes only the sale
 - [x] `stay-line-facts-never-late` — rule 48 (loop t5, D5-6): the line facts of a stay left marked are rebuilt before they are read (1)
-- [x] `statement-cache` — rule 48 (reading of 2026-11-18, loop t19): one compiled statement per text and handle, emptied on a schema change, never keeps a text that fails, bounded, the stay-write trail sees each UPDATE once, the application database is cached and no `src/` module sets a statement mode (6)
+- [x] `statement-cache` — rule 48 (reading of 2026-11-18, loop t19): one compiled statement per text and handle, emptied on a schema change, never keeps a text that fails, bounded, the stay-write trail sees each UPDATE once, the application database is cached and no module of `server/src` or `scripts/` sets a statement mode, with the guard's self-test (loop t20 O20-1) (7)
 - [x] `sale-paid-line-fiche-save` — rule 105 a (loop t5, S5-1, A5-1): a card-paid line offered in the fiche asks what its line action asks (OVERPAID then owed on a platform stay; OVERPAID then owed on a direct one; credited to an open complement); removed from the body → `LINE_PAID` (4)
 - [x] `sale-paid-line-offered-kept` — rule 105 b (loop t5, S5-4, S5-5): an offered paid line is neither removed nor moved; the article re-sold is a line of its own, unpaid (2)
 - [x] `sale-arrival-open-early-tick` — rule 105 c (loop t5, S5-6): a box or a SAS stamp set before the arrival day closes nothing; on the day, judge and sale refuse together (4)

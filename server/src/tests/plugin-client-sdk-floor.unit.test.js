@@ -24,6 +24,8 @@ const CLIENT_EXPORTS = [
   { names: ['TransactionRef'], sdk: '2.29.0' },
   { names: ['StaySalesSection'], sdk: '2.30.0' },
   { names: ['SuggestedArticlesStep', 'SalePaymentLink', 'StandaloneSaleDialog'], sdk: '2.32.0' },
+  // Loop t20 UI20-1 — the dialogs that render a sale block wait for its code (rule 54, reading 2026-11-18).
+  { names: ['useSaleComponentsReady'], sdk: '2.32.0' },
 ];
 
 const floorOf = (text) => CLIENT_EXPORTS

@@ -22,6 +22,7 @@ import {
 } from '@mui/material';
 import {
   api, formatCurrency, LoadingState, ErrorAlert, ConfirmDialog, SuggestedArticlesStep, SalePaymentLink, StatusBadge, StandaloneSaleDialog,
+  useSaleComponentsReady,
 } from '../sdk';
 import OfferedTimeField from './OfferedTimeField';
 import BookingPaymentFields, { paymentBody, hasCard } from './BookingPaymentFields';
@@ -126,6 +127,8 @@ export default function ResourceArrivalDialog({ open, bookingId, onClose, onDone
   const [obligationAsk, setObligationAsk] = useState(null);
   const [link, setLink] = useState({ busy: false, error: null, sentTo: null });
   const [newSaleOpen, setNewSaleOpen] = useState(false);
+  // The sale blocks' code is fetched with the visit; the content shows once both are there, so nothing lands under it later (plugins-phase-1-sdk rule 54, loop t20 UI20-1).
+  const salesReady = useSaleComponentsReady(open);
 
   const load = useCallback(() => {
     setLoadError(null);
@@ -321,16 +324,16 @@ export default function ResourceArrivalDialog({ open, bookingId, onClose, onDone
         Arrivée{booking ? ` · ${booking.displayName}` : ''}
         <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>{heading}</Typography>
       </DialogTitle>
-      {view && (
+      {view && salesReady && (
         <Box sx={{ position: 'sticky', top: 0, zIndex: 2, bgcolor: 'background.paper', px: 3, py: 1, borderBottom: 1, borderColor: 'divider', display: { xs: 'flex', sm: 'none' }, justifyContent: 'space-between', alignItems: 'baseline' }}>
           <Typography variant="body2">{TEXTS.remaining}</Typography>
           <Typography data-testid="sticky-remaining" sx={{ fontFamily: (t) => t.typography.pageTitle?.fontFamily, fontWeight: 700, fontSize: '1.3rem', fontVariantNumeric: 'tabular-nums', opacity: dirty && quote.pending ? 0.6 : 1 }}>{euros(remainingCents)}</Typography>
         </Box>
       )}
       <DialogContent sx={{ pt: 2 }}>
-        {!visit && !loadError && <LoadingState />}
+        {(!visit || !salesReady) && !loadError && <LoadingState />}
         {loadError && <ErrorAlert message={loadError} onRetry={load} />}
-        {view && (
+        {view && salesReady && (
           <Box sx={{ display: 'grid', gap: 2.5, gridTemplateColumns: { xs: '1fr', lg: 'minmax(0, 1.2fr) minmax(0, 1fr)' }, alignItems: 'start' }}>
             <Box sx={{ display: 'grid', gap: 2.5, minWidth: 0 }}>
               {readOnly && <Alert severity="info">{visit.access.reason}</Alert>}
@@ -484,14 +487,14 @@ export default function ResourceArrivalDialog({ open, bookingId, onClose, onDone
         )}
       </DialogContent>
       <DialogActions sx={{ flexDirection: { xs: 'column', sm: 'row' }, gap: 1, p: 2, '& > :not(style) ~ :not(style)': { ml: { xs: 0, sm: 1 } } }}>
-        {visit && visit.newSale && (
+        {visit && visit.newSale && salesReady && (
           <Button variant="outlined" onClick={() => setNewSaleOpen(true)} sx={{ minHeight: 44, width: { xs: '100%', sm: 'auto' }, mr: { sm: 'auto' } }}>{TEXTS.newSale}</Button>
         )}
         {!closesOnly && !readOnly && <Button onClick={onClose} disabled={busy} sx={{ minHeight: 44, width: { xs: '100%', sm: 'auto' } }}>{TEXTS.cancel}</Button>}
         <Button
           variant="contained"
           onClick={closesOnly || readOnly ? onClose : () => validate()}
-          disabled={!canValidate && !readOnly}
+          disabled={!salesReady || (!canValidate && !readOnly)}
           sx={{ minHeight: 44, width: { xs: '100%', sm: 'auto' } }}
         >
           {busy ? TEXTS.saving : (readOnly ? TEXTS.close : primaryLabel)}

@@ -34,7 +34,8 @@ test('on a phone: full screen, the reste kept at the top, « Valider l\'arrivée
   render(<ResourceArrivalDialog open bookingId={5} onClose={() => {}} onDone={() => {}} />);
   const dialog = await screen.findByRole('dialog');
   expect(dialog.className).toMatch(/MuiDialog-paperFullScreen/);
-  expect(screen.getByTestId('sticky-remaining')).toHaveTextContent('120,00 €');
+  // The visit shows at once with the sale blocks' code (plugins-phase-1-sdk rule 54, loop t20 UI20-1).
+  expect(await screen.findByTestId('sticky-remaining')).toHaveTextContent('120,00 €');
   const buttons = Array.from(dialog.querySelectorAll('button')).filter((b) => !b.closest('.MuiDialogContent-root'));
   const last = buttons[buttons.length - 1];
   expect(last).toHaveTextContent('Valider l’arrivée');

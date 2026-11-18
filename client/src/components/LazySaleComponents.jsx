@@ -1,39 +1,82 @@
 /**
- * LazySaleComponents — the sale blocks as the plugin SDK hands them out (specs/inte-performance.md rule 4, loop t19 A19-1).
- * The SDK is part of the initial bundle, so a static re-export made every first page pay for the sale screens of the
- * SAS and of the outside visit (« Vente hors séjour » alone was ~8 kB gzip, the three sections ~6 kB more). Each is
- * fetched the first time a plugin renders it, like the report charts (LazyReportCharts). Nothing shows while its code
- * arrives: they render inside a dialog that is already loading its own data.
+ * LazySaleComponents — the sale blocks as the plugin SDK hands them out (specs/plugins-phase-1-sdk.md rule 54, readings of
+ * 2026-11-18; specs/inte-performance.md rule 4, loop t19 A19-1). The SDK is part of the initial bundle, so a static re-export
+ * made every first page pay for the sale screens of the SAS and of the outside visit (« Vente hors séjour » alone was ~8 kB
+ * gzip, the three sections ~6 kB more). Their code is fetched apart, like the report charts (LazyReportCharts).
+ *
+ * A block that arrived after its dialog's own content pushed that content down (loop t20 UI20-1: +186 px in the visit
+ * dialog). So a consumer starts the four imports when it opens, in parallel with its data, and shows its content once both
+ * are there: `useSaleComponentsReady(open)` answers false until then, and its loading state covers the wait. A block whose
+ * code is already loaded renders at once, without suspending (the `lazyPage` pattern, inte-performance rule 10).
  *
  * Exports, with exactly the props of the component they stand for:
  *   LazyStaySalesSection       → StaySalesSection
  *   LazySuggestedArticlesStep  → SuggestedArticlesStep
  *   LazySalePaymentLink        → SalePaymentLink
- *   LazyStandaloneSaleDialog   → StandaloneSaleDialog — fetched on its first `open`, then kept mounted so its closing
+ *   LazyStandaloneSaleDialog   → StandaloneSaleDialog — mounted on its first `open`, then kept mounted so its closing
  *                                transition still plays
+ * and
+ *   preloadSaleComponents()       starts the four imports once for the whole session; always resolves (a failed import is
+ *                                 tried again by the next call or render, which shows the error through the boundary)
+ *   useSaleComponentsReady(active) true once the four are loaded, or their loading failed; starts them while `active`
  */
-import React, { Suspense, lazy, useState } from 'react';
+import React, { Suspense, lazy, useEffect, useState } from 'react';
 
-const StaySalesSection = lazy(() => import('./StaySalesSection'));
-const SuggestedArticlesStep = lazy(() => import('./SuggestedArticlesStep'));
-const SalePaymentLink = lazy(() => import('./SalePaymentLink'));
-const StandaloneSaleDialog = lazy(() => import('./StandaloneSaleDialog'));
-
-export function LazyStaySalesSection(props) {
-  return <Suspense fallback={null}><StaySalesSection {...props} /></Suspense>;
+function lazySale(loader) {
+  let loading = null;
+  let loaded = null;
+  const preload = () => {
+    if (!loading) {
+      loading = loader().then(
+        (module) => { loaded = module; return module; },
+        (error) => { loading = null; throw error; },
+      );
+    }
+    return loading;
+  };
+  const Lazy = lazy(preload);
+  function LazySale(props) {
+    // Chosen once per mount: switching from the lazy element to the loaded one would remount the block and drop its state.
+    const [Ready] = useState(() => (loaded ? loaded.default : null));
+    if (Ready) return <Ready {...props} />;
+    return <Suspense fallback={null}><Lazy {...props} /></Suspense>;
+  }
+  return { Component: LazySale, preload, isLoaded: () => Boolean(loaded) };
 }
 
-export function LazySuggestedArticlesStep(props) {
-  return <Suspense fallback={null}><SuggestedArticlesStep {...props} /></Suspense>;
+const blocks = {
+  StaySalesSection: lazySale(() => import('./StaySalesSection')),
+  SuggestedArticlesStep: lazySale(() => import('./SuggestedArticlesStep')),
+  SalePaymentLink: lazySale(() => import('./SalePaymentLink')),
+  StandaloneSaleDialog: lazySale(() => import('./StandaloneSaleDialog')),
+};
+
+export function preloadSaleComponents() {
+  return Promise.all(Object.values(blocks).map((block) => block.preload().catch(() => null))).then(() => undefined);
 }
 
-export function LazySalePaymentLink(props) {
-  return <Suspense fallback={null}><SalePaymentLink {...props} /></Suspense>;
+export const saleComponentsLoaded = () => Object.values(blocks).every((block) => block.isLoaded());
+
+export function useSaleComponentsReady(active) {
+  const [ready, setReady] = useState(saleComponentsLoaded);
+  useEffect(() => {
+    if (!active || ready) return undefined;
+    let live = true;
+    preloadSaleComponents().then(() => { if (live) setReady(true); });
+    return () => { live = false; };
+  }, [active, ready]);
+  return ready;
 }
+
+export const LazyStaySalesSection = blocks.StaySalesSection.Component;
+export const LazySuggestedArticlesStep = blocks.SuggestedArticlesStep.Component;
+export const LazySalePaymentLink = blocks.SalePaymentLink.Component;
+
+const SaleDialog = blocks.StandaloneSaleDialog.Component;
 
 export function LazyStandaloneSaleDialog(props) {
   const [opened, setOpened] = useState(Boolean(props.open));
   if (props.open && !opened) setOpened(true);
   if (!opened) return null;
-  return <Suspense fallback={null}><StandaloneSaleDialog {...props} /></Suspense>;
+  return <SaleDialog {...props} />;
 }

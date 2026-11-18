@@ -123,6 +123,9 @@ the same kind fails CI instead of reaching Adrien.
    script with the date it was measured: **284 851 bytes gzip measured on 2026-10-28, budget
    313 336**. Before rule 2: 637 kB gzip (`index` 77 + `sdk` 144 + `App` 416). It needs
    `build.manifest: true` in `client/vite.config.js`.
+   _Reading of 2026-11-18 (loops t19 A19-1, t20 UI20-1):_ the SDK's four sale blocks (`components/LazySaleComponents.jsx`) are
+   fetched apart from the first page and started when a dialog that renders them opens (specs/plugins-phase-1-sdk.md rule 54):
+   309.4 kB gzip measured, under the budget.
 5. **The heavy endpoints do not grow with the data.** On a fixture of 2 000 reservations and 1 500
    clients, `GET /api/email-texts`, `POST /api/emails/preview`, `GET /api/dashboard/attention`,
    `GET /api/platforms/settings`, `GET /api/email-templates?view=timeline` and `GET /api/emails/pending`

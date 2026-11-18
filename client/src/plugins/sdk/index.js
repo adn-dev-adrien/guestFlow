@@ -76,9 +76,11 @@ export { default as ClientPickerField } from '../../components/ClientPickerField
 // online-payment — an external identifier shortened in the middle, with a copy button (specs/mollie-rolling-reserve-and-incoming-payments.md rule 12) — SDK 2.29.0.
 export { default as TransactionRef } from '../../components/TransactionRef';
 // sas — the sale lines of a stay, offered / moved / removed from the SAS (specs/pricing-components.md rules 31, 37) — SDK 2.30.0.
-// The four sale blocks load on first render, never with the shell (specs/inte-performance.md rule 4, loop t19 A19-1).
+// The four sale blocks load apart from the shell, started when their dialog opens (specs/plugins-phase-1-sdk.md rule 54, loops t19 A19-1, t20 UI20-1).
 export { LazyStaySalesSection as StaySalesSection } from '../../components/LazySaleComponents';
 // hourly-resources — the generic « Proposés à l'arrivée » step and the payment-link block (specs/outside-booking-sas.md rules 35, 39-42) — SDK 2.32.0.
 export { LazySuggestedArticlesStep as SuggestedArticlesStep, LazySalePaymentLink as SalePaymentLink } from '../../components/LazySaleComponents';
 // hourly-resources — « Nouvelle vente » on the client of an invoiced visit (specs/outside-booking-sas.md rule 24, loop t1 AV-8) — SDK 2.32.0.
 export { LazyStandaloneSaleDialog as StandaloneSaleDialog } from '../../components/LazySaleComponents';
+// sas, hourly-resources — a dialog that renders a sale block starts its code when it opens and shows its content once it is there (specs/plugins-phase-1-sdk.md rule 54, reading 2026-11-18, loop t20 UI20-1) — SDK 2.32.0.
+export { useSaleComponentsReady } from '../../components/LazySaleComponents';
