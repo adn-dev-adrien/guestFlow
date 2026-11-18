@@ -1,4 +1,5 @@
-// specs/plugins-phase-1-sdk.md rule 54 (reading of 2026-11-18, loop t22 A22-1) — every suite runs with the four SDK sale blocks' code
+// specs/plugins-phase-1-sdk.md rule 54 (reading of 2026-11-18, loop t22 A22-1) and specs/server-test-isolation.md rule 23 —
+// every suite runs with the four SDK sale blocks' code
 // arriving late (`src/setupLateSaleChunks.js`, a setup file of vitest.config.js), so a test that acts before its dialog has the code fails
 // every time. This file checks that the delay is in place, and that every dialog waiting for that code (`useSaleComponentsReady`,
 // enumerated from the code) is rendered by at least one suite — each such suite therefore runs the real late path.
