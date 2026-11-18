@@ -152,78 +152,86 @@ const tally = { saved: 0, refused: 0 };
 for (const platform of ['direct', 'Booking']) {
   for (const [mName, momentOf] of Object.entries(MOMENTS)) {
     test(`${platform} × ${mName}: every fiche gesture saves what its live preview showed`, async (t) => {
-      for (const g of GESTURES) {
-        db.exec('SAVEPOINT matrix');
-        try {
-          const id = seeded(t, platform);
-          const s = row(id);
-          const m = momentOf(s);
-          t.mock.timers.setTime(instant(m.date, m.time));
-          db.prepare('UPDATE reservations SET checkInDone = ?, arrivalSasDoneAt = NULL WHERE id = ?').run(m.val, id);
-          const res = (await call(ctrl.getById, undefined, { id: String(id) })).body;
-          const catalogue = db.prepare('SELECT * FROM options').all();
-          const form = formOf(res, catalogue);
-          const locked = Boolean(res.editLock && res.editLock.locked);
-          if (m.unlock && !locked) continue;
-          const offered = gesture(g, form, m, H.hydrateOfferedOptionIds(res.options));
-          const lockedOptionUnits = H.frozenUnitPrices(res.options, 'optionId');
-          const bodyOf = () => FQ.ficheQuoteBody({
-            form, propertyId: form.propertyId, catalogue, offeredOptionIds: offered, lockedOptionUnits,
-            lockedResourceUnits: H.frozenUnitPrices(res.resources, 'resourceId'), forceCurrentPricing: false, refreshTouristTax: false,
-            reservationId: id, unlockPast: Boolean(m.unlock),
-          });
-          assert.ok(!Object.prototype.hasOwnProperty.call(lockedOptionUnits, 'undefined'), 'S16-1: no unit keyed « undefined »');
-          // The live effect re-asks while the quote changes the form; then « Enregistrer » asks the same body once more.
-          let body = bodyOf();
-          let live = await call(ctrl.calculatePrice, clone(body));
-          for (let k = 0; k < 3 && live.status === 200; k += 1) {
-            Object.assign(form, AQ.applyQuoteToForm(form, live.body, {}));
-            const next = bodyOf();
-            if (JSON.stringify(next) === JSON.stringify(body)) break;
-            body = next;
-            live = await call(ctrl.calculatePrice, clone(body));
+      // The seeded stay is the same for every gesture: it is booked once per test, and each gesture runs and rolls back on it
+      // (specs/server-test-isolation.md rule 22).
+      db.exec('SAVEPOINT seed');
+      try {
+        const id = seeded(t, platform);
+        for (const g of GESTURES) {
+          db.exec('SAVEPOINT matrix');
+          try {
+            const s = row(id);
+            const m = momentOf(s);
+            t.mock.timers.setTime(instant(m.date, m.time));
+            db.prepare('UPDATE reservations SET checkInDone = ?, arrivalSasDoneAt = NULL WHERE id = ?').run(m.val, id);
+            const res = (await call(ctrl.getById, undefined, { id: String(id) })).body;
+            const catalogue = db.prepare('SELECT * FROM options').all();
+            const form = formOf(res, catalogue);
+            const locked = Boolean(res.editLock && res.editLock.locked);
+            if (m.unlock && !locked) continue;
+            const offered = gesture(g, form, m, H.hydrateOfferedOptionIds(res.options));
+            const lockedOptionUnits = H.frozenUnitPrices(res.options, 'optionId');
+            const bodyOf = () => FQ.ficheQuoteBody({
+              form, propertyId: form.propertyId, catalogue, offeredOptionIds: offered, lockedOptionUnits,
+              lockedResourceUnits: H.frozenUnitPrices(res.resources, 'resourceId'), forceCurrentPricing: false, refreshTouristTax: false,
+              reservationId: id, unlockPast: Boolean(m.unlock),
+            });
+            assert.ok(!Object.prototype.hasOwnProperty.call(lockedOptionUnits, 'undefined'), 'S16-1: no unit keyed « undefined »');
+            // The live effect re-asks while the quote changes the form; then « Enregistrer » asks the same body once more.
+            let body = bodyOf();
+            let live = await call(ctrl.calculatePrice, clone(body));
+            for (let k = 0; k < 3 && live.status === 200; k += 1) {
+              Object.assign(form, AQ.applyQuoteToForm(form, live.body, {}));
+              const next = bodyOf();
+              if (JSON.stringify(next) === JSON.stringify(body)) break;
+              body = next;
+              live = await call(ctrl.calculatePrice, clone(body));
+            }
+            assert.equal(live.status, 200, `${g}: ${JSON.stringify(live.body)}`);
+            const quote = (await call(ctrl.calculatePrice, clone(bodyOf()))).body;
+            const put = {
+              ...(m.unlock ? { unlockPast: true } : {}), loadedUpdatedAt: res.updatedAt || undefined, propertyId: Number(form.propertyId), clientId: form.clientId,
+              reservationNumber: form.reservationNumber || '', startDate: form.startDate, endDate: form.endDate, adults: form.adults, children: form.children,
+              teens: form.teens, babies: form.babies, singleBeds: form.singleBeds === '' ? null : Number(form.singleBeds),
+              doubleBeds: form.doubleBeds === '' ? null : Number(form.doubleBeds), babyBeds: form.babyBeds === '' ? null : Number(form.babyBeds),
+              checkInTime: form.checkInTime, checkOutTime: form.checkOutTime, platform: form.platform, touristTaxInComplement: form.touristTaxInComplement ? 1 : 0,
+              autoOptionsInComplement: [], refreshTouristTax: false, totalPrice: quote.totalPrice, discountPercent: form.discountPercent,
+              discountTarget: form.discountTarget, finalPrice: quote.finalPrice, customPrice: form.customPrice, extraGuestSurchargeOffered: Boolean(form.extraGuestSurchargeOffered),
+              depositAmount: quote.depositAmount, depositDueDate: quote.depositDueDate, depositAmountOverride: form.depositAmountOverride === '' ? null : Number(form.depositAmountOverride),
+              complementAmountOverride: form.complementAmountOverride === '' ? null : Number(form.complementAmountOverride),
+              endOfStayComplementAmountOverride: form.endOfStayComplementAmountOverride === '' ? null : Number(form.endOfStayComplementAmountOverride),
+              depositDisabled: Boolean(form.depositDisabled), depositPaid: form.depositPaid, depositPaidDate: form.depositPaidDate || null,
+              balanceAmount: quote.balanceAmount, balanceDueDate: quote.balanceDueDate, balancePaid: form.balancePaid, balancePaidDate: form.balancePaidDate || null,
+              complementPaid: form.complementPaid, complementPaidDate: form.complementPaidDate || null, complementAmount: quote.complementAmount,
+              platformCommissionAmount: form.platformCommissionAmount === '' ? null : form.platformCommissionAmount,
+              acompteCommissionAmount: form.acompteCommissionAmount === '' ? null : form.acompteCommissionAmount,
+              platformGrossAmount: form.platformGrossAmount === '' ? null : form.platformGrossAmount, platformPayoutAmount: form.platformPayoutAmount === '' ? null : form.platformPayoutAmount,
+              platformTouristTaxAmount: form.platformTouristTaxAmount === '' ? null : form.platformTouristTaxAmount, cautionAmount: form.cautionAmount, notes: form.notes,
+              refreshPricingToCurrent: false, forceMinNights: true, forceCapacity: true, forceChangeover: true, forceMaxNights: true, forceOverpayment: false, forceTypedCounts: false,
+              offeredOptionIds: Array.from(offered), options: FQ.selectedOptionsPayload(form, catalogue), customOptions: FQ.customOptionsPayload(form.customOptions),
+              resources: quote.resourceLines,
+            };
+            const saved = await call(ctrl.update, clone(put), { id: String(id) });
+            if (saved.status !== 200) {
+              assert.ok(KNOWN_REFUSALS.has(saved.body && saved.body.code), `${g}: unexpected refusal ${saved.status} ${JSON.stringify(saved.body)}`);
+              tally.refused += 1;
+              continue;
+            }
+            tally.saved += 1;
+            const after = row(id);
+            for (const field of ['finalPrice', 'depositAmount', 'balanceAmount', 'complementAmount', 'touristTaxTotal']) {
+              assert.equal(cents(live.body[field]), cents(after[field]), `${g}: ${field}`);
+            }
+            assert.deepEqual(lineDiffs(previewLines(live.body), storedLines(id)), [], `${g}: lines`);
+          } finally {
+            db.exec('ROLLBACK TO matrix');
+            db.exec('RELEASE matrix');
           }
-          assert.equal(live.status, 200, `${g}: ${JSON.stringify(live.body)}`);
-          const quote = (await call(ctrl.calculatePrice, clone(bodyOf()))).body;
-          const put = {
-            ...(m.unlock ? { unlockPast: true } : {}), loadedUpdatedAt: res.updatedAt || undefined, propertyId: Number(form.propertyId), clientId: form.clientId,
-            reservationNumber: form.reservationNumber || '', startDate: form.startDate, endDate: form.endDate, adults: form.adults, children: form.children,
-            teens: form.teens, babies: form.babies, singleBeds: form.singleBeds === '' ? null : Number(form.singleBeds),
-            doubleBeds: form.doubleBeds === '' ? null : Number(form.doubleBeds), babyBeds: form.babyBeds === '' ? null : Number(form.babyBeds),
-            checkInTime: form.checkInTime, checkOutTime: form.checkOutTime, platform: form.platform, touristTaxInComplement: form.touristTaxInComplement ? 1 : 0,
-            autoOptionsInComplement: [], refreshTouristTax: false, totalPrice: quote.totalPrice, discountPercent: form.discountPercent,
-            discountTarget: form.discountTarget, finalPrice: quote.finalPrice, customPrice: form.customPrice, extraGuestSurchargeOffered: Boolean(form.extraGuestSurchargeOffered),
-            depositAmount: quote.depositAmount, depositDueDate: quote.depositDueDate, depositAmountOverride: form.depositAmountOverride === '' ? null : Number(form.depositAmountOverride),
-            complementAmountOverride: form.complementAmountOverride === '' ? null : Number(form.complementAmountOverride),
-            endOfStayComplementAmountOverride: form.endOfStayComplementAmountOverride === '' ? null : Number(form.endOfStayComplementAmountOverride),
-            depositDisabled: Boolean(form.depositDisabled), depositPaid: form.depositPaid, depositPaidDate: form.depositPaidDate || null,
-            balanceAmount: quote.balanceAmount, balanceDueDate: quote.balanceDueDate, balancePaid: form.balancePaid, balancePaidDate: form.balancePaidDate || null,
-            complementPaid: form.complementPaid, complementPaidDate: form.complementPaidDate || null, complementAmount: quote.complementAmount,
-            platformCommissionAmount: form.platformCommissionAmount === '' ? null : form.platformCommissionAmount,
-            acompteCommissionAmount: form.acompteCommissionAmount === '' ? null : form.acompteCommissionAmount,
-            platformGrossAmount: form.platformGrossAmount === '' ? null : form.platformGrossAmount, platformPayoutAmount: form.platformPayoutAmount === '' ? null : form.platformPayoutAmount,
-            platformTouristTaxAmount: form.platformTouristTaxAmount === '' ? null : form.platformTouristTaxAmount, cautionAmount: form.cautionAmount, notes: form.notes,
-            refreshPricingToCurrent: false, forceMinNights: true, forceCapacity: true, forceChangeover: true, forceMaxNights: true, forceOverpayment: false, forceTypedCounts: false,
-            offeredOptionIds: Array.from(offered), options: FQ.selectedOptionsPayload(form, catalogue), customOptions: FQ.customOptionsPayload(form.customOptions),
-            resources: quote.resourceLines,
-          };
-          const saved = await call(ctrl.update, clone(put), { id: String(id) });
-          if (saved.status !== 200) {
-            assert.ok(KNOWN_REFUSALS.has(saved.body && saved.body.code), `${g}: unexpected refusal ${saved.status} ${JSON.stringify(saved.body)}`);
-            tally.refused += 1;
-            continue;
-          }
-          tally.saved += 1;
-          const after = row(id);
-          for (const field of ['finalPrice', 'depositAmount', 'balanceAmount', 'complementAmount', 'touristTaxTotal']) {
-            assert.equal(cents(live.body[field]), cents(after[field]), `${g}: ${field}`);
-          }
-          assert.deepEqual(lineDiffs(previewLines(live.body), storedLines(id)), [], `${g}: lines`);
-        } finally {
-          t.mock.timers.reset();
-          db.exec('ROLLBACK TO matrix');
-          db.exec('RELEASE matrix');
         }
+      } finally {
+        t.mock.timers.reset();
+        db.exec('ROLLBACK TO seed');
+        db.exec('RELEASE seed');
       }
     });
   }

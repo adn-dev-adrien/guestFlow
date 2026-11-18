@@ -521,6 +521,16 @@ being on the preload's lists fails the run once the suite executes the read (rul
    depends on it; like the rule 11 sweep it is manual, never part of CI. *Why:* `vi.clearAllMocks()` clears the calls,
    not the implementations — a `mockRejectedValue('Échéance 2 : date passée…')` of one test answered an extra call of the
    next one on a loaded runner, and 222 files carried that pattern.
+22. **A file that opens many databases, or replays one seed per case, builds it once** (added 2026-11-18, loop t19 —
+   PR #1054's server shards were cancelled at their 15-minute cap). A fresh database pays the boot migrations (~26 ms
+   on `schema.sql` since the pricing lines migration, about 0.25 ms per `ALTER TABLE`); a file that builds one per case
+   builds the migrated base once and opens a copy per case (`new Database(base.serialize())`); a table-driven matrix
+   whose cases share one seeded state seeds it once per test under a `SAVEPOINT` and rolls each case back to it. The
+   cases, their inputs and their assertions do not change: `refund-before-cancellation` (180 databases, 9.0 → 2.1 s
+   locally) and `fiche-preview-save-matrix` (one seed per platform × moment instead of per gesture: the same 298 saved
+   and 120 refused cells, 13.0 → 6.7 s). The same round found the larger cause in the application, not in the tests:
+   one fiche save prepared `SELECT * FROM reservations WHERE id = ?` dozens of times, fixed by the handle-wide
+   statement cache of specs/pricing-components.md rule 48 (reading of 2026-11-18).
 
 **Edge cases:**
 - A targeted `node --test <file>` used to open and migrate `server/guestflow.db` for 389 test files (audit R2,
@@ -556,6 +566,7 @@ being on the preload's lists fails the run once the suite executes the read (rul
 | `tests/setup/` | `isolateDefaultDb.js` | T | Rule 14: loads the guard. |
 | `tests/` | `test-preload-real-qonto-guard.unit.test.js` | C | Pins rule 14 in child processes that never get past the guard. |
 | `tests/`, `plugins/hourly-resources/tests/` | the three offenders | T | Rule 3. |
+| `tests/` | `refund-before-cancellation.unit.test.js`, `fiche-preview-save-matrix.unit.test.js` | T | Rule 22: the migrated base built once and copied per case; the matrix seeded once per test under a savepoint. |
 | `package.json` | `test` script | T | `--require ./src/tests/setup/isolateDefaultDb.js`; `--test-timeout=60000` and the exit watchdog (rule 5); the `spec` and completeness reporters (rule 10). |
 | `control-plane/server/package.json` | `test` script | T | `--test-timeout=180000` and the exit watchdog (rule 5); the `spec` and completeness reporters (rule 10); `--require` of the Qonto guard (rule 14) and of `fileTempRoot.js` (rule 20). |
 | `control-plane/server/src/tests/setup/` | `fileTempRoot.js`, `reapTempRoot.js` | C | Rule 20: the test file's temp root and its reaper; instances whose pid file lies in the root are killed and the root removed at exit or at the file's death. |

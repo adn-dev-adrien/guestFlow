@@ -3063,5 +3063,7 @@ require('./utils/dbHygiene').applyHygiene(db);
 
 // Which stays a request wrote, for the open fiche (specs/reservation-fiche-concurrency.md rule 6).
 require('./utils/stayWriteTrail').install(db);
+// One compiled statement per SQL text (pricing-components rule 48, handle-wide since loop t19). Last: over every prepare wrapper.
+require('./utils/statementCache').install(db);
 
 module.exports = db;
