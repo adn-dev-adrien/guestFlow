@@ -14,7 +14,7 @@ export const emptyResource = {
   name: '', quantity: '1', price: '0', priceType: 'per_stay', propertyIds: [], description: '',
   propertyPricing: {},
   isComplex: false, slotDuration: 5, minimumUsageMinutes: 0, openTime: '08:00', closeTime: '22:00', openDays: ALL_DAYS, turnoverMinutes: 0,
-  showsPlanningCard: false, hourlyEveningStart: '', hourlyEveningRate: 0, hourlyExternalDayRate: 0, hourlyExternalEveningRate: 0,
+  showsPlanningCard: false, hourlyEveningStart: '', hourlyEveningRate: 0, hourlyExternalDayRate: 0, hourlyExternalEveningRate: 0, hourlyDegressiveTiers: [],
   heatUpMinutes: 0, heatRetentionMinutes: 0,
   emailBookedText: '', emailBookedTextEn: '',
   ...emptyExternalSale,
@@ -23,7 +23,7 @@ export const emptyResource = {
 const DEFAULT_HOURLY_SETTINGS = {
   isComplex: 0, slotDuration: 5, minimumUsageMinutes: 0, openTime: '08:00', closeTime: '22:00',
   openDays: JSON.stringify(ALL_DAYS), turnoverMinutes: 0, showsPlanningCard: 0,
-  hourlyEveningStart: null, hourlyEveningRate: 0, hourlyExternalDayRate: 0, hourlyExternalEveningRate: 0,
+  hourlyEveningStart: null, hourlyEveningRate: 0, hourlyExternalDayRate: 0, hourlyExternalEveningRate: 0, hourlyDegressiveTiers: [],
   heatUpMinutes: 0, heatRetentionMinutes: 0,
 };
 
@@ -44,6 +44,9 @@ function hourlySettings(form) {
     hourlyEveningRate: card ? (Number(form.hourlyEveningRate) || 0) : 0,
     hourlyExternalDayRate: card ? (Number(form.hourlyExternalDayRate) || 0) : 0,
     hourlyExternalEveningRate: card ? (Number(form.hourlyExternalEveningRate) || 0) : 0,
+    hourlyDegressiveTiers: card && Array.isArray(form.hourlyDegressiveTiers)
+      ? form.hourlyDegressiveTiers.map((t) => ({ fromHour: Number(t.fromHour), percent: Number(t.percent) }))
+      : [],
     heatUpMinutes: Math.max(0, Number(form.heatUpMinutes) || 0),
     heatRetentionMinutes: Math.max(0, Number(form.heatRetentionMinutes) || 0),
   };
@@ -124,6 +127,7 @@ export function formFromResource(item) {
     hourlyEveningRate: Number(item.hourlyEveningRate || 0),
     hourlyExternalDayRate: Number(item.hourlyExternalDayRate || 0),
     hourlyExternalEveningRate: Number(item.hourlyExternalEveningRate || 0),
+    hourlyDegressiveTiers: Array.isArray(item.hourlyDegressiveTiers) ? item.hourlyDegressiveTiers : [],
     slotDuration: item.slotDuration || 5,
     minimumUsageMinutes: Number(item.minimumUsageMinutes || 0),
     openTime: item.openTime || '08:00',

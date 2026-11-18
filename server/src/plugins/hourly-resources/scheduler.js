@@ -157,6 +157,7 @@ function createScheduler(database) {
       eveningRate: Number(resource.hourlyEveningRate) || 0,
       eveningStart: resource.hourlyEveningStart || null,
       slotMinutes: Number(resource.slotDuration || 60),
+      degressiveTiers: resource.hourlyDegressiveTiers,
     });
     const credit = Math.max(0, roundMoney((Number(lineGain.amount) || 0) - Number(resource.price || 0) * (Number(lineGain.hours) || 0)));
     return Math.max(0, roundMoney(difference - credit));

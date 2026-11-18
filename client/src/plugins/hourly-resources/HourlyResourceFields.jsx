@@ -6,6 +6,7 @@ import {
   Box, Typography, FormControlLabel, Switch, FormControl, InputLabel, Select, MenuItem,
   TextField, FormGroup, Checkbox,
 } from '@mui/material';
+import DegressiveTiersEditor from './DegressiveTiersEditor';
 
 const SLOT_DURATION_OPTIONS = [
   { value: 5, label: '5 min' },
@@ -188,6 +189,10 @@ export default function HourlyResourceFields({ draft, onChange }) {
                     slotProps={{ htmlInput: { min: 0, step: '0.5' } }}
                   />
                 </Box>
+                <DegressiveTiersEditor
+                  tiers={draft.hourlyDegressiveTiers}
+                  onChange={(next) => onChange({ hourlyDegressiveTiers: next })}
+                />
               </Box>
             )}
           </Box>

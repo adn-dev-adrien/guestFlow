@@ -17,9 +17,25 @@ function toMinutes(time) {
 const sdk = require('../sdk');
 const { roundMoneyOrZero: round2 } = sdk.coreModule('money');
 
+// specs/gift-voucher-campaigns.md rule 43 — the resource's degressivity table, as an array or as the JSON
+// the column stores. A malformed stored value reads as linear: validation lives at the write boundary.
+function parseTiers(value) {
+  let list = value;
+  if (typeof value === 'string') {
+    try { list = JSON.parse(value); } catch { return []; }
+  }
+  if (!Array.isArray(list)) return [];
+  return list
+    .map((t) => ({ fromHour: Number(t && t.fromHour), percent: Number(t && t.percent) }))
+    .filter((t) => Number.isInteger(t.fromHour) && t.fromHour >= 2 && Number.isFinite(t.percent))
+    .sort((a, b) => a.fromHour - b.fromHour);
+}
+
 /**
- * cfg: { dayRate, eveningRate, eveningStart ('HH:MM' | null), slotMinutes = 30 }.
+ * cfg: { dayRate, eveningRate, eveningStart ('HH:MM' | null), slotMinutes = 30, degressiveTiers, rankOffsetMinutes = 0 }.
  * The evening rate falls back to the day rate when ≤ 0 or when eveningStart is empty.
+ * `degressiveTiers` (array or stored JSON) discounts each slice by the rank of its hour; `rankOffsetMinutes` shifts
+ * that rank for time added after minutes already covered.
  */
 function normalizeConfig(cfg = {}) {
   const dayRate = Math.max(0, Number(cfg.dayRate) || 0);
@@ -30,25 +46,45 @@ function normalizeConfig(cfg = {}) {
     eveningRate: hasEvening ? eveningRateRaw : dayRate,
     eveningStart: hasEvening ? toMinutes(cfg.eveningStart) : Infinity,
     slotMinutes: Math.max(1, Number(cfg.slotMinutes) || 30),
+    tiers: parseTiers(cfg.degressiveTiers),
+    rankOffsetMinutes: Math.max(0, Number(cfg.rankOffsetMinutes) || 0),
   };
 }
 
+// The discount of the hour a slice falls in, counted from the session's start (rule 44).
+function percentAt(sliceStart, sessionStart, normCfg) {
+  const { tiers, rankOffsetMinutes } = normCfg;
+  if (tiers.length === 0) return 0;
+  const rank = Math.floor((sliceStart - sessionStart + rankOffsetMinutes) / 60) + 1;
+  let percent = 0;
+  tiers.forEach((t) => { if (rank >= t.fromHour) percent = t.percent; });
+  return percent;
+}
+
+// One slice's value. A table rounds each slice to the cent (rule 44); without one the raw value is kept as it
+// always was, so a linear resource prices exactly as before.
+function sliceValue(rate, minutes, percent, normCfg) {
+  const raw = rate * (minutes / 60);
+  return normCfg.tiers.length === 0 ? raw : round2((raw * (100 - percent)) / 100);
+}
+
 // Price the minutes [fromMin, toMin) over the banded grid, walking in slot steps so a slice that
-// crosses the evening switch is billed at each side's band.
-function priceMinutes(fromMin, toMin, normCfg) {
+// crosses the evening switch is billed at each side's band. `sessionStart` is where the rank count begins.
+function priceMinutes(fromMin, toMin, normCfg, sessionStart = fromMin) {
   if (toMin <= fromMin) return 0;
   const { dayRate, eveningRate, eveningStart, slotMinutes } = normCfg;
   let total = 0;
   for (let t = fromMin; t < toMin; t += slotMinutes) {
     const sliceMinutes = Math.min(slotMinutes, toMin - t);
     const rate = t < eveningStart ? dayRate : eveningRate;
-    total += rate * (sliceMinutes / 60);
+    total += sliceValue(rate, sliceMinutes, percentAt(t, sessionStart, normCfg), normCfg);
   }
   return total;
 }
 
-// The same slot walk as `priceMinutes`, kept per band: consecutive slices of one band merge into one
-// entry, so a screen can show « jour 30 € · soir 40 € » without re-deriving the switch time.
+// The same slot walk as `priceMinutes`, kept per band: consecutive slices of one band and one discount merge into one
+// entry, so a screen can show « jour 30 € · soir 40 € » without re-deriving the switch time. `rate` is the
+// effective hourly rate once the rank's discount is applied; `percent` appears only on a discounted entry.
 function bandsOf(fromMin, toMin, normCfg) {
   const out = [];
   if (toMin <= fromMin) return out;
@@ -57,12 +93,16 @@ function bandsOf(fromMin, toMin, normCfg) {
     const end = Math.min(t + slotMinutes, toMin);
     const band = t < eveningStart ? 'day' : 'evening';
     const rate = band === 'day' ? dayRate : eveningRate;
+    const percent = percentAt(t, fromMin, normCfg);
+    const value = sliceValue(rate, end - t, percent, normCfg);
     const last = out[out.length - 1];
-    if (last && last.band === band && last.toMin === t) {
+    if (last && last.band === band && last.percent === percent && last.toMin === t) {
       last.toMin = end;
-      last.raw += rate * ((end - t) / 60);
+      last.raw += value;
     } else {
-      out.push({ band, fromMin: t, toMin: end, rate, raw: rate * ((end - t) / 60) });
+      out.push({
+        band, percent, fromMin: t, toMin: end, rate: round2((rate * (100 - percent)) / 100), raw: value,
+      });
     }
   }
   return out;
@@ -77,7 +117,7 @@ function roundedBands(raw, grossTotal) {
     spent = round2(spent + amount);
     return {
       band: b.band, from: formatTime(b.fromMin), to: formatTime(b.toMin),
-      minutes: b.toMin - b.fromMin, rate: round2(b.rate), amount,
+      minutes: b.toMin - b.fromMin, rate: round2(b.rate), ...(b.percent > 0 ? { percent: b.percent } : {}), amount,
     };
   });
 }
@@ -89,6 +129,15 @@ function priceRange(start, end, cfg = {}) {
   return round2(priceMinutes(toMinutes(start), toMinutes(end), normalizeConfig(cfg)));
 }
 
+// The minutes valued at the DAY rate wherever they fall (the free-minutes rule), at the rank they take: what is
+// deducted is what the gross counted.
+function dayValue(fromMin, toMin, normCfg, sessionStart) {
+  return priceMinutes(fromMin, toMin, { ...normCfg, eveningRate: normCfg.dayRate, eveningStart: Infinity }, sessionStart);
+}
+
+// A linear resource keeps the flat formula a booking's free minutes have always had.
+const flatDayValue = (fromMin, toMin, norm) => (norm.tiers.length === 0 ? (norm.dayRate * (toMin - fromMin)) / 60 : dayValue(fromMin, toMin, norm, fromMin));
+
 /**
  * What a booking does not charge (specs/pricing-components.md §3 rules 24, 37-diff 4): the lodging's free minutes are worth the DAY
  * rate — the same value a stay's free hour has on its quantity path — and the offered minutes right after them are worth the band
@@ -99,9 +148,9 @@ function priceRange(start, end, cfg = {}) {
 function bookingDeductions({ start, freeApplied, offeredApplied, freeAtDayRate = true }, cfg = {}) {
   const norm = normalizeConfig(cfg);
   let freeValue = 0;
-  if (freeApplied > 0) freeValue = freeAtDayRate ? (norm.dayRate * freeApplied) / 60 : priceMinutes(start, start + freeApplied, norm);
+  if (freeApplied > 0) freeValue = freeAtDayRate ? flatDayValue(start, start + freeApplied, norm) : priceMinutes(start, start + freeApplied, norm);
   const offeredFrom = start + freeApplied;
-  const offeredValue = offeredApplied > 0 ? priceMinutes(offeredFrom, offeredFrom + offeredApplied, norm) : 0;
+  const offeredValue = offeredApplied > 0 ? priceMinutes(offeredFrom, offeredFrom + offeredApplied, norm, start) : 0;
   return { freeValue: round2(freeValue), offeredValue: round2(offeredValue) };
 }
 
@@ -164,8 +213,7 @@ function priceSessions(sessions, cfg = {}, freeMinutes = 0) {
   const freeApplied = Math.min(free, toMinutes(first.end) - firstStart);
   // Rule 37 — the free minutes are worth the DAY rate wherever they fall: an offered hour placed in the evening owes the evening supplement, as the arrival
   // SAS bills it. `freeSupplement` is what the offered minutes would cost above the day rate (the evening supplement of the free window).
-  const dayOnly = { ...norm, eveningRate: norm.dayRate, eveningStart: Infinity };
-  const freeValue = freeApplied > 0 ? priceMinutes(firstStart, firstStart + freeApplied, dayOnly) : 0;
+  const freeValue = freeApplied > 0 ? dayValue(firstStart, firstStart + freeApplied, norm, firstStart) : 0;
   const freeSupplement = freeApplied > 0 ? Math.max(0, priceMinutes(firstStart, firstStart + freeApplied, norm) - freeValue) : 0;
 
   const billedMinutes = Math.max(0, totalMinutes - freeApplied);

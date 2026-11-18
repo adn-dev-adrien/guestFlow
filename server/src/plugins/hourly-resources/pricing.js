@@ -37,6 +37,7 @@ function createHourlyContributor() {
           dayRate: resource.price,
           eveningRate: resource.hourlyEveningRate,
           eveningStart: resource.hourlyEveningStart,
+          degressiveTiers: resource.hourlyDegressiveTiers,
           slotMinutes: resource.slotDuration,
           openTime: resource.openTime,
           closeTime: resource.closeTime,

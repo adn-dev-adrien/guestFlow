@@ -401,6 +401,11 @@ Rules are identities: a rule is never renumbered, new rules are appended
       resource, not of the vouchers.
     - Percents are integers from 0 to 100, `fromHour` strictly increasing from 2. A wrong table is
       refused with the sentence of the faulty row.
+    - It belongs to the hourly resources shown on the planning card (the banded, slot-walked
+      pricing). A flat hourly resource without a planning card has no table, and the form does not
+      offer one.
+    - A price shown for one isolated slot (a slot grid's unit price) is the first hour's; the
+      session's total, priced by the engine, carries the ranks.
 44. **Each slice takes the rate of its own band, then the discount of its rank.**
     - The engine walks the session in steps of `slotDuration` (`priceMinutes`), as today. The rank
       of a slice is the hour of the session it falls in, counted from the session's start (or from

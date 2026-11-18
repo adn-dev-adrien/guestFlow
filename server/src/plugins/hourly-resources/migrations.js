@@ -74,7 +74,7 @@ function tagEveningSupplements(db) {
 // One list for the reset and for the warning that announces it: nothing is erased unannounced.
 const HOURLY_COLUMN_RESETS = [
   ['isComplex', '0'], ['showsPlanningCard', '0'], ['hourlyEveningStart', 'NULL'], ['hourlyEveningRate', '0'],
-  ['hourlyExternalDayRate', '0'], ['hourlyExternalEveningRate', '0'], ['heatUpMinutes', '0'],
+  ['hourlyExternalDayRate', '0'], ['hourlyExternalEveningRate', '0'], ['hourlyDegressiveTiers', "'[]'"], ['heatUpMinutes', '0'],
   ['heatRetentionMinutes', '0'], ['turnoverMinutes', '0'],
 ];
 

@@ -16,6 +16,7 @@ const { numberRefused, nonNegative, wholeFrom } = require('../utils/lineInputBou
 const { buildResourceItems } = require('../utils/resourceCatalogueView');
 const { resourceCatalogueContributors } = require('../utils/resourceCatalogueContributors');
 const externalFields = require('../utils/externalArticleFields');
+const { degressiveTiersProblem } = require('../utils/degressiveTiers');
 
 const isBlank = (value) => value === undefined || value === null || (typeof value === 'string' && value.trim() === '');
 const HOURLY_RATES = ['hourlyEveningRate', 'hourlyExternalDayRate', 'hourlyExternalEveningRate'];
@@ -81,6 +82,8 @@ function validateResourcePayload(body, stored = null, knownPropertyIds = null) {
     }
   });
   Object.entries(payload.propertyPrices || {}).forEach(([pid, raw]) => priced(`propertyPrices.${pid}`, raw, stored?.propertyPrices?.[pid]));
+  const tiersMessage = degressiveTiersProblem(payload.hourlyDegressiveTiers);
+  if (tiersMessage) details.push({ field: 'hourlyDegressiveTiers', message: tiersMessage });
   RESOURCE_MINUTES.forEach((field) => {
     if (numberRefused(payload[field], nonNegative, stored?.[field])) details.push({ field, message: MESSAGES.notANumber });
   });

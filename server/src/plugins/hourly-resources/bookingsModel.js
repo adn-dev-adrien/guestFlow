@@ -348,7 +348,7 @@ function createModel(database, { standaloneVatRate = () => 20, now = () => new D
   }
 
   function getResourceForBooking(resourceId) {
-    return database.prepare('SELECT id, quantity, price, turnoverMinutes, priceType, minimumUsageMinutes, slotDuration, isComplex, showsPlanningCard, hourlyEveningStart, hourlyEveningRate, hourlyExternalDayRate, hourlyExternalEveningRate FROM resources WHERE id = ?')
+    return database.prepare('SELECT * FROM resources WHERE id = ?')
       .get(resourceId);
   }
 

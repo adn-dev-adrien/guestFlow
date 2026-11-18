@@ -34,7 +34,7 @@ import {
 import { isBlank } from './optionForm';
 import { EXTERNAL_FIELDS } from './externalSaleForm';
 
-const HOURLY_FIELDS = ['closeTime', 'hourlyEveningRate', 'hourlyExternalDayRate', 'hourlyExternalEveningRate'];
+const HOURLY_FIELDS = ['closeTime', 'hourlyEveningRate', 'hourlyExternalDayRate', 'hourlyExternalEveningRate', 'hourlyDegressiveTiers'];
 const SECTION_OF = { name: 'general', quantity: 'general', price: 'prices' };
 const sectionOf = (field) => SECTION_OF[field] || (EXTERNAL_FIELDS.includes(field) ? 'external' : (HOURLY_FIELDS.includes(field) ? 'hours' : 'prices'));
 

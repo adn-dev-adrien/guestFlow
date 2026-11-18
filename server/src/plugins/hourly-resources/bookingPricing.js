@@ -102,7 +102,9 @@ function priceBookingLines({ resource, startTime, endTime, override = null, exte
     const eveningRate = external
       ? (Number(resource.hourlyExternalEveningRate) > 0 ? Number(resource.hourlyExternalEveningRate) : (guestEveningRate > 0 ? guestEveningRate : dayRate))
       : guestEveningRate;
-    const cfg = { dayRate, eveningRate, eveningStart: resource.hourlyEveningStart, slotMinutes: resource.slotDuration };
+    const cfg = {
+      dayRate, eveningRate, eveningStart: resource.hourlyEveningStart, slotMinutes: resource.slotDuration, degressiveTiers: resource.hourlyDegressiveTiers,
+    };
     const priced = priceSessions([{ date: '2000-01-01', start: startTime, end: endTime }], cfg, 0);
     if (priced.validSessions.length) {
       const { freeValue, offeredValue } = bookingDeductions({ start, freeApplied, offeredApplied, freeAtDayRate: freeHourAtDayRate }, cfg);
