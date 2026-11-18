@@ -370,6 +370,22 @@ const HOOK_ROWS = {
     await h.release();
     expect(h.state()).toMatchObject({ data: { n: 2 }, failed: false, fresh: true });
   },
+  'a draft that can no longer be asked (disabled) ends the failure, and « Réessayer » asks nothing meanwhile (loop t24 S24-2)': async (h) => {
+    await h.failWith({ n: 2, scope: 'a' });
+    h.view.rerender({ n: 2, scope: 'a', enabled: false });
+    expect(h.state()).toMatchObject({ failed: false, error: null, pending: false });
+    act(() => { h.state().retry(); });
+    expect(h.fetcher).toHaveBeenCalledTimes(2);
+    expect(h.state()).toMatchObject({ failed: false, error: null, pending: false });
+  },
+  'an emptied draft (another draft, disabled) shows no error, and « Réessayer » sends nothing (loop t24 S24-2)': async (h) => {
+    await h.failWith({ n: 2, scope: 'a' });
+    h.view.rerender({ n: 0, scope: 'a', enabled: false });
+    expect(h.state()).toMatchObject({ failed: false, error: null, pending: false });
+    act(() => { h.state().retry(); });
+    await pause(20);
+    expect(h.fetcher).toHaveBeenCalledTimes(2);
+  },
   'a new scope for the same draft is a new request: the failure of the older scope is not shown': async (h) => {
     await h.failWith({ n: 2, scope: 'a' });
     h.view.rerender({ n: 2, scope: 'b' });
@@ -421,4 +437,23 @@ test('LinkTransactionDialog — a list that fails after a tick hides the ticked 
   fireEvent.change(screen.getByRole('searchbox'), { target: { value: '12/03' } });
   await screen.findByText(/Service indisponible|Lecture impossible/);
   expect(screen.getByRole('button', { name: 'Rattacher' })).toBeDisabled();
+});
+
+// Loop t24 S24-2 — a draft emptied after a failure (« Retirer » on the only line): nothing is left to price, so neither the failure's
+// message nor its « Réessayer » stays, and no empty draft is ever asked (before: « Réessayer » posted `lines: []` / `{}`).
+const EMPTIED = {
+  StandaloneSaleDialog: { empty: () => api.quoteStandaloneSale.mock.calls.some(([body]) => body.lines.length === 0) },
+  ResourceArrivalDialog: { empty: () => api.quoteResourceVisit.mock.calls.some(([, body]) => !body.payment && !(body.extras || []).length && body.offeredMinutes == null) },
+};
+test.each(Object.keys(EMPTIED))('%s — the draft emptied after a failure: no message, no « Réessayer », no empty draft asked', async (name) => {
+  const state = {};
+  await ROWS[name].answer(state);
+  await ROWS[name].fail(state);
+  state.fail = false;
+  fireEvent.click(screen.getAllByRole('button', { name: 'Retirer' })[0]);
+  await waitFor(() => expect(screen.queryByText('Service indisponible')).toBeNull());
+  await pause(400);
+  expect(screen.queryAllByRole('button', { name: 'Réessayer' })).toHaveLength(0);
+  expect(EMPTIED[name].empty()).toBe(false);
+  expect(focusLost()).toBe(false);
 });

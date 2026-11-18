@@ -785,6 +785,10 @@ Optional: a plugin that declares nothing reads « Actif ».
     retry shows none, an edit while failed is pending without it then shows its own success or failure, back to the failed draft, the draft
     enabled again, a new scope), `ResourceArrivalDialog.invoice-answer` and `ResourceBookingDialog.invoice-answer` (+1 each: after a good
     « Réessayer », the new payment's question is pending without the older failure, focus kept in the dialog).
+    _Same day (loop t24 S24-2):_ a draft that can no longer be asked — `enabled` false: the counter's or the visit's last line removed, an
+    invalid e-mail, the screen closed — ends the failure too, and `retry` asks nothing while disabled (before: the message and « Réessayer »
+    outlived the draft, and « Réessayer » posted an empty draft, `lines: []` or `{}`). Tests `useLatestPreview.failed-recompute` (+2 hook rows;
+    +2 consumer cases, counter and visit: the only line removed after a failure leaves no message, no « Réessayer », no empty draft asked).
     **The SDK history records what each shipped minor exposed:** v4.1.0 shipped SDK 2.27.0 without `vat`, `accountingOutput`, `legacyBucketSplit`,
     `refundJournal`, `csvJournal`, `salesJson` and `synthesisExporter`, and neither SDK 2.28.0 (the home-data extension points,
     specs/guest-app-home-automation.md, merged first) nor SDK 2.29.0 (the Mollie tranches and journal, rule 51, merged first) recorded them,
@@ -1042,7 +1046,7 @@ still in the core. Server: 4,611 tests after, of which 37 are new. Client: 1,416
   consumer starts nothing, an active one the four imports, once; once loaded every block is in the first paint. Each test of this file and of
   `LazySaleComponents.lazy` takes a fresh module registry (`vi.resetModules` + `vi.doMock`), so the session-wide memoised imports never leak
   from one test to the next and the outcome is the same in any order (loop t21 A21-1, shuffled seeds 1-12).
-- `hooks/__tests__/useLatestPreview.failed-recompute.test.jsx` (17: +7 loop t24 UI24-2, the hook's table of a failure owned by its draft) — rule 54 (reading of 2026-11-18, loop t23 S23-1): a failed request
+- `hooks/__tests__/useLatestPreview.failed-recompute.test.jsx` (21: +7 loop t24 UI24-2, the hook's table of a failure owned by its draft; +4 loop t24 S24-2, a disabled draft ends the failure) — rule 54 (reading of 2026-11-18, loop t23 S23-1): a failed request
   makes the answer unknown until a new one; every money preview screen, read from the code, shows no figure of the older answer, no live
   money field set from it, the reason with « Réessayer » (kept while the retry is asked), a disabled commit, every draft input still
   mounted, the focus never on the page or the dialog root, then the new answer; « Rattacher » disabled while the credit list is unknown.

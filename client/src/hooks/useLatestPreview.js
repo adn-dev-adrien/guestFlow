@@ -27,6 +27,8 @@
  * edited — or asked again on its own, enabled again or for a new scope — `error` and `failed` are gone, the draft is in its ordinary
  * pending state (`data` the latest answer, not `fresh`), and only its own request can fail it. A preview whose draft is built from
  * another answer (the invoice question of a typed payment) therefore never shows the failure of a payment the screen no longer holds.
+ * A draft that can no longer be asked (`enabled` false: emptied, invalid, closed) ends the failure too, and `retry` asks nothing while
+ * disabled (loop t24 S24-2).
  */
 import {
   useCallback, useEffect, useMemo, useRef, useState,
@@ -92,6 +94,9 @@ export default function useLatestPreview({
       clearTimeout(timerRef.current);
       wasEnabledRef.current = false;
       setPending(false);
+      // Nothing is asked any more (the draft emptied, made invalid, the screen closed): a failure about it has nothing left to retry
+      // (loop t24 S24-2).
+      setAnswer((prev) => (prev.failed ? { ...prev, error: null, failed: false, failedFor: null } : prev));
       return undefined;
     }
     const first = !wasEnabledRef.current;
@@ -110,7 +115,7 @@ export default function useLatestPreview({
     if (abortRef.current) abortRef.current.abort();
   }, []);
 
-  const retry = useCallback(() => send(signature), [send, signature]);
+  const retry = useCallback(() => { if (enabled) send(signature); }, [send, signature, enabled]);
 
   const failed = answer.failed && failureOf(answer, signature, scope);
   return {
