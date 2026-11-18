@@ -25,6 +25,14 @@ import theme from '../../../theme';
 import DialogProvider from '../../../components/DialogProvider';
 import ReservationSasDialog from '../ReservationSasDialog';
 import { arrivalSeedFor, departureSeedFor } from './sasPreviewFake';
+import { beforeAll } from 'vitest';
+import { preloadSaleComponents } from '../../../components/LazySaleComponents';
+
+// Loop t22 O22-1 — the dialogs under test show their content once the SDK's sale blocks are loaded (useSaleComponentsReady). Left to the
+// first test of a file, that cold import (four MUI blocks, transformed on first use) ran inside the test's 5 s budget and, on a busy
+// machine, past it (`ResourceArrivalDialog.invoiceable`, 5.1 s once). Every suite importing these fixtures loads them once, before its tests,
+// in a hook with its own budget; the tests then measure the dialog, not the import.
+beforeAll(() => preloadSaleComponents(), 30000);
 
 const BASE_RES = {
   id: 1, firstName: 'Jean', lastName: 'Dupont', propertyName: 'Tente', platform: 'direct',
