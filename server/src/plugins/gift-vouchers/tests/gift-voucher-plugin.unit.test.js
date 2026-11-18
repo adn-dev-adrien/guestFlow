@@ -61,7 +61,7 @@ test('rule 3: nothing in the plugin names an establishment, a property or a plat
   [/solio/i, /estiva/i, /granja/i, /booking\.com/i, /airbnb/i, /lodgify/i].forEach((word) => assert.equal(word.test(text), false, String(word)));
 });
 
-test('rules 1, 4: it mounts one public tree and one admin tree, declares its settings, five jobs, a push channel, its payment basket, its prepaid source and the home item', () => {
+test('rules 1, 4: it mounts one public tree and one admin tree, declares its settings, six jobs, a push channel, its payment basket, its prepaid source and the home item', () => {
   const calls = { mounts: [], settings: [], jobs: [], attention: [], channels: [], events: [], prepaid: [] };
   const noop = new Proxy(function noop() {}, { get: () => noop, apply: () => noop });
   const ctx = new Proxy({}, {
@@ -82,7 +82,7 @@ test('rules 1, 4: it mounts one public tree and one admin tree, declares its set
   withPepper(undefined, () => gv.register(ctx));
   assert.deepEqual(calls.mounts, [['/public/v1/gift-vouchers', true], ['/api/gift-vouchers', false]]);
   assert.deepEqual(calls.settings, ['pageUrl', 'linkBase']);
-  assert.deepEqual(calls.jobs, ['pending-orders-purge', 'receipts-retry', 'holds-release', 'visuals-purge', 'checks-purge']);
+  assert.deepEqual(calls.jobs, ['pending-orders-purge', 'receipts-retry', 'holds-release', 'uses-lapse', 'visuals-purge', 'checks-purge']);
   assert.deepEqual(calls.prepaid, [['giftVoucher', 'Bon cadeau']]);
   assert.deepEqual(calls.attention, ['gift-voucher-checks']);
   assert.deepEqual(calls.channels, ['gift-voucher-checks']);

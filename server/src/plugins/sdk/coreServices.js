@@ -132,6 +132,12 @@ function slotAvailability() {
   return record ? record.slotAvailability : null;
 }
 
+// SDK 2.33.0 (rules 25, 29, 53 of the campaigns spec) — the outside-booking offer a live plugin declared, or null: without it no plugin can book an outside session.
+function resourceBookingOffer() {
+  const record = registry().all().find((r) => r.resourceBookingOffer && registry().isLive(r.id));
+  return record ? record.resourceBookingOffer : null;
+}
+
 // SDK 2.26.0 (specs/guest-app.md rule 35) — every slot the live plugins hold on a resource between two dates. A
 // source that fails holds nothing: the planning keeps working, and the commit re-checks the slot anyway.
 function resourceHolds({ resourceId, from, to }) {
@@ -202,6 +208,7 @@ module.exports = Object.freeze({
   }),
   resourceScheduler,
   slotAvailability,
+  resourceBookingOffer,
   resourceHolds,
   homeData,
   homeSelection,

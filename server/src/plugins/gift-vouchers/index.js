@@ -20,9 +20,12 @@ const { createCheckLimits } = require('./rateLimiters');
 const { createProof } = require('./proof');
 const { createReceipt } = require('./receipt');
 const { createBooks } = require('./books');
-const { createOrderPaid, SOURCE } = require('./orderPaid');
+const { createOrderPaid, SOURCE, USE_SOURCE } = require('./orderPaid');
 const createVisualsModel = require('./models/visualsModel');
 const createRefundsModel = require('./models/refundsModel');
+const createUsesModel = require('./models/usesModel');
+const createUnusedModel = require('./models/unusedModel');
+const { createUseService } = require('./useService');
 const { createDocuments } = require('./documents');
 const { createRecipe } = require('./recipe');
 const images = require('./visualImages');
@@ -32,6 +35,7 @@ const { buildStayController } = require('./controllers/stayController');
 const { buildAdminController } = require('./controllers/adminController');
 const { buildPublicCheckController } = require('./controllers/publicCheckController');
 const { buildPublicOrdersController } = require('./controllers/publicOrdersController');
+const { buildPublicUseController } = require('./controllers/publicUseController');
 const { buildCampaignsController, receiveRecipe } = require('./controllers/campaignsController');
 const { buildVisualsController, receive: receiveVisual } = require('./controllers/visualsController');
 const { buildAdminRouter } = require('./routes/admin');
@@ -109,6 +113,9 @@ function buildGiftVouchersApi({
   // The engine and the catalogue the campaigns are priced and picked from: the core's, unless a suite stands in.
   engine = { quote: (request) => sdk.coreModule('standaloneSale').quote(request) },
   catalogue = createCatalogueView({ db, articles: sdk.coreModule('articles') }),
+  // The outside bookings of the resource's plugin (free slots, a 15-minute hold, a booking), asked for each time: null while that plugin is off.
+  resources = () => sdk.core.resourceBookingOffer(),
+  address = () => '',
 }) {
   const vouchers = createVouchersModel(db);
   const orders = createOrdersModel(db, { now });
@@ -117,6 +124,8 @@ function buildGiftVouchersApi({
   const campaigns = createCampaignsModel(db, { now });
   const visuals = createVisualsModel(db, { now });
   const refunds = createRefundsModel(db, { now });
+  const uses = createUsesModel(db, { now });
+  const unused = createUnusedModel(db, { now });
   const issuance = createIssuance({
     db, vouchers, orders, movements, campaigns, visuals, pepper, encrypt, now, randomBytes,
   });
@@ -153,8 +162,14 @@ function buildGiftVouchersApi({
     now,
     transaction,
   });
+  const useService = createUseService({
+    vouchers, campaigns, redemption, uses, unused, catalogue, engine, resources, terms, payments, sendMail, address, companyName, durationText: offerService.durationText, basketSource: USE_SOURCE, prepaidSource: PREPAID_SOURCE, prepaidLabel: PREPAID_LABEL, now, transaction,
+  });
+  const use = buildPublicUseController({
+    useService, proof, respond, siteOrigin,
+  });
   const admin = buildAdminController({
-    vouchers, movements, refunds, redemption, documents, offerService, campaigns, transaction, paymentMethods, userName, decrypt, receipt, sendMail, now, terms, siteOrigin,
+    vouchers, movements, refunds, redemption, documents, offerService, campaigns, transaction, paymentMethods, userName, decrypt, receipt, sendMail, now, terms, siteOrigin, uses, unused, lapseUses: (id) => useService.lapseVoucher(id),
   });
   const campaignsAdmin = buildCampaignsController({
     campaigns, catalogue, offerService, visuals, documents, recipe,
@@ -173,7 +188,7 @@ function buildGiftVouchersApi({
       admin, stays, campaigns: campaignsAdmin, visuals: visualsAdmin, receiveVisual, receiveRecipe,
     }),
     publicRouter: buildPublicRouter({
-      guard, offer, check, limiters,
+      guard, offer, check, use, limiters,
     }),
     vouchers,
     orders,
@@ -203,6 +218,10 @@ function buildGiftVouchersApi({
       return stale.length;
     },
     releaseLapsedHolds: () => redemption.releaseLapsed({ isConverted }),
+    lapseUses: () => useService.lapseDue(),
+    useService,
+    uses,
+    unused,
     redemption,
     stays,
     attention: { handler: (req, res) => res.json({ paused: checkLimits.isPaused() }), summarize: summarizeChecks },
@@ -252,6 +271,7 @@ function register(ctx) {
     payments: {
       saleLink: (sale, options) => sdk.core.payments.saleLink({ source: SOURCE, ...sale }, options),
       refreshLink: (linkId) => sdk.core.payments.refreshBasketLink(linkId),
+      withdrawLink: (linkId) => sdk.core.payments.withdrawBasketLink(linkId),
     },
     siteOrigin,
     stayOf: (id) => sdk.coreModule('reservationsModel').getRow(Number(id)) || null,
@@ -271,6 +291,7 @@ function register(ctx) {
       status: sdk.coreModule('rateLimiters').paymentStatusLimiter,
     },
     onlineSaleAvailable: () => Boolean(sdk.coreModule('paymentProviders').active()),
+    address: () => sdk.core.settings.companyAddress(),
     companyName: () => String(settingsModel().read().companyName || '').trim() || 'GuestFlow',
     pageUrl,
     terms: ctx.terms,
@@ -300,6 +321,12 @@ function register(ctx) {
     summarize: (payload) => summarizeChecks(payload),
   });
   ctx.paymentBasket({ source: SOURCE, paid: (event) => api().orderPaid(event) });
+  // Rule 29 — the remainder of a session booked with a voucher: on the bank's word, the slot is booked and the voucher settled, or the money is flagged « à rembourser » on its link.
+  ctx.paymentBasket({
+    source: USE_SOURCE,
+    paid: (event) => api().useService.paid(event),
+    labels: { refundOne: 'Séance de bain à rembourser', refundMany: 'Séances de bain à rembourser' },
+  });
   // Rules 43-44 — each voucher sold is a sale of the books, HT + VAT at its frozen rate.
   ctx.standaloneSales((window) => (tableHasRows(ctx.db) ? api().salesBetween(window) : []));
   // Rules 36-39 — the voucher as a means of payment on a booking: the core holds, prices and settles through these four calls.
@@ -310,6 +337,9 @@ function register(ctx) {
     held: (devisId) => api().redemption.held(devisId),
     settle: (args) => api().redemption.settle(args),
     release: (args) => api().redemption.release(args),
+    unused: (args) => api().useService.traceUnused(args),
+    includedTitle: 'Compris dans le bon cadeau',
+    paidMark: 'Réglé par bon',
   });
   ctx.events.on('pricing.changed', () => { if (built) built.offerService.invalidateIdeas(); });
 
@@ -321,6 +351,9 @@ function register(ctx) {
   });
   ctx.jobs.every({
     name: 'holds-release', intervalMs: HOLD_CHECK_MS, bootDelayMs: 270 * 1000, run: async () => { api().releaseLapsedHolds(); },
+  });
+  ctx.jobs.every({
+    name: 'uses-lapse', intervalMs: 60 * 1000, bootDelayMs: 100 * 1000, run: async () => { api().lapseUses(); },
   });
   ctx.jobs.every({
     name: 'visuals-purge', intervalMs: DAY_MS, bootDelayMs: 360 * 1000, run: async () => { api().purgeVisuals(); },

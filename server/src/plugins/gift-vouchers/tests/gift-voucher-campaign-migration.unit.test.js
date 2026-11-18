@@ -105,5 +105,5 @@ test('a voucher or an order written after the migration without a campaign reads
   assert.equal(createCampaignsModel(db).list().length, 1);
   db.prepare("INSERT INTO gift_voucher_orders (amountCents, source, createdAt) VALUES (5000, 'manual', '2026-11-03T10:00:00Z')").run();
   assert.equal(db.prepare('SELECT contents FROM gift_voucher_orders').get().contents, '{"kind":"lodging"}');
-  assert.deepEqual(MIGRATIONS.slice(-2).map((m) => m.name), ['gift_voucher_campaigns_v1', 'gift_voucher_visuals_v1']);
+  assert.deepEqual(MIGRATIONS.slice(-3).map((m) => m.name), ['gift_voucher_campaigns_v1', 'gift_voucher_visuals_v1', 'gift_voucher_uses_v1']);
 });

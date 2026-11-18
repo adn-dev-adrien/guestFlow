@@ -178,6 +178,10 @@ Rules are identities: a rule is never renumbered, new rules are appended
     « non pris » in the arrival SAS — nothing is kept as a balance. The settle movement records the
     unused part and its value at the day's prices. The admin detail shows « Écart non utilisé : … »
     so the owner can offer a small gift in return.
+    - **As built (step 5)**: the plugin's `ctx.prepaid` declares an optional `unused({ ref, label, valueCents })`, called
+      by the core's `prepaidSources.unusedFor` when the operator marks a line « non pris » on the outside visit; the
+      plugin writes `gift_voucher_unused` (the ledger's `kind` constraint cannot take a new kind on an existing
+      database), the admin detail reads `unusedCents` / `unused`. Nothing is kept as a balance.
 
 ### 3.C The giver's tunnel
 
@@ -282,6 +286,23 @@ Rules are identities: a rule is never renumbered, new rules are appended
     its date); voucher already used (with its date); voucher of the other kind (rule 12); voucher
     cancelled; slot no longer free; session past `closeTime`; date beyond the horizon (rule 51);
     five wrong attempts (the existing limit).
+    - **As built (step 5)**: `POST /use`, `/use/slots`, `/use/quote`, `/use/confirm` of the plugin's `useService`
+      (`controllers/publicUseController.js` only parses, guards and answers). The code is always in the body; the first
+      read and the confirmation ask for the signed proof of work, every call that reads a code is behind the same
+      per-visitor limits as `/check` (a typing error is never counted). `quote` takes `start` as
+      `YYYY-MM-DDTHH:MM`. A voucher already used says its date (« Ce bon a déjà été utilisé le … ») and an expired one
+      its date; a cancelled one says so. A recipient coming back finds a voucher held by one of its own pending uses; a
+      second confirmation replaces the pending one.
+    - **The 15-minute hold, as built**: the slot hold is `resource_booking_holds` (hourly-resources); the voucher hold
+      is a `hold` movement keyed `hold:use:<use>` for the whole balance (a voucher is used once and settled whole,
+      rule 13), released under the usual `release` key or turned into `redeem:use:<use>`. The use itself is
+      `gift_voucher_uses` (`held`, `booked`, `lapsed`, `refund_owed`); the `uses-lapse` job (every minute) lapses a use
+      past its 15 minutes. The remainder's link is a `giftVoucherUse` basket (`ctx.paymentBasket`), 15 minutes.
+    - **Late payment, as built**: a payment confirmed after the lapse is booked again when the slot is still free (the
+      voucher is held again first); when the slot was taken, the voucher used elsewhere or the amount differs, the
+      callback answers `refundOwed` and the core flags the payment link « à rembourser » — the core's own refund line
+      for a basket payment it cannot honour, already listed by its journal. `gift_voucher_refunds` stays the line of a
+      cancelled voucher (rule 54); a use never opens one. The voucher stays intact.
 
 ### 3.F The merchant card
 
@@ -512,6 +533,11 @@ Rules are identities: a rule is never renumbered, new rules are appended
       terms accepted, moved, arrival, option marked « non pris », no-show, cancelled, refund line
       opened or settled.
     - Mobile: one column, history below.
+    - **As built (step 5)**: `GET /api/resource-bookings/:id/fiche` (administrator) → `{ fiche: { booking, client,
+      sessions, lines (with `paidBy`), totals, payments, refunds, terms, arrival, history } }`. Events written to
+      `standalone_sale_history`: created, slot held, prepaid tender applied, paid (core), terms accepted
+      (`ctx.terms.accept` `onAccepted`), moved, arrival, « non pris », no-show, cancelled and refunds (core). Only a
+      booking made through the generic offer `bookOutside` writes « created » and « slot held ».
 
 ### 3.Q Cancelling a voucher (added 2026-11-18)
 
@@ -628,7 +654,7 @@ Public (existing key guard, proof of work on writes):
 | POST | `/public/v1/gift-vouchers/orders` | as today + `slug`, `extraMinutes`, `addOns`, `termsVersionId` | as today |
 | POST | `/public/v1/gift-vouchers/use` | `{ code }` | `{ kind, contents, names, expiresOn, addOns, extraTime, horizonUntil }` or a refusal |
 | POST | `/public/v1/gift-vouchers/use/slots` | `{ code, from, to }` | `{ days:[{ date, slots:[{ start, end, tag, supplementCents }] }] }` |
-| POST | `/public/v1/gift-vouchers/use/quote` | `{ code, start, extraMinutes, addOns }` | `{ included, extras, dueCents, vat }` |
+| POST | `/public/v1/gift-vouchers/use/quote` | `{ code, start: 'YYYY-MM-DDTHH:MM', extraMinutes, addOns }` | `{ included, extras, dueCents, vat }` |
 | POST | `/public/v1/gift-vouchers/use/confirm` | quote + `{ email, phone, termsVersionId }` | `{ booked }` or `{ payUrl, heldUntil }` |
 | GET | `/public/v1/gift-vouchers/links/:slug` | — | `{ target }` |
 | GET | `/public/v1/terms` | `?activity=resource` | current version of the activity |
@@ -648,6 +674,7 @@ Admin (session):
 | GET · POST | `/api/gift-vouchers/:id/pdf` · `/:id/resend` | The voucher PDF; the mail again, `{ email? }`, for a usable voucher (rules 48–49) |
 | GET | `/api/gift-vouchers/campaigns/:id/recipe.zip` · POST `/campaigns/import` | Recipe export and import, all-or-nothing (rule 10) |
 | GET | `/api/resource-bookings/:id/fiche` | Fiche passage with history (rule 53) |
+| POST | `/api/resource-bookings/:id/visit/lines/:lineId/not-taken` | An element paid in advance that the client did not take (rules 15, 36) |
 
 ## 5. Data model
 
@@ -718,6 +745,12 @@ One file per subject:
 - `booking-horizons`: lodging setting replaces 730 days; resource horizon on slots; back-office
   unbounded.
 - `outside-booking-fiche`: payload and history events.
+- `resource-booking-holds` (hourly-resources): the offer is reached through the core; free slots, bands, the hold in
+  every read, expiry and its job, one hold per reference, the booking that consumes a hold.
+- `resource-planning-card-options`: options and badges of the card, the reception's whitelist.
+- `resource-visit-prepaid-lines`: the SAS section, « non pris » and its generic callback, no refund of a prepaid line.
+- `resource-booking-offer-sdk` (core, generic): the offer's declaration, `unused` and the wording of a prepaid source,
+  `takePrepaid` and `paidByOf`.
 - `gift-voucher-campaign-wordpress`: blocks render nothing with the plugin off; redirects; field
   hidden in the booking engine.
 

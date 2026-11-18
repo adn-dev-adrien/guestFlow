@@ -41,7 +41,7 @@ test('rules 22-23 — reopening appends and journals; the card reads « À encai
   const reopened = (await f.call('commit', { id, body: { extras: [f.extra(f.lemonade, 1)] } })).body.visit;
   assert.equal(reopened.lines.length, 3);
   assert.deepEqual(reopened.history.map((entry) => entry.text), [
-    'Vente enregistrée', 'Bain fictif ×1 ajoutée', 'Bière locale ×2 ajoutée', '50,00 € encaissés : CB', 'Limonade ×1 ajoutée',
+    'Vente enregistrée', 'Bain fictif ×1 ajoutée', 'Bière locale ×2 ajoutée', '50,00 € encaissés : CB', 'Arrivée enregistrée', 'Limonade ×1 ajoutée',
   ]);
   await f.call('pay', { id, body: { tenders: f.card(1700) } });
   assert.equal(f.bookings.findById(id).cardState.label, 'Payé');

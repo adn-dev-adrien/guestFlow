@@ -22,6 +22,7 @@ const BANDS = Object.freeze({
   evening: { label: 'Extérieur · soirée', word: 'la soirée' },
 });
 const PLACEHOLDER_DATE = '2000-01-01';
+const CLOCK_TIME = /^([01]\d|2[0-3]):[0-5]\d$/;
 
 const formatTime = (minutes) => `${String(Math.floor(minutes / 60)).padStart(2, '0')}:${String(minutes % 60).padStart(2, '0')}`;
 
@@ -70,11 +71,14 @@ function quoteSession(config, session) {
   if (!session || typeof session !== 'object') return refuse('SESSION_INVALID', `« ${name} » : séance à préciser (tranche et durée).`);
   const modes = sessionModesOf(resource);
   if (!modes.length) return refuse('SESSION_UNAVAILABLE', `« ${name} » ne se réserve pas par tranche horaire.`);
-  const mode = modes.find((m) => m.band === session.band);
+  const placed = session.start !== undefined && session.start !== null;
+  if (placed && !CLOCK_TIME.test(String(session.start))) return refuse('SESSION_START_INVALID', `« ${name} » : heure de début invalide.`);
+  const mode = placed ? (modes.find((m) => m.band === session.band) || modes[0]) : modes.find((m) => m.band === session.band);
   if (!mode) {
     return refuse('SESSION_BAND_UNKNOWN', session.band === 'evening' ? `« ${name} » n’a pas de tranche du soir.` : `« ${name} » : tranche « ${session.band} » inconnue (journée ou soirée).`);
   }
-  if (!mode.sellable) return refuse('SESSION_BAND_NOT_SOLD', mode.reason);
+  if (!placed && !mode.sellable) return refuse('SESSION_BAND_NOT_SOLD', mode.reason);
+  if (placed && !modes.some((m) => m.sellable)) return refuse('SESSION_BAND_NOT_SOLD', mode.reason);
   const minutes = Number(session.minutes);
   const offset = session.rankOffsetMinutes === undefined ? 0 : Number(session.rankOffsetMinutes);
   if (!Number.isInteger(minutes) || minutes <= 0) return refuse('SESSION_MINUTES_INVALID', `« ${name} » : durée de ${session.minutes} min invalide.`);
@@ -87,10 +91,13 @@ function quoteSession(config, session) {
   if (offset + minutes < mode.minimumMinutes) {
     return refuse('SESSION_TOO_SHORT', `« ${name} » se réserve pour ${mode.minimumMinutes} min au moins : ${minutes} min est trop court.`);
   }
-  if (offset + minutes > mode.lengthMinutes) {
+  if (placed) {
+    const close = toMinutes(resource.closeTime || '23:59');
+    if (toMinutes(session.start) + offset + minutes > close) return refuse('SESSION_AFTER_CLOSE', `« ${name} » : la séance se termine après ${formatTime(close)}, l’heure de fermeture.`);
+  } else if (offset + minutes > mode.lengthMinutes) {
     return refuse('SESSION_OUT_OF_BAND', `« ${name} » : ${duration(offset + minutes)} ne tiennent pas dans ${BANDS[session.band].word} (${mode.from}–${mode.to}).`);
   }
-  const start = toMinutes(mode.from) + offset;
+  const start = (placed ? toMinutes(session.start) : toMinutes(mode.from)) + offset;
   const { dayRate, eveningRate } = rateGridOf(resource, { external: true });
   const priced = priceSessions([{ date: PLACEHOLDER_DATE, start: formatTime(start), end: formatTime(start + minutes) }], {
     dayRate,

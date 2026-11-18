@@ -34,6 +34,10 @@
       "« Annuler le bon » : dans les 14 jours du paiement, une rétractation ; au-delà, un geste commercial à confirmer avec un motif. Les réservations en attente sont libérées, une ligne de remboursement s’ouvre (rien pour un bon offert), passe en comptabilité comme un avoir daté du jour, et se marque « effectué » une fois le virement fait.",
       "Les conditions acceptées à la commande d’un bon (hébergement, ou bain pour une campagne de ressource) sont enregistrées dans le registre des conditions du cœur ; un bain ne peut pas se vendre tant que ses conditions ne sont pas publiées.",
       "Une campagne composée s’exporte en recette (.zip : campaign.json et ses images, les articles nommés, jamais un prix) et s’importe d’un bloc, ou pas du tout.",
+      "« Utiliser un bon cadeau » : le destinataire d’un bon composé le lit avec son code (jamais dans une adresse), choisit un créneau libre — « inclus » ou « + x € soirée » chiffré par GuestFlow, un bon du soir n’offrant que des créneaux du soir — ajoute du temps et des options, accepte les conditions et réserve.",
+      "Rien n’est réservé ni créé avant la confirmation de la banque, à une exception : quand un reste est à payer, le créneau et le bon sont retenus 15 minutes, avec un lien de paiement de 15 minutes. Passé ce délai le créneau et le bon sont libres ; un paiement confirmé après coup sur un créneau pris est signalé « à rembourser » sur son lien et le bon reste intact, sur un créneau encore libre la séance est réservée.",
+      "Quand rien n’est dû, la séance est réservée et le bon réglé en une seule fois ; le destinataire reçoit un mail avec le jour, les heures, l’adresse, ce qui est compris et ce qui a été payé.",
+      "Le bon règle les lignes de la vente de la séance par son moyen prépayé, la carte le reste : la comptabilité voit l’argent du bon une seule fois. Une option marquée « non pris » à l’arrivée est tracée sur le bon (« Écart non utilisé »), sans rien garder en solde.",
       "Demande le SDK 2.33 de GuestFlow."
     ],
     "1.2.0": [

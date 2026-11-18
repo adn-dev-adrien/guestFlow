@@ -1,0 +1,263 @@
+/**
+ * What another plugin may ask of the outside bookings of an hourly resource (rules 25, 29, 44-45, 53 of the campaigns spec), declared with
+ * `ctx.resourceBookingOffer` and handed out as `ctx.core.resourceBookingOffer()`. It names no instrument of payment: a session is paid, in whole or in
+ * part, by a prepaid tender some plugin holds, and what remains by a link.
+ *
+ *   freeSlots({ resourceId, from, to, minutes, band?, now? })  → { horizonUntil, days: [{ date, slots: [{ start, end }] }] }
+ *       the starts of a session of `minutes` the resource can take, inside its opening days and hours, on its grid, with its capacity, turnover, thermal readiness,
+ *       existing bookings and active holds, never past the resource's booking horizon; `band` keeps the starts before (`day`) or from (`evening`) the evening switch
+ *   quote({ resourceId, date, start, coveredBand, coveredMinutes, extraMinutes, now? }) → { ok: true, endTime, session, extra } | { ok: false, code, message }
+ *       the engine's price of a session placed at `start`: `coveredMinutes` first (already paid for in `coveredBand`, at the rank they take), then `extraMinutes` after
+ *       them, their ranks continuing; `session.supplementCents` is what the covered slices cost above their band's price (a covered day session run into the evening, rule 45)
+ *   hold({ resourceId, date, start, end, ref, minutes?, now? }) → { ok: true, expiresAt } | { ok: false, code: 'SLOT_TAKEN', message }
+ *   release(ref)
+ *   bookOutside({ resourceId, date, start, end, customer, fulfilments, lines, tenders, holdRef?, channel, terms?, actor?, acceptedTotalCents?, now? })
+ *       → { ok: true, bookingId, saleId } | { ok: false, code, message }   everything in one transaction, or nothing
+ *
+ * Priced lines are the engine's: `fulfilments` are the lines `quote` answered (`role: 'session' | 'extra'`), `lines` are `{ articleRef, quantity }` options. `tenders` are
+ * `{ method: 'prepaid', source, ref, label, covers: [{ role | articleRef, amountCents }] }` — which line each prepaid cent pays — and `{ method: 'card', amountCents, source }`,
+ * what a card payment of the remainder brought (a payment link).
+ */
+
+const sdk = require('../sdk');
+const { eachDate } = require('./schedulingModel');
+const {
+  buildDays, validateBlock, toAbsMinutes, MINUTES_PER_DAY,
+} = require('./availability');
+const { toMinutes } = require('./hourlyPricing');
+const { quoteSession, isBanded } = require('./sessionQuote');
+const { horizonUntil } = require('./horizon');
+const { HOLD_MINUTES } = require('./holdsModel');
+
+const { toParisIso } = sdk.coreModule('stayWindow');
+
+const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
+const CLOCK = /^([01]\d|2[0-3]):[0-5]\d$/;
+const CHANNELS = Object.freeze({ 'mon-bain': 'Mon bain', site: 'site', 'guest-app': 'appli du séjour' });
+const SLOT_TAKEN = 'Ce créneau n’est plus libre.';
+
+const refuse = (code, message) => ({ ok: false, code, message });
+const timeOf = (minutes) => `${String(Math.floor(minutes / 60)).padStart(2, '0')}:${String(minutes % 60).padStart(2, '0')}`;
+const sessionRefOf = (bookingId) => `hourly-slot:${Number(bookingId)}`;
+const extraRefOf = (bookingId) => `${sessionRefOf(bookingId)}:extra`;
+const REASONS = Object.freeze({
+  taken: SLOT_TAKEN, closed: 'Ce créneau est hors des horaires de la ressource.', past: 'Ce créneau est passé.', heating: 'Ce créneau est trop proche pour chauffer la ressource.',
+  duration: 'Durée ou heure de début invalide pour cette ressource.', staff: SLOT_TAKEN,
+});
+
+function createOutsideOffer({
+  db, bookings, occupancy, holds, standaloneSale = () => sdk.coreModule('standaloneSale'), terms = null, now = () => new Date(),
+}) {
+  const resourceOf = (resourceId) => db.prepare('SELECT * FROM resources WHERE id = ?').get(Number(resourceId)) || null;
+  const offerable = (resourceId) => {
+    const resource = resourceOf(resourceId);
+    return resource && isBanded(resource) ? resource : null;
+  };
+  const clockOf = (at) => (at instanceof Date ? at : now());
+  const absNow = (at) => {
+    const paris = toParisIso(at) || '';
+    return toAbsMinutes(paris.slice(0, 10), paris.slice(11, 16));
+  };
+  const todayOf = (at) => (toParisIso(at) || '').slice(0, 10);
+
+  // The bounds every read and the commit judge a block by: not before now, never past the resource's horizon.
+  const boundsOf = (resource, at) => ({ notBefore: absNow(at), notAfter: toAbsMinutes(horizonUntil(resource, at), '00:00') + MINUTES_PER_DAY });
+
+  const eveningStartOf = (resource) => (resource.hourlyEveningStart ? toMinutes(resource.hourlyEveningStart) : null);
+
+  function freeSlots({
+    resourceId, from, to, minutes, band = null, now: at,
+  }) {
+    const resource = offerable(resourceId);
+    if (!resource) return refuse('RESOURCE_UNAVAILABLE', 'Cette ressource ne se réserve pas à l’heure.');
+    const clock = clockOf(at);
+    const horizon = horizonUntil(resource, clock);
+    const lo = from > todayOf(clock) ? from : todayOf(clock);
+    const hi = to < horizon ? to : horizon;
+    const result = { ok: true, horizonUntil: horizon, days: [] };
+    if (!ISO_DATE.test(String(from)) || !ISO_DATE.test(String(to)) || !Number.isInteger(minutes) || minutes <= 0 || lo > hi) return result;
+    const dates = eachDate(lo, hi);
+    const taken = occupancy.listForStay({ resourceId: resource.id, startDate: lo, endDate: dates[dates.length - 1] });
+    const bounds = boundsOf(resource, clock);
+    const evening = eveningStartOf(resource);
+    const days = buildDays({
+      resource, dayRate: resource.price, stayDates: dates, occupancy: taken, ...bounds,
+    });
+    days.forEach((day) => {
+      const slots = day.slots
+        .filter((slot) => !slot.afterReset)
+        .filter((slot) => {
+          if (!band || evening === null) return true;
+          return band === 'evening' ? toMinutes(slot.start) >= evening : toMinutes(slot.start) < evening;
+        })
+        .map((slot) => ({ start: slot.start, end: timeOf(toMinutes(slot.start) + minutes) }))
+        .filter((slot) => validateBlock({
+          resource, block: { date: day.date, start: slot.start, end: slot.end }, occupancy: taken, ...bounds,
+        }).ok);
+      if (slots.length) result.days.push({ date: day.date, slots });
+    });
+    return result;
+  }
+
+  function quote({
+    resourceId, date, start, coveredBand, coveredMinutes, extraMinutes = 0,
+  }) {
+    const resource = offerable(resourceId);
+    if (!resource) return refuse('RESOURCE_UNAVAILABLE', 'Cette ressource ne se réserve pas à l’heure.');
+    if (!ISO_DATE.test(String(date)) || !CLOCK.test(String(start))) return refuse('SLOT_INVALID', 'Créneau invalide.');
+    const config = sdk.coreModule('articles').makeArticle(resource, { kind: 'resource' }).config;
+    const covered = Number(coveredMinutes);
+    const extra = Number(extraMinutes) || 0;
+    const placed = quoteSession(config, { band: coveredBand, start, minutes: covered });
+    if (placed.refusal) return refuse(placed.refusal.code, placed.refusal.message);
+    const reference = quoteSession(config, { band: coveredBand, minutes: covered });
+    if (reference.refusal) return refuse(reference.refusal.code, reference.refusal.message);
+    const coveredCents = Math.min(reference.line.totalCents, placed.line.totalCents);
+    const result = {
+      ok: true,
+      endTime: timeOf(toMinutes(start) + covered + extra),
+      session: {
+        line: placed.line, totalCents: placed.line.totalCents, coveredCents, supplementCents: placed.line.totalCents - coveredCents,
+      },
+      extra: null,
+    };
+    if (extra > 0) {
+      const added = quoteSession(config, {
+        band: coveredBand, start, minutes: extra, rankOffsetMinutes: covered,
+      });
+      if (added.refusal) return refuse(added.refusal.code, added.refusal.message);
+      result.extra = { line: added.line, totalCents: added.line.totalCents };
+    }
+    return result;
+  }
+
+  // The commit's own check of a block, the slot walk the reads use: a hold of `holdRef` is the buyer's own and does not count.
+  function blockRefusal(resource, { date, start, end }, { holdRef = null, at }) {
+    const taken = occupancy.listForStay({
+      resourceId: resource.id, startDate: date, endDate: date, excludeHoldRef: holdRef,
+    });
+    const verdict = validateBlock({ resource, block: { date, start, end }, occupancy: taken, ...boundsOf(resource, at) });
+    return verdict.ok ? null : refuse(verdict.reason === 'taken' || verdict.reason === 'staff' ? 'SLOT_TAKEN' : 'SLOT_UNAVAILABLE', REASONS[verdict.reason] || SLOT_TAKEN);
+  }
+
+  function hold({
+    resourceId, date, start, end, ref, minutes = HOLD_MINUTES, now: at,
+  }) {
+    const resource = offerable(resourceId);
+    if (!resource) return refuse('RESOURCE_UNAVAILABLE', 'Cette ressource ne se réserve pas à l’heure.');
+    const clock = clockOf(at);
+    const refusal = blockRefusal(resource, { date, start, end }, { holdRef: ref, at: clock });
+    if (refusal) return refusal;
+    return { ok: true, ...holds.hold({ resourceId: resource.id, date, start, end, ref, minutes }) };
+  }
+
+  const release = (ref) => holds.release(ref);
+
+  function termsHistory(saleId, row) {
+    standaloneSale().recordHistory(saleId, `Conditions générales du bain acceptées (version ${row.version}, ${CHANNELS[row.channel] || row.channel})`, 'public');
+  }
+
+  function recordTerms(bookingId, saleId, request, channel) {
+    if (!terms || !request || request.versionId == null || !terms.current('resource')) return;
+    try {
+      terms.accept({
+        activity: 'resource',
+        versionId: request.versionId,
+        subjectType: 'outsideBooking',
+        subjectRef: bookingId,
+        channel,
+        ip: request.ip || null,
+        userAgent: request.userAgent || null,
+        onAccepted: (row) => termsHistory(saleId, row),
+      });
+    } catch (err) {
+      if (!err || err.code !== 'TERMS_OUTDATED') throw err;
+      standaloneSale().recordHistory(saleId, 'Conditions générales : la version a changé avant la confirmation, aucune acceptation enregistrée.', 'public');
+    }
+  }
+
+  // The sale of the booking, priced lines first (the session under the name the visit model reads it by), then the options.
+  function saleRequestOf({
+    bookingId, customer, fulfilments, lines, acceptedTotalCents,
+  }) {
+    return {
+      fulfilments: fulfilments.map(({ role, ...line }) => ({ ...line, fulfilmentRef: role === 'extra' ? extraRefOf(bookingId) : sessionRefOf(bookingId) })),
+      lines,
+      customer: { name: customer.name, email: customer.email },
+      originRef: `resource-booking:${bookingId}`,
+      source: 'visit',
+      acceptedTotalCents,
+    };
+  }
+
+  const coverOf = (bookingId, cover) => (cover.role
+    ? { fulfilmentRef: cover.role === 'extra' ? extraRefOf(bookingId) : sessionRefOf(bookingId), amountCents: cover.amountCents }
+    : { articleRef: cover.articleRef, amountCents: cover.amountCents });
+
+  function applyTenders({ saleId, bookingId, tenders, day }) {
+    const core = standaloneSale();
+    for (const tender of tenders.filter((t) => t.method === 'prepaid')) {
+      const taken = core.takePrepaid(saleId, {
+        tender: { source: tender.source, ref: tender.ref, label: tender.label }, covers: tender.covers.map((cover) => coverOf(bookingId, cover)), paidAt: day, actor: 'public',
+      });
+      if (taken.status !== 200) return refuse('PRICE_CHANGED', 'Prix modifié : recommencer.');
+    }
+    for (const tender of tenders.filter((t) => t.method === 'card')) {
+      core.receive(saleId, {
+        method: 'card', amountCents: tender.amountCents, paidAt: day, source: tender.source, surplus: { paymentLinkId: null, reason: 'Paiement en ligne supérieur au reste' },
+      });
+    }
+    return null;
+  }
+
+  function bookOutside({
+    resourceId, date, start, end, customer = {}, fulfilments = [], lines = [], tenders = [], holdRef = null, channel = 'mon-bain', terms: termsRequest = null, actor = 'public',
+    acceptedTotalCents, now: at,
+  }) {
+    const resource = offerable(resourceId);
+    if (!resource) return refuse('RESOURCE_UNAVAILABLE', 'Cette ressource ne se réserve pas à l’heure.');
+    const clock = clockOf(at);
+    const day = todayOf(clock);
+    let outcome = null;
+    const stop = (refusal) => { outcome = refusal; throw Object.assign(new Error(refusal.code), { refusal }); };
+    try {
+      db.transaction(() => {
+        const blocked = blockRefusal(resource, { date, start, end }, { holdRef, at: clock });
+        if (blocked) stop(blocked);
+        const held = holdRef ? holds.find(holdRef) : null;
+        const created = bookings().createBooking({
+          resourceId: resource.id, date, startTime: start, endTime: end, clientName: customer.name || null, clientPhone: customer.phone || null, notes: '',
+        }, { excludeHoldRef: holdRef });
+        if (created.error) stop(created.status === 409 ? refuse('SLOT_TAKEN', SLOT_TAKEN) : refuse('BOOKING_REFUSED', created.error));
+        const bookingId = Number(created.id);
+        const core = standaloneSale();
+        const sold = core.sell(saleRequestOf({
+          bookingId, customer, fulfilments, lines, acceptedTotalCents,
+        }), { actor, now: clock });
+        if (sold.status !== 200) stop(refuse(sold.body && sold.body.code === 'PRICE_CHANGED' ? 'PRICE_CHANGED' : 'SALE_REFUSED', sold.body && sold.body.error ? sold.body.error : 'Vente refusée.'));
+        const saleId = Number(sold.document.document.id);
+        const sessionTotal = fulfilments.reduce((sum, line) => sum + line.totalCents, 0);
+        db.prepare("UPDATE resource_bookings SET saleRef = ?, totalPrice = ?, updatedAt = datetime('now') WHERE id = ?").run(`standalone:${saleId}`, sessionTotal / 100, bookingId);
+        core.recordHistory(saleId, `Séance réservée par ${customer.name || 'le client'} (canal : ${CHANNELS[channel] || channel})`, actor);
+        if (held) core.recordHistory(saleId, `Créneau retenu de ${held.startTime} à ${held.endTime} le temps du paiement (jusqu’à ${(toParisIso(new Date(held.expiresAt)) || '').slice(11, 16)})`, actor);
+        const refusal = applyTenders({
+          saleId, bookingId, tenders, day,
+        });
+        if (refusal) stop(refusal);
+        recordTerms(bookingId, saleId, termsRequest, channel);
+        if (holdRef) holds.release(holdRef);
+        outcome = { ok: true, bookingId, saleId };
+      })();
+    } catch (err) {
+      if (!err || !err.refusal) throw err;
+      return err.refusal;
+    }
+    return outcome;
+  }
+
+  return {
+    freeSlots, quote, hold, release, bookOutside,
+  };
+}
+
+module.exports = { createOutsideOffer, sessionRefOf, extraRefOf, SLOT_TAKEN };

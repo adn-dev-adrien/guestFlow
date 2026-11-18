@@ -25,6 +25,11 @@ const { buildCatalogueLines } = require('./catalogueLines');
 const { createScheduler } = require('./scheduler');
 const { createSlotAvailability } = require('./slotAvailability');
 const { createBathFulfilment } = require('./bathFulfilment');
+const { createOutsideOffer } = require('./outsideOffer');
+const { createHoldsModel } = require('./holdsModel');
+const { createLineMarksModel } = require('./lineMarksModel');
+const { createFicheModel } = require('./ficheModel');
+const occupancyModel = require('./occupancyModel');
 const { createInvoicing } = require('./invoicing');
 const { SETTINGS, standaloneVatRateOf, outsideVatRateOf } = require('./settings');
 const termsSeed = require('./termsSeed');
@@ -51,6 +56,7 @@ function register(ctx) {
     get.reset = () => { built = null; };
     return get;
   };
+  const lineMarks = lazy(() => createLineMarksModel(ctx.db));
   // specs/outside-booking-sas.md — the visit of an outside client: its money is the core's sale document, read and written through the visit model.
   let visits = null;
   // Loop t1 B-3 (pricing-components rules 61, 88, outside-booking-sas rule 28) — one rate per (class, context): the rate typed on the catalogue for the
@@ -58,13 +64,14 @@ function register(ctx) {
   // the visit's mini SAS are booked and invoiced at the same rate.
   const outsideVatRate = () => outsideVatRateOf(ctx.db, standaloneVatRate);
   const bookings = lazy(() => bookingsModel.create(ctx.db, { standaloneVatRate: outsideVatRate, visits: () => visits() }));
-  visits = lazy(() => createVisitModel({ db: ctx.db, bookings }));
+  visits = lazy(() => createVisitModel({ db: ctx.db, bookings, marks: lineMarks }));
   const scheduling = lazy(() => schedulingModel.create(ctx.db));
   const planningCards = lazy(() => planningCardsModel.buildModel(ctx.db));
   const reservations = sdk.coreModule('reservationsModel');
   const invoicing = lazy(() => createInvoicing({ bookings, visits }));
   const controller = lazy(() => createController({ bookings, scheduling, planningCards, reservations, invoicing }));
-  const visitController = lazy(() => createVisitController({ bookings, visits, invoicing, bookingPayload: (booking, req) => controller().bookingPayload(booking, req) }));
+  const fiche = lazy(() => createFicheModel({ db: ctx.db, visits, marks: lineMarks }));
+  const visitController = lazy(() => createVisitController({ bookings, visits, invoicing, fiche, bookingPayload: (booking, req) => controller().bookingPayload(booking, req) }));
 
   // Rules 20-21 — the sales made outside any stay, for the journal and the card batch.
   ctx.standaloneSales((window) => (hasTable(ctx.db, 'resource_bookings') ? bookings().standaloneSales(window) : []));
@@ -104,6 +111,7 @@ function register(ctx) {
     { method: 'GET', re: /^\/resource-bookings\/\d+\/visit(\/articles)?$/ },
     { method: 'POST', re: /^\/resource-bookings\/\d+\/visit(\/quote|\/payment)?$/ },
     { method: 'PATCH', re: /^\/resource-bookings\/\d+\/visit\/lines\/\d+$/ },
+    { method: 'POST', re: /^\/resource-bookings\/\d+\/visit\/lines\/\d+\/not-taken$/ },
     { method: 'POST', re: /^\/resource-bookings\/\d+\/visit\/payment-link(\/\d+\/email)?$/ },
     { method: 'DELETE', re: /^\/resource-bookings\/\d+\/visit\/payment-link\/\d+$/ },
   ]);
@@ -120,6 +128,21 @@ function register(ctx) {
   ctx.slotAvailability(slotAvailability);
   ctx.articleFulfilment('hourly-slot', createBathFulfilment({ slotAvailability }));
 
+  // specs/gift-voucher-campaigns.md rules 25, 29, 53 — what another plugin may ask of the outside bookings of an hourly resource: free slots, a 15-minute hold,
+  // a booking with its priced lines and its tenders. No instrument of payment is named here; the holds lapse by themselves, the job below tidies them.
+  const holds = lazy(() => createHoldsModel(ctx.db));
+  const outsideOffer = lazy(() => createOutsideOffer({
+    db: ctx.db, bookings, occupancy: occupancyModel.create(ctx.db), holds: holds(), terms: ctx.terms,
+  }));
+  ctx.resourceBookingOffer({
+    freeSlots: (args) => outsideOffer().freeSlots(args),
+    quote: (args) => outsideOffer().quote(args),
+    hold: (args) => outsideOffer().hold(args),
+    release: (ref) => outsideOffer().release(ref),
+    bookOutside: (args) => outsideOffer().bookOutside(args),
+  });
+  ctx.jobs.every({ name: 'resource-holds-expire', intervalMs: 60 * 1000, bootDelayMs: 90 * 1000, run: () => holds().expire() });
+
   // Rule 12 — the « Planifier » step of the arrival SAS.
   const sasStep = createSasStep({ scheduling, reservations });
   ctx.sasData((reservationId) => sasStep.data(reservationId));
@@ -127,7 +150,7 @@ function register(ctx) {
 
   // Rule 17 (P16) — warn, then erase: the external bookings hold money, journaled or not.
   ctx.data({
-    tables: ['resource_bookings'],
+    tables: ['resource_bookings', 'resource_booking_holds', 'resource_visit_line_marks'],
     describe: (db) => {
       const lines = [];
       if (hasTable(db, 'resource_bookings')) {
@@ -193,6 +216,8 @@ function register(ctx) {
       visits.reset();
       visitController.reset();
       invoicing.reset();
+      holds.reset();
+      outsideOffer.reset();
       scheduling.reset();
       planningCards.reset();
       scheduler.reset();

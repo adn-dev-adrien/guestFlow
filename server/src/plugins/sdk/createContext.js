@@ -19,6 +19,7 @@ const CONTRIBUTOR_MEMBERS = ['id', 'priceTypes', 'priceLine'];
 const SAS_COMMIT_MEMBERS = ['step', 'validate', 'complementItems', 'write'];
 const SCHEDULER_MEMBERS = ['slotsForStay', 'validateSessions'];
 const SLOT_AVAILABILITY_MEMBERS = ['slots', 'validate'];
+const RESOURCE_BOOKING_OFFER_MEMBERS = ['freeSlots', 'quote', 'hold', 'release', 'bookOutside'];
 const HOME_DATA_MEMBERS = ['channel', 'catalog', 'readings', 'series', 'queueCommand', 'command', 'confirmed'];
 const ISSUER_MEMBERS = ['id', 'isReady', 'issue', 'findCardBatch', 'attach', 'invoiceStatus'];
 const PUSH_CHANNEL_KEY = /^[a-z][a-z0-9-]{0,39}$/;
@@ -175,6 +176,20 @@ function createContext(id, {
       if (other) throw new Error(`${prefix} a slot availability provider is already declared by ${other.id}`);
       record.slotAvailability = provider;
     },
+    // SDK 2.33.0 (rules 25, 29, 53 of the campaigns spec) — what another plugin may ask of the plugin that owns the outside bookings of an hourly resource,
+    // handed out as `ctx.core.resourceBookingOffer()`; one per instance:
+    //   freeSlots({ resourceId, from, to, minutes, band? })  → `{ horizonUntil, days: [{ date, slots: [{ start, end }] }] }`, bounded by the resource's horizon;
+    //   quote({ resourceId, date, start, coveredBand, coveredMinutes, extraMinutes }) → the engine's priced breakdown of a session partly covered in advance;
+    //   hold({ resourceId, date, start, end, ref, minutes? }) / release(ref)  a slot held for a few minutes, blocking every availability read;
+    //   bookOutside({ ... }) → `{ ok: true, bookingId, saleId }` | `{ ok: false, code, message }`, in one transaction.
+    resourceBookingOffer(provider) {
+      RESOURCE_BOOKING_OFFER_MEMBERS.forEach((m) => {
+        if (provider == null || typeof provider[m] !== 'function') throw new Error(`${prefix} resource booking offer lacks "${m}"`);
+      });
+      const other = registry.all().find((r) => r.id !== id && r.resourceBookingOffer);
+      if (other) throw new Error(`${prefix} a resource booking offer is already declared by ${other.id}`);
+      record.resourceBookingOffer = provider;
+    },
     // SDK 2.26.0 (specs/guest-app.md rule 35) — ({ resourceId, from, to }) → [{ date, start, end, reservationId? }]:
     // slots a plugin holds on a resource before they reach the planning (an order awaiting payment). Read by
     // `ctx.core.resourceHolds(...)` as occupancy. Synchronous, one per plugin.
@@ -210,16 +225,30 @@ function createContext(id, {
     //   settle({ devisId, reservationId, amountCents, paidDate }) → { ref } | null  the quote became a stay and uses `amountCents`;
     //   release({ devisId, reason })  the quote was refused, deleted or lapsed unpaid.
     // One plugin per `source`. What it received on a stay is written with the core module `prepaidReceipts`.
+    //   unused?({ ref, label, valueCents })  an element the source paid for was not taken (an option the operator marks « non pris »): the source traces it.
+    // Optional words for the lines it paid on an outside visit: `includedTitle` (« Compris dans … »), `paidMark` (« Réglé par … »).
     prepaid({
-      source, label, apply, held, settle, release,
+      source, label, apply, held, settle, release, unused, includedTitle, paidMark,
     } = {}) {
       if (!/^[a-z][a-zA-Z0-9-]{0,39}$/.test(String(source || ''))) throw new Error(`${prefix} a prepaid source needs a source like "storedCredit"`);
       if (typeof label !== 'string' || !label.trim()) throw new Error(`${prefix} prepaid source "${source}" needs a label`);
       if ([apply, held, settle, release].some((fn) => typeof fn !== 'function')) throw new Error(`${prefix} prepaid source "${source}" needs apply, held, settle and release`);
       const other = registry.all().find((r) => (r.prepaidSources || []).some((b) => b.source === source));
       if (other) throw new Error(`${prefix} the prepaid source "${source}" is already declared by ${other.id}`);
+      if (unused !== undefined && typeof unused !== 'function') throw new Error(`${prefix} prepaid source "${source}" unused must be a function`);
+      [includedTitle, paidMark].forEach((text) => {
+        if (text !== undefined && (typeof text !== 'string' || !text.trim())) throw new Error(`${prefix} prepaid source "${source}" wording must be texts`);
+      });
       record.prepaidSources.push({
-        source, label: label.trim(), apply, held, settle, release,
+        source,
+        label: label.trim(),
+        apply,
+        held,
+        settle,
+        release,
+        unused: unused || null,
+        includedTitle: includedTitle ? includedTitle.trim() : `Compris dans : ${label.trim()}`,
+        paidMark: paidMark ? paidMark.trim() : `Réglé par : ${label.trim()}`,
       });
     },
     // `{ key, label, seed? }` — an activity whose core terms (CGV) the plugin declares (core terms per activity, rule 37 of the campaigns spec, SDK 2.33.0): one draft, one

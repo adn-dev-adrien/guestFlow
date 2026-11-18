@@ -63,6 +63,8 @@ function emptyRecord(id) {
     // specs/pricing-components.md rules 48-49 (SDK 2.30.0) — the ids of the fulfilment adapters, and the slot availability provider.
     articleFulfilments: [],
     slotAvailability: null,
+    // Rules 25, 29, 53 of the campaigns spec (SDK 2.33.0) — the outside bookings another plugin may ask for: free slots, a hold, a booking.
+    resourceBookingOffer: null,
     // the outside-visit spec rule 37 (SDK 2.32.0) — [{ kind, label, list }]: the sale contexts a plugin offers to the « Proposés à l'arrivée » lists.
     suggestionContexts: [],
     // specs/guest-app.md rules 35-36 (SDK 2.26.0) — [{ source, paid }]: what a paid basket link does.

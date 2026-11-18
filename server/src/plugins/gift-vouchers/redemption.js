@@ -28,6 +28,7 @@ const MESSAGES = Object.freeze({
   VOUCHER_CHECKS_PAUSED: 'Vérification indisponible pour le moment.',
   VOUCHER_BALANCE_CHANGED: 'Le solde de ce bon a changé : vérifier à nouveau.',
   VOUCHER_WRONG_KIND: 'Ce bon ne convient pas à cet achat.',
+  VOUCHER_CANCELLED: 'Ce bon a été annulé.',
 });
 
 const failure = (status, errorCode, extra = {}) => ({
@@ -46,8 +47,18 @@ function createRedemption({
   const releaseKey = (hold) => `release:hold:${hold.id}`;
   const openHolds = (devisId) => holdsOf(devisId).filter((h) => !movements.byKey(releaseKey(h)));
 
-  /** Rule 33 — what a typed code is worth, judged like the public check: limits first, then the code. */
-  function judgeCode(input, visitor) {
+  // A use holds its voucher once, and again when a payment lands after its first hold lapsed: the keys are `hold:use:<id>`, then `hold:use:<id>:2`, …
+  const useHoldsOf = (useId) => db.prepare("SELECT * FROM gift_voucher_movements WHERE kind = 'hold' AND (idempotencyKey = ? OR idempotencyKey LIKE ?) ORDER BY id")
+    .all(`hold:use:${Number(useId)}`, `hold:use:${Number(useId)}:%`);
+  /** What the open holds of the uses on « Mon bain » keep from a voucher, in cents: a recipient coming back finds it again (rule 29). */
+  const useHeldCents = (voucherId) => db.prepare(`SELECT * FROM gift_voucher_movements WHERE voucherId = ? AND kind = 'hold' AND idempotencyKey LIKE 'hold:use:%' ORDER BY id`)
+    .all(Number(voucherId)).filter((h) => !movements.byKey(releaseKey(h))).reduce((sum, h) => sum - h.amountCents, 0);
+
+  /**
+   * Rule 33 — what a typed code is worth, judged like the public check: limits first, then the code. `forUse` (« Mon bain », rules 23-32) names a cancelled voucher
+   * instead of calling it unknown, and sees what a use of its own holds as still there: the recipient who closed the page finds the voucher again.
+   */
+  function judgeCode(input, visitor, { forUse = false } = {}) {
     const visitorHash = visitorHashFor(visitor);
     const limited = limits.refusal(visitorHash);
     if (limited) return failure(429, limited.code, { retryAfterSeconds: limited.retryAfterSeconds });
@@ -57,14 +68,19 @@ function createRedemption({
       return failure(400, 'VOUCHER_CODE_MISTYPED');
     }
     const voucher = vouchers.findByCodeHash(code.hashCode(pepper(), normalised));
-    if (!voucher || voucher.cancelledAt) {
+    if (!voucher || (voucher.cancelledAt && !forUse)) {
       checks.record({ visitorHash, outcome: 'unknown' });
       return failure(404, 'VOUCHER_UNKNOWN', { triesLeft: limits.triesLeft(visitorHash) });
     }
-    const state = rules.stateOf({ voucher, balanceCents: voucher.balanceCents, today: today() });
+    if (voucher.cancelledAt) {
+      checks.record({ visitorHash, outcome: 'exhausted' });
+      return failure(409, 'VOUCHER_CANCELLED');
+    }
+    const balanceCents = voucher.balanceCents + (forUse ? useHeldCents(voucher.id) : 0);
+    const state = rules.stateOf({ voucher, balanceCents, today: today() });
     checks.record({ visitorHash, outcome: rules.isUsable(state) ? 'usable' : state });
     if (state === 'expired') return failure(409, 'VOUCHER_EXPIRED', { expiresOn: voucher.expiresOn });
-    if (state === 'exhausted') return failure(409, 'VOUCHER_EXHAUSTED');
+    if (state === 'exhausted') return failure(409, 'VOUCHER_EXHAUSTED', { voucherId: voucher.id });
     return { ok: true, voucher, normalised };
   }
 
@@ -179,10 +195,49 @@ function createRedemption({
     return redeemed ? { ref: redeemed.id } : null;
   }
 
+  /**
+   * Rule 29 — a recipient's use of a composed voucher holds the voucher's whole balance for the 15 minutes a remainder is being paid: a voucher is used once and settled
+   * whole (rule 13). → `{ ok: true, heldCents }`, or the refusal when the balance changed under the hold.
+   */
+  function holdForUse({ useId, voucherId }) {
+    const balance = vouchers.find(voucherId).balanceCents;
+    if (!(balance > 0)) return failure(409, 'VOUCHER_EXHAUSTED');
+    try {
+      movements.append({
+        voucherId, kind: 'hold', amountCents: -balance, actor: 'public', idempotencyKey: `hold:use:${Number(useId)}${useHoldsOf(useId).length ? `:${useHoldsOf(useId).length + 1}` : ''}`,
+      });
+    } catch (err) {
+      if (err.code !== 'BALANCE_BELOW_ZERO') throw err;
+      return failure(409, 'VOUCHER_BALANCE_CHANGED', { balanceCents: vouchers.find(voucherId).balanceCents });
+    }
+    return { ok: true, heldCents: balance };
+  }
+
+  const openUseHold = (useId) => useHoldsOf(useId).find((hold) => !movements.byKey(releaseKey(hold))) || null;
+
+  /** Rule 29 — the 15 minutes ended, or the use was replaced: the voucher is free again. → whether a hold was given back. */
+  function releaseUse(useId, reason) {
+    const hold = openUseHold(useId);
+    if (!hold) return false;
+    transaction(() => releaseHold(hold, reason));
+    return true;
+  }
+
+  /** Rules 13, 29 — the bank confirmed and the session exists: the hold becomes a `redeem` of the whole balance, in the caller's transaction. → `{ ref }`. */
+  function settleUse({ useId, bookingId }) {
+    const hold = openUseHold(useId);
+    if (!hold) return null;
+    releaseHold(hold, 'converted');
+    const redeemedMovement = movements.append({
+      voucherId: hold.voucherId, kind: 'redeem', amountCents: hold.amountCents, actor: 'public', note: `Séance #${bookingId}`, idempotencyKey: `redeem:use:${Number(useId)}`,
+    }).movement;
+    return { ref: redeemedMovement.id };
+  }
+
   /** Rule 37 — the holds a quote that never became a stay kept past their lifetime (a job). → how many were given back. */
   function releaseLapsed({ isConverted }) {
     const cutoff = new Date(now().getTime() - HOLD_LIFETIME_MS).toISOString();
-    const lapsed = db.prepare("SELECT * FROM gift_voucher_movements WHERE kind = 'hold' AND createdAt < ? ORDER BY id").all(cutoff)
+    const lapsed = db.prepare("SELECT * FROM gift_voucher_movements WHERE kind = 'hold' AND createdAt < ? AND idempotencyKey NOT LIKE 'hold:use:%' ORDER BY id").all(cutoff)
       .filter((h) => !movements.byKey(releaseKey(h)) && !isConverted(h.devisId));
     transaction(() => lapsed.forEach((h) => releaseHold(h, 'lapsed')));
     return lapsed.length;
@@ -213,7 +268,7 @@ function createRedemption({
   const redeemed = (movementId) => db.prepare("SELECT * FROM gift_voucher_movements WHERE id = ? AND kind = 'redeem'").get(Number(movementId)) || null;
 
   return {
-    apply, held, release, releaseHoldsOf, settle, releaseLapsed, refund, redeemed, judgeCode, kindRefusal, today, openHolds,
+    apply, held, release, releaseHoldsOf, settle, releaseLapsed, refund, redeemed, judgeCode, kindRefusal, today, openHolds, holdForUse, releaseUse, settleUse, useHeldCents,
   };
 }
 

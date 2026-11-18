@@ -91,6 +91,7 @@ const PLUGIN_ROUTES = {
     'POST /api/resource-bookings/:id/no-show',
     'POST /api/resource-bookings/:id/payment',
     'POST /api/resource-bookings/:id/visit',
+    'POST /api/resource-bookings/:id/visit/lines/:lineId/not-taken',
     'POST /api/resource-bookings/:id/visit/payment',
     'POST /api/resource-bookings/:id/visit/payment-link',
     'POST /api/resource-bookings/:id/visit/payment-link/:linkId/email',

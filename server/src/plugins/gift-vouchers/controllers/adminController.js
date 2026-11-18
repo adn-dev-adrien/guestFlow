@@ -63,7 +63,7 @@ function optionalText(value, max) {
 }
 
 function buildAdminController({
-  vouchers, movements, refunds, redemption, documents, offerService, campaigns, transaction, paymentMethods, userName = () => null, decrypt, receipt, sendMail, now = () => new Date(), terms = null, siteOrigin = () => '',
+  vouchers, movements, refunds, redemption, documents, offerService, campaigns, transaction, paymentMethods, userName = () => null, decrypt, receipt, sendMail, now = () => new Date(), terms = null, siteOrigin = () => '', uses = null, unused = null, lapseUses = () => {},
 }) {
   const today = () => rules.parisDate(now());
   const actorOf = (req) => `user:${req.user && req.user.id ? req.user.id : 'unknown'}`;
@@ -133,6 +133,23 @@ function buildAdminController({
     return read.ok ? read.value : null;
   };
 
+  /** Rule 29 — the session a recipient booked with the voucher, for the link to its fiche. */
+  const bathOf = (v) => {
+    const booked = uses ? uses.bookedOf(v.id) : null;
+    return booked ? {
+      bookingId: booked.bookingId, date: booked.date, startTime: booked.startTime, endTime: booked.endTime, usedOn: rules.parisDate(new Date(booked.settledAt)),
+    } : null;
+  };
+
+  /** Rule 15 — « Écart non utilisé » : what the voucher paid for that the client did not take, at the day's prices. */
+  const unusedOf = (v) => {
+    const rows = unused ? unused.listByVoucher(v.id) : [];
+    return {
+      unusedCents: rows.reduce((sum, row) => sum + row.valueCents, 0),
+      unused: rows.map((row) => ({ label: row.label, valueCents: row.valueCents, on: rules.parisDate(new Date(row.at)) })),
+    };
+  };
+
   const detail = (v) => {
     const plain = readCode(v);
     return {
@@ -147,6 +164,8 @@ function buildAdminController({
       withdrawal: summary(v).offered ? null : rules.withdrawalOf({ paidOn: rules.parisDate(new Date(v.issuedAt)), today: today() }),
       cancelReason: v.cancelReason,
       cancelForced: Boolean(v.cancelForced),
+      bath: bathOf(v),
+      ...unusedOf(v),
       refunds: refunds.listByVoucher(v.id).map((r) => ({
         id: r.id,
         amountCents: r.amountCents,
@@ -279,6 +298,7 @@ function buildAdminController({
     if (late && body.force !== true) throw new Refusal('CANCEL_FORCE_REQUIRED');
     if (late && !reason) throw new Refusal('REASON_REQUIRED');
     transaction(() => {
+      lapseUses(v.id);
       redemption.releaseHoldsOf(v.id, 'cancelled');
       const owed = movements.balanceOf(v.id);
       movements.append({

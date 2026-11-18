@@ -219,11 +219,53 @@ function visualsMigration(db) {
   moveOrderTermsToAcceptances(db);
 }
 
+// specs/gift-voucher-campaigns.md rules 15, 29 — a recipient's use of a composed voucher on « Mon bain » (held 15 minutes while a remainder is paid, then booked or lapsed),
+// and what a voucher paid for that was not taken. The ledger itself is untouched: a use writes its own `hold` / `release` / `redeem` movements by key.
+const USES_SQL = `
+  CREATE TABLE IF NOT EXISTS gift_voucher_uses (
+    id             INTEGER PRIMARY KEY AUTOINCREMENT,
+    voucherId      INTEGER NOT NULL,
+    state          TEXT NOT NULL CHECK (state IN ('held', 'booked', 'lapsed', 'refund_owed')),
+    resourceId     INTEGER NOT NULL,
+    date           TEXT NOT NULL,
+    startTime      TEXT NOT NULL,
+    endTime        TEXT NOT NULL,
+    extraMinutes   INTEGER NOT NULL DEFAULT 0,
+    addOns         TEXT NOT NULL DEFAULT '[]',
+    name           TEXT NOT NULL DEFAULT '',
+    email          TEXT NOT NULL,
+    phone          TEXT NOT NULL DEFAULT '',
+    termsVersionId INTEGER,
+    userAgent      TEXT,
+    ip             TEXT,
+    holdRef        TEXT NOT NULL,
+    dueCents       INTEGER NOT NULL DEFAULT 0,
+    linkId         INTEGER,
+    heldUntil      TEXT NOT NULL,
+    bookingId      INTEGER,
+    saleId         INTEGER,
+    note           TEXT,
+    createdAt      TEXT NOT NULL,
+    settledAt      TEXT
+  );
+  CREATE INDEX IF NOT EXISTS idx_gift_voucher_uses_voucher ON gift_voucher_uses(voucherId, state);
+  CREATE INDEX IF NOT EXISTS idx_gift_voucher_uses_held ON gift_voucher_uses(state, heldUntil);
+  CREATE TABLE IF NOT EXISTS gift_voucher_unused (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    voucherId  INTEGER NOT NULL,
+    label      TEXT NOT NULL,
+    valueCents INTEGER NOT NULL,
+    at         TEXT NOT NULL
+  );
+  CREATE INDEX IF NOT EXISTS idx_gift_voucher_unused_voucher ON gift_voucher_unused(voucherId);
+`;
+
 const MIGRATIONS = Object.freeze([
   { name: 'gift_vouchers_tables_v1', up: (db) => db.exec(TABLES_SQL) },
   { name: 'gift_vouchers_vat_v1', up: (db) => db.exec(VAT_SQL) },
   { name: 'gift_voucher_campaigns_v1', up: campaignsMigration },
   { name: 'gift_voucher_visuals_v1', up: visualsMigration },
+  { name: 'gift_voucher_uses_v1', up: (db) => db.exec(USES_SQL) },
 ]);
 
-module.exports = { MIGRATIONS, TABLES: Object.freeze([...TABLES, 'gift_voucher_campaigns', 'gift_voucher_visuals', 'gift_voucher_visual_versions', 'gift_voucher_refunds']) };
+module.exports = { MIGRATIONS, TABLES: Object.freeze([...TABLES, 'gift_voucher_campaigns', 'gift_voucher_visuals', 'gift_voucher_visual_versions', 'gift_voucher_refunds', 'gift_voucher_uses', 'gift_voucher_unused']) };

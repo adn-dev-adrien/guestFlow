@@ -10,7 +10,8 @@
  *   held(devisId)                      → { amountCents, display } | null     what is held for the quote now
  *   settle({ devisId, reservationId, amountCents, paidDate }) → { ref } | null
  *       the quote became a stay: `amountCents` is used, the rest of the hold is given back;
- *   release({ devisId, reason })       the quote was refused, deleted or lapsed unpaid: the hold is given back.
+ *   release({ devisId, reason })       the quote was refused, deleted or lapsed unpaid: the hold is given back;
+ *   unused?({ ref, label, valueCents }) an element it paid for was not taken (rule 15 of the campaigns spec): it traces the unused value.
  *
  * What a source holds for a quote lowers what the public payment asks for (`reductionCents`), and is recorded on the stay as
  * money received by `prepaidReceipts`.
@@ -27,6 +28,13 @@ function liveSources() {
 const byKind = (kind) => liveSources().find((s) => s.source === kind) || null;
 
 const labelOf = (source) => (liveSources().find((s) => s.source === source) || {}).label || 'Prépayé';
+
+/** The words a source gave the lines it paid on an outside visit; a source no longer live is read from the tender's own label. */
+function wordingOf(source, fallbackLabel = 'Prépayé') {
+  const found = byKind(source);
+  if (found) return { label: found.label, includedTitle: found.includedTitle, paidMark: found.paidMark };
+  return { label: fallbackLabel, includedTitle: `Compris dans : ${fallbackLabel}`, paidMark: `Réglé par : ${fallbackLabel}` };
+}
 
 /** Every live source's hold on a quote: `[{ source, label, amountCents, display }]`. */
 function heldFor(devisId) {
@@ -72,6 +80,22 @@ function apply(devisId, input, {
   return { ...answer, source: source.source, label: source.label };
 }
 
+/**
+ * An element a source paid for was not taken (`unused`, optional on the declaration): the source traces it. `ref` is the tender's own, `valueCents` what
+ * the element is worth. → whether the source was told; a source without the call, or one that fails, is simply not told.
+ */
+function unusedFor(source, { ref, label, valueCents }) {
+  const found = byKind(source);
+  if (!found || typeof found.unused !== 'function') return false;
+  try {
+    found.unused({ ref, label, valueCents });
+    return true;
+  } catch (err) {
+    console.error(`[plugin:${found.pluginId}] prepaid unused failed:`, err && err.message); // eslint-disable-line no-console
+    return false;
+  }
+}
+
 /** The quote is gone or lapsed: every live source gives back what it held. */
 function releaseFor(devisId, reason) {
   liveSources().forEach((s) => {
@@ -80,5 +104,5 @@ function releaseFor(devisId, reason) {
 }
 
 module.exports = {
-  liveSources, byKind, labelOf, heldFor, heldCentsFor, reductionCents, reduceComponents, apply, releaseFor,
+  liveSources, byKind, labelOf, heldFor, heldCentsFor, reductionCents, reduceComponents, apply, releaseFor, unusedFor, wordingOf,
 };

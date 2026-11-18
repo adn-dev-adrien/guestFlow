@@ -1044,13 +1044,17 @@
   "standaloneSale": [
     "cancel",
     "documentOf",
+    "historyOf",
     "offerLine",
+    "paidByOf",
     "pay",
     "paymentsOf",
     "quote",
     "receive",
+    "recordHistory",
     "removeLine",
-    "sell"
+    "sell",
+    "takePrepaid"
   ],
   "suggestedArticles": [
     "catalogue",
@@ -1125,7 +1129,9 @@
     "liveSources",
     "reduceComponents",
     "reductionCents",
-    "releaseFor"
+    "releaseFor",
+    "unusedFor",
+    "wordingOf"
   ],
   "prepaidReceipts": [
     "allocate",

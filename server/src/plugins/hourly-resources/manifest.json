@@ -199,6 +199,10 @@
       "Les conditions générales du bain nordique ont leur propre onglet sous Réglages › Conditions générales : un brouillon prérempli, à relire puis à publier.",
       "Chaque ressource a son horizon « Réservable jusqu’à » (3 mois par défaut, 1 à 24), à côté de ses horaires d’ouverture : l’appli du séjour n’offre pas de créneau au-delà.",
       "Le prix d’une séance sans date peut être demandé à GuestFlow pour un client sans séjour : une durée dans la journée ou la soirée, au tarif extérieur de la tranche, avec la remise de chaque heure.",
+      "Une autre extension peut réserver une séance hors séjour pour un client : les créneaux libres suivent les jours, les horaires, la grille, la capacité, les temps de remise en état et l’horizon de la ressource ; un créneau se retient 15 minutes le temps d’un paiement (il bloque le planning, l’appli du séjour et les réservations extérieures, puis se libère tout seul) ; la séance, sa vente et ses paiements s’écrivent ensemble ou pas du tout.",
+      "Le supplément de soirée d’une séance qui déborde sur la soirée et le temps ajouté après des minutes déjà couvertes sont chiffrés par GuestFlow : chaque tranche prend le tarif de sa tranche puis la remise de son heure, le rang des heures continuant.",
+      "La carte du planning d’une séance hors séjour liste toutes les options à préparer et un badge pour ce qui a été réglé d’avance ; l’arrivée montre ces lignes à part, marquées comme réglées d’avance et comptées comme payées, et une option que le client n’a pas prise se marque « non pris » (jamais remboursée).",
+      "Chaque séance hors séjour a sa fiche : le client, la séance, les lignes et ce qui a payé chacune, les paiements et remboursements, les conditions acceptées, l’arrivée ou l’absence, et l’historique de tout ce qui s’est passé, le plus récent en premier.",
       "Compatible avec GuestFlow 4 (SDK 2.33)."
     ]
   }

@@ -8,6 +8,8 @@ const rules = require('./voucherRules');
 const { activityOfCampaign } = require('./offerService');
 
 const SOURCE = 'giftVoucher';
+// The remainder of a session a recipient books with a voucher (specs/gift-voucher-campaigns.md rule 29): its own basket, its own paid effect.
+const USE_SOURCE = 'giftVoucherUse';
 
 /** Money the plugin keeps nothing for: the core flags it « à rembourser » on the link (`ctx.paymentBasket`). */
 function unhonoured(reason) {
@@ -48,4 +50,4 @@ function createOrderPaid({
   };
 }
 
-module.exports = { createOrderPaid, SOURCE };
+module.exports = { createOrderPaid, SOURCE, USE_SOURCE };

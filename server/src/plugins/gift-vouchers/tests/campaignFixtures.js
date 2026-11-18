@@ -31,7 +31,7 @@ const insert = (table, row) => {
 };
 
 const resource = (over = {}) => insert('resources', {
-  name: 'Bain nordique', price: 25, priceType: 'per_hour', showsPlanningCard: 1, slotDuration: 60, minimumUsageMinutes: 60, openTime: '10:00', closeTime: '22:00',
+  name: 'Bain nordique', quantity: 1, price: 25, priceType: 'per_hour', showsPlanningCard: 1, slotDuration: 60, minimumUsageMinutes: 60, openTime: '10:00', closeTime: '22:00',
   hourlyEveningStart: '19:00', hourlyEveningRate: 35, hourlyExternalDayRate: 50, hourlyExternalEveningRate: 70, hourlyDegressiveTiers: JSON.stringify(TIERS), sellableExternally: 1, ...over,
 });
 

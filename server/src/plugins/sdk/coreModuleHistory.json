@@ -348,6 +348,12 @@
           "METHODS",
           "PREPAID"
         ],
+        "standaloneSale": [
+          "historyOf",
+          "paidByOf",
+          "recordHistory",
+          "takePrepaid"
+        ],
         "termsModel": [
           "LODGING",
           "findAcceptanceBySubject",

@@ -22,6 +22,7 @@ test('SDK 2.33.0: the version is bumped by a minor and the history records what 
     names: {
       articles: ['liveFamilies', 'makeArticle'],
       paymentTenders: ['lineLabel', 'METHODS', 'PREPAID'],
+      standaloneSale: ['historyOf', 'paidByOf', 'recordHistory', 'takePrepaid'],
       termsModel: ['LODGING', 'findAcceptanceBySubject', 'hasDraft', 'listOtherAcceptancesByReservation'],
     },
   });

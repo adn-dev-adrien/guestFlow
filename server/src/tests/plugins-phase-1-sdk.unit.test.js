@@ -364,9 +364,10 @@ test('rule 8: the jobs keep today’s intervals and boot delays, and skip their 
   // their receipts' retry: every 15 min, first at 240 s (rule 23);
   // the version files of their visual library: daily, first at 360 s (specs/gift-voucher-campaigns.md rule 48);
   // the holds a quote never paid for give back their voucher: hourly, first at 270 s (rule 37);
+  // the slots held 15 minutes while a remainder is paid are tidied every minute, first at 90 s (rule 29 of the campaigns spec), and the uses of a voucher past their 15 minutes lapse every minute, first at 100 s (same rule);
   // the Mollie statements joined to their Qonto credit: hourly, first at 7 min (specs/mollie-settlement-receipts.md rule 8).
-  assert.deepEqual(intervals.map(([, ms]) => ms).sort((a, b) => a - b), [60 * 1000, 5 * 60 * 1000, 5 * 60 * 1000, 15 * 60 * 1000, 15 * 60 * 1000, 15 * 60 * 1000, 15 * 60 * 1000, 15 * 60 * 1000, HOUR, HOUR, HOUR, HOUR, HOUR, HOUR, 8 * HOUR, 8 * HOUR, 24 * HOUR, 24 * HOUR, 24 * HOUR, 24 * HOUR, 24 * HOUR, 24 * HOUR, 24 * HOUR]);
-  assert.deepEqual(timeouts.sort((a, b) => a - b), [30 * 1000, 45 * 1000, 60 * 1000, 110 * 1000, 120 * 1000, 130 * 1000, 140 * 1000, 150 * 1000, 150 * 1000, 160 * 1000, 170 * 1000, 180 * 1000, 200 * 1000, 240 * 1000, 240 * 1000, 270 * 1000, 300 * 1000, 300 * 1000, 330 * 1000, 360 * 1000, 420 * 1000, 600 * 1000, 900 * 1000]);
+  assert.deepEqual(intervals.map(([, ms]) => ms).sort((a, b) => a - b), [60 * 1000, 60 * 1000, 60 * 1000, 5 * 60 * 1000, 5 * 60 * 1000, 15 * 60 * 1000, 15 * 60 * 1000, 15 * 60 * 1000, 15 * 60 * 1000, 15 * 60 * 1000, HOUR, HOUR, HOUR, HOUR, HOUR, HOUR, 8 * HOUR, 8 * HOUR, 24 * HOUR, 24 * HOUR, 24 * HOUR, 24 * HOUR, 24 * HOUR, 24 * HOUR, 24 * HOUR]);
+  assert.deepEqual(timeouts.sort((a, b) => a - b), [30 * 1000, 45 * 1000, 60 * 1000, 90 * 1000, 100 * 1000, 110 * 1000, 120 * 1000, 130 * 1000, 140 * 1000, 150 * 1000, 150 * 1000, 160 * 1000, 170 * 1000, 180 * 1000, 200 * 1000, 240 * 1000, 240 * 1000, 270 * 1000, 300 * 1000, 300 * 1000, 330 * 1000, 360 * 1000, 420 * 1000, 600 * 1000, 900 * 1000]);
   const ran = [];
   const record = registry.get('school-holidays');
   record.jobs[0].run = () => { ran.push('tick'); };
