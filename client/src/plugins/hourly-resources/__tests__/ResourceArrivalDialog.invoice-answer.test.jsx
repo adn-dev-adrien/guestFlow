@@ -78,7 +78,6 @@ test('UI4-3 — a refusal of the draft itself is shown once, not again for the p
   api.quoteResourceVisit.mockImplementation(refuseExtras(Object.assign(new Error('Article retiré du catalogue.'), { status: 409 })));
   openDialog();
   fireEvent.click(await screen.findByRole('button', { name: /Bière locale/ }));
-  await waitFor(() => expect(api.quoteResourceVisit.mock.calls.filter(([, body]) => body.payment && (body.extras || []).length > 0).length).toBeGreaterThan(0));
   expect(await screen.findByText('Article retiré du catalogue.')).toBeInTheDocument();
   await new Promise((resolve) => { setTimeout(resolve, 200); });
   expect(screen.getAllByText('Article retiré du catalogue.')).toHaveLength(1);
@@ -106,10 +105,12 @@ test('UI5-2 — « Réessayer » on a failed draft retries the payment answer to
   await new Promise((resolve) => { setTimeout(resolve, 200); });
   fail = false;
   const paymentCalls = () => api.quoteResourceVisit.mock.calls.filter(([, body]) => body.payment && (body.extras || []).length > 0).length;
+  // Loop t23 S23-1 — while the draft's amounts are unknown no payment is typed, so none is asked; once « Réessayer » brings the answer back,
+  // the payment fields return and their answer is asked.
   const before = paymentCalls();
   fireEvent.click(screen.getByRole('button', { name: 'Réessayer' }));
-  expect(paymentCalls()).toBeGreaterThan(before);
   await waitFor(() => expect(screen.queryByText('Service indisponible')).toBeNull());
+  await waitFor(() => expect(paymentCalls()).toBeGreaterThan(before));
   expect(screen.queryByText('Facture non vérifiée pour ce paiement.')).toBeNull();
   await waitFor(() => expect(screen.getByRole('button', { name: 'Valider l’arrivée' })).toBeEnabled());
 });

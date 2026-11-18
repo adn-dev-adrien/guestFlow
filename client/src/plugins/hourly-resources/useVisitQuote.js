@@ -8,8 +8,8 @@
  *   enabled   — false when the dialog is closed
  *   version   — the document's version: a change made elsewhere (a line offered, a link minted) asks the same draft again
  *
- * Returns `{ visit, refusals, pending, fresh, error, refusal, retry }`. `visit` is the latest payload (kept, dimmed by the caller, while a newer one is
- * pending); `refusals` are `[{ field, code, error }]` — the draft's own refusals (a quantity out of bounds, an offered time that exceeds the slot);
+ * Returns `{ visit, refusals, pending, failed, fresh, error, refusal, retry }`. `visit` is the latest payload (kept, dimmed by the caller, while a newer one is
+ * pending; null once a request failed — `failed` — until a new answer, loop t23 S23-1); `refusals` are `[{ field, code, error }]` — the draft's own refusals (a quantity out of bounds, an offered time that exceeds the slot);
  * `refusal` is a refusal of the whole request (400 / 409), `error` any other failure.
  */
 import { useCallback } from 'react';
@@ -22,7 +22,7 @@ export default function useVisitQuote({
 }) {
   const fetcher = useCallback((body, options) => api.quoteResourceVisit(bookingId, body, options), [bookingId]);
   const {
-    data, pending, error, fresh, retry,
+    data, pending, error, failed, fresh, retry,
   } = useLatestPreview({
     fetcher, draft, enabled: Boolean(enabled && draft && bookingId), scope: `${bookingId}:${version}`, resetKey: enabled ? `open:${bookingId}` : 'closed',
   });
@@ -31,6 +31,7 @@ export default function useVisitQuote({
     visit: refused ? null : data,
     refusals: !refused && data && Array.isArray(data.refusals) ? data.refusals : [],
     pending,
+    failed,
     error: refused ? null : error,
     refusal: refused ? error.message : null,
     fresh,

@@ -5,8 +5,8 @@
  *   draft   — `resourceBookingDraft(...)`, or `null` while the range is incomplete (no request)
  *   enabled — false when the dialog is closed
  *
- * Returns `{ price, pending, error, refusal, fresh, retry }`. `price` is the latest answer, kept
- * (dimmed by the caller) while a newer one is pending. `refusal` is the server's 400/409 message — the
+ * Returns `{ price, pending, failed, error, refusal, fresh, retry }`. `price` is the latest answer, kept
+ * (dimmed by the caller) while a newer one is pending, null once a request failed (`failed`) until a new answer (loop t23 S23-1). `refusal` is the server's 400/409 message — the
  * range is refused, not the price unavailable; `error` is any other failure (network, 5xx).
  */
 import { useCallback } from 'react';
@@ -17,7 +17,7 @@ const REFUSAL_STATUSES = [400, 409];
 export default function useResourceBookingPreview({ draft, enabled }) {
   const fetcher = useCallback((body, options) => api.previewResourceBooking(body, options), []);
   const {
-    data, pending, error, fresh, retry,
+    data, pending, error, failed, fresh, retry,
   } = useLatestPreview({
     fetcher, draft, enabled: Boolean(enabled && draft), resetKey: enabled ? 'open' : 'closed',
   });
@@ -25,6 +25,7 @@ export default function useResourceBookingPreview({ draft, enabled }) {
   return {
     price: refused ? null : data,
     pending,
+    failed,
     error: refused ? null : error,
     refusal: refused ? error.message : null,
     fresh,

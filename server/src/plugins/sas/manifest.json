@@ -205,6 +205,7 @@
       "L’étape « Séjour » affiche dès son ouverture l’avis plateforme et les lignes « Acompte » et « Solde » ; les montants les remplissent sans décaler la page, et la barre « Calcul du total » ne décale plus le récapitulatif.",
       "Étape « Séjour » : si le calcul échoue, « Montant indisponible » et « Réessayer » s’affichent, et les boutons de règlement attendent un montant ; la page extincteur du départ dit aussi « Montant indisponible ».",
       "Au clavier, chaque changement d’étape du sas, en avant comme en arrière, place le curseur sur le titre de la nouvelle étape : il ne se perd plus et ne reste plus sur un bouton qui change de sens.",
+      "Récapitulatif d’arrivée avec « Régler séparément » : quand le calcul échoue, les boutons de règlement du séjour sont désactivés comme ceux du complément.",
       "Demande GuestFlow 4.2 (SDK 2.32)."
     ]
   }

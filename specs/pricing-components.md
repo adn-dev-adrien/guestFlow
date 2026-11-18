@@ -2636,6 +2636,11 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
     and « Suivant » 648 / 776 in every frame; a forced 503 shows « — », « Montant indisponible », the three buttons disabled, focus on
     « Réessayer ». Client `ReservationSasDialog.failed-preview` (7: the pages from the code equal the table; each fails, says why, disables
     what acts on the amount, and « Réessayer » brings the figures back with the focus kept in the dialog).
+    _Reading of 2026-11-18 (loop t23 S23-1):_ the same holds on the arrival recap when the stay is settled apart (« Régler séparément »):
+    a failed preview there drew « Séjour : — » but left the stay's « CB / Chèque », « Payé en liquide » and « Pas maintenant » enabled; they
+    are disabled with the complement's while the preview has failed. « Failed » is now the hook's `failed` (plugins-phase-1-sdk rule 54
+    reading of the same day): it lasts until a new answer, through a pending « Réessayer » too, so the figures of the last answer never come
+    back dimmed before the new one. Test `useLatestPreview.failed-recompute` (row `ReservationSasDialog`).
 118. **The arrival SAS offering a paid line credits it like the line API** _(stabilisation loop t8, S8-2, 2026-11-16; completes rules 104,
     105, 107 d)_. Same gesture, same hour, same result: the SAS commit's shared write (`writeArrivalComplement`) takes `paidLineJudgment.wayBack`
     both ways — a write that FREES note money (the paid line offered) credits it, before the paid-line judgment, to what the stay still asks:

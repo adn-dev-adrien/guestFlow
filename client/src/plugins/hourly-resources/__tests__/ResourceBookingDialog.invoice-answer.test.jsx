@@ -111,6 +111,8 @@ test('UI4-3 — a refusal of the draft itself is shown once, not again for the p
   expect(screen.getAllByText('Créneau refusé.')).toHaveLength(1);
 });
 
+// Loop t23 S23-1 — the price on screen before the failure is not kept: « Prix indisponible » with its one « Réessayer », and no payment
+// (hence no payment answer, no second message) until a new price.
 test('UI4-3 — a failed draft with a price on screen shows one error and one « Réessayer », and the save waits', async () => {
   let fail = false;
   api.previewResourceBooking.mockImplementation(async (draft) => {
@@ -122,9 +124,10 @@ test('UI4-3 — a failed draft with a price on screen shows one error and one «
   expect(await screen.findByText('Créer la facture dans Qonto')).toBeInTheDocument();
   fail = true;
   await changeEndTo('19:00');
-  expect(await screen.findByText('Facture non vérifiée pour ce paiement.')).toBeInTheDocument();
+  expect(await screen.findByText(/Prix indisponible/)).toBeInTheDocument();
   await new Promise((resolve) => { setTimeout(resolve, 200); });
-  expect(screen.queryByText(/Prix indisponible/)).toBeNull();
+  expect(screen.queryByText('Facture non vérifiée pour ce paiement.')).toBeNull();
+  expect(screen.queryByText('Créer la facture dans Qonto')).toBeNull();
   expect(screen.getAllByRole('button', { name: 'Réessayer' })).toHaveLength(1);
   expect(saveButton()).toBeDisabled();
 });

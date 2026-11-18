@@ -233,7 +233,7 @@ will store or bill, answered live while the operator draws a range or places a b
 | Layer | File | T/C | Responsibility in this change |
 |---|---|---|---|
 | `plugins/hourly-resources/` | `ResourceBookingDialog.jsx` | T | Delete C1-C7; build the draft; render the preview (amount, offered/billed minutes, bands); pending / error / refusal states; the commit warning panel (rule 15). |
-| `hooks/` | `useLatestPreview.js` | C | Generic (Q5): debounced (200 ms; the first request leaves at once), latest-wins, abortable preview; `{ data, pending, error, fresh, retry }`. Exported by the SDK. |
+| `hooks/` | `useLatestPreview.js` | C | Generic (Q5): debounced (200 ms; the first request leaves at once), latest-wins, abortable preview; `{ data, last, pending, error, failed, fresh, retry }` — `data` null and `failed` true from a failed request until a new answer, `last` the last answer for a layout drawn with « — » (reading of 2026-11-18, loop t23 S23-1, plugins-phase-1-sdk rule 54). Exported by the SDK. |
 | `plugins/sas/` | `useSasRecapPreview.js` | T | Now a thin wrapper of `useLatestPreview` (same contract). |
 | `plugins/sdk/` | `index.js` | T | Exports `useLatestPreview`. |
 | `plugins/hourly-resources/` | `useResourceBookingPreview.js` | C | `useLatestPreview` bound to `api.previewResourceBooking`; exposes `{ price, pending, error, refusal, fresh, retry }` (a 400/409 is a `refusal`, anything else an `error`). |
@@ -311,7 +311,8 @@ The dialog and the step look the same; what changes is where their figures come 
   « Calcul du prix » runs under the line; « Enregistrer » reads « Calcul du prix… », disabled. The
   times and the duration already show the new range.
 - **Unavailable:** « Prix indisponible » with « Réessayer » (text button, 44 px target);
-  « Enregistrer » disabled.
+  « Enregistrer » disabled. _Reading of 2026-11-18 (loop t23 S23-1):_ also when a price was on screen before — the failed request drops
+  it (no figure of the older range stays, no payment is offered), where before the older price stayed at full opacity with no word.
 - **Refused** (rule 5): the server's message in `error.main`, in place of the existing client hints
   for minimum duration and capacity when the server answered.
 - **Total differed at commit:** the dialog stays open on a `warning` panel « Enregistré à 40,00 € —

@@ -562,6 +562,12 @@ once on the server by the refonte's components.
     own answer is neither refused nor failed (before: the same red message twice, or two « Réessayer »). The booking dialog already shows one: a
     refused draft has no price, hence no payment preview, and a failed one keeps its last price without a second message. Tests
     `ResourceArrivalDialog.invoice-answer`, `ResourceBookingDialog.invoice-answer`.
+    _Reading 2026-11-18 (loop t23 S23-1):_ a failed draft no longer keeps its last figures (plugins-phase-1-sdk rule 54 reading of the same
+    day): the arrival draws « Total », « Reste à payer », the VAT and the session amounts « — » and shows « — » instead of the payment until
+    a new answer, so the payment's invoice answer is not asked meanwhile (its single message is the draft's own, with one « Réessayer »,
+    which brings both back); the booking dialog's failed draft reads « Prix indisponible » with its « Réessayer » — the price on screen
+    before is not kept — and offers no payment, hence no second message. Tests `ResourceArrivalDialog.invoice-answer`,
+    `ResourceBookingDialog.invoice-answer`, `useLatestPreview.failed-recompute`.
     _Reading 2026-11-18 (loop t21, UI21-1):_ that answer always comes one quote after the content — the tender lines report their default card
     line on mount, and only then is the payment asked — so the « Facture » block landed late and moved the dialog (+34 px at 1280 px in the
     arrival: « Récapitulatif » and « Encaisser » 17 px up, the actions 17 px down; in the booking dialog « La facture se propose une fois le
@@ -959,7 +965,7 @@ number; `prefers-reduced-motion` → no movement.
 - [x] (C38) `components/__tests__/StandaloneSaleDialog.counter.test.jsx`, `StandaloneSalesTodayCard.list.test.jsx`, `ExternalSaleFields.fields.test.jsx`; `plugins/hourly-resources/__tests__/ResourceBookingDialog.no-show.test.jsx`; `PlanningResourceCard.test.jsx` gains the « Reste » and « Absent » cases; `SuggestedArticlesStep.worst-case.test.jsx` — the break-ui pass (a 120-character label, an emoji-first label, 99, 1, none, a thousand results)
 - [x] (loop t2, rule 51) `ResourceBookingDialog.no-show.test.jsx` (rewritten on the row's `actions`, no second read, 5), `PlanningResourceCard.test.jsx` and `PlanningResourceCard.open-booking.test.jsx` (« Arrivée » on `actions.arrive`), `ResourceArrivalDialog.invoice-reason.test.jsx` (2), `pages/options/__tests__/externalSaleForm.emptied-rate.test.js` (1); named after the fact (P2-2): `ResourceArrivalDialog.withdraw-link.test.jsx` — rule 45 (`access.withdrawLink`)
 - [x] (loop t2, rules 49 reading, 52-54) server `standalone-sale-lowered-line-in-step` (6), `pricing-refunds-document-rows` (7: +1 loop t5 D5-4), plugin `visit-draft-invoiceable` (4); client `ResourceArrivalDialog.invoice-from-server.test.jsx` (2), `ResourceBookingDialog.invoice-from-server.test.jsx` (2); the arrival suites' quote fixtures answer `invoiceable` for a payment typed
-- [x] (loop t3, rule 54 reading) plugin `visit-draft-invoice-reason` (3); client `ResourceArrivalDialog.invoice-answer.test.jsx` (7: +2 loop t4 UI4-3, +1 loop t5 UI5-2), `ResourceBookingDialog.invoice-answer.test.jsx` (5: +2 loop t4 UI4-3)
+- [x] (loop t3, rule 54 reading) plugin `visit-draft-invoice-reason` (3); client `ResourceArrivalDialog.invoice-answer.test.jsx` (7: +2 loop t4 UI4-3, +1 loop t5 UI5-2), `ResourceBookingDialog.invoice-answer.test.jsx` (5: +2 loop t4 UI4-3); loop t23 S23-1: the arrival's UI4-3 / UI5-2 and the booking's UI4-3 rewritten for a failed draft that keeps no figure, same counts
 - [x] (loop t1, rule 48) `plugins/hourly-resources/__tests__/ResourceBookingDialog.no-show.test.jsx` (rewritten on `actions.noShow`, 4), `ResourceArrivalDialog.invoiceable.test.jsx` (3), `ResourceArrivalDialog.vat-rate.test.jsx` (2), `ResourceArrivalDialog.new-sale.test.jsx` (2); `components/__tests__/SalePaymentLink.expires-label.test.jsx` (3), `StandaloneSalesTodayCard.owed-day.test.jsx` (2), `ExternalSaleFields.server-labels.test.jsx` (2)
 
 ### E2E

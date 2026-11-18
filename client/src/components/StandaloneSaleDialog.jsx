@@ -297,8 +297,9 @@ export default function StandaloneSaleDialog({ open, onClose, onSold, client = n
 
         <Box sx={{ display: 'grid', gap: 1 }}>
           <Typography variant="subtitle2">{TEXTS.payment}</Typography>
+          {/* Loop t23 S23-1 — after a failed quote the amount is unknown: no figure, no tender line, until a new answer. */}
           {!document ? (
-            <Typography variant="caption" color="text.secondary">{TEXTS.nothingDue}</Typography>
+            <Typography variant="caption" color="text.secondary">{preview.failed && draft.extras.length > 0 ? '—' : TEXTS.nothingDue}</Typography>
           ) : remainingCents <= 0 ? (
             <Typography variant="caption" color="text.secondary">{TEXTS.allOffered}</Typography>
           ) : (

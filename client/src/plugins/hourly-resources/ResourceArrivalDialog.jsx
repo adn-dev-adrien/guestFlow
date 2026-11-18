@@ -76,21 +76,22 @@ const NO_REFUSALS = [];
 const EMPTY_BILLING = { street: '', postcode: '', city: '' };
 const STATUS_TONE = { paid: 'success', due: 'warning', offered: 'neutral', cancelled: 'neutral' };
 
-function SessionLine({ line, disabled, onOffer, busy }) {
+// `unknown` — the draft's quote failed (loop t23 S23-1): the stored line keeps its place, its amounts read « — ».
+function SessionLine({ line, disabled, onOffer, busy, unknown = false }) {
   return (
     <Box sx={{ display: 'grid', gap: 0.75 }}>
       <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 1.5, alignItems: 'baseline' }}>
         <Typography variant="body2" sx={{ fontWeight: 600, overflowWrap: 'anywhere' }}>{line.label}</Typography>
         <Typography variant="body2" sx={{ fontWeight: 700, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>
-          {line.offered && line.catalogueCents > 0 && <Box component="del" sx={{ color: 'text.secondary', fontWeight: 400, mr: 0.75 }}>{euros(line.catalogueCents)}</Box>}
-          {euros(line.totalCents)}
+          {!unknown && line.offered && line.catalogueCents > 0 && <Box component="del" sx={{ color: 'text.secondary', fontWeight: 400, mr: 0.75 }}>{euros(line.catalogueCents)}</Box>}
+          {unknown ? '—' : euros(line.totalCents)}
         </Typography>
       </Box>
       {(line.components || []).map((part) => (
         <Box key={part.key} sx={{ display: 'flex', justifyContent: 'space-between', gap: 1.5 }}>
           <Typography variant="body2" color="text.secondary" sx={{ minWidth: 0, overflowWrap: 'anywhere' }}>{[part.label, part.detail].filter(Boolean).join(' · ')}</Typography>
           <Typography variant="body2" color={part.amountCents < 0 ? 'success.main' : 'text.secondary'} sx={{ fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>
-            {part.amountCents < 0 ? `−${euros(-part.amountCents)}` : euros(part.amountCents)}
+            {unknown ? '—' : (part.amountCents < 0 ? `−${euros(-part.amountCents)}` : euros(part.amountCents))}
           </Typography>
         </Box>
       ))}
@@ -168,6 +169,9 @@ export default function ResourceArrivalDialog({ open, bookingId, onClose, onDone
   } : null), [dirty, visit, offeredMinutes, sessionOffered, extras]);
   const quote = useVisitQuote({ bookingId, draft, enabled: open, version: visit ? visit.document.version : 0 });
   const view = dirty ? (quote.visit || visit) : visit;
+  // Loop t23 S23-1 — after a failed quote of the draft its amounts are unknown: the stored visit still gives the layout, but no total,
+  // remainder or VAT of it is drawn and no payment can be typed until a new answer (« Réessayer »).
+  const amountsUnknown = dirty && quote.failed;
   const refusals = dirty ? quote.refusals : NO_REFUSALS;
 
   const sessionLines = view ? view.lines.filter((line) => line.kind === 'session') : [];
@@ -183,7 +187,7 @@ export default function ResourceArrivalDialog({ open, bookingId, onClose, onDone
     return extras.map((entry) => (refused.has(entry.articleRef) ? null : priced[at++]));
   }, [view, extras, refusals]);
 
-  const remainingCents = view ? view.totals.remainingCents : 0;
+  const remainingCents = view && !amountsUnknown ? view.totals.remainingCents : 0;
   const payNow = !readOnly && mode === 'now' && remainingCents > 0;
   const hasChanges = dirty || payNow;
   const quoteReady = !dirty || (quote.fresh && !quote.refusal && refusals.length === 0);
@@ -336,7 +340,7 @@ export default function ResourceArrivalDialog({ open, bookingId, onClose, onDone
       {view && salesReady && (
         <Box sx={{ position: 'sticky', top: 0, zIndex: 2, bgcolor: 'background.paper', px: 3, py: 1, borderBottom: 1, borderColor: 'divider', display: { xs: 'flex', sm: 'none' }, justifyContent: 'space-between', alignItems: 'baseline' }}>
           <Typography variant="body2">{TEXTS.remaining}</Typography>
-          <Typography data-testid="sticky-remaining" sx={{ fontFamily: (t) => t.typography.pageTitle?.fontFamily, fontWeight: 700, fontSize: '1.3rem', fontVariantNumeric: 'tabular-nums', opacity: dirty && quote.pending ? 0.6 : 1 }}>{euros(remainingCents)}</Typography>
+          <Typography data-testid="sticky-remaining" sx={{ fontFamily: (t) => t.typography.pageTitle?.fontFamily, fontWeight: 700, fontSize: '1.3rem', fontVariantNumeric: 'tabular-nums', opacity: dirty && quote.pending ? 0.6 : 1 }}>{amountsUnknown ? '—' : euros(remainingCents)}</Typography>
         </Box>
       )}
       <DialogContent sx={{ pt: 2 }}>
@@ -357,6 +361,7 @@ export default function ResourceArrivalDialog({ open, bookingId, onClose, onDone
                       line={line}
                       disabled={readOnly}
                       busy={busyLine != null && busyLine === line.id}
+                      unknown={amountsUnknown}
                       onOffer={() => (line.draft ? setSessionOffered((v) => !v) : changeLine(line, { offered: !line.offered }))}
                     />
                   ))}
@@ -390,7 +395,7 @@ export default function ResourceArrivalDialog({ open, bookingId, onClose, onDone
                 <Typography variant="subtitle2">{TEXTS.recap}</Typography>
                 <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
                   <Typography variant="body2">{TEXTS.total}</Typography>
-                  <Typography variant="body2" sx={{ fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>{euros(view.totals.totalCents)}</Typography>
+                  <Typography variant="body2" sx={{ fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>{amountsUnknown ? '—' : euros(view.totals.totalCents)}</Typography>
                 </Box>
                 {view.totals.paidCents > 0 && (
                   <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
@@ -400,12 +405,12 @@ export default function ResourceArrivalDialog({ open, bookingId, onClose, onDone
                 )}
                 <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
                   <Typography variant="body1" sx={{ fontWeight: 700 }}>{TEXTS.remaining}</Typography>
-                  <Typography data-testid="remaining" sx={{ fontFamily: (t) => t.typography.pageTitle?.fontFamily, fontWeight: 700, fontSize: '1.6rem', fontVariantNumeric: 'tabular-nums' }}>{euros(view.totals.remainingCents)}</Typography>
+                  <Typography data-testid="remaining" sx={{ fontFamily: (t) => t.typography.pageTitle?.fontFamily, fontWeight: 700, fontSize: '1.6rem', fontVariantNumeric: 'tabular-nums' }}>{amountsUnknown ? '—' : euros(view.totals.remainingCents)}</Typography>
                 </Box>
                 {/* Loop t22 UI22-2 — the rates sit side by side on one line: an article of another rate adds its VAT beside the first one
                     instead of a row that would push the payment down when the answer lands. */}
                 <Box sx={{ display: 'flex', flexWrap: 'wrap', columnGap: 1.5 }}>
-                  {(view.vatByRate || []).filter((row) => row.vatCents > 0).map((row) => (
+                  {(amountsUnknown ? [] : view.vatByRate || []).filter((row) => row.vatCents > 0).map((row) => (
                     <Typography key={row.rate} variant="caption" color="text.secondary" sx={{ fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>{TEXTS.vat(String(row.rate).replace('.', ','), euros(row.vatCents))}</Typography>
                   ))}
                 </Box>
@@ -425,7 +430,9 @@ export default function ResourceArrivalDialog({ open, bookingId, onClose, onDone
               {!readOnly && (
                 <Box sx={{ display: 'grid', gap: 1 }}>
                   <Typography variant="subtitle2">{TEXTS.payment}</Typography>
-                  {remainingCents <= 0 ? (
+                  {amountsUnknown ? (
+                    <Typography variant="caption" color="text.secondary">—</Typography>
+                  ) : remainingCents <= 0 ? (
                     <Typography variant="caption" color="text.secondary">{TEXTS.nothingDue}</Typography>
                   ) : (
                     <>
@@ -454,7 +461,7 @@ export default function ResourceArrivalDialog({ open, bookingId, onClose, onDone
                 </Box>
               )}
 
-              {(readOnly || remainingCents <= 0) && !reception && view.paymentLink && view.paymentLink.open && (
+              {(readOnly || remainingCents <= 0) && !amountsUnknown && !reception && view.paymentLink && view.paymentLink.open && (
                 <Box sx={{ display: 'grid', gap: 1 }}>
                   <Typography variant="subtitle2">{TEXTS.payment}</Typography>
                   {linkBlock}

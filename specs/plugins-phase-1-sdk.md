@@ -742,6 +742,23 @@ Optional: a plugin that declares nothing reads « Actif ».
     quote and a catalogue that did not load with « Réessayer » (`ErrorAlert`). Tests `SaleDialogs.pending-blocks` (no live control in a
     pending block, every row), `SaleDialogs.focus-on-answer` (14: every file drawing a `FocusKeeper` has its rows; the four « Facture »
     outcomes in the arrival), `FocusKeeper` (7), `ReservationSasDialog.failed-preview` (7, pricing-components rule 117). Initial JavaScript 310.1 kB gzip (budget 313.3 kB).
+    _Reading of 2026-11-18 (loop t23 S23-1):_ **a recompute that FAILS after an earlier answer leaves nothing of that answer on screen.**
+    `useLatestPreview` (SDK export, part of the unpublished 2.32.0) kept `data` on a failure — right while a newer request is pending
+    (dimmed), wrong once it failed — and each screen decided alone what « unknown » meant: the counter kept « Total 6,50 € » and an editable
+    « Montant CB » 6,50 while its stepper read 2, the visit « Reste à payer » 126,50 € from before the article was added, the booking dialog
+    its 70 € with no « Prix indisponible » and no « Réessayer », the SAS arrival recap (« Régler séparément ») its stay settlement buttons on
+    « Séjour : — », and the payout split and the platform penalty their older figures with no word. The hook now answers **`data: null` and
+    `failed: true` from the failure until a new answer** (through a pending « Réessayer » too), and `last` for the one screen that draws its
+    layout from the last answer with every amount « — » and every settlement control disabled while `failed` (the SAS recap pages, through
+    `useSasRecapPreview`). Every screen that previews money through it, enumerated from the code — `StandaloneSaleDialog`,
+    `ResourceArrivalDialog`, `ResourceBookingDialog`, `ReservationSasDialog`, `PlatformPenaltyDialog`, `SplitSharesDialog`,
+    `LinkTransactionDialog` — then shows the reason with « Réessayer », no figure of the older answer and no money field set from it (the
+    counter's payment reads « — », the visit's « Total », « Reste à payer », VAT and session amounts read « — » and its payment is not
+    typed, the booking dialog reads « Prix indisponible »), keeps its commit disabled, and draws the new answer once « Réessayer » brings it.
+    The draft's own inputs (quantities, the penalty's amount, the payout shares) stay editable: they are the request. The arrival therefore
+    no longer asks the payment's invoice answer while its draft's amounts are unknown (outside-booking-sas rule 54 reading of the same day).
+    Test `useLatestPreview.failed-recompute` (9: the hook through a failure and a pending retry; the consumers read from the code equal the
+    table; one row per consumer).
     **The SDK history records what each shipped minor exposed:** v4.1.0 shipped SDK 2.27.0 without `vat`, `accountingOutput`, `legacyBucketSplit`,
     `refundJournal`, `csvJournal`, `salesJson` and `synthesisExporter`, and neither SDK 2.28.0 (the home-data extension points,
     specs/guest-app-home-automation.md, merged first) nor SDK 2.29.0 (the Mollie tranches and journal, rule 51, merged first) recorded them,
@@ -999,6 +1016,9 @@ still in the core. Server: 4,611 tests after, of which 37 are new. Client: 1,416
   consumer starts nothing, an active one the four imports, once; once loaded every block is in the first paint. Each test of this file and of
   `LazySaleComponents.lazy` takes a fresh module registry (`vi.resetModules` + `vi.doMock`), so the session-wide memoised imports never leak
   from one test to the next and the outcome is the same in any order (loop t21 A21-1, shuffled seeds 1-12).
+- `hooks/__tests__/useLatestPreview.failed-recompute.test.jsx` (9) — rule 54 (reading of 2026-11-18, loop t23 S23-1): a failed request
+  makes the answer unknown until a new one; every money preview screen, read from the code, shows no figure of the older answer, no live
+  money field set from it, the reason with « Réessayer », a disabled commit, then the new answer.
 - `components/__tests__/LazySaleComponents.late-chunks.test.jsx` (3) — rule 54 (reading of 2026-11-18, loop t22 A22-1, loop t23 UI23-1;
   specs/server-test-isolation.md rule 23): every TEST gets the four blocks' code cold and late (`src/setupLateSaleChunks.js` resets
   them before each test), a later test of the same file included; the dialogs waiting for it, read from the code, each have a suite.

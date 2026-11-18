@@ -12,6 +12,7 @@ import {
   Autocomplete, Box, FormControlLabel, Radio, RadioGroup, TextField, Typography,
 } from '@mui/material';
 import api from '../../api';
+import ErrorAlert from '../ErrorAlert';
 import FormDialog from '../FormDialog';
 import useLatestPreview from '../../hooks/useLatestPreview';
 import { useToast } from '../DialogProvider';
@@ -117,6 +118,8 @@ export default function PlatformPenaltyDialog({ open, onClose, reservationId, so
       {shown && shown.errors.filter((e) => !['amount', 'reason', 'date', 'payoutIncludesPenalty'].includes(e.field)).map((e) => (
         <Typography key={e.code} variant="caption" component="div" color="error.main" role="alert" sx={{ mt: 1 }}>{e.message}</Typography>
       ))}
+      {/* Loop t23 S23-1 — a failed preview says so with its way out; nothing of an older answer stays drawn (`data` is null). */}
+      {preview.error && <ErrorAlert message={preview.error.message || 'Calcul impossible.'} onRetry={preview.retry} sx={{ mt: 1.5 }} />}
     </FormDialog>
   );
 }

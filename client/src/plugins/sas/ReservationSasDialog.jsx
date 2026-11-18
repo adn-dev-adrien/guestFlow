@@ -1166,7 +1166,7 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
         ? <RecapPreviewError error={preview.error} onRetry={preview.retry} onBack={backToRefusingStep} />
         : <LoadingState />;
     }
-    const failed = Boolean(preview.error) && !preview.pending;
+    const failed = preview.failed;
     const shown = (value) => (failed ? '—' : formatCurrency(value));
     const lineText = (l) => {
       const qty = Number(l.qty || 0);
@@ -1370,7 +1370,7 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
       case 'stayPayment': {
         // Rule 117 (loop t22 UI22-3) — the amounts are the plan's: « — » until it answered, and while it fails. A failure says so with
         // « Réessayer » (as the breakfast page), and the settlement buttons wait for an amount: none can be chosen on « — ».
-        const stayUnknown = !recap || Boolean(preview.error);
+        const stayUnknown = !recap || preview.failed;
         return (
           <Stack spacing={1.5}>
             <SasStayPaymentPage stayPayment={recap ? recap.stayPayment : data.stayPayment} pending={stayUnknown} value={stayPayMode}>
@@ -1523,7 +1523,7 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
         const bf = salesOffer.breakfast;
         const chosen = breakfastMornings.filter((m) => m.checked).length;
         const served = servedFor(bf, breakfastServed);
-        const sale = recap && !preview.error ? recap.sales?.breakfast : null;
+        const sale = recap && !preview.failed ? recap.sales?.breakfast : null;
         return (
           <Stack spacing={1}>
             <Typography variant="body1" sx={{ fontWeight: 600 }}>Quels matins ?</Typography>
@@ -1585,7 +1585,7 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
               const picked = Boolean(cateringPicked[o.optionId]);
               const served = servedFor(o, cateringServed[o.optionId]);
               const units = o.showsPlanningCard ? chosen : Number(cateringUnits[o.optionId]) || 0;
-              const sale = recap && !preview.error
+              const sale = recap && !preview.failed
                 ? (recap.sales?.catering?.options || []).find((x) => Number(x.optionId) === Number(o.optionId)) : null;
               const amount = money(sale ? sale.amount : null);
               return (
@@ -1671,7 +1671,7 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
               );
             })}
             <Typography variant="body2" sx={{ fontWeight: 700, pt: 1, ...previewDim }}>
-              Total restauration : {money(recap && !preview.error ? recap.sales?.catering?.amount ?? 0 : null)}
+              Total restauration : {money(recap && !preview.failed ? recap.sales?.catering?.amount ?? 0 : null)}
             </Typography>
             {preview.error && (
               <RecapPreviewError error={preview.error} onRetry={preview.retry} onBack={backToRefusingStep} unavailable="Montant indisponible" />
@@ -1730,7 +1730,7 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
               <>
                 <Divider />
                 <Typography variant="body2" sx={{ fontWeight: 700, fontVariantNumeric: 'tabular-nums', ...previewDim }}>
-                  Sous-total : {recap && !preview.error ? formatCurrency(recap.extinguisherTotal) : '—'}
+                  Sous-total : {recap && !preview.failed ? formatCurrency(recap.extinguisherTotal) : '—'}
                 </Typography>
                 {/* Loop t22 UI22-3 — a failed preview says so, with its way out, instead of « — » for ever. */}
                 {preview.error && !preview.pending && (
@@ -1755,7 +1755,7 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
               ? <RecapPreviewError error={preview.error} onRetry={preview.retry} onBack={backToRefusingStep} />
               : <LoadingState />;
           }
-          const failed = Boolean(preview.error) && !preview.pending;
+          const failed = preview.failed;
           const total = recap.arrivalComplementTotal;
           const stayDue = stayStep ? recap.stayDue : 0;
           // specs/single-payment-at-check-in.md §3.1 rule 1 — both sides collectible at the door, the
@@ -1783,7 +1783,7 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
                 <>
                   <Typography variant="body1" sx={{ fontWeight: 600, fontVariantNumeric: 'tabular-nums', ...previewDim }}>Séjour : {shown(stayDue)}</Typography>
                   <Typography variant="body2" sx={{ fontWeight: 600 }}>Règlement du séjour</Typography>
-                  <PaymentModeButtons value={stayPayMode} onChange={setStayPayMode} showDefer deferLabel="Pas maintenant" />
+                  <PaymentModeButtons value={stayPayMode} onChange={setStayPayMode} showDefer deferLabel="Pas maintenant" disabled={settleBlocked} />
                   {stayPayMode === 'defer' && (
                     <Typography variant="body2" color="text.secondary">Le séjour reste dû (rien n'est encaissé).</Typography>
                   )}

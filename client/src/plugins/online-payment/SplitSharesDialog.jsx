@@ -9,7 +9,9 @@
  */
 import React, { useEffect, useState } from 'react';
 import { Typography } from '@mui/material';
-import { api, FormDialog, useLatestPreview } from '../sdk';
+import {
+  api, ErrorAlert, FormDialog, useLatestPreview,
+} from '../sdk';
 import AmountPairFields from './AmountPairFields';
 import { money, parseEuroInput, centsToInput } from './reconciliationShared';
 
@@ -49,6 +51,8 @@ export default function SplitSharesDialog({ open, onClose, busy = false, proposa
       {shown && shown.errors.map((e) => (
         <Typography key={`${e.code}-${e.field}`} variant="caption" component="div" color="error.main" role="alert">{e.message}</Typography>
       ))}
+      {/* Loop t23 S23-1 — a failed check says so with its way out; nothing of an older answer stays drawn (`data` is null). */}
+      {preview.error && <ErrorAlert message={preview.error.message || 'Vérification impossible.'} onRetry={preview.retry} sx={{ mt: 1 }} />}
     </FormDialog>
   );
 }

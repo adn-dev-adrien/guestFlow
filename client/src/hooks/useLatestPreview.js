@@ -11,9 +11,15 @@
  *   resetKey — identifies one run of the screen; a new value forgets the last answer
  *   delay    — quiet time before a request (200 ms); the first request after `enabled` leaves at once
  *
- * Returns `{ data, pending, error, fresh, retry }`: `data` is the latest answer (kept while a newer one
- * is pending), `fresh` says it is for the current draft. Only the latest request counts: an older one
- * is aborted, and its late answer ignored.
+ * Returns `{ data, last, pending, error, failed, fresh, retry }`: `data` is the latest answer (kept while a
+ * newer one is pending), `fresh` says it is for the current draft. Only the latest request counts: an older
+ * one is aborted, and its late answer ignored.
+ *
+ * A request that FAILS makes the answer unknown (loop t23 S23-1, specs/pricing-components.md rule 54 reading of
+ * 2026-11-18): `data` turns null and `failed` stays true — through a « Réessayer » still pending — until a new
+ * answer arrives, so no screen keeps drawing the figures of an older draft, or a money control set from them,
+ * next to its error. `last` keeps the latest answer for a screen that draws its layout from it and shows every
+ * amount « — » and every money control disabled while `failed` (the SAS recap pages); nothing else reads it.
  */
 import {
   useCallback, useEffect, useMemo, useRef, useState,
@@ -23,7 +29,7 @@ export default function useLatestPreview({
   fetcher, draft, enabled, scope, resetKey, delay = 200,
 }) {
   const signature = useMemo(() => JSON.stringify(draft || {}), [draft]);
-  const [answer, setAnswer] = useState({ data: null, signature: null, error: null });
+  const [answer, setAnswer] = useState({ data: null, signature: null, error: null, failed: false });
   const [pending, setPending] = useState(false);
   const seqRef = useRef(0);
   const abortRef = useRef(null);
@@ -43,12 +49,12 @@ export default function useLatestPreview({
     fetcherRef.current(JSON.parse(sig), { signal: controller ? controller.signal : undefined })
       .then((data) => {
         if (seq !== seqRef.current) return;
-        setAnswer({ data, signature: sig, error: null });
+        setAnswer({ data, signature: sig, error: null, failed: false });
         setPending(false);
       })
       .catch((error) => {
         if (seq !== seqRef.current || (error && error.name === 'AbortError')) return;
-        setAnswer((prev) => ({ ...prev, error }));
+        setAnswer((prev) => ({ ...prev, error, failed: true }));
         setPending(false);
       });
   }, []);
@@ -58,7 +64,7 @@ export default function useLatestPreview({
     if (abortRef.current) abortRef.current.abort();
     clearTimeout(timerRef.current);
     wasEnabledRef.current = false;
-    setAnswer({ data: null, signature: null, error: null });
+    setAnswer({ data: null, signature: null, error: null, failed: false });
     setPending(false);
   }, [resetKey]);
 
@@ -87,9 +93,11 @@ export default function useLatestPreview({
   const retry = useCallback(() => send(signature), [send, signature]);
 
   return {
-    data: answer.data,
+    data: answer.failed ? null : answer.data,
+    last: answer.data,
     pending,
     error: answer.error,
+    failed: answer.failed,
     fresh: !pending && !answer.error && answer.signature === signature && answer.data != null,
     retry,
   };

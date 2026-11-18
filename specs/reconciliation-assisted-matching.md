@@ -186,6 +186,9 @@ on the right account, on the fiche, in the finance pages and in the accounting e
     more, reason « Versement groupé de 3 séjours · montants estimés », and « Confirmer » opens the split dialog
     (rule 7) prefilled with the estimates; the server refuses (422 `SHARES_DO_NOT_SUM`) until the shares sum
     to the credit to the cent. Each typed share becomes that fiche's payout (v1 rule 36).
+    _Reading of 2026-11-18 (loop t23 S23-1, plugins-phase-1-sdk rule 54 reading):_ when the split's check fails after an earlier answer,
+    the older answer's message is no longer kept: « Vérification impossible. » (or the server's reason) with « Réessayer », the shares stay
+    editable and « Répartir et confirmer » disabled until a new answer. Test `useLatestPreview.failed-recompute` (row `SplitSharesDialog`).
 19. **A group is shown as one.** Every fiche of a group proposal shows « Versement groupé · couvre aussi
     Dupont (Versement Booking), Martin (Versement Booking) »; confirming it from any of them confirms the
     whole group; « Écarter » discards the group pairing for that credit (v1 rule 11).
@@ -229,6 +232,10 @@ on the right account, on the fiche, in the finance pages and in the accounting e
     40,00 € », prefilled with the gap), the operator gives: **amount** (> 0, 2 decimals max), **motif**
     (required, 3–120 characters, suggestions « Frais d'annulation hôte », « Frais de relogement », « Non-
     conformité »), **date** (default: the payout's received date, else today; never in the future).
+    _Reading of 2026-11-18 (loop t23 S23-1, plugins-phase-1-sdk rule 54 reading):_ a preview that fails after an earlier answer no longer
+    leaves that answer's figures (« Commission … → … ») and choice drawn with no word: they go, « Calcul impossible. » (or the server's
+    reason) shows with « Réessayer », the fields stay editable and « Enregistrer » disabled until a new answer. Test
+    `useLatestPreview.failed-recompute` (row `PlatformPenaltyDialog`).
 25. **Before or after the penalty.** The server needs to know whether the payout recorded on the fiche is
     the platform's statement figure (before the penalty) or the bank amount (after it):
     - declared from a reconciliation gap → the payout is the statement figure: it is kept, the commission is
