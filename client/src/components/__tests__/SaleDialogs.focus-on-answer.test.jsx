@@ -321,8 +321,17 @@ beforeEach(() => {
   hold();
 });
 
+// A page whose region is proven in its own subject suite (a page needs its own heavy harness): the suite named must exist and check
+// that the focus never falls to the body when the control holding it goes. Loop t24 S24-3: the fiche's failed live quote.
+const KEPT_ELSEWHERE = {
+  'pages/ReservationPage.jsx': 'pages/__tests__/ReservationPage.live-quote-failure.test.jsx',
+};
+
 test('every file that draws a FocusKeeper has its rows', () => {
-  expect(KEEPERS).toEqual([...new Set(ROWS.map((row) => row.file))].sort());
+  expect(KEEPERS).toEqual([...new Set([...ROWS.map((row) => row.file), ...Object.keys(KEPT_ELSEWHERE)])].sort());
+  Object.values(KEPT_ELSEWHERE).forEach((suite) => {
+    expect(fs.readFileSync(path.join(SRC, suite), 'utf8')).toMatch(/document\.activeElement\)\.not\.toBe\(document\.body\)/);
+  });
 });
 
 test.each(ROWS.map((row) => [`${row.file}: ${row.name}`, row]))('%s', async (_, row) => {
