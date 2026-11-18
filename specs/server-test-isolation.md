@@ -157,7 +157,12 @@ being on the preload's lists fails the run once the suite executes the read (rul
    `closureConflictsFixture.dayLabel` already did), so the assertion is exact whatever today is. Every other test asserting
    a « dd/mm » label from today's dates was checked: the dashboard title and the incoming-payment and caution labels never
    name a year, the closure and link labels already accept or derive it. Proof: both files green with the clock at 19/11,
-   21/11, 23/11 and 30/12/2026, red before on 19/11 (1) and 21/11 (2).
+   21/11, 23/11 and 30/12/2026, red before on 19/11 (1) and 21/11 (2). The same root outside labels (loop t17 verify
+   O-V17-3): `incoming-payments` asked the finance dashboard for the month of `today − 200 days`, outside the exercise from
+   1 January to mid-July; it now asks another month of today's year. Green with the clock at 18/11 and 31/12/2026, 01/01,
+   31/01, 01/02, 10/03, 15/07 and 31/12/2027 (red before from 01/01 to 15/07/2027). Every other test deriving a month or a
+   year from a day offset reads it from that same day (`trop-percu-refund-books`, `email-template-when-sentence`,
+   `payment-link-withdraw`, `stay-dates-guard`).
 
 7. **A PR adding a literal date to a test is told so, on the line** (added 2026-10-30, audit R8 M-1, the guard
    audit R7 proposed). `scripts/check-test-dates.mjs --base <ref>` reads only the test lines a PR adds (files of

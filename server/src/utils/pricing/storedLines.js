@@ -86,10 +86,17 @@ function numberedLabel(label, takenKeys) {
  * whose label is already taken is numbered. A line the engine drops — a blank label, or no amount (0 €, negative) — is left as it is and takes
  * no label: numbering it would price a « (2) » line, and counting it would number the only line the stay keeps.
  */
+// THE rule of a posted free line the engine prices: a label and an amount of at least a cent. A blank or 0 € (or negative) line is no line —
+// the quote drops it, the numbering skips it, it names no stored row (`matchStoredCustomLines`), so every judge of a save, its preview and
+// its writer agree (pricing-components rule 79 / 94 readings, loop t17 O-V17-1). The one copy of this rule: every filter of the concept reads it.
+function isPricedCustomLine(line) {
+  return Boolean(String((line && line.description) || '').trim()) && Math.round(Number((line && line.amount) || 0) * 100) > 0;
+}
+
 function numberRepeatedCustomLines(customOptions, kept = () => false) {
   if (!Array.isArray(customOptions)) return customOptions;
   const keyOf = (text) => extraLineKey({ isCustom: true, description: text });
-  const dropped = (line) => !String((line && line.description) || '').trim() || !(Math.round(Number((line && line.amount) || 0) * 100) > 0);
+  const dropped = (line) => !isPricedCustomLine(line);
   const taken = new Set(customOptions.filter((line, index) => kept(index) && !dropped(line)).map((line) => keyOf(line.description)));
   return customOptions.map((line, index) => {
     if (kept(index) || dropped(line)) return line;
@@ -100,5 +107,5 @@ function numberRepeatedCustomLines(customOptions, kept = () => false) {
 }
 
 module.exports = {
-  extraLineKey, parseNotes, settledByKey, parseDetail, numberedLabel, numberRepeatedCustomLines,
+  extraLineKey, parseNotes, settledByKey, parseDetail, numberedLabel, numberRepeatedCustomLines, isPricedCustomLine,
 };

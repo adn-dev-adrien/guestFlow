@@ -53,7 +53,7 @@ const resourceOffer = require('../utils/resourceOffer');
 const { provenComplementAmount } = require('../utils/createdComplementRepair');
 const { roundMoneyStrict } = require('../utils/pricing/money');
 const { notDepartureCharge } = require('../utils/departureChargeLines');
-const { numberRepeatedCustomLines } = require('../utils/pricing/storedLines');
+const { numberRepeatedCustomLines, isPricedCustomLine } = require('../utils/pricing/storedLines');
 
 /**
  * Now, in UTC, as `YYYY-MM-DD HH:MM:SS` matching SQLite's `datetime('now')` format. Used as
@@ -444,7 +444,7 @@ function createModel(database) {
       description: String(line.description || '').trim(),
       amount: Number(line.amount || 0), offered: Boolean(line.offered),
       inComplement: routing(line.inComplement),
-    })).filter((line) => line.description && Number(line.amount || 0) > 0));
+    })).filter(isPricedCustomLine));
     const selectedResources = (body.selectedResources || []).map((r) => ({
       resourceId: Number(r.resourceId), quantity: Number(r.quantity || 1),
       unitPrice: r.unitPrice != null ? Number(r.unitPrice) : undefined, offered: Boolean(r.offered),

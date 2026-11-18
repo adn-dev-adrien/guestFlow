@@ -232,8 +232,9 @@ function createBookingLinesModel(database) {
     // (`pricedCustomLinesNamingRows`); the SAS marker (rule 33) rides the row it was stored on.
     insertCustomOptions(bookingId, optionLines, sasOriginLabels = [], carried = []) {
       const customLines = (optionLines || []).filter((line) => line.isCustom);
+      const amountOf = (line) => Number(line.originalTotalPrice || line.grossTotalPrice || line.totalPrice || 0);
       const rows = matchStoredCustomLines(customLines.map((line) => ({
-        customOptionId: line.customOptionId, newLine: line.newLine, description: String(line.title || line.description || ''),
+        customOptionId: line.customOptionId, newLine: line.newLine, description: String(line.title || line.description || ''), amount: amountOf(line),
       })), carried || []);
       const sasOfRow = new Map((sasOriginLabels || []).filter((entry) => entry.id != null).map((entry) => [Number(entry.id), entry]));
       let sortOrder = 0;
@@ -247,7 +248,7 @@ function createBookingLinesModel(database) {
           ...kept,
           reservationId: bookingId,
           description,
-          amount: Number(line.originalTotalPrice || line.grossTotalPrice || line.totalPrice || 0),
+          amount: amountOf(line),
           offered: line.offered ? 1 : 0,
           sortOrder,
           inComplement: forced,

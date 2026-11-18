@@ -13,7 +13,7 @@ const { createFreeUnitsLedger } = require('../allowances');
 const { portionCap, clampPortions } = require('../../mealPortions');
 const { buildBabyBedSupplementLine, isBabyBedOption } = require('../../babyBedSupplement');
 const { discountLines } = require('../discounts');
-const { extraLineKey } = require('../storedLines');
+const { extraLineKey, isPricedCustomLine } = require('../storedLines');
 const { keyLines, lineRef, parseLineRef } = require('../lineKeys');
 const { lockedUnitPriceOr } = articles;
 
@@ -438,14 +438,7 @@ const step = {
   },
 };
 
-// A posted custom line the engine prices: a blank or 0 € line is no line (the quote drops it, keeping the order of the others).
-// The writer pairs the priced lines with the posted ones through this same rule (storedCustomLines.pricedCustomLinesNamingRows).
-function isPricedCustomLine(line) {
-  return Boolean(String(line?.description || '').trim()) && roundMoney(Math.max(0, Number(line?.amount || 0))) > 0;
-}
-
 module.exports = step;
-module.exports.isPricedCustomLine = isPricedCustomLine;
 module.exports.withQuantityUnit = withQuantityUnit;
 module.exports.withDisplayCount = withDisplayCount;
 module.exports.normalizeCardOccurrences = normalizeCardOccurrences;

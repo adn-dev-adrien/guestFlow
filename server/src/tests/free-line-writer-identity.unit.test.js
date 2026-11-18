@@ -13,7 +13,7 @@ const lines = require('../models/bookingLinesModel');
 const { storedBody } = require('../utils/stayOrderLines');
 const { extraLineKey } = require('../utils/pricing/storedLines');
 const { matchStoredCustomLines, pricedCustomLinesNamingRows } = require('../utils/storedCustomLines');
-const { isPricedCustomLine } = require('../utils/pricing/steps/extras');
+const { isPricedCustomLine } = require('../utils/pricing/storedLines');
 const { changeLine } = require('../utils/extraSale');
 
 const keyOf = (label) => extraLineKey({ isCustom: true, title: label });
@@ -26,7 +26,7 @@ const variantsOf = (label) => {
   return [...new Set(variants)].filter((variant) => variant !== label);
 };
 
-const rowsOf = (id) => db.prepare('SELECT id, lineId, description, discountCents, sasArrivalOrigin, sasLineKey, quantity FROM reservation_custom_options WHERE reservationId = ? ORDER BY sortOrder, id').all(id);
+const rowsOf = (id) => db.prepare('SELECT id, lineId, description, amount, discountCents, sasArrivalOrigin, sasLineKey, quantity FROM reservation_custom_options WHERE reservationId = ? ORDER BY sortOrder, id').all(id);
 
 const MOMENTS = { beforeArrival: { offset: -3, checkIn: 0 }, started: { offset: 1, checkIn: 1 } };
 const VARIANTS = {
@@ -100,7 +100,7 @@ test('D17-1 — replaceCustomOptions: two SAS lines of one label keep their own 
 });
 
 // The controller pairs the priced lines with the posted ones through the engine's own rule (`isPricedCustomLine`): a blank or 0 € posted
-// line takes its row for the judges and gives it to no priced line.
+// line names no row (O-V17-1), so a priced line of its text may take it.
 test('D17-1 — pricedCustomLinesNamingRows: each priced line names the row the judges chose for its posted line, by posted order', () => {
   const stored = [{ id: 7, description: 'Bois' }, { id: 8, description: 'Bois' }];
   const posted = [
@@ -111,12 +111,12 @@ test('D17-1 — pricedCustomLinesNamingRows: each priced line names the row the 
     { description: 'Pain', amount: 4 },
   ];
   const judged = matchStoredCustomLines(posted, stored).map((r) => (r ? r.id : null));
-  assert.deepEqual(judged, [null, 7, 8, null, null]);
+  assert.deepEqual(judged, [null, null, 7, null, null], 'a 0 € line names no row, even with its id (O-V17-1)');
   const priced = [{ optionId: 1, title: 'Bière' }, ...posted.filter(isPricedCustomLine).map((line) => ({ isCustom: true, title: line.description.trim(), customOptionId: line.customOptionId }))];
   const resolved = pricedCustomLinesNamingRows(posted, priced, stored);
   assert.deepEqual(resolved[0], { optionId: 1, title: 'Bière' });
   assert.deepEqual(resolved.slice(1).map((line) => [line.title, line.customOptionId ?? null, Boolean(line.newLine)]), [
-    ['bois', 8, false],
+    ['bois', 7, false],
     ['BOIS', null, true],
     ['Pain', null, true],
   ]);
@@ -133,3 +133,41 @@ test('D17-1 — the engine prices exactly the posted lines isPricedCustomLine ke
   assert.deepEqual(quote.optionLines.filter((line) => line.isCustom).map((line) => line.title),
     posted.filter(isPricedCustomLine).map((line) => line.description.trim()));
 });
+
+// Loop t17 verify O-V17-1 — a posted line the engine does not price (blank, 0 €) is no line for ANY judge (`isPricedCustomLine`, one copy in
+// pricing/storedLines): it names no stored row, so the row it carried is removed and its facts (here a 2 € discount) are read by nobody — on
+// the preview and on the save, which store and price the same lines. Before: the facts judge counted the 0 € line as naming the row and kept
+// its discount in the price (323) while the writer stored the retyped line without it.
+const callHandler = (fn, body) => new Promise((resolve, reject) => {
+  const res = { statusCode: 200, status(s) { this.statusCode = s; return this; }, json(b) { resolve({ status: this.statusCode, body: b }); return this; }, set() { return this; }, setHeader() {} };
+  Promise.resolve(fn({ body, params: {}, query: {}, user: { role: 'admin', id: 1 }, headers: {} }, res)).catch(reject);
+});
+const UNPRICED_SHAPES = {
+  zeroWithIdPlusRetyped: (bois, pain) => [{ customOptionId: bois.id, description: 'Bois', amount: 0 }, { description: 'Bois', amount: 15, newLine: true }, { customOptionId: pain.id, description: 'Pain', amount: 10 }],
+  zeroWithIdPlusRetypedNoFlag: (bois, pain) => [{ customOptionId: bois.id, description: 'Bois', amount: 0 }, { description: 'bois', amount: 15 }, { customOptionId: pain.id, description: 'Pain', amount: 10 }],
+  blankWithIdPlusRetyped: (bois, pain) => [{ customOptionId: bois.id, description: '  ', amount: 15 }, { description: 'Bois', amount: 15, newLine: true }, { customOptionId: pain.id, description: 'Pain', amount: 10 }],
+  zeroWithIdAlone: (bois, pain) => [{ customOptionId: bois.id, description: 'Bois', amount: 0 }, { customOptionId: pain.id, description: 'Pain', amount: 10 }],
+  keptControl: (bois, pain) => [{ customOptionId: bois.id, description: 'Bois', amount: 15 }, { customOptionId: pain.id, description: 'Pain', amount: 10 }],
+};
+for (const [shape, build] of Object.entries(UNPRICED_SHAPES)) {
+  test(`O-V17-1 — ${shape}: preview and save price the lines the save stores; an unpriced line names no row`, async (t) => {
+    const id = stay(20);
+    t.mock.timers.enable({ apis: ['Date'], now: new Date(`${addDaysToIsoDate(row(id).startDate, -3)}T12:00:00`).getTime() });
+    try {
+      assert.equal(ctrl.performUpdate(id, { ...storedBody(id), customOptions: [{ customKey: 'a', description: 'Bois', amount: 15, newLine: true }, { customKey: 'b', description: 'Pain', amount: 10, newLine: true }] }, { now: new Date() }).status, 200);
+      assert.equal(changeLine(id, `custom:${rowsOf(id)[0].lineId}`, { discount: { amount: 2 } }, { now: new Date() }).status, 200);
+      const [bois, pain] = rowsOf(id);
+      const body = { ...storedBody(id), customOptions: build(bois, pain) };
+      const preview = await callHandler(ctrl.calculatePrice, JSON.parse(JSON.stringify({ ...body, selectedOptions: body.options, selectedResources: body.resources, reservationId: id })));
+      const saved = ctrl.performUpdate(id, JSON.parse(JSON.stringify(body)), { now: new Date() });
+      assert.equal(saved.status, 200, JSON.stringify(saved.body));
+      const after = rowsOf(id);
+      const keptBois = after.some((r) => r.lineId === bois.lineId);
+      // The row goes to a priced line that names it: by id (control) or, without id nor `newLine`, by its text (rule 19).
+      assert.equal(keptBois, ['keptControl', 'zeroWithIdPlusRetypedNoFlag'].includes(shape), 'only a priced line naming the row keeps it');
+      const lineCents = after.reduce((sum, r) => sum + Math.round(r.amount * 100) - Number(r.discountCents || 0), 0);
+      assert.equal(Math.round(row(id).finalPrice * 100), 30000 + lineCents, 'the stay is priced on the stored lines and their stored discounts');
+      assert.equal(preview.body.finalPrice, row(id).finalPrice, 'the preview prices as the save');
+    } finally { t.mock.timers.reset(); }
+  });
+}

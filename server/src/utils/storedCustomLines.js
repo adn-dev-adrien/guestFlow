@@ -7,18 +7,21 @@
  * save is a new line, never the removed row with its number, discount and money.
  */
 const { extraLineKey } = require('./midStayExtras');
+const { isPricedCustomLine } = require('./pricing/storedLines');
 
 const textKey = (description) => extraLineKey({ isCustom: true, title: description });
 
 function matchStoredCustomLines(postedLines, storedRows) {
   const free = [...storedRows];
   const take = (at) => (at >= 0 ? free.splice(at, 1)[0] : null);
-  const matches = postedLines.map((line) => (
-    line?.customOptionId != null ? take(free.findIndex((row) => row.id === Number(line.customOptionId))) : null
+  // A line the engine does not price (blank, 0 €) is no line: it names no row, so the row it carried is removed for every judge (loop t17 O-V17-1).
+  const priced = postedLines.map((line) => isPricedCustomLine(line));
+  const matches = postedLines.map((line, index) => (
+    priced[index] && line?.customOptionId != null ? take(free.findIndex((row) => row.id === Number(line.customOptionId))) : null
   ));
   return postedLines.map((line, index) => {
     if (matches[index]) return matches[index];
-    if (line?.newLine) return null;
+    if (!priced[index] || line?.newLine) return null;
     const key = textKey(line?.description);
     return key ? take(free.findIndex((row) => textKey(row.description) === key)) : null;
   });
@@ -72,7 +75,6 @@ function withoutRemovedLineFacts(facts, postedLines, storedRows) {
  * in order (`isPricedCustomLine`), which pairs the two lists. `pricedLines` is the quote's `optionLines` (catalogue lines pass unchanged).
  */
 function pricedCustomLinesNamingRows(postedLines, pricedLines, storedRows) {
-  const { isPricedCustomLine } = require('./pricing/steps/extras');
   const posted = Array.isArray(postedLines) ? postedLines : [];
   const matches = matchStoredCustomLines(posted, Array.isArray(storedRows) ? storedRows : []);
   const rowOfPriced = posted.map((line, index) => (isPricedCustomLine(line) ? matches[index] : undefined)).filter((row) => row !== undefined);

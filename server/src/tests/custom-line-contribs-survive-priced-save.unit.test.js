@@ -343,7 +343,8 @@ test('rule 19 — matching: id first over every line, then text, each row once',
     { id: 6, description: 'Bois', v: 'b' },
     { id: 7, description: 'Vin', v: 'c' },
   ];
-  const ofPosted = (posted) => matchStoredCustomLines(posted, stored).map((row) => (row ? row.v : null));
+  // A posted line carries its amount: one the engine does not price (0 €, blank) names no row (pricing-components rule 79 reading, O-V17-1).
+  const ofPosted = (posted) => matchStoredCustomLines(posted.map((line) => ({ amount: 10, ...line })), stored).map((row) => (row ? row.v : null));
 
   assert.deepEqual(ofPosted([{ description: 'bois ' }, { customOptionId: 5, description: 'Bois' }]), ['b', 'a']);
   assert.deepEqual(ofPosted([{ customOptionId: 7, description: 'Bois' }, { description: 'Vin' }]), ['c', null]);
@@ -351,6 +352,7 @@ test('rule 19 — matching: id first over every line, then text, each row once',
   assert.deepEqual(ofPosted([{ customOptionId: 42, description: 'Thé' }]), [null]);
   assert.deepEqual(ofPosted([{ description: '   ' }]), [null], 'a blank text matches nothing');
   assert.deepEqual(matchStoredCustomLines([{ description: '' }], [{ id: 1, description: '' }]), [null]);
+  assert.deepEqual(ofPosted([{ customOptionId: 5, description: 'Bois', amount: 0 }, { description: 'Bois' }]), [null, 'a'], 'a 0 € line names no row, even by its id');
 });
 
 test('rule 19 — a body with no custom line list still saves', () => {
