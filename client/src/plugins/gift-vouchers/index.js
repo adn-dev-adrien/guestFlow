@@ -1,4 +1,4 @@
-// Bons cadeaux — client module (specs/gift-vouchers.md §4.2). The page, its dialogs and the settings contribute here.
+// Bons cadeaux — client module (specs/gift-vouchers.md §4.2, specs/gift-voucher-campaigns.md §4.2). The vouchers, the campaigns, the visual library, « Nouveau bon » and the settings contribute here.
 import { lazy } from 'react';
 import CardGiftcardOutlinedIcon from '@mui/icons-material/CardGiftcardOutlined';
 
@@ -8,6 +8,10 @@ export default {
   contributes: {
     routes: [
       { path: '/bons-cadeaux', Component: lazy(() => import('./GiftVouchersPage')), roles: ['admin'] },
+      { path: '/bons-cadeaux/nouveau', Component: lazy(() => import('./NewVoucherPage')), roles: ['admin'] },
+      { path: '/bons-cadeaux/campagnes', Component: lazy(() => import('./CampaignsPage')), roles: ['admin'] },
+      { path: '/bons-cadeaux/campagnes/:id', Component: lazy(() => import('./CampaignEditor')), roles: ['admin'] },
+      { path: '/bons-cadeaux/visuels', Component: lazy(() => import('./VisualsPage')), roles: ['admin'] },
       { path: '/parametres/bons-cadeaux', Component: lazy(() => import('./GiftVoucherSettings')), roles: ['admin'] },
     ],
     // Rules 40-41 — « Payer par bon cadeau » on a confirmed stay, « Recréditer le bon » on a cancelled one.
@@ -15,7 +19,7 @@ export default {
     'nav.items': [{ path: '/bons-cadeaux', label: 'Bons cadeaux', Icon: CardGiftcardOutlinedIcon, after: '/planning' }],
     'settings.menu': [{
       path: '/parametres/bons-cadeaux', label: 'Bons cadeaux', Icon: CardGiftcardOutlinedIcon, after: '/settings/emails',
-      keywords: ['Bon cadeau', 'Validité', 'Idées de séjour', 'Mail du bon'],
+      keywords: ['Bon cadeau', 'Liens permanents', 'Base des liens'],
     }],
   },
 };

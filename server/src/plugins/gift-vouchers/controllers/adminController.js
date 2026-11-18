@@ -12,6 +12,7 @@ const { presentMovement, actorNameOf } = require('../movementView');
 const { statusOf } = require('../offerService');
 const { renderPaymentLinkMail } = require('../mailTemplate');
 const { DOCUMENT_REFUSALS } = require('../documentRefusals');
+const { contentLines } = require('../contentsText');
 
 const OUTCOMES = Object.freeze(['paid', 'offered', 'link']);
 const REQUEST_KEYS = Object.freeze(['slug', 'composition', 'title', 'validityMonths', 'offeredAddOns', 'extraTimeMaxMinutes', 'extraMinutes', 'addOns', 'amountCents']);
@@ -98,6 +99,12 @@ function buildAdminController({
 
   const stateOf = (v) => rules.stateOf({ voucher: v, balanceCents: v.balanceCents, today: today() });
 
+  /** Rule 42 — the day a voucher was used for a booking and the fiche it opened, for the list's « Utilisé le » column. */
+  function usedOf(v) {
+    const booked = uses ? uses.bookedOf(v.id) : null;
+    return { usedOn: booked ? rules.parisDate(new Date(booked.settledAt)) : null, bookingId: booked ? booked.bookingId : null };
+  }
+
   const summary = (v) => ({
     id: v.id,
     number: v.number,
@@ -119,6 +126,8 @@ function buildAdminController({
     mailSentAt: v.mailSentAt,
     mailError: v.mailError,
     canDownload: rules.isUsable(stateOf(v)),
+    contentsText: contentLines(v).join(' · '),
+    ...usedOf(v),
   });
 
   const find = (req) => {
@@ -156,6 +165,8 @@ function buildAdminController({
       ...summary(v),
       message: v.message,
       contents: rules.contentsOf(v),
+      contentLines: contentLines(v),
+      refundCents: summary(v).offered ? 0 : v.balanceCents,
       oneShot: Boolean(v.campaignId && campaigns.find(v.campaignId) && campaigns.find(v.campaignId).oneShot),
       vatLines: summary(v).offered ? [] : rules.vatLinesOf(v),
       vat: summary(v).offered || rules.vatLinesOf(v).length !== 1 ? null : rules.vatLinesOf(v)[0],
@@ -193,13 +204,21 @@ function buildAdminController({
     const q = typeof req.query.q === 'string' ? req.query.q.trim().toLowerCase() : '';
     const state = typeof req.query.state === 'string' ? req.query.state : '';
     if (state && !rules.STATES.includes(state)) throw new Refusal('FIELD_INVALID');
+    const kind = typeof req.query.kind === 'string' ? req.query.kind : '';
+    if (kind && !['lodging', 'resource'].includes(kind)) throw new Refusal('FIELD_INVALID');
+    const campaignId = typeof req.query.campaignId === 'string' && req.query.campaignId ? Number(req.query.campaignId) : null;
+    if (campaignId !== null && !Number.isInteger(campaignId)) throw new Refusal('FIELD_INVALID');
     const all = vouchers.listAll().map((v) => ({ v, row: summary(v) }));
     const outstandingCents = all.filter(({ row }) => row.state !== 'cancelled').reduce((sum, { row }) => sum + row.balanceCents, 0);
     const items = all
       .filter(({ row, v }) => (!state || row.state === state)
+        && (!kind || row.kind === kind)
+        && (campaignId === null || row.campaignId === campaignId)
         && (!q || [v.number, v.email, v.senderName, v.recipientName].some((field) => String(field || '').toLowerCase().includes(q))))
       .map(({ row }) => row);
-    return res.json({ items, outstandingCents, paymentMethods: paymentMethods() });
+    return res.json({
+      items, outstandingCents, paymentMethods: paymentMethods(), campaigns: campaigns.list().map((c) => ({ id: c.id, name: c.name, kind: c.kind })),
+    });
   });
 
   const read = guarded((req, res) => res.json(detail(find(req))));

@@ -628,7 +628,10 @@ Rules are identities: a rule is never renumbered, new rules are appended
 | plugin | `plugins/hourly-resources/PlanningResourceCard.jsx`, `ResourceArrivalDialog.jsx` | T | Server's option list, « Compris dans le bon cadeau », « non pris » |
 | plugin | hourly resource form | T | Degressivity table, booking horizon |
 | plugin | `plugins/guest-app/apps/guest/src/` (cart / order page) | T | Terms checkbox for an activity not yet accepted |
-| component | `components/ImageDropField.jsx` | C (generic) | Upload field with preview, refusal from the server |
+| plugin | `plugins/gift-vouchers/CampaignsPage.jsx`, `GiftVoucherTabs.jsx` | C | Tabs « Bons / Campagnes / Visuels » in the page bar; routes `/bons-cadeaux/{nouveau,campagnes,campagnes/:id,visuels}` |
+| plugin | `plugins/gift-vouchers/AddOnsPicker.jsx`, `ExtraTimeField.jsx`, `IdeasEditor.jsx`, `VisualPicker.jsx`, `VisualFormDialog.jsx`, `PriceRecap.jsx`, `FormSection.jsx`, `useCatalogue.js` | C | Pieces shared by the editor, « Sur mesure » and the settings: add-ons, extra time, lodging ideas (moved from the settings), a front picked in the library with inline upload, the server's priced lines with « dont TVA » per rate |
+| plugin | `plugins/gift-vouchers/GiftVoucherSettings.jsx` | T | Only the declared keys: `pageUrl`, `linkBase` (rule 56); validity, amounts, VAT, ideas live in the lodging campaign |
+| component | `components/ImageDropField.jsx` | C (generic) | Upload field with preview, refusal from the server (exported by the SDK) |
 | component | `components/MonthJumpCalendar.jsx` | C (generic) | Month chips + month grid with disabled days, for long horizons |
 | page | `pages/settings/TermsSettingsPage.jsx` | T | One tab per activity |
 | page | settings « Établissement » (`SettingsBookingSection`) | T | Lodging booking horizon |
@@ -673,6 +676,7 @@ Admin (session):
 | POST | `/api/gift-vouchers/:id/refunds/:rid/settle` | The operator made the transfer: the refund line is settled (rule 54) |
 | GET · POST | `/api/gift-vouchers/:id/pdf` · `/:id/resend` | The voucher PDF; the mail again, `{ email? }`, for a usable voucher (rules 48–49) |
 | GET | `/api/gift-vouchers/campaigns/:id/recipe.zip` · POST `/campaigns/import` | Recipe export and import, all-or-nothing (rule 10) |
+| — | *Payload additions read by the screens* | Campaign: `summary` (contents in one line), `links: { offer, use }`; catalogue modes: `degressiveText`; admin `GET /offer`: `paymentMethods`; voucher list: `contentsText`, `usedOn`, `bookingId`, filters `campaignId` / `kind`, `campaigns: [{ id, name, kind }]`; voucher detail: `contentLines`, `refundCents` |
 | GET | `/api/resource-bookings/:id/fiche` | Fiche passage with history (rule 53) |
 | POST | `/api/resource-bookings/:id/visit/lines/:lineId/not-taken` | An element paid in advance that the client did not take (rules 15, 36) |
 

@@ -6,7 +6,9 @@
 
 const multer = require('multer');
 const campaignRules = require('../campaignRules');
-const { statusOf } = require('../offerService');
+const { statusOf, durationText } = require('../offerService');
+const rules = require('../voucherRules');
+const { DEFAULT_LINK_BASE } = require('../settings');
 const { DOCUMENT_REFUSALS } = require('../documentRefusals');
 
 const MAX_RECIPE_BYTES = 80 * 1024 * 1024;
@@ -21,10 +23,18 @@ function receiveRecipe(req, res, next) {
   });
 }
 
+const BAND_WORDS = Object.freeze({ day: 'en journée', evening: 'en soirée' });
+const countOf = (qty, label) => (qty > 1 ? `${qty} × ${label}` : label);
+
+/** « Dégressif : −10 % dès la 2e heure, −20 % dès la 3e » — the tiers of a band as the operator reads them; null when the band has none. */
+const degressiveText = (tiers) => (Array.isArray(tiers) && tiers.length
+  ? `Dégressif : ${tiers.map((t, i) => `−${t.percent} % dès la ${t.fromHour}e${i === 0 ? ' heure' : ''}`).join(', ')}`
+  : null);
+
 const isObject = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
 
 function buildCampaignsController({
-  campaigns, catalogue, offerService, visuals, documents, recipe,
+  campaigns, catalogue, offerService, visuals, documents, recipe, linkBase = () => DEFAULT_LINK_BASE, paymentMethods = () => [],
 }) {
   const idOf = (req) => { const n = Number(req.params.id); return Number.isInteger(n) && n > 0 ? n : null; };
   const notFound = (res) => res.status(404).json({ error: 'Campagne introuvable.', code: 'CAMPAIGN_NOT_FOUND' });
@@ -32,9 +42,28 @@ function buildCampaignsController({
   const bodyOf = (req) => (isObject(req.body) ? req.body : null);
 
   /** Rule 6 — the campaign as the page reads it, with whether the engine can price it now and why not. */
-  const view = (campaign) => ({ ...campaign, pricing: offerService.campaignStatus(campaign) });
+  const view = (campaign) => ({
+    ...campaign, pricing: offerService.campaignStatus(campaign), summary: summaryOf(campaign), links: linksOf(campaign),
+  });
 
-  const catalogueRead = (req, res) => res.json({ elements: catalogue.list() });
+  /** The contents of a campaign in one line, for the list: what the giver buys, read from the catalogue's current names. */
+  function summaryOf(campaign) {
+    if (campaign.kind === 'lodging') return `Montant libre de ${rules.formatEuros(campaign.minAmountCents)} à ${rules.formatEuros(campaign.maxAmountCents)}`;
+    const comp = campaign.composition;
+    if (!comp) return '';
+    const resource = catalogue.element(`resource:${comp.resourceId}`);
+    const options = comp.options.map((o) => countOf(o.qty, (catalogue.element(o.articleRef) || {}).label || o.articleRef));
+    return [`${resource ? resource.label : 'Ressource'} : ${durationText(comp.minutes)} ${BAND_WORDS[comp.band] || ''}`.trim(), ...options].join(' · ');
+  }
+
+  /** Rule 9 — the two permanent paths of a campaign (the offer's only once it has a slug). */
+  const linksOf = (campaign) => ({ offer: campaign.slug ? `/${linkBase()}/offrir/${campaign.slug}` : null, use: `/${linkBase()}/utiliser` });
+
+  const catalogueRead = (req, res) => res.json({
+    elements: catalogue.list().map((element) => ({
+      ...element, modes: element.modes.map((mode) => ({ ...mode, degressiveText: degressiveText(mode.tiers) })),
+    })),
+  });
 
   const list = (req, res) => res.json({ items: campaigns.list().map(view) });
 
@@ -105,7 +134,7 @@ function buildCampaignsController({
     return imported.ok ? res.status(201).json(view(imported.campaign)) : invalid(res, imported.errors);
   };
 
-  const offer = async (req, res) => res.json(await offerService.offer({ withOmitted: true }));
+  const offer = async (req, res) => res.json({ ...(await offerService.offer({ withOmitted: true })), paymentMethods: paymentMethods() });
 
   const offerPrice = (req, res) => previewPrice(req, res);
 

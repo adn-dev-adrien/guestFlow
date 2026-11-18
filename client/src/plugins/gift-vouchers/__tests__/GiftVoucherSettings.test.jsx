@@ -1,5 +1,5 @@
-// specs/gift-vouchers.md rules 6, 7, 14, 22, 23 — the settings page: values read from the plugin's settings route, the
-// ideas editor (a stay to price, never a bare amount), the page bar saving, the server's message on its field.
+// specs/gift-vouchers.md rule 22, specs/gift-voucher-campaigns.md rules 9, 56 — the settings page: only the keys the plugin declares (the page of the voucher on the site and the
+// base of the permanent links) are read and sent; validity, amounts, VAT, ideas, the mail template and `bookingUrl` are gone; the server's message is shown on its field.
 import React from 'react';
 import { screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
@@ -8,75 +8,51 @@ import GiftVoucherSettings from '../GiftVoucherSettings';
 import { renderWithShell } from './giftVoucherFixtures';
 
 vi.mock('../giftVouchersApi', () => ({
-  default: { getSettings: vi.fn(), saveSettings: vi.fn(), getProperties: vi.fn() },
+  default: { getSettings: vi.fn(), saveSettings: vi.fn() },
 }));
 
-const stored = {
-  validityMonths: '18', vatRatePercent: '10', minAmountCents: '2000', maxAmountCents: '200000', pageUrl: '', bookingUrl: '',
-  ideas: JSON.stringify([{ label: 'Week-end', propertyId: 7, nights: 2, guests: 2 }]),
-  mailSubjectFr: 'Objet', mailBodyFr: 'Corps', mailSubjectEn: 'Subject', mailBodyEn: 'Body',
-};
+const stored = { pageUrl: 'https://site.example.test/bon-cadeau', linkBase: 'bon-cadeau' };
 
 beforeEach(() => {
   vi.clearAllMocks();
   giftVouchersApi.getSettings.mockResolvedValue(stored);
-  giftVouchersApi.getProperties.mockResolvedValue([{ id: 7, name: 'L’Estiva' }, { id: 8, name: 'Le Gîte' }]);
   giftVouchersApi.saveSettings.mockResolvedValue(stored);
 });
 
-test('shows the stored values, amounts in euros, and Save stays disabled until something changes', async () => {
+test('shows the two declared settings and nothing that moved to the campaign', async () => {
   renderWithShell(<GiftVoucherSettings />);
-  expect(await screen.findByLabelText('Validité (mois)')).toHaveValue(18);
-  expect(screen.getByLabelText('Montant minimal (€)')).toHaveValue('20');
-  expect(screen.getByLabelText('Montant maximal (€)')).toHaveValue('2000');
-  expect(screen.getByDisplayValue('Week-end')).toBeInTheDocument();
+  expect(await screen.findByLabelText('Page du bon sur le site')).toHaveValue('https://site.example.test/bon-cadeau');
+  expect(screen.getByLabelText('Base des liens permanents')).toHaveValue('bon-cadeau');
+  ['Validité (mois)', 'Montant minimal (€)', 'TVA des bons cadeaux', 'Page de réservation', 'Objet (français)'].forEach((label) => {
+    expect(screen.queryByLabelText(label)).not.toBeInTheDocument();
+  });
+  expect(screen.queryByText('Idées de séjour')).not.toBeInTheDocument();
   expect(screen.getByRole('button', { name: 'Enregistrer' })).toBeDisabled();
 });
 
-test('the page bar saves the amounts in cents and the ideas as a list of stays', async () => {
+test('the link base falls back to « bon-cadeau » when the server holds none', async () => {
+  giftVouchersApi.getSettings.mockResolvedValue({ pageUrl: '' });
   renderWithShell(<GiftVoucherSettings />);
-  const months = await screen.findByLabelText('Validité (mois)');
-  months.focus();
-  await userEvent.clear(months);
-  await userEvent.type(months, '24');
-  await userEvent.click(screen.getByRole('button', { name: 'Enregistrer' }));
-  await waitFor(() => expect(giftVouchersApi.saveSettings).toHaveBeenCalled());
-  const sent = giftVouchersApi.saveSettings.mock.calls[0][0];
-  expect(sent.validityMonths).toBe('24');
-  expect(sent.minAmountCents).toBe('2000');
-  expect(sent.maxAmountCents).toBe('200000');
-  expect(JSON.parse(sent.ideas)).toEqual([{ label: 'Week-end', propertyId: 7, nights: 2, guests: 2 }]);
+  expect(await screen.findByLabelText('Base des liens permanents')).toHaveValue('bon-cadeau');
 });
 
-test('an idea is added with a lodging, nights and guests — no amount field exists — and can be removed', async () => {
+test('saving sends only the declared keys', async () => {
   renderWithShell(<GiftVoucherSettings />);
-  await screen.findByDisplayValue('Week-end');
-  await userEvent.click(screen.getByRole('button', { name: 'Ajouter une idée' }));
-  expect(screen.getByLabelText('Libellé 2')).toBeInTheDocument();
-  expect(screen.getByLabelText('Nuits 2')).toBeInTheDocument();
-  expect(screen.getByLabelText('Personnes 2')).toBeInTheDocument();
-  expect(screen.queryByLabelText(/Montant d’une idée/)).not.toBeInTheDocument();
-  await userEvent.click(screen.getByRole('button', { name: 'Retirer cette idée 2' }));
-  expect(screen.queryByLabelText('Libellé 2')).not.toBeInTheDocument();
+  const base = await screen.findByLabelText('Base des liens permanents');
+  await userEvent.clear(base);
+  await userEvent.type(base, 'cadeau');
+  await userEvent.click(screen.getByRole('button', { name: 'Enregistrer' }));
+  await waitFor(() => expect(giftVouchersApi.saveSettings).toHaveBeenCalled());
+  expect(giftVouchersApi.saveSettings.mock.calls[0][0]).toEqual({ pageUrl: 'https://site.example.test/bon-cadeau', linkBase: 'cadeau' });
 });
 
 test('the server message for a key is shown on its field and the draft is kept', async () => {
-  giftVouchersApi.saveSettings.mockRejectedValue(Object.assign(new Error('INVALID_SETTING'), { errors: { validityMonths: 'La validité va de 1 à 120 mois.' } }));
+  giftVouchersApi.saveSettings.mockRejectedValue(Object.assign(new Error('INVALID_SETTING'), { errors: { linkBase: 'Début des liens permanents : minuscules, chiffres et tirets.' } }));
   renderWithShell(<GiftVoucherSettings />);
-  const months = await screen.findByLabelText('Validité (mois)');
-  months.focus();
-  await userEvent.clear(months);
-  await userEvent.type(months, '999');
+  const base = await screen.findByLabelText('Base des liens permanents');
+  await userEvent.clear(base);
+  await userEvent.type(base, 'Bon Cadeau');
   await userEvent.click(screen.getByRole('button', { name: 'Enregistrer' }));
-  expect(await screen.findByText('La validité va de 1 à 120 mois.')).toBeInTheDocument();
-  expect(months).toHaveValue(999);
-});
-
-test('a refused idea list is shown under the ideas', async () => {
-  giftVouchersApi.saveSettings.mockRejectedValue(Object.assign(new Error('INVALID_SETTING'), { errors: { ideas: 'Chaque idée désigne un logement.' } }));
-  renderWithShell(<GiftVoucherSettings />);
-  await screen.findByDisplayValue('Week-end');
-  await userEvent.click(screen.getByRole('button', { name: 'Ajouter une idée' }));
-  await userEvent.click(screen.getByRole('button', { name: 'Enregistrer' }));
-  expect(await screen.findByText('Chaque idée désigne un logement.')).toBeInTheDocument();
+  expect(await screen.findByText('Début des liens permanents : minuscules, chiffres et tirets.')).toBeInTheDocument();
+  expect(base).toHaveValue('Bon Cadeau');
 });

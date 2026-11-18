@@ -109,7 +109,10 @@ test('the operator’s route serves the same view', async () => {
   try {
     const res = await server.call('GET', '/api/gift-vouchers/catalogue');
     assert.equal(res.status, 200);
-    assert.deepEqual(res.body.elements, JSON.parse(JSON.stringify(view.list())));
+    const served = res.body.elements.map((e) => ({ ...e, modes: e.modes.map(({ degressiveText, ...mode }) => mode) }));
+    assert.deepEqual(served, JSON.parse(JSON.stringify(view.list())));
+    const bath = res.body.elements.find((e) => e.id === ids.bath && e.kind === 'resource');
+    assert.deepEqual(bath.modes.map((m) => m.degressiveText), ['Dégressif : −10 % dès la 2e heure, −20 % dès la 3e', 'Dégressif : −10 % dès la 2e heure, −20 % dès la 3e'], 'the operator’s sentence for the tiers');
   } finally {
     await server.close();
   }

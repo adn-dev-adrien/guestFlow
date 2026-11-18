@@ -64,7 +64,8 @@ test('public and admin routes return the same payload and the same price for the
     const publicOffer = (await site('GET', '/offer')).body.data;
     const adminOffer = (await admin('GET', '/offer')).body;
     assert.deepEqual(adminOffer.omitted, []);
-    const { omitted, ...adminPayload } = adminOffer;
+    const { omitted, paymentMethods, ...adminPayload } = adminOffer;
+    assert.deepEqual(paymentMethods.map((m) => m.value), ['card', 'cash', 'transfer'], 'what only the operator needs: the means of « Payé »');
     const { available, brand, termsVersionId, ...publicPayload } = publicOffer;
     assert.deepEqual([available, brand, termsVersionId], [true, 'Domaine Solio', 4], 'what only the site needs');
     assert.deepEqual(publicPayload.campaigns.map((c) => [c.slug, c.termsVersionId]), [['sejour', 4], ['bain-jour', 9], ['bain-soir', 9]], 'each campaign names the terms its purchase accepts (rule 37)');

@@ -172,7 +172,7 @@ function buildGiftVouchersApi({
     vouchers, movements, refunds, redemption, documents, offerService, campaigns, transaction, paymentMethods, userName, decrypt, receipt, sendMail, now, terms, siteOrigin, uses, unused, lapseUses: (id) => useService.lapseVoucher(id),
   });
   const campaignsAdmin = buildCampaignsController({
-    campaigns, catalogue, offerService, visuals, documents, recipe,
+    campaigns, catalogue, offerService, visuals, documents, recipe, linkBase, paymentMethods,
   });
   const visualsAdmin = buildVisualsController({ visuals, filesDir, now });
   const stays = buildStayController({

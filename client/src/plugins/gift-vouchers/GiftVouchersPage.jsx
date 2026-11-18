@@ -3,13 +3,15 @@
  * outstanding, searched by number, e-mail or name and filtered by state — all judged by the server. A table on `md+`,
  * stacked cards on `xs`; the detail is a side panel on `lg`, a dialog below (full-screen on `xs`/`sm`).
  *
- * Admin only (`index.js`): the reception role sees nothing of the plugin (rule 29).
+ * The list reads the campaign, the contents and the day of use of each voucher from the server (specs/gift-voucher-campaigns.md rule 42) and filters by campaign and
+ * kind; « Nouveau bon » opens its own page. Admin only (`index.js`): the reception role sees nothing of the plugin (rule 29).
  */
 import React, {
   useCallback, useEffect, useRef, useState,
 } from 'react';
+import { Link as RouterLink, useNavigate, useSearchParams } from 'react-router';
 import {
-  Box, Card, CardActionArea, CardContent, Dialog, DialogContent, InputAdornment, MenuItem, Paper, Stack, Table, TableBody, TableCell,
+  Box, Card, CardActionArea, CardContent, Dialog, DialogContent, InputAdornment, Link, MenuItem, Paper, Stack, Table, TableBody, TableCell,
   TableHead, TableRow, TextField, Typography, useMediaQuery,
 } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
@@ -21,7 +23,7 @@ import {
 } from '../sdk';
 import giftVouchersApi from './giftVouchersApi';
 import GiftVoucherDetail from './GiftVoucherDetail';
-import GiftVoucherDialog from './GiftVoucherDialog';
+import GiftVoucherTabs from './GiftVoucherTabs';
 import { formatCents, formatDay } from './giftVoucherFormat';
 import { STATE_BADGES, STATE_FILTERS, TEXTS } from './giftVoucherTexts';
 
@@ -31,6 +33,15 @@ const C = TEXTS.columns;
 function StateBadge({ state }) {
   const badge = STATE_BADGES[state] || STATE_BADGES.pending;
   return <StatusBadge status={badge.status} label={badge.label} />;
+}
+
+// The day a voucher was used, a link to the fiche of the passage when the server names one (the page itself is the hourly-resources plugin's).
+function UsedOn({ voucher }) {
+  if (!voucher.usedOn) return '—';
+  if (!voucher.bookingId) return formatDay(voucher.usedOn);
+  return (
+    <Link component={RouterLink} to={`/passages/${voucher.bookingId}`} onClick={(e) => e.stopPropagation()} sx={{ whiteSpace: 'nowrap' }}>{formatDay(voucher.usedOn)}</Link>
+  );
 }
 
 function VoucherCards({ items, selectedId, onSelect }) {
@@ -44,6 +55,7 @@ function VoucherCards({ items, selectedId, onSelect }) {
                 <Typography variant="body1" fontWeight={600}>{v.number}</Typography>
                 <StateBadge state={v.state} />
               </Stack>
+              <Typography variant="body2" sx={{ overflowWrap: 'anywhere' }}>{[v.campaignName, v.contentsText].filter(Boolean).join(' · ')}</Typography>
               <Typography variant="body2" color="text.secondary" sx={{ overflowWrap: 'anywhere' }}>
                 {[v.senderName, v.recipientName].filter(Boolean).join(' → ') || v.buyerEmail || '—'}
               </Typography>
@@ -51,6 +63,7 @@ function VoucherCards({ items, selectedId, onSelect }) {
                 <Typography variant="body2">{`${formatCents(v.balanceCents)} / ${formatCents(v.amountCents)}`}</Typography>
                 <Typography variant="body2" color="text.secondary">{formatDay(v.expiresOn)}</Typography>
               </Stack>
+              {v.usedOn ? <Typography variant="body2" color="text.secondary">{`${C.usedOn} ${formatDay(v.usedOn)}`}</Typography> : null}
             </CardContent>
           </CardActionArea>
         </Card>
@@ -69,12 +82,15 @@ function VoucherTable({
         <TableHead>
           <TableRow>
             <TableCell>{C.number}</TableCell>
+            {!compact && <TableCell>{C.campaign}</TableCell>}
+            {!compact && <TableCell>{C.contents}</TableCell>}
             {!compact && <TableCell>{C.from}</TableCell>}
             {!compact && <TableCell>{C.to}</TableCell>}
             {!compact && <TableCell>{C.issued}</TableCell>}
             <TableCell>{C.state}</TableCell>
             <TableCell align="right">{C.balance}</TableCell>
             <TableCell sx={{ whiteSpace: 'nowrap' }}>{C.expiry}</TableCell>
+            {!compact && <TableCell sx={{ whiteSpace: 'nowrap' }}>{C.usedOn}</TableCell>}
           </TableRow>
         </TableHead>
         <TableBody>
@@ -84,12 +100,15 @@ function VoucherTable({
               sx={{ cursor: 'pointer', '& td': { py: 1.25 } }}
             >
               <TableCell sx={{ fontWeight: 600, whiteSpace: 'nowrap' }}>{v.number}</TableCell>
+              {!compact && <TableCell>{v.campaignName || '—'}</TableCell>}
+              {!compact && <TableCell>{v.contentsText}</TableCell>}
               {!compact && <TableCell>{v.senderName || '—'}</TableCell>}
               {!compact && <TableCell>{v.recipientName || '—'}</TableCell>}
               {!compact && <TableCell>{formatDay(v.issuedAt)}</TableCell>}
               <TableCell><StateBadge state={v.state} /></TableCell>
               <TableCell align="right" sx={{ whiteSpace: 'nowrap' }}>{`${formatCents(v.balanceCents)} / ${formatCents(v.amountCents)}`}</TableCell>
               <TableCell>{formatDay(v.expiresOn)}</TableCell>
+              {!compact && <TableCell><UsedOn voucher={v} /></TableCell>}
             </TableRow>
           ))}
         </TableBody>
@@ -103,23 +122,28 @@ export default function GiftVouchersPage() {
   const isDesktop = useMediaQuery(theme.breakpoints.up('lg'));
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   const wide = useMediaQuery(theme.breakpoints.up('md'));
+  const navigate = useNavigate();
+  const [params, setParams] = useSearchParams();
   const [q, setQ] = useState('');
   const [state, setState] = useState('');
   const [data, setData] = useState(null);
   const [error, setError] = useState(false);
-  const [selectedId, setSelectedId] = useState(null);
+  const [selectedId, setSelectedId] = useState(() => (Number(params.get('bon')) || null));
   const [detail, setDetail] = useState(null);
   const [detailError, setDetailError] = useState(false);
-  const [creating, setCreating] = useState(false);
+  const [campaignId, setCampaignId] = useState('');
+  const [kind, setKind] = useState('');
   const latest = useRef(0);
 
   const load = useCallback(() => {
     const ticket = ++latest.current;
     setError(false);
-    return giftVouchersApi.list({ q: q.trim(), state })
+    return giftVouchersApi.list({
+      q: q.trim(), state, campaignId, kind,
+    })
       .then((result) => { if (ticket === latest.current) setData(result); })
       .catch(() => { if (ticket === latest.current) setError(true); });
-  }, [q, state]);
+  }, [q, state, campaignId, kind]);
 
   useEffect(() => {
     const timer = setTimeout(load, data === null ? 0 : SEARCH_DELAY_MS);
@@ -135,10 +159,14 @@ export default function GiftVouchersPage() {
   }, [selectedId]);
 
   const onDetailChange = (voucher) => { setDetail(voucher); load(); };
-  const onCreated = (voucher) => { setCreating(false); setSelectedId(voucher.id); setDetail(voucher); load(); };
+  const select = (id) => {
+    setSelectedId(id);
+    if (params.has('bon')) setParams({}, { replace: true });
+  };
+  const newVoucher = () => navigate('/bons-cadeaux/nouveau');
 
   const items = data ? data.items : [];
-  const filtered = Boolean(q.trim() || state);
+  const filtered = Boolean(q.trim() || state || campaignId || kind);
 
   let body;
   if (error && !data) body = <ErrorAlert message={TEXTS.loadError} onRetry={load} />;
@@ -147,23 +175,23 @@ export default function GiftVouchersPage() {
     body = (
       <EmptyState
         icon={<CardGiftcardOutlinedIcon />} message={filtered ? TEXTS.emptyFiltered : TEXTS.empty}
-        actionLabel={filtered ? undefined : TEXTS.newVoucher} onAction={() => setCreating(true)}
+        actionLabel={filtered ? undefined : TEXTS.newVoucher} onAction={newVoucher}
       />
     );
-  } else body = wide ? <VoucherTable items={items} selectedId={selectedId} onSelect={setSelectedId} compact={isDesktop && selectedId !== null} /> : <VoucherCards items={items} selectedId={selectedId} onSelect={setSelectedId} />;
+  } else body = wide ? <VoucherTable items={items} selectedId={selectedId} onSelect={select} compact={isDesktop && selectedId !== null} /> : <VoucherCards items={items} selectedId={selectedId} onSelect={select} />;
 
   let panel = null;
   if (selectedId !== null) {
     if (detailError) panel = <ErrorAlert message={TEXTS.detailError} onRetry={() => setSelectedId(selectedId)} />;
     else if (!detail) panel = <LoadingState />;
-    else panel = <GiftVoucherDetail voucher={detail} onChange={onDetailChange} onClose={isDesktop ? undefined : () => setSelectedId(null)} />;
+    else panel = <GiftVoucherDetail voucher={detail} onChange={onDetailChange} onClose={isDesktop ? undefined : () => select(null)} />;
   }
 
   return (
     <Box>
       <PageActionBar
-        title={TEXTS.title}
-        actionsBefore={[{ icon: <AddIcon />, tooltip: TEXTS.newVoucher, onClick: () => setCreating(true), color: 'primary' }]}
+        title={TEXTS.title} tabs={<GiftVoucherTabs value="vouchers" />}
+        actionsBefore={[{ icon: <AddIcon />, tooltip: TEXTS.newVoucher, onClick: newVoucher, color: 'primary' }]}
       />
       <Box sx={{ p: { xs: 1.5, sm: 3 } }}>
         <Box sx={{ display: 'grid', gap: 3, gridTemplateColumns: { xs: 'minmax(0, 1fr)', lg: selectedId !== null ? 'minmax(0, 1fr) 380px' : 'minmax(0, 1fr)' }, alignItems: 'start' }}>
@@ -175,6 +203,13 @@ export default function GiftVouchersPage() {
               />
               <TextField select size="small" label={TEXTS.stateFilter} value={state} onChange={(e) => setState(e.target.value)} sx={{ minWidth: 150 }}>
                 {STATE_FILTERS.map((f) => <MenuItem key={f.value || 'all'} value={f.value}>{f.label}</MenuItem>)}
+              </TextField>
+              <TextField select size="small" label={TEXTS.campaignFilter} value={campaignId} onChange={(e) => setCampaignId(e.target.value)} sx={{ minWidth: 150 }}>
+                <MenuItem value="">{TEXTS.allCampaigns}</MenuItem>
+                {((data && data.campaigns) || []).map((c) => <MenuItem key={c.id} value={c.id}>{c.name}</MenuItem>)}
+              </TextField>
+              <TextField select size="small" label={TEXTS.kindFilter} value={kind} onChange={(e) => setKind(e.target.value)} sx={{ minWidth: 130 }}>
+                {TEXTS.kinds.map((k) => <MenuItem key={k.value || 'all'} value={k.value}>{k.label}</MenuItem>)}
               </TextField>
               {data ? (
                 <Typography variant="body2" color="text.secondary" sx={{ ml: { sm: 'auto' } }} data-testid="outstanding">
@@ -191,14 +226,10 @@ export default function GiftVouchersPage() {
         </Box>
       </Box>
       {!isDesktop ? (
-        <Dialog open={selectedId !== null} onClose={() => setSelectedId(null)} fullScreen={isMobile} fullWidth maxWidth="sm">
+        <Dialog open={selectedId !== null} onClose={() => select(null)} fullScreen={isMobile} fullWidth maxWidth="sm">
           <DialogContent>{panel}</DialogContent>
         </Dialog>
       ) : null}
-      <GiftVoucherDialog
-        open={creating} onClose={() => setCreating(false)} onCreated={onCreated}
-        paymentMethods={data ? data.paymentMethods : []}
-      />
     </Box>
   );
 }

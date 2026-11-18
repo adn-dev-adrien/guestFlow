@@ -1,16 +1,15 @@
-// specs/gift-vouchers.md rules 24-28 — the detail's actions: reveal the masked code, resend, extend, cancel (disabled once
-// redeemed), adjust with a reason, and « Nouveau bon » with the server's refusals on their field.
+// specs/gift-vouchers.md rules 25-28 — the detail's actions: reveal the masked code, resend, extend, cancel (disabled once
+// redeemed), adjust with a reason. « Nouveau bon » is a page of its own (NewVoucherPage.test.jsx); the cancellation flow is GiftVouchersPage.cancel.test.jsx.
 import React from 'react';
 import { screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import giftVouchersApi from '../giftVouchersApi';
 import GiftVoucherDetail from '../GiftVoucherDetail';
-import GiftVoucherDialog from '../GiftVoucherDialog';
-import { detail, PAYMENT_METHODS, renderWithShell } from './giftVoucherFixtures';
+import { detail, renderWithShell } from './giftVoucherFixtures';
 
 vi.mock('../giftVouchersApi', () => ({
   default: {
-    get: vi.fn(), create: vi.fn(), reveal: vi.fn(), resend: vi.fn(), extend: vi.fn(), cancel: vi.fn(), adjust: vi.fn(), openPdf: vi.fn(),
+    get: vi.fn(), reveal: vi.fn(), resend: vi.fn(), extend: vi.fn(), cancel: vi.fn(), adjust: vi.fn(), downloadVoucher: vi.fn(), settleRefund: vi.fn(),
   },
 }));
 vi.mock('../../../api', async (importOriginal) => {
@@ -33,9 +32,27 @@ test('the code is masked until « Afficher le code » asks the server, then it i
   expect(giftVouchersApi.reveal).toHaveBeenCalledWith(1);
 });
 
-test('« Renvoyer le mail » is unavailable without a buyer e-mail', () => {
+test('« Renvoyer le mail » asks for another address when it is typed, and sends it to the server', async () => {
+  giftVouchersApi.resend.mockResolvedValue(detail());
   renderWithShell(<GiftVoucherDetail voucher={detail({ buyerEmail: null })} onChange={vi.fn()} />);
+  await userEvent.click(screen.getByRole('button', { name: 'Renvoyer le mail' }));
+  await userEvent.type(await screen.findByLabelText(/Autre adresse e-mail/), 'autre@example.test');
+  await userEvent.click(screen.getByRole('button', { name: 'Renvoyer' }));
+  await waitFor(() => expect(giftVouchersApi.resend).toHaveBeenCalledWith(1, 'autre@example.test'));
+});
+
+test('« Télécharger le bon » and « Renvoyer le mail » are not offered for a voucher used, expired or cancelled, and say why', () => {
+  renderWithShell(<GiftVoucherDetail voucher={detail({ canDownload: false, state: 'expired' })} onChange={vi.fn()} />);
+  expect(screen.getByRole('button', { name: 'Télécharger le bon' })).toBeDisabled();
   expect(screen.getByRole('button', { name: 'Renvoyer le mail' })).toBeDisabled();
+  expect(screen.getByText(/ne peut plus être téléchargé ni renvoyé/)).toBeInTheDocument();
+});
+
+test('« Télécharger le bon » asks the server for the PDF of the voucher', async () => {
+  giftVouchersApi.downloadVoucher.mockResolvedValue(undefined);
+  renderWithShell(<GiftVoucherDetail voucher={detail()} onChange={vi.fn()} />);
+  await userEvent.click(screen.getByRole('button', { name: 'Télécharger le bon' }));
+  await waitFor(() => expect(giftVouchersApi.downloadVoucher).toHaveBeenCalledWith(1, 'BC-2026-0001'));
 });
 
 test('« Annuler le bon » asks for confirmation, then calls the server', async () => {
@@ -84,39 +101,6 @@ test('« Corriger le solde » needs a reason before it asks the server; the amou
   await userEvent.click(screen.getByRole('button', { name: 'Corriger' }));
   await waitFor(() => expect(giftVouchersApi.adjust).toHaveBeenCalledWith(1, -1000, 'Erreur de saisie'));
   await waitFor(() => expect(onChange).toHaveBeenCalled());
-});
-
-test('« Nouveau bon » sends the amount in cents and shows the server refusal on the amount field', async () => {
-  giftVouchersApi.create.mockRejectedValueOnce(refusal('Montant hors des bornes.', 'VOUCHER_AMOUNT_OUT_OF_BOUNDS'));
-  renderWithShell(<GiftVoucherDialog open onClose={vi.fn()} onCreated={vi.fn()} paymentMethods={PAYMENT_METHODS} />);
-  const amount = await screen.findByLabelText(/Montant/);
-  amount.focus();
-  await userEvent.type(amount, '5,50');
-  await userEvent.click(screen.getByRole('button', { name: 'Créer le bon' }));
-  expect(await screen.findByText('Montant hors des bornes.')).toBeInTheDocument();
-  expect(giftVouchersApi.create).toHaveBeenCalledWith(expect.objectContaining({ amountCents: 550, paymentMethod: 'card' }));
-});
-
-test('« Nouveau bon » refuses a non-numeric amount without calling the server', async () => {
-  renderWithShell(<GiftVoucherDialog open onClose={vi.fn()} onCreated={vi.fn()} paymentMethods={PAYMENT_METHODS} />);
-  const amount = await screen.findByLabelText(/Montant/);
-  amount.focus();
-  await userEvent.type(amount, 'abc');
-  await userEvent.click(screen.getByRole('button', { name: 'Créer le bon' }));
-  expect(await screen.findByText('Un montant en euros est attendu.')).toBeInTheDocument();
-  expect(giftVouchersApi.create).not.toHaveBeenCalled();
-});
-
-test('« Nouveau bon » offers the payment methods the server sent, and sends the one picked', async () => {
-  giftVouchersApi.create.mockResolvedValue(detail());
-  renderWithShell(<GiftVoucherDialog open onClose={vi.fn()} onCreated={vi.fn()} paymentMethods={PAYMENT_METHODS} />);
-  const amount = await screen.findByLabelText(/Montant/);
-  amount.focus();
-  await userEvent.type(amount, '20');
-  await userEvent.click(screen.getByRole('combobox', { name: /Payé par/ }));
-  await userEvent.click(await screen.findByRole('option', { name: 'Espèces' }));
-  await userEvent.click(screen.getByRole('button', { name: 'Créer le bon' }));
-  await waitFor(() => expect(giftVouchersApi.create).toHaveBeenCalledWith(expect.objectContaining({ paymentMethod: 'cash' })));
 });
 
 test('the movements render the server label, day and author; a zero-amount movement shows no amount', async () => {

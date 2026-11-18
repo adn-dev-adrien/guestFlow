@@ -8,7 +8,7 @@ import GiftVouchersPage from '../GiftVouchersPage';
 import { detail, PAYMENT_METHODS, renderWithShell, summary } from './giftVoucherFixtures';
 
 vi.mock('../giftVouchersApi', () => ({
-  default: { list: vi.fn(), get: vi.fn(), create: vi.fn() },
+  default: { list: vi.fn(), get: vi.fn() },
 }));
 
 beforeEach(() => {
@@ -39,7 +39,9 @@ test('typing in the search asks the server, which judges the match', async () =>
   renderWithShell(<GiftVouchersPage />);
   await screen.findByText('BC-2026-0001');
   await userEvent.type(screen.getByLabelText('Numéro, e-mail ou nom'), 'paul');
-  await waitFor(() => expect(giftVouchersApi.list).toHaveBeenLastCalledWith({ q: 'paul', state: '' }));
+  await waitFor(() => expect(giftVouchersApi.list).toHaveBeenLastCalledWith({
+    q: 'paul', state: '', campaignId: '', kind: '',
+  }));
 });
 
 test('the state filter is sent to the server', async () => {
@@ -48,7 +50,9 @@ test('the state filter is sent to the server', async () => {
   await screen.findByText('BC-2026-0001');
   await userEvent.click(screen.getByLabelText('État'));
   await userEvent.click(within(await screen.findByRole('listbox')).getByText('Expirés'));
-  await waitFor(() => expect(giftVouchersApi.list).toHaveBeenLastCalledWith({ q: '', state: 'expired' }));
+  await waitFor(() => expect(giftVouchersApi.list).toHaveBeenLastCalledWith({
+    q: '', state: 'expired', campaignId: '', kind: '',
+  }));
 });
 
 test('an empty list offers « Nouveau bon »; a search with no match only says so', async () => {
@@ -73,6 +77,39 @@ test('a click on a voucher opens its detail', async () => {
   await userEvent.click(await screen.findByText('BC-2026-0001'));
   expect(await screen.findByTestId('voucher-detail')).toBeInTheDocument();
   expect(giftVouchersApi.get).toHaveBeenCalledWith(1);
+});
+
+test('the list reads the campaign, the contents and the day of use; a used voucher links to the fiche of the passage', async () => {
+  giftVouchersApi.list.mockResolvedValue({
+    items: [summary({
+      campaignName: 'Bain journée', kind: 'resource', contentsText: 'Bain nordique : 2 h en journée', usedOn: '2026-11-20', bookingId: 77,
+    })],
+    outstandingCents: 0,
+    campaigns: [{ id: 5, name: 'Bain journée', kind: 'resource' }],
+  });
+  const original = window.matchMedia;
+  window.matchMedia = (query) => ({
+    matches: /min-width/.test(query) && !/1200/.test(query), media: query, addListener() {}, removeListener() {}, addEventListener() {}, removeEventListener() {},
+  });
+  renderWithShell(<GiftVouchersPage />);
+  expect(await screen.findByText('BC-2026-0001')).toBeInTheDocument();
+  window.matchMedia = original;
+  expect(screen.getByText('Bain journée')).toBeInTheDocument();
+  expect(screen.getByText('Bain nordique : 2 h en journée')).toBeInTheDocument();
+  expect(screen.getByRole('columnheader', { name: 'Utilisé le' })).toBeInTheDocument();
+  expect(screen.getByRole('link', { name: /20/ })).toHaveAttribute('href', '/passages/77');
+});
+
+test('the campaign and kind filters are sent to the server', async () => {
+  giftVouchersApi.list.mockResolvedValue({ items: [summary()], outstandingCents: 0, campaigns: [{ id: 5, name: 'Bain journée', kind: 'resource' }] });
+  renderWithShell(<GiftVouchersPage />);
+  await screen.findByText('BC-2026-0001');
+  await userEvent.click(screen.getByRole('combobox', { name: 'Campagne' }));
+  await userEvent.click(await screen.findByRole('option', { name: 'Bain journée' }));
+  await waitFor(() => expect(giftVouchersApi.list).toHaveBeenLastCalledWith(expect.objectContaining({ campaignId: 5 })));
+  await userEvent.click(screen.getByRole('combobox', { name: 'Type' }));
+  await userEvent.click(await screen.findByRole('option', { name: 'Composé' }));
+  await waitFor(() => expect(giftVouchersApi.list).toHaveBeenLastCalledWith(expect.objectContaining({ campaignId: 5, kind: 'resource' })));
 });
 
 test('a started voucher reads « Entamé », and « Entamés » is a state filter', async () => {
