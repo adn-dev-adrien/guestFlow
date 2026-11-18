@@ -1,4 +1,5 @@
-// specs/plugins-phase-1-sdk.md rule 54 (reading of 2026-11-18, loop t22 A22-1) — in every test file, the code of the four SDK sale blocks
+// specs/plugins-phase-1-sdk.md rule 54 (reading of 2026-11-18, loop t22 A22-1) and specs/server-test-isolation.md rule 23 —
+// in every test file, the code of the four SDK sale blocks
 // (`components/LazySaleComponents.jsx`) arrives SALE_CHUNK_DELAY ms late (default 25), as a chunk fetched over the network does. The
 // dialogs that render them wait for that code (`useSaleComponentsReady`) and keep their actions disabled meanwhile, so a test that acts
 // before its dialog is ready fails here every time instead of once in a while on a busy runner (`ResourceArrivalDialog.invoiceable`
