@@ -190,6 +190,7 @@
       "Bloc « Facture » en attente de la réponse : l’adresse de facturation est grisée comme la case ; une réponse qui retire le champ saisi laisse le curseur dans la fenêtre au lieu de le perdre.",
       "Réservation payée « Maintenant » : le bouton indique « Enregistrer et facturer » dès que la case « Facture » s’affiche cochée ; le récapitulatif d’une visite range plusieurs taux de TVA sur une même ligne.",
       "Quand le calcul d’une arrivée ou d’une réservation échoue après un premier montant, ce montant n’est plus affiché : « — » ou « Prix indisponible » avec « Réessayer », sans paiement à saisir, jusqu’à la réponse suivante ; le temps offert et les quantités restent en place, et « Réessayer » reste affiché pendant le nouvel essai.",
+      "Après un « Réessayer » réussi, le bloc « Facture » d’une arrivée ou d’une réservation attend la réponse pour le nouveau paiement au lieu de réafficher « Facture non vérifiée pour ce paiement. ».",
       "Demande GuestFlow 4.2 (SDK 2.32)."
     ]
   }

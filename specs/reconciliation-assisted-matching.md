@@ -127,6 +127,13 @@ on the right account, on the fiche, in the finance pages and in the accounting e
 8. **One gesture, one transaction.** « Rattacher » sends every pair in one call; all pairs and their fiche
    writes (v1 rules 34–37) succeed together or none is stored, and the core's refusal passes through (v1
    rule 34).
+   _Reading of 2026-11-18 (loop t23, plugins-phase-1-sdk rule 54 reading):_ « Rattacher » also waits for the list it acts on. When the
+   list of credits (fiche) or of receipts (from a credit, rule 14) fails to load — a search typed after transfers were ticked — the rows
+   are hidden behind the reason and « Réessayer », so « Rattacher » stays disabled until the list is back (before, it stayed enabled on a
+   selection the screen no longer showed). The ticked rows are draft inputs: they stay ticked through the failure and show again with the
+   list. The dialog is a `FocusKeeper` region (SDK 2.32.0), so an answer that takes the focused control away leaves the focus in the
+   dialog, never on its root. A search that only filters ticked rows out of a list that did load leaves « Rattacher » as it was (the
+   footer summarises the ticked transfers). Tests `useLatestPreview.failed-recompute` (row `LinkTransactionDialog` and its failed-list case).
 9. **An installment plan follows its order.** When several open receipts of a plan have the same amount, an
    allocation (rule 5) and a proposal (rule 16) always take the **earliest due unreconciled installment**
    first, whatever the credit's date. « Unreconciled » means no bank line covers it yet (an installment

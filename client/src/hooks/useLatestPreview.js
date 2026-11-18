@@ -15,23 +15,34 @@
  * newer one is pending), `fresh` says it is for the current draft. Only the latest request counts: an older
  * one is aborted, and its late answer ignored.
  *
- * A request that FAILS makes the answer unknown (loop t23 S23-1, specs/pricing-components.md rule 54 reading of
+ * A request that FAILS makes the answer unknown (loop t23 S23-1, specs/plugins-phase-1-sdk.md rule 54 reading of
  * 2026-11-18): `data` turns null and `failed` stays true — through a « Réessayer » still pending — until a new
  * answer arrives, so no screen keeps drawing the figures of an older draft, or a money control set from them,
  * next to its error. `last` keeps the latest answer for a screen that draws its layout from it and shows every
  * amount « — » and every money control disabled while `failed` (the SAS recap pages, the booking dialog's price layout). `error`
  * stays too until a new answer — through a pending « Réessayer » — so the alert and its button never vanish under the focus while
  * the retry is asked (loop t23 verifier).
+ *
+ * The failure belongs to the draft (and scope) it was asked for, and only `retry` keeps it (loop t24 UI24-2): once the draft is
+ * edited — or asked again on its own, enabled again or for a new scope — `error` and `failed` are gone, the draft is in its ordinary
+ * pending state (`data` the latest answer, not `fresh`), and only its own request can fail it. A preview whose draft is built from
+ * another answer (the invoice question of a typed payment) therefore never shows the failure of a payment the screen no longer holds.
  */
 import {
   useCallback, useEffect, useMemo, useRef, useState,
 } from 'react';
 
+const EMPTY = {
+  data: null, signature: null, error: null, failed: false, failedFor: null,
+};
+const failureOf = (answer, signature, scope) => Boolean(answer.failedFor)
+  && answer.failedFor.signature === signature && Object.is(answer.failedFor.scope, scope);
+
 export default function useLatestPreview({
   fetcher, draft, enabled, scope, resetKey, delay = 200,
 }) {
   const signature = useMemo(() => JSON.stringify(draft || {}), [draft]);
-  const [answer, setAnswer] = useState({ data: null, signature: null, error: null, failed: false });
+  const [answer, setAnswer] = useState(EMPTY);
   const [pending, setPending] = useState(false);
   const seqRef = useRef(0);
   const abortRef = useRef(null);
@@ -39,6 +50,8 @@ export default function useLatestPreview({
   const wasEnabledRef = useRef(false);
   const fetcherRef = useRef(fetcher);
   fetcherRef.current = fetcher;
+  const scopeRef = useRef(scope);
+  scopeRef.current = scope;
 
   const send = useCallback((sig) => {
     seqRef.current += 1;
@@ -46,16 +59,19 @@ export default function useLatestPreview({
     if (abortRef.current) abortRef.current.abort();
     const controller = typeof AbortController === 'function' ? new AbortController() : null;
     abortRef.current = controller;
+    const asked = scopeRef.current;
     setPending(true);
     fetcherRef.current(JSON.parse(sig), { signal: controller ? controller.signal : undefined })
       .then((data) => {
         if (seq !== seqRef.current) return;
-        setAnswer({ data, signature: sig, error: null, failed: false });
+        setAnswer({ ...EMPTY, data, signature: sig });
         setPending(false);
       })
       .catch((error) => {
         if (seq !== seqRef.current || (error && error.name === 'AbortError')) return;
-        setAnswer((prev) => ({ ...prev, error, failed: true }));
+        setAnswer((prev) => ({
+          ...prev, error, failed: true, failedFor: { signature: sig, scope: asked },
+        }));
         setPending(false);
       });
   }, []);
@@ -65,7 +81,7 @@ export default function useLatestPreview({
     if (abortRef.current) abortRef.current.abort();
     clearTimeout(timerRef.current);
     wasEnabledRef.current = false;
-    setAnswer({ data: null, signature: null, error: null, failed: false });
+    setAnswer(EMPTY);
     setPending(false);
   }, [resetKey]);
 
@@ -81,6 +97,9 @@ export default function useLatestPreview({
     const first = !wasEnabledRef.current;
     wasEnabledRef.current = true;
     setPending(true);
+    // A request the screen asks on its own (an edited draft, a new scope, the draft enabled again) is not « Réessayer »: it ends the
+    // previous failure. Only `retry` keeps it, through its pending request.
+    setAnswer((prev) => (prev.failed ? { ...prev, error: null, failed: false, failedFor: null } : prev));
     clearTimeout(timerRef.current);
     timerRef.current = setTimeout(() => send(signature), first ? 0 : delay);
     return () => clearTimeout(timerRef.current);
@@ -93,13 +112,14 @@ export default function useLatestPreview({
 
   const retry = useCallback(() => send(signature), [send, signature]);
 
+  const failed = answer.failed && failureOf(answer, signature, scope);
   return {
-    data: answer.failed ? null : answer.data,
+    data: failed ? null : answer.data,
     last: answer.data,
     pending,
-    error: answer.error,
-    failed: answer.failed,
-    fresh: !pending && !answer.error && answer.signature === signature && answer.data != null,
+    error: failed ? answer.error : null,
+    failed,
+    fresh: !pending && !answer.failed && answer.signature === signature && answer.data != null,
     retry,
   };
 }

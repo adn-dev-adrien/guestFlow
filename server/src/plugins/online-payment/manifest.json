@@ -190,6 +190,7 @@
       "Rapprochement : « Attendu » et le nom d’une vente hors séjour sans client s’affichent une seule fois, y compris dans « couvre aussi », la répartition et la carte « Écarts de règlement ».",
       "Un paiement Mollie d’une facture de plusieurs jours sans jour du même montant reste à identifier.",
       "Répartition d’un versement groupé : un contrôle qui échoue ne laisse plus l’ancien message affiché, il dit pourquoi avec « Réessayer », et les parts saisies restent en place.",
+      "« Rattacher des virements » : une liste qui ne se charge pas affiche la raison avec « Réessayer », et « Rattacher » reste grisé jusqu’à son retour ; les virements cochés sont gardés.",
       "Demande GuestFlow 4.2 (SDK 2.32)."
     ]
   }

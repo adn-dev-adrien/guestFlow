@@ -131,3 +131,37 @@ test('UI4-3 — a failed draft with a price on screen shows one error and one «
   expect(screen.getAllByRole('button', { name: 'Réessayer' })).toHaveLength(1);
   expect(saveButton()).toBeDisabled();
 });
+
+// Loop t24 UI24-2 — « Maintenant » then a failed edit (price and payment question fail together), then a good « Réessayer »: the new payment's
+// question is pending, never shown with the older payment's « Facture non vérifiée », and the focus stays in the dialog.
+test('UI24-2 — after a good « Réessayer », the new payment\'s invoice question is pending without the older failure', async () => {
+  let fail = false;
+  let hold = false;
+  const held = [];
+  api.previewResourceBooking.mockImplementation(async (draft) => {
+    if (fail) throw Object.assign(new Error('Service indisponible'), { status: 503 });
+    if (draft.payment && hold) await new Promise((resolve) => { held.push(resolve); });
+    return draft.payment ? { ...PRICE, invoiceable: OK } : PRICE;
+  });
+  openDialog();
+  await fillNewBooking();
+  expect(await screen.findByText('Créer la facture dans Qonto')).toBeInTheDocument();
+  fail = true;
+  await changeEndTo('19:00');
+  expect(await screen.findByText(/Prix indisponible/)).toBeInTheDocument();
+  await new Promise((resolve) => { setTimeout(resolve, 300); });
+  fail = false;
+  hold = true;
+  const retry = screen.getByRole('button', { name: 'Réessayer' });
+  retry.focus();
+  fireEvent.click(retry);
+  await waitFor(() => expect(screen.queryByText(/Prix indisponible/)).toBeNull());
+  await waitFor(() => expect(held.length).toBeGreaterThan(0));
+  expect(screen.queryByText('Facture non vérifiée pour ce paiement.')).toBeNull();
+  expect(screen.queryAllByRole('button', { name: 'Réessayer' })).toHaveLength(0);
+  expect(saveButton()).toBeDisabled();
+  expect(screen.getByRole('dialog').contains(document.activeElement)).toBe(true);
+  held.splice(0).forEach((go) => go());
+  await waitFor(() => expect(screen.getByRole('button', { name: 'Enregistrer et facturer' })).toBeEnabled());
+  expect(screen.queryByText('Facture non vérifiée pour ce paiement.')).toBeNull();
+});

@@ -3,6 +3,7 @@
 // answer, and every screen that previews money through it (enumerated from the code below) shows the reason with « Réessayer », keeps its
 // commit disabled, keeps every draft input mounted and the focus in place, and draws the new answer once « Réessayer » brings it. A screen
 // added to that list fails here until it has its row.
+// Loop t24 UI24-2 — the failure belongs to its draft: an edit puts the new draft in its ordinary pending state, without the older error.
 import fs from 'fs';
 import path from 'path';
 import React from 'react';
@@ -287,6 +288,104 @@ test('the hook: a failed request makes the answer unknown until a new one, throu
   expect(result.current.error).not.toBeNull();
   await act(async () => { release(); });
   expect(result.current).toMatchObject({ data: { n: 2 }, last: { n: 2 }, failed: false, fresh: true });
+});
+
+// Loop t24 UI24-2 — the failure belongs to the draft it was asked for. A retry of THAT draft keeps `error` and `failed` (the alert and its
+// focused « Réessayer » stay); a request for ANOTHER draft is in its ordinary pending state — the latest answer, no error — and only its
+// own outcome can fail it. Every row drives the hook through the same steps: `steps(h)` returns the expected state after each one.
+const hookHarness = () => {
+  const outcome = { fail: false };
+  const pendingReleases = [];
+  const fetcher = vi.fn((draft) => (outcome.fail
+    ? Promise.reject(offline())
+    : new Promise((resolve) => { pendingReleases.push(() => resolve({ n: draft.n })); })));
+  const view = renderHook(({ n, scope, enabled = true }) => useLatestPreview({
+    fetcher, draft: { n }, enabled, scope, delay: 0,
+  }), { initialProps: { n: 1, scope: 'a' } });
+  const release = async () => { await act(async () => { pendingReleases.splice(0).forEach((go) => go()); }); };
+  const failWith = async (props) => {
+    outcome.fail = true;
+    view.rerender(props);
+    await waitFor(() => expect(view.result.current.failed).toBe(true));
+    outcome.fail = false;
+  };
+  return { outcome, fetcher, view, release, failWith, state: () => view.result.current };
+};
+const UNKNOWN = { data: null, failed: true, fresh: false };
+const HOOK_ROWS = {
+  'a retry of the same draft keeps the error and the failure until its answer': async (h) => {
+    await h.failWith({ n: 2, scope: 'a' });
+    expect(h.state()).toMatchObject({ ...UNKNOWN, pending: false, last: { n: 1 } });
+    act(() => { h.state().retry(); });
+    expect(h.state()).toMatchObject({ ...UNKNOWN, pending: true });
+    expect(h.state().error).not.toBeNull();
+    await h.release();
+    expect(h.state()).toMatchObject({ data: { n: 2 }, failed: false, error: null, fresh: true });
+  },
+  'an edit after a successful retry shows no error while its request is pending': async (h) => {
+    await h.failWith({ n: 2, scope: 'a' });
+    act(() => { h.state().retry(); });
+    await h.release();
+    h.view.rerender({ n: 3, scope: 'a' });
+    expect(h.state()).toMatchObject({ data: { n: 2 }, failed: false, error: null, pending: true, fresh: false });
+    await waitFor(() => expect(h.fetcher).toHaveBeenCalledTimes(4));
+    expect(h.state()).toMatchObject({ failed: false, error: null, pending: true });
+    await h.release();
+    expect(h.state()).toMatchObject({ data: { n: 3 }, failed: false, error: null, fresh: true });
+  },
+  'an edit while failed is pending without the older error, then shows its own outcome (success)': async (h) => {
+    await h.failWith({ n: 2, scope: 'a' });
+    h.view.rerender({ n: 3, scope: 'a' });
+    expect(h.state()).toMatchObject({ data: { n: 1 }, failed: false, error: null, pending: true, fresh: false });
+    await waitFor(() => expect(h.fetcher).toHaveBeenCalledTimes(3));
+    expect(h.state()).toMatchObject({ failed: false, error: null, pending: true });
+    await h.release();
+    expect(h.state()).toMatchObject({ data: { n: 3 }, failed: false, error: null, fresh: true });
+  },
+  'an edit while failed is pending without the older error, then shows its own outcome (failure)': async (h) => {
+    await h.failWith({ n: 2, scope: 'a' });
+    const first = h.state().error;
+    h.view.rerender({ n: 3, scope: 'a' });
+    expect(h.state()).toMatchObject({ failed: false, error: null, pending: true });
+    await h.failWith({ n: 4, scope: 'a' });
+    expect(h.state()).toMatchObject({ ...UNKNOWN, pending: false });
+    expect(h.state().error).not.toBe(first);
+  },
+  'going back to the failed draft after another request left asks it afresh, without its older error': async (h) => {
+    await h.failWith({ n: 2, scope: 'a' });
+    h.view.rerender({ n: 3, scope: 'a' });
+    await waitFor(() => expect(h.fetcher).toHaveBeenCalledTimes(3));
+    h.view.rerender({ n: 2, scope: 'a' });
+    expect(h.state()).toMatchObject({ failed: false, error: null, pending: true });
+    await waitFor(() => expect(h.fetcher).toHaveBeenCalledTimes(4));
+    await h.release();
+    expect(h.state()).toMatchObject({ data: { n: 2 }, failed: false, fresh: true });
+  },
+  'the failed draft asked again on its own (disabled, then enabled again) is pending without its older error': async (h) => {
+    await h.failWith({ n: 2, scope: 'a' });
+    h.view.rerender({ n: 2, scope: 'a', enabled: false });
+    h.view.rerender({ n: 2, scope: 'a', enabled: true });
+    await waitFor(() => expect(h.fetcher).toHaveBeenCalledTimes(3));
+    expect(h.state()).toMatchObject({ failed: false, error: null, pending: true });
+    await h.release();
+    expect(h.state()).toMatchObject({ data: { n: 2 }, failed: false, fresh: true });
+  },
+  'a new scope for the same draft is a new request: the failure of the older scope is not shown': async (h) => {
+    await h.failWith({ n: 2, scope: 'a' });
+    h.view.rerender({ n: 2, scope: 'b' });
+    expect(h.state()).toMatchObject({ failed: false, error: null, pending: true });
+    await waitFor(() => expect(h.fetcher).toHaveBeenCalledTimes(3));
+    await h.release();
+    expect(h.state()).toMatchObject({ data: { n: 2 }, failed: false, fresh: true });
+  },
+};
+
+test.each(Object.keys(HOOK_ROWS))('the hook (loop t24): %s', async (name) => {
+  const h = hookHarness();
+  await waitFor(() => expect(h.fetcher).toHaveBeenCalledTimes(1));
+  await h.release();
+  expect(h.state()).toMatchObject({ data: { n: 1 }, failed: false, error: null, fresh: true });
+  await HOOK_ROWS[name](h);
 });
 
 test('every screen that previews money through the hook, read from the code, has its row', () => {

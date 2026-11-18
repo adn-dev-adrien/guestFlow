@@ -568,6 +568,12 @@ once on the server by the refonte's components.
     which brings both back); the booking dialog's failed draft reads « Prix indisponible » with its « Réessayer » — the price on screen
     before is not kept — and offers no payment, hence no second message. Tests `ResourceArrivalDialog.invoice-answer`,
     `ResourceBookingDialog.invoice-answer`, `useLatestPreview.failed-recompute`.
+    _Reading 2026-11-18 (loop t24 UI24-2):_ the payment's invoice answer that failed together with the draft belongs to THAT payment
+    (plugins-phase-1-sdk rule 54 reading of the same day): once « Réessayer » brings the draft back, the payment the tenders report is asked
+    as a new question, drawn pending like any other, never under the older payment's « Facture non vérifiée pour ce paiement. » (before:
+    about a second of that message, measured in Chromium at 1280 px, while « Enregistrer et facturer » was already labelled). The message
+    and its « Réessayer » stay only while « Réessayer » asks that same payment again. Tests `ResourceArrivalDialog.invoice-answer`,
+    `ResourceBookingDialog.invoice-answer` (UI24-2).
     _Reading 2026-11-18 (loop t21, UI21-1):_ that answer always comes one quote after the content — the tender lines report their default card
     line on mount, and only then is the payment asked — so the « Facture » block landed late and moved the dialog (+34 px at 1280 px in the
     arrival: « Récapitulatif » and « Encaisser » 17 px up, the actions 17 px down; in the booking dialog « La facture se propose une fois le
@@ -965,7 +971,7 @@ number; `prefers-reduced-motion` → no movement.
 - [x] (C38) `components/__tests__/StandaloneSaleDialog.counter.test.jsx`, `StandaloneSalesTodayCard.list.test.jsx`, `ExternalSaleFields.fields.test.jsx`; `plugins/hourly-resources/__tests__/ResourceBookingDialog.no-show.test.jsx`; `PlanningResourceCard.test.jsx` gains the « Reste » and « Absent » cases; `SuggestedArticlesStep.worst-case.test.jsx` — the break-ui pass (a 120-character label, an emoji-first label, 99, 1, none, a thousand results)
 - [x] (loop t2, rule 51) `ResourceBookingDialog.no-show.test.jsx` (rewritten on the row's `actions`, no second read, 5), `PlanningResourceCard.test.jsx` and `PlanningResourceCard.open-booking.test.jsx` (« Arrivée » on `actions.arrive`), `ResourceArrivalDialog.invoice-reason.test.jsx` (2), `pages/options/__tests__/externalSaleForm.emptied-rate.test.js` (1); named after the fact (P2-2): `ResourceArrivalDialog.withdraw-link.test.jsx` — rule 45 (`access.withdrawLink`)
 - [x] (loop t2, rules 49 reading, 52-54) server `standalone-sale-lowered-line-in-step` (6), `pricing-refunds-document-rows` (7: +1 loop t5 D5-4), plugin `visit-draft-invoiceable` (4); client `ResourceArrivalDialog.invoice-from-server.test.jsx` (2), `ResourceBookingDialog.invoice-from-server.test.jsx` (2); the arrival suites' quote fixtures answer `invoiceable` for a payment typed
-- [x] (loop t3, rule 54 reading) plugin `visit-draft-invoice-reason` (3); client `ResourceArrivalDialog.invoice-answer.test.jsx` (7: +2 loop t4 UI4-3, +1 loop t5 UI5-2), `ResourceBookingDialog.invoice-answer.test.jsx` (5: +2 loop t4 UI4-3); loop t23 S23-1: the arrival's UI4-3 / UI5-2 and the booking's UI4-3 rewritten for a failed draft that keeps no figure, same counts
+- [x] (loop t3, rule 54 reading) plugin `visit-draft-invoice-reason` (3); client `ResourceArrivalDialog.invoice-answer.test.jsx` (8: +2 loop t4 UI4-3, +1 loop t5 UI5-2, +1 loop t24 UI24-2), `ResourceBookingDialog.invoice-answer.test.jsx` (6: +2 loop t4 UI4-3, +1 loop t24 UI24-2); loop t23 S23-1: the arrival's UI4-3 / UI5-2 and the booking's UI4-3 rewritten for a failed draft that keeps no figure, same counts
 - [x] (loop t1, rule 48) `plugins/hourly-resources/__tests__/ResourceBookingDialog.no-show.test.jsx` (rewritten on `actions.noShow`, 4), `ResourceArrivalDialog.invoiceable.test.jsx` (3), `ResourceArrivalDialog.vat-rate.test.jsx` (2), `ResourceArrivalDialog.new-sale.test.jsx` (2); `components/__tests__/SalePaymentLink.expires-label.test.jsx` (3), `StandaloneSalesTodayCard.owed-day.test.jsx` (2), `ExternalSaleFields.server-labels.test.jsx` (2)
 
 ### E2E
