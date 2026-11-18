@@ -494,7 +494,7 @@ button.gf-cal-day.gf-shake { animation: gf-shake .32s cubic-bezier(.36, .07, .19
 .gf-use-bar { position: sticky; bottom: 0; z-index: 5; display: flex; align-items: center; justify-content: space-between; gap: .75rem; margin: 1rem -.25rem 0; padding: .7rem .9rem calc(.7rem + env(safe-area-inset-bottom, 0px)); background: #fff; border-top: 1px solid var(--gfb-border); box-shadow: 0 -6px 16px color-mix(in srgb, var(--gfb-ink) 8%, transparent); }
 .gf-use-bar .gf-bar-amt { display: block; }
 .gf-block .gf-use-bar .gf-btn { flex: 0 0 auto; min-width: 11rem; min-height: 48px; }
-.gf-use-bar .gf-btn:disabled { opacity: .5; cursor: not-allowed; }
+.gf-block .gf-use-bar .gf-btn:disabled { opacity: .5; cursor: not-allowed; }
 @container gf-gv (min-width: 640px) {
   .gf-gv-offers { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }

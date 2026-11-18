@@ -64,6 +64,7 @@ const SEEDED_ON_EXISTING_IDS = Object.freeze([
 const PLUGIN_PAGES = Object.freeze({
   '/comptabilite': [ACCOUNTING_EXPORT],
   '/resource-planning': [HOURLY_RESOURCES],
+  '/passages': [HOURLY_RESOURCES],
   '/parametres/stock-blanchisserie': [LINEN],
   '/parametres/paiements': [ONLINE_PAYMENT],
   '/finance/rapprochement': [ONLINE_PAYMENT],
