@@ -18,16 +18,15 @@ const iso = (date) => (date instanceof Date ? date.toISOString() : date);
 function createOrdersModel(db, { now = () => new Date() } = {}) {
   /** → `{ id, token }`. */
   function create({
-    amountCents, recipientName = '', senderName = '', message = '', email = '', language = 'fr', termsVersionId = null,
-    termsAcceptedAt = null, visitorHash = null, source, paymentMethod = null, createdBy = 'public', campaignId = null, contents = { kind: 'lodging' }, vatLines = null,
+    amountCents, recipientName = '', senderName = '', message = '', email = '', language = 'fr', visitorHash = null, source, paymentMethod = null, createdBy = 'public', campaignId = null, contents = { kind: 'lodging' }, vatLines = null,
   }) {
     const token = crypto.randomBytes(TOKEN_BYTES).toString('base64url');
     const { lastInsertRowid } = db.prepare(`
       INSERT INTO gift_voucher_orders (publicTokenHash, publicTokenEncrypted, amountCents, recipientName, senderName, message, email,
-        language, termsVersionId, termsAcceptedAt, visitorHash, source, paymentMethod, state, createdAt, createdBy, campaignId, contents, vatLines)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?, COALESCE(?, (SELECT id FROM gift_voucher_campaigns WHERE kind = 'lodging' AND oneShot = 0 ORDER BY id LIMIT 1)), ?, ?)
-    `).run(hashToken(token), encrypt(token), amountCents, recipientName, senderName, message, email, language, termsVersionId,
-      termsAcceptedAt, visitorHash, source, paymentMethod, iso(now()), String(createdBy), campaignId, JSON.stringify(contents),
+        language, visitorHash, source, paymentMethod, state, createdAt, createdBy, campaignId, contents, vatLines)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?, COALESCE(?, (SELECT id FROM gift_voucher_campaigns WHERE kind = 'lodging' AND oneShot = 0 ORDER BY id LIMIT 1)), ?, ?)
+    `).run(hashToken(token), encrypt(token), amountCents, recipientName, senderName, message, email, language,
+      visitorHash, source, paymentMethod, iso(now()), String(createdBy), campaignId, JSON.stringify(contents),
       vatLines ? JSON.stringify(vatLines) : null);
     return { id: Number(lastInsertRowid), token };
   }

@@ -192,7 +192,7 @@ test('rule 25: nothing is done to a cancelled voucher', () => withAdmin(async ({
   }
 }));
 
-test('rule 25: « Renvoyer le mail » sends the operator’s template to the buyer — amount, expiry, link, never the code — and records it', () => withAdmin(async ({ server, sent, api }) => {
+test('rule 25, rules 20 and 49 of the campaigns spec: « Renvoyer le mail » sends the voucher with its code, the recap and the PDF attached, and records it', () => withAdmin(async ({ server, sent, api }) => {
   const v = await fx.issueManual(server, { amountCents: 15000, email: 'paul@example.test', senderName: 'Paul <b>' });
   const plain = await fx.revealedCode(server, v.id);
   const res = await server.call('POST', url(v.id, '/resend'), {});
@@ -201,25 +201,22 @@ test('rule 25: « Renvoyer le mail » sends the operator’s template to the buy
   assert.equal(sent.length, 1);
   const mail = sent[0];
   assert.equal(mail.to, 'paul@example.test');
-  assert.equal(mail.subject, 'Le bon cadeau de 150,00 € est prêt');
+  assert.equal(mail.subject, 'Votre bon cadeau : Bon cadeau');
   assert.match(mail.text, /BC-2026-0001/);
   assert.match(mail.text, /15\/05\/2028/);
   assert.match(mail.text, /https:\/\/site\.example\.test\/bon-cadeau\?gf_voucher=\d+&gf_token=[\w-]{32}/);
-  [mail.text, mail.html, mail.subject].forEach((part) => [plain, code.format(plain)].forEach((c) => assert.equal(part.includes(c), false)));
-  assert.equal(Object.keys(mail).includes('attachments'), false);
+  assert.ok(mail.text.includes(code.format(plain)));
+  assert.equal(mail.attachments.length, 1);
   assert.equal(api.movements.list(v.id).filter((m) => m.kind === 'mail').length, 1);
   assert.equal(api.movements.list(v.id).filter((m) => m.kind === 'mail')[0].actor, 'user:7');
 }));
 
-test('rule 25: the mail is in the buyer’s language and the operator’s words; HTML-escaped around the template', () => withAdmin(async ({ server, sent, settingsStore }) => {
-  settingsStore.set('mailSubjectEn', 'Your voucher {number}');
-  settingsStore.set('mailBodyEn', 'Hi {senderName} <3\n\nOpen {link} before {expiry}');
+test('rule 25: the mail is in the buyer’s language and HTML-escaped', () => withAdmin(async ({ server, sent }) => {
   const v = await fx.issueManual(server, { email: 'a@b.test', language: 'en', senderName: 'Tom & Jerry' });
   await server.call('POST', url(v.id, '/resend'), {});
-  assert.equal(sent[0].subject, 'Your voucher BC-2026-0001');
-  assert.match(sent[0].text, /before 2028-05-15/);
-  assert.match(sent[0].html, /Hi Tom &amp; Jerry &lt;3/);
-  assert.match(sent[0].html, /<a href="https:\/\/site\.example\.test\/bon-cadeau\?gf_voucher=/);
+  assert.equal(sent[0].subject, 'Your gift voucher: Bon cadeau');
+  assert.match(sent[0].text, /Valid until 2028-05-15\./);
+  assert.match(sent[0].html, /from Tom &amp; Jerry/);
 }));
 
 test('rule 23: a failed send is shown on the voucher (« Mail non parti »), writes no mail movement, and a later resend works', async () => {
@@ -251,14 +248,14 @@ test('rule 25: resend without an e-mail address on the voucher is refused', () =
   assert.deepEqual((await server.call('POST', url(v.id, '/resend'), {})).body.code, 'NO_EMAIL');
 }));
 
-test('rule 25: the PDF is served as application/pdf, one page, named after the voucher', () => withAdmin(async ({ server }) => {
+test('rule 25: the PDF is served as application/pdf, two pages, named after the voucher', () => withAdmin(async ({ server }) => {
   const v = await fx.issueManual(server);
   const res = await server.call('GET', url(v.id, '/pdf'));
   assert.equal(res.status, 200);
   assert.equal(res.headers.get('content-type'), 'application/pdf');
   assert.match(res.headers.get('content-disposition'), /BC-2026-0001\.pdf/);
   assert.equal(res.body.subarray(0, 5).toString(), '%PDF-');
-  assert.equal((res.body.toString('latin1').match(/\/Type \/Page(?!s)/g) || []).length, 1);
+  assert.equal((res.body.toString('latin1').match(/\/Type \/Page(?!s)/g) || []).length, 2, 'front and back');
 }));
 
 test('rule 29: the reception sees nothing of the plugin — no role entry is declared and the role guard answers 403', async () => {

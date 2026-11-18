@@ -5,6 +5,7 @@ const assert = require('node:assert/strict');
 
 const campaignRules = require('../campaignRules');
 const fx = require('./giftVoucherFixtures');
+const { termsStub } = require('./termsFixture');
 
 const validate = campaignRules.ideasError;
 const boundsOf = (api) => { const c = api.campaigns.firstLodging(); return { minAmountCents: c.minAmountCents, maxAmountCents: c.maxAmountCents }; };
@@ -122,7 +123,7 @@ const IDEAS = [{
 
 test('rule 14: GET /offer answers the bounds, the validity, the priced ideas and the terms version — the brand is the company name, and with no online payment configured available is false', () => withIdeas({
   settings: { ideas: JSON.stringify([stay]), minAmountCents: '3000', validityMonths: '12' },
-  deps: { quote: seasonalQuote(), termsVersionId: () => 4 },
+  deps: { quote: seasonalQuote(), terms: termsStub({ lodging: 4 }) },
 }, async ({ server }) => {
   const res = await server.call('GET', '/public/v1/gift-vouchers/offer');
   assert.equal(res.status, 200);
@@ -135,7 +136,7 @@ test('rule 14: GET /offer answers the bounds, the validity, the priced ideas and
     validityMonths: 12,
     ideas: IDEAS,
     campaigns: [{
-      slug: 'sejour', kind: 'lodging', title: 'Bon cadeau', validityMonths: 12, minAmountCents: 3000, maxAmountCents: 200000, ideas: IDEAS,
+      slug: 'sejour', kind: 'lodging', title: 'Bon cadeau', validityMonths: 12, minAmountCents: 3000, maxAmountCents: 200000, ideas: IDEAS, termsVersionId: 4,
     }],
     termsVersionId: 4,
   });

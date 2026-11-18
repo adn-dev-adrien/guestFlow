@@ -27,10 +27,15 @@ function labelOf(m) {
   return LABELS[m.kind] || m.kind;
 }
 
+/** The name an actor is shown under: the author of a ledger row or of a refund's settlement. `userName(id)` → the display name or null. */
+function actorNameOf(actor, userName) {
+  const [scope, rest] = String(actor).split(':');
+  return FIXED_ACTORS[scope] || (scope === 'user' ? userName(Number(rest)) || 'Utilisateur' : actor);
+}
+
 /** `userName(id)` → the display name or null. */
 function presentMovement(m, userName) {
-  const [scope, rest] = String(m.actor).split(':');
-  const actorName = FIXED_ACTORS[scope] || (scope === 'user' ? userName(Number(rest)) || 'Utilisateur' : m.actor);
+  const actorName = actorNameOf(m.actor, userName);
   return {
     id: m.id,
     kind: m.kind,
@@ -43,4 +48,4 @@ function presentMovement(m, userName) {
   };
 }
 
-module.exports = { presentMovement };
+module.exports = { presentMovement, actorNameOf };

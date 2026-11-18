@@ -104,7 +104,7 @@ test('rule 43: a voucher sold on the site is frozen when the bank confirms it, a
   await api.receipt.idle();
 }));
 
-test('rule 43: the receipt says the VAT in the buyer’s language — « dont TVA 10 % : 13,64 € » — and says nothing for a voucher with no VAT', () => withShop(async ({
+test('rule 43: the receipt’s recap (rule 20 of the campaigns spec) says the VAT in the buyer’s language — « dont TVA 10 % : 13,64 € » — and says nothing for a voucher with no VAT', () => withShop(async ({
   api, sent,
 }) => {
   const placed = (extra) => api.orders.create({
@@ -119,19 +119,15 @@ test('rule 43: the receipt says the VAT in the buyer’s language — « dont TV
   api.orderPaid({ ref: String(free.id), linkId: 63, amountCents: 15000 });
   await api.receipt.idle();
   const [frMail, enMail, freeMail] = sent;
-  assert.match(frMail.text, /Montant : 150,00 €, dont TVA 10 % : 13,64 €\. Il est valable jusqu’au/);
+  assert.match(frMail.text, /Total payé TTC : 150,00 €\ndont TVA 10 % : 13,64 €/);
   assert.match(frMail.html, /dont TVA 10 % : 13,64 €/);
-  assert.match(enMail.text, /Amount: 150,00 €, including VAT 10%: 13,64 €\. It is valid until/);
-  assert.match(freeMail.text, /Montant : 150,00 €\. Il est valable jusqu’au/);
-  assert.equal(/TVA/.test(freeMail.text), false);
+  assert.match(enMail.text, /Total paid incl\. VAT: 150,00 €\nincluding VAT 10%: 13,64 €/);
+  assert.match(freeMail.text, /Total payé TTC : 150,00 €/);
+  assert.equal(/dont TVA/.test(freeMail.text), false, 'no VAT sentence for a voucher with no VAT');
 }));
 
-test('rule 43: {vat} is a placeholder the operator can place or drop; an unknown one is still refused', () => {
-  const body = settings.DECLARED.find((d) => d.key === 'mailBodyFr');
-  assert.equal(body.validate('Montant {amount}{vat}.'), null);
-  assert.match(body.validate('Montant {tva}.'), /« \{tva\} » n’existe pas\. Disponibles : .*\{vat\}/);
-  assert.match(settings.DEFAULT_MAIL.mailBodyFr, /\{amount\}\{vat\}/);
-  assert.match(settings.DEFAULT_MAIL.mailBodyEn, /\{amount\}\{vat\}/);
+test('rule 43: the plugin declares no mail template any more — the mail is built from the voucher (rule 20 of the campaigns spec)', () => {
+  assert.deepEqual(settings.DECLARED.map((d) => d.key), ['pageUrl', 'linkBase']);
 });
 
 test('rule 43: the VAT is on the operator’s detail and the receipt, never on the printed voucher', () => {

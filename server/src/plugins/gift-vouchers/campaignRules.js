@@ -174,8 +174,18 @@ function slugProblem(slug, { campaigns, existing }) {
   return null;
 }
 
+/** Rule 7 — a front picked in the library: a visual still in it, meant for that front. `null` when none is picked. */
+function visualProblem(id, { visuals, field, label, uses }) {
+  if (id === undefined || id === null || id === '') return { value: null };
+  const n = asInt(id);
+  const visual = Number.isInteger(n) && n > 0 && visuals ? visuals.find(n) : null;
+  if (!visual || visual.deletedAt) return { error: { field, message: `${label} : ce visuel n’est pas dans la bibliothèque.` } };
+  if (!uses.includes(visual.use)) return { error: { field, message: `${label} : « ${visual.name} » n’est pas prévu pour cette face.` } };
+  return { value: n };
+}
+
 function validateCampaign(input, {
-  catalogue, campaigns, existing = null, oneShot = false,
+  catalogue, campaigns, visuals = null, existing = null, oneShot = false,
 }) {
   if (!isObject(input)) return { ok: false, errors: [{ field: 'body', message: 'Corps de requête invalide.' }] };
   const errors = [];
@@ -194,6 +204,16 @@ function validateCampaign(input, {
     push('slug', slugProblem(input.slug, { campaigns, existing }));
   }
 
+  const voucherFront = visualProblem(input.voucherVisualId, {
+    visuals, field: 'voucherVisualId', label: 'Face du bon', uses: ['voucher', 'both'],
+  });
+  const merchantFront = visualProblem(input.merchantVisualId, {
+    visuals, field: 'merchantVisualId', label: 'Face de la carte commerçant', uses: ['merchant', 'both'],
+  });
+  [voucherFront, merchantFront].forEach((front) => { if (front.error) errors.push(front.error); });
+  // Rule 7 — the voucher's front is what the mailed PDF shows first: a campaign goes on sale with one.
+  if (state === 'on_sale' && !voucherFront.error && voucherFront.value == null) push('voucherVisualId', 'Face du bon : un visuel est nécessaire pour mettre la campagne en vente.');
+
   const value = {
     name: typeof input.name === 'string' ? input.name.trim() : '',
     title: typeof input.title === 'string' ? input.title.trim() : '',
@@ -209,6 +229,8 @@ function validateCampaign(input, {
     maxAmountCents: null,
     ideas: [],
     vatRatePercent: null,
+    voucherVisualId: voucherFront.value === undefined ? null : voucherFront.value,
+    merchantVisualId: merchantFront.value === undefined ? null : merchantFront.value,
   };
 
   if (input.kind === 'lodging') {

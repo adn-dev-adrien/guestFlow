@@ -18,7 +18,7 @@ let visitors = 0;
 const ids = fx.seedCatalogue();
 const shop = fx.openShop();
 const { api, db } = shop;
-const checked = campaignRules.validateCampaign(fx.bathCampaign(ids), { catalogue: api.catalogue, campaigns: api.campaigns });
+const checked = campaignRules.validateCampaign(fx.bathCampaign(ids), fx.rulesContext(api));
 const bath = api.campaigns.find(api.campaigns.insert(checked.value));
 
 const count = (table) => db.prepare(`SELECT COUNT(*) AS n FROM ${table}`).get().n;
@@ -34,7 +34,7 @@ async function withServer(fn) {
     visitors += 1;
     const ip = `10.0.1.${visitors}`;
     return server.call('POST', '/public/v1/gift-vouchers/orders', {
-      slug: bath.slug, recipientName: 'Marie', senderName: 'Paul', message: 'Joyeux anniversaire', email: 'paul@example.test', language: 'fr', ...body, ...sale.solvedProof({ ip }),
+      slug: bath.slug, recipientName: 'Marie', senderName: 'Paul', message: 'Joyeux anniversaire', email: 'paul@example.test', language: 'fr', termsVersionId: 9, ...body, ...sale.solvedProof({ ip }),
     }, { 'x-test-ip': ip });
   };
   try { await fn({ server, site, place }); } finally { await server.close(); }
@@ -58,6 +58,15 @@ test('nothing exists before the bank confirms: the order, its price and its link
     },
     options: [{ articleRef: `option:${ids.board}`, label: 'Planche apéro', qty: 1 }],
     addOns: [],
+    // rule 20 — the priced lines, kept for the invoice-style recap of the mail
+    lines: [
+      {
+        label: 'Bain nordique · journée', qty: 1, unitCents: 9500, totalCents: 9500, vatRate: 20,
+      },
+      {
+        label: 'Planche apéro', qty: 1, unitCents: 1400, totalCents: 1400, vatRate: 10,
+      },
+    ],
   });
   assert.deepEqual(JSON.parse(row.vatLines).map((l) => [l.ratePercent, l.vatCents]), [[10, 127], [20, 1583]]);
   const link = await site('POST', `/orders/${orderId}/pay`, { token });
@@ -175,6 +184,9 @@ test('« Envoyer un lien » creates the order a site order would be, mails the o
     const mail = shop.sent.at(-1);
     assert.equal(mail.to, 'paul@example.test');
     assert.ok(mail.text.includes(`https://pay.example.test/${shop.links.length}`) && mail.text.includes('valable une heure'));
+    // Rule 37 — paying the link accepts the bath's terms: the mail names them and links their current version.
+    assert.ok(mail.text.includes('Le paiement vaut acceptation de nos conditions générales de vente : https://site.example.test/cgv/?activity=resource&v=1'), mail.text);
+    assert.ok(mail.html.includes('<a href="https://site.example.test/cgv/?activity=resource&amp;v=1">'), mail.html);
     assert.deepEqual(existing(), { ...before, gift_voucher_orders: before.gift_voucher_orders + 1 }, 'no voucher before the payment');
     assert.deepEqual(paid(sent.body.orderId, 41, 14900), { effect: 'voucher-issued' });
     await api.receipt.idle();

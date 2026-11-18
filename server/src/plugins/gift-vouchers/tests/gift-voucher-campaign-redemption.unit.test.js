@@ -18,7 +18,7 @@ const prepaidSources = require('../../../utils/prepaidSources');
 
 const ids = fx.seedCatalogue();
 const { api } = fx.openShop();
-api.campaigns.insert(campaignRules.validateCampaign(fx.bathCampaign(ids), { catalogue: api.catalogue, campaigns: api.campaigns }).value);
+api.campaigns.insert(campaignRules.validateCampaign(fx.bathCampaign(ids), fx.rulesContext(api)).value);
 
 const issue = (request) => {
   const out = api.offerService.issueDirect({

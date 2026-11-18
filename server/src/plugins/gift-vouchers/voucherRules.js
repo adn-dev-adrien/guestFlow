@@ -138,6 +138,18 @@ function movementRefusal({ kind, amountCents, balanceCents, issuedCents }) {
   return null;
 }
 
+const WITHDRAWAL_DAYS = 14;
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * Rule 39 — a voucher bought online with no date can be withdrawn for 14 days (art. L221-18): the day of the payment and the 14 days after it. → `{ open, endsOn }`,
+ * the days counted on the shop's Paris calendar (`paidOn`, `today`: `YYYY-MM-DD`).
+ */
+function withdrawalOf({ paidOn, today }) {
+  const endsOn = new Date(Date.parse(`${paidOn}T00:00:00Z`) + WITHDRAWAL_DAYS * DAY_MS).toISOString().slice(0, 10);
+  return { open: today <= endsOn, endsOn };
+}
+
 /** Rule 25 — a new expiry date: a real date, in the future. */
 function extensionRefusal({ expiresOn, today }) {
   if (!isIsoDate(expiresOn)) return 'DATE_INVALID';
@@ -173,4 +185,6 @@ module.exports = {
   isUsable,
   movementRefusal,
   extensionRefusal,
+  withdrawalOf,
+  WITHDRAWAL_DAYS,
 };

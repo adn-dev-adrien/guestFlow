@@ -1,5 +1,5 @@
 /**
- * The voucher's sale in the books (specs/gift-vouchers.md rules 43-44): the plugin lists each voucher it sold as a sale made outside any
+ * The voucher's sale in the books (specs/gift-vouchers.md rules 43-44, specs/gift-voucher-campaigns.md rule 54): the plugin lists each voucher it sold as a sale made outside any
  * stay (`ctx.standaloneSales`), on the day it was collected, for its whole amount at the VAT rate (or rates) frozen on it. The journal books it as
  * HT + VAT; the stay that a voucher pays later books only what the card collected (mixed-method-payments rule 64), so the VAT of the
  * voucher's part is declared once, here.
@@ -29,15 +29,52 @@ function salesOf(v, date) {
   }));
 }
 
-function createBooks({ vouchers }) {
+/**
+ * Rule 54 — the refund of a cancelled voucher: an avoir (`role: 'refund'`) dated the day the cancellation opened it, per VAT rate like the sale it takes back. A refund below the
+ * voucher's amount is cut across the rates in proportion, the last one taking the rounding.
+ */
+function refundEntriesOf(v, refund, date) {
+  const lines = rules.vatLinesOf(v);
+  const gross = lines.map((line) => line.htCents + line.vatCents);
+  const total = gross.reduce((sum, cents) => sum + cents, 0);
+  let given = 0;
+  return lines.map((line, index) => {
+    const last = index === lines.length - 1;
+    const share = last ? refund.amountCents - given : Math.round((gross[index] * refund.amountCents) / total);
+    given += share;
+    return {
+      key: lines.length === 1 ? `giftVoucher:${v.id}:refund` : `giftVoucher:${v.id}:refund:${line.ratePercent}`,
+      date,
+      totalCents: 0,
+      booksCents: share,
+      cardCents: 0,
+      label: `Remboursement bon cadeau ${v.number}`,
+      client: { firstName: '', lastName: v.senderName || '' },
+      vatRate: line.ratePercent,
+      invoiceNumber: null,
+      role: 'refund',
+    };
+  }).filter((entry) => entry.booksCents > 0);
+}
+
+function createBooks({ vouchers, refunds }) {
   /** `{ from, to }` (Paris days, inclusive) → the sales in the shape `utils/standaloneSales.js` lists. */
   function salesBetween({ from, to }) {
     const since = new Date(Date.parse(`${from}T00:00:00Z`) - DAY_MS).toISOString();
     const before = new Date(Date.parse(`${to}T00:00:00Z`) + 2 * DAY_MS).toISOString();
-    return vouchers.issuedBetween({ since, before })
+    const sold = vouchers.issuedBetween({ since, before })
       .map((v) => ({ v, date: rules.parisDate(new Date(v.issuedAt)) }))
       .filter(({ date }) => date >= from && date <= to)
       .flatMap(({ v, date }) => salesOf(v, date));
+    return [...sold, ...refundsBetween({ from, to }, { since, before })];
+  }
+
+  /** The avoirs of the refunds a cancellation opened in the window. */
+  function refundsBetween({ from, to }, { since, before }) {
+    return refunds.openedBetween({ since, before })
+      .map((refund) => ({ refund, v: vouchers.find(refund.voucherId), date: rules.parisDate(new Date(refund.openedAt)) }))
+      .filter(({ v, date }) => v && date >= from && date <= to)
+      .flatMap(({ v, refund, date }) => refundEntriesOf(v, refund, date));
   }
 
   return { salesBetween };

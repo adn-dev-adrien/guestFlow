@@ -8,7 +8,7 @@
 
 const rules = require('../voucherRules');
 const { visitorHashOf } = require('../visitorHash');
-const { statusOf } = require('../offerService');
+const { statusOf, activityOfCampaign } = require('../offerService');
 
 const MAX_RETURN_PATH = 200;
 const ORDERS_PER_HOUR = 5;
@@ -22,6 +22,7 @@ const STATUS = Object.freeze({
   TOO_MANY_ORDERS: 429,
   VOUCHER_ALREADY_ISSUED: 409,
   PAYMENT_LINK_EXPIRED: 409,
+  TERMS_UNPUBLISHED: 409,
 });
 
 const MESSAGES = Object.freeze({
@@ -31,7 +32,12 @@ const MESSAGES = Object.freeze({
   AMOUNT_INVALID: { fr: 'Montant invalide.', en: 'Invalid amount.' },
   VOUCHER_AMOUNT_OUT_OF_BOUNDS: { fr: 'Montant hors des bornes.', en: 'The amount is out of bounds.' },
   EMAIL_INVALID: { fr: 'Adresse e-mail invalide.', en: 'Invalid e-mail address.' },
-  TERMS_REQUIRED: { fr: 'Les conditions doivent être acceptées.', en: 'The terms must be accepted.' },
+  TERMS_NOT_ACCEPTED: { fr: 'Les conditions doivent être acceptées.', en: 'The terms must be accepted.' },
+  TERMS_OUTDATED: { fr: 'Les conditions ont changé : relire et accepter la dernière version.', en: 'The terms have changed: please read and accept the latest version.' },
+  TERMS_UNPUBLISHED: {
+    fr: 'Ce bon ne peut pas encore être vendu : les conditions de l’activité ne sont pas encore publiées.',
+    en: 'This voucher cannot be sold yet: the terms of the activity are not published yet.',
+  },
   TOO_MANY_ORDERS: { fr: 'Trop de demandes. Nouvel essai possible plus tard.', en: 'Too many requests. Please try again later.' },
   ONLINE_SALE_UNAVAILABLE: { fr: 'La vente en ligne n’est pas disponible pour le moment.', en: 'Online sales are unavailable for now.' },
   VOUCHER_ORDER_NOT_FOUND: { fr: 'Bon introuvable.', en: 'Voucher not found.' },
@@ -52,8 +58,8 @@ class Refusal extends Error {
 const isObject = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
 
 function buildPublicOrdersController({
-  offerService, termsVersionId, available, brand, respond, orders, vouchers, proof, pepper, ipOf, payments, siteOrigin,
-  decrypt, renderPdf, bookingUrl, now = () => new Date(),
+  offerService, terms, available, brand, respond, orders, vouchers, proof, pepper, ipOf, payments, siteOrigin,
+  decrypt, documents, now = () => new Date(),
 }) {
   const langOf = (req) => {
     const stated = (req.body && req.body.language) || (req.query && req.query.lang);
@@ -87,12 +93,37 @@ function buildPublicOrdersController({
     return read.ok ? read.value : null;
   };
 
+  const currentTerms = (activity) => terms.current(activity);
+
+  /**
+   * Rule 37 — the terms a buyer must accept: the current version of the campaign's activity. A bath cannot be sold before its terms are published; a lodging voucher with
+   * no lodging terms published asks for none. → the current version, or null when nothing is owed.
+   */
+  function requireTerms(activity, versionId) {
+    const current = currentTerms(activity);
+    if (!current) {
+      if (activity !== 'lodging') throw new Refusal('TERMS_UNPUBLISHED');
+      return null;
+    }
+    const refusal = terms.requireAccepted({ activity, versionId });
+    if (refusal) throw new Refusal(refusal);
+    return current;
+  }
+
+  /** Each campaign carries the version of the terms its purchase accepts; one whose activity has none published is not offered (rule 37). */
   async function read(req, res) {
+    const offer = await offerService.offer();
+    const campaigns = offer.campaigns.map((c) => {
+      const current = currentTerms(activityOfCampaign(c));
+      return { ...c, termsVersionId: current ? current.id : null };
+    }).filter((c) => c.kind === 'lodging' || c.termsVersionId !== null);
+    const lodging = currentTerms('lodging');
     return respond.ok(res, {
       available: available(),
       brand: brand(),
-      ...await offerService.offer(),
-      termsVersionId: termsVersionId(),
+      ...offer,
+      campaigns,
+      termsVersionId: lodging ? lodging.id : null,
     });
   }
 
@@ -112,15 +143,28 @@ function buildPublicOrdersController({
     if (orders.countSince(visitorHash, HOUR_MS) >= ORDERS_PER_HOUR) return refuse(req, res, 'TOO_MANY_ORDERS', { 'Retry-After': HOUR_MS / 1000 });
     const parties = offerService.partiesOf(body, { emailRequired: true });
     if (!parties.ok) throw new Refusal(parties.code);
-    const current = termsVersionId();
-    if (Number(body.termsVersionId || 0) !== Number(current || 0)) throw new Refusal('TERMS_REQUIRED');
+    const found = offerService.activityOf(requestOf(body));
+    if (!found.ok) throw new Refusal(found.code, found.message);
+    const current = requireTerms(found.activity, body.termsVersionId);
+    const visitor = req.visitor || {};
     const created = offerService.createOrder({
       request: requestOf(body),
       parties: parties.value,
       source: 'site',
       visitorHash,
-      termsVersionId: current || null,
-      termsAcceptedAt: now().toISOString(),
+      afterInsert: (order) => {
+        if (!current) return;
+        terms.accept({
+          activity: found.activity,
+          versionId: current.id,
+          subjectType: 'voucherOrder',
+          subjectRef: order.id,
+          channel: 'site',
+          ip: visitor.ip || null,
+          userAgent: visitor.userAgent || null,
+          pluginVersion: visitor.pluginVersion || null,
+        });
+      },
     });
     if (!created.ok) throw new Refusal(created.code, created.message);
     const { order } = created;
@@ -186,12 +230,15 @@ function buildPublicOrdersController({
   const pdf = guarded(async (req, res) => {
     const order = orderOf(req, req.query.token);
     const voucher = vouchers.findByOrderId(order.id);
-    const plain = voucher && !voucher.cancelledAt ? readCode(voucher) : null;
-    const url = bookingUrl();
-    if (!plain || !url) throw new Refusal('VOUCHER_ORDER_NOT_FOUND');
-    const buffer = await renderPdf({
-      brand: brand(), bookingUrl: url, language: req.query.lang === 'en' ? 'en' : voucher.language, voucher: { ...voucher, code: plain },
-    });
+    const usable = voucher && rules.isUsable(rules.stateOf({ voucher, balanceCents: voucher.balanceCents, today: rules.parisDate(now()) }));
+    if (!usable || !readCode(voucher)) throw new Refusal('VOUCHER_ORDER_NOT_FOUND');
+    let buffer;
+    try {
+      buffer = await documents.voucherPdf(voucher);
+    } catch (error) {
+      if (error.code === 'NO_SITE_ORIGIN') throw new Refusal('VOUCHER_ORDER_NOT_FOUND');
+      throw error;
+    }
     res.set({ 'Content-Type': 'application/pdf', 'Content-Disposition': `inline; filename="${voucher.number}.pdf"`, 'Cache-Control': 'no-store' });
     return res.send(buffer);
   });

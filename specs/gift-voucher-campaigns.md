@@ -530,6 +530,33 @@ Rules are identities: a rule is never renumbered, new rules are appended
 55. **A bath voucher can be bought entirely on the website**, from a campaign link or from the
     voucher page, with no action of the operator: priced, paid, issued, mailed.
 
+### 3.R How the printed cards, the mail and the cancellation were built (added 2026-11-18)
+
+56. **The mail is built from the voucher, so its template settings go.** The plugin no longer
+    declares `mailSubjectFr/En`, `mailBodyFr/En` (the amount in an operator template contradicts
+    rule 20) nor `bookingUrl` (the QR code points to `<siteOrigin>/<base>/utiliser`). `linkBase`
+    (default `bon-cadeau`, one lowercase segment) is a plugin setting. The website printed on the
+    cards is `publicSiteOrigin`; with none set, the PDF and the mail are refused (`NO_SITE_ORIGIN`).
+57. **The recap of the mail reads frozen lines.** An order and its voucher keep, in `contents.lines`,
+    the priced lines (label, quantity, unit and total incl. VAT, VAT rate) the engine answered when
+    the order was priced; the recap and « dont TVA » read them and the voucher's `vatLines`, never
+    the engine again.
+58. **Cancellation details.** A voucher with any redemption, or expired, cannot be cancelled
+    (`VOUCHER_ALREADY_REDEEMED`, `VOUCHER_EXPIRED`). The refund line is the balance left once the
+    holds are released. The 14 days run from the Paris day of the payment, inclusive. Marking a
+    refund settled is written to the history as « Remboursement effectué » with the operator's name;
+    the journal receives a plugin's refund as `role: 'refund'` with one VAT rate per sale line.
+59. **A campaign goes on sale with a voucher front** (rule 7): without one it is refused
+    « Face du bon : un visuel est nécessaire pour mettre la campagne en vente. » A draft and a
+    one-shot need none; a one-shot without a front draws a plain front with the company name. The
+    migrated lodging campaign keeps its state until it is next edited.
+60. **Terms and the public offer.** Each campaign of `GET /offer` carries the `termsVersionId` of its
+    activity; a composed campaign whose activity has no published version is left out of the public
+    offer and refused at the order (`TERMS_UNPUBLISHED`). The operator's payment link records the
+    acceptance at the payment (`payment-link`); the mail of the link says « Le paiement vaut acceptation
+    de nos conditions générales de vente : » and links the current version of the activity's text
+    (`<siteOrigin>/cgv/?v=` for the lodging, `?activity=<key>&v=` for another activity).
+
 ## 4. Architecture
 
 ### 4.1 Server side (`server/src/`)
@@ -617,6 +644,9 @@ Admin (session):
 | GET | `/api/gift-vouchers/offer` · POST `/offer/price` | The same `offerService` payloads as the public routes |
 | POST | `/api/gift-vouchers` | `{ slug | composition, extraMinutes, addOns, names, outcome: paid|offered|link }` |
 | POST | `/api/gift-vouchers/:id/cancel` | `{ force?, reason? }` → refund line (rule 54) |
+| POST | `/api/gift-vouchers/:id/refunds/:rid/settle` | The operator made the transfer: the refund line is settled (rule 54) |
+| GET · POST | `/api/gift-vouchers/:id/pdf` · `/:id/resend` | The voucher PDF; the mail again, `{ email? }`, for a usable voucher (rules 48–49) |
+| GET | `/api/gift-vouchers/campaigns/:id/recipe.zip` · POST `/campaigns/import` | Recipe export and import, all-or-nothing (rule 10) |
 | GET | `/api/resource-bookings/:id/fiche` | Fiche passage with history (rule 53) |
 
 ## 5. Data model

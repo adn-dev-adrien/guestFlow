@@ -37,6 +37,10 @@ const refuse = (code, message, extra = {}) => ({
   ok: false, code, message, ...extra,
 });
 
+const RESOURCE_ACTIVITY = 'resource';
+const LODGING_ACTIVITY = 'lodging';
+const activityOfCampaign = (campaign) => (campaign.kind === 'resource' ? RESOURCE_ACTIVITY : LODGING_ACTIVITY);
+
 const asInt = (v) => (typeof v === 'string' && /^\d+$/.test(v.trim()) ? Number(v) : v);
 
 /** « 2 h », « 1 h 30 », « 45 min » — a duration the way the shop says it. */
@@ -47,7 +51,7 @@ function durationText(minutes) {
 }
 
 function createOfferService({
-  campaigns, orders, issuance, catalogue, engine, quoteStay, payments, transaction, now = () => new Date(),
+  campaigns, orders, issuance, catalogue, engine, quoteStay, payments, transaction, visuals = null, now = () => new Date(),
 }) {
   const ideasByCampaign = new Map();
 
@@ -96,6 +100,13 @@ function createOfferService({
     contents.addOns.forEach((o) => { lines.push({ articleRef: o.articleRef, quantity: o.qty }); descriptors.push({ kind: 'addOn' }); });
     return { lines, descriptors };
   }
+
+  /** The priced lines a voucher keeps with its contents: the invoice-style recap of its mail reads them, never the engine (specs/gift-voucher-campaigns.md rule 20). */
+  const frozenLines = (lines) => lines.map(({
+    label, qty, unitCents, totalCents, vatRate,
+  }) => ({
+    label, qty, unitCents, totalCents, vatRate,
+  }));
 
   /** Rules 5, 17 — the engine's price of frozen contents, for the outside customer. */
   function priceContents(contents) {
@@ -216,8 +227,11 @@ function createOfferService({
         minAmountCents: null,
         maxAmountCents: null,
         vatRatePercent: null,
+        voucherVisualId: request.voucherVisualId,
       };
-      const checked = campaignRules.validateCampaign(candidate, { catalogue, campaigns, oneShot: true });
+      const checked = campaignRules.validateCampaign(candidate, {
+        catalogue, campaigns, visuals, oneShot: true,
+      });
       if (!checked.ok) return refuse('COMPOSITION_INVALID', checked.errors[0].message, { errors: checked.errors });
       return { ok: true, campaign: checked.value };
     }
@@ -239,7 +253,7 @@ function createOfferService({
     const contents = contentsFor(campaign, request);
     if (!contents.ok) return contents;
     const priced = priceContents(contents.contents);
-    return priced.ok ? { ...priced, contents: contents.contents } : priced;
+    return priced.ok ? { ...priced, contents: { ...contents.contents, lines: frozenLines(priced.lines) } } : priced;
   }
 
   /** Rules 5, 17, 26 — the price of a request, for the site and the back-office alike. */
@@ -352,8 +366,19 @@ function createOfferService({
 
   // ── orders and payment ────────────────────────────────────────────────────────────────────────────────────────────
 
+  /**
+   * The terms an order must be accepted under (rule 37): the campaign's activity — the lodging terms for a lodging campaign, the resource's for a composed one. → `{ ok, activity }`.
+   */
+  function activityOf(request, { admin = false } = {}) {
+    const found = campaignOf(request && typeof request === 'object' ? request : {}, { admin });
+    return found.ok ? { ok: true, activity: activityOfCampaign(found.campaign) } : found;
+  }
+
+  /**
+   * `afterInsert(order, campaign)` runs in the transaction that writes the order, so what must exist with it (the buyer's acceptance of the terms) exists with it or not at all.
+   */
   function createOrder({
-    request, parties, source, createdBy = 'public', paymentMethod = null, visitorHash = null, termsVersionId = null, termsAcceptedAt = null, admin = false, vatOverride,
+    request, parties, source, createdBy = 'public', paymentMethod = null, visitorHash = null, afterInsert = null, admin = false, vatOverride,
   }) {
     const body = request && typeof request === 'object' ? request : {};
     const found = campaignOf(body, { admin });
@@ -361,19 +386,22 @@ function createOfferService({
     const priced = priceRequest(found.campaign, body);
     if (!priced.ok) return priced;
     const vatLines = vatOverride === undefined ? priced.vatLines : vatOverride;
-    const order = transaction(() => orders.create({
-      amountCents: priced.totalCents,
-      ...parties,
-      termsVersionId,
-      termsAcceptedAt,
-      visitorHash,
-      source,
-      paymentMethod,
-      createdBy,
-      campaignId: found.campaign.id === undefined ? campaigns.insert(found.campaign) : found.campaign.id,
-      contents: priced.contents,
-      vatLines,
-    }));
+    const order = transaction(() => {
+      const campaignId = found.campaign.id === undefined ? campaigns.insert(found.campaign) : found.campaign.id;
+      const created = orders.create({
+        amountCents: priced.totalCents,
+        ...parties,
+        visitorHash,
+        source,
+        paymentMethod,
+        createdBy,
+        campaignId,
+        contents: priced.contents,
+        vatLines,
+      });
+      if (afterInsert) afterInsert(created, { ...found.campaign, id: campaignId });
+      return created;
+    });
     return {
       ok: true, order, price: { ...priced, kind: found.campaign.kind, title: found.campaign.title },
     };
@@ -384,10 +412,11 @@ function createOfferService({
     const campaign = order.campaignId ? campaigns.find(order.campaignId) : null;
     if (!campaign) return refuse('CAMPAIGN_UNKNOWN', 'Offre inconnue.');
     if (!campaign.oneShot && campaign.state !== 'on_sale') return refuse('CAMPAIGN_CLOSED', 'Cette offre n’est plus en vente.');
-    const contents = rules.contentsOf(order);
-    const priced = contents.kind === 'lodging' ? priceLodging(campaign, order.amountCents) : priceContents(contents);
+    const held = rules.contentsOf(order);
+    const priced = held.kind === 'lodging' ? priceLodging(campaign, order.amountCents) : priceContents(held);
     if (!priced.ok) return priced;
-    if (priced.totalCents !== order.amountCents || (priced.vatLines && JSON.stringify(priced.vatLines) !== order.vatLines)) {
+    const contents = held.kind === 'lodging' ? held : { ...held, lines: frozenLines(priced.lines) };
+    if (priced.totalCents !== order.amountCents || JSON.stringify(contents) !== order.contents || (priced.vatLines && JSON.stringify(priced.vatLines) !== order.vatLines)) {
       orders.reprice(order.id, { amountCents: priced.totalCents, contents, vatLines: priced.vatLines });
     }
     return {
@@ -440,10 +469,10 @@ function createOfferService({
   }
 
   return {
-    offer, price, campaignStatus, createOrder, repriceOrder, startPayment, issueDirect, partiesOf, invalidateIdeas, durationText,
+    offer, price, campaignStatus, activityOf, createOrder, repriceOrder, startPayment, issueDirect, partiesOf, invalidateIdeas, durationText,
   };
 }
 
 module.exports = {
-  createOfferService, durationText, statusOf, LINK_MINUTES,
+  createOfferService, durationText, statusOf, activityOfCampaign, LINK_MINUTES,
 };

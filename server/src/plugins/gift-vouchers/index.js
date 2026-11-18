@@ -7,6 +7,7 @@
 const sdk = require('../sdk');
 const { MIGRATIONS, TABLES } = require('./migrations');
 const settings = require('./settings');
+const rules = require('./voucherRules');
 const createVouchersModel = require('./models/vouchersModel');
 const createOrdersModel = require('./models/ordersModel');
 const createMovementsModel = require('./models/movementsModel');
@@ -20,13 +21,19 @@ const { createProof } = require('./proof');
 const { createReceipt } = require('./receipt');
 const { createBooks } = require('./books');
 const { createOrderPaid, SOURCE } = require('./orderPaid');
-const { renderVoucherPdf } = require('./voucherPdf');
+const createVisualsModel = require('./models/visualsModel');
+const createRefundsModel = require('./models/refundsModel');
+const { createDocuments } = require('./documents');
+const { createRecipe } = require('./recipe');
+const images = require('./visualImages');
+const { townOf, logoOf } = require('./companyProfile');
 const { createRedemption, SOURCE: PREPAID_SOURCE, LABEL: PREPAID_LABEL } = require('./redemption');
 const { buildStayController } = require('./controllers/stayController');
 const { buildAdminController } = require('./controllers/adminController');
 const { buildPublicCheckController } = require('./controllers/publicCheckController');
 const { buildPublicOrdersController } = require('./controllers/publicOrdersController');
-const { buildCampaignsController } = require('./controllers/campaignsController');
+const { buildCampaignsController, receiveRecipe } = require('./controllers/campaignsController');
+const { buildVisualsController, receive: receiveVisual } = require('./controllers/visualsController');
 const { buildAdminRouter } = require('./routes/admin');
 const { buildPublicRouter } = require('./routes/public');
 
@@ -41,6 +48,9 @@ const PAUSED_ITEM = Object.freeze({
   title: 'Vérification des bons cadeaux suspendue',
   detail: 'Trop d’essais de codes en une heure : les vérifications publiques sont refusées pendant 30 minutes.',
 });
+
+/** A suite that states no terms: nothing is published, so nothing is asked and nothing recorded. */
+const NO_TERMS = Object.freeze({ current: () => null, requireAccepted: () => null, accept: () => null });
 
 const once = (build) => {
   let built = null;
@@ -91,39 +101,43 @@ function userNameFrom(db) {
 
 function buildGiftVouchersApi({
   db, pepper, encrypt, decrypt, settingsStore = () => memorySettings(), now = () => new Date(), quote, pow, powSecret, guard,
-  sendMail, paymentMethods, userName = userNameFrom(db), companyName, pageUrl, bookingUrl, termsVersionId = () => null, onlineSaleAvailable = () => false,
+  sendMail, paymentMethods, userName = userNameFrom(db), companyName, pageUrl, terms = NO_TERMS, onlineSaleAvailable = () => false,
+  filesDir = () => { throw new Error('gift-vouchers: no folder for the visuals'); }, company = async () => ({ name: companyName(), town: '', website: siteOrigin(), logo: null }),
+  linkBase = () => settingsStore().get('linkBase') || settings.DEFAULT_LINK_BASE,
   payments, siteOrigin = () => '', limiters = {}, isConverted = () => false, stayOf = () => null, collectedCents = () => 0, receipts = null,
   randomBytes, onCheckLimitsTrip = () => {}, transaction = (fn) => db.transaction(fn)(),
   // The engine and the catalogue the campaigns are priced and picked from: the core's, unless a suite stands in.
   engine = { quote: (request) => sdk.coreModule('standaloneSale').quote(request) },
   catalogue = createCatalogueView({ db, articles: sdk.coreModule('articles') }),
 }) {
-  const get = (key) => settingsStore().get(key);
   const vouchers = createVouchersModel(db);
   const orders = createOrdersModel(db, { now });
   const movements = createMovementsModel(db, { now });
   const checks = createChecksModel(db, { now });
   const campaigns = createCampaignsModel(db, { now });
+  const visuals = createVisualsModel(db, { now });
+  const refunds = createRefundsModel(db, { now });
   const issuance = createIssuance({
-    db, vouchers, orders, movements, campaigns, pepper, encrypt, now, randomBytes,
+    db, vouchers, orders, movements, campaigns, visuals, pepper, encrypt, now, randomBytes,
   });
   const checkLimits = createCheckLimits({ checks, now, onTrip: onCheckLimitsTrip });
   const offerService = createOfferService({
-    campaigns, orders, issuance, catalogue, engine, quoteStay: quote, payments, transaction, now,
+    campaigns, orders, issuance, catalogue, engine, quoteStay: quote, payments, transaction, visuals, now,
+  });
+  const documents = createDocuments({
+    visuals, campaigns, filesDir, company, linkBase, decrypt,
+  });
+  const recipe = createRecipe({
+    campaigns, catalogue, visuals, filesDir, transaction,
   });
   const respond = sdk.coreModule('publicHttp');
   const ipOf = (req) => pow.ipKeyOf(req.visitor && req.visitor.ip ? req.visitor.ip : req.ip) || 'unknown';
 
   const receipt = createReceipt({
-    vouchers, orders, movements, transaction, sendMail, settingsGet: get, pageUrl, now,
+    vouchers, orders, movements, campaigns, documents, decrypt, transaction, sendMail, pageUrl, now,
   });
-  const books = createBooks({ vouchers });
+  const books = createBooks({ vouchers, refunds });
   const proof = createProof({ pow, secret: powSecret });
-  const admin = buildAdminController({
-    vouchers, movements, offerService, campaigns, transaction, paymentMethods, userName, decrypt, receipt, renderPdf: renderVoucherPdf,
-    brand: companyName, bookingUrl, sendMail, now,
-  });
-  const campaignsAdmin = buildCampaignsController({ campaigns, catalogue, offerService });
   const check = buildPublicCheckController({
     vouchers, checks, limits: checkLimits, pepper, proof, ipOf, now, respond,
   });
@@ -139,16 +153,25 @@ function buildGiftVouchersApi({
     now,
     transaction,
   });
+  const admin = buildAdminController({
+    vouchers, movements, refunds, redemption, documents, offerService, campaigns, transaction, paymentMethods, userName, decrypt, receipt, sendMail, now, terms, siteOrigin,
+  });
+  const campaignsAdmin = buildCampaignsController({
+    campaigns, catalogue, offerService, visuals, documents, recipe,
+  });
+  const visualsAdmin = buildVisualsController({ visuals, filesDir, now });
   const stays = buildStayController({
     vouchers, movements, redemption, pepper, transaction, stayOf, collectedCents, receipts, now,
   });
   const offer = buildPublicOrdersController({
-    offerService, termsVersionId, available: onlineSaleAvailable, brand: companyName, respond, orders, vouchers, proof, pepper, ipOf, payments, siteOrigin,
-    decrypt, renderPdf: renderVoucherPdf, bookingUrl, now,
+    offerService, terms, available: onlineSaleAvailable, brand: companyName, respond, orders, vouchers, proof, pepper, ipOf, payments, siteOrigin,
+    decrypt, documents, now,
   });
 
   return {
-    adminRouter: buildAdminRouter({ admin, stays, campaigns: campaignsAdmin }),
+    adminRouter: buildAdminRouter({
+      admin, stays, campaigns: campaignsAdmin, visuals: visualsAdmin, receiveVisual, receiveRecipe,
+    }),
     publicRouter: buildPublicRouter({
       guard, offer, check, limiters,
     }),
@@ -157,18 +180,28 @@ function buildGiftVouchersApi({
     movements,
     checks,
     campaigns,
+    visuals,
+    refunds,
+    documents,
+    recipe,
     offerService,
     catalogue,
     issuance,
     receipt,
     orderPaid: createOrderPaid({
-      orders, movements, issuance, receipt,
+      orders, movements, issuance, receipt, terms,
     }),
     checkLimits,
     salesBetween: (window) => books.salesBetween(window),
     purgeStaleOrders: () => orders.purgeStalePending(),
     retryReceipts: () => receipt.retryPending(),
     purgeOldChecks: () => checks.purgeOld(),
+    purgeVisuals: () => {
+      const today = rules.parisDate(now());
+      const stale = visuals.purgeable(today);
+      stale.forEach((version) => { images.remove(filesDir(), version.path); visuals.markPurged(version.id); });
+      return stale.length;
+    },
     releaseLapsedHolds: () => redemption.releaseLapsed({ isConverted }),
     redemption,
     stays,
@@ -186,6 +219,16 @@ function register(ctx) {
   const settingsModel = () => sdk.coreModule('settingsModel');
   const siteOrigin = () => settingsModel().publicSiteOrigin();
   const pageUrl = () => String(ctx.settings.get('pageUrl') || '').trim() || siteOrigin();
+  /** Rule 50 — what a printed card says of the company, from the company settings. */
+  const companyForPrint = async () => {
+    const stored = settingsModel().read();
+    return {
+      name: String(stored.companyName || '').trim() || 'GuestFlow',
+      town: townOf(stored.companyAddress),
+      website: siteOrigin(),
+      logo: await logoOf(stored.companyLogoPath, sdk.coreModule('instancePaths').uploadsDir()),
+    };
+  };
 
   // Built on first use: the tables exist only once the plugin is installed, and a suite registers it with no database.
   let built = null;
@@ -230,11 +273,10 @@ function register(ctx) {
     onlineSaleAvailable: () => Boolean(sdk.coreModule('paymentProviders').active()),
     companyName: () => String(settingsModel().read().companyName || '').trim() || 'GuestFlow',
     pageUrl,
-    bookingUrl: () => String(ctx.settings.get('bookingUrl') || '').trim() || siteOrigin(),
-    termsVersionId: () => {
-      const current = sdk.coreModule('termsModel').getCurrent();
-      return current ? current.id : null;
-    },
+    terms: ctx.terms,
+    filesDir: () => ctx.dataDir,
+    company: companyForPrint,
+    linkBase: () => String(ctx.settings.get('linkBase') || '').trim() || settings.DEFAULT_LINK_BASE,
     onCheckLimitsTrip: ({ failed }) => {
       ctx.log.warn(`public code checks paused: ${failed} failed checks in an hour`);
       Promise.resolve().then(() => sdk.coreModule('pushService').sendToPref(PUSH_CHANNEL, {
@@ -279,6 +321,9 @@ function register(ctx) {
   });
   ctx.jobs.every({
     name: 'holds-release', intervalMs: HOLD_CHECK_MS, bootDelayMs: 270 * 1000, run: async () => { api().releaseLapsedHolds(); },
+  });
+  ctx.jobs.every({
+    name: 'visuals-purge', intervalMs: DAY_MS, bootDelayMs: 360 * 1000, run: async () => { api().purgeVisuals(); },
   });
   ctx.jobs.every({
     name: 'checks-purge', intervalMs: DAY_MS, bootDelayMs: 330 * 1000, run: async () => { api().purgeOldChecks(); },

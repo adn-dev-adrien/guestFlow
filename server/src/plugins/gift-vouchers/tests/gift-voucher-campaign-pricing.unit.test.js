@@ -14,7 +14,7 @@ const fx = require('./campaignFixtures');
 const ids = fx.seedCatalogue();
 const { api, db } = fx.openShop();
 const create = (over) => {
-  const checked = require('../campaignRules').validateCampaign(fx.bathCampaign(ids, over), { catalogue: api.catalogue, campaigns: api.campaigns });
+  const checked = require('../campaignRules').validateCampaign(fx.bathCampaign(ids, over), fx.rulesContext(api));
   assert.equal(checked.ok, true, JSON.stringify(checked.errors));
   return api.campaigns.find(api.campaigns.insert(checked.value));
 };

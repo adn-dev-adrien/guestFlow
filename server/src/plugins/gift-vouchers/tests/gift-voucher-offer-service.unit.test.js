@@ -14,7 +14,7 @@ const campaignRules = require('../campaignRules');
 
 const ids = fx.seedCatalogue();
 const { api } = fx.openShop();
-const add = (over) => api.campaigns.find(api.campaigns.insert(campaignRules.validateCampaign(fx.bathCampaign(ids, over), { catalogue: api.catalogue, campaigns: api.campaigns }).value));
+const add = (over) => api.campaigns.find(api.campaigns.insert(campaignRules.validateCampaign(fx.bathCampaign(ids, over), fx.rulesContext(api)).value));
 const bath = add();
 add({
   name: 'Bain soirée', title: 'Un bain du soir', slug: 'bain-soir', composition: { resourceId: ids.bath, band: 'evening', minutes: 60, options: [] }, addOns: [], extraTimeMaxMinutes: 0,
@@ -66,8 +66,9 @@ test('public and admin routes return the same payload and the same price for the
     assert.deepEqual(adminOffer.omitted, []);
     const { omitted, ...adminPayload } = adminOffer;
     const { available, brand, termsVersionId, ...publicPayload } = publicOffer;
-    assert.deepEqual([available, brand, termsVersionId], [true, 'Domaine Solio', null], 'what only the site needs');
-    assert.deepEqual(publicPayload, adminPayload);
+    assert.deepEqual([available, brand, termsVersionId], [true, 'Domaine Solio', 4], 'what only the site needs');
+    assert.deepEqual(publicPayload.campaigns.map((c) => [c.slug, c.termsVersionId]), [['sejour', 4], ['bain-jour', 9], ['bain-soir', 9]], 'each campaign names the terms its purchase accepts (rule 37)');
+    assert.deepEqual({ ...publicPayload, campaigns: publicPayload.campaigns.map(({ termsVersionId: _terms, ...rest }) => rest) }, adminPayload);
     const request = { slug: 'bain-jour', extraMinutes: 60, addOns: [{ articleRef: `option:${ids.drink}`, qty: 2 }] };
     const sitePrice = (await site('POST', '/offer/price', request)).body.data;
     const adminPrice = (await admin('POST', '/offer/price', request)).body;

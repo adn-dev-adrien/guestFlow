@@ -147,6 +147,14 @@ function createRedemption({
     transaction(() => openHolds(devisId).forEach((h) => releaseHold(h, reason)));
   }
 
+  /** Rule 54 — a voucher cancelled gives back every hold it still carries, whatever quote holds it. → how many. */
+  function releaseHoldsOf(voucherId, reason) {
+    const open = db.prepare("SELECT * FROM gift_voucher_movements WHERE voucherId = ? AND kind = 'hold' ORDER BY id").all(Number(voucherId))
+      .filter((h) => !movements.byKey(releaseKey(h)));
+    transaction(() => open.forEach((h) => releaseHold(h, reason)));
+    return open.length;
+  }
+
   /**
    * Rule 39 — the quote became the stay `reservationId` and uses `amountCents`: the hold is released and the same amount
    * redeemed, in one transaction. → `{ ref }` (the redeem movement), or null when nothing is used.
@@ -205,7 +213,7 @@ function createRedemption({
   const redeemed = (movementId) => db.prepare("SELECT * FROM gift_voucher_movements WHERE id = ? AND kind = 'redeem'").get(Number(movementId)) || null;
 
   return {
-    apply, held, release, settle, releaseLapsed, refund, redeemed, judgeCode, kindRefusal, today, openHolds,
+    apply, held, release, releaseHoldsOf, settle, releaseLapsed, refund, redeemed, judgeCode, kindRefusal, today, openHolds,
   };
 }
 

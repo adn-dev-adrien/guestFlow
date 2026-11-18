@@ -61,7 +61,7 @@ test('rule 3: nothing in the plugin names an establishment, a property or a plat
   [/solio/i, /estiva/i, /granja/i, /booking\.com/i, /airbnb/i, /lodgify/i].forEach((word) => assert.equal(word.test(text), false, String(word)));
 });
 
-test('rules 1, 4: it mounts one public tree and one admin tree, declares its settings, four jobs, a push channel, its payment basket, its prepaid source and the home item', () => {
+test('rules 1, 4: it mounts one public tree and one admin tree, declares its settings, five jobs, a push channel, its payment basket, its prepaid source and the home item', () => {
   const calls = { mounts: [], settings: [], jobs: [], attention: [], channels: [], events: [], prepaid: [] };
   const noop = new Proxy(function noop() {}, { get: () => noop, apply: () => noop });
   const ctx = new Proxy({}, {
@@ -81,8 +81,8 @@ test('rules 1, 4: it mounts one public tree and one admin tree, declares its set
   });
   withPepper(undefined, () => gv.register(ctx));
   assert.deepEqual(calls.mounts, [['/public/v1/gift-vouchers', true], ['/api/gift-vouchers', false]]);
-  assert.deepEqual(calls.settings, ['pageUrl', 'bookingUrl', 'mailSubjectFr', 'mailBodyFr', 'mailSubjectEn', 'mailBodyEn']);
-  assert.deepEqual(calls.jobs, ['pending-orders-purge', 'receipts-retry', 'holds-release', 'checks-purge']);
+  assert.deepEqual(calls.settings, ['pageUrl', 'linkBase']);
+  assert.deepEqual(calls.jobs, ['pending-orders-purge', 'receipts-retry', 'holds-release', 'visuals-purge', 'checks-purge']);
   assert.deepEqual(calls.prepaid, [['giftVoucher', 'Bon cadeau']]);
   assert.deepEqual(calls.attention, ['gift-voucher-checks']);
   assert.deepEqual(calls.channels, ['gift-voucher-checks']);
@@ -164,18 +164,11 @@ test('rule 4: the purge itself refuses too, whatever called it', () => {
   assert.equal(typeof registry.get('gift-vouchers').data.refuse, 'function');
 });
 
-test('rule 23: the mail template accepts only its placeholders — a {code} is refused, so the code can never leave by e-mail', () => {
-  const validate = (key) => settings.DECLARED.find((d) => d.key === key).validate;
-  ['mailSubjectFr', 'mailBodyFr', 'mailSubjectEn', 'mailBodyEn'].forEach((key) => {
-    assert.equal(validate(key)('Bonjour {amount} {expiry} {link} {number} {recipientName} {senderName}'), null, key);
-    assert.match(validate(key)('Le code est {code}'), /\{code\}/);
-    assert.notEqual(validate(key)(''), null);
-    assert.notEqual(validate(key)(['x']), null);
-    assert.notEqual(validate(key)({}), null);
-  });
-  assert.notEqual(validate('mailSubjectFr')('x'.repeat(151)), null);
-  assert.notEqual(validate('mailBodyFr')('x'.repeat(5001)), null);
-  assert.equal(settings.DECLARED.map((d) => d.default).filter((v) => typeof v === 'string').some((v) => /\{code\}/.test(v)), false);
+test('rule 9 of the campaigns spec: linkBase is one lowercase segment of the permanent paths, « bon-cadeau » by default', () => {
+  const declared = settings.DECLARED.find((d) => d.key === 'linkBase');
+  assert.equal(declared.default, 'bon-cadeau');
+  ['bon-cadeau', 'cadeaux', 'offrir2', '', null].forEach((v) => assert.equal(declared.validate(v), null, String(v)));
+  ['Bon Cadeau', '/bon-cadeau', 'a/b', '-x', 'x-', 'é', 'x'.repeat(41), 42, ['a']].forEach((v) => assert.notEqual(declared.validate(v), null, String(v)));
 });
 
 test('rule 22: the page addresses refuse a wrong shape — the bounds, validity, VAT rate and ideas are a campaign\'s now, judged in gift-voucher-campaign-rules', () => {
@@ -183,5 +176,5 @@ test('rule 22: the page addresses refuse a wrong shape — the bounds, validity,
   ['validityMonths', 'minAmountCents', 'maxAmountCents', 'vatRatePercent', 'ideas'].forEach((key) => assert.equal(settings.DECLARED.some((d) => d.key === key), false, key));
   assert.equal(validate('pageUrl')('https://site.test/bon'), null);
   assert.equal(validate('pageUrl')(''), null);
-  ['http://site.test', 'javascript:alert(1)', 'not a url'].forEach((v) => assert.notEqual(validate('bookingUrl')(v), null, v));
+  ['http://site.test', 'javascript:alert(1)', 'not a url'].forEach((v) => assert.notEqual(validate('pageUrl')(v), null, v));
 });

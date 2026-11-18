@@ -6,6 +6,7 @@ const assert = require('node:assert/strict');
 
 const code = require('../code');
 const fx = require('./giftVoucherFixtures');
+const { termsStub } = require('./termsFixture');
 
 const HOUR = 60 * 60 * 1000;
 const DAY = 24 * HOUR;
@@ -32,13 +33,14 @@ function paymentsStub(over = {}) {
 async function withShop(fn, over = {}) {
   const payments = paymentsStub(over.payments);
   const state = { available: true, terms: 4, ...over.state };
+  const terms = termsStub({ lodging: state.terms });
   const mail = { fail: Boolean(over.mailFails) };
   const fixture = fx.buildApi(undefined, {
     ...over,
     deps: {
       payments,
       onlineSaleAvailable: () => state.available,
-      termsVersionId: () => state.terms,
+      terms,
       siteOrigin: () => 'https://site.example.test',
       sendMail: async (m) => {
         if (mail.fail) throw new Error('SMTP down');
@@ -60,7 +62,7 @@ async function withShop(fn, over = {}) {
   const paid = (orderId, linkId, amountCents = 15000) => fixture.api.orderPaid({ ref: String(orderId), linkId, amountCents });
   try {
     await fn({
-      ...fixture, server, payments, state, mail, order, placed, pay, view, pdf, paid,
+      ...fixture, server, payments, state, mail, terms, order, placed, pay, view, pdf, paid,
     });
   } finally {
     await server.close();
@@ -69,7 +71,7 @@ async function withShop(fn, over = {}) {
 
 const rows = (db, table) => db.prepare(`SELECT * FROM ${table}`).all();
 
-test('rules 13, 15, 19: a valid order answers 201 { orderId, token }; the terms, the date and the visitor hash are recorded; the token is stored hashed', () => withShop(async ({ order, db }) => {
+test('rules 13, 15, 19: a valid order answers 201 { orderId, token }; the visitor hash is recorded and the terms are accepted through the core (rule 37); the token is stored hashed', () => withShop(async ({ order, db, terms }) => {
   const res = await order();
   assert.equal(res.status, 201);
   assert.deepEqual(Object.keys(res.body.data).sort(), ['orderId', 'token']);
@@ -78,7 +80,8 @@ test('rules 13, 15, 19: a valid order answers 201 { orderId, token }; the terms,
   const [row] = stored;
   assert.deepEqual([row.id, row.state, row.source, row.createdBy, row.amountCents, row.language], [res.body.data.orderId, 'pending', 'site', 'public', 15000, 'fr']);
   assert.deepEqual([row.recipientName, row.senderName, row.message, row.email], ['Marie', 'Paul', 'Joyeux anniversaire', 'paul@example.test']);
-  assert.deepEqual([row.termsVersionId, row.termsAcceptedAt], [4, '2026-11-15T10:00:00.000Z']);
+  assert.deepEqual([row.termsVersionId, row.termsAcceptedAt], [null, null], 'the order’s own columns are no longer written');
+  assert.deepEqual(terms.accepted.map(({ activity, versionId, subjectType, subjectRef, channel }) => [activity, versionId, subjectType, subjectRef, channel]), [['lodging', 4, 'voucherOrder', row.id, 'site']]);
   assert.match(row.visitorHash, /^[0-9a-f]{64}$/);
   assert.equal(row.visitorHash.includes(IP), false);
   assert.match(res.body.data.token, /^[\w-]{32}$/);
@@ -99,9 +102,9 @@ test('rule 15: every field is judged again — amount, texts, e-mail, terms, lan
     [{ email: 'not-an-email' }, 400, 'EMAIL_INVALID'],
     [{ email: `${'a'.repeat(250)}@b.test` }, 400, 'EMAIL_INVALID'],
     [{ email: ['a@b.test'] }, 400, 'EMAIL_INVALID'],
-    [{ termsVersionId: 3 }, 400, 'TERMS_REQUIRED'],
-    [{ termsVersionId: 0 }, 400, 'TERMS_REQUIRED'],
-    [{ termsVersionId: undefined }, 400, 'TERMS_REQUIRED'],
+    [{ termsVersionId: 3 }, 400, 'TERMS_OUTDATED'],
+    [{ termsVersionId: 0 }, 400, 'TERMS_OUTDATED'],
+    [{ termsVersionId: undefined }, 400, 'TERMS_NOT_ACCEPTED'],
     [{ recipientName: 'x'.repeat(41) }, 400, 'FIELD_INVALID'],
     [{ senderName: 'x'.repeat(41) }, 400, 'FIELD_INVALID'],
     [{ message: 'x'.repeat(201) }, 400, 'FIELD_INVALID'],
@@ -337,7 +340,7 @@ test('rule 21: the PDF of the voucher is served behind the token — one page, n
   assert.match(res.headers.get('content-disposition'), /BC-2026-0001\.pdf/);
   assert.equal(res.headers.get('cache-control'), 'no-store');
   assert.equal(res.body.subarray(0, 5).toString(), '%PDF-');
-  assert.equal((res.body.toString('latin1').match(/\/Type\s*\/Page[^s]/g) || []).length, 1);
+  assert.equal((res.body.toString('latin1').match(/\/Type\s*\/Page[^s]/g) || []).length, 2, 'the front and the back (rule 21 of the campaigns spec)');
 }));
 
 test('rule 18: a pending order is deleted after 7 days, an issued one never; a pending order is never in the operator’s list', () => withShop(async ({
@@ -357,7 +360,7 @@ test('rule 18: a pending order is deleted after 7 days, an issued one never; a p
   assert.equal(rows(db, 'gift_voucher_orders').some((r) => r.id === old.orderId), false);
 }));
 
-test('rule 23: the receipt leaves once, at issuance — amount, expiry, voucher link, never the code, no attachment — and is logged as a mail movement', () => withShop(async ({
+test('rule 23, rule 20 of the campaigns spec: the receipt leaves once, at issuance — the code, the contents, the recap, the expiry, the voucher link, the PDF attached — and is logged as a mail movement', () => withShop(async ({
   placed, paid, sent, api, db,
 }) => {
   const { orderId, token } = await placed({ senderName: 'Paul <b>', email: 'paul@example.test' });
@@ -366,13 +369,14 @@ test('rule 23: the receipt leaves once, at issuance — amount, expiry, voucher 
   assert.equal(sent.length, 1);
   const [mail] = sent;
   assert.equal(mail.to, 'paul@example.test');
-  assert.equal(mail.subject, 'Le bon cadeau de 150,00 € est prêt');
-  assert.match(mail.text, /150,00 €/);
+  assert.equal(mail.subject, 'Votre bon cadeau : Bon cadeau');
+  assert.match(mail.text, /Total payé TTC : 150,00 €/);
   assert.match(mail.text, /15\/05\/2028/);
   assert.ok(mail.text.includes(`https://site.example.test/bon-cadeau?gf_voucher=${orderId}&gf_token=${token}`));
   const plain = (() => { const read = require('../../sdk').coreModule('encryption').safeDecrypt(api.vouchers.find(1).codeEncrypted); return read.value; })();
-  [mail.text, mail.html, mail.subject].forEach((part) => [plain, code.format(plain)].forEach((c) => assert.equal(part.includes(c), false)));
-  assert.equal(Object.keys(mail).includes('attachments'), false);
+  assert.ok(mail.text.includes(code.format(plain)), 'the code is in the mail since the campaigns spec lifted the earlier rule');
+  assert.equal(mail.html.includes('Paul &lt;b&gt;'), true);
+  assert.deepEqual(mail.attachments.map((a) => [a.filename, a.contentType, a.content.subarray(0, 5).toString()]), [['BC-2026-0001.pdf', 'application/pdf', '%PDF-']]);
   const voucher = api.vouchers.find(1);
   assert.deepEqual([Boolean(voucher.mailSentAt), voucher.mailError], [true, null]);
   assert.deepEqual(api.movements.list(1).filter((m) => m.kind === 'mail').map((m) => m.actor), ['system']);
@@ -383,11 +387,11 @@ test('rule 23: the receipt leaves once, at issuance — amount, expiry, voucher 
   assert.equal(db.prepare("SELECT COUNT(*) AS n FROM gift_voucher_movements WHERE kind = 'mail'").get().n, 1);
 }));
 
-test('rule 23: the receipt follows the buyer’s language and the operator’s words', () => withShop(async ({ placed, paid, sent, api }) => {
+test('rule 23: the receipt follows the buyer’s language', () => withShop(async ({ placed, paid, sent, api }) => {
   const { orderId } = await placed({ language: 'en' });
   paid(orderId, 41);
   await api.receipt.idle();
-  assert.equal(sent[0].subject, 'The 150,00 € gift voucher is ready');
+  assert.equal(sent[0].subject, 'Your gift voucher: Bon cadeau');
 }));
 
 test('rule 23: a failed send flags the voucher « Mail non parti » in the list and the detail, and the job retries it until it leaves — once', () => withShop(async ({
@@ -435,15 +439,15 @@ test('rule 23: the retry gives up three days after issuance, and never mails a v
   assert.equal(byHand.mailSentAt, null, 'the operator’s « Renvoyer » is the only mail of a voucher sold by hand');
 }));
 
-test('rule 23: an order without a voucher page address cannot link the buyer — the voucher is flagged, not lost', () => withShop(async ({
+test('rules 23, 49: an installation with no website address cannot print the QR code — the voucher is flagged, not lost', () => withShop(async ({
   placed, paid, api, sent, server,
 }) => {
   const { orderId } = await placed();
   paid(orderId, 41);
   await api.receipt.idle();
   assert.equal(sent.length, 0);
-  assert.equal((await server.call('GET', '/api/gift-vouchers/1')).body.mailError, 'NO_PAGE_URL');
-}, { deps: { pageUrl: () => '' } }));
+  assert.equal((await server.call('GET', '/api/gift-vouchers/1')).body.mailError, 'NO_SITE_ORIGIN');
+}, { deps: { company: async () => ({ name: 'Domaine Solio', town: '', website: '', logo: null }) } }));
 
 test('rule 2: the offer says the online sale is available only when a payment can be taken, and carries the brand', () => withShop(async ({ server, state }) => {
   const on = (await server.call('GET', '/public/v1/gift-vouchers/offer')).body.data;

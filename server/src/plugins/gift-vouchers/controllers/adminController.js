@@ -8,13 +8,16 @@
 const crypto = require('crypto');
 const code = require('../code');
 const rules = require('../voucherRules');
-const { presentMovement } = require('../movementView');
+const { presentMovement, actorNameOf } = require('../movementView');
 const { statusOf } = require('../offerService');
 const { renderPaymentLinkMail } = require('../mailTemplate');
+const { DOCUMENT_REFUSALS } = require('../documentRefusals');
 
 const OUTCOMES = Object.freeze(['paid', 'offered', 'link']);
 const REQUEST_KEYS = Object.freeze(['slug', 'composition', 'title', 'validityMonths', 'offeredAddOns', 'extraTimeMaxMinutes', 'extraMinutes', 'addOns', 'amountCents']);
 const MAX_REASON = 200;
+const MAX_EMAIL = 254;
+const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 const REFUSALS = Object.freeze({
   BODY_INVALID: [400, 'Corps de requête invalide.'],
@@ -31,9 +34,13 @@ const REFUSALS = Object.freeze({
   VOUCHER_NOT_FOUND: [404, 'Bon introuvable.'],
   VOUCHER_CANCELLED: [409, 'Ce bon est annulé.'],
   VOUCHER_ALREADY_REDEEMED: [409, 'Ce bon a déjà servi : il ne peut plus être annulé.'],
+  VOUCHER_NOT_USABLE: [409, 'Ce bon n’est plus utilisable (utilisé, expiré ou annulé) : il ne peut plus être téléchargé ni renvoyé.'],
+  VOUCHER_EXPIRED: [409, 'Ce bon est expiré : il ne peut plus être annulé.'],
+  CANCEL_FORCE_REQUIRED: [409, 'Le délai de rétractation de 14 jours est écoulé : annuler ce bon est un geste commercial, à confirmer avec un motif.'],
+  REFUND_NOT_FOUND: [404, 'Remboursement introuvable.'],
+  REFUND_ALREADY_SETTLED: [409, 'Ce remboursement est déjà marqué comme effectué.'],
   NO_EMAIL: [409, 'Aucune adresse e-mail sur ce bon.'],
-  NO_PAGE_URL: [409, 'L’adresse de la page du bon est à renseigner dans les réglages.'],
-  NO_BOOKING_URL: [409, 'L’adresse de la page de réservation (code QR du PDF) est à renseigner dans les réglages.'],
+  ...DOCUMENT_REFUSALS,
   BALANCE_BELOW_ZERO: [422, 'Le solde ne peut pas passer sous 0.'],
   BALANCE_ABOVE_ISSUED: [422, 'Le solde ne peut pas dépasser le montant du bon.'],
   MAIL_FAILED: [502, 'Le mail n’est pas parti.'],
@@ -56,8 +63,7 @@ function optionalText(value, max) {
 }
 
 function buildAdminController({
-  vouchers, movements, offerService, campaigns, transaction, paymentMethods, userName = () => null, decrypt, receipt, renderPdf,
-  brand, bookingUrl, sendMail, now = () => new Date(),
+  vouchers, movements, refunds, redemption, documents, offerService, campaigns, transaction, paymentMethods, userName = () => null, decrypt, receipt, sendMail, now = () => new Date(), terms = null, siteOrigin = () => '',
 }) {
   const today = () => rules.parisDate(now());
   const actorOf = (req) => `user:${req.user && req.user.id ? req.user.id : 'unknown'}`;
@@ -112,6 +118,7 @@ function buildAdminController({
     paymentMethod: v.paymentMethod,
     mailSentAt: v.mailSentAt,
     mailError: v.mailError,
+    canDownload: rules.isUsable(stateOf(v)),
   });
 
   const find = (req) => {
@@ -136,8 +143,30 @@ function buildAdminController({
       vatLines: summary(v).offered ? [] : rules.vatLinesOf(v),
       vat: summary(v).offered || rules.vatLinesOf(v).length !== 1 ? null : rules.vatLinesOf(v)[0],
       codeMasked: plain ? code.mask(plain) : null,
-      canCancel: !v.cancelledAt && !movements.hasKind(v.id, 'redeem'),
-      movements: movements.list(v.id).map((m) => presentMovement(m, userName)),
+      canCancel: !v.cancelledAt && !movements.hasKind(v.id, 'redeem') && stateOf(v) !== 'expired',
+      withdrawal: summary(v).offered ? null : rules.withdrawalOf({ paidOn: rules.parisDate(new Date(v.issuedAt)), today: today() }),
+      cancelReason: v.cancelReason,
+      cancelForced: Boolean(v.cancelForced),
+      refunds: refunds.listByVoucher(v.id).map((r) => ({
+        id: r.id,
+        amountCents: r.amountCents,
+        openedOn: rules.parisDate(new Date(r.openedAt)),
+        settledOn: r.settledAt ? rules.parisDate(new Date(r.settledAt)) : null,
+        settledBy: r.settledBy ? actorNameOf(r.settledBy, userName) : null,
+      })),
+      movements: [
+        ...movements.list(v.id).map((m) => presentMovement(m, userName)),
+        ...refunds.listByVoucher(v.id).filter((r) => r.settledAt).map((r) => ({
+          id: `refund:${r.id}`,
+          kind: 'refundSettled',
+          label: 'Remboursement effectué',
+          amountCents: r.amountCents,
+          date: rules.parisDate(new Date(r.settledAt)),
+          actorName: actorNameOf(r.settledBy, userName),
+          reservationId: null,
+          note: null,
+        })),
+      ],
     };
   };
 
@@ -159,11 +188,20 @@ function buildAdminController({
   /** The voucher asked for, as the sale service reads it: a campaign's slug (none = the lodging voucher) or a one-shot composition, with what the buyer chose. */
   const requestOf = (body) => Object.fromEntries(REQUEST_KEYS.filter((k) => body[k] !== undefined).map((k) => [k, body[k]]));
 
+  // Rule 37 — paying the link accepts the terms of the voucher's activity: the mail names them and links their current version.
+  function termsUrlOf(request) {
+    const found = offerService.activityOf(request, { admin: true });
+    const current = found.ok && terms ? terms.current(found.activity) : null;
+    const origin = String(siteOrigin() || '').trim().replace(/\/+$/, '');
+    if (!current || !origin) return '';
+    return found.activity === 'lodging' ? `${origin}/cgv/?v=${current.version}` : `${origin}/cgv/?activity=${encodeURIComponent(found.activity)}&v=${current.version}`;
+  }
+
   async function sendLink({
-    orderId, email, language, url, label,
+    orderId, email, language, url, label, termsUrl,
   }) {
     try {
-      await sendMail({ to: email, ...renderPaymentLinkMail({ url, language, label }), key: `gift-voucher-link:${orderId}` });
+      await sendMail({ to: email, ...renderPaymentLinkMail({ url, language, label, termsUrl }), key: `gift-voucher-link:${orderId}` });
     } catch {
       throw new Refusal('MAIL_FAILED');
     }
@@ -184,7 +222,7 @@ function buildAdminController({
       const started = await offerService.startPayment(created.order.id);
       if (!started.ok) return answerSale(res, started);
       await sendLink({
-        orderId: created.order.id, email: parties.value.email, language: parties.value.language, url: started.url, label: started.label,
+        orderId: created.order.id, email: parties.value.email, language: parties.value.language, url: started.url, label: started.label, termsUrl: termsUrlOf(requestOf(body)),
       });
       return res.status(201).json({
         orderId: created.order.id, outcome, emailedTo: parties.value.email, totalCents: started.totalCents,
@@ -225,15 +263,39 @@ function buildAdminController({
     return res.json(detail(vouchers.find(v.id)));
   });
 
+  /**
+   * Rules 39, 54 — « Annuler le bon »: the holds go back, the balance leaves, and the paid amount becomes a refund line the books carry as an avoir dated today. Within the 14 days
+   * of the payment it is a withdrawal; after them only a goodwill cancellation (`force` with a reason). A voucher given away has no payment, so no refund and no period.
+   */
   const cancel = guarded((req, res) => {
+    const body = isObject(req.body) ? req.body : {};
+    if (body.force !== undefined && typeof body.force !== 'boolean') throw new Refusal('FIELD_INVALID');
+    const reason = optionalText(body.reason, MAX_REASON);
     const v = live(find(req));
     if (movements.hasKind(v.id, 'redeem')) throw new Refusal('VOUCHER_ALREADY_REDEEMED');
+    if (stateOf(v) === 'expired') throw new Refusal('VOUCHER_EXPIRED');
+    const offered = v.paymentMethod === rules.OFFERED_METHOD;
+    const late = !offered && !rules.withdrawalOf({ paidOn: rules.parisDate(new Date(v.issuedAt)), today: today() }).open;
+    if (late && body.force !== true) throw new Refusal('CANCEL_FORCE_REQUIRED');
+    if (late && !reason) throw new Refusal('REASON_REQUIRED');
     transaction(() => {
+      redemption.releaseHoldsOf(v.id, 'cancelled');
+      const owed = movements.balanceOf(v.id);
       movements.append({
-        voucherId: v.id, kind: 'cancel', amountCents: -movements.balanceOf(v.id), actor: actorOf(req), idempotencyKey: `cancel:${v.id}`,
+        voucherId: v.id, kind: 'cancel', amountCents: -owed, actor: actorOf(req), note: reason || null, idempotencyKey: `cancel:${v.id}`,
       });
-      vouchers.setCancelled(v.id, now().toISOString());
+      vouchers.setCancelled(v.id, now().toISOString(), { reason: reason || null, forced: late });
+      if (!offered && owed > 0) refunds.open({ voucherId: v.id, amountCents: owed });
     });
+    return res.json(detail(vouchers.find(v.id)));
+  });
+
+  /** Rule 54 — the operator made the transfer: the refund line is marked settled, with their name. */
+  const settleRefund = guarded((req, res) => {
+    const v = find(req);
+    const refund = refunds.find(req.params.rid);
+    if (!refund || refund.voucherId !== v.id) throw new Refusal('REFUND_NOT_FOUND');
+    if (!refunds.settle(refund.id, actorOf(req))) throw new Refusal('REFUND_ALREADY_SETTLED');
     return res.json(detail(vouchers.find(v.id)));
   });
 
@@ -257,7 +319,7 @@ function buildAdminController({
   const reveal = guarded((req, res) => {
     const v = find(req);
     const plain = readCode(v);
-    if (!plain) return res.status(409).json({ error: 'Le code ne peut plus être relu : la clé de chiffrement a changé.', code: 'CODE_UNREADABLE' });
+    if (!plain) throw new Refusal('CODE_UNREADABLE');
     movements.append({
       voucherId: v.id, kind: 'reveal', actor: actorOf(req), idempotencyKey: key('reveal', v.id),
     });
@@ -265,27 +327,32 @@ function buildAdminController({
     return res.json({ code: code.format(plain) });
   });
 
+  /** Rule 48 — a voucher used, expired or cancelled is neither downloaded nor mailed again. */
+  const downloadable = (v) => {
+    live(v);
+    if (!rules.isUsable(stateOf(v))) throw new Refusal('VOUCHER_NOT_USABLE');
+    return v;
+  };
+
+  /** Rule 49 — « Renvoyer le mail »: to the giver's address, or to the one the operator typed. */
   const resend = guarded(async (req, res) => {
-    const v = live(find(req));
-    await receipt.deliver(v, { actor: actorOf(req), idempotencyKey: receipt.manualKey(v.id) });
+    const v = downloadable(find(req));
+    const body = isObject(req.body) ? req.body : {};
+    if (body.email !== undefined && body.email !== null && (typeof body.email !== 'string' || (body.email.trim() && !EMAIL.test(body.email.trim())) || body.email.length > MAX_EMAIL)) throw new Refusal('EMAIL_INVALID');
+    const typed = typeof body.email === 'string' && body.email.trim() ? body.email.trim() : null;
+    await receipt.deliver(v, { actor: actorOf(req), idempotencyKey: receipt.manualKey(v.id), to: typed });
     return res.json(detail(vouchers.find(v.id)));
   });
 
   const pdf = guarded(async (req, res) => {
-    const v = find(req);
-    const plain = readCode(v);
-    const url = bookingUrl();
-    if (!plain) return res.status(409).json({ error: 'Le code ne peut plus être relu : la clé de chiffrement a changé.', code: 'CODE_UNREADABLE' });
-    if (!url) throw new Refusal('NO_BOOKING_URL');
-    const buffer = await renderPdf({
-      brand: brand(), bookingUrl: url, language: v.language, voucher: { ...v, code: plain },
-    });
+    const v = downloadable(find(req));
+    const buffer = await documents.voucherPdf(v);
     res.set({ 'Content-Type': 'application/pdf', 'Content-Disposition': `inline; filename="${v.number}.pdf"`, 'Cache-Control': 'no-store' });
     return res.send(buffer);
   });
 
   return {
-    list, read, create, extend, cancel, adjust, reveal, resend, pdf,
+    list, read, create, extend, cancel, settleRefund, adjust, reveal, resend, pdf,
   };
 }
 

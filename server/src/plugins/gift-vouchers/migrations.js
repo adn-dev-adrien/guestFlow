@@ -163,10 +163,67 @@ function campaignsMigration(db) {
   moveSettingsToLodgingCampaign(db);
 }
 
+// specs/gift-voucher-campaigns.md §5 — the visual library with its versions, the refund lines of cancelled vouchers, and what a voucher freezes of
+// them (the version of its front, rule 48). The first spec stored no voucher image, so there is nothing to carry into the library.
+const VISUALS_SQL = `
+  CREATE TABLE IF NOT EXISTS gift_voucher_visuals (
+    id        INTEGER PRIMARY KEY AUTOINCREMENT,
+    name      TEXT NOT NULL,
+    use       TEXT NOT NULL CHECK (use IN ('voucher', 'merchant', 'both')),
+    deletedAt TEXT,
+    createdAt TEXT NOT NULL
+  );
+  CREATE TABLE IF NOT EXISTS gift_voucher_visual_versions (
+    id        INTEGER PRIMARY KEY AUTOINCREMENT,
+    visualId  INTEGER NOT NULL,
+    path      TEXT NOT NULL,
+    width     INTEGER NOT NULL,
+    height    INTEGER NOT NULL,
+    createdAt TEXT NOT NULL,
+    purgedAt  TEXT
+  );
+  CREATE INDEX IF NOT EXISTS idx_gift_voucher_visual_versions_visual ON gift_voucher_visual_versions(visualId, id);
+  CREATE TABLE IF NOT EXISTS gift_voucher_refunds (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    voucherId   INTEGER NOT NULL,
+    amountCents INTEGER NOT NULL CHECK (amountCents > 0),
+    openedAt    TEXT NOT NULL,
+    settledAt   TEXT,
+    settledBy   TEXT
+  );
+  CREATE INDEX IF NOT EXISTS idx_gift_voucher_refunds_voucher ON gift_voucher_refunds(voucherId);
+`;
+
+const hasTable = (db, table) => Boolean(db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?").get(table));
+
+/**
+ * Rule 37 — the acceptance a site order recorded in its own columns becomes a row of the core's `terms_acceptances` (activity `lodging`, subject the order,
+ * channel `site`). The columns stay, unread. Idempotent: an order already carried over is skipped; a host with no such table has nothing to carry.
+ */
+function moveOrderTermsToAcceptances(db) {
+  if (!hasTable(db, 'terms_acceptances') || !hasColumn(db, 'terms_acceptances', 'subjectType')) return;
+  db.prepare(`
+    INSERT INTO terms_acceptances (reservationId, termsVersionId, acceptedAt, activity, subjectType, subjectRef, channel)
+    SELECT NULL, o.termsVersionId, o.termsAcceptedAt, 'lodging', 'voucherOrder', CAST(o.id AS TEXT), 'site'
+    FROM gift_voucher_orders o
+    WHERE o.termsVersionId IS NOT NULL AND o.termsAcceptedAt IS NOT NULL
+      AND NOT EXISTS (SELECT 1 FROM terms_acceptances a WHERE a.subjectType = 'voucherOrder' AND a.subjectRef = CAST(o.id AS TEXT))
+  `).run();
+}
+
+function visualsMigration(db) {
+  db.exec(VISUALS_SQL);
+  addColumn(db, 'gift_vouchers', 'visualVersions', 'TEXT');
+  addColumn(db, 'gift_vouchers', 'cancelReason', 'TEXT');
+  addColumn(db, 'gift_vouchers', 'cancelForced', 'INTEGER NOT NULL DEFAULT 0');
+  moveOrderTermsToAcceptances(db);
+}
+
 const MIGRATIONS = Object.freeze([
   { name: 'gift_vouchers_tables_v1', up: (db) => db.exec(TABLES_SQL) },
   { name: 'gift_vouchers_vat_v1', up: (db) => db.exec(VAT_SQL) },
   { name: 'gift_voucher_campaigns_v1', up: campaignsMigration },
+  { name: 'gift_voucher_visuals_v1', up: visualsMigration },
 ]);
 
-module.exports = { MIGRATIONS, TABLES: Object.freeze([...TABLES, 'gift_voucher_campaigns']) };
+module.exports = { MIGRATIONS, TABLES: Object.freeze([...TABLES, 'gift_voucher_campaigns', 'gift_voucher_visuals', 'gift_voucher_visual_versions', 'gift_voucher_refunds']) };

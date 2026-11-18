@@ -1,27 +1,13 @@
 /**
- * The plugin's settings (specs/gift-vouchers.md rules 22, 23), each with the check `PUT /api/plugins/:id/settings` runs. The bounds, the validity, the VAT rate and the
- * ideas of the lodging voucher are a campaign's now (specs/gift-voucher-campaigns.md rule 3, `campaignRules.js`). `pageUrl` is the site page holding the voucher (the link of the e-mail);
- * `bookingUrl` the booking page the PDF's QR code opens. Both fall back to the site's origin.
+ * The plugin's settings (specs/gift-vouchers.md rules 22, 23), each with the check `PUT /api/plugins/:id/settings` runs. The bounds, the validity, the VAT rate and the ideas of the
+ * lodging voucher are a campaign's now (specs/gift-voucher-campaigns.md rule 3, `campaignRules.js`), and the e-mail of a voucher is built from the voucher itself (rule 20): no template.
+ * `pageUrl` is the site page holding the voucher (the link of the e-mail), falling back to the site's origin. `linkBase` is the first segment of the two permanent paths printed on the
+ * cards, `/<linkBase>/offrir/<slug>` and `/<linkBase>/utiliser` (rule 9).
  */
 
-const MAX_SUBJECT = 150;
-const MAX_BODY = 5000;
-const PLACEHOLDERS = Object.freeze(['amount', 'vat', 'expiry', 'link', 'recipientName', 'senderName', 'number']);
-
-const DEFAULT_MAIL = Object.freeze({
-  mailSubjectFr: 'Le bon cadeau de {amount} est prêt',
-  mailBodyFr: 'Bonjour,\n\nLe paiement est bien reçu : le bon cadeau {number} est prêt.\n\nMontant : {amount}{vat}. Il est valable jusqu’au {expiry}.\n\nLe bon, avec son code, s’ouvre et s’imprime ici : {link}\n\nBelle journée.',
-  mailSubjectEn: 'The {amount} gift voucher is ready',
-  mailBodyEn: 'Hello,\n\nThe payment has been received: gift voucher {number} is ready.\n\nAmount: {amount}{vat}. It is valid until {expiry}.\n\nThe voucher and its code can be opened and printed here: {link}\n\nKind regards.',
-});
-
-function templateError(value, max, label) {
-  if (value === null || value === undefined) return null;
-  if (typeof value !== 'string' || !value.trim()) return `${label} : texte attendu.`;
-  if (value.length > max) return `${label} : ${max} caractères au plus.`;
-  const unknown = [...value.matchAll(/\{([^{}]*)\}/g)].map((m) => m[1]).find((name) => !PLACEHOLDERS.includes(name));
-  return unknown === undefined ? null : `${label} : « {${unknown}} » n’existe pas. Disponibles : ${PLACEHOLDERS.map((p) => `{${p}}`).join(', ')}.`;
-}
+const DEFAULT_LINK_BASE = 'bon-cadeau';
+const MAX_LINK_BASE = 40;
+const SEGMENT = /^[a-z0-9]+(-[a-z0-9]+)*$/;
 
 function httpsUrlError(value) {
   if (value === null || value === '') return null;
@@ -32,13 +18,17 @@ function httpsUrlError(value) {
   }
 }
 
+function linkBaseError(value) {
+  if (value === null || value === '') return null;
+  if (typeof value !== 'string' || value.length > MAX_LINK_BASE || !SEGMENT.test(value)) {
+    return `Début des liens permanents : minuscules, chiffres et tirets (${MAX_LINK_BASE} caractères au plus), par exemple « ${DEFAULT_LINK_BASE} ».`;
+  }
+  return null;
+}
+
 const DECLARED = Object.freeze([
   { key: 'pageUrl', default: '', validate: httpsUrlError },
-  { key: 'bookingUrl', default: '', validate: httpsUrlError },
-  { key: 'mailSubjectFr', default: DEFAULT_MAIL.mailSubjectFr, validate: (v) => templateError(v, MAX_SUBJECT, 'Objet (français)') },
-  { key: 'mailBodyFr', default: DEFAULT_MAIL.mailBodyFr, validate: (v) => templateError(v, MAX_BODY, 'Message (français)') },
-  { key: 'mailSubjectEn', default: DEFAULT_MAIL.mailSubjectEn, validate: (v) => templateError(v, MAX_SUBJECT, 'Objet (anglais)') },
-  { key: 'mailBodyEn', default: DEFAULT_MAIL.mailBodyEn, validate: (v) => templateError(v, MAX_BODY, 'Message (anglais)') },
+  { key: 'linkBase', default: DEFAULT_LINK_BASE, validate: linkBaseError },
 ]);
 
-module.exports = { DECLARED, PLACEHOLDERS, DEFAULT_MAIL };
+module.exports = { DECLARED, DEFAULT_LINK_BASE };

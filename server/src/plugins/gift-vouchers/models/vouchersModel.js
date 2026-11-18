@@ -25,12 +25,12 @@ function createVouchersModel(db) {
   }
 
   const insert = ({
-    orderId, number, codeHash, codeEncrypted, amountCents, issuedAt, expiresOn, vatRatePercent, campaignId = null, contents = { kind: 'lodging' }, vatLines = null,
+    orderId, number, codeHash, codeEncrypted, amountCents, issuedAt, expiresOn, vatRatePercent, campaignId = null, contents = { kind: 'lodging' }, vatLines = null, visualVersions = null,
   }) => Number(db.prepare(`
-    INSERT INTO gift_vouchers (orderId, number, codeHash, codeEncrypted, amountCents, issuedAt, expiresOn, vatRatePercent, campaignId, contents, vatLines)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO gift_vouchers (orderId, number, codeHash, codeEncrypted, amountCents, issuedAt, expiresOn, vatRatePercent, campaignId, contents, vatLines, visualVersions)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(orderId, number, codeHash, codeEncrypted, amountCents, issuedAt, expiresOn, vatRatePercent, campaignId, JSON.stringify(contents),
-    vatLines ? JSON.stringify(vatLines) : null).lastInsertRowid);
+    vatLines ? JSON.stringify(vatLines) : null, visualVersions ? JSON.stringify(visualVersions) : null).lastInsertRowid);
 
   const find = (id) => db.prepare(`${SELECT} WHERE v.id = ?`).get(Number(id)) || null;
   const findByCodeHash = (hash) => db.prepare(`${SELECT} WHERE v.codeHash = ?`).get(String(hash)) || null;
@@ -42,7 +42,10 @@ function createVouchersModel(db) {
   const issuedBetween = ({ since, before }) => db.prepare(`${SELECT} WHERE v.issuedAt >= ? AND v.issuedAt < ? ORDER BY v.issuedAt, v.id`).all(since, before);
   const listAll = () => db.prepare(`${SELECT} ORDER BY v.id DESC`).all();
 
-  const setCancelled = (id, at) => db.prepare('UPDATE gift_vouchers SET cancelledAt = ? WHERE id = ? AND cancelledAt IS NULL').run(at, Number(id)).changes;
+  /** Rules 39, 54 — the voucher is cancelled at `at`; `forced` says the 14 days of withdrawal were over, `reason` is what the operator gave. */
+  const setCancelled = (id, at, { reason = null, forced = false } = {}) => db.prepare(
+    'UPDATE gift_vouchers SET cancelledAt = ?, cancelReason = ?, cancelForced = ? WHERE id = ? AND cancelledAt IS NULL',
+  ).run(at, reason, forced ? 1 : 0, Number(id)).changes;
   const setExpiry = (id, expiresOn) => db.prepare('UPDATE gift_vouchers SET expiresOn = ? WHERE id = ?').run(expiresOn, Number(id));
   const setMail = (id, { sentAt = null, error = null }) => db.prepare('UPDATE gift_vouchers SET mailSentAt = ?, mailError = ? WHERE id = ?').run(sentAt, error, Number(id));
 

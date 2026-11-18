@@ -65,6 +65,8 @@ test('rule 4: a valid composition — one hourly resource with its band and incl
     maxAmountCents: null,
     ideas: [],
     vatRatePercent: null,
+    voucherVisualId: null,
+    merchantVisualId: null,
   });
 });
 
@@ -173,4 +175,14 @@ test('rule 4: a composition is judged alone for « Sur mesure » and the price p
   const bad = rules.validateComposition({ resourceId: 1, band: 'evening', minutes: 90 }, { catalogue }, 'composition');
   assert.deepEqual(bad.errors.map((e) => e.field), ['composition.minutes']);
   assert.deepEqual(rules.validateComposition(null, { catalogue }, 'composition').errors.map((e) => e.field), ['composition']);
+});
+
+test('rule 7: a campaign goes on sale with a voucher front — without one it stays a draft, and a one-shot needs none', () => {
+  const visuals = { find: (id) => (id === 5 ? { id: 5, name: 'Recto', use: 'both', deletedAt: null } : null) };
+  const refused = rules.validateCampaign(bath({ slug: 'sans-recto', state: 'on_sale' }), deps({ visuals }));
+  assert.equal(refused.ok, false);
+  assert.deepEqual(refused.errors.find((e) => e.field === 'voucherVisualId'), { field: 'voucherVisualId', message: 'Face du bon : un visuel est nécessaire pour mettre la campagne en vente.' });
+  assert.equal(rules.validateCampaign(bath({ slug: 'avec-recto', state: 'on_sale', voucherVisualId: 5 }), deps({ visuals })).ok, true);
+  assert.equal(rules.validateCampaign(bath({ slug: 'brouillon', state: 'draft' }), deps({ visuals })).ok, true);
+  assert.equal(rules.validateCampaign(bath({ slug: undefined }), deps({ visuals, oneShot: true })).ok, true);
 });

@@ -4,6 +4,8 @@
 
 process.env.GUESTFLOW_ENCRYPTION_KEY = process.env.GUESTFLOW_ENCRYPTION_KEY || Buffer.alloc(32, 7).toString('base64');
 
+const fs = require('fs');
+const path = require('path');
 const express = require('express');
 const db = require('../../../database');
 const sdk = require('../../sdk');
@@ -12,8 +14,14 @@ const { applyPluginSchema } = require('../../sdk/testing');
 const { liveHourlyResources } = require('../../../tests/hourlyResourcesFixture');
 const { buildGiftVouchersApi, memorySettings } = require('..');
 const { SOURCE } = require('../orderPaid');
+const { filesDir } = require('./visualFilesFixture');
+const { termsStub } = require('./termsFixture');
 
 const encryption = sdk.coreModule('encryption');
+// The smallest JPEG pdfkit reads: the bytes of the visual every on-sale campaign of the suites carries.
+const FRONT_JPEG = Buffer.from('/9j/4AAQSkZJRgABAQEASABIAAD/2wBDAP//////////////////////////////////////////////////////////////////////////////////////wgALCAABAAEBAREA/8QAFBABAAAAAAAAAAAAAAAAAAAAAP/aAAgBAQABPxA=', 'base64');
+const FRONT_FILE = 'front-test.jpg';
+const front = { id: null };
 const TIERS = [{ fromHour: 2, percent: 10 }, { fromHour: 3, percent: 20 }];
 const METHODS = [{ value: 'card', label: 'CB' }, { value: 'cash', label: 'Espèces' }, { value: 'transfer', label: 'Virement' }];
 
@@ -57,6 +65,7 @@ function openShop(over = {}) {
   const sent = [];
   const links = [];
   const state = { providerDown: false };
+  const terms = termsStub({ lodging: 4, resource: 9 });
   const api = buildGiftVouchersApi({
     db,
     pepper: () => 'test-pepper',
@@ -73,8 +82,11 @@ function openShop(over = {}) {
     userName: () => 'Adrien Test',
     companyName: () => 'Domaine Solio',
     pageUrl: () => 'https://site.example.test/bon-cadeau',
-    bookingUrl: () => 'https://site.example.test/reserver',
-    termsVersionId: () => null,
+    company: async () => ({
+      name: 'Domaine Solio', town: 'Saint-Cirq-Lapopie', website: 'https://site.example.test', logo: null,
+    }),
+    filesDir,
+    terms,
     onlineSaleAvailable: () => true,
     siteOrigin: () => 'https://site.example.test',
     payments: {
@@ -89,8 +101,11 @@ function openShop(over = {}) {
   });
   const lodging = api.campaigns.firstLodging();
   api.campaigns.update(lodging.id, { ...lodging, state: 'on_sale' });
+  // Rule 7 — a campaign goes on sale with a voucher front: the suites' campaigns pick this one.
+  fs.writeFileSync(path.join(filesDir(), FRONT_FILE), FRONT_JPEG);
+  front.id = api.visuals.insert({ name: 'Recto de test', use: 'both', file: { path: FRONT_FILE, width: 1240, height: 1748 } });
   return {
-    api, db, clock, sent, links, state,
+    api, db, clock, sent, links, state, terms,
   };
 }
 
@@ -99,9 +114,12 @@ function bathCampaign(ids, over = {}) {
   return {
     name: 'Bain journée', title: 'Un bain nordique', kind: 'resource', state: 'on_sale', slug: 'bain-jour', validityMonths: 12,
     composition: { resourceId: ids.bath, band: 'day', minutes: 120, options: [{ articleRef: `option:${ids.board}`, qty: 1 }] },
-    addOns: [`option:${ids.drink}`], extraTimeMaxMinutes: 120, ...over,
+    addOns: [`option:${ids.drink}`], extraTimeMaxMinutes: 120, voucherVisualId: front.id, ...over,
   };
 }
+
+/** What `campaignRules.validateCampaign` reads to judge a campaign of the suite. */
+const rulesContext = (api) => ({ catalogue: api.catalogue, campaigns: api.campaigns, visuals: api.visuals });
 
 /** Both routers of the API on an ephemeral port, as the site and the operator's session reach them. */
 async function serve(api, { user = { id: 7, roles: ['admin'] } } = {}) {
@@ -118,9 +136,9 @@ async function serve(api, { user = { id: 7, roles: ['admin'] } } = {}) {
     const type = res.headers.get('content-type') || '';
     return { status: res.status, body: type.includes('json') ? await res.json() : null };
   };
-  return { call, close: () => new Promise((resolve) => { server.close(resolve); }) };
+  return { base, call, close: () => new Promise((resolve) => { server.close(resolve); }) };
 }
 
 module.exports = {
-  db, seedCatalogue, openShop, bathCampaign, serve, resource, option, SOURCE, TIERS,
+  db, seedCatalogue, openShop, bathCampaign, rulesContext, serve, resource, option, SOURCE, TIERS,
 };

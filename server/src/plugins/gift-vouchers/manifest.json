@@ -7,9 +7,10 @@
   "surfaces": [
     "La page « Bons cadeaux »",
     "L’API publique des bons cadeaux : l’offre, la commande, son paiement, la page du bon et la vérification d’un code",
-    "Le mail envoyé à l’acheteur quand son bon est émis",
+    "Le mail envoyé à l’acheteur quand son bon est émis, avec le PDF en pièce jointe",
     "La carte « Bon cadeau » de la fiche de réservation",
-    "Le PDF du bon cadeau",
+    "Le PDF du bon cadeau (carte A6 recto verso) et la carte du commerçant pour l’imprimeur",
+    "La bibliothèque de visuels des bons et des cartes",
     "L’alerte « Vérification des bons cadeaux suspendue »",
     "La notification push « Bons cadeaux : vérifications suspendues »"
   ],
@@ -25,6 +26,14 @@
       "Le lien de paiement d’un bon dure une heure (30 minutes avant) ; passé ce délai il est retiré chez le prestataire et la page de retour propose de recommencer. Un paiement fait dans l’heure mais confirmé après émet quand même le bon.",
       "Une commande jamais payée reste 7 jours en coulisse, invisible, puis disparaît.",
       "Un réglage « TVA des bons cadeaux » (10 % par défaut, de 0 à 100 %, deux décimales au plus) : le taux est figé sur chaque bon à sa vente, le reçu de l’acheteur indique la TVA (variable {vat}), la fiche du bon montre HT et TVA, et la vente entre dans l’export comptable en HT + TVA.",
+      "Les visuels des bons et des cartes se rangent dans une bibliothèque : JPEG ou PNG au format A6 portrait, 1240 × 1748 px au moins, gardés tels que reçus. Remplacer une image crée une version ; un bon déjà émis garde la sienne, et le fichier n’est effacé qu’une fois plus aucun bon valable ne le porte.",
+      "Le bon est une carte A6 recto verso avec 3 mm de fond perdu : le visuel au recto, au verso le logo, le QR code vers la page « Utiliser », ce que le bon comprend, le code et la validité. Aucun montant sur un bon de bain ; la mention « Ne pas jeter sur la voie publique. » et le site figurent sur chaque verso.",
+      "La carte du commerçant se télécharge pour l’imprimeur (traits de coupe, case blanche du code d’au moins 22 mm) ; la télécharger verrouille le lien permanent de la campagne. Le début des liens permanents (par défaut « bon-cadeau ») devient un réglage.",
+      "Le mail de l’acheteur donne le code, ce que le bon comprend et, pour un bon payé, un récapitulatif façon facture (lignes, TTC, TVA par taux) lu sur ce qui a été figé à la vente ; le PDF est joint. Le modèle de mail et l’adresse de la page de réservation ne sont plus des réglages.",
+      "« Télécharger le bon » et « Renvoyer le mail » (à l’acheteur ou à une autre adresse, tracé dans l’historique) ne sont offerts que pour un bon encore utilisable.",
+      "« Annuler le bon » : dans les 14 jours du paiement, une rétractation ; au-delà, un geste commercial à confirmer avec un motif. Les réservations en attente sont libérées, une ligne de remboursement s’ouvre (rien pour un bon offert), passe en comptabilité comme un avoir daté du jour, et se marque « effectué » une fois le virement fait.",
+      "Les conditions acceptées à la commande d’un bon (hébergement, ou bain pour une campagne de ressource) sont enregistrées dans le registre des conditions du cœur ; un bain ne peut pas se vendre tant que ses conditions ne sont pas publiées.",
+      "Une campagne composée s’exporte en recette (.zip : campaign.json et ses images, les articles nommés, jamais un prix) et s’importe d’un bloc, ou pas du tout.",
       "Demande le SDK 2.33 de GuestFlow."
     ],
     "1.2.0": [

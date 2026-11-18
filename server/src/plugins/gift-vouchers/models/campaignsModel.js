@@ -34,7 +34,7 @@ function present(row) {
   };
 }
 
-const COLUMNS = ['name', 'title', 'kind', 'state', 'oneShot', 'slug', 'validityMonths', 'composition', 'addOns', 'extraTimeMaxMinutes', 'minAmountCents', 'maxAmountCents', 'ideas', 'vatRatePercent'];
+const COLUMNS = ['name', 'title', 'kind', 'state', 'oneShot', 'slug', 'validityMonths', 'composition', 'addOns', 'extraTimeMaxMinutes', 'minAmountCents', 'maxAmountCents', 'ideas', 'vatRatePercent', 'voucherVisualId', 'merchantVisualId'];
 
 const stored = (value) => ({
   ...value,

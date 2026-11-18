@@ -11,7 +11,7 @@ const rules = require('./voucherRules');
 const OFFERED_NOTE = 'Offert par l’établissement';
 
 function createIssuance({
-  db, vouchers, orders, movements, campaigns, pepper, encrypt, now = () => new Date(), randomBytes,
+  db, vouchers, orders, movements, campaigns, visuals = null, pepper, encrypt, now = () => new Date(), randomBytes,
 }) {
   /** The VAT rate a voucher is stored with: a composed one carries lines of its own (the highest names it), a lodging one the campaign's rate. */
   function vatRateOf(order, campaign, contents) {
@@ -20,6 +20,12 @@ function createIssuance({
       return lines.length ? Math.max(...lines.map((line) => Number(line.ratePercent))) : 0;
     }
     return campaign && campaign.vatRatePercent !== null ? campaign.vatRatePercent : rules.DEFAULT_VAT_PERCENT;
+  }
+
+  /** Rule 48 — the version of the voucher front the campaign shows now, kept on the voucher: a visual replaced or deleted later never changes it. */
+  function visualVersionsOf(campaign) {
+    const visual = campaign && campaign.voucherVisualId && visuals ? visuals.find(campaign.voucherVisualId) : null;
+    return visual && visual.current ? { voucher: visual.current.id } : null;
   }
 
   /**
@@ -52,6 +58,7 @@ function createIssuance({
       campaignId: order.campaignId,
       contents,
       vatLines: rules.parseJson(order.vatLines, null),
+      visualVersions: visualVersionsOf(campaign),
     });
     movements.append({
       voucherId, kind: 'issue', amountCents: order.amountCents, actor, idempotencyKey, note,

@@ -8,6 +8,7 @@ process.env.GUESTFLOW_ENCRYPTION_KEY = process.env.GUESTFLOW_ENCRYPTION_KEY || B
 
 const sdk = require('../../sdk');
 const { applyPluginSchema } = require('../../sdk/testing');
+const { filesDir } = require('./visualFilesFixture');
 const { buildGiftVouchersApi, memorySettings } = require('..');
 
 const encryption = sdk.coreModule('encryption');
@@ -18,6 +19,11 @@ const METHODS = [
   { value: 'card', label: 'CB' }, { value: 'cash', label: 'Espèces' }, { value: 'cheque', label: 'Chèque' },
   { value: 'transfer', label: 'Virement' }, { value: 'holidayVoucher', label: 'Chèques-vacances' }, { value: 'other', label: 'Autre' },
 ];
+
+// What a printed card says of the company: the settings' reading, stated by the suite.
+const COMPANY = async () => ({
+  name: 'Domaine Solio', town: 'Saint-Cirq-Lapopie', website: 'https://site.example.test', logo: null,
+});
 
 function freshDb() {
   const db = new Database(':memory:');
@@ -70,7 +76,8 @@ function buildApi(db = freshDb(), over = {}) {
     paymentMethods: () => METHODS,
     companyName: () => 'Domaine Solio',
     pageUrl: () => 'https://site.example.test/bon-cadeau',
-    bookingUrl: () => 'https://site.example.test/reserver',
+    company: COMPANY,
+    filesDir: () => filesDir(),
     onCheckLimitsTrip: (event) => trips.push(event),
     ...over.deps,
   });
@@ -130,5 +137,5 @@ function solvedProof({ difficulty = 12, ip = '' } = {}) {
 }
 
 module.exports = {
-  freshDb, buildApi, setLodging, start, issueManual, revealedCode, solvedProof, PEPPER, METHODS, sdk,
+  COMPANY, freshDb, buildApi, setLodging, start, issueManual, revealedCode, solvedProof, PEPPER, METHODS, sdk,
 };
