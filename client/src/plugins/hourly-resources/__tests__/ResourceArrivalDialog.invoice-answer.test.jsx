@@ -115,15 +115,16 @@ test('UI5-2 — « Réessayer » on a failed draft retries the payment answer to
   await waitFor(() => expect(screen.getByRole('button', { name: 'Valider l’arrivée' })).toBeEnabled());
 });
 
-// Loop t24 UI24-2 — an edit whose requests fail together: the draft's and the invoice question of the payment typed (it carries the draft).
-// Once « Réessayer » brings the draft back, the payment the tenders report is a new one: its question is pending, never shown with the
-// older payment's « Facture non vérifiée », and the focus stays in the dialog when the draft's alert goes.
+// Loop t24 UI24-2 — an edit whose draft quote fails. The invoice question is asked only for a payment typed against the draft on screen,
+// so no question leaves with a draft still being priced (before: it left with it and failed together). Once « Réessayer » brings the
+// draft back, the payment the tenders report is a new one: its question is pending, never shown with an older « Facture non vérifiée »,
+// and the focus stays in the dialog when the draft's alert goes.
 test('UI24-2 — after a good « Réessayer », the new payment\'s invoice question is pending without the older failure', async () => {
   let fail = false;
   let hold = false;
   const held = [];
   api.quoteResourceVisit.mockImplementation(async (id, body) => {
-    // The two requests of the edit leave together; the payment's 503 lands first, as measured in the browser (loop t24 run-arrival-retry).
+    // A failing draft quote answers after a short wait, so an invoice question that left with it (the old behaviour) would fail first.
     if (fail && !body.payment) await new Promise((resolve) => { setTimeout(resolve, 30); });
     if (fail) throw Object.assign(new Error('Service indisponible'), { status: 503 });
     if (body.payment && hold) await new Promise((resolve) => { held.push(resolve); });
@@ -142,7 +143,7 @@ test('UI24-2 — after a good « Réessayer », the new payment\'s invoice quest
   quantity.focus();
   fireEvent.change(quantity, { target: { value: '2' } });
   expect(await screen.findByText('Service indisponible')).toBeInTheDocument();
-  expect(paymentCalls(2)).toBe(1);
+  expect(paymentCalls(2)).toBe(0);
   await new Promise((resolve) => { setTimeout(resolve, 200); });
   fail = false;
   hold = true;

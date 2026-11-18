@@ -1051,6 +1051,9 @@ still in the core. Server: 4,611 tests after, of which 37 are new. Client: 1,416
   them before each test), a later test of the same file included; the dialogs waiting for it, read from the code, each have a suite.
 - `components/__tests__/LazySaleComponents.consumers.test.jsx` (5) — rule 54 (loop t20 UI20-1): the consumers enumerated from the code
   equal the table; each asks for the blocks when opened, keeps its content back until they are there, and starts nothing when closed.
+- `components/__tests__/SaleDialogs.commit-label-pending.test.jsx` (4) — rule 54 (reading of 2026-11-18, loop t24 second pass;
+  outside-booking-sas rule 54 reading of the same day): through a pending edit the commit label of every screen that previews through
+  `useLatestPreview` (read from the code) stays stable and no false refusal of a stale (draft, payment) pair is drawn.
 - `components/__tests__/SaleDialogs.pending-blocks.test.jsx` (9) — rule 54 (reading of 2026-11-18, loop t21 UI21-1): the dialogs that ask a
   second request and render a sale block, enumerated from the code, equal the table; « Facture » (arrival, booking), « Séjour à régler »
   (SAS) and « Total » (counter) are drawn pending with the content, then filled; the arrival's « Facture » through its four outcomes

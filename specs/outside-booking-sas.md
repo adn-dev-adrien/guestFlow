@@ -574,6 +574,16 @@ once on the server by the refonte's components.
     about a second of that message, measured in Chromium at 1280 px, while « Enregistrer et facturer » was already labelled). The message
     and its « Réessayer » stay only while « Réessayer » asks that same payment again. Tests `ResourceArrivalDialog.invoice-answer`,
     `ResourceBookingDialog.invoice-answer` (UI24-2).
+    _Reading 2026-11-18 (loop t24, second pass — nominal path):_ **the invoice question is asked only for the payment typed against the
+    draft on screen.** Before, an edit sent it at once with the edited draft and the payment still typed against the older amount; that
+    stale pair came back as a false refusal (« Les moyens font 50,00 € pour 37,50 € dus. »), drawn under « Facture » for about a second,
+    and the booking's save read « Enregistrer » instead of « Enregistrer et facturer » meanwhile (measured in Chromium at 1280 and 390 px,
+    every answer +800 ms, both dialogs). Now the question leaves once the draft's own answer is in (`fresh`) and the tenders have followed
+    it (`BookingPaymentFields` reports the `dueCents` its lines were typed against); until then the latest answer stays on screen and the
+    commit stays disabled. The booking's save reads « Calcul du prix… » while the price is asked, then the decision of the latest answer
+    (« Enregistrer et facturer »), never a plainer wording in between; the arrival's « Valider l’arrivée » does not change. Test
+    `SaleDialogs.commit-label-pending` (every screen previewing through `useLatestPreview`, read from the code, has a row or a fixed label;
+    each row edits the draft with a priced payment and records every label and every refusal drawn until the new answer).
     _Reading 2026-11-18 (loop t21, UI21-1):_ that answer always comes one quote after the content — the tender lines report their default card
     line on mount, and only then is the payment asked — so the « Facture » block landed late and moved the dialog (+34 px at 1280 px in the
     arrival: « Récapitulatif » and « Encaisser » 17 px up, the actions 17 px down; in the booking dialog « La facture se propose une fois le

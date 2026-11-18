@@ -6,7 +6,8 @@
  *
  * Props:
  *   dueCents  number — the amount due (the booking's total; the visit's reste)
- *   value     { tenders, shortfall, canSubmit, gapCents, paidAt } | null
+ *   value     { tenders, shortfall, canSubmit, gapCents, paidAt, dueCents } | null — `dueCents` is the amount the lines were typed
+ *             against, so a screen can tell a payment of the amount on screen from one still on an older amount (loop t24)
  *   whole     boolean (default true) — the amount is paid whole; false on the mini SAS, where a gap is a « Reste à percevoir »
  *   shortfallKinds  ['due'] — passed to `TenderLines` when `whole` is false (specs/outside-booking-sas.md rule 17)
  *   onChange  (next) => void
@@ -36,7 +37,7 @@ export default function BookingPaymentFields({
         onChange={({
           tenders, shortfall, canSubmit, gapCents,
         }) => onChange({
-          tenders, shortfall, gapCents, canSubmit: whole ? canSubmit && gapCents === 0 : canSubmit, paidAt,
+          tenders, shortfall, gapCents, canSubmit: whole ? canSubmit && gapCents === 0 : canSubmit, paidAt, dueCents,
         })}
         disabled={disabled}
       />

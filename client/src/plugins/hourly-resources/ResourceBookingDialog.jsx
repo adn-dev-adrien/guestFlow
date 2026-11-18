@@ -352,14 +352,23 @@ export default function ResourceBookingDialog({
 
   const editable = !booking?.frozen;
   const payNow = payWhen === 'now' && !booking?.paid && Boolean(price && price.total > 0);
-  const invoiceDraft = useMemo(() => (payNow && draft && paymentBody(payment) ? { ...draft, payment: paymentBody(payment) } : null), [payNow, draft, payment]);
+  const dueCents = booking?.visit ? booking.visit.remainingCents : Math.round(Number(price?.total || 0) * 100);
+  // Loop t24 — the invoice question is asked only for the payment typed against the price of the draft on screen: while a newer price
+  // is on its way, or the tenders have not yet followed it, the pair (draft, payment) is stale and its answer would be a false refusal
+  // (« Les moyens font 50,00 € pour 37,50 € dus. ») drawn for a second on the nominal path. Meanwhile the latest answer stays (`invoiceAwaiting`).
+  const paymentTyped = payNow && Boolean(draft) && Boolean(paymentBody(payment));
+  const invoiceDraft = useMemo(
+    () => (paymentTyped && preview.fresh && payment.dueCents === dueCents ? { ...draft, payment: paymentBody(payment) } : null),
+    [paymentTyped, preview.fresh, payment, dueCents, draft],
+  );
+  const invoiceAwaiting = paymentTyped && !invoiceDraft;
   const invoicePreview = useResourceBookingPreview({ draft: invoiceDraft, enabled: open });
   const qontoReady = Boolean(price ? price.invoiceReady : booking?.invoiceReady);
   // Rule 44 (R35-C-L1) — a payment on the books whose invoice is still to make, or was cancelled in Qonto (A2).
   const invoiceLater = Boolean(booking?.paid && booking.payment?.onTheBooks && (!booking.invoice || booking.invoice.cancelled));
   // Loop t2 B2-7 (outside-visit rule 54) — whether « Payé maintenant » can make the invoice is the server's answer for the payment typed.
   // Loop t3 UI3-4/UI3-5 — the latest answer stays on screen while a newer one is asked; the save waits for the answer to the payment typed.
-  const invoiceAnswer = invoiceDraft && invoicePreview.price ? invoicePreview.price.invoiceable || null : null;
+  const invoiceAnswer = (invoiceDraft || invoiceAwaiting) && invoicePreview.price ? invoicePreview.price.invoiceable || null : null;
   const invoiceOffered = Boolean(invoiceAnswer && invoiceAnswer.ok) || invoiceLater;
   const draftInternalCash = Boolean(invoiceAnswer && invoiceAnswer.code === 'INTERNAL_CASH');
   const draftRefusal = invoiceAnswer && !invoiceAnswer.ok && !invoiceAnswer.silent && !draftInternalCash ? invoiceAnswer.reason : null;
@@ -367,7 +376,7 @@ export default function ResourceBookingDialog({
   // Loop t21 UI21-1 — until the server answers for the payment typed, the block is drawn pending at the offered state's height (checkbox
   // disabled, ticked as the default card line will tick it), so the answer fills it instead of swapping a caption for the checkbox; any
   // outcome keeps that height while « Maintenant » can invoice (`reserve`).
-  const invoicePending = qontoReady && payNow && Boolean(draft) && !invoiceAnswer && (!payment || Boolean(invoiceDraft));
+  const invoicePending = qontoReady && payNow && Boolean(draft) && !invoiceAnswer && (!payment || Boolean(invoiceDraft) || invoiceAwaiting);
   // Loop t22 UI22-2 — the save button already names the invoice the pending block draws ticked, so the accepted answer (the nominal path)
   // changes nothing on screen but the box's enabled state; a refusal gives the plain label back.
   const invoiceDrawn = wantsInvoice || (invoicePending && (invoiceChecked || !payment));
@@ -381,7 +390,7 @@ export default function ResourceBookingDialog({
     && (externalMode ? clientName.trim() : selectedClient)
     && slotAvailable
     && (!payNow || Boolean(payment && payment.canSubmit))
-    && (!invoiceDraft || invoicePreview.fresh)
+    && !invoiceAwaiting && (!invoiceDraft || invoicePreview.fresh)
   );
   // Loop t23 — after a failed request the last answer keeps the summary's layout with every amount « — » (`priceUnknown`), so the
   // « Temps offert » stepper the operator is using stays mounted; the reason and « Réessayer » stay until a new answer.
@@ -677,7 +686,7 @@ export default function ResourceBookingDialog({
                   ) : (price && price.total > 0 && (
                     <BookingPaymentFields
                       error={paymentError}
-                      dueCents={booking?.visit ? booking.visit.remainingCents : Math.round(Number(price.total) * 100)}
+                      dueCents={dueCents}
                       value={payment}
                       onChange={(next) => {
                         setPayment(next);

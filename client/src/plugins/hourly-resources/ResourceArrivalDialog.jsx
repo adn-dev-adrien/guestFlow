@@ -193,12 +193,21 @@ export default function ResourceArrivalDialog({ open, bookingId, onClose, onDone
   const quoteReady = !dirty || (quote.fresh && !quote.refusal && refusals.length === 0);
   const qontoReady = Boolean(view && view.invoiceReady);
   // Loop t2 B2-7 (rule 54) — with « Payé maintenant », whether this commit could make the invoice is the server's answer for the payment typed.
-  const paymentDraft = useMemo(() => (!reception && payNow && payment && paymentBody(payment) ? { ...(draft || {}), payment: paymentBody(payment) } : null), [reception, payNow, payment, draft]);
+  // Loop t24 — asked only for the payment typed against the remainder of the draft on screen: while a newer quote is on its way, or the
+  // tenders have not yet followed it, the pair (draft, payment) is stale and its answer would be a false refusal drawn on the nominal
+  // path. Meanwhile the latest answer stays (`invoiceAwaiting`).
+  const paymentTyped = !reception && payNow && Boolean(paymentBody(payment));
+  const draftCurrent = !dirty || quote.fresh;
+  const paymentDraft = useMemo(
+    () => (paymentTyped && draftCurrent && payment.dueCents === remainingCents ? { ...(draft || {}), payment: paymentBody(payment) } : null),
+    [paymentTyped, draftCurrent, payment, remainingCents, draft],
+  );
+  const invoiceAwaiting = paymentTyped && !paymentDraft;
   const invoiceQuote = useVisitQuote({ bookingId, draft: paymentDraft, enabled: open, version: visit ? visit.document.version : 0 });
   // Loop t3 UI3-4/UI3-5 — the latest answer stays on screen while a newer one is asked (no caption ↔ checkbox flip per keystroke); the commit
   // still waits for the answer to the payment typed (`paymentReady`). « Caisse interne » and any other refusal are the server's words too.
   const draftAnswerFailed = Boolean(quote.refusal || quote.error);
-  const invoiceAnswer = paymentDraft && invoiceQuote.visit ? invoiceQuote.visit.invoiceable || null : null;
+  const invoiceAnswer = (paymentDraft || invoiceAwaiting) && invoiceQuote.visit ? invoiceQuote.visit.invoiceable || null : null;
   const invoiceOffered = Boolean(invoiceAnswer && invoiceAnswer.ok);
   const draftInternalCash = Boolean(invoiceAnswer && invoiceAnswer.code === 'INTERNAL_CASH');
   const draftRefusal = invoiceAnswer && !invoiceAnswer.ok && !invoiceAnswer.silent && !draftInternalCash ? invoiceAnswer.reason : null;
@@ -208,7 +217,7 @@ export default function ResourceArrivalDialog({ open, bookingId, onClose, onDone
   // and a `silent` answer, which shows nothing (UI3-5) — its section is hidden in place. A payment no longer readable shows the block's own
   // « une fois le paiement saisi » caption. Before the tenders' first report the box reads as their default card line will set it.
   const invoiceSilenced = Boolean(invoiceAnswer && !invoiceAnswer.ok && invoiceAnswer.silent);
-  const invoicePending = !reception && payNow && qontoReady && !invoiceAnswer && (!payment || Boolean(paymentDraft));
+  const invoicePending = !reception && payNow && qontoReady && !invoiceAnswer && (!payment || Boolean(paymentDraft) || invoiceAwaiting);
   const invoiceAsked = !reception && payNow && qontoReady;
   // Money already on the books, invoiceable now: the server's `invoiceable` (invoicing rules 13, 44; loop t1 UI-10 / AV-11). It reads the stored visit, so a draft waits for its save.
   const invoiceable = visit && !reception ? visit.invoiceable : null;
@@ -221,7 +230,7 @@ export default function ResourceArrivalDialog({ open, bookingId, onClose, onDone
   const primaryLabel = invoiceOutcome ? TEXTS.makeInvoice : (!booking || !booking.arrived ? TEXTS.validate : (hasChanges ? TEXTS.save : (invoiceStored ? TEXTS.makeInvoice : TEXTS.close)));
   const closesOnly = !commitMode && !invoiceOutcome && !invoiceStored;
   // The invoice question is answered before the commit, so the checkbox the operator sees is the one the commit carries.
-  const paymentReady = !payNow || (Boolean(payment && payment.canSubmit) && (!paymentDraft || invoiceQuote.fresh));
+  const paymentReady = !payNow || (Boolean(payment && payment.canSubmit) && !invoiceAwaiting && (!paymentDraft || invoiceQuote.fresh));
   const canValidate = Boolean(visit) && !busy && (closesOnly || Boolean(invoiceOutcome) || (commitMode ? quoteReady && paymentReady : invoiceStored));
 
   const adopt = (next) => { setVisit(next); setOfferedMinutes(Number(next.session.offeredMinutes || 0)); };
