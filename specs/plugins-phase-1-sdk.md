@@ -720,7 +720,7 @@ Optional: a plugin that declares nothing reads « Actif ».
     nominal path is steady** — on the answer accepted and the normal flow, nothing drawn moves; on another outcome (a refusal, « Caisse
     interne », a silent refusal, a failed request) content may move, and that is not a defect. Three things hold on **every** path: the
     focus, the typed input, and a way out. Measured frame by frame in Chromium (2026-11-11 copy, 1280 and 390 px, answer +0 and +800 ms):
-    « Vente hors séjour » — its « Total » row stayed at 253 / 297 px from the first article to the answer (before: −101 / +24 px) because the
+    « Vente hors séjour » — its « Total » row stayed at 277 / 297 px from the first article to the answer (before: −101 / +24 px) because the
     dialog is now a **sheet** (`FormDialog` prop `sheet`: from `sm` up it hangs from the top at the screen's full height, its content
     scrolling inside, so the payment the answer adds below the Total fills room already there and the actions stay at 816 px), its VAT line
     keeps its place and the draft row draws its detail and amount « — » until priced (`SuggestedArticlesStep`, every dialog using it); the

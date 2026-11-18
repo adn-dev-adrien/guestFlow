@@ -58,6 +58,16 @@ confirmation — records the caution status and the complement(s) on the reserva
    at the recap is unchanged** — going back / forward writes nothing until « Valider et terminer ». (The
    former forward-only rule was relaxed to allow going back — specs/extinguisher-seal-and-repair-amounts.md
    §3.2 rule 7.)
+   _Reading of 2026-11-18 (stabilisation loop t22, owner decision: lost focus is a defect on every path):_ every page change,
+   forward or back, puts the focus on the new page's short title in the band (`tabIndex -1`, no outline, `data-step` = the
+   page key) whenever the focus was lost or sat on the band or the footer. Before, the control that moved the wizard was
+   often gone (focus on the document body: « Commencer », « Suivant » to the stay page, « Précédent » on the first page),
+   or React kept the same footer button for the next page with another meaning (« Non » of the keys became « Non » of the
+   extinguisher, « Suivant » became « Valider et terminer »: a second Enter answered or committed a page never read). The
+   « Quantités ≠ personnes » confirmation hands the focus to the title when it leaves (`ConfirmDialog` prop `onExited`).
+   Measured in Chromium on stay 22303 (2026-11-11 copy, 1280 / 390 px): arrival 16 transitions (with the resource
+   scheduling plugin page), departure 12, every one on the new title. Client `ReservationSasDialog.step-focus` (3: the
+   pages read from the footer's `case` keys, both walks forward and back, every page visited).
 3. **All writes happen once**, at the final **« Valider et terminer »** of the recap page (decision: write at
    final validation). Quitting before then changes nothing. (One server commit endpoint per SAS.)
 4. State accumulated during the SAS (caution decision, selected missing linen elements, cleaning-added flag)

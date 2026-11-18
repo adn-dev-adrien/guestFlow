@@ -716,6 +716,27 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
     if (i > 0) setStepKey(activeKeys[i - 1]);
   }, [activeKeys, stepKey]);
 
+  // Loop t22 (owner decision 2026-11-18: lost focus is a defect on every path) — a step change replaces the page and the footer: the
+  // control that moved the wizard (« Suivant », an answer, « Précédent ») is often gone and the focus fell on the page, or React kept
+  // the same button for the next page's answer (« Non » of the keys became « Non » of the extinguisher, « Suivant » became « Valider et
+  // terminer »), so a second Enter answered a question never read. After every transition, forward or back, the focus goes to the new
+  // step's title in the band when it was lost or sat on the band or the footer; a focus inside the page itself stays.
+  const stepTitleRef = useRef(null);
+  const bandRef = useRef(null);
+  const footerRef = useRef(null);
+  const shownStepRef = useRef(null);
+  useLayoutEffect(() => {
+    const shown = `${stepKey}:${commitWarning ? 1 : 0}`;
+    const previous = shownStepRef.current;
+    shownStepRef.current = shown;
+    if (previous === null || previous === shown || !stepTitleRef.current) return;
+    const active = document.activeElement;
+    const lost = !active || active === document.body || !active.isConnected || active.disabled === true;
+    const onChrome = [bandRef.current, footerRef.current].some((zone) => zone && zone.contains(active));
+    if (lost || onChrome) stepTitleRef.current.focus({ preventScroll: true });
+  }, [stepKey, commitWarning]);
+  useEffect(() => { if (!open) shownStepRef.current = null; }, [open]);
+
   // A plugin page whose data just emptied (its last order removed from the page itself) is no longer an active page: hand over to
   // the recap rather than leave « Suivant » reading an index of -1.
   useEffect(() => {
@@ -2125,14 +2146,14 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
     <Dialog open={open} onClose={committing ? undefined : onClose} maxWidth="sm" fullWidth fullScreen={fullScreen}
       disableAutoFocus disableEnforceFocus disableRestoreFocus>
       {/* Mode-coloured header band (specs/arrival-departure-sas.md §6 refonte). The ✕ IS the Quitter. */}
-      <Box sx={{ bgcolor: modeColor, color: 'common.white', px: { xs: 2, sm: 3 }, pt: 1.5, pb: stepIdx >= 0 ? 1 : 1.5 }}>
+      <Box ref={bandRef} sx={{ bgcolor: modeColor, color: 'common.white', px: { xs: 2, sm: 3 }, pt: 1.5, pb: stepIdx >= 0 ? 1 : 1.5 }}>
         <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center' }}>
           {stepIdx > 0 && (
             <IconButton onClick={goBack} disabled={committing} sx={{ color: 'common.white', ml: -0.5 }} aria-label="Précédent"><ArrowBackIcon /></IconButton>
           )}
           {StepIcon && <StepIcon sx={{ fontSize: 28 }} />}
           <Box sx={{ flex: 1, minWidth: 0 }}>
-            <Typography variant="sectionHeader" sx={{ display: 'block', lineHeight: 1.2, textTransform: 'uppercase', letterSpacing: 0.5, color: 'inherit' }}>{bandTitle}</Typography>
+            <Typography ref={stepTitleRef} tabIndex={-1} data-testid="sas-step-title" data-step={stepKey} variant="sectionHeader" sx={{ display: 'block', lineHeight: 1.2, textTransform: 'uppercase', letterSpacing: 0.5, color: 'inherit', outline: 'none' }}>{bandTitle}</Typography>
             {r && <Typography variant="caption" noWrap sx={{ display: 'block', opacity: 0.9 }}>{r.firstName} {r.lastName} · {r.propertyName}</Typography>}
           </Box>
           {/* specs/reception-role-checkin-only.md §3.4 — hidden for the reception role (no reservation
@@ -2164,7 +2185,7 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
       </DialogContent>
       {/* Reading order on a phone: the primary action, rendered last, lands at the bottom under the
           thumb (specs/ui-review-2026-10-19-operations.md rule 1); on the right from sm. */}
-      <DialogActions sx={{ p: { xs: 2, sm: 2 }, pb: { xs: 'calc(16px + env(safe-area-inset-bottom, 0px))', sm: 2 }, gap: 1, flexDirection: { xs: 'column', sm: 'row' }, justifyContent: { sm: 'flex-end' }, '& > :not(style) ~ :not(style)': { ml: 0 }, '& .MuiButton-root': { width: { xs: '100%', sm: 'auto' }, py: 1.5, fontSize: '1rem', minHeight: 48 } }}>
+      <DialogActions ref={footerRef} sx={{ p: { xs: 2, sm: 2 }, pb: { xs: 'calc(16px + env(safe-area-inset-bottom, 0px))', sm: 2 }, gap: 1, flexDirection: { xs: 'column', sm: 'row' }, justifyContent: { sm: 'flex-end' }, '& > :not(style) ~ :not(style)': { ml: 0 }, '& .MuiButton-root': { width: { xs: '100%', sm: 'auto' }, py: 1.5, fontSize: '1rem', minHeight: 48 } }}>
         {renderActions()}
       </DialogActions>
     </Dialog>
@@ -2177,6 +2198,7 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
       confirmLabel="Continuer"
       cancelLabel="Modifier"
       confirmColor="warning"
+      onExited={() => { if (stepTitleRef.current) stepTitleRef.current.focus({ preventScroll: true }); }}
     />
     </>
   );

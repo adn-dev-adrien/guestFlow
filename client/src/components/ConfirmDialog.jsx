@@ -6,6 +6,8 @@
  *        confirmLabel ('Confirmer'), cancelLabel ('Annuler'), confirmColor ('error'),
  *        secondaryLabel + onSecondary — an optional third way out, drawn outlined between the two
  *        (e.g. « Créer quand même » beside « Utiliser ce client »). The actions stack on `xs`.
+ *        onExited — called once the dialog has left; given, the dialog does not put the focus back where it was when it opened, and the
+ *        caller places it (a wizard whose page changed under the dialog: its old button may now mean something else — loop t22).
  */
 import React from 'react';
 import { Box, Dialog, DialogTitle, DialogContent, DialogActions, Button, Typography, useMediaQuery } from '@mui/material';
@@ -26,11 +28,18 @@ export default function ConfirmDialog({
   confirmColor = 'error',
   secondaryLabel = null,
   onSecondary = null,
+  onExited = null,
 }) {
   const theme = useTheme();
   const fullScreen = useMediaQuery(theme.breakpoints.down('sm'));
   return (
-    <Dialog open={open} onClose={onClose} fullScreen={fullScreen}>
+    <Dialog
+      open={open}
+      onClose={onClose}
+      fullScreen={fullScreen}
+      disableRestoreFocus={Boolean(onExited)}
+      slotProps={onExited ? { transition: { onExited } } : undefined}
+    >
       <DialogTitle>{title}</DialogTitle>
       <DialogContent>
         <Typography>{message}</Typography>
