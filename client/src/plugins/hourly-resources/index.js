@@ -13,7 +13,11 @@ const isPerHour = (resource) => resource && resource.priceType === 'per_hour';
 export default {
   id: 'hourly-resources',
   contributes: {
-    routes: [{ path: '/resource-planning', Component: lazy(() => import('./ResourcePlanningPage')), roles: ['admin'] }],
+    routes: [
+      { path: '/resource-planning', Component: lazy(() => import('./ResourcePlanningPage')), roles: ['admin'] },
+      // « Passage » — the fiche of a booking outside a stay (specs/gift-voucher-campaigns.md rule 53); no nav item, it is reached from a card, the SAS or a list.
+      { path: '/passages/:bookingId', Component: lazy(() => import('./OutsideBookingPage')), roles: ['admin'] },
+    ],
     'calendar.menu': [{ path: '/resource-planning', label: 'Ressources' }],
     // What the settings search finds Options & ressources by while hours are sold
     // (specs/platform-settings-relay-and-review.md rule 10).

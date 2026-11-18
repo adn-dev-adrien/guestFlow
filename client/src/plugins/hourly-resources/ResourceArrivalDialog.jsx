@@ -15,7 +15,10 @@
  * the block is drawn with the content, pending (checkbox disabled, same height) until that answer comes (loop t21 UI21-1).
  * Each line names its VAT rate (`line.vatRate`). An invoiced visit offers « Nouvelle vente » on its client (`newSale.client`, rule 24): the counter's dialog seeded with it.
  *
- * Props: open, bookingId, onClose, onDone (called after a successful commit)
+ * The lines an instrument paid in advance (`prepaidSections`, specs/gift-voucher-campaigns.md rule 36) sit in a section above « Proposés à l'arrivée », titled and marked with the
+ * instrument's own words, counted as paid by the server's recap; each can be marked « Non pris » (recorded, never refunded, so it asks a confirmation first).
+ *
+ * Props: open, bookingId, onClose, onDone (called after a successful commit), onOpenFiche (optional, opens the booking's fiche)
  */
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
@@ -33,6 +36,11 @@ import useVisitQuote from './useVisitQuote';
 const TEXTS = Object.freeze({
   session: 'Sa séance',
   recap: 'Récapitulatif',
+  openFiche: 'Ouvrir la fiche',
+  notTaken: 'Non pris',
+  notTakenAsk: (label) => `Marquer « ${label} » non pris ?`,
+  notTakenHint: 'Jamais remboursé : l’élément réglé d’avance n’a pas été pris.',
+  notTakenFailed: 'Marquage impossible.',
   payment: 'Paiement',
   invoice: 'Facture',
   total: 'Total',
@@ -107,7 +115,41 @@ function SessionLine({ line, disabled, onOffer, busy }) {
   );
 }
 
-export default function ResourceArrivalDialog({ open, bookingId, onClose, onDone }) {
+function PrepaidSection({ section, lines, disabled, busyId, onNotTaken }) {
+  return (
+    <Box sx={{ display: 'grid', gap: 1 }}>
+      <Typography variant="subtitle2">{section.title}</Typography>
+      <Box component="ul" aria-label={section.title} sx={{ listStyle: 'none', m: 0, p: 0, display: 'grid', gap: 1 }}>
+        {lines.map((line) => (
+          <Box component="li" key={line.ref} sx={{ border: 1, borderColor: 'divider', borderRadius: 1.5, p: 1.5, display: 'flex', gap: 1, justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap' }}>
+            <Box sx={{ minWidth: 0 }}>
+              <Typography variant="body2" sx={{ fontWeight: 600, overflowWrap: 'anywhere' }}>
+                {line.quantity > 1 ? `${line.quantity} × ` : ''}{line.label}
+              </Typography>
+              <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', flexWrap: 'wrap', mt: 0.5 }}>
+                <StatusBadge status={line.prepaid.notTaken ? 'neutral' : 'success'} label={line.prepaid.mark} />
+              </Box>
+            </Box>
+            {line.kind !== 'session' && (
+              <Button
+                size="small"
+                variant={line.prepaid.notTaken ? 'contained' : 'outlined'}
+                aria-pressed={line.prepaid.notTaken}
+                disabled={disabled || line.prepaid.notTaken || busyId === line.id}
+                onClick={() => onNotTaken(line)}
+                sx={{ minHeight: 44, minWidth: 44, textTransform: 'none' }}
+              >
+                {TEXTS.notTaken}
+              </Button>
+            )}
+          </Box>
+        ))}
+      </Box>
+    </Box>
+  );
+}
+
+export default function ResourceArrivalDialog({ open, bookingId, onClose, onDone, onOpenFiche }) {
   const theme = useTheme();
   const fullScreen = useMediaQuery(theme.breakpoints.down('sm'));
   const wide = useMediaQuery(theme.breakpoints.up('lg'));
@@ -126,6 +168,7 @@ export default function ResourceArrivalDialog({ open, bookingId, onClose, onDone
   const [invoiceOutcome, setInvoiceOutcome] = useState(null);
   const [refundAsk, setRefundAsk] = useState(null);
   const [obligationAsk, setObligationAsk] = useState(null);
+  const [notTakenAsk, setNotTakenAsk] = useState(null);
   const [link, setLink] = useState({ busy: false, error: null, sentTo: null });
   const [newSaleOpen, setNewSaleOpen] = useState(false);
   // The sale blocks' code is fetched with the visit; the content shows once both are there, so nothing lands under it later (plugins-phase-1-sdk rule 54, loop t20 UI20-1).
@@ -171,7 +214,10 @@ export default function ResourceArrivalDialog({ open, bookingId, onClose, onDone
   const refusals = dirty ? quote.refusals : NO_REFUSALS;
 
   const sessionLines = view ? view.lines.filter((line) => line.kind === 'session') : [];
-  const storedExtras = view ? view.lines.filter((line) => line.kind === 'extra' && !line.draft) : [];
+  const storedExtras = view ? view.lines.filter((line) => line.kind === 'extra' && !line.draft && !line.prepaid) : [];
+  const prepaidSections = view ? (view.prepaidSections || []).map((section) => ({
+    section, lines: view.lines.filter((line) => section.refs.includes(line.ref)),
+  })) : [];
   // The draft entries the server did not refuse come back as draft lines, in the same order (a refused one is shown with its refusal and no figures).
   const draftLines = useMemo(() => {
     if (!view) return [];
@@ -278,6 +324,20 @@ export default function ResourceArrivalDialog({ open, bookingId, onClose, onDone
     }
   }
 
+  // Rules 15, 36 — « Non pris » is a record the server cannot undo: asked once, the answer is the new visit.
+  async function markNotTaken(line) {
+    setBusyLine(line.id);
+    setError(null);
+    try {
+      const res = await api.markResourceVisitLineNotTaken(booking.id, line.id);
+      adopt(res.visit);
+    } catch (e) {
+      setError(e.message || TEXTS.notTakenFailed);
+    } finally {
+      setBusyLine(null);
+    }
+  }
+
   // Rule 41 (V-4) — « Marquer remboursé » closes an open obligation of the document; the visit is read again.
   async function closeObligation(row) {
     setBusy(true);
@@ -363,6 +423,9 @@ export default function ResourceArrivalDialog({ open, bookingId, onClose, onDone
                   )}
                 </Box>
               </Box>
+              {prepaidSections.map(({ section, lines }) => (
+                <PrepaidSection key={section.source} section={section} lines={lines} disabled={readOnly || dirty} busyId={busyLine} onNotTaken={setNotTakenAsk} />
+              ))}
               <SuggestedArticlesStep
                 suggestions={view.suggestions}
                 search={readOnly ? null : search}
@@ -498,6 +561,9 @@ export default function ResourceArrivalDialog({ open, bookingId, onClose, onDone
         )}
       </DialogContent>
       <DialogActions sx={{ flexDirection: { xs: 'column', sm: 'row' }, gap: 1, p: 2, '& > :not(style) ~ :not(style)': { ml: { xs: 0, sm: 1 } } }}>
+        {onOpenFiche && booking && (
+          <Button variant="outlined" onClick={() => onOpenFiche(booking.id)} sx={{ minHeight: 44, width: { xs: '100%', sm: 'auto' }, mr: { sm: visit && visit.newSale ? 0 : 'auto' } }}>{TEXTS.openFiche}</Button>
+        )}
         {visit && visit.newSale && salesReady && (
           <Button variant="outlined" onClick={() => setNewSaleOpen(true)} sx={{ minHeight: 44, width: { xs: '100%', sm: 'auto' }, mr: { sm: 'auto' } }}>{TEXTS.newSale}</Button>
         )}
@@ -521,6 +587,15 @@ export default function ResourceArrivalDialog({ open, bookingId, onClose, onDone
         confirmLabel={TEXTS.confirm}
         onClose={() => setRefundAsk(null)}
         onConfirm={() => { const ask = refundAsk; setRefundAsk(null); changeLine(ask.line, { ...ask.body, confirmRefund: true }); }}
+      />
+      <ConfirmDialog
+        open={Boolean(notTakenAsk)}
+        title={TEXTS.notTaken}
+        message={notTakenAsk ? `${TEXTS.notTakenAsk(notTakenAsk.label)} ${TEXTS.notTakenHint}` : ''}
+        confirmLabel={TEXTS.confirm}
+        confirmColor="primary"
+        onClose={() => setNotTakenAsk(null)}
+        onConfirm={() => { const line = notTakenAsk; setNotTakenAsk(null); markNotTaken(line); }}
       />
       <ConfirmDialog
         open={Boolean(obligationAsk)}

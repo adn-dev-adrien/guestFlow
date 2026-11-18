@@ -538,6 +538,7 @@ Rules are identities: a rule is never renumbered, new rules are appended
       `standalone_sale_history`: created, slot held, prepaid tender applied, paid (core), terms accepted
       (`ctx.terms.accept` `onAccepted`), moved, arrival, « non pris », no-show, cancelled and refunds (core). Only a
       booking made through the generic offer `bookOutside` writes « created » and « slot held ».
+    - **As built (step 6b)**: client page `OutsideBookingPage` at `/passages/:bookingId` (admin, no nav item); the planning card shows `badges` and `options` and « Ouvrir la fiche »; the arrival dialog shows `prepaidSections` above « Proposés à l'arrivée » with a « Non pris » button (confirmation first, `POST …/visit/lines/:lineId/not-taken`) and « Ouvrir la fiche » from the planning page.
 
 ### 3.Q Cancelling a voucher (added 2026-11-18)
 
