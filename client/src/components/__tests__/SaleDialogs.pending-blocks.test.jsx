@@ -249,3 +249,13 @@ describe.each(Object.keys(DIALOGS))('%s', (file) => {
     await row.filled();
   });
 });
+
+test('the reserve shields the answer, not the gesture: unticking the box gives the reserved height back', async () => {
+  const [accepted] = DIALOGS['plugins/hourly-resources/ResourceArrivalDialog.jsx'];
+  await accepted.open();
+  release();
+  await accepted.filled();
+  fireEvent.click(invoiceBox());
+  await waitFor(() => expect(invoiceBox()).not.toBeChecked());
+  expect(screen.getByTestId('invoice-block')).toHaveStyle({ minHeight: '0px' });
+});

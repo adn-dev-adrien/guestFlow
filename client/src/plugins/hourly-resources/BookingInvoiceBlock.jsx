@@ -39,9 +39,11 @@ export default function BookingInvoiceBlock({ reserve = false, ...props }) {
     if (pending && inner.current) setReserved(inner.current.offsetHeight);
   }, [pending, checked, showAddress]);
   useLayoutEffect(() => { if (!reserve) setReserved(0); }, [reserve]);
+  // The reservation shields the operator from the server's answer, not from their own gesture: ticking or unticking resizes freely.
+  const onCheck = props.onCheck && ((value) => { setReserved(0); props.onCheck(value); });
   return (
     <Box data-testid="invoice-block" data-reserve={reserve ? 'on' : undefined} sx={{ minHeight: reserve ? reserved : 0 }}>
-      <Box ref={inner}><InvoiceBlockContent {...props} /></Box>
+      <Box ref={inner}><InvoiceBlockContent {...props} onCheck={onCheck} /></Box>
     </Box>
   );
 }

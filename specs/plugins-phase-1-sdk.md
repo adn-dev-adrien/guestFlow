@@ -974,10 +974,10 @@ still in the core. Server: 4,611 tests after, of which 37 are new. Client: 1,416
   from one test to the next and the outcome is the same in any order (loop t21 A21-1, shuffled seeds 1-12).
 - `components/__tests__/LazySaleComponents.consumers.test.jsx` (5) — rule 54 (loop t20 UI20-1): the consumers enumerated from the code
   equal the table; each asks for the blocks when opened, keeps its content back until they are there, and starts nothing when closed.
-- `components/__tests__/SaleDialogs.pending-blocks.test.jsx` (8) — rule 54 (reading of 2026-11-18, loop t21 UI21-1): the dialogs that ask a
+- `components/__tests__/SaleDialogs.pending-blocks.test.jsx` (9) — rule 54 (reading of 2026-11-18, loop t21 UI21-1): the dialogs that ask a
   second request and render a sale block, enumerated from the code, equal the table; « Facture » (arrival, booking), « Séjour à régler »
   (SAS) and « Total » (counter) are drawn pending with the content, then filled; the arrival's « Facture » through its four outcomes
-  (accepted, refused with a caption, silent, failed), each keeping the pending block's height (outside-booking-sas rule 54).
+  (accepted, refused with a caption, silent, failed), each keeping the pending block's height (outside-booking-sas rule 54); unticking the box gives the reserved height back (a gesture resizes).
 
 ### E2E
 - `plugins/plugins-page.spec.js`: + Météo uninstalled with erasure, then reinstalled → the key is gone.

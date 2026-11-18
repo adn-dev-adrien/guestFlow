@@ -574,9 +574,10 @@ once on the server by the refonte's components.
     interne » → its notice; a `silent` refusal → nothing shown, as before (UI3-5), the arrival's « Facture » section hidden in place
     (`visibility: hidden`, `aria-hidden`) instead of removed; a failed answer → the block stays pending (checkbox disabled) beside
     « Facture non vérifiée pour ce paiement. ». The booking dialog keeps the same height for its outcomes (its silent answer shows « La
-    facture se propose une fois le paiement saisi. »). Only a gesture (« Pas maintenant », another payment) changes the block's size. A payment
+    facture se propose une fois le paiement saisi. »). Only a gesture changes the block's size (« Pas maintenant », another payment, or the operator ticking or unticking the box, which
+    drops the reserved height). A payment
     no longer readable shows « La facture se propose une fois le paiement saisi. ». The commit waits for the answer as before. Test
-    `SaleDialogs.pending-blocks` (the four outcomes, table-driven).
+    `SaleDialogs.pending-blocks` (the four outcomes, table-driven, and the unticking gesture).
 55. **One money model for a document: every cent on a line or on no line** _(stabilisation loop t3, B3-1, B3-2, B3-3, 2026-11-16; completes rules 41,
     44, 49, 50, 52, 53 and refonte rules 72, 74, 75)_. Every cent a document received sits either on one of its lines or **on no line** — its
     *unallocated money*: a link paid above the reste (rule 41), net of what was given back or kept from it (`payment_allocations` with `lineRef` NULL).
