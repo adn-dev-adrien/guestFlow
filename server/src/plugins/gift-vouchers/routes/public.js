@@ -19,6 +19,7 @@ function buildPublicRouter({
   });
   router.get('/offer', offer.read);
   router.post('/offer/price', offer.price);
+  router.get('/links/:slug', offer.link);
   router.post('/check', check.check);
   // « Mon bain » — the code always travels in the body (rules 23-25).
   router.post('/use', use.open);

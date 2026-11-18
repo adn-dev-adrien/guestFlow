@@ -146,6 +146,20 @@ final class GF_Rest_Proxy
             'permission_callback' => $public,
             'callback'            => [$this, 'get_voucher_offer'],
         ]);
+        // The price of what the giver composed: the engine's lines, total and VAT. Computes, writes nothing.
+        register_rest_route(self::NS, '/gift-vouchers/offer/price', [
+            'methods'             => 'POST',
+            'permission_callback' => $public,
+            'callback'            => [$this, 'post_voucher_price'],
+        ]);
+        // « Utiliser un bon cadeau » (specs/gift-voucher-campaigns.md rules 23-32): the code is always in the body.
+        foreach (['use' => 'post_voucher_use', 'use/slots' => 'post_voucher_use_slots', 'use/quote' => 'post_voucher_use_quote', 'use/confirm' => 'post_voucher_use_confirm'] as $path => $callback) {
+            register_rest_route(self::NS, '/gift-vouchers/' . $path, [
+                'methods'             => 'POST',
+                'permission_callback' => [$this, 'verify_nonce'],
+                'callback'            => [$this, $callback],
+            ]);
+        }
         register_rest_route(self::NS, '/gift-vouchers/check', [
             'methods'             => 'POST',
             'permission_callback' => [$this, 'verify_nonce'],
@@ -307,6 +321,9 @@ final class GF_Rest_Proxy
     {
         $body = (array) $request->get_json_params();
         $forward = $this->voucher_fields($body, [
+            'slug'            => 'string',
+            'extraMinutes'    => 'int',
+            'addOns'          => 'addons',
             'amountCents'     => 'int',
             'recipientName'   => 'string',
             'senderName'      => 'string',
@@ -318,6 +335,44 @@ final class GF_Rest_Proxy
         return $this->relay(GF_Api_Client::instance()->post('/gift-vouchers/orders', $forward));
     }
 
+    public function post_voucher_price(WP_REST_Request $request): WP_REST_Response
+    {
+        $body = (array) $request->get_json_params();
+        $forward = $this->voucher_fields($body, ['slug' => 'string', 'amountCents' => 'int', 'extraMinutes' => 'int', 'addOns' => 'addons']);
+        return $this->relay(GF_Api_Client::instance()->post('/gift-vouchers/offer/price', $forward));
+    }
+
+    public function post_voucher_use(WP_REST_Request $request): WP_REST_Response
+    {
+        $body = (array) $request->get_json_params();
+        return $this->relay(GF_Api_Client::instance()->post('/gift-vouchers/use', $this->voucher_fields($body, ['code' => 'string'])));
+    }
+
+    public function post_voucher_use_slots(WP_REST_Request $request): WP_REST_Response
+    {
+        $body = (array) $request->get_json_params();
+        return $this->relay(GF_Api_Client::instance()->post('/gift-vouchers/use/slots', $this->voucher_fields($body, [
+            'code' => 'string', 'from' => 'string', 'to' => 'string', 'extraMinutes' => 'int',
+        ])));
+    }
+
+    public function post_voucher_use_quote(WP_REST_Request $request): WP_REST_Response
+    {
+        $body = (array) $request->get_json_params();
+        return $this->relay(GF_Api_Client::instance()->post('/gift-vouchers/use/quote', $this->voucher_fields($body, [
+            'code' => 'string', 'start' => 'string', 'extraMinutes' => 'int', 'addOns' => 'addons',
+        ])));
+    }
+
+    public function post_voucher_use_confirm(WP_REST_Request $request): WP_REST_Response
+    {
+        $body = (array) $request->get_json_params();
+        return $this->relay(GF_Api_Client::instance()->post('/gift-vouchers/use/confirm', $this->voucher_fields($body, [
+            'code' => 'string', 'start' => 'string', 'extraMinutes' => 'int', 'addOns' => 'addons', 'email' => 'string', 'phone' => 'string',
+            'name' => 'string', 'termsVersionId' => 'int', 'returnPath' => 'path',
+        ])));
+    }
+
     public function post_voucher_pay(WP_REST_Request $request): WP_REST_Response
     {
         $id = (int) $request['id'];
@@ -327,9 +382,8 @@ final class GF_Rest_Proxy
             return $this->voucher_not_found();
         }
         $forward = ['token' => $token];
-        // Only a path of this very site: GuestFlow builds the address from its own site origin and allowlists it again.
         $return = isset($body['returnPath']) && is_string($body['returnPath']) ? $body['returnPath'] : '';
-        if ($return !== '' && $return[0] === '/' && strpos($return, '//') !== 0 && strlen($return) <= 200) {
+        if ($this->is_site_path($return)) {
             $forward['returnPath'] = $return;
         }
         return $this->relay(GF_Api_Client::instance()->post("/gift-vouchers/orders/{$id}/pay", $forward));
@@ -394,6 +448,10 @@ final class GF_Rest_Proxy
                 $out[$name] = (int) $body[$name];
             } elseif ($type === 'string' && is_string($body[$name])) {
                 $out[$name] = $body[$name];
+            } elseif ($type === 'path' && is_string($body[$name]) && $this->is_site_path($body[$name])) {
+                $out[$name] = $body[$name];
+            } elseif ($type === 'addons' && is_array($body[$name])) {
+                $out[$name] = $this->voucher_add_ons($body[$name]);
             }
         }
         // The proof of work of the request, relayed untouched: GuestFlow verifies it.
@@ -404,6 +462,24 @@ final class GF_Rest_Proxy
             $out['nonce'] = $body['nonce'];
         }
         return $out;
+    }
+
+    /** The options a giver or a recipient adds: only `{ articleRef, qty }` entries are forwarded, GuestFlow judges them. */
+    private function voucher_add_ons(array $entries): array
+    {
+        $list = [];
+        foreach ($entries as $entry) {
+            if (is_array($entry) && isset($entry['articleRef']) && is_string($entry['articleRef']) && isset($entry['qty']) && is_numeric($entry['qty'])) {
+                $list[] = ['articleRef' => $entry['articleRef'], 'qty' => (int) $entry['qty']];
+            }
+        }
+        return $list;
+    }
+
+    /** Only a path of this very site: GuestFlow builds the address from its own site origin and allowlists it again. */
+    private function is_site_path(string $path): bool
+    {
+        return $path !== '' && $path[0] === '/' && strpos($path, '//') !== 0 && strlen($path) <= 200;
     }
 
     /** The capability token of an order: 24 random bytes as base64url, so 32 characters; bounds leave room. */

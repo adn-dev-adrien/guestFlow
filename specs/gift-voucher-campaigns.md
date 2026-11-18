@@ -140,6 +140,20 @@ Rules are identities: a rule is never renumbered, new rules are appended
    - Both are redirections the WordPress connector resolves by asking GuestFlow for the current
      target page, so a page moved on the site never breaks a printed card.
    - With the plugin off, they lead to the site's home page.
+   - **As built (step 7, WordPress connector 1.20.0)**: `GET /public/v1/gift-vouchers/links/:slug` → `{ target }`, the
+     plugin's `pageUrl` opened on `#campagne=<slug>`; 404 `CAMPAIGN_UNKNOWN` for a slug that is unknown, a one-shot, a
+     draft or closed (the connector then leads to the purchase page itself). The connector's `GF_Redirects` registers
+     the two rewrite rules (`gift_voucher_link_base`, default `bon-cadeau`, flushed on activation and whenever the
+     setting changes), answers a 302 to the target (cached 60 s; stale copy on a GuestFlow failure) and falls back to
+     the home page when the plugin is off (`PLUGIN_INACTIVE`) or GuestFlow cannot be reached. `/utiliser` leads to the
+     page picked in Réglages → GuestFlow (« Page « Utiliser un bon cadeau » », automatic: the page holding the block)
+     and sends no fragment, so a QR code's `#bon=` survives the redirect in the browser.
+   - **Terms link, as built**: `/cgv/?activity=resource` reads the current terms of that activity (`/public/v1/terms`
+     already takes `?activity=`); the purchase block links it for a `resource` campaign. A version pin (`&v=`) is not
+     offered for a new activity: `GET /offer` and `POST /use` carry the terms version **id**, not its per-activity
+     number. `POST /use` now also answers `termsVersionId` (the id the confirmation must carry).
+   - **Both blocks without the plugin (rule 40)**: when GuestFlow answers `PLUGIN_INACTIVE` to the first call, the block
+     renders nothing (its container is hidden); the settings page says « Bons cadeaux inactifs dans GuestFlow ».
 10. **Recipe.**
     - A campaign can be exported and imported as a JSON recipe (`docs/gift-voucher-campaign-recipe.md`
       documents the format), in the manner of the tariff recipes. The recipe names elements and
@@ -583,6 +597,9 @@ Rules are identities: a rule is never renumbered, new rules are appended
     acceptance at the payment (`payment-link`); the mail of the link says « Le paiement vaut acceptation
     de nos conditions générales de vente : » and links the current version of the activity's text
     (`<siteOrigin>/cgv/?v=` for the lodging, `?activity=<key>&v=` for another activity).
+    `/offer` (per campaign and for the lodging) and `/use` also answer `termsVersion`, the version
+    number the CGV page pins: the site's links read `?activity=<key>&v=<termsVersion>`, never the
+    internal id, which no longer matches the number once each activity numbers its own versions.
 
 ## 4. Architecture
 

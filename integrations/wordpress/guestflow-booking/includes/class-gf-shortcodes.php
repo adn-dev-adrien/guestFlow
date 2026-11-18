@@ -31,6 +31,13 @@ final class GF_Shortcodes
         add_shortcode('guestflow_cgv', [$this, 'render_cgv']);
         add_shortcode('guestflow_gift_voucher', [$this, 'render_gift_voucher']);
         add_shortcode('guestflow_gift_voucher_button', [$this, 'render_gift_voucher_button']);
+        add_shortcode('guestflow_gift_voucher_use', [$this, 'render_gift_voucher_use']);
+    }
+
+    /** [guestflow_gift_voucher_use] — « Utiliser un bon cadeau », the same block a page can hold (specs/gift-voucher-campaigns.md rule 23). */
+    public function render_gift_voucher_use(): string
+    {
+        return render_block(['blockName' => 'guestflow/gift-voucher-use', 'attrs' => [], 'innerBlocks' => [], 'innerHTML' => '', 'innerContent' => []]);
     }
 
     /** [guestflow_gift_voucher] — the purchase tunnel, the same block a page can hold (specs/gift-vouchers.md rule 12). */
@@ -63,7 +70,11 @@ final class GF_Shortcodes
 
     public function render_cgv(): string
     {
-        $current = $this->fetch('/terms', self::CURRENT_TTL);
+        // specs/gift-voucher-campaigns.md rule 37 — the terms are one document per activity: `?activity=resource` reads
+        // the bath's, and nothing (or anything unknown) reads the lodging's, as before.
+        $activity = isset($_GET['activity']) ? sanitize_key(wp_unslash($_GET['activity'])) : '';
+        $query = $activity !== '' && $activity !== 'lodging' ? ['activity' => $activity] : [];
+        $current = $this->fetch('/terms', self::CURRENT_TTL, $query);
         if ($current === null) {
             return '<p class="gf-cgv-indisponible">' . esc_html__('Les conditions générales sont momentanément indisponibles.', 'guestflow-booking') . '</p>';
         }
@@ -72,7 +83,7 @@ final class GF_Shortcodes
         $shown = $current;
         $notice = '';
         if ($asked > 0 && $asked !== (int) $current['version']) {
-            $older = $this->fetch("/terms/{$asked}", (int) GF_Settings::instance()->get('cache_ttl', 600));
+            $older = $this->fetch("/terms/{$asked}", (int) GF_Settings::instance()->get('cache_ttl', 600), $query);
             if ($older !== null) {
                 $shown = $older;
                 $notice = sprintf(
@@ -120,12 +131,12 @@ final class GF_Shortcodes
     }
 
     /** `data` of a successful public call, cached; null when GuestFlow has nothing to show. */
-    private function fetch(string $path, int $ttl): ?array
+    private function fetch(string $path, int $ttl, array $query = []): ?array
     {
-        $key = GF_Cache::key($path);
+        $key = GF_Cache::key($path, $query);
         $cached = GF_Cache::get($key);
         if ($cached === false) {
-            $res = GF_Api_Client::instance()->get($path);
+            $res = GF_Api_Client::instance()->get($path, $query);
             if ($res['status'] >= 200 && $res['status'] < 300) {
                 $cached = $res['body'];
                 GF_Cache::set($key, $cached, $ttl);

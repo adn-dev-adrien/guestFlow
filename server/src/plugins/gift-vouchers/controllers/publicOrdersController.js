@@ -59,7 +59,7 @@ const isObject = (v) => v !== null && typeof v === 'object' && !Array.isArray(v)
 
 function buildPublicOrdersController({
   offerService, terms, available, brand, respond, orders, vouchers, proof, pepper, ipOf, payments, siteOrigin,
-  decrypt, documents, now = () => new Date(),
+  decrypt, documents, campaigns, pageUrl = () => '', now = () => new Date(),
 }) {
   const langOf = (req) => {
     const stated = (req.body && req.body.language) || (req.query && req.query.lang);
@@ -115,7 +115,7 @@ function buildPublicOrdersController({
     const offer = await offerService.offer();
     const campaigns = offer.campaigns.map((c) => {
       const current = currentTerms(activityOfCampaign(c));
-      return { ...c, termsVersionId: current ? current.id : null };
+      return { ...c, termsVersionId: current ? current.id : null, termsVersion: current ? current.version : null };
     }).filter((c) => c.kind === 'lodging' || c.termsVersionId !== null);
     const lodging = currentTerms('lodging');
     return respond.ok(res, {
@@ -124,7 +124,19 @@ function buildPublicOrdersController({
       ...offer,
       campaigns,
       termsVersionId: lodging ? lodging.id : null,
+      termsVersion: lodging ? lodging.version : null,
     });
+  }
+
+  /**
+   * Rule 9 — where a permanent link `/<base>/offrir/<slug>` leads: the purchase page, opened on the campaign. A campaign that is unknown, a one-shot or no longer on sale has no
+   * target (404): the connector then sends the visitor to the purchase page itself.
+   */
+  function link(req, res) {
+    const campaign = campaigns.findBySlug(String(req.params.slug || ''));
+    const page = String(pageUrl() || '').replace(/#.*$/, '');
+    if (!campaign || campaign.oneShot || campaign.state !== 'on_sale' || !page) return refuse(req, res, 'CAMPAIGN_UNKNOWN', {}, 'Offre inconnue.');
+    return respond.ok(res, { target: `${page}#campagne=${encodeURIComponent(campaign.slug)}` });
   }
 
   /** Rule 17 — the price of what the giver composed: the engine's lines, the total incl. VAT and the VAT per rate. The page renders it and computes nothing. */
@@ -244,7 +256,7 @@ function buildPublicOrdersController({
   });
 
   return {
-    read, price, create, pay, status, pdf,
+    read, price, link, create, pay, status, pdf,
   };
 }
 

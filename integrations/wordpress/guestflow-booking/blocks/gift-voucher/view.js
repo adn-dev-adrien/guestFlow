@@ -2,13 +2,19 @@
  * Gift voucher tunnel frontend (build-free, plain ES) — specs/gift-vouchers.md §3.C, §3.D and §6.
  *
  * Its own small state machine, independent of the booking block (rule 12): it shares only the runtime
- * (`GF.api`, `GF.el`, `GF.t`), the proof-of-work worker and the field styles.
+ * (`GF.api`, `GF.el`, `GF.t`), `assets/voucher-parts.js` (proof of work, stepper, amounts) and the field styles.
  *
- *   loading → form ─(pay)→ [redirect to the hosted payment page]
+ *   loading → [campaign choice] → form ─(pay)→ [redirect to the hosted payment page]
  *   ?gf_voucher=<id>&gf_token=<t> → waiting (poll) → voucher | failed | link expired (« Recommencer ») | still pending
  *
- * No money logic lives here: the bounds, the priced ideas, the validity and the voucher come from
- * GuestFlow. The one rule the client repeats is the amount's shape, as a hint before a request is
+ * specs/gift-voucher-campaigns.md rules 16-19: the page lists the campaigns on sale grouped by kind; a card address
+ * (`#campagne=<slug>`) opens one directly. EVERY way into a campaign — the address, a click on the chooser, a single
+ * offer — goes through `open()`, the one place that builds the form, so a campaign opened by its card address works
+ * exactly like one chosen on the site. A `lodging` campaign keeps the free-amount tunnel; a `resource` campaign
+ * draws the server's contents, its extra time and add-ons, and the server's price (`POST /offer/price`).
+ *
+ * No money logic lives here: the bounds, the priced ideas, the validity, the lines, the total, the VAT and the voucher
+ * come from GuestFlow. The one rule the client repeats is the amount's shape, as a hint before a request is
  * spent — GuestFlow validates the order again and may refuse it.
  */
 (function () {
@@ -20,20 +26,20 @@
   var MESSAGE_MAX = 200;
   var POLL_MS = 3000;
   var POLL_TRIES = 20;
-  var CHALLENGE_MIN_MS = 3200;
-  var CHALLENGE_REFRESH_MS = 14 * 60 * 1000;
+  var PRICE_DEBOUNCE_MS = 300;
   var EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 
   function queryParam(name) {
     try { return new URLSearchParams(window.location.search).get(name); } catch (e) { return null; }
   }
 
-  // « 150 € », « 12,50 € » — a whole amount without its cents, as the voucher prints it.
-  function money(cents) {
-    var v = Number(cents || 0) / 100;
-    try {
-      return new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR', minimumFractionDigits: 0, maximumFractionDigits: 2 }).format(v);
-    } catch (e) { return v + ' €'; }
+  var money = GF.voucherMoney;
+
+  // The address of a printed card: `#campagne=<slug>` (specs/gift-voucher-campaigns.md rule 9).
+  function hashCampaign() {
+    var found = /[#&]campagne=([^&]+)/.exec(window.location.hash || '');
+    if (!found) return '';
+    try { return decodeURIComponent(found[1]); } catch (e) { return ''; }
   }
 
   function centsToField(cents) {
@@ -59,18 +65,74 @@
     container.innerHTML = '';
     container.appendChild(GF.el('div', { class: 'gf-loading' }, GF.t('loading')));
     GF.api('GET', '/gift-vouchers/offer').then(function (res) {
+      if (GF.voucherInactive(res)) { GF.voucherHide(container); return; }
       var offer = res.status >= 200 && res.status < 300 && res.body && res.body.data;
       container.innerHTML = '';
       if (!offer) {
         container.appendChild(GF.el('div', { class: 'gf-error', role: 'status' }, GF.errorMessage(res)));
         return;
       }
-      buildForm(container, offer);
+      mount(container, offer);
     });
   }
 
+  // ── Campaigns: the chooser, and the one `open()` every entry goes through ─────────────────────
+  function mount(container, offer) {
+    if (!Array.isArray(offer.campaigns)) { buildForm(container, offer, null, null); return; }
+    var campaigns = offer.campaigns;
+    if (!campaigns.length) {
+      container.appendChild(GF.el('p', { class: 'gf-inline-info gf-gv-soon', role: 'status' }, GF.t('gvSoon')));
+      return;
+    }
+    var stage = GF.el('div', { class: 'gf-gv-stage' });
+    container.appendChild(stage);
+
+    function chooser() {
+      stage.innerHTML = '';
+      var root = GF.el('div', { class: 'gf-gv' }, GF.el('h3', { class: 'gf-gv-title' }, GF.t('gvTitle')));
+      [['lodging', 'gvKindLodging'], ['resource', 'gvKindResource']].forEach(function (group) {
+        var mine = campaigns.filter(function (c) { return c.kind === group[0]; });
+        if (!mine.length) return;
+        var list = GF.el('div', { class: 'gf-gv-offers' });
+        mine.forEach(function (c) {
+          var detail = c.kind === 'resource' && c.contents && c.contents[0] ? c.contents[0].detail : GF.t('gvFreeAmount');
+          var card = GF.el('button', { type: 'button', class: 'gf-gv-offer', 'data-slug': c.slug },
+            GF.el('b', {}, c.title),
+            detail ? GF.el('span', { class: 'gf-gv-offer-detail' }, detail) : null,
+            c.kind === 'resource' && c.totalCents != null ? GF.el('span', { class: 'gf-gv-offer-price' }, money(c.totalCents)) : null);
+          card.addEventListener('click', function () { open(c.slug, true); });
+          list.appendChild(card);
+        });
+        root.appendChild(GF.el('div', { class: 'gf-gv-kind' }, GF.el('div', { class: 'gf-gv-group-label' }, GF.t(group[1])), list));
+      });
+      stage.appendChild(root);
+    }
+
+    // The one way into a campaign (rule 16): its address, the chooser and a single offer all land here.
+    var opened = '';
+    function open(slug, remember) {
+      var campaign = campaigns.filter(function (c) { return c.slug === slug; })[0];
+      if (!campaign) { opened = ''; chooser(); return; }
+      if (opened === slug && stage.firstChild) return; // the address changed to the campaign already open: keep what the visitor has composed
+      opened = slug;
+      if (remember && window.history && window.history.replaceState) {
+        window.history.replaceState(null, '', window.location.pathname + window.location.search + '#campagne=' + encodeURIComponent(slug));
+      }
+      stage.innerHTML = '';
+      buildForm(stage, offer, campaign, campaigns.length > 1 ? function () {
+        if (window.history && window.history.replaceState) window.history.replaceState(null, '', window.location.pathname + window.location.search);
+        opened = '';
+        chooser();
+      } : null);
+    }
+
+    window.addEventListener('hashchange', function () { var slug = hashCampaign(); if (slug) open(slug, false); });
+    var asked = hashCampaign();
+    open(asked || (campaigns.length === 1 ? campaigns[0].slug : ''), false);
+  }
+
   // ── The voucher itself: the live preview and the page shown after payment ────────────────────
-  // o: { brand, amountCents, recipient, sender, message, code, conditions }
+  // o: { brand, amountCents | heading + items, recipient, sender, message, code, conditions }
   function ticket(o) {
     var who = [];
     if (o.recipient) who.push(GF.el('span', {}, GF.t('gvForLine') + ' ', GF.el('b', {}, o.recipient)));
@@ -86,7 +148,12 @@
     return GF.el('div', { class: 'gf-gv-ticket' },
       o.brand ? GF.el('div', { class: 'gf-gv-brand' }, o.brand) : null,
       GF.el('div', { class: 'gf-gv-ticket-title' }, GF.t('gvVoucher')),
-      GF.el('div', { class: 'gf-gv-amount' }, o.amountCents != null ? money(o.amountCents) : '—'),
+      o.heading
+        ? GF.el('div', { class: 'gf-gv-amount gf-gv-heading' }, o.heading)
+        : GF.el('div', { class: 'gf-gv-amount' }, o.amountCents != null ? money(o.amountCents) : '—'),
+      o.items && o.items.length ? GF.el('ul', { class: 'gf-gv-items' }, o.items.map(function (line) {
+        return GF.el('li', {}, (line.qty > 1 ? line.qty + ' × ' : '') + line.label + (line.detail ? ' — ' + line.detail : ''));
+      })) : null,
       whoNode,
       o.message ? GF.el('p', { class: 'gf-gv-say' }, o.message) : null,
       GF.el('div', { class: 'gf-gv-foot' },
@@ -98,12 +165,16 @@
   }
 
   // ── Purchase form ───────────────────────────────────────────────────────────────────────────
-  function buildForm(container, offer) {
+  // `campaign` is null for an older GuestFlow that lists no campaigns: the one free-amount tunnel it has always sold.
+  function buildForm(container, offer, campaign, onBack) {
+    var isResource = !!campaign && campaign.kind === 'resource';
+    var src = campaign && !isResource ? campaign : offer;
     var available = offer.available === true;
-    var min = Number(offer.minAmountCents) || 0;
-    var max = Number(offer.maxAmountCents) || 0;
-    var months = Number(offer.validityMonths) || 0;
-    var ideas = Array.isArray(offer.ideas) ? offer.ideas : [];
+    var min = Number(src.minAmountCents) || 0;
+    var max = Number(src.maxAmountCents) || 0;
+    var months = Number((campaign || offer).validityMonths) || 0;
+    var ideas = Array.isArray(src.ideas) ? src.ideas : [];
+    var termsVersionId = (campaign && campaign.termsVersionId != null ? campaign.termsVersionId : offer.termsVersionId) || 0;
     var f = {};
     var pending = null; // { fp, orderId, token } — an order made for these very fields, kept if the payment start failed
     var busy = false;
@@ -190,9 +261,14 @@
 
     // Terms (rule 13): the version GuestFlow offers, read on the page the booking checkbox also links to.
     var termsInput = GF.el('input', { type: 'checkbox' });
-    var termsUrl = GF.cgvPageUrl
-      ? GF.cgvPageUrl + (offer.termsVersionId ? (GF.cgvPageUrl.indexOf('?') === -1 ? '?' : '&') + 'v=' + encodeURIComponent(offer.termsVersionId) : '')
-      : '';
+    // Rule 37 — the terms are the campaign's activity's: the page opens the current text of that activity.
+    var termsUrl = '';
+    if (GF.cgvPageUrl) {
+      var joiner = GF.cgvPageUrl.indexOf('?') === -1 ? '?' : '&';
+      var termsVersion = campaign && campaign.termsVersion != null ? campaign.termsVersion : offer.termsVersion;
+      var query = (isResource ? ['activity=resource'] : []).concat(termsVersion ? ['v=' + encodeURIComponent(termsVersion)] : []);
+      termsUrl = query.length ? GF.cgvPageUrl + joiner + query.join('&') : GF.cgvPageUrl;
+    }
     var termsLabel = GF.el('label', { class: 'gf-cgv-accept' }, termsInput,
       GF.el('span', {}, GF.t('gvTermsBefore'),
         termsUrl ? GF.el('a', { class: 'gf-link', href: termsUrl, target: '_blank', rel: 'noopener' }, GF.t('gvTermsLink')) : GF.t('gvTermsLink'),
@@ -215,11 +291,102 @@
       GF.el('div', { class: 'gf-gv-preview' }));
     var preview = aside.querySelector('.gf-gv-preview');
 
-    root.appendChild(GF.el('h3', { class: 'gf-gv-title' }, GF.t('gvTitle')));
+    // ── A composed voucher (rule 17): the server's contents, extra time and add-ons, and the server's price ──
+    var composeBlock = null;
+    var recap = null;
+    var extraMinutes = 0;
+    var addOnQty = {};
+    var priced = null;
+    var pricedError = '';
+    var priceSeq = 0;
+    var priceTimer = null;
+    if (isResource) {
+      var includes = GF.el('ul', { class: 'gf-gv-items' }, (campaign.contents || []).map(function (line) {
+        return GF.el('li', {}, (line.qty > 1 ? line.qty + ' × ' : '') + line.label, line.detail ? GF.el('span', { class: 'gf-gv-offer-detail' }, ' — ' + line.detail) : null);
+      }));
+      var rows = [];
+      if (campaign.extraTime) {
+        rows.push(GF.el('div', { class: 'gf-gv-compose-row' },
+          GF.el('div', { class: 'gf-gv-compose-label' }, GF.t('gvExtraTime'), GF.el('small', {}, GF.t('gvExtraTimeUnit', GF.voucherDuration(campaign.extraTime.stepMinutes)))),
+          GF.voucherStepper({
+            value: 0, min: 0, max: campaign.extraTime.maxMinutes, step: campaign.extraTime.stepMinutes, name: GF.t('gvExtraTime'),
+            format: function (n) { return n ? '+' + GF.voucherDuration(n) : '0'; },
+            onChange: function (n) { extraMinutes = n; changed(); },
+          })));
+      }
+      (campaign.addOns || []).forEach(function (addOn) {
+        rows.push(GF.el('div', { class: 'gf-gv-compose-row' },
+          GF.el('div', { class: 'gf-gv-compose-label' }, addOn.label),
+          GF.voucherStepper({
+            value: 0, min: 0, max: addOn.maxQty, name: addOn.label,
+            onChange: function (n) { addOnQty[addOn.articleRef] = n; changed(); },
+          })));
+      });
+      recap = GF.el('div', { class: 'gf-gv-recap', 'aria-live': 'polite' });
+      composeBlock = GF.el('div', { class: 'gf-gv-compose' },
+        GF.el('div', { class: 'gf-gv-group-label' }, GF.t('gvIncludes')), includes,
+        campaign.band ? GF.el('p', { class: 'gf-gv-hint' }, GF.t('gvBand', campaign.band.label, campaign.band.from, campaign.band.to)) : null,
+        rows.length ? GF.el('div', { class: 'gf-gv-group-label' }, GF.t('gvAddToVoucher')) : null,
+        rows, recap);
+    }
+
+    function composeRequest() {
+      var req = { slug: campaign.slug, extraMinutes: extraMinutes, addOns: [] };
+      Object.keys(addOnQty).forEach(function (ref) { if (addOnQty[ref] > 0) req.addOns.push({ articleRef: ref, qty: addOnQty[ref] }); });
+      return req;
+    }
+
+    function drawRecap() {
+      if (!recap) return;
+      recap.innerHTML = '';
+      if (pricedError) { recap.appendChild(GF.el('p', { class: 'gf-gv-alert', role: 'alert' }, pricedError)); return; }
+      if (!priced) { recap.appendChild(GF.el('p', { class: 'gf-gv-hint' }, GF.t('loading'))); return; }
+      recap.appendChild(GF.el('div', { class: 'gf-gv-group-label' }, GF.t('gvRecap')));
+      (priced.lines || []).forEach(function (line) {
+        recap.appendChild(GF.el('div', { class: 'gf-gv-recap-line' },
+          GF.el('span', {}, (line.qty > 1 ? line.qty + ' × ' : '') + line.label, line.detail ? GF.el('small', {}, line.detail) : null),
+          GF.el('b', {}, GF.euro(line.totalCents / 100))));
+      });
+      recap.appendChild(GF.el('div', { class: 'gf-gv-recap-line gf-gv-recap-total' }, GF.el('span', {}, GF.t('gvTotalTtc')), GF.el('b', {}, GF.euro(priced.totalCents / 100))));
+      (priced.vat || []).forEach(function (row) {
+        recap.appendChild(GF.el('div', { class: 'gf-gv-recap-line gf-gv-recap-vat' },
+          GF.el('span', {}, GF.t('gvVat', String(row.rate).replace('.', ','))), GF.el('span', {}, GF.euro(row.cents / 100))));
+      });
+    }
+
+    function askPrice() {
+      priceSeq += 1;
+      var mine = priceSeq;
+      GF.api('POST', '/gift-vouchers/offer/price', composeRequest()).then(function (res) {
+        if (mine !== priceSeq) return;
+        var data = res.status >= 200 && res.status < 300 && res.body && res.body.data;
+        priced = data || null;
+        pricedError = data ? '' : (res.body && res.body.error && res.body.error.message) || GF.errorMessage(res);
+        drawRecap();
+        sync();
+      });
+    }
+
+    // Every change of the composition asks the server for the price again; the answers that come back late are dropped.
+    function changed() {
+      priced = null;
+      pricedError = '';
+      drawRecap();
+      sync();
+      if (priceTimer) clearTimeout(priceTimer);
+      priceTimer = setTimeout(askPrice, PRICE_DEBOUNCE_MS);
+    }
+
+    if (onBack) {
+      var back = GF.el('button', { type: 'button', class: 'gf-link gf-gv-back' }, GF.t('gvOtherOffer'));
+      back.addEventListener('click', onBack);
+      root.appendChild(back);
+    }
+    root.appendChild(GF.el('h3', { class: 'gf-gv-title' }, campaign ? campaign.title : GF.t('gvTitle')));
     if (months) root.appendChild(GF.el('p', { class: 'gf-gv-intro' }, GF.t('gvIntro', months)));
     root.appendChild(GF.el('div', { class: 'gf-gv-two' },
       GF.el('div', { class: 'gf-gv-form' },
-        amountField, ideasBlock, recipientField, senderField, messageField, emailField,
+        isResource ? composeBlock : amountField, isResource ? null : ideasBlock, recipientField, senderField, messageField, emailField,
         termsLabel, termsErr, alertBox, payBtn, soon),
       aside));
 
@@ -229,7 +396,7 @@
     }
 
     function sync() {
-      var a = parseAmount();
+      var a = isResource ? { cents: priced ? priced.totalCents : null } : parseAmount();
       var shown = touched && a.error ? a.error : '';
       setError('amount', shown);
       amountHint.hidden = !!shown;
@@ -239,7 +406,9 @@
       preview.innerHTML = '';
       preview.appendChild(ticket({
         brand: offer.brand || '',
-        amountCents: a.cents != null ? a.cents : null,
+        amountCents: isResource ? null : (a.cents != null ? a.cents : null),
+        heading: isResource ? campaign.title : null,
+        items: isResource ? campaign.contents : null,
         recipient: recipientInput.value.trim(),
         sender: senderInput.value.trim(),
         message: messageInput.value.trim(),
@@ -253,13 +422,14 @@
     emailInput.addEventListener('input', function () { setError('email', ''); });
     termsInput.addEventListener('change', function () { setError('terms', ''); });
     sync();
+    if (isResource) { drawRecap(); askPrice(); }
 
     // Rule 13 — every refusal on its field, the first one focused.
     function validate() {
       var first = null;
-      var a = parseAmount();
+      var a = isResource ? { cents: priced ? priced.totalCents : null } : parseAmount();
       touched = true;
-      if (a.error) { setError('amount', a.error); amountHint.hidden = true; first = first || amountInput; }
+      if (!isResource && a.error) { setError('amount', a.error); amountHint.hidden = true; first = first || amountInput; }
       var mail = emailInput.value.trim();
       if (!EMAIL_RE.test(mail)) {
         setError('email', mail ? GF.t('emailInvalid') : GF.t('gvEmailEmpty'));
@@ -267,66 +437,14 @@
       }
       if (!termsInput.checked) { setError('terms', GF.t('gvTermsRequired')); first = first || termsInput; }
       if (first) { first.focus(); return null; }
+      if (isResource && !priced) { showAlert(pricedError || GF.t('loading')); return null; }
       return a.cents;
     }
 
     // ── Proof of work: the same challenge the booking request solves (specs/gift-vouchers.md rule 15) ──
-    var proof = null;
-
-    function solveChallenge(c) {
-      return new Promise(function (resolve) {
-        var done = false;
-        function finish(nonce) { if (!done) { done = true; resolve(nonce); } }
-        try {
-          var worker = new Worker(GF.powWorkerUrl);
-          worker.onmessage = function (e) { worker.terminate(); finish(e.data && e.data.nonce); };
-          worker.onerror = function () { worker.terminate(); solveOnPage(c, finish); };
-          worker.postMessage({ salt: c.salt, difficulty: c.difficulty });
-        } catch (e) {
-          solveOnPage(c, finish);
-        }
-      });
-    }
-
-    function solveOnPage(c, finish) {
-      if (!window.GFPow) { finish(null); return; }
-      var start = 0;
-      (function slice() {
-        var nonce = window.GFPow.search(String(c.salt), Number(c.difficulty), start, 4000);
-        if (nonce !== null) { finish(nonce); return; }
-        start += 4000;
-        setTimeout(slice, 0);
-      })();
-    }
-
-    function prepareProof() {
-      var entry = { receivedAt: Date.now(), solved: false };
-      entry.promise = GF.api('GET', '/booking-requests/challenge').then(function (res) {
-        var c = res.status >= 200 && res.status < 300 && res.body && res.body.data;
-        if (!c || !c.salt) return null;
-        entry.receivedAt = Date.now();
-        return solveChallenge(c).then(function (nonce) { return nonce ? { challenge: c, nonce: nonce } : null; });
-      }).then(function (p) { entry.solved = true; return p; });
-      proof = entry;
-      return entry;
-    }
-
-    function currentProof() {
-      if (!proof || Date.now() - proof.receivedAt > CHALLENGE_REFRESH_MS) prepareProof();
-      return proof;
-    }
-
+    var proof = GF.voucherProof();
     // The work starts when the form is in front of the visitor or touched, never on a mere page view.
-    if (available) {
-      var wake = function () { if (!proof || Date.now() - proof.receivedAt > CHALLENGE_REFRESH_MS) prepareProof(); };
-      root.addEventListener('focusin', wake);
-      root.addEventListener('pointerdown', wake);
-      if (window.IntersectionObserver) {
-        new IntersectionObserver(function (entries) {
-          if (entries.some(function (en) { return en.isIntersecting; })) wake();
-        }).observe(root);
-      }
-    }
+    if (available) proof.observe(root);
 
     // ── Pay ─────────────────────────────────────────────────────────────────────────────────────
     function setBusy(on, label) {
@@ -343,7 +461,7 @@
       if (code === 'VOUCHER_AMOUNT_OUT_OF_BOUNDS') { setError('amount', text); amountInput.focus(); return; }
       if (code === 'PAYMENT_LINK_EXPIRED') { pending = null; showAlert(text); return; }
       if (code === 'EMAIL_INVALID') { setError('email', text); emailInput.focus(); return; }
-      if (code === 'TERMS_REQUIRED') { setError('terms', text); termsInput.focus(); return; }
+      if (code === 'TERMS_REQUIRED' || code === 'TERMS_NOT_ACCEPTED' || code === 'TERMS_OUTDATED') { setError('terms', text); termsInput.focus(); return; }
       showAlert(res.status === 429 ? (text || GF.t('gvTooMany')) : text);
     }
 
@@ -362,24 +480,18 @@
           return;
         }
         payBtn.textContent = GF.t('redirectingPayment');
-        window.location.assign(url);
+        GF.voucherGo(url);
       });
     }
 
     function createOrder(body, fingerprint, retried) {
-      var entry = currentProof();
-      if (!entry.solved) setBusy(true, GF.t('verifying'));
-      entry.promise.then(function (p) {
-        delete body.challenge;
-        delete body.nonce;
-        if (p) { body.challenge = p.challenge; body.nonce = p.nonce; }
-        setBusy(true, GF.t('sending'));
-        var wait = p ? Math.max(0, entry.receivedAt + CHALLENGE_MIN_MS - Date.now()) : 0;
-        return new Promise(function (resolve) { setTimeout(resolve, wait); });
+      proof.attach(body, {
+        solving: function () { setBusy(true, GF.t('verifying')); },
+        sending: function () { setBusy(true, GF.t('sending')); },
       }).then(function () {
         return GF.api('POST', '/gift-vouchers/orders', body);
       }).then(function (res) {
-        prepareProof(); // a challenge is spent by one request, whatever the answer
+        proof.spend(); // a challenge is spent by one request, whatever the answer
         var err = res.body && res.body.error;
         if (!retried && err && err.code === 'CHALLENGE_INVALID') { createOrder(body, fingerprint, true); return; }
         var data = res.status >= 200 && res.status < 300 && res.body && res.body.data;
@@ -398,15 +510,14 @@
       showAlert('');
       var cents = validate();
       if (cents == null) return;
-      var body = {
-        amountCents: cents,
-        recipientName: recipientInput.value.trim(),
-        senderName: senderInput.value.trim(),
-        message: messageInput.value.trim(),
-        email: emailInput.value.trim(),
-        termsVersionId: offer.termsVersionId || 0,
-        language: GF.lang || 'fr',
-      };
+      var body = isResource ? composeRequest() : { amountCents: cents };
+      if (!isResource && campaign && campaign.slug) body.slug = campaign.slug;
+      body.recipientName = recipientInput.value.trim();
+      body.senderName = senderInput.value.trim();
+      body.message = messageInput.value.trim();
+      body.email = emailInput.value.trim();
+      body.termsVersionId = termsVersionId;
+      body.language = GF.lang || 'fr';
       var fingerprint = JSON.stringify(body);
       if (pending && pending.fp === fingerprint) { startPayment(pending.orderId, pending.token); return; }
       createOrder(body, fingerprint, false);

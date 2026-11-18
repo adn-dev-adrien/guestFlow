@@ -452,6 +452,59 @@ button.gf-cal-day.gf-shake { animation: gf-shake .32s cubic-bezier(.36, .07, .19
 .gf-gv-button svg { flex: 0 0 auto; }
 .gf-gv-button:focus-visible { outline: 2px solid currentColor; outline-offset: 2px; }
 @media (prefers-reduced-motion: reduce) { .gf-gv-button { transition: none; } .gf-gv-button:active { transform: none; } }
+/* Composed vouchers (specs/gift-voucher-campaigns.md rules 16-19) and « Utiliser un bon cadeau » (rules 23-32). Same tokens;
+   44 px targets; one column, the bar of the total stuck to the bottom of the screen on a phone. */
+.gf-gv-kind { margin-top: 1rem; }
+.gf-gv-offers { display: grid; gap: .6rem; grid-template-columns: minmax(0, 1fr); }
+.gf-gv-offer { display: grid; gap: .15rem; min-height: 56px; padding: .8rem 1rem; text-align: left; border: 1px solid var(--gfb-border); border-radius: 10px; background: #fff; color: inherit; font: inherit; cursor: pointer; -webkit-tap-highlight-color: transparent; touch-action: manipulation; transition: transform .1s ease-out, background-color .15s ease; }
+.gf-gv-offer:active { transform: scale(.98); }
+.gf-gv-offer:focus-visible { outline: 2px solid var(--gfb-fill); outline-offset: 2px; }
+.gf-gv-offer b { font-size: 1.05rem; overflow-wrap: anywhere; }
+.gf-gv-offer-detail { color: var(--gfb-muted); font-size: .9rem; }
+.gf-gv-offer-price { font-weight: 600; color: var(--gfb-fill); font-variant-numeric: tabular-nums; }
+.gf-gv-back { justify-self: start; min-height: 44px; padding: 0; border: 0; background: none; color: var(--gfb-fill); font: inherit; text-decoration: underline; cursor: pointer; }
+.gf-gv-items { margin: 0 0 .6rem; padding-left: 1.1rem; display: grid; gap: .2rem; }
+.gf-gv-heading { font-size: clamp(1.5rem, 8cqi, 2.2rem); }
+.gf-gv-compose { display: grid; gap: .6rem; }
+.gf-gv-compose-row { display: flex; align-items: center; justify-content: space-between; gap: .75rem; padding: .35rem 0; border-top: 1px solid var(--gfb-border); }
+.gf-gv-compose-label { min-width: 0; overflow-wrap: anywhere; font-weight: 600; }
+.gf-gv-compose-label small { display: block; font-weight: 400; color: var(--gfb-muted); }
+.gf-gv-recap { display: grid; gap: .3rem; padding: .8rem 1rem; border-radius: 8px; background: var(--gfb-surface); font-variant-numeric: tabular-nums; }
+.gf-gv-recap:empty { display: none; }
+.gf-gv-recap-line { display: flex; justify-content: space-between; gap: 1rem; align-items: baseline; }
+.gf-gv-recap-line span { min-width: 0; overflow-wrap: anywhere; }
+.gf-gv-recap-line small { display: block; color: var(--gfb-muted); }
+.gf-gv-recap-total { margin-top: .3rem; padding-top: .4rem; border-top: 1px solid var(--gfb-border); font-size: 1.05rem; }
+.gf-gv-recap-vat { font-size: .85rem; color: var(--gfb-muted); }
+.gf-use-included { color: var(--gfb-ok); font-weight: 600; }
+.gf-gv-use .gf-cal-box { margin-bottom: 1rem; }
+.gf-use-days { margin-bottom: .6rem; }
+.gf-use-days button.gf-cal-day { min-height: 44px; }
+.gf-use-days button.gf-cal-day:disabled { cursor: default; }
+.gf-use-slots { display: grid; grid-template-columns: repeat(auto-fill, minmax(8.5rem, 1fr)); gap: .5rem; }
+.gf-use-slot { display: grid; gap: .1rem; justify-items: center; min-height: 56px; padding: .45rem .5rem; border: 1px solid var(--gfb-border); border-radius: 10px; background: #fff; color: inherit; font: inherit; cursor: pointer; font-variant-numeric: tabular-nums; -webkit-tap-highlight-color: transparent; touch-action: manipulation; transition: transform .1s ease-out, background-color .15s ease; }
+.gf-use-slot:active { transform: scale(.97); }
+.gf-use-slot:focus-visible { outline: 2px solid var(--gfb-fill); outline-offset: 2px; }
+.gf-use-slot.is-on { background: var(--gfb-fill); border-color: var(--gfb-fill); color: var(--gfb-on-accent); }
+.gf-use-tag { font-size: .78rem; color: var(--gfb-ok); }
+.gf-use-slot.is-supplement .gf-use-tag { color: var(--gfb-warn); }
+.gf-use-slot.is-on .gf-use-tag { color: inherit; }
+.gf-use-note:empty { display: none; }
+.gf-use-who { margin-top: 1rem; }
+.gf-use-bar { position: sticky; bottom: 0; z-index: 5; display: flex; align-items: center; justify-content: space-between; gap: .75rem; margin: 1rem -.25rem 0; padding: .7rem .9rem calc(.7rem + env(safe-area-inset-bottom, 0px)); background: #fff; border-top: 1px solid var(--gfb-border); box-shadow: 0 -6px 16px color-mix(in srgb, var(--gfb-ink) 8%, transparent); }
+.gf-use-bar .gf-bar-amt { display: block; }
+.gf-block .gf-use-bar .gf-btn { flex: 0 0 auto; min-width: 11rem; min-height: 48px; }
+.gf-use-bar .gf-btn:disabled { opacity: .5; cursor: not-allowed; }
+@container gf-gv (min-width: 640px) {
+  .gf-gv-offers { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (hover: hover) and (pointer: fine) {
+  .gf-gv-offer:hover, .gf-use-slot:hover:not(.is-on) { background: var(--gfb-tint); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .gf-gv-offer, .gf-use-slot { transition: background-color .15s ease; }
+  .gf-gv-offer:active, .gf-use-slot:active { transform: none; }
+}
 /* Printing the voucher page prints the voucher, nothing else. */
 @media print {
   body.gf-gv-printing * { visibility: hidden; }

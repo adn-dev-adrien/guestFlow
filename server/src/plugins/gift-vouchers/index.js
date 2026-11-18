@@ -180,7 +180,7 @@ function buildGiftVouchersApi({
   });
   const offer = buildPublicOrdersController({
     offerService, terms, available: onlineSaleAvailable, brand: companyName, respond, orders, vouchers, proof, pepper, ipOf, payments, siteOrigin,
-    decrypt, documents, now,
+    decrypt, documents, campaigns, pageUrl, now,
   });
 
   return {

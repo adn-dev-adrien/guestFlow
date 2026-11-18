@@ -136,9 +136,10 @@ test('rule 14: GET /offer answers the bounds, the validity, the priced ideas and
     validityMonths: 12,
     ideas: IDEAS,
     campaigns: [{
-      slug: 'sejour', kind: 'lodging', title: 'Bon cadeau', validityMonths: 12, minAmountCents: 3000, maxAmountCents: 200000, ideas: IDEAS, termsVersionId: 4,
+      slug: 'sejour', kind: 'lodging', title: 'Bon cadeau', validityMonths: 12, minAmountCents: 3000, maxAmountCents: 200000, ideas: IDEAS, termsVersionId: 4, termsVersion: 1,
     }],
     termsVersionId: 4,
+    termsVersion: 1,
   });
 }));
 

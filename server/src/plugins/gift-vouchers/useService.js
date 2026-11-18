@@ -126,6 +126,8 @@ function createUseService({
         addOns: offeredAddOns(voucher, contents),
         extraTime: mode ? { stepMinutes: mode.slotMinutes } : null,
         horizonUntil: probe && probe.ok ? probe.horizonUntil : null,
+        termsVersionId: (terms.current('resource') || {}).id || null,
+        termsVersion: (terms.current('resource') || {}).version || null,
       },
     };
   }

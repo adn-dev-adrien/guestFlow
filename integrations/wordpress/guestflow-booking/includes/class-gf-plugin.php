@@ -26,5 +26,6 @@ final class GF_Plugin
         GF_Rest_Proxy::instance()->boot();
         GF_Blocks::instance()->boot();
         GF_Shortcodes::instance()->boot();
+        GF_Redirects::instance()->boot();
     }
 }

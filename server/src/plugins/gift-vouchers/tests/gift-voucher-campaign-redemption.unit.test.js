@@ -158,6 +158,7 @@ test('« Mon bain » opens a voucher: its contents, the names, the validity, the
   assert.deepEqual([data.kind, data.recipientName, data.senderName, data.message, data.expiresOn], ['resource', 'Léa', 'Paul', 'Joyeux anniversaire', '2027-11-15']);
   assert.deepEqual(data.addOns, [{ articleRef: `option:${ids.drink}`, label: 'Boisson', maxQty: 20 }]);
   assert.deepEqual([data.extraTime, data.horizonUntil, data.usedOn], [{ stepMinutes: 60 }, '2027-02-15', null]);
+  assert.equal(data.termsVersionId, 9, 'the version of the activity’s terms the confirmation will ask to have accepted');
   assert.equal(JSON.stringify(data).includes(voucher.code), false, 'the code is never echoed');
 });
 
