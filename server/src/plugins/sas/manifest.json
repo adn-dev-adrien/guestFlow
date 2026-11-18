@@ -207,6 +207,7 @@
       "Au clavier, chaque changement d’étape du sas, en avant comme en arrière, place le curseur sur le titre de la nouvelle étape : il ne se perd plus et ne reste plus sur un bouton qui change de sens.",
       "Récapitulatif d’arrivée avec « Régler séparément » : quand le calcul échoue, les boutons de règlement du séjour sont désactivés comme ceux du complément.",
       "Récapitulatif avec « Plusieurs moyens » : après un calcul en échec, plus aucun ancien montant dans les lignes ni dans « Encaisser » (« — ») jusqu’à la réponse suivante.",
+      "« Plusieurs moyens » : les montants saisis reviennent tels quels après un calcul en échec, un retour à l’étape précédente ou un total revenu de 0.",
       "Demande GuestFlow 4.2 (SDK 2.32)."
     ]
   }

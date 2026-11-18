@@ -1267,7 +1267,8 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
             <Typography variant="body2" sx={{ fontWeight: 600 }}>Règlement</Typography>
             {!departureSplitActive && <PaymentModeButtons value={departurePayMode} onChange={setDeparturePayMode} showDefer={false} />}
             {departureSplitActive && (
-              <TenderLines dueCents={Math.round(Number(recap.grandTotal) * 100)} onChange={setDepartureTenders} autoFocus />
+              // Loop t24 — the lines the operator typed come back as typed when the block reappears (a recovery, the due back from 0).
+              <TenderLines dueCents={Math.round(Number(recap.grandTotal) * 100)} onChange={setDepartureTenders} initialDraft={departureTenders ? departureTenders.draft : null} autoFocus />
             )}
             {/* specs/mixed-method-payments.md rule 45 — reception records the check-out with one method. */}
             {canSplitPayment && <Button
@@ -1881,7 +1882,7 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
                   {/* Loop t24 A24-2 — the lines are typed against the answer's total: after a failed recompute no line keeps the
                       older amount; they come back, filled from the new total, with the next answer. */}
                   {arrivalTenderOpen && !failed && (
-                    <TenderLines dueCents={Math.round(Number(recap.totalAtArrival) * 100)} onChange={setArrivalTenders} disabled={settleBlocked} autoFocus />
+                    <TenderLines dueCents={Math.round(Number(recap.totalAtArrival) * 100)} onChange={setArrivalTenders} initialDraft={arrivalTenders ? arrivalTenders.draft : null} disabled={settleBlocked} autoFocus />
                   )}
                   {arrivalTenderOpen && failed && (
                     <Typography variant="body2" color="text.secondary" data-testid="tenders-unknown">À encaisser : —</Typography>

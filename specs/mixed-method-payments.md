@@ -407,6 +407,16 @@ read the settlements themselves (`utils/paymentTenders.settlementFigures`).
     month the accountant may already hold keeps its cents. A split stay closes whatever the date (rule 56). Pinned by
     `mixed-method-payments-closing-edges` and the fuzz of the verification (40 stays per order, 0 left a cent).
 
+59. **Typed lines survive the block going away (loop t24, 2026-11-18).** When a screen unmounts its tender lines and shows them
+    again — the SAS recap after a failed recompute and its « Réessayer », after a step back and the return to the recap (arrival),
+    or when the departure's due comes back from 0 — the lines come back exactly as the operator left them: `TenderLines` reports
+    its `draft` (the lines, typed or not, and the shortfall choice) with every change, and the screen passes it back as
+    `initialDraft`. A typed line is never rewritten; the untyped last line shows what the others leave of the new due; when the due
+    changed and a typed line no longer fits, it stays as typed and the meter says so (« … de trop » / « … non couverts »), the commit
+    waiting as usual. Only the operator's own « Un seul moyen » (or a new run of the SAS) clears them. Tests
+    `ReservationSasDialog.tender-lines-kept` (failure → recovery at arrival and departure, step back → recap, due 0 → back),
+    `TenderLines.initial-draft`.
+
 **Edge cases:**
 - All lines `cash` + internal, no shortfall → same storage as « Caisse interne » + settlement (rule 11).
 - A single line equal to the amount due → accepted; it records the method (« Chèque 122,00 € »).
@@ -479,7 +489,7 @@ read the settlements themselves (`utils/paymentTenders.settlementFigures`).
 | `components/reservation/` | `FinanceSection.jsx` | T | « Encaisser en une fois » block gets the same toggle; paid rows render settlements, « Modifier », the remainder's « Marquer payé » |
 | `components/reservation/` | `InstallmentPlanCard.jsx`, `MidStayNoteDialog.jsx` | T | Same toggle in their payment step |
 | `plugins/sas/` | `ReservationSasDialog.jsx` | T | « Plusieurs moyens » under `PaymentModeButtons` (arrival and departure); _(round 34)_ reset on every opening, departure lines only while settleable, hidden for reception (rules 32, 45) |
-| `components/` | `TenderLines.jsx` | T | _(round 34)_ `whole` / `noCaisse` (rule 44); an untyped last line at 0 is no line (rule 7 reading) |
+| `components/` | `TenderLines.jsx` | T | _(round 34)_ `whole` / `noCaisse` (rule 44); an untyped last line at 0 is no line (rule 7 reading); _(loop t24)_ `onChange` reports `draft`, `initialDraft` restores it (rule 59) |
 | `components/` | `PricingSummary.jsx`, `pages/ReservationPage.jsx` | T | _(round 34)_ `ledgerRows`: the paid badge reads « Perçu en partie » with a reste (rule 16 reading) |
 | `components/reservation/` | `FinanceSection.jsx`, `PaymentMarkForm.jsx`, `InstallmentPlanCard.jsx` | T | _(round 34)_ a stale correction panel closed (rule 32 reading); `whole` / `noCaisse` passed on (rule 44) |
 
@@ -670,6 +680,8 @@ See the summary page for the interactive mock (fiche row, SAS departure, modific
 - [x] `components/reservation/__tests__/FinanceSection.mixed-method-payments.test.jsx` (6).
 - [x] `plugins/sas/__tests__/ReservationSasDialog.mixed-method-payments.test.jsx` (3).
 - [x] _(round 34)_ `components/__tests__/TenderLines.whole-and-blank-line.test.jsx` (4) — rules 7, 44.
+- [x] _(loop t24)_ `components/__tests__/TenderLines.initial-draft.test.jsx` (2) and
+      `plugins/sas/__tests__/ReservationSasDialog.tender-lines-kept.test.jsx` (4) — rule 59.
 - [x] _(round 34)_ `components/reservation/__tests__/FinanceSection.split-panel-stale.test.jsx` (1) — rule 32 reading.
 - [x] _(round 34)_ `plugins/sas/__tests__/ReservationSasDialog.split-reopen.test.jsx` (3) — rules 32, 45.
 - [x] _(round 34)_ `components/__tests__/PricingSummary.split-reste-badge.test.jsx` (2) — rule 16 reading.

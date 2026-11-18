@@ -15,8 +15,13 @@
  *   initialTenders:  [{ method, amountCents, internal }] | null — prefill (a correction); null = two lines
  *                    Espèces (caisse interne) + CB, or one cash line with `single`
  *   initialShortfallKind: 'due' | 'waived' | null — prefill of the shortfall choice
+ *   initialDraft:    the `draft` an earlier mount reported (onChange) — the lines exactly as the operator left them, typed or not,
+ *                    and the shortfall choice; takes precedence over `initialTenders`. A screen that unmounts the block (a failed
+ *                    recompute, a step back) passes it back, so nothing typed is lost; an untyped last line still shows what the
+ *                    others leave of the new `dueCents`, and a typed line that no longer fits is left as typed, for the meter to say
+ *                    (loop t24)
  *   single:          boolean — start with one line (collecting a reste)
- *   onChange:        ({ tenders, shortfall, canSubmit, receivedCents, gapCents }) → void
+ *   onChange:        ({ tenders, shortfall, canSubmit, receivedCents, gapCents, draft }) → void
  *   disabled:        boolean
  *   autoFocus:       boolean — focus the first amount when mounted
  *   whole:           boolean — the amount is paid whole, no shortfall choice (rule 44: the acompte, an installment);
@@ -74,15 +79,17 @@ export function tenderFigures(lines, dueCents) {
 }
 
 export default function TenderLines({
-  dueCents, methods, initialTenders = null, initialShortfallKind = null, single = false, onChange, disabled = false, autoFocus = false,
+  dueCents, methods, initialTenders = null, initialShortfallKind = null, initialDraft = null, single = false, onChange, disabled = false, autoFocus = false,
   whole = false, noCaisse = false, shortfallKinds = DEFAULT_SHORTFALL_KINDS,
 }) {
   const list = methods && methods.length ? methods : TENDER_METHODS;
   const labelOf = (value) => (list.find((m) => m.value === value) || { label: value }).label;
   // D2 — cash goes to the caisse interne by default; not where the amount is paid whole (rule 44).
   const cashInternal = !whole && !noCaisse;
-  const [lines, setLines] = useState(() => seedLines(initialTenders, single, cashInternal));
-  const [shortKind, setShortKind] = useState(initialShortfallKind);
+  const [lines, setLines] = useState(() => (initialDraft && Array.isArray(initialDraft.lines) && initialDraft.lines.length > 0
+    ? initialDraft.lines.map((l) => ({ ...l }))
+    : seedLines(initialTenders, single, cashInternal)));
+  const [shortKind, setShortKind] = useState(initialDraft ? initialDraft.shortKind ?? null : initialShortfallKind);
   const firstAmount = useRef(null);
   const figures = useMemo(() => tenderFigures(lines, dueCents), [lines, dueCents]);
   const { autoIndex, autoCents, gapCents, receivedCents, unreadable, amounts } = figures;
@@ -104,6 +111,7 @@ export default function TenderLines({
       canSubmit,
       receivedCents,
       gapCents,
+      draft: { lines, shortKind },
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [lines, shortKind, dueCents]);
