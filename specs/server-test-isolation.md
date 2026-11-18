@@ -149,6 +149,20 @@ being on the preload's lists fails the run once the suite executes the read (rul
    3rd, the 9th and the last day of 2026-11, 2026-12, 2027-01, 2027-02, 2027-03, 2027-10 and 2028-02, at 09:00Z and
    22:30Z (56 runs), and on 62 consecutive days from 2026-11-05; red before on 2026-11-09 (1), 2026-12-01 and 2026-12-03
    (5). The 274 server files that read the tourist tax are green on the same 56 runs.
+   **Reading of 2026-11-18 (stabilisation loop t17, N17-1).** A date built from today can also hang on the year: a label
+   that names the year only when a day is outside the reference year (`datesTaken.shortDate`) read « 28/12 → 01/01/2027 »
+   for a stay 40 to 44 days out from 18/11, and `devis-held-dates` (« dd/mm → dd/mm ») failed from 18/11 to ~21/11 (also on
+   master); `devis-closed-dates` had the same window. Both now build the expected label from their own dates
+   (`datesTakenFixture.dayLabel`, the year said when a day is outside the document's start year, as
+   `closureConflictsFixture.dayLabel` already did), so the assertion is exact whatever today is. Every other test asserting
+   a « dd/mm » label from today's dates was checked: the dashboard title and the incoming-payment and caution labels never
+   name a year, the closure and link labels already accept or derive it. Proof: both files green with the clock at 19/11,
+   21/11, 23/11 and 30/12/2026, red before on 19/11 (1) and 21/11 (2). The same root outside labels (loop t17 verify
+   O-V17-3): `incoming-payments` asked the finance dashboard for the month of `today − 200 days`, outside the exercise from
+   1 January to mid-July; it now asks another month of today's year. Green with the clock at 18/11 and 31/12/2026, 01/01,
+   31/01, 01/02, 10/03, 15/07 and 31/12/2027 (red before from 01/01 to 15/07/2027). Every other test deriving a month or a
+   year from a day offset reads it from that same day (`trop-percu-refund-books`, `email-template-when-sentence`,
+   `payment-link-withdraw`, `stay-dates-guard`).
 
 7. **A PR adding a literal date to a test is told so, on the line** (added 2026-10-30, audit R8 M-1, the guard
    audit R7 proposed). `scripts/check-test-dates.mjs --base <ref>` reads only the test lines a PR adds (files of
@@ -497,6 +511,26 @@ being on the preload's lists fails the run once the suite executes the read (rul
    unchanged: a detached instance is what the systemd units it stands for do. *Why:* a cut-off
    `hosting-lifecycle.integration.test.js` left its GuestFlow instance listening under ppid 1 and its `cp-h1-*` tree
    (≈ 1.6 GB) in the temp directory: the `finally` that stops it never ran.
+21. **A client test never inherits a mock another test set** (added 2026-11-17, flaky `InstallmentPlanCard`).
+   `client/vitest.config.js` sets `mockReset: true`: before each test every mock goes back to the implementation given
+   to `vi.fn(impl)` and loses every `mockReturnValue` / `mockResolvedValue` / `mockRejectedValue` / `mockImplementation`
+   and every pending « once » answer set since. A default a whole file needs is therefore written as `vi.fn(impl)` (in
+   the `vi.mock` factory or at the top of the file), or set in a `beforeEach` — never as `vi.fn().mockResolvedValue(x)`,
+   which the reset empties. State a module keeps across tests (a registry that only grows) is reloaded per test
+   (`vi.resetModules()` + `await import`). `npm run test:shuffle` runs the suite in a random order to find what still
+   depends on it; like the rule 11 sweep it is manual, never part of CI. *Why:* `vi.clearAllMocks()` clears the calls,
+   not the implementations — a `mockRejectedValue('Échéance 2 : date passée…')` of one test answered an extra call of the
+   next one on a loaded runner, and 222 files carried that pattern.
+22. **A file that opens many databases, or replays one seed per case, builds it once** (added 2026-11-18, loop t19 —
+   PR #1054's server shards were cancelled at their 15-minute cap). A fresh database pays the boot migrations (~26 ms
+   on `schema.sql` since the pricing lines migration, about 0.25 ms per `ALTER TABLE`); a file that builds one per case
+   builds the migrated base once and opens a copy per case (`new Database(base.serialize())`); a table-driven matrix
+   whose cases share one seeded state seeds it once per test under a `SAVEPOINT` and rolls each case back to it. The
+   cases, their inputs and their assertions do not change: `refund-before-cancellation` (180 databases, 9.0 → 2.1 s
+   locally) and `fiche-preview-save-matrix` (one seed per platform × moment instead of per gesture: the same 298 saved
+   and 120 refused cells, 13.0 → 6.7 s). The same round found the larger cause in the application, not in the tests:
+   one fiche save prepared `SELECT * FROM reservations WHERE id = ?` dozens of times, fixed by the handle-wide
+   statement cache of specs/pricing-components.md rule 48 (reading of 2026-11-18).
 
 **Edge cases:**
 - A targeted `node --test <file>` used to open and migrate `server/guestflow.db` for 389 test files (audit R2,
@@ -532,6 +566,7 @@ being on the preload's lists fails the run once the suite executes the read (rul
 | `tests/setup/` | `isolateDefaultDb.js` | T | Rule 14: loads the guard. |
 | `tests/` | `test-preload-real-qonto-guard.unit.test.js` | C | Pins rule 14 in child processes that never get past the guard. |
 | `tests/`, `plugins/hourly-resources/tests/` | the three offenders | T | Rule 3. |
+| `tests/` | `refund-before-cancellation.unit.test.js`, `fiche-preview-save-matrix.unit.test.js` | T | Rule 22: the migrated base built once and copied per case; the matrix seeded once per test under a savepoint. |
 | `package.json` | `test` script | T | `--require ./src/tests/setup/isolateDefaultDb.js`; `--test-timeout=60000` and the exit watchdog (rule 5); the `spec` and completeness reporters (rule 10). |
 | `control-plane/server/package.json` | `test` script | T | `--test-timeout=180000` and the exit watchdog (rule 5); the `spec` and completeness reporters (rule 10); `--require` of the Qonto guard (rule 14) and of `fileTempRoot.js` (rule 20). |
 | `control-plane/server/src/tests/setup/` | `fileTempRoot.js`, `reapTempRoot.js` | C | Rule 20: the test file's temp root and its reaper; instances whose pid file lies in the root are killed and the root removed at exit or at the file's death. |
@@ -553,7 +588,7 @@ being on the preload's lists fails the run once the suite executes the read (rul
 
 ### 4.2 Client side
 
-API, data model and UI are unchanged. Rules 11 and 17 only:
+API, data model and UI are unchanged. Rules 11, 17 and 21 only:
 
 | Layer | File | T/C | Responsibility in this change |
 |---|---|---|---|
@@ -561,6 +596,9 @@ API, data model and UI are unchanged. Rules 11 and 17 only:
 | `src/` | `setupSlowScheduler.js` | C | Delays every `setImmediate` (React's scheduler) by `SCHED_DELAY` ms, and drains the delayed ones before each file's jsdom is torn down. |
 | `client/` | `package.json` | T | `test:slow-scheduler` script. |
 | `client/` | `vitest.config.js` | T | Rule 17: `testTimeout: 30000` for every test. |
+| `client/` | `vitest.config.js` | T | Rule 21: `mockReset: true`. |
+| `client/` | `package.json` | T | Rule 21: `test:shuffle` script. |
+| `src/**/__tests__/` | the 25 files that leaned on a lasting mock answer, and `PlatformChip.display-name` | T | Rule 21: `vi.fn(impl)` defaults; a fresh `constants/platforms` per test (tests only, no plugin version bump). |
 | `src/` | `setupTests.js` | T | Rule 17: `configure({ asyncUtilTimeout: 5000 })` for every `findBy*` / `waitFor`. |
 | `src/**/__tests__/` | the rule-16 files | T | Rule 17: per-test timeouts dropped (tests only, no plugin version bump). |
 | `src/**/__tests__/` | `VatRegimeSwitchDialog.switch`, `SupportAccessBanner.states`, `LazyPage.loading`, `UpdateAvailableAlert`, `EmailSettingsPage.identity`, `EmailSettingsPage.social-links`, `PlatformAccountsPage`, `ReconciliationPage.filters`, `TariffRecipeCard`, `TariffRecipeCard.cleaning-fee`, `TariffRecipeCard.extra-guest-config`, `TariffRecipesPage`, `SettingsGoogleCalendarSection`, `ResourcePlanningPage.stale-bookings`, `ReservationSasDialog.plugins`, `CompensationsPage` | T | Await the post-condition (tests only, no plugin version bump). |
@@ -569,6 +607,8 @@ Server side, rule 11: `tests/client-effect-race-sweep.unit.test.js` (C) pins the
 delay, and the sweep's absence from the normal config and from every CI workflow.
 Server side, rule 17: `tests/client-test-budget.unit.test.js` (C) pins the two budgets and the rule-16 files'
 dropped timeouts.
+Server side, rule 21: `tests/client-mock-reset.unit.test.js` (C) pins `mockReset`, the shuffle script and its
+absence from CI.
 
 ## 7. Test plan
 
@@ -614,6 +654,14 @@ dropped timeouts.
   test` preloads `fileTempRoot.js` and the lifecycle integration test requires it first. The two cut-offs were red with
   an empty preload (the instance outlived its file). Replayed on the real `hosting-lifecycle.integration.test.js`: its
   file process SIGKILLed 3 s in, with its instance up, left no process and an empty `TMPDIR`.
+- [x] Rule 21 (2026-11-17): `server/src/tests/client-mock-reset.unit.test.js` (3 tests) — `mockReset: true` in
+  `client/vitest.config.js`, the `test:shuffle` script, and the shuffle absent from the normal config and every workflow;
+  the first 2 red on master. Turning the reset on failed 72 tests in 25 client files, each one leaning on a
+  `vi.fn().mockResolvedValue(x)` default the reset empties; rewritten as `vi.fn(() => Promise.resolve(x))` (and the
+  `mockReturnValue` / `mockRejectedValue` / `mockImplementation` forms alike), the whole suite is green: 906 files, 4 112
+  tests. Four `npm run test:shuffle` runs (seeds 7919 to 31676): one order-dependent test found,
+  `PlatformChip.display-name` (the display names of a previous test already loaded), fixed by a fresh module per test;
+  the four seeds then green.
 
 ## 8. Out of scope
 

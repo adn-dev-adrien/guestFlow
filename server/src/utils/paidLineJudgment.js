@@ -15,6 +15,9 @@
  *   wayBack(db, reservationId, opts) / reopenedCredit(db, reservationId, opts) → `{ settle() }`: a write that bills a paid line again or frees
  *                                         its money (rules 109, 118), a refund on the trop-perçu deleted (rule 119), follows rule 104's credit
  *   owedBackByKey(db, reservationId)    → { [key]: cents } the paid lines whose freed money is owed back now (open `lineLowered`)
+ *   paidCustomKeys(row) / paidLineRenameRefusal(row, renames) → the `custom:<label>` keys the claims name, and the 409 `LINE_PAID_RENAMED`
+ *                                         (« son libellé ne change pas ») of a fiche save renaming one: a free line is keyed by its label, so the
+ *                                         money it holds would no longer find it (the arrival recap would ask it again — loop t11 S11-1, rule 123)
  *   begin(db, reservationId)            → `{ finish({ overpaid, forced, lineDiscounts, holdOwed }) }`, taken before the write; `finish`, called after the
  *                                         write inside the same transaction, answers the refusal that rolls it back, or null (`overpaid`: the
  *                                         save is about to answer the trop-perçu formula's 409 OVERPAID — only a removal is refused before it;
@@ -32,13 +35,17 @@
  *       nothing absorbs is a trop-perçu the operator confirms, then owed back (`lineLowered` obligation), whatever the channel.
  */
 const { toCents } = require('./pricing/money');
-const { settledByKey } = require('./pricing/storedLines');
+const { settledByKey, extraLineKey } = require('./pricing/storedLines');
 const { parseNotes } = require('./midStayExtras');
 const { isDirectChannel } = require('./platformNameFormat');
 const { readComplementPaidSplit } = require('./complementPaidSplit');
 
 const PAID_LINE_REMOVED = 'Ligne déjà payée : elle peut être offerte, pas retirée.';
 const LINE_REFUNDED = 'Ligne remboursée : la revendre comme une nouvelle ligne.';
+// Loop t11 S11-1 (rule 123) — a paid free line is named by its label: renamed, the money it holds would no longer find it.
+const PAID_LINE_RENAMED = 'Ligne déjà payée : son libellé ne change pas.';
+// Loop t12 S12-1 (rule 123) — a free line renamed onto the label of another free line of the stay would share its key, and with it its payment.
+const LINE_LABEL_TAKEN = 'Libellé déjà utilisé sur ce séjour.';
 // Reception-only: the rule-18 answer itself, no amount and no refund word (reception-role-checkin-only rule 18).
 const LINE_OWED = 'Ligne déjà payée : à voir avec l’administrateur.';
 const eurosText = (cents) => `${(cents / 100).toFixed(2).replace('.', ',')} €`;
@@ -71,6 +78,31 @@ function claimsByKeyCents(row, { notesOnly = false } = {}) {
   const complement = notesOnly ? null : platformComplementClaims(row);
   for (const line of complement || []) byKey[line.key] = (byKey[line.key] || 0) + Math.round(Number(line.cents));
   return byKey;
+}
+
+// Rule 123 (loop t11 S11-1) — the custom line keys the stay's claims name (notes, a platform stay's collected arrival complement): the fiche
+// greys the label of those lines (`editLock.paidCustomOptionIds`).
+function paidCustomKeys(row) {
+  return row ? Object.keys(claimsByKeyCents(row)).filter((key) => key.startsWith('custom:')) : [];
+}
+
+// Rule 123 — the refusal of a save renaming a paid free line (`renames`: the fiche's `[{ from, to }]`, text alone changed), or null. A case or
+// spacing change keeps the key and passes.
+function paidLineRenameRefusal(row, renames) {
+  const paid = new Set(paidCustomKeys(row));
+  const keyOf = (label) => extraLineKey({ isCustom: true, description: label });
+  const hit = (renames || []).some(({ from, to }) => paid.has(keyOf(from)) && keyOf(to) !== keyOf(from));
+  return hit ? { status: 409, body: { error: PAID_LINE_RENAMED, code: 'LINE_PAID_RENAMED' } } : null;
+}
+
+// Rule 123 — the refusal of a save renaming a free line onto another stored free line's label (`lines`: the posted lines' `{ customOptionId,
+// description }`, `renames`: the fiche's `[{ id, from, to }]`), or null. A case or spacing change of its own label keeps its key and passes.
+function labelTakenRefusal(lines, renames) {
+  const keyOf = (label) => extraLineKey({ isCustom: true, description: label });
+  const stored = (lines || []).filter((line) => line && line.customOptionId != null);
+  const hit = (renames || []).some(({ id, from, to }) => keyOf(to) !== keyOf(from)
+    && stored.some((line) => Number(line.customOptionId) !== Number(id) && keyOf(String(line.description || '')) === keyOf(to)));
+  return hit ? { status: 409, body: { error: LINE_LABEL_TAKEN, code: 'LINE_LABEL_TAKEN' } } : null;
 }
 
 function notesOnKey(db, reservationId, key) {
@@ -441,6 +473,6 @@ function reopenedCredit(db, reservationId, { quoteOf, midStay = null } = {}) {
 }
 
 module.exports = {
-  begin, wayBack, reopenedCredit, notesOnKey, noteExcessCents, noteExcessByKey, refundedLoweredLines, refundedLoweredCents, platformComplementClaims,
+  paidCustomKeys, paidLineRenameRefusal, labelTakenRefusal, begin, wayBack, reopenedCredit, notesOnKey, noteExcessCents, noteExcessByKey, refundedLoweredLines, refundedLoweredCents, platformComplementClaims,
   owedBackByKey, settledLoweredCents, PAID_LINE_REMOVED, LINE_REFUNDED,
 };

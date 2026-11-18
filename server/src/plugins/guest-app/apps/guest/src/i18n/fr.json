@@ -190,7 +190,8 @@
  "smartHome.rooms": "Pièces",
  "smartHome.lights": "Éclairage",
  "smartHome.rain": "Pluie",
- "smartHome.energy": "Électricité",
+ "smartHome.grid": "Réseau",
+  "smartHome.energy": "Électricité",
  "smartHome.today": "aujourd’hui",
  "smartHome.lastHour": "dernière heure",
  "smartHome.last24h": "sur 24 h",
@@ -205,8 +206,5 @@
  "smartHome.switchingOff": "Extinction…",
  "smartHome.readOnly": "Consultation",
  "smartHome.noAnswer": "La maison ne répond pas. Réessayer dans un instant.",
- "smartHome.trend.up": "en hausse",
- "smartHome.trend.down": "en baisse",
- "smartHome.trend.flat": "stable",
- "smartHome.foot": "Mesures transmises par la maison toutes les minutes."
+ "smartHome.foot": "Mesures transmises par la maison dès qu’elles changent."
 }

@@ -64,7 +64,7 @@ function credit(id, cents, over = {}) {
   };
 }
 
-function build({ connected = true, qontoConfigured = true, startDate = dayAt(-22), mark = applyPaymentMark, withQonto, read, mollie = null, settings: extraSettings = {} } = {}) {
+function build({ connected = true, qontoConfigured = true, startDate = dayAt(-22), mark = applyPaymentMark, withQonto, read, mollie = null, mollieStatements = null, settings: extraSettings = {} } = {}) {
   const store = new Map([['reconciliationBankAccountId', 'acc-1'], ['reconciliationStartDate', startDate], ...Object.entries(extraSettings)]);
   const settings = { get: (k) => store.get(k) || '', set: (k, v) => store.set(k, v) };
   const transactions = createBankTransactionsModel(db);
@@ -72,7 +72,7 @@ function build({ connected = true, qontoConfigured = true, startDate = dayAt(-22
   const writer = createFicheWriter({ model, applyPaymentMark: mark, computePlatformCommission, reservations, installments: require('../../../models/installmentsModel').buildModel(db), takeBackRefusal });
   const calls = { qonto: 0, read: 0 };
   const controller = createReconciliationController({
-    db, settings, transactions, model, writer, mollie,
+    db, settings, transactions, model, writer, mollie, mollieStatements,
     splits: createSplitsModel(db), mollieSettlements: createSettlementsModel(db),
     read: read || (async () => { calls.read += 1; return { ok: true }; }),
     connected: () => connected,

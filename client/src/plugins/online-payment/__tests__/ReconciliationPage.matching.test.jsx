@@ -23,7 +23,7 @@ const group = proposed();
 group.proposal = {
   ...group.proposal, needsShares: true, confidence: 'verifier', confidenceLabel: 'à vérifier', reason: 'Versement groupé de 2 séjours · montants estimés',
   pairs: [{ transactionId: 'tx-1', reservationId: 7, ledgerKey: 'balance', amountCents: 40000 }, { transactionId: 'tx-1', reservationId: 8, ledgerKey: 'balance', amountCents: 19658 }],
-  alsoCovers: [{ reservationId: 8, ledgerKey: 'balance', label: 'Versement Booking', clientName: 'Camille Lefevre' }],
+  alsoCovers: [{ reservationId: 8, ledgerKey: 'balance', label: 'Versement Booking', clientName: 'Camille Lefevre', clientHeading: 'Camille Lefevre' }],
 };
 const payload = (over = {}) => ({
   lastReadAt: '2026-10-23T08:00:00.000Z', lastError: null, startDate: '2026-10-01', counts: COUNTS, view: 'todo', filter: null,

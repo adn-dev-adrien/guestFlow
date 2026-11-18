@@ -529,13 +529,19 @@ summary::-webkit-details-marker{display:none}
 .smart-home .sh-room .t b{font:700 28px/1 var(--body);font-variant-numeric:tabular-nums;letter-spacing:-.02em}
 .smart-home .sh-room .t i{font:600 15px var(--body);font-style:normal;color:var(--ink-soft)}
 .smart-home .sh-room .t.na{font:600 14px var(--body);color:var(--ink-soft)}
+.smart-home .sh-room .mm{font:500 12.5px var(--body);color:var(--ink-soft);font-variant-numeric:tabular-nums}
+.smart-home .sh-grid{display:grid;gap:6px}
+.smart-home .sh-grid .v{font:700 26px/1.05 var(--body);font-variant-numeric:tabular-nums;letter-spacing:-.02em}
+.smart-home .sh-grid .dir{display:inline-flex;align-items:center;gap:6px;font:600 14px var(--body)}
+.smart-home .sh-grid .dir svg{width:16px;height:16px}
+.smart-home .sh-grid .na{font:600 14px var(--body);color:var(--ink-soft)}
+.smart-home .sh-grid.export{background:var(--ok-soft);border-color:transparent}
+.smart-home .sh-grid.export .v,.smart-home .sh-grid.export .dir{color:var(--ok)}
+.smart-home .sh-grid.import{background:var(--bad-soft);border-color:transparent}
+.smart-home .sh-grid.import .v,.smart-home .sh-grid.import .dir{color:var(--bad)}
+.smart-home .sh-grid.balanced .dir{color:var(--ink-soft)}
 .smart-home .sh-room .h{font:500 12.5px var(--body);color:var(--ink-soft);font-variant-numeric:tabular-nums}
 .smart-home .stale{opacity:.62}
-.smart-home .trend{display:inline-grid;place-items:center;width:22px;height:22px;border-radius:999px;background:var(--chip);color:var(--ink-soft);margin-left:auto;align-self:center}
-.smart-home .trend svg{width:14px;height:14px}
-.smart-home .trend.up{background:var(--warn-soft);color:var(--warn)}
-.smart-home .trend.down{background:#E4EDF3;color:#31556E}
-.night .smart-home .trend.down,.smart-home.night .trend.down{background:#1d2a33;color:#9cc0d8}
 .smart-home .sh-lights{border:1px solid var(--line);border-radius:4px;background:var(--card)}
 .smart-home .light{display:flex;align-items:center;gap:12px;padding:12px 10px 12px 12px;min-height:68px}
 .smart-home .light+.light{border-top:1px solid var(--line)}

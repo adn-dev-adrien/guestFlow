@@ -1,7 +1,7 @@
 {
   "id": "guest-app",
   "name": "Application clients",
-  "version": "1.2.0",
+  "version": "1.3.0",
   "description": "L’application « Mon séjour » des clients : livret d’accueil, portail, Soliomap et boutique du séjour.",
   "icon": "door",
   "surfaces": [
@@ -73,7 +73,19 @@
       "Studio : écran « Domotique » par logement pour choisir les blocs, les capteurs, les noms et les lumières pilotables, avec l’aperçu des vraies mesures.",
       "Nécessite le SDK 2.28 de GuestFlow (échange des données de la maison entre plugins)."
     ],
+    "1.1.1": [
+      "Application « Mon séjour » : bibliothèque d’icônes et outils de construction passés à leurs versions suivantes, sans changement visible.",
+      "Prévu pour le SDK 2.28 de GuestFlow."
+    ],
+    "1.1.2": [
+      "Studio du livret : bibliothèques et outils de construction passés à leurs versions suivantes, sans changement visible.",
+      "Prévu pour le SDK 2.28 de GuestFlow."
+    ],
     "1.2.0": [
+      "Domotique : minimum et maximum du jour sous chaque pièce quand Sowel les tient, nouveau bloc « Réseau » (échange avec EDF, en vert quand le surplus repart, en rouge quand la maison consomme), plus de flèche de tendance ; seules les valeurs tenues par Sowel sont affichées.",
+      "Prévu pour le SDK 2.28 de GuestFlow."
+    ],
+    "1.3.0": [
       "Une case « arrivé » cochée avant le jour d’arrivée ne fige plus une commande : elle reste modifiable à l’arrivée.",
       "Une commande peut être encaissée à l’arrivée ou au départ, et une commande d’un séjour annulé est marquée annulée ; aucune donnée existante n’est modifiée.",
       "Une commande de la boutique forme sa propre ligne du séjour ; les lignes déjà commandées gardent leur prix.",

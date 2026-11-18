@@ -29,7 +29,8 @@ test('the session reads « TVA 20 % », a stored drink « TVA 5,5 % »', async (
   api.getResourceVisit.mockResolvedValue(visitPayload({ lines: [sessionLine(), STORED_DRINK] }));
   render(<ResourceArrivalDialog open bookingId={5} onClose={() => {}} onDone={() => {}} />);
   expect(await screen.findByText('TVA 20 %')).toBeInTheDocument();
-  expect(screen.getByText('1 × 4,00 € · TVA 5,5 % · À payer')).toBeInTheDocument();
+  // The drink is drawn by the SDK's « Proposés à l'arrivée » step, whose code arrives on first render (loop t19 A19-1).
+  expect(await screen.findByText('1 × 4,00 € · TVA 5,5 % · À payer')).toBeInTheDocument();
 });
 
 test('a line served without a rate prints none', async () => {

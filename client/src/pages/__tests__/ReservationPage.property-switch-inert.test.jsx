@@ -2,7 +2,7 @@
 // occupancy, the fiche takes no input: an option ticked in that gap would be cleared by the switch's own reset.
 import React from 'react';
 import { vi } from 'vitest';
-import { act, render, waitFor } from '@testing-library/react';
+import { act, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router';
 import { ThemeProvider } from '@mui/material/styles';
 import theme from '../../theme';
@@ -85,12 +85,20 @@ test('the fiche is read-only and inert from the switch until the new options are
   act(() => { switched = ctx().handleReservationPropertyChange(2); });
 
   await waitFor(() => expect(ctx().formReadOnly).toBe(true));
+  const save = screen.getByRole('button', { name: 'Enregistrer' });
+  expect(save).toBeDisabled();
   expect(document.querySelector('fieldset[aria-busy="true"]')).not.toBeNull();
   expect(document.querySelector('fieldset[inert]')).not.toBeNull();
+
+  // Every save-first action (PDF, payment request, « Accepté », unsaved-changes dialog) goes through this entry point.
+  let refused;
+  await act(async () => { refused = await ctx().saveThenRun(() => {}); });
+  expect(refused).toBe(false);
 
   await act(async () => { releaseOccupancy(); await switched; });
   await waitFor(() => expect(ctx().formReadOnly).toBe(false));
   expect(document.querySelector('fieldset[aria-busy="true"]')).toBeNull();
+  expect(api.createReservation).not.toHaveBeenCalled();
 });
 
 test('a switch that fails still gives the fiche back', async () => {

@@ -677,7 +677,7 @@ Optional: a plugin that declares nothing reads « Actif ».
     only refund-register exposure of 2.31.0. *(Reading of 2026-11-17, loop t10 A10-2:* `refundObligationsModel` (`open`, `openFor`) was removed from
     the unreleased 2.31.0 before it shipped: nothing consumed it, and its `open` was a raw insert into the refund register that would let a plugin
     open an obligation outside `paidLineJudgment` and the refund dialog's judgment.)
-    Tests: `pricing-money-variants`, `plugin-core-hardening-floor`, `plugins-sdk-core-module-floor`.
+    Tests: `pricing-money-variants`, `plugin-core-hardening-floor`, `plugins-sdk-core-module-floor`, `mollie-cents-shared-helper` (2, the Mollie client reads cents through the shared helper).
 54. *(Added 2026-11-15, end review R3-3, R3-10, R3-11; specs/pricing-components.md rules 53, 74, 86, specs/outside-booking-sas.md rules 35-42,
     SDK 2.32.0.)* **A plugin sells outside a stay, and suggests articles, through the core.** SDK 2.32.0 adds `coreModule('standaloneSale')`
     (quote / sell / offerLine / removeLine / pay / cancel / receive / documentOf / paymentsOf of a document with no reservation),
@@ -686,6 +686,36 @@ Optional: a plugin that declares nothing reads « Actif ».
     event `standaloneSale.sold` (after the commit, an observer), and the client exports `SuggestedArticlesStep`, `SalePaymentLink`
     and `StandaloneSaleDialog` (optional `client` prop, outside-booking-sas rule 48)
     (`client/src/plugins/sdk/index.js`; `StaySalesSection` is SDK 2.30.0's). guest-app and hourly-resources range `^2.32.0`.
+    _Reading of 2026-11-18 (loop t19 A19-1):_ the four sale blocks are handed out lazily (`components/LazySaleComponents.jsx`, the
+    LazyReportCharts pattern): same names, same props, their code fetched on first render (« Vente hors séjour » on its first `open`), so
+    the SDK no longer puts them in every first page (specs/inte-performance.md rule 4: 315.3 → 309.1 kB gzip measured locally, budget
+    313.3 kB). Test `LazySaleComponents.lazy`.
+    _Reading of 2026-11-18 (loop t20 UI20-1):_ fetched on first render, a block arrived one round trip after its dialog had drawn its own
+    content and pushed it down (+186 px in the outside visit's arrival at 1280 px, « Récapitulatif » and « Encaisser » 126 px lower on a
+    phone, +56 px in the departure SAS). A dialog that renders a sale block now starts the four imports when it opens, in parallel with
+    its own data, and shows its content once both are there: `useSaleComponentsReady(open)` (client export of SDK 2.32.0, its rule 55
+    floor row in `plugin-client-sdk-floor`) answers false until the code is loaded (or its loading failed: `React.lazy` retries the import and the error reaches the
+    nearest boundary — the plugin route's `ChunkBoundary` for the arrival dialog, the slot's `ContributionBoundary` for the SAS, which
+    closes the dialog and shows « Module mis à jour. Recharger »), and the dialog's loading state covers the wait — `ResourceArrivalDialog` (body, phone « Reste à payer » bar, « Nouvelle
+    vente », « Valider l’arrivée ») and `ReservationSasDialog` (body and footer). The imports are made once per session
+    (`preloadSaleComponents()`, memoised, a failure tried again); a block whose code is already there renders on its first paint without
+    suspending, so nothing lands under drawn content and the Suspense fallback stays `null`. « Vente hors séjour » opens on its click's
+    own paint. Initial JavaScript 309.4 kB gzip (budget 313.3 kB). Tests `LazySaleComponents.preload`, `LazySaleComponents.consumers`
+    (the consumers enumerated from the code).
+    _Reading of 2026-11-18 (loop t21 UI21-1):_ the same holds for a block that waits for a **second** request of its dialog — it is drawn
+    with the content in a pending state of the place it takes, and the answer fills it. The members, enumerated from the code (a file that
+    asks a quote/preview hook and renders a sale block): `ResourceArrivalDialog` and `ResourceBookingDialog` — the « Facture » block of
+    « Payé maintenant » (outside-booking-sas rule 54 reading of 2026-11-18); `ReservationSasDialog` — the « Séjour » step reads the
+    preview's `stayPayment`, so until it answers the page takes its shape from the SAS payload's served block (the platform notice, the
+    « Acompte » / « Solde » lines) with every amount « — » (`SasStayPaymentPage` prop `pending`), the « Calcul du total » bar of both recaps
+    keeps its 2 px while idle, and the plan's answer to whether the stay is asked is applied before paint (`useLayoutEffect`), so the steps
+    and headings never show the served answer for a frame; `StandaloneSaleDialog` — the « Total » row is drawn with the first article, « — »
+    until the quote answers. Not members: `StaySalesSection`, `SuggestedArticlesStep` and `SalePaymentLink` render props only (their
+    search list answers a typed query); the fiche's `ExtraSalesPanel` takes the fiche's own read (`initialDetail`, rule 31) and asks alone
+    only when that read carried none (no stay, or a quote that failed). What a gesture asks (a line added, a tender changed, the counter's
+    payment once its total is known) is the answer to that gesture, dimmed while pending — not a late block. Test
+    `SaleDialogs.pending-blocks` (the dialogs enumerated from the code equal the table; each row holds the second request, finds its block
+    pending with the content, then filled).
     **The SDK history records what each shipped minor exposed:** v4.1.0 shipped SDK 2.27.0 without `vat`, `accountingOutput`, `legacyBucketSplit`,
     `refundJournal`, `csvJournal`, `salesJson` and `synthesisExporter`, and neither SDK 2.28.0 (the home-data extension points,
     specs/guest-app-home-automation.md, merged first) nor SDK 2.29.0 (the Mollie tranches and journal, rule 51, merged first) recorded them,
@@ -800,7 +830,10 @@ No new npm dependency. `googleapis` and `qrcode` stay in `server/package.json`.
 
 | Layer | File | T/C | Responsibility |
 |---|---|---|---|
-| `plugins/sdk/` | `index.js` | C | What a plugin may import (rule 16) |
+| `plugins/sdk/` | `index.js` | C | What a plugin may import (rule 16); the four sale blocks re-pointed to their lazy wrappers and `useSaleComponentsReady` (rule 54, readings of 2026-11-18, loops t19 A19-1 and t20 UI20-1) |
+| `components/` | `LazySaleComponents.jsx` | C | The four sale blocks as the SDK hands them out, their code apart from the first page; `preloadSaleComponents()` (once per session) and `useSaleComponentsReady(active)`; a block already loaded renders without suspending (rule 54, readings of 2026-11-18) |
+| `plugins/hourly-resources/`, `plugins/sas/` | `ResourceArrivalDialog.jsx`, `ReservationSasDialog.jsx` | T | Start the sale blocks' code on open and show their content once it is there (rule 54, reading of 2026-11-18, loop t20 UI20-1) |
+| `plugins/hourly-resources/`, `plugins/sas/`, `components/` | `ResourceArrivalDialog.jsx`, `ResourceBookingDialog.jsx`, `BookingInvoiceBlock.jsx`, `ReservationSasDialog.jsx`, `SasStayPaymentPage.jsx`, `StandaloneSaleDialog.jsx` | T | A block that waits for a second request is drawn pending with the content and filled by the answer (rule 54, reading of 2026-11-18, loop t21 UI21-1) |
 | `plugins/sdk/` | `registry.js`, `useSlot.js`, `Slot.jsx` | C | Contributions by slot; the active ones (`usePlugin` once per module); lazy rendering in place |
 | `plugins/` | `index.js` | C | The list of client modules |
 | `plugins/weather-alerts/` | `index.js`, `SettingsWeatherSection.jsx`, `SasWeatherAlertPage.jsx`, `sasStep.jsx`, `__tests__/` | C (moved) | The settings card saves through `/api/plugins/weather-alerts/settings`; the SAS step loads its alerts |
@@ -933,6 +966,18 @@ still in the core. Server: 4,611 tests after, of which 37 are new. Client: 1,416
 - `components/sas/__tests__/ReservationSasDialog.plugins.test.jsx` (5) — the portal step without Sowel,
   with a Sowel key, and absent (rule 17); the weather step gated and shown (rule 13).
 - `components/__tests__/SettingsCompanySection.portal-code.test.jsx` (2) — rule 17.
+- `components/__tests__/LazySaleComponents.lazy.test.jsx` (6) — rule 54 (reading of 2026-11-18, loop t19 A19-1): the SDK exports are the
+  lazy wrappers, each renders the real block with its props, « Vente hors séjour » is not fetched until its first `open`.
+- `components/__tests__/LazySaleComponents.preload.test.jsx` (6) — rule 54 (reading of 2026-11-18, loop t20 UI20-1): an inactive
+  consumer starts nothing, an active one the four imports, once; once loaded every block is in the first paint. Each test of this file and of
+  `LazySaleComponents.lazy` takes a fresh module registry (`vi.resetModules` + `vi.doMock`), so the session-wide memoised imports never leak
+  from one test to the next and the outcome is the same in any order (loop t21 A21-1, shuffled seeds 1-12).
+- `components/__tests__/LazySaleComponents.consumers.test.jsx` (5) — rule 54 (loop t20 UI20-1): the consumers enumerated from the code
+  equal the table; each asks for the blocks when opened, keeps its content back until they are there, and starts nothing when closed.
+- `components/__tests__/SaleDialogs.pending-blocks.test.jsx` (9) — rule 54 (reading of 2026-11-18, loop t21 UI21-1): the dialogs that ask a
+  second request and render a sale block, enumerated from the code, equal the table; « Facture » (arrival, booking), « Séjour à régler »
+  (SAS) and « Total » (counter) are drawn pending with the content, then filled; the arrival's « Facture » through its four outcomes
+  (accepted, refused with a caption, silent, failed), each keeping the pending block's height (outside-booking-sas rule 54); unticking the box gives the reserved height back (a gesture resizes).
 
 ### E2E
 - `plugins/plugins-page.spec.js`: + Météo uninstalled with erasure, then reinstalled → the key is gone.

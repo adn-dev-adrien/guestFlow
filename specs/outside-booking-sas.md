@@ -562,6 +562,22 @@ once on the server by the refonte's components.
     own answer is neither refused nor failed (before: the same red message twice, or two « Réessayer »). The booking dialog already shows one: a
     refused draft has no price, hence no payment preview, and a failed one keeps its last price without a second message. Tests
     `ResourceArrivalDialog.invoice-answer`, `ResourceBookingDialog.invoice-answer`.
+    _Reading 2026-11-18 (loop t21, UI21-1):_ that answer always comes one quote after the content — the tender lines report their default card
+    line on mount, and only then is the payment asked — so the « Facture » block landed late and moved the dialog (+34 px at 1280 px in the
+    arrival: « Récapitulatif » and « Encaisser » 17 px up, the actions 17 px down; in the booking dialog « La facture se propose une fois le
+    paiement saisi. » first, then the checkbox). Both dialogs now draw the block with the content whenever « Payé maintenant » can invoice
+    (`qontoReady`, not the reception), **pending** until the answer for the payment typed comes: the offered state's checkbox, disabled, ticked
+    as the default card line ticks it, the address fields of a guest with no client record in place (`BookingInvoiceBlock` prop `pending`).
+    The answer fills it, and **every outcome keeps the pending block's height** while « Payé maintenant » can invoice (`BookingInvoiceBlock`
+    prop `reserve`: the pending block's height is measured before paint and kept as the block's minimum height): accepted → the checkbox
+    enabled; a refusal that is not silent (a VAT or tariff rule, rule 36, …) → its one-line reason, the space below it kept; « Caisse
+    interne » → its notice; a `silent` refusal → nothing shown, as before (UI3-5), the arrival's « Facture » section hidden in place
+    (`visibility: hidden`, `aria-hidden`) instead of removed; a failed answer → the block stays pending (checkbox disabled) beside
+    « Facture non vérifiée pour ce paiement. ». The booking dialog keeps the same height for its outcomes (its silent answer shows « La
+    facture se propose une fois le paiement saisi. »). Only a gesture changes the block's size (« Pas maintenant », another payment, or the operator ticking or unticking the box, which
+    drops the reserved height). A payment
+    no longer readable shows « La facture se propose une fois le paiement saisi. ». The commit waits for the answer as before. Test
+    `SaleDialogs.pending-blocks` (the four outcomes, table-driven, and the unticking gesture).
 55. **One money model for a document: every cent on a line or on no line** _(stabilisation loop t3, B3-1, B3-2, B3-3, 2026-11-16; completes rules 41,
     44, 49, 50, 52, 53 and refonte rules 72, 74, 75)_. Every cent a document received sits either on one of its lines or **on no line** — its
     *unallocated money*: a link paid above the reste (rule 41), net of what was given back or kept from it (`payment_allocations` with `lineRef` NULL).

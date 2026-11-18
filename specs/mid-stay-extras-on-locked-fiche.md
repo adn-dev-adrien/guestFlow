@@ -275,6 +275,8 @@ Decisions the spec did not cover, taken during implementation (2026-10-26):
 - **`editLock`** entries carry `reason` (`arrival` | `offered`) and, for a planning-card option,
   `lockedOccurrences` (the first `minQuantity` moments, which cannot be unchecked); `frozenCustomOptionIds`
   lists the persisted custom lines that are frozen — the fiche freezes custom lines by id, never by label.
+  `paidCustomOptionIds` (pricing-components rule 123, 2026-11-17, whatever the window) lists the custom lines a note or a
+  collected platform complement paid: their label is greyed and a rename is refused 409 `LINE_PAID_RENAMED`.
 - **Fiche.** Captions « Vendu à l'arrivée » / « Offerte » follow `reason`; « Personnes servies » is
   disabled on an arrival line; the price summary's routing chips are read-only and « Offrir » is hidden on
   frozen lines inside the window; the Neat retry/void buttons stay disabled on a locked fiche; the

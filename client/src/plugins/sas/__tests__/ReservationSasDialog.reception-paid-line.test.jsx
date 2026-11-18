@@ -16,7 +16,7 @@ vi.mock('../../../api', () => ({
     previewDepartureSas: vi.fn(),
     commitArrivalSas: vi.fn(),
     commitDepartureSas: vi.fn(),
-    getReservationWeatherAlerts: vi.fn().mockResolvedValue({ configured: false, resolved: false, department: null, alerts: [] }),
+    getReservationWeatherAlerts: vi.fn(() => Promise.resolve({ configured: false, resolved: false, department: null, alerts: [] })),
   },
 }));
 

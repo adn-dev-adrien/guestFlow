@@ -202,7 +202,10 @@ test('rule 21 — the dashboard tile ignores the period: the same figures whatev
   const year = tile({ period: 'fy' });
   assert.deepEqual(year, { amount: 300, clients: 1, nextDate: at(5), nextDateLabel: year.nextDateLabel });
   assert.match(year.nextDateLabel, /^\S+ \d{2}\/\d{2}$/);
-  assert.deepEqual(tile({ period: 'month', month: at(-200).slice(0, 7) }), year);
+  // Another month of the exercise (the calendar year here), never the previous year's: built from today's year, it holds on every day
+  // (loop t17 verify O-V17-3 — `at(-200)` left the exercise from 1 January to mid-July).
+  const otherMonth = `${TODAY.slice(0, 4)}-${TODAY.slice(5, 7) === '01' ? '02' : '01'}`;
+  assert.deepEqual(tile({ period: 'month', month: otherMonth }), year);
 });
 
 test('rules 21, 26 — the detail table is the same payload as GET /api/finance/incoming, the recent switch included', () => {

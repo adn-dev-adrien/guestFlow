@@ -18,7 +18,8 @@ vi.mock('../../api', () => ({
     getPlanningDays: vi.fn(async (range) => (await import('./planningDaysFixtures')).daysPayload(range)),
     // The server's date, in the week the clocks go back: the windows must still be 14 days long,
     // whatever the time zone the suite runs in (specs/ds-sweep-planning.md rule 28).
-    getToday: vi.fn().mockResolvedValue({ today: '2026-10-25' }),
+    // date-literal-ok: the server's own « today », mocked with the payload — the page compares nothing with the real calendar
+    getToday: vi.fn(() => Promise.resolve({ today: '2026-10-25' })),
   },
 }));
 
@@ -114,7 +115,7 @@ test('specs/plugins-phase-2-hosts.md rule 5: reload() reloads that contribution 
 
 test('specs/plugins-phase-2-hosts.md rule 5: a failed load says so with the contribution message, and the other cards render', async () => {
   const broken = {
-    pluginId: 'linen', key: 'laundry', rank: 100, load: vi.fn().mockRejectedValue(new Error('500')),
+    pluginId: 'linen', key: 'laundry', rank: 100, load: vi.fn(() => Promise.reject(new Error('500'))),
     Component: Card({ label: 'laundry' }), errorMessage: "Le linge n'a pas pu être chargé.",
   };
   const other = dayContribution('other', 'notes', 50, { [TODAY]: 'z' });

@@ -1,0 +1,1 @@
+- **Mollie — two card payments under one invoice are no longer merged** (`specs/mollie-rolling-reserve-and-incoming-payments.md` rule 33 reading, loop t11 B11-1): a second Mollie payment naming the same invoice number goes to the document's next card day of that amount, and a split already bound to a payment is never re-pointed.

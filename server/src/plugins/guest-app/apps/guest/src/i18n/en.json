@@ -190,7 +190,8 @@
  "smartHome.rooms": "Rooms",
  "smartHome.lights": "Lights",
  "smartHome.rain": "Rain",
- "smartHome.energy": "Electricity",
+ "smartHome.grid": "Grid",
+  "smartHome.energy": "Electricity",
  "smartHome.today": "today",
  "smartHome.lastHour": "last hour",
  "smartHome.last24h": "over 24 h",
@@ -205,8 +206,5 @@
  "smartHome.switchingOff": "Switching off…",
  "smartHome.readOnly": "View only",
  "smartHome.noAnswer": "The house is not answering. Try again in a moment.",
- "smartHome.trend.up": "rising",
- "smartHome.trend.down": "falling",
- "smartHome.trend.flat": "steady",
- "smartHome.foot": "Readings sent by the house every minute."
+ "smartHome.foot": "Readings sent by the house as soon as they change."
 }

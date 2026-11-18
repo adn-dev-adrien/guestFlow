@@ -54,7 +54,7 @@ const {
   storedMidStayLines, extraLineKey, parseBaseline, settledByKey,
 } = require('../utils/midStayExtras');
 const { isArrivalValidated } = require('../utils/pricing/stayClock');
-const { numberedLabel } = require('../utils/pricing/storedLines');
+const { numberRepeatedCustomLines } = require('../utils/pricing/storedLines');
 const { planMidStayNote } = require('../utils/midStayNotePlan');
 const establishmentClosuresModel = require('../models/establishmentClosuresModel');
 const { emit: emitPluginEvent } = require('../plugins/sdk/eventBus');
@@ -122,7 +122,7 @@ const { toReceptionReservationView, toReceptionReservationList, toReceptionPayme
 const {
   midStayExtrasWindow, arrivalLineFloors, arrivalExtrasViolations, extrasContentChanged,
 } = require('../utils/midStayExtrasWindow');
-const { matchStoredCustomLines } = require('../utils/storedCustomLines');
+const { matchStoredCustomLines, renamedCustomLineFacts, withoutRemovedLineFacts, pricedCustomLinesNamingRows } = require('../utils/storedCustomLines');
 const { withStoredLineContribs } = require('../utils/storedLineContribs');
 const {
   buildLiveCheckoutComplement, isComplementDeferred, mergedEndOfStayAmount, markCarriesEndOfStay, deferralRefusal, endOfStayAloneRefusal,
@@ -1225,6 +1225,17 @@ function sameStayAsSold(stored, body) {
     && num(stored.teens) === num(body.teens) && num(stored.babies) === num(body.babies);
 }
 
+// The engine's line facts of a stay for a save posting `postedLines`: a renamed free line reads its own facts under its new text (S13-1), a
+// new line typed under the text of a line the save removes reads none of the removed line's (S16-3 b). Shared by the save and its preview.
+function lineFactsForSave(reservationId, postedLines) {
+  const facts = stayRepository.lineFacts(reservationId);
+  if (!Array.isArray(postedLines) || postedLines.length === 0) return facts;
+  const stored = model.customOptionTexts(reservationId);
+  const renames = customTextChangesOf(reservationId, postedLines);
+  const renamed = renames.length === 0 ? facts : renamedCustomLineFacts(facts, renames, new Map(stored.map((line) => [Number(line.id), line.lineId])));
+  return withoutRemovedLineFacts(renamed, postedLines, stored);
+}
+
 // The custom lines of a fiche whose NAME alone differs from the stored one: [{ id, from, to }].
 function customTextChangesOf(reservationId, postedLines) {
   if (!Array.isArray(postedLines) || postedLines.length === 0) return [];
@@ -1328,6 +1339,16 @@ async function calculatePrice(req, res) {
   }
 
   const reservationId = Number(req.body.reservationId || 0);
+  // Rule 94 reading (loop t14 S14-1) — the fiche of a stay (stored or new) numbers a repeated free label as its save will, so a new
+  // « Bois » beside a stored one is priced as « Bois (2) » without the stored line's facts (`withTypedCustomTitles` keeps the typed text).
+  // A devis too (loop t15 S15-3): its write numbers them the same way.
+  const previewCustomOptions = numberedCustomLinesOf(reservationId, req.body.customOptions);
+  // Rule 94 reading (loop t14 S14-3) — a stored stay is previewed on the save's routing: its stored payment flags and, on a locked fiche, the
+  // window's pins (`midStayWindowRouting` + `pinStoredRouting`, the save's own functions).
+  const previewLines = previewRoutedLines(req, reservationId, previewCustomOptions);
+  const previewPaidFlags = reservationId > 0 && model.getRow(reservationId)
+    ? storedPaymentFlagsOf(model.getRow(reservationId), depositDisabledOf(reservationId, req.body.depositDisabled))
+    : { depositPaid: req.body.depositPaid, balancePaid: req.body.balancePaid };
   // A devis being edited locks its prices too, for as long as the quote is valid — same snapshot, same
   // engine inputs (specs/devis-extras-parity-and-price-lock.md §3 rule 13). The fiche sends `devisId`
   // so this preview shows exactly what the save will store; without it the operator saw today's
@@ -1374,13 +1395,13 @@ async function calculatePrice(req, res) {
     discountPercent: req.body.discountPercent,
     discountTarget: req.body.discountTarget,
     discountFixedAmount: fixedDiscountEuros(req.body.discountAmountCents),
-    lineFacts: reservationId > 0 ? stayRepository.lineFacts(reservationId) : {},
+    lineFacts: reservationId > 0 ? lineFactsForSave(reservationId, previewLines.customOptions) : {},
     customPrice: req.body.customPrice,
-    selectedOptions: req.body.selectedOptions,
-    customOptions: req.body.customOptions,
-    selectedResources: req.body.selectedResources,
-    depositPaid: req.body.depositPaid,
-    balancePaid: req.body.balancePaid,
+    selectedOptions: previewLines.options,
+    customOptions: previewLines.customOptions,
+    selectedResources: previewLines.resources,
+    depositPaid: previewPaidFlags.depositPaid,
+    balancePaid: previewPaidFlags.balancePaid,
     extraGuestSurchargeOffered: req.body.extraGuestSurchargeOffered,
     // specs/reservation-payment-ledger.md rule 46, reading of 2026-11-05 — a solde paid before its acompte: the acompte
     // still owed is judged from the stored one, as the save does, never from a figure an earlier preview answered.
@@ -1405,11 +1426,13 @@ async function calculatePrice(req, res) {
     lockedResourceLines: lockedPricing.lockedResourceLines,
     platform: req.body.platform,
     touristTaxInComplement: req.body.touristTaxInComplement,
-    autoOptionsInComplement: req.body.autoOptionsInComplement,
+    autoOptionsInComplement: previewLines.autoOptionsInComplement,
     // Same lift as the save below: a changed party or date re-prices, so the preview shows what the save stores.
     ...frozenTouristTaxInputs(db, reservationId, req.body.refreshTouristTax || (reservationId > 0 && !sameStayAsSold(model.getRow(reservationId), req.body))),
     // Read-only preview: the baseline is only CAPTURED on save, never here.
     ...midStayQuoteInputs(db, reservationId),
+    // The window's engine baseline, as the save prices on it (loop t15 S15-2).
+    ...(previewLines.windowEngineInputs || {}),
     // specs/payment-schedule-and-cancellation.md §3.1 — same booking context as the save, so the
     // échéances shown on the fiche are the ones that will be stored.
     // A new devis (`kind: 'devis'`, no id) is priced as the devis its create stores (rule 19, audit R33-M-L1).
@@ -1550,7 +1573,43 @@ async function calculatePrice(req, res) {
     }
   }
 
-  res.json(withCustomLineKeys(quote));
+  res.json(withTypedCustomTitles(withCustomLineKeys(quote), req.body.customOptions, previewLines.customOptions));
+}
+
+// The lines a preview prices, routed as the save will route them (S14-3): on a locked fiche whose window is open, each line keeps its stored
+// routing and a new line takes the window's — the very pins `enterMidStayExtrasWindow` lays on the save's body. An admin unlock skips the window,
+// as it does on the save.
+function previewRoutedLines(req, reservationId, customOptions) {
+  const lines = {
+    options: req.body.selectedOptions, resources: req.body.selectedResources, customOptions, autoOptionsInComplement: req.body.autoOptionsInComplement,
+  };
+  if (!(reservationId > 0) || pastUnlockRequested(req)) return lines;
+  const { today, nowTime } = localNow(stayClockModel.gestureNow());
+  const window = midStayWindowRouting(reservationId, today, nowTime);
+  if (!window) return lines;
+  pinStoredRouting(lines, model.getStoredRouting(reservationId), window.toArrival);
+  // Loop t15 S15-2 — and on the save's engine baseline: a late guest's unpaid arrival line raised at the door stays in the arrival complement.
+  const { engineBaseline } = midStayWindowBaselines(reservationId, window, {
+    options: lines.options, resources: lines.resources, customOptions: lines.customOptions,
+  });
+  return { ...lines, windowEngineInputs: { arrivalExtrasBaseline: engineBaseline } };
+}
+
+// Rule 94 reading (loop t14 S14-1) — the preview prices a repeated label under its number (`key`), but echoes the text the operator typed: the
+// fiche writes each quote line's title back into its field on every keystroke, and a « (2) » appearing under the cursor would be typed over.
+// The save stores the numbered label, and the fiche shows it once it re-reads.
+function withTypedCustomTitles(quote, postedLines, pricedLines) {
+  if (!quote || !Array.isArray(quote.optionLines) || !Array.isArray(postedLines) || !Array.isArray(pricedLines)) return quote;
+  const typed = new Map();
+  postedLines.forEach((line, index) => {
+    const priced = pricedLines[index];
+    if (line && priced && priced.description !== line.description) typed.set(String(line.customKey || `custom_${index + 1}`), String(line.description || '').trim());
+  });
+  if (typed.size === 0) return quote;
+  return {
+    ...quote,
+    optionLines: quote.optionLines.map((line) => (line && line.isCustom && typed.has(String(line.customKey)) ? { ...line, title: typed.get(String(line.customKey)) } : line)),
+  };
 }
 
 // Pricing-components rule 114 (loop t8 UI8-5, reading of 2026-11-16) — the fiche's live quote names each custom line by the server's own key
@@ -1615,6 +1674,9 @@ function createStay(req, res) {
     if (!req.body.checkInTime) req.body.checkInTime = defaultTimes.checkInTime;
     if (!req.body.checkOutTime) req.body.checkOutTime = defaultTimes.checkOutTime;
   }
+
+  // Rule 94 (loop t14 S14-2) — two free lines of one label are numbered at creation too: each keeps its own discount and payment.
+  numberRepeatedCustomLabels(0, req.body);
 
   const {
     propertyId, clientId, startDate, endDate, adults, children, teens, babies,
@@ -2066,6 +2128,16 @@ const ARRIVAL_LINE_RENAME_MESSAGE = 'Une prestation ne peut plus être renommée
 const ARRIVAL_EXTRAS_FROZEN_MESSAGE = 'Une prestation vendue à l\'arrivée ne peut être ni retirée ni réduite.';
 const MID_STAY_EXTRAS_CLOSED_MESSAGE = 'Complément de fin de séjour déjà encaissé : décocher « payé » d’abord.';
 
+// The payment flags a stored stay is priced on: the stored ones, never the request's (reservation-payment-ledger rule 13). Shared by the save
+// and its preview (loop t14 S14-3): a fiche posting stale flags saw a new line in the paid solde that the save put in the arrival complement.
+function storedPaymentFlagsOf(stored, depositDisabledFlag) {
+  return {
+    depositPaid: depositDisabledFlag ? false : Number(stored.depositPaid || 0) === 1,
+    balancePaid: Number(stored.balancePaid || 0) === 1,
+    complementPaid: Number(stored.complementPaid || 0) === 1,
+  };
+}
+
 // specs/mid-stay-extras-on-locked-fiche.md rule 8 — inside the window the routing of every line is
 // the stored one (a mid-stay sale goes to the end-of-stay complement whatever it is), so the payload
 // cannot move it; a line with no stored counterpart falls back to the engine's default.
@@ -2114,45 +2186,64 @@ function carryStoredCustomContribs(id, body) {
 // locked and its end-of-stay complement is not collected. Pins everything rule 8 keeps locked
 // (routing, tariff refresh, the bed counts of a linen sold at arrival) and returns the state the
 // arrival floors are checked against; null when the window is closed or the fiche is unlocked.
-function enterMidStayExtrasWindow(id, body, today, nowTime, { atArrival = false } = {}) {
+// The window's routing (rule 102): open or not, and where a new line goes. Shared by the save and its preview (loop t14 S14-3).
+function midStayWindowRouting(id, today, nowTime, { atArrival = false } = {}) {
   // Rule 102 — one moment: the window, the lock and the routing of a new line read the stay clock at the gesture's `now`.
   const started = stayStartedNow(id);
   const row = model.getRow(id);
   if (!midStayExtrasWindow(row, today, nowTime, started).extrasEditable) return null;
-  // The fiche is locked, so the stay has started whether or not the check-in was marked: pin what it
-  // carries now as « sold at arrival » (rule 10), unconditionally.
-  // Read, not written: the baseline is stored by the write itself, after every refusal of the save.
-  const baseline = model.peekArrivalExtrasBaseline(id);
-  const beforeLines = model.readExtraLinesWithQuantity(id);
   // Guest-app rule 110 a, pricing-components rule 102 — the check-in hour has passed but the arrival is not validated and its complement is not
   // collected (the guest is late): the arrival complement is still open. Its unpaid arrival lines are not frozen (an order is changed at the
   // door), and an `atArrival` gesture routes its new line to that complement and never reads it as a sale of the stay.
   const arrivalOpen = started && !isArrivalValidated(row)
     && Number(row.complementPaid || 0) !== 1 && Number(row.complementPaidCash || 0) !== 1;
-  const toArrival = !started || (atArrival && arrivalOpen);
+  return { row, started, arrivalOpen, toArrival: !started || (atArrival && arrivalOpen) };
+}
+
+function enterMidStayExtrasWindow(id, body, today, nowTime, { atArrival = false } = {}) {
+  const window = midStayWindowRouting(id, today, nowTime, { atArrival });
+  if (!window) return null;
+  const { row, toArrival } = window;
+  // The fiche is locked, so the stay has started whether or not the check-in was marked: pin what it
+  // carries now as « sold at arrival » (rule 10), unconditionally.
   pinStoredRouting(body, model.getStoredRouting(id), toArrival);
   body.refreshPricingToCurrent = false;
+  const baselines = midStayWindowBaselines(id, window, body);
   // Rule 8 — the bed counts follow the linen line: they move only when the payload brings a bed-linen
   // option that was not sold at arrival; in every other case they stay what is stored.
-  const floors = arrivalLineFloors(baseline, beforeLines);
+  const floors = arrivalLineFloors(baselines.peeked, baselines.beforeLines);
   const newLinen = (Array.isArray(body.options) ? body.options : [])
     .filter((option) => !floors[extraLineKey(option)]);
   if (!hasBedLinenOption(newLinen)) {
     body.singleBeds = row.singleBeds;
     body.doubleBeds = row.doubleBeds;
   }
+  return {
+    baseline: baselines.frozenBaseline, beforeLines: baselines.beforeLines, started: window.started,
+    engineBaseline: baselines.engineBaseline, openKeys: baselines.openKeys, rebaseKeys: baselines.arrivalKeys,
+  };
+}
+
+// The baselines an open window prices on (rule 102): the arrival floors, and the engine's, where a key of the open arrival complement (a late
+// guest's unpaid arrival lines, an `atArrival` gesture's new lines) never reads above the baseline. Read, not written: the baseline is stored by
+// the write itself, after every refusal of the save. Shared by the save and its preview (loop t15 S15-2), so both price on one baseline.
+// `lines`: the gesture's lines (`options` / `resources` / `customOptions`), already pinned.
+function midStayWindowBaselines(id, window, lines) {
+  const { row, started, arrivalOpen, toArrival } = window;
+  const peeked = model.peekArrivalExtrasBaseline(id);
+  const beforeLines = model.readExtraLinesWithQuantity(id);
   const openKeys = arrivalOpen ? openArrivalKeys(beforeLines, row.midStaySettledNotes) : [];
-  const newKeys = started && toArrival ? appendedLineKeys(body) : [];
-  const parsed = parseBaseline(baseline) || {};
-  const frozenBaseline = openKeys.length ? JSON.stringify(Object.fromEntries(Object.entries(parsed).filter(([key]) => !openKeys.includes(key)))) : baseline;
+  const newKeys = started && toArrival ? appendedLineKeys(lines) : [];
+  const parsed = parseBaseline(peeked) || {};
+  const frozenBaseline = openKeys.length ? JSON.stringify(Object.fromEntries(Object.entries(parsed).filter(([key]) => !openKeys.includes(key)))) : peeked;
   // Rule 102 d (loop t3, T3-2) — a key of the open arrival complement is the arrival's whatever the gesture does to it (offered, billed again,
   // discounted): the engine never reads it above the baseline, and the rebase after the write holds what its arrival lines then hold.
   const arrivalKeys = [...new Set([...openKeys, ...newKeys])];
   const engineBaseline = started
-    ? (arrivalKeys.length ? JSON.stringify({ ...parsed, ...Object.fromEntries(arrivalKeys.map((key) => [key, ARRIVAL_LINE_NEVER_MID_STAY])) }) : baseline)
+    ? (arrivalKeys.length ? JSON.stringify({ ...parsed, ...Object.fromEntries(arrivalKeys.map((key) => [key, ARRIVAL_LINE_NEVER_MID_STAY])) }) : peeked)
     : (model.getArrivalExtrasBaseline(id) || null);
   return {
-    baseline: frozenBaseline, beforeLines, started, engineBaseline, openKeys, rebaseKeys: arrivalKeys,
+    peeked, beforeLines, openKeys, arrivalKeys, frozenBaseline, engineBaseline,
   };
 }
 
@@ -2196,17 +2287,15 @@ function numberAppendedLines(body) {
 // Rule 94 (loop t2 N-4) — a custom line the save appends (no stored line answers it) under a label another custom line of the stay holds is
 // numbered (« Bière locale (2) »), as a sale's and the arrival SAS's are: its payment, its discount and its removal stay its own. A stored line
 // keeps its label, so a stay that already holds two lines of one label (stored before this rule) keeps them as they are.
+// The preview (S14-1) and the creation (S14-2, `id` 0: nothing stored, every repeat is numbered) take the same numbering.
 function numberRepeatedCustomLabels(id, body) {
-  if (!Array.isArray(body.customOptions) || body.customOptions.length < 2) return;
-  const matches = matchStoredCustomLines(body.customOptions, model.getStoredRouting(id).customs);
-  const keyOfLabel = (text) => extraLineKey({ isCustom: true, description: text });
-  const taken = new Set(body.customOptions.filter((line, index) => matches[index]).map((line) => keyOfLabel(line.description)));
-  body.customOptions = body.customOptions.map((line, index) => {
-    if (matches[index]) return line;
-    const description = numberedLabel(String(line.description || '').trim(), taken);
-    taken.add(keyOfLabel(description));
-    return description === line.description ? line : { ...line, description };
-  });
+  body.customOptions = numberedCustomLinesOf(id, body.customOptions);
+}
+
+function numberedCustomLinesOf(id, customOptions) {
+  if (!Array.isArray(customOptions) || customOptions.length < 2) return customOptions;
+  const matches = matchStoredCustomLines(customOptions, id > 0 ? model.getStoredRouting(id).customs : []);
+  return numberRepeatedCustomLines(customOptions, (index) => Boolean(matches[index]));
 }
 
 // The priced lines as the writer takes them: a line the engine did not number (the article's FIRST, whose key stays the legacy one) still
@@ -2376,10 +2465,10 @@ function applyUpdate(req, res, pastUnlocked, {
     req.body.depositDueDate = storedPaymentForQuote.depositDueDate ?? null;
   }
   req.body.depositDisabled = depositDisabledFlag;
-  const effectiveDepositPaid = depositDisabledFlag ? false : Number(storedPaymentForQuote.depositPaid || 0) === 1;
+  const {
+    depositPaid: effectiveDepositPaid, balancePaid: effectiveBalancePaid, complementPaid: effectiveComplementPaid,
+  } = storedPaymentFlagsOf(storedPaymentForQuote, depositDisabledFlag);
   const effectiveDepositPaidDate = depositDisabledFlag ? null : (storedPaymentForQuote.depositPaidDate || null);
-  const effectiveBalancePaid = Number(storedPaymentForQuote.balancePaid || 0) === 1;
-  const effectiveComplementPaid = Number(storedPaymentForQuote.complementPaid || 0) === 1;
 
   // specs/frozen-complement-trusts-client.md §3 rules 1-2 — a collected complement is frozen at what
   // was COLLECTED, so the engine must be fed the stored amount, never the one the browser computed:
@@ -2402,7 +2491,7 @@ function applyUpdate(req, res, pastUnlocked, {
     discountTarget: req.body.discountTarget === undefined ? (model.getRow(id) || {}).discountTarget : req.body.discountTarget,
     discountFixedAmount: fixedDiscountEuros(req.body.discountAmountCents === undefined ? (model.getRow(id) || {}).discountAmountCents : req.body.discountAmountCents),
     // `lineDiscounts` ({ [lineKey]: cents }): a line discount posted by a server caller (the line API) reaches the engine as a line fact.
-    lineFacts: withLineDiscounts(stayRepository.lineFacts(id), req.body.lineDiscounts),
+    lineFacts: withLineDiscounts(lineFactsForSave(id, reservationCustomOptions), req.body.lineDiscounts),
     customPrice: req.body.customPrice,
     selectedOptions: reservationOptions,
     customOptions: reservationCustomOptions,
@@ -2520,6 +2609,12 @@ function applyUpdate(req, res, pastUnlocked, {
   if (midStayWindow && renamedLines.length > 0) {
     return res.status(400).json({ error: ARRIVAL_LINE_RENAME_MESSAGE, code: 'ARRIVAL_LINE_RENAME' });
   }
+  // Rule 123 (loop t11 S11-1) — a free line a note or a collected platform complement paid keeps its label, whatever the window.
+  const renameRefusal = renamedLines.length > 0 ? paidLineJudgment.paidLineRenameRefusal(db.prepare('SELECT * FROM reservations WHERE id = ?').get(Number(id)), renamedLines) : null;
+  if (renameRefusal) return res.status(renameRefusal.status).json(renameRefusal.body);
+  // Rule 123 (loop t12 S12-1) — nor onto the label of another free line of the stay: two lines would share one key, one payment.
+  const takenRefusal = renamedLines.length > 0 ? paidLineJudgment.labelTakenRefusal(reservationCustomOptions, renamedLines) : null;
+  if (takenRefusal) return res.status(takenRefusal.status).json(takenRefusal.body);
 
   // specs/platform-payout-due-date.md §3.5 rule 38 — a started or finished stay keeps the solde
   // deadline it was stored with. « Existing rows re-derive on their next save » (§3.0 arbitrage) can
@@ -2797,8 +2892,13 @@ function applyUpdate(req, res, pastUnlocked, {
     if (writesExtras && reservationOptions) model.replaceOptions(id, withPostedLineIds(quote.optionLines, reservationOptions, 'optionId'));
     if (writesExtras) {
       const sasOriginLabels = model.sasOriginCustomLabels(id);
-      const carriedCustomLines = model.deleteCustomOptions(id);
-      if (reservationCustomOptions) model.insertCustomOptions(id, quote.optionLines, sasOriginLabels, carriedCustomLines);
+      const carriedCustomLines = model.deleteCustomOptions(id) || [];
+      // Rule 94 reading (loop t16 S16-3 b) — only the rows the posted lines name carry their identity over: a line the fiche appends never
+      // takes, by its text, the number, discount and money of a row this save removes. Rule 79 reading (loop t17 D17-1) — the writer takes
+      // the row the judges' matcher chose over the posted lines, never a text comparison of its own.
+      if (reservationCustomOptions) {
+        model.insertCustomOptions(id, pricedCustomLinesNamingRows(reservationCustomOptions, quote.optionLines, carriedCustomLines), sasOriginLabels, carriedCustomLines);
+      }
     }
     if (!pastReservationLocked && !stayPinned) model.replaceNights(id, quote.nightlyBreakdown);
     // specs/tariff-recipes/spec.md §3 rule 62 — the tariff snapshot follows the nights it describes:

@@ -79,9 +79,9 @@ test('rule 11 — an empty filter says what it means and offers the way out', as
 });
 
 test('rules 19, 21, 15 — the desktop table shows the « auto » badge, the stays a credit also covered and the credits of a split', async () => {
-  const auto = done({ key: '7|balance', bank: [{ ...bankSide(), allocatedCents: 59658, auto: true, alsoCovers: [{ reservationId: 8, ledgerKey: 'balance', label: 'Versement Booking', clientName: 'Camille Lefevre' }] }] });
+  const auto = done({ key: '7|balance', bank: [{ ...bankSide(), allocatedCents: 59658, auto: true, alsoCovers: [{ reservationId: 8, ledgerKey: 'balance', label: 'Versement Booking', clientName: 'Camille Lefevre', clientHeading: 'Camille Lefevre' }] }] });
   const split = proposed({ key: '9|deposit', ledgerKey: 'deposit', label: 'Acompte' });
-  split.proposal = { ...split.proposal, parts: [bankSide({ transactionId: 'a', dateLabel: '10/10', amountCents: 15000 }), bankSide({ transactionId: 'b', dateLabel: '12/10', amountCents: 15000 })], alsoCovers: [{ reservationId: 8, ledgerKey: 'balance', label: 'Versement Booking', clientName: 'Camille Lefevre' }] };
+  split.proposal = { ...split.proposal, parts: [bankSide({ transactionId: 'a', dateLabel: '10/10', amountCents: 15000 }), bankSide({ transactionId: 'b', dateLabel: '12/10', amountCents: 15000 })], alsoCovers: [{ reservationId: 8, ledgerKey: 'balance', label: 'Versement Booking', clientName: 'Camille Lefevre', clientHeading: 'Camille Lefevre' }] };
   api.getReconciliation.mockResolvedValue(payload({ items: [auto, split], credits: [] }));
   renderPage();
   const table = await screen.findByRole('table');

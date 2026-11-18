@@ -69,7 +69,7 @@ test('rules 5-6 — only selected pairs of a present equipment are stored; the r
   assert.equal(home.model.readings([{ equipmentId: 'wx', alias: 'rain_1h' }]).length, 0);
 });
 
-test('rule 5 — a reading overwrites the previous one and keeps 45 minutes of samples for the trend', () => {
+test('rule 5 — a reading overwrites the previous one; rule 25 — no history of it is kept', () => {
   const { model } = freshHome();
   // date-literal-ok: an injected clock — the model reads no « today »
   model.replaceCatalog(parseCatalog({ equipments: CATALOG }).value, new Date('2026-11-15T10:00:00Z'));
@@ -86,7 +86,22 @@ test('rule 5 — a reading overwrites the previous one and keeps 45 minutes of s
   push(50, 21);
   const [reading] = model.readings([pair]);
   assert.equal(reading.value, 21);
-  assert.deepEqual(reading.samples.map((s) => s.value), [20, 21]);
+  assert.equal('samples' in reading, false);
+});
+
+test('rule 26 — a batch holds only the changed pairs: the others stay as stored', () => {
+  const { model } = freshHome();
+  // date-literal-ok: an injected clock — the model reads no « today »
+  model.replaceCatalog(parseCatalog({ equipments: CATALOG }).value, new Date('2026-11-15T10:00:00Z'));
+  const temp = { equipmentId: 't-sejour', alias: 'temperature' };
+  const outside = { equipmentId: 'wx', alias: 'temperature' };
+  // date-literal-ok: an injected clock — the model reads no « today »
+  const at = (m) => `2026-11-15T10:${m}:00.000Z`;
+  // date-literal-ok: an injected clock — the model reads no « today »
+  model.storeReadings([{ ...temp, value: 21, unit: '°C', measuredAt: at('00') }, { ...outside, value: 8, unit: '°C', measuredAt: at('00') }], [temp, outside], new Date('2026-11-15T10:00:05Z'));
+  // date-literal-ok: an injected clock — the model reads no « today »
+  assert.deepEqual(model.storeReadings([{ ...temp, value: 22, unit: '°C', measuredAt: at('20') }], [temp, outside], new Date('2026-11-15T10:20:05Z')), { stored: 1, dropped: 0 });
+  assert.deepEqual(model.readings([temp, outside]).map((r) => r.value), [22, 8]);
 });
 
 test('rule 5 — series: 24 buckets at most, sorted, overwritten; an unselected series is dropped', async (t) => {

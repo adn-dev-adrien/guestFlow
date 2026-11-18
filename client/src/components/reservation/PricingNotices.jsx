@@ -7,12 +7,13 @@
  * Props:
  *   notices   Array<{ code: string, text: string, action?: string }> | undefined
  *   onAction  (action: string) => void — called by the button a notice with an `action` carries
+ *   actionDisabled  boolean — the button shows but takes no click (the fiche is not the server's: specs/pricing-components.md rule 101)
  */
 import React from 'react';
 import { Alert, Button } from '@mui/material';
 import { PRICING_NOTICE_ACTIONS } from '../../constants/pricingSummaryStrings';
 
-export default function PricingNotices({ notices, onAction }) {
+export default function PricingNotices({ notices, onAction, actionDisabled = false }) {
   if (!Array.isArray(notices) || notices.length === 0) return null;
   return notices.map((notice) => {
     const actionLabel = notice.action ? PRICING_NOTICE_ACTIONS[notice.action] : null;
@@ -23,7 +24,7 @@ export default function PricingNotices({ notices, onAction }) {
         icon={false}
         data-testid={`pricing-notice-${notice.code}`}
         action={actionLabel && onAction ? (
-          <Button color="inherit" size="small" onClick={() => onAction(notice.action)} sx={{ minHeight: 44 }}>{actionLabel}</Button>
+          <Button color="inherit" size="small" onClick={() => onAction(notice.action)} disabled={actionDisabled} sx={{ minHeight: 44 }}>{actionLabel}</Button>
         ) : undefined}
         sx={{ mb: 2, borderRadius: '10px', px: 1.5, py: 1, alignItems: 'center' }}
       >

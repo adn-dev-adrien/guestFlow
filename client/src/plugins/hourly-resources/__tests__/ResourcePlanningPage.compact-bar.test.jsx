@@ -12,8 +12,8 @@ import DialogProvider from '../../../components/DialogProvider';
 vi.mock('../../../api', () => ({
   __esModule: true,
   default: {
-    getResources: vi.fn().mockResolvedValue([{ id: 3, name: 'Bain nordique', isComplex: 1, openTime: '08:00', closeTime: '22:00' }]),
-    getResourceBookings: vi.fn().mockResolvedValue([]),
+    getResources: vi.fn(() => Promise.resolve([{ id: 3, name: 'Bain nordique', isComplex: 1, openTime: '08:00', closeTime: '22:00' }])),
+    getResourceBookings: vi.fn(() => Promise.resolve([])),
   },
 }));
 

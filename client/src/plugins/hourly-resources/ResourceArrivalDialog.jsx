@@ -11,7 +11,8 @@
  *
  * Whether the money on the books can be invoiced now is the server's `invoiceable` ({ ok, code, reason, silent }, admin only): « Créer la facture » iff `ok`, its `reason`
  * otherwise — unless `silent`, or while a draft or a payment is typed (the reason reads the stored visit).
- * At « Payé maintenant » the checkbox « Créer la facture dans Qonto » reads the same answer from the quote of the draft with the payment typed (loop t2 B2-7).
+ * At « Payé maintenant » the checkbox « Créer la facture dans Qonto » reads the same answer from the quote of the draft with the payment typed (loop t2 B2-7);
+ * the block is drawn with the content, pending (checkbox disabled, same height) until that answer comes (loop t21 UI21-1).
  * Each line names its VAT rate (`line.vatRate`). An invoiced visit offers « Nouvelle vente » on its client (`newSale.client`, rule 24): the counter's dialog seeded with it.
  *
  * Props: open, bookingId, onClose, onDone (called after a successful commit)
@@ -22,6 +23,7 @@ import {
 } from '@mui/material';
 import {
   api, formatCurrency, LoadingState, ErrorAlert, ConfirmDialog, SuggestedArticlesStep, SalePaymentLink, StatusBadge, StandaloneSaleDialog,
+  useSaleComponentsReady,
 } from '../sdk';
 import OfferedTimeField from './OfferedTimeField';
 import BookingPaymentFields, { paymentBody, hasCard } from './BookingPaymentFields';
@@ -126,6 +128,8 @@ export default function ResourceArrivalDialog({ open, bookingId, onClose, onDone
   const [obligationAsk, setObligationAsk] = useState(null);
   const [link, setLink] = useState({ busy: false, error: null, sentTo: null });
   const [newSaleOpen, setNewSaleOpen] = useState(false);
+  // The sale blocks' code is fetched with the visit; the content shows once both are there, so nothing lands under it later (plugins-phase-1-sdk rule 54, loop t20 UI20-1).
+  const salesReady = useSaleComponentsReady(open);
 
   const load = useCallback(() => {
     setLoadError(null);
@@ -194,6 +198,14 @@ export default function ResourceArrivalDialog({ open, bookingId, onClose, onDone
   const invoiceOffered = Boolean(invoiceAnswer && invoiceAnswer.ok);
   const draftInternalCash = Boolean(invoiceAnswer && invoiceAnswer.code === 'INTERNAL_CASH');
   const draftRefusal = invoiceAnswer && !invoiceAnswer.ok && !invoiceAnswer.silent && !draftInternalCash ? invoiceAnswer.reason : null;
+  // Loop t21 UI21-1 — the block is drawn with the content whenever « Payé maintenant » can invoice, in a pending state of the offered
+  // block's height until the server answers for the payment typed (the tenders report it on mount, so that answer always comes one quote
+  // after the content); the answer then fills it, and every outcome keeps that height (`reserve`): a refusal's caption, « Caisse interne »,
+  // and a `silent` answer, which shows nothing (UI3-5) — its section is hidden in place. A payment no longer readable shows the block's own
+  // « une fois le paiement saisi » caption. Before the tenders' first report the box reads as their default card line will set it.
+  const invoiceSilenced = Boolean(invoiceAnswer && !invoiceAnswer.ok && invoiceAnswer.silent);
+  const invoicePending = !reception && payNow && qontoReady && !invoiceAnswer && (!payment || Boolean(paymentDraft));
+  const invoiceAsked = !reception && payNow && qontoReady;
   // Money already on the books, invoiceable now: the server's `invoiceable` (invoicing rules 13, 44; loop t1 UI-10 / AV-11). It reads the stored visit, so a draft waits for its save.
   const invoiceable = visit && !reception ? visit.invoiceable : null;
   const invoiceStored = !dirty && Boolean(invoiceable && invoiceable.ok);
@@ -321,16 +333,16 @@ export default function ResourceArrivalDialog({ open, bookingId, onClose, onDone
         Arrivée{booking ? ` · ${booking.displayName}` : ''}
         <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>{heading}</Typography>
       </DialogTitle>
-      {view && (
+      {view && salesReady && (
         <Box sx={{ position: 'sticky', top: 0, zIndex: 2, bgcolor: 'background.paper', px: 3, py: 1, borderBottom: 1, borderColor: 'divider', display: { xs: 'flex', sm: 'none' }, justifyContent: 'space-between', alignItems: 'baseline' }}>
           <Typography variant="body2">{TEXTS.remaining}</Typography>
           <Typography data-testid="sticky-remaining" sx={{ fontFamily: (t) => t.typography.pageTitle?.fontFamily, fontWeight: 700, fontSize: '1.3rem', fontVariantNumeric: 'tabular-nums', opacity: dirty && quote.pending ? 0.6 : 1 }}>{euros(remainingCents)}</Typography>
         </Box>
       )}
       <DialogContent sx={{ pt: 2 }}>
-        {!visit && !loadError && <LoadingState />}
+        {(!visit || !salesReady) && !loadError && <LoadingState />}
         {loadError && <ErrorAlert message={loadError} onRetry={load} />}
-        {view && (
+        {view && salesReady && (
           <Box sx={{ display: 'grid', gap: 2.5, gridTemplateColumns: { xs: '1fr', lg: 'minmax(0, 1.2fr) minmax(0, 1fr)' }, alignItems: 'start' }}>
             <Box sx={{ display: 'grid', gap: 2.5, minWidth: 0 }}>
               {readOnly && <Alert severity="info">{visit.access.reason}</Alert>}
@@ -449,21 +461,23 @@ export default function ResourceArrivalDialog({ open, bookingId, onClose, onDone
                   <Typography variant="caption" color="text.secondary">{invoiceReason}</Typography>
                 </Box>
               )}
-              {!reception && !invoiceReason && (invoiceOffered || invoiced || invoiceOutcome || invoiceStored || draftInternalCash || draftRefusal) && (
-                <Box sx={{ display: 'grid', gap: 1 }}>
+              {!reception && !invoiceReason && (invoiceAsked || invoiceOffered || invoiced || invoiceOutcome || invoiceStored || draftInternalCash || draftRefusal) && (
+                <Box sx={{ display: 'grid', gap: 1, ...(invoiceSilenced ? { visibility: 'hidden' } : {}) }} aria-hidden={invoiceSilenced || undefined} data-testid="invoice-section">
                   <Typography variant="subtitle2">{TEXTS.invoice}</Typography>
                   {invoiceOutcome && invoiceOutcome.code !== 'QONTO_NEEDS_ADDRESS' && <Alert severity="error">{invoiceOutcome.message}</Alert>}
                   <BookingInvoiceBlock
                     booking={booking}
                     qontoReady={qontoReady}
                     offered={invoiceOffered || Boolean(invoiceOutcome) || invoiceStored}
-                    checked={invoiceChecked || invoiceStored || Boolean(invoiceOutcome)}
+                    checked={invoiceChecked || invoiceStored || Boolean(invoiceOutcome) || (invoicePending && !payment)}
                     onCheck={setInvoiceChecked}
                     billing={billing}
                     onBilling={setBilling}
                     addressAsked={Boolean(invoiceOutcome && invoiceOutcome.code === 'QONTO_NEEDS_ADDRESS')}
                     internalCash={draftInternalCash || Boolean(booking.payment && !booking.payment.onTheBooks)}
                     reason={draftRefusal}
+                    pending={invoicePending}
+                    reserve={invoiceAsked}
                     cardDay={dayMonth((booking.payment && booking.payment.paidAt) || (payment && payment.paidAt))}
                     onIssue={() => validate({ issue: true })}
                     onAttach={() => attachWith({})}
@@ -484,14 +498,14 @@ export default function ResourceArrivalDialog({ open, bookingId, onClose, onDone
         )}
       </DialogContent>
       <DialogActions sx={{ flexDirection: { xs: 'column', sm: 'row' }, gap: 1, p: 2, '& > :not(style) ~ :not(style)': { ml: { xs: 0, sm: 1 } } }}>
-        {visit && visit.newSale && (
+        {visit && visit.newSale && salesReady && (
           <Button variant="outlined" onClick={() => setNewSaleOpen(true)} sx={{ minHeight: 44, width: { xs: '100%', sm: 'auto' }, mr: { sm: 'auto' } }}>{TEXTS.newSale}</Button>
         )}
         {!closesOnly && !readOnly && <Button onClick={onClose} disabled={busy} sx={{ minHeight: 44, width: { xs: '100%', sm: 'auto' } }}>{TEXTS.cancel}</Button>}
         <Button
           variant="contained"
           onClick={closesOnly || readOnly ? onClose : () => validate()}
-          disabled={!canValidate && !readOnly}
+          disabled={!salesReady || (!canValidate && !readOnly)}
           sx={{ minHeight: 44, width: { xs: '100%', sm: 'auto' } }}
         >
           {busy ? TEXTS.saving : (readOnly ? TEXTS.close : primaryLabel)}

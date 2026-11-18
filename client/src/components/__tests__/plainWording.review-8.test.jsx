@@ -11,8 +11,8 @@ import DialogProvider from '../DialogProvider';
 vi.mock('../../api', () => ({
   __esModule: true,
   default: {
-    getTranslationSummary: vi.fn().mockResolvedValue({ total: 76, missing: { de: 75, en: 56 }, stale: {}, languages: ['de', 'en'] }),
-    getCancellationCompensations: vi.fn().mockResolvedValue({ pending: [], received: [], totals: { pendingExpected: 0, receivedInMonth: 0 } }),
+    getTranslationSummary: vi.fn(() => Promise.resolve({ total: 76, missing: { de: 75, en: 56 }, stale: {}, languages: ['de', 'en'] })),
+    getCancellationCompensations: vi.fn(() => Promise.resolve({ pending: [], received: [], totals: { pendingExpected: 0, receivedInMonth: 0 } })),
   },
 }));
 vi.mock('../../hooks/useAuth', () => ({ __esModule: true, useAuth: () => ({ user: { roles: ['admin'] } }) }));

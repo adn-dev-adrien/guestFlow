@@ -80,6 +80,32 @@ function numberedLabel(label, takenKeys) {
   return candidate;
 }
 
+/**
+ * Rule 94 (loop t14 S14-1/S14-2, loop t15 S15-3/S15-4, loop t16 S16-3 a) — the one numbering of repeated free labels, shared by the fiche's
+ * save, its preview, the creation and the devis writes: a line `kept(index)` names (a stored line, matched) keeps its label; every other line
+ * whose label is already taken is numbered. A line the engine drops — a blank label, or no amount (0 €, negative) — is left as it is and takes
+ * no label: numbering it would price a « (2) » line, and counting it would number the only line the stay keeps.
+ */
+// THE rule of a posted free line the engine prices: a label and an amount of at least a cent. A blank or 0 € (or negative) line is no line —
+// the quote drops it, the numbering skips it, it names no stored row (`matchStoredCustomLines`), so every judge of a save, its preview and
+// its writer agree (pricing-components rule 79 / 94 readings, loop t17 O-V17-1). The one copy of this rule: every filter of the concept reads it.
+function isPricedCustomLine(line) {
+  return Boolean(String((line && line.description) || '').trim()) && Math.round(Number((line && line.amount) || 0) * 100) > 0;
+}
+
+function numberRepeatedCustomLines(customOptions, kept = () => false) {
+  if (!Array.isArray(customOptions)) return customOptions;
+  const keyOf = (text) => extraLineKey({ isCustom: true, description: text });
+  const dropped = (line) => !isPricedCustomLine(line);
+  const taken = new Set(customOptions.filter((line, index) => kept(index) && !dropped(line)).map((line) => keyOf(line.description)));
+  return customOptions.map((line, index) => {
+    if (kept(index) || dropped(line)) return line;
+    const description = numberedLabel(String(line.description).trim(), taken);
+    taken.add(keyOf(description));
+    return description === line.description ? line : { ...line, description };
+  });
+}
+
 module.exports = {
-  extraLineKey, parseNotes, settledByKey, parseDetail, numberedLabel,
+  extraLineKey, parseNotes, settledByKey, parseDetail, numberedLabel, numberRepeatedCustomLines, isPricedCustomLine,
 };

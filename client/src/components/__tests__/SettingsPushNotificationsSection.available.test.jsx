@@ -13,14 +13,14 @@ vi.mock('../../api', () => ({
   __esModule: true,
   default: {
     getPushPreferences: vi.fn(),
-    getPushPublicKey: vi.fn().mockResolvedValue({ publicKey: 'k', configured: true }),
-    updatePushPreferences: vi.fn().mockResolvedValue({}),
-    sendPushTest: vi.fn().mockResolvedValue({ sent: 1 }),
+    getPushPublicKey: vi.fn(() => Promise.resolve({ publicKey: 'k', configured: true })),
+    updatePushPreferences: vi.fn(() => Promise.resolve({})),
+    sendPushTest: vi.fn(() => Promise.resolve({ sent: 1 })),
   },
 }));
 
 vi.mock('../../push/registerPush', () => ({
-  pushSupported: vi.fn().mockReturnValue(true),
+  pushSupported: vi.fn(() => true),
   getPushState: vi.fn(),
   enablePush: vi.fn(),
   disablePush: vi.fn(),

@@ -6,7 +6,7 @@ import { render, screen } from '@testing-library/react';
 
 vi.mock('../../api', () => ({
   __esModule: true,
-  default: { getEmailTemplates: vi.fn().mockResolvedValue([]), previewEmail: vi.fn(), sendEmail: vi.fn() },
+  default: { getEmailTemplates: vi.fn(() => Promise.resolve([])), previewEmail: vi.fn(), sendEmail: vi.fn() },
 }));
 
 import EmailManualSendDialog from '../EmailManualSendDialog';

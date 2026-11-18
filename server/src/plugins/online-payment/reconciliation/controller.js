@@ -50,7 +50,7 @@ const refsOf = (t, molliePayment = null) => ({
   mollieSettlement: isMollieCredit(t) ? settlementReferenceOf(t) : null,
   molliePayment,
 });
-const bankSide = (t, molliePayment = null) => ({
+const baseBankSide = (t, molliePayment = null) => ({
   transactionId: t.id, amountCents: t.amountCents, date: day(t.settledAt), dateLabel: frDate(t.settledAt),
   counterparty: t.counterpartyName || t.label || '', reference: t.reference || t.note || '',
   refs: refsOf(t, molliePayment),
@@ -80,6 +80,7 @@ const mollieMeta = (r, lines, today) => {
  * @param {object} [deps.splits]         the Mollie splits model (`sync`, `forLink`, `forSource`) — specs/mollie-rolling-reserve-and-incoming-payments.md rule 1
  * @param {object} [deps.mollieSettlements] the settlements model (`byReference`) — rule 10
  * @param {object} [deps.mollie]         the optional Mollie connection (`status`, `sync`) — rules 14-17
+ * @param {object} [deps.mollieStatements] the Mollie statements (`lineOf`) — specs/mollie-settlement-receipts.md rule 11
  */
 // Hosting-h2 rule 68, reading of 2026-11-05 — the routes' wrap answers a throw with a 500: what `String()` cannot read stops
 // here, and every other value keeps the refusal it always had.
@@ -93,8 +94,10 @@ const listRead = (list) => !Array.isArray(list) || list.every(isScalar);
 const unknownReservation = () => ({ status: 404, body: { error: 'Réservation introuvable.', code: 'UNKNOWN_RESERVATION' } });
 const unknownTransaction = () => ({ status: 404, body: { error: 'Virement introuvable.', code: 'UNKNOWN_TRANSACTION' } });
 
-function createReconciliationController({ db, settings, transactions, model, writer, read, connected, qontoConfigured, withQonto, core, splits = null, mollieSettlements = null, mollie = null }) {
+function createReconciliationController({ db, settings, transactions, model, writer, read, connected, qontoConfigured, withQonto, core, splits = null, mollieSettlements = null, mollie = null, mollieStatements = null }) {
   let lastAttemptAt = 0;
+  // specs/mollie-settlement-receipts.md rule 11 — the statement of a Mollie credit rides on its bank side.
+  const bankSide = (t, molliePayment = null) => ({ ...baseBankSide(t, molliePayment), statement: mollieStatements && isMollieCredit(t) ? mollieStatements.lineOf(t) : null });
   // One computed pass serves the journal of every month of a request (the synthesis asks month after month); any write drops it.
   let journalCache = null;
 
@@ -295,7 +298,8 @@ function createReconciliationController({ db, settings, transactions, model, wri
     const receiptByKey = new Map(receipts.map((r) => [keyOf(r), r]));
 
     // Rule 19 — the other receipts confirmed together with a line (same credit, same group).
-    const labelOf = (l) => { const o = receiptByKey.get(`${l.reservationId}|${l.ledgerKey}`); return o ? { reservationId: l.reservationId, ledgerKey: l.ledgerKey, label: o.label, clientName: o.reservation.clientName } : null; };
+    const headingOf = (reservation) => (reservation.saleKey && !reservation.hasClient ? '' : (reservation.clientName || reservation.saleLabel || 'Client'));
+    const labelOf = (l) => { const o = receiptByKey.get(`${l.reservationId}|${l.ledgerKey}`); return o ? { reservationId: l.reservationId, ledgerKey: l.ledgerKey, label: o.label, clientName: o.reservation.clientName, clientHeading: headingOf(o.reservation) } : null; };
     const coveredWith = (line) => (line.groupId ? lineRows.filter((o) => o.groupId === line.groupId && o.transactionId === line.transactionId && o.id !== line.id
       && `${o.reservationId}|${o.ledgerKey}` !== `${line.reservationId}|${line.ledgerKey}`).map(labelOf).filter(Boolean) : []);
 
@@ -309,13 +313,16 @@ function createReconciliationController({ db, settings, transactions, model, wri
       const mine = primary ? primary.allocations.find((a) => keyOf(a) === k) : null;
       const alsoCovers = primary ? primary.allocations.filter((a) => keyOf(a) !== k).map((a) => {
         const other = receiptByKey.get(keyOf(a));
-        return other ? { reservationId: a.reservationId, ledgerKey: a.ledgerKey, label: other.label, clientName: other.reservation.clientName } : null;
+        return other ? { reservationId: a.reservationId, ledgerKey: a.ledgerKey, label: other.label, clientName: other.reservation.clientName, clientHeading: headingOf(other.reservation) } : null;
       }).filter(Boolean) : [];
       const showProposal = primary && lines.length === 0;
       return {
         key: k,
         reservation: { ...r.reservation, platformDisplay: core.platformDisplay(r.reservation.platform) },
         ledgerKey: r.ledgerKey, label: r.label, channel: r.channel,
+        // A sale outside a stay has no fiche to wait on and, without a client, no name besides its label (loop t11 UI11-2).
+        expectedWording: r.reservation.saleKey ? 'Attendu' : 'La fiche attend',
+        clientHeading: headingOf(r.reservation),
         expectedCents: r.expectedCents, expectedDate: r.expectedDate, expectedDateLabel: frDate(r.expectedDate),
         paid: r.paid, paidDate: r.paidDate,
         state: st.state, stateLabel: st.stateLabel, tone: st.tone, isGap: isGap(st.state),

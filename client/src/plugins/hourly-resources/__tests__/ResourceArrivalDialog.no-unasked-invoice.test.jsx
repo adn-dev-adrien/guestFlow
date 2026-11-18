@@ -37,7 +37,10 @@ test.each([['cheque', CHEQUE], ['card', CARD]])('rule 45 — paid by %s before, 
   api.commitResourceVisit.mockResolvedValue({ visit: paidBefore(payment, true), invoice: null });
   const onDone = vi.fn();
   render(<ResourceArrivalDialog open bookingId={5} onClose={() => {}} onDone={onDone} />);
-  fireEvent.click(await screen.findByRole('button', { name: 'Valider l’arrivée' }));
+  // The visit shows with the sale blocks' code (plugins-phase-1-sdk rule 54, loop t20 UI20-1): the button is live once they are there.
+  const validate = await screen.findByRole('button', { name: 'Valider l’arrivée' });
+  await waitFor(() => expect(validate).toBeEnabled());
+  fireEvent.click(validate);
   await waitFor(() => expect(onDone).toHaveBeenCalled());
   const body = api.commitResourceVisit.mock.calls[0][1];
   expect(body.invoice).toBe(false);

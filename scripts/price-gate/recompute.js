@@ -172,9 +172,12 @@ function refundInputsOf(db, id, row, quote) {
       };
     }
   }
-  if (out.register && out.register.refunds.length) {
-    const accounting = app('plugins/accounting-export/accountingModel.js');
-    const { entryToStructured } = app('plugins/accounting-export/accountingExport.js');
+  // loop t18 A18-1 (specs/plugin-removal-resilience.md rule 3) — the journal is the accounting-export plugin's: on a tree that
+  // does not ship it the stay has no journal (`[]`), and its other figures are still read instead of one `quote.error`.
+  const { optionalPlugin } = app('plugins/sdk/testing.js');
+  const accounting = optionalPlugin(() => app('plugins/accounting-export/accountingModel.js'));
+  const { entryToStructured } = optionalPlugin(() => app('plugins/accounting-export/accountingExport.js'));
+  if (out.register && out.register.refunds.length && accounting.create && entryToStructured) {
     const entries = accounting.create(db);
     const months = [...new Set(out.register.refunds.map((r) => String(r.refundDate).slice(0, 7)))].sort();
     for (const month of months) {

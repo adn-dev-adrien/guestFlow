@@ -7,7 +7,7 @@ import { MemoryRouter } from 'react-router';
 
 const login = vi.fn();
 vi.mock('../../hooks/useAuth', () => ({ __esModule: true, useAuth: () => ({ login }) }));
-vi.mock('../../api', () => ({ __esModule: true, default: { getAuthOptions: vi.fn().mockResolvedValue({}) } }));
+vi.mock('../../api', () => ({ __esModule: true, default: { getAuthOptions: vi.fn(() => Promise.resolve({})) } }));
 
 import LoginPage from '../LoginPage';
 

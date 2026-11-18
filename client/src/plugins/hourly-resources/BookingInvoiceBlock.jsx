@@ -15,19 +15,42 @@
  *   internalCash  boolean — the server answers `INTERNAL_CASH` for the payment (typed or stored)
  *   reason        string | null — the server's refusal for the payment typed (`invoiceable.reason`, not `silent`); shown instead of the
  *                 « une fois le paiement saisi » caption, which stays for a payment not typed yet
+ *   pending       boolean — the server's answer for the payment being typed is on its way: the checkbox is drawn, disabled, in the place and height the
+ *                 offered state takes, so the answer fills the block instead of pushing the dialog (outside-booking-sas rule 54 reading, loop t21 UI21-1)
+ *   reserve       boolean — the block was or may be drawn pending in this payment (« Payé maintenant » can invoice): every outcome keeps at least the
+ *                 height the pending block took (a refusal's caption, « Caisse interne », a silent answer the dialog hides), so the answer never
+ *                 moves what is drawn around it (loop t21, verifier's reserve on UI21-1)
  *   cardDay       'JJ/MM' — the day of the card batch
  *   onIssue, onAttach  () => void — the buttons of a booking whose invoice is still to make / to join
  *   onPickTransaction (transactionId) => void
  *   busy          boolean
  *   showAddress   boolean — a guest with no client record
  */
-import React, { useState } from 'react';
+import React, { useLayoutEffect, useRef, useState } from 'react';
 import { Alert, Box, Button, Checkbox, FormControlLabel, TextField, Typography } from '@mui/material';
 import BillingAddressFields from './BillingAddressFields';
 
-export default function BookingInvoiceBlock({
+export default function BookingInvoiceBlock({ reserve = false, ...props }) {
+  const inner = useRef(null);
+  const [reserved, setReserved] = useState(0);
+  const { pending = false, checked, showAddress = true } = props;
+  // The pending block's own height, measured before paint; the outcome that replaces it keeps that height while `reserve` holds.
+  useLayoutEffect(() => {
+    if (pending && inner.current) setReserved(inner.current.offsetHeight);
+  }, [pending, checked, showAddress]);
+  useLayoutEffect(() => { if (!reserve) setReserved(0); }, [reserve]);
+  // The reservation shields the operator from the server's answer, not from their own gesture: ticking or unticking resizes freely.
+  const onCheck = props.onCheck && ((value) => { setReserved(0); props.onCheck(value); });
+  return (
+    <Box data-testid="invoice-block" data-reserve={reserve ? 'on' : undefined} sx={{ minHeight: reserve ? reserved : 0 }}>
+      <Box ref={inner}><InvoiceBlockContent {...props} onCheck={onCheck} /></Box>
+    </Box>
+  );
+}
+
+function InvoiceBlockContent({
   booking = null, qontoReady, offered, checked, onCheck, billing, onBilling, addressAsked = false, internalCash = false, reason = null,
-  cardDay = '', onIssue, onAttach, onPickTransaction, busy = false, showAddress = true,
+  pending = false, cardDay = '', onIssue, onAttach, onPickTransaction, busy = false, showAddress = true,
 }) {
   const [picking, setPicking] = useState(false);
   const [transactionId, setTransactionId] = useState('');
@@ -74,24 +97,24 @@ export default function BookingInvoiceBlock({
   if (internalCash) {
     return <Alert severity="info">Caisse interne : hors comptabilité, pas de facture. Décocher « Caisse interne » pour la passer en compta et la facturer.</Alert>;
   }
-  if (!offered && reason) {
+  if (!offered && !pending && reason) {
     return <Typography variant="caption" color="text.secondary">{reason}</Typography>;
   }
-  if (!offered) {
+  if (!offered && !pending) {
     return <Typography variant="caption" color="text.secondary">La facture se propose une fois le paiement saisi.</Typography>;
   }
   const stored = Boolean(booking && booking.payment);
   return (
-    <Box sx={{ display: 'grid', gap: 1.25 }}>
+    <Box sx={{ display: 'grid', gap: 1.25 }} aria-busy={pending || undefined}>
       {addressAsked && <Alert severity="error">Paiement enregistré. La facture n'a pas été créée : Qonto demande l'adresse de facturation.</Alert>}
       {stored ? (
         <Box>
-          <Button variant="outlined" onClick={onIssue} disabled={busy} sx={{ minHeight: 44 }}>Créer la facture</Button>
+          <Button variant="outlined" onClick={onIssue} disabled={busy || pending} sx={{ minHeight: 44 }}>Créer la facture</Button>
           {booking.invoice && booking.invoice.cancelled && <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5 }}>La facture précédente a été annulée dans Qonto.</Typography>}
         </Box>
       ) : (
         <FormControlLabel
-          control={<Checkbox checked={checked} onChange={(e) => onCheck(e.target.checked)} />}
+          control={<Checkbox checked={checked} disabled={pending} onChange={(e) => onCheck(e.target.checked)} />}
           label={(
             <Box>
               <Typography variant="body2">Créer la facture dans Qonto</Typography>

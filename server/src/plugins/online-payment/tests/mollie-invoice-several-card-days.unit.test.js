@@ -64,9 +64,13 @@ test('rule 33 — the receipts are four tranches, 24 + 6 under the first day and
 });
 
 test('rule 33 — a Mollie payment naming the invoice pairs with the first card day, never the last one listed', () => {
-  const { first } = twoCardDays();
+  const { first, second } = twoCardDays();
   const source = invoiceSources(dayAt(0)).get(NUMBER);
-  assert.deepEqual(source, { sourceType: 'invoice', sourceKey: NUMBER, reservationId: null, ledgerKey: `sale:${first}` });
+  // Loop t11 B11-1 — the later card day rides along (`nextDays`), for a second payment naming the same number.
+  assert.deepEqual(source, {
+    sourceType: 'invoice', sourceKey: NUMBER, reservationId: null, ledgerKey: `sale:${first}`, grossCents: 3000, paidAt: dayAt(-10),
+    nextDays: [{ sourceType: 'tender', sourceKey: `sale:${second}`, reservationId: null, ledgerKey: `sale:${second}`, grossCents: 5000, paidAt: dayAt(-5) }],
+  });
 });
 
 test('rule 33 — « Versements à venir » expects the whole 80 € paid by card: 24 + 6 and 40 + 10', () => {
