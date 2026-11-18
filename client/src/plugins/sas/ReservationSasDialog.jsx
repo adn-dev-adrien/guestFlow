@@ -1880,7 +1880,7 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
                     <PaymentModeButtons value={arrivalPayMode} onChange={setArrivalPayMode} showDefer deferLabel="Plus tard" disabled={settleBlocked} />
                   )}
                   {/* Loop t24 A24-2 — the lines are typed against the answer's total: after a failed recompute no line keeps the
-                      older amount; they come back, filled from the new total, with the next answer. */}
+                      older amount; they come back as the operator left them with the next answer (mixed-method-payments rule 59). */}
                   {arrivalTenderOpen && !failed && (
                     <TenderLines dueCents={Math.round(Number(recap.totalAtArrival) * 100)} onChange={setArrivalTenders} initialDraft={arrivalTenders ? arrivalTenders.draft : null} disabled={settleBlocked} autoFocus />
                   )}
