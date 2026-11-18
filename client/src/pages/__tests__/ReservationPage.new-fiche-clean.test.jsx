@@ -134,8 +134,11 @@ test('a client typed on one fiche does not follow the page to the next fiche it 
   fireEvent.change(await screen.findByLabelText(/^Nom/), { target: { value: 'Testeur' } });
   fireEvent.change(screen.getByLabelText(/^Prénom/), { target: { value: 'Alex' } });
   fireEvent.click(screen.getByRole('button', { name: 'Enregistrer' }));
+  // Loop t24 — the client dialog closes first (while it is open, « Enregistrer » is the dialog's own button, and the page is hidden
+  // from the queries); only then are the page's save and the typed client read (slow-scheduler sweep).
+  await waitFor(() => expect(screen.queryByText('Créer un nouveau client', { selector: 'h2' })).not.toBeInTheDocument());
   await waitFor(() => expect(screen.getByRole('button', { name: 'Enregistrer' })).toBeEnabled());
-  expect(screen.getAllByText(/Testeur/).length).toBeGreaterThan(0);
+  expect((await screen.findAllByText(/Testeur/)).length).toBeGreaterThan(0);
   delete window.__guestflowBeforeBack;
   fireEvent.click(screen.getByText('autre fiche'));
   await waitFor(() => expect(api.getProperties.mock.calls.length).toBeGreaterThan(1));

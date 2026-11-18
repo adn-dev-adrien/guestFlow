@@ -67,5 +67,6 @@ test('rule 44 — after a refused payment, the slot moved is previewed as the bo
   await waitFor(() => expect(api.previewResourceBooking).toHaveBeenLastCalledWith(
     expect.objectContaining({ bookingId: 41, startTime: '17:30', endTime: '18:30' }), expect.anything(),
   ));
-  expect(screen.getByRole('button', { name: 'Enregistrer' })).toBeEnabled();
+  // Loop t24 — with « Maintenant », the save also waits for the invoice question, asked once the moved slot's price is in.
+  await waitFor(() => expect(screen.getByRole('button', { name: 'Enregistrer' })).toBeEnabled());
 });
