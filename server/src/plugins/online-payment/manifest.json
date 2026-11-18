@@ -16,7 +16,7 @@
   ],
   "requires": [],
   "guestflow": ">=3.18.0",
-  "sdk": "^2.31.0",
+  "sdk": "^2.32.0",
   "changelog": {
     "1.0.0": [
       "Première version publiée en paquet."
@@ -190,7 +190,7 @@
       "Rapprochement : « Attendu » et le nom d’une vente hors séjour sans client s’affichent une seule fois, y compris dans « couvre aussi », la répartition et la carte « Écarts de règlement ».",
       "Un paiement Mollie d’une facture de plusieurs jours sans jour du même montant reste à identifier.",
       "Répartition d’un versement groupé : un contrôle qui échoue ne laisse plus l’ancien message affiché, il dit pourquoi avec « Réessayer », et les parts saisies restent en place.",
-      "Compatible avec GuestFlow 4 (SDK 2.31)."
+      "Demande GuestFlow 4.2 (SDK 2.32)."
     ]
   }
 }

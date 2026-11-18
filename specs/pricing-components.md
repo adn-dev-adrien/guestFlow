@@ -688,7 +688,8 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
     > _Reading of 2026-11-17 (loop t10 A10-4, spec synced in loop t11 A11-1):_ master's #1067 brought two more private cents copies
     > after this note was written — the Mollie client's `centsOf` and its settlement costs rounding (`mollieClient.js`). Both now read
     > cents through `coreModule('money').toCentsStrict` (the same `Math.round(Number(v) * 100)`: no figure moves), which is why
-    > online-payment ranges `^2.31.0`. The `money` guard was deliberately not widened to the plugins' sources: this copy is held by its
+    > online-payment ranged `^2.31.0` (`^2.32.0` since loop t24 D24-1: its link and split dialogs use the SDK 2.32 `FocusKeeper`).
+    > The `money` guard was deliberately not widened to the plugins' sources: this copy is held by its
     > own test, `mollie-cents-shared-helper` (2, under `plugins/online-payment/tests/`).
     > _Reading of 2026-11-17 (loop t12 P12-1):_ `mollieStatementPdf.formatEuros` (« 1 234,56 € », « - » for a negative, NaN as 0) is a
     > display helper kept on purpose: it differs from `eurosWithSpaces`, and `mollie-settlement-receipts` rule 7 wants a re-view to be
