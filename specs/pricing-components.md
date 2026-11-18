@@ -887,6 +887,14 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
     > _Reading of 2026-11-16 (loop t5 D5-6):_ « the read is never late » holds for `StayRepository.lineFacts` too: it rebuilds a stay a write behind
     > the hooks left marked (`payment_allocations_dirty`, e.g. a platform statement corrected) before it sums each line's allocations, the same flush as
     > `PaymentLedger.allocations`. Test `stay-line-facts-never-late`.
+    > _Reading of 2026-11-18 (loop t19, CI):_ « prepared once per handle » holds for the whole application database, not only the two ports. The
+    > ports and models added by PR B and PR C prepare where they run: one fiche save prepared `SELECT * FROM reservations WHERE id = ?` about
+    > 40 times (a test file of 22 saves: 39 494 prepares, against 8 603 on master), which made the same unchanged server tests 1.65× slower and the
+    > PR's two CI shards hit their 15-minute cap. `utils/statementCache.js`, installed last by `database.js` (over the stay-write trail's
+    > wrapper), hands back the statement already compiled for the same SQL text; it empties when `PRAGMA schema_version` moves (a dropped table
+    > still throws at `prepare`), keeps no text that fails to compile, and holds at most 2 000 texts (least recently used dropped). No module of
+    > `src/` sets a statement mode (`pluck`, `raw`, `expand`, `bind`) or iterates, which a shared statement would leak between callers. No
+    > figure moves: the same statements run on the same rows. Test `statement-cache`.
 49. **Articles with a downstream booking (fulfilment port).** An article may name a fulfilment adapter
     (`fulfilment: 'hourly-slot'`). `ArticleFulfilment` is a plain object `{ id, reserve(draft, ctx) → hold
     {id, expiresAt}, confirm(hold, line, tx), release(hold, reason) }`, registered through
@@ -2781,6 +2789,7 @@ All of it is plain CommonJS functions and objects (rule 56).
 | `plugins/guest-app/` | `ordersController.js`, `arrivalOrdersController.js`, `shopController.js`, `sellable.js`, `index.js` | T (PR C) | judge = `extraSale.quote`; commit = `extraSale.sell`; order lines keep `reservationLineId` |
 | `plugins/sas/` | `controller.js`, `arrivalRecap.js`, `departureRecap.js` | T (PR B) | recap = `saleDetail` + SETTLEMENT |
 | `database.js` | `database.js` | T | idempotent migration of §5 |
+| `utils/` | `statementCache.js` | C | one compiled statement per SQL text and handle, emptied on a schema change, bounded (rule 48, reading of 2026-11-18); `database.js` installs it last |
 | `scripts/` | `pricing-replay.mjs` | C | rule 34 |
 | `scripts/price-gate/` | `anonymise.js`, `figuresOf.js`, `recompute.js`, `buildFixture.mjs`, `moveProof.js`, `move-proof.mjs` | C (PR A) | rule 68 fixture builder and shared recompute; rule 73 move proof |
 | `tests/` | `price-gate.unit.test.js`, `helpers/priceGateCompare.js`, `fixtures/price-gate/{inputs,expected,allowlist}.json` | C (PR A) | rule 68 gate, cent-exact, owner-reviewed allowlist |
@@ -3043,6 +3052,7 @@ _Rewritten 2026-11-15 (stabilisation loop t1, UI-3) to what shipped._
 - [x] `sale-departure-part-of-arrival-line` — rule 103 d (loop t4, S4-6): a discount given back after the validated arrival is listed at the departure and stays there after the next sale (2)
 - [x] `sale-undiscount-open-arrival-then-sale` — rule 103 d (loop t4, S4-1): discount 10 then 0 at the open arrival, ticked, a sale: the departure takes only the sale
 - [x] `stay-line-facts-never-late` — rule 48 (loop t5, D5-6): the line facts of a stay left marked are rebuilt before they are read (1)
+- [x] `statement-cache` — rule 48 (reading of 2026-11-18, loop t19): one compiled statement per text and handle, emptied on a schema change, never keeps a text that fails, bounded, the stay-write trail sees each UPDATE once, the application database is cached and no `src/` module sets a statement mode (6)
 - [x] `sale-paid-line-fiche-save` — rule 105 a (loop t5, S5-1, A5-1): a card-paid line offered in the fiche asks what its line action asks (OVERPAID then owed on a platform stay; OVERPAID then owed on a direct one; credited to an open complement); removed from the body → `LINE_PAID` (4)
 - [x] `sale-paid-line-offered-kept` — rule 105 b (loop t5, S5-4, S5-5): an offered paid line is neither removed nor moved; the article re-sold is a line of its own, unpaid (2)
 - [x] `sale-arrival-open-early-tick` — rule 105 c (loop t5, S5-6): a box or a SAS stamp set before the arrival day closes nothing; on the day, judge and sale refuse together (4)

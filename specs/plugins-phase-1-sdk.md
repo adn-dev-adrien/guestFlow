@@ -686,6 +686,10 @@ Optional: a plugin that declares nothing reads « Actif ».
     event `standaloneSale.sold` (after the commit, an observer), and the client exports `SuggestedArticlesStep`, `SalePaymentLink`
     and `StandaloneSaleDialog` (optional `client` prop, outside-booking-sas rule 48)
     (`client/src/plugins/sdk/index.js`; `StaySalesSection` is SDK 2.30.0's). guest-app and hourly-resources range `^2.32.0`.
+    _Reading of 2026-11-18 (loop t19 A19-1):_ the four sale blocks are handed out lazily (`components/LazySaleComponents.jsx`, the
+    LazyReportCharts pattern): same names, same props, their code fetched on first render (« Vente hors séjour » on its first `open`), so
+    the SDK no longer puts them in every first page (specs/inte-performance.md rule 4: 315.3 → 309.1 kB gzip measured locally, budget
+    313.3 kB). Test `LazySaleComponents.lazy`.
     **The SDK history records what each shipped minor exposed:** v4.1.0 shipped SDK 2.27.0 without `vat`, `accountingOutput`, `legacyBucketSplit`,
     `refundJournal`, `csvJournal`, `salesJson` and `synthesisExporter`, and neither SDK 2.28.0 (the home-data extension points,
     specs/guest-app-home-automation.md, merged first) nor SDK 2.29.0 (the Mollie tranches and journal, rule 51, merged first) recorded them,
