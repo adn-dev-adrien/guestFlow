@@ -33,7 +33,7 @@
 import React, { useEffect, useId, useRef, useState } from 'react';
 import { Box, Button, FormControlLabel, Switch, TextField, Typography } from '@mui/material';
 import DateField from '../DateField';
-import TenderLines from '../TenderLines';
+import TenderLines, { tendersForDue } from '../TenderLines';
 import { evaluateArithmetic } from '../../utils/arithmetic';
 import { formatCurrency } from '../../utils/formatters';
 import { TENDER_TEXTS } from '../../constants/tenderMethods';
@@ -79,11 +79,14 @@ export default function PaymentMarkForm({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [payout, payoutMode]);
 
+  // Loop t25 — the lines' report counts only for the due on screen (`tendersForDue`), for the button and the request alike.
+  const tendersNow = splitInfo ? tendersForDue(tenderState, splitInfo.dueCents) : null;
   const submit = async () => {
+    if (showLines && !(tendersNow && tendersNow.canSubmit)) return;
     setBusy(true);
     setError({ message: '', field: null });
     if (showLines) {
-      const res = await onSubmit({ date, tenders: tenderState ? tenderState.tenders : [], shortfall: tenderState ? tenderState.shortfall : null });
+      const res = await onSubmit({ date, tenders: tendersNow.tenders, shortfall: tendersNow.shortfall });
       setBusy(false);
       if (res && res.ok === false && res.error) {
         setError({ message: res.error, field: res.field && /date$/i.test(res.field) ? 'date' : null });
@@ -215,10 +218,10 @@ export default function PaymentMarkForm({
         <Button
           type="submit"
           variant="contained"
-          disabled={busy || !date || (showLines && !(tenderState && tenderState.canSubmit))}
+          disabled={busy || !date || (showLines && !(tendersNow && tendersNow.canSubmit))}
           sx={{ minHeight: 44, borderRadius: 999, textTransform: 'none' }}
         >
-          {submitLabel(showLines, mode, tenderState, splitInfo)}
+          {submitLabel(showLines, mode, tendersNow, splitInfo)}
         </Button>
         <Button variant="text" onClick={onCancel} sx={{ minHeight: 44, textTransform: 'none' }}>Annuler</Button>
         {splitInfo && !alwaysSplit && (

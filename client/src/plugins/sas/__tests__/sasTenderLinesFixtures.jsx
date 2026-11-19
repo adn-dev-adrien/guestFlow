@@ -62,3 +62,33 @@ export async function failThenRecover(state, edit) {
   fireEvent.click(screen.getByRole('button', { name: 'Réessayer' }));
   await waitFor(() => expect(document.body.textContent).not.toMatch(/Total indisponible/));
 }
+
+// Loop t25 B25-1 — two lines typed short, « Geste commercial » chosen; a departure stay with two offerable lines (linen 24 + cleaning 80).
+export const collectButton = () => screen.getAllByRole('button').find((b) => /^Encaisser/.test(b.textContent));
+export async function typeShortWithGesture() {
+  await tenderReady();
+  fireEvent.change(firstAmount(), { target: { value: '10' } });
+  fireEvent.change(document.querySelector('[data-tender-amount="1"]'), { target: { value: '5' } });
+  fireEvent.click(await screen.findByText('Geste commercial'));
+  await waitFor(() => expect(collectButton()).toBeEnabled());
+}
+export const LINEN_STAY = sasPayload({
+  reservation: {
+    cautionAmount: 0,
+    endOfStayComplementDetail: JSON.stringify([{ label: 'Linge de toilette', qty: 3, unitPrice: 8, amount: 24, source: 'arrivalBathLinen' }]),
+  },
+  cleaning: { included: false, price: 80 },
+});
+export async function departureLinenRecap(state) {
+  const real = departurePreviewLikeTheServer(api);
+  api.previewDepartureSas.mockImplementation(async (...a) => { if (state.fail) throw offline(); return real(...a); });
+  api.getReservationSas.mockResolvedValue(LINEN_STAY);
+  renderDialog({ mode: 'departure' });
+  await screen.findByText('Commencer'); clickBtn('Commencer');
+  await screen.findByText(/fait correctement/); clickBtn('Pas OK');
+  await screen.findByText(/serviettes et les draps sont-ils tous là/); clickBtn('Oui');
+  await screen.findByText(/Clés du logement récupérées/); clickBtn('Oui');
+  await screen.findByText(/bon état/i); clickBtn('Oui');
+  await screen.findByText(/Total à percevoir : 104,00 €/);
+  fireEvent.click(document.querySelector('[data-split-toggle="departure"]'));
+}

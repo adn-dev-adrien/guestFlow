@@ -50,7 +50,7 @@ import {
   api, getPlatformColor, formatPlatformLabel, ConfirmDialog, OccurrenceGrid, LoadingState, ErrorAlert,
   useToast, useAppDialogs, SasKeypadCode, formatCurrency, displayDate, displayDateLong, PRICE_TYPE_LABELS,
   sasLockTitle, sasLockMessage, Slot, Contribution, useSlot, WheatIcon, BaguetteIcon, StatusBadge,
-  TenderLines, TENDER_TEXTS, StaySalesSection, useSaleComponentsReady, FocusKeeper,
+  TenderLines, TENDER_TEXTS, tendersForDue, StaySalesSection, useSaleComponentsReady, FocusKeeper,
 } from '../sdk';
 import OfferableLine from './OfferableLine';
 import buildArrivalDraft from './arrivalDraft';
@@ -896,6 +896,10 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
   // specs/mixed-method-payments.md rule 32 — the arrival lines only stand for the single payment (one amount asked).
   const arrivalSplitActive = mode === 'arrival' && arrivalTenderOpen && Boolean(recap && recap.unifiable)
     && activeKeys.includes('stayPayment') && !splitSettlement;
+  // Loop t25 — the lines' report counts only for the due on screen (`tendersForDue`): right after the recap's due moved, the older report
+  // (and its shortfall choice) is pending, for the button and for the commit.
+  const arrivalTendersNow = tendersForDue(arrivalTenders, recap ? Math.round(Number(recap.totalAtArrival) * 100) : null);
+  const departureTendersNow = tendersForDue(departureTenders, recap ? Math.round(Number(recap.grandTotal) * 100) : null);
   // specs/sas-departure-recap-server-side.md rule 9 — a stored line's key is recomputed by the server at
   // every preview (a mid-stay sync can rewrite the detail between the load and the recap): the draft
   // follows the keys of the LAST answer, and a line the server reports offered under a key never seen
@@ -1012,6 +1016,9 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
     }
   };
   const commit = async () => {
+    // Loop t25 — never send lines (or a shortfall choice) answering another due than the one on screen: the button is disabled then too.
+    const splitNow = mode === 'departure' ? (departureSplitActive ? departureTendersNow : undefined) : (arrivalSplitActive ? arrivalTendersNow : undefined);
+    if (splitNow !== undefined && !(splitNow && splitNow.canSubmit)) return;
     setCommitting(true); setError('');
     try {
       if (mode === 'arrival') {
@@ -1034,8 +1041,8 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
           arrivalPaymentMode: arrivalSplitActive ? 'split' : arrivalPayMode,
           arrivalPaymentSplit: splitSettlement,
           ...(arrivalSplitActive ? {
-            arrivalPaymentTenders: arrivalTenders ? arrivalTenders.tenders : [],
-            ...(arrivalTenders && arrivalTenders.shortfall ? { arrivalPaymentShortfall: arrivalTenders.shortfall } : {}),
+            arrivalPaymentTenders: arrivalTendersNow ? arrivalTendersNow.tenders : [],
+            ...(arrivalTendersNow && arrivalTendersNow.shortfall ? { arrivalPaymentShortfall: arrivalTendersNow.shortfall } : {}),
           } : {}),
           complementSettled: arrivalPayMode === 'card' || arrivalPayMode === 'cash',
           complementPaidCash: arrivalPayMode === 'cash',
@@ -1085,8 +1092,8 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
           complementsPaidCash: !departureSplitActive && departurePayMode === 'cash',
           displayedDepartureTotal: recap ? recap.grandTotal : undefined,
           ...(departureSplitActive ? {
-            complementsTenders: departureTenders ? departureTenders.tenders : [],
-            ...(departureTenders && departureTenders.shortfall ? { complementsShortfall: departureTenders.shortfall } : {}),
+            complementsTenders: departureTendersNow ? departureTendersNow.tenders : [],
+            ...(departureTendersNow && departureTendersNow.shortfall ? { complementsShortfall: departureTendersNow.shortfall } : {}),
           } : {}),
         });
         if (result && result.cancelled) return;
@@ -2080,7 +2087,7 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
         // Rule 20 / rule 19 of the departure spec — never commit against a total the operator has not seen.
         const waiting = !preview.fresh;
         // specs/mixed-method-payments.md §6 — with the lines open, the button names what it collects.
-        const tenders = mode === 'departure' ? (departureSplitActive ? departureTenders : null) : (arrivalSplitActive ? arrivalTenders : null);
+        const tenders = mode === 'departure' ? (departureSplitActive ? departureTendersNow : null) : (arrivalSplitActive ? arrivalTendersNow : null);
         const splitting = mode === 'departure' ? departureSplitActive : arrivalSplitActive;
         const splitDue = recap ? Number(mode === 'departure' ? recap.grandTotal : recap.totalAtArrival) || 0 : 0;
         // Loop t24 A24-2 — after a failed recompute the amount is unknown: the button names no figure of the older answer.

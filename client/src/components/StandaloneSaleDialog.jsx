@@ -18,7 +18,7 @@ import LoadingState from './LoadingState';
 import ErrorAlert from './ErrorAlert';
 import SuggestedArticlesStep from './SuggestedArticlesStep';
 import SalePaymentLink from './SalePaymentLink';
-import TenderLines from './TenderLines';
+import TenderLines, { tendersForDue } from './TenderLines';
 import useLatestPreview from '../hooks/useLatestPreview';
 import { formatCurrency } from '../utils/formatters';
 
@@ -130,8 +130,10 @@ export default function StandaloneSaleDialog({ open, onClose, onSold, client = n
   const linkMode = mode === 'link';
   const nameMissing = !client && draft.register && !draft.name.trim();
   const customerKind = quote ? quote.customer.kind : 'passage';
+  // Loop t25 — the lines' report counts only for the due on screen (`tendersForDue`), for the button and the request alike.
+  const paymentNow = tendersForDue(payment, remainingCents);
   const ready = Boolean(document) && draft.extras.length > 0 && preview.fresh && refusals.length === 0 && !emailBad && !nameMissing && !busy
-    && (!payNow || Boolean(payment && payment.canSubmit)) && (!linkMode || (linkState.reason === null));
+    && (!payNow || Boolean(paymentNow && paymentNow.canSubmit)) && (!linkMode || (linkState.reason === null));
 
   const patch = (changes) => setDraft((prev) => ({ ...prev, ...changes }));
   const addExtra = (article) => setDraft((prev) => {
@@ -142,13 +144,14 @@ export default function StandaloneSaleDialog({ open, onClose, onSold, client = n
   const search = useCallback((q) => api.getSuggestedArticlesCatalogue({ q }).then((res) => res.groups || []), []);
 
   async function save() {
+    if (!ready) return;
     setBusy(true);
     setError(null);
     try {
       const sold = await api.sellStandaloneSale({
         ...body,
         acceptedTotalCents: document.totals.totalCents,
-        payment: payNow ? { tenders: payment.tenders, shortfall: payment.shortfall } : undefined,
+        payment: payNow ? { tenders: paymentNow.tenders, shortfall: paymentNow.shortfall } : undefined,
       });
       let result = sold;
       if (linkMode) {
@@ -206,7 +209,10 @@ export default function StandaloneSaleDialog({ open, onClose, onSold, client = n
 
   let submitLabel = TEXTS.save;
   if (linkMode) submitLabel = TEXTS.saveAndLink;
-  else if (payNow && payment && payment.receivedCents > 0) submitLabel = TEXTS.saveAndCollect(euros(payment.receivedCents));
+  // The lines remount on a new due with one card line of the whole due (`key={remainingCents}`): until they report it, the label already
+  // names that due, so it never flickers (loop t21 commit-label rule); the button waits for the report (`ready`).
+  else if (payNow && paymentNow && paymentNow.receivedCents > 0) submitLabel = TEXTS.saveAndCollect(euros(paymentNow.receivedCents));
+  else if (payNow && !paymentNow) submitLabel = TEXTS.saveAndCollect(euros(remainingCents));
 
   return (
     // Loop t22 UI22-2 — a sheet: the payment the first answer draws under the Total fills room already there, so neither the content

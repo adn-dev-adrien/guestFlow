@@ -430,6 +430,17 @@ read the settlements themselves (`utils/paymentTenders.settlementFigures`).
     no choice back. The lines are the only other state restored from the draft and none depends on the due (the untyped last line is
     recomputed from it). Tests `TenderLines.shortfall-due-bound` (6) and `ReservationSasDialog.tender-lines-kept` (+4: arrival and
     departure, same due and another due).
+    _Same day (loop t25 verifier):_ **a commit sends only the report that answers the due on screen.** Between a new due and the report
+    the lines send for it (one render, an effect later) the screens still held the older report: in the SAS departure (12,50 € due, 1 + 2
+    typed, « Geste commercial », then « Offrir » → 6,00 €) « Encaisser » was clickable for 264–281 ms with the choice already cleared on
+    screen, and a click would have sent `complementsShortfall: waived` chosen for the older due. Every `onChange` report now carries the
+    `dueCents` it answers, and every consumer reads it through `tendersForDue(report, due)` (`TenderLines`, SDK 2.32.0 export) — or
+    `paymentForDue` for `BookingPaymentFields`, whose value carries the lines' own due — for its button AND in its commit handler, which
+    returns without sending anything otherwise: SAS arrival and departure, « Vente hors séjour », the fiche's « Encaisser en une fois »,
+    `PaymentMarkForm` (ledger rows, installments), the mid-stay note, the visit arrival and the hourly booking. Measured in Chromium at
+    1280 and 390 px frame by frame (arrival, due moved by « Offrir »): « Encaisser » off from the click to the new answer, then off with
+    the choice asked again — never on. Test `ReservationSasDialog.tender-commit-due` (12: the helper; every consumer read from the code
+    uses the guard; arrival and departure, the button's `disabled` never removed while the new answer lands, nothing sent).
 
 **Edge cases:**
 - All lines `cash` + internal, no shortfall → same storage as « Caisse interne » + settlement (rule 11).
@@ -696,6 +707,8 @@ See the summary page for the interactive mock (fiche row, SAS departure, modific
 - [x] _(round 34)_ `components/__tests__/TenderLines.whole-and-blank-line.test.jsx` (4) — rules 7, 44.
 - [x] _(loop t24)_ `components/__tests__/TenderLines.initial-draft.test.jsx` (2) and
       `plugins/sas/__tests__/ReservationSasDialog.tender-lines-kept.test.jsx` (4) — rule 59.
+- [x] _(loop t25 verifier)_ `plugins/sas/__tests__/ReservationSasDialog.tender-commit-due.test.jsx` (12) — rule 59, a commit only
+      for the due its report answers (shared walks in `sasTenderLinesFixtures.jsx`).
 - [x] _(loop t25 B25-1)_ `components/__tests__/TenderLines.shortfall-due-bound.test.jsx` (6) and
       `plugins/sas/__tests__/ReservationSasDialog.tender-lines-kept.test.jsx` (4 → 8) — rule 59, the shortfall choice bound to its due.
 - [x] _(loop t25)_ `plugins/sas/__tests__/ReservationSasDialog.tender-lines-focus.test.jsx` (5) — rule 59, reading of 2026-11-19: a remount

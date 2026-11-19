@@ -4,11 +4,10 @@
 // new due, and a line that no longer fits is left as typed for the meter to say.
 import { screen, fireEvent, waitFor } from '@testing-library/react';
 import { vi } from 'vitest';
-import api from '../../../api';
-import { clickBtn, renderDialog, sasPayload } from './sasFixtures';
-import { departurePreviewLikeTheServer } from './sasPreviewFake';
+import { clickBtn } from './sasFixtures';
 import {
-  arrivalRecap, departureRecap, failThenRecover, firstAmount, offerButtons, offline, pause, tenderReady, toRecap, type10,
+  arrivalRecap, collectButton, departureLinenRecap, departureRecap, failThenRecover, firstAmount, offerButtons, pause, tenderReady, toRecap,
+  type10, typeShortWithGesture,
 } from './sasTenderLinesFixtures';
 
 vi.mock('../../../hooks/usePlugins', () => ({ usePlugin: () => true }));
@@ -67,34 +66,6 @@ test.each(Object.keys(ROWS))('%s: the line typed comes back as typed', async (na
 // Loop t25 B25-1 (rule 59, reading of 2026-11-19) — the shortfall choice comes back with the lines only for the same due. 10 + 5 typed
 // short, « Geste commercial » chosen: back on the same due « Encaisser » can go; on another due the lines are as typed but the choice is
 // asked again and « Encaisser » waits (before: a gesture chosen for one gap was recorded for another, never re-asked).
-const collectButton = () => screen.getAllByRole('button').find((b) => /^Encaisser/.test(b.textContent));
-async function typeShortWithGesture() {
-  await tenderReady();
-  fireEvent.change(firstAmount(), { target: { value: '10' } });
-  fireEvent.change(document.querySelector('[data-tender-amount="1"]'), { target: { value: '5' } });
-  fireEvent.click(await screen.findByText('Geste commercial'));
-  await waitFor(() => expect(collectButton()).toBeEnabled());
-}
-const LINEN_STAY = sasPayload({
-  reservation: {
-    cautionAmount: 0,
-    endOfStayComplementDetail: JSON.stringify([{ label: 'Linge de toilette', qty: 3, unitPrice: 8, amount: 24, source: 'arrivalBathLinen' }]),
-  },
-  cleaning: { included: false, price: 80 },
-});
-async function departureLinenRecap(state) {
-  const real = departurePreviewLikeTheServer(api);
-  api.previewDepartureSas.mockImplementation(async (...a) => { if (state.fail) throw offline(); return real(...a); });
-  api.getReservationSas.mockResolvedValue(LINEN_STAY);
-  renderDialog({ mode: 'departure' });
-  await screen.findByText('Commencer'); clickBtn('Commencer');
-  await screen.findByText(/fait correctement/); clickBtn('Pas OK');
-  await screen.findByText(/serviettes et les draps sont-ils tous là/); clickBtn('Oui');
-  await screen.findByText(/Clés du logement récupérées/); clickBtn('Oui');
-  await screen.findByText(/bon état/i); clickBtn('Oui');
-  await screen.findByText(/Total à percevoir : 104,00 €/);
-  fireEvent.click(document.querySelector('[data-split-toggle="departure"]'));
-}
 const SHORTFALL_ROWS = {
   'arrival, same due (a step back, then the recap)': {
     sameDue: true,

@@ -22,7 +22,8 @@
  *                    (loop t24). The shortfall choice comes back only for the same due; a new due asks it again (loop t25 B25-1),
  *                    as a due that changes while mounted does
  *   single:          boolean — start with one line (collecting a reste)
- *   onChange:        ({ tenders, shortfall, canSubmit, receivedCents, gapCents, draft }) → void
+ *   onChange:        ({ tenders, shortfall, canSubmit, receivedCents, gapCents, dueCents, draft }) → void — `dueCents` is the due
+ *                    the report answers; a screen commits a report only through `tendersForDue(report, due)` (loop t25)
  *   disabled:        boolean
  *   autoFocus:       boolean — focus the first amount when mounted
  *   whole:           boolean — the amount is paid whole, no shortfall choice (rule 44: the acompte, an installment);
@@ -61,6 +62,13 @@ function seedLines(initialTenders, single, cashInternal) {
     { method: 'card', amount: '', internal: false, typed: false },
   ];
 }
+
+/**
+ * The report a screen may commit (loop t25, mixed-method-payments rule 59): the last `onChange` report only while it answers the due on
+ * screen. Between a new due and the report the lines send for it (one render, an effect later) the old report — its amounts, its shortfall
+ * choice — belongs to another due: null, so the commit is pending and never sends it. Every consumer reads its tenders through this.
+ */
+export const tendersForDue = (report, dueCents) => (report && report.dueCents === dueCents ? report : null);
 
 // The last line, while untyped, shows what the others leave (rule 7).
 export function tenderFigures(lines, dueCents) {
@@ -119,6 +127,7 @@ export default function TenderLines({
       canSubmit,
       receivedCents,
       gapCents,
+      dueCents,
       draft: { lines, shortKind, dueCents },
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps

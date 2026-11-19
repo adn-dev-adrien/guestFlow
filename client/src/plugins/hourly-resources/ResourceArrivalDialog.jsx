@@ -26,7 +26,7 @@ import {
   useSaleComponentsReady, FocusKeeper,
 } from '../sdk';
 import OfferedTimeField from './OfferedTimeField';
-import BookingPaymentFields, { paymentBody, hasCard } from './BookingPaymentFields';
+import BookingPaymentFields, { paymentBody, paymentForDue, hasCard } from './BookingPaymentFields';
 import BookingInvoiceBlock from './BookingInvoiceBlock';
 import useVisitQuote from './useVisitQuote';
 
@@ -233,13 +233,15 @@ export default function ResourceArrivalDialog({ open, bookingId, onClose, onDone
   const primaryLabel = invoiceOutcome ? TEXTS.makeInvoice : (!booking || !booking.arrived ? TEXTS.validate : (hasChanges ? TEXTS.save : (invoiceStored ? TEXTS.makeInvoice : TEXTS.close)));
   const closesOnly = !commitMode && !invoiceOutcome && !invoiceStored;
   // The invoice question is answered before the commit, so the checkbox the operator sees is the one the commit carries.
-  const paymentReady = !payNow || (Boolean(payment && payment.canSubmit) && !invoiceAwaiting && (!paymentDraft || invoiceQuote.fresh));
+  const paymentNow = paymentForDue(payment, remainingCents);
+  const paymentReady = !payNow || (Boolean(paymentNow && paymentNow.canSubmit) && !invoiceAwaiting && (!paymentDraft || invoiceQuote.fresh));
   const canValidate = Boolean(visit) && !busy && (closesOnly || Boolean(invoiceOutcome) || (commitMode ? quoteReady && paymentReady : invoiceStored));
 
   const adopt = (next) => { setVisit(next); setOfferedMinutes(Number(next.session.offeredMinutes || 0)); };
 
   // `issue` — the invoice block's « Créer la facture »: the explicit choice of an invoice for money already taken (invoicing rule 45).
   async function validate({ issue = false } = {}) {
+    if (!canValidate) return;
     setBusy(true);
     setError(null);
     try {
@@ -253,7 +255,7 @@ export default function ResourceArrivalDialog({ open, bookingId, onClose, onDone
         ...draft,
         acceptedTotalCents: view.totals.totalCents,
         ...(visit.document.id ? { version: visit.document.version } : {}),
-        payment: payNow ? paymentBody(payment) : null,
+        payment: payNow ? paymentBody(paymentNow) : null,
         invoice: wantsInvoice || (issue && invoiceStored),
         billing: booking.external ? billing : undefined,
       });

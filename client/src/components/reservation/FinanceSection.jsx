@@ -12,7 +12,7 @@ import MidStayNoteRow from './MidStayNoteRow';
 import { createPortal } from 'react-dom';
 import RefundDialog from './RefundDialog';
 import PaymentMarkForm from './PaymentMarkForm';
-import TenderLines from '../TenderLines';
+import TenderLines, { tendersForDue } from '../TenderLines';
 import { TENDER_TEXTS } from '../../constants/tenderMethods';
 import PlatformStatementEditor from './PlatformStatementEditor';
 import PlatformPenaltyDialog from './PlatformPenaltyDialog';
@@ -445,16 +445,19 @@ export default function FinanceSection() {
   const pendingMidStayLines = parseEndOfStayDetail(form.endOfStayComplementDetail)
     .filter((l) => l && l.source === 'midStayExtra' && Number(l.amount) > 0);
 
+  // Loop t25 — the lines' report counts only for the due on screen (`tendersForDue`), for the button and the request alike.
+  const arrivalTendersNow = tendersForDue(arrivalTenders, Math.round(Number(form.arrivalPayment?.collectible?.total || 0) * 100));
   const runArrivalPayment = async (mode) => {
     if (!editingReservationId) return;
+    if (mode === 'split' && !(arrivalTendersNow && arrivalTendersNow.canSubmit)) return;
     setArrivalPayBusy(true);
     setArrivalPayError('');
     try {
       if (mode === 'split') {
         await api.settleArrivalPayment(editingReservationId, mode, arrivalPayDate, {
           expectedAmountCents: Math.round(Number(form.arrivalPayment?.collectible?.total || 0) * 100),
-          tenders: arrivalTenders ? arrivalTenders.tenders : [],
-          shortfall: arrivalTenders ? arrivalTenders.shortfall : null,
+          tenders: arrivalTendersNow.tenders,
+          shortfall: arrivalTendersNow.shortfall,
         });
       } else {
         await api.settleArrivalPayment(editingReservationId, mode, arrivalPayDate);
@@ -1217,12 +1220,12 @@ export default function FinanceSection() {
                     {arrivalSplitOpen ? (
                       <Button
                         variant="contained"
-                        disabled={arrivalPayBusy || !arrivalPayDate || !(arrivalTenders && arrivalTenders.canSubmit)}
+                        disabled={arrivalPayBusy || !arrivalPayDate || !(arrivalTendersNow && arrivalTendersNow.canSubmit)}
                         onClick={() => runArrivalPayment('split')}
                         sx={{ textTransform: 'none', minHeight: 44, borderRadius: 999 }}
                       >
-                        {TENDER_TEXTS.collect(formatCurrency(arrivalTenders && arrivalTenders.gapCents > 0
-                          ? arrivalTenders.receivedCents / 100
+                        {TENDER_TEXTS.collect(formatCurrency(arrivalTendersNow && arrivalTendersNow.gapCents > 0
+                          ? arrivalTendersNow.receivedCents / 100
                           : form.arrivalPayment.collectible.total))}
                       </Button>
                     ) : (

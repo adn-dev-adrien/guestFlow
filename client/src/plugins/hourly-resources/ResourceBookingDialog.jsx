@@ -11,7 +11,7 @@ import useResourceBookingPreview from './useResourceBookingPreview';
 import { localIsoDate } from './localDate';
 import ResourceBookingSummary from './ResourceBookingSummary';
 import OfferedTimeField from './OfferedTimeField';
-import BookingPaymentFields, { paymentBody, hasCard } from './BookingPaymentFields';
+import BookingPaymentFields, { paymentBody, paymentForDue, hasCard } from './BookingPaymentFields';
 import BookingInvoiceBlock from './BookingInvoiceBlock';
 
 const INVOICE_PREVIEW_FAILED = 'Facture non vérifiée pour ce paiement.';
@@ -281,6 +281,7 @@ export default function ResourceBookingDialog({
       return;
     }
     if (!slotAvailable || !selectedStart || !selectedEnd || !isChronological || !meetsMinimumDuration) return; // Block save if invalid
+    if (payNow && !(paymentNow && paymentNow.canSubmit)) return; // loop t25 — never the lines of another due
     setSaving(true);
     setPaymentError(null);
     let wrote = false;
@@ -305,7 +306,7 @@ export default function ResourceBookingDialog({
       if (!ownId && id) setCreatedId(id);
       if (payNow && id) {
         try {
-          await api.recordResourceBookingPayment(id, paymentBody(payment));
+          await api.recordResourceBookingPayment(id, paymentBody(paymentNow));
         } catch (err) {
           setPaymentError(err.message || "Paiement non enregistré.");
           return;
@@ -353,6 +354,7 @@ export default function ResourceBookingDialog({
   const editable = !booking?.frozen;
   const payNow = payWhen === 'now' && !booking?.paid && Boolean(price && price.total > 0);
   const dueCents = booking?.visit ? booking.visit.remainingCents : Math.round(Number(price?.total || 0) * 100);
+  const paymentNow = paymentForDue(payment, dueCents);
   // Loop t24 — the invoice question is asked only for the payment typed against the price of the draft on screen: while a newer price
   // is on its way, or the tenders have not yet followed it, the pair (draft, payment) is stale and its answer would be a false refusal
   // (« Les moyens font 50,00 € pour 37,50 € dus. ») drawn for a second on the nominal path. Meanwhile the block is drawn pending (`invoiceAwaiting`, loop t25).
@@ -392,7 +394,7 @@ export default function ResourceBookingDialog({
     && meetsMinimumDuration
     && (externalMode ? clientName.trim() : selectedClient)
     && slotAvailable
-    && (!payNow || Boolean(payment && payment.canSubmit))
+    && (!payNow || Boolean(paymentNow && paymentNow.canSubmit))
     && !invoiceAwaiting && (!invoiceDraft || invoicePreview.fresh)
   );
   // Loop t23 — after a failed request the last answer keeps the summary's layout with every amount « — » (`priceUnknown`), so the

@@ -11,7 +11,7 @@ import api from '../../api';
 import { typedCountKind, typedCountValue, MAX_TYPED_NIGHTS } from '../../utils/optionTypedCount';
 import { optionLineKey, displayedFloor } from '../../utils/arrivalLineKey';
 import { formatCurrency } from '../../utils/formatters';
-import TenderLines from '../TenderLines';
+import TenderLines, { tendersForDue } from '../TenderLines';
 import { TENDER_TEXTS } from '../../constants/tenderMethods';
 
 /**
@@ -96,6 +96,8 @@ export default function MidStayNoteDialog({ open, onClose, pendingLines = [], on
   }, [open, checkedKeys, liveLines, editingReservationId]);
 
   const noteTotal = preview.total;
+  // Loop t25 — the lines' report counts only for the total on screen (`tendersForDue`).
+  const tendersNow = tendersForDue(tenders, Math.round(Number(noteTotal || 0) * 100));
   const instruction = () => ({ checkedKeys, opening: openingRef.current });
   // What a line sold counts: its typed people or nights, else its units (a typed line's `quantity` stays
   // 1, specs/non-card-option-served-persons.md rule 13). Same reading as the field below.
@@ -296,13 +298,13 @@ export default function MidStayNoteDialog({ open, onClose, pendingLines = [], on
         {splitOpen ? (
           <Button
             variant="contained"
-            disabled={busy || noteTotal <= 0 || !(tenders && tenders.canSubmit)}
-            onClick={() => run(() => onSettle(instruction(), false, {
-              expectedAmountCents: Math.round(noteTotal * 100), tenders: tenders.tenders, shortfall: tenders.shortfall,
-            }))}
+            disabled={busy || noteTotal <= 0 || !(tendersNow && tendersNow.canSubmit)}
+            onClick={() => { if (tendersNow && tendersNow.canSubmit) run(() => onSettle(instruction(), false, {
+              expectedAmountCents: Math.round(noteTotal * 100), tenders: tendersNow.tenders, shortfall: tendersNow.shortfall,
+            })); }}
             fullWidth={isMobile}
           >
-            {TENDER_TEXTS.collect(formatCurrency(tenders && tenders.gapCents > 0 ? tenders.receivedCents / 100 : noteTotal))}
+            {TENDER_TEXTS.collect(formatCurrency(tendersNow && tendersNow.gapCents > 0 ? tendersNow.receivedCents / 100 : noteTotal))}
           </Button>
         ) : (
           <>
