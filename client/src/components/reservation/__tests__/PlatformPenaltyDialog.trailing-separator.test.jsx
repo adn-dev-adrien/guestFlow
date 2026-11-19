@@ -32,3 +32,16 @@ test.each([['30,', 30], ['30.', 30], ['100,', 100], ['30,5', 30.5]])('« %s » i
   await waitFor(() => expect(api.previewPlatformPenalty).toHaveBeenLastCalledWith(7, expect.objectContaining({ amount })));
   expect(await screen.findByText(/^Commission 229,98 € → /)).toBeInTheDocument();
 });
+
+// Loop t25 verifier — more than two decimals is refused on the field, as its message says (the server refuses it too:
+// platform-penalties.unit.test.js, « deux décimales »), and never asked.
+test.each(['30,123', '30.123', '0,001'])('« %s » is refused inline and not asked', async (typed) => {
+  render(<DialogProvider><PlatformPenaltyDialog open onClose={vi.fn()} reservationId={7} source="fiche" onDone={vi.fn()} initialAmount={3} /></DialogProvider>);
+  await screen.findByText(/Commission 229,98 € → 226,98 €/);
+  const asked = api.previewPlatformPenalty.mock.calls.length;
+  fireEvent.change(screen.getByLabelText('Montant (€)'), { target: { value: typed } });
+  expect(screen.getByText(/Montant invalide : chiffres et virgule, deux décimales au plus/)).toBeInTheDocument();
+  await new Promise((resolve) => { setTimeout(resolve, 400); });
+  expect(api.previewPlatformPenalty.mock.calls.length).toBe(asked);
+  expect(screen.getByRole('button', { name: 'Enregistrer' })).toBeDisabled();
+});

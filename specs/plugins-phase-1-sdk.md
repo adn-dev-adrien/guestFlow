@@ -813,7 +813,9 @@ Optional: a plugin that declares nothing reads « Actif ».
     _Same day (loop t25 verifier):_ an amount typed with its decimal separator last (« 100, », « 30, ») is that whole amount for the
     payout split, « Modifier la répartition » (`parseEuroInput`) and the penalty (`toAmount`): it no longer reads as unreadable for one
     keystroke (« Montant invalide », the figures « — »). Everything else they refused stays refused; the server validates every amount.
-    Tests `parseEuroInput.trailing-separator` (15), `PlatformPenaltyDialog.trailing-separator` (4).
+    The penalty refuses more than two decimals on the field (« 30,123 »), as its message says; the server already refused it
+    (`platform-penalties` test, « deux décimales »). SDK 2.32.0 also exports `tendersForDue` (mixed-method-payments rule 59 reading of the
+    same day). Tests `parseEuroInput.trailing-separator` (15), `PlatformPenaltyDialog.trailing-separator` (7).
     **The SDK history records what each shipped minor exposed:** v4.1.0 shipped SDK 2.27.0 without `vat`, `accountingOutput`, `legacyBucketSplit`,
     `refundJournal`, `csvJournal`, `salesJson` and `synthesisExporter`, and neither SDK 2.28.0 (the home-data extension points,
     specs/guest-app-home-automation.md, merged first) nor SDK 2.29.0 (the Mollie tranches and journal, rule 51, merged first) recorded them,
