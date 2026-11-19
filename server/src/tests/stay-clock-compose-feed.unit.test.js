@@ -40,10 +40,10 @@ test('the baseline follows the clock: started and not marked → due; not starte
   assert.equal(withNow(NOW, () => futureMarked.arrivalBaselineNotDue(1)), true);
 });
 
-// The gesture's moment is fixed (`withNow`): the stay clock judges in Paris whatever the process zone or the runner's hour
-// (specs/server-test-isolation.md rule 6, reading of 2026-11-19). 10:00 and 18:00 at +01:00 stay on their side of 16:00 in
-// winter and in summer time.
 test('on the arrival day the check-in time decides, or the arrival validated before it (rule 102, loop t2 N-3)', () => {
+  // The gesture's moment is fixed (`withNow`): the stay clock judges in Paris whatever the process zone or the runner's hour
+  // (specs/server-test-isolation.md rule 6, reading of 2026-11-19). 10:00 and 18:00 at +01:00 stay on their side of 16:00 in
+  // winter and in summer time.
   const stay = { startDate: '2099-10-10', endDate: '2099-10-12', checkInTime: '16:00' };
   const morning = new Date('2099-10-10T10:00:00+01:00');
   const evening = new Date('2099-10-10T18:00:00+01:00');
