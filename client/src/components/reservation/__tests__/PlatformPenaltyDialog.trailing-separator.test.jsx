@@ -1,6 +1,7 @@
 // Loop t25 verifier (specs/reconciliation-assisted-matching.md rule 24; plugins-phase-1-sdk rule 54 reading of 2026-11-19) — an amount
 // being typed with its decimal separator last (« 30, ») is that whole amount: the preview is asked for it and its figures stay, with no
-// « Montant invalide » and no « — » for that keystroke.
+// « Montant invalide » and no « — » for that keystroke. Each row waits for the line of its own amount, never a node of the older answer
+// (loop t26 A26-1).
 import React from 'react';
 import { vi } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
@@ -30,7 +31,10 @@ test.each([['30,', 30], ['30.', 30], ['100,', 100], ['30,5', 30.5]])('« %s » i
   fireEvent.change(screen.getByLabelText('Montant (€)'), { target: { value: typed } });
   expect(screen.queryByText(/Montant invalide/)).toBeNull();
   await waitFor(() => expect(api.previewPlatformPenalty).toHaveBeenLastCalledWith(7, expect.objectContaining({ amount })));
-  expect(await screen.findByText(/^Commission 229,98 € → /)).toBeInTheDocument();
+  // The line of THE TYPED amount (loop t26 A26-1): the previous answer's line also starts « Commission 229,98 € → » and unmounts when the
+  // new answer lands (`key={line}`), so a match on the prefix can catch the older node.
+  const after = (Math.round((229.98 - amount) * 100) / 100).toFixed(2).replace('.', ',');
+  expect(await screen.findByText(`Commission 229,98 € → ${after} €`)).toBeInTheDocument();
 });
 
 // Loop t25 verifier — more than two decimals is refused on the field, as its message says (the server refuses it too:
