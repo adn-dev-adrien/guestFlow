@@ -163,6 +163,26 @@ being on the preload's lists fails the run once the suite executes the read (rul
    31/01, 01/02, 10/03, 15/07 and 31/12/2027 (red before from 01/01 to 15/07/2027). Every other test deriving a month or a
    year from a day offset reads it from that same day (`trop-percu-refund-books`, `email-template-when-sentence`,
    `payment-link-withdraw`, `stay-dates-guard`).
+   **Reading of 2026-11-19 (stabilisation loop t25, D25-1).** A day built from today is the PROCESS zone's day, and the stay
+   clock (`utils/pricing/stayClock.js`) judges on Europe/Paris whatever `TZ` says. Four cases put a check-in at `23:59` on
+   « today » (`toLocaleDateString('sv-SE')`, `todayIso()`, the guest-app fixture's `seedStay({ start: 0 })`) to read « the
+   arrival day, before the hour »: CI runs with no `TZ` (UTC), so from 23:00 to 24:00 UTC Paris was already on the next day,
+   the arrival day had passed and the case failed (PR shard 1/2, 23:41 UTC); on a Paris machine the same cases failed from
+   23:59. A case whose answer hangs on the hour of the day does not read the wall clock: it runs the gesture at a fixed
+   moment — `withNow(now, fn)` of `utils/localDate.js` for a model call, `openOrdering(id, { now })` for a guest-app call
+   (the session and the API clock) — on a fixed arrival day, at two hours safely on either side of the check-in (10:00 and
+   18:00 written at `+01:00` stay on their side of 16:00 in winter and summer time), and asserts both sides. Fixed:
+   `settled-complement-closes-bucket`, `reservations-mid-stay-sync`, `stay-clock-compose-feed` (also its started/future
+   case: `day(-1)` read in a zone ahead of Paris is Paris's arrival day itself) and `guest-order-stay-started-routing`.
+   The suite keeps the runner's `TZ` (rule 12 leaves it to the clock sweeps on purpose) rather than forcing Europe/Paris in
+   the preload as `index.js` does: forcing it would hide this class from the zone sweeps that found it, and a case that
+   holds only in one zone holds only by the hour. The same sweep found one more day read two ways: `finance-model`'s
+   `iso(n)` printed the UTC day of a local date while the model reads the local day, so west of UTC in the evening a stay
+   ending « yesterday » read as ending today; it now prints `localIsoDate`. What the sweep leaves red under the extreme
+   zones is not this class: fixtures that store an instant at a fixed UTC hour (`T09:00:00Z`, `'… 12:00:00'`) and expect
+   the local day it falls on, which moves only where the offset pushes that hour across midnight (UTC−11, UTC+14). Those
+   cases do not read the wall clock, so they are red or green by zone, never by hour, and green under UTC (CI) and
+   Europe/Paris (production) at every hour; they are left as they are. Proof below (§10).
 
 7. **A PR adding a literal date to a test is told so, on the line** (added 2026-10-30, audit R8 M-1, the guard
    audit R7 proposed). `scripts/check-test-dates.mjs --base <ref>` reads only the test lines a PR adds (files of
@@ -651,6 +671,7 @@ absence from CI.
 - [x] Rule 6 (second pass): the rule 6 test also reads the eight suites above and the whole `reservationSaveFixture` family (17 suites, found by their `require`). Clock-shift sweep of those 26 files (117 tests) under Europe/Paris and America/Los_Angeles: before, 0 / 4 / 8 / 20 / 27 red at 2026-10-30, 2027-01-24, 2027-02-12, 2027-05-25, 2027-07-21; after, 117/117 at each, and at 2027-10-05, 2028-02-29 and 2030-01-02.
 - [x] Rule 7: `test-suite-calendar-and-ci-budget.unit.test.js` — a quoted date, a template opening on a year and a `Date.UTC` year are named with file and line; only added lines are read, numbered as the diff numbers them; the marker, a pinned clock, a comment, the far future and non-test files are not named; a timer mock without `'Date'` pins nothing and `mock.timers.enable()` with no `apis` does; a pin exempts its own `test` / `describe` only, and a call written in a string is not a pin; the PR job runs it with `--strict`. The five new cases fail on the previous script and workflow. The PR itself passes `--strict` against inte/plugins.
 - [x] Rule 6 (third pass): the rule 6 test also reads the eight files of the second review, `ledgerFixture.js` and its 9 suites (found by their `require`). Those 17 files (188 tests) green at today, 2027-03-11 and 2027-07-21; whole-suite sweep below.
+- [x] Rule 6, reading of 2026-11-19 (loop t25, D25-1): the four cases and `finance-model` (87 tests) green under `Europe/Paris`, `UTC`, `America/Los_Angeles`, `Pacific/Pago_Pago` and `Pacific/Kiritimati` at 01:10-02:00 Paris (the process day one behind Paris under the two western zones). Whole server suite (14 318 tests), 2026-11-19 00:08-00:54 UTC: `America/Los_Angeles` 1 failure (`finance-model`, fixed after, green alone), `Pacific/Pago_Pago` 29 and `Pacific/Kiritimati` 13, all fixture instants at a fixed UTC hour read as the local day (deterministic per zone; none in the D25-1 family). Before: the reviewer's `America/Los_Angeles` run had the four cases red (and CI shard 1/2 at 23:41 UTC).
 - [x] Rule 7 (injected clocks, review of 2026-10-30): a replaced `getTodayIsoDate` / `todayIso`, a `NOW` constant and a `now:` exempt their block, the real clock and a local `const todayIso` helper do not; a pin in a named helper covers it and its callers; a `test.each` callback holds its own pin; a top-level `test.beforeEach` pins the file; `useFakeTimers({ toFake: ['setTimeout'], now })` pins nothing. Both new cases fail on the previous script.
 - [x] Rule 9: `dropKnownLines` keeps a line absent from the known content of its own file; a real git repository replays an integration PR (exit 0 with `--known`, exit 1 when the known ref does not resolve) and a feature PR adding one new line on top of a known one (only the new line named); the workflow fetches both branches and passes them. The three fail on the previous script and workflow. Replayed on the real branches: inte/plugins → master 2 091 named lines → 0, master → inte 25 → 0; this PR passes against inte/plugins.
 - [x] Rule 8: the same file reads the `client` job (3 shards, `fail-fast: false`, budget in shard 1) and the release jobs (self-update rule 52). The three shards locally: 209 / 208 / 208 files, 1 026 + 1 029 + 1 033 = 3 088 tests, the full suite's count.
