@@ -31,6 +31,13 @@ import { tendersForDue } from '../components/TenderLines';
 
 const RETRY_STATUSES = [408, 429];
 
+/** A preview's answer is the one for the draft on screen (`answerKey` === `draftKey`), settled; `fresh` for a preview without keys. */
+export function isCurrentAnswer(p) {
+  if (!p) return false;
+  if (p.draftKey === undefined) return Boolean(p.fresh);
+  return !p.pending && !p.failed && p.answerKey != null && p.answerKey === p.draftKey;
+}
+
 /** Whether asking the same draft again can help: no answer at all, a server failure, a timeout or a rate limit. */
 export function isRetryable(error) {
   if (!error) return false;
@@ -72,7 +79,9 @@ export default function useMoneyCommit({
   previews = [], dueCents = null, tenders = null, splitting = false, questions = [],
 }) {
   const tendersNow = splitting && dueCents != null ? tendersForDue(tenders, dueCents) : null;
-  const ready = previews.every((p) => Boolean(p && p.fresh))
+  // Each input is judged by identity (loop t26): the answer was for the draft on screen, nothing newer is on its way, no failure; the
+  // lines' report answers the due on screen and still describes the lines (`tendersForDue`).
+  const ready = previews.every(isCurrentAnswer)
     && questions.every(Boolean)
     && (!splitting || Boolean(tendersNow && tendersNow.canSubmit));
   const live = () => !splitting || Boolean(tendersNow && tendersNow.live());

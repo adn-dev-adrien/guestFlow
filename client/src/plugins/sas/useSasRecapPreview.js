@@ -25,11 +25,11 @@ export default function useSasRecapPreview({
     [request, reservationId],
   );
   const {
-    last, pending, error, failed, fresh, retry,
+    last, pending, error, failed, fresh, retry, answerKey, draftKey,
   } = useLatestPreview({
     fetcher, draft, enabled: Boolean(enabled && reservationId), scope: reservationId, resetKey, delay,
   });
   return {
-    recap: last, pending, error, failed, fresh, retry,
+    recap: last, pending, error, failed, fresh, retry, answerKey, draftKey,
   };
 }

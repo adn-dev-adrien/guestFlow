@@ -22,7 +22,7 @@ export default function useVisitQuote({
 }) {
   const fetcher = useCallback((body, options) => api.quoteResourceVisit(bookingId, body, options), [bookingId]);
   const {
-    data, pending, error, failed, fresh, retry,
+    data, pending, error, failed, fresh, retry, answerKey, draftKey,
   } = useLatestPreview({
     fetcher, draft, enabled: Boolean(enabled && draft && bookingId), scope: `${bookingId}:${version}`, resetKey: enabled ? `open:${bookingId}` : 'closed',
   });
@@ -35,6 +35,8 @@ export default function useVisitQuote({
     error: refused ? null : error,
     refusal: refused ? error.message : null,
     fresh,
+    answerKey,
+    draftKey,
     retry,
   };
 }

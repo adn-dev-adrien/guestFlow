@@ -23,7 +23,7 @@ import {
 } from '@mui/material';
 import {
   api, formatCurrency, LoadingState, ErrorAlert, ConfirmDialog, SuggestedArticlesStep, SalePaymentLink, StatusBadge, StandaloneSaleDialog,
-  useSaleComponentsReady, FocusKeeper, MoneyActions,
+  useSaleComponentsReady, FocusKeeper, MoneyActions, useMoneyCommit,
 } from '../sdk';
 import OfferedTimeField from './OfferedTimeField';
 import BookingPaymentFields, { paymentBody, paymentForDue, hasCard } from './BookingPaymentFields';
@@ -190,7 +190,7 @@ export default function ResourceArrivalDialog({ open, bookingId, onClose, onDone
   const remainingCents = view && !amountsUnknown ? view.totals.remainingCents : 0;
   const payNow = !readOnly && mode === 'now' && remainingCents > 0;
   const hasChanges = dirty || payNow;
-  const quoteReady = !dirty || (quote.fresh && !quote.refusal && refusals.length === 0);
+  const quoteReady = !dirty || (!quote.refusal && refusals.length === 0);
   const qontoReady = Boolean(view && view.invoiceReady);
   // Loop t2 B2-7 (rule 54) — with « Payé maintenant », whether this commit could make the invoice is the server's answer for the payment typed.
   // Loop t24 — asked only for the payment typed against the remainder of the draft on screen: while a newer quote is on its way, or the
@@ -205,7 +205,7 @@ export default function ResourceArrivalDialog({ open, bookingId, onClose, onDone
   const invoiceAwaiting = paymentTyped && !paymentDraft;
   const invoiceQuote = useVisitQuote({ bookingId, draft: paymentDraft, enabled: open, version: visit ? visit.document.version : 0 });
   // Loop t3 UI3-4/UI3-5 — no caption ↔ checkbox flip per keystroke: the pending block keeps the place of the answer (loop t21 `reserve`); the commit
-  // still waits for the answer to the payment typed (`paymentReady`). « Caisse interne » and any other refusal are the server's words too.
+  // still waits for the answer to the payment typed (the commit gate below). « Caisse interne » and any other refusal are the server's words too.
   const draftAnswerFailed = Boolean(quote.refusal || quote.error);
   // Loop t25 — while the typed payment waits (`invoiceAwaiting`) or its answer is on its way, no answer is current for it: the block is drawn
   // pending (checkbox disabled, as ticked as the operator left it, at the reserved height) instead of an older payment's answer (owner
@@ -232,10 +232,18 @@ export default function ResourceArrivalDialog({ open, bookingId, onClose, onDone
   const commitMode = !invoiceOutcome && (!booking || !booking.arrived || hasChanges);
   const primaryLabel = invoiceOutcome ? TEXTS.makeInvoice : (!booking || !booking.arrived ? TEXTS.validate : (hasChanges ? TEXTS.save : (invoiceStored ? TEXTS.makeInvoice : TEXTS.close)));
   const closesOnly = !commitMode && !invoiceOutcome && !invoiceStored;
-  // The invoice question is answered before the commit, so the checkbox the operator sees is the one the commit carries.
-  const paymentNow = paymentForDue(payment, remainingCents);
-  const paymentReady = !payNow || (Boolean(paymentNow && paymentNow.canSubmit) && !invoiceAwaiting && (!paymentDraft || invoiceQuote.fresh));
-  const canValidate = Boolean(visit) && !busy && (closesOnly || Boolean(invoiceOutcome) || (commitMode ? quoteReady && paymentReady : invoiceStored));
+  // The invoice question is answered before the commit, so the checkbox the operator sees is the one the commit carries. The money-dialog
+  // contract (plugins-phase-1-sdk rule 58): every answer judged by the draft it was for — the visit's quote, the invoice question of the
+  // payment typed — and the lines' report by the due on screen.
+  const gate = useMoneyCommit({
+    previews: [...(dirty ? [quote] : []), ...(payNow && paymentDraft ? [invoiceQuote] : [])],
+    dueCents: remainingCents,
+    tenders: payment,
+    splitting: payNow,
+    questions: [quoteReady, !(payNow && invoiceAwaiting)],
+  });
+  const paymentNow = payNow ? gate.tendersNow : paymentForDue(payment, remainingCents);
+  const canValidate = Boolean(visit) && !busy && (closesOnly || Boolean(invoiceOutcome) || (commitMode ? gate.ready : invoiceStored));
 
   const adopt = (next) => { setVisit(next); setOfferedMinutes(Number(next.session.offeredMinutes || 0)); };
 

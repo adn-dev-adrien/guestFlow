@@ -56,6 +56,11 @@ export default function useLatestPreview({
   fetcherRef.current = fetcher;
   const scopeRef = useRef(scope);
   scopeRef.current = scope;
+  // What is on its way and what the latest accepted answer is for (loop t26, rule 58): a draft that comes back to one of them is not asked
+  // again, so `fresh` never reads true for one render on an answer the hook is about to ask over (the invoice question and the booking's
+  // save read it).
+  const inflightRef = useRef(null);
+  const settledRef = useRef(null);
 
   const send = useCallback((sig) => {
     seqRef.current += 1;
@@ -64,15 +69,20 @@ export default function useLatestPreview({
     const controller = typeof AbortController === 'function' ? new AbortController() : null;
     abortRef.current = controller;
     const asked = scopeRef.current;
+    inflightRef.current = { signature: sig, scope: asked };
     setPending(true);
     fetcherRef.current(JSON.parse(sig), { signal: controller ? controller.signal : undefined })
       .then((data) => {
         if (seq !== seqRef.current) return;
+        inflightRef.current = null;
+        settledRef.current = { signature: sig, scope: asked };
         setAnswer({ ...EMPTY, data, signature: sig });
         setPending(false);
       })
       .catch((error) => {
         if (seq !== seqRef.current || (error && error.name === 'AbortError')) return;
+        inflightRef.current = null;
+        settledRef.current = null;
         setAnswer((prev) => ({
           ...prev, error, failed: true, failedFor: { signature: sig, scope: asked },
         }));
@@ -85,6 +95,8 @@ export default function useLatestPreview({
     if (abortRef.current) abortRef.current.abort();
     clearTimeout(timerRef.current);
     wasEnabledRef.current = false;
+    inflightRef.current = null;
+    settledRef.current = null;
     setAnswer(EMPTY);
     setPending(false);
   }, [resetKey]);
@@ -95,6 +107,7 @@ export default function useLatestPreview({
       if (abortRef.current) abortRef.current.abort();
       clearTimeout(timerRef.current);
       wasEnabledRef.current = false;
+      inflightRef.current = null;
       setPending(false);
       // Nothing is asked any more (the draft emptied, made invalid, the screen closed): a failure about it has nothing left to retry
       // (loop t24 S24-2).
@@ -103,6 +116,24 @@ export default function useLatestPreview({
     }
     const first = !wasEnabledRef.current;
     wasEnabledRef.current = true;
+    // Loop t26 (rule 58) — the draft came back to what is already on its way: that request answers it, nothing new is asked. It came back
+    // to the draft of the latest accepted answer: that answer is current again — what was asked since is dropped, and the screen is not
+    // pending. Either way `fresh` follows the request the screen actually waits for, never a render ahead of it.
+    const isCurrent = (ref) => Boolean(ref) && ref.signature === signature && Object.is(ref.scope, scope);
+    if (!first && isCurrent(inflightRef.current)) {
+      clearTimeout(timerRef.current);
+      setPending(true);
+      return () => clearTimeout(timerRef.current);
+    }
+    if (!first && isCurrent(settledRef.current)) {
+      seqRef.current += 1;
+      if (abortRef.current) abortRef.current.abort();
+      inflightRef.current = null;
+      clearTimeout(timerRef.current);
+      setPending(false);
+      setAnswer((prev) => (prev.failed ? { ...prev, error: null, failed: false, failedFor: null } : prev));
+      return () => clearTimeout(timerRef.current);
+    }
     setPending(true);
     // A request the screen asks on its own (an edited draft, a new scope, the draft enabled again) is not « Réessayer »: it ends the
     // previous failure. Only `retry` keeps it, through its pending request.
@@ -131,6 +162,10 @@ export default function useLatestPreview({
     error: failed ? answer.error : null,
     failed,
     fresh: !pending && !answer.failed && answer.signature === signature && answer.data != null,
+    // Loop t26 (rule 58) — the identities behind `fresh`: the draft the latest answer was for, and the draft on screen. A commit gate
+    // (`useMoneyCommit`) compares them itself, so no boolean of an earlier request can stand for the draft on screen.
+    answerKey: answer.data != null ? answer.signature : null,
+    draftKey: signature,
     retry,
   };
 }

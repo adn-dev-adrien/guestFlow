@@ -900,6 +900,19 @@ Optional: a plugin that declares nothing reads « Actif ».
     `HARNESS_SEED_BASE`, `HARNESS_REPORT=<file>` to collect every failing seed) widens a local run. On the parent commits of rounds 23-26 it
     finds the known classes (validated 2026-11-19, per commit, in the round-26 loop status). A test (`moneyDialogs.invariants.coverage`) reads the
     members from the code and fails until a new one has its family.
+    _Same day (loop t26, the harness's long run):_ **a draft that comes back is not asked again.** `useLatestPreview` re-asked a draft that
+    came back to the one already on its way or already answered (« Plus 15 minutes » then « Moins 15 minutes », a time chosen and chosen
+    back): during the render before that redundant request `fresh` read true on the earlier answer and flipped to false a frame later, so the
+    visit's and the booking's invoice question left for a draft the screen was about to ask over, and the booking's save could send a price
+    the hook had just put back in question (booking seed 1706, visit seeds 229, 895, booking seeds 738, 1312, 1592 — kept in the permanent
+    list at 60 steps). The hook now keeps the request on its way when the draft comes back to it, and when the draft comes back to the latest
+    accepted answer it drops what was asked since and is current again (not pending); a draft back to a FAILED one is still asked afresh
+    (loop t24 UI24-2). `fresh` therefore follows the request the screen waits for, for every consumer. And the commit gate no longer trusts
+    a boolean: `useLatestPreview` (and `useVisitQuote`, `useResourceBookingPreview`, `useSasRecapPreview`) also answer `answerKey` (the draft
+    the latest answer was for) and `draftKey` (the draft on screen), and `useMoneyCommit` (`isCurrentAnswer`) enables a commit only when they
+    are the same, settled, not failed, for EVERY input — the price or quote, the invoice question of the payment typed (silent answer
+    included), and the lines' report by `tendersForDue`. The visit's « Valider l’arrivée » and the booking's save now go through it too
+    (their own `quoteReady` / `paymentReady` / `canSave` conditions are gone; the booking's save handler asks the gate again before writing).
 
 **Edge cases:**
 - **A plugin throws during `register`.** Rule 4 applies: the other plugins and the core boot. The Plugins
@@ -1156,12 +1169,14 @@ still in the core. Server: 4,611 tests after, of which 37 are new. Client: 1,416
   focus ends in the dialog, never on the page — the arrival's « Facture » address through a second answer accepted / refused / silent /
   « Caisse interne », the booking dialog's, the block alone, the counter's « Réessayer », « Retirer », « Percevoir maintenant », the minted
   link, the SAS « Séjour » page's « Réessayer ».
+- `hooks/__tests__/useLatestPreview.draft-back.test.jsx` (3) — rule 58 (reading of 2026-11-19, loop t26): a draft back to the one on its way keeps that request, back to the latest accepted answer is current and not pending, back to a failed one is asked afresh.
 - `__tests__/moneyDialogs.invariants.*.test.jsx` (9 files, 20 tests) — rule 58 (loop t26): the generative harness
   (`__tests__/moneyDialogsHarness.jsx`), one suite per family — `counter` (1), `visit` (1), `booking` (1), `sas` (2: arrival, departure),
   `note` (1), `penalty` (1), `reconciliation` (2: split, link), `fiche` (1: « Encaisser en une fois » and a ledger row's `PaymentMarkForm`)
-  — each running its fixed seeds (3-6 seeds × 25-30 steps) and checking I1-I6 after every step; `coverage` (10): the members read from
-  the code equal the table, each family has its suite rendering its dialog. Verified locally at 2000 seeds × 60 steps per family with 0
-  violations (`HARNESS_SEEDS=2000 HARNESS_STEPS=60`).
+  — each running its fixed seeds (2-6 seeds × 25-30 steps, plus the seeds the long run found, at 60 steps) and checking I1-I6 after every
+  step, about 65 s on one worker; `coverage` (10): the members read from the code equal the table, each family has its suite rendering its
+  dialog. Run locally with 0 violations: seeds 1-200 × 60 steps for every family; seeds 201-1000 × 60 for the visit and the booking and
+  201-700 × 60 for the others after the hook fix (the seeds 201-2000 run that found the six booking/visit seeds was stopped there).
 - `components/__tests__/FocusKeeper.test.jsx` (7) — a focused control removed, disabled, hidden, or hidden with its nearest region: the
   focus lands on the nearest region still drawn; a control that stays keeps it; a control the operator left is never taken back; no Tab stop.
 

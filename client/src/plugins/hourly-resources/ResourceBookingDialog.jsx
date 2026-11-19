@@ -5,7 +5,7 @@ import {
   FormControlLabel, Typography, Divider, Switch, LinearProgress, ToggleButton, ToggleButtonGroup, useMediaQuery, useTheme,
 } from '@mui/material';
 import MiniDayPlanner from './MiniDayPlanner';
-import { api, formatCurrency, ConfirmDialog, ClientPickerField, ErrorAlert, FocusKeeper, MoneyActions } from '../sdk';
+import { api, formatCurrency, ConfirmDialog, ClientPickerField, ErrorAlert, FocusKeeper, MoneyActions, useMoneyCommit } from '../sdk';
 import resourceBookingDraft from './resourceBookingDraft';
 import useResourceBookingPreview from './useResourceBookingPreview';
 import { localIsoDate } from './localDate';
@@ -281,7 +281,7 @@ export default function ResourceBookingDialog({
       return;
     }
     if (!slotAvailable || !selectedStart || !selectedEnd || !isChronological || !meetsMinimumDuration) return; // Block save if invalid
-    if (payNow && !(paymentNow && paymentNow.canSubmit && (!paymentNow.live || paymentNow.live()))) return; // loop t25 — only the lines on screen
+    if (!gate.ready || !gate.live()) return; // loop t26 — only a price and lines that answer the draft on screen
     setSaving(true);
     setPaymentError(null);
     let wrote = false;
@@ -354,7 +354,7 @@ export default function ResourceBookingDialog({
   const editable = !booking?.frozen;
   const payNow = payWhen === 'now' && !booking?.paid && Boolean(price && price.total > 0);
   const dueCents = booking?.visit ? booking.visit.remainingCents : Math.round(Number(price?.total || 0) * 100);
-  const paymentNow = paymentForDue(payment, dueCents);
+  const paymentForScreen = paymentForDue(payment, dueCents);
   // Loop t24 — the invoice question is asked only for the payment typed against the price of the draft on screen: while a newer price
   // is on its way, or the tenders have not yet followed it, the pair (draft, payment) is stale and its answer would be a false refusal
   // (« Les moyens font 50,00 € pour 37,50 € dus. ») drawn for a second on the nominal path. Meanwhile the block is drawn pending (`invoiceAwaiting`, loop t25).
@@ -386,17 +386,20 @@ export default function ResourceBookingDialog({
   // changes nothing on screen but the box's enabled state; a refusal gives the plain label back.
   const invoiceDrawn = wantsInvoice || (invoicePending && (invoiceChecked || !payment));
   const durationForOffer = durationMinutes - Number(price?.freeMinutesApplied || 0);
-  const canSave = Boolean(
-    date
-    && selectedStart
-    && selectedEnd
-    && isChronological
-    && meetsMinimumDuration
-    && (externalMode ? clientName.trim() : selectedClient)
-    && slotAvailable
-    && (!payNow || Boolean(paymentNow && paymentNow.canSubmit))
-    && !invoiceAwaiting && (!invoiceDraft || invoicePreview.fresh)
-  );
+  // The money-dialog contract (plugins-phase-1-sdk rule 58): the price and the invoice question of the payment typed, each judged by the
+  // draft it answered; the lines' report by the due on screen; every field of the booking answered.
+  const gate = useMoneyCommit({
+    previews: [preview, ...(invoiceDraft ? [invoicePreview] : [])],
+    dueCents,
+    tenders: payment,
+    splitting: payNow,
+    questions: [
+      date, selectedStart, selectedEnd, isChronological, meetsMinimumDuration, externalMode ? clientName.trim() : selectedClient, slotAvailable,
+      !invoiceAwaiting,
+    ].map(Boolean),
+  });
+  const paymentNow = payNow ? gate.tendersNow : paymentForScreen;
+  const canSave = gate.ready;
   // Loop t23 — after a failed request the last answer keeps the summary's layout with every amount « — » (`priceUnknown`), so the
   // « Temps offert » stepper the operator is using stays mounted; the reason and « Réessayer » stay until a new answer.
   const priceUnknown = Boolean(draft && !price && preview.failed && preview.last);
@@ -758,7 +761,7 @@ export default function ResourceBookingDialog({
               </Button>
             )}
             <Button onClick={onClose} disabled={saving}>Annuler</Button>
-            <Button variant="contained" onClick={handleSave} disabled={invoiceOutcome ? saving : (!canSave || !preview.fresh || saving)} sx={{ minHeight: 44 }}>
+            <Button variant="contained" onClick={handleSave} disabled={invoiceOutcome ? saving : (!canSave || saving)} sx={{ minHeight: 44 }}>
               {saving ? 'Enregistrement…' : (invoiceOutcome ? 'Créer la facture' : (draft && preview.pending ? 'Calcul du prix…' : (invoiceDrawn ? 'Enregistrer et facturer' : 'Enregistrer')))}
             </Button>
           </>

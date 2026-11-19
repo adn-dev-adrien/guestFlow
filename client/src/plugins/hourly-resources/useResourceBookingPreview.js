@@ -18,7 +18,7 @@ const REFUSAL_STATUSES = [400, 409];
 export default function useResourceBookingPreview({ draft, enabled }) {
   const fetcher = useCallback((body, options) => api.previewResourceBooking(body, options), []);
   const {
-    data, last, pending, error, failed, fresh, retry,
+    data, last, pending, error, failed, fresh, retry, answerKey, draftKey,
   } = useLatestPreview({
     fetcher, draft, enabled: Boolean(enabled && draft), resetKey: enabled ? 'open' : 'closed',
   });
@@ -31,6 +31,8 @@ export default function useResourceBookingPreview({ draft, enabled }) {
     error: refused ? null : error,
     refusal: refused ? error.message : null,
     fresh,
+    answerKey,
+    draftKey,
     retry,
   };
 }
