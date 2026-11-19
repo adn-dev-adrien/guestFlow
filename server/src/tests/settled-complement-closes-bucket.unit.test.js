@@ -78,6 +78,11 @@ test('avec la base figée à l\'encaissement, les 30 € partent au complément 
 
 // ── la base est-elle posée au bon moment ? (couche modèle) ──────────────────
 
+const { withNow } = require('../utils/localDate');
+// Le jour d'arrivée par défaut de `modelDb` à une heure de Paris (+01:00 ou +02:00 selon la saison : 10:00 et 18:00 restent du
+// bon côté de 16:00 dans les deux cas).
+const ARRIVAL_DAY_AT = (time) => new Date(`2099-10-10T${time}:00+01:00`);
+
 function modelDb({ complementPaid = 0, startDate = '2099-10-10', checkedIn = false, checkInTime = null } = {}) {
   const db = new Database(':memory:');
   db.exec(`
@@ -120,11 +125,17 @@ test('séjour commencé par l\'horloge → la base existe, encaissé ou non', ()
   assert.deepEqual(JSON.parse(model.resolveArrivalExtrasBaseline(1)), { 'opt:9': 24 });
 });
 
-// Le jour de l'arrivée, avant l'heure du check-in : pas de base (l'option ajoutée à la main part au solde).
+// Le jour de l'arrivée, avant l'heure du check-in : pas de base (l'option ajoutée à la main part au solde). Le moment du geste
+// est fixé (`withNow`) : l'horloge du séjour juge à Paris, quel que soit le fuseau du processus ou l'heure du runner
+// (specs/server-test-isolation.md rule 6, reading of 2026-11-19).
 test('jour d\'arrivée atteint mais heure du check-in pas passée → pas de base', () => {
-  const model = createReservationsModel(modelDb({ startDate: new Date().toLocaleDateString('sv-SE'), checkInTime: '23:59' }));
-  assert.equal(model.resolveArrivalExtrasBaseline(1), null);
-  assert.equal(model.captureArrivalExtrasBaselineIfDue(1), null);
+  const model = createReservationsModel(modelDb({ checkInTime: '16:00' }));
+  withNow(ARRIVAL_DAY_AT('10:00'), () => {
+    assert.equal(model.resolveArrivalExtrasBaseline(1), null);
+    assert.equal(model.captureArrivalExtrasBaselineIfDue(1), null);
+  });
+  assert.deepEqual(withNow(ARRIVAL_DAY_AT('18:00'), () => JSON.parse(model.resolveArrivalExtrasBaseline(1))), { 'opt:9': 24 },
+    'le même jour, l\'heure passée : la base existe');
 });
 
 test('la case check-in cochée AVANT l\'heure du check-in ne pose pas la base (E1, règle 20)', () => {

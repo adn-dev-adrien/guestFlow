@@ -7,10 +7,11 @@ const Database = require('better-sqlite3');
 
 const { create: createReservationsModel } = require('../models/reservationsModel');
 const { MID_STAY_SOURCE } = require('../utils/midStayExtras');
+const { withNow } = require('../utils/localDate');
 
 // `checkedIn` — specs/arrival-moment-is-the-check-in.md : c'est l'arrivée constatée (check-in ou
 // SAS d'arrivée), et non la date du calendrier, qui ouvre la fenêtre « vendu en cours de séjour ».
-function makeDb({ startDate = '2026-07-10', checkedIn = true } = {}) {
+function makeDb({ startDate = '2026-07-10', endDate = '2026-07-15', checkedIn = true } = {}) {
   const db = new Database(':memory:');
   db.exec(`
     CREATE TABLE reservations (
@@ -64,8 +65,8 @@ function makeDb({ startDate = '2026-07-10', checkedIn = true } = {}) {
     CREATE TABLE properties (id INTEGER PRIMARY KEY AUTOINCREMENT, defaultCautionAmount REAL DEFAULT 0);
   `);
   db.prepare('INSERT INTO properties (id, defaultCautionAmount) VALUES (7, 500)').run();
-  db.prepare("INSERT INTO reservations (id, propertyId, startDate, endDate, adults, complementAmount, checkInDone) VALUES (1, 7, ?, '2026-07-15', 2, 30, ?)")
-    .run(startDate, checkedIn ? 1 : 0);
+  db.prepare("INSERT INTO reservations (id, propertyId, startDate, endDate, adults, complementAmount, checkInDone) VALUES (1, 7, ?, ?, 2, 30, ?)")
+    .run(startDate, endDate, checkedIn ? 1 : 0);
   db.prepare("INSERT INTO options (id, title, price) VALUES (9, 'Petit-déjeuner', 12)").run();
   db.prepare("INSERT INTO reservation_options (reservationId, optionId, quantity, unitPrice, billedUnits, totalPrice) VALUES (1, 9, 1, 12, 1, 12)").run();
   return db;
@@ -91,11 +92,17 @@ test('capture — client pas encore arrivé → aucune base (comportement inchan
 
 // specs/arrival-moment-is-the-check-in.md rule 1 — le bug remonté par Adrien : le jour de l'arrivée,
 // avant tout check-in, une option ajoutée à la main partait au complément de fin de séjour.
+// Le moment du geste est fixé (`withNow`) : l'horloge du séjour juge à Paris, quel que soit le fuseau du processus ou l'heure
+// du runner (specs/server-test-isolation.md rule 6, reading of 2026-11-19). 10:00 et 18:00, en +01:00, restent du bon côté
+// de 16:00 en heure d'hiver comme d'été.
 test('capture — jour d\'arrivée atteint mais heure du check-in pas passée → toujours aucune base', () => {
-  const db = makeDb({ startDate: new Date().toLocaleDateString('sv-SE'), checkedIn: false });
-  db.prepare("UPDATE reservations SET checkInTime = '23:59' WHERE id = 1").run();
-  assert.equal(createReservationsModel(db).captureArrivalExtrasBaselineIfDue(1), null);
+  const db = makeDb({ startDate: '2099-08-01', endDate: '2099-08-04', checkedIn: false });
+  db.prepare("UPDATE reservations SET checkInTime = '16:00' WHERE id = 1").run();
+  const model = createReservationsModel(db);
+  withNow(new Date('2099-08-01T10:00:00+01:00'), () => model.captureArrivalExtrasBaselineIfDue(1));
   assert.equal(baselineOf(db), null, "rien n'est « vendu en cours de séjour » tant que le client n'est pas là");
+  withNow(new Date('2099-08-01T18:00:00+01:00'), () => model.captureArrivalExtrasBaselineIfDue(1));
+  assert.deepEqual(JSON.parse(baselineOf(db)), { 'opt:9': 12 }, 'le même jour, l\'heure passée : la base est posée');
 });
 
 test('capture — séjour commencé → la base fige les extras du moment', () => {
