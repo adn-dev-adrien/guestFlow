@@ -449,7 +449,7 @@ export default function FinanceSection() {
   const arrivalTendersNow = tendersForDue(arrivalTenders, Math.round(Number(form.arrivalPayment?.collectible?.total || 0) * 100));
   const runArrivalPayment = async (mode) => {
     if (!editingReservationId) return;
-    if (mode === 'split' && !(arrivalTendersNow && arrivalTendersNow.canSubmit)) return;
+    if (mode === 'split' && !(arrivalTendersNow && arrivalTendersNow.canSubmit && arrivalTendersNow.live())) return;
     setArrivalPayBusy(true);
     setArrivalPayError('');
     try {

@@ -144,7 +144,7 @@ export default function StandaloneSaleDialog({ open, onClose, onSold, client = n
   const search = useCallback((q) => api.getSuggestedArticlesCatalogue({ q }).then((res) => res.groups || []), []);
 
   async function save() {
-    if (!ready) return;
+    if (!ready || (payNow && !paymentNow.live())) return;
     setBusy(true);
     setError(null);
     try {

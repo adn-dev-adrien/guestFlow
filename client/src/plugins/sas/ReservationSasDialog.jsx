@@ -1018,7 +1018,7 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
   const commit = async () => {
     // Loop t25 — never send lines (or a shortfall choice) answering another due than the one on screen: the button is disabled then too.
     const splitNow = mode === 'departure' ? (departureSplitActive ? departureTendersNow : undefined) : (arrivalSplitActive ? arrivalTendersNow : undefined);
-    if (splitNow !== undefined && !(splitNow && splitNow.canSubmit)) return;
+    if (splitNow !== undefined && !(splitNow && splitNow.canSubmit && splitNow.live())) return;
     setCommitting(true); setError('');
     try {
       if (mode === 'arrival') {

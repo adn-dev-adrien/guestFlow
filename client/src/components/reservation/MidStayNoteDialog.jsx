@@ -299,7 +299,7 @@ export default function MidStayNoteDialog({ open, onClose, pendingLines = [], on
           <Button
             variant="contained"
             disabled={busy || noteTotal <= 0 || !(tendersNow && tendersNow.canSubmit)}
-            onClick={() => { if (tendersNow && tendersNow.canSubmit) run(() => onSettle(instruction(), false, {
+            onClick={() => { if (tendersNow && tendersNow.canSubmit && tendersNow.live()) run(() => onSettle(instruction(), false, {
               expectedAmountCents: Math.round(noteTotal * 100), tenders: tendersNow.tenders, shortfall: tendersNow.shortfall,
             })); }}
             fullWidth={isMobile}

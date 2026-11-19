@@ -82,7 +82,7 @@ export default function PaymentMarkForm({
   // Loop t25 — the lines' report counts only for the due on screen (`tendersForDue`), for the button and the request alike.
   const tendersNow = splitInfo ? tendersForDue(tenderState, splitInfo.dueCents) : null;
   const submit = async () => {
-    if (showLines && !(tendersNow && tendersNow.canSubmit)) return;
+    if (showLines && !(tendersNow && tendersNow.canSubmit && tendersNow.live())) return;
     setBusy(true);
     setError({ message: '', field: null });
     if (showLines) {

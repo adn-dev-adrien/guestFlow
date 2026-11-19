@@ -281,7 +281,7 @@ export default function ResourceBookingDialog({
       return;
     }
     if (!slotAvailable || !selectedStart || !selectedEnd || !isChronological || !meetsMinimumDuration) return; // Block save if invalid
-    if (payNow && !(paymentNow && paymentNow.canSubmit)) return; // loop t25 — never the lines of another due
+    if (payNow && !(paymentNow && paymentNow.canSubmit && (!paymentNow.live || paymentNow.live()))) return; // loop t25 — only the lines on screen
     setSaving(true);
     setPaymentError(null);
     let wrote = false;

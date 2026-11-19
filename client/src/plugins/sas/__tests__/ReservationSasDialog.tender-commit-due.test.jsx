@@ -26,12 +26,15 @@ vi.mock('../../../api', () => ({
 
 beforeEach(() => { vi.clearAllMocks(); });
 
-test('tendersForDue: the report only for the due it answers', () => {
-  const report = { dueCents: 1250, canSubmit: true, tenders: [], shortfall: { kind: 'waived' } };
+test('tendersForDue: the report only for the due it answers, and only while it describes the lines on screen', () => {
+  let onScreen = true;
+  const report = { dueCents: 1250, canSubmit: true, tenders: [], shortfall: { kind: 'waived' }, live: () => onScreen };
   expect(tendersForDue(report, 1250)).toBe(report);
   expect(tendersForDue(report, 600)).toBeNull();
   expect(tendersForDue(null, 600)).toBeNull();
-  expect(tendersForDue({ canSubmit: true }, 600)).toBeNull();
+  expect(tendersForDue({ canSubmit: true, live: () => true }, 600)).toBeNull();
+  onScreen = false;
+  expect(tendersForDue(report, 1250)).toBeNull();
 });
 
 // Every file that mounts TenderLines (directly, or through BookingPaymentFields) reads its report through the due guard.
@@ -50,8 +53,10 @@ const CONSUMERS = sourcesOf(SRC)
 test.each(CONSUMERS)('%s commits the lines only through the due guard', (file) => {
   const source = fs.readFileSync(path.join(SRC, file), 'utf8');
   if (/<BookingPaymentFields\b/.test(source)) expect(source).toMatch(/paymentForDue\(/);
-  else if (file.endsWith('BookingPaymentFields.jsx')) expect(source).toMatch(/dueCents: answered/);
+  else if (file.endsWith('BookingPaymentFields.jsx')) expect(source).toMatch(/dueCents: answered, live/);
   else expect(source).toMatch(/tendersForDue\(/);
+  // …and its commit handler asks again, at click time, whether the report still describes the lines on screen.
+  if (!file.endsWith('BookingPaymentFields.jsx')) expect(source).toMatch(/\.live\(\)/);
 });
 test('the consumers read from the code are the known ones', () => {
   expect(CONSUMERS).toEqual([

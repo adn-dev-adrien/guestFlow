@@ -35,9 +35,9 @@ export default function BookingPaymentFields({
         shortfallKinds={shortfallKinds}
         initialTenders={[{ method: 'card', amountCents: dueCents, internal: false }]}
         onChange={({
-          tenders, shortfall, canSubmit, gapCents, dueCents: answered,
+          tenders, shortfall, canSubmit, gapCents, dueCents: answered, live,
         }) => onChange({
-          tenders, shortfall, gapCents, canSubmit: whole ? canSubmit && gapCents === 0 : canSubmit, paidAt, dueCents: answered,
+          tenders, shortfall, gapCents, canSubmit: whole ? canSubmit && gapCents === 0 : canSubmit, paidAt, dueCents: answered, live,
         })}
         disabled={disabled}
       />
@@ -60,7 +60,7 @@ export default function BookingPaymentFields({
  * The payment a dialog may commit (loop t25, mixed-method-payments rule 59): the last report only while it answers the due on screen —
  * between a new due and the lines' report for it, the older one (amounts, shortfall) is pending, for the button and the request alike.
  */
-export const paymentForDue = (value, dueCents) => (value && value.dueCents === dueCents ? value : null);
+export const paymentForDue = (value, dueCents) => (value && value.dueCents === dueCents && (!value.live || value.live()) ? value : null);
 
 /** What the server is told: the lines, or null when nothing is typed. */
 export function paymentBody(value) {

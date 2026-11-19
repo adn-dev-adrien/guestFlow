@@ -241,7 +241,7 @@ export default function ResourceArrivalDialog({ open, bookingId, onClose, onDone
 
   // `issue` — the invoice block's « Créer la facture »: the explicit choice of an invoice for money already taken (invoicing rule 45).
   async function validate({ issue = false } = {}) {
-    if (!canValidate) return;
+    if (!canValidate || (payNow && commitMode && paymentNow && paymentNow.live && !paymentNow.live())) return;
     setBusy(true);
     setError(null);
     try {

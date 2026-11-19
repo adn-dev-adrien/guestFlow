@@ -23,7 +23,8 @@
  *                    as a due that changes while mounted does
  *   single:          boolean — start with one line (collecting a reste)
  *   onChange:        ({ tenders, shortfall, canSubmit, receivedCents, gapCents, dueCents, draft }) → void — `dueCents` is the due
- *                    the report answers; a screen commits a report only through `tendersForDue(report, due)` (loop t25)
+ *                    the report answers, `live()` whether it still describes the lines on screen (sent before paint); a screen commits a
+ *                    report only through `tendersForDue(report, due)`, again in its commit handler (loop t25)
  *   disabled:        boolean
  *   autoFocus:       boolean — focus the first amount when mounted
  *   whole:           boolean — the amount is paid whole, no shortfall choice (rule 44: the acompte, an installment);
@@ -34,7 +35,7 @@
  *
  * An untyped last line left at 0 (the others cover the amount) is not a line: it is not sent and blocks nothing.
  */
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Box, Button, ButtonBase, FormControlLabel, IconButton, InputAdornment, Switch, TextField, Typography } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import CloseIcon from '@mui/icons-material/Close';
@@ -68,7 +69,7 @@ function seedLines(initialTenders, single, cashInternal) {
  * screen. Between a new due and the report the lines send for it (one render, an effect later) the old report — its amounts, its shortfall
  * choice — belongs to another due: null, so the commit is pending and never sends it. Every consumer reads its tenders through this.
  */
-export const tendersForDue = (report, dueCents) => (report && report.dueCents === dueCents ? report : null);
+export const tendersForDue = (report, dueCents) => (report && report.dueCents === dueCents && report.live() ? report : null);
 
 // The last line, while untyped, shows what the others leave (rule 7).
 export function tenderFigures(lines, dueCents) {
@@ -109,12 +110,18 @@ export default function TenderLines({
   const firstAmount = useRef(null);
   const figures = useMemo(() => tenderFigures(lines, dueCents), [lines, dueCents]);
   const { autoIndex, autoCents, gapCents, receivedCents, unreadable, amounts } = figures;
+  // Loop t25 — the lines on screen, as of the latest render: a report answers them only while its signature is this one (`live()`), so a
+  // click that lands before the report of the lines just typed sends nothing.
+  const signature = JSON.stringify([lines, shortKind, dueCents]);
+  const onScreen = useRef(null);
+  onScreen.current = signature;
 
   useEffect(() => {
     if (autoFocus && firstAmount.current) firstAmount.current.focus();
   }, [autoFocus]);
 
-  useEffect(() => {
+  // Loop t25 — before paint (`useLayoutEffect`): the screen's button never shows a frame judged on the previous lines.
+  useLayoutEffect(() => {
     if (typeof onChange !== 'function') return;
     // An untyped last line the others already cover (0) is no line at all (audit R34-C-L2).
     const sent = lines.map((l, i) => i).filter((i) => !(i === autoIndex && autoCents === 0 && lines.length > 1));
@@ -129,6 +136,7 @@ export default function TenderLines({
       gapCents,
       dueCents,
       draft: { lines, shortKind, dueCents },
+      live: () => onScreen.current === signature,
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [lines, shortKind, dueCents]);

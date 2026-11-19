@@ -447,6 +447,14 @@ read the settlements themselves (`utils/paymentTenders.settlementFigures`).
     stays disabled until the report matches it, then names what the lines collect. « Encaisser — » stays only where the due itself is
     unknown (a failed recompute). Same test: every label the button held after the due moved, captured per DOM change, is the new due or
     what the lines then collect, never « — », the new due shown right after the change on a disabled button (red on the « — » code).
+    **The report reaches the screen before paint and describes the lines on screen.** `TenderLines` sent it from a passive effect,
+    after paint: for one frame the button judged the PREVIOUS lines (typing « 2 » in the last line drew 1 + 2 with « 9,50 € non couverts »
+    unanswered while « Encaisser 12,50 € » was clickable; a click would have sent 1 + 11,50). The report is now sent in a layout effect
+    (before paint), and carries `live()`: whether the lines on screen — as of the latest render — are still the ones it describes.
+    `tendersForDue` / `paymentForDue` require it, and every commit handler asks it again at click time, so a click can only send the
+    lines it sees. Tests `TenderLines.report-before-paint` (keystrokes and a choice dispatched natively, outside `act`, the button read
+    synchronously after each: it always agrees with the lines' own validity — red with the passive effect) and
+    `ReservationSasDialog.tender-commit-due` (every consumer's handler re-checks `live()`).
 
 **Edge cases:**
 - All lines `cash` + internal, no shortfall → same storage as « Caisse interne » + settlement (rule 11).
