@@ -2091,7 +2091,8 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
         const splitting = mode === 'departure' ? departureSplitActive : arrivalSplitActive;
         const splitDue = recap ? Number(mode === 'departure' ? recap.grandTotal : recap.totalAtArrival) || 0 : 0;
         // Loop t24 A24-2 — after a failed recompute the amount is unknown: the button names no figure of the older answer.
-        const splitLabel = TENDER_TEXTS.collect(preview.failed ? '—' : formatCurrency(tenders && tenders.gapCents > 0 ? tenders.receivedCents / 100 : splitDue));
+        // Loop t25 — while the lines have not reported for the due on screen (`tenders` null), the label names no amount: « Encaisser — ».
+        const splitLabel = TENDER_TEXTS.collect(preview.failed || !tenders ? '—' : formatCurrency(tenders.gapCents > 0 ? tenders.receivedCents / 100 : splitDue));
         return <>{quit}
           <Button
             variant="contained"

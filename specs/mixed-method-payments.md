@@ -441,6 +441,11 @@ read the settlements themselves (`utils/paymentTenders.settlementFigures`).
     1280 and 390 px frame by frame (arrival, due moved by « Offrir »): « Encaisser » off from the click to the new answer, then off with
     the choice asked again — never on. Test `ReservationSasDialog.tender-commit-due` (12: the helper; every consumer read from the code
     uses the guard; arrival and departure, the button's `disabled` never removed while the new answer lands, nothing sent).
+    **The label names no amount of a report it does not have:** while the report for the due on screen is pending, « Encaisser — » (SAS
+    arrival and departure — before: « Encaisser 6,00 € », the new due, for one frame, then the 3,00 € the lines collect —, the fiche's
+    « Encaisser en une fois », `PaymentMarkForm`, the mid-stay note). The counter sale's label names the new due meanwhile: its lines remount
+    with one card line of that whole due, so that is exactly what they report (no flicker, loop t21 commit-label rule). Same test: every
+    label the button held after the due moved, captured per DOM change, names no amount other than the one before (red on the old fallback).
 
 **Edge cases:**
 - All lines `cash` + internal, no shortfall → same storage as « Caisse interne » + settlement (rule 11).

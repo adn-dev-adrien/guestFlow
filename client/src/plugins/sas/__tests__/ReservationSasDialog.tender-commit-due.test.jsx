@@ -68,7 +68,8 @@ test('the consumers read from the code are the known ones', () => {
 
 // The SAS, both ends: lines typed short, « Geste commercial » chosen (« Encaisser » on); « Offrir » moves the due while the lines stay
 // mounted. A MutationObserver records every change of the button's `disabled` attribute while the new answer lands: it is never removed
-// (the button never turns enabled on the older report), and nothing is sent.
+// (the button never turns enabled on the older report), nothing is sent, and while the report is pending its label names no amount
+// (« Encaisser — »): the only amount it shows after the due moved is the one the lines report for it.
 const ENDS = {
   arrival: { open: arrivalRecap, offer: () => offerButtons()[1], commit: () => api.commitArrivalSas },
   departure: { open: departureLinenRecap, offer: () => offerButtons()[1], commit: () => api.commitDepartureSas },
@@ -81,10 +82,17 @@ test.each(Object.keys(ENDS))('%s — after the due moves, « Encaisser » is nev
   expect(button).toBeEnabled();
   // Every « disabled » attribute change of the button, with its previous value: a removal (old value present) is a moment it was enabled.
   const enabledAt = [];
+  // Loop t25 — and every label it shows: none names an amount the lines have not reported for the new due.
+  const labels = [];
   const observer = new MutationObserver((records) => records.forEach((r) => {
     if (r.target === button && r.attributeName === 'disabled' && r.oldValue !== null) enabledAt.push(r.oldValue);
+    // A text node's previous value, or a removed node's text: every label the button held, even for one commit.
+    if (r.type === 'characterData') labels.push(r.oldValue);
+    if (r.type === 'childList') r.removedNodes.forEach((n) => labels.push(n.textContent));
   }));
-  observer.observe(button, { attributes: true, attributeFilter: ['disabled'], attributeOldValue: true });
+  observer.observe(button, {
+    attributes: true, attributeFilter: ['disabled'], attributeOldValue: true, childList: true, subtree: true, characterData: true, characterDataOldValue: true,
+  });
   await act(async () => { fireEvent.click(ENDS[end].offer()); });
   await waitFor(() => expect(button).toBeDisabled());
   await act(async () => { await pause(400); });
@@ -92,5 +100,10 @@ test.each(Object.keys(ENDS))('%s — after the due moves, « Encaisser » is nev
   expect(button.isConnected).toBe(true);
   expect(enabledAt).toEqual([]);
   expect(button).toBeDisabled();
+  const final = button.textContent;
+  expect(final).toMatch(/^Encaisser \d/);
+  const before = labels[0];
+  const amounts = [...new Set(labels.slice(1).filter((l) => /^Encaisser \d/.test(l) && l !== before))];
+  expect(amounts).toEqual([]);
   expect(ENDS[end].commit()).not.toHaveBeenCalled();
 });

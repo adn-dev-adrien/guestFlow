@@ -243,7 +243,8 @@ export default function PaymentMarkForm({
 function submitLabel(showLines, mode, tenderState, splitInfo) {
   if (!showLines) return 'Valider';
   if (mode === 'modify') return TENDER_TEXTS.save;
-  const gap = tenderState ? tenderState.gapCents : 0;
-  const cents = tenderState && gap > 0 ? tenderState.receivedCents : splitInfo.dueCents;
+  // Loop t25 — `tenderState` is the report for the due on screen (`tendersForDue`): until the lines send it, no amount.
+  if (!tenderState) return TENDER_TEXTS.collect('—');
+  const cents = tenderState.gapCents > 0 ? tenderState.receivedCents : splitInfo.dueCents;
   return TENDER_TEXTS.collect(formatCurrency(cents / 100));
 }
