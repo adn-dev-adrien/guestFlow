@@ -416,6 +416,12 @@ read the settlements themselves (`utils/paymentTenders.settlementFigures`).
     waiting as usual. Only the operator's own « Un seul moyen » (or a new run of the SAS) clears them. Tests
     `ReservationSasDialog.tender-lines-kept` (failure → recovery at arrival and departure, step back → recap, due 0 → back),
     `TenderLines.initial-draft`.
+    _Reading of 2026-11-19 (loop t25 UI25-2):_ the block comes back **without taking the focus**: its first amount is focused only when
+    the operator opens « Plusieurs moyens » (the toggle empties the lines, so the block mounts with no draft); a remount with lines of their
+    own — the next answer after a failed recompute, the departure's due back from 0 — leaves the focus on the control the operator just used
+    (« ✓ Offert » / « Offrir »). Before, the SAS `autoFocus` moved it into « Montant Espèces » about 60 ms later (arrival after 89938504,
+    departure also on the nominal due 0 → 6 €). Test `ReservationSasDialog.tender-lines-focus` (5: three remounts keep the focus on the
+    toggle, arrival and departure opening still focus the first amount).
 
 **Edge cases:**
 - All lines `cash` + internal, no shortfall → same storage as « Caisse interne » + settlement (rule 11).
@@ -682,6 +688,9 @@ See the summary page for the interactive mock (fiche row, SAS departure, modific
 - [x] _(round 34)_ `components/__tests__/TenderLines.whole-and-blank-line.test.jsx` (4) — rules 7, 44.
 - [x] _(loop t24)_ `components/__tests__/TenderLines.initial-draft.test.jsx` (2) and
       `plugins/sas/__tests__/ReservationSasDialog.tender-lines-kept.test.jsx` (4) — rule 59.
+- [x] _(loop t25)_ `plugins/sas/__tests__/ReservationSasDialog.tender-lines-focus.test.jsx` (5) — rule 59, reading of 2026-11-19: a remount
+      of « Plusieurs moyens » keeps the focus on the toggle used; the operator's opening focuses the first amount (helpers shared with
+      `tender-lines-kept` in `sasTenderLinesFixtures.jsx`).
 - [x] _(round 34)_ `components/reservation/__tests__/FinanceSection.split-panel-stale.test.jsx` (1) — rule 32 reading.
 - [x] _(round 34)_ `plugins/sas/__tests__/ReservationSasDialog.split-reopen.test.jsx` (3) — rules 32, 45.
 - [x] _(round 34)_ `components/__tests__/PricingSummary.split-reste-badge.test.jsx` (2) — rule 16 reading.

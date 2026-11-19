@@ -1268,7 +1268,9 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
             {!departureSplitActive && <PaymentModeButtons value={departurePayMode} onChange={setDeparturePayMode} showDefer={false} />}
             {departureSplitActive && (
               // Loop t24 — the lines the operator typed come back as typed when the block reappears (a recovery, the due back from 0).
-              <TenderLines dueCents={Math.round(Number(recap.grandTotal) * 100)} onChange={setDepartureTenders} initialDraft={departureTenders ? departureTenders.draft : null} autoFocus />
+              // Loop t25 UI25-2 — the first amount takes the focus only when the operator opens the block (the toggle empties the lines); a
+              // remount with lines of their own (a recovery, the due back from 0) leaves the focus on the control they just used.
+              <TenderLines dueCents={Math.round(Number(recap.grandTotal) * 100)} onChange={setDepartureTenders} initialDraft={departureTenders ? departureTenders.draft : null} autoFocus={!departureTenders} />
             )}
             {/* specs/mixed-method-payments.md rule 45 — reception records the check-out with one method. */}
             {canSplitPayment && <Button
@@ -1880,9 +1882,10 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
                     <PaymentModeButtons value={arrivalPayMode} onChange={setArrivalPayMode} showDefer deferLabel="Plus tard" disabled={settleBlocked} />
                   )}
                   {/* Loop t24 A24-2 — the lines are typed against the answer's total: after a failed recompute no line keeps the
-                      older amount; they come back as the operator left them with the next answer (mixed-method-payments rule 59). */}
+                      older amount; they come back as the operator left them with the next answer (mixed-method-payments rule 59).
+                      Loop t25 UI25-2 — and without taking the focus: only the operator's opening of the block focuses the first amount. */}
                   {arrivalTenderOpen && !failed && (
-                    <TenderLines dueCents={Math.round(Number(recap.totalAtArrival) * 100)} onChange={setArrivalTenders} initialDraft={arrivalTenders ? arrivalTenders.draft : null} disabled={settleBlocked} autoFocus />
+                    <TenderLines dueCents={Math.round(Number(recap.totalAtArrival) * 100)} onChange={setArrivalTenders} initialDraft={arrivalTenders ? arrivalTenders.draft : null} disabled={settleBlocked} autoFocus={!arrivalTenders} />
                   )}
                   {arrivalTenderOpen && failed && (
                     <Typography variant="body2" color="text.secondary" data-testid="tenders-unknown">À encaisser : —</Typography>

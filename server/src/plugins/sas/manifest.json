@@ -208,6 +208,7 @@
       "Récapitulatif d’arrivée avec « Régler séparément » : quand le calcul échoue, les boutons de règlement du séjour sont désactivés comme ceux du complément.",
       "Récapitulatif avec « Plusieurs moyens » : après un calcul en échec, plus aucun ancien montant dans les lignes ni dans « Encaisser » (« — ») jusqu’à la réponse suivante.",
       "« Plusieurs moyens » : les montants saisis reviennent tels quels après un calcul en échec, un retour à l’étape précédente ou un total revenu de 0.",
+      "« Plusieurs moyens » : quand les lignes reviennent d’elles-mêmes (après un calcul en échec, un total revenu de 0), le curseur reste sur le bouton utilisé ; seule l’ouverture du bloc place le curseur dans le premier montant.",
       "Demande GuestFlow 4.2 (SDK 2.32)."
     ]
   }
