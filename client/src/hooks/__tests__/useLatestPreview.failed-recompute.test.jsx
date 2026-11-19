@@ -19,6 +19,9 @@ import ResourceArrivalDialog from '../../plugins/hourly-resources/ResourceArriva
 import ResourceBookingDialog from '../../plugins/hourly-resources/ResourceBookingDialog';
 import SplitSharesDialog from '../../plugins/online-payment/SplitSharesDialog';
 import LinkTransactionDialog from '../../plugins/online-payment/LinkTransactionDialog';
+import MidStayNoteDialog from '../../components/reservation/MidStayNoteDialog';
+import { ReservationFormProvider } from '../../components/reservation/ReservationFormContext';
+import { makeMockContext } from '../../components/reservation/__tests__/mockReservationForm';
 import { visitPayload, fakeQuote } from '../../plugins/hourly-resources/__tests__/arrivalVisitFixtures';
 import { ficheCreditsPayload, previewPayload } from '../../plugins/online-payment/__tests__/reconciliationFixtures';
 import {
@@ -54,6 +57,7 @@ vi.mock('../../api', () => ({
     previewReconciliationAllocation: vi.fn(),
     getReconciliationFicheCredits: vi.fn(),
     getReconciliationCandidates: vi.fn(),
+    previewMidStayNote: vi.fn(),
   },
 }));
 vi.mock('../usePostalCodeCities', () => ({ default: () => [] }));
@@ -121,7 +125,41 @@ const SAS_STAY = sasPayload({
 // focuses first, `stale` matches what the first answer drew, `check()` the row's own placeholders and disabled controls, `drafts()` the
 // draft inputs that must still be mounted after the failure (never rendered from the answer), `recover()` the new answer once « Réessayer »
 // brings it.
+const NOTE_LINES = [
+  { label: 'Petit-déjeuner', amount: 24, key: 'opt:9', source: 'midStayExtra' },
+  { label: 'Location vélo', amount: 18, key: 'res:3', source: 'midStayExtra' },
+];
 const ROWS = {
+  // Loop t26 UI26-2 — « Nouvelle note » previews its total through the hook too.
+  MidStayNoteDialog: {
+    async answer(state) {
+      api.previewMidStayNote.mockImplementation(async ({ checkedKeys }) => {
+        if (state.fail) throw offline();
+        return { items: checkedKeys.map((key) => ({ key, amount: 24 })), total: 24 * checkedKeys.length };
+      });
+      render(
+        <ReservationFormProvider value={makeMockContext({ editingReservationId: 7, pricingQuote: { midStayExtrasLines: NOTE_LINES } })}>
+          <MidStayNoteDialog open onClose={() => {}} pendingLines={NOTE_LINES} onSettle={vi.fn()} onSellOnly={vi.fn()} />
+        </ReservationFormProvider>,
+      );
+      fireEvent.click(screen.getAllByRole('checkbox')[0]);
+      await waitFor(() => expect(screen.getByTestId('note-total')).toHaveTextContent('24,00'));
+      fireEvent.click(screen.getByRole('button', { name: 'Plusieurs moyens' }));
+      await waitFor(() => expect(document.querySelectorAll('[data-tender-amount]').length).toBeGreaterThan(0));
+    },
+    async fail(state) { state.fail = true; press(screen.getAllByRole('checkbox')[1]); await screen.findByText('Service indisponible'); },
+    stale: /^24,00 €$|Encaisser 24,00/,
+    drafts: () => screen.getAllByRole('checkbox'),
+    check() {
+      expect(screen.getByTestId('note-total')).toHaveTextContent('—');
+      expect(screen.getByTestId('tenders-unknown')).toHaveTextContent('À encaisser : —');
+      expect(screen.getByRole('button', { name: 'Encaisser —' })).toBeDisabled();
+    },
+    async recover() {
+      await waitFor(() => expect(screen.getByTestId('note-total')).toHaveTextContent('48,00'));
+      expect(document.querySelectorAll('[data-tender-amount]').length).toBeGreaterThan(0);
+    },
+  },
   StandaloneSaleDialog: {
     async answer(state) {
       api.getSuggestedArticlesCatalogue.mockResolvedValue({ articles: BEER });

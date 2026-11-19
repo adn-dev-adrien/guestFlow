@@ -1,5 +1,5 @@
 // specs/plugins-phase-1-sdk.md rule 54 (reading of 2026-11-19, loop t25 UI25-1) — a draft that cannot be asked (`enabled` false: an
-// e-mail being typed, an amount emptied or unreadable) holds no answer of its own: `useLatestPreview` gives `data` null unless the latest
+// amount emptied or unreadable; never a field that decides no amount, loop t26 UI26-1) holds no answer of its own: `useLatestPreview` gives `data` null unless the latest
 // answer is for the draft on screen, failed or not, so no screen draws an older draft's figures as current. Every screen that previews
 // through the hook (enumerated from the code below) is either a member — its draft stays on screen while it cannot be asked, and it shows
 // its placeholders — or says why it is not. A screen added to that list fails here until it has its row.
@@ -13,7 +13,6 @@ import { vi } from 'vitest';
 
 import api from '../../api';
 import useLatestPreview from '../useLatestPreview';
-import StandaloneSaleDialog from '../../components/StandaloneSaleDialog';
 import DialogProvider from '../../components/DialogProvider';
 import PlatformPenaltyDialog from '../../components/reservation/PlatformPenaltyDialog';
 import SplitSharesDialog from '../../plugins/online-payment/SplitSharesDialog';
@@ -23,9 +22,6 @@ import { ficheCreditsPayload, previewPayload } from '../../plugins/online-paymen
 vi.mock('../../api', () => ({
   __esModule: true,
   default: {
-    getSuggestedArticlesCatalogue: vi.fn(),
-    quoteStandaloneSale: vi.fn(),
-    sellStandaloneSale: vi.fn(),
     listPlatformPenalties: vi.fn(() => Promise.resolve({ items: [], suggestions: [] })),
     previewPlatformPenalty: vi.fn(),
     declarePlatformPenalty: vi.fn(),
@@ -109,54 +105,16 @@ test.each(Object.keys(HOOK_ROWS))('the hook: %s', async (name) => {
 
 // --- the screens -----------------------------------------------------------------------------------------------------------------------
 
-const BEER = [{ articleRef: 'option:7', label: 'Bière locale', unitCents: 650, max: 12, category: 'Boissons' }];
-const counterQuote = (lines) => {
-  const priced = lines.map((e, i) => ({
-    id: null, ref: `draft:${i}`, kind: 'extra', label: 'Bière locale', detail: `${e.quantity} × 6,50 €`, quantity: e.quantity, unitCents: 650,
-    totalCents: e.quantity * 650, catalogueCents: e.quantity * 650, offered: false, status: 'due', statusLabel: 'À payer',
-  }));
-  const total = priced.reduce((sum, l) => sum + l.totalCents, 0);
-  return {
-    document: { lines: priced, totals: { totalCents: total, paidCents: 0, remainingCents: total, refundOwedCents: 0 }, vatByRate: [{ rate: 20, vatCents: Math.round(total / 6) }] },
-    customer: { clientId: null, label: 'Passage', kind: 'passage' },
-    refusals: [],
-    paymentLink: { available: false, reason: 'PROVIDER_NOT_READY', email: null, open: null },
-  };
-};
 const FIGURES = (commission) => ({ valid: true, needsChoice: false, warnings: [], errors: [], before: { payout: 570.02, commission: 229.98, netReceived: 570.02 }, after: { payout: 610.02, commission, netReceived: 570.02 } });
 const PROPOSAL = {
   id: 'p:7|balance,8|balance', bank: { transactionId: 'p', amountCents: 70000, dateLabel: '15/10' },
   pairs: [{ transactionId: 'p', reservationId: 7, ledgerKey: 'balance', amountCents: 41800 }, { transactionId: 'p', reservationId: 8, ledgerKey: 'balance', amountCents: 25100 }],
 };
 const anyText = (pattern) => pattern.test(document.body.textContent);
-const counterAddOne = () => fireEvent.click(screen.getByRole('button', { name: /Bière locale/ }));
-const typeEmail = (value) => fireEvent.change(screen.getByLabelText('E-mail'), { target: { value } });
-const counterUnknown = () => {
-  expect(screen.getByTestId('sale-total')).toHaveTextContent('—');
-  // The catalogue's own unit price (« 6,50 € » on the article) is not a figure of the answer; the line's detail and the totals are.
-  expect(anyText(/× 6,50|13,00|19,50/)).toBe(false);
-  expect(document.querySelectorAll('[data-tender-amount]')).toHaveLength(0);
-  expect(screen.getByRole('button', { name: /^Enregistrer la vente/ })).toBeDisabled();
-};
-
 // Each member: `answer(state)` reaches an accepted answer whose figures match `stale`; `disable(state)` turns the draft into one that cannot be
 // asked while it stays on screen; `check()` its placeholders. `failFirst` runs the same after a failed request (the alert is gone once the
 // draft cannot be asked, loop t24 S24-2, and the answer from before the failure must not come back).
 const MEMBERS = {
-  StandaloneSaleDialog: {
-    async answer(state) {
-      api.getSuggestedArticlesCatalogue.mockResolvedValue({ articles: BEER });
-      api.quoteStandaloneSale.mockImplementation(async (body) => { if (state.fail) throw offline(); return counterQuote(body.lines); });
-      render(<StandaloneSaleDialog open onClose={() => {}} onSold={() => {}} />);
-      await screen.findByRole('button', { name: /Bière locale/ });
-      counterAddOne();
-      await waitFor(() => expect(screen.getByTestId('sale-total')).toHaveTextContent('6,50'));
-    },
-    async fail(state) { state.fail = true; counterAddOne(); await screen.findByText('Service indisponible'); state.fail = false; },
-    async disable() { typeEmail('client'); counterAddOne(); counterAddOne(); await pause(300); },
-    check: counterUnknown,
-    async enable() { typeEmail('client@example.test'); await waitFor(() => expect(screen.getByTestId('sale-total')).toHaveTextContent(/\d,\d\d/)); },
-  },
   PlatformPenaltyDialog: {
     async answer(state) {
       api.previewPlatformPenalty.mockImplementation(async (id, body) => {
@@ -235,6 +193,8 @@ const MEMBERS = {
 };
 // Screens whose draft does not stay on screen once it cannot be asked: nothing older can be drawn as its answer.
 const NOT_MEMBERS = {
+  StandaloneSaleDialog: 'only the articles disable its quote (loop t26 UI26-1): the customer fields never do (useLatestPreview.non-amount-fields), and an emptied sale draws no figure (`quote` null without an article)',
+  MidStayNoteDialog: 'its draft is asked as soon as the opening is taken and until the dialog closes: nothing on screen disables it',
   ResourceArrivalDialog: 'an undirtied draft is null and the stored visit is drawn; the invoice question reads only a fresh answer (pending block otherwise)',
   ResourceBookingDialog: 'the price is drawn only for a draft (`shownPrice = draft ? … : null`); the invoice question as in the arrival',
   ReservationSasDialog: 'a page without money disables the recap; the money pages draw `last` with « — » while failed',

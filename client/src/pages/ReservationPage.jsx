@@ -345,6 +345,8 @@ export default function ReservationPage() {
   // figures dimmed as not up to date, until a quote lands. The failure is about the quote it failed over (`over`): any new quote — this
   // effect's, the save's, a reset — ends it. « Réessayer » (`quoteRetry`) keeps it while it asks; a request for an edited fiche drops it.
   const [quoteFailure, setQuoteFailure] = useState(null);
+  // A live quote is on its way: what it answers (the note's live remainder, mid-stay-notes rule 22 reading of 2026-11-19) is not yet current.
+  const [quotePending, setQuotePending] = useState(false);
   const [quoteRetry, setQuoteRetry] = useState(0);
   const quoteRetryRef = useRef(0);
   // What the last resource-availability read was for: the effect that follows the dates does not ask again
@@ -1580,17 +1582,19 @@ export default function ReservationPage() {
     const retrying = quoteRetryRef.current !== quoteRetry;
     quoteRetryRef.current = quoteRetry;
     if (!retrying) setQuoteFailure(null);
-    if (!selectedProp || !form.startDate || !form.endDate) return;
+    if (!selectedProp || !form.startDate || !form.endDate) { setQuotePending(false); return; }
 
     const start = new Date(`${form.startDate}T00:00:00`);
     const end = new Date(`${form.endDate}T00:00:00`);
     // specs/reservations-backend-mvc.md rule 12 — a stay the server refuses (reversed, too long) is not quoted.
     if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || !isQuotableStay(form.startDate, form.endDate, { stored: initialPricingContextRef.current, today: windowToday })) {
       setMinNightsState({ breached: false, required: 0, nights: 0 });
+      setQuotePending(false);
       return;
     }
 
     const requestId = ++pricingQuoteRequestRef.current;
+    setQuotePending(true);
 
     const refreshBasePrice = async () => {
       try {
@@ -1599,6 +1603,7 @@ export default function ReservationPage() {
         const calc = await api.calculatePrice(quoteBody);
 
         if (requestId !== pricingQuoteRequestRef.current) return;
+        setQuotePending(false);
         setPricingQuote(calc);
         setNightlyBreakdown(calc.nightlyBreakdown || []);
         applyQuoteMinNights(calc);
@@ -1625,6 +1630,7 @@ export default function ReservationPage() {
       } catch (err) {
         // The form keeps its state (the save quotes again before writing); the screen says the figures are not up to date.
         if (requestId !== pricingQuoteRequestRef.current) return;
+        setQuotePending(false);
         // A refusal (4xx: the fiche asks something the server will not price) is not retried as is: its reason shows without
         // « Réessayer », and the next edit asks again. A network or server failure keeps « Réessayer ».
         const status = Number(err && err.status);
@@ -3865,6 +3871,7 @@ export default function ReservationPage() {
     // Rule 45 — the brut card follows the stored summary when it shows.
     accommodationBasePriceDisplay: showStoredSummary && storedSummary.accommodationBase != null ? storedSummary.accommodationBase : accommodationBasePriceDisplay,
     pricingQuote: shownQuote,
+    pricingQuotePending: quotePending,
     // The stored summary carries the stay's regime before the first live quote arrives.
     storedSummary,
     // specs/mid-stay-notes.md — the « Encaissements en séjour » block drives the save + reload

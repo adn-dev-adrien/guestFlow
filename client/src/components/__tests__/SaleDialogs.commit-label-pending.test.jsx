@@ -59,6 +59,7 @@ const STATIC_LABELS = {
   SplitSharesDialog: 'fixed « Répartir et confirmer »',
   LinkTransactionDialog: 'fixed « Rattacher »',
   ReservationSasDialog: '« Calcul du total… » while the recap is asked, then « Valider et terminer » or the amount its own tender lines collect',
+  MidStayNoteDialog: 'fixed « CB / Chèque » / « Caisse interne »; « Encaisser … » keeps the latest total through a recompute (`data` kept while asked), « — » only on a failure (loop t26 UI26-2)',
 };
 
 const pause = (ms) => new Promise((resolve) => { setTimeout(resolve, ms); });

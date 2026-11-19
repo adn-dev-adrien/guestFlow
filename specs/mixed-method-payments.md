@@ -455,6 +455,13 @@ read the settlements themselves (`utils/paymentTenders.settlementFigures`).
     lines it sees. Tests `TenderLines.report-before-paint` (keystrokes and a choice dispatched natively, outside `act`, the button read
     synchronously after each: it always agrees with the lines' own validity — red with the passive effect) and
     `ReservationSasDialog.tender-commit-due` (every consumer's handler re-checks `live()`).
+    _Reading of 2026-11-19 (loop t26 UI26-1, UI26-2):_ **a field that decides no amount never takes the lines away.** The counter
+    sale made its quote un-askable while the e-mail was not yet an address, so each keystroke of « client@… » blanked the Total and
+    unmounted the lines, and the valid address brought back one card line of the whole due (CB 2 + Espèces 4,50 → CB 6,50). Its quote is
+    now asked whatever the customer fields hold (the address is sent once it is one, « Enregistrer comme client » once a name is there —
+    plugins-phase-1-sdk rule 54 reading of the same day): the lines stay mounted, as typed, at every keystroke. The mid-stay note's lines
+    stay mounted through a recompute and come back as typed after a failure (`initialDraft`), focused only on the operator's opening
+    (mid-stay-notes rule 22 reading). Tests `useLatestPreview.non-amount-fields`, `MidStayNoteDialog.preview-latest`.
 
 **Edge cases:**
 - All lines `cash` + internal, no shortfall → same storage as « Caisse interne » + settlement (rule 11).
@@ -728,6 +735,11 @@ See the summary page for the interactive mock (fiche row, SAS departure, modific
 - [x] _(loop t25)_ `plugins/sas/__tests__/ReservationSasDialog.tender-lines-focus.test.jsx` (5) — rule 59, reading of 2026-11-19: a remount
       of « Plusieurs moyens » keeps the focus on the toggle used; the operator's opening focuses the first amount (helpers shared with
       `tender-lines-kept` in `sasTenderLinesFixtures.jsx`).
+- [x] _(loop t25 verifier)_ `components/__tests__/TenderLines.report-before-paint.test.jsx` (2) — rule 59: the report is sent before
+      paint and `live()` says whether it still describes the lines on screen (keystrokes and a choice dispatched natively).
+- [x] _(loop t26)_ `hooks/__tests__/useLatestPreview.non-amount-fields.test.jsx` (8) and
+      `components/reservation/__tests__/MidStayNoteDialog.preview-latest.test.jsx` (6) — rule 59 reading of 2026-11-19: the counter's
+      typed lines kept while the customer fields are typed; the note's lines kept through a recompute and back as typed after a failure.
 - [x] _(round 34)_ `components/reservation/__tests__/FinanceSection.split-panel-stale.test.jsx` (1) — rule 32 reading.
 - [x] _(round 34)_ `plugins/sas/__tests__/ReservationSasDialog.split-reopen.test.jsx` (3) — rules 32, 45.
 - [x] _(round 34)_ `components/__tests__/PricingSummary.split-reste-badge.test.jsx` (2) — rule 16 reading.

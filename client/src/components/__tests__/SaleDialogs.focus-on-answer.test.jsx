@@ -21,6 +21,9 @@ import DialogProvider from '../DialogProvider';
 import PlatformPenaltyDialog from '../reservation/PlatformPenaltyDialog';
 import SplitSharesDialog from '../../plugins/online-payment/SplitSharesDialog';
 import LinkTransactionDialog from '../../plugins/online-payment/LinkTransactionDialog';
+import MidStayNoteDialog from '../reservation/MidStayNoteDialog';
+import { ReservationFormProvider } from '../reservation/ReservationFormContext';
+import { makeMockContext } from '../reservation/__tests__/mockReservationForm';
 import { ficheCreditsPayload, previewPayload } from '../../plugins/online-payment/__tests__/reconciliationFixtures';
 import { localIsoDate } from '../../plugins/hourly-resources/localDate';
 import { visitPayload, fakeQuote } from '../../plugins/hourly-resources/__tests__/arrivalVisitFixtures';
@@ -55,6 +58,7 @@ vi.mock('../../api', () => ({
     previewReconciliationAllocation: vi.fn(),
     getReconciliationFicheCredits: vi.fn(),
     getReconciliationCandidates: vi.fn(),
+    previewMidStayNote: vi.fn(),
   },
 }));
 
@@ -310,6 +314,23 @@ const ROWS = [
       },
       render: async () => { render(<LinkTransactionDialog open onClose={() => {}} onSubmit={() => {}} reservationId={7} />); fireEvent.click((await screen.findAllByRole('checkbox'))[0]); },
       after: () => screen.findByText('1 virement · 300,00 €'),
+    },
+    {
+      file: 'components/reservation/MidStayNoteDialog.jsx',
+      name: '« Réessayer » of a failed note total goes with the failure (loop t26 UI26-2)',
+      mock: () => {
+        api.previewMidStayNote.mockRejectedValueOnce(Object.assign(new Error('Service indisponible'), { status: 503 }));
+        api.previewMidStayNote.mockResolvedValue({ items: [], total: 0 });
+      },
+      render: () => {
+        const lines = [{ label: 'Petit-déjeuner', amount: 24, key: 'opt:9', source: 'midStayExtra' }];
+        render(
+          <ReservationFormProvider value={makeMockContext({ editingReservationId: 7, pricingQuote: { midStayExtrasLines: lines } })}>
+            <MidStayNoteDialog open onClose={() => {}} pendingLines={lines} onSettle={vi.fn()} onSellOnly={vi.fn()} />
+          </ReservationFormProvider>,
+        );
+      },
+      after: async () => { await waitFor(() => expect(screen.getByTestId('note-total')).toHaveTextContent('0,00 €')); },
     },
   ].map((row) => ({
     file: row.file,

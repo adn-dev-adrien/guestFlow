@@ -64,6 +64,23 @@ const euros = (cents) => formatCurrency((Number(cents) || 0) / 100);
 const REFUSAL_STATUSES = [400, 409, 422];
 const NO_REFUSALS = [];
 
+/**
+ * The customer part of the quote — and of the sale, which is refused while it differs (`emailBad`, `nameMissing`): what the server can
+ * take as typed (loop t26 UI26-1). An address is sent once it reads as one, « Enregistrer comme client » once a name is there: the server
+ * refuses either otherwise (400 EMAIL_INVALID / NAME_REQUIRED), and a refused quote has no amount, so every keystroke of an address would
+ * blank the Total and unmount the tender lines. The customer decides no amount: it only names who the sale is for (match, new, Passage).
+ */
+export function quoteCustomerOf({ clientId = null, name = '', email = '', register = false }) {
+  if (clientId) return { clientId };
+  const typedName = String(name || '').trim();
+  const typedEmail = String(email || '').trim();
+  return {
+    ...(typedName ? { name: typedName } : {}),
+    ...(EMAIL.test(typedEmail) ? { email: typedEmail } : {}),
+    ...(register && typedName ? { registerAsClient: true } : {}),
+  };
+}
+
 const emptyDraft = () => ({
   extras: [], name: '', email: '', register: false, mode: 'now',
 });
@@ -95,10 +112,8 @@ export default function StandaloneSaleDialog({ open, onClose, onSold, client = n
   }, [open, catalogueTry]);
 
   const clientId = client ? client.id : null;
-  const customer = useMemo(() => (clientId ? { clientId } : {
-    ...(draft.name.trim() ? { name: draft.name.trim() } : {}),
-    ...(draft.email.trim() ? { email: draft.email.trim() } : {}),
-    ...(draft.register ? { registerAsClient: true } : {}),
+  const customer = useMemo(() => quoteCustomerOf({
+    clientId, name: draft.name, email: draft.email, register: draft.register,
   }), [clientId, draft.name, draft.email, draft.register]);
   const body = useMemo(() => ({
     lines: draft.extras.map(({ articleRef, quantity, offered }) => ({ articleRef, quantity, offered: Boolean(offered) })),
@@ -106,8 +121,11 @@ export default function StandaloneSaleDialog({ open, onClose, onSold, client = n
   }), [draft.extras, customer]);
   const emailBad = !client && draft.email.trim() !== '' && !EMAIL.test(draft.email.trim());
   const fetcher = useCallback((request, options) => api.quoteStandaloneSale(request, options), []);
+  // Loop t26 UI26-1 — only the articles decide whether the quote can be asked: the customer fields never disable it (an e-mail being
+  // typed, « Enregistrer comme client » without a name), so the Total, the payment and the typed tender lines stay on screen; those
+  // fields block the SAVE only (`emailBad`, `nameMissing`).
   const preview = useLatestPreview({
-    fetcher, draft: body, enabled: open && !saved && draft.extras.length > 0 && !emailBad, resetKey: open ? 'open' : 'closed',
+    fetcher, draft: body, enabled: open && !saved && draft.extras.length > 0, resetKey: open ? 'open' : 'closed',
   });
   const refused = Boolean(preview.error) && REFUSAL_STATUSES.includes(preview.error.status);
   const quote = refused || draft.extras.length === 0 ? null : preview.data;
@@ -275,7 +293,8 @@ export default function StandaloneSaleDialog({ open, onClose, onSold, client = n
                 value={draft.email}
                 onChange={(e) => patch({ email: e.target.value })}
                 error={emailBad}
-                helperText={emailBad ? TEXTS.emailInvalid : undefined}
+                // The line of the message is kept while the address is typed (loop t26): it appears and goes without moving the payment below.
+                helperText={emailBad ? TEXTS.emailInvalid : ' '}
                 slotProps={{ htmlInput: { autoComplete: 'off', style: { fontSize: 16 } } }}
               />
             </Box>
@@ -304,7 +323,7 @@ export default function StandaloneSaleDialog({ open, onClose, onSold, client = n
         <Box sx={{ display: 'grid', gap: 1 }}>
           <Typography variant="subtitle2">{TEXTS.payment}</Typography>
           {/* Loop t23 S23-1 — after a failed quote the amount is unknown: no figure, no tender line, until a new answer; loop t25 UI25-1 — the
-              same while the quote cannot be asked (an e-mail being typed) or has not answered yet: articles on the sale, « — », never « Rien à encaisser ». */}
+              same until the first answer (never the customer fields: loop t26 UI26-1): articles on the sale, « — », never « Rien à encaisser ». */}
           {!document ? (
             <Typography variant="caption" color="text.secondary">{draft.extras.length > 0 ? '—' : TEXTS.nothingDue}</Typography>
           ) : remainingCents <= 0 ? (
@@ -329,7 +348,7 @@ export default function StandaloneSaleDialog({ open, onClose, onSold, client = n
               ) : (
                 <>
                   <Typography variant="caption" color="text.secondary">{TEXTS.linkAfter}</Typography>
-                  {linkState.reason === 'NO_EMAIL' && <Typography variant="caption" color="error">{TEXTS.emailRequired}</Typography>}
+                  {linkState.reason === 'NO_EMAIL' && !emailBad && <Typography variant="caption" color="error">{TEXTS.emailRequired}</Typography>}
                 </>
               )}
             </>

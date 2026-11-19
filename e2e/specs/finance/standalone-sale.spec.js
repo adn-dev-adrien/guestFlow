@@ -52,7 +52,7 @@ for (const [label, viewport] of [['desktop', { width: 1280, height: 900 }], ['ph
       await quantity.fill('2');
       await expect(dialog.getByText('Quantité : 1 à 99.')).toHaveCount(0);
 
-      // An invalid e-mail refuses before anything is asked of the server.
+      // An invalid e-mail refuses the sale; the quote never carries it (loop t26 UI26-1).
       await dialog.getByLabel('E-mail').fill('pas-une-adresse');
       await expect(dialog.getByText('Adresse e-mail invalide.')).toBeVisible();
       await expect(dialog.getByRole('button', { name: /Enregistrer la vente/ })).toBeDisabled();

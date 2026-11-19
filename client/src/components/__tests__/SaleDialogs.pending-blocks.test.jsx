@@ -17,6 +17,9 @@ import api from '../../api';
 import ResourceArrivalDialog from '../../plugins/hourly-resources/ResourceArrivalDialog';
 import ResourceBookingDialog from '../../plugins/hourly-resources/ResourceBookingDialog';
 import StandaloneSaleDialog from '../StandaloneSaleDialog';
+import MidStayNoteDialog from '../reservation/MidStayNoteDialog';
+import { ReservationFormProvider } from '../reservation/ReservationFormContext';
+import { makeMockContext } from '../reservation/__tests__/mockReservationForm';
 import { localIsoDate } from '../../plugins/hourly-resources/localDate';
 import { visitPayload, fakeQuote } from '../../plugins/hourly-resources/__tests__/arrivalVisitFixtures';
 import { sasPayload, stayDue, renderDialog, clickBtn } from '../../plugins/sas/__tests__/sasFixtures';
@@ -44,6 +47,7 @@ vi.mock('../../api', () => ({
     getSuggestedArticlesCatalogue: vi.fn(),
     quoteStandaloneSale: vi.fn(),
     sellStandaloneSale: vi.fn(),
+    previewMidStayNote: vi.fn(),
   },
 }));
 
@@ -221,6 +225,28 @@ const DIALOGS = {
       expect(await screen.findByText('480,00 €')).toBeInTheDocument();
       expect(screen.getByText('Acompte : 144,00 €')).toBeInTheDocument();
       expect(screen.getByText('Solde : 336,00 €')).toBeInTheDocument();
+    },
+  }],
+  // Loop t26 UI26-2 — « Total de la note » is drawn from the opening, « — » until the preview answers.
+  'components/reservation/MidStayNoteDialog.jsx': [{
+    block: '« Total de la note » on opening',
+    open: async () => {
+      const lines = [{ label: 'Petit-déjeuner', amount: 24, key: 'opt:9', source: 'midStayExtra' }];
+      api.previewMidStayNote.mockImplementation(afterHold(async ({ checkedKeys }) => ({ items: [], total: 24 * checkedKeys.length })));
+      render(
+        <ReservationFormProvider value={makeMockContext({ editingReservationId: 7, pricingQuote: { midStayExtrasLines: lines } })}>
+          <MidStayNoteDialog open onClose={() => {}} pendingLines={lines} onSettle={vi.fn()} onSellOnly={vi.fn()} />
+        </ReservationFormProvider>,
+      );
+      await waitFor(() => expect(api.previewMidStayNote).toHaveBeenCalled());
+    },
+    pending: () => {
+      expect(screen.getByText('Total de la note')).toBeInTheDocument();
+      expect(screen.getByTestId('note-total')).toHaveTextContent('—');
+      expect(screen.getByRole('button', { name: 'CB / Chèque' })).toBeDisabled();
+    },
+    filled: async () => {
+      await waitFor(() => expect(screen.getByTestId('note-total')).toHaveTextContent('0,00 €'));
     },
   }],
   'components/StandaloneSaleDialog.jsx': [{

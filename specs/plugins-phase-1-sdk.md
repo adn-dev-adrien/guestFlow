@@ -803,11 +803,12 @@ Optional: a plugin that declares nothing reads « Actif ».
     answer is for the draft on screen** (gated on `enabled`, not on `pending`: an edited draft still asked keeps the latest answer, dimmed);
     `last` still keeps it. The visit's and the booking's invoice question no longer show an older answer while the typed payment waits:
     their block is pending until the fresh answer (outside-booking-sas rule 54 reading of 2026-11-19). Members, enumerated from the code
-    (every consumer whose draft stays on screen while it cannot be asked): the counter (« — » for the Total and the payment, never « Rien à
-    encaisser » while articles are on the sale), the penalty (no figures), the payout split (no older message) and the credit link's manual
+    (every consumer whose draft stays on screen while it cannot be asked): the penalty (no figures), the payout split (no older message) and the credit link's manual
     split (no older summary; a split with an unreadable amount is its own draft, no longer the ticked transfers', and its fields keep their
     receipt names from `last`); not members: the visit and the booking (a null draft draws the stored visit / no price) and the SAS recap
-    (`last` with « — » while failed). Test `useLatestPreview.disabled-draft` (18: 5 hook rows; the consumers read from the code equal the
+    (`last` with « — » while failed); since loop t26 the counter is not a member either (only its articles disable its quote, and an
+    emptied sale draws no figure) nor the mid-stay note (asked from its opening to its closing). Test `useLatestPreview.disabled-draft` (16 —
+    18 until loop t26 removed the counter's two rows: 5 hook rows; the consumers read from the code equal the
     members and the non-members; each member with and without a failure first — the penalty for an emptied, « 0 » and « 30x » amount — shows
     no figure of the older answer, no « Réessayer », a disabled commit, then the new answer once asked).
     _Same day (loop t25 verifier):_ an amount typed with its decimal separator last (« 100, », « 30, ») is that whole amount for the
@@ -816,6 +817,21 @@ Optional: a plugin that declares nothing reads « Actif ».
     The penalty refuses more than two decimals on the field (« 30,123 »), as its message says; the server already refused it
     (`platform-penalties` test, « deux décimales »). SDK 2.32.0 also exports `tendersForDue` (mixed-method-payments rule 59 reading of the
     same day). Tests `parseEuroInput.trailing-separator` (15), `PlatformPenaltyDialog.trailing-separator` (7).
+    _Reading of 2026-11-19 (loop t26 UI26-1, UI26-2):_ **a field that decides no amount never disables a money preview nor makes it
+    refuse.** The counter disabled its quote while the e-mail was not yet an address: since the reading above, each keystroke of
+    « client@… » drew Total « — », payment « — » and unmounted the tender lines for 1.6-2.2 s in Chromium, and the valid address brought
+    back one card line of the whole due (CB 2 + Espèces 4,00 → CB 6,00); in « Envoyer un lien » the mode switch vanished too. Only the
+    articles enable its quote now; the customer part (`quoteCustomerOf`) carries the address once it reads as one and « Enregistrer comme
+    client » once a name is there — the server refuses either otherwise (400 `EMAIL_INVALID` / `NAME_REQUIRED`), and a refused quote has
+    no amount. The customer decides no amount: it only names who the sale is for; the save stays blocked on an invalid address or a
+    missing name. Enumerated from the code: the counter's e-mail, name and « Enregistrer comme client », and the penalty's « Motif », are
+    the only fields of a hook consumer that decide no amount and reach its preview (the penalty keeps the reason in its draft — the server
+    validates it — and never disables on it); the other consumers' drafts hold amount-relevant fields only (`resourceBookingDraft` checked
+    key by key). « Nouvelle note » now previews through the hook too (specs/mid-stay-notes.md rule 22 reading): it joins the
+    failed-recompute, pending-block, focus and commit-label tables. Tests `useLatestPreview.non-amount-fields` (8: the consumers read from
+    the code each have their fields typed key by key or say why none; at every keystroke and 250 ms later the Total, the payment, the
+    typed lines and the label are unchanged; `quoteCustomerOf`; the booking draft's keys), `useLatestPreview.failed-recompute` (24: +1 row
+    `MidStayNoteDialog`).
     **The SDK history records what each shipped minor exposed:** v4.1.0 shipped SDK 2.27.0 without `vat`, `accountingOutput`, `legacyBucketSplit`,
     `refundJournal`, `csvJournal`, `salesJson` and `synthesisExporter`, and neither SDK 2.28.0 (the home-data extension points,
     specs/guest-app-home-automation.md, merged first) nor SDK 2.29.0 (the Mollie tranches and journal, rule 51, merged first) recorded them,
@@ -1073,8 +1089,10 @@ still in the core. Server: 4,611 tests after, of which 37 are new. Client: 1,416
   consumer starts nothing, an active one the four imports, once; once loaded every block is in the first paint. Each test of this file and of
   `LazySaleComponents.lazy` takes a fresh module registry (`vi.resetModules` + `vi.doMock`), so the session-wide memoised imports never leak
   from one test to the next and the outcome is the same in any order (loop t21 A21-1, shuffled seeds 1-12).
-- `hooks/__tests__/useLatestPreview.disabled-draft.test.jsx` (18) — rule 54 (reading of 2026-11-19, loop t25 UI25-1): a draft that cannot be asked shows no older answer; hook rows and one row per member screen, read from the code.
-- `hooks/__tests__/useLatestPreview.failed-recompute.test.jsx` (23: +7 loop t24 UI24-2, the hook's table of a failure owned by its draft; +4 loop t24 S24-2, a disabled draft ends the failure; +2 loop t24 A24-2, the SAS tender lines and button) — rule 54 (reading of 2026-11-18, loop t23 S23-1): a failed request
+- `hooks/__tests__/useLatestPreview.disabled-draft.test.jsx` (16: −2 loop t26, the counter no longer a member) — rule 54 (reading of 2026-11-19, loop t25 UI25-1): a draft that cannot be asked shows no older answer; hook rows and one row per member screen, read from the code.
+- `hooks/__tests__/useLatestPreview.non-amount-fields.test.jsx` (8) — rule 54 (reading of 2026-11-19, loop t26 UI26-1): a field that decides no amount, typed key by key, keeps the figures, the payment and the typed tender lines; every consumer read from the code has its row or says why none.
+- `plugins/online-payment/__tests__/parseEuroInput.trailing-separator.test.jsx` (15) and `components/reservation/__tests__/PlatformPenaltyDialog.trailing-separator.test.jsx` (7) — rule 54 (reading of 2026-11-19, loop t25 verifier): « 100, » is 100,00; the penalty refuses more than two decimals.
+- `hooks/__tests__/useLatestPreview.failed-recompute.test.jsx` (24: +1 loop t26 UI26-2, the mid-stay note; +7 loop t24 UI24-2, the hook's table of a failure owned by its draft; +4 loop t24 S24-2, a disabled draft ends the failure; +2 loop t24 A24-2, the SAS tender lines and button) — rule 54 (reading of 2026-11-18, loop t23 S23-1): a failed request
   makes the answer unknown until a new one; every money preview screen, read from the code, shows no figure of the older answer, no live
   money field set from it, the reason with « Réessayer » (kept while the retry is asked), a disabled commit, every draft input still
   mounted, the focus never on the page or the dialog root, then the new answer; « Rattacher » disabled while the credit list is unknown.
@@ -1086,12 +1104,12 @@ still in the core. Server: 4,611 tests after, of which 37 are new. Client: 1,416
 - `components/__tests__/SaleDialogs.commit-label-pending.test.jsx` (4) — rule 54 (reading of 2026-11-18, loop t24 second pass;
   outside-booking-sas rule 54 reading of the same day): through a pending edit the commit label of every screen that previews through
   `useLatestPreview` (read from the code) stays stable and no false refusal of a stale (draft, payment) pair is drawn.
-- `components/__tests__/SaleDialogs.pending-blocks.test.jsx` (9) — rule 54 (reading of 2026-11-18, loop t21 UI21-1): the dialogs that ask a
+- `components/__tests__/SaleDialogs.pending-blocks.test.jsx` (10: +1 loop t26, « Total de la note » of the mid-stay note) — rule 54 (reading of 2026-11-18, loop t21 UI21-1): the dialogs that ask a
   second request and render a sale block, enumerated from the code, equal the table; « Facture » (arrival, booking), « Séjour à régler »
   (SAS) and « Total » (counter) are drawn pending with the content, then filled; the arrival's « Facture » through its four outcomes
   (accepted, refused with a caption, silent, failed), each keeping the pending block's height (outside-booking-sas rule 54); unticking the box gives the reserved height back (a gesture resizes).
   Loop t22 UI22-1: every row also finds no usable control inside a `data-pending-block` (the « Facture » address disabled while pending).
-- `components/__tests__/SaleDialogs.focus-on-answer.test.jsx` (17: +3 loop t23, the « Réessayer » of the penalty, the payout split and the
+- `components/__tests__/SaleDialogs.focus-on-answer.test.jsx` (18: +1 loop t26, the mid-stay note's « Réessayer »; +3 loop t23, the « Réessayer » of the penalty, the payout split and the
   credit link dialogs, now `FocusKeeper` regions, goes with the failure and the focus stays in the content, not on the dialog root) — rule 54 (reading of 2026-11-18, loop t22 UI22-1): every file that
   draws a `FocusKeeper`, enumerated from the code, has its rows; the control an answer (or « Réessayer ») takes away held the focus, and the
   focus ends in the dialog, never on the page — the arrival's « Facture » address through a second answer accepted / refused / silent /
