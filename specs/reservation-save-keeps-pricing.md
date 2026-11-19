@@ -298,8 +298,10 @@ as stored when the arrival complement was collected. Legacy rows stay NULL.
 ## 6. UI / UX
 
 An amber alert above the platform price alert, one per notice, 44 px action target, full width at 390 px.
-Rule 21: a failed live quote puts a red `ErrorAlert` (reason + « Réessayer ») right above the finance card and dims the card;
-nothing else moves; at 390 px the alert is full width like the others.
+Rule 21: a failed live quote puts a red `ErrorAlert` (reason + « Réessayer ») right above the finance card and dims the card; the
+finance card moves down by the alert's height (a failure path: measured 76 px at 1280, 96-116 px at 390 — reading of 2026-11-19, loop
+t25 UI25-3), and what is above the alert stays where it was. A refusal (a 4xx other
+than 408 / 429) shows its reason without « Réessayer ». At 390 px the alert is full width like the others.
 
 ## 7. Test plan
 

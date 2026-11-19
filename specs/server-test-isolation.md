@@ -166,7 +166,7 @@ being on the preload's lists fails the run once the suite executes the read (rul
    **Reading of 2026-11-19 (stabilisation loop t25, D25-1).** A day built from today is the PROCESS zone's day, and the stay
    clock (`utils/pricing/stayClock.js`) judges on Europe/Paris whatever `TZ` says. Four cases put a check-in at `23:59` on
    « today » (`toLocaleDateString('sv-SE')`, `todayIso()`, the guest-app fixture's `seedStay({ start: 0 })`) to read « the
-   arrival day, before the hour »: CI runs with no `TZ` (UTC), so from 23:00 to 24:00 UTC Paris was already on the next day,
+   arrival day, before the hour »: CI runs with no `TZ` (UTC), so from 23:00 to 24:00 UTC (22:00 in summer) Paris was already on the next day,
    the arrival day had passed and the case failed (PR shard 1/2, 23:41 UTC); on a Paris machine the same cases failed from
    23:59. A case whose answer hangs on the hour of the day does not read the wall clock: it runs the gesture at a fixed
    moment — `withNow(now, fn)` of `utils/localDate.js` for a model call, `openOrdering(id, { now })` for a guest-app call
