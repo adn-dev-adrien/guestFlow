@@ -239,12 +239,12 @@ export default function PaymentMarkForm({
   );
 }
 
-// « Encaisser 122,00 € », or what is received when the operator chose what becomes of a shortfall.
+// « Encaisser 122,00 € », or what is received when the operator chose what becomes of a shortfall. `tenderState` is the report for the
+// due on screen (`tendersForDue`): until the lines send it, the label names that due and the button waits (loop t25).
 function submitLabel(showLines, mode, tenderState, splitInfo) {
   if (!showLines) return 'Valider';
   if (mode === 'modify') return TENDER_TEXTS.save;
-  // Loop t25 — `tenderState` is the report for the due on screen (`tendersForDue`): until the lines send it, no amount.
-  if (!tenderState) return TENDER_TEXTS.collect('—');
-  const cents = tenderState.gapCents > 0 ? tenderState.receivedCents : splitInfo.dueCents;
+  const gap = tenderState ? tenderState.gapCents : 0;
+  const cents = tenderState && gap > 0 ? tenderState.receivedCents : splitInfo.dueCents;
   return TENDER_TEXTS.collect(formatCurrency(cents / 100));
 }

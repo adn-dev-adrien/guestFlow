@@ -304,8 +304,7 @@ export default function MidStayNoteDialog({ open, onClose, pendingLines = [], on
             })); }}
             fullWidth={isMobile}
           >
-            {/* Loop t25 — no amount while the lines have not reported for the total on screen. */}
-            {TENDER_TEXTS.collect(!tendersNow ? '—' : formatCurrency(tendersNow.gapCents > 0 ? tendersNow.receivedCents / 100 : noteTotal))}
+            {TENDER_TEXTS.collect(formatCurrency(tendersNow && tendersNow.gapCents > 0 ? tendersNow.receivedCents / 100 : noteTotal))}
           </Button>
         ) : (
           <>

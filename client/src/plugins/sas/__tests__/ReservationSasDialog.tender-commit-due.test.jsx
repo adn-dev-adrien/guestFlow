@@ -68,8 +68,8 @@ test('the consumers read from the code are the known ones', () => {
 
 // The SAS, both ends: lines typed short, « Geste commercial » chosen (« Encaisser » on); « Offrir » moves the due while the lines stay
 // mounted. A MutationObserver records every change of the button's `disabled` attribute while the new answer lands: it is never removed
-// (the button never turns enabled on the older report), nothing is sent, and while the report is pending its label names no amount
-// (« Encaisser — »): the only amount it shows after the due moved is the one the lines report for it.
+// (the button never turns enabled on the older report), nothing is sent, and while the report is pending its label names the new due —
+// never « — », never an older report's amount — then what the lines collect for it.
 const ENDS = {
   arrival: { open: arrivalRecap, offer: () => offerButtons()[1], commit: () => api.commitArrivalSas },
   departure: { open: departureLinenRecap, offer: () => offerButtons()[1], commit: () => api.commitDepartureSas },
@@ -100,10 +100,15 @@ test.each(Object.keys(ENDS))('%s — after the due moves, « Encaisser » is nev
   expect(button.isConnected).toBe(true);
   expect(enabledAt).toEqual([]);
   expect(button).toBeDisabled();
+  // The labels after the due moved: never « — » (the due is known), never an amount but the new due and what the lines then collect.
   const final = button.textContent;
-  expect(final).toMatch(/^Encaisser \d/);
-  const before = labels[0];
-  const amounts = [...new Set(labels.slice(1).filter((l) => /^Encaisser \d/.test(l) && l !== before))];
-  expect(amounts).toEqual([]);
+  const meter = document.body.textContent.match(/(\d[\d\s]*,\d\d)\s*€\s*non couverts/);
+  const cents = (text) => Math.round(Number(text.replace(/[^\d,]/g, '').replace(',', '.')) * 100);
+  const newDue = cents(final) + cents(meter[1]);
+  const after = labels.slice(1).filter((l) => /^Encaisser/.test(l) && l !== labels[0]);
+  expect(after.filter((l) => /—/.test(l))).toEqual([]);
+  after.forEach((l) => expect([newDue, cents(final)]).toContain(cents(l)));
+  // Right after the change, before the lines report: the new due, on a disabled button.
+  expect(after.map(cents)).toContain(newDue);
   expect(ENDS[end].commit()).not.toHaveBeenCalled();
 });

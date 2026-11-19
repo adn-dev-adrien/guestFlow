@@ -1224,7 +1224,7 @@ export default function FinanceSection() {
                         onClick={() => runArrivalPayment('split')}
                         sx={{ textTransform: 'none', minHeight: 44, borderRadius: 999 }}
                       >
-                        {TENDER_TEXTS.collect(!arrivalTendersNow ? '—' : formatCurrency(arrivalTendersNow.gapCents > 0
+                        {TENDER_TEXTS.collect(formatCurrency(arrivalTendersNow && arrivalTendersNow.gapCents > 0
                           ? arrivalTendersNow.receivedCents / 100
                           : form.arrivalPayment.collectible.total))}
                       </Button>
