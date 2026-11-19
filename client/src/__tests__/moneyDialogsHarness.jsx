@@ -175,7 +175,8 @@ class FakeServer {
       req.state = 'failed';
       req.status = spec.status;
       const retryable = RETRYABLE.includes(spec.status);
-      req.message = retryable ? `Service indisponible n° ${req.id}` : `Refusé par le serveur n° ${req.id}`;
+      // Each failure has its own words, none the prefix of another (« n° 1 » is in « n° 14 »).
+      req.message = retryable ? `Service indisponible [${req.id}]` : `Refusé par le serveur [${req.id}]`;
       const error = Object.assign(new Error(req.message), { status: spec.status, code: retryable ? 'UNAVAILABLE' : 'REFUSED' });
       if (req.route.errorOf) Object.assign(error, req.route.errorOf(req, spec.status));
       if ('failValue' in req.route) req.resolve(req.route.failValue); else req.reject(error);
@@ -269,6 +270,7 @@ class Ctx {
     this.shortSnap = null;
     this.tickSnap = new Map();
     this.changedAt = {};
+    this.changedStep = {};
     this.lastKeys = {};
     this.commits = [];
     this.focusedOnce = false;
@@ -301,7 +303,8 @@ class Ctx {
     // A draft changed after the last request left (or that request was dropped: aborted, or orphaned by a draft that could not be
     // asked) is asked again once the quiet time is over: pending meanwhile.
     const backToIt = last && last.key === key && last.state === 'ok' && !last.orphan;
-    if (last && !backToIt && (this.changedAt[channel.name] ?? -Infinity) > last.at && quietNow) return { kind: 'pending' };
+    // Ordered by step, not by clock: two gestures in the same millisecond (a toggle undone at once) still come after the request.
+    if (last && !backToIt && (this.changedStep[channel.name] ?? -1) > last.step && quietNow) return { kind: 'pending' };
     if (!last || last.key !== key || last.state === 'aborted' || last.orphan) {
       const quiet = (channel.delay ?? PREVIEW_DELAY) + 20;
       if (this.now - (this.changedAt[channel.name] ?? -Infinity) <= quiet) return { kind: 'pending' };
@@ -723,6 +726,8 @@ async function perform(ctx, action) {
   }
   const op = ctx.ops[action.name];
   if (!op || (op.applicable && !op.applicable(ctx))) return false;
+  // A dialog may tie a default to the payment lines (the invoice box ticked for a card): a gesture on the lines re-asks it.
+  if (TENDER_OPS[action.name] && ctx.adapter.onTenderGesture) ctx.adapter.onTenderGesture(ctx);
   if (op.commit) {
     ctx.clickSnap = ctx.adapter.snapshot ? ctx.adapter.snapshot(ctx) : null;
     ctx.commitClickStep = ctx.stepIndex;
@@ -737,7 +742,7 @@ async function perform(ctx, action) {
 function trackKeys(ctx) {
   const keys = ctx.keys();
   Object.entries(keys).forEach(([name, key]) => {
-    if (ctx.lastKeys[name] !== key) { ctx.changedAt[name] = ctx.now; ctx.lastKeys[name] = key; }
+    if (ctx.lastKeys[name] !== key) { ctx.changedAt[name] = ctx.now; ctx.changedStep[name] = ctx.stepIndex; ctx.lastKeys[name] = key; }
     // A draft that cannot be asked drops what is on its way: a late answer to it is never the screen's (useLatestPreview's sequence).
     if (key == null) ctx.server.requests.filter((r) => r.channel === name && r.state === 'pending').forEach((r) => { r.orphan = true; });
   });
@@ -806,6 +811,10 @@ async function episode(adapter, api, { seed = 0, steps = 40, actions = null, sto
       performed.push(action);
       trackKeys(ctx);
       ctx.focusBefore = focusBefore;
+      if (process.env.HARNESS_TRACE) {
+        const b = tenderBlocks(document.body)[0];
+        process.stderr.write(`STEP ${performed.length} ${describeAction(action)} | ${b ? b.lines.map((l) => `${l.method}:${l.value}${l.auto ? '(auto)' : ''}`).join(' ') : '-'} | snap ${ctx.tenderSnap ? ctx.tenderSnap.lines.map((l) => `${l.method}:${l.value}${l.typed ? '*' : ''}`).join(' ') : '-'}\n`);
+      }
       const v = checkInvariants(ctx);
       if (v.length) { failure = { violations: v, actions: performed.slice() }; break; }
       if (stopAt != null && performed.length >= stopAt) break;

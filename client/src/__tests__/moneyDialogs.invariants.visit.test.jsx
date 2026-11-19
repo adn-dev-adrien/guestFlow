@@ -51,19 +51,20 @@ function answerOf(body) {
   return out;
 }
 
-const qtyCache = new Map();
+// The last number each quantity field showed (a row keeps its field until removed).
+let qtyCache = new WeakMap();
 function screenDraft() {
   const minutes = Number((document.querySelector('[role="group"][aria-label="Temps offert"] p') || {}).textContent || 0);
   const session = [...document.querySelectorAll('[role="dialog"] button[aria-pressed]')].find((b) => !b.closest('li') && /^Offer?t?/.test(b.textContent));
   const sessionOffered = Boolean(session && session.getAttribute('aria-pressed') === 'true');
-  const extras = articleRows(TITLE).map((row, i) => {
+  const extras = articleRows(TITLE).map((row) => {
     const name = row.querySelector('p').textContent;
     const article = SUGGESTIONS.find((a) => a.label === name);
     const input = row.querySelector('input');
-    let quantity = /^\d+$/.test(input.value.trim()) ? Number(input.value.trim()) : qtyCache.get(`${i}:${name}`);
-    if (quantity != null) qtyCache.set(`${i}:${name}`, quantity);
-    if (quantity == null) quantity = 1;
     const offered = row.querySelector('button[aria-pressed="true"]') ? 'o' : '';
+    let quantity = /^\d+$/.test(input.value.trim()) ? Number(input.value.trim()) : qtyCache.get(input);
+    if (quantity != null) qtyCache.set(input, quantity);
+    if (quantity == null) quantity = 1;
     return `${article ? article.articleRef : name}x${quantity}${offered}`;
   });
   if (minutes === 0 && !sessionOffered && extras.length === 0) return null;
@@ -98,8 +99,8 @@ const adapter = {
   }),
   render: (ctx) => <ResourceArrivalDialog open bookingId={5} onClose={() => { ctx.closed = true; }} onDone={() => { ctx.done = true; }} />,
   ready,
-  setup: () => { qtyCache.clear(); },
-  onRemount: () => { qtyCache.clear(); },
+  setup: () => { qtyCache = new WeakMap(); },
+  onRemount: () => { qtyCache = new WeakMap(); },
   channels: [
     { name: 'draft', key: screenDraft, failureWords: (req) => [req.message, /Total indisponible|Montant indisponible/] },
     {
@@ -108,6 +109,9 @@ const adapter = {
       key: (ctx) => {
         const pay = screenPayment();
         if (!pay) return null;
+        // Asked once the draft on screen is answered (or there is none): before that the question waits, pending.
+        const draft = ctx.channelState(adapter.channels[0], screenDraft());
+        if (!['idle', 'fresh'].includes(draft.kind)) return null;
         return `${screenDraft() || draftKeyOf({})}|${pay}`;
       },
       idleCommits: true,
@@ -139,6 +143,8 @@ const adapter = {
     return [];
   },
   findTick: () => invoiceBox(),
+  // « Créer la facture dans Qonto » follows the card by default (ticked for a card line): a gesture on the lines may set it again.
+  onTenderGesture: (ctx) => { ctx.tickSnap.clear(); },
   snapshot: () => {
     const block = tenderBlocks(document.body)[0];
     return { draft: screenDraft(), payment: screenPayment(), tick: invoiceBox() ? invoiceBox().checked : null, offered: Boolean(block) };
@@ -196,7 +202,6 @@ const adapter = {
       async run(ctx, { row }) {
         const list = articleRows(TITLE);
         [...ctx.typed.keys()].filter((k) => k.startsWith('qty:')).forEach((k) => ctx.typed.delete(k));
-        qtyCache.clear();
         return press(ctx, [...list[row % list.length].querySelectorAll('button')].find((b) => b.textContent === 'Retirer'));
       },
     },

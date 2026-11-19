@@ -6,7 +6,7 @@ import { vi } from 'vitest';
 import api from '../api';
 import StandaloneSaleDialog from '../components/StandaloneSaleDialog';
 import {
-  runFamily, formatFailures, harnessSeeds, harnessSteps, harnessTimeout, press, typeInto, findButton, flush, tenderBlocks, centsOfInput,
+  runFamily, formatFailures, harnessSeeds, harnessSteps, harnessTimeout, press, typeInto, findButton, tenderBlocks, centsOfInput, remountOp,
 } from './moneyDialogsHarness';
 
 vi.mock('../api', async () => (await import('./moneyDialogsHarness')).apiModule());
@@ -55,16 +55,18 @@ function quoteOf(body) {
 }
 
 const rows = () => [...document.querySelectorAll('ul[aria-label="Articles"] > li')];
-const qtyCache = new Map();
+// The quantity a row stands for while its field holds no number (typed '' or 'x'): the last number that very field showed (a row keeps
+// its field until it is removed).
+let qtyCache = new WeakMap();
 function draftKey() {
-  return rows().map((row, i) => {
+  return rows().map((row) => {
     const name = row.querySelector('p').textContent;
     const article = ARTICLES.find((a) => a.label === name);
-    const input = row.querySelector('input');
-    let quantity = input && /^\d+$/.test(input.value.trim()) ? Number(input.value.trim()) : qtyCache.get(`${i}:${name}`);
-    if (quantity != null) qtyCache.set(`${i}:${name}`, quantity);
-    if (quantity == null) quantity = 1;
     const offered = row.querySelector('button[aria-pressed="true"]') ? 'o' : '';
+    const input = row.querySelector('input');
+    let quantity = input && /^\d+$/.test(input.value.trim()) ? Number(input.value.trim()) : qtyCache.get(input);
+    if (quantity != null && input) qtyCache.set(input, quantity);
+    if (quantity == null) quantity = 1;
     return `${article ? article.articleRef : name}x${quantity}${offered}`;
   }).join(',');
 }
@@ -85,7 +87,7 @@ const adapter = {
   }),
   render: () => <StandaloneSaleDialog open onClose={() => {}} onSold={() => {}} />,
   ready: () => Boolean([...document.querySelectorAll('[role="dialog"] [role="button"]')].find((b) => /Bière locale/.test(b.textContent))),
-  setup: () => { qtyCache.clear(); },
+  setup: () => { qtyCache = new WeakMap(); },
   channels: [{
     name: 'quote',
     key: () => (rows().length ? `${draftKey()}|${customerKey(screenCustomer())}` : null),
@@ -214,7 +216,6 @@ const adapter = {
         const list = rows();
         const target = list[row % list.length];
         [...ctx.typed.keys()].filter((k) => k.startsWith('qty:')).forEach((k) => ctx.typed.delete(k));
-        qtyCache.clear();
         return press(ctx, target && [...target.querySelectorAll('button')].find((b) => b.textContent === 'Retirer'));
       },
     },
@@ -254,17 +255,7 @@ const adapter = {
       applicable: () => Boolean(submit()),
       run: (ctx) => press(ctx, submit()),
     },
-    remount: {
-      weight: 0.3,
-      async run(ctx) {
-        await act(async () => { ctx.view.unmount(); });
-        ctx.typed.clear(); ctx.tenderSnap = null; ctx.shortSnap = null; ctx.focusedOnce = false; qtyCache.clear();
-        const { render } = await import('@testing-library/react');
-        await act(async () => { ctx.view = render(adapter.render(ctx)); });
-        for (let i = 0; i < 40 && !adapter.ready(ctx); i += 1) await flush();
-        return true;
-      },
-    },
+    remount: remountOp(() => adapter.ready()),
   },
 };
 

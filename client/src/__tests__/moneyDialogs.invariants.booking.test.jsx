@@ -109,7 +109,13 @@ const adapter = {
     { name: 'price', key: screenDraft, failureWords: (req) => [req.message, /Prix indisponible/] },
     {
       name: 'invoice',
-      key: (ctx) => { const pay = screenPayment(); const draft = screenDraft(ctx); return pay && draft ? `${draft}|${pay}` : null; },
+      // Asked once the price on screen is answered: before that the question waits, pending.
+      key: (ctx) => {
+        const pay = screenPayment();
+        const draft = screenDraft(ctx);
+        if (!pay || !draft || ctx.channelState(adapter.channels[0], draft).kind !== 'fresh') return null;
+        return `${draft}|${pay}`;
+      },
       failureWords: (req) => [req.message, /Facture non vérifiée|Vérification de la facture/],
     },
   ],
@@ -137,6 +143,8 @@ const adapter = {
   },
   findTyped: (_ctx, ident) => { const el = fieldByLabel(ident); return el ? [el] : []; },
   findTick: () => invoiceBox(),
+  // « Créer la facture dans Qonto » follows the card by default (ticked for a card line): a gesture on the lines may set it again.
+  onTenderGesture: (ctx) => { ctx.tickSnap.clear(); },
   snapshot: (ctx) => ({ draft: screenDraft(ctx), payment: screenPayment(), tick: invoiceBox() ? invoiceBox().checked : null }),
   commitCheck: (ctx, req, snap) => {
     const out = [];
