@@ -74,6 +74,15 @@ async function walkDeparture(ctx) {
 function sasFamily(end) {
   const payload = end === 'arrival' ? ARRIVAL_STAY : LINEN_STAY;
   const recapOf = end === 'arrival' ? (draft) => recapFor(payload, draft) : (draft) => departureRecapFor(payload, draft);
+  // The key is the request as the dialog sends it: the arrival lists its offers in the order they were chosen (the hook tells drafts apart
+  // by their exact content); the departure's stored lines keep their own order.
+  const LINE_KEYS = recapOf({}).lines.filter((l) => l.offerable && l.key).map((l) => l.key);
+  const draftKeyOf = (draft) => (end === 'arrival'
+    ? (draft.offered || []).filter((x) => x.kind !== 'upsell').map((x) => `${x.kind}:${x.id}`).join(',')
+    : offerSig(recapOf(draft)));
+  const screenKeyOf = (ctx) => (end === 'arrival'
+    ? ctx.state.order.map((i) => LINE_KEYS[i]).join(',')
+    : ctx.state.offers.join(''));
   const dueOf = (answer) => Math.round(Number(end === 'arrival' ? answer.totalAtArrival : answer.grandTotal) * 100);
   const route = end === 'arrival' ? 'previewArrivalSas' : 'previewDepartureSas';
   const commitRoute = end === 'arrival' ? 'commitArrivalSas' : 'commitDepartureSas';
@@ -85,7 +94,7 @@ function sasFamily(end) {
     routes: () => ({
       getReservationSas: { kind: 'read', answer: () => payload },
       getReservationWeatherAlerts: { kind: 'read', answer: () => ({ configured: false, resolved: false, department: null, alerts: [] }) },
-      [route]: { kind: 'preview', channel: 'recap', key: (_id, draft) => offerSig(recapOf(draft)), answer: (_id, draft) => recapOf(draft) },
+      [route]: { kind: 'preview', channel: 'recap', key: (_id, draft) => draftKeyOf(draft), answer: (_id, draft) => recapOf(draft) },
       [commitRoute]: { kind: 'commit', answer: () => ({ ok: true }) },
     }),
     mount: (ctx) => renderDialog({ mode: end, onClose: () => { ctx.closed = true; }, onDone: () => { ctx.done = true; } }),
@@ -95,8 +104,9 @@ function sasFamily(end) {
       if (!onRecap()) throw new Error('the walk to the recap did not reach it');
       // The operator's « Offrir » choices: what the draft asks, whatever the answer says meanwhile.
       ctx.state.offers = screenOffers(ctx).split('');
+      ctx.state.order = [];
     },
-    channels: [{ name: 'recap', key: (ctx) => (onRecap() && ctx.state.offers ? ctx.state.offers.join('') : null), failureWords: (req) => [req.message, ...ERRORS], retry: true }],
+    channels: [{ name: 'recap', key: (ctx) => (onRecap() && ctx.state.offers ? screenKeyOf(ctx) : null), failureWords: (req) => [req.message, ...ERRORS], retry: true }],
     // I3 — an « Offrir » toggle is the operator's input: it shows what was chosen through answers, failures and retries.
     extraChecks: (ctx, v) => {
       if (!onRecap() || !ctx.state.offers) return;
@@ -125,12 +135,12 @@ function sasFamily(end) {
     },
     snapshot: (ctx) => {
       const block = tenderBlocks(document.body)[0];
-      return { key: screenOffers(ctx), payment: block ? tenderSig(tendersOnScreen(block), block.short ? block.shortfall : null) : null };
+      return { key: screenKeyOf(ctx), payment: block ? tenderSig(tendersOnScreen(block), block.short ? block.shortfall : null) : null };
     },
     commitCheck: (ctx, req, snap) => {
       const out = [];
       const body = req.args[1] || {};
-      const sent = offerSig(recapOf(body));
+      const sent = draftKeyOf(body);
       if (snap && sent !== snap.key) out.push(`the ${end} sent offers ${sent} for ${snap.key} on screen`);
       const tenders = body.tenders || (body.payment && body.payment.tenders) || (body.split && body.split.tenders);
       if (snap && snap.payment && tenders) {
@@ -150,7 +160,10 @@ function sasFamily(end) {
           const i = at % list.length;
           if (!list[i] || list[i].disabled) return false;
           const ok = await press(ctx, list[i]);
-          if (ok) ctx.state.offers[i] = ctx.state.offers[i] === 'O' ? 'F' : 'O';
+          if (ok) {
+            ctx.state.offers[i] = ctx.state.offers[i] === 'O' ? 'F' : 'O';
+            ctx.state.order = ctx.state.offers[i] === 'O' ? [...ctx.state.order, i] : ctx.state.order.filter((x) => x !== i);
+          }
           return ok;
         },
       },
@@ -196,9 +209,10 @@ function sasFamily(end) {
 }
 
 test('the SAS arrival recap keeps the money-dialog invariants on every generated seed', async () => {
-  const failures = await runFamily(sasFamily('arrival'), api, { seeds: harnessSeeds([1, 2, 3]), steps: harnessSteps(25) });
+  // Seeds found by the long runs (loop t26): steps back and forth around the recap, « Offrir » undone at once.
+  const failures = await runFamily(sasFamily('arrival'), api, { seeds: harnessSeeds([1, [210, 60], [211, 60], [224, 60], [227, 60], [229, 60], [235, 60], [257, 60], [298, 60], [306, 60], [307, 60], [332, 60], [334, 60], [335, 60]]), steps: harnessSteps(25) });
   expect(formatFailures(failures)).toBe('');
-}, harnessTimeout());
+}, harnessTimeout(60000));
 
 test('the SAS departure recap keeps the money-dialog invariants on every generated seed', async () => {
   const failures = await runFamily(sasFamily('departure'), api, { seeds: harnessSeeds([1, 2, 3]), steps: harnessSteps(25) });

@@ -32,7 +32,8 @@ const adapter = {
   fixtures: LINES,
   staticCents: [1000],
   routes: () => ({
-    previewMidStayNote: { kind: 'preview', channel: 'note', key: (body) => sortedKeys(body.checkedKeys), answer: (body) => noteOf(body) },
+    // The key is the request as the dialog sends it, ticks in their order: the hook tells drafts apart by their exact content.
+    previewMidStayNote: { kind: 'preview', channel: 'note', key: (body) => body.checkedKeys.join(','), answer: (body) => noteOf(body) },
   }),
   render: (ctx) => (
     <ReservationFormProvider value={makeMockContext({ editingReservationId: 7, pricingQuote: { midStayExtrasLines: LINES } })}>
@@ -46,7 +47,13 @@ const adapter = {
     </ReservationFormProvider>
   ),
   ready: () => boxes().length === LINES.length,
-  channels: [{ name: 'note', key: () => sortedKeys(checkedOnScreen()), failureWords: (req) => [req.message] }],
+  setup: (ctx) => { ctx.state.order = []; },
+  onRemount: (ctx) => { ctx.state.order = []; },
+  channels: [{ name: 'note', key: (ctx) => (ctx.state.order || []).join(','), failureWords: (req) => [req.message] }],
+  // I3 — the ticks are the operator's: the boxes show what was ticked.
+  extraChecks: (ctx, v) => {
+    if (sortedKeys(checkedOnScreen()) !== sortedKeys(ctx.state.order || [])) v.push({ code: 'I3', message: `ticked ${ctx.state.order.join(',')} now reads ${checkedOnScreen().join(',')}` });
+  },
   commitButton: settleButtons,
   tendersOutsideCommit: (_b, commit) => !/^Encaisser/.test(commit.textContent),
   requirements: (ctx, commit) => {
@@ -76,10 +83,10 @@ const adapter = {
     const card = actionButton('CB / Chèque');
     return card && card.disabled ? '« CB / Chèque » disabled on a fresh answer' : null;
   },
-  snapshot: () => {
+  snapshot: (ctx) => {
     const block = tenderBlocks(document.body)[0];
     return {
-      key: sortedKeys(checkedOnScreen()),
+      key: (ctx.state.order || []).join(','),
       tenders: block ? block.lines.map((l) => ({ method: l.method, cents: centsOfInput(l.value) })).filter((t) => t.cents) : null,
       shortfall: block && block.short ? block.shortfall : null,
     };
@@ -88,9 +95,9 @@ const adapter = {
     if (req.name !== 'onSettle') return [];
     const out = [];
     const [instruction, , split] = req.args;
-    if (sortedKeys(instruction.checkedKeys) !== snap.key) out.push(`the note settled ${sortedKeys(instruction.checkedKeys)} for ${snap.key} on screen`);
+    if (instruction.checkedKeys.join(',') !== snap.key) out.push(`the note settled ${instruction.checkedKeys.join(',')} for ${snap.key} on screen`);
     if (split) {
-      const fresh = ctx.server.lastOf('note');
+      const fresh = (req.freshAtClick || {}).note;
       if (!fresh || fresh.state !== 'ok' || split.expectedAmountCents !== dueOfAnswer(fresh)) out.push(`the note expected ${split.expectedAmountCents} without a fresh answer for it`);
       const sent = split.tenders.map((t) => `${t.method}:${t.amountCents}`).join('|');
       const shown = (snap.tenders || []).map((t) => `${t.method}:${t.cents}`).join('|');
@@ -105,7 +112,14 @@ const adapter = {
     tick: {
       weight: 4,
       gen: (rnd) => ({ at: rnd.int(LINES.length) }),
-      run: (ctx, { at }) => press(ctx, boxes()[at]),
+      async run(ctx, { at }) {
+        const box = boxes()[at];
+        if (!box || box.disabled) return false;
+        const key = LINES[at].key;
+        const ok = await press(ctx, box);
+        if (ok) ctx.state.order = ctx.state.order.includes(key) ? ctx.state.order.filter((k) => k !== key) : [...ctx.state.order, key];
+        return ok;
+      },
     },
     split: {
       weight: 2,
@@ -128,7 +142,8 @@ const adapter = {
   },
 };
 
+// Seeds found by the long runs (loop t26): ticks undone and redone in another order.
 test('« Nouvelle note » keeps the money-dialog invariants on every generated seed', async () => {
-  const failures = await runFamily(adapter, api, { seeds: harnessSeeds([1, 2, 3, 4, 5]), steps: harnessSteps(30) });
+  const failures = await runFamily(adapter, api, { seeds: harnessSeeds([1, 2, [215, 60], [290, 60], [319, 60], [400, 60]]), steps: harnessSteps(30) });
   expect(formatFailures(failures)).toBe('');
-}, harnessTimeout());
+}, harnessTimeout(60000));

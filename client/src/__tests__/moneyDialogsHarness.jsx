@@ -113,6 +113,8 @@ class FakeServer {
     this.requests = [];
     this.seq = 0;
     this.accepted = {};
+    // The latest accepted success the dialog's hook may come back to without asking again (useLatestPreview, loop t26).
+    this.settled = {};
   }
 
   install(api, routes) {
@@ -147,7 +149,10 @@ class FakeServer {
     // What the screen shows when the request leaves: a preview asked while the screen holds no draft to ask is a request for nothing.
     if (route.kind === 'preview' && !this.ctx.unmounted) {
       const channel = (this.ctx.adapter.channels || []).find((c) => c.name === req.channel);
-      if (channel && this.ctx.ready && channel.key(this.ctx) == null) this.ctx.askedForNothing.push(req);
+      if (channel && this.ctx.ready && channel.key(this.ctx) == null) {
+        this.ctx.askedForNothing.push(req);
+        if (process.env.HARNESS_DEBUG) process.stderr.write(`ASKED-FOR-NOTHING ${req.channel} key=${req.key} states=${JSON.stringify((this.ctx.adapter.channels || []).map((c) => [c.name, c.key(this.ctx), this.ctx.channelState(c, c.key(this.ctx)).kind]))}\n${this.requests.map((r) => `  #${r.id} ${r.channel} ${r.state}${r.orphan ? ' orphan' : ''} key=${r.key} step=${r.step}`).join('\n')}\n  step ${this.ctx.stepIndex} changedStep ${JSON.stringify(this.ctx.changedStep)}\n`);
+      }
     }
     this.requests.push(req);
     if (route.kind === 'commit') this.ctx.onCommit(req);
@@ -179,6 +184,7 @@ class FakeServer {
       req.message = retryable ? `Service indisponible [${req.id}]` : `Refusé par le serveur [${req.id}]`;
       const error = Object.assign(new Error(req.message), { status: spec.status, code: retryable ? 'UNAVAILABLE' : 'REFUSED' });
       if (req.route.errorOf) Object.assign(error, req.route.errorOf(req, spec.status));
+      if (this.lastOf(req.channel) === req && !req.orphan) this.settled[req.channel] = null;
       if ('failValue' in req.route) req.resolve(req.route.failValue); else req.reject(error);
       return;
     }
@@ -187,7 +193,7 @@ class FakeServer {
     req.silent = silent;
     req.answer = silent ? req.route.silent(...req.args) : req.route.answer(...req.args);
     req.cents = centsIn(req.answer);
-    if (latest && !req.orphan) this.accepted[req.channel] = req;
+    if (latest && !req.orphan) { this.accepted[req.channel] = req; this.settled[req.channel] = req; }
     req.resolve(req.answer);
   }
 }
@@ -283,11 +289,19 @@ class Ctx {
     this.state = {};
   }
 
+  // The answer the screen holds for the draft on screen, or null: what a commit may send (I2).
+  freshAnswer(name) {
+    const channel = (this.adapter.channels || []).find((c) => c.name === name);
+    const state = channel ? this.channelState(channel, channel.key(this)) : null;
+    return state && state.kind === 'fresh' ? state.req : null;
+  }
+
   onCommit(req) {
     // A commit sent by the click itself is judged against the button and the screen of that click; one a commit chains after its
     // answer (the booking's payment after its save) against what the adapter kept of the click.
     const fromClick = this.stepIndex === this.commitClickStep;
     this.commits.push({ req, snap: fromClick ? this.clickSnap : null, enabled: fromClick ? this.clickEnabled : true, step: this.stepIndex });
+    req.freshAtClick = Object.fromEntries((this.adapter.channels || []).map((c) => [c.name, this.freshAnswer(c.name)]));
   }
 
   keys() {
@@ -296,24 +310,33 @@ class Ctx {
     return out;
   }
 
+  // What the screen should hold for the draft on screen, as the dialog's `useLatestPreview` decides it. Judged after the fact, by what
+  // left: a request sent since the draft last changed answers it; nothing sent once the quiet time is over means the hook kept the
+  // request already on its way for that draft, or came back to its latest accepted answer (loop t26) — or asked nothing (stale).
   channelState(channel, key) {
     if (key == null) return { kind: 'idle' };
-    const last = this.server.lastOf(channel.name);
-    const quietNow = this.now - (this.changedAt[channel.name] ?? -Infinity) <= (channel.delay ?? PREVIEW_DELAY) + 20;
-    // A draft changed after the last request left (or that request was dropped: aborted, or orphaned by a draft that could not be
-    // asked) is asked again once the quiet time is over: pending meanwhile.
-    const backToIt = last && last.key === key && last.state === 'ok' && !last.orphan;
-    // Ordered by step, not by clock: two gestures in the same millisecond (a toggle undone at once) still come after the request.
-    if (last && !backToIt && (this.changedStep[channel.name] ?? -1) > last.step && quietNow) return { kind: 'pending' };
-    if (!last || last.key !== key || last.state === 'aborted' || last.orphan) {
-      const quiet = (channel.delay ?? PREVIEW_DELAY) + 20;
-      if (this.now - (this.changedAt[channel.name] ?? -Infinity) <= quiet) return { kind: 'pending' };
-      if (last && last.state === 'pending' && channel.sameRequest && channel.sameRequest(last.key, key)) return { kind: 'pending', req: last };
-      return { kind: 'stale', last };
+    const name = channel.name;
+    const all = this.server.requests.filter((r) => r.channel === name);
+    const changed = this.changedStep[name] ?? -1;
+    const quiet = this.now - (this.changedAt[name] ?? -Infinity) <= (channel.delay ?? PREVIEW_DELAY) + 20;
+    const counts = (r) => r.state !== 'aborted' && !r.orphan;
+    const last = all[all.length - 1];
+    // The hook listens to its latest request only. For the draft on screen it decides — pending, answered or failed — unless the draft moved
+    // after a failure: a draft back to a failed one is asked afresh (pending until that request leaves and answers).
+    if (last && counts(last) && last.key === key) {
+      if (last.state === 'pending') return { kind: 'pending', req: last };
+      if (last.state === 'ok') return { kind: 'fresh', req: last };
+      if (last.step < changed) return { kind: 'pending' };
+      return { kind: 'failed', req: last, status: last.status };
     }
-    if (last.state === 'pending') return { kind: 'pending', req: last };
-    if (last.state === 'ok') return { kind: 'fresh', req: last };
-    return { kind: 'failed', req: last, status: last.status };
+    // Back to the latest accepted answer — at once: what was asked since for another draft is dropped by the hook.
+    const settled = this.server.settled[name];
+    if (settled && settled.key === key && !settled.orphan) {
+      all.filter((r) => r.state === 'pending' && r.id > settled.id && r.key !== key).forEach((r) => { r.orphan = true; });
+      return { kind: 'fresh', req: settled };
+    }
+    if (quiet) return { kind: 'pending' };
+    return { kind: 'stale', last };
   }
 }
 
@@ -575,10 +598,11 @@ export const remountOp = (readyCheck) => ({
     // A new mount knows none of the older one's requests: their late answers are not its own, and it asks its drafts afresh.
     ctx.server.requests.forEach((r) => { r.orphan = true; });
     ctx.server.accepted = {};
+    ctx.server.settled = {};
     Object.keys(ctx.changedAt).forEach((name) => { ctx.changedAt[name] = ctx.now; });
     await act(async () => { ctx.view = ctx.adapter.mount ? ctx.adapter.mount(ctx) : render(ctx.adapter.render(ctx)); });
     for (let i = 0; i < 60 && !readyCheck(ctx); i += 1) { await realWait(10); await advance(ctx, 50); }
-    (ctx.adapter.channels || []).forEach((c) => { ctx.changedAt[c.name] = ctx.now; });
+    (ctx.adapter.channels || []).forEach((c) => { ctx.changedAt[c.name] = ctx.now; ctx.changedStep[c.name] = ctx.stepIndex; });
     return true;
   },
 });
@@ -744,7 +768,10 @@ function trackKeys(ctx) {
   Object.entries(keys).forEach(([name, key]) => {
     if (ctx.lastKeys[name] !== key) { ctx.changedAt[name] = ctx.now; ctx.changedStep[name] = ctx.stepIndex; ctx.lastKeys[name] = key; }
     // A draft that cannot be asked drops what is on its way: a late answer to it is never the screen's (useLatestPreview's sequence).
-    if (key == null) ctx.server.requests.filter((r) => r.channel === name && r.state === 'pending').forEach((r) => { r.orphan = true; });
+    if (key == null) {
+      ctx.server.requests.filter((r) => r.channel === name && r.state === 'pending').forEach((r) => { r.orphan = true; });
+    }
+
   });
 }
 
@@ -885,8 +912,10 @@ export const harnessTimeout = (fixed = 30000) => (process.env.HARNESS_SEEDS ? 24
 export async function runFamily(adapter, api, { seeds, steps }) {
   const failures = [];
   const collect = Boolean(process.env.HARNESS_REPORT);
-  for (const seed of seeds) {
-    const failure = await episode(adapter, api, { seed, steps });
+  // A seed is a number, or `[seed, steps]` for a run that once failed at that length (kept in the permanent list as found).
+  for (const entry of seeds) {
+    const [seed, length] = Array.isArray(entry) ? entry : [entry, steps];
+    const failure = await episode(adapter, api, { seed, steps: process.env.HARNESS_STEPS ? steps : length });
     if (!failure) continue;
     const shrunk = process.env.HARNESS_NO_SHRINK ? failure : await shrink(adapter, api, failure);
     const report = {

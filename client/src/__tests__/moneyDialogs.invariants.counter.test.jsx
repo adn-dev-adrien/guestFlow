@@ -152,7 +152,7 @@ const adapter = {
     const out = [];
     const [body] = req.args;
     if (linesKey(body.lines) !== snap.key) out.push(`the sale sent lines ${linesKey(body.lines)} for the draft ${snap.key} on screen`);
-    const fresh = ctx.server.lastOf('quote');
+    const fresh = (req.freshAtClick || {}).quote;
     if (fresh && fresh.state === 'ok' && body.acceptedTotalCents !== fresh.answer.document.totals.totalCents) out.push(`the sale accepted ${body.acceptedTotalCents} for a quote of ${fresh.answer.document.totals.totalCents}`);
     if (body.payment && snap.tenders) {
       const sent = body.payment.tenders.map((t) => `${t.method}:${t.amountCents}`).join('|');
@@ -259,8 +259,9 @@ const adapter = {
   },
 };
 
+// Seeds found by the long runs (loop t26): rows removed and added back, the quote coming back to an answered draft.
 test('« Vente hors séjour » keeps the money-dialog invariants on every generated seed', async () => {
-  const failures = await runFamily(adapter, api, { seeds: harnessSeeds([1, 2, 3, 4, 5, 6]), steps: harnessSteps(30) });
+  const failures = await runFamily(adapter, api, { seeds: harnessSeeds([1, 2, [258, 60], [321, 60], [498, 60], [551, 60]]), steps: harnessSteps(30) });
   expect(formatFailures(failures)).toBe('');
-}, harnessTimeout());
+}, harnessTimeout(60000));
 

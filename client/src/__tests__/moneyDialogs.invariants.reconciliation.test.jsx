@@ -68,7 +68,7 @@ const split = {
     if (ctx.state.submitted && !ctx.state.submittedChecked) {
       ctx.state.submittedChecked = true;
       const sent = splitKey(ctx.state.submitted.pairs);
-      const fresh = ctx.server.lastOf('shares');
+      const fresh = ctx.freshAnswer('shares');
       if (!fresh || fresh.state !== 'ok' || fresh.key !== sent) v.push({ code: 'I2', message: `the split sent ${sent} without a fresh answer for it` });
     }
   },
@@ -169,7 +169,7 @@ const link = {
   extraChecks: (ctx, v) => {
     if (ctx.state.submitted && !ctx.state.submittedChecked) {
       ctx.state.submittedChecked = true;
-      const fresh = ctx.server.lastOf('allocation');
+      const fresh = ctx.freshAnswer('allocation');
       const sent = ctx.state.submitted.map((p) => `${p.transactionId}=${p.amountCents}`).join(',');
       const answered = fresh && fresh.state === 'ok' ? fresh.answer.pairs.map((p) => `${p.transactionId}=${p.amountCents}`).join(',') : null;
       if (sent !== answered) v.push({ code: 'I2', message: `« Rattacher » sent ${sent} without a fresh answer for it` });
@@ -229,11 +229,11 @@ const link = {
 };
 
 test('« Répartir le versement » keeps the money-dialog invariants on every generated seed', async () => {
-  const failures = await runFamily(split, api, { seeds: harnessSeeds([1, 2, 3, 4]), steps: harnessSteps(30) });
+  const failures = await runFamily(split, api, { seeds: harnessSeeds([1, 2, 3, [383, 60]]), steps: harnessSteps(30) });
   expect(formatFailures(failures)).toBe('');
-}, harnessTimeout());
+}, harnessTimeout(60000));
 
 test('« Rattacher des virements » keeps the money-dialog invariants on every generated seed', async () => {
-  const failures = await runFamily(link, api, { seeds: harnessSeeds([1, 2, 3, 4]), steps: harnessSteps(30) });
+  const failures = await runFamily(link, api, { seeds: harnessSeeds([1, [273, 60], [289, 60], [309, 60], [389, 60]]), steps: harnessSteps(30) });
   expect(formatFailures(failures)).toBe('');
-}, harnessTimeout());
+}, harnessTimeout(60000));

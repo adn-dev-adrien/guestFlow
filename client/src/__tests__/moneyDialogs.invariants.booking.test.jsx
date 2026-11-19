@@ -152,7 +152,7 @@ const adapter = {
       const [data] = req.args;
       const sent = draftKeyOf(data);
       if (sent !== snap.draft) out.push(`the save sent ${sent} for ${snap.draft} on screen`);
-      const fresh = ctx.server.lastOf('price');
+      const fresh = (req.freshAtClick || {}).price;
       if (!fresh || fresh.state !== 'ok' || data.displayedTotal !== fresh.answer.total) out.push(`the save showed ${data.displayedTotal} without a fresh price for it`);
       ctx.state.savedSnap = snap;
     }
@@ -206,7 +206,9 @@ const adapter = {
   },
 };
 
+// Seeds found by the long run (loop t26, 2026-11-19): a draft back to its answered value asked the invoice question / showed a save over a
+// re-ask in flight; fixed in useLatestPreview (no re-ask of a draft already asked or answered).
 test('an hourly booking keeps the money-dialog invariants on every generated seed', async () => {
-  const failures = await runFamily(adapter, api, { seeds: harnessSeeds([1, 2, 3, 4, 5]), steps: harnessSteps(30) });
+  const failures = await runFamily(adapter, api, { seeds: harnessSeeds([[263, 60], [275, 60], [307, 60], [738, 60], [841, 60], [1312, 60], [1592, 60], [1706, 60]]), steps: harnessSteps(30) });
   expect(formatFailures(failures)).toBe('');
-}, harnessTimeout());
+}, harnessTimeout(90000));
