@@ -795,6 +795,21 @@ Optional: a plugin that declares nothing reads « Actif ».
     label or field of the 7 consumers that carries an amount of the answer was read from the code: the counter's « encaisser X » and the
     visit/booking tender lines already go with `payNow` on an unknown amount; the SAS lines and button were the last. Tests
     `useLatestPreview.failed-recompute` (+2: SAS arrival and departure with « Plusieurs moyens » open).
+    _Reading of 2026-11-19 (loop t25 UI25-1):_ **a draft that cannot be asked shows no older answer.** Once `enabled` turned false the
+    hook stopped asking and (since S24-2) dropped the failure, so `data` was the last answer of an OLDER draft, not pending, not failed, not
+    dimmed — drawn as current: the counter with an e-mail being typed read quantity 3 next to « Total 3,00 € » and a 3,00 € tender line
+    (true 9,00 €), and after a failure the e-mail's first keystroke replaced « — » with the total from before it; the penalty with its amount
+    emptied, « 0 » or « 30x » kept the figures of an earlier amount. The hook now answers **`data` null while disabled unless the latest
+    answer is for the draft on screen** (gated on `enabled`, not on `pending`: an edited draft still asked keeps the latest answer, dimmed);
+    `last` keeps it for a screen that deliberately keeps the latest answer while its draft waits — the visit's and the booking's invoice
+    question while the typed payment waits (`invoiceAwaiting`, `useVisitQuote` now returns `last` too). Members, enumerated from the code
+    (every consumer whose draft stays on screen while it cannot be asked): the counter (« — » for the Total and the payment, never « Rien à
+    encaisser » while articles are on the sale), the penalty (no figures), the payout split (no older message) and the credit link's manual
+    split (no older summary; a split with an unreadable amount is its own draft, no longer the ticked transfers', and its fields keep their
+    receipt names from `last`); not members: the visit and the booking (a null draft draws the stored visit / no price) and the SAS recap
+    (`last` with « — » while failed). Test `useLatestPreview.disabled-draft` (18: 5 hook rows; the consumers read from the code equal the
+    members and the non-members; each member with and without a failure first — the penalty for an emptied, « 0 » and « 30x » amount — shows
+    no figure of the older answer, no « Réessayer », a disabled commit, then the new answer once asked).
     **The SDK history records what each shipped minor exposed:** v4.1.0 shipped SDK 2.27.0 without `vat`, `accountingOutput`, `legacyBucketSplit`,
     `refundJournal`, `csvJournal`, `salesJson` and `synthesisExporter`, and neither SDK 2.28.0 (the home-data extension points,
     specs/guest-app-home-automation.md, merged first) nor SDK 2.29.0 (the Mollie tranches and journal, rule 51, merged first) recorded them,
@@ -1052,6 +1067,7 @@ still in the core. Server: 4,611 tests after, of which 37 are new. Client: 1,416
   consumer starts nothing, an active one the four imports, once; once loaded every block is in the first paint. Each test of this file and of
   `LazySaleComponents.lazy` takes a fresh module registry (`vi.resetModules` + `vi.doMock`), so the session-wide memoised imports never leak
   from one test to the next and the outcome is the same in any order (loop t21 A21-1, shuffled seeds 1-12).
+- `hooks/__tests__/useLatestPreview.disabled-draft.test.jsx` (18) — rule 54 (reading of 2026-11-19, loop t25 UI25-1): a draft that cannot be asked shows no older answer; hook rows and one row per member screen, read from the code.
 - `hooks/__tests__/useLatestPreview.failed-recompute.test.jsx` (23: +7 loop t24 UI24-2, the hook's table of a failure owned by its draft; +4 loop t24 S24-2, a disabled draft ends the failure; +2 loop t24 A24-2, the SAS tender lines and button) — rule 54 (reading of 2026-11-18, loop t23 S23-1): a failed request
   makes the answer unknown until a new one; every money preview screen, read from the code, shows no figure of the older answer, no live
   money field set from it, the reason with « Réessayer » (kept while the retry is asked), a disabled commit, every draft input still

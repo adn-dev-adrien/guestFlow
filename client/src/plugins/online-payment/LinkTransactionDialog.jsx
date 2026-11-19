@@ -123,7 +123,9 @@ export default function LinkTransactionDialog({ open, onClose, busy = false, onS
   const preview = useLatestPreview({
     fetcher: (d) => api.previewReconciliationAllocation(d.pairs ? { pairs: d.pairs }
       : (creditMode ? { transactionIds: [credit.transactionId], receiptKeys: d.ids } : { reservationId, transactionIds: d.ids })),
-    draft: manualPairs && !manualInvalid ? { pairs: manualPairs } : { ids: tickedIds },
+    // A split with an unreadable amount is still the split on screen (not asked): never the ticked transfers' draft, whose answer it
+    // would show as its own (loop t25 UI25-1).
+    draft: manualPairs ? { pairs: manualPairs } : { ids: tickedIds },
     enabled: open && !manualInvalid && (manualPairs ? manualPairs.length > 0 : tickedIds.length > 0),
     scope: creditMode ? credit.transactionId : reservationId,
     resetKey: runKey,
@@ -160,8 +162,11 @@ export default function LinkTransactionDialog({ open, onClose, busy = false, onS
   const renderItem = (item) => (creditMode
     ? <ReceiptRow key={keyOf(item)} receipt={item} checked={tickedIds.includes(keyOf(item))} disabled={!tickedIds.includes(keyOf(item)) && tickedIds.length >= MAX_TICKED} onToggle={() => toggle(keyOf(item))} />
     : <CreditRow key={keyOf(item)} credit={item} checked={tickedIds.includes(keyOf(item))} disabled={!tickedIds.includes(keyOf(item)) && tickedIds.length >= MAX_TICKED} onToggle={() => toggle(keyOf(item))} />);
+  // The split fields keep their names while an amount is unreadable (no answer is current then, loop t25 UI25-1): a receipt's label is
+  // not a figure of the split, so the latest answer names it.
+  const named = shown || preview.last;
   const nameOfPair = (p) => {
-    const r = shown && shown.receipts.find((x) => x.key === `${p.reservationId}|${p.ledgerKey}`);
+    const r = named && named.receipts.find((x) => x.key === `${p.reservationId}|${p.ledgerKey}`);
     const from = known.get(p.transactionId);
     return `${from ? `${from.dateLabel} · ${money(from.remainingCents)} → ` : ''}${r ? r.label : p.ledgerKey}`;
   };
@@ -260,7 +265,7 @@ export default function LinkTransactionDialog({ open, onClose, busy = false, onS
                   <Button size="small" onClick={preview.retry} sx={{ textTransform: 'none', minHeight: 44 }}>Réessayer</Button>
                 </Typography>
               )
-              : <Typography variant="caption" color="text.secondary">Calcul de la répartition…</Typography>)}
+              : <Typography variant="caption" color="text.secondary">{manualInvalid ? '—' : 'Calcul de la répartition…'}</Typography>)}
             {manual && (
               <AmountPairFields
                 pairs={manual.map((m) => ({ id: `${m.transactionId}|${m.reservationId}|${m.ledgerKey}`, label: nameOfPair(m), text: m.text }))}

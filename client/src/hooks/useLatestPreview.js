@@ -28,7 +28,9 @@
  * pending state (`data` the latest answer, not `fresh`), and only its own request can fail it. A preview whose draft is built from
  * another answer (the invoice question of a typed payment) therefore never shows the failure of a payment the screen no longer holds.
  * A draft that can no longer be asked (`enabled` false: emptied, invalid, closed) ends the failure too, and `retry` asks nothing while
- * disabled (loop t24 S24-2).
+ * disabled (loop t24 S24-2). And while disabled `data` is null unless the latest answer is for the draft on screen (loop t25 UI25-1): a
+ * screen never draws an older draft's figures as current. `last` still keeps it, for a screen that deliberately keeps the latest answer
+ * while its draft waits (the invoice question of a typed payment).
  */
 import {
   useCallback, useEffect, useMemo, useRef, useState,
@@ -118,8 +120,12 @@ export default function useLatestPreview({
   const retry = useCallback(() => { if (enabled) send(signature); }, [send, signature, enabled]);
 
   const failed = answer.failed && failureOf(answer, signature, scope);
+  // A draft that cannot be asked holds no answer of its own: the latest one belongs to an OLDER draft, and nothing will replace it, so it is
+  // not `data` (loop t25 UI25-1) — the screen shows its placeholders, as after a failure. Gated on `enabled`, not on `pending`: an edited
+  // draft that is still asked keeps the latest answer, dimmed, for the frame before its request leaves.
+  const foreign = !enabled && answer.signature !== signature;
   return {
-    data: failed ? null : answer.data,
+    data: failed || foreign ? null : answer.data,
     last: answer.data,
     pending,
     error: failed ? answer.error : null,

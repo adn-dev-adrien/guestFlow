@@ -368,7 +368,9 @@ export default function ResourceBookingDialog({
   const invoiceLater = Boolean(booking?.paid && booking.payment?.onTheBooks && (!booking.invoice || booking.invoice.cancelled));
   // Loop t2 B2-7 (outside-visit rule 54) — whether « Payé maintenant » can make the invoice is the server's answer for the payment typed.
   // Loop t3 UI3-4/UI3-5 — the latest answer stays on screen while a newer one is asked; the save waits for the answer to the payment typed.
-  const invoiceAnswer = (invoiceDraft || invoiceAwaiting) && invoicePreview.price ? invoicePreview.price.invoiceable || null : null;
+  // Loop t25 UI25-1 — while the payment waits its draft cannot be asked, so the hook's `price` is null; the latest answer is `last`.
+  const invoiceShown = invoiceDraft ? invoicePreview.price : (invoiceAwaiting ? invoicePreview.last : null);
+  const invoiceAnswer = invoiceShown ? invoiceShown.invoiceable || null : null;
   const invoiceOffered = Boolean(invoiceAnswer && invoiceAnswer.ok) || invoiceLater;
   const draftInternalCash = Boolean(invoiceAnswer && invoiceAnswer.code === 'INTERNAL_CASH');
   const draftRefusal = invoiceAnswer && !invoiceAnswer.ok && !invoiceAnswer.silent && !draftInternalCash ? invoiceAnswer.reason : null;

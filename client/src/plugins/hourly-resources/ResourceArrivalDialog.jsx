@@ -207,7 +207,9 @@ export default function ResourceArrivalDialog({ open, bookingId, onClose, onDone
   // Loop t3 UI3-4/UI3-5 — the latest answer stays on screen while a newer one is asked (no caption ↔ checkbox flip per keystroke); the commit
   // still waits for the answer to the payment typed (`paymentReady`). « Caisse interne » and any other refusal are the server's words too.
   const draftAnswerFailed = Boolean(quote.refusal || quote.error);
-  const invoiceAnswer = (paymentDraft || invoiceAwaiting) && invoiceQuote.visit ? invoiceQuote.visit.invoiceable || null : null;
+  // Loop t25 UI25-1 — while the payment waits its draft cannot be asked, so the hook's `visit` is null; the latest answer is `last`.
+  const invoiceShown = paymentDraft ? invoiceQuote.visit : (invoiceAwaiting ? invoiceQuote.last : null);
+  const invoiceAnswer = invoiceShown ? invoiceShown.invoiceable || null : null;
   const invoiceOffered = Boolean(invoiceAnswer && invoiceAnswer.ok);
   const draftInternalCash = Boolean(invoiceAnswer && invoiceAnswer.code === 'INTERNAL_CASH');
   const draftRefusal = invoiceAnswer && !invoiceAnswer.ok && !invoiceAnswer.silent && !draftInternalCash ? invoiceAnswer.reason : null;
