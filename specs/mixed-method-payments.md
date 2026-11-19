@@ -422,6 +422,14 @@ read the settlements themselves (`utils/paymentTenders.settlementFigures`).
     (« ✓ Offert » / « Offrir »). Before, the SAS `autoFocus` moved it into « Montant Espèces » about 60 ms later (arrival after 89938504,
     departure also on the nominal due 0 → 6 €). Test `ReservationSasDialog.tender-lines-focus` (5: three remounts keep the focus on the
     toggle, arrival and departure opening still focus the first amount).
+    _Same day (loop t25 B25-1):_ **the shortfall choice comes back only for the due it answered.** The draft also carried `shortKind`,
+    restored whatever the new due: an arrival at 500 €, 400 + 50 typed and « Geste commercial » for the 50 €, then an extra added (due
+    584 €) came back with « Encaisser 450 € » enabled and recorded a 134 € gesture nobody chose. `TenderLines` now keeps the choice with the
+    due it was taken on (the draft carries `dueCents`): the same due brings it back; another due — after a remount, or while the block stays
+    mounted — leaves the lines as typed and asks the shortfall again, the commit waiting for the answer. A draft without `dueCents` brings
+    no choice back. The lines are the only other state restored from the draft and none depends on the due (the untyped last line is
+    recomputed from it). Tests `TenderLines.shortfall-due-bound` (6) and `ReservationSasDialog.tender-lines-kept` (+4: arrival and
+    departure, same due and another due).
 
 **Edge cases:**
 - All lines `cash` + internal, no shortfall → same storage as « Caisse interne » + settlement (rule 11).
@@ -688,6 +696,8 @@ See the summary page for the interactive mock (fiche row, SAS departure, modific
 - [x] _(round 34)_ `components/__tests__/TenderLines.whole-and-blank-line.test.jsx` (4) — rules 7, 44.
 - [x] _(loop t24)_ `components/__tests__/TenderLines.initial-draft.test.jsx` (2) and
       `plugins/sas/__tests__/ReservationSasDialog.tender-lines-kept.test.jsx` (4) — rule 59.
+- [x] _(loop t25 B25-1)_ `components/__tests__/TenderLines.shortfall-due-bound.test.jsx` (6) and
+      `plugins/sas/__tests__/ReservationSasDialog.tender-lines-kept.test.jsx` (4 → 8) — rule 59, the shortfall choice bound to its due.
 - [x] _(loop t25)_ `plugins/sas/__tests__/ReservationSasDialog.tender-lines-focus.test.jsx` (5) — rule 59, reading of 2026-11-19: a remount
       of « Plusieurs moyens » keeps the focus on the toggle used; the operator's opening focuses the first amount (helpers shared with
       `tender-lines-kept` in `sasTenderLinesFixtures.jsx`).

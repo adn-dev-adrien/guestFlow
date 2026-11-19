@@ -14,12 +14,13 @@
  *   methods:         [{ value, label }] — the server's list (falls back to constants/tenderMethods)
  *   initialTenders:  [{ method, amountCents, internal }] | null — prefill (a correction); null = two lines
  *                    Espèces (caisse interne) + CB, or one cash line with `single`
- *   initialShortfallKind: 'due' | 'waived' | null — prefill of the shortfall choice
+ *   initialShortfallKind: 'due' | 'waived' | null — prefill of the shortfall choice, for the `dueCents` of the mount
  *   initialDraft:    the `draft` an earlier mount reported (onChange) — the lines exactly as the operator left them, typed or not,
- *                    and the shortfall choice; takes precedence over `initialTenders`. A screen that unmounts the block (a failed
+ *                    the shortfall choice and the due it answered (`dueCents`); takes precedence over `initialTenders`. A screen that unmounts the block (a failed
  *                    recompute, a step back) passes it back, so nothing typed is lost; an untyped last line still shows what the
  *                    others leave of the new `dueCents`, and a typed line that no longer fits is left as typed, for the meter to say
- *                    (loop t24)
+ *                    (loop t24). The shortfall choice comes back only for the same due; a new due asks it again (loop t25 B25-1),
+ *                    as a due that changes while mounted does
  *   single:          boolean — start with one line (collecting a reste)
  *   onChange:        ({ tenders, shortfall, canSubmit, receivedCents, gapCents, draft }) → void
  *   disabled:        boolean
@@ -89,7 +90,14 @@ export default function TenderLines({
   const [lines, setLines] = useState(() => (initialDraft && Array.isArray(initialDraft.lines) && initialDraft.lines.length > 0
     ? initialDraft.lines.map((l) => ({ ...l }))
     : seedLines(initialTenders, single, cashInternal)));
-  const [shortKind, setShortKind] = useState(initialDraft ? initialDraft.shortKind ?? null : initialShortfallKind);
+  // The shortfall choice answers for ONE amount due (loop t25 B25-1): a « Geste commercial » chosen for 50 € of 500 € is not one for
+  // 134 € of 584 €. It holds while the due it was chosen for is the due on screen — through a remount too (the draft carries that due) —
+  // and is asked again once the due moves, the commit waiting for the answer. The lines themselves stay as typed.
+  const [shortChoice, setShortChoice] = useState(() => (initialDraft
+    ? { kind: initialDraft.shortKind ?? null, dueCents: initialDraft.dueCents }
+    : { kind: initialShortfallKind, dueCents }));
+  const shortKind = shortChoice.dueCents === dueCents ? shortChoice.kind : null;
+  const setShortKind = (kind) => setShortChoice({ kind, dueCents });
   const firstAmount = useRef(null);
   const figures = useMemo(() => tenderFigures(lines, dueCents), [lines, dueCents]);
   const { autoIndex, autoCents, gapCents, receivedCents, unreadable, amounts } = figures;
@@ -111,7 +119,7 @@ export default function TenderLines({
       canSubmit,
       receivedCents,
       gapCents,
-      draft: { lines, shortKind },
+      draft: { lines, shortKind, dueCents },
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [lines, shortKind, dueCents]);
