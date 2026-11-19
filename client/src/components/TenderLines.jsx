@@ -16,7 +16,7 @@
  *                    Espèces (caisse interne) + CB, or one cash line with `single`
  *   initialShortfallKind: 'due' | 'waived' | null — prefill of the shortfall choice, for the `dueCents` of the mount
  *   initialDraft:    the `draft` an earlier mount reported (onChange) — the lines exactly as the operator left them, typed or not,
- *                    the shortfall choice and the due it answered (`dueCents`); takes precedence over `initialTenders`. A screen that unmounts the block (a failed
+ *                    the shortfall choice and the due it answered (`shortDueCents`, loop t26), the due of the report (`dueCents`); takes precedence over `initialTenders`. A screen that unmounts the block (a failed
  *                    recompute, a step back) passes it back, so nothing typed is lost; an untyped last line still shows what the
  *                    others leave of the new `dueCents`, and a typed line that no longer fits is left as typed, for the meter to say
  *                    (loop t24). The shortfall choice comes back only for the same due; a new due asks it again (loop t25 B25-1),
@@ -112,7 +112,7 @@ export default function TenderLines({
   // 134 € of 584 €. It holds while the due it was chosen for is the due on screen — through a remount too (the draft carries that due) —
   // and is asked again once the due moves, the commit waiting for the answer. The lines themselves stay as typed.
   const [shortChoice, setShortChoice] = useState(() => (initialDraft
-    ? { kind: initialDraft.shortKind ?? null, dueCents: initialDraft.dueCents }
+    ? { kind: initialDraft.shortKind ?? null, dueCents: initialDraft.shortDueCents ?? initialDraft.dueCents }
     : { kind: initialShortfallKind, dueCents }));
   const shortKind = shortChoice.dueCents === dueCents ? shortChoice.kind : null;
   const setShortKind = (kind) => setShortChoice({ kind, dueCents });
@@ -144,19 +144,23 @@ export default function TenderLines({
       receivedCents,
       gapCents,
       dueCents,
-      draft: { lines: stored, shortKind, dueCents },
+      // The choice travels with the due it answered (loop t26): a block drawn again on another due keeps it for when that due is back.
+      draft: {
+        lines: stored, shortKind: shortChoice.kind, shortDueCents: shortChoice.dueCents, dueCents,
+      },
       live: () => onScreen.current === signature,
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [stored, shortKind, dueCents]);
+  }, [stored, shortKind, dueCents, shortChoice]);
 
   // Every gesture works on the lines as drawn: a seeded line the operator touches becomes an ordinary typed one.
   const settle = (prev) => prev.map((l) => (l.seeded ? { ...l, amount: formatAmountInput(dueCents / 100), seeded: undefined } : l));
   const update = (index, patch) => setLines((prev) => prev.map((l, i) => (i === index ? { ...l, ...patch } : l)));
+  // Any line the operator types in is typed (loop t26): it keeps its amount when a line after it is removed, instead of turning into
+  // the remainder. Emptying the last line gives the remainder back to it.
   const typeAmount = (index, value) => setLines((prev) => settle(prev).map((l, i) => {
     if (i !== index) return l;
-    // Typing in the last line freezes it; emptying it gives the remainder back to it.
-    return { ...l, amount: value, typed: i === prev.length - 1 ? value.trim() !== '' : l.typed };
+    return { ...l, amount: value, typed: value.trim() !== '' };
   }));
   const remove = (index) => setLines((prev) => {
     const next = settle(prev).filter((_, i) => i !== index);

@@ -468,7 +468,10 @@ read the settlements themselves (`utils/paymentTenders.settlementFigures`).
     failed quote of the visit drew the lines afresh on its retry. They now keep the lines' report (`useTenderDraft`, the shared money-dialog
     module) and draw it back as `initialDraft`; a typed line that no longer fits stays typed with the counter's warning, the commit blocked.
     The single prefilled line of the whole due is not something the operator typed: `TenderLines` marks it `seeded` and it reads the due on
-    screen until the operator types its amount (changing its method keeps it seeded). Every host's lines are a `FocusKeeper` region: a line
+    screen until the operator types its amount (changing its method keeps it seeded). Any line the operator types in is typed — before, only
+    the last one was, so removing the line after a typed one turned it into the remainder and its amount was lost. The shortfall choice
+    travels in the draft with the due it answered (`shortDueCents`), so a block drawn again on another due and back keeps it for its own due
+    (B25-1 still holds: another due asks it again). Every host's lines are a `FocusKeeper` region: a line
     removed, or « Ajouter un moyen » gone at the fourth line, leaves the focus in the block. Found and proved by the generative harness
     (`moneyDialogs.invariants.*`, I3 and I4).
 
