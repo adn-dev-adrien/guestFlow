@@ -11,6 +11,7 @@ const { withNow } = require('../utils/localDate');
 
 // `checkedIn` — specs/arrival-moment-is-the-check-in.md : c'est l'arrivée constatée (check-in ou
 // SAS d'arrivée), et non la date du calendrier, qui ouvre la fenêtre « vendu en cours de séjour ».
+// date-literal-ok: fixture rows written by raw SQL; the cases that ask the clock pin their moment (withNow)
 function makeDb({ startDate = '2026-07-10', endDate = '2026-07-15', checkedIn = true } = {}) {
   const db = new Database(':memory:');
   db.exec(`
