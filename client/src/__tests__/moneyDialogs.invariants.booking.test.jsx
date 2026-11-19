@@ -209,6 +209,6 @@ const adapter = {
 // Seeds found by the long run (loop t26, 2026-11-19): a draft back to its answered value asked the invoice question / showed a save over a
 // re-ask in flight; fixed in useLatestPreview (no re-ask of a draft already asked or answered).
 test('an hourly booking keeps the money-dialog invariants on every generated seed', async () => {
-  const failures = await runFamily(adapter, api, { seeds: harnessSeeds([[263, 60], [275, 60], [307, 60], [738, 60], [841, 60], [1312, 60], [1592, 60], [1706, 60]]), steps: harnessSteps(30) });
+  const failures = await runFamily(adapter, api, { seeds: harnessSeeds([[263, 60], [275, 60], [307, 60], [738, 60], [841, 60], [1312, 60], [1592, 60], [1706, 60], [944, 60]]), steps: harnessSteps(30) });
   expect(formatFailures(failures)).toBe('');
 }, harnessTimeout(90000));

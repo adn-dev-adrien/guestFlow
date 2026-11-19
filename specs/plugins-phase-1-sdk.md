@@ -913,6 +913,8 @@ Optional: a plugin that declares nothing reads « Actif ».
     are the same, settled, not failed, for EVERY input — the price or quote, the invoice question of the payment typed (silent answer
     included), and the lines' report by `tendersForDue`. The visit's « Valider l’arrivée » and the booking's save now go through it too
     (their own `quoteReady` / `paymentReady` / `canSave` conditions are gone; the booking's save handler asks the gate again before writing).
+    A request scheduled for the draft on screen (its quiet time running) keeps the screen pending whatever an older request answers
+    meanwhile: a failed « Réessayer » of another draft no longer ended the pending state of a draft about to be asked (booking seed 944).
 
 **Edge cases:**
 - **A plugin throws during `register`.** Rule 4 applies: the other plugins and the core boot. The Plugins

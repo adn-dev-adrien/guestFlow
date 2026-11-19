@@ -61,6 +61,9 @@ export default function useLatestPreview({
   // save read it).
   const inflightRef = useRef(null);
   const settledRef = useRef(null);
+  // A request scheduled for the draft on screen (its quiet time running): until it leaves and answers, the screen is pending, whatever an
+  // older request answers meanwhile (loop t26, booking seed 944: a failed « Réessayer » ended the pending state of a draft about to be asked).
+  const scheduledRef = useRef(false);
 
   const send = useCallback((sig) => {
     seqRef.current += 1;
@@ -69,6 +72,7 @@ export default function useLatestPreview({
     const controller = typeof AbortController === 'function' ? new AbortController() : null;
     abortRef.current = controller;
     const asked = scopeRef.current;
+    scheduledRef.current = false;
     inflightRef.current = { signature: sig, scope: asked };
     setPending(true);
     fetcherRef.current(JSON.parse(sig), { signal: controller ? controller.signal : undefined })
@@ -77,7 +81,7 @@ export default function useLatestPreview({
         inflightRef.current = null;
         settledRef.current = { signature: sig, scope: asked };
         setAnswer({ ...EMPTY, data, signature: sig });
-        setPending(false);
+        setPending(scheduledRef.current);
       })
       .catch((error) => {
         if (seq !== seqRef.current || (error && error.name === 'AbortError')) return;
@@ -86,7 +90,7 @@ export default function useLatestPreview({
         setAnswer((prev) => ({
           ...prev, error, failed: true, failedFor: { signature: sig, scope: asked },
         }));
-        setPending(false);
+        setPending(scheduledRef.current);
       });
   }, []);
 
@@ -139,8 +143,9 @@ export default function useLatestPreview({
     // previous failure. Only `retry` keeps it, through its pending request.
     setAnswer((prev) => (prev.failed ? { ...prev, error: null, failed: false, failedFor: null } : prev));
     clearTimeout(timerRef.current);
+    scheduledRef.current = true;
     timerRef.current = setTimeout(() => send(signature), first ? 0 : delay);
-    return () => clearTimeout(timerRef.current);
+    return () => { clearTimeout(timerRef.current); scheduledRef.current = false; };
   }, [enabled, scope, signature, delay, send]);
 
   useEffect(() => () => {

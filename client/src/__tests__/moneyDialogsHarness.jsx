@@ -476,7 +476,10 @@ export function checkInvariants(ctx) {
     }
   }
   if (ctx.shortSnap) {
-    const block = blocks.find((b) => b.shortfallAsked);
+    // The block the choice was made in (the fiche can show two); one drawn again in its place is the same block.
+    const own = blocks.find((b) => b.block === ctx.shortSnap.block);
+    const candidate = own || (blocks.length === 1 ? blocks[0] : null);
+    const block = candidate && candidate.shortfallAsked ? candidate : null;
     if (block && block.dueCents === ctx.shortSnap.dueCents && block.shortfall !== ctx.shortSnap.kind) violation(v, 'I3', `shortfall « ${ctx.shortSnap.kind} » chosen for ${ctx.shortSnap.dueCents / 100} € now reads « ${block.shortfall} »`);
     if (block && block.dueCents !== ctx.shortSnap.dueCents && block.shortfall && block.shortfall === ctx.shortSnap.kind && !ctx.shortSnap.again) violation(v, 'I3', `shortfall chosen for ${ctx.shortSnap.dueCents / 100} € still pressed for a due of ${block.dueCents / 100} €`);
   }
@@ -715,7 +718,7 @@ export const TENDER_OPS = {
       const block = tenderBlocks(document.body).find((b) => b.block.contains(choice));
       await press(ctx, choice);
       await flush();
-      ctx.shortSnap = { kind: choice.getAttribute('data-shortfall'), dueCents: block ? block.dueCents : null };
+      ctx.shortSnap = { kind: choice.getAttribute('data-shortfall'), dueCents: block ? block.dueCents : null, block: block ? block.block : null };
       return true;
     },
   },
