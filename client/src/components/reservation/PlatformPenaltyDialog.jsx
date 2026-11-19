@@ -19,9 +19,10 @@ import useLatestPreview from '../../hooks/useLatestPreview';
 import { useToast } from '../DialogProvider';
 import { formatCurrency } from '../../utils/formatters';
 
+// A trailing separator (« 30, », being typed) reads as the whole amount, so the preview does not flash « — » for one keystroke (loop t25).
 const toAmount = (text) => {
   const v = String(text ?? '').replace(/[\s€]/g, '').replace(',', '.');
-  return /^\d+(\.\d+)?$/.test(v) ? Number(v) : null;
+  return /^\d+(\.\d*)?$/.test(v) ? Number(v) : null;
 };
 const asInput = (n) => (n == null ? '' : String(n).replace('.', ','));
 
