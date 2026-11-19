@@ -30,6 +30,7 @@ const valueOf = (ctx) => {
         collectible: {
           total: due / 100,
           buckets: [{ bucket: 'balance', label: 'solde', amount: balance / 100 }, { bucket: 'complement', label: 'complément', amount: 132 }],
+          // date-literal-ok: the booking day of the fixture's collectible, drawn by nothing the harness compares with today
           bookedAt: '2026-08-01',
         },
       },
