@@ -195,6 +195,8 @@
       "Arrivée d’une visite : retirer le dernier article après un calcul en échec retire aussi le message et « Réessayer ».",
       "Arrivée et réservation payées « Maintenant » : pendant que la facture est vérifiée pour le paiement saisi, « Créer la facture dans Qonto » reste grisé (coché ou non comme laissé) au lieu d’afficher la réponse du paiement précédent.",
       "Arrivée et réservation payées « Maintenant » : un paiement saisi pour un ancien montant n’est jamais enregistré, le bouton attend les lignes du nouveau montant.",
+      "Arrivée et réservation : les lignes de paiement saisies restent telles quelles quand le montant change ou après un calcul en échec ; la ligne CB proposée d’office suit le nouveau montant.",
+      "Arrivée et réservation : le focus reste dans la fenêtre pendant l’enregistrement.",
       "Demande GuestFlow 4.2 (SDK 2.32)."
     ]
   }

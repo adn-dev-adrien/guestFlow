@@ -211,6 +211,7 @@
       "« Plusieurs moyens » : quand les lignes reviennent d’elles-mêmes (après un calcul en échec, un total revenu de 0), le curseur reste sur le bouton utilisé ; seule l’ouverture du bloc place le curseur dans le premier montant.",
       "« Plusieurs moyens » : un « Geste commercial » ou un « Reste à percevoir » choisi pour un montant n’est plus repris quand le total change ; la question est reposée.",
       "« Plusieurs moyens » : « Encaisser » n’est jamais actif sur les montants d’un total qui vient de changer, même un instant ; rien n’est envoyé tant que les lignes n’ont pas répondu au nouveau total.",
+      "Récapitulatifs d’arrivée et de départ : un clic sur « Encaisser » ou « Valider et terminer » garde le focus dans la fenêtre pendant l’enregistrement, même quand la page change.",
       "Demande GuestFlow 4.2 (SDK 2.32)."
     ]
   }

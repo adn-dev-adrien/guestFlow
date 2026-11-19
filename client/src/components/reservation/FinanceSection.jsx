@@ -13,6 +13,7 @@ import { createPortal } from 'react-dom';
 import RefundDialog from './RefundDialog';
 import PaymentMarkForm from './PaymentMarkForm';
 import TenderLines, { tendersForDue } from '../TenderLines';
+import FocusKeeper from '../FocusKeeper';
 import { TENDER_TEXTS } from '../../constants/tenderMethods';
 import PlatformStatementEditor from './PlatformStatementEditor';
 import PlatformPenaltyDialog from './PlatformPenaltyDialog';
@@ -1182,13 +1183,15 @@ export default function FinanceSection() {
 
             <Divider />
 
-            <Box>
+            {/* specs/plugins-phase-1-sdk.md rule 58 (I4) — a focus region: a payment form that closes or goes busy under the focus leaves it here. */}
+            <FocusKeeper>
               <Typography variant="sectionHeader" sx={{ fontSize: '0.95rem', mb: 1 }}>Paiements</Typography>
 
               {/* specs/single-payment-from-the-fiche.md §3.1 — several buckets still to collect: offer
                   to record them as the ONE payment the guest made. */}
               {form.arrivalPayment?.collectible && !isReservationLocked && fichePristine && (
-                <Box sx={{ px: { xs: 1.5, sm: 2 }, py: 1.5, mb: 1.5, border: '1px solid', borderColor: 'divider', borderRadius: 1 }}>
+                // specs/plugins-phase-1-sdk.md rule 58 (I4) — a focus region: « Encaisser » going busy leaves the focus in the block.
+                <FocusKeeper sx={{ px: { xs: 1.5, sm: 2 }, py: 1.5, mb: 1.5, border: '1px solid', borderColor: 'divider', borderRadius: 1 }}>
                   <Typography variant="body2" sx={{ fontWeight: 600 }}>
                     Encaisser en une fois : {formatCurrency(form.arrivalPayment.collectible.total)}
                   </Typography>
@@ -1250,7 +1253,7 @@ export default function FinanceSection() {
                   <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5 }}>
                     « Caisse interne » : encaissé hors comptabilité, comme un complément en liquide.
                   </Typography>
-                </Box>
+                </FocusKeeper>
               )}
 
               {editingReservationId && !isDevisMode && installmentPlan && installmentPlan.eligible && (
@@ -1280,7 +1283,7 @@ export default function FinanceSection() {
                 openKey={panel ? panel.key : null}
                 footer={footer}
               />
-            </Box>
+            </FocusKeeper>
 
             {/* The split settings of the stay: they move money between the rows above. */}
             {(!isPlatform || Boolean(pricingQuote?.platformTakesDeposit) || (Number(pricingQuote?.touristTaxTotal || 0) > 0 && !pricingQuote?.touristTaxCollectedOnArrival)) && (

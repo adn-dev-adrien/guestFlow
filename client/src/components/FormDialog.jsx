@@ -16,6 +16,7 @@
  */
 import React from 'react';
 import { Dialog, DialogTitle, DialogContent, DialogActions, Button, Box, CircularProgress, useMediaQuery } from '@mui/material';
+import FocusKeeper from './FocusKeeper';
 import { useTheme } from '@mui/material/styles';
 
 export default function FormDialog({
@@ -50,7 +51,9 @@ export default function FormDialog({
     >
       <DialogTitle>{title}</DialogTitle>
       <DialogContent>{children}</DialogContent>
-      <DialogActions
+      {/* specs/plugins-phase-1-sdk.md rule 58 (I4) — the submit goes busy (disabled) on its click: the focus stays in the row. */}
+      <FocusKeeper
+        component={DialogActions}
         sx={{
           // On a phone the actions stack at full width, the primary last, each a 44 px touch target.
           flexDirection: { xs: 'column', sm: 'row' },
@@ -69,7 +72,7 @@ export default function FormDialog({
             {submitLabel}
           </Button>
         )}
-      </DialogActions>
+      </FocusKeeper>
     </Dialog>
   );
 }

@@ -42,6 +42,7 @@ import CloseIcon from '@mui/icons-material/Close';
 import { evaluateArithmetic } from '../utils/arithmetic';
 import { formatAmountInput, formatCurrency } from '../utils/formatters';
 import { TENDER_METHODS, TENDER_TEXTS as T } from '../constants/tenderMethods';
+import FocusKeeper from './FocusKeeper';
 
 const MAX_LINES = 4;
 const DEFAULT_SHORTFALL_KINDS = ['due', 'waived'];
@@ -51,10 +52,13 @@ const toCents = (text) => {
 };
 const euros = (cents) => formatCurrency(cents / 100);
 
-function seedLines(initialTenders, single, cashInternal) {
+// A single prefilled line of the whole due (the counter, a booking, a visit: « one line CB of the total ») is `seeded`: until the
+// operator types its amount it IS the due, so a new due moves it — and only it (loop t26, rule 59). A correction's lines are typed.
+function seedLines(initialTenders, single, cashInternal, dueCents) {
   if (Array.isArray(initialTenders) && initialTenders.length > 0) {
+    const whole = initialTenders.length === 1 && Number(initialTenders[0].amountCents) === Number(dueCents);
     return initialTenders.map((t) => ({
-      method: t.method, amount: formatAmountInput(Number(t.amountCents) / 100), internal: Boolean(t.internal), typed: true,
+      method: t.method, amount: formatAmountInput(Number(t.amountCents) / 100), internal: Boolean(t.internal), typed: true, ...(whole ? { seeded: true } : {}),
     }));
   }
   if (single) return [{ method: 'cash', amount: '', internal: cashInternal, typed: false }];
@@ -96,9 +100,14 @@ export default function TenderLines({
   const labelOf = (value) => (list.find((m) => m.value === value) || { label: value }).label;
   // D2 — cash goes to the caisse interne by default; not where the amount is paid whole (rule 44).
   const cashInternal = !whole && !noCaisse;
-  const [lines, setLines] = useState(() => (initialDraft && Array.isArray(initialDraft.lines) && initialDraft.lines.length > 0
+  const [stored, setLines] = useState(() => (initialDraft && Array.isArray(initialDraft.lines) && initialDraft.lines.length > 0
     ? initialDraft.lines.map((l) => ({ ...l }))
-    : seedLines(initialTenders, single, cashInternal)));
+    : seedLines(initialTenders, single, cashInternal, dueCents)));
+  // A seeded line reads the due on screen; any line the operator typed keeps what was typed (mixed-method-payments rule 59).
+  const lines = useMemo(
+    () => stored.map((l) => (l.seeded ? { ...l, amount: formatAmountInput(dueCents / 100) } : l)),
+    [stored, dueCents],
+  );
   // The shortfall choice answers for ONE amount due (loop t25 B25-1): a « Geste commercial » chosen for 50 € of 500 € is not one for
   // 134 € of 584 €. It holds while the due it was chosen for is the due on screen — through a remount too (the draft carries that due) —
   // and is asked again once the due moves, the commit waiting for the answer. The lines themselves stay as typed.
@@ -112,7 +121,7 @@ export default function TenderLines({
   const { autoIndex, autoCents, gapCents, receivedCents, unreadable, amounts } = figures;
   // Loop t25 — the lines on screen, as of the latest render: a report answers them only while its signature is this one (`live()`), so a
   // click that lands before the report of the lines just typed sends nothing.
-  const signature = JSON.stringify([lines, shortKind, dueCents]);
+  const signature = JSON.stringify([stored, shortKind, dueCents]);
   const onScreen = useRef(null);
   onScreen.current = signature;
 
@@ -135,25 +144,28 @@ export default function TenderLines({
       receivedCents,
       gapCents,
       dueCents,
-      draft: { lines, shortKind, dueCents },
+      draft: { lines: stored, shortKind, dueCents },
       live: () => onScreen.current === signature,
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [lines, shortKind, dueCents]);
+  }, [stored, shortKind, dueCents]);
 
+  // Every gesture works on the lines as drawn: a seeded line the operator touches becomes an ordinary typed one.
+  const settle = (prev) => prev.map((l) => (l.seeded ? { ...l, amount: formatAmountInput(dueCents / 100), seeded: undefined } : l));
   const update = (index, patch) => setLines((prev) => prev.map((l, i) => (i === index ? { ...l, ...patch } : l)));
-  const typeAmount = (index, value) => setLines((prev) => prev.map((l, i) => {
+  const typeAmount = (index, value) => setLines((prev) => settle(prev).map((l, i) => {
     if (i !== index) return l;
     // Typing in the last line freezes it; emptying it gives the remainder back to it.
     return { ...l, amount: value, typed: i === prev.length - 1 ? value.trim() !== '' : l.typed };
   }));
   const remove = (index) => setLines((prev) => {
-    const next = prev.filter((_, i) => i !== index);
+    const next = settle(prev).filter((_, i) => i !== index);
     const last = next[next.length - 1];
     if (last && String(last.amount || '').trim() === '') next[next.length - 1] = { ...last, typed: false };
     return next;
   });
-  const add = () => setLines((prev) => {
+  const add = () => setLines((raw) => {
+    const prev = settle(raw);
     const used = new Set(prev.map((l) => l.method));
     const next = list.find((m) => !used.has(m.value)) || list[list.length - 1];
     const frozen = prev.map((l, i) => (i === autoIndex ? { ...l, amount: autoCents ? formatAmountInput(autoCents / 100) : '', typed: true } : l));
@@ -164,7 +176,8 @@ export default function TenderLines({
   const meterText = gapCents === 0 ? T.covered : gapCents < 0 ? T.over(euros(-gapCents)) : T.short(euros(gapCents));
 
   return (
-    <Box sx={{ display: 'grid', gap: 1.25, containerType: 'inline-size', gridColumn: '1 / -1' }}>
+    // Loop t26 (rule 58, I4) — a line removed or « Ajouter un moyen » gone at four lines leaves the focus in the block, on every host.
+    <FocusKeeper sx={{ display: 'grid', gap: 1.25, containerType: 'inline-size', gridColumn: '1 / -1' }}>
       {lines.map((line, index) => {
         const isAuto = index === autoIndex;
         const shown = isAuto ? (autoCents ? formatAmountInput(autoCents / 100) : '') : line.amount;
@@ -302,6 +315,6 @@ export default function TenderLines({
           </Box>
         </Box>
       )}
-    </Box>
+    </FocusKeeper>
   );
 }

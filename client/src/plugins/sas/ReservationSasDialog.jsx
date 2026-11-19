@@ -13,7 +13,7 @@
 
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
-  Dialog, DialogContent, DialogActions, Button, Box, Typography, Stack,
+  Dialog, DialogContent, Button, Box, Typography, Stack,
   CircularProgress, TextField, Link, Divider, Chip, Switch, useMediaQuery,
   LinearProgress, IconButton,
 } from '@mui/material';
@@ -50,7 +50,7 @@ import {
   api, getPlatformColor, formatPlatformLabel, ConfirmDialog, OccurrenceGrid, LoadingState, ErrorAlert,
   useToast, useAppDialogs, SasKeypadCode, formatCurrency, displayDate, displayDateLong, PRICE_TYPE_LABELS,
   sasLockTitle, sasLockMessage, Slot, Contribution, useSlot, WheatIcon, BaguetteIcon, StatusBadge,
-  TenderLines, TENDER_TEXTS, tendersForDue, StaySalesSection, useSaleComponentsReady, FocusKeeper,
+  TenderLines, TENDER_TEXTS, tendersForDue, StaySalesSection, useSaleComponentsReady, FocusKeeper, MoneyActions,
 } from '../sdk';
 import OfferableLine from './OfferableLine';
 import buildArrivalDraft from './arrivalDraft';
@@ -2198,15 +2198,18 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
           </Box>
         )}
       </Box>
-      <DialogContent dividers sx={{ p: { xs: 2, sm: 3 }, minHeight: 240 }}>
+      {/* specs/plugins-phase-1-sdk.md rule 58 (I4) — the body is a focus region too: a page replaced while its control held the focus (the
+          recap's commit, a step that changes) leaves the focus in the dialog, never on the page. */}
+      <FocusKeeper component={DialogContent} dividers sx={{ p: { xs: 2, sm: 3 }, minHeight: 240 }}>
         {renderBody()}
         {error && data && <Typography color="error" variant="body2" sx={{ mt: 2 }}>{error}</Typography>}
-      </DialogContent>
+      </FocusKeeper>
       {/* Reading order on a phone: the primary action, rendered last, lands at the bottom under the
           thumb (specs/ui-review-2026-10-19-operations.md rule 1); on the right from sm. */}
-      <DialogActions ref={footerRef} sx={{ p: { xs: 2, sm: 2 }, pb: { xs: 'calc(16px + env(safe-area-inset-bottom, 0px))', sm: 2 }, gap: 1, flexDirection: { xs: 'column', sm: 'row' }, justifyContent: { sm: 'flex-end' }, '& > :not(style) ~ :not(style)': { ml: 0 }, '& .MuiButton-root': { width: { xs: '100%', sm: 'auto' }, py: 1.5, fontSize: '1rem', minHeight: 48 } }}>
+      {/* specs/plugins-phase-1-sdk.md rule 58 (I4) — the commit goes busy on its click: the focus stays in the footer. */}
+      <MoneyActions ref={footerRef} sx={{ p: { xs: 2, sm: 2 }, pb: { xs: 'calc(16px + env(safe-area-inset-bottom, 0px))', sm: 2 }, gap: 1, flexDirection: { xs: 'column', sm: 'row' }, justifyContent: { sm: 'flex-end' }, '& > :not(style) ~ :not(style)': { ml: 0 }, '& .MuiButton-root': { width: { xs: '100%', sm: 'auto' }, py: 1.5, fontSize: '1rem', minHeight: 48 } }}>
         {renderActions()}
-      </DialogActions>
+      </MoneyActions>
     </Dialog>
     <ConfirmDialog
       open={breakfastWarnOpen}

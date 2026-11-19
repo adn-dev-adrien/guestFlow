@@ -34,6 +34,7 @@ import React, { useEffect, useId, useRef, useState } from 'react';
 import { Box, Button, FormControlLabel, Switch, TextField, Typography } from '@mui/material';
 import DateField from '../DateField';
 import TenderLines, { tendersForDue } from '../TenderLines';
+import FocusKeeper from '../FocusKeeper';
 import { evaluateArithmetic } from '../../utils/arithmetic';
 import { formatCurrency } from '../../utils/formatters';
 import { TENDER_TEXTS } from '../../constants/tenderMethods';
@@ -116,7 +117,9 @@ export default function PaymentMarkForm({
   const dateError = error.field === 'date' ? error.message : '';
   const formError = error.field == null ? error.message : '';
   return (
-    <Box
+    // specs/plugins-phase-1-sdk.md rule 58 (I4) — the form is a focus region: its submit going busy, a tender line removed, the focus
+    // stays in the form.
+    <FocusKeeper
       component="form"
       onSubmit={(e) => { e.preventDefault(); submit(); }}
       onKeyDown={(e) => { if (e.key === 'Escape') { e.preventDefault(); onCancel(); } }}
@@ -235,7 +238,7 @@ export default function PaymentMarkForm({
           </Button>
         )}
       </Box>
-    </Box>
+    </FocusKeeper>
   );
 }
 

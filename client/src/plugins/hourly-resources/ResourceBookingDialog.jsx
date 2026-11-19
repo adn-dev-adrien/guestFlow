@@ -1,11 +1,11 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import {
-  Dialog, DialogTitle, DialogContent, DialogActions,
+  Dialog, DialogTitle, DialogContent,
   Button, Box, Alert, TextField, FormControl, InputLabel, Select, MenuItem,
   FormControlLabel, Typography, Divider, Switch, LinearProgress, ToggleButton, ToggleButtonGroup, useMediaQuery, useTheme,
 } from '@mui/material';
 import MiniDayPlanner from './MiniDayPlanner';
-import { api, formatCurrency, ConfirmDialog, ClientPickerField, ErrorAlert, FocusKeeper } from '../sdk';
+import { api, formatCurrency, ConfirmDialog, ClientPickerField, ErrorAlert, FocusKeeper, MoneyActions } from '../sdk';
 import resourceBookingDraft from './resourceBookingDraft';
 import useResourceBookingPreview from './useResourceBookingPreview';
 import { localIsoDate } from './localDate';
@@ -737,7 +737,8 @@ export default function ResourceBookingDialog({
         </Box>
         )}
       </DialogContent>
-      <DialogActions>
+      {/* specs/plugins-phase-1-sdk.md rule 58 (I4) — the save goes busy on its click: the focus stays in the row. */}
+      <MoneyActions>
         {savedWarning ? (
           <Button variant="contained" onClick={onClose} sx={{ minHeight: 44 }}>Fermer</Button>
         ) : (
@@ -762,7 +763,7 @@ export default function ResourceBookingDialog({
             </Button>
           </>
         )}
-      </DialogActions>
+      </MoneyActions>
       <ConfirmDialog
         open={Boolean(confirming)}
         onClose={() => setConfirming(null)}

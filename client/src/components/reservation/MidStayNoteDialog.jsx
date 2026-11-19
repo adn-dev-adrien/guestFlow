@@ -11,10 +11,10 @@ import api from '../../api';
 import { typedCountKind, typedCountValue, MAX_TYPED_NIGHTS } from '../../utils/optionTypedCount';
 import { optionLineKey, displayedFloor } from '../../utils/arrivalLineKey';
 import { formatCurrency } from '../../utils/formatters';
-import TenderLines, { tendersForDue } from '../TenderLines';
-import ErrorAlert from '../ErrorAlert';
+import TenderLines from '../TenderLines';
 import FocusKeeper from '../FocusKeeper';
 import useLatestPreview from '../../hooks/useLatestPreview';
+import useMoneyCommit, { PreviewFailure } from '../../hooks/useMoneyCommit';
 import { TENDER_TEXTS } from '../../constants/tenderMethods';
 
 /**
@@ -98,12 +98,15 @@ export default function MidStayNoteDialog({ open, onClose, pendingLines = [], on
   // null while unknown (before the first answer, after a failure): « — », never « 0,00 € ».
   const noteTotal = shown ? Number(shown.total) || 0 : null;
   const dueCents = noteTotal == null ? null : Math.round(noteTotal * 100);
-  // Loop t25 — the lines' report counts only for the total on screen (`tendersForDue`).
-  const tendersNow = dueCents == null ? null : tendersForDue(tenders, dueCents);
   // The settle buttons act on the total of the draft on screen only (owner decision: no action on an unknown value): a prestation
-  // added is first priced by the fiche's live quote (`pricingQuotePending`), then by the note's preview.
+  // added is first priced by the fiche's live quote (`pricingQuotePending`), then by the note's preview — the money-dialog contract
+  // (`useMoneyCommit`, plugins-phase-1-sdk rule 58).
   const recomputing = preview.pending || Boolean(pricingQuotePending);
-  const settleOff = busy || recomputing || !preview.fresh || !(noteTotal > 0);
+  const questions = [!busy, !pricingQuotePending, noteTotal > 0];
+  const settle = useMoneyCommit({ previews: [preview], questions });
+  const split = useMoneyCommit({ previews: [preview], dueCents, tenders, splitting: true, questions });
+  const tendersNow = split.tendersNow;
+  const settleOff = !settle.ready;
   const instruction = () => ({ checkedKeys, opening: opening || [] });
   // What a line sold counts: its typed people or nights, else its units (a typed line's `quantity` stays
   // 1, specs/non-card-option-served-persons.md rule 13). Same reading as the field below.
@@ -289,7 +292,7 @@ export default function MidStayNoteDialog({ open, onClose, pendingLines = [], on
             {shown && shown.arrivalNotMarked && (
               <Typography variant="caption" color="text.secondary">Arrivée non marquée : la vente rejoint le solde.</Typography>
             )}
-            {preview.error && <ErrorAlert message={preview.error.message || 'Total indisponible.'} onRetry={preview.retry} />}
+            <PreviewFailure error={preview.error} onRetry={preview.retry} fallback="Total indisponible." />
           </Stack>
         </DialogContent>
         <DialogActions sx={{ flexDirection: { xs: 'column', sm: 'row' }, gap: 1, '& > :not(style) ~ :not(style)': { ml: { xs: 0, sm: 1 } } }}>
@@ -313,8 +316,8 @@ export default function MidStayNoteDialog({ open, onClose, pendingLines = [], on
           {splitOpen ? (
             <Button
               variant="contained"
-              disabled={settleOff || !(tendersNow && tendersNow.canSubmit)}
-              onClick={() => { if (!settleOff && tendersNow && tendersNow.canSubmit && tendersNow.live()) run(() => onSettle(instruction(), false, {
+              disabled={!split.ready}
+              onClick={() => { if (split.ready && split.live()) run(() => onSettle(instruction(), false, {
                 expectedAmountCents: dueCents, tenders: tendersNow.tenders, shortfall: tendersNow.shortfall,
               })); }}
               fullWidth={isMobile}

@@ -193,6 +193,7 @@
       "« Rattacher des virements » : une liste qui ne se charge pas affiche la raison avec « Réessayer », et « Rattacher » reste grisé jusqu’à son retour ; les virements cochés sont gardés.",
       "Répartition d’un versement et « Modifier la répartition » : tant qu’un montant saisi est illisible, plus aucun ancien message ni ancien total n’est affiché comme actuel.",
       "Répartition d’un versement : un montant en cours de saisie qui finit par la virgule (« 100, ») vaut le montant entier, sans « Montant invalide » le temps d’une touche.",
+      "Répartition d’un versement et rattachement de virements : un refus du serveur affiche sa raison sans « Réessayer » ; le focus reste dans la fenêtre pendant l’enregistrement.",
       "Demande GuestFlow 4.2 (SDK 2.32)."
     ]
   }

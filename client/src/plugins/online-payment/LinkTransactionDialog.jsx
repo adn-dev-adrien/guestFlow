@@ -16,7 +16,7 @@ import {
 } from '@mui/material';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import {
-  api, FormDialog, FocusKeeper, PlatformChip, LoadingState, ErrorAlert, useLatestPreview,
+  api, FormDialog, FocusKeeper, PlatformChip, LoadingState, useLatestPreview, PreviewFailure, isRetryable, useMoneyCommit,
 } from '../sdk';
 import AmountPairFields from './AmountPairFields';
 import { money, parseEuroInput, centsToInput } from './reconciliationShared';
@@ -133,6 +133,8 @@ export default function LinkTransactionDialog({ open, onClose, busy = false, onS
   });
   const answer = preview.fresh && !preview.error ? preview.data : null;
   const shown = preview.error ? null : preview.data;
+  // The money-dialog contract (plugins-phase-1-sdk rule 58): the list on screen, a fresh valid answer for the selection on screen.
+  const commit = useMoneyCommit({ previews: [preview], questions: [Boolean(base), Boolean(answer && answer.valid), !manualInvalid] });
 
   const showMore = async () => {
     setMoreBusy(true);
@@ -151,7 +153,7 @@ export default function LinkTransactionDialog({ open, onClose, busy = false, onS
   };
 
   const submit = () => {
-    if (!answer || !answer.valid) return;
+    if (!commit.ready) return;
     onSubmit(answer.pairs);
   };
 
@@ -184,7 +186,7 @@ export default function LinkTransactionDialog({ open, onClose, busy = false, onS
   return (
     <FormDialog
       open={open} onClose={onClose} maxWidth="sm" title="Rattacher des virements" submitLabel="Rattacher"
-      onSubmit={submit} submitDisabled={!base || !answer || !answer.valid || manualInvalid} submitBusy={busy}
+      onSubmit={submit} submitDisabled={!commit.ready} submitBusy={busy}
     >
       <FocusKeeper>
         {creditMode && (
@@ -198,7 +200,7 @@ export default function LinkTransactionDialog({ open, onClose, busy = false, onS
           slotProps={{ htmlInput: { autoComplete: 'off', style: { fontSize: 16 } } }}
         />
         {!base && !list.error && <LoadingState />}
-        {list.error && <ErrorAlert message={list.error.message || 'Lecture impossible.'} onRetry={list.retry} />}
+        <PreviewFailure error={list.error} onRetry={list.retry} fallback="Lecture impossible." />
         {base && !creditMode && (base.receipts || []).length > 0 && (
           <Box sx={{ mb: 1 }}>
             {base.receipts.map((r) => (
@@ -262,7 +264,7 @@ export default function LinkTransactionDialog({ open, onClose, busy = false, onS
               ? (
                 <Typography variant="caption" component="div" color="error.main" role="alert">
                   {preview.error.message || 'Calcul impossible.'}
-                  <Button size="small" onClick={preview.retry} sx={{ textTransform: 'none', minHeight: 44 }}>Réessayer</Button>
+                  {isRetryable(preview.error) && <Button size="small" onClick={preview.retry} sx={{ textTransform: 'none', minHeight: 44 }}>Réessayer</Button>}
                 </Typography>
               )
               : <Typography variant="caption" color="text.secondary">{manualInvalid ? '—' : 'Calcul de la répartition…'}</Typography>)}

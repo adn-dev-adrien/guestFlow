@@ -19,11 +19,11 @@
  */
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  Alert, Box, Button, Dialog, DialogActions, DialogContent, DialogTitle, ToggleButton, ToggleButtonGroup, Typography, useMediaQuery, useTheme,
+  Alert, Box, Button, Dialog, DialogContent, DialogTitle, ToggleButton, ToggleButtonGroup, Typography, useMediaQuery, useTheme,
 } from '@mui/material';
 import {
   api, formatCurrency, LoadingState, ErrorAlert, ConfirmDialog, SuggestedArticlesStep, SalePaymentLink, StatusBadge, StandaloneSaleDialog,
-  useSaleComponentsReady, FocusKeeper,
+  useSaleComponentsReady, FocusKeeper, MoneyActions,
 } from '../sdk';
 import OfferedTimeField from './OfferedTimeField';
 import BookingPaymentFields, { paymentBody, paymentForDue, hasCard } from './BookingPaymentFields';
@@ -524,7 +524,8 @@ export default function ResourceArrivalDialog({ open, bookingId, onClose, onDone
           </FocusKeeper>
         )}
       </DialogContent>
-      <DialogActions sx={{ flexDirection: { xs: 'column', sm: 'row' }, gap: 1, p: 2, '& > :not(style) ~ :not(style)': { ml: { xs: 0, sm: 1 } } }}>
+      {/* specs/plugins-phase-1-sdk.md rule 58 (I4) — « Valider l’arrivée » goes busy on its click: the focus stays in the row. */}
+      <MoneyActions sx={{ flexDirection: { xs: 'column', sm: 'row' }, gap: 1, p: 2, '& > :not(style) ~ :not(style)': { ml: { xs: 0, sm: 1 } } }}>
         {visit && visit.newSale && salesReady && (
           <Button variant="outlined" onClick={() => setNewSaleOpen(true)} sx={{ minHeight: 44, width: { xs: '100%', sm: 'auto' }, mr: { sm: 'auto' } }}>{TEXTS.newSale}</Button>
         )}
@@ -537,7 +538,7 @@ export default function ResourceArrivalDialog({ open, bookingId, onClose, onDone
         >
           {busy ? TEXTS.saving : (readOnly ? TEXTS.close : primaryLabel)}
         </Button>
-      </DialogActions>
+      </MoneyActions>
       {visit && visit.newSale && (
         <StandaloneSaleDialog open={newSaleOpen} client={visit.newSale.client} onClose={() => setNewSaleOpen(false)} onSold={() => {}} />
       )}

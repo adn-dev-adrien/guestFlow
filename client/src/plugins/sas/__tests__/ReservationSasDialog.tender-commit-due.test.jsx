@@ -54,7 +54,8 @@ test.each(CONSUMERS)('%s commits the lines only through the due guard', (file) =
   const source = fs.readFileSync(path.join(SRC, file), 'utf8');
   if (/<BookingPaymentFields\b/.test(source)) expect(source).toMatch(/paymentForDue\(/);
   else if (file.endsWith('BookingPaymentFields.jsx')) expect(source).toMatch(/dueCents: answered, live/);
-  else expect(source).toMatch(/tendersForDue\(/);
+  // Loop t26 (rule 58) — or through the money-dialog contract, whose `useMoneyCommit` reads the report with `tendersForDue`.
+  else expect(source).toMatch(/tendersForDue\(|useMoneyCommit\(/);
   // …and its commit handler asks again, at click time, whether the report still describes the lines on screen.
   if (!file.endsWith('BookingPaymentFields.jsx')) expect(source).toMatch(/\.live\(\)/);
 });

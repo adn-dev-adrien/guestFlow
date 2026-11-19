@@ -462,6 +462,15 @@ read the settlements themselves (`utils/paymentTenders.settlementFigures`).
     plugins-phase-1-sdk rule 54 reading of the same day): the lines stay mounted, as typed, at every keystroke. The mid-stay note's lines
     stay mounted through a recompute and come back as typed after a failure (`initialDraft`), focused only on the operator's opening
     (mid-stay-notes rule 22 reading). Tests `useLatestPreview.non-amount-fields`, `MidStayNoteDialog.preview-latest`.
+    _Reading of 2026-11-19 (loop t26, plugins-phase-1-sdk rule 58):_ **a new due keeps the typed lines too, on every screen.** The counter
+    sale (`key={remainingCents}`) and `BookingPaymentFields` (`key={dueCents}`: the visit's arrival and the hourly booking) still remounted
+    their lines on each new due, so an article added after typing CB 60,00 + Espèces brought back one card line of the whole due, and a
+    failed quote of the visit drew the lines afresh on its retry. They now keep the lines' report (`useTenderDraft`, the shared money-dialog
+    module) and draw it back as `initialDraft`; a typed line that no longer fits stays typed with the counter's warning, the commit blocked.
+    The single prefilled line of the whole due is not something the operator typed: `TenderLines` marks it `seeded` and it reads the due on
+    screen until the operator types its amount (changing its method keeps it seeded). Every host's lines are a `FocusKeeper` region: a line
+    removed, or « Ajouter un moyen » gone at the fourth line, leaves the focus in the block. Found and proved by the generative harness
+    (`moneyDialogs.invariants.*`, I3 and I4).
 
 **Edge cases:**
 - All lines `cash` + internal, no shortfall → same storage as « Caisse interne » + settlement (rule 11).

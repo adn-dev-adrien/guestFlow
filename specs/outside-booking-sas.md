@@ -624,6 +624,9 @@ once on the server by the refonte's components.
     and 390 px with a +800 ms answer and a refused one (arrival and booking): « ticked/disabled » from +100 ms, then « ticked/live » or the
     reason, the focus on « Plus 15 minutes ». Tests `InvoiceBlock.pending-answer` (4), `SaleDialogs.focus-on-answer` (the address is typed
     against the current answer; during the next one it is kept and disabled).
+    _Reading of 2026-11-19 (loop t26, plugins-phase-1-sdk rule 58):_ the payment lines typed at « Payé maintenant » / « Maintenant » stay as
+    typed when the due moves (an article, the offered time) and after a failed quote (mixed-method-payments rule 59 reading of the same
+    day); « Valider l’arrivée » and the booking's save keep the focus in their actions row while busy (`MoneyActions`).
 55. **One money model for a document: every cent on a line or on no line** _(stabilisation loop t3, B3-1, B3-2, B3-3, 2026-11-16; completes rules 41,
     44, 49, 50, 52, 53 and refonte rules 72, 74, 75)_. Every cent a document received sits either on one of its lines or **on no line** — its
     *unallocated money*: a link paid above the reste (rule 41), net of what was given back or kept from it (`payment_allocations` with `lineRef` NULL).

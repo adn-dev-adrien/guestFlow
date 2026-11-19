@@ -88,3 +88,6 @@ export { LazyStandaloneSaleDialog as StandaloneSaleDialog } from '../../componen
 export { useSaleComponentsReady } from '../../components/LazySaleComponents';
 // sas, hourly-resources — a region that keeps the focus when a server answer removes the control holding it (specs/plugins-phase-1-sdk.md rule 54, reading 2026-11-18, loop t22 UI22-1) — SDK 2.32.0.
 export { default as FocusKeeper } from '../../components/FocusKeeper';
+// sas, hourly-resources, online-payment — the money-dialog contract in one module: commit gating, typed lines kept, failure with its way
+// out, the actions row as a focus region (specs/plugins-phase-1-sdk.md rule 58, loop t26) — SDK 2.32.0.
+export { default as useMoneyCommit, PreviewFailure, MoneyActions, useTenderDraft, isRetryable } from '../../hooks/useMoneyCommit';

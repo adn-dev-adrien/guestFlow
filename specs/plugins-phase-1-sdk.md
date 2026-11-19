@@ -859,6 +859,47 @@ Optional: a plugin that declares nothing reads « Actif ».
     specs/pricing-components.md rule 85), so a later line of an article offered on the fiche reopens as exactly that line. `sas` 1.11.0 serves
     it as `arrivalSeed` and ranges `^2.32.0` (`plugins-sdk-core-module-floor`); `coreModules.json` lists the name and `coreModuleHistory.json`
     records it under 2.32.0 (rule 35). Tests: `sas-arrival-paid-line-judged`, `plugins-sdk-core-names-census`, `plugins-sdk-core-module-floor`.
+58. *(Added 2026-11-19, loop t26; owner decision of 2026-11-19 « corriger les problèmes à la source… qu'on en finisse ».)* **The money-dialog
+    contract, in one module, checked by a generative harness.** Rounds 19-26 kept finding members of one family one screen at a time (S23-1,
+    UI24-2, S24-2, A24-2, B25-1, UI25-1, UI25-2, UI26-1), because each dialog decided alone what « fresh », « unknown », « typed » and « a way
+    out » meant. Every money dialog — read from the code: the counter sale (`StandaloneSaleDialog`, opened from `FinancePage`), the outside
+    visit's arrival (`ResourceArrivalDialog`), the hourly booking (`ResourceBookingDialog`), the SAS arrival and departure recaps
+    (`ReservationSasDialog`), « Nouvelle note » (`MidStayNoteDialog`), the platform penalty, the payout split, the credit link, and the fiche's
+    « Encaisser en une fois » and ledger payment forms (`FinanceSection`, `PaymentMarkForm`), with the pieces they share (`useLatestPreview`
+    and the hooks on it, `TenderLines`, `BookingPaymentFields`) — keeps six invariants after every gesture and every server outcome:
+    - **I1** every amount on screen is the server's answer to the draft on screen, what the operator typed, or the stored data the dialog
+      opened with — or « — »; while the draft on screen is asked the latest answer may stay, dimmed; once its answer is there nothing reads
+      « — » where an amount is due.
+    - **I2** a commit is enabled only on a fresh answer for the draft on screen, with the tender lines' report answering the due on screen
+      and allowing it, and every required question answered; a disabled commit sends nothing; a commit sends the draft, the lines and the
+      shortfall choice on screen.
+    - **I3** nothing the operator typed is lost: the typed tender lines (method and amount), the shortfall choice for the same due (another
+      due asks it again — B25-1), the invoice tick, the address and the draft fields survive answers, failures and the remount of their
+      block; closing « Plusieurs moyens » or choosing another payment mode starts the lines afresh (the operator's choice). The default line
+      of the whole due (« one line CB of the total ») is not typed: it follows a new due until the operator types its amount.
+    - **I4** the focus is never on the page nor on the dialog's root — a focused control disabled, hidden or removed counts as lost, as in
+      a browser — and an answer never moves it onto another control.
+    - **I5** a failure says why; « Réessayer » when retrying can help (no answer, 5xx, 408, 429); a refusal (another 4xx) shows its reason
+      without it — editing the draft is the way out; a retry or an edit recovers, and a failure's words never outlive it nor show for a draft
+      that has not failed; nothing is asked for a screen that holds no draft.
+    - **I6** no React warning or error, before or after the dialog is unmounted with requests still held.
+    The shared logic lives in `client/src/hooks/useMoneyCommit.jsx` (SDK 2.32.0 client exports `useMoneyCommit`, `useTenderDraft`,
+    `PreviewFailure`, `isRetryable`, `MoneyActions`, with their rule 55 floor row): `useMoneyCommit({ previews, dueCents, tenders,
+    splitting, questions })` answers `ready` (I2) and `live()` (asked again by the commit handler); `useTenderDraft()` keeps the lines'
+    report and hands it back as `initialDraft` (I3: the counter and `BookingPaymentFields` no longer remount the lines on a new due with
+    `key={due}`, and `TenderLines` marks a single prefilled line of the whole due `seeded` so it reads the due on screen until typed);
+    `PreviewFailure` draws a failure by `isRetryable` (I5); `MoneyActions` makes a dialog's actions row a `FocusKeeper` region (I4), as are
+    `FormDialog`'s actions, the SAS body and footer (`FocusKeeper` now hands its node on to a host's `ref`), `TenderLines` itself,
+    `PaymentMarkForm`, the fiche's « Encaisser en une fois » block and its « Paiements » area. Nothing in it computes money.
+    **The harness** (`client/src/__tests__/moneyDialogsHarness.jsx`, one `moneyDialogs.invariants.<family>.test.jsx` per family) is a seeded
+    generator (mulberry32, no dependency): a fake server holds every preview and commit request until the run settles it — an answer
+    priced like the server for that draft, 5xx, 408, 429, a 4xx refusal, a silent refusal, in any order, or never — and the run draws
+    operator gestures (amounts and separators, articles added and removed, offers, the invoice tick, « Plusieurs moyens », tender lines,
+    shortfall, steps back, a fiche read again, « Réessayer », the commit, a remount), checking I1-I6 after every step; a failure prints its
+    seed and the shrunk list of steps. The permanent suite runs fixed seeds within the CI budget; `HARNESS_SEEDS=<n>` (`HARNESS_STEPS`,
+    `HARNESS_SEED_BASE`, `HARNESS_REPORT=<file>` to collect every failing seed) widens a local run. On the parent commits of rounds 23-26 it
+    finds the known classes (validated 2026-11-19, per commit, in the round-26 loop status). A test (`moneyDialogs.invariants.coverage`) reads the
+    members from the code and fails until a new one has its family.
 
 **Edge cases:**
 - **A plugin throws during `register`.** Rule 4 applies: the other plugins and the core boot. The Plugins
@@ -1115,6 +1156,12 @@ still in the core. Server: 4,611 tests after, of which 37 are new. Client: 1,416
   focus ends in the dialog, never on the page — the arrival's « Facture » address through a second answer accepted / refused / silent /
   « Caisse interne », the booking dialog's, the block alone, the counter's « Réessayer », « Retirer », « Percevoir maintenant », the minted
   link, the SAS « Séjour » page's « Réessayer ».
+- `__tests__/moneyDialogs.invariants.*.test.jsx` (9 files, 20 tests) — rule 58 (loop t26): the generative harness
+  (`__tests__/moneyDialogsHarness.jsx`), one suite per family — `counter` (1), `visit` (1), `booking` (1), `sas` (2: arrival, departure),
+  `note` (1), `penalty` (1), `reconciliation` (2: split, link), `fiche` (1: « Encaisser en une fois » and a ledger row's `PaymentMarkForm`)
+  — each running its fixed seeds (3-6 seeds × 25-30 steps) and checking I1-I6 after every step; `coverage` (10): the members read from
+  the code equal the table, each family has its suite rendering its dialog. Verified locally at 2000 seeds × 60 steps per family with 0
+  violations (`HARNESS_SEEDS=2000 HARNESS_STEPS=60`).
 - `components/__tests__/FocusKeeper.test.jsx` (7) — a focused control removed, disabled, hidden, or hidden with its nearest region: the
   focus lands on the nearest region still drawn; a control that stays keeps it; a control the operator left is never taken back; no Tab stop.
 

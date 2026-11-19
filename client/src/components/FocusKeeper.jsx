@@ -22,11 +22,18 @@ const isHidden = (element) => {
 };
 const isLost = (element) => !element.isConnected || element.disabled === true || element.getAttribute('aria-disabled') === 'true' || isHidden(element);
 
-export default function FocusKeeper({ children, sx, ...rest }) {
+export default function FocusKeeper({
+  children, sx, ref: outerRef = null, ...rest
+}) {
   const record = useRef(null);
   const cleanup = useRef(null);
+  const outer = useRef(outerRef);
+  outer.current = outerRef;
 
   const attach = useCallback((root) => {
+    // A region that is also a host's own element (the SAS footer, loop t26) hands its node on to the host's ref.
+    const host = outer.current;
+    if (typeof host === 'function') host(root); else if (host) host.current = root;
     if (cleanup.current) { cleanup.current(); cleanup.current = null; }
     if (!root) return;
     const onFocusIn = (event) => {

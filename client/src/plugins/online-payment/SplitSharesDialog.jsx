@@ -10,7 +10,7 @@
 import React, { useEffect, useState } from 'react';
 import { Typography } from '@mui/material';
 import {
-  api, ErrorAlert, FocusKeeper, FormDialog, useLatestPreview,
+  api, FocusKeeper, FormDialog, useLatestPreview, PreviewFailure, useMoneyCommit,
 } from '../sdk';
 import AmountPairFields from './AmountPairFields';
 import { money, parseEuroInput, centsToInput } from './reconciliationShared';
@@ -33,11 +33,13 @@ export default function SplitSharesDialog({ open, onClose, busy = false, proposa
   });
   const answer = preview.fresh ? preview.data : null;
   const shown = preview.data;
+  // The money-dialog contract (plugins-phase-1-sdk rule 58): a fresh, valid answer for the shares on screen.
+  const commit = useMoneyCommit({ previews: [preview], questions: [Boolean(answer && answer.valid), !invalid] });
 
   return (
     <FormDialog
       open={open} onClose={onClose} maxWidth="xs" title="Répartir le versement" submitLabel="Répartir et confirmer"
-      submitDisabled={!answer || !answer.valid || invalid} submitBusy={busy} onSubmit={() => onSubmit({ pairs, proposalId: proposal.id })}
+      submitDisabled={!commit.ready} submitBusy={busy} onSubmit={() => { if (commit.ready) onSubmit({ pairs, proposalId: proposal.id }); }}
     >
       <FocusKeeper>
         {proposal && (
@@ -53,7 +55,7 @@ export default function SplitSharesDialog({ open, onClose, busy = false, proposa
           <Typography key={`${e.code}-${e.field}`} variant="caption" component="div" color="error.main" role="alert">{e.message}</Typography>
         ))}
         {/* Loop t23 S23-1 — a failed check says so with its way out; nothing of an older answer stays drawn (`data` is null). */}
-        {preview.error && <ErrorAlert message={preview.error.message || 'Vérification impossible.'} onRetry={preview.retry} sx={{ mt: 1 }} />}
+        <PreviewFailure error={preview.error} onRetry={preview.retry} fallback="Vérification impossible." sx={{ mt: 1 }} />
       </FocusKeeper>
     </FormDialog>
   );

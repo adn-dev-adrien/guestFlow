@@ -18,8 +18,9 @@ import LoadingState from './LoadingState';
 import ErrorAlert from './ErrorAlert';
 import SuggestedArticlesStep from './SuggestedArticlesStep';
 import SalePaymentLink from './SalePaymentLink';
-import TenderLines, { tendersForDue } from './TenderLines';
+import TenderLines from './TenderLines';
 import useLatestPreview from '../hooks/useLatestPreview';
+import useMoneyCommit, { PreviewFailure, useTenderDraft } from '../hooks/useMoneyCommit';
 import { formatCurrency } from '../utils/formatters';
 
 const TEXTS = Object.freeze({
@@ -89,7 +90,10 @@ export default function StandaloneSaleDialog({ open, onClose, onSold, client = n
   const [draft, setDraft] = useState(emptyDraft);
   const [catalogue, setCatalogue] = useState(null);
   const [catalogueError, setCatalogueError] = useState(false);
-  const [payment, setPayment] = useState(null);
+  // The lines as the operator left them (rule 58 I3): a failed quote or a new due draws them again as typed.
+  const tender = useTenderDraft();
+  const payment = tender.report;
+  const setPayment = tender.onChange;
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
   const [saved, setSaved] = useState(null);
@@ -101,7 +105,8 @@ export default function StandaloneSaleDialog({ open, onClose, onSold, client = n
     setDraft(emptyDraft());
     setSaved(null);
     setError(null);
-    setPayment(null);
+    tender.reset();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
   useEffect(() => {
     if (!open) return undefined;
@@ -148,10 +153,17 @@ export default function StandaloneSaleDialog({ open, onClose, onSold, client = n
   const linkMode = mode === 'link';
   const nameMissing = !client && draft.register && !draft.name.trim();
   const customerKind = quote ? quote.customer.kind : 'passage';
-  // Loop t25 — the lines' report counts only for the due on screen (`tendersForDue`), for the button and the request alike.
-  const paymentNow = tendersForDue(payment, remainingCents);
-  const ready = Boolean(document) && draft.extras.length > 0 && preview.fresh && refusals.length === 0 && !emailBad && !nameMissing && !busy
-    && (!payNow || Boolean(paymentNow && paymentNow.canSubmit)) && (!linkMode || (linkState.reason === null));
+  // Loop t26 (rule 58) — one contract for every money dialog: a fresh answer for the draft on screen, the lines' report for the due on
+  // screen, every question answered.
+  const commit = useMoneyCommit({
+    previews: [preview],
+    dueCents: document ? remainingCents : null,
+    tenders: payment,
+    splitting: payNow,
+    questions: [Boolean(document), draft.extras.length > 0, refusals.length === 0, !emailBad, !nameMissing, !busy, !linkMode || linkState.reason === null],
+  });
+  const paymentNow = commit.tendersNow;
+  const { ready } = commit;
 
   const patch = (changes) => setDraft((prev) => ({ ...prev, ...changes }));
   const addExtra = (article) => setDraft((prev) => {
@@ -162,7 +174,7 @@ export default function StandaloneSaleDialog({ open, onClose, onSold, client = n
   const search = useCallback((q) => api.getSuggestedArticlesCatalogue({ q }).then((res) => res.groups || []), []);
 
   async function save() {
-    if (!ready || (payNow && !paymentNow.live())) return;
+    if (!ready || !commit.live()) return;
     setBusy(true);
     setError(null);
     try {
@@ -196,7 +208,7 @@ export default function StandaloneSaleDialog({ open, onClose, onSold, client = n
     }
   }
 
-  const again = () => { setDraft(emptyDraft()); setSaved(null); setPayment(null); setError(null); setLink({ busy: false, error: null, sentTo: null }); };
+  const again = () => { setDraft(emptyDraft()); setSaved(null); tender.reset(); setError(null); setLink({ busy: false, error: null, sentTo: null }); };
 
   if (saved) {
     const { sale } = saved;
@@ -331,18 +343,18 @@ export default function StandaloneSaleDialog({ open, onClose, onSold, client = n
           ) : (
             <>
               {linkOffered && (
-                <ToggleButtonGroup exclusive size="small" value={mode} onChange={(_, next) => { if (next) { patch({ mode: next }); setPayment(null); } }} aria-label={TEXTS.payment}>
+                <ToggleButtonGroup exclusive size="small" value={mode} onChange={(_, next) => { if (next) { patch({ mode: next }); tender.reset(); } }} aria-label={TEXTS.payment}>
                   <ToggleButton value="now" sx={{ minHeight: 44, px: 2 }}>{TEXTS.now}</ToggleButton>
                   <ToggleButton value="link" sx={{ minHeight: 44, px: 2 }}>{TEXTS.link}</ToggleButton>
                 </ToggleButtonGroup>
               )}
               {mode === 'now' ? (
                 <TenderLines
-                  key={remainingCents}
                   dueCents={remainingCents}
                   whole={false}
                   shortfallKinds={['due']}
                   initialTenders={[{ method: 'card', amountCents: remainingCents, internal: false }]}
+                  initialDraft={tender.initialDraft}
                   onChange={setPayment}
                 />
               ) : (
@@ -354,8 +366,7 @@ export default function StandaloneSaleDialog({ open, onClose, onSold, client = n
             </>
           )}
         </Box>
-        {preview.error && !refused && <ErrorAlert message={preview.error.message || TEXTS.quoteFailed} onRetry={preview.retry} />}
-        {refused && <Alert severity="error">{preview.error.message}</Alert>}
+        <PreviewFailure error={preview.error} onRetry={preview.retry} fallback={TEXTS.quoteFailed} />
         {error && <Alert severity="error">{error}</Alert>}
       </FocusKeeper>
     </FormDialog>

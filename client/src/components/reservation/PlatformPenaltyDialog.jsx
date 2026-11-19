@@ -12,10 +12,10 @@ import {
   Autocomplete, Box, FormControlLabel, Radio, RadioGroup, TextField, Typography,
 } from '@mui/material';
 import api from '../../api';
-import ErrorAlert from '../ErrorAlert';
 import FocusKeeper from '../FocusKeeper';
 import FormDialog from '../FormDialog';
 import useLatestPreview from '../../hooks/useLatestPreview';
+import useMoneyCommit, { PreviewFailure } from '../../hooks/useMoneyCommit';
 import { useToast } from '../DialogProvider';
 import { formatCurrency } from '../../utils/formatters';
 
@@ -60,7 +60,11 @@ export default function PlatformPenaltyDialog({ open, onClose, reservationId, so
   const answer = preview.fresh ? preview.data : null;
   const refused = (shown ? shown.errors : []).filter((e) => e.field !== 'payoutIncludesPenalty' && touched[e.field]);
 
+  const amountInvalid = amount.trim() !== '' && toAmount(amount) == null;
+  // The money-dialog contract (plugins-phase-1-sdk rule 58): a fresh, valid answer for the figures on screen.
+  const commit = useMoneyCommit({ previews: [preview], questions: [Boolean(answer && answer.valid), !amountInvalid] });
   const submit = async () => {
+    if (!commit.ready) return;
     setBusy(true);
     try {
       await api.declarePlatformPenalty(reservationId, body);
@@ -73,7 +77,6 @@ export default function PlatformPenaltyDialog({ open, onClose, reservationId, so
   };
 
   const touch = (field) => setTouched((t) => ({ ...t, [field]: true }));
-  const amountInvalid = amount.trim() !== '' && toAmount(amount) == null;
   const errorOf = (field) => (field === 'amount' && amountInvalid ? { message: 'Montant invalide : chiffres et virgule, deux décimales au plus.' } : refused.find((e) => e.field === field));
   const figures = (label, key, fmt) => (shown && shown.before && shown.after && shown.before[key] != null && shown.after[key] != null
     ? `${label} ${fmt(shown.before[key])} → ${fmt(shown.after[key])}` : null);
@@ -81,7 +84,7 @@ export default function PlatformPenaltyDialog({ open, onClose, reservationId, so
   return (
     <FormDialog
       open={open} onClose={onClose} title="Pénalité plateforme" submitLabel="Enregistrer" onSubmit={submit} submitBusy={busy}
-      submitDisabled={!answer || !answer.valid || amountInvalid}
+      submitDisabled={!commit.ready}
     >
       <FocusKeeper>
         <TextField
@@ -125,7 +128,7 @@ export default function PlatformPenaltyDialog({ open, onClose, reservationId, so
           <Typography key={e.code} variant="caption" component="div" color="error.main" role="alert" sx={{ mt: 1 }}>{e.message}</Typography>
         ))}
         {/* Loop t23 S23-1 — a failed preview says so with its way out; nothing of an older answer stays drawn (`data` is null). */}
-        {preview.error && <ErrorAlert message={preview.error.message || 'Calcul impossible.'} onRetry={preview.retry} sx={{ mt: 1.5 }} />}
+        <PreviewFailure error={preview.error} onRetry={preview.retry} fallback="Calcul impossible." sx={{ mt: 1.5 }} />
       </FocusKeeper>
     </FormDialog>
   );
