@@ -72,7 +72,8 @@ test('UI3-4 — a failed answer is shown with « Réessayer »; the retry offers
   expect(saveButton()).toBeDisabled();
   fail = false;
   fireEvent.click(screen.getByRole('button', { name: 'Réessayer' }));
-  expect(await screen.findByText('Créer la facture dans Qonto')).toBeInTheDocument();
+  // The pending block draws the same label, disabled (loop t25): wait for the answer itself (server-test-isolation rule 11).
+  await waitFor(() => expect(screen.getByRole('checkbox', { name: /Créer la facture dans Qonto/ })).toBeEnabled());
   expect(screen.queryByText('Facture non vérifiée pour ce paiement.')).toBeNull();
 });
 

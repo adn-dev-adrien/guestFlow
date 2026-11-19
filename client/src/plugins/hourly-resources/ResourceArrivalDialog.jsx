@@ -195,7 +195,7 @@ export default function ResourceArrivalDialog({ open, bookingId, onClose, onDone
   // Loop t2 B2-7 (rule 54) — with « Payé maintenant », whether this commit could make the invoice is the server's answer for the payment typed.
   // Loop t24 — asked only for the payment typed against the remainder of the draft on screen: while a newer quote is on its way, or the
   // tenders have not yet followed it, the pair (draft, payment) is stale and its answer would be a false refusal drawn on the nominal
-  // path. Meanwhile the latest answer stays (`invoiceAwaiting`).
+  // path. Meanwhile the block is drawn pending (`invoiceAwaiting`, loop t25).
   const paymentTyped = !reception && payNow && Boolean(paymentBody(payment));
   const draftCurrent = !dirty || quote.fresh;
   const paymentDraft = useMemo(
@@ -204,12 +204,13 @@ export default function ResourceArrivalDialog({ open, bookingId, onClose, onDone
   );
   const invoiceAwaiting = paymentTyped && !paymentDraft;
   const invoiceQuote = useVisitQuote({ bookingId, draft: paymentDraft, enabled: open, version: visit ? visit.document.version : 0 });
-  // Loop t3 UI3-4/UI3-5 — the latest answer stays on screen while a newer one is asked (no caption ↔ checkbox flip per keystroke); the commit
+  // Loop t3 UI3-4/UI3-5 — no caption ↔ checkbox flip per keystroke: the pending block keeps the place of the answer (loop t21 `reserve`); the commit
   // still waits for the answer to the payment typed (`paymentReady`). « Caisse interne » and any other refusal are the server's words too.
   const draftAnswerFailed = Boolean(quote.refusal || quote.error);
-  // Loop t25 UI25-1 — while the payment waits its draft cannot be asked, so the hook's `visit` is null; the latest answer is `last`.
-  const invoiceShown = paymentDraft ? invoiceQuote.visit : (invoiceAwaiting ? invoiceQuote.last : null);
-  const invoiceAnswer = invoiceShown ? invoiceShown.invoiceable || null : null;
+  // Loop t25 — while the typed payment waits (`invoiceAwaiting`) or its answer is on its way, no answer is current for it: the block is drawn
+  // pending (checkbox disabled, as ticked as the operator left it, at the reserved height) instead of an older payment's answer (owner
+  // decision: no action on an unknown value).
+  const invoiceAnswer = paymentDraft && invoiceQuote.fresh && invoiceQuote.visit ? invoiceQuote.visit.invoiceable || null : null;
   const invoiceOffered = Boolean(invoiceAnswer && invoiceAnswer.ok);
   const draftInternalCash = Boolean(invoiceAnswer && invoiceAnswer.code === 'INTERNAL_CASH');
   const draftRefusal = invoiceAnswer && !invoiceAnswer.ok && !invoiceAnswer.silent && !draftInternalCash ? invoiceAnswer.reason : null;

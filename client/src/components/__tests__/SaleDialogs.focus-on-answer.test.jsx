@@ -112,15 +112,23 @@ const ROWS = [
       render(<ResourceArrivalDialog open bookingId={5} onClose={() => {}} onDone={() => {}} />);
       await screen.findByText('Sa séance');
       await waitFor(() => expect(invoiceBox()).toBeEnabled());
-      // A new draft asks a new answer; the latest one stays drawn meanwhile, so the address can be typed into.
-      fireEvent.click(screen.getByRole('button', { name: /Limonade/ }));
-      await waitFor(() => expect(paymentAnswers).toBe(2));
+      // The address typed against the current answer. A new draft asks a new answer: until it lands no answer is current for the payment, so
+      // the block is drawn pending — address and checkbox kept as typed, disabled (loop t25) — and the focus stays on the control used.
       streetField().focus();
       fireEvent.change(streetField(), { target: { value: '12 rue' } });
-      expect(document.activeElement).toBe(streetField());
+      const limonade = screen.getByRole('button', { name: /Limonade/ });
+      limonade.focus();
+      fireEvent.click(limonade);
+      await waitFor(() => expect(paymentAnswers).toBe(2));
+      expect(streetField()).toBeDisabled();
+      expect(streetField()).toHaveValue('12 rue');
+      expect(invoiceBox()).toBeDisabled();
       await act(async () => { release(); });
       if (outcome.stays) {
-        expect(document.activeElement).toBe(streetField());
+        await waitFor(() => expect(streetField()).toBeEnabled());
+        expect(streetField()).toHaveValue('12 rue');
+        await offBody();
+        expect(screen.getByRole('dialog').contains(document.activeElement)).toBe(true);
         return;
       }
       await offBody();
@@ -150,9 +158,15 @@ const ROWS = [
       await waitFor(() => expect(screen.getByRole('button', { name: 'Maintenant' })).toBeEnabled());
       fireEvent.click(screen.getByRole('button', { name: 'Maintenant' }));
       await waitFor(() => expect(invoiceBox()).toBeEnabled());
-      fireEvent.click(screen.getByRole('button', { name: 'Plus 15 minutes' }));
-      await waitFor(() => expect(paymentAnswers).toBe(2));
+      // Loop t25 — while the next draft's answer is on its way the block is pending (address and checkbox disabled, kept as left).
       streetField().focus();
+      fireEvent.change(streetField(), { target: { value: '12 rue' } });
+      const more = screen.getByRole('button', { name: 'Plus 15 minutes' });
+      more.focus();
+      fireEvent.click(more);
+      await waitFor(() => expect(paymentAnswers).toBe(2));
+      expect(streetField()).toBeDisabled();
+      expect(streetField()).toHaveValue('12 rue');
       await act(async () => { release(); });
       await screen.findByText(OUTCOMES[1].invoiceable.reason);
       await offBody();

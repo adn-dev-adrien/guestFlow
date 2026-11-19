@@ -355,7 +355,7 @@ export default function ResourceBookingDialog({
   const dueCents = booking?.visit ? booking.visit.remainingCents : Math.round(Number(price?.total || 0) * 100);
   // Loop t24 — the invoice question is asked only for the payment typed against the price of the draft on screen: while a newer price
   // is on its way, or the tenders have not yet followed it, the pair (draft, payment) is stale and its answer would be a false refusal
-  // (« Les moyens font 50,00 € pour 37,50 € dus. ») drawn for a second on the nominal path. Meanwhile the latest answer stays (`invoiceAwaiting`).
+  // (« Les moyens font 50,00 € pour 37,50 € dus. ») drawn for a second on the nominal path. Meanwhile the block is drawn pending (`invoiceAwaiting`, loop t25).
   const paymentTyped = payNow && Boolean(draft) && Boolean(paymentBody(payment));
   const invoiceDraft = useMemo(
     () => (paymentTyped && preview.fresh && payment.dueCents === dueCents ? { ...draft, payment: paymentBody(payment) } : null),
@@ -367,10 +367,11 @@ export default function ResourceBookingDialog({
   // Rule 44 (R35-C-L1) — a payment on the books whose invoice is still to make, or was cancelled in Qonto (A2).
   const invoiceLater = Boolean(booking?.paid && booking.payment?.onTheBooks && (!booking.invoice || booking.invoice.cancelled));
   // Loop t2 B2-7 (outside-visit rule 54) — whether « Payé maintenant » can make the invoice is the server's answer for the payment typed.
-  // Loop t3 UI3-4/UI3-5 — the latest answer stays on screen while a newer one is asked; the save waits for the answer to the payment typed.
-  // Loop t25 UI25-1 — while the payment waits its draft cannot be asked, so the hook's `price` is null; the latest answer is `last`.
-  const invoiceShown = invoiceDraft ? invoicePreview.price : (invoiceAwaiting ? invoicePreview.last : null);
-  const invoiceAnswer = invoiceShown ? invoiceShown.invoiceable || null : null;
+  // Loop t3 UI3-4/UI3-5 — the pending block keeps the place of the answer (loop t21 `reserve`); the save waits for the answer to the payment typed.
+  // Loop t25 — while the typed payment waits (`invoiceAwaiting`) or its answer is on its way, no answer is current for it: the block is drawn
+  // pending (checkbox disabled, as ticked as the operator left it, at the reserved height) instead of an older payment's answer (owner
+  // decision: no action on an unknown value).
+  const invoiceAnswer = invoiceDraft && invoicePreview.fresh && invoicePreview.price ? invoicePreview.price.invoiceable || null : null;
   const invoiceOffered = Boolean(invoiceAnswer && invoiceAnswer.ok) || invoiceLater;
   const draftInternalCash = Boolean(invoiceAnswer && invoiceAnswer.code === 'INTERNAL_CASH');
   const draftRefusal = invoiceAnswer && !invoiceAnswer.ok && !invoiceAnswer.silent && !draftInternalCash ? invoiceAnswer.reason : null;

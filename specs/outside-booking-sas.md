@@ -614,6 +614,16 @@ once on the server by the refonte's components.
     (plugins-phase-1-sdk rule 54 reading of 2026-11-18): an answer that removes or hides the field holding the focus leaves it on the block,
     or on the dialog's content when the section is hidden. Tests `SaleDialogs.pending-blocks` (no usable control in a pending block),
     `SaleDialogs.focus-on-answer` (the four outcomes of a second answer while the address holds the focus).
+    _Reading of 2026-11-19 (loop t25 verifier; owner decision « no action on an unknown value »):_ **while the answer for the payment being
+    typed is on its way, the block is pending — never the older payment's answer.** The arrival and the booking dialog kept the latest
+    answer on screen while the next one was asked (a new draft, the tenders following it — `invoiceAwaiting` — or a slow answer): about
+    2 s of « Créer la facture dans Qonto » ticked and clickable for a payment it did not answer (« Valider » stayed disabled and the commit
+    carried the right decision). Both now take the « Facture » answer only when it is `fresh` for the payment typed; until then the block
+    is drawn pending at its reserved height — checkbox disabled, ticked or not as the operator left it, address kept and disabled — and
+    the answer fills it: accepted, the checkbox is live again with the operator's state; refused, its reason. Measured in Chromium at 1280
+    and 390 px with a +800 ms answer and a refused one (arrival and booking): « ticked/disabled » from +100 ms, then « ticked/live » or the
+    reason, the focus on « Plus 15 minutes ». Tests `InvoiceBlock.pending-answer` (4), `SaleDialogs.focus-on-answer` (the address is typed
+    against the current answer; during the next one it is kept and disabled).
 55. **One money model for a document: every cent on a line or on no line** _(stabilisation loop t3, B3-1, B3-2, B3-3, 2026-11-16; completes rules 41,
     44, 49, 50, 52, 53 and refonte rules 72, 74, 75)_. Every cent a document received sits either on one of its lines or **on no line** — its
     *unallocated money*: a link paid above the reste (rule 41), net of what was given back or kept from it (`payment_allocations` with `lineRef` NULL).

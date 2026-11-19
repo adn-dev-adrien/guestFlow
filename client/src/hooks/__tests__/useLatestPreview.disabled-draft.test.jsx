@@ -235,7 +235,7 @@ const MEMBERS = {
 };
 // Screens whose draft does not stay on screen once it cannot be asked: nothing older can be drawn as its answer.
 const NOT_MEMBERS = {
-  ResourceArrivalDialog: 'an undirtied draft is null and the stored visit is drawn; the invoice question keeps its latest answer only while the typed payment waits (`last`)',
+  ResourceArrivalDialog: 'an undirtied draft is null and the stored visit is drawn; the invoice question reads only a fresh answer (pending block otherwise)',
   ResourceBookingDialog: 'the price is drawn only for a draft (`shownPrice = draft ? … : null`); the invoice question as in the arrival',
   ReservationSasDialog: 'a page without money disables the recap; the money pages draw `last` with « — » while failed',
 };

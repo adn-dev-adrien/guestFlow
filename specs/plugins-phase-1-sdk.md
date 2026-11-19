@@ -801,8 +801,8 @@ Optional: a plugin that declares nothing reads « Actif ».
     (true 9,00 €), and after a failure the e-mail's first keystroke replaced « — » with the total from before it; the penalty with its amount
     emptied, « 0 » or « 30x » kept the figures of an earlier amount. The hook now answers **`data` null while disabled unless the latest
     answer is for the draft on screen** (gated on `enabled`, not on `pending`: an edited draft still asked keeps the latest answer, dimmed);
-    `last` keeps it for a screen that deliberately keeps the latest answer while its draft waits — the visit's and the booking's invoice
-    question while the typed payment waits (`invoiceAwaiting`, `useVisitQuote` now returns `last` too). Members, enumerated from the code
+    `last` still keeps it. The visit's and the booking's invoice question no longer show an older answer while the typed payment waits:
+    their block is pending until the fresh answer (outside-booking-sas rule 54 reading of 2026-11-19). Members, enumerated from the code
     (every consumer whose draft stays on screen while it cannot be asked): the counter (« — » for the Total and the payment, never « Rien à
     encaisser » while articles are on the sale), the penalty (no figures), the payout split (no older message) and the credit link's manual
     split (no older summary; a split with an unreadable amount is its own draft, no longer the ticked transfers', and its fields keep their

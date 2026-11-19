@@ -193,6 +193,7 @@
       "Après un « Réessayer » réussi, le bloc « Facture » d’une arrivée ou d’une réservation attend la réponse pour le nouveau paiement au lieu de réafficher « Facture non vérifiée pour ce paiement. ».",
       "Après une modification d’une arrivée ou d’une réservation payée « Maintenant », la facture n’est vérifiée qu’une fois le nouveau montant connu : plus de refus « Les moyens font … dus » affiché une seconde, et le bouton garde « Enregistrer et facturer ».",
       "Arrivée d’une visite : retirer le dernier article après un calcul en échec retire aussi le message et « Réessayer ».",
+      "Arrivée et réservation payées « Maintenant » : pendant que la facture est vérifiée pour le paiement saisi, « Créer la facture dans Qonto » reste grisé (coché ou non comme laissé) au lieu d’afficher la réponse du paiement précédent.",
       "Demande GuestFlow 4.2 (SDK 2.32)."
     ]
   }
