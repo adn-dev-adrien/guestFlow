@@ -239,6 +239,6 @@ test('« Répartir le versement » keeps the money-dialog invariants on every ge
 }, harnessTimeout(180000));
 
 test('« Rattacher des virements » keeps the money-dialog invariants on every generated seed', async () => {
-  const failures = await runFamily(link, api, { seeds: harnessSeeds([1, [273, 60], [289, 60], [309, 60], [389, 60]]), steps: harnessSteps(30) });
+  const failures = await runFamily(link, api, { seeds: harnessSeeds([1, [273, 60], [275, 60], [289, 60], [309, 60], [328, 60], [389, 60]]), steps: harnessSteps(30) });
   expect(formatFailures(failures)).toBe('');
 }, harnessTimeout(180000));

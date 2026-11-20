@@ -36,8 +36,9 @@ import {
   useCallback, useEffect, useMemo, useRef, useState,
 } from 'react';
 
+// `stale`: the answer kept is from before a failure that was since put aside (an edit, the draft disabled): drawn, never current.
 const EMPTY = {
-  data: null, signature: null, error: null, failed: false, failedFor: null,
+  data: null, signature: null, error: null, failed: false, failedFor: null, stale: false,
 };
 const failureOf = (answer, signature, scope) => Boolean(answer.failedFor)
   && answer.failedFor.signature === signature && Object.is(answer.failedFor.scope, scope);
@@ -115,7 +116,9 @@ export default function useLatestPreview({
       setPending(false);
       // Nothing is asked any more (the draft emptied, made invalid, the screen closed): a failure about it has nothing left to retry
       // (loop t24 S24-2).
-      setAnswer((prev) => (prev.failed ? { ...prev, error: null, failed: false, failedFor: null } : prev));
+      setAnswer((prev) => (prev.failed ? {
+        ...prev, error: null, failed: false, failedFor: null, stale: true,
+      } : prev));
       return undefined;
     }
     const first = !wasEnabledRef.current;
@@ -137,13 +140,17 @@ export default function useLatestPreview({
       inflightRef.current = null;
       clearTimeout(timerRef.current);
       setPending(false);
-      setAnswer((prev) => (prev.failed ? { ...prev, error: null, failed: false, failedFor: null } : prev));
+      setAnswer((prev) => (prev.failed ? {
+        ...prev, error: null, failed: false, failedFor: null, stale: true,
+      } : prev));
       return () => clearTimeout(timerRef.current);
     }
     setPending(true);
     // A request the screen asks on its own (an edited draft, a new scope, the draft enabled again) is not « Réessayer »: it ends the
     // previous failure. Only `retry` keeps it, through its pending request.
-    setAnswer((prev) => (prev.failed ? { ...prev, error: null, failed: false, failedFor: null } : prev));
+    setAnswer((prev) => (prev.failed ? {
+        ...prev, error: null, failed: false, failedFor: null, stale: true,
+      } : prev));
     clearTimeout(timerRef.current);
     scheduledRef.current = true;
     timerRef.current = setTimeout(() => send(signature), first ? 0 : delay);
@@ -168,11 +175,11 @@ export default function useLatestPreview({
     pending,
     error: failed ? answer.error : null,
     failed,
-    fresh: !pending && !answer.failed && answer.signature === signature && answer.data != null,
+    fresh: !pending && !answer.failed && !answer.stale && answer.signature === signature && answer.data != null,
     // Loop t26 (rule 58) — the identities behind `fresh`: the draft the latest answer was for, and the draft on screen. A commit gate
     // (`useMoneyCommit`) compares them itself, so no boolean of an earlier request can stand for the draft on screen.
     // After a failure the answer kept is from before it: it names no draft until a new answer (the draft back to it is asked afresh).
-    answerKey: answer.data != null && !answer.failed ? answer.signature : null,
+    answerKey: answer.data != null && !answer.failed && !answer.stale ? answer.signature : null,
     draftKey: signature,
     retry,
   };

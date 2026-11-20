@@ -19,6 +19,7 @@ import ResourceArrivalDialog from '../../plugins/hourly-resources/ResourceArriva
 import ResourceBookingDialog from '../../plugins/hourly-resources/ResourceBookingDialog';
 import SplitSharesDialog from '../../plugins/online-payment/SplitSharesDialog';
 import LinkTransactionDialog from '../../plugins/online-payment/LinkTransactionDialog';
+import AddProductDialog from '../../components/AddProductDialog';
 import MidStayNoteDialog from '../../components/reservation/MidStayNoteDialog';
 import { ReservationFormProvider } from '../../components/reservation/ReservationFormContext';
 import { makeMockContext } from '../../components/reservation/__tests__/mockReservationForm';
@@ -58,6 +59,8 @@ vi.mock('../../api', () => ({
     getReconciliationFicheCredits: vi.fn(),
     getReconciliationCandidates: vi.fn(),
     previewMidStayNote: vi.fn(),
+    quoteExtraSale: vi.fn(),
+    sellExtra: vi.fn(),
   },
 }));
 vi.mock('../usePostalCodeCities', () => ({ default: () => [] }));
@@ -288,6 +291,28 @@ const ROWS = {
     check() { expect(screen.getByRole('button', { name: 'Répartir et confirmer' })).toBeDisabled(); },
     beforeRetry(state) { state.message = 'Il manque 8,00 € : les parts doivent faire 700,00 €.'; },
     async recover() { await screen.findByText(/Il manque 8,00 €/); },
+  },
+  // Loop t26 verifier — « Ajouter un produit » previews its price through the hook too.
+  AddProductDialog: {
+    async answer(state) {
+      api.quoteExtraSale.mockImplementation(async (id, body) => { if (state.fail) throw offline(); return { totalCents: 1213 * body.requests[0].quantity, lines: [{ momentLabel: 'Au départ', merged: false }] }; });
+      render(<AddProductDialog open onClose={() => {}} reservationId={7} articles={[{ articleRef: 'option:8', label: 'Bois' }]} onSold={() => {}} />);
+      fireEvent.mouseDown(screen.getByRole('combobox'));
+      fireEvent.click(await screen.findByRole('option', { name: 'Bois' }));
+      await screen.findByText('12,13 €');
+    },
+    async fail(state) {
+      state.fail = true;
+      const qty = screen.getByLabelText('Quantité');
+      qty.focus();
+      fireEvent.change(qty, { target: { value: '2' } });
+      await screen.findByText('Service indisponible');
+    },
+    stale: /^12,13 €$/,
+    draftInputs: [],
+    drafts: () => [screen.getByLabelText('Quantité')],
+    check() { expect(screen.getByRole('button', { name: 'Ajouter' })).toBeDisabled(); },
+    async recover() { await screen.findByText('24,26 €'); },
   },
   LinkTransactionDialog: {
     async answer(state) {

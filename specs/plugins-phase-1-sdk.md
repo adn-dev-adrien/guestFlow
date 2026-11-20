@@ -927,7 +927,11 @@ Optional: a plugin that declares nothing reads « Actif ».
     with « Réessayer » on a 5xx, `useMoneyCommit`, a `FocusKeeper` content) and the harness (family `product`); the coverage reads the
     members by behaviour too — any file asking `api.quote…` / `api.preview…`, except the previews listed as carrying no amount.
     `TenderLines` takes `defaultLine` for the screen's proposed line of the whole due (seeded, it follows the due); a correction's lines stay
-    as recorded.
+    as recorded. The answer kept from before a failure that was put aside (the draft edited or disabled after it) is marked `stale`: drawn
+    (dimmed, as before), never current — neither `fresh` nor an `answerKey` — until a new answer; before, the render that asked the draft
+    again showed it current for a frame (counter, SAS, visit, penalty, credit link, « Ajouter un produit »: seeds 368, 202, 208, 271, 250,
+    275, 328, 209, 210 of the per-commit probe). And a tender block once unmounted reports nothing live: a « Plusieurs moyens » reopened no
+    longer named, for its first commit, the amount of the lines just closed (fiche seeds 276, 310).
 
 **Edge cases:**
 - **A plugin throws during `register`.** Rule 4 applies: the other plugins and the core boot. The Plugins
@@ -1161,7 +1165,7 @@ still in the core. Server: 4,611 tests after, of which 37 are new. Client: 1,416
 - `hooks/__tests__/useLatestPreview.disabled-draft.test.jsx` (16: −2 loop t26, the counter no longer a member) — rule 54 (reading of 2026-11-19, loop t25 UI25-1): a draft that cannot be asked shows no older answer; hook rows and one row per member screen, read from the code.
 - `hooks/__tests__/useLatestPreview.non-amount-fields.test.jsx` (8) — rule 54 (reading of 2026-11-19, loop t26 UI26-1): a field that decides no amount, typed key by key, keeps the figures, the payment and the typed tender lines; every consumer read from the code has its row or says why none.
 - `plugins/online-payment/__tests__/parseEuroInput.trailing-separator.test.jsx` (15) and `components/reservation/__tests__/PlatformPenaltyDialog.trailing-separator.test.jsx` (7) — rule 54 (reading of 2026-11-19, loop t25 verifier): « 100, » is 100,00; the penalty refuses more than two decimals.
-- `hooks/__tests__/useLatestPreview.failed-recompute.test.jsx` (24: +1 loop t26 UI26-2, the mid-stay note; +7 loop t24 UI24-2, the hook's table of a failure owned by its draft; +4 loop t24 S24-2, a disabled draft ends the failure; +2 loop t24 A24-2, the SAS tender lines and button) — rule 54 (reading of 2026-11-18, loop t23 S23-1): a failed request
+- `hooks/__tests__/useLatestPreview.failed-recompute.test.jsx` (25: +1 loop t26 verifier, « Ajouter un produit »; +1 loop t26 UI26-2, the mid-stay note; +7 loop t24 UI24-2, the hook's table of a failure owned by its draft; +4 loop t24 S24-2, a disabled draft ends the failure; +2 loop t24 A24-2, the SAS tender lines and button) — rule 54 (reading of 2026-11-18, loop t23 S23-1): a failed request
   makes the answer unknown until a new one; every money preview screen, read from the code, shows no figure of the older answer, no live
   money field set from it, the reason with « Réessayer » (kept while the retry is asked), a disabled commit, every draft input still
   mounted, the focus never on the page or the dialog root, then the new answer; « Rattacher » disabled while the credit list is unknown.
@@ -1184,7 +1188,7 @@ still in the core. Server: 4,611 tests after, of which 37 are new. Client: 1,416
   focus ends in the dialog, never on the page — the arrival's « Facture » address through a second answer accepted / refused / silent /
   « Caisse interne », the booking dialog's, the block alone, the counter's « Réessayer », « Retirer », « Percevoir maintenant », the minted
   link, the SAS « Séjour » page's « Réessayer ».
-- `hooks/__tests__/useLatestPreview.draft-back.test.jsx` (3) — rule 58 (reading of 2026-11-19, loop t26): a draft back to the one on its way keeps that request, back to the latest accepted answer is current and not pending, back to a failed one is asked afresh.
+- `hooks/__tests__/useLatestPreview.draft-back.test.jsx` (4) — rule 58 (readings of 2026-11-19 and 2026-11-20, loop t26): a draft back to the one on its way keeps that request, back to the latest accepted answer is current and not pending, back to a failed one is asked afresh; the answer kept from before a failure put aside is never current, not even for the render before its new request.
 - `hooks/__tests__/useMoneyCommit.identity.test.jsx` (3), `components/__tests__/TenderLines.typed-lines.test.jsx` (2), `components/__tests__/MoneyActions.focus.test.jsx` (1) — rule 58 (reading of 2026-11-20): the identity gate, a typed line kept when the next one is removed, the shortfall choice back on its own due, the actions row keeping the focus.
 - `__tests__/moneyDialogs.invariants.*.test.jsx` (10 files, 22 tests) — rule 58 (loop t26): the generative harness
   (`__tests__/moneyDialogsHarness.jsx`), one suite per family — `counter` (1), `visit` (1), `booking` (1), `sas` (2: arrival, departure),

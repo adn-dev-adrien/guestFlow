@@ -127,6 +127,13 @@ export default function TenderLines({
   const signature = JSON.stringify([stored, shortKind, dueCents]);
   const onScreen = useRef(null);
   onScreen.current = signature;
+  // Lines no longer drawn describe nothing on screen: once this block is unmounted its reports are dead (loop t26 verifier — reopened, a
+  // block's first commit showed « Encaisser 5,00 € » from the report of the block just closed, before the new lines reported).
+  const alive = useRef(true);
+  useLayoutEffect(() => {
+    alive.current = true;
+    return () => { alive.current = false; };
+  }, []);
 
   useEffect(() => {
     if (autoFocus && firstAmount.current) firstAmount.current.focus();
@@ -151,7 +158,7 @@ export default function TenderLines({
       draft: {
         lines: stored, shortKind: shortChoice.kind, shortDueCents: shortChoice.dueCents, dueCents,
       },
-      live: () => onScreen.current === signature,
+      live: () => alive.current && onScreen.current === signature,
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [stored, shortKind, dueCents, shortChoice]);

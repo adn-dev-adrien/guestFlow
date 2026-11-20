@@ -123,6 +123,6 @@ const adapter = {
 };
 
 test('the fiche\'s payment forms keep the money-dialog invariants on every generated seed', async () => {
-  const failures = await runFamily(adapter, api, { seeds: harnessSeeds([1, [70, 60], [73, 60], [461, 60]]), steps: harnessSteps(30) });
+  const failures = await runFamily(adapter, api, { seeds: harnessSeeds([1, [70, 60], [73, 60], [276, 60], [310, 60], [461, 60]]), steps: harnessSteps(30) });
   expect(formatFailures(failures)).toBe('');
 }, harnessTimeout(120000));

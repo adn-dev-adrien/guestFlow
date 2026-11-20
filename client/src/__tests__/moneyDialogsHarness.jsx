@@ -447,7 +447,12 @@ export function probeCommit(ctx) {
     }
     const cents = centsOfText(label);
     if (cents.length) {
-      allowed = allowed || allowedCents(ctx, states, blocks);
+      // Mid-gesture a field may lag its draft by a commit (the quantity stepper syncs its text in an effect), so at a React commit the
+      // label may still name the latest answer, dimmed; any other figure is the defect. The settled screen is judged strictly by I1.
+      if (!allowed) {
+        allowed = allowedCents(ctx, states, blocks);
+        Object.values(ctx.server.accepted).forEach((req) => req && req.cents.forEach((c) => allowed.add(c)));
+      }
       cents.filter((c) => !allowed.has(c)).forEach((c) => ctx.commitViolations.push({ code: 'I1', message: `« ${label} » named ${c / 100} € at a React commit — from no answer to the draft on screen (${describeStates(states)})` }));
     }
   });

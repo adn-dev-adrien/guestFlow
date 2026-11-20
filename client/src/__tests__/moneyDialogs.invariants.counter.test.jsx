@@ -261,7 +261,7 @@ const adapter = {
 
 // Seeds found by the long runs (loop t26): rows removed and added back, the quote coming back to an answered draft.
 test('« Vente hors séjour » keeps the money-dialog invariants on every generated seed', async () => {
-  const failures = await runFamily(adapter, api, { seeds: harnessSeeds([1, 2, [258, 60], [321, 60], [498, 60], [551, 60]]), steps: harnessSteps(30) });
+  const failures = await runFamily(adapter, api, { seeds: harnessSeeds([1, 2, [258, 60], [321, 60], [498, 60], [551, 60], [368, 60]]), steps: harnessSteps(30) });
   expect(formatFailures(failures)).toBe('');
 }, harnessTimeout(180000));
 

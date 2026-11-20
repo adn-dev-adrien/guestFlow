@@ -194,6 +194,7 @@ const MEMBERS = {
 // Screens whose draft does not stay on screen once it cannot be asked: nothing older can be drawn as its answer.
 const NOT_MEMBERS = {
   StandaloneSaleDialog: 'only the articles disable its quote (loop t26 UI26-1): the customer fields never do (useLatestPreview.non-amount-fields), and an emptied sale draws no figure (`quote` null without an article)',
+  AddProductDialog: 'a draft that cannot be asked (no product, a quantity not above 0) draws no price (`quote = valid ? data : null`); « Ajouter » needs the answer for the draft on screen (loop t26 verifier)',
   MidStayNoteDialog: 'its draft is asked as soon as the opening is taken and until the dialog closes: nothing on screen disables it',
   ResourceArrivalDialog: 'an undirtied draft is null and the stored visit is drawn; the invoice question reads only a fresh answer (pending block otherwise)',
   ResourceBookingDialog: 'the price is drawn only for a draft (`shownPrice = draft ? … : null`); the invoice question as in the arrival',

@@ -368,6 +368,7 @@ const KEPT_ELSEWHERE = {
   'components/reservation/PaymentMarkForm.jsx': HARNESS,
   'components/reservation/FinanceSection.jsx': HARNESS,
   'hooks/useMoneyCommit.jsx': HARNESS,
+  'components/AddProductDialog.jsx': HARNESS,
 };
 
 test('every file that draws a FocusKeeper has its rows', () => {

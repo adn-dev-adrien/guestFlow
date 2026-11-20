@@ -56,6 +56,7 @@ const CONSUMERS = filesOf(SRC)
 // Screens whose commit label is not a decision read from an answer.
 const STATIC_LABELS = {
   PlatformPenaltyDialog: 'fixed « Enregistrer »',
+  AddProductDialog: 'fixed « Ajouter » (loop t26 verifier)',
   SplitSharesDialog: 'fixed « Répartir et confirmer »',
   LinkTransactionDialog: 'fixed « Rattacher »',
   ReservationSasDialog: '« Calcul du total… » while the recap is asked, then « Valider et terminer » or the amount its own tender lines collect',

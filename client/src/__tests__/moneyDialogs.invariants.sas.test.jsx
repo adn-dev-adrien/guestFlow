@@ -224,7 +224,7 @@ function sasFamily(end) {
 
 test('the SAS arrival recap keeps the money-dialog invariants on every generated seed', async () => {
   // Seeds found by the long runs (loop t26): steps back and forth around the recap, « Offrir » undone at once.
-  const failures = await runFamily(sasFamily('arrival'), api, { seeds: harnessSeeds([1, [85, 60], [88, 60], [95, 60], [210, 60], [211, 60], [224, 60], [227, 60], [229, 60], [235, 60], [257, 60], [298, 60], [306, 60], [307, 60], [332, 60], [334, 60], [335, 60]]), steps: harnessSteps(25) });
+  const failures = await runFamily(sasFamily('arrival'), api, { seeds: harnessSeeds([1, [85, 60], [88, 60], [95, 60], [202, 60], [208, 60], [210, 60], [211, 60], [224, 60], [227, 60], [229, 60], [235, 60], [257, 60], [298, 60], [306, 60], [307, 60], [332, 60], [334, 60], [335, 60]]), steps: harnessSteps(25) });
   expect(formatFailures(failures)).toBe('');
 }, harnessTimeout(180000));
 

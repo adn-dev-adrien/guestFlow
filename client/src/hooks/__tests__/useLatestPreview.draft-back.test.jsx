@@ -58,3 +58,30 @@ test('back to a failed draft: asked afresh, without its older error', async () =
   await h.release();
   expect(h.state()).toMatchObject({ data: { n: 2 }, fresh: true });
 });
+
+// Loop t26 verifier — the answer kept from before a failure that was put aside (the draft disabled, then asked again on it) is drawn but
+// never current: `answerKey` stays null until the new answer, for the very render before the request leaves too.
+test('back to an answered draft after another one failed: never current before its own new answer', async () => {
+  const outcome = { fail: false };
+  const releases = [];
+  const fetcher = vi.fn((draft) => (outcome.fail ? Promise.reject(offline()) : new Promise((resolve) => { releases.push(() => resolve({ n: draft.n })); })));
+  const seen = [];
+  const view = renderHook(({ n, enabled }) => {
+    const r = useLatestPreview({ fetcher, draft: { n }, enabled, delay: 0 });
+    seen.push({ n, current: r.answerKey != null && r.answerKey === r.draftKey && !r.pending && !r.failed });
+    return r;
+  }, { initialProps: { n: 1, enabled: true } });
+  await waitFor(() => expect(fetcher).toHaveBeenCalledTimes(1));
+  await act(async () => { releases.splice(0).forEach((go) => go()); });
+  outcome.fail = true;
+  view.rerender({ n: 2, enabled: true });
+  await waitFor(() => expect(view.result.current.failed).toBe(true));
+  outcome.fail = false;
+  view.rerender({ n: 1, enabled: false });
+  seen.length = 0;
+  view.rerender({ n: 1, enabled: true });
+  expect(seen.every((r) => !r.current)).toBe(true);
+  await waitFor(() => expect(fetcher).toHaveBeenCalledTimes(3));
+  await act(async () => { releases.splice(0).forEach((go) => go()); });
+  expect(view.result.current).toMatchObject({ data: { n: 1 }, fresh: true });
+});
