@@ -1175,10 +1175,13 @@ still in the core. Server: 4,611 tests after, of which 37 are new. Client: 1,416
 - `__tests__/moneyDialogs.invariants.*.test.jsx` (9 files, 20 tests) — rule 58 (loop t26): the generative harness
   (`__tests__/moneyDialogsHarness.jsx`), one suite per family — `counter` (1), `visit` (1), `booking` (1), `sas` (2: arrival, departure),
   `note` (1), `penalty` (1), `reconciliation` (2: split, link), `fiche` (1: « Encaisser en une fois » and a ledger row's `PaymentMarkForm`)
-  — each running its fixed seeds (2-6 seeds × 25-30 steps, plus the seeds the long run found, at 60 steps) and checking I1-I6 after every
-  step, about 65 s on one worker; `coverage` (10): the members read from the code equal the table, each family has its suite rendering its
-  dialog. Run locally with 0 violations: seeds 1-200 × 60 steps for every family; seeds 201-1000 × 60 for the visit and the booking and
-  201-700 × 60 for the others after the hook fix (the seeds 201-2000 run that found the six booking/visit seeds was stopped there).
+  — each running its fixed seeds (1-3 seeds × 25-30 steps) and every seed a long run found, at 60 steps (visit 229, 402, 782, 895;
+  booking 263, 275, 307, 738, 841, 944, 1312, 1592, 1706; counter 258, 321, 498, 551; SAS arrival 210, 211, 224, 227, 229, 235, 257, 298,
+  306, 307, 332, 334, 335; note 215, 290, 319, 400; split 383; link 273, 289, 309, 389; fiche 461), checking I1-I6 after every step — about
+  120 s on one worker, the booking file the longest (≈ 41 s); `coverage` (10): the members read from the code equal the table, each
+  family has its suite rendering its dialog. Run locally with 0 violations: seeds 1-200 × 60 steps for every family (before the two
+  `useLatestPreview` fixes of the long run), then on the final code seeds 201-1000 × 60 for the visit, the booking, the counter and the SAS
+  and 201-600 × 60 for the others, plus the pinned seeds.
 - `components/__tests__/FocusKeeper.test.jsx` (7) — a focused control removed, disabled, hidden, or hidden with its nearest region: the
   focus lands on the nearest region still drawn; a control that stays keeps it; a control the operator left is never taken back; no Tab stop.
 
