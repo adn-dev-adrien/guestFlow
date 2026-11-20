@@ -189,7 +189,12 @@
       "Deux paiements Mollie portant le même numéro de facture vont chacun à leur jour de paiement par carte : aucun ne prend la place de l’autre.",
       "Rapprochement : « Attendu » et le nom d’une vente hors séjour sans client s’affichent une seule fois, y compris dans « couvre aussi », la répartition et la carte « Écarts de règlement ».",
       "Un paiement Mollie d’une facture de plusieurs jours sans jour du même montant reste à identifier.",
-      "Compatible avec GuestFlow 4 (SDK 2.31)."
+      "Répartition d’un versement groupé : un contrôle qui échoue ne laisse plus l’ancien message affiché, il dit pourquoi avec « Réessayer », et les parts saisies restent en place.",
+      "« Rattacher des virements » : une liste qui ne se charge pas affiche la raison avec « Réessayer », et « Rattacher » reste grisé jusqu’à son retour ; les virements cochés sont gardés.",
+      "Répartition d’un versement et « Modifier la répartition » : tant qu’un montant saisi est illisible, plus aucun ancien message ni ancien total n’est affiché comme actuel.",
+      "Répartition d’un versement : un montant en cours de saisie qui finit par la virgule (« 100, ») vaut le montant entier, sans « Montant invalide » le temps d’une touche.",
+      "Répartition d’un versement et rattachement de virements : un refus du serveur affiche sa raison sans « Réessayer » ; le focus reste dans la fenêtre pendant l’enregistrement.",
+      "Demande GuestFlow 4.2 (SDK 2.32)."
     ],
     "1.9.2": [
       "Le rapprochement bancaire n'attend jamais la part d'un paiement reçue d'avance (un bon cadeau) : seules les lignes CB, chèque et virement d'un paiement réparti sont attendues.",

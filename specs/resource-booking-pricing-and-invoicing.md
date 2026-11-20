@@ -414,7 +414,7 @@ Rules are numbered once and never renumbered (new rules go at the end).
 | plugin | `plugins/hourly-resources/ResourceBookingDialog.jsx` | T | Two-column layout kept; the summary becomes `ResourceBookingSummary`; adds offered time, payment and invoice blocks. |
 | plugin | `plugins/hourly-resources/ResourceBookingSummary.jsx` | C | Renders `lines`, VAT and total of the preview. Specific: tied to the booking payload. |
 | plugin | `plugins/hourly-resources/OfferedTimeField.jsx` | C | Stepper by 15 min; shows the server's refusal. |
-| plugin | `plugins/hourly-resources/BookingPaymentFields.jsx` | C | `TenderLines` (one CB line of the total by default) + payment date. |
+| plugin | `plugins/hourly-resources/BookingPaymentFields.jsx` | C | `TenderLines` (one CB line of the total by default) + payment date; reports the `dueCents` the lines were typed against (loop t24, outside-booking-sas rule 54 reading). |
 | plugin | `plugins/hourly-resources/SettingsSection.jsx` | C | « TVA des ventes hors séjour » card of Réglages › Intégrations. |
 | plugin | `plugins/hourly-resources/PlanningResourceCard.jsx` | T | « À encaisser » chip and « Arrivée » button on a booking outside a stay. |
 | plugin | `plugins/hourly-resources/BookingInvoiceBlock.jsx` | C | Invoice state, number, attachment state, retry; before issue, the server's refusal `reason` for the payment typed (`reason`, outside-booking-sas rule 54 reading 2026-11-16). |

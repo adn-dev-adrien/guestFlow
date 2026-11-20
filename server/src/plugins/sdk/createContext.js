@@ -216,7 +216,7 @@ function createContext(id, {
       }
       record.paymentBaskets.push({ source, paid, labels: { ...(labels || {}) } });
     },
-    // SDK 2.33.0 (specs/mixed-method-payments.md rule 51) — a prepaid instrument the plugin keeps the balance of: an amount a guest
+    // SDK 2.33.0 (specs/mixed-method-payments.md rules 60-63) — a prepaid instrument the plugin keeps the balance of: an amount a guest
     // already paid elsewhere (a stored credit) and may use on a booking. `source` names it, and is the `kind` of the booking
     // request's opaque `prepaid` field; `label` is what the stay's payments call it. The core asks the live plugin, never names it:
     //   apply({ devisId, input, capCents, visitor, dryRun }) → { ok: true, heldCents, display } | { ok: false, status, code, message }

@@ -13,11 +13,14 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Alert, Box, Checkbox, Chip, FormControlLabel, TextField, ToggleButton, ToggleButtonGroup, Typography } from '@mui/material';
 import api from '../api';
 import FormDialog from './FormDialog';
+import FocusKeeper from './FocusKeeper';
 import LoadingState from './LoadingState';
+import ErrorAlert from './ErrorAlert';
 import SuggestedArticlesStep from './SuggestedArticlesStep';
 import SalePaymentLink from './SalePaymentLink';
 import TenderLines from './TenderLines';
 import useLatestPreview from '../hooks/useLatestPreview';
+import useMoneyCommit, { PreviewFailure, useTenderDraft } from '../hooks/useMoneyCommit';
 import { formatCurrency } from '../utils/formatters';
 
 const TEXTS = Object.freeze({
@@ -53,6 +56,7 @@ const TEXTS = Object.freeze({
   saved: (id, client) => `Vente n° ${id} enregistrée · ${client}`,
   saveFailed: 'Vente non enregistrée.',
   loadFailed: 'Articles indisponibles.',
+  quoteFailed: 'Montant indisponible.',
   empty: 'Aucun article vendable hors séjour.',
 });
 
@@ -60,6 +64,23 @@ const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 const euros = (cents) => formatCurrency((Number(cents) || 0) / 100);
 const REFUSAL_STATUSES = [400, 409, 422];
 const NO_REFUSALS = [];
+
+/**
+ * The customer part of the quote — and of the sale, which is refused while it differs (`emailBad`, `nameMissing`): what the server can
+ * take as typed (loop t26 UI26-1). An address is sent once it reads as one, « Enregistrer comme client » once a name is there: the server
+ * refuses either otherwise (400 EMAIL_INVALID / NAME_REQUIRED), and a refused quote has no amount, so every keystroke of an address would
+ * blank the Total and unmount the tender lines. The customer decides no amount: it only names who the sale is for (match, new, Passage).
+ */
+export function quoteCustomerOf({ clientId = null, name = '', email = '', register = false }) {
+  if (clientId) return { clientId };
+  const typedName = String(name || '').trim();
+  const typedEmail = String(email || '').trim();
+  return {
+    ...(typedName ? { name: typedName } : {}),
+    ...(EMAIL.test(typedEmail) ? { email: typedEmail } : {}),
+    ...(register && typedName ? { registerAsClient: true } : {}),
+  };
+}
 
 const emptyDraft = () => ({
   extras: [], name: '', email: '', register: false, mode: 'now',
@@ -69,29 +90,35 @@ export default function StandaloneSaleDialog({ open, onClose, onSold, client = n
   const [draft, setDraft] = useState(emptyDraft);
   const [catalogue, setCatalogue] = useState(null);
   const [catalogueError, setCatalogueError] = useState(false);
-  const [payment, setPayment] = useState(null);
+  // The lines as the operator left them (rule 58 I3): a failed quote or a new due draws them again as typed.
+  const tender = useTenderDraft();
+  const payment = tender.report;
+  const setPayment = tender.onChange;
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
   const [saved, setSaved] = useState(null);
   const [link, setLink] = useState({ busy: false, error: null, sentTo: null });
 
+  const [catalogueTry, setCatalogueTry] = useState(0);
   useEffect(() => {
-    if (!open) return undefined;
-    let current = true;
+    if (!open) return;
     setDraft(emptyDraft());
     setSaved(null);
     setError(null);
-    setPayment(null);
+    tender.reset();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
+  useEffect(() => {
+    if (!open) return undefined;
+    let current = true;
     setCatalogueError(false);
     api.getSuggestedArticlesCatalogue({ q: '' }).then((res) => { if (current) setCatalogue(res.articles); }).catch(() => { if (current) setCatalogueError(true); });
     return () => { current = false; };
-  }, [open]);
+  }, [open, catalogueTry]);
 
   const clientId = client ? client.id : null;
-  const customer = useMemo(() => (clientId ? { clientId } : {
-    ...(draft.name.trim() ? { name: draft.name.trim() } : {}),
-    ...(draft.email.trim() ? { email: draft.email.trim() } : {}),
-    ...(draft.register ? { registerAsClient: true } : {}),
+  const customer = useMemo(() => quoteCustomerOf({
+    clientId, name: draft.name, email: draft.email, register: draft.register,
   }), [clientId, draft.name, draft.email, draft.register]);
   const body = useMemo(() => ({
     lines: draft.extras.map(({ articleRef, quantity, offered }) => ({ articleRef, quantity, offered: Boolean(offered) })),
@@ -99,8 +126,11 @@ export default function StandaloneSaleDialog({ open, onClose, onSold, client = n
   }), [draft.extras, customer]);
   const emailBad = !client && draft.email.trim() !== '' && !EMAIL.test(draft.email.trim());
   const fetcher = useCallback((request, options) => api.quoteStandaloneSale(request, options), []);
+  // Loop t26 UI26-1 — only the articles decide whether the quote can be asked: the customer fields never disable it (an e-mail being
+  // typed, « Enregistrer comme client » without a name), so the Total, the payment and the typed tender lines stay on screen; those
+  // fields block the SAVE only (`emailBad`, `nameMissing`).
   const preview = useLatestPreview({
-    fetcher, draft: body, enabled: open && !saved && draft.extras.length > 0 && !emailBad, resetKey: open ? 'open' : 'closed',
+    fetcher, draft: body, enabled: open && !saved && draft.extras.length > 0, resetKey: open ? 'open' : 'closed',
   });
   const refused = Boolean(preview.error) && REFUSAL_STATUSES.includes(preview.error.status);
   const quote = refused || draft.extras.length === 0 ? null : preview.data;
@@ -123,8 +153,17 @@ export default function StandaloneSaleDialog({ open, onClose, onSold, client = n
   const linkMode = mode === 'link';
   const nameMissing = !client && draft.register && !draft.name.trim();
   const customerKind = quote ? quote.customer.kind : 'passage';
-  const ready = Boolean(document) && draft.extras.length > 0 && preview.fresh && refusals.length === 0 && !emailBad && !nameMissing && !busy
-    && (!payNow || Boolean(payment && payment.canSubmit)) && (!linkMode || (linkState.reason === null));
+  // Loop t26 (rule 58) — one contract for every money dialog: a fresh answer for the draft on screen, the lines' report for the due on
+  // screen, every question answered.
+  const commit = useMoneyCommit({
+    previews: [preview],
+    dueCents: document ? remainingCents : null,
+    tenders: payment,
+    splitting: payNow,
+    questions: [Boolean(document), draft.extras.length > 0, refusals.length === 0, !emailBad, !nameMissing, !busy, !linkMode || linkState.reason === null],
+  });
+  const paymentNow = commit.tendersNow;
+  const { ready } = commit;
 
   const patch = (changes) => setDraft((prev) => ({ ...prev, ...changes }));
   const addExtra = (article) => setDraft((prev) => {
@@ -135,13 +174,14 @@ export default function StandaloneSaleDialog({ open, onClose, onSold, client = n
   const search = useCallback((q) => api.getSuggestedArticlesCatalogue({ q }).then((res) => res.groups || []), []);
 
   async function save() {
+    if (!ready || !commit.live()) return;
     setBusy(true);
     setError(null);
     try {
       const sold = await api.sellStandaloneSale({
         ...body,
         acceptedTotalCents: document.totals.totalCents,
-        payment: payNow ? { tenders: payment.tenders, shortfall: payment.shortfall } : undefined,
+        payment: payNow ? { tenders: paymentNow.tenders, shortfall: paymentNow.shortfall } : undefined,
       });
       let result = sold;
       if (linkMode) {
@@ -168,13 +208,13 @@ export default function StandaloneSaleDialog({ open, onClose, onSold, client = n
     }
   }
 
-  const again = () => { setDraft(emptyDraft()); setSaved(null); setPayment(null); setError(null); setLink({ busy: false, error: null, sentTo: null }); };
+  const again = () => { setDraft(emptyDraft()); setSaved(null); tender.reset(); setError(null); setLink({ busy: false, error: null, sentTo: null }); };
 
   if (saved) {
     const { sale } = saved;
     const saleId = saved.document.document.id;
     return (
-      <FormDialog open={open} onClose={onClose} title={TEXTS.title} cancelLabel={TEXTS.close} submitLabel={TEXTS.again} onSubmit={again}>
+      <FormDialog open={open} onClose={onClose} title={TEXTS.title} cancelLabel={TEXTS.close} submitLabel={TEXTS.again} onSubmit={again} sheet>
         <Box sx={{ display: 'grid', gap: 1.25, pt: 0.5 }}>
           <Alert severity="success" role="status">{TEXTS.saved(sale.id, sale.clientLabel)}</Alert>
           {sale.lines.map((text) => <Typography key={text} variant="body2">{text}</Typography>)}
@@ -199,13 +239,19 @@ export default function StandaloneSaleDialog({ open, onClose, onSold, client = n
 
   let submitLabel = TEXTS.save;
   if (linkMode) submitLabel = TEXTS.saveAndLink;
-  else if (payNow && payment && payment.receivedCents > 0) submitLabel = TEXTS.saveAndCollect(euros(payment.receivedCents));
+  // The lines remount on a new due with one card line of the whole due (`key={remainingCents}`): until they report it, the label already
+  // names that due, so it never flickers (loop t21 commit-label rule); the button waits for the report (`ready`).
+  else if (payNow && paymentNow && paymentNow.receivedCents > 0) submitLabel = TEXTS.saveAndCollect(euros(paymentNow.receivedCents));
+  else if (payNow && !paymentNow) submitLabel = TEXTS.saveAndCollect(euros(remainingCents));
 
   return (
-    <FormDialog open={open} onClose={onClose} title={TEXTS.title} cancelLabel={TEXTS.cancel} submitLabel={submitLabel} onSubmit={save} submitDisabled={!ready} submitBusy={busy}>
-      <Box sx={{ display: 'grid', gap: 2.5, pt: 0.5 }}>
+    // Loop t22 UI22-2 — a sheet: the payment the first answer draws under the Total fills room already there, so neither the content
+    // nor the actions move (a centred dialog re-centres and moves everything). Loop t22 UI22-1 — the content keeps the focus.
+    <FormDialog open={open} onClose={onClose} title={TEXTS.title} cancelLabel={TEXTS.cancel} submitLabel={submitLabel} onSubmit={save} submitDisabled={!ready} submitBusy={busy} sheet>
+      <FocusKeeper sx={{ display: 'grid', gap: 2.5, pt: 0.5 }}>
         {!catalogue && !catalogueError && <LoadingState />}
-        {catalogueError && <Alert severity="error">{TEXTS.loadFailed}</Alert>}
+        {/* Loop t22 UI22-3 — every failure of this dialog says so with its way out. */}
+        {catalogueError && <ErrorAlert message={TEXTS.loadFailed} onRetry={() => setCatalogueTry((n) => n + 1)} />}
         {catalogue && catalogue.length === 0 && <Alert severity="info">{TEXTS.empty}</Alert>}
         {catalogue && catalogue.length > 0 && (
           <Box sx={{ display: 'grid', gap: 1, opacity: preview.pending ? 0.6 : 1, transition: 'opacity 120ms' }}>
@@ -221,16 +267,19 @@ export default function StandaloneSaleDialog({ open, onClose, onSold, client = n
               onDraftChange={(index, changes) => patch({ extras: draft.extras.map((entry, i) => (i === index ? { ...entry, ...changes } : entry)) })}
               onDraftRemove={(index) => patch({ extras: draft.extras.filter((_, i) => i !== index) })}
             />
-            {/* Loop t21 UI21-1 — the Total row is drawn with the first article, « — » until the quote answers, so the answer fills it. */}
+            {/* Loop t21 UI21-1 — the Total row is drawn with the first article, « — » until the quote answers, so the answer fills it; loop t22
+                UI22-2 — with the place of its VAT line kept, rates side by side, so the answer lands without moving anything. */}
             {(document || draft.extras.length > 0) && (
-              <Box sx={{ display: 'grid', gap: 0.5, mt: 0.5 }}>
+              <Box sx={{ display: 'grid', gap: 0.5, mt: 0.5 }} data-pending-block={document ? undefined : ''}>
                 <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
                   <Typography variant="body1" sx={{ fontWeight: 700 }}>{TEXTS.total}</Typography>
                   <Typography data-testid="sale-total" variant="body1" sx={{ fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>{document ? euros(document.totals.totalCents) : '—'}</Typography>
                 </Box>
-                {document && document.vatByRate.filter((row) => row.vatCents > 0).map((row) => (
-                  <Typography key={row.rate} variant="caption" color="text.secondary" sx={{ fontVariantNumeric: 'tabular-nums' }}>{TEXTS.vat(String(row.rate).replace('.', ','), euros(row.vatCents))}</Typography>
-                ))}
+                <Box sx={{ display: 'flex', flexWrap: 'wrap', columnGap: 1.5, minHeight: (t) => `calc(${t.typography.caption.fontSize} * ${t.typography.caption.lineHeight})` }}>
+                  {document && document.vatByRate.filter((row) => row.vatCents > 0).map((row) => (
+                    <Typography key={row.rate} variant="caption" color="text.secondary" sx={{ fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>{TEXTS.vat(String(row.rate).replace('.', ','), euros(row.vatCents))}</Typography>
+                  ))}
+                </Box>
               </Box>
             )}
           </Box>
@@ -256,7 +305,8 @@ export default function StandaloneSaleDialog({ open, onClose, onSold, client = n
                 value={draft.email}
                 onChange={(e) => patch({ email: e.target.value })}
                 error={emailBad}
-                helperText={emailBad ? TEXTS.emailInvalid : undefined}
+                // The line of the message is kept while the address is typed (loop t26): it appears and goes without moving the payment below.
+                helperText={emailBad ? TEXTS.emailInvalid : ' '}
                 slotProps={{ htmlInput: { autoComplete: 'off', style: { fontSize: 16 } } }}
               />
             </Box>
@@ -284,40 +334,42 @@ export default function StandaloneSaleDialog({ open, onClose, onSold, client = n
 
         <Box sx={{ display: 'grid', gap: 1 }}>
           <Typography variant="subtitle2">{TEXTS.payment}</Typography>
+          {/* Loop t23 S23-1 — after a failed quote the amount is unknown: no figure, no tender line, until a new answer; loop t25 UI25-1 — the
+              same until the first answer (never the customer fields: loop t26 UI26-1): articles on the sale, « — », never « Rien à encaisser ». */}
           {!document ? (
-            <Typography variant="caption" color="text.secondary">{TEXTS.nothingDue}</Typography>
+            <Typography variant="caption" color="text.secondary">{draft.extras.length > 0 ? '—' : TEXTS.nothingDue}</Typography>
           ) : remainingCents <= 0 ? (
             <Typography variant="caption" color="text.secondary">{TEXTS.allOffered}</Typography>
           ) : (
             <>
               {linkOffered && (
-                <ToggleButtonGroup exclusive size="small" value={mode} onChange={(_, next) => { if (next) { patch({ mode: next }); setPayment(null); } }} aria-label={TEXTS.payment}>
+                <ToggleButtonGroup exclusive size="small" value={mode} onChange={(_, next) => { if (next) { patch({ mode: next }); tender.reset(); } }} aria-label={TEXTS.payment}>
                   <ToggleButton value="now" sx={{ minHeight: 44, px: 2 }}>{TEXTS.now}</ToggleButton>
                   <ToggleButton value="link" sx={{ minHeight: 44, px: 2 }}>{TEXTS.link}</ToggleButton>
                 </ToggleButtonGroup>
               )}
               {mode === 'now' ? (
                 <TenderLines
-                  key={remainingCents}
                   dueCents={remainingCents}
                   whole={false}
                   shortfallKinds={['due']}
                   initialTenders={[{ method: 'card', amountCents: remainingCents, internal: false }]}
+                  defaultLine
+                  initialDraft={tender.initialDraft}
                   onChange={setPayment}
                 />
               ) : (
                 <>
                   <Typography variant="caption" color="text.secondary">{TEXTS.linkAfter}</Typography>
-                  {linkState.reason === 'NO_EMAIL' && <Typography variant="caption" color="error">{TEXTS.emailRequired}</Typography>}
+                  {linkState.reason === 'NO_EMAIL' && !emailBad && <Typography variant="caption" color="error">{TEXTS.emailRequired}</Typography>}
                 </>
               )}
             </>
           )}
         </Box>
-        {preview.error && !refused && <Alert severity="error">{preview.error.message}</Alert>}
-        {refused && <Alert severity="error">{preview.error.message}</Alert>}
+        <PreviewFailure error={preview.error} onRetry={preview.retry} fallback={TEXTS.quoteFailed} />
         {error && <Alert severity="error">{error}</Alert>}
-      </Box>
+      </FocusKeeper>
     </FormDialog>
   );
 }

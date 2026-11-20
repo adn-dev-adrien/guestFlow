@@ -233,10 +233,10 @@ will store or bill, answered live while the operator draws a range or places a b
 | Layer | File | T/C | Responsibility in this change |
 |---|---|---|---|
 | `plugins/hourly-resources/` | `ResourceBookingDialog.jsx` | T | Delete C1-C7; build the draft; render the preview (amount, offered/billed minutes, bands); pending / error / refusal states; the commit warning panel (rule 15). |
-| `hooks/` | `useLatestPreview.js` | C | Generic (Q5): debounced (200 ms; the first request leaves at once), latest-wins, abortable preview; `{ data, pending, error, fresh, retry }`. Exported by the SDK. |
-| `plugins/sas/` | `useSasRecapPreview.js` | T | Now a thin wrapper of `useLatestPreview` (same contract). |
+| `hooks/` | `useLatestPreview.js` | C | Generic (Q5): debounced (200 ms; the first request leaves at once), latest-wins, abortable preview; `{ data, last, pending, error, failed, fresh, retry }` — `data` null, `failed` true and `error` kept from a failed request until a new answer (through a pending retry), `last` the last answer for a layout drawn with « — » (reading of 2026-11-18, loop t23 S23-1, plugins-phase-1-sdk rule 54); the failure belongs to its draft and scope — an edit, a new scope or the draft enabled again ends it, only `retry` keeps it (loop t24 UI24-2). Exported by the SDK. |
+| `plugins/sas/` | `useSasRecapPreview.js` | T | Now a thin wrapper of `useLatestPreview`; exposes `{ recap, pending, error, failed, fresh, retry }`, `recap` being the hook's `last` (the recap pages draw their layout from it with every amount « — » and every settlement control disabled while `failed`, loop t23 S23-1). |
 | `plugins/sdk/` | `index.js` | T | Exports `useLatestPreview`. |
-| `plugins/hourly-resources/` | `useResourceBookingPreview.js` | C | `useLatestPreview` bound to `api.previewResourceBooking`; exposes `{ price, pending, error, refusal, fresh, retry }` (a 400/409 is a `refusal`, anything else an `error`). |
+| `plugins/hourly-resources/` | `useResourceBookingPreview.js` | C | `useLatestPreview` bound to `api.previewResourceBooking`; exposes `{ price, last, pending, failed, error, refusal, fresh, retry }` (a 400/409 is a `refusal`, anything else an `error`; `price` null and `failed` true after a failed request until a new answer, `last` the last price for the summary's layout drawn with « — », loop t23 S23-1). |
 | `plugins/hourly-resources/` | `resourceBookingDraft.js` | C | Pure: dialog state → draft (rule 9). Shared by preview and commit. |
 | `plugins/hourly-resources/` | `resourceSessions.js` | T | Remove `normalizeConfig`, `priceMinutes`, `previewRangeTotal`, `previewSessionsTotal`, `round2` (C8, C9). |
 | `plugins/hourly-resources/` | `ResourcePlanningPage.jsx` | T | `handleSave` returns the commit response to the dialog, which closes itself unless `warning` is set. |
@@ -311,7 +311,11 @@ The dialog and the step look the same; what changes is where their figures come 
   « Calcul du prix » runs under the line; « Enregistrer » reads « Calcul du prix… », disabled. The
   times and the duration already show the new range.
 - **Unavailable:** « Prix indisponible » with « Réessayer » (text button, 44 px target);
-  « Enregistrer » disabled.
+  « Enregistrer » disabled. _Reading of 2026-11-18 (loop t23 S23-1):_ also when a price was on screen before — no figure of it stays
+  (before: the older price at full opacity with no word) and no payment is offered. The summary keeps that answer's layout with every
+  amount, detail, total and VAT « — » (`ResourceBookingSummary` prop `unknown`), so the « Temps offert » stepper the operator was using
+  stays where it is; « Prix indisponible » and « Réessayer » sit under it and stay while the retry is asked; the price block is a
+  `FocusKeeper` region.
 - **Refused** (rule 5): the server's message in `error.main`, in place of the existing client hints
   for minimum duration and capacity when the server answered.
 - **Total differed at commit:** the dialog stays open on a `warning` panel « Enregistré à 40,00 € —

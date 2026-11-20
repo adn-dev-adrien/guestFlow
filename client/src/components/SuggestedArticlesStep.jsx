@@ -29,6 +29,7 @@ import AddIcon from '@mui/icons-material/Add';
 import RemoveIcon from '@mui/icons-material/Remove';
 import SearchIcon from '@mui/icons-material/Search';
 import { formatCurrency } from '../utils/formatters';
+import FocusKeeper from './FocusKeeper';
 
 const TEXTS = Object.freeze({
   title: 'Proposés à l’arrivée',
@@ -88,7 +89,9 @@ function Stepper({ value, max, onChange, disabled, invalid, label }) {
   );
 }
 
-function Row({ name, detail, line, children, refusal, fresh }) {
+// Loop t22 UI22-2 — a draft entry the server has not priced yet draws its detail and amount as « — » in the place they land, so the answer
+// fills the row instead of growing it (a refused entry shows its refusal instead).
+function Row({ name, detail, line, children, refusal, fresh, awaiting = false }) {
   return (
     <Box
       component="li"
@@ -101,12 +104,13 @@ function Row({ name, detail, line, children, refusal, fresh }) {
     >
       <Box sx={{ minWidth: 0 }}>
         <Typography variant="body2" sx={{ fontWeight: 600, overflowWrap: 'anywhere' }}>{name}</Typography>
-        {detail && <Typography variant="caption" color="text.secondary" sx={{ overflowWrap: 'anywhere' }}>{detail}</Typography>}
+        {(detail || awaiting) && <Typography variant="caption" color="text.secondary" sx={{ overflowWrap: 'anywhere' }}>{detail || '—'}</Typography>}
         {refusal && <Typography role="alert" variant="caption" color="error" sx={{ display: 'block' }}>{refusal}</Typography>}
       </Box>
       <Box sx={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 1, justifyContent: { xs: 'space-between', sm: 'flex-end' } }}>
         {children}
         {line && <Money line={line} />}
+        {!line && awaiting && <Typography variant="body2" aria-hidden sx={{ fontWeight: 600, fontVariantNumeric: 'tabular-nums', textAlign: 'right' }}>—</Typography>}
       </Box>
     </Box>
   );
@@ -151,7 +155,7 @@ export default function SuggestedArticlesStep({
   });
 
   return (
-    <Box component="section" sx={{ display: 'grid', gap: 1.25 }}>
+    <FocusKeeper component="section" sx={{ display: 'grid', gap: 1.25 }}>
       <Typography variant="subtitle2">{title}</Typography>
       {(suggestions.length > 0 || search) && (
         <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
@@ -230,7 +234,7 @@ export default function SuggestedArticlesStep({
             const line = draftLines[index] || null;
             const refusal = refusalOf(entry.articleRef);
             return (
-              <Row key={`draft-${index}-${entry.articleRef}`} fresh name={entry.label} detail={line ? [line.detail, vatOf(line)].filter(Boolean).join(' · ') : null} line={line} refusal={refusal}>
+              <Row key={`draft-${index}-${entry.articleRef}`} fresh awaiting={!line && !refusal} name={entry.label} detail={line ? [line.detail, vatOf(line)].filter(Boolean).join(' · ') : null} line={line} refusal={refusal}>
                 <Stepper value={entry.quantity} max={entry.max} disabled={disabled} invalid={Boolean(refusal)} label={entry.label} onChange={(quantity) => onDraftChange(index, { quantity })} />
                 <Box sx={{ display: 'flex', gap: 0.75 }}>
                   <Button size="small" variant={entry.offered ? 'contained' : 'outlined'} aria-pressed={Boolean(entry.offered)} disabled={disabled} onClick={() => onDraftChange(index, { offered: !entry.offered })} sx={{ minHeight: 44, minWidth: 44, textTransform: 'none' }}>
@@ -243,6 +247,6 @@ export default function SuggestedArticlesStep({
           })}
         </Box>
       )}
-    </Box>
+    </FocusKeeper>
   );
 }

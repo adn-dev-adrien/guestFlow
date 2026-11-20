@@ -1,4 +1,4 @@
-// SDK 2.33.0 (specs/mixed-method-payments.md rule 51, specs/gift-vouchers.md rules 36-38) — what this plugin does with the opaque
+// SDK 2.33.0 (specs/mixed-method-payments.md rules 60-63, specs/gift-vouchers.md rules 36-38) — what this plugin does with the opaque
 // `prepaid` field of the public quote and booking request: it reads it, never interprets it, and shapes what the page shows. The
 // plugin names no instrument (a made-up « storedCredit » below); the amounts are the server's, acompte first.
 require('./isolatedDb');

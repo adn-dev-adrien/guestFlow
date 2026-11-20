@@ -6,7 +6,7 @@ import { screen, waitFor } from '@testing-library/react';
 import { vi } from 'vitest';
 
 import api from '../../../api';
-import { sasPayload, stayDue, renderDialog, clickBtn } from './sasFixtures';
+import { sasPayload, stayDue, renderDialog, clickBtn, stayPageReady } from './sasFixtures';
 import { previewLikeTheServer } from './sasPreviewFake';
 
 vi.mock('../../../hooks/usePlugins', () => ({ usePlugin: () => true }));
@@ -57,7 +57,7 @@ test('rule 117 — a 409 STAY_DUE_CHANGED shows its message and reads the recap 
   renderDialog({ mode: 'arrival' });
   await screen.findByText('Commencer');
   clickBtn('Commencer');
-  await screen.findByText('Séjour à régler :');
+  await stayPageReady();
   clickBtn('CB / Chèque');
   clickBtn('Suivant');
   await screen.findByText('Récapitulatif — à percevoir');

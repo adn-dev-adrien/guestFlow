@@ -562,6 +562,28 @@ once on the server by the refonte's components.
     own answer is neither refused nor failed (before: the same red message twice, or two « Réessayer »). The booking dialog already shows one: a
     refused draft has no price, hence no payment preview, and a failed one keeps its last price without a second message. Tests
     `ResourceArrivalDialog.invoice-answer`, `ResourceBookingDialog.invoice-answer`.
+    _Reading 2026-11-18 (loop t23 S23-1):_ a failed draft no longer keeps its last figures (plugins-phase-1-sdk rule 54 reading of the same
+    day): the arrival draws « Total », « Reste à payer », the VAT and the session amounts « — » and shows « — » instead of the payment until
+    a new answer, so the payment's invoice answer is not asked meanwhile (its single message is the draft's own, with one « Réessayer »,
+    which brings both back); the booking dialog's failed draft reads « Prix indisponible » with its « Réessayer » — the price on screen
+    before is not kept — and offers no payment, hence no second message. Tests `ResourceArrivalDialog.invoice-answer`,
+    `ResourceBookingDialog.invoice-answer`, `useLatestPreview.failed-recompute`.
+    _Reading 2026-11-18 (loop t24 UI24-2):_ the payment's invoice answer that failed together with the draft belongs to THAT payment
+    (plugins-phase-1-sdk rule 54 reading of the same day): once « Réessayer » brings the draft back, the payment the tenders report is asked
+    as a new question, drawn pending like any other, never under the older payment's « Facture non vérifiée pour ce paiement. » (before:
+    about a second of that message, measured in Chromium at 1280 px, while « Enregistrer et facturer » was already labelled). The message
+    and its « Réessayer » stay only while « Réessayer » asks that same payment again. Tests `ResourceArrivalDialog.invoice-answer`,
+    `ResourceBookingDialog.invoice-answer` (UI24-2).
+    _Reading 2026-11-18 (loop t24, second pass — nominal path):_ **the invoice question is asked only for the payment typed against the
+    draft on screen.** Before, an edit sent it at once with the edited draft and the payment still typed against the older amount; that
+    stale pair came back as a false refusal (« Les moyens font 50,00 € pour 37,50 € dus. »), drawn under « Facture » for about a second,
+    and the booking's save read « Enregistrer » instead of « Enregistrer et facturer » meanwhile (measured in Chromium at 1280 and 390 px,
+    every answer +800 ms, both dialogs). Now the question leaves once the draft's own answer is in (`fresh`) and the tenders have followed
+    it (`BookingPaymentFields` reports the `dueCents` its lines were typed against); until then the latest answer stays on screen and the
+    commit stays disabled. The booking's save reads « Calcul du prix… » while the price is asked, then the decision of the latest answer
+    (« Enregistrer et facturer »), never a plainer wording in between; the arrival's « Valider l’arrivée » does not change. Test
+    `SaleDialogs.commit-label-pending` (every screen previewing through `useLatestPreview`, read from the code, has a row or a fixed label;
+    each row edits the draft with a priced payment and records every label and every refusal drawn until the new answer).
     _Reading 2026-11-18 (loop t21, UI21-1):_ that answer always comes one quote after the content — the tender lines report their default card
     line on mount, and only then is the payment asked — so the « Facture » block landed late and moved the dialog (+34 px at 1280 px in the
     arrival: « Récapitulatif » and « Encaisser » 17 px up, the actions 17 px down; in the booking dialog « La facture se propose une fois le
@@ -573,11 +595,38 @@ once on the server by the refonte's components.
     enabled; a refusal that is not silent (a VAT or tariff rule, rule 36, …) → its one-line reason, the space below it kept; « Caisse
     interne » → its notice; a `silent` refusal → nothing shown, as before (UI3-5), the arrival's « Facture » section hidden in place
     (`visibility: hidden`, `aria-hidden`) instead of removed; a failed answer → the block stays pending (checkbox disabled) beside
-    « Facture non vérifiée pour ce paiement. ». The booking dialog keeps the same height for its outcomes (its silent answer shows « La
-    facture se propose une fois le paiement saisi. »). Only a gesture changes the block's size (« Pas maintenant », another payment, or the operator ticking or unticking the box, which
+    « Facture non vérifiée pour ce paiement. ». The booking dialog's block keeps the same minimum height for its outcomes; its silent answer
+    is not hidden but shows the block's own caption « La facture se propose une fois le paiement saisi. » (corrected 2026-11-18, loop t22:
+    the round-21 text said a silent refusal shows nothing in both dialogs — that is the arrival only). Only a gesture changes the block's size (« Pas maintenant », another payment, or the operator ticking or unticking the box, which
     drops the reserved height). A payment
     no longer readable shows « La facture se propose une fois le paiement saisi. ». The commit waits for the answer as before. Test
     `SaleDialogs.pending-blocks` (the four outcomes, table-driven, and the unticking gesture).
+    _Reading 2026-11-18 (loop t22, UI22-1/UI22-2; owner decision of 2026-11-18 on layout shifts):_ what the reserve guarantees, exactly:
+    on the **accepted** answer (the nominal path) nothing moves in either dialog — measured in Chromium at 1280 and 390 px, answer +0 and
+    +800 ms: « Récapitulatif » 120 / 492, « Paiement » 288 / 660, the actions 792 / 716 and the block 274 px in the arrival; « Facture »
+    1044 / 989 and the actions 808 / 767 in the booking dialog, whose save button now reads « Enregistrer et facturer » from the moment the
+    pending block is drawn ticked (it rewrapped at 390 px when the answer came: 784 → 775). On **another** outcome content may move and that
+    is accepted: in the arrival a refusal, « Caisse interne » or a silent answer drops the address fields, so the block's content moves
+    12 px up inside a section 316 → 304 px tall (nothing outside the section moves); in the booking dialog a failed check or a refused draft
+    shows its alert above the « Facture » section (+64 px at 1280, +84 px at 390). On **every** outcome: the address fields of a pending
+    block are disabled like its checkbox (`disabled={busy || pending}` — they stayed live, and an answer that removed the field being typed
+    in dropped the focus on the page and the text with it), and the block and both dialogs' contents are `FocusKeeper` regions
+    (plugins-phase-1-sdk rule 54 reading of 2026-11-18): an answer that removes or hides the field holding the focus leaves it on the block,
+    or on the dialog's content when the section is hidden. Tests `SaleDialogs.pending-blocks` (no usable control in a pending block),
+    `SaleDialogs.focus-on-answer` (the four outcomes of a second answer while the address holds the focus).
+    _Reading of 2026-11-19 (loop t25 verifier; owner decision « no action on an unknown value »):_ **while the answer for the payment being
+    typed is on its way, the block is pending — never the older payment's answer.** The arrival and the booking dialog kept the latest
+    answer on screen while the next one was asked (a new draft, the tenders following it — `invoiceAwaiting` — or a slow answer): about
+    2 s of « Créer la facture dans Qonto » ticked and clickable for a payment it did not answer (« Valider » stayed disabled and the commit
+    carried the right decision). Both now take the « Facture » answer only when it is `fresh` for the payment typed; until then the block
+    is drawn pending at its reserved height — checkbox disabled, ticked or not as the operator left it, address kept and disabled — and
+    the answer fills it: accepted, the checkbox is live again with the operator's state; refused, its reason. Measured in Chromium at 1280
+    and 390 px with a +800 ms answer and a refused one (arrival and booking): « ticked/disabled » from +100 ms, then « ticked/live » or the
+    reason, the focus on « Plus 15 minutes ». Tests `InvoiceBlock.pending-answer` (4), `SaleDialogs.focus-on-answer` (the address is typed
+    against the current answer; during the next one it is kept and disabled).
+    _Reading of 2026-11-19 (loop t26, plugins-phase-1-sdk rule 58):_ the payment lines typed at « Payé maintenant » / « Maintenant » stay as
+    typed when the due moves (an article, the offered time) and after a failed quote (mixed-method-payments rule 59 reading of the same
+    day); « Valider l’arrivée » and the booking's save keep the focus in their actions row while busy (`MoneyActions`).
 55. **One money model for a document: every cent on a line or on no line** _(stabilisation loop t3, B3-1, B3-2, B3-3, 2026-11-16; completes rules 41,
     44, 49, 50, 52, 53 and refonte rules 72, 74, 75)_. Every cent a document received sits either on one of its lines or **on no line** — its
     *unallocated money*: a link paid above the reste (rule 41), net of what was given back or kept from it (`payment_allocations` with `lineRef` NULL).
@@ -945,7 +994,9 @@ number; `prefers-reduced-motion` → no movement.
 - [x] (C38) `components/__tests__/StandaloneSaleDialog.counter.test.jsx`, `StandaloneSalesTodayCard.list.test.jsx`, `ExternalSaleFields.fields.test.jsx`; `plugins/hourly-resources/__tests__/ResourceBookingDialog.no-show.test.jsx`; `PlanningResourceCard.test.jsx` gains the « Reste » and « Absent » cases; `SuggestedArticlesStep.worst-case.test.jsx` — the break-ui pass (a 120-character label, an emoji-first label, 99, 1, none, a thousand results)
 - [x] (loop t2, rule 51) `ResourceBookingDialog.no-show.test.jsx` (rewritten on the row's `actions`, no second read, 5), `PlanningResourceCard.test.jsx` and `PlanningResourceCard.open-booking.test.jsx` (« Arrivée » on `actions.arrive`), `ResourceArrivalDialog.invoice-reason.test.jsx` (2), `pages/options/__tests__/externalSaleForm.emptied-rate.test.js` (1); named after the fact (P2-2): `ResourceArrivalDialog.withdraw-link.test.jsx` — rule 45 (`access.withdrawLink`)
 - [x] (loop t2, rules 49 reading, 52-54) server `standalone-sale-lowered-line-in-step` (6), `pricing-refunds-document-rows` (7: +1 loop t5 D5-4), plugin `visit-draft-invoiceable` (4); client `ResourceArrivalDialog.invoice-from-server.test.jsx` (2), `ResourceBookingDialog.invoice-from-server.test.jsx` (2); the arrival suites' quote fixtures answer `invoiceable` for a payment typed
-- [x] (loop t3, rule 54 reading) plugin `visit-draft-invoice-reason` (3); client `ResourceArrivalDialog.invoice-answer.test.jsx` (7: +2 loop t4 UI4-3, +1 loop t5 UI5-2), `ResourceBookingDialog.invoice-answer.test.jsx` (5: +2 loop t4 UI4-3)
+- [x] (loop t3, rule 54 reading) plugin `visit-draft-invoice-reason` (3); client `ResourceArrivalDialog.invoice-answer.test.jsx` (8: +2 loop t4 UI4-3, +1 loop t5 UI5-2, +1 loop t24 UI24-2), `ResourceBookingDialog.invoice-answer.test.jsx` (6: +2 loop t4 UI4-3, +1 loop t24 UI24-2); loop t23 S23-1: the arrival's UI4-3 / UI5-2 and the booking's UI4-3 rewritten for a failed draft that keeps no figure, same counts
+- [x] (loop t25, rule 54 reading of 2026-11-19) `plugins/hourly-resources/__tests__/InvoiceBlock.pending-answer.test.jsx` (4) — the visit's and the booking's « Facture » block pending (checkbox disabled as left, address kept) until the fresh answer for the payment typed, slow and refused
+- [x] (loop t26 UI26-1, plugins-phase-1-sdk rule 54 reading of 2026-11-19) `hooks/__tests__/useLatestPreview.non-amount-fields.test.jsx` (8) — the counter sale (rule 8a): the e-mail, the name and « Enregistrer comme client » typed key by key keep the Total, the payment and the typed tender lines (and, in « Envoyer un lien », the mode switch); the quote carries an address once it is one, « Enregistrer comme client » once a name is there
 - [x] (loop t1, rule 48) `plugins/hourly-resources/__tests__/ResourceBookingDialog.no-show.test.jsx` (rewritten on `actions.noShow`, 4), `ResourceArrivalDialog.invoiceable.test.jsx` (3), `ResourceArrivalDialog.vat-rate.test.jsx` (2), `ResourceArrivalDialog.new-sale.test.jsx` (2); `components/__tests__/SalePaymentLink.expires-label.test.jsx` (3), `StandaloneSalesTodayCard.owed-day.test.jsx` (2), `ExternalSaleFields.server-labels.test.jsx` (2)
 
 ### E2E

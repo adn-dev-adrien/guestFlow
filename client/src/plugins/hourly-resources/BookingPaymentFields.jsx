@@ -6,7 +6,10 @@
  *
  * Props:
  *   dueCents  number — the amount due (the booking's total; the visit's reste)
- *   value     { tenders, shortfall, canSubmit, gapCents, paidAt } | null
+ *   value     { tenders, shortfall, canSubmit, gapCents, paidAt, dueCents, draft } | null — `dueCents` is the amount the lines were typed
+ *             against, so a screen can tell a payment of the amount on screen from one still on an older amount (loop t24); `draft` the
+ *             lines as the operator left them: the block drawn again (a failed quote, a new due) shows them as typed, the default line of
+ *             the whole due following the due (specs/plugins-phase-1-sdk.md rule 58 I3, loop t26)
  *   whole     boolean (default true) — the amount is paid whole; false on the mini SAS, where a gap is a « Reste à percevoir »
  *   shortfallKinds  ['due'] — passed to `TenderLines` when `whole` is false (specs/outside-booking-sas.md rule 17)
  *   onChange  (next) => void
@@ -28,15 +31,16 @@ export default function BookingPaymentFields({
   return (
     <Box sx={{ display: 'grid', gap: 1.5 }}>
       <TenderLines
-        key={dueCents}
         dueCents={dueCents}
+        initialDraft={value && value.draft ? value.draft : null}
         whole={whole}
         shortfallKinds={shortfallKinds}
         initialTenders={[{ method: 'card', amountCents: dueCents, internal: false }]}
+        defaultLine
         onChange={({
-          tenders, shortfall, canSubmit, gapCents,
+          tenders, shortfall, canSubmit, gapCents, dueCents: answered, live, draft,
         }) => onChange({
-          tenders, shortfall, gapCents, canSubmit: whole ? canSubmit && gapCents === 0 : canSubmit, paidAt,
+          tenders, shortfall, gapCents, canSubmit: whole ? canSubmit && gapCents === 0 : canSubmit, paidAt, dueCents: answered, live, draft,
         })}
         disabled={disabled}
       />
@@ -54,6 +58,12 @@ export default function BookingPaymentFields({
     </Box>
   );
 }
+
+/**
+ * The payment a dialog may commit (loop t25, mixed-method-payments rule 59): the last report only while it answers the due on screen —
+ * between a new due and the lines' report for it, the older one (amounts, shortfall) is pending, for the button and the request alike.
+ */
+export const paymentForDue = (value, dueCents) => (value && value.dueCents === dueCents && (!value.live || value.live()) ? value : null);
 
 /** What the server is told: the lines, or null when nothing is typed. */
 export function paymentBody(value) {

@@ -10,6 +10,8 @@
  *   heading    ReactNode — « 19:00 → 21:00 · 2 h », shown on the first row
  *   pending    boolean — a newer answer is coming (the figures dim)
  *   offerSlot  ReactNode — rendered under the « Temps offert » line (the stepper), or null when read-only
+ *   unknown    boolean — the last request failed (loop t23): `price` is the last answer, kept for its layout only; every amount and
+ *              detail reads « — », so the stepper stays where the operator is using it
  */
 import React from 'react';
 import { Box, Typography } from '@mui/material';
@@ -17,21 +19,21 @@ import { formatCurrency } from '../sdk';
 
 const GRID_LABELS = { external: 'Tarif extérieur', guest: 'Tarif client du séjour' };
 
-function Line({ label, detail, amount, children }) {
+function Line({ label, detail, amount, children, unknown = false }) {
   const negative = amount < 0;
   return (
     <Box sx={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) auto', columnGap: 1.5, py: 0.75, borderTop: 1, borderColor: 'divider', '&:first-of-type': { borderTop: 0 } }}>
       <Typography variant="body2">{label}</Typography>
       <Typography variant="body2" sx={{ fontWeight: 600, textAlign: 'right', fontVariantNumeric: 'tabular-nums', color: negative ? 'success.main' : 'text.primary' }}>
-        {negative ? `−${formatCurrency(-amount)}` : formatCurrency(amount)}
+        {unknown ? '—' : (negative ? `−${formatCurrency(-amount)}` : formatCurrency(amount))}
       </Typography>
-      {detail ? <Typography variant="caption" color="text.secondary" sx={{ gridColumn: 1 }}>{detail}</Typography> : null}
+      {detail && !unknown ? <Typography variant="caption" color="text.secondary" sx={{ gridColumn: 1 }}>{detail}</Typography> : null}
       {children ? <Box sx={{ gridColumn: '1 / -1', pt: 0.5 }}>{children}</Box> : null}
     </Box>
   );
 }
 
-export default function ResourceBookingSummary({ price, heading, pending = false, offerSlot = null }) {
+export default function ResourceBookingSummary({ price, heading, pending = false, offerSlot = null, unknown = false }) {
   const offered = (price.lines || []).find((l) => l.key === 'offered');
   const others = (price.lines || []).filter((l) => l.key !== 'offered');
   return (
@@ -41,19 +43,19 @@ export default function ResourceBookingSummary({ price, heading, pending = false
         {price.rateGrid ? <Typography variant="caption" color="text.secondary">{GRID_LABELS[price.rateGrid] || ''}</Typography> : null}
       </Box>
       <Box sx={{ mt: 0.5 }}>
-        {others.map((l) => <Line key={l.key} label={l.label} detail={l.detail} amount={l.amount} />)}
+        {others.map((l) => <Line key={l.key} label={l.label} detail={l.detail} amount={l.amount} unknown={unknown} />)}
         {(offered || offerSlot) && (
-          <Line label="Temps offert" detail={offerSlot ? null : (offered ? offered.detail : 'Aucun')} amount={offered ? offered.amount : 0}>
+          <Line label="Temps offert" detail={offerSlot ? null : (offered ? offered.detail : 'Aucun')} amount={offered ? offered.amount : 0} unknown={unknown}>
             {offerSlot}
           </Line>
         )}
       </Box>
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', pt: 1, mt: 0.5, borderTop: 1, borderColor: 'text.primary' }}>
         <Typography variant="body2">Total TTC</Typography>
-        <Typography sx={{ fontFamily: (t) => t.typography.pageTitle?.fontFamily, fontWeight: 700, fontSize: '1.3rem', fontVariantNumeric: 'tabular-nums' }}>{formatCurrency(price.total)}</Typography>
+        <Typography sx={{ fontFamily: (t) => t.typography.pageTitle?.fontFamily, fontWeight: 700, fontSize: '1.3rem', fontVariantNumeric: 'tabular-nums' }}>{unknown ? '—' : formatCurrency(price.total)}</Typography>
       </Box>
       <Typography variant="caption" color="text.secondary" sx={{ display: 'block', textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
-        {price.vat ? `dont TVA ${String(price.vat.rate).replace('.', ',')} % : ${formatCurrency(price.vat.amount)} · HT ${formatCurrency(price.vat.net)}` : 'TVA non applicable'}
+        {unknown ? '—' : price.vat ? `dont TVA ${String(price.vat.rate).replace('.', ',')} % : ${formatCurrency(price.vat.amount)} · HT ${formatCurrency(price.vat.net)}` : 'TVA non applicable'}
       </Typography>
     </Box>
   );

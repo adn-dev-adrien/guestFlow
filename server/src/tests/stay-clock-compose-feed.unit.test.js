@@ -7,7 +7,7 @@ const assert = require('node:assert/strict');
 const Database = require('better-sqlite3');
 
 const { create: createReservationsModel } = require('../models/reservationsModel');
-const { todayIso } = require('../utils/localDate');
+const { todayIso, withNow } = require('../utils/localDate');
 const { addDaysToIsoDate } = require('../utils/devisHelpers');
 
 function modelDb({ startDate, endDate, checkInTime = null, checkInDone = 0, arrivalSasDoneAt = null }) {
@@ -27,23 +27,31 @@ function modelDb({ startDate, endDate, checkInTime = null, checkInDone = 0, arri
 }
 const day = (n) => addDaysToIsoDate(todayIso(), n);
 
-test('the baseline follows the clock: started and not marked → due; not started and marked → not due', () => {
-  const startedUnmarked = createReservationsModel(modelDb({ startDate: day(-1), endDate: day(2) }));
-  assert.notEqual(startedUnmarked.resolveArrivalExtrasBaseline(1), null);
-  assert.equal(startedUnmarked.arrivalBaselineNotDue(1), false);
+// The day before the arrival day of the next test, at noon in Paris: one fixed moment, whatever the process zone (rule 6).
+const NOW = new Date('2099-10-09T12:00:00+01:00');
 
-  const futureMarked = createReservationsModel(modelDb({ startDate: day(3), endDate: day(5), checkInDone: 1, arrivalSasDoneAt: '2026-01-01 10:00:00' })); // date-literal-ok — fixture rows written by raw SQL and read back by key, no write path checks them against today
-  assert.equal(futureMarked.resolveArrivalExtrasBaseline(1), null);
-  assert.equal(futureMarked.arrivalBaselineNotDue(1), true);
+test('the baseline follows the clock: started and not marked → due; not started and marked → not due', () => {
+  const startedUnmarked = createReservationsModel(modelDb({ startDate: '2099-10-08', endDate: '2099-10-11' }));
+  assert.notEqual(withNow(NOW, () => startedUnmarked.resolveArrivalExtrasBaseline(1)), null);
+  assert.equal(withNow(NOW, () => startedUnmarked.arrivalBaselineNotDue(1)), false);
+
+  const futureMarked = createReservationsModel(modelDb({ startDate: '2099-10-12', endDate: '2099-10-14', checkInDone: 1, arrivalSasDoneAt: '2026-01-01 10:00:00' })); // date-literal-ok — fixture rows written by raw SQL and read back by key, no write path checks them against today
+  assert.equal(withNow(NOW, () => futureMarked.resolveArrivalExtrasBaseline(1)), null);
+  assert.equal(withNow(NOW, () => futureMarked.arrivalBaselineNotDue(1)), true);
 });
 
 test('on the arrival day the check-in time decides, or the arrival validated before it (rule 102, loop t2 N-3)', () => {
-  const beforeTime = createReservationsModel(modelDb({ startDate: todayIso(), endDate: day(2), checkInTime: '23:59' }));
-  assert.equal(beforeTime.resolveArrivalExtrasBaseline(1), null, 'unmarked, and 23:59 has not passed');
-  const markedEarly = createReservationsModel(modelDb({ startDate: todayIso(), endDate: day(2), checkInTime: '23:59', checkInDone: 1 }));
-  assert.notEqual(markedEarly.resolveArrivalExtrasBaseline(1), null, 'marked before 23:59: the guest is there, the stay has started (the lock says so too)');
-  const afterTime = createReservationsModel(modelDb({ startDate: todayIso(), endDate: day(2), checkInTime: '00:00' }));
-  assert.notEqual(afterTime.resolveArrivalExtrasBaseline(1), null, 'unmarked, but 00:00 has passed');
+  // The gesture's moment is fixed (`withNow`): the stay clock judges in Paris whatever the process zone or the runner's hour
+  // (specs/server-test-isolation.md rule 6, reading of 2026-11-19). 10:00 and 18:00 at +01:00 stay on their side of 16:00 in
+  // winter and in summer time.
+  const stay = { startDate: '2099-10-10', endDate: '2099-10-12', checkInTime: '16:00' };
+  const morning = new Date('2099-10-10T10:00:00+01:00');
+  const evening = new Date('2099-10-10T18:00:00+01:00');
+  const unmarked = createReservationsModel(modelDb(stay));
+  assert.equal(withNow(morning, () => unmarked.resolveArrivalExtrasBaseline(1)), null, 'unmarked, and 16:00 has not passed');
+  const markedEarly = createReservationsModel(modelDb({ ...stay, checkInDone: 1 }));
+  assert.notEqual(withNow(morning, () => markedEarly.resolveArrivalExtrasBaseline(1)), null, 'marked before 16:00: the guest is there, the stay has started (the lock says so too)');
+  assert.notEqual(withNow(evening, () => unmarked.resolveArrivalExtrasBaseline(1)), null, 'unmarked, but 16:00 has passed');
 });
 
 test('a collected complement still closes the question, started or not (rule 21)', () => {

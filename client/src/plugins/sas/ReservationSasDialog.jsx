@@ -13,7 +13,7 @@
 
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
-  Dialog, DialogContent, DialogActions, Button, Box, Typography, Stack,
+  Dialog, DialogContent, Button, Box, Typography, Stack,
   CircularProgress, TextField, Link, Divider, Chip, Switch, useMediaQuery,
   LinearProgress, IconButton,
 } from '@mui/material';
@@ -50,7 +50,7 @@ import {
   api, getPlatformColor, formatPlatformLabel, ConfirmDialog, OccurrenceGrid, LoadingState, ErrorAlert,
   useToast, useAppDialogs, SasKeypadCode, formatCurrency, displayDate, displayDateLong, PRICE_TYPE_LABELS,
   sasLockTitle, sasLockMessage, Slot, Contribution, useSlot, WheatIcon, BaguetteIcon, StatusBadge,
-  TenderLines, TENDER_TEXTS, StaySalesSection, useSaleComponentsReady,
+  TenderLines, TENDER_TEXTS, tendersForDue, StaySalesSection, useSaleComponentsReady, FocusKeeper, MoneyActions,
 } from '../sdk';
 import OfferableLine from './OfferableLine';
 import buildArrivalDraft from './arrivalDraft';
@@ -132,7 +132,8 @@ function StepLayout({ Icon, color, children }) {
           <Icon sx={{ fontSize: 48 }} />
         </Box>
       )}
-      <Box sx={{ width: '100%', '& .MuiTypography-body1': { fontSize: '1.1rem' }, '& .MuiTypography-body2': { fontSize: '0.95rem' } }}>{children}</Box>
+      {/* Loop t22 UI22-1 — an answer (or « Réessayer ») that removes the control holding the focus leaves it on the page's content. */}
+      <FocusKeeper sx={{ width: '100%', '& .MuiTypography-body1': { fontSize: '1.1rem' }, '& .MuiTypography-body2': { fontSize: '0.95rem' } }}>{children}</FocusKeeper>
     </Stack>
   );
 }
@@ -207,6 +208,12 @@ const MAX_SAS_COUNT = 999;
 // an end-of-stay complement collected elsewhere takes no charge nor sale).
 const saidByTheServer = (error) => error?.error === 'INVALID_QUANTITY' || error?.code === 'END_OF_STAY_ALREADY_COLLECTED';
 function RecapPreviewError({ error, onRetry, onBack, unavailable = 'Total indisponible : pas de réponse du serveur.' }) {
+  // Loop t22 UI22-3 — the failure disables the page's money buttons: if one of them held the focus, the way out takes it.
+  const action = useRef(null);
+  useLayoutEffect(() => {
+    const active = document.activeElement;
+    if (action.current && (!active || active === document.body || active.disabled)) action.current.focus({ preventScroll: true });
+  }, []);
   if (saidByTheServer(error)) {
     return (
       <Box role="alert" sx={(t) => ({ bgcolor: alpha(t.palette.error.main, 0.08), color: 'error.dark', borderRadius: 1.5, px: 1.5, py: 1 })}>
@@ -221,7 +228,7 @@ function RecapPreviewError({ error, onRetry, onBack, unavailable = 'Total indisp
         <Typography variant="body2" sx={{ fontWeight: 600 }}>
           {refused ? (RECAP_REFUSALS[error?.error] || 'Le récapitulatif est refusé.') : unavailable}
         </Typography>
-        <Button size="small" color="inherit" onClick={refused ? onBack : onRetry} sx={{ minHeight: 44 }}>
+        <Button ref={action} size="small" color="inherit" onClick={refused ? onBack : onRetry} sx={{ minHeight: 44 }}>
           {refused ? 'Revenir à l’étape' : 'Réessayer'}
         </Button>
       </Stack>
@@ -709,6 +716,27 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
     if (i > 0) setStepKey(activeKeys[i - 1]);
   }, [activeKeys, stepKey]);
 
+  // Loop t22 (owner decision 2026-11-18: lost focus is a defect on every path) — a step change replaces the page and the footer: the
+  // control that moved the wizard (« Suivant », an answer, « Précédent ») is often gone and the focus fell on the page, or React kept
+  // the same button for the next page's answer (« Non » of the keys became « Non » of the extinguisher, « Suivant » became « Valider et
+  // terminer »), so a second Enter answered a question never read. After every transition, forward or back, the focus goes to the new
+  // step's title in the band when it was lost or sat on the band or the footer; a focus inside the page itself stays.
+  const stepTitleRef = useRef(null);
+  const bandRef = useRef(null);
+  const footerRef = useRef(null);
+  const shownStepRef = useRef(null);
+  useLayoutEffect(() => {
+    const shown = `${stepKey}:${commitWarning ? 1 : 0}`;
+    const previous = shownStepRef.current;
+    shownStepRef.current = shown;
+    if (previous === null || previous === shown || !stepTitleRef.current) return;
+    const active = document.activeElement;
+    const lost = !active || active === document.body || !active.isConnected || active.disabled === true;
+    const onChrome = [bandRef.current, footerRef.current].some((zone) => zone && zone.contains(active));
+    if (lost || onChrome) stepTitleRef.current.focus({ preventScroll: true });
+  }, [stepKey, commitWarning]);
+  useEffect(() => { if (!open) shownStepRef.current = null; }, [open]);
+
   // A plugin page whose data just emptied (its last order removed from the page itself) is no longer an active page: hand over to
   // the recap rather than leave « Suivant » reading an index of -1.
   useEffect(() => {
@@ -868,6 +896,10 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
   // specs/mixed-method-payments.md rule 32 — the arrival lines only stand for the single payment (one amount asked).
   const arrivalSplitActive = mode === 'arrival' && arrivalTenderOpen && Boolean(recap && recap.unifiable)
     && activeKeys.includes('stayPayment') && !splitSettlement;
+  // Loop t25 — the lines' report counts only for the due on screen (`tendersForDue`): right after the recap's due moved, the older report
+  // (and its shortfall choice) is pending, for the button and for the commit.
+  const arrivalTendersNow = tendersForDue(arrivalTenders, recap ? Math.round(Number(recap.totalAtArrival) * 100) : null);
+  const departureTendersNow = tendersForDue(departureTenders, recap ? Math.round(Number(recap.grandTotal) * 100) : null);
   // specs/sas-departure-recap-server-side.md rule 9 — a stored line's key is recomputed by the server at
   // every preview (a mid-stay sync can rewrite the detail between the load and the recap): the draft
   // follows the keys of the LAST answer, and a line the server reports offered under a key never seen
@@ -984,6 +1016,9 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
     }
   };
   const commit = async () => {
+    // Loop t25 — never send lines (or a shortfall choice) answering another due than the one on screen: the button is disabled then too.
+    const splitNow = mode === 'departure' ? (departureSplitActive ? departureTendersNow : undefined) : (arrivalSplitActive ? arrivalTendersNow : undefined);
+    if (splitNow !== undefined && !(splitNow && splitNow.canSubmit && splitNow.live())) return;
     setCommitting(true); setError('');
     try {
       if (mode === 'arrival') {
@@ -1006,8 +1041,8 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
           arrivalPaymentMode: arrivalSplitActive ? 'split' : arrivalPayMode,
           arrivalPaymentSplit: splitSettlement,
           ...(arrivalSplitActive ? {
-            arrivalPaymentTenders: arrivalTenders ? arrivalTenders.tenders : [],
-            ...(arrivalTenders && arrivalTenders.shortfall ? { arrivalPaymentShortfall: arrivalTenders.shortfall } : {}),
+            arrivalPaymentTenders: arrivalTendersNow ? arrivalTendersNow.tenders : [],
+            ...(arrivalTendersNow && arrivalTendersNow.shortfall ? { arrivalPaymentShortfall: arrivalTendersNow.shortfall } : {}),
           } : {}),
           complementSettled: arrivalPayMode === 'card' || arrivalPayMode === 'cash',
           complementPaidCash: arrivalPayMode === 'cash',
@@ -1057,8 +1092,8 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
           complementsPaidCash: !departureSplitActive && departurePayMode === 'cash',
           displayedDepartureTotal: recap ? recap.grandTotal : undefined,
           ...(departureSplitActive ? {
-            complementsTenders: departureTenders ? departureTenders.tenders : [],
-            ...(departureTenders && departureTenders.shortfall ? { complementsShortfall: departureTenders.shortfall } : {}),
+            complementsTenders: departureTendersNow ? departureTendersNow.tenders : [],
+            ...(departureTendersNow && departureTendersNow.shortfall ? { complementsShortfall: departureTendersNow.shortfall } : {}),
           } : {}),
         });
         if (result && result.cancelled) return;
@@ -1134,11 +1169,11 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
   // when the server answers, and until then the last figures stay, dimmed. No figure of ours fills the gap.
   function renderDepartureRecap() {
     if (!recap) {
-      return preview.error && !preview.pending
+      return preview.error
         ? <RecapPreviewError error={preview.error} onRetry={preview.retry} onBack={backToRefusingStep} />
         : <LoadingState />;
     }
-    const failed = Boolean(preview.error) && !preview.pending;
+    const failed = preview.failed;
     const shown = (value) => (failed ? '—' : formatCurrency(value));
     const lineText = (l) => {
       const qty = Number(l.qty || 0);
@@ -1239,7 +1274,10 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
             <Typography variant="body2" sx={{ fontWeight: 600 }}>Règlement</Typography>
             {!departureSplitActive && <PaymentModeButtons value={departurePayMode} onChange={setDeparturePayMode} showDefer={false} />}
             {departureSplitActive && (
-              <TenderLines dueCents={Math.round(Number(recap.grandTotal) * 100)} onChange={setDepartureTenders} autoFocus />
+              // Loop t24 — the lines the operator typed come back as typed when the block reappears (a recovery, the due back from 0).
+              // Loop t25 UI25-2 — the first amount takes the focus only when the operator opens the block (the toggle empties the lines); a
+              // remount with lines of their own (a recovery, the due back from 0) leaves the focus on the control they just used.
+              <TenderLines dueCents={Math.round(Number(recap.grandTotal) * 100)} onChange={setDepartureTenders} initialDraft={departureTenders ? departureTenders.draft : null} autoFocus={!departureTenders} />
             )}
             {/* specs/mixed-method-payments.md rule 45 — reception records the check-out with one method. */}
             {canSplitPayment && <Button
@@ -1339,12 +1377,21 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
             {caution === 'aucune' && <Chip label="Aucune caution pour ce séjour" color="error" variant="outlined" sx={{ alignSelf: 'flex-start' }} />}
           </Stack>
         );
-      case 'stayPayment':
+      case 'stayPayment': {
+        // Rule 117 (loop t22 UI22-3) — the amounts are the plan's: « — » until it answered, and while it fails. A failure says so with
+        // « Réessayer » (as the breakfast page), and the settlement buttons wait for an amount: none can be chosen on « — ».
+        const stayUnknown = !recap || preview.failed;
         return (
-          <SasStayPaymentPage stayPayment={recap ? recap.stayPayment : data.stayPayment} pending={!recap} value={stayPayMode}>
-            <PaymentModeButtons value={stayPayMode} onChange={setStayPayMode} showDefer deferLabel="Pas maintenant" />
-          </SasStayPaymentPage>
+          <Stack spacing={1.5}>
+            <SasStayPaymentPage stayPayment={recap ? recap.stayPayment : data.stayPayment} pending={stayUnknown} value={stayPayMode}>
+              <PaymentModeButtons value={stayPayMode} onChange={setStayPayMode} showDefer deferLabel="Pas maintenant" disabled={stayUnknown} />
+            </SasStayPaymentPage>
+            {preview.error && (
+              <RecapPreviewError error={preview.error} onRetry={preview.retry} onBack={backToRefusingStep} unavailable="Montant indisponible" />
+            )}
+          </Stack>
         );
+      }
       case 'options': {
         const opts = (r.options || []);
         const reslist = (r.resources || []);
@@ -1486,7 +1533,7 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
         const bf = salesOffer.breakfast;
         const chosen = breakfastMornings.filter((m) => m.checked).length;
         const served = servedFor(bf, breakfastServed);
-        const sale = recap && !preview.error ? recap.sales?.breakfast : null;
+        const sale = recap && !preview.failed ? recap.sales?.breakfast : null;
         return (
           <Stack spacing={1}>
             <Typography variant="body1" sx={{ fontWeight: 600 }}>Quels matins ?</Typography>
@@ -1548,7 +1595,7 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
               const picked = Boolean(cateringPicked[o.optionId]);
               const served = servedFor(o, cateringServed[o.optionId]);
               const units = o.showsPlanningCard ? chosen : Number(cateringUnits[o.optionId]) || 0;
-              const sale = recap && !preview.error
+              const sale = recap && !preview.failed
                 ? (recap.sales?.catering?.options || []).find((x) => Number(x.optionId) === Number(o.optionId)) : null;
               const amount = money(sale ? sale.amount : null);
               return (
@@ -1634,7 +1681,7 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
               );
             })}
             <Typography variant="body2" sx={{ fontWeight: 700, pt: 1, ...previewDim }}>
-              Total restauration : {money(recap && !preview.error ? recap.sales?.catering?.amount ?? 0 : null)}
+              Total restauration : {money(recap && !preview.failed ? recap.sales?.catering?.amount ?? 0 : null)}
             </Typography>
             {preview.error && (
               <RecapPreviewError error={preview.error} onRetry={preview.retry} onBack={backToRefusingStep} unavailable="Montant indisponible" />
@@ -1693,8 +1740,12 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
               <>
                 <Divider />
                 <Typography variant="body2" sx={{ fontWeight: 700, fontVariantNumeric: 'tabular-nums', ...previewDim }}>
-                  Sous-total : {recap && !preview.error ? formatCurrency(recap.extinguisherTotal) : '—'}
+                  Sous-total : {recap && !preview.failed ? formatCurrency(recap.extinguisherTotal) : '—'}
                 </Typography>
+                {/* Loop t22 UI22-3 — a failed preview says so, with its way out, instead of « — » for ever. */}
+                {preview.error && (
+                  <RecapPreviewError error={preview.error} onRetry={preview.retry} onBack={backToRefusingStep} unavailable="Montant indisponible" />
+                )}
               </>
             )}
           </Stack>
@@ -1710,11 +1761,11 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
           // may be deferred to the check-out while the other is collected at the door.
           const stayStep = activeKeys.includes('stayPayment');
           if (!recap) {
-            return preview.error && !preview.pending
+            return preview.error
               ? <RecapPreviewError error={preview.error} onRetry={preview.retry} onBack={backToRefusingStep} />
               : <LoadingState />;
           }
-          const failed = Boolean(preview.error) && !preview.pending;
+          const failed = preview.failed;
           const total = recap.arrivalComplementTotal;
           const stayDue = stayStep ? recap.stayDue : 0;
           // specs/single-payment-at-check-in.md §3.1 rule 1 — both sides collectible at the door, the
@@ -1742,7 +1793,7 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
                 <>
                   <Typography variant="body1" sx={{ fontWeight: 600, fontVariantNumeric: 'tabular-nums', ...previewDim }}>Séjour : {shown(stayDue)}</Typography>
                   <Typography variant="body2" sx={{ fontWeight: 600 }}>Règlement du séjour</Typography>
-                  <PaymentModeButtons value={stayPayMode} onChange={setStayPayMode} showDefer deferLabel="Pas maintenant" />
+                  <PaymentModeButtons value={stayPayMode} onChange={setStayPayMode} showDefer deferLabel="Pas maintenant" disabled={settleBlocked} />
                   {stayPayMode === 'defer' && (
                     <Typography variant="body2" color="text.secondary">Le séjour reste dû (rien n'est encaissé).</Typography>
                   )}
@@ -1837,8 +1888,14 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
                   {!arrivalTenderOpen && (
                     <PaymentModeButtons value={arrivalPayMode} onChange={setArrivalPayMode} showDefer deferLabel="Plus tard" disabled={settleBlocked} />
                   )}
-                  {arrivalTenderOpen && (
-                    <TenderLines dueCents={Math.round(Number(recap.totalAtArrival) * 100)} onChange={setArrivalTenders} disabled={settleBlocked} autoFocus />
+                  {/* Loop t24 A24-2 — the lines are typed against the answer's total: after a failed recompute no line keeps the
+                      older amount; they come back as the operator left them with the next answer (mixed-method-payments rule 59).
+                      Loop t25 UI25-2 — and without taking the focus: only the operator's opening of the block focuses the first amount. */}
+                  {arrivalTenderOpen && !failed && (
+                    <TenderLines dueCents={Math.round(Number(recap.totalAtArrival) * 100)} onChange={setArrivalTenders} initialDraft={arrivalTenders ? arrivalTenders.draft : null} disabled={settleBlocked} autoFocus={!arrivalTenders} />
+                  )}
+                  {arrivalTenderOpen && failed && (
+                    <Typography variant="body2" color="text.secondary" data-testid="tenders-unknown">À encaisser : —</Typography>
                   )}
                   <Button
                     size="small"
@@ -2030,10 +2087,13 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
         // Rule 20 / rule 19 of the departure spec — never commit against a total the operator has not seen.
         const waiting = !preview.fresh;
         // specs/mixed-method-payments.md §6 — with the lines open, the button names what it collects.
-        const tenders = mode === 'departure' ? (departureSplitActive ? departureTenders : null) : (arrivalSplitActive ? arrivalTenders : null);
+        const tenders = mode === 'departure' ? (departureSplitActive ? departureTendersNow : null) : (arrivalSplitActive ? arrivalTendersNow : null);
         const splitting = mode === 'departure' ? departureSplitActive : arrivalSplitActive;
         const splitDue = recap ? Number(mode === 'departure' ? recap.grandTotal : recap.totalAtArrival) || 0 : 0;
-        const splitLabel = TENDER_TEXTS.collect(formatCurrency(tenders && tenders.gapCents > 0 ? tenders.receivedCents / 100 : splitDue));
+        // Loop t24 A24-2 — after a failed recompute the amount is unknown: the button names no figure of the older answer.
+        // Loop t25 — while the lines have not reported for the due on screen (`tenders` null) the label names that due, never an older
+        // report's amount, and the button waits; « — » only when the due itself is unknown (a failed recompute).
+        const splitLabel = TENDER_TEXTS.collect(preview.failed ? '—' : formatCurrency(tenders && tenders.gapCents > 0 ? tenders.receivedCents / 100 : splitDue));
         return <>{quit}
           <Button
             variant="contained"
@@ -2105,14 +2165,14 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
     <Dialog open={open} onClose={committing ? undefined : onClose} maxWidth="sm" fullWidth fullScreen={fullScreen}
       disableAutoFocus disableEnforceFocus disableRestoreFocus>
       {/* Mode-coloured header band (specs/arrival-departure-sas.md §6 refonte). The ✕ IS the Quitter. */}
-      <Box sx={{ bgcolor: modeColor, color: 'common.white', px: { xs: 2, sm: 3 }, pt: 1.5, pb: stepIdx >= 0 ? 1 : 1.5 }}>
+      <Box ref={bandRef} sx={{ bgcolor: modeColor, color: 'common.white', px: { xs: 2, sm: 3 }, pt: 1.5, pb: stepIdx >= 0 ? 1 : 1.5 }}>
         <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center' }}>
           {stepIdx > 0 && (
             <IconButton onClick={goBack} disabled={committing} sx={{ color: 'common.white', ml: -0.5 }} aria-label="Précédent"><ArrowBackIcon /></IconButton>
           )}
           {StepIcon && <StepIcon sx={{ fontSize: 28 }} />}
           <Box sx={{ flex: 1, minWidth: 0 }}>
-            <Typography variant="sectionHeader" sx={{ display: 'block', lineHeight: 1.2, textTransform: 'uppercase', letterSpacing: 0.5, color: 'inherit' }}>{bandTitle}</Typography>
+            <Typography ref={stepTitleRef} tabIndex={-1} data-testid="sas-step-title" data-step={stepKey} variant="sectionHeader" sx={{ display: 'block', lineHeight: 1.2, textTransform: 'uppercase', letterSpacing: 0.5, color: 'inherit', outline: 'none' }}>{bandTitle}</Typography>
             {r && <Typography variant="caption" noWrap sx={{ display: 'block', opacity: 0.9 }}>{r.firstName} {r.lastName} · {r.propertyName}</Typography>}
           </Box>
           {/* specs/reception-role-checkin-only.md §3.4 — hidden for the reception role (no reservation
@@ -2138,15 +2198,18 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
           </Box>
         )}
       </Box>
-      <DialogContent dividers sx={{ p: { xs: 2, sm: 3 }, minHeight: 240 }}>
+      {/* specs/plugins-phase-1-sdk.md rule 58 (I4) — the body is a focus region too: a page replaced while its control held the focus (the
+          recap's commit, a step that changes) leaves the focus in the dialog, never on the page. */}
+      <FocusKeeper component={DialogContent} dividers sx={{ p: { xs: 2, sm: 3 }, minHeight: 240 }}>
         {renderBody()}
         {error && data && <Typography color="error" variant="body2" sx={{ mt: 2 }}>{error}</Typography>}
-      </DialogContent>
+      </FocusKeeper>
       {/* Reading order on a phone: the primary action, rendered last, lands at the bottom under the
           thumb (specs/ui-review-2026-10-19-operations.md rule 1); on the right from sm. */}
-      <DialogActions sx={{ p: { xs: 2, sm: 2 }, pb: { xs: 'calc(16px + env(safe-area-inset-bottom, 0px))', sm: 2 }, gap: 1, flexDirection: { xs: 'column', sm: 'row' }, justifyContent: { sm: 'flex-end' }, '& > :not(style) ~ :not(style)': { ml: 0 }, '& .MuiButton-root': { width: { xs: '100%', sm: 'auto' }, py: 1.5, fontSize: '1rem', minHeight: 48 } }}>
+      {/* specs/plugins-phase-1-sdk.md rule 58 (I4) — the commit goes busy on its click: the focus stays in the footer. */}
+      <MoneyActions ref={footerRef} sx={{ p: { xs: 2, sm: 2 }, pb: { xs: 'calc(16px + env(safe-area-inset-bottom, 0px))', sm: 2 }, gap: 1, flexDirection: { xs: 'column', sm: 'row' }, justifyContent: { sm: 'flex-end' }, '& > :not(style) ~ :not(style)': { ml: 0 }, '& .MuiButton-root': { width: { xs: '100%', sm: 'auto' }, py: 1.5, fontSize: '1rem', minHeight: 48 } }}>
         {renderActions()}
-      </DialogActions>
+      </MoneyActions>
     </Dialog>
     <ConfirmDialog
       open={breakfastWarnOpen}
@@ -2157,6 +2220,7 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
       confirmLabel="Continuer"
       cancelLabel="Modifier"
       confirmColor="warning"
+      onExited={() => { if (stepTitleRef.current) stepTitleRef.current.focus({ preventScroll: true }); }}
     />
     </>
   );

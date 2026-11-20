@@ -72,7 +72,8 @@ test('UI3-4 — a failed answer is shown with « Réessayer »; the retry offers
   expect(saveButton()).toBeDisabled();
   fail = false;
   fireEvent.click(screen.getByRole('button', { name: 'Réessayer' }));
-  expect(await screen.findByText('Créer la facture dans Qonto')).toBeInTheDocument();
+  // The pending block draws the same label, disabled (loop t25): wait for the answer itself (server-test-isolation rule 11).
+  await waitFor(() => expect(screen.getByRole('checkbox', { name: /Créer la facture dans Qonto/ })).toBeEnabled());
   expect(screen.queryByText('Facture non vérifiée pour ce paiement.')).toBeNull();
 });
 
@@ -111,6 +112,8 @@ test('UI4-3 — a refusal of the draft itself is shown once, not again for the p
   expect(screen.getAllByText('Créneau refusé.')).toHaveLength(1);
 });
 
+// Loop t23 S23-1 — the price on screen before the failure is not kept: « Prix indisponible » with its one « Réessayer », and no payment
+// (hence no payment answer, no second message) until a new price.
 test('UI4-3 — a failed draft with a price on screen shows one error and one « Réessayer », and the save waits', async () => {
   let fail = false;
   api.previewResourceBooking.mockImplementation(async (draft) => {
@@ -122,9 +125,44 @@ test('UI4-3 — a failed draft with a price on screen shows one error and one «
   expect(await screen.findByText('Créer la facture dans Qonto')).toBeInTheDocument();
   fail = true;
   await changeEndTo('19:00');
-  expect(await screen.findByText('Facture non vérifiée pour ce paiement.')).toBeInTheDocument();
+  expect(await screen.findByText(/Prix indisponible/)).toBeInTheDocument();
   await new Promise((resolve) => { setTimeout(resolve, 200); });
-  expect(screen.queryByText(/Prix indisponible/)).toBeNull();
+  expect(screen.queryByText('Facture non vérifiée pour ce paiement.')).toBeNull();
+  expect(screen.queryByText('Créer la facture dans Qonto')).toBeNull();
   expect(screen.getAllByRole('button', { name: 'Réessayer' })).toHaveLength(1);
   expect(saveButton()).toBeDisabled();
+});
+
+// Loop t24 UI24-2 — « Maintenant » then a failed edit (price and payment question fail together), then a good « Réessayer »: the new payment's
+// question is pending, never shown with the older payment's « Facture non vérifiée », and the focus stays in the dialog.
+test('UI24-2 — after a good « Réessayer », the new payment\'s invoice question is pending without the older failure', async () => {
+  let fail = false;
+  let hold = false;
+  const held = [];
+  api.previewResourceBooking.mockImplementation(async (draft) => {
+    if (fail) throw Object.assign(new Error('Service indisponible'), { status: 503 });
+    if (draft.payment && hold) await new Promise((resolve) => { held.push(resolve); });
+    return draft.payment ? { ...PRICE, invoiceable: OK } : PRICE;
+  });
+  openDialog();
+  await fillNewBooking();
+  expect(await screen.findByText('Créer la facture dans Qonto')).toBeInTheDocument();
+  fail = true;
+  await changeEndTo('19:00');
+  expect(await screen.findByText(/Prix indisponible/)).toBeInTheDocument();
+  await new Promise((resolve) => { setTimeout(resolve, 300); });
+  fail = false;
+  hold = true;
+  const retry = screen.getByRole('button', { name: 'Réessayer' });
+  retry.focus();
+  fireEvent.click(retry);
+  await waitFor(() => expect(screen.queryByText(/Prix indisponible/)).toBeNull());
+  await waitFor(() => expect(held.length).toBeGreaterThan(0));
+  expect(screen.queryByText('Facture non vérifiée pour ce paiement.')).toBeNull();
+  expect(screen.queryAllByRole('button', { name: 'Réessayer' })).toHaveLength(0);
+  expect(saveButton()).toBeDisabled();
+  expect(screen.getByRole('dialog').contains(document.activeElement)).toBe(true);
+  held.splice(0).forEach((go) => go());
+  await waitFor(() => expect(screen.getByRole('button', { name: 'Enregistrer et facturer' })).toBeEnabled());
+  expect(screen.queryByText('Facture non vérifiée pour ce paiement.')).toBeNull();
 });

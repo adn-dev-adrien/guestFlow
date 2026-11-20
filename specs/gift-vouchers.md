@@ -244,10 +244,10 @@ code types it while booking dates, and the voucher's balance pays for the stay, 
 42. The books count a voucher's money once: when it was collected (the voucher's sale). The « Bon
     cadeau » amount received by a stay is not a second encaissement and is never expected at the bank:
     the tender line is `prepaid`, which is no bank method and whose `collectedCents` the accounting export
-    and the finance dashboard's encaissements leave out (mixed-method-payments rule 60). The stay still
+    and the finance dashboard's encaissements leave out (mixed-method-payments rule 61). The stay still
     counts it as received (what it owes, « Perçu »). The voucher's own sale is in the books (rules 43-44) and the stay's
     export entry carries only the part the card collected, so the VAT of the prepaid part is declared once, at the
-    voucher's sale (`mixed-method-payments.md` rule 64). Q3 is resolved on that footing (2026-11-16), pending the accountant.
+    voucher's sale (`mixed-method-payments.md` rule 65). Q3 is resolved on that footing (2026-11-16), pending the accountant.
 
 ### 3.H Payment, VAT and the books (Adrien, 2026-11-16)
 
@@ -335,7 +335,7 @@ code types it while booking dates, and the voucher's balance pays for the stay, 
 | `plugins/website-booking/` | `requirePublicApiKey.js`, `visitorContext` | T | Re-exported from the SDK; behaviour unchanged |
 | `utils/`, `controllers/` | `paymentRequestService.js` (`ensureSaleLink`: the `validityMinutes` of the link, a hard bound when stated), `basketPayments.js` (`saleLink`; `refreshBasketLink` lapses a sale link past its end), `paymentsController.js`, `plugins/sdk/coreServices.js` | C/T | `core.payments.saleLink({ source, ref, title, amountCents }, { redirectUrl })` (SDK 2.33.0): the link of a plugin's basket with no stay, billed to `<source>:<ref>` in the existing `payment_links.saleRef`; PR C's `saleRef` column and no-orphan rules are consumed as delivered |
 | `utils/` | `paymentPollRunner.js` (`applyPaidEffect`) | T | A paid link whose `saleRef` is a plugin's basket source goes to `ctx.paymentBasket`'s `paid` with `reservationId: null` (stays and `standalone-sale` links unchanged) |
-| `utils/`, `models/`, `schema.sql` | `paymentTenders.js`, `paymentSettlementsModel.js`, `paymentSettlementsMigration.js` | T | The received-in-advance amount is a tender line of the method `prepaid` with its `source`, `ref` and `label`: the CHECK of `payment_tenders.method` is widened and the three columns added by an idempotent table rebuild (`changelog.d/migration--gift-vouchers-tender-method.md`); `settlementFigures` gains `prepaidCents` and `collectedCents` (mixed-method-payments rules 59-60) |
+| `utils/`, `models/`, `schema.sql` | `paymentTenders.js`, `paymentSettlementsModel.js`, `paymentSettlementsMigration.js` | T | The received-in-advance amount is a tender line of the method `prepaid` with its `source`, `ref` and `label`: the CHECK of `payment_tenders.method` is widened and the three columns added by an idempotent table rebuild (`changelog.d/migration--gift-vouchers-tender-method.md`); `settlementFigures` gains `prepaidCents` and `collectedCents` (mixed-method-payments rules 60-61) |
 | `utils/` | `prepaidSources.js`, `prepaidReceipts.js` (SDK modules) | C | What a quote holds, what it takes off the public payment, the settlements written at conversion and by the fiche, the confirmation without a link (rules 59-62) |
 | `utils/`, `controllers/`, `models/` | `paymentPollRunner.js`, `publicPaymentController.js`, `devisModel.js`, `reservationLedger.js`, `accountingOutput.js`, `financeDashboardModel.js` | T | The reduced amount and the conversion hook, the pay route's reduction and no-link path, the release on delete, the ledger line « Bon cadeau » (no « Modifier »), the journals reading `collectedCents` |
 | `plugins/sdk/` | `createContext.js`, `registry.js`, `index.js`, `coreModules.json`, `coreModuleHistory.json` | T | `ctx.prepaid({ source, label, apply, held, settle, release })` and the two modules, all at the 2.33.0 entry (no new minor) |
@@ -488,7 +488,7 @@ Interactive mock-ups: `specs/gift-vouchers-resume.html`.
       replay and concurrent reads, a plugin off, a withdrawn link paid late, standalone sales unchanged,
       nothing in the core names the plugin.
 - [x] `src/plugins/gift-vouchers/tests/gift-voucher-vat.unit.test.js` — rules 43-44 (11 tests): the setting and each refusal, HT / VAT to the cent (150 € at 10 % and 5,5 %), the rate frozen by hand and on the site, the receipt variable in both languages and at 0 %, nothing on the printed voucher, the backfill migration, the sales the journal reads and their HT + VAT rows.
-- [x] `src/tests/prepaid-received-amount.unit.test.js` — rule 64 of `mixed-method-payments.md`: the stay's entry carries the collected 30,40 € only, the VAT of the prepaid 50 € is the voucher sale's (17 tests).
+- [x] `src/tests/prepaid-received-amount.unit.test.js` — rule 65 of `mixed-method-payments.md`: the stay's entry carries the collected 30,40 € only, the VAT of the prepaid 50 € is the voucher sale's (17 tests).
 - [x] `gift-voucher-checks.unit.test.js` (14 tests) — rules 33-35: the three limits, the breaker, a mistyped code
       not counted, a cancelled code answers unknown, nothing typed is stored.
 - [x] `gift-voucher-admin.unit.test.js` (21 tests) — rules 24-29: manual issue, extend, cancel, adjust bounds,
@@ -545,7 +545,7 @@ Interactive mock-ups: `specs/gift-vouchers-resume.html`.
 
 - **Q3 — Books and VAT: VAT is due at the sale** (a single-purpose voucher), at a rate the operator configures, 10 % by default,
   frozen on each voucher (rule 43). The sale enters the export as HT + VAT (rule 44) and a stay paid by a voucher books only
-  the card part (rule 42, `mixed-method-payments.md` rule 64), so the voucher's VAT is never counted twice. **To be confirmed
+  the card part (rule 42, `mixed-method-payments.md` rule 65), so the voucher's VAT is never counted twice. **To be confirmed
   by the accountant** before the first real sale; the account holding the outstanding balance of unused vouchers is still his call.
 - A voucher must be paid, and nothing exists until it is (rule 46); the online link lives one hour (rule 16); a payment confirmed
   after the withdrawal still issues (rule 45); an unpaid order is kept 7 days behind the scenes (rule 18).

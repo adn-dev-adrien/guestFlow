@@ -1,0 +1,2 @@
+- Several payment methods: a collect button is never enabled, even for one frame, on lines typed for a total that just changed, and the commit refuses them — no shortfall choice made for an older total can be sent (SAS, counter sale, fiche, ledger rows, mid-stay notes, visit arrival and hourly booking; `specs/mixed-method-payments.md` rule 59, reading of 2026-11-19).
+- Platform penalty: an amount with more than two decimals is refused on the field, as its message says.

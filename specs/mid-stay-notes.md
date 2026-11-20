@@ -193,6 +193,17 @@ becomes **the remainder** — collected at check-out exactly as today.
       `ticked = min(opening, current)` when ticked, `amount = ticked + added`, rounded to the cent once;
       then `settleMidStayNote(id, { items })` moves them as before (rule 8). An `items` field sent by a
       client is ignored.
+    _Reading of 2026-11-19 (loop t26 UI26-2):_ the preview goes through `useLatestPreview`, like every money preview
+    (specs/plugins-phase-1-sdk.md rule 54). « Total de la note » reads « — » until the first answer and after a failed one — never
+    « 0,00 € » for an unknown total —; a failure shows its reason with « Réessayer », and « À encaisser : — » / « Encaisser — » when
+    « Plusieurs moyens » is open. While a recompute is asked (a key ticked, a prestation added) the latest total stays, dimmed, and
+    « CB / Chèque », « Caisse interne » and « Encaisser … » are disabled until the answer for the note on screen (no action on an unknown
+    value) — a prestation added is first priced by the fiche's live quote, so its request in flight counts too (`pricingQuotePending`
+    of the form context, from `ReservationPage`). The « Plusieurs moyens » lines stay mounted through a recompute; unmounted on an unknown total, they come back as typed
+    (`initialDraft`, mixed-method-payments rule 59) and take the focus only when the operator opens them; the dialog keeps the focus when
+    a recompute removes or disables the control holding it (`FocusKeeper`). Tests `MidStayNoteDialog.preview-latest` (6),
+    `useLatestPreview.failed-recompute` (row `MidStayNoteDialog`), `SaleDialogs.pending-blocks` and `SaleDialogs.focus-on-answer` (one
+    row each).
 
 23. **A note on a started stay with no arrival marked stays open and says so** (D19, Adrien, 2026-11-05; audit R23-C8).
     With no baseline (no check-in, no arrival SAS, no collected complement) the note total stays 0 € and « CB / Chèque » and
@@ -281,14 +292,14 @@ transaction) — the next quote/save reconverges by construction (`remaining = m
 
 | Layer | File | T/C | Responsibility in this change |
 |---|---|---|---|
-| `components/reservation/` | `MidStayNoteDialog.js` | **C** | The « Nouvelle note » dialog: checkable pending lines + catalogue picker bound to the same form state as the Options section (snapshot/rollback on cancel), note total from `POST /reservations/mid-stay-note/preview` (rule 22: it computes no amount), three closing actions. Feature-specific by design (wired to the reservation form contract) — not a generic component. |
+| `components/reservation/` | `MidStayNoteDialog.js` | **C** | The « Nouvelle note » dialog: checkable pending lines + catalogue picker bound to the same form state as the Options section (snapshot/rollback on cancel), note total from `POST /reservations/mid-stay-note/preview` through `useLatestPreview` (rule 22: it computes no amount; « — » + « Réessayer » on a failure, settle buttons only on a fresh total — reading of 2026-11-19), three closing actions. Feature-specific by design (wired to the reservation form contract) — not a generic component. |
 | `components/reservation/` | `FinanceSection.js` | T | New « Encaissements en séjour » block (rule 17): running total, « Nouvelle note » button, collapsible note history with ✕ cancel; end-of-stay block untouched (rule 18). Consomme l'état + la règle d'accès de la page — n'en tient plus de copie locale. |
 | `utils/` | `midStayNoteAccess.js` | **C** | La règle « quand peut-on ouvrir une note ? » en un seul endroit, partagée par la barre d'actions et le bloc, plus `countMidStayNotes`. Pure, 9 tests. |
 | `pages/` | `ReservationPage.js` | T | Détient l'état d'ouverture de la fenêtre (deux surfaces l'ouvrent) et calcule la règle une fois ; ajoute l'entrée « Nouvelle note » en tête de `actionsBefore`. |
 | `components/` | `PricingSummary.js` | T | Cascade per rule 19 (notes deducted + re-added on their own line; direct variant). |
 | `components/sas/` | `ReservationSasDialog.js` | T | « Déjà réglé en séjour : X € » info line in the departure recap (from the reservation row). |
 | `pages/` | `ReservationPage.js` | T | Load `midStaySettledNotes` into the form (+ `EMPTY_FORM`); host the dialog (open state, post-settle refresh). |
-| `api.js` | `api.js` | T | `markPayment` already passes arbitrary payment payloads through; `previewMidStayNote(data)` (rule 22). |
+| `api.js` | `api.js` | T | `markPayment` already passes arbitrary payment payloads through; `previewMidStayNote(data, { signal })` (rule 22; the signal lets `useLatestPreview` abort an older request). |
 
 **Component reuse declaration:**
 
@@ -423,6 +434,12 @@ every step. No backfill, no loss.
 - [x] `FinanceSection.settle-reread-fails.test.jsx` (**new**, 2 — audit R32-C-L2, rule 24 reading) — refused then a
       failed re-read: the refusal shows and the dialog is usable again; stored then a failed re-read: the dialog closes,
       no refusal shown; no unhandled rejection in either.
+- [x] `MidStayNoteDialog.preview-latest.test.jsx` (**new**, 6 — loop t26 UI26-2, rule 22 reading of 2026-11-19) — « — » and
+      nothing settles before the first answer; the latest total kept and the settle buttons disabled while a recompute is asked, and
+      while the fiche's live quote is in flight;
+      « Plusieurs moyens » takes the focus on the operator's opening only; a recompute keeps the typed lines, the focus and a pending
+      button; a failure shows « — », the reason and « Réessayer », keeps the focus in the dialog, and the lines come back as typed.
+      `MidStayNoteDialog.test.jsx` reads the total after the first answer.
 
 ### E2E (`npm run test:e2e`)
 

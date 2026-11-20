@@ -203,6 +203,15 @@
       "Accueil : une ligne offerte par l’administrateur après l’ouverture du sas reste offerte, et le refus la remet offerte pour que « Valider » passe ensuite.",
       "Le sas s’affiche d’un bloc : « Déjà payé » et les ventes du séjour arrivent avec le reste, sans décaler le récapitulatif ni les boutons.",
       "L’étape « Séjour » affiche dès son ouverture l’avis plateforme et les lignes « Acompte » et « Solde » ; les montants les remplissent sans décaler la page, et la barre « Calcul du total » ne décale plus le récapitulatif.",
+      "Étape « Séjour » : si le calcul échoue, « Montant indisponible » et « Réessayer » s’affichent, et les boutons de règlement attendent un montant ; la page extincteur du départ dit aussi « Montant indisponible ».",
+      "Au clavier, chaque changement d’étape du sas, en avant comme en arrière, place le curseur sur le titre de la nouvelle étape : il ne se perd plus et ne reste plus sur un bouton qui change de sens.",
+      "Récapitulatif d’arrivée avec « Régler séparément » : quand le calcul échoue, les boutons de règlement du séjour sont désactivés comme ceux du complément.",
+      "Récapitulatif avec « Plusieurs moyens » : après un calcul en échec, plus aucun ancien montant dans les lignes ni dans « Encaisser » (« — ») jusqu’à la réponse suivante.",
+      "« Plusieurs moyens » : les montants saisis reviennent tels quels après un calcul en échec, un retour à l’étape précédente ou un total revenu de 0.",
+      "« Plusieurs moyens » : quand les lignes reviennent d’elles-mêmes (après un calcul en échec, un total revenu de 0), le curseur reste sur le bouton utilisé ; seule l’ouverture du bloc place le curseur dans le premier montant.",
+      "« Plusieurs moyens » : un « Geste commercial » ou un « Reste à percevoir » choisi pour un montant n’est plus repris quand le total change ; la question est reposée.",
+      "« Plusieurs moyens » : « Encaisser » n’est jamais actif sur les montants d’un total qui vient de changer, même un instant ; rien n’est envoyé tant que les lignes n’ont pas répondu au nouveau total.",
+      "Récapitulatifs d’arrivée et de départ : un clic sur « Encaisser » ou « Valider et terminer » garde le focus dans la fenêtre pendant l’enregistrement, même quand la page change.",
       "Demande GuestFlow 4.2 (SDK 2.32)."
     ],
     "1.11.1": [

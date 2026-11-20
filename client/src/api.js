@@ -507,7 +507,9 @@ const api = {
   calculatePrice: (data) => request('/reservations/calculate-price', { method: 'POST', body: data, readOnly: true }),
   suggestBeds: (data) => request('/reservations/suggest-beds', { method: 'POST', body: data, readOnly: true }),
   // specs/mid-stay-notes.md rule 22 — the « Nouvelle note » items and total, derived by the server.
-  previewMidStayNote: (data) => request('/reservations/mid-stay-note/preview', { method: 'POST', body: data, readOnly: true }),
+  previewMidStayNote: (data, { signal } = {}) => request('/reservations/mid-stay-note/preview', {
+    method: 'POST', body: data, signal, readOnly: true,
+  }),
   computePlatformCommission: (figures) => request('/reservations/platform-commission', { method: 'POST', body: figures, readOnly: true }),
   createReservation: (data) => request('/reservations', { method: 'POST', body: data }),
   updateReservation: (id, data) => request(`/reservations/${id}`, { method: 'PUT', body: data }),

@@ -17,7 +17,8 @@
  * because both resolve the same module path).
  */
 import React from 'react';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { expect } from 'vitest';
 import { MemoryRouter } from 'react-router';
 import { ThemeProvider } from '@mui/material/styles';
 
@@ -127,3 +128,10 @@ export function renderDialog(props) {
 }
 
 export const clickBtn = (name) => fireEvent.click(screen.getByRole('button', { name }));
+
+// Loop t22 (pricing-components rule 117 reading) — the stay page's settlement buttons wait for the plan's amount: a test chooses a
+// settlement once they are enabled, never on « — ».
+export async function stayPageReady() {
+  await screen.findByText('Séjour à régler :');
+  await waitFor(() => expect(screen.getByRole('button', { name: 'CB / Chèque' })).toBeEnabled());
+}

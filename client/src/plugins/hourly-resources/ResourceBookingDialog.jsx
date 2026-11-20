@@ -1,17 +1,17 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import {
-  Dialog, DialogTitle, DialogContent, DialogActions,
+  Dialog, DialogTitle, DialogContent,
   Button, Box, Alert, TextField, FormControl, InputLabel, Select, MenuItem,
   FormControlLabel, Typography, Divider, Switch, LinearProgress, ToggleButton, ToggleButtonGroup, useMediaQuery, useTheme,
 } from '@mui/material';
 import MiniDayPlanner from './MiniDayPlanner';
-import { api, formatCurrency, ConfirmDialog, ClientPickerField, ErrorAlert } from '../sdk';
+import { api, formatCurrency, ConfirmDialog, ClientPickerField, ErrorAlert, FocusKeeper, MoneyActions, useMoneyCommit } from '../sdk';
 import resourceBookingDraft from './resourceBookingDraft';
 import useResourceBookingPreview from './useResourceBookingPreview';
 import { localIsoDate } from './localDate';
 import ResourceBookingSummary from './ResourceBookingSummary';
 import OfferedTimeField from './OfferedTimeField';
-import BookingPaymentFields, { paymentBody, hasCard } from './BookingPaymentFields';
+import BookingPaymentFields, { paymentBody, paymentForDue, hasCard } from './BookingPaymentFields';
 import BookingInvoiceBlock from './BookingInvoiceBlock';
 
 const INVOICE_PREVIEW_FAILED = 'Facture non vérifiée pour ce paiement.';
@@ -281,6 +281,7 @@ export default function ResourceBookingDialog({
       return;
     }
     if (!slotAvailable || !selectedStart || !selectedEnd || !isChronological || !meetsMinimumDuration) return; // Block save if invalid
+    if (!gate.ready || !gate.live()) return; // loop t26 — only a price and lines that answer the draft on screen
     setSaving(true);
     setPaymentError(null);
     let wrote = false;
@@ -305,7 +306,7 @@ export default function ResourceBookingDialog({
       if (!ownId && id) setCreatedId(id);
       if (payNow && id) {
         try {
-          await api.recordResourceBookingPayment(id, paymentBody(payment));
+          await api.recordResourceBookingPayment(id, paymentBody(paymentNow));
         } catch (err) {
           setPaymentError(err.message || "Paiement non enregistré.");
           return;
@@ -352,14 +353,28 @@ export default function ResourceBookingDialog({
 
   const editable = !booking?.frozen;
   const payNow = payWhen === 'now' && !booking?.paid && Boolean(price && price.total > 0);
-  const invoiceDraft = useMemo(() => (payNow && draft && paymentBody(payment) ? { ...draft, payment: paymentBody(payment) } : null), [payNow, draft, payment]);
-  const invoicePreview = useResourceBookingPreview({ draft: invoiceDraft, enabled: open });
+  const dueCents = booking?.visit ? booking.visit.remainingCents : Math.round(Number(price?.total || 0) * 100);
+  const paymentForScreen = paymentForDue(payment, dueCents);
+  // Loop t24 — the invoice question is asked only for the payment typed against the price of the draft on screen: while a newer price
+  // is on its way, or the tenders have not yet followed it, the pair (draft, payment) is stale and its answer would be a false refusal
+  // (« Les moyens font 50,00 € pour 37,50 € dus. ») drawn for a second on the nominal path. Meanwhile the block is drawn pending (`invoiceAwaiting`, loop t25).
+  const paymentTyped = payNow && Boolean(draft) && Boolean(paymentBody(payment));
+  const invoiceDraft = useMemo(
+    () => (paymentTyped && preview.fresh && payment.dueCents === dueCents ? { ...draft, payment: paymentBody(payment) } : null),
+    [paymentTyped, preview.fresh, payment, dueCents, draft],
+  );
+  const invoiceAwaiting = paymentTyped && !invoiceDraft;
+  // The invoice question waits (null) while the typed payment catches up with a new price: back on the same pair it reuses its answer.
+  const invoicePreview = useResourceBookingPreview({ draft: invoiceDraft, enabled: open, reuseOnReenable: true });
   const qontoReady = Boolean(price ? price.invoiceReady : booking?.invoiceReady);
   // Rule 44 (R35-C-L1) — a payment on the books whose invoice is still to make, or was cancelled in Qonto (A2).
   const invoiceLater = Boolean(booking?.paid && booking.payment?.onTheBooks && (!booking.invoice || booking.invoice.cancelled));
   // Loop t2 B2-7 (outside-visit rule 54) — whether « Payé maintenant » can make the invoice is the server's answer for the payment typed.
-  // Loop t3 UI3-4/UI3-5 — the latest answer stays on screen while a newer one is asked; the save waits for the answer to the payment typed.
-  const invoiceAnswer = invoiceDraft && invoicePreview.price ? invoicePreview.price.invoiceable || null : null;
+  // Loop t3 UI3-4/UI3-5 — the pending block keeps the place of the answer (loop t21 `reserve`); the save waits for the answer to the payment typed.
+  // Loop t25 — while the typed payment waits (`invoiceAwaiting`) or its answer is on its way, no answer is current for it: the block is drawn
+  // pending (checkbox disabled, as ticked as the operator left it, at the reserved height) instead of an older payment's answer (owner
+  // decision: no action on an unknown value).
+  const invoiceAnswer = invoiceDraft && invoicePreview.fresh && invoicePreview.price ? invoicePreview.price.invoiceable || null : null;
   const invoiceOffered = Boolean(invoiceAnswer && invoiceAnswer.ok) || invoiceLater;
   const draftInternalCash = Boolean(invoiceAnswer && invoiceAnswer.code === 'INTERNAL_CASH');
   const draftRefusal = invoiceAnswer && !invoiceAnswer.ok && !invoiceAnswer.silent && !draftInternalCash ? invoiceAnswer.reason : null;
@@ -367,22 +382,31 @@ export default function ResourceBookingDialog({
   // Loop t21 UI21-1 — until the server answers for the payment typed, the block is drawn pending at the offered state's height (checkbox
   // disabled, ticked as the default card line will tick it), so the answer fills it instead of swapping a caption for the checkbox; any
   // outcome keeps that height while « Maintenant » can invoice (`reserve`).
-  const invoicePending = qontoReady && payNow && Boolean(draft) && !invoiceAnswer && (!payment || Boolean(invoiceDraft));
+  const invoicePending = qontoReady && payNow && Boolean(draft) && !invoiceAnswer && (!payment || Boolean(invoiceDraft) || invoiceAwaiting);
+  // Loop t22 UI22-2 — the save button already names the invoice the pending block draws ticked, so the accepted answer (the nominal path)
+  // changes nothing on screen but the box's enabled state; a refusal gives the plain label back.
+  const invoiceDrawn = wantsInvoice || (invoicePending && (invoiceChecked || !payment));
   const durationForOffer = durationMinutes - Number(price?.freeMinutesApplied || 0);
-  const canSave = Boolean(
-    date
-    && selectedStart
-    && selectedEnd
-    && isChronological
-    && meetsMinimumDuration
-    && (externalMode ? clientName.trim() : selectedClient)
-    && slotAvailable
-    && (!payNow || Boolean(payment && payment.canSubmit))
-    && (!invoiceDraft || invoicePreview.fresh)
-  );
-  const shownPrice = draft ? price : null;
+  // The money-dialog contract (plugins-phase-1-sdk rule 58): the price and the invoice question of the payment typed, each judged by the
+  // draft it answered; the lines' report by the due on screen; every field of the booking answered.
+  const gate = useMoneyCommit({
+    previews: [preview, ...(invoiceDraft ? [invoicePreview] : [])],
+    dueCents,
+    tenders: payment,
+    splitting: payNow,
+    questions: [
+      date, selectedStart, selectedEnd, isChronological, meetsMinimumDuration, externalMode ? clientName.trim() : selectedClient, slotAvailable,
+      !invoiceAwaiting,
+    ].map(Boolean),
+  });
+  const paymentNow = payNow ? gate.tendersNow : paymentForScreen;
+  const canSave = gate.ready;
+  // Loop t23 — after a failed request the last answer keeps the summary's layout with every amount « — » (`priceUnknown`), so the
+  // « Temps offert » stepper the operator is using stays mounted; the reason and « Réessayer » stay until a new answer.
+  const priceUnknown = Boolean(draft && !price && preview.failed && preview.last);
+  const shownPrice = draft ? (price || (priceUnknown ? preview.last : null)) : null;
   const showRefusal = Boolean(draft && preview.refusal && !preview.pending);
-  const showUnavailable = Boolean(draft && preview.error && !preview.pending);
+  const showUnavailable = Boolean(draft && preview.error);
 
 
   return (
@@ -441,7 +465,7 @@ export default function ResourceBookingDialog({
           </Box>
 
           {/* Price summary — every figure is the server's answer */}
-          <Box
+          <FocusKeeper
             sx={{
               gridArea: 'summary',
               minWidth: 0,
@@ -466,6 +490,7 @@ export default function ResourceBookingDialog({
                   <ResourceBookingSummary
                     price={shownPrice}
                     pending={preview.pending}
+                    unknown={priceUnknown}
                     heading={`${selectedStart} → ${selectedEnd} · ${formatDuration(durationMinutes)}`}
                     offerSlot={(
                       <OfferedTimeField
@@ -480,16 +505,16 @@ export default function ResourceBookingDialog({
                 ) : (
                   <Typography variant="body2" sx={{ fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>
                     {selectedStart} → {selectedEnd} · {formatDuration(durationMinutes)}
-                    {draft && preview.pending && (
+                    {draft && preview.pending && !showUnavailable && (
                       <Box component="span" sx={{ fontWeight: 400, color: 'text.secondary' }}> · Calcul du prix…</Box>
                     )}
-                    {showUnavailable && (
-                      <>
-                        <Box component="span" sx={{ fontWeight: 400, color: 'error.main' }}> · Prix indisponible</Box>
-                        <Button size="small" onClick={preview.retry} sx={{ ml: 1, minHeight: 44, minWidth: 44 }}>Réessayer</Button>
-                      </>
-                    )}
                   </Typography>
+                )}
+                {showUnavailable && (
+                  <Box sx={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', columnGap: 1 }}>
+                    <Typography variant="body2" sx={{ color: 'error.main' }}>Prix indisponible</Typography>
+                    <Button size="small" onClick={preview.retry} sx={{ minHeight: 44, minWidth: 44 }}>Réessayer</Button>
+                  </Box>
                 )}
                 {showRefusal ? (
                   <Typography variant="caption" color="error.main" sx={{ display: 'block' }}>{preview.refusal}</Typography>
@@ -522,10 +547,11 @@ export default function ResourceBookingDialog({
                 </Typography>
               </Box>
             )}
-          </Box>
+          </FocusKeeper>
 
-          {/* RIGHT: client + form */}
-          <Box sx={{ gridArea: 'form', minWidth: 0, display: 'flex', flexDirection: 'column', gap: 2 }}>
+          {/* RIGHT: client + form — loop t22 UI22-1: an answer that removes the control holding the focus (the « Facture » address on a
+              refusal, « Caisse interne », a silent answer) leaves the focus on the nearest region still drawn, never on the page. */}
+          <FocusKeeper sx={{ gridArea: 'form', minWidth: 0, display: 'flex', flexDirection: 'column', gap: 2 }}>
             <Box sx={{ display: 'flex', gap: 1.25 }}>
               <FormControl fullWidth size="small">
                 <InputLabel>Heure début</InputLabel>
@@ -669,7 +695,7 @@ export default function ResourceBookingDialog({
                   ) : (price && price.total > 0 && (
                     <BookingPaymentFields
                       error={paymentError}
-                      dueCents={booking?.visit ? booking.visit.remainingCents : Math.round(Number(price.total) * 100)}
+                      dueCents={dueCents}
                       value={payment}
                       onChange={(next) => {
                         setPayment(next);
@@ -711,11 +737,12 @@ export default function ResourceBookingDialog({
                 />
               </Box>
             )}
-          </Box>
+          </FocusKeeper>
         </Box>
         )}
       </DialogContent>
-      <DialogActions>
+      {/* specs/plugins-phase-1-sdk.md rule 58 (I4) — the save goes busy on its click: the focus stays in the row. */}
+      <MoneyActions>
         {savedWarning ? (
           <Button variant="contained" onClick={onClose} sx={{ minHeight: 44 }}>Fermer</Button>
         ) : (
@@ -735,12 +762,12 @@ export default function ResourceBookingDialog({
               </Button>
             )}
             <Button onClick={onClose} disabled={saving}>Annuler</Button>
-            <Button variant="contained" onClick={handleSave} disabled={invoiceOutcome ? saving : (!canSave || !preview.fresh || saving)} sx={{ minHeight: 44 }}>
-              {saving ? 'Enregistrement…' : (invoiceOutcome ? 'Créer la facture' : (draft && preview.pending ? 'Calcul du prix…' : (wantsInvoice ? 'Enregistrer et facturer' : 'Enregistrer')))}
+            <Button variant="contained" onClick={handleSave} disabled={invoiceOutcome ? saving : (!canSave || saving)} sx={{ minHeight: 44 }}>
+              {saving ? 'Enregistrement…' : (invoiceOutcome ? 'Créer la facture' : (draft && preview.pending ? 'Calcul du prix…' : (invoiceDrawn ? 'Enregistrer et facturer' : 'Enregistrer')))}
             </Button>
           </>
         )}
-      </DialogActions>
+      </MoneyActions>
       <ConfirmDialog
         open={Boolean(confirming)}
         onClose={() => setConfirming(null)}

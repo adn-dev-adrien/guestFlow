@@ -1,5 +1,5 @@
 /**
- * The prepaid instruments a plugin declared with `ctx.prepaid(...)` (SDK 2.33.0, specs/mixed-method-payments.md rule 51): an
+ * The prepaid instruments a plugin declared with `ctx.prepaid(...)` (SDK 2.33.0, specs/mixed-method-payments.md rules 60-63): an
  * amount a guest already paid, somewhere else, and that a plugin keeps the balance of (a stored credit, a prepaid card...).
  * The core never names one: it asks the live plugin that owns a `source`, through the five calls it declared —
  *

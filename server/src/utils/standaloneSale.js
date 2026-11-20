@@ -381,7 +381,7 @@ function receive(saleId, {
 }
 
 /**
- * Money a plugin's prepaid instrument already collected (SDK 2.33.0, mixed-method-payments rules 59-60, 64), filed on the lines it paid: `tender` is
+ * Money a plugin's prepaid instrument already collected (SDK 2.33.0, mixed-method-payments rules 60-61, 65), filed on the lines it paid: `tender` is
  * `{ source, ref, label }` as the plugin wrote it, `covers` `[{ fulfilmentRef | articleRef, amountCents }]` — which line each cent pays, the plugin's call, never
  * the walk's. It is received money, never collected money: the allocations are off the books (`:prepaid`), the VAT of that money was declared when the
  * instrument was sold. Refused when a cover names no line, or more than the line still asks.

@@ -16,7 +16,7 @@ import {
 } from '@mui/material';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import {
-  api, FormDialog, PlatformChip, LoadingState, ErrorAlert, useLatestPreview,
+  api, FormDialog, FocusKeeper, PlatformChip, LoadingState, useLatestPreview, PreviewFailure, isRetryable, useMoneyCommit,
 } from '../sdk';
 import AmountPairFields from './AmountPairFields';
 import { money, parseEuroInput, centsToInput } from './reconciliationShared';
@@ -123,7 +123,9 @@ export default function LinkTransactionDialog({ open, onClose, busy = false, onS
   const preview = useLatestPreview({
     fetcher: (d) => api.previewReconciliationAllocation(d.pairs ? { pairs: d.pairs }
       : (creditMode ? { transactionIds: [credit.transactionId], receiptKeys: d.ids } : { reservationId, transactionIds: d.ids })),
-    draft: manualPairs && !manualInvalid ? { pairs: manualPairs } : { ids: tickedIds },
+    // A split with an unreadable amount is still the split on screen (not asked): never the ticked transfers' draft, whose answer it
+    // would show as its own (loop t25 UI25-1).
+    draft: manualPairs ? { pairs: manualPairs } : { ids: tickedIds },
     enabled: open && !manualInvalid && (manualPairs ? manualPairs.length > 0 : tickedIds.length > 0),
     scope: creditMode ? credit.transactionId : reservationId,
     resetKey: runKey,
@@ -131,6 +133,8 @@ export default function LinkTransactionDialog({ open, onClose, busy = false, onS
   });
   const answer = preview.fresh && !preview.error ? preview.data : null;
   const shown = preview.error ? null : preview.data;
+  // The money-dialog contract (plugins-phase-1-sdk rule 58): the list on screen, a fresh valid answer for the selection on screen.
+  const commit = useMoneyCommit({ previews: [preview], questions: [Boolean(base), Boolean(answer && answer.valid), !manualInvalid] });
 
   const showMore = async () => {
     setMoreBusy(true);
@@ -149,7 +153,7 @@ export default function LinkTransactionDialog({ open, onClose, busy = false, onS
   };
 
   const submit = () => {
-    if (!answer || !answer.valid) return;
+    if (!commit.ready) return;
     onSubmit(answer.pairs);
   };
 
@@ -160,8 +164,11 @@ export default function LinkTransactionDialog({ open, onClose, busy = false, onS
   const renderItem = (item) => (creditMode
     ? <ReceiptRow key={keyOf(item)} receipt={item} checked={tickedIds.includes(keyOf(item))} disabled={!tickedIds.includes(keyOf(item)) && tickedIds.length >= MAX_TICKED} onToggle={() => toggle(keyOf(item))} />
     : <CreditRow key={keyOf(item)} credit={item} checked={tickedIds.includes(keyOf(item))} disabled={!tickedIds.includes(keyOf(item)) && tickedIds.length >= MAX_TICKED} onToggle={() => toggle(keyOf(item))} />);
+  // The split fields keep their names while an amount is unreadable (no answer is current then, loop t25 UI25-1): a receipt's label is
+  // not a figure of the split, so the latest answer names it.
+  const named = shown || preview.last;
   const nameOfPair = (p) => {
-    const r = shown && shown.receipts.find((x) => x.key === `${p.reservationId}|${p.ledgerKey}`);
+    const r = named && named.receipts.find((x) => x.key === `${p.reservationId}|${p.ledgerKey}`);
     const from = known.get(p.transactionId);
     return `${from ? `${from.dateLabel} · ${money(from.remainingCents)} → ` : ''}${r ? r.label : p.ledgerKey}`;
   };
@@ -179,96 +186,98 @@ export default function LinkTransactionDialog({ open, onClose, busy = false, onS
   return (
     <FormDialog
       open={open} onClose={onClose} maxWidth="sm" title="Rattacher des virements" submitLabel="Rattacher"
-      onSubmit={submit} submitDisabled={!answer || !answer.valid || manualInvalid} submitBusy={busy}
+      onSubmit={submit} submitDisabled={!commit.ready} submitBusy={busy}
     >
-      {creditMode && (
-        <Typography variant="body2" sx={{ mt: 0.5 }}>
-          <b>{money(credit.remainingCents)}</b> · {credit.dateLabel} · {credit.counterparty}
-        </Typography>
-      )}
-      <TextField
-        fullWidth size="small" sx={{ mt: 1.5, mb: 1 }} value={q} onChange={(e) => setQ(e.target.value)} type="search"
-        label={creditMode ? 'Client, logement, date (12/03) ou montant' : 'Nom, date (12/03) ou montant (596,58)'}
-        slotProps={{ htmlInput: { autoComplete: 'off', style: { fontSize: 16 } } }}
-      />
-      {!base && !list.error && <LoadingState />}
-      {list.error && <ErrorAlert message={list.error.message || 'Lecture impossible.'} onRetry={list.retry} />}
-      {base && !creditMode && (base.receipts || []).length > 0 && (
-        <Box sx={{ mb: 1 }}>
-          {base.receipts.map((r) => (
-            <Typography key={r.key} variant="caption" color="text.secondary" component="div">
-              {r.label} · <span style={{ whiteSpace: 'nowrap' }}>{money(r.openCents)}</span>{r.anchorDateLabel ? ` · ${r.anchorDateLabel}` : ''}
-            </Typography>
-          ))}
-        </Box>
-      )}
-      {empty && searching && (
-        <Box sx={{ py: 2 }}>
-          <Typography variant="body2">Aucun virement ne correspond à « {q.trim()} ».</Typography>
-          <Button size="small" onClick={() => setQ('')} sx={{ textTransform: 'none', minHeight: 44 }}>Effacer la recherche</Button>
-        </Box>
-      )}
-      {empty && !searching && (
-        <Typography variant="body2" color="text.secondary" sx={{ py: 2 }}>
-          {creditMode ? 'Aucune échéance à rattacher.' : 'Aucun virement disponible : tous les crédits lus sont déjà rattachés.'}
-        </Typography>
-      )}
-      {base && !empty && (
-        <>
-          <Typography variant="subtitle2" sx={{ mt: 1 }}>{creditMode ? 'Échéances probables' : 'Correspondances probables'}</Typography>
-          {noLikely
-            ? <Typography variant="body2" color="text.secondary" sx={{ py: 1 }}>{creditMode ? 'Aucune échéance proche du montant du virement.' : 'Aucun virement proche du montant attendu.'}</Typography>
-            : <Box>{base.likely.map(renderItem)}</Box>}
-          {base.others.total > 0 && (
-            <Box component="details" open={noLikely || searching} sx={{ mt: 1 }}>
-              <Box component="summary" sx={{ cursor: 'pointer', color: 'primary.main', fontWeight: 600, minHeight: 44, display: 'flex', alignItems: 'center', gap: 0.5, listStyle: 'none', '&::-webkit-details-marker': { display: 'none' }, '& .chev': { transition: 'transform 150ms' }, 'details[open] > & .chev': { transform: 'rotate(180deg)' }, '@media (prefers-reduced-motion: reduce)': { '& .chev': { transition: 'none' } } }}>
-                <ExpandMoreIcon className="chev" fontSize="small" />
-                {creditMode ? `Toutes les échéances ouvertes (${base.others.total})` : `Tous les virements disponibles (${base.others.total})`}
-              </Box>
-              <Box>{others.map(renderItem)}</Box>
-              {others.length < base.others.total && (
-                <Button fullWidth variant="text" disabled={moreBusy} onClick={showMore} sx={{ textTransform: 'none', minHeight: 44 }}>Afficher plus</Button>
-              )}
-            </Box>
-          )}
-        </>
-      )}
-
-      {tickedIds.length > 0 && (
-        <Box sx={{ position: 'sticky', bottom: 0, bgcolor: 'background.paper', borderTop: 1, borderColor: 'divider', mt: 1.5, py: 1.25 }} aria-live="polite">
-          {shown ? (
-            <>
-              <Typography variant="body2" sx={{ fontWeight: 600 }}>{shown.summaryLabel}</Typography>
-              {shown.receipts.map((r) => (
-                <Typography key={r.key} variant="caption" component="div" color="text.secondary">
-                  {r.label} · {r.statusLabel}
-                </Typography>
-              ))}
-              {shown.leftover.map((l) => <Typography key={l.transactionId} variant="caption" component="div" color="warning.main">{l.message}</Typography>)}
-              {shown.errors.filter((e) => !refusalsInFields.has(e.field) && (!String(e.field || '').startsWith('pairs.') || !manual)).map((e) => (
-                <Typography key={`${e.code}-${e.field}`} variant="caption" component="div" color="error.main" role="alert">{e.message}</Typography>
-              ))}
-              {!manual && shown.pairs.length > 0 && (
-                <Button size="small" onClick={startManual} sx={{ textTransform: 'none', minHeight: 44 }}>Modifier la répartition</Button>
-              )}
-            </>
-          ) : (preview.error
-            ? (
-              <Typography variant="caption" component="div" color="error.main" role="alert">
-                {preview.error.message || 'Calcul impossible.'}
-                <Button size="small" onClick={preview.retry} sx={{ textTransform: 'none', minHeight: 44 }}>Réessayer</Button>
+      <FocusKeeper>
+        {creditMode && (
+          <Typography variant="body2" sx={{ mt: 0.5 }}>
+            <b>{money(credit.remainingCents)}</b> · {credit.dateLabel} · {credit.counterparty}
+          </Typography>
+        )}
+        <TextField
+          fullWidth size="small" sx={{ mt: 1.5, mb: 1 }} value={q} onChange={(e) => setQ(e.target.value)} type="search"
+          label={creditMode ? 'Client, logement, date (12/03) ou montant' : 'Nom, date (12/03) ou montant (596,58)'}
+          slotProps={{ htmlInput: { autoComplete: 'off', style: { fontSize: 16 } } }}
+        />
+        {!base && !list.error && <LoadingState />}
+        <PreviewFailure error={list.error} onRetry={list.retry} fallback="Lecture impossible." />
+        {base && !creditMode && (base.receipts || []).length > 0 && (
+          <Box sx={{ mb: 1 }}>
+            {base.receipts.map((r) => (
+              <Typography key={r.key} variant="caption" color="text.secondary" component="div">
+                {r.label} · <span style={{ whiteSpace: 'nowrap' }}>{money(r.openCents)}</span>{r.anchorDateLabel ? ` · ${r.anchorDateLabel}` : ''}
               </Typography>
-            )
-            : <Typography variant="caption" color="text.secondary">Calcul de la répartition…</Typography>)}
-          {manual && (
-            <AmountPairFields
-              pairs={manual.map((m) => ({ id: `${m.transactionId}|${m.reservationId}|${m.ledgerKey}`, label: nameOfPair(m), text: m.text }))}
-              onChange={(i, text) => setManual((cur) => cur.map((x, j) => (j === i ? { ...x, text } : x)))}
-              refusalFor={errorFor}
-            />
-          )}
-        </Box>
-      )}
+            ))}
+          </Box>
+        )}
+        {empty && searching && (
+          <Box sx={{ py: 2 }}>
+            <Typography variant="body2">Aucun virement ne correspond à « {q.trim()} ».</Typography>
+            <Button size="small" onClick={() => setQ('')} sx={{ textTransform: 'none', minHeight: 44 }}>Effacer la recherche</Button>
+          </Box>
+        )}
+        {empty && !searching && (
+          <Typography variant="body2" color="text.secondary" sx={{ py: 2 }}>
+            {creditMode ? 'Aucune échéance à rattacher.' : 'Aucun virement disponible : tous les crédits lus sont déjà rattachés.'}
+          </Typography>
+        )}
+        {base && !empty && (
+          <>
+            <Typography variant="subtitle2" sx={{ mt: 1 }}>{creditMode ? 'Échéances probables' : 'Correspondances probables'}</Typography>
+            {noLikely
+              ? <Typography variant="body2" color="text.secondary" sx={{ py: 1 }}>{creditMode ? 'Aucune échéance proche du montant du virement.' : 'Aucun virement proche du montant attendu.'}</Typography>
+              : <Box>{base.likely.map(renderItem)}</Box>}
+            {base.others.total > 0 && (
+              <Box component="details" open={noLikely || searching} sx={{ mt: 1 }}>
+                <Box component="summary" sx={{ cursor: 'pointer', color: 'primary.main', fontWeight: 600, minHeight: 44, display: 'flex', alignItems: 'center', gap: 0.5, listStyle: 'none', '&::-webkit-details-marker': { display: 'none' }, '& .chev': { transition: 'transform 150ms' }, 'details[open] > & .chev': { transform: 'rotate(180deg)' }, '@media (prefers-reduced-motion: reduce)': { '& .chev': { transition: 'none' } } }}>
+                  <ExpandMoreIcon className="chev" fontSize="small" />
+                  {creditMode ? `Toutes les échéances ouvertes (${base.others.total})` : `Tous les virements disponibles (${base.others.total})`}
+                </Box>
+                <Box>{others.map(renderItem)}</Box>
+                {others.length < base.others.total && (
+                  <Button fullWidth variant="text" disabled={moreBusy} onClick={showMore} sx={{ textTransform: 'none', minHeight: 44 }}>Afficher plus</Button>
+                )}
+              </Box>
+            )}
+          </>
+        )}
+
+        {tickedIds.length > 0 && (
+          <Box sx={{ position: 'sticky', bottom: 0, bgcolor: 'background.paper', borderTop: 1, borderColor: 'divider', mt: 1.5, py: 1.25 }} aria-live="polite">
+            {shown ? (
+              <>
+                <Typography variant="body2" sx={{ fontWeight: 600 }}>{shown.summaryLabel}</Typography>
+                {shown.receipts.map((r) => (
+                  <Typography key={r.key} variant="caption" component="div" color="text.secondary">
+                    {r.label} · {r.statusLabel}
+                  </Typography>
+                ))}
+                {shown.leftover.map((l) => <Typography key={l.transactionId} variant="caption" component="div" color="warning.main">{l.message}</Typography>)}
+                {shown.errors.filter((e) => !refusalsInFields.has(e.field) && (!String(e.field || '').startsWith('pairs.') || !manual)).map((e) => (
+                  <Typography key={`${e.code}-${e.field}`} variant="caption" component="div" color="error.main" role="alert">{e.message}</Typography>
+                ))}
+                {!manual && shown.pairs.length > 0 && (
+                  <Button size="small" onClick={startManual} sx={{ textTransform: 'none', minHeight: 44 }}>Modifier la répartition</Button>
+                )}
+              </>
+            ) : (preview.error
+              ? (
+                <Typography variant="caption" component="div" color="error.main" role="alert">
+                  {preview.error.message || 'Calcul impossible.'}
+                  {isRetryable(preview.error) && <Button size="small" onClick={preview.retry} sx={{ textTransform: 'none', minHeight: 44 }}>Réessayer</Button>}
+                </Typography>
+              )
+              : <Typography variant="caption" color="text.secondary">{manualInvalid ? '—' : 'Calcul de la répartition…'}</Typography>)}
+            {manual && (
+              <AmountPairFields
+                pairs={manual.map((m) => ({ id: `${m.transactionId}|${m.reservationId}|${m.ledgerKey}`, label: nameOfPair(m), text: m.text }))}
+                onChange={(i, text) => setManual((cur) => cur.map((x, j) => (j === i ? { ...x, text } : x)))}
+                refusalFor={errorFor}
+              />
+            )}
+          </Box>
+        )}
+      </FocusKeeper>
     </FormDialog>
   );
 }

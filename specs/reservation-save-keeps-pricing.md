@@ -242,6 +242,19 @@ changed something the price depends on; money collected beyond the total is repo
 - A save on a past stay passes the same gate; its allowlist is evaluated on the pinned figures, so a
   untouched save is never refused as « locked ».
 
+21. **A live quote that fails says so (loop t24 S24-3, 2026-11-18).** The fiche quotes itself live as dates, people
+    and lines change. When that quote fails (network, 5xx), the fiche used to keep the previous quote's figures with
+    no word and no way to ask again. It now shows « Tarif non recalculé : les montants ci-dessous ne sont pas à
+    jour. » with the server's reason and « Réessayer » above the finance card, and dims that card (`data-stale`,
+    opacity 0.55) until a quote lands — the same contract as the sale dialogs' previews (plugins-phase-1-sdk rule 54
+    reading of 2026-11-18): « Réessayer » keeps the message and its focus while it asks; an edit of the fiche asks
+    afresh without the older message, and only its own failure shows one; any quote that lands (the live one, the
+    save's, a reset) ends it. The form keeps its state and the save is unchanged: it quotes again before writing and
+    stops on a failure, so no money is ever written from the older figures. OLD (the same silent catch on master).
+    A refusal (4xx other than 408/429: the server will not price what the fiche asks) shows its reason the same way but
+    without « Réessayer » — the same request would be refused again; the next edit asks afresh. « Réessayer » is for a
+    network or server failure (verification of 2026-11-18).
+
 ---
 
 ## 4. Architecture
@@ -270,7 +283,7 @@ changed something the price depends on; money collected beyond the total is repo
 |---|---|---|---|
 | `components/` | `reservation/PricingNotices.jsx` | C | Renders `quote.notices` (generic: `{ code, text, action? }`) |
 | `constants/` | `pricingSummaryStrings.js` | T | The notice action label |
-| `pages/` | `ReservationPage.jsx` | T | Mounts the notices; Save disabled on a clean form (rule 7) |
+| `pages/` | `ReservationPage.jsx` | T | Mounts the notices; Save disabled on a clean form (rule 7); a failed live quote shows its reason with « Réessayer » and dims the finance card (rule 21, `FocusKeeper` region) |
 
 ### 4.3 API contract
 
@@ -285,6 +298,10 @@ as stored when the arrival complement was collected. Legacy rows stay NULL.
 ## 6. UI / UX
 
 An amber alert above the platform price alert, one per notice, 44 px action target, full width at 390 px.
+Rule 21: a failed live quote puts a red `ErrorAlert` (reason + « Réessayer ») right above the finance card and dims the card; the
+finance card moves down by the alert's height (a failure path: measured 76 px at 1280, 96-116 px at 390 — reading of 2026-11-19, loop
+t25 UI25-3), and what is above the alert stays where it was. A refusal (a 4xx other
+than 408 / 429) shows its reason without « Réessayer ». At 390 px the alert is full width like the others.
 
 ## 7. Test plan
 
@@ -317,6 +334,9 @@ An amber alert above the platform price alert, one per notice, 44 px action targ
 - [x] `custom-line-contribs-survive-priced-save.unit.test.js` (21) — rule 19: solde only, acompte + solde, renamed, stale id, same text, removed, grown, forced, posted contribs, trop-perçu, mid-stay window, routing pin, admin unlock, dry run, tariff refresh, replayed SAS commit, cancellation; journal byte-identical, catalogue option as the control.
 - [x] `tariff-refresh-keeps-line-contribs.unit.test.js` (15) — rule 20: option, resource, engine-derived line, refresh then a later save, refresh and addition in one save, raised and lowered catalogue price, change of logement, line the new logement does not sell, admin unlock, forced, removed, added, unpaid; journal byte-identical.
 - [x] `fiche-pricing-notices.unit.test.js` (6) — rules 5-6; client `PricingNotices.test.jsx` (3).
+- [x] Client `ReservationPage.live-quote-failure.test.jsx` (4) — rule 21: a refusal (4xx) shows its reason without « Réessayer »; a failed live quote shows its reason with
+      « Réessayer » and dims the finance card, the retry keeps both and the focus until the quote lands; an edit asks
+      afresh without the older message and its own failure shows again; the save still quotes before writing.
 - [x] Client `RefundDialog.overpayment.test.jsx` (5, `defaultMethod`) and `FinanceSection.refunds.test.jsx`
       (7, the row's own prefill).
 - [x] `vat-regime-golden`: the `quote/*` family of the golden capture was regenerated (quotes of stored

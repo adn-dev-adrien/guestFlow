@@ -175,6 +175,9 @@ the commit runs, so that what the operator collects at the door is what the book
 15. **The extinguisher page renders the preview.** « Sous-total : 30,00 € » under the extinguisher
     tariffs reads `extinguisherTotal`; « — » until the server answered. The quantities stay local UI
     state. The missing-items page shows the unit price only (a served value), no subtotal, as today.
+    _Reading of 2026-11-18 (stabilisation loop t22, UI22-3):_ a failed preview no longer leaves « Sous-total : — » with no word: the page
+    says « Montant indisponible » with « Réessayer » under it, as the recap does (rule 20) and as the arrival pages do. Client
+    `ReservationSasDialog.failed-preview`.
 16. **When a preview is requested.** On entering the recap and the extinguisher page: immediately. On
     every later change of the draft: after **200 ms** without a further change. « Offrir » is a change
     like the others.
@@ -485,6 +488,8 @@ suite runs unchanged on the renamed hook. Client SAS suites: 24 files, 129 tests
   « Offrir » on the ménage → 13,00 €; back to 93,00 €.
 - [x] Slow server (1,2 s injected): amounts dimmed, bar under the total, « Calcul du total… ».
 - [x] Offline: « Total indisponible », amounts « — », « Valider » disabled; « Réessayer » restores.
+- [x] Offline on the extinguisher page (loop t22, UI22-3): « Sous-total : — » with « Montant indisponible » and « Réessayer »; client
+  `ReservationSasDialog.failed-preview` (the departure recap and extinguisher rows).
 - [x] Price changed elsewhere before « Valider » (serviette 6,50 → 7,00): recorded at 94,00 €, warning,
   history line.
 - [x] Adjusted end-of-stay (50 €): no « Ajustement » line, the muted note under the total.

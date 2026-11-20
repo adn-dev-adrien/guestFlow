@@ -1,7 +1,7 @@
 /**
  * The voucher's sale in the books (specs/gift-vouchers.md rules 43-44, specs/gift-voucher-campaigns.md rule 54): the plugin lists each voucher it sold as a sale made outside any
  * stay (`ctx.standaloneSales`), on the day it was collected, for its whole amount at the VAT rate (or rates) frozen on it. The journal books it as
- * HT + VAT; the stay that a voucher pays later books only what the card collected (mixed-method-payments rule 64), so the VAT of the
+ * HT + VAT; the stay that a voucher pays later books only what the card collected (mixed-method-payments rule 65), so the VAT of the
  * voucher's part is declared once, here.
  */
 

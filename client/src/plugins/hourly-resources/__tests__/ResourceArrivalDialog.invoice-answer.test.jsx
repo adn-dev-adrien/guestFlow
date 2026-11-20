@@ -78,7 +78,6 @@ test('UI4-3 — a refusal of the draft itself is shown once, not again for the p
   api.quoteResourceVisit.mockImplementation(refuseExtras(Object.assign(new Error('Article retiré du catalogue.'), { status: 409 })));
   openDialog();
   fireEvent.click(await screen.findByRole('button', { name: /Bière locale/ }));
-  await waitFor(() => expect(api.quoteResourceVisit.mock.calls.filter(([, body]) => body.payment && (body.extras || []).length > 0).length).toBeGreaterThan(0));
   expect(await screen.findByText('Article retiré du catalogue.')).toBeInTheDocument();
   await new Promise((resolve) => { setTimeout(resolve, 200); });
   expect(screen.getAllByText('Article retiré du catalogue.')).toHaveLength(1);
@@ -106,10 +105,58 @@ test('UI5-2 — « Réessayer » on a failed draft retries the payment answer to
   await new Promise((resolve) => { setTimeout(resolve, 200); });
   fail = false;
   const paymentCalls = () => api.quoteResourceVisit.mock.calls.filter(([, body]) => body.payment && (body.extras || []).length > 0).length;
+  // Loop t23 S23-1 — while the draft's amounts are unknown no payment is typed, so none is asked; once « Réessayer » brings the answer back,
+  // the payment fields return and their answer is asked.
   const before = paymentCalls();
   fireEvent.click(screen.getByRole('button', { name: 'Réessayer' }));
-  expect(paymentCalls()).toBeGreaterThan(before);
   await waitFor(() => expect(screen.queryByText('Service indisponible')).toBeNull());
+  await waitFor(() => expect(paymentCalls()).toBeGreaterThan(before));
   expect(screen.queryByText('Facture non vérifiée pour ce paiement.')).toBeNull();
   await waitFor(() => expect(screen.getByRole('button', { name: 'Valider l’arrivée' })).toBeEnabled());
+});
+
+// Loop t24 UI24-2 — an edit whose draft quote fails. The invoice question is asked only for a payment typed against the draft on screen,
+// so no question leaves with a draft still being priced (before: it left with it and failed together). Once « Réessayer » brings the
+// draft back, the payment the tenders report is a new one: its question is pending, never shown with an older « Facture non vérifiée »,
+// and the focus stays in the dialog when the draft's alert goes.
+test('UI24-2 — after a good « Réessayer », the new payment\'s invoice question is pending without the older failure', async () => {
+  let fail = false;
+  let hold = false;
+  const held = [];
+  api.quoteResourceVisit.mockImplementation(async (id, body) => {
+    // A failing draft quote answers after a short wait, so an invoice question that left with it (the old behaviour) would fail first.
+    if (fail && !body.payment) await new Promise((resolve) => { setTimeout(resolve, 30); });
+    if (fail) throw Object.assign(new Error('Service indisponible'), { status: 503 });
+    if (body.payment && hold) await new Promise((resolve) => { held.push(resolve); });
+    return answering({ ok: true, code: null, reason: null })(id, body);
+  });
+  openDialog();
+  const paymentCalls = (quantity) => api.quoteResourceVisit.mock.calls
+    .filter(([, body]) => body.payment && (body.extras || []).some((e) => e.quantity === quantity)).length;
+  const beer = await screen.findByRole('button', { name: /Bière locale/ });
+  fireEvent.click(beer);
+  await waitFor(() => expect(paymentCalls(1)).toBeGreaterThan(0));
+  expect(await screen.findByText('Créer la facture dans Qonto')).toBeInTheDocument();
+  await new Promise((resolve) => { setTimeout(resolve, 300); });
+  fail = true;
+  const quantity = screen.getByRole('textbox', { name: /Quantité/ });
+  quantity.focus();
+  fireEvent.change(quantity, { target: { value: '2' } });
+  expect(await screen.findByText('Service indisponible')).toBeInTheDocument();
+  expect(paymentCalls(2)).toBe(0);
+  await new Promise((resolve) => { setTimeout(resolve, 200); });
+  fail = false;
+  hold = true;
+  const retry = screen.getByRole('button', { name: 'Réessayer' });
+  retry.focus();
+  fireEvent.click(retry);
+  await waitFor(() => expect(screen.queryByText('Service indisponible')).toBeNull());
+  await waitFor(() => expect(held.length).toBeGreaterThan(0));
+  expect(screen.queryByText('Facture non vérifiée pour ce paiement.')).toBeNull();
+  expect(screen.queryAllByRole('button', { name: 'Réessayer' })).toHaveLength(0);
+  expect(screen.getByRole('button', { name: 'Valider l’arrivée' })).toBeDisabled();
+  expect(screen.getByRole('dialog').contains(document.activeElement)).toBe(true);
+  held.splice(0).forEach((go) => go());
+  await waitFor(() => expect(screen.getByRole('button', { name: 'Valider l’arrivée' })).toBeEnabled());
+  expect(screen.queryByText('Facture non vérifiée pour ce paiement.')).toBeNull();
 });

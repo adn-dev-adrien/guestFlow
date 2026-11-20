@@ -407,13 +407,83 @@ read the settlements themselves (`utils/paymentTenders.settlementFigures`).
     month the accountant may already hold keeps its cents. A split stay closes whatever the date (rule 56). Pinned by
     `mixed-method-payments-closing-edges` and the fuzz of the verification (40 stays per order, 0 left a cent).
 
+59. **Typed lines survive the block going away (loop t24, 2026-11-18).** When a screen unmounts its tender lines and shows them
+    again — the SAS recap after a failed recompute and its « Réessayer », after a step back and the return to the recap (arrival),
+    or when the departure's due comes back from 0 — the lines come back exactly as the operator left them: `TenderLines` reports
+    its `draft` (the lines, typed or not, and the shortfall choice) with every change, and the screen passes it back as
+    `initialDraft`. A typed line is never rewritten; the untyped last line shows what the others leave of the new due; when the due
+    changed and a typed line no longer fits, it stays as typed and the meter says so (« … de trop » / « … non couverts »), the commit
+    waiting as usual. Only the operator's own « Un seul moyen » (or a new run of the SAS) clears them. Tests
+    `ReservationSasDialog.tender-lines-kept` (failure → recovery at arrival and departure, step back → recap, due 0 → back),
+    `TenderLines.initial-draft`.
+    _Reading of 2026-11-19 (loop t25 UI25-2):_ the block comes back **without taking the focus**: its first amount is focused only when
+    the operator opens « Plusieurs moyens » (the toggle empties the lines, so the block mounts with no draft); a remount with lines of their
+    own — the next answer after a failed recompute, the departure's due back from 0 — leaves the focus on the control the operator just used
+    (« ✓ Offert » / « Offrir »). Before, the SAS `autoFocus` moved it into « Montant Espèces » about 60 ms later (arrival after 89938504,
+    departure also on the nominal due 0 → 6 €). Test `ReservationSasDialog.tender-lines-focus` (5: three remounts keep the focus on the
+    toggle, arrival and departure opening still focus the first amount).
+    _Same day (loop t25 B25-1):_ **the shortfall choice comes back only for the due it answered.** The draft also carried `shortKind`,
+    restored whatever the new due: an arrival at 500 €, 400 + 50 typed and « Geste commercial » for the 50 €, then an extra added (due
+    584 €) came back with « Encaisser 450 € » enabled and recorded a 134 € gesture nobody chose. `TenderLines` now keeps the choice with the
+    due it was taken on (the draft carries `dueCents`): the same due brings it back; another due — after a remount, or while the block stays
+    mounted — leaves the lines as typed and asks the shortfall again, the commit waiting for the answer. A draft without `dueCents` brings
+    no choice back. The lines are the only other state restored from the draft and none depends on the due (the untyped last line is
+    recomputed from it). Tests `TenderLines.shortfall-due-bound` (6) and `ReservationSasDialog.tender-lines-kept` (+4: arrival and
+    departure, same due and another due).
+    _Same day (loop t25 verifier):_ **a commit sends only the report that answers the due on screen.** Between a new due and the report
+    the lines send for it (one render, an effect later) the screens still held the older report: in the SAS departure (12,50 € due, 1 + 2
+    typed, « Geste commercial », then « Offrir » → 6,00 €) « Encaisser » was clickable for 264–281 ms with the choice already cleared on
+    screen, and a click would have sent `complementsShortfall: waived` chosen for the older due. Every `onChange` report now carries the
+    `dueCents` it answers, and every consumer reads it through `tendersForDue(report, due)` (`TenderLines`, SDK 2.32.0 export) — or
+    `paymentForDue` for `BookingPaymentFields`, whose value carries the lines' own due — for its button AND in its commit handler, which
+    returns without sending anything otherwise: SAS arrival and departure, « Vente hors séjour », the fiche's « Encaisser en une fois »,
+    `PaymentMarkForm` (ledger rows, installments), the mid-stay note, the visit arrival and the hourly booking. Measured in Chromium at
+    1280 and 390 px frame by frame (arrival, due moved by « Offrir »): « Encaisser » off from the click to the new answer, then off with
+    the choice asked again — never on. Test `ReservationSasDialog.tender-commit-due` (12: the helper; every consumer read from the code
+    uses the guard; arrival and departure, the button's `disabled` never removed while the new answer lands, nothing sent).
+    **The label names the due on screen while the report is pending** (SAS arrival and departure, the fiche's « Encaisser en une fois »,
+    `PaymentMarkForm`, the mid-stay note, the counter sale): that due is known and correct at once, so the label never shows an older
+    report's amount nor « — » on the nominal path (a « — » for one frame was the flicker of a742d342, withdrawn the same day); the button
+    stays disabled until the report matches it, then names what the lines collect. « Encaisser — » stays only where the due itself is
+    unknown (a failed recompute). Same test: every label the button held after the due moved, captured per DOM change, is the new due or
+    what the lines then collect, never « — », the new due shown right after the change on a disabled button (red on the « — » code).
+    **The report reaches the screen before paint and describes the lines on screen.** `TenderLines` sent it from a passive effect,
+    after paint: for one frame the button judged the PREVIOUS lines (typing « 2 » in the last line drew 1 + 2 with « 9,50 € non couverts »
+    unanswered while « Encaisser 12,50 € » was clickable; a click would have sent 1 + 11,50). The report is now sent in a layout effect
+    (before paint), and carries `live()`: whether the lines on screen — as of the latest render — are still the ones it describes.
+    `tendersForDue` / `paymentForDue` require it, and every commit handler asks it again at click time, so a click can only send the
+    lines it sees. Tests `TenderLines.report-before-paint` (keystrokes and a choice dispatched natively, outside `act`, the button read
+    synchronously after each: it always agrees with the lines' own validity — red with the passive effect) and
+    `ReservationSasDialog.tender-commit-due` (every consumer's handler re-checks `live()`).
+    _Reading of 2026-11-19 (loop t26 UI26-1, UI26-2):_ **a field that decides no amount never takes the lines away.** The counter
+    sale made its quote un-askable while the e-mail was not yet an address, so each keystroke of « client@… » blanked the Total and
+    unmounted the lines, and the valid address brought back one card line of the whole due (CB 2 + Espèces 4,50 → CB 6,50). Its quote is
+    now asked whatever the customer fields hold (the address is sent once it is one, « Enregistrer comme client » once a name is there —
+    plugins-phase-1-sdk rule 54 reading of the same day): the lines stay mounted, as typed, at every keystroke. The mid-stay note's lines
+    stay mounted through a recompute and come back as typed after a failure (`initialDraft`), focused only on the operator's opening
+    (mid-stay-notes rule 22 reading). Tests `useLatestPreview.non-amount-fields`, `MidStayNoteDialog.preview-latest`.
+    _Reading of 2026-11-19 (loop t26, plugins-phase-1-sdk rule 58):_ **a new due keeps the typed lines too, on every screen.** The counter
+    sale (`key={remainingCents}`) and `BookingPaymentFields` (`key={dueCents}`: the visit's arrival and the hourly booking) still remounted
+    their lines on each new due, so an article added after typing CB 60,00 + Espèces brought back one card line of the whole due, and a
+    failed quote of the visit drew the lines afresh on its retry. They now keep the lines' report (`useTenderDraft`, the shared money-dialog
+    module) and draw it back as `initialDraft`; a typed line that no longer fits stays typed with the counter's warning, the commit blocked.
+    The single prefilled line of the whole due is not something the operator typed: `TenderLines` marks it `seeded` and it reads the due on
+    screen until the operator types its amount (changing its method keeps it seeded). Any line the operator types in is typed — before, only
+    the last one was, so removing the line after a typed one turned it into the remainder and its amount was lost. The shortfall choice
+    travels in the draft with the due it answered (`shortDueCents`), so a block drawn again on another due and back keeps it for its own due
+    (B25-1 still holds: another due asks it again). Every host's lines are a `FocusKeeper` region: a line
+    removed, or « Ajouter un moyen » gone at the fourth line, leaves the focus in the block. Found by the generative harness
+    (`moneyDialogs.invariants.*`, I3 and I4) and proved by it: with « typed » on the last line only, or `shortDueCents` ignored, its permanent
+    suite turns red (mutation check of 2026-11-20), as do `TenderLines.typed-lines` (2). The prefilled line of the whole due is seeded only
+    where the screen proposes it (`defaultLine`: the counter, `BookingPaymentFields`); a correction's lines stay as recorded.
+
 ### 3.15 An amount received in advance from a plugin's prepaid instrument (SDK 2.33.0, 2026-11-15)
 
-> The rules below are numbered 59-62 and added at the end, never inserted: a rule number is an identity. They are written for
+> The rules below are numbered 60-63 and added at the end, never inserted: a rule number is an identity. They are written for
 > a plugin that keeps a balance (the gift vouchers of `specs/gift-vouchers.md` rules 36-42), and name none: a made-up stored
 > credit is what `prepaid-received-amount.unit.test.js` uses.
 
-59. **A prepaid line.** `payment_tenders.method` gains `'prepaid'`; a line of that method carries the plugin's `source`, its own
+60. **A prepaid line.** `payment_tenders.method` gains `'prepaid'`; a line of that method carries the plugin's `source`, its own
     `ref` and the `label` the plugin gave it when it was written (`source`, `ref`, `label`, all nullable). The operator never
     types it: it is not in `METHODS` (rule 4), and `validateSettlement` refuses it (« Moyen de paiement inconnu. »). It is written
     only by `utils/prepaidReceipts` (module of the SDK), into the settlement of the bucket it paid — the acompte first, then the
@@ -421,36 +491,36 @@ read the settlements themselves (`utils/paymentTenders.settlementFigures`).
     commission and statistics are those of the same stay paid by card: the line only says how a part of a bucket was received.
     A plugin declares such an instrument with `ctx.prepaid({ source, label, apply, held, settle, release })`; the core asks the
     live plugin and never names it.
-60. **What it counts for.** A prepaid line is money received by the stay (`booksCents`, `receivedCents`: the remaining to pay, the
+61. **What it counts for.** A prepaid line is money received by the stay (`booksCents`, `receivedCents`: the remaining to pay, the
     « Perçu » state, the refund register), never money collected: `settlementFigures` gives it its own `prepaidCents` and a
     `collectedCents` (books minus prepaid) that the accounting export (`bookedFigures`) and the finance dashboard's encaissements
     read, and it is not a bank method (`BANK_METHODS`), so the reconciliation's `expectedReceipts` never expects it. The sale of
     the instrument was the encaissement. A prepaid line has no « Modifier » on the fiche (rule 20): its plugin undoes it.
-61. **Public payment.** A quote that holds prepaid money (`prepaidSources.heldFor`) lowers what the public payment asks for, the
-    earliest amounts first (rule 59): a `deposit`-mode link asks the acompte less the held amount, a `full` one the whole
+62. **Public payment.** A quote that holds prepaid money (`prepaidSources.heldFor`) lowers what the public payment asks for, the
+    earliest amounts first (rule 60): a `deposit`-mode link asks the acompte less the held amount, a `full` one the whole
     pre-arrival amount less it, its VAT basket reduced the stay line first. The amount-mismatch guard of `applyPaidEffect`
     expects that reduced amount; at the conversion the sources redeem what the stay takes and the settlements are written
     (`settleAtConversion`). When nothing is left to ask, no link is minted: `confirmWithoutLink` converts the quote through the same
     effect a paid link has (convert, tick the covered buckets, confirm the guest, announce `reservation.created`). A solde only
     partly covered is ticked with a `due` shortfall (rule 16): the reste is collected like any other.
-62. **Taking it back.** A prepaid payment the fiche recorded (`recordOnStay`: the acompte whole, then the solde, then a reste
+63. **Taking it back.** A prepaid payment the fiche recorded (`recordOnStay`: the acompte whole, then the solde, then a reste
     already open) is undone by its plugin through `undoOnStay`: the settlement goes, the bucket it alone paid is open again,
     refused while a later settlement of the bucket rests on it, when the bank reconciliation matched it, when it shares a line
     with a card (the booking's own), or when the take-back would leave refunds above what stays collected (rule 38 of
     `reservation-refunds.md`). A deleted, purged or lapsed quote gives its hold back (`prepaidSources.releaseFor`).
 
-63. **Never given back in money.** What a prepaid line paid is received money (rule 60) but not refundable money: the refund register
+64. **Never given back in money.** What a prepaid line paid is received money (rule 61) but not refundable money: the refund register
     (`refundsController.buildRegister`) takes `prepaidCentsOf(settlements)` off what the stay collected, so a cancelled stay's
     budget (`refundable.budget({ prepaidTtc })`) is the other payments only. The cancellation indemnity therefore comes from the card
     and the other payments first: 100 € prepaid + 168 € card with a 50 € indemnity owes 118 € in money, a stay paid only by prepaid
     money owes none. The prepaid part goes back through its plugin's own gesture.
-64. **A prepaid part declares no VAT on the stay (Adrien, 2026-11-16).** The VAT of the money a prepaid instrument took in was declared when that
+65. **A prepaid part declares no VAT on the stay (Adrien, 2026-11-16).** The VAT of the money a prepaid instrument took in was declared when that
     instrument was sold (its plugin lists the sale with `ctx.standaloneSales`, at the VAT rate it froze). The stay's export entries are
-    scaled to the share the collected part carries (`bookedFigures` → `scaleEntry`: `booksCents` = `collectedCents`, rule 60), so the stay's
+    scaled to the share the collected part carries (`bookedFigures` → `scaleEntry`: `booksCents` = `collectedCents`, rule 61), so the stay's
     HT and VAT are those of what the card, cash or transfer collected only — the VAT of the prepaid part is not counted a second time.
     Nothing names an instrument: the rule holds for every `prepaid` line, and a plugin whose instrument carries no VAT at its sale is
     that plugin's to declare in its own sale.
-65. **To be confirmed by the accountant.** The treatment of rule 64 assumes the instrument's VAT is due at its sale (single-purpose voucher). If the
+66. **To be confirmed by the accountant.** The treatment of rule 65 assumes the instrument's VAT is due at its sale (single-purpose voucher). If the
     accountant decides the VAT is due when the instrument is used, the sale lists no VAT (rate 0 in the plugin's setting) and the stay's
     export is the place to restore it: that decision is not taken here.
 **Edge cases:**
@@ -525,7 +595,7 @@ read the settlements themselves (`utils/paymentTenders.settlementFigures`).
 | `components/reservation/` | `FinanceSection.jsx` | T | « Encaisser en une fois » block gets the same toggle; paid rows render settlements, « Modifier », the remainder's « Marquer payé » |
 | `components/reservation/` | `InstallmentPlanCard.jsx`, `MidStayNoteDialog.jsx` | T | Same toggle in their payment step |
 | `plugins/sas/` | `ReservationSasDialog.jsx` | T | « Plusieurs moyens » under `PaymentModeButtons` (arrival and departure); _(round 34)_ reset on every opening, departure lines only while settleable, hidden for reception (rules 32, 45) |
-| `components/` | `TenderLines.jsx` | T | _(round 34)_ `whole` / `noCaisse` (rule 44); an untyped last line at 0 is no line (rule 7 reading) |
+| `components/` | `TenderLines.jsx` | T | _(round 34)_ `whole` / `noCaisse` (rule 44); an untyped last line at 0 is no line (rule 7 reading); _(loop t24)_ `onChange` reports `draft`, `initialDraft` restores it (rule 59) |
 | `components/` | `PricingSummary.jsx`, `pages/ReservationPage.jsx` | T | _(round 34)_ `ledgerRows`: the paid badge reads « Perçu en partie » with a reste (rule 16 reading) |
 | `components/reservation/` | `FinanceSection.jsx`, `PaymentMarkForm.jsx`, `InstallmentPlanCard.jsx` | T | _(round 34)_ a stale correction panel closed (rule 32 reading); `whole` / `noCaisse` passed on (rule 44) |
 
@@ -716,6 +786,20 @@ See the summary page for the interactive mock (fiche row, SAS departure, modific
 - [x] `components/reservation/__tests__/FinanceSection.mixed-method-payments.test.jsx` (6).
 - [x] `plugins/sas/__tests__/ReservationSasDialog.mixed-method-payments.test.jsx` (3).
 - [x] _(round 34)_ `components/__tests__/TenderLines.whole-and-blank-line.test.jsx` (4) — rules 7, 44.
+- [x] _(loop t24)_ `components/__tests__/TenderLines.initial-draft.test.jsx` (2) and
+      `plugins/sas/__tests__/ReservationSasDialog.tender-lines-kept.test.jsx` (4) — rule 59.
+- [x] _(loop t25 verifier)_ `plugins/sas/__tests__/ReservationSasDialog.tender-commit-due.test.jsx` (12) — rule 59, a commit only
+      for the due its report answers (shared walks in `sasTenderLinesFixtures.jsx`).
+- [x] _(loop t25 B25-1)_ `components/__tests__/TenderLines.shortfall-due-bound.test.jsx` (6) and
+      `plugins/sas/__tests__/ReservationSasDialog.tender-lines-kept.test.jsx` (4 → 8) — rule 59, the shortfall choice bound to its due.
+- [x] _(loop t25)_ `plugins/sas/__tests__/ReservationSasDialog.tender-lines-focus.test.jsx` (5) — rule 59, reading of 2026-11-19: a remount
+      of « Plusieurs moyens » keeps the focus on the toggle used; the operator's opening focuses the first amount (helpers shared with
+      `tender-lines-kept` in `sasTenderLinesFixtures.jsx`).
+- [x] _(loop t25 verifier)_ `components/__tests__/TenderLines.report-before-paint.test.jsx` (2) — rule 59: the report is sent before
+      paint and `live()` says whether it still describes the lines on screen (keystrokes and a choice dispatched natively).
+- [x] _(loop t26)_ `hooks/__tests__/useLatestPreview.non-amount-fields.test.jsx` (8) and
+      `components/reservation/__tests__/MidStayNoteDialog.preview-latest.test.jsx` (6) — rule 59 reading of 2026-11-19: the counter's
+      typed lines kept while the customer fields are typed; the note's lines kept through a recompute and back as typed after a failure.
 - [x] _(round 34)_ `components/reservation/__tests__/FinanceSection.split-panel-stale.test.jsx` (1) — rule 32 reading.
 - [x] _(round 34)_ `plugins/sas/__tests__/ReservationSasDialog.split-reopen.test.jsx` (3) — rules 32, 45.
 - [x] _(round 34)_ `components/__tests__/PricingSummary.split-reste-badge.test.jsx` (2) — rule 16 reading.

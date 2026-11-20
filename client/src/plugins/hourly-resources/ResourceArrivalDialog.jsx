@@ -22,14 +22,14 @@
  */
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  Alert, Box, Button, Dialog, DialogActions, DialogContent, DialogTitle, ToggleButton, ToggleButtonGroup, Typography, useMediaQuery, useTheme,
+  Alert, Box, Button, Dialog, DialogContent, DialogTitle, ToggleButton, ToggleButtonGroup, Typography, useMediaQuery, useTheme,
 } from '@mui/material';
 import {
   api, formatCurrency, LoadingState, ErrorAlert, ConfirmDialog, SuggestedArticlesStep, SalePaymentLink, StatusBadge, StandaloneSaleDialog,
-  useSaleComponentsReady,
+  useSaleComponentsReady, FocusKeeper, MoneyActions, useMoneyCommit,
 } from '../sdk';
 import OfferedTimeField from './OfferedTimeField';
-import BookingPaymentFields, { paymentBody, hasCard } from './BookingPaymentFields';
+import BookingPaymentFields, { paymentBody, paymentForDue, hasCard } from './BookingPaymentFields';
 import BookingInvoiceBlock from './BookingInvoiceBlock';
 import useVisitQuote from './useVisitQuote';
 
@@ -84,21 +84,22 @@ const NO_REFUSALS = [];
 const EMPTY_BILLING = { street: '', postcode: '', city: '' };
 const STATUS_TONE = { paid: 'success', due: 'warning', offered: 'neutral', cancelled: 'neutral' };
 
-function SessionLine({ line, disabled, onOffer, busy }) {
+// `unknown` — the draft's quote failed (loop t23 S23-1): the stored line keeps its place, its amounts read « — ».
+function SessionLine({ line, disabled, onOffer, busy, unknown = false }) {
   return (
     <Box sx={{ display: 'grid', gap: 0.75 }}>
       <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 1.5, alignItems: 'baseline' }}>
         <Typography variant="body2" sx={{ fontWeight: 600, overflowWrap: 'anywhere' }}>{line.label}</Typography>
         <Typography variant="body2" sx={{ fontWeight: 700, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>
-          {line.offered && line.catalogueCents > 0 && <Box component="del" sx={{ color: 'text.secondary', fontWeight: 400, mr: 0.75 }}>{euros(line.catalogueCents)}</Box>}
-          {euros(line.totalCents)}
+          {!unknown && line.offered && line.catalogueCents > 0 && <Box component="del" sx={{ color: 'text.secondary', fontWeight: 400, mr: 0.75 }}>{euros(line.catalogueCents)}</Box>}
+          {unknown ? '—' : euros(line.totalCents)}
         </Typography>
       </Box>
       {(line.components || []).map((part) => (
         <Box key={part.key} sx={{ display: 'flex', justifyContent: 'space-between', gap: 1.5 }}>
           <Typography variant="body2" color="text.secondary" sx={{ minWidth: 0, overflowWrap: 'anywhere' }}>{[part.label, part.detail].filter(Boolean).join(' · ')}</Typography>
           <Typography variant="body2" color={part.amountCents < 0 ? 'success.main' : 'text.secondary'} sx={{ fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>
-            {part.amountCents < 0 ? `−${euros(-part.amountCents)}` : euros(part.amountCents)}
+            {unknown ? '—' : (part.amountCents < 0 ? `−${euros(-part.amountCents)}` : euros(part.amountCents))}
           </Typography>
         </Box>
       ))}
@@ -211,6 +212,9 @@ export default function ResourceArrivalDialog({ open, bookingId, onClose, onDone
   } : null), [dirty, visit, offeredMinutes, sessionOffered, extras]);
   const quote = useVisitQuote({ bookingId, draft, enabled: open, version: visit ? visit.document.version : 0 });
   const view = dirty ? (quote.visit || visit) : visit;
+  // Loop t23 S23-1 — after a failed quote of the draft its amounts are unknown: the stored visit still gives the layout, but no total,
+  // remainder or VAT of it is drawn and no payment can be typed until a new answer (« Réessayer »).
+  const amountsUnknown = dirty && quote.failed;
   const refusals = dirty ? quote.refusals : NO_REFUSALS;
 
   const sessionLines = view ? view.lines.filter((line) => line.kind === 'session') : [];
@@ -229,18 +233,33 @@ export default function ResourceArrivalDialog({ open, bookingId, onClose, onDone
     return extras.map((entry) => (refused.has(entry.articleRef) ? null : priced[at++]));
   }, [view, extras, refusals]);
 
-  const remainingCents = view ? view.totals.remainingCents : 0;
+  const remainingCents = view && !amountsUnknown ? view.totals.remainingCents : 0;
   const payNow = !readOnly && mode === 'now' && remainingCents > 0;
   const hasChanges = dirty || payNow;
-  const quoteReady = !dirty || (quote.fresh && !quote.refusal && refusals.length === 0);
+  const quoteReady = !dirty || (!quote.refusal && refusals.length === 0);
   const qontoReady = Boolean(view && view.invoiceReady);
   // Loop t2 B2-7 (rule 54) — with « Payé maintenant », whether this commit could make the invoice is the server's answer for the payment typed.
-  const paymentDraft = useMemo(() => (!reception && payNow && payment && paymentBody(payment) ? { ...(draft || {}), payment: paymentBody(payment) } : null), [reception, payNow, payment, draft]);
-  const invoiceQuote = useVisitQuote({ bookingId, draft: paymentDraft, enabled: open, version: visit ? visit.document.version : 0 });
-  // Loop t3 UI3-4/UI3-5 — the latest answer stays on screen while a newer one is asked (no caption ↔ checkbox flip per keystroke); the commit
-  // still waits for the answer to the payment typed (`paymentReady`). « Caisse interne » and any other refusal are the server's words too.
+  // Loop t24 — asked only for the payment typed against the remainder of the draft on screen: while a newer quote is on its way, or the
+  // tenders have not yet followed it, the pair (draft, payment) is stale and its answer would be a false refusal drawn on the nominal
+  // path. Meanwhile the block is drawn pending (`invoiceAwaiting`, loop t25).
+  const paymentTyped = !reception && payNow && Boolean(paymentBody(payment));
+  const draftCurrent = !dirty || quote.fresh;
+  const paymentDraft = useMemo(
+    () => (paymentTyped && draftCurrent && payment.dueCents === remainingCents ? { ...(draft || {}), payment: paymentBody(payment) } : null),
+    [paymentTyped, draftCurrent, payment, remainingCents, draft],
+  );
+  const invoiceAwaiting = paymentTyped && !paymentDraft;
+  // The invoice question waits (null) while the typed payment catches up with a new due: back on the same pair it reuses its answer.
+  const invoiceQuote = useVisitQuote({
+    bookingId, draft: paymentDraft, enabled: open, version: visit ? visit.document.version : 0, reuseOnReenable: true,
+  });
+  // Loop t3 UI3-4/UI3-5 — no caption ↔ checkbox flip per keystroke: the pending block keeps the place of the answer (loop t21 `reserve`); the commit
+  // still waits for the answer to the payment typed (the commit gate below). « Caisse interne » and any other refusal are the server's words too.
   const draftAnswerFailed = Boolean(quote.refusal || quote.error);
-  const invoiceAnswer = paymentDraft && invoiceQuote.visit ? invoiceQuote.visit.invoiceable || null : null;
+  // Loop t25 — while the typed payment waits (`invoiceAwaiting`) or its answer is on its way, no answer is current for it: the block is drawn
+  // pending (checkbox disabled, as ticked as the operator left it, at the reserved height) instead of an older payment's answer (owner
+  // decision: no action on an unknown value).
+  const invoiceAnswer = paymentDraft && invoiceQuote.fresh && invoiceQuote.visit ? invoiceQuote.visit.invoiceable || null : null;
   const invoiceOffered = Boolean(invoiceAnswer && invoiceAnswer.ok);
   const draftInternalCash = Boolean(invoiceAnswer && invoiceAnswer.code === 'INTERNAL_CASH');
   const draftRefusal = invoiceAnswer && !invoiceAnswer.ok && !invoiceAnswer.silent && !draftInternalCash ? invoiceAnswer.reason : null;
@@ -250,7 +269,7 @@ export default function ResourceArrivalDialog({ open, bookingId, onClose, onDone
   // and a `silent` answer, which shows nothing (UI3-5) — its section is hidden in place. A payment no longer readable shows the block's own
   // « une fois le paiement saisi » caption. Before the tenders' first report the box reads as their default card line will set it.
   const invoiceSilenced = Boolean(invoiceAnswer && !invoiceAnswer.ok && invoiceAnswer.silent);
-  const invoicePending = !reception && payNow && qontoReady && !invoiceAnswer && (!payment || Boolean(paymentDraft));
+  const invoicePending = !reception && payNow && qontoReady && !invoiceAnswer && (!payment || Boolean(paymentDraft) || invoiceAwaiting);
   const invoiceAsked = !reception && payNow && qontoReady;
   // Money already on the books, invoiceable now: the server's `invoiceable` (invoicing rules 13, 44; loop t1 UI-10 / AV-11). It reads the stored visit, so a draft waits for its save.
   const invoiceable = visit && !reception ? visit.invoiceable : null;
@@ -262,14 +281,24 @@ export default function ResourceArrivalDialog({ open, bookingId, onClose, onDone
   const commitMode = !invoiceOutcome && (!booking || !booking.arrived || hasChanges);
   const primaryLabel = invoiceOutcome ? TEXTS.makeInvoice : (!booking || !booking.arrived ? TEXTS.validate : (hasChanges ? TEXTS.save : (invoiceStored ? TEXTS.makeInvoice : TEXTS.close)));
   const closesOnly = !commitMode && !invoiceOutcome && !invoiceStored;
-  // The invoice question is answered before the commit, so the checkbox the operator sees is the one the commit carries.
-  const paymentReady = !payNow || (Boolean(payment && payment.canSubmit) && (!paymentDraft || invoiceQuote.fresh));
-  const canValidate = Boolean(visit) && !busy && (closesOnly || Boolean(invoiceOutcome) || (commitMode ? quoteReady && paymentReady : invoiceStored));
+  // The invoice question is answered before the commit, so the checkbox the operator sees is the one the commit carries. The money-dialog
+  // contract (plugins-phase-1-sdk rule 58): every answer judged by the draft it was for — the visit's quote, the invoice question of the
+  // payment typed — and the lines' report by the due on screen.
+  const gate = useMoneyCommit({
+    previews: [...(dirty ? [quote] : []), ...(payNow && paymentDraft ? [invoiceQuote] : [])],
+    dueCents: remainingCents,
+    tenders: payment,
+    splitting: payNow,
+    questions: [quoteReady, !(payNow && invoiceAwaiting)],
+  });
+  const paymentNow = payNow ? gate.tendersNow : paymentForDue(payment, remainingCents);
+  const canValidate = Boolean(visit) && !busy && (closesOnly || Boolean(invoiceOutcome) || (commitMode ? gate.ready : invoiceStored));
 
   const adopt = (next) => { setVisit(next); setOfferedMinutes(Number(next.session.offeredMinutes || 0)); };
 
   // `issue` — the invoice block's « Créer la facture »: the explicit choice of an invoice for money already taken (invoicing rule 45).
   async function validate({ issue = false } = {}) {
+    if (!canValidate || (payNow && commitMode && paymentNow && paymentNow.live && !paymentNow.live())) return;
     setBusy(true);
     setError(null);
     try {
@@ -283,7 +312,7 @@ export default function ResourceArrivalDialog({ open, bookingId, onClose, onDone
         ...draft,
         acceptedTotalCents: view.totals.totalCents,
         ...(visit.document.id ? { version: visit.document.version } : {}),
-        payment: payNow ? paymentBody(payment) : null,
+        payment: payNow ? paymentBody(paymentNow) : null,
         invoice: wantsInvoice || (issue && invoiceStored),
         billing: booking.external ? billing : undefined,
       });
@@ -396,14 +425,16 @@ export default function ResourceArrivalDialog({ open, bookingId, onClose, onDone
       {view && salesReady && (
         <Box sx={{ position: 'sticky', top: 0, zIndex: 2, bgcolor: 'background.paper', px: 3, py: 1, borderBottom: 1, borderColor: 'divider', display: { xs: 'flex', sm: 'none' }, justifyContent: 'space-between', alignItems: 'baseline' }}>
           <Typography variant="body2">{TEXTS.remaining}</Typography>
-          <Typography data-testid="sticky-remaining" sx={{ fontFamily: (t) => t.typography.pageTitle?.fontFamily, fontWeight: 700, fontSize: '1.3rem', fontVariantNumeric: 'tabular-nums', opacity: dirty && quote.pending ? 0.6 : 1 }}>{euros(remainingCents)}</Typography>
+          <Typography data-testid="sticky-remaining" sx={{ fontFamily: (t) => t.typography.pageTitle?.fontFamily, fontWeight: 700, fontSize: '1.3rem', fontVariantNumeric: 'tabular-nums', opacity: dirty && quote.pending ? 0.6 : 1 }}>{amountsUnknown ? '—' : euros(remainingCents)}</Typography>
         </Box>
       )}
       <DialogContent sx={{ pt: 2 }}>
         {(!visit || !salesReady) && !loadError && <LoadingState />}
         {loadError && <ErrorAlert message={loadError} onRetry={load} />}
         {view && salesReady && (
-          <Box sx={{ display: 'grid', gap: 2.5, gridTemplateColumns: { xs: '1fr', lg: 'minmax(0, 1.2fr) minmax(0, 1fr)' }, alignItems: 'start' }}>
+          // Loop t22 UI22-1 — an answer that removes or hides the control holding the focus (the « Facture » address on a refusal, its whole
+          // section on a silent one) leaves the focus in the dialog, on the nearest region still drawn.
+          <FocusKeeper sx={{ display: 'grid', gap: 2.5, gridTemplateColumns: { xs: '1fr', lg: 'minmax(0, 1.2fr) minmax(0, 1fr)' }, alignItems: 'start' }}>
             <Box sx={{ display: 'grid', gap: 2.5, minWidth: 0 }}>
               {readOnly && <Alert severity="info">{visit.access.reason}</Alert>}
               <Box sx={{ display: 'grid', gap: 1 }}>
@@ -415,6 +446,7 @@ export default function ResourceArrivalDialog({ open, bookingId, onClose, onDone
                       line={line}
                       disabled={readOnly}
                       busy={busyLine != null && busyLine === line.id}
+                      unknown={amountsUnknown}
                       onOffer={() => (line.draft ? setSessionOffered((v) => !v) : changeLine(line, { offered: !line.offered }))}
                     />
                   ))}
@@ -451,7 +483,7 @@ export default function ResourceArrivalDialog({ open, bookingId, onClose, onDone
                 <Typography variant="subtitle2">{TEXTS.recap}</Typography>
                 <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
                   <Typography variant="body2">{TEXTS.total}</Typography>
-                  <Typography variant="body2" sx={{ fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>{euros(view.totals.totalCents)}</Typography>
+                  <Typography variant="body2" sx={{ fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>{amountsUnknown ? '—' : euros(view.totals.totalCents)}</Typography>
                 </Box>
                 {view.totals.paidCents > 0 && (
                   <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
@@ -461,11 +493,15 @@ export default function ResourceArrivalDialog({ open, bookingId, onClose, onDone
                 )}
                 <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
                   <Typography variant="body1" sx={{ fontWeight: 700 }}>{TEXTS.remaining}</Typography>
-                  <Typography data-testid="remaining" sx={{ fontFamily: (t) => t.typography.pageTitle?.fontFamily, fontWeight: 700, fontSize: '1.6rem', fontVariantNumeric: 'tabular-nums' }}>{euros(view.totals.remainingCents)}</Typography>
+                  <Typography data-testid="remaining" sx={{ fontFamily: (t) => t.typography.pageTitle?.fontFamily, fontWeight: 700, fontSize: '1.6rem', fontVariantNumeric: 'tabular-nums' }}>{amountsUnknown ? '—' : euros(view.totals.remainingCents)}</Typography>
                 </Box>
-                {(view.vatByRate || []).filter((row) => row.vatCents > 0).map((row) => (
-                  <Typography key={row.rate} variant="caption" color="text.secondary" sx={{ fontVariantNumeric: 'tabular-nums' }}>{TEXTS.vat(String(row.rate).replace('.', ','), euros(row.vatCents))}</Typography>
-                ))}
+                {/* Loop t22 UI22-2 — the rates sit side by side on one line: an article of another rate adds its VAT beside the first one
+                    instead of a row that would push the payment down when the answer lands. */}
+                <Box sx={{ display: 'flex', flexWrap: 'wrap', columnGap: 1.5 }}>
+                  {(amountsUnknown ? [] : view.vatByRate || []).filter((row) => row.vatCents > 0).map((row) => (
+                    <Typography key={row.rate} variant="caption" color="text.secondary" sx={{ fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>{TEXTS.vat(String(row.rate).replace('.', ','), euros(row.vatCents))}</Typography>
+                  ))}
+                </Box>
                 {(view.refundObligations || []).map((row) => (
                   <Alert
                     key={row.id}
@@ -482,7 +518,9 @@ export default function ResourceArrivalDialog({ open, bookingId, onClose, onDone
               {!readOnly && (
                 <Box sx={{ display: 'grid', gap: 1 }}>
                   <Typography variant="subtitle2">{TEXTS.payment}</Typography>
-                  {remainingCents <= 0 ? (
+                  {amountsUnknown ? (
+                    <Typography variant="caption" color="text.secondary">—</Typography>
+                  ) : remainingCents <= 0 ? (
                     <Typography variant="caption" color="text.secondary">{TEXTS.nothingDue}</Typography>
                   ) : (
                     <>
@@ -511,7 +549,7 @@ export default function ResourceArrivalDialog({ open, bookingId, onClose, onDone
                 </Box>
               )}
 
-              {(readOnly || remainingCents <= 0) && !reception && view.paymentLink && view.paymentLink.open && (
+              {(readOnly || remainingCents <= 0) && !amountsUnknown && !reception && view.paymentLink && view.paymentLink.open && (
                 <Box sx={{ display: 'grid', gap: 1 }}>
                   <Typography variant="subtitle2">{TEXTS.payment}</Typography>
                   {linkBlock}
@@ -557,10 +595,11 @@ export default function ResourceArrivalDialog({ open, bookingId, onClose, onDone
             {paymentDraft && !draftAnswerFailed && invoiceQuote.refusal && <Alert severity="error" sx={{ gridColumn: '1 / -1' }}>{invoiceQuote.refusal}</Alert>}
             {paymentDraft && !draftAnswerFailed && invoiceQuote.error && <ErrorAlert message={TEXTS.invoiceQuoteFailed} onRetry={invoiceQuote.retry} sx={{ gridColumn: '1 / -1' }} />}
             {error && <Alert severity="error" sx={{ gridColumn: '1 / -1' }}>{error}</Alert>}
-          </Box>
+          </FocusKeeper>
         )}
       </DialogContent>
-      <DialogActions sx={{ flexDirection: { xs: 'column', sm: 'row' }, gap: 1, p: 2, '& > :not(style) ~ :not(style)': { ml: { xs: 0, sm: 1 } } }}>
+      {/* specs/plugins-phase-1-sdk.md rule 58 (I4) — « Valider l’arrivée » goes busy on its click: the focus stays in the row. */}
+      <MoneyActions sx={{ flexDirection: { xs: 'column', sm: 'row' }, gap: 1, p: 2, '& > :not(style) ~ :not(style)': { ml: { xs: 0, sm: 1 } } }}>
         {onOpenFiche && booking && (
           <Button variant="outlined" onClick={() => onOpenFiche(booking.id)} sx={{ minHeight: 44, width: { xs: '100%', sm: 'auto' }, mr: { sm: visit && visit.newSale ? 0 : 'auto' } }}>{TEXTS.openFiche}</Button>
         )}
@@ -576,7 +615,7 @@ export default function ResourceArrivalDialog({ open, bookingId, onClose, onDone
         >
           {busy ? TEXTS.saving : (readOnly ? TEXTS.close : primaryLabel)}
         </Button>
-      </DialogActions>
+      </MoneyActions>
       {visit && visit.newSale && (
         <StandaloneSaleDialog open={newSaleOpen} client={visit.newSale.client} onClose={() => setNewSaleOpen(false)} onSold={() => {}} />
       )}

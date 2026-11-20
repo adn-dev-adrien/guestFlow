@@ -1,4 +1,4 @@
-// specs/mixed-method-payments.md rule 51 (SDK 2.33.0) — the generic core notion of an amount a stay received in advance from a plugin's
+// specs/mixed-method-payments.md rules 60-63 (SDK 2.33.0) — the generic core notion of an amount a stay received in advance from a plugin's
 // prepaid instrument: a tender line of the method `prepaid` that carries the plugin's source, ref and label; counted as received
 // by the stay, never expected at the bank, never an encaissement of the books; held for a quote and settled into a stay through
 // the calls the plugin declared. Nothing here names an instrument: the source under test is a made-up « storedCredit ».
@@ -116,7 +116,7 @@ test('the accounting export books the collected part of a settlement only', { sk
   assert.ok(Math.abs(booked.share - 3040 / 8040) < 1e-9, 'the entries of the bucket are prorated to what was collected');
 });
 
-test('rule 64 — no VAT twice: the stay’s entry carries only what the card collected, so the VAT of the prepaid part is the one its own sale declared', { skip: skipWithout(['accounting-export']) }, () => {
+test('rule 65 — no VAT twice: the stay’s entry carries only what the card collected, so the VAT of the prepaid part is the one its own sale declared', { skip: skipWithout(['accounting-export']) }, () => {
   const output = createAccountingOutput({ accountPlan: require('../plugins/accounting-export/accountPlan') });
   const settlement = {
     id: 1, targetKind: 'bucket', targetKey: 'deposit', parts: [{ kind: 'deposit', amountCents: 8040 }], shortfallCents: 0,
@@ -297,7 +297,7 @@ test('the fiche — a settlement shared with a card line is the booking’s own:
   assert.equal(settlementModelOf(db).listFor(stayId).length, 1, 'nothing was removed');
 });
 
-// Mixed-method-payments rule 63 — a prepaid line is never refundable in money; the cancellation indemnity comes from the other payments first.
+// Mixed-method-payments rule 64 — a prepaid line is never refundable in money; the cancellation indemnity comes from the other payments first.
 test('refund budget — 100 € prepaid + 168 € card, indemnity 50 €: 118 € is owed back in money, the prepaid part is not in the register', () => {
   const left = refundBudget({
     collectedTtc: 268,

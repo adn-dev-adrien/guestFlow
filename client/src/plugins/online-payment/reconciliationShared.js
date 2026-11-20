@@ -6,10 +6,11 @@ export const money = (cents) => formatCurrency(Number(cents) / 100);
 
 export const CONFIDENCE_STATUS = { sur: 'success', probable: 'info', verifier: 'warning' };
 
-/** « 460,00 » or « 460.5 » → cents, or null when it is not a plain amount (comma or dot, 2 decimals max). */
+/** « 460,00 » or « 460.5 » → cents, or null when it is not a plain amount (comma or dot, 2 decimals max). A trailing separator
+ * (« 100, », being typed) reads as the whole amount, so the field never flashes « — » for one keystroke (loop t25). */
 export function parseEuroInput(text) {
   const v = String(text ?? '').replace(/[\s€]/g, '').replace(',', '.');
-  if (!/^\d+(\.\d{1,2})?$/.test(v)) return null;
+  if (!/^\d+(\.\d{0,2})?$/.test(v)) return null;
   const [int, dec = ''] = v.split('.');
   return Number(int) * 100 + Number(dec.padEnd(2, '0'));
 }

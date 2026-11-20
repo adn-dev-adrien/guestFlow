@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| **Status** | In progress — PR C of 3 (the schema, true lines, the guest app on the components, the external sale and the outside-visit mini SAS; PRs A and B delivered; `Implemented` after the end review); approved 2026-11-11 (owner), rules 1-74, §4.0, Q1-Q15 resolved; implementation targeted at 4.2.0 |
+| **Status** | In progress — PRs A, B and C delivered in 4.2.0 (C: the schema, true lines, the guest app on the components, the external sale and the outside-visit mini SAS; closed by the stabilisation loop, rounds 1-26, and the money-dialog invariant harness, plugins-phase-1-sdk rule 58, 2026-11-20); still Pending after 4.2.0: the parts of rules 25, 32, 89 and 90 marked « Pending » (e.g. the departure recap as a `saleDetail` view); approved 2026-11-11 (owner), rules 1-74, §4.0, Q1-Q15 resolved |
 | **Branch** | `feature/pricing-components-*` — PR C targets `master` (`inte/plugins` retired 2026-11-13) |
 | **Created** | 2026-11-11 |
 | **Revised** | 2026-11-11 — owner decisions: discounts on nights and extras, "started" = arrival date and check-in time passed, tourist tax as its own component, finer cut, 3 PRs; the stay clock as its own component consulted by all (rules 44-46); one pricer per article kind, fulfilment and data-access ports, settings provider, VAT per line by customer context, chainable pipeline steps, external sale (rules 47-60, §4.0); Articles head → generic families → instances, VAT as a standalone component fed by tagged amounts, `AccountingOutput` with format adapters, the no-duplication rule (rules 61-67); price non-regression gate and delivery pipeline with the stabilisation loop (rules 68-69); platform payment and platform intakes from the code check (rules 70-71) |
@@ -545,6 +545,10 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
     > exactly what the write adds to the stored row.
     > _Amended 2026-11-16 (loop t4, S4-4):_ a quote paid now announces the departure net of the note the sale writes in the same transaction
     > (`buckets.departure` 0 where it said the line's price). Test `sale-quote-paid-now-buckets`.
+    > _Reading of 2026-11-20 (loop t26 verifier, plugins-phase-1-sdk rule 58):_ « Ajouter un produit » (`AddProductDialog`) asks its quote
+    > through `useLatestPreview` (latest request only; a failure shows its reason, with « Réessayer » when the server did not answer — a 4xx
+    > alone), and « Ajouter » is enabled only on the answer for the product and quantity on screen (`useMoneyCommit`). Test
+    > `moneyDialogs.invariants.product`.
 
 ### 3.G The detail, everywhere the same
 
@@ -688,7 +692,8 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
     > _Reading of 2026-11-17 (loop t10 A10-4, spec synced in loop t11 A11-1):_ master's #1067 brought two more private cents copies
     > after this note was written — the Mollie client's `centsOf` and its settlement costs rounding (`mollieClient.js`). Both now read
     > cents through `coreModule('money').toCentsStrict` (the same `Math.round(Number(v) * 100)`: no figure moves), which is why
-    > online-payment ranges `^2.31.0`. The `money` guard was deliberately not widened to the plugins' sources: this copy is held by its
+    > online-payment ranged `^2.31.0` (`^2.32.0` since loop t24 D24-1: its link and split dialogs use the SDK 2.32 `FocusKeeper`).
+    > The `money` guard was deliberately not widened to the plugins' sources: this copy is held by its
     > own test, `mollie-cents-shared-helper` (2, under `plugins/online-payment/tests/`).
     > _Reading of 2026-11-17 (loop t12 P12-1):_ `mollieStatementPdf.formatEuros` (« 1 234,56 € », « - » for a negative, NaN as 0) is a
     > display helper kept on purpose: it differs from `eurosWithSpaces`, and `mollie-settlement-receipts` rule 7 wants a re-view to be
@@ -2625,6 +2630,22 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
     notice and whether the « Acompte » / « Solde » lines are drawn — with every amount still « — »; no served figure is shown. The plan's
     answer then fills it in place (or, when it disagrees, reshapes it). The plan's step decision is applied before paint, so the frame the
     recap lands in already shows the plan's steps and headings. Client `SaleDialogs.pending-blocks`.
+    _Reading of 2026-11-18 (loop t22, UI22-3):_ a FAILED preview is said on the stay page as on the breakfast and catering pages: « Séjour
+    à régler : — » with « Montant indisponible » and « Réessayer » (`RecapPreviewError`; a 409 gives « Revenir à l’étape »), instead of
+    « — » for ever with no reason. The settlement buttons (« CB / Chèque », « Payé en liquide », « Pas maintenant ») are disabled whenever
+    the amount is « — » — before the first answer and while the preview fails — so no settlement is chosen on an unknown amount; « Suivant »
+    stays (the recap is guarded by `displayedStayDue`). When the failure takes the focus from a disabled button, « Réessayer » takes it. The
+    same way out is given to every SAS page that shows the preview's money (enumerated from `previewShown`): the departure's extinguisher
+    page « Sous-total : — » now says « Montant indisponible » with « Réessayer » too (specs/sas-departure-recap-server-side.md rule 15).
+    Measured in Chromium on stay 22303 (2026-11-11 copy, 1280 / 390 px): nominal answer +0 and +800 ms, « Règlement du séjour » 495 / 296
+    and « Suivant » 648 / 776 in every frame; a forced 503 shows « — », « Montant indisponible », the three buttons disabled, focus on
+    « Réessayer ». Client `ReservationSasDialog.failed-preview` (7: the pages from the code equal the table; each fails, says why, disables
+    what acts on the amount, and « Réessayer » brings the figures back with the focus kept in the dialog).
+    _Reading of 2026-11-18 (loop t23 S23-1):_ the same holds on the arrival recap when the stay is settled apart (« Régler séparément »):
+    a failed preview there drew « Séjour : — » but left the stay's « CB / Chèque », « Payé en liquide » and « Pas maintenant » enabled; they
+    are disabled with the complement's while the preview has failed. « Failed » is now the hook's `failed` (plugins-phase-1-sdk rule 54
+    reading of the same day): it lasts until a new answer, through a pending « Réessayer » too, so the figures of the last answer never come
+    back dimmed before the new one. Test `useLatestPreview.failed-recompute` (row `ReservationSasDialog`).
 118. **The arrival SAS offering a paid line credits it like the line API** _(stabilisation loop t8, S8-2, 2026-11-16; completes rules 104,
     105, 107 d)_. Same gesture, same hour, same result: the SAS commit's shared write (`writeArrivalComplement`) takes `paidLineJudgment.wayBack`
     both ways — a write that FREES note money (the paid line offered) credits it, before the paid-line judgment, to what the stay still asks:
@@ -3141,6 +3162,7 @@ _Rewritten 2026-11-15 (stabilisation loop t1, UI-3) to what shipped._
 - [x] `ExtrasSection.paid-custom-label` — rule 123 (loop t11, S11-1): the paid free line's description disabled with « Déjà payée : libellé figé », the unpaid one editable; none named → no caption (2)
 - [x] `ReservationSasDialog.stay-due` — rule 117 (loop t8, S8-1): the stay page renders the preview's planned solde, the commit sends `displayedStayDue`; a 409 `STAY_DUE_CHANGED` is shown and the recap read again (2)
 - [x] `ReservationSasDialog.stay-step-plan` — rule 117 reading (loop t9, UI9-1): stored 300, the plan settles it → no stay page, nothing sent; nothing stored, the plan raises 300 → the page comes in with 300 and the commit sends it (2)
+- [x] `ReservationSasDialog.failed-preview` — rule 117 reading (loop t22, UI22-3): the SAS pages that show the preview's money, enumerated from `previewShown`, equal the table; each with a failing preview says why with « Réessayer », disables what acts on the amount, and « Réessayer » brings the figures back with the focus kept in the dialog (7)
 - [x] `ReservationSasDialog.stay-step-credit` — rules 117, 118 (loop t9, O9-1): stored solde 30, the plan credits it to 0 → the stored 30 € is never shown, no stay page, nothing marked paid (1)
 - [x] `ReservationSasDialog.reception-owed-keys` — reception rule 18 reading (loop t9, A9-4): LINE_OWED's `owedKeys` go back to offered, the next « Valider » sends them (1)
 - [x] `ReservationPage.extra-sales-panel` — rule 101 (UI2-1 to UI2-4): a started stay with the window open sells and moves its lines, a collected departure does not, the fiche's `saleDetail` read once, a dirty fiche holds the writes and keeps the typed note, a write on a clean fiche re-reads without the loading screen, and while the re-read is in flight the fiche is busy (fields read-only, « Enregistrer » disabled)

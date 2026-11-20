@@ -23,6 +23,7 @@
 import React, { useState } from 'react';
 import { Alert, Box, Button, TextField, Typography } from '@mui/material';
 import { formatCurrency } from '../utils/formatters';
+import FocusKeeper from './FocusKeeper';
 
 const TEXTS = Object.freeze({
   action: 'Envoyer un lien',
@@ -58,7 +59,7 @@ export default function SalePaymentLink({ link, onMint, onSendEmail, onWithdraw,
 
   if (open) {
     return (
-      <Box sx={{ display: 'grid', gap: 1, p: 1.5, borderRadius: 1.5, border: 1, borderColor: 'divider', bgcolor: 'background.default' }}>
+      <FocusKeeper sx={{ display: 'grid', gap: 1, p: 1.5, borderRadius: 1.5, border: 1, borderColor: 'divider', bgcolor: 'background.default' }}>
         <Typography variant="body2" sx={{ fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>{TEXTS.minted(formatCurrency(open.amountCents / 100), open.expiresLabel)}</Typography>
         <Typography variant="caption" sx={{ overflowWrap: 'anywhere', userSelect: 'all' }}>{open.url}</Typography>
         <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
@@ -72,7 +73,7 @@ export default function SalePaymentLink({ link, onMint, onSendEmail, onWithdraw,
           {sentTo && <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>{TEXTS.sent(sentTo)}</Typography>}
         </Box>
         {error && <Alert severity="error">{error}</Alert>}
-      </Box>
+      </FocusKeeper>
     );
   }
 
@@ -80,8 +81,9 @@ export default function SalePaymentLink({ link, onMint, onSendEmail, onWithdraw,
   const typed = email.trim();
   const typedInvalid = typed !== '' && !EMAIL.test(typed);
   const canMint = !disabled && !busy && (!needsEmail || EMAIL.test(typed));
+  // Loop t22 UI22-1 — both states share one root (a FocusKeeper): the link that replaces « Créer le lien » keeps the focus in the block.
   return (
-    <Box sx={{ display: 'grid', gap: 1 }}>
+    <FocusKeeper sx={{ display: 'grid', gap: 1 }}>
       <Box>
         <Button variant="outlined" onClick={() => onMint(needsEmail ? typed : null)} disabled={!canMint} sx={{ minHeight: 44, textTransform: 'none' }}>{TEXTS.action}</Button>
       </Box>
@@ -102,6 +104,6 @@ export default function SalePaymentLink({ link, onMint, onSendEmail, onWithdraw,
         </>
       )}
       {error && <Alert severity="error">{error}</Alert>}
-    </Box>
+    </FocusKeeper>
   );
 }

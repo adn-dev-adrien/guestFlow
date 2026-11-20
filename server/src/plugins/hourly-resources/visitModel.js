@@ -388,7 +388,7 @@ function createVisitModel({
     if (body.remove === true && session && Number(session.id) === Number(lineId)) {
       return refuse(409, 'SESSION_LINE', 'La séance se retire en supprimant la réservation.');
     }
-    // A line a prepaid instrument paid is never given back in money (mixed-method-payments rule 63): the element not used is marked « non pris » instead.
+    // A line a prepaid instrument paid is never given back in money (mixed-method-payments rule 64): the element not used is marked « non pris » instead.
     const target = documentOf(row).lines.find((line) => Number(line.id) === Number(lineId));
     if (target && core().paidByOf(saleId).some((paid) => paid.kind === 'prepaid' && paid.lineRef === target.ref)) {
       return refuse(409, 'LINE_PREPAID', 'Ligne réglée d’avance : la marquer « non pris » plutôt que l’offrir ou la retirer.');

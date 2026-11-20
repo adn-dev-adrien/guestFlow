@@ -26,6 +26,12 @@ const CLIENT_EXPORTS = [
   { names: ['SuggestedArticlesStep', 'SalePaymentLink', 'StandaloneSaleDialog'], sdk: '2.32.0' },
   // Loop t20 UI20-1 — the dialogs that render a sale block wait for its code (rule 54, reading 2026-11-18).
   { names: ['useSaleComponentsReady'], sdk: '2.32.0' },
+  // Loop t22 UI22-1 — the sale dialogs keep the focus when an answer removes the control holding it (rule 54, reading 2026-11-18).
+  { names: ['FocusKeeper'], sdk: '2.32.0' },
+  // Loop t25 (specs/mixed-method-payments.md rule 59 reading of 2026-11-19): the lines' report a commit may send.
+  { names: ['tendersForDue'], sdk: '2.32.0' },
+  // Loop t26 (specs/plugins-phase-1-sdk.md rule 58) — the money-dialog contract, one module.
+  { names: ['useMoneyCommit', 'PreviewFailure', 'MoneyActions', 'useTenderDraft', 'isRetryable'], sdk: '2.32.0' },
 ];
 
 const floorOf = (text) => CLIENT_EXPORTS
