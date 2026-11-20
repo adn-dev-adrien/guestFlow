@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| **Status** | In progress — PR C of 3 (the schema, true lines, the guest app on the components, the external sale and the outside-visit mini SAS; PRs A and B delivered; `Implemented` after the end review); approved 2026-11-11 (owner), rules 1-74, §4.0, Q1-Q15 resolved; implementation targeted at 4.2.0 |
+| **Status** | Implemented — PRs A, B and C delivered (C: the schema, true lines, the guest app on the components, the external sale and the outside-visit mini SAS), closed by the stabilisation loop (rounds 1-26) and the money-dialog invariant harness (plugins-phase-1-sdk rule 58), 2026-11-20; approved 2026-11-11 (owner), rules 1-74, §4.0, Q1-Q15 resolved; ships in 4.2.0 |
 | **Branch** | `feature/pricing-components-*` — PR C targets `master` (`inte/plugins` retired 2026-11-13) |
 | **Created** | 2026-11-11 |
 | **Revised** | 2026-11-11 — owner decisions: discounts on nights and extras, "started" = arrival date and check-in time passed, tourist tax as its own component, finer cut, 3 PRs; the stay clock as its own component consulted by all (rules 44-46); one pricer per article kind, fulfilment and data-access ports, settings provider, VAT per line by customer context, chainable pipeline steps, external sale (rules 47-60, §4.0); Articles head → generic families → instances, VAT as a standalone component fed by tagged amounts, `AccountingOutput` with format adapters, the no-duplication rule (rules 61-67); price non-regression gate and delivery pipeline with the stabilisation loop (rules 68-69); platform payment and platform intakes from the code check (rules 70-71) |
