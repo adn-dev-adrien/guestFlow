@@ -13,8 +13,10 @@ test('rules 6-7 — linen by item, kept lines by row, each with its gesture; no 
   expect(draft.linenItems).toEqual([{ itemId: 1, qty: 2, offered: true }]);
   expect(draft.keptLines).toEqual([{ customOptionId: 41, offered: true }]);
   expect(draft.cleaningAdded).toBe(true);
-  expect(draft.cleaningOffered).toBe(true);
-  expect(draft.offeredExtras).toEqual([{ kind: 'option', id: 5 }, { kind: 'extraGuests', id: 0 }]);
+  // specs/pricing-components.md rule 14 — one « Offrir » input: the upsells, then the lines.
+  expect(draft.offered).toEqual([{ kind: 'upsell', key: 'cleaning' }, { kind: 'option', id: 5 }, { kind: 'extraGuests', id: 0 }]);
+  expect(draft).not.toHaveProperty('cleaningOffered');
+  expect(draft).not.toHaveProperty('offeredExtras');
   expect(JSON.stringify(draft)).not.toMatch(/amount|price|total/i);
 });
 

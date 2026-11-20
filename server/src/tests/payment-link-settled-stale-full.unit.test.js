@@ -61,8 +61,8 @@ for (const [balance, label] of [[455.36, 'grown'], [255.36, 'shrunk']]) {
     if (balance > 455) assert.doesNotMatch(text, /à percevoir|à rembourser/, 'grown: nothing to chase');
     else assert.match(text, /Trop-perçu de 200,00/, 'shrunk: the true excess');
     const stay = s.db.prepare('SELECT * FROM reservations WHERE id = ?').get(s.rid);
-    const { storedOverpaymentOf } = require('../utils/overpayment');
-    const stored = storedOverpaymentOf({ row: stay, captured: {} });
+    const { storedOverpaymentTtc } = require('./helpers/storedOverpayment');
+    const stored = storedOverpaymentTtc(s.db, s.rid);
     assert.equal(stored, balance > 455 ? 0 : 200, 'the fiche refund block reads the same excess');
     assert.equal(s.refunds().length, 0, 'no fixed « acompte payé deux fois » row');
     assert.equal(s.stay().balancePaid, 1);

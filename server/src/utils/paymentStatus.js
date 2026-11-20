@@ -3,9 +3,7 @@
 // Replaces the two divergent client-side getRemainingDue implementations.
 
 const { todayIso: localTodayIso } = require('./localDate');
-function round2(value) {
-  return Math.round(Number(value || 0) * 100) / 100;
-}
+const { roundMoney: round2 } = require('./pricing/money');
 
 /**
  * @param {object} reservation row with depositAmount/depositPaid/depositDueDate,

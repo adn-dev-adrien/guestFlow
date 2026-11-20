@@ -14,7 +14,9 @@ const { rentCandidates } = require('./rentFromNet');
 const isGitesDeFrance = (platform) => /gites?defrance/.test(String(platform || '').normalize('NFD')
   .replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z]/g, ''));
 const isCleaning = (o) => o.autoOptionType === 'cleaning' || /ménage/i.test(String(o.title || ''));
-const round2 = (n) => Math.round(n * 100) / 100;
+const sdk = require('../sdk');
+const { dayReached } = sdk.coreModule('stayClock');
+const { roundMoneyStrict: round2 } = sdk.coreModule('money');
 const CONTACT_KEPT = 'E-mail ou téléphone déjà renseigné sur la fiche';
 const frDate = (iso) => { const d = new Date(iso); return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}`; };
 
@@ -66,7 +68,7 @@ function createIntakeService(deps) {
       platformGrossAmount: round2(rent + booking.optionsTotal + booking.touristTax),
       platformTouristTaxAmount: booking.touristTax,
       platformPayoutAmount: booking.totalNet,
-      platformCommissionAmount: round2(rent - booking.netRent),
+      platformCommissionAmount: core.platformCommission({ basis: 'rentOnly', rent, netRent: booking.netRent }),
     };
   }
 
@@ -133,7 +135,7 @@ function createIntakeService(deps) {
     if (chosen != null && !candidates.includes(chosen)) return { status: 'error', error: 'Loyer hors des valeurs possibles' };
     // The core refuses a started stay (PAST_RESERVATION); asking first keeps stayPatch from creating
     // a client record that no fiche would ever point to.
-    if (String(booking.startDate) <= today()) {
+    if (dayReached(booking.startDate, today())) {
       const error = 'Séjour commencé : fiche à saisir à la main';
       intakes.setStatus(intake.id, { status: 'error', reservationId: reservation.id, error });
       return { status: 'error', error };
@@ -283,7 +285,7 @@ function createIntakeService(deps) {
       senderUnverified: !intake.senderVerified,
       reason: intake.status === 'proposed' ? intake.error : null,
       netRent: booking.netRent,
-      rentCandidates: rents.map((rent) => ({ rent, commission: round2(rent - booking.netRent) })),
+      rentCandidates: rents.map((rent) => ({ rent, commission: core.platformCommission({ basis: 'rentOnly', rent, netRent: booking.netRent }) })),
       customLines: (booking.supplements || [])
         .filter((s) => !(cleaning && /ménage/i.test(s.label) && Number(cleaning.price) === s.amount))
         .map((s) => ({ label: s.label, amount: s.amount })),

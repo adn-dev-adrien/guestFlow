@@ -1,0 +1,1 @@
+- Column `addedOnReopen` (0) on the three reservation line tables: it marks the lines a reopened SAS added. No amount moved.

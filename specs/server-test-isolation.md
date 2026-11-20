@@ -149,6 +149,40 @@ being on the preload's lists fails the run once the suite executes the read (rul
    3rd, the 9th and the last day of 2026-11, 2026-12, 2027-01, 2027-02, 2027-03, 2027-10 and 2028-02, at 09:00Z and
    22:30Z (56 runs), and on 62 consecutive days from 2026-11-05; red before on 2026-11-09 (1), 2026-12-01 and 2026-12-03
    (5). The 274 server files that read the tourist tax are green on the same 56 runs.
+   **Reading of 2026-11-18 (stabilisation loop t17, N17-1).** A date built from today can also hang on the year: a label
+   that names the year only when a day is outside the reference year (`datesTaken.shortDate`) read « 28/12 → 01/01/2027 »
+   for a stay 40 to 44 days out from 18/11, and `devis-held-dates` (« dd/mm → dd/mm ») failed from 18/11 to ~21/11 (also on
+   master); `devis-closed-dates` had the same window. Both now build the expected label from their own dates
+   (`datesTakenFixture.dayLabel`, the year said when a day is outside the document's start year, as
+   `closureConflictsFixture.dayLabel` already did), so the assertion is exact whatever today is. Every other test asserting
+   a « dd/mm » label from today's dates was checked: the dashboard title and the incoming-payment and caution labels never
+   name a year, the closure and link labels already accept or derive it. Proof: both files green with the clock at 19/11,
+   21/11, 23/11 and 30/12/2026, red before on 19/11 (1) and 21/11 (2). The same root outside labels (loop t17 verify
+   O-V17-3): `incoming-payments` asked the finance dashboard for the month of `today − 200 days`, outside the exercise from
+   1 January to mid-July; it now asks another month of today's year. Green with the clock at 18/11 and 31/12/2026, 01/01,
+   31/01, 01/02, 10/03, 15/07 and 31/12/2027 (red before from 01/01 to 15/07/2027). Every other test deriving a month or a
+   year from a day offset reads it from that same day (`trop-percu-refund-books`, `email-template-when-sentence`,
+   `payment-link-withdraw`, `stay-dates-guard`).
+   **Reading of 2026-11-19 (stabilisation loop t25, D25-1).** A day built from today is the PROCESS zone's day, and the stay
+   clock (`utils/pricing/stayClock.js`) judges on Europe/Paris whatever `TZ` says. Four cases put a check-in at `23:59` on
+   « today » (`toLocaleDateString('sv-SE')`, `todayIso()`, the guest-app fixture's `seedStay({ start: 0 })`) to read « the
+   arrival day, before the hour »: CI runs with no `TZ` (UTC), so from 23:00 to 24:00 UTC (22:00 in summer) Paris was already on the next day,
+   the arrival day had passed and the case failed (PR shard 1/2, 23:41 UTC); on a Paris machine the same cases failed from
+   23:59. A case whose answer hangs on the hour of the day does not read the wall clock: it runs the gesture at a fixed
+   moment — `withNow(now, fn)` of `utils/localDate.js` for a model call, `openOrdering(id, { now })` for a guest-app call
+   (the session and the API clock) — on a fixed arrival day, at two hours safely on either side of the check-in (10:00 and
+   18:00 written at `+01:00` stay on their side of 16:00 in winter and summer time), and asserts both sides. Fixed:
+   `settled-complement-closes-bucket`, `reservations-mid-stay-sync`, `stay-clock-compose-feed` (also its started/future
+   case: `day(-1)` read in a zone ahead of Paris is Paris's arrival day itself) and `guest-order-stay-started-routing`.
+   The suite keeps the runner's `TZ` (rule 12 leaves it to the clock sweeps on purpose) rather than forcing Europe/Paris in
+   the preload as `index.js` does: forcing it would hide this class from the zone sweeps that found it, and a case that
+   holds only in one zone holds only by the hour. The same sweep found one more day read two ways: `finance-model`'s
+   `iso(n)` printed the UTC day of a local date while the model reads the local day, so west of UTC in the evening a stay
+   ending « yesterday » read as ending today; it now prints `localIsoDate`. What the sweep leaves red under the extreme
+   zones is not this class: fixtures that store an instant at a fixed UTC hour (`T09:00:00Z`, `'… 12:00:00'`) and expect
+   the local day it falls on, which moves only where the offset pushes that hour across midnight (UTC−11, UTC+14). Those
+   cases do not read the wall clock, so they are red or green by zone, never by hour, and green under UTC (CI) and
+   Europe/Paris (production) at every hour; they are left as they are. Proof below (§10).
 
 7. **A PR adding a literal date to a test is told so, on the line** (added 2026-10-30, audit R8 M-1, the guard
    audit R7 proposed). `scripts/check-test-dates.mjs --base <ref>` reads only the test lines a PR adds (files of
@@ -507,6 +541,41 @@ being on the preload's lists fails the run once the suite executes the read (rul
    depends on it; like the rule 11 sweep it is manual, never part of CI. *Why:* `vi.clearAllMocks()` clears the calls,
    not the implementations — a `mockRejectedValue('Échéance 2 : date passée…')` of one test answered an extra call of the
    next one on a loaded runner, and 222 files carried that pattern.
+22. **A file that opens many databases, or replays one seed per case, builds it once** (added 2026-11-18, loop t19 —
+   PR #1054's server shards were cancelled at their 15-minute cap). A fresh database pays the boot migrations (~26 ms
+   on `schema.sql` since the pricing lines migration, about 0.25 ms per `ALTER TABLE`); a file that builds one per case
+   builds the migrated base once and opens a copy per case (`new Database(base.serialize())`); a table-driven matrix
+   whose cases share one seeded state seeds it once per test under a `SAVEPOINT` and rolls each case back to it. The
+   cases, their inputs and their assertions do not change: `refund-before-cancellation` (180 databases, 9.0 → 2.1 s
+   locally) and `fiche-preview-save-matrix` (one seed per platform × moment instead of per gesture: the same 298 saved
+   and 120 refused cells, 13.0 → 6.7 s). The same round found the larger cause in the application, not in the tests:
+   one fiche save prepared `SELECT * FROM reservations WHERE id = ?` dozens of times, fixed by the handle-wide
+   statement cache of specs/pricing-components.md rule 48 (reading of 2026-11-18).
+23. **A client test acts only on a dialog that is ready; the code a dialog waits for arrives late in every suite** (added
+   2026-11-18, loop t22 A22-1). `ResourceArrivalDialog.invoiceable` failed once in a shuffled run: it clicked the footer's
+   « Créer la facture » as soon as it was drawn, while the dialog still waited for the four SDK sale blocks' code
+   (`useSaleComponentsReady`, specs/plugins-phase-1-sdk.md rule 54) and kept the button disabled; the click did nothing.
+   Whether the code was already there depended on the test order and the machine's load. The test now waits for the
+   button to be enabled, and `client/src/setupLateSaleChunks.js` (a `setupFiles` entry of `vitest.config.js`) makes the
+   four blocks' modules resolve `SALE_CHUNK_DELAY` ms late (default 25, on the real timer captured at load, so fake timers
+   never block it) in every suite: a test acting before its dialog is ready now fails every time. A first fix (round 22,
+   719e568c) loaded the blocks in the fixtures' `beforeAll`; it hid the cause and kept the suites off the real late path,
+   and was withdrawn. Tests `LazySaleComponents.late-chunks` (the setup is in place; every dialog waiting for the code,
+   read from the code, has a suite), the whole client suite with the delay.
+   *Reading of 2026-11-18 (loop t23 UI23-1):* the delay above sat on the four modules' mocks, and
+   `LazySaleComponents` keeps a block's loaded code for the rest of its test file — so only the FIRST test of each file
+   met cold code; a later test found its dialog ready at once, and `ResourceArrivalDialog.paid-before` A2 (a click on a
+   still-disabled « Créer la facture ») passed in file order and failed alone or first in a shuffled run. What the
+   harness does now: `setupLateSaleChunks.js` runs a `beforeEach` before every client test that calls
+   `resetSaleComponentsForTests(late)` of `LazySaleComponents` — a test-only seam the app never calls — which forgets the
+   four blocks' loaded code (their import promises and their `React.lazy` wrappers) and makes each block's next import
+   wait `SALE_CHUNK_DELAY` ms (default 25, real timer captured at load) before it resolves. Every test that opens a sale
+   dialog therefore meets cold code that arrives late, whatever its place in the file; a suite that imports a block
+   directly (`import StaySalesSection from '../StaySalesSection'`) is untouched, and a suite that takes a fresh module
+   (`vi.resetModules()`) is cold by construction. A2 now waits for the button to be enabled. The proof that no other test
+   acts early: every test of the 105 sale-dialog suites (361 runs) alone, first in its file, passes, and the whole client suite
+   passes under the cold harness, as do the related suites on three shuffled seeds. Tests `LazySaleComponents.late-chunks` (3: the setup is in
+   place; a LATER test of the same file still waits for the delay; every waiting dialog has a suite).
 
 **Edge cases:**
 - A targeted `node --test <file>` used to open and migrate `server/guestflow.db` for 389 test files (audit R2,
@@ -542,6 +611,7 @@ being on the preload's lists fails the run once the suite executes the read (rul
 | `tests/setup/` | `isolateDefaultDb.js` | T | Rule 14: loads the guard. |
 | `tests/` | `test-preload-real-qonto-guard.unit.test.js` | C | Pins rule 14 in child processes that never get past the guard. |
 | `tests/`, `plugins/hourly-resources/tests/` | the three offenders | T | Rule 3. |
+| `tests/` | `refund-before-cancellation.unit.test.js`, `fiche-preview-save-matrix.unit.test.js` | T | Rule 22: the migrated base built once and copied per case; the matrix seeded once per test under a savepoint. |
 | `package.json` | `test` script | T | `--require ./src/tests/setup/isolateDefaultDb.js`; `--test-timeout=60000` and the exit watchdog (rule 5); the `spec` and completeness reporters (rule 10). |
 | `control-plane/server/package.json` | `test` script | T | `--test-timeout=180000` and the exit watchdog (rule 5); the `spec` and completeness reporters (rule 10); `--require` of the Qonto guard (rule 14) and of `fileTempRoot.js` (rule 20). |
 | `control-plane/server/src/tests/setup/` | `fileTempRoot.js`, `reapTempRoot.js` | C | Rule 20: the test file's temp root and its reaper; instances whose pid file lies in the root are killed and the root removed at exit or at the file's death. |
@@ -563,7 +633,7 @@ being on the preload's lists fails the run once the suite executes the read (rul
 
 ### 4.2 Client side
 
-API, data model and UI are unchanged. Rules 11, 17 and 21 only:
+API, data model and UI are unchanged. Rules 11, 17, 21 and 23 only:
 
 | Layer | File | T/C | Responsibility in this change |
 |---|---|---|---|
@@ -575,6 +645,10 @@ API, data model and UI are unchanged. Rules 11, 17 and 21 only:
 | `client/` | `package.json` | T | Rule 21: `test:shuffle` script. |
 | `src/**/__tests__/` | the 25 files that leaned on a lasting mock answer, and `PlatformChip.display-name` | T | Rule 21: `vi.fn(impl)` defaults; a fresh `constants/platforms` per test (tests only, no plugin version bump). |
 | `src/` | `setupTests.js` | T | Rule 17: `configure({ asyncUtilTimeout: 5000 })` for every `findBy*` / `waitFor`. |
+| `src/` | `setupLateSaleChunks.js` | C | Rule 23 (reading of 2026-11-18, loop t23 UI23-1): before every test, `resetSaleComponentsForTests(late)` — the four SDK sale blocks are cold again and their next import waits `SALE_CHUNK_DELAY` ms (25), on the real timer. |
+| `src/components/` | `LazySaleComponents.jsx` | T | Rule 23 (loop t23 UI23-1): test-only seam `resetSaleComponentsForTests(arrive)` — forgets the blocks' loaded code and gates their next import; the app never calls it. |
+| `client/` | `vitest.config.js` | T | Rule 23: `setupLateSaleChunks.js` in `setupFiles`. |
+| `src/**/__tests__/` | `ResourceArrivalDialog.invoiceable`, `ResourceArrivalDialog.paid-before`, `LazySaleComponents.late-chunks` (C) | T | Rule 23: act once the button is enabled; the delay (first and later test of a file) and the consumers' suites pinned. |
 | `src/**/__tests__/` | the rule-16 files | T | Rule 17: per-test timeouts dropped (tests only, no plugin version bump). |
 | `src/**/__tests__/` | `VatRegimeSwitchDialog.switch`, `SupportAccessBanner.states`, `LazyPage.loading`, `UpdateAvailableAlert`, `EmailSettingsPage.identity`, `EmailSettingsPage.social-links`, `PlatformAccountsPage`, `ReconciliationPage.filters`, `TariffRecipeCard`, `TariffRecipeCard.cleaning-fee`, `TariffRecipeCard.extra-guest-config`, `TariffRecipesPage`, `SettingsGoogleCalendarSection`, `ResourcePlanningPage.stale-bookings`, `ReservationSasDialog.plugins`, `CompensationsPage` | T | Await the post-condition (tests only, no plugin version bump). |
 
@@ -597,6 +671,7 @@ absence from CI.
 - [x] Rule 6 (second pass): the rule 6 test also reads the eight suites above and the whole `reservationSaveFixture` family (17 suites, found by their `require`). Clock-shift sweep of those 26 files (117 tests) under Europe/Paris and America/Los_Angeles: before, 0 / 4 / 8 / 20 / 27 red at 2026-10-30, 2027-01-24, 2027-02-12, 2027-05-25, 2027-07-21; after, 117/117 at each, and at 2027-10-05, 2028-02-29 and 2030-01-02.
 - [x] Rule 7: `test-suite-calendar-and-ci-budget.unit.test.js` — a quoted date, a template opening on a year and a `Date.UTC` year are named with file and line; only added lines are read, numbered as the diff numbers them; the marker, a pinned clock, a comment, the far future and non-test files are not named; a timer mock without `'Date'` pins nothing and `mock.timers.enable()` with no `apis` does; a pin exempts its own `test` / `describe` only, and a call written in a string is not a pin; the PR job runs it with `--strict`. The five new cases fail on the previous script and workflow. The PR itself passes `--strict` against inte/plugins.
 - [x] Rule 6 (third pass): the rule 6 test also reads the eight files of the second review, `ledgerFixture.js` and its 9 suites (found by their `require`). Those 17 files (188 tests) green at today, 2027-03-11 and 2027-07-21; whole-suite sweep below.
+- [x] Rule 6, reading of 2026-11-19 (loop t25, D25-1): the four cases and `finance-model` (87 tests) green under `Europe/Paris`, `UTC`, `America/Los_Angeles`, `Pacific/Pago_Pago` and `Pacific/Kiritimati` at 01:10-02:00 Paris (the process day one behind Paris under the two western zones). Whole server suite (14 318 tests), 2026-11-19 00:08-00:54 UTC: `America/Los_Angeles` 1 failure (`finance-model`, fixed after, green alone), `Pacific/Pago_Pago` 29 and `Pacific/Kiritimati` 13, all fixture instants at a fixed UTC hour read as the local day (deterministic per zone; none in the D25-1 family). Before: the reviewer's `America/Los_Angeles` run had the four cases red (and CI shard 1/2 at 23:41 UTC).
 - [x] Rule 7 (injected clocks, review of 2026-10-30): a replaced `getTodayIsoDate` / `todayIso`, a `NOW` constant and a `now:` exempt their block, the real clock and a local `const todayIso` helper do not; a pin in a named helper covers it and its callers; a `test.each` callback holds its own pin; a top-level `test.beforeEach` pins the file; `useFakeTimers({ toFake: ['setTimeout'], now })` pins nothing. Both new cases fail on the previous script.
 - [x] Rule 9: `dropKnownLines` keeps a line absent from the known content of its own file; a real git repository replays an integration PR (exit 0 with `--known`, exit 1 when the known ref does not resolve) and a feature PR adding one new line on top of a known one (only the new line named); the workflow fetches both branches and passes them. The three fail on the previous script and workflow. Replayed on the real branches: inte/plugins → master 2 091 named lines → 0, master → inte 25 → 0; this PR passes against inte/plugins.
 - [x] Rule 8: the same file reads the `client` job (3 shards, `fail-fast: false`, budget in shard 1) and the release jobs (self-update rule 52). The three shards locally: 209 / 208 / 208 files, 1 026 + 1 029 + 1 033 = 3 088 tests, the full suite's count.
@@ -637,6 +712,8 @@ absence from CI.
   tests. Four `npm run test:shuffle` runs (seeds 7919 to 31676): one order-dependent test found,
   `PlatformChip.display-name` (the display names of a previous test already loaded), fixed by a fresh module per test;
   the four seeds then green.
+- [x] Rule 23 (loop t22 A22-1): `LazySaleComponents.late-chunks` (2); with the old `ResourceArrivalDialog.invoiceable` (click on the drawn button) the late chunks fail it 2 runs out of 2, the fixed test passes; the whole client suite runs green with the delay.
+- [x] Rule 23 reading (loop t23 UI23-1): `LazySaleComponents.late-chunks` (3, + a later test of the same file waits for the delay); every test of the 105 suites rendering a sale dialog (enumerated from the code: the consumers of the sale blocks and the components rendering them, plus `StandaloneSalesTodayCard`), run alone, first in its file (listed from `vitest list`, 361 runs, `test.each` templates as one run): 361/361 green after `ResourceArrivalDialog.paid-before` A2 waits for an enabled button; the whole client suite green under the cold harness (1 000 files, 4 463 tests, 303 s against 327 s before in one local process: no measurable cost) and the related suites on three shuffled seeds.
 
 ## 8. Out of scope
 

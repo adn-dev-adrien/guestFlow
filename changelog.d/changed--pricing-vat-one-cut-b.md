@@ -1,0 +1,1 @@
+- **Hourly bookings cut their VAT like the rest of the VAT component (pricing refonte, PR B)**: the VAT of an hourly booking is the rounded share of its TTC and the net is what is left; at 20 % a booking can move by one cent between its net and its VAT, the total never changes.

@@ -11,6 +11,7 @@
 const sdk = require('../../sdk');
 const labels = require('../orderLabels');
 const { parisDate } = require('../currentStay');
+const { outsideStay } = require('../serviceHours');
 
 const { checkPlanningRange } = sdk.coreModule('planningDateRange');
 const { wallClockToDate } = sdk.coreModule('stayWindow');
@@ -20,9 +21,20 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 const ALL_SINCE_DAYS = 30;
 
 const PAYMENT_LABELS = Object.freeze({ card: 'Carte', note: 'Sur la note', none: 'Offerte' });
+// Rules 72, 73, 75 — an order taken before the arrival is settled at the arrival; its stay may be gone or moved.
+const ARRIVAL_PAYMENT_LABEL = 'À régler à l’arrivée';
+const STAY_CANCELLED_LABEL = 'Séjour annulé';
+const REFUNDED_LABEL = 'Remboursée';
+const OUTSIDE_STAY_LABEL = 'Hors des dates du séjour : à replanifier';
+// Audit item 12 — an order that will never be collected (cancelled, its stay gone) owes nothing: it never reads « À régler à l'arrivée ».
+const NOTHING_TO_COLLECT_LABEL = 'Rien à percevoir';
+const paymentLabelOf = (order, { gone = false } = {}) => {
+  if (order.payment === 'note' && (order.status === 'cancelled' || (gone && ['confirmed', 'paid'].includes(order.status)))) return NOTHING_TO_COLLECT_LABEL;
+  return order.collectAt === 'arrival' && order.payment === 'note' ? ARRIVAL_PAYMENT_LABEL : (PAYMENT_LABELS[order.payment] || order.payment);
+};
 const STAFF_STATUS = Object.freeze({
   awaiting_payment: 'En attente de paiement', confirmed: 'À préparer', paid: 'À préparer', delivered: 'Livrée',
-  expired: 'Expirée', abandoned: 'Abandonnée', paid_conflict: 'Payée · à rembourser',
+  expired: 'Expirée', abandoned: 'Abandonnée', paid_conflict: 'Payée · à rembourser', cancelled: 'Annulée',
 });
 
 const isPickup = (order) => order.fulfilment === 'pickup';
@@ -33,7 +45,10 @@ const markLabel = (order) => (isPickup(order) ? 'Marquer retirée' : 'Marquer li
 
 const addDays = (ymd, days) => new Date(Date.parse(`${ymd}T12:00:00Z`) + days * DAY_MS).toISOString().slice(0, 10);
 
-function buildOrdersAdminController({ orders, stays, lodgings, now }) {
+// Rule 110 b reading (owner, 2026-11-16, loop t2 AG2-2) — the order's lines given back from the cancellation's refund dialog.
+const coreGivenBack = (order) => sdk.coreModule('refundGivenBack').refGivenBack(order.reservationId, `order:${Number(order.id)}:`);
+
+function buildOrdersAdminController({ orders, stays, lodgings, now, givenBack = coreGivenBack }) {
   const lodgingNames = new Map();
   const lodgingName = (propertyId) => {
     if (!lodgingNames.has(propertyId)) {
@@ -43,9 +58,29 @@ function buildOrdersAdminController({ orders, stays, lodgings, now }) {
     return lodgingNames.get(propertyId);
   };
 
+  const isGone = (stay) => !stay || stay.kind !== 'reservation';
+
+  // Rules 72, 88 — a cancelled order of a stay gone reads « Séjour annulé »; one that was paid by card is « Payée · à rembourser »,
+  // and « Remboursée » once the cancellation's refund dialog gave its lines back (rule 110 b reading of 2026-11-16).
+  function statusLabelOf(order, { gone, standing }) {
+    if (order.status === 'cancelled') {
+      if (order.cancelReason === 'stay') {
+        if (!(order.payment === 'card' && order.paidAt)) return STAY_CANCELLED_LABEL;
+        return givenBack(order) ? REFUNDED_LABEL : 'Payée · à rembourser';
+      }
+      return STAFF_STATUS.cancelled;
+    }
+    if (gone && standing) return STAY_CANCELLED_LABEL;
+    return order.status === 'delivered' ? doneLabel(order) : (STAFF_STATUS[order.status] || order.status);
+  }
+
   function rowOf(order) {
-    const stay = stays().byId(order.reservationId) || {};
+    const found = stays().byId(order.reservationId);
+    const stay = found || {};
     const guest = [stay.clientFirstName, stay.clientLastName].filter(Boolean).join(' ');
+    const gone = isGone(found);
+    const standing = ['confirmed', 'paid'].includes(order.status);
+    const outside = !gone && standing && outsideStay(order, stay);
     return {
       id: order.id,
       reservationId: order.reservationId,
@@ -58,12 +93,15 @@ function buildOrdersAdminController({ orders, stays, lodgings, now }) {
       fulfilmentLabel: FULFILMENT_LABELS[isPickup(order) ? 'pickup' : 'delivery'],
       ...(isPickup(order) && order.pickupPlace ? { pickupPlace: order.pickupPlace } : {}),
       payment: order.payment,
-      paymentLabel: PAYMENT_LABELS[order.payment] || order.payment,
+      paymentLabel: paymentLabelOf(order, { gone }),
+      collectAt: order.collectAt === 'arrival' ? 'arrival' : 'departure',
       status: order.status,
-      statusLabel: order.status === 'delivered' ? doneLabel(order) : (STAFF_STATUS[order.status] || order.status),
+      statusLabel: statusLabelOf(order, { gone, standing }),
+      ...(gone && standing ? { stayCancelled: true } : {}),
+      ...(outside ? { outsideStay: true, outsideStayLabel: OUTSIDE_STAY_LABEL } : {}),
       total: order.total,
       totalLabel: labels.priceLabel(order.total),
-      canMarkDelivered: ['confirmed', 'paid'].includes(order.status),
+      canMarkDelivered: standing && !gone,
       markLabel: markLabel(order),
     };
   }
@@ -116,7 +154,8 @@ function buildOrdersAdminController({ orders, stays, lodgings, now }) {
         lodging: lodgingName(stay.propertyId),
         guest: [stay.clientFirstName, stay.clientLastName].filter(Boolean).join(' '),
         lines: prepared.map((l) => labels.lineLabel(l)),
-        paymentLabel: PAYMENT_LABELS[order.payment] || order.payment,
+        paymentLabel: paymentLabelOf(order, { gone: isGone(stays().byId(order.reservationId)) }),
+        ...(order.status !== 'delivered' && outsideStay(order, stay) ? { outsideStay: true, outsideStayLabel: OUTSIDE_STAY_LABEL } : {}),
         delivered: order.status === 'delivered',
         fulfilment: isPickup(order) ? 'pickup' : 'delivery',
         doneLabel: doneLabel(order),

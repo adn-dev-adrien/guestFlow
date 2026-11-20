@@ -1,3 +1,4 @@
+const { toCents: cents, allocateCents } = require('./pricing/money');
 /**
  * VAT basket of a payment link created for a RESERVATION (specs/payment-links-vat.md rule 8).
  *
@@ -15,7 +16,6 @@
  */
 function storedLinkComponents(row, type, { vatRatePercent, taxOnArrival, titles }) {
   if (!row) return null;
-  const cents = (v) => Math.round(Number(v || 0) * 100);
   if (type === 'deposit') return { components: [{ title: titles.deposit, grossCents: cents(row.depositAmount), taxable: true }], vatRatePercent };
   if (type !== 'balance' && type !== 'full') return null;
   // A full payment is the acompte plus the solde (specs/deposit-blocks-the-dates.md rule 18): the tax
@@ -29,4 +29,41 @@ function storedLinkComponents(row, type, { vatRatePercent, taxOnArrival, titles 
   return { components, vatRatePercent };
 }
 
-module.exports = { storedLinkComponents };
+/**
+ * The basket of a link on a stay the sale-line readers serve (specs/pricing-components.md §3 rule 91, owner 2026-11-15,
+ * utils/saleLinesReaders.js): the taxable part of `basket` (the bucket the link collects, tax apart) shared over the lines the
+ * sale detail collects in the acompte and the solde, each at its own VAT rate. The amount never moves: the shares are the bucket's
+ * cents allocated by largest remainder over what each line still owes. One line to share over (the accommodation alone, the case of
+ * every stay without extras in the plan) keeps the basket as it is. Pure; `basket` comes back unchanged when it cannot be shared.
+ *
+ * @param {{ components, vatRatePercent } | null} basket  the stored basket (`storedLinkComponents` or an installment's)
+ * @param {{ lines: Array }} detail                        the stay's sale detail (`extraSale.saleDetailOf`)
+ */
+function saleLineComponents(basket, detail) {
+  if (!basket || !detail || !Array.isArray(detail.lines)) return basket;
+  const taxableIndex = basket.components.findIndex((c) => c.taxable);
+  if (taxableIndex < 0) return basket;
+  const taxable = basket.components[taxableIndex];
+  const byKey = new Map();
+  for (const line of detail.lines) {
+    if (line.collectAt !== 'plan' || line.kind === 'touristTax' || line.offered) continue;
+    const owed = Math.max(0, Number(line.totalCents || 0) - Math.min(Number(line.settledCents || 0), Number(line.totalCents || 0)));
+    if (owed <= 0) continue;
+    const rate = Number(line.vat && line.vat.rate != null ? line.vat.rate : basket.vatRatePercent) || 0;
+    const key = `${line.label}|${rate}`;
+    const entry = byKey.get(key) || { label: line.label, rate, weight: 0 };
+    entry.weight += owed;
+    byKey.set(key, entry);
+  }
+  const parts = [...byKey.values()];
+  if (parts.length < 2) return basket;
+  const shares = allocateCents(taxable.grossCents, parts.map((p) => p.weight));
+  const split = parts
+    .map((p, i) => ({ title: `${taxable.title} — ${p.label}`, grossCents: shares[i], taxable: p.rate > 0, vatRatePercent: p.rate }))
+    .filter((c) => c.grossCents > 0);
+  const components = [...basket.components];
+  components.splice(taxableIndex, 1, ...split);
+  return { ...basket, components };
+}
+
+module.exports = { storedLinkComponents, saleLineComponents };

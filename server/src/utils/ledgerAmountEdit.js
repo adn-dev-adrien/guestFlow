@@ -22,8 +22,7 @@
 const { evaluateArithmetic } = require('./moneyExpression');
 const { formatEuros } = require('./reservationLedger');
 
-const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
-const toCents = (n) => Math.round(round2(n) * 100);
+const { roundMoneyOrZero: round2, roundedToCents: toCents } = require('./pricing/money');
 const MAX_PASSES = 8;
 const NEIGHBOURHOOD_CENTS = 3;
 
@@ -184,7 +183,7 @@ function evaluateLedgerEdit({ row, amount, quote, ledger, stored = {}, pastLocke
   effects.push(`Hébergement : ${formatEuros(startPrice)} → ${formatEuros(price)}`
     + (taxBefore !== taxAfter ? ` · taxe de séjour ${formatEuros(taxBefore)} → ${formatEuros(taxAfter)}` : ''));
   // The options priced on the stay follow the accommodation (the cancellation insurance).
-  const totalsOf = (q) => new Map((q.optionLines || []).map((l) => [String(l.optionId ?? l.title), l]));
+  const totalsOf = (q) => new Map((q.optionLines || []).map((l) => [String(l.lineKey ?? l.optionId ?? l.title), l]));
   const beforeLines = totalsOf(quote);
   for (const [key, line] of totalsOf(after)) {
     const prev = beforeLines.get(key);

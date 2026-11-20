@@ -6,9 +6,9 @@ const assert = require('node:assert/strict');
 const judge = require('../utils/pricing/refunds/judge');
 const legacy = require('../utils/refunds');
 const guard = require('../utils/refundUntickGuard');
-const { buildRefundableLines } = require('../utils/pricing/refunds/refundable');
+const { refundable } = require('../utils/pricing/refunds/refundable');
 
-const { validateRefundPayload, refundDeletionRefusal, cancellationHadBookMoney, untickRefusal, lastBookPaymentDateOf } = judge;
+const { validateRefundPayload, deletionRefusal, cancellationHadBookMoney, untickRefusal, lastBookPaymentDateOf } = judge;
 
 // date-literal-ok: the day is injected (`today`), nothing here reads the clock
 const TODAY = '2026-08-20';
@@ -20,7 +20,7 @@ const STAY = {
   options: [{ optionId: 7, title: 'Petit-déjeuner', totalPrice: 72, billedUnits: 6, offered: 0 }],
 };
 const context = () => ({
-  refundableLines: buildRefundableLines({ ...STAY, refunds: [] }),
+  refundableLines: refundable({ ...STAY, refunds: [] }),
   finalPrice: 480,
   touristTaxTotal: 13.2,
   alreadyRefundedTotal: 0,
@@ -30,7 +30,7 @@ const context = () => ({
 
 test('rule 72 — the legacy module and the guard re-export the judge', () => {
   assert.equal(legacy.validateRefundPayload, validateRefundPayload);
-  assert.equal(legacy.refundDeletionRefusal, refundDeletionRefusal);
+  assert.equal(legacy.refundDeletionRefusal, deletionRefusal);
   assert.equal(legacy.lastBookPaymentDateOf, lastBookPaymentDateOf);
   assert.equal(typeof guard.untickRefusal, 'function');
 });
@@ -55,11 +55,11 @@ test('rule 72 — the refusals: unknown means, above the line, a future day, no 
 });
 
 test('rule 72 — the avoir cannot be deleted; a refund the cancellation read is refused as netted', () => {
-  assert.deepEqual(refundDeletionRefusal({ id: 2, method: 'retained' }, [{ id: 2, method: 'retained' }], {}), {
+  assert.deepEqual(deletionRefusal({ id: 2, method: 'retained' }, [{ id: 2, method: 'retained' }], {}), {
     code: 'REFUND_RETAINED_AVOIR', error: 'L’indemnité d’annulation ne se supprime pas.',
   });
   const register = [{ id: 1, method: 'transfer' }, { id: 2, method: 'retained' }];
-  assert.equal(refundDeletionRefusal(register[0], register, { kind: 'cancelled', depositPaid: 1, depositAmount: 100 }).code, 'REFUND_NETTED_BY_CANCELLATION');
+  assert.equal(deletionRefusal(register[0], register, { kind: 'cancelled', depositPaid: 1, depositAmount: 100 }).code, 'REFUND_NETTED_BY_CANCELLATION');
 });
 
 test('rule 72 — a cancellation had book money to keep when an acompte, installments or a withheld solde commission were paid', () => {
@@ -94,4 +94,24 @@ test('specs/reservation-refunds.md rule 52 — nothing refunded on the books, or
 
 test('rule 72 — the last book payment date comes from the paid buckets', () => {
   assert.equal(lastBookPaymentDateOf({ depositPaid: 1, depositPaidDate: '2026-08-01' }, {}), '2026-08-01'); // date-literal-ok: read back as given
+});
+
+// ── rule 72, PR B: one take-back guard, the judge under its contract name ─────────────────────────────────────────────────
+
+test('rule 72 — takeBackRefusal: refused only when the gesture lowered what the books collected below the book refunds', () => {
+  const refunds = [{ id: 4, method: 'transfer', totalTtc: 60, refundDate: '2026-08-10' }, { id: 5, method: 'internal', totalTtc: 99, refundDate: '2026-08-11' }]; // date-literal-ok — days handed to a pure function or an injected clock, nothing compares them with the real today
+  const refusal = judge.takeBackRefusal({ beforeCents: 10000, afterCents: 3000, refunds });
+  assert.equal(refusal.status, 409);
+  assert.equal(refusal.body.code, 'REFUND_BLOCKS_UNTICK');
+  assert.deepEqual(refusal.body.refundIds, [4]);
+  assert.equal(judge.takeBackRefusal({ beforeCents: 10000, afterCents: 6000, refunds }), null, 'exactly the refunds: nothing missing');
+  assert.equal(judge.takeBackRefusal({ beforeCents: 5900, afterCents: 5900, refunds }), null, 'a gesture that lowered nothing is not refused');
+  assert.equal(judge.takeBackRefusal({ beforeCents: 10000, afterCents: 0, refunds: [{ id: 9, method: 'internal', totalTtc: 5 }] }), null, 'only the caisse interne: off the books');
+});
+
+test('rule 72 — judge: `today` is required, and it is the write judge', () => {
+  assert.throws(() => judge.judge({}, {}, {}), /today/);
+  const direct = validateRefundPayload({ refundDate: TODAY, method: 'transfer', lines: [] }, { refundableLines: [], today: TODAY });
+  const named = judge.judge({ refundDate: TODAY, method: 'transfer', lines: [] }, { refundableLines: [] }, { today: TODAY });
+  assert.deepEqual(named, direct);
 });

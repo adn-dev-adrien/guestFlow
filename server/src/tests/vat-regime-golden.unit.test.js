@@ -24,8 +24,14 @@
 // four split aggregates of specs/mixed-method-payments.md §5 (all 0 here), nothing else moved (checked field by field).
 // On 2026-11-12 for the 13 captures that carry a stay row: the row gains `cautionWaived: 0` (arrival-departure-sas.md rule 31, additive,
 // nothing else moved: checked key by key).
+// On 2026-11-13 for `pdf/201` and `pdf/202`: the devis gains its « Récapitulatif TVA » table (pricing-components.md rule 15,
+// D12, approved by Adrien), no amount moved.
+// On 2026-11-15 for the 13 captures that carry a stay row: the row gains `readsSaleLines: 0` (pricing-components.md rules 31, 61, 63, 91,
+// owner reading of 2026-11-15, approved by Adrien), additive, no amount moved: checked key by key.
 // On 2026-11-16 for `finance/dashboard/2025..2028`: `tiles.incoming`, the « Versements à venir » tile (specs/mollie-rolling-reserve-and-incoming-payments.md
 // rule 21), nothing else moved (checked: the payload minus that key is the previous capture).
+// On 2026-11-17, merging #1067 into pricing-components C: re-captured on the branch, checked key by key — only those four
+// `finance/dashboard/*` moved against the branch's capture, by `data.tiles.incoming` alone, equal to master's value.
 // `GOLDEN_UPDATE=1` rewrites the capture, which is only ever legitimate on that code (Lot 0).
 
 const test = require('node:test');

@@ -15,7 +15,7 @@ export async function loadResourceDays({ from, to }) {
     (day?.items || []).forEach((item) => {
       const ignition = item.kind === 'ignition';
       push(date, {
-        key: `${ignition ? 'ign' : 'res'}-${item.reservationId}-${item.resourceId}-${item.start || ''}`,
+        key: `${ignition ? 'ign' : 'res'}-${item.reservationId}-${item.resourceId}-${item.lineId ?? ''}-${item.start || ''}`,
         // An ignition card sits at the moment it must be lit; a session at its start.
         time: ignition ? item.time : item.start,
         kind: ignition ? 'ignition' : 'session',

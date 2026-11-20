@@ -1,0 +1,1 @@
+- `reservations.readsSaleLines` (0 by default): 0 on every existing stay, 1 on stays, iCal imports and quotes created afterwards. No amount is rewritten; a previous version ignores the column.

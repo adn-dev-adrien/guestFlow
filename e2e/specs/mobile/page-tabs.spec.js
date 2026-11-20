@@ -15,7 +15,7 @@ test('/parametres/options-ressources at 390px: title first, tabs under it, no si
   await expect(title).toBeVisible({ timeout: 10_000 });
 
   const tabs = page.getByRole('tab');
-  await expect(tabs).toHaveCount(3);
+  await expect(tabs).toHaveCount(4);
 
   // The tabs sit BELOW the title, not above it.
   const titleBox = await title.boundingBox();
@@ -52,14 +52,15 @@ test('switching tab on a phone keeps the title + tabs in the same block', async 
 // specs/ds-tabs.md rule 12 — a lazy plugin tab keeps the bar drawn while its chunk loads.
 test('switching to a plugin tab never leaves the page without tabs', async ({ page }) => {
   await page.goto('/parametres/options-ressources');
-  await expect(page.getByRole('tab')).toHaveCount(3, { timeout: 10_000 });
+  await expect(page.getByRole('tab')).toHaveCount(4, { timeout: 10_000 });
   await page.evaluate(() => {
     window.__tabCounts = new Set();
     window.__tabYs = new Set();
-    // A Y counts once it held for two consecutive frames. One-frame readings are out of scope on purpose: a single
-    // sample 238 px lower was seen once on a loaded runner and never reproduced (12 runs at 6x CPU throttling and
-    // 52 under load show one constant Y), so it is read as a sampling artefact, not a flash. A bar that really
-    // jumps stays in the layout for more than one frame and is caught.
+    // The strip is measured in the viewport: a bar that moves on the screen is caught, whatever moved it. The support access request, a
+    // banner of the whole app that once pushed the bar 238 px down mid-switch, is filed in a project of its own (e2e/projects.js).
+    // specs/e2e-playwright-smoke-suite.md rule 20 — never beside this spec.
+    // A Y counts once it held for two consecutive frames: a single-frame reading is a sampling artefact, a bar that really jumps stays in
+    // the layout for more than one frame and is caught.
     let previous = null;
     const sample = () => {
       const tabs = document.querySelectorAll('[role=tab]');
@@ -75,7 +76,7 @@ test('switching to a plugin tab never leaves the page without tabs', async ({ pa
   await expect(page).toHaveURL(/tab=sas/);
   await expect(page.getByRole('heading', { name: 'Facturables au SAS' }).first()).toBeVisible();
   await page.evaluate(() => new Promise((resolve) => { requestAnimationFrame(() => requestAnimationFrame(() => requestAnimationFrame(resolve))); }));
-  expect(await page.evaluate(() => [...window.__tabCounts])).toEqual([3]);
+  expect(await page.evaluate(() => [...window.__tabCounts])).toEqual([4]);
   // The fallback bar has the same rows as the loaded one: the strip does not jump when the real bar mounts.
   expect(await page.evaluate(() => [...window.__tabYs])).toHaveLength(1);
 });

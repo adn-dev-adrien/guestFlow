@@ -11,6 +11,7 @@
 
 const { pricedProjection } = require('./storedReservationQuote');
 const { round2 } = require('./reservationSettlement');
+const { storedPreArrival, storedNet, totalCommission } = require('./pricing/platformPayment');
 
 const HALF_CENT = 0.005;
 
@@ -54,15 +55,14 @@ function parseStatement(body = {}, stored = {}) {
   if (Object.keys(statement).length === 0) return { ok: false, error: 'Aucun montant du relevé à enregistrer.' };
   const merged = { ...stored, ...statement };
   const gross = merged.platformGrossAmount == null || merged.platformGrossAmount === '' ? null : Number(merged.platformGrossAmount);
-  const commissions = round2(Number(merged.platformCommissionAmount || 0) + Number(merged.acompteCommissionAmount || 0));
+  const commissions = totalCommission(Number(merged.platformCommissionAmount || 0), Number(merged.acompteCommissionAmount || 0));
   if (gross != null && commissions > gross + HALF_CENT) {
     return { ok: false, error: 'La commission ne peut pas dépasser le montant payé par le client.' };
   }
   return { ok: true, statement };
 }
 
-const preArrivalOf = (row) => round2(Number(row.depositAmount || 0) + Number(row.balanceAmount || 0));
-const commissionsOf = (row) => round2(Number(row.platformCommissionAmount || 0) + Number(row.acompteCommissionAmount || 0));
+const preArrivalOf = storedPreArrival;
 
 /** The transfer received (rule 4): the one typed in the panel, else the stored « Virement reçu », else the stored net. */
 function netReceived(stored, statement = {}) {
@@ -70,7 +70,7 @@ function netReceived(stored, statement = {}) {
   if (typed != null) return round2(typed);
   const payout = stored.platformPayoutAmount;
   if (payout !== '' && payout != null && Number.isFinite(Number(payout))) return round2(payout);
-  return round2(preArrivalOf(stored) - commissionsOf(stored));
+  return storedNet(stored);
 }
 
 /** What the statement would move beyond itself (rule 7): the labels of the moved figures, empty when none. */
@@ -93,7 +93,7 @@ function driftedWithoutGross(stored, statement, before) {
   const merged = { ...stored, ...statement };
   const hasGross = !(merged.platformGrossAmount === '' || merged.platformGrossAmount == null);
   if (hasGross) return false;
-  return Math.abs(round2(Number(before.depositAmount || 0) + Number(before.balanceAmount || 0)) - preArrivalOf(stored)) >= HALF_CENT;
+  return Math.abs(preArrivalOf(before) - preArrivalOf(stored)) >= HALF_CENT;
 }
 
 /** Rule 3 (validation) — a commission the engine had to cut to its échéance: the label of the field, else null. */
@@ -118,7 +118,7 @@ function nextColumns(stored, statement, after) {
 
 /** The signed gap between the net the statement gives and the transfer received, 0 within half a cent. */
 function netGapOf(next, received) {
-  const gap = round2(preArrivalOf(next) - commissionsOf(next) - received);
+  const gap = round2(storedNet(next) - received);
   return Math.abs(gap) < HALF_CENT ? 0 : gap;
 }
 
@@ -128,7 +128,7 @@ function netGapOf(next, received) {
  */
 function netLabelOf(next, received, formatEuros) {
   if (received == null) return null;
-  const net = round2(preArrivalOf(next) - commissionsOf(next));
+  const net = storedNet(next);
   const gap = netGapOf(next, received);
   if (gap === 0) return { tone: 'done', label: `Net : ${formatEuros(net)} — identique au virement ✓` };
   return {

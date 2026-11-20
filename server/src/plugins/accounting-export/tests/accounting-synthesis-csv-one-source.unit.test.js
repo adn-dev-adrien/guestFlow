@@ -11,7 +11,7 @@ test.mock.timers.enable({ apis: ['Date'], now: Date.UTC(2026, 11, 20, 12) });
 process.env.DB_PATH = ':memory:';
 const sdk = require('../../sdk');
 const { buildRows, CSV_HEADERS, entryVentilation } = require('../accountingExport');
-const { toLatin1Text } = require('../latin1');
+const { toLatin1Text } = require('../../../utils/accounting/latin1');
 const { ventilate, vatReturn, balanceCheck } = require('../synthesis');
 
 const { serializeCsv } = sdk.coreModule('csv');

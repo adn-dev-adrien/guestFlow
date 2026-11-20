@@ -10,6 +10,7 @@ const crypto = require('node:crypto');
 const sdk = require('../sdk');
 const resourceOccupancyModel = require('./occupancyModel');
 const { priceBookingLines, offeredRefusal } = require('./bookingPricing');
+const { bookingCardState } = require('./planningCardsModel');
 
 // A slot a plugin holds before it reaches the planning, when its source names it in no words of its own.
 const HELD_SLOT = 'Créneau réservé, en attente';
@@ -68,9 +69,7 @@ function shapeRefusal(payload, stored = null) {
   return null;
 }
 
-function roundMoney(value) {
-  return Math.round(Number(value || 0) * 100) / 100;
-}
+const { roundMoney } = sdk.coreModule('money');
 
 function parseTenders(raw) {
   try {
@@ -91,16 +90,7 @@ function enrichBooking(b) {
     : (b.clientName || 'Client externe');
   const tenders = parseTenders(b.paymentTenders);
   b.paid = isPaid(b);
-  b.payment = b.paid
-    ? {
-      paidAt: b.paidAt || null,
-      tenders: tenders || [],
-      internalCents: (tenders || []).filter((t) => t.internal).reduce((sum, t) => sum + Number(t.amountCents || 0), 0),
-      label: tenders && tenders.length ? tenders.map((t) => (t.internal ? `${methodLabel(t.method)} (caisse interne)` : methodLabel(t.method))).join(' · ') : 'Moyen non saisi',
-      onTheBooks: Boolean(tenders && tenders.length) && !tenders.some((t) => t.internal),
-      hasCard: Boolean(tenders && tenders.some((t) => t.method === 'card')),
-    }
-    : null;
+  b.payment = b.paid ? paymentView(tenders, b.paidAt) : null;
   b.frozen = Boolean(b.qontoInvoiceId) && !b.invoiceCancelledAt;
   b.invoice = b.qontoInvoiceId
     ? {
@@ -118,6 +108,18 @@ function enrichBooking(b) {
 }
 
 const methodLabel = (method) => sdk.coreModule('paymentTenders').methodLabel(method);
+
+// What the screens and the invoice read of the money taken: its day, its tender lines, the caisse interne part, on the books or not, a card in it.
+function paymentView(tenders, paidAt) {
+  return {
+    paidAt: paidAt || null,
+    tenders: tenders || [],
+    internalCents: (tenders || []).filter((t) => t.internal).reduce((sum, t) => sum + Number(t.amountCents || 0), 0),
+    label: tenders && tenders.length ? tenders.map((t) => (t.internal ? `${methodLabel(t.method)} (caisse interne)` : methodLabel(t.method))).join(' · ') : 'Moyen non saisi',
+    onTheBooks: Boolean(tenders && tenders.length) && !tenders.some((t) => t.internal),
+    hasCard: Boolean(tenders && tenders.some((t) => t.method === 'card')),
+  };
+}
 
 // Rules 25-26 — the billing address of a guest with no client record: every part optional, the postcode 5 digits.
 const POSTCODE = /^\d{5}$/;
@@ -151,6 +153,7 @@ const PAID_MESSAGE = 'Payée : retirer d’abord le paiement enregistré.';
 // Rule 36 — what moves the price of a booking; anything else (notes, client, address) never reprices a paid one.
 const PRICED_FIELDS = ['date', 'startTime', 'endTime', 'propertyId', 'reservationId', 'offeredMinutes'];
 const sameValue = (a, b) => String(a ?? '') === String(b ?? '');
+const pricedMovedFrom = (existing, next) => PRICED_FIELDS.some((field) => !sameValue(next[field], field === 'offeredMinutes' ? Number(existing.offeredMinutes) || 0 : existing[field]));
 const todayInParis = (now = new Date()) => new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Paris' }).format(now);
 
 /**
@@ -159,9 +162,35 @@ const todayInParis = (now = new Date()) => new Intl.DateTimeFormat('en-CA', { ti
  * @param {() => number} [options.standaloneVatRate] the « TVA des ventes hors séjour » setting, in percent (rule 5)
  * @param {() => Date} [options.now]
  */
-function createModel(database, { standaloneVatRate = () => 20, now = () => new Date() } = {}) {
+function createModel(database, { standaloneVatRate = () => 20, now = () => new Date(), visits = null } = {}) {
   // Bound to the same database handle so the test factory and production agree on what « occupied » is.
   const occupancyModel = resourceOccupancyModel.create(database);
+  // The outside-visit spec rule 34 — a booking whose money lives on a sale document (`saleRef`) reads it from there: the visit model asks the core.
+  const visitsOf = (row) => (visits && row && row.saleRef ? visits() : null);
+  const refusalError = (refusal) => Object.assign(new Error('refused'), { refusal });
+
+  /**
+   * The booking as the screens read it (rules 11, 19, 28): its own payment columns, or, when its money is on a document, the document's figures
+   * (`visit`: total, paid, remaining, from SETTLEMENT) and its payments; `cardState` is the planning chip (rule 22).
+   */
+  function enrich(row) {
+    const b = enrichBooking(row);
+    const visit = visitsOf(b);
+    const money = visit ? visit.moneyOf(b) : null;
+    if (money) {
+      b.visit = {
+        saleRef: b.saleRef, totalCents: money.totalCents, paidCents: money.paidCents, remainingCents: money.remainingCents,
+      };
+      if (!b.paid) {
+        const last = money.payments[money.payments.length - 1];
+        b.paid = money.remainingCents === 0 && money.payments.length > 0;
+        b.payment = money.payments.length ? paymentView(money.payments.flatMap((p) => p.tenders), last.paidAt) : null;
+      }
+    }
+    b.noShow = Boolean(b.noShowAt);
+    b.cardState = bookingCardState(b);
+    return b;
+  }
 
   /**
    * The price of a booking and how it is made up — the one function behind the preview and the stored
@@ -189,13 +218,14 @@ function createModel(database, { standaloneVatRate = () => 20, now = () => new D
    * the invoice (specs/resource-booking-pricing-and-invoicing.md rules 3-10). Pure read.
    */
   // `frozenVat` (rule 35): the rate a paid booking was sold with — `{ rate }`, `rate: null` when not subject.
-  function breakdownOf({ resource, startTime, endTime, propertyId, reservationId, offeredMinutes = 0, date, frozenVat = null }) {
+  // `stored` (rule 74): the booking's own row, for a read of a booking already sold — a row priced before the one hourly grid keeps its free
+  // hour on the band it fell in; a draft, a new booking or a booking whose slot or party moved is priced on the one grid.
+  function breakdownOf({ resource, startTime, endTime, propertyId, reservationId, offeredMinutes = 0, date, frozenVat = null, stored = null }) {
     const pid = Number(propertyId || 0);
-    const override = pid > 0
-      ? database.prepare('SELECT price, freeMinutes FROM property_resource_prices WHERE propertyId = ? AND resourceId = ?').get(pid, Number(resource.id))
-      : null;
+    const override = pid > 0 ? sdk.coreModule('catalogue').resourcePriceOverride(database, resource.id, pid) || null : null;
     return priceBookingLines({
       resource, startTime, endTime, override, external: !reservationId, offeredMinutes: Number(offeredMinutes) || 0, vat: frozenVat || vatFor({ reservationId, date }),
+      freeHourAtDayRate: stored ? Number(stored.freeHourAtDayRate) === 1 : true,
     });
   }
 
@@ -253,6 +283,7 @@ function createModel(database, { standaloneVatRate = () => 20, now = () => new D
     let storedDate;
     let storedTimes;
     let frozenVat = null;
+    let stored = null;
     if (!notSent(bookingId)) {
       const existing = database.prepare('SELECT * FROM resource_bookings WHERE id = ?').get(bookingId);
       if (!existing) return { error: 'Réservation non trouvée', status: 404 };
@@ -261,11 +292,13 @@ function createModel(database, { standaloneVatRate = () => 20, now = () => new D
       storedDate = existing.date;
       storedTimes = existing;
       frozenVat = frozenVatOf(existing);
+      const draftPriced = { date, startTime, endTime, propertyId: propertyId || null, reservationId: existing.reservationId, offeredMinutes: Number(offeredMinutes) || 0 };
+      if (!pricedMovedFrom(existing, draftPriced)) stored = existing;
     }
     const refusal = checkBookable({ resource, date, startTime, endTime, excludeId: bookingId || null, storedDate, storedTimes })
       || offeredCheck({ resource, startTime, endTime, propertyId, reservationId, offeredMinutes, date });
     if (refusal) return refusal;
-    return breakdownOf({ resource, startTime, endTime, propertyId, reservationId, offeredMinutes, date, frozenVat });
+    return breakdownOf({ resource, startTime, endTime, propertyId, reservationId, offeredMinutes, date, frozenVat, stored });
   }
 
   // Rule 15 — what the screen showed is compared with what is stored, never enforced.
@@ -321,7 +354,7 @@ function createModel(database, { standaloneVatRate = () => 20, now = () => new D
 
   function listPlanningEvents(from, to) {
     return database.prepare(`${JOIN_QUERY} WHERE rb.date >= ? AND rb.date <= ? ORDER BY rb.date, rb.startTime`)
-      .all(from, to).map(enrichBooking);
+      .all(from, to).map(enrich);
   }
 
   function getOccupiedSlots(resourceId, date) {
@@ -358,7 +391,7 @@ function createModel(database, { standaloneVatRate = () => 20, now = () => new D
         .all(resourceId, weekStart, addDays(weekStart, 7))
       : database.prepare(`${JOIN_QUERY} WHERE rb.resourceId = ? AND rb.date = ? ORDER BY rb.startTime`)
         .all(resourceId, date)
-    ).map((b) => ({ ...enrichBooking(b), kind: 'booking' }));
+    ).map((b) => ({ ...enrich(b), kind: 'booking' }));
 
     return [...bookings, ...listReservationSessions({ resourceId, from, to }), ...listHeldSlots({ resourceId, from, to })]
       .sort((a, b) => String(a.date).localeCompare(String(b.date)) || String(a.startTime).localeCompare(String(b.startTime)));
@@ -437,7 +470,7 @@ function createModel(database, { standaloneVatRate = () => 20, now = () => new D
 
   function findById(id) {
     const booking = database.prepare(`${JOIN_QUERY} WHERE rb.id = ?`).get(id);
-    return booking ? enrichBooking(booking) : null;
+    return booking ? enrich(booking) : null;
   }
 
   function createBooking(payload) {
@@ -459,7 +492,7 @@ function createModel(database, { standaloneVatRate = () => 20, now = () => new D
     const totalPrice = breakdownOf({ resource, startTime, endTime, propertyId, reservationId, offeredMinutes, date }).total;
     const billing = billingOf(payload.billing);
     const result = database.prepare(
-      'INSERT INTO resource_bookings (resourceId, reservationId, clientId, clientName, clientPhone, propertyId, date, startTime, endTime, notes, totalPrice, paid, offeredMinutes, billingStreet, billingPostcode, billingCity) VALUES (?,?,?,?,?,?,?,?,?,?,?,0,?,?,?,?)'
+      'INSERT INTO resource_bookings (resourceId, reservationId, clientId, clientName, clientPhone, propertyId, date, startTime, endTime, notes, totalPrice, paid, offeredMinutes, billingStreet, billingPostcode, billingCity, freeHourAtDayRate) VALUES (?,?,?,?,?,?,?,?,?,?,?,0,?,?,?,?,1)'
     ).run(resource.id, reservationId || null, clientId || null, clientName || null, clientPhone || null, propertyId || null, date, startTime, endTime, notes || '', totalPrice, offeredMinutes, billing.street, billing.postcode, billing.city);
     return { ok: true, id: result.lastInsertRowid, totalPrice, warning: totalWarning(payload.displayedTotal, totalPrice) };
   }
@@ -491,8 +524,9 @@ function createModel(database, { standaloneVatRate = () => 20, now = () => new D
     const nextReservationId = reservationId !== undefined ? (reservationId || null) : existing.reservationId;
     const nextOffered = payload.offeredMinutes !== undefined ? payload.offeredMinutes : existing.offeredMinutes;
     const next = { date: newDate, startTime: newStart, endTime: newEnd, propertyId: nextPropertyId, reservationId: nextReservationId, offeredMinutes: Number(nextOffered) || 0 };
-    const pricedMoved = PRICED_FIELDS.some((field) => !sameValue(next[field], field === 'offeredMinutes' ? Number(existing.offeredMinutes) || 0 : existing[field]));
+    const pricedMoved = pricedMovedFrom(existing, next);
     let totalPrice;
+    let freeHourAtDayRate = existing.freeHourAtDayRate ?? null;
     if (isPaid(existing) && !pricedMoved) {
       // Rule 36 — a paid booking whose slot does not move keeps the total its payment covers, whatever the tariff now.
       totalPrice = Number(existing.totalPrice);
@@ -500,7 +534,13 @@ function createModel(database, { standaloneVatRate = () => 20, now = () => new D
       const refusal = checkBookable({ resource, date: newDate, startTime: newStart, endTime: newEnd, excludeId: id, storedDate: existing.date, storedTimes: existing })
         || offeredCheck({ resource, startTime: newStart, endTime: newEnd, propertyId: nextPropertyId, reservationId: nextReservationId, offeredMinutes: nextOffered, date: newDate });
       if (refusal) return refusal;
-      totalPrice = breakdownOf({ resource, startTime: newStart, endTime: newEnd, propertyId: nextPropertyId, reservationId: nextReservationId, offeredMinutes: nextOffered, date: newDate }).total;
+      // Specs/pricing-components.md §3 rule 74 — only the operator moving the slot or the party puts a booking on the one hourly grid; any other
+      // save of an unpaid booking re-prices it as before (rule 36 reading), its free hour still valued as it was sold.
+      if (pricedMoved) freeHourAtDayRate = 1;
+      totalPrice = breakdownOf({
+        resource, startTime: newStart, endTime: newEnd, propertyId: nextPropertyId, reservationId: nextReservationId, offeredMinutes: nextOffered, date: newDate,
+        stored: { freeHourAtDayRate },
+      }).total;
       // Rule 12 — a recorded payment covers the total it was taken for: a price that moves takes it back.
       if (isPaid(existing) && Math.abs(Number(existing.totalPrice) - totalPrice) >= 0.005) {
         return { error: 'Le prix change : retirer d’abord le paiement enregistré.', status: 409, code: 'BOOKING_PAID' };
@@ -508,8 +548,19 @@ function createModel(database, { standaloneVatRate = () => 20, now = () => new D
     }
     const billing = payload.billing !== undefined ? billingOf(payload.billing) : { street: existing.billingStreet, postcode: existing.billingPostcode, city: existing.billingCity };
 
-    database.prepare(
-      "UPDATE resource_bookings SET reservationId=?,clientId=?,clientName=?,clientPhone=?,propertyId=?,date=?,startTime=?,endTime=?,notes=?,totalPrice=?,offeredMinutes=?,billingStreet=?,billingPostcode=?,billingCity=?,updatedAt=datetime('now') WHERE id=?"
+    // Loop t1 AV-2 (outside-visit rule 8) — the visit's document names the booking's client: a client changed on the booking is the document's too
+    // (the « Passage » client when the booking names none), until it is invoiced.
+    const clientMoved = clientId !== undefined && Number(clientId || 0) !== Number(existing.clientId || 0);
+    const followClient = () => {
+      const saleId = clientMoved && /^standalone:\d+$/.test(String(existing.saleRef || '')) ? Number(String(existing.saleRef).split(':')[1]) : null;
+      if (!saleId) return;
+      const passage = database.prepare('SELECT id FROM clients WHERE COALESCE(isPassage, 0) = 1 ORDER BY id LIMIT 1').get();
+      database.prepare('UPDATE standalone_sales SET clientId = ?, version = version + 1 WHERE id = ? AND invoiceNumber IS NULL')
+        .run(clientId || (passage ? passage.id : null), saleId);
+    };
+    const write = () => { writeRow(); followClient(); };
+    const writeRow = () => database.prepare(
+      "UPDATE resource_bookings SET reservationId=?,clientId=?,clientName=?,clientPhone=?,propertyId=?,date=?,startTime=?,endTime=?,notes=?,totalPrice=?,offeredMinutes=?,billingStreet=?,billingPostcode=?,billingCity=?,freeHourAtDayRate=?,updatedAt=datetime('now') WHERE id=?"
     ).run(
       reservationId !== undefined ? (reservationId || null) : existing.reservationId,
       clientId !== undefined ? (clientId || null) : existing.clientId,
@@ -521,8 +572,24 @@ function createModel(database, { standaloneVatRate = () => 20, now = () => new D
       totalPrice,
       Number(nextOffered) || 0,
       billing.street || null, billing.postcode || null, billing.city || null,
+      freeHourAtDayRate,
       id,
     );
+    const visit = visitsOf(existing);
+    if (!visit || !pricedMoved) database.transaction(write)();
+    else {
+      // The outside-visit spec, edge case « booking moved after the arrival » — its session line follows while unpaid, in the same transaction.
+      try {
+        database.transaction(() => {
+          write();
+          const repriced = visit.repriceSession(rawById(id));
+          if (repriced.error) throw refusalError(repriced);
+        })();
+      } catch (err) {
+        if (err && err.refusal) return err.refusal;
+        throw err;
+      }
+    }
     return { ok: true, totalPrice, warning: totalWarning(payload.displayedTotal, totalPrice) };
   }
 
@@ -532,7 +599,20 @@ function createModel(database, { standaloneVatRate = () => 20, now = () => new D
     if (isFrozen(existing)) return { error: FROZEN_MESSAGE, status: 409, code: 'BOOKING_INVOICED' };
     // Rule 34 — a paid booking is a sale of the journal: its payment is taken back first, on purpose.
     if (isPaid(existing)) return { error: PAID_MESSAGE, status: 409, code: 'BOOKING_PAID' };
-    database.prepare('DELETE FROM resource_bookings WHERE id = ?').run(id);
+    const visit = visitsOf(existing);
+    // The outside-visit spec rule 26 — deleting an unpaid visit cancels its document (lines cancelled, open link withdrawn); one holding money stays.
+    try {
+      database.transaction(() => {
+        if (visit) {
+          const cancelled = visit.cancelDocument(existing);
+          if (cancelled.error) throw refusalError(cancelled);
+        }
+        database.prepare('DELETE FROM resource_bookings WHERE id = ?').run(id);
+      })();
+    } catch (err) {
+      if (err && err.refusal) return err.refusal;
+      throw err;
+    }
     return { ok: true };
   }
 
@@ -550,6 +630,9 @@ function createModel(database, { standaloneVatRate = () => 20, now = () => new D
     if (isFrozen(existing)) return { error: FROZEN_MESSAGE, status: 409, code: 'BOOKING_INVOICED' };
     // Rule 46 — a stored row linked to a stay takes no money of its own: the stay's books do not read it.
     if (existing.reservationId) return { error: HAS_STAY_MESSAGE, status: 409, code: 'BOOKING_HAS_STAY' };
+    // The outside-visit spec rule 34 — a booking whose money is on a document takes its payment there: the whole reste, allocated by SETTLEMENT.
+    const visit = visitsOf(existing);
+    if (visit) return visit.pay(existing, { tenders, paidAt, shortfall: null });
     const day = paidAt === undefined || paidAt === null || paidAt === '' ? todayInParis(now()) : paidAt;
     if (typeof day !== 'string' || !ISO_DAY.test(day) || sdk.coreModule('stayDates').entryDateMessage(day)) return refused('Date du paiement invalide.');
     const dueCents = Math.round(Number(existing.totalPrice || 0) * 100);
@@ -567,49 +650,10 @@ function createModel(database, { standaloneVatRate = () => 20, now = () => new D
     const existing = rawById(id);
     if (!existing) return { error: 'Réservation non trouvée', status: 404 };
     if (isFrozen(existing)) return { error: FROZEN_MESSAGE, status: 409, code: 'BOOKING_INVOICED' };
+    // The outside-visit spec rule 25 — money on a document is given back through REFUNDS, never untyped here.
+    if (!isPaid(existing) && existing.saleRef) return { error: 'Paiement de la vente : un remboursement par l’administrateur.', status: 409, code: 'SALE_PAYMENT' };
     database.prepare(`UPDATE resource_bookings SET paymentTenders = NULL, paidAt = NULL, paymentRecordedAt = NULL, paid = 0,
       paidVatRate = NULL, invoiceMarkPending = 0, updatedAt = datetime('now') WHERE id = ?`).run(id);
-    return { ok: true };
-  }
-
-  /**
-   * Rules 28-31 — the arrival of a guest with no stay, in one transaction: offered time, billing address, arrival,
-   * then the payment when one is given. The invoice is the caller's, after the commit (rule 30).
-   */
-  function recordArrival(id, { offeredMinutes, payment, billing } = {}) {
-    const existing = rawById(id);
-    if (!existing) return { error: 'Réservation non trouvée', status: 404 };
-    if (existing.reservationId) return { error: 'Cette séance appartient à un séjour : son sas d’arrivée est celui du séjour.', status: 409, code: 'BOOKING_HAS_STAY' };
-    // Rule 28 — on its day only; an arrival already recorded can be opened again any day (rule 32).
-    if (!existing.arrivedAt && existing.date !== todayInParis(now())) {
-      return { error: 'Arrivée : le jour de la séance seulement.', status: 409, code: 'ARRIVAL_NOT_TODAY' };
-    }
-    // A refusal inside the steps rolls every step back: it is thrown out of the transaction, then returned.
-    const stop = (result) => { const err = new Error('refused'); err.refusal = result; throw err; };
-    try {
-      database.transaction(() => {
-        if (!isFrozen(existing) && !isPaid(existing)) {
-          const moved = update(id, {
-            ...(offeredMinutes !== undefined ? { offeredMinutes } : {}),
-            ...(billing !== undefined ? { billing } : {}),
-          });
-          if (moved.error) stop(moved);
-        } else if (billing !== undefined) {
-          const shape = billingRefusal(billing);
-          if (shape) stop(shape);
-          const b = billingOf(billing);
-          database.prepare('UPDATE resource_bookings SET billingStreet = ?, billingPostcode = ?, billingCity = ? WHERE id = ?').run(b.street, b.postcode, b.city, id);
-        }
-        database.prepare("UPDATE resource_bookings SET arrivedAt = COALESCE(arrivedAt, datetime('now')) WHERE id = ?").run(id);
-        if (payment && !isPaid(rawById(id))) {
-          const paid = recordPayment(id, payment);
-          if (paid.error) stop(paid);
-        }
-      })();
-    } catch (err) {
-      if (err && err.refusal) return err.refusal;
-      throw err;
-    }
     return { ok: true };
   }
 
@@ -632,7 +676,7 @@ function createModel(database, { standaloneVatRate = () => 20, now = () => new D
     // Rule 35 — the lines at the rate frozen with the payment; rule 36 — the stored total is what was paid.
     const breakdown = breakdownOf({
       resource, startTime: row.startTime, endTime: row.endTime, propertyId: row.propertyId, reservationId: row.reservationId,
-      offeredMinutes: row.offeredMinutes, date: row.date, frozenVat: frozenVatOf(row),
+      offeredMinutes: row.offeredMinutes, date: row.date, frozenVat: frozenVatOf(row), stored: row,
     });
     const client = row.clientId ? database.prepare('SELECT * FROM clients WHERE id = ?').get(row.clientId) : null;
     const [first, ...rest] = String(row.clientName || '').trim().split(/\s+/);
@@ -693,12 +737,14 @@ function createModel(database, { standaloneVatRate = () => 20, now = () => new D
   // may be cancelled in Qonto.
   function invoicedToWatch() {
     return database.prepare(`SELECT * FROM resource_bookings WHERE qontoInvoiceId IS NOT NULL AND invoiceCancelledAt IS NULL
-      AND date >= date('now', '-60 days') ORDER BY id`).all().map((r) => enrichBooking(r));
+      AND date >= date('now', '-60 days') ORDER BY id`).all().map((r) => enrich(r));
   }
 
   /**
    * Rules 20-21, A4 — the sales of the window, for the journal and the card batch: payments recorded since the install,
-   * on their payment day, with their part on the books (total minus caisse interne).
+   * on their payment day, with their part on the books (total minus caisse interne). Only the money taken on the booking's own columns (`paid = 1`): a
+   * payment of a sale document (`saleRef`, the outside-visit spec rules 32, 34) is the core's to list and never touches these columns, so no session is counted
+   * twice — and a session paid on the booking before its document still is, once.
    */
   function standaloneSales({ from, to }) {
     const rows = database.prepare(`SELECT rb.*, c.firstName, c.lastName, r.name AS resourceName FROM resource_bookings rb
@@ -731,7 +777,6 @@ function createModel(database, { standaloneVatRate = () => 20, now = () => new D
     recordArrivalBilling,
     recordPayment,
     clearPayment,
-    recordArrival,
     invoiceBasis,
     storeInvoice,
     setAttachment,

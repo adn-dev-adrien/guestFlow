@@ -1,0 +1,1 @@
+- plugin:hourly-resources The arrival dialog no longer shows a second error after a failed draft is retried, spans its failed-quote alert across the grid, and says why « Marquer remboursé » waits for the draft to be saved — « Enregistrer d’abord les modifications. », whatever made the draft dirty (an added article, offered minutes or an offered session).

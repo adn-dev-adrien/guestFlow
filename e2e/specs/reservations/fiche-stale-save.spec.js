@@ -5,6 +5,7 @@ import { test, expect } from '@playwright/test';
 import { createClient, createProperty, createReservation } from '../../fixtures/apiSeed.js';
 import { enablePropertyDeposit, simulateBackgroundWrite } from '../../fixtures/dbSeed.js';
 import { FAR_YEAR } from '../../fixtures/farYear.js';
+import { API_TIMEOUT } from '../../clientUrl.js';
 
 test('a save on an out-of-date fiche is refused; the draft is kept, then reload shows the background write', async ({ page }) => {
   const property = await createProperty({ name: 'E2E stale villa' });
@@ -57,7 +58,7 @@ test('rule 5 — « Enregistrer quand même » overwrites the background write, 
   await dialog.getByRole('button', { name: 'Enregistrer quand même' }).click();
   await expect.poll(() => statuses.length).toBe(2);
   expect(statuses).toEqual([409, 200]);
-  const stored = await (await page.request.get(`/api/reservations/${reservation.id}`)).json();
+  const stored = await (await page.request.get(`/api/reservations/${reservation.id}`, { timeout: API_TIMEOUT })).json();
   expect(stored.notes).toBe('Ma note forcée');
 });
 

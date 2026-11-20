@@ -9,12 +9,20 @@
 
 const reservationsModel = require('../models/reservationsModel');
 const { loadStayFacts, attachResourceSentences } = require('../models/stayFactsModel');
+const { notDepartureCharge } = require('./departureChargeLines');
 
 // specs/j2-email-arrival-complement-line.md — the SAME arrival-complement breakdown the SAS shows.
 // Guarded: `getByIdWithDetails` needs the full schema, so on a minimal/legacy DB this returns null
 // and the context builder falls back to its inline partial list.
+// specs/pricing-components.md rule 91 — read from the sale detail (lines and amount measured identical to the stored breakdown on every
+// stay of the prod copy of 2026-11-11); the stored breakdown stays the reading of a stay the engine cannot quote, and of a database other
+// than the application's (the sale detail reads the application's own).
 function loadArrivalComplementDetail(database, reservationId) {
   try {
+    if (database === require('../database')) {
+      const fromSale = require('./extraSale').arrivalComplementDetailOf(Number(reservationId));
+      if (fromSale) return fromSale;
+    }
     return reservationsModel.create(database).buildArrivalComplementDetail(Number(reservationId));
   } catch {
     return null;
@@ -72,7 +80,7 @@ function loadReservationGraph(database, reservationId) {
   // Custom (free-text) options — needed for the J-1 complement breakdown
   // (specs/j1-complement-to-collect.md §3). `description` is the label, `amount` the value.
   const customOptions = database.prepare(`
-    SELECT * FROM reservation_custom_options WHERE reservationId = ?
+    SELECT * FROM reservation_custom_options WHERE reservationId = ?${notDepartureCharge(database)}
   `).all(id);
   // Does the reservation's PROPERTY provide bed linen by default? (specs/j1-linen-default-message.md
   // §3 rule 1) — the bed-linen option is a default-offered option for that property.

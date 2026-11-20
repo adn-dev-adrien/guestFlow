@@ -3,7 +3,7 @@
  * AND the real copy) and by the tests that replay the committed fixture, so both sides execute the same
  * steps (specs/pricing-components.md §3 rule 68):
  *
- *   loadInputs(db, inputs)        the anonymised rows into a database `database.js` has just migrated
+ *   loadInputs(db, inputs)        the anonymised rows into a database `database.js` has just migrated, then its backfills
  *   recomputeStays(db)            { [reservationId]: figures } through the current code path
  *   replayIntakes(db, intakes)    each stored intake of Booking / Airbnb replayed on its stay (rule 71)
  *
@@ -68,6 +68,18 @@ function loadInputs(db, inputs) {
   })();
   // `isDirectChannel` reads a set cached at boot, when this database still held the seeded platforms.
   app('utils/platformNameFormat.js').refreshDirectChannels(db);
+  // The boot migrated an EMPTY database: the backfills of the stored columns run again on the rows just loaded, as the
+  // boot of a real database runs them (specs/pricing-components.md rule 36).
+  const lines = app('utils/pricingLinesMigration.js');
+  lines.runPricingLinesMigration(db);
+  lines.backfillRefundNettings(db, { force: true });
+  lines.backfillStayLevelAllocations(db);
+  const sales = app('utils/pricingSalesMigration.js');
+  sales.runPricingSalesMigration(db);
+  sales.backfillOrderRefsOnce(db);
+  const figures = app('utils/pricingStoredFiguresMigration.js');
+  figures.runPricingStoredFiguresMigration(db);
+  figures.backfillSaleFiguresOnce(db, { force: true });
 }
 
 function ficheOf(id) {
@@ -135,27 +147,37 @@ function refundInputsOf(db, id, row, quote) {
     out.stored = app('controllers/reservationsController.js').storedOverpayment(id);
     if (quote && !quote.error) {
       const model = app('models/reservationsModel.js');
-      const { overpaymentOf, overpaymentLinesOf } = app('utils/overpayment.js');
+      const overpaymentModule = app('utils/overpayment.js');
       const { readSplitReceived } = app('utils/splitReceived.js');
       const received = readSplitReceived(db, id);
-      const overpaymentTtc = overpaymentOf({
-        row,
-        captured: model.capturedScheduleContribs(id),
-        refundedTtc: app('models/refundsModel.js').totalsByReservation(id).withCash,
-        depositAmount: quote.depositAmount,
-        balanceAmount: quote.balanceAmount,
-        engineOverTtc: quote.overCollectedTtc,
-        received,
-      });
+      // The one formula of rule 76 on the branch (the stored stay re-priced is its own posted fiche: no drift); the three-argument
+      // reader of the baseline when the gate runs on the tag.
+      const overpaymentTtc = overpaymentModule.overpayment
+        ? overpaymentModule.overpayment(app('models/refundInputModel.js').overpaymentContext(db, id, {
+          autoComplementCents: Math.round(Number(quote.complementRoutedAmount || 0) * 100),
+        }), { basis: 'asSaved' }).cents / 100
+        : overpaymentModule.overpaymentOf({
+          row,
+          captured: model.capturedScheduleContribs(id),
+          refundedTtc: app('models/refundsModel.js').totalsByReservation(id).withCash,
+          depositAmount: quote.depositAmount,
+          balanceAmount: quote.balanceAmount,
+          engineOverTtc: quote.overCollectedTtc,
+          received,
+        });
+      const { overpaymentLinesOf } = overpaymentModule;
       out.live = {
         overpaymentTtc,
         overpaymentLines: overpaymentLinesOf({ row, capturedByPoste: model.capturedScheduleContribsByPoste(id), quote, overpaymentTtc, received }),
       };
     }
   }
-  if (out.register && out.register.refunds.length) {
-    const accounting = app('plugins/accounting-export/accountingModel.js');
-    const { entryToStructured } = app('plugins/accounting-export/accountingExport.js');
+  // loop t18 A18-1 (specs/plugin-removal-resilience.md rule 3) — the journal is the accounting-export plugin's: on a tree that
+  // does not ship it the stay has no journal (`[]`), and its other figures are still read instead of one `quote.error`.
+  const { optionalPlugin } = app('plugins/sdk/testing.js');
+  const accounting = optionalPlugin(() => app('plugins/accounting-export/accountingModel.js'));
+  const { entryToStructured } = optionalPlugin(() => app('plugins/accounting-export/accountingExport.js'));
+  if (out.register && out.register.refunds.length && accounting.create && entryToStructured) {
     const entries = accounting.create(db);
     const months = [...new Set(out.register.refunds.map((r) => String(r.refundDate).slice(0, 7)))].sort();
     for (const month of months) {
@@ -309,7 +331,7 @@ function recomputeResourceBookings(db) {
       const resource = db.prepare('SELECT * FROM resources WHERE id = ?').get(row.resourceId);
       breakdown = resource ? model.breakdownOf({
         resource, startTime: row.startTime, endTime: row.endTime, propertyId: row.propertyId, reservationId: row.reservationId,
-        offeredMinutes: row.offeredMinutes, date: row.date,
+        offeredMinutes: row.offeredMinutes, date: row.date, stored: row,
       }) : null;
     } catch (err) {
       breakdown = { threw: err.message };

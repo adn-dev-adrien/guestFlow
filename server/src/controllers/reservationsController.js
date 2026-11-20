@@ -6,14 +6,20 @@
 const { platformDisplay } = require('../utils/platformDisplay');
 
 const { todayIso: localTodayIso, localNow } = require('../utils/localDate');
-const { hasStayStarted } = require('../utils/arrivalMoment');
 const db = require('../database');
+const stayRepository = require('../models/ports/stayRepository').create(db);
+const { nextLineId } = require('../utils/lineRowTarget');
+const { keyLines } = require('../utils/pricing/lineKeys');
+const { splitPaidLineSessions } = require('../utils/paidLineSessions');
 const { calculateReservationQuote } = require('../utils/pricing');
+const { storedSaleFiguresOfRow } = require('../utils/pricing/storedSaleFigures');
 const { lineInputRefusal } = require('../utils/lineInputBounds');
 const { stayShapeRefusal } = require('../utils/stayInputShape');
 const { positiveId, scalarQuery } = require('../utils/bodyText');
 const { isWrongFieldType, WRONG_FIELD_TYPE } = require('../utils/bodyParserRefusal');
-const { quoteStoredReservation, pricingUnchangedFromStored, pinStoredPricing } = require('../utils/storedReservationQuote');
+const {
+  quoteStoredReservation, pricingUnchangedFromStored, pinStoredPricing, pinSaleDelta,
+} = require('../utils/storedReservationQuote');
 const {
   midStayQuoteInputs, scheduleQuoteInputs, resolvePlatformTakesDeposit, resolvePlatformPayoutDueDays, frozenTouristTaxInputs,
 } = require('../utils/reservationQuoteContext');
@@ -35,13 +41,20 @@ const { arrivalPaymentText, coveredText, historyMoney } = require('../utils/arri
 const { suggestBedDistribution } = require('../utils/bedDistribution');
 const { computePlatformCommission } = require('../utils/platformCommission');
 const { unclaimedRise, unlockedPriceRefusal } = require('../utils/savePriceGuards');
+const paidLineJudgment = require('../utils/paidLineJudgment');
+const { readsSaleLines } = require('../utils/saleLinesReaders');
+const { cashNoteExcessCents } = require('../utils/cashNoteExcess');
 const { checkGuestCapacity } = require('../utils/capacity');
 const { partyOf, nightsOf, typedCountAlerts, typedCountsErrorPayload } = require('../utils/typedCounts');
 const { clearContribsOnUnflip } = require('../utils/forceItemContribsCapture');
 const { recordStayPayment, defaultDeps: stayPaymentDeps } = require('../utils/stayPaymentRecorder');
 const paymentProviders = require('../utils/paymentProviders');
 const { resolveComplementPayment } = require('../utils/complementPayment');
-const { storedMidStayLines } = require('../utils/midStayExtras');
+const {
+  storedMidStayLines, extraLineKey, parseBaseline, settledByKey,
+} = require('../utils/midStayExtras');
+const { isArrivalValidated } = require('../utils/pricing/stayClock');
+const { numberRepeatedCustomLines } = require('../utils/pricing/storedLines');
 const { planMidStayNote } = require('../utils/midStayNotePlan');
 const establishmentClosuresModel = require('../models/establishmentClosuresModel');
 const { emit: emitPluginEvent } = require('../plugins/sdk/eventBus');
@@ -54,6 +67,7 @@ const insuranceOffer = require('../utils/insuranceOffer');
 const { bookingDayOf } = require('../utils/vatRegime');
 const resourceOffer = require('../utils/resourceOffer');
 const { reservationBlocks } = require('../utils/pluginReservationBlocks');
+const { roundMoneyStrict, toCentsStrict, toCents } = require('../utils/pricing/money');
 
 // specs/plugins-phase-3b-neat.md rule 5 — while no plugin offers the cancellation insurance, a booking
 // keeps the line it carries exactly as stored and cannot gain one. Applies the gate to the engine
@@ -84,8 +98,13 @@ function gateInsurance(res, engineInput, bookingId) {
   return true;
 }
 const refundsModel = require('../models/refundsModel');
-const { overpaymentOf, overpaymentLinesOf, engineExcessOf, storedOverpaymentOf } = require('../utils/overpayment');
+const { overpayment, overpaymentLinesOf, cashPartOf } = require('../utils/overpayment');
+const { owedOnLineLowered } = require('../utils/pricing/refunds/owed');
+const { grossOf } = require('../utils/pricing/platformPayment');
+const refundObligations = require('../models/refundObligationsModel');
+const { overpaymentContext, postesLeft } = require('../models/refundInputModel');
 const { readSplitReceived } = require('../utils/splitReceived');
+const { readComplementPaidSplit } = require('../utils/complementPaidSplit');
 const { firstSessionConflict, conflictError: sessionConflictError, sessionKey } = require('../utils/resourceSessionConflicts');
 const resourceOtherUsesModel = require('../models/resourceOtherUsesModel');
 const { formatCurrency } = require('../utils/devisHelpers');
@@ -95,13 +114,15 @@ const { carriedOfferedDefaultsToRestore } = require('../utils/propertyDefaultOpt
 const { isReceptionOnly, userHasRole, ADMIN } = require('../constants/roles');
 const { readOnlyRefusal, cautionReturnOnCancelled } = require('../utils/reservationReadOnly');
 const { isWithinSasWindow, sasLockReason } = require('../utils/sasEditWindow');
+const stayClockModel = require('../models/stayClockModel');
+const { fixedDiscountEuros } = require('../utils/pricing/discounts');
 const { isDevisExpired } = require('../utils/devisValidity');
 const { toOccupancyRow } = require('../utils/upcomingArrivals');
 const { toReceptionReservationView, toReceptionReservationList, toReceptionPaymentPatch } = require('../utils/receptionView');
 const {
   midStayExtrasWindow, arrivalLineFloors, arrivalExtrasViolations, extrasContentChanged,
 } = require('../utils/midStayExtrasWindow');
-const { matchStoredCustomLines } = require('../utils/storedCustomLines');
+const { matchStoredCustomLines, renamedCustomLineFacts, withoutRemovedLineFacts, pricedCustomLinesNamingRows } = require('../utils/storedCustomLines');
 const { withStoredLineContribs } = require('../utils/storedLineContribs');
 const {
   buildLiveCheckoutComplement, isComplementDeferred, mergedEndOfStayAmount, markCarriesEndOfStay, deferralRefusal, endOfStayAloneRefusal,
@@ -115,6 +136,7 @@ const { platformPriceCheck } = require('../utils/platformPriceCheck');
 const { touristTaxStale, platformCommissionOdd } = require('../utils/fichePricingNotices');
 const { isDirectChannel } = require('../utils/platformNameFormat');
 const { buildStoredSummary } = require('../utils/storedSummary');
+const { vatByRateOf } = require('../utils/vatRecap');
 const propertiesModel = require('../models/propertiesModel');
 const { getDefaultModel: getTariffJournal } = require('../models/tariffChangeJournalModel');
 const { evaluateLedgerEdit } = require('../utils/ledgerAmountEdit');
@@ -122,7 +144,7 @@ const { stampComplementPaidSplit } = require('../utils/complementPaidSplit');
 const { untickRefusal } = require('../utils/refundUntickGuard');
 const { contribLinesOf, recordRemovedLineContribs } = require('../utils/removedLineContribs');
 const { validateCollectionDate } = require('../utils/arrivalPaymentDate');
-const { parseNotes: parseMidStayNotes } = require('../utils/midStayExtras');
+const { parseNotes: parseMidStayNotes, midStayNoteLocks } = require('../utils/midStayExtras');
 const paymentSettlementsModel = require('../models/paymentSettlementsModel');
 const paymentSettlementService = require('../utils/paymentSettlementService');
 const ledgerLinks = require('../utils/ledgerLinks');
@@ -161,6 +183,7 @@ function ledgerFor({ row, quote = null, live = {}, propertyId = null, overpaymen
     refunds,
     penalties,
     overpayment,
+    obligations: id && refundObligations.ready() ? refundObligations.listFor(id, { status: 'open' }) : null,
     midStayNotes: parseMidStayNotes(row && row.midStaySettledNotes),
     cautionAmount,
     installmentPlan: id ? installments.planFor(id) : null,
@@ -168,7 +191,7 @@ function ledgerFor({ row, quote = null, live = {}, propertyId = null, overpaymen
     canRequest: Boolean(paymentProviders.summary()),
     nightsUnavailable: id ? settleNightsUnavailable(id, links) : false,
     stayReadOnly: id ? require('../utils/withdrawnPayments').stayIsReadOnly(db, id) : false,
-    nettedRefundIds: id && String(row.kind) === 'cancelled' ? nettedRefundIdsOf(row, refunds) : null,
+    nettedRefundIds: id && String(row.kind) === 'cancelled' ? refundsModel.nettedRefundIds(id) : null,
     providerLabel: (paymentProviders.declared() || {}).label || null,
     endOfStayCollectible: isCheckoutDone(row, { today: getTodayIsoDate() }),
     // specs/mixed-method-payments.md rules 30-33 — the stay's split payments, shown on the rows they paid.
@@ -178,19 +201,6 @@ function ledgerFor({ row, quote = null, live = {}, propertyId = null, overpaymen
   // specs/mollie-rolling-reserve-and-incoming-payments.md rules 18-19 — the dated bank tranches of a paid row, on the
   // stored fiche only: a quote preview (fired on every edit) is the form's live figures, never the bank's.
   return id && !quote ? decorateLedger(ledger, id) : ledger;
-}
-
-// Payment-schedule rule 55 reading of 2026-11-02 (audit R16-L1) — the refunds the cancellation's avoir read: the
-// fiche offers « Supprimer » on the others, like the DELETE route.
-function nettedRefundIdsOf(row, refunds) {
-  try {
-    const { cancellationNettedRefundIds } = require('../utils/cancelReservation');
-    const deps = { database: db, reservationsModel, installmentsModel: require('../models/installmentsModel') };
-    return cancellationNettedRefundIds(deps, row.id, refunds, vatRegimeModel.rateForRow(db, row));
-  } catch (err) {
-    console.error('[reservations] netted refunds unreadable for stay', row.id, '-', err && err.message);
-    return null;
-  }
 }
 
 // specs/payment-link-lifecycle.md rule 56 (review of #902, O3) — whether booking a payment to settle would land on
@@ -339,6 +349,39 @@ function changeoverErrorPayload(quote) {
 // contribute to the laundry aggregation anyway — the SQL in `laundryModel.js` requires a
 // flagged option). The query is tiny (option list ≤ ~10) so a single `IN` round-trip
 // is fine.
+// Rule 82 — an automatic option the quote bills (the engine derives it from the stay's times) that the stay does not store yet:
+// the save writes the lines, so the line is stored with the price it is billed at.
+function hasUnstoredAutoOption(storedOptionIds, quote) {
+  const stored = new Set(storedOptionIds);
+  return (quote.optionLines || []).some((line) => line.autoOptionType && !line.isCustom && !stored.has(Number(line.optionId)));
+}
+
+// Rule 30 (owner 2026-11-15) — a sale writes the lines it sells and the stay's stored ones, never an engine-derived line the stay does not hold (its money
+// is not in the pinned figures either: the base carries it too).
+function withoutUnstoredAutoLines(quote, storedOptionIds) {
+  const stored = new Set(storedOptionIds);
+  const keep = (line) => !(line.autoOptionType && !line.isCustom && !line.newLine && !stored.has(Number(line.optionId)));
+  return { ...quote, optionLines: (quote.optionLines || []).filter(keep) };
+}
+
+// Rule 102 — the fiche lock, the window and the sale read one moment: the stay clock's, at the gesture's `now`.
+// A stay with no readable arrival date has not started (the lock's own reading): it is never refused for that.
+function stayStartedNow(id) {
+  try {
+    const phase = stayClockModel.create(db).phaseForReservation(Number(id), stayClockModel.gestureNow());
+    return Boolean(phase && phase.started);
+  } catch (err) {
+    if (err.code === 'STAY_CLOCK_INVALID') return false;
+    throw err;
+  }
+}
+
+// The save writes the extras lines of a stay whose departure is not over (a locked fiche only inside its mid-stay window).
+function stayIsOpenForLines(id, pastReservationLocked, midStayWindow) {
+  const phase = stayClockModel.create(db).phaseForReservation(id, stayClockModel.gestureNow());
+  return Boolean(phase) && phase.phase !== 'after' && (!pastReservationLocked || Boolean(midStayWindow));
+}
+
 function hasBedLinenOption(reservationOptions) {
   if (!Array.isArray(reservationOptions) || reservationOptions.length === 0) return false;
   const ids = reservationOptions
@@ -389,7 +432,7 @@ function checkBabyBeds({ propertyId, startDate, endDate, children, babies, babyB
 }
 
 // Insert quote resource lines with per-resource availability. Returns { error, status } or null.
-function insertResourceLines(reservationId, quote, { propertyId, startDate, endDate, excludeId }) {
+function insertResourceLines(reservationId, quote, { propertyId, startDate, endDate, excludeId, carried = null }) {
   for (const rr of quote.resourceLines || []) {
     const resource = model.getResourceById(rr.resourceId);
     if (!resource) return { status: 400, body: { error: `Ressource introuvable (id=${rr.resourceId})` } };
@@ -404,7 +447,7 @@ function insertResourceLines(reservationId, quote, { propertyId, startDate, endD
     const unitPrice = rr.unitPrice !== undefined ? Number(rr.unitPrice) : Number(resource.price || 0);
     const qty = Number(rr.quantity) || 1;
     const priceType = rr.priceType || resource.priceType || 'per_stay';
-    model.insertResourceLine(reservationId, rr, unitPrice, qty, priceType);
+    model.insertResourceLine(reservationId, rr, unitPrice, qty, priceType, carried && carried.forLine(Number(rr.resourceId), rr));
   }
   return null;
 }
@@ -435,34 +478,38 @@ function refuseSessionConflict(res, resources, reservationId = null) {
 function overpaymentIntroducedBy(reservationId, quote, overrides = {}) {
   const row = model.getRow(reservationId);
   if (!row) return null;
-  const captured = model.capturedScheduleContribs(reservationId);
-  const refundedTtc = refundsModel.totalsByReservation(Number(reservationId)).withCash;
-  // The stay as stored, re-priced: what it already held in excess before this save.
-  let storedOver = 0;
+  // The stay as stored, re-priced: what it already held in excess before this save, and the drift between that price and
+  // the posted fiche's (rule 76: the excess is the stored one plus what this edit adds).
+  let replay = null;
   try {
     const stored = quoteStoredReservation(db, row, overrides);
-    storedOver = stored && !stored.error ? Number(stored.overCollectedTtc || 0) : 0;
+    replay = stored && !stored.error ? stored : null;
   } catch {
-    storedOver = 0;
+    replay = null;
   }
   const received = readSplitReceived(db, reservationId);
-  const before = overpaymentOf({ row, captured, refundedTtc, engineOverTtc: storedOver, received });
-  const after = overpaymentOf({
-    row, captured, refundedTtc, received,
-    depositAmount: quote.depositAmount, balanceAmount: quote.balanceAmount, engineOverTtc: quote.overCollectedTtc,
-  });
+  const autoComplementCents = replay ? Math.round(Number(replay.complementRoutedAmount || 0) * 100) : 0;
+  const before = tropPercuCents(reservationId, { autoComplementCents }) / 100;
+  const after = tropPercuCents(reservationId, {
+    autoComplementCents, engineDriftCents: replay ? totalCentsOf(replay) - totalCentsOf(quote) : 0,
+  }, 'asSaved') / 100;
   if (after <= before + 0.01) return null;
+  const cashCents = cashNoteExcessCents(db, reservationId, { quote });
+  const overpaymentMethod = refundMeansOf(row, round2(quote.complementCollectedExcessTtc), after, cashCents);
+  const overpaymentLines = overpaymentLinesOf({
+    row, capturedByPoste: model.capturedScheduleContribsByPoste(reservationId), quote, overpaymentTtc: after, received, complementCaptured: complementCapturedOf(row),
+    // Computed before the write: the stored lines are still the ones the complement collected.
+    complementLeft: Number(quote.complementCollectedExcessTtc) > 0 ? complementLeftOf(reservationId, quote, row) : {},
+    leftover: leftOfStayOf(reservationId, row, quote),
+  });
+  const overpaymentCash = overpaymentMethod ? null : cashPartOf(overpaymentLines, after, cashCents);
   return {
     error: `Trop-perçu : ${formatCurrency(after)} déjà encaissés au-delà du nouveau total.`,
     code: 'OVERPAID',
     overpaymentTtc: after,
-    overpaymentMethod: refundMeansOf(row, round2(quote.complementCollectedExcessTtc), after),
-    overpaymentLines: overpaymentLinesOf({
-      row, capturedByPoste: model.capturedScheduleContribsByPoste(reservationId), quote, overpaymentTtc: after, received,
-      // Computed before the write: the stored lines are still the ones the complement collected.
-      complementLeft: Number(quote.complementCollectedExcessTtc) > 0 ? complementLeftOf(reservationId, quote, row) : {},
-      leftover: leftOfStayOf(reservationId, row, quote),
-    }),
+    overpaymentMethod,
+    overpaymentLines,
+    ...(overpaymentCash ? { overpaymentCash } : {}),
   };
 }
 
@@ -494,27 +541,37 @@ function liveOverpayment(reservationId, engineInput) {
     engineInput: savedInput, quote: calculateReservationQuote(savedInput), calculate: calculateReservationQuote,
   });
   if (!asSaved || asSaved.error) return none;
-  // The posted fiche priced by today's engine counts the drift since the stay was sold as excess: report the
-  // stored figure, plus only what this edit adds on top of what the stored stay already held (rule 9).
-  const captured = model.capturedScheduleContribs(reservationId);
-  const received = readSplitReceived(db, reservationId);
-  const excessOf = (quote) => engineExcessOf({
-    row, captured, received, depositAmount: quote.depositAmount, balanceAmount: quote.balanceAmount, engineOverTtc: quote.overCollectedTtc,
-  });
-  const afterRaw = excessOf(asSaved);
-  let beforeRaw = 0;
+  // The posted fiche priced by today's engine counts the drift since the stay was sold as excess: report the stored figure,
+  // plus only what this edit adds on top of what the stored stay already held (rule 9).
   let replayQuote = null;
   try {
     replayQuote = quoteStoredReservation(db, row);
-    beforeRaw = replayQuote && !replayQuote.error ? excessOf(replayQuote) : 0;
   } catch {
-    beforeRaw = 0;
+    replayQuote = null;
   }
-  const storedTtc = storedOverpaymentOf(storedOverpaymentInputs(reservationId, row, replayQuote));
-  // Stored and delta on ONE basis — the stored figure is net of the free refunds, the two engine excesses
-  // are raw and compared with each other; the floor applies to the sum (rule 14).
-  const reported = Math.max(0, round2(storedTtc + afterRaw - beforeRaw));
-  return overpaymentResultOf(reservationId, row, asSaved, reported);
+  const replay = replayQuote && !replayQuote.error ? replayQuote : null;
+  const reported = tropPercuCents(reservationId, {
+    autoComplementCents: replay ? Math.round(Number(replay.complementRoutedAmount || 0) * 100) : 0,
+    engineDriftCents: replay ? totalCentsOf(replay) - totalCentsOf(asSaved) : 0,
+  }, 'asSaved') / 100;
+  // Loop t7 UI7-1 — the open obligation on a lowered paid line is owed whatever the draft types elsewhere: the dirty fiche
+  // keeps the floor the stored one reads (storedOverpayment), or a platform stay's « Trop-perçu » vanishes until the save.
+  // Loop t7 N7-1 — the floor is the part of it the save keeps (`syncLoweredObligations`: min(held, excess)): the note money no line claims.
+  // A draft that absorbs a confirmed trop-perçu (the discount taken back) shows what the save leaves, not the obligation it closes.
+  const keptOwed = Math.min(openLoweredCents(reservationId), paidLineJudgment.noteExcessCents(db, reservationId));
+  const floored = Math.max(Math.round(reported * 100), keptOwed) / 100;
+  return overpaymentResultOf(reservationId, row, asSaved, floored);
+}
+
+// The trop-perçu of a stay in cents through the one formula (rule 76); a stay the loader cannot read holds none.
+function tropPercuCents(reservationId, context, basis = 'stored') {
+  const ctx = overpaymentContext(db, reservationId, context);
+  return ctx ? overpayment(ctx, { basis }).cents : 0;
+}
+
+// What a priced stay costs, in cents: its price and its tourist tax (the line totals of rule 74).
+function totalCentsOf(quote) {
+  return Math.round(Number(quote.finalPrice || 0) * 100) + Math.round(Number(quote.touristTaxTotal || 0) * 100);
 }
 
 // What the stored arrival complement carries on each poste beyond what the stay's complement now carries:
@@ -526,189 +583,122 @@ function complementLeftOf(reservationId, quote, row = model.getRow(reservationId
   for (const line of model.buildArrivalComplementDetail(reservationId).detail || []) if (key[line.kind]) stored[key[line.kind]] += Number(line.amount || 0);
   for (const line of quote.complementDetailLines || []) if (key[line.kind]) live[key[line.kind]] += Number(line.amount || 0);
   const left = Object.fromEntries(Object.keys(stored).map((poste) => [poste, round2(Math.max(0, stored[poste] - live[poste]))]));
-  // After the save the stored lines no longer carry what it removed: the options and the activities a
-  // collected complement lost are read from the history since it was collected.
-  const complementPaidDate = String(row && row.complementPaidDate || '').slice(0, 10);
-  if (Number(row && row.complementPaid || 0) === 1 && complementPaidDate) {
-    const dropped = droppedSince(reservationId, complementPaidDate, 'complement');
-    left.options = Math.max(left.options, round2(dropped.options));
-    left.resources = Math.max(left.resources, round2(dropped.resources));
+  // Rule 74: what the complement collected on a line beyond what the stay now carries on it, read from the lines it named and
+  // its frozen split (a line the save took out is in the split, not in the stored lines any more).
+  if (Number(row && row.complementPaid || 0) === 1) {
+    const collected = postesLeft(db, reservationId, { scope: 'complement', quote });
+    left.options = Math.max(left.options, collected.options);
+    left.resources = Math.max(left.resources, collected.resources);
+    if (Boolean(quote.touristTaxInComplement || quote.touristTaxCollectedOnArrival)) left.touristTax = Math.max(left.touristTax, collected.touristTax);
   }
-  // Once the save has run, the stored lines already carry the lower tax: what the complement collected
-  // is read from the history (the value the tax had before its first change since the collection).
-  const routed = Boolean(quote.touristTaxInComplement || quote.touristTaxCollectedOnArrival);
-  const collected = routed ? touristTaxCollectedInComplement(reservationId, row) : null;
-  if (collected != null) left.touristTax = Math.max(left.touristTax, round2(Math.max(0, collected - Number(quote.touristTaxTotal || 0))));
   return left;
-}
-
-// The tourist tax a collected complement held: the amount stamped when it was collected; for a row collected
-// before the stamp, the amount the tax had before its first change since (null when it never changed).
-function touristTaxCollectedInComplement(reservationId, row) {
-  if (!row || Number(row.complementPaid || 0) !== 1) return null;
-  // Stamped in the statement that collected it (`complementCollectedTax`); the history only serves the rows
-  // collected before the stamp existed.
-  if (row.complementCollectedTax != null) return Number(row.complementCollectedTax);
-  const paidDate = String(row.complementPaidDate || '').slice(0, 10);
-  const entries = db.prepare("SELECT changedFields, createdAt FROM reservation_history WHERE reservationId = ? AND eventType = 'update' ORDER BY id").all(Number(reservationId));
-  for (const entry of entries) {
-    if (paidDate && bookingDayOf(entry.createdAt) < paidDate) continue;
-    let changes = [];
-    try { changes = JSON.parse(entry.changedFields || '[]'); } catch { changes = []; }
-    const taxChange = changes.find((c) => c && c.field === 'touristTaxTotal');
-    if (taxChange && Number.isFinite(Number(taxChange.from))) return Number(taxChange.from);
-  }
-  return null;
 }
 
 // The means a refund of this excess defaults to. Money a complement took « caisse interne » is off the books:
 // the refund of its excess goes back the same way, so nothing is booked in the accounts (Adrien, 2026-10-29);
 // the operator can change it.
-function refundMeansOf(row, complementExcess, overpaymentTtc) {
-  return complementExcess > 0 && Number(row.complementPaidCash || 0) === 1 && overpaymentTtc <= complementExcess ? 'internal' : null;
+// Loop t6 B6-2 — the same for a note paid in cash whose line was since offered, discounted or lowered (`cashNoteCents`, rule 104).
+function refundMeansOf(row, complementExcess, overpaymentTtc, cashNoteCents = 0) {
+  if (complementExcess > 0 && Number(row.complementPaidCash || 0) === 1 && overpaymentTtc <= complementExcess) return 'internal';
+  return overpaymentTtc > 0 && Math.round(overpaymentTtc * 100) <= cashNoteCents ? 'internal' : null;
 }
 
 // The trop-perçu `overpaymentTtc` of a stay, with its refund means and its split by poste, the quote being
 // the stay as it would be saved (or as it is stored).
+// Loop t7 B7-3 (rule 112) — `overpaymentCash`, when cash notes took only part of it: that part is proposed « caisse interne », the rest after.
+// Loop t9 B9-2 — what a direct stay's collected arrival complement collected per poste (its frozen split), in euros; null when not collected,
+// adjusted (no split) or on a platform stay (its complement is a claim, `leftOfStayOf`).
+function complementCapturedOf(row) {
+  if (!row || !isDirectChannel(row.platform)) return null;
+  if (Number(row.complementPaid || 0) !== 1 && Number(row.complementPaidCash || 0) !== 1) return null;
+  const split = readComplementPaidSplit(row);
+  if (!split) return null;
+  return {
+    accommodation: Number(split.accommodationCents || 0) / 100, options: Number(split.optionsCents || 0) / 100,
+    resources: Number(split.resourcesCents || 0) / 100, touristTax: Number(split.taxCents || 0) / 100,
+  };
+}
+
 function overpaymentResultOf(reservationId, row, quote, overpaymentTtc, { storedOnly = false } = {}) {
   const complementExcess = round2(quote.complementCollectedExcessTtc);
-  return {
-    overpaymentTtc,
-    overpaymentMethod: refundMeansOf(row, complementExcess, overpaymentTtc),
-    overpaymentLines: overpaymentLinesOf({
-      row, capturedByPoste: model.capturedScheduleContribsByPoste(reservationId), quote, overpaymentTtc, received: readSplitReceived(db, reservationId),
-      complementLeft: complementExcess > 0 && overpaymentTtc > 0 ? complementLeftOf(reservationId, quote, row) : {},
-      leftover: overpaymentTtc > 0 ? leftOfStayOf(reservationId, row, quote, { storedOnly }) : {},
-    }),
-  };
-}
-
-// What left the stay since its money was collected, per poste: the stored lines against the quote's (before
-// a save writes them) and the history (after it has), the larger of the two. The tax a fall of
-// `touristTaxTotal` took out, the options and resources a removal or a reduction took out.
-function leftOfStayOf(reservationId, row, quote, { storedOnly = false } = {}) {
-  const sum = (lines) => (lines || []).filter((l) => !Number(l.offered || 0)).reduce((t, l) => t + Number(l.totalPrice || 0), 0);
-  const storedOptions = db.prepare('SELECT totalPrice, offered FROM reservation_options WHERE reservationId = ?').all(Number(reservationId));
-  const storedResources = db.prepare('SELECT totalPrice, offered FROM reservation_resources WHERE reservationId = ?').all(Number(reservationId));
-  const storedCustom = db.prepare('SELECT amount AS totalPrice, offered FROM reservation_custom_options WHERE reservationId = ?').all(Number(reservationId));
-  const live = {
-    options: Math.max(0, sum(storedOptions) + sum(storedCustom) - sum(quote.optionLines)),
-    resources: Math.max(0, sum(storedResources) - sum(quote.resourceLines)),
-    touristTax: Math.max(0, Number(row.touristTaxTotal || 0) - Number(quote.touristTaxTotal || 0)),
-  };
-  const history = droppedSinceCollection(reservationId, row);
-  // A stored stay is read against its own history only: today's engine may price a line differently without
-  // any edit, which is no excess.
-  return Object.fromEntries(Object.keys(live).map((poste) => [poste, round2(storedOnly ? history[poste] : Math.max(live[poste], history[poste]))]));
-}
-
-// The NET drops the history recorded since the first money was actually collected (an acompte or a solde paid
-// date, or the first paid installment): the tourist tax, the options and the resources (their signatures carry
-// each line's total). Increases inside the window are netted, so a line removed then restored counts for nothing.
-function droppedSinceCollection(reservationId, row) {
-  const dates = [row.depositPaid && row.depositPaidDate, row.balancePaid && row.balancePaidDate].filter(Boolean).map((d) => String(d).slice(0, 10));
-  try {
-    const first = db.prepare('SELECT MIN(paidDate) AS d FROM reservation_installments WHERE reservationId = ? AND paid = 1 AND paidDate IS NOT NULL').get(Number(reservationId));
-    if (first && first.d) dates.push(String(first.d).slice(0, 10));
-  } catch { /* no installments table */ }
-  return droppedSince(reservationId, dates.sort()[0] || '', 'schedule');
-}
-
-// `scope` narrows the drops to the lines of one window: 'complement' keeps the lines that sat in the arrival
-// complement (`:c1` in the signatures), 'schedule' the others (`:c0`). A signature written before the flag
-// existed carries none: its lines count in both, and the overflow correction of `overpaymentLinesOf` trims
-// the overlap.
-function droppedSince(reservationId, since, scope = null) {
-  const lines = (field, signature) => new Map(String(signature || '').split('|').filter(Boolean).map((part) => {
-    const seg = part.split(':');
-    const flag = String(seg[field === 'resourcesSignature' ? 4 : 3] || '');
-    return [Number(seg[0]), { total: Number(seg[2]) || 0, flag: flag === 'c0' || flag === 'c1' ? flag : null }];
-  }));
-  const inScope = (flag) => scope == null || flag == null || flag === (scope === 'complement' ? 'c1' : 'c0');
-  const drop = (field, from, to) => {
-    const before = lines(field, from);
-    const after = lines(field, to);
-    let total = 0;
-    for (const id of new Set([...before.keys(), ...after.keys()])) {
-      const line = before.get(id) || after.get(id);
-      if (inScope(line.flag)) total += ((before.get(id) || {}).total || 0) - ((after.get(id) || {}).total || 0);
-    }
-    return total;
-  };
-  const net = { options: 0, resources: 0, touristTax: 0 };
-  const entries = db.prepare("SELECT changedFields, createdAt FROM reservation_history WHERE reservationId = ? AND eventType = 'update' ORDER BY id").all(Number(reservationId));
-  for (const entry of entries) {
-    if (since && bookingDayOf(entry.createdAt) < since) continue;
-    let changes = [];
-    try { changes = JSON.parse(entry.changedFields || '[]'); } catch { changes = []; }
-    for (const change of changes) {
-      if (!change) continue;
-      if (change.field === 'touristTaxTotal') net.touristTax += Number(change.from || 0) - Number(change.to || 0);
-      if (change.field === 'optionsSignature') net.options += drop('optionsSignature', change.from, change.to);
-      if (change.field === 'resourcesSignature') net.resources += drop('resourcesSignature', change.from, change.to);
-    }
-  }
-  return Object.fromEntries(Object.entries(net).map(([poste, value]) => [poste, Math.max(0, value)]));
-}
-
-// The trop-perçu of the stay as the engine would save it (rule 34).
-function overpaymentOfQuote(reservationId, row, asSaved) {
-  const overpaymentTtc = overpaymentOf({
-    row,
-    captured: model.capturedScheduleContribs(reservationId),
-    refundedTtc: refundsModel.totalsByReservation(Number(reservationId)).withCash,
-    depositAmount: asSaved.depositAmount,
-    balanceAmount: asSaved.balanceAmount,
-    engineOverTtc: asSaved.overCollectedTtc,
-    received: readSplitReceived(db, reservationId),
+  const cashCents = overpaymentTtc > 0 ? cashNoteExcessCents(db, reservationId) : 0;
+  const overpaymentMethod = refundMeansOf(row, complementExcess, overpaymentTtc, cashCents);
+  const overpaymentLines = overpaymentLinesOf({
+    row, capturedByPoste: model.capturedScheduleContribsByPoste(reservationId), quote, overpaymentTtc, received: readSplitReceived(db, reservationId),
+    complementCaptured: complementCapturedOf(row),
+    complementLeft: complementExcess > 0 && overpaymentTtc > 0 ? complementLeftOf(reservationId, quote, row) : {},
+    leftover: overpaymentTtc > 0 ? leftOfStayOf(reservationId, row, quote, { storedOnly }) : {},
   });
-  return overpaymentResultOf(reservationId, row, asSaved, overpaymentTtc);
+  const overpaymentCash = overpaymentMethod ? null : cashPartOf(overpaymentLines, overpaymentTtc, cashCents);
+  return { overpaymentTtc, overpaymentMethod, overpaymentLines, ...(overpaymentCash ? { overpaymentCash } : {}) };
 }
 
-// The stored figures the stored measure reads besides the row: free refunds, paid installments, what the
-// mid-stay extras collected, the engine's automatic complement.
-function storedOverpaymentInputs(reservationId, row, replay) {
-  let installmentsPaidTtc = 0;
+// Rule 113 (loop t8 UI8-2) — the paid-line judgment's trop-perçu (a platform stay, whose formula does not see note money) with its lines,
+// means and cash part, read from the stay the write left: the same split the ledger row's `refundPrefill` serves once it is confirmed.
+function judgedOverpaymentOf(reservationId, quote, overpaymentTtc) {
+  const row = model.getRow(reservationId);
+  let stored = null;
   try {
-    installmentsPaidTtc = Number(db.prepare('SELECT COALESCE(SUM(amountCents), 0) AS cents FROM reservation_installments WHERE reservationId = ? AND paid = 1').get(Number(reservationId)).cents) / 100;
-  } catch { installmentsPaidTtc = 0; }
-  const eosPaid = Number(row.endOfStayComplementPaid || 0) === 1 || Number(row.endOfStayComplementPaidCash || 0) === 1;
-  // specs/mixed-method-payments.md rule 47 — an end of stay paid with several methods collected what it received: its
-  // mid-stay lines (the only ones inside the price; the departure's own lines are not) at the share it received.
-  const received = readSplitReceived(db, reservationId);
-  const eosReceived = received && received.endOfStayComplement != null ? Number(received.endOfStayComplement) : null;
-  let midStayCollectedTtc = 0;
-  if (eosPaid) {
-    const midStayLines = storedMidStayLines(row.endOfStayComplementDetail).reduce((sum, l) => sum + (Number(l.amount) || 0), 0);
-    const eosAmount = Number(row.endOfStayComplementAmount) || 0;
-    midStayCollectedTtc = eosReceived != null && eosAmount > 0 ? (midStayLines * Math.min(eosReceived, eosAmount)) / eosAmount : midStayLines;
+    stored = quoteStoredReservation(db, row);
+  } catch {
+    stored = null;
   }
-  try {
-    const notesReceived = (received && received.notes) || {};
-    midStayCollectedTtc += (JSON.parse(row.midStaySettledNotes || '[]') || []).reduce((sum, note) => {
-      const split = note && notesReceived[String(note.id)];
-      return sum + (split != null ? Number(split) : (Number(note && note.total) || 0));
-    }, 0);
-  } catch { /* no settled note */ }
-  return {
-    row,
-    captured: model.capturedScheduleContribs(reservationId),
-    freeRefundedTtc: refundsModel.freeLinesTotal(Number(reservationId)),
-    installmentsPaidTtc: round2(installmentsPaidTtc),
-    midStayCollectedTtc: round2(midStayCollectedTtc),
-    autoComplementTtc: replay ? Number(replay.complementRoutedAmount || 0) : 0,
-    received,
-  };
+  const { overpaymentMethod, overpaymentLines, overpaymentCash } = overpaymentResultOf(
+    reservationId, row, stored && !stored.error ? stored : quote, overpaymentTtc, { storedOnly: true },
+  );
+  return { overpaymentMethod, overpaymentLines, ...(overpaymentCash ? { overpaymentCash } : {}) };
 }
 
-// The same, for a fiche read from the database (a locked fiche shows the stored ledger): measured against
-// the STORED price and what was collected (rule 8), the engine only splitting it by poste.
+// What left the stay since its money was collected, per poste (rule 74): each line against what the payments named on it, the
+// quote being the stay as a save would store it. A stored stay is read against its own lines only: today's engine may price a
+// line differently without any edit, which is no excess.
+function leftOfStayOf(reservationId, row, quote, { storedOnly = false } = {}) {
+  const left = postesLeft(db, reservationId, { scope: 'schedule', quote: storedOnly ? null : quote });
+  // Loop t8 B8-5 — a platform stay's collected arrival complement is the establishment's money (`platformComplementClaims`): a line it
+  // collected and that now charges less leaves that money on the line's poste, so its refund reverses the account the complement booked.
+  if (!paidLineJudgment.platformComplementClaims(row)) return left;
+  const complement = postesLeft(db, reservationId, { scope: 'complement', quote: storedOnly ? null : quote });
+  return Object.fromEntries(Object.entries(left).map(([poste, euros]) => [poste, round2(euros + Number(complement[poste] || 0))]));
+}
+
+// Rule 23 — what the operator confirmed owing back when a paid line went down is held in the register of obligations, at the
+// trop-perçu the save left (more only when this save is the confirmed one; a save that shrank it shrinks the obligation).
+function syncLoweredObligations(reservationId, quote, { confirmed, lineDiscounts = null }) {
+  const obligations = require('../models/refundObligationsModel');
+  if (!obligations.ready()) return;
+  const row = model.getRow(reservationId);
+  if (!row) return;
+  // Loop t5 A5-1 — the note money no line claims any more is the establishment's own receipt, on a platform stay too: it stays owed.
+  const excess = Math.max(
+    tropPercuCents(reservationId, { autoComplementCents: Math.round(Number(quote.complementRoutedAmount || 0) * 100) }),
+    paidLineJudgment.noteExcessCents(db, reservationId, lineDiscounts),
+  );
+  const held = obligations.openAmountFor(reservationId, 'lineLowered');
+  const { owedCents } = owedOnLineLowered({ overpaymentCents: excess, alreadyOwedCents: held });
+  // Loop t5 S5-2 — a confirmed save that SHRANK the excess shrinks the obligation too: what stays owed is never above what was received beyond the total.
+  obligations.trimLowered(reservationId, Math.min(held, excess) + (confirmed ? owedCents : 0));
+}
+
+// What the register still holds as owed on lowered paid lines (rule 23): money the fiche shows and refunds even when the stay's
+// trop-perçu reads 0 (a platform stay whose establishment-collected note no line claims any more, loop t5 A5-1 / t6 UI6-5).
+function openLoweredCents(reservationId) {
+  const obligations = require('../models/refundObligationsModel');
+  return obligations.ready() ? obligations.openAmountFor(reservationId, 'lineLowered') : 0;
+}
+
+// The same, for a fiche read from the database (a locked fiche shows the stored ledger): measured against the STORED price and
+// what was collected (rule 8), the engine only splitting it by poste.
 function storedOverpayment(reservationId) {
   const row = model.getRow(reservationId);
   if (!row || row.kind !== 'reservation') return null;
   const quote = quoteStoredReservation(db, row);
   if (!quote || quote.error) return null;
-  return overpaymentResultOf(reservationId, row, quote, storedOverpaymentOf(storedOverpaymentInputs(reservationId, row, quote)), { storedOnly: true });
+  // Loop t6 UI6-5 — the larger of the trop-perçu and the open obligation: the same money when both exist (rule 23).
+  const stored = Math.max(
+    tropPercuCents(reservationId, { autoComplementCents: Math.round(Number(quote.complementRoutedAmount || 0) * 100) }),
+    openLoweredCents(reservationId),
+  );
+  return overpaymentResultOf(reservationId, row, quote, stored / 100, { storedOnly: true });
 }
 
 // A refusal raised inside the creation transaction: thrown to roll the whole write back, then answered
@@ -753,7 +743,7 @@ function previewMidStayNote(req, res) {
   const { opening, current, checkedKeys, reservationId } = req.body || {};
   // specs/mid-stay-notes.md rule 23 (D19): no arrival marked, a sale joins the ordinary balance, so the note says so.
   const id = ['number', 'string'].includes(typeof reservationId) ? Number(reservationId) : NaN;
-  const arrivalNotMarked = Number.isInteger(id) && id > 0 && model.isArrivalNotMarked(id);
+  const arrivalNotMarked = Number.isInteger(id) && id > 0 && model.arrivalBaselineNotDue(id);
   res.json({ ...planMidStayNote({ opening, current, checkedKeys }), arrivalNotMarked });
 }
 
@@ -834,7 +824,7 @@ function occupiedDates(req, res) {
   res.json(merged);
 }
 
-const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
+const { roundMoneyOrZero: round2 } = require('../utils/pricing/money');
 
 /**
  * The arrival single payment, ready to render (specs/single-payment-at-check-in.md §3.4 rule 16):
@@ -890,7 +880,7 @@ function buildArrivalPaymentView(row) {
   if (collectible.length < 2) return null;
   return {
     collectible: {
-      total: Math.round(collectible.reduce((sum, b) => sum + b.amount, 0) * 100) / 100,
+      total: roundMoneyStrict(collectible.reduce((sum, b) => sum + b.amount, 0)),
       buckets: collectible,
       // The earliest date the operator may pick — the collection cannot predate the booking.
       bookedAt: bookingDayOf(row.createdAt),
@@ -1166,7 +1156,7 @@ function getById(req, res) {
     // specs/reservation-payment-ledger.md rule 1 — the payments ledger, ready to render.
     ledger: ledgerFor({
       row: { ...model.getRow(reservation.id), cautionAmount: reservation.cautionAmount },
-      overpayment: (() => { const over = storedOverpayment(reservation.id); return over ? { ttc: over.overpaymentTtc, lines: over.overpaymentLines, method: over.overpaymentMethod } : null; })(),
+      overpayment: (() => { const over = storedOverpayment(reservation.id); return over ? { ttc: over.overpaymentTtc, lines: over.overpaymentLines, method: over.overpaymentMethod, cash: over.overpaymentCash || null } : null; })(),
     }),
     // Rule 39 — the headline of the sticky total bar, from the stored row: what the fiche shows while it
     // shows the stored ledger (rule 7), so the two never disagree.
@@ -1175,6 +1165,10 @@ function getById(req, res) {
     storedSummary: storedSummaryOf(model.getRow(reservation.id)),
     // specs/disable-deposit-per-reservation.md rule 13 — null while « Sans acompte » can be ticked.
     depositDisabledLockedReason: depositDisabledLockedReasonOf(reservation.id),
+    // guest-app rule 113 a (loop t6 A6-2) — the notes the fiche can neither adjust nor put back to the departure: { [noteId]: reason }.
+    midStayNoteLocks: midStayNoteLocks(reservation.midStaySettledNotes),
+    // specs/pricing-components.md rule 108 (loop t7 D7-1) — the offered paid lines whose money a refund gave back: the fiche does not offer to put them back.
+    refundedLoweredLines: paidLineJudgment.refundedLoweredLines(db, reservation.id),
     // specs/force-item-to-complement.md rule 20 — null while « Taxe de séjour en complément » can be switched on.
     touristTaxInComplementLockedReason: taxInComplementLockedReason(db, model.getRow(reservation.id)),
     // specs/plugins-phase-3b-neat.md rule 12 — what live plugins show on this stay (Neat: the
@@ -1196,9 +1190,11 @@ function getById(req, res) {
     // specs/lock-at-arrival-time-and-arrival-complement-lines.md rule 7 — what the arrival complement
     // contains, line by line, for the « Détail » of its row.
     arrivalComplementLines: model.arrivalComplementDetailOf(reservation).detail,
-    editLock: model.getEditLock(Number(req.params.id), localNow()),
+    editLock: (() => { const now = new Date(); return model.getEditLock(Number(req.params.id), { ...localNow(now), now }); })(),
     // specs/payment-link-lifecycle.md rule 48 — an unpaid stay whose nights another stay holds: « Dates prises ».
     datesTaken: datesTakenMarker(db, { ...model.getRow(reservation.id) }),
+    // specs/pricing-components.md rule 31 — the one read model of what the stay sold, embedded so opening the fiche needs no second request (`null` when the stored stay cannot be quoted).
+    saleDetail: require('../utils/extraSale').saleDetailOf(reservation.id),
     // Rule 46, reading of 2026-11-01 (review of #915) — null while « Transformer en devis » can be tried.
     convertToDevisLockedReason: require('../models/devisModel').convertToDevisLockedReason(reservation.id),
   });
@@ -1227,6 +1223,17 @@ function sameStayAsSold(stored, body) {
     && String(stored.startDate) === String(body.startDate) && String(stored.endDate) === String(body.endDate)
     && num(stored.adults) === num(body.adults) && num(stored.children) === num(body.children)
     && num(stored.teens) === num(body.teens) && num(stored.babies) === num(body.babies);
+}
+
+// The engine's line facts of a stay for a save posting `postedLines`: a renamed free line reads its own facts under its new text (S13-1), a
+// new line typed under the text of a line the save removes reads none of the removed line's (S16-3 b). Shared by the save and its preview.
+function lineFactsForSave(reservationId, postedLines) {
+  const facts = stayRepository.lineFacts(reservationId);
+  if (!Array.isArray(postedLines) || postedLines.length === 0) return facts;
+  const stored = model.customOptionTexts(reservationId);
+  const renames = customTextChangesOf(reservationId, postedLines);
+  const renamed = renames.length === 0 ? facts : renamedCustomLineFacts(facts, renames, new Map(stored.map((line) => [Number(line.id), line.lineId])));
+  return withoutRemovedLineFacts(renamed, postedLines, stored);
 }
 
 // The custom lines of a fiche whose NAME alone differs from the stored one: [{ id, from, to }].
@@ -1332,6 +1339,16 @@ async function calculatePrice(req, res) {
   }
 
   const reservationId = Number(req.body.reservationId || 0);
+  // Rule 94 reading (loop t14 S14-1) — the fiche of a stay (stored or new) numbers a repeated free label as its save will, so a new
+  // « Bois » beside a stored one is priced as « Bois (2) » without the stored line's facts (`withTypedCustomTitles` keeps the typed text).
+  // A devis too (loop t15 S15-3): its write numbers them the same way.
+  const previewCustomOptions = numberedCustomLinesOf(reservationId, req.body.customOptions);
+  // Rule 94 reading (loop t14 S14-3) — a stored stay is previewed on the save's routing: its stored payment flags and, on a locked fiche, the
+  // window's pins (`midStayWindowRouting` + `pinStoredRouting`, the save's own functions).
+  const previewLines = previewRoutedLines(req, reservationId, previewCustomOptions);
+  const previewPaidFlags = reservationId > 0 && model.getRow(reservationId)
+    ? storedPaymentFlagsOf(model.getRow(reservationId), depositDisabledOf(reservationId, req.body.depositDisabled))
+    : { depositPaid: req.body.depositPaid, balancePaid: req.body.balancePaid };
   // A devis being edited locks its prices too, for as long as the quote is valid — same snapshot, same
   // engine inputs (specs/devis-extras-parity-and-price-lock.md §3 rule 13). The fiche sends `devisId`
   // so this preview shows exactly what the save will store; without it the operator saw today's
@@ -1376,12 +1393,15 @@ async function calculatePrice(req, res) {
     // lock (an expired devis still keeps its cots free), so this preview shows what the save stores.
     bookingId: reservationId > 0 ? reservationId : devisId,
     discountPercent: req.body.discountPercent,
+    discountTarget: req.body.discountTarget,
+    discountFixedAmount: fixedDiscountEuros(req.body.discountAmountCents),
+    lineFacts: reservationId > 0 ? lineFactsForSave(reservationId, previewLines.customOptions) : {},
     customPrice: req.body.customPrice,
-    selectedOptions: req.body.selectedOptions,
-    customOptions: req.body.customOptions,
-    selectedResources: req.body.selectedResources,
-    depositPaid: req.body.depositPaid,
-    balancePaid: req.body.balancePaid,
+    selectedOptions: previewLines.options,
+    customOptions: previewLines.customOptions,
+    selectedResources: previewLines.resources,
+    depositPaid: previewPaidFlags.depositPaid,
+    balancePaid: previewPaidFlags.balancePaid,
     extraGuestSurchargeOffered: req.body.extraGuestSurchargeOffered,
     // specs/reservation-payment-ledger.md rule 46, reading of 2026-11-05 — a solde paid before its acompte: the acompte
     // still owed is judged from the stored one, as the save does, never from a figure an earlier preview answered.
@@ -1406,11 +1426,13 @@ async function calculatePrice(req, res) {
     lockedResourceLines: lockedPricing.lockedResourceLines,
     platform: req.body.platform,
     touristTaxInComplement: req.body.touristTaxInComplement,
-    autoOptionsInComplement: req.body.autoOptionsInComplement,
+    autoOptionsInComplement: previewLines.autoOptionsInComplement,
     // Same lift as the save below: a changed party or date re-prices, so the preview shows what the save stores.
     ...frozenTouristTaxInputs(db, reservationId, req.body.refreshTouristTax || (reservationId > 0 && !sameStayAsSold(model.getRow(reservationId), req.body))),
     // Read-only preview: the baseline is only CAPTURED on save, never here.
     ...midStayQuoteInputs(db, reservationId),
+    // The window's engine baseline, as the save prices on it (loop t15 S15-2).
+    ...(previewLines.windowEngineInputs || {}),
     // specs/payment-schedule-and-cancellation.md §3.1 — same booking context as the save, so the
     // échéances shown on the fiche are the ones that will be stored.
     // A new devis (`kind: 'devis'`, no id) is priced as the devis its create stores (rule 19, audit R33-M-L1).
@@ -1456,6 +1478,8 @@ async function calculatePrice(req, res) {
   // call out and warms the cache the save then reads, so the fiche announces what the save will bill.
   quote = await quotePostProcessors.applyLive({ engineInput, quote, calculate: calculateReservationQuote });
   if (quote.error) return res.status(quote.status || 400).json({ error: quote.error });
+  // specs/pricing-components.md §3 rule 15 — the fiche prints one VAT line per rate, ready to render.
+  quote.vatByRate = vatByRateOf(quote);
   // specs/devis-pdf-and-tourist-tax-fixes.md §3.2 rule 7 reading R32-RES-M1 — the validity date the save will write,
   // for the fiche's « Valide jusqu'au » chip while the edit is unsaved.
   if (!(reservationId > 0) && engineInput.kind === 'devis') quote.validUntil = engineInput.validUntil || null;
@@ -1500,7 +1524,7 @@ async function calculatePrice(req, res) {
     // Rule 45 — whether today's quote differs from the stored money (amounts or due dates): the fiche
     // then shows the stored summary, never live lines next to stored totals.
     if (storedRow && storedRow.kind !== 'devis') {
-      const c = (v) => Math.round(round2(v) * 100);
+      const c = (v) => toCentsStrict(round2(v));
       quote.storedDrift = ['finalPrice', 'touristTaxTotal', 'depositAmount', 'balanceAmount', 'complementAmount']
         .some((f) => c(quote[f]) !== c(storedRow[f]))
         || String(quote.depositDueDate || '') !== String(storedRow.depositDueDate || '')
@@ -1523,14 +1547,13 @@ async function calculatePrice(req, res) {
       quote,
       live,
       propertyId,
-      overpayment: { ttc: quote.overpaymentTtc, lines: quote.overpaymentLines, method: quote.overpaymentMethod },
+      overpayment: { ttc: quote.overpaymentTtc, lines: quote.overpaymentLines, method: quote.overpaymentMethod, cash: quote.overpaymentCash || null },
     });
     // Rule 21 — the amount editor asks; the server answers the refusal or the consequence.
     const edit = req.body.ledgerEdit;
     if (edit && (edit.row === 'deposit' || edit.row === 'balance')) {
-      const now = localNow();
       const startedStay = Boolean(storedRow && storedRow.kind === 'reservation'
-        && hasStayStarted(storedRow, now.today, now.nowTime));
+        && stayStartedNow(storedRow.id));
       const unlocked = Boolean(req.body.unlockPast && userHasRole(req.user, ADMIN));
       const pastLocked = startedStay && !unlocked;
       quote.ledgerEdit = evaluateLedgerEdit({
@@ -1550,7 +1573,53 @@ async function calculatePrice(req, res) {
     }
   }
 
-  res.json(quote);
+  res.json(withTypedCustomTitles(withCustomLineKeys(quote), req.body.customOptions, previewLines.customOptions));
+}
+
+// The lines a preview prices, routed as the save will route them (S14-3): on a locked fiche whose window is open, each line keeps its stored
+// routing and a new line takes the window's — the very pins `enterMidStayExtrasWindow` lays on the save's body. An admin unlock skips the window,
+// as it does on the save.
+function previewRoutedLines(req, reservationId, customOptions) {
+  const lines = {
+    options: req.body.selectedOptions, resources: req.body.selectedResources, customOptions, autoOptionsInComplement: req.body.autoOptionsInComplement,
+  };
+  if (!(reservationId > 0) || pastUnlockRequested(req)) return lines;
+  const { today, nowTime } = localNow(stayClockModel.gestureNow());
+  const window = midStayWindowRouting(reservationId, today, nowTime);
+  if (!window) return lines;
+  pinStoredRouting(lines, model.getStoredRouting(reservationId), window.toArrival);
+  // Loop t15 S15-2 — and on the save's engine baseline: a late guest's unpaid arrival line raised at the door stays in the arrival complement.
+  const { engineBaseline } = midStayWindowBaselines(reservationId, window, {
+    options: lines.options, resources: lines.resources, customOptions: lines.customOptions,
+  });
+  return { ...lines, windowEngineInputs: { arrivalExtrasBaseline: engineBaseline } };
+}
+
+// Rule 94 reading (loop t14 S14-1) — the preview prices a repeated label under its number (`key`), but echoes the text the operator typed: the
+// fiche writes each quote line's title back into its field on every keystroke, and a « (2) » appearing under the cursor would be typed over.
+// The save stores the numbered label, and the fiche shows it once it re-reads.
+function withTypedCustomTitles(quote, postedLines, pricedLines) {
+  if (!quote || !Array.isArray(quote.optionLines) || !Array.isArray(postedLines) || !Array.isArray(pricedLines)) return quote;
+  const typed = new Map();
+  postedLines.forEach((line, index) => {
+    const priced = pricedLines[index];
+    if (line && priced && priced.description !== line.description) typed.set(String(line.customKey || `custom_${index + 1}`), String(line.description || '').trim());
+  });
+  if (typed.size === 0) return quote;
+  return {
+    ...quote,
+    optionLines: quote.optionLines.map((line) => (line && line.isCustom && typed.has(String(line.customKey)) ? { ...line, title: typed.get(String(line.customKey)) } : line)),
+  };
+}
+
+// Pricing-components rule 114 (loop t8 UI8-5, reading of 2026-11-16) — the fiche's live quote names each custom line by the server's own key
+// (`extraLineKey`), the key `refundedLoweredLines` uses. Served here, not by the engine: its quote stays key for key what it was (rule 4).
+function withCustomLineKeys(quote) {
+  if (!quote || !Array.isArray(quote.optionLines)) return quote;
+  return {
+    ...quote,
+    optionLines: quote.optionLines.map((line) => (line && line.isCustom && !line.key ? { ...line, key: extraLineKey({ isCustom: true, title: line.title }) } : line)),
+  };
 }
 
 /**
@@ -1605,6 +1674,9 @@ function createStay(req, res) {
     if (!req.body.checkInTime) req.body.checkInTime = defaultTimes.checkInTime;
     if (!req.body.checkOutTime) req.body.checkOutTime = defaultTimes.checkOutTime;
   }
+
+  // Rule 94 (loop t14 S14-2) — two free lines of one label are numbered at creation too: each keeps its own discount and payment.
+  numberRepeatedCustomLabels(0, req.body);
 
   const {
     propertyId, clientId, startDate, endDate, adults, children, teens, babies,
@@ -1661,6 +1733,8 @@ function createStay(req, res) {
     // never be grandfathered and every cot is billed.
     babyBeds: effectiveBabyBeds,
     discountPercent: req.body.discountPercent,
+    discountTarget: req.body.discountTarget,
+    discountFixedAmount: fixedDiscountEuros(req.body.discountAmountCents),
     customPrice: req.body.customPrice,
     selectedOptions: reservationOptions,
     customOptions: reservationCustomOptions,
@@ -1919,7 +1993,13 @@ async function update(req, res) {
     }
     const staleAfterAwait = staleFicheRefusal(id, req.body);
     if (staleAfterAwait) return res.status(staleAfterAwait.status).json(staleAfterAwait.body);
+    const linesBefore = require('../models/extraSalesModel').lineIds(id);
+    const rowBefore = model.getRow(id);
     const result = performUpdate(id, req.body, { unlockPast });
+    // Loop t1 D-2 — a line the operator added on the fiche is stamped as it is written (its sale date is today, never the booking's at the next boot);
+    // loop t2 D2-1 — a line the stay already held keeps the booking's date.
+    // Loop t3 T3-4 — …and where the save put its money (`rowBefore`: the buckets it started from).
+    if (result.status === 200) require('../utils/pricingLinesMigration').stampFicheLines(db, id, new Date().toISOString(), linesBefore, { rowBefore });
     if (result.status === 200 && stale.length > 0) await retireStaleLinks(id);
     return res.status(result.status).json(result.body);
   } catch (err) {
@@ -1962,15 +2042,50 @@ async function retireStaleLinks(reservationId) {
   } catch { /* the marker stays: the poll retries */ }
 }
 
+// Rule 122 (loop t9 S9-2) — what the engine's open arrival complement (before its note credit) holds above the stored one, in cents: `engine` is
+// the base row of a sale or the run's own quote. The engine's credit on the complement is held by the stored stay except the part owed back
+// beyond what the engine itself leaves unabsorbed (the notes' part and the stay's own credit of rule 121 alike); a stored complement equal to the engine's once that held credit is taken off is the
+// engine's (a stay it reproduces): nothing above. Otherwise the stored complement holds none of the credit — it sits in the remainder, the
+// solde, or is owed — and the whole gap is unstored. 0 on a collected or adjusted complement, whose credit the engine never takes.
+function complementCreditPhantomCents(stored, engine, owedCents) {
+  if (!stored || !engine || Number(stored.complementPaid || 0) === 1 || stored.complementAmountOverride != null) return 0;
+  const cuts = engine.noteCreditCuts || {};
+  const cut = toCents(cuts.complementAmount);
+  const pre = toCents(engine.complementAmountAuto ?? engine.complementAmount) + cut;
+  const held = Math.max(0, cut - Math.max(0, (Number(owedCents) || 0) - toCents(cuts.unabsorbed) - toCents(cuts.stayUnabsorbed)));
+  const kept = toCents(stored.complementAmount);
+  return kept === pre - held ? 0 : Math.max(0, pre - kept);
+}
+
 // `body` is the full PUT payload of the fiche (the model rewrites every column from it). `unlockPast`
 // is the admin's « Déverrouiller cette fiche » for this one save. `dryRun` plays the save inside a
 // transaction that is rolled back and returns the row it would have stored (`row`), without the
 // `reservation.updated` event. Returns `{ status, body }`.
 const DRY_RUN = Symbol('dry-run');
-function performUpdate(reservationId, body, { unlockPast = false, dryRun = false } = {}) {
+// `sale` (specs/pricing-components.md §3 rules 8, 9, 54): the caller sells, offers, removes or discounts a line of the stored stay (`extraSale`),
+// named by its seller (`fiche`, `sas`, `shop`: that seller's sale pipeline); the nights are read as stored and the stay's shape (minimum /
+// maximum nights, changeover) is not judged. Never a body field: a client cannot ask for it.
+// `saleBase` (rule 30, owner 2026-11-15): the row the same engine gives the stored stay before the sale (a `restatePricing` dry run). The save then
+// writes the stored stay plus what the sale moved — `stored + (after − saleBase)` on the money a line moves, the stored figure on every other one —
+// and leaves the nights, the stay lines, the tax and extra-guest records as they are: a sale never carries the engine's drift into the stay.
+// `now` (rule 102): the gesture's moment — every clock reading of the save (lock, window, baseline) is that one, never the wall clock.
+// `atArrival` (guest-app rule 110 a): a gesture on the arrival complement of an arrival not validated yet — see `enterMidStayExtrasWindow`.
+function performUpdate(reservationId, body, {
+  unlockPast = false, dryRun = false, sale = null, saleBase = null, unpaidLine = false, now = null, atArrival = false,
+} = {}) {
+  return stayClockModel.withNow(now, () => performUpdateNow(reservationId, body, {
+    unlockPast, dryRun, sale, saleBase, unpaidLine, atArrival,
+  }));
+}
+
+function performUpdateNow(reservationId, body, {
+  unlockPast, dryRun, sale, saleBase, unpaidLine, atArrival,
+}) {
   const res = createResultRecorder();
   if (!dryRun) {
-    applyUpdate({ body, params: { id: reservationId } }, res, Boolean(unlockPast));
+    applyUpdate({ body, params: { id: reservationId } }, res, Boolean(unlockPast), {
+      sale: sale || null, saleBase, unpaidLine, atArrival,
+    });
     const result = res.result();
     // specs/payment-link-lifecycle.md rule 32 — every save path (fiche, SAS, plugins, platform intakes): a stay
     // that holds its nights after the save takes them from the unpaid requests it now covers. Never on a dry run.
@@ -1983,8 +2098,17 @@ function performUpdate(reservationId, body, { unlockPast = false, dryRun = false
   let preview = null;
   try {
     db.transaction(() => {
-      applyUpdate({ body: structuredClone(body), params: { id: reservationId } }, res, Boolean(unlockPast), { silent: true });
-      preview = { ...res.result(), row: model.getRow(Number(reservationId)) };
+      applyUpdate({ body: structuredClone(body), params: { id: reservationId } }, res, Boolean(unlockPast), {
+        silent: true, sale: sale || null, saleBase, atArrival,
+      });
+      preview = {
+        ...res.result(),
+        row: {
+          ...model.getRow(Number(reservationId)),
+          ...(res.enginePreArrivalAmount != null ? { preArrivalAmount: res.enginePreArrivalAmount } : {}),
+          ...(res.engineNoteCreditCuts ? { noteCreditCuts: res.engineNoteCreditCuts } : {}),
+        },
+      };
       throw DRY_RUN;
     })();
   } catch (err) {
@@ -1993,23 +2117,47 @@ function performUpdate(reservationId, body, { unlockPast = false, dryRun = false
   return preview;
 }
 
+function withLineDiscounts(facts, discounts) {
+  if (!discounts || typeof discounts !== 'object') return facts;
+  const out = { ...facts };
+  for (const [key, cents] of Object.entries(discounts)) out[key] = { ...(out[key] || {}), discountCents: Math.max(0, Math.round(Number(cents) || 0)) };
+  return out;
+}
+
 const ARRIVAL_LINE_RENAME_MESSAGE = 'Une prestation ne peut plus être renommée une fois le séjour commencé.';
 const ARRIVAL_EXTRAS_FROZEN_MESSAGE = 'Une prestation vendue à l\'arrivée ne peut être ni retirée ni réduite.';
 const MID_STAY_EXTRAS_CLOSED_MESSAGE = 'Complément de fin de séjour déjà encaissé : décocher « payé » d’abord.';
 
+// The payment flags a stored stay is priced on: the stored ones, never the request's (reservation-payment-ledger rule 13). Shared by the save
+// and its preview (loop t14 S14-3): a fiche posting stale flags saw a new line in the paid solde that the save put in the arrival complement.
+function storedPaymentFlagsOf(stored, depositDisabledFlag) {
+  return {
+    depositPaid: depositDisabledFlag ? false : Number(stored.depositPaid || 0) === 1,
+    balancePaid: Number(stored.balancePaid || 0) === 1,
+    complementPaid: Number(stored.complementPaid || 0) === 1,
+  };
+}
+
 // specs/mid-stay-extras-on-locked-fiche.md rule 8 — inside the window the routing of every line is
 // the stored one (a mid-stay sale goes to the end-of-stay complement whatever it is), so the payload
 // cannot move it; a line with no stored counterpart falls back to the engine's default.
-function pinStoredRouting(body, routing) {
+function pinStoredRouting(body, routing, newLineInComplement = false) {
   const pin = (line, stored) => {
     const { inComplement, ...rest } = line;
-    return stored === undefined ? rest : { ...rest, inComplement: stored };
+    if (stored !== undefined) return { ...rest, inComplement: stored };
+    return newLineInComplement ? { ...rest, inComplement: 1 } : rest;
+  };
+  // Rule 85 (loop t9 B9-5) — each body line takes its OWN stored routing (by `lineId`); two lines of one article never share one pin.
+  const storedOf = (line, byLine, byArticle, articleId) => {
+    if (line.newLine) return undefined;
+    if (line.lineId != null && byLine && byLine.has(Number(line.lineId))) return byLine.get(Number(line.lineId));
+    return byArticle.get(Number(articleId));
   };
   if (Array.isArray(body.options)) {
-    body.options = body.options.map((o) => pin(o, routing.options.get(Number(o.optionId))));
+    body.options = body.options.map((o) => pin(o, storedOf(o, routing.optionLines, routing.options, o.optionId)));
   }
   if (Array.isArray(body.resources)) {
-    body.resources = body.resources.map((r) => pin(r, routing.resources.get(Number(r.resourceId))));
+    body.resources = body.resources.map((r) => pin(r, storedOf(r, routing.resourceLines, routing.resources, r.resourceId)));
   }
   if (Array.isArray(body.customOptions)) {
     const matches = matchStoredCustomLines(body.customOptions, routing.customs);
@@ -2038,29 +2186,138 @@ function carryStoredCustomContribs(id, body) {
 // locked and its end-of-stay complement is not collected. Pins everything rule 8 keeps locked
 // (routing, tariff refresh, the bed counts of a linen sold at arrival) and returns the state the
 // arrival floors are checked against; null when the window is closed or the fiche is unlocked.
-function enterMidStayExtrasWindow(id, body, today, nowTime) {
-  if (!midStayExtrasWindow(model.getRow(id), today, nowTime).extrasEditable) return null;
-  // The fiche is locked, so the stay has started whether or not the check-in was marked: pin what it
-  // carries now as « sold at arrival » (rule 10), unconditionally.
-  // Read, not written: the baseline is stored by the write itself, after every refusal of the save.
-  const baseline = model.peekArrivalExtrasBaseline(id);
-  const beforeLines = model.readExtraLinesWithQuantity(id);
-  pinStoredRouting(body, model.getStoredRouting(id));
-  body.refreshPricingToCurrent = false;
-  // Rule 8 — the bed counts follow the linen line: they move only when the payload brings a bed-linen
-  // option that was not sold at arrival; in every other case they stay what is stored.
-  const floors = arrivalLineFloors(baseline, beforeLines);
-  const newLinen = (Array.isArray(body.options) ? body.options : [])
-    .filter((option) => !floors[`opt:${Number(option.optionId)}`]);
-  if (!hasBedLinenOption(newLinen)) {
-    const stored = model.getRow(id);
-    body.singleBeds = stored.singleBeds;
-    body.doubleBeds = stored.doubleBeds;
-  }
-  return { baseline, beforeLines };
+// The window's routing (rule 102): open or not, and where a new line goes. Shared by the save and its preview (loop t14 S14-3).
+function midStayWindowRouting(id, today, nowTime, { atArrival = false } = {}) {
+  // Rule 102 — one moment: the window, the lock and the routing of a new line read the stay clock at the gesture's `now`.
+  const started = stayStartedNow(id);
+  const row = model.getRow(id);
+  if (!midStayExtrasWindow(row, today, nowTime, started).extrasEditable) return null;
+  // Guest-app rule 110 a, pricing-components rule 102 — the check-in hour has passed but the arrival is not validated and its complement is not
+  // collected (the guest is late): the arrival complement is still open. Its unpaid arrival lines are not frozen (an order is changed at the
+  // door), and an `atArrival` gesture routes its new line to that complement and never reads it as a sale of the stay.
+  const arrivalOpen = started && !isArrivalValidated(row)
+    && Number(row.complementPaid || 0) !== 1 && Number(row.complementPaidCash || 0) !== 1;
+  return { row, started, arrivalOpen, toArrival: !started || (atArrival && arrivalOpen) };
 }
 
-function applyUpdate(req, res, pastUnlocked, { silent = false } = {}) {
+function enterMidStayExtrasWindow(id, body, today, nowTime, { atArrival = false } = {}) {
+  const window = midStayWindowRouting(id, today, nowTime, { atArrival });
+  if (!window) return null;
+  const { row, toArrival } = window;
+  // The fiche is locked, so the stay has started whether or not the check-in was marked: pin what it
+  // carries now as « sold at arrival » (rule 10), unconditionally.
+  pinStoredRouting(body, model.getStoredRouting(id), toArrival);
+  body.refreshPricingToCurrent = false;
+  const baselines = midStayWindowBaselines(id, window, body);
+  // Rule 8 — the bed counts follow the linen line: they move only when the payload brings a bed-linen
+  // option that was not sold at arrival; in every other case they stay what is stored.
+  const floors = arrivalLineFloors(baselines.peeked, baselines.beforeLines);
+  const newLinen = (Array.isArray(body.options) ? body.options : [])
+    .filter((option) => !floors[extraLineKey(option)]);
+  if (!hasBedLinenOption(newLinen)) {
+    body.singleBeds = row.singleBeds;
+    body.doubleBeds = row.doubleBeds;
+  }
+  return {
+    baseline: baselines.frozenBaseline, beforeLines: baselines.beforeLines, started: window.started,
+    engineBaseline: baselines.engineBaseline, openKeys: baselines.openKeys, rebaseKeys: baselines.arrivalKeys,
+  };
+}
+
+// The baselines an open window prices on (rule 102): the arrival floors, and the engine's, where a key of the open arrival complement (a late
+// guest's unpaid arrival lines, an `atArrival` gesture's new lines) never reads above the baseline. Read, not written: the baseline is stored by
+// the write itself, after every refusal of the save. Shared by the save and its preview (loop t15 S15-2), so both price on one baseline.
+// `lines`: the gesture's lines (`options` / `resources` / `customOptions`), already pinned.
+function midStayWindowBaselines(id, window, lines) {
+  const { row, started, arrivalOpen, toArrival } = window;
+  const peeked = model.peekArrivalExtrasBaseline(id);
+  const beforeLines = model.readExtraLinesWithQuantity(id);
+  const openKeys = arrivalOpen ? openArrivalKeys(beforeLines, row.midStaySettledNotes) : [];
+  const newKeys = started && toArrival ? appendedLineKeys(lines) : [];
+  const parsed = parseBaseline(peeked) || {};
+  const frozenBaseline = openKeys.length ? JSON.stringify(Object.fromEntries(Object.entries(parsed).filter(([key]) => !openKeys.includes(key)))) : peeked;
+  // Rule 102 d (loop t3, T3-2) — a key of the open arrival complement is the arrival's whatever the gesture does to it (offered, billed again,
+  // discounted): the engine never reads it above the baseline, and the rebase after the write holds what its arrival lines then hold.
+  const arrivalKeys = [...new Set([...openKeys, ...newKeys])];
+  const engineBaseline = started
+    ? (arrivalKeys.length ? JSON.stringify({ ...parsed, ...Object.fromEntries(arrivalKeys.map((key) => [key, ARRIVAL_LINE_NEVER_MID_STAY])) }) : peeked)
+    : (model.getArrivalExtrasBaseline(id) || null);
+  return {
+    peeked, beforeLines, openKeys, arrivalKeys, frozenBaseline, engineBaseline,
+  };
+}
+
+// An amount no arrival line reaches: a key the gesture sends to the open arrival complement is never read above the baseline (rule 102).
+const ARRIVAL_LINE_NEVER_MID_STAY = 1e9;
+
+// The keys whose every stored line is collected at the arrival and paid by no card before it: the open arrival complement's own (rule 102). An
+// offered line counts (loop t3, T3-2): offered at the door by mistake, it is billed again or removed there, until the arrival is validated.
+function openArrivalKeys(beforeLines, notesRaw) {
+  const prepaid = new Set(Object.keys(settledByKey(parseMidStayNotes(notesRaw).filter((note) => note && note.beforeArrival))));
+  const byKey = new Map();
+  for (const line of beforeLines || []) {
+    const key = extraLineKey(line);
+    if (!key) continue;
+    byKey.set(key, (byKey.get(key) !== false) && line.collectAt === 'arrival');
+  }
+  return [...byKey].filter(([key, open]) => open && !prepaid.has(key)).map(([key]) => key);
+}
+
+// The keys of the lines a gesture appends (`newLine`), as the writer will key them.
+function appendedLineKeys(body) {
+  return [...(body.options || []), ...(body.resources || []), ...(body.customOptions || []).map((line) => ({ ...line, isCustom: true }))]
+    .filter((line) => line && line.newLine)
+    .map((line) => extraLineKey(line))
+    .filter(Boolean);
+}
+
+// Rule 85 — a line the caller appends (`newLine`) is numbered before the engine prices it, so its key is the one it keeps once written.
+// Every posted line then names its key: the article's first line keeps `opt:<id>` / `res:<id>`, a later one is `line:<table>:<lineId>`, so the
+// arrival floors and the routing of a save judge each line on its own (rule 85).
+function numberAppendedLines(body) {
+  for (const [list, table] of [['options', 'reservation_options'], ['resources', 'reservation_resources']]) {
+    if (!Array.isArray(body[list])) continue;
+    const numbered = body[list].map((line) => (line && line.newLine && line.lineId == null ? { ...line, lineId: nextLineId(db, table) } : line));
+    body[list] = keyLines(table, numbered.map((line) => ({ ...line }))).map(({ key }, index) => (
+      key.startsWith('line:') && !numbered[index].isCustom ? { ...numbered[index], lineKey: key } : numbered[index]
+    ));
+  }
+}
+
+// Rule 94 (loop t2 N-4) — a custom line the save appends (no stored line answers it) under a label another custom line of the stay holds is
+// numbered (« Bière locale (2) »), as a sale's and the arrival SAS's are: its payment, its discount and its removal stay its own. A stored line
+// keeps its label, so a stay that already holds two lines of one label (stored before this rule) keeps them as they are.
+// The preview (S14-1) and the creation (S14-2, `id` 0: nothing stored, every repeat is numbered) take the same numbering.
+function numberRepeatedCustomLabels(id, body) {
+  body.customOptions = numberedCustomLinesOf(id, body.customOptions);
+}
+
+function numberedCustomLinesOf(id, customOptions) {
+  if (!Array.isArray(customOptions) || customOptions.length < 2) return customOptions;
+  const matches = matchStoredCustomLines(customOptions, id > 0 ? model.getStoredRouting(id).customs : []);
+  return numberRepeatedCustomLines(customOptions, (index) => Boolean(matches[index]));
+}
+
+// The priced lines as the writer takes them: a line the engine did not number (the article's FIRST, whose key stays the legacy one) still
+// names the stored line the posted request named, so a save that drops the first of two lines does not hand the survivor the dropped one's
+// row (rule 85). The engine's own output is never touched.
+function withPostedLineIds(pricedLines, postedLines, articleField) {
+  const named = new Set((pricedLines || []).filter((line) => line.lineId != null).map((line) => Number(line.lineId)));
+  const free = new Map();
+  for (const posted of postedLines || []) {
+    if (posted.lineId == null || named.has(Number(posted.lineId))) continue;
+    const article = Number(posted[articleField]);
+    free.set(article, [...(free.get(article) || []), Number(posted.lineId)]);
+  }
+  return (pricedLines || []).map((line) => {
+    const queue = line.lineId == null ? free.get(Number(line[articleField])) : null;
+    return queue && queue.length ? { ...line, lineId: queue.shift() } : line;
+  });
+}
+
+function applyUpdate(req, res, pastUnlocked, {
+  silent = false, sale = null, saleBase = null, unpaidLine = false, atArrival = false,
+} = {}) {
   const storedBefore = model.getRow(Number(req.params.id));
   // specs/reservations-backend-mvc.md rule 26 reading (audit R44-C-L3) — a stay that does not exist is refused before any
   // pricing or write: the insert used to reach the lines and fail on their foreign key (500).
@@ -2094,6 +2351,9 @@ function applyUpdate(req, res, pastUnlocked, { silent = false } = {}) {
   }
 
   const id = Number(req.params.id);
+  req.body = splitPaidLineSessions(db, id, req.body);
+  numberAppendedLines(req.body);
+  numberRepeatedCustomLabels(id, req.body);
 
   const cancelled = readOnlyRefusal(db, id);
   if (cancelled) return res.status(cancelled.status).json(cancelled.body);
@@ -2121,11 +2381,11 @@ function applyUpdate(req, res, pastUnlocked, { silent = false } = {}) {
   const numberError = reservationNumberOverrideError(req.body.reservationNumber, id);
   if (numberError) return res.status(400).json(numberError);
 
-  const { today: todayIso, nowTime } = localNow();
-  const midStayWindow = pastUnlocked ? null : enterMidStayExtrasWindow(id, req.body, todayIso, nowTime);
+  const { today: todayIso, nowTime } = localNow(stayClockModel.gestureNow());
+  const midStayWindow = pastUnlocked ? null : enterMidStayExtrasWindow(id, req.body, todayIso, nowTime, { atArrival });
   carryStoredCustomContribs(id, req.body);
   // The window pins the baseline at the write: every pricing of this save reads the one that write will store.
-  const windowEngineInputs = midStayWindow ? { arrivalExtrasBaseline: midStayWindow.baseline } : {};
+  const windowEngineInputs = midStayWindow ? { arrivalExtrasBaseline: midStayWindow.engineBaseline } : {};
 
   const {
     propertyId, clientId, startDate, endDate, adults, children, teens, babies,
@@ -2172,7 +2432,7 @@ function applyUpdate(req, res, pastUnlocked, { silent = false } = {}) {
   const beforeAuditSnapshot = model.getAuditSnapshotFromDb(id);
   // `pastReservationLocked` gates the 14-field allowlist below. An admin drops it for this request
   // only, after « Déverrouiller cette fiche » (specs/settings-rationalization.md rule 17a).
-  const pastReservationLocked = hasStayStarted(model.getRow(id), todayIso, nowTime) && !pastUnlocked;
+  const pastReservationLocked = stayStartedNow(id) && !pastUnlocked;
 
   const existingReservation = model.getForUpdate(id);
   const canReuseLockedPricing = !refreshPricingToCurrent
@@ -2205,10 +2465,10 @@ function applyUpdate(req, res, pastUnlocked, { silent = false } = {}) {
     req.body.depositDueDate = storedPaymentForQuote.depositDueDate ?? null;
   }
   req.body.depositDisabled = depositDisabledFlag;
-  const effectiveDepositPaid = depositDisabledFlag ? false : Number(storedPaymentForQuote.depositPaid || 0) === 1;
+  const {
+    depositPaid: effectiveDepositPaid, balancePaid: effectiveBalancePaid, complementPaid: effectiveComplementPaid,
+  } = storedPaymentFlagsOf(storedPaymentForQuote, depositDisabledFlag);
   const effectiveDepositPaidDate = depositDisabledFlag ? null : (storedPaymentForQuote.depositPaidDate || null);
-  const effectiveBalancePaid = Number(storedPaymentForQuote.balancePaid || 0) === 1;
-  const effectiveComplementPaid = Number(storedPaymentForQuote.complementPaid || 0) === 1;
 
   // specs/frozen-complement-trusts-client.md §3 rules 1-2 — a collected complement is frozen at what
   // was COLLECTED, so the engine must be fed the stored amount, never the one the browser computed:
@@ -2228,6 +2488,10 @@ function applyUpdate(req, res, pastUnlocked, { silent = false } = {}) {
     // which is exactly what decides the exemption: a reservation sold with cots keeps them free.
     bookingId: id,
     discountPercent: req.body.discountPercent,
+    discountTarget: req.body.discountTarget === undefined ? (model.getRow(id) || {}).discountTarget : req.body.discountTarget,
+    discountFixedAmount: fixedDiscountEuros(req.body.discountAmountCents === undefined ? (model.getRow(id) || {}).discountAmountCents : req.body.discountAmountCents),
+    // `lineDiscounts` ({ [lineKey]: cents }): a line discount posted by a server caller (the line API) reaches the engine as a line fact.
+    lineFacts: withLineDiscounts(lineFactsForSave(id, reservationCustomOptions), req.body.lineDiscounts),
     customPrice: req.body.customPrice,
     selectedOptions: reservationOptions,
     customOptions: reservationCustomOptions,
@@ -2291,6 +2555,8 @@ function applyUpdate(req, res, pastUnlocked, { silent = false } = {}) {
     ...windowEngineInputs,
     // The acompte deadline was promised on the booking day: an edit never moves it (rule 4).
     ...scheduleQuoteInputs(db, id),
+    // specs/pricing-components.md §3 rules 8, 54 — a sale reads the stored nights, extra guests and tax, through its seller's sale pipeline.
+    ...(sale ? { storedStaySale: sale, storedSaleFigures: storedSaleFiguresOfRow(storedPaymentForQuote) } : {}),
   };
   if (!gateInsurance(res, engineInput, Number(id))) return;
   if (!refuseSessionConflict(res, engineInput.selectedResources, Number(id))) return;
@@ -2299,6 +2565,17 @@ function applyUpdate(req, res, pastUnlocked, { silent = false } = {}) {
   // The insurance price a plugin sets (specs/plugins-phase-3b-neat.md rule 2): same as the preview.
   quote = quotePostProcessors.applySync({ engineInput, quote, calculate: calculateReservationQuote });
   if (quote.error) return res.status(quote.status || 400).json({ error: quote.error });
+  // Rule 122 (loop t9 S9-2) — a sale on a stay whose open arrival complement the engine of today sets above the stored one (a stay priced before
+  // 4.2.0): the note credit of a paid line offered or lowered never lands on that unstored part — the stay could not give it back, so the line
+  // API owed it while the end-of-stay remainder still asked it. The part is read on the base (the stored stay before the gesture), or on this
+  // run when it IS the base; the engine then credits the remainder, the solde, the acompte, as the SAS's commit does (rule 118).
+  const phantomCents = sale
+    ? complementCreditPhantomCents(storedPaymentForQuote, saleBase || quote, require('../models/extraSalesModel').openLoweredCents(id)) : 0;
+  if (phantomCents > 0 && toCents(quote.noteCreditCuts && quote.noteCreditCuts.complementAmount) > 0) {
+    engineInput.complementCreditPhantom = phantomCents / 100;
+    quote = quotePostProcessors.applySync({ engineInput, quote: calculateReservationQuote(engineInput), calculate: calculateReservationQuote });
+    if (quote.error) return res.status(quote.status || 400).json({ error: quote.error });
+  }
   // specs/reservation-save-keeps-pricing.md rule 20 — priced without the snapshot, the lines still keep what they collected.
   if (existingReservation && !canReuseLockedPricing) quote = withStoredLineContribs(quote, model.getPricingSnapshot(id));
 
@@ -2306,10 +2583,24 @@ function applyUpdate(req, res, pastUnlocked, { silent = false } = {}) {
   // it was priced: money, lines, nights, snapshots and history stay put.
   // Reading of 2026-11-05 (audit R24-DB-3): a new complement adjustment is a pricing input even when the engine lands on the
   // same figure, so the correction of reservation-payment-ledger rule 67 is written, not pinned back to the stale amount.
-  const keepPricing = Boolean(existingReservation) && !refreshPricingToCurrent && !req.body.refreshTouristTax
+  // `restatePricing`: a server caller changed a stored line fact the payload cannot carry (a line discount, the moment of a line) —
+  // the stay is re-priced under its own price lock, as a pricing input would have done.
+  const keepPricing = Boolean(existingReservation) && !refreshPricingToCurrent && !req.body.refreshTouristTax && !req.body.restatePricing
     && !complementOverrideMoved(req.body.complementAmountOverride, storedPaymentForQuote.complementAmountOverride)
-    && pricingUnchangedFromStored(db, storedPaymentForQuote, quote, windowEngineInputs);
+    && pricingUnchangedFromStored(db, storedPaymentForQuote, quote, windowEngineInputs)
+    // Loop t7 S7-3 (rule 82 reading) — only on a stay booked once 4.2.0 is installed: one booked before keeps its lines and figures on a save that
+    // moved nothing (owner 2026-11-15), or the re-price drops a sold line its lodging no longer offers (stay 14: « Ménage » for an early arrival).
+    && !(readsSaleLines(model.getRow(id)) && stayIsOpenForLines(id, pastReservationLocked, midStayWindow)
+      && hasUnstoredAutoOption(model.listCarriedOptionIds(id), quote));
+  // The plan the engine gives this save, before any pin: a dry run's base carries it, so a gesture's plan moves by its line only (pinSaleDelta).
+  res.enginePreArrivalAmount = quote.preArrivalAmount;
+  res.engineNoteCreditCuts = quote.noteCreditCuts;
   if (keepPricing) quote = pinStoredPricing(quote, storedPaymentForQuote);
+  else if (saleBase) {
+    const owedCents = require('../models/extraSalesModel').openLoweredCents(id);
+    quote = withoutUnstoredAutoLines(pinSaleDelta(quote, storedPaymentForQuote, saleBase, { owedCents }), model.listCarriedOptionIds(id));
+  }
+  const stayPinned = !keepPricing && Boolean(saleBase);
   // Adrien, 2026-10-29: a custom line renamed alone saves its text, nothing is re-priced.
   const renamedLines = customTextChangesOf(id, reservationCustomOptions);
   const customTextChanges = keepPricing ? renamedLines : [];
@@ -2318,6 +2609,12 @@ function applyUpdate(req, res, pastUnlocked, { silent = false } = {}) {
   if (midStayWindow && renamedLines.length > 0) {
     return res.status(400).json({ error: ARRIVAL_LINE_RENAME_MESSAGE, code: 'ARRIVAL_LINE_RENAME' });
   }
+  // Rule 123 (loop t11 S11-1) — a free line a note or a collected platform complement paid keeps its label, whatever the window.
+  const renameRefusal = renamedLines.length > 0 ? paidLineJudgment.paidLineRenameRefusal(db.prepare('SELECT * FROM reservations WHERE id = ?').get(Number(id)), renamedLines) : null;
+  if (renameRefusal) return res.status(renameRefusal.status).json(renameRefusal.body);
+  // Rule 123 (loop t12 S12-1) — nor onto the label of another free line of the stay: two lines would share one key, one payment.
+  const takenRefusal = renamedLines.length > 0 ? paidLineJudgment.labelTakenRefusal(reservationCustomOptions, renamedLines) : null;
+  if (takenRefusal) return res.status(takenRefusal.status).json(takenRefusal.body);
 
   // specs/platform-payout-due-date.md §3.5 rule 38 — a started or finished stay keeps the solde
   // deadline it was stored with. « Existing rows re-derive on their next save » (§3.0 arbitrage) can
@@ -2350,9 +2647,10 @@ function applyUpdate(req, res, pastUnlocked, { silent = false } = {}) {
     optionsSignature: beforeAuditSnapshot.optionsSignature, resourcesSignature: beforeAuditSnapshot.resourcesSignature,
   });
   if (midStayWindow && !keepPricing) {
+    // An open arrival key (rule 102 d) is the door's to change: an offered line's floor is no floor there.
     const violations = arrivalExtrasViolations(
       midStayWindow.baseline, midStayWindow.beforeLines, [...(quote.optionLines || []), ...(quote.resourceLines || [])],
-    );
+    ).filter((violation) => !midStayWindow.openKeys.includes(violation.key));
     if (violations.length > 0) {
       return res.status(400).json({ error: ARRIVAL_EXTRAS_FROZEN_MESSAGE, code: 'ARRIVAL_EXTRAS_FROZEN', lines: violations });
     }
@@ -2362,7 +2660,7 @@ function applyUpdate(req, res, pastUnlocked, { silent = false } = {}) {
   // Reading of 2026-11-06 (audit R26 MEDIUM 1) — a started, still locked fiche too, below: its price adjustments
   // (discount, final price) are allowed fields. There only the part of the rise no unpaid bucket takes on is refused
   // (reading of 2026-11-06, audit R26 finding 1): a checked-out stay with its solde open claims the rise on it.
-  const started = hasStayStarted(storedPaymentForQuote, todayIso, nowTime);
+  const started = stayStartedNow(id);
   const endOfStayCollected = Number(storedPaymentForQuote.endOfStayComplementPaid || 0) === 1 || Number(storedPaymentForQuote.endOfStayComplementPaidCash || 0) === 1;
   const raisesCollectedStay = endOfStayCollected
     && round2(Number(quote.finalPrice || 0) + Number(quote.touristTaxTotal || 0)) > round2(Number(storedPaymentForQuote.finalPrice || 0) + Number(storedPaymentForQuote.touristTaxTotal || 0));
@@ -2414,7 +2712,7 @@ function applyUpdate(req, res, pastUnlocked, { silent = false } = {}) {
       .filter((change) => !allowedLockedFields.has(change.field));
     if (!midStayWindow) customTextChanges.forEach(() => forbiddenChanges.push({ field: 'optionsSignature' }));
     const extrasFields = new Set(['optionsSignature', 'resourcesSignature']);
-    const collected = midStayExtrasWindow(storedPaymentForQuote, todayIso, nowTime).extrasClosedReason === 'endOfStayCollected';
+    const collected = midStayExtrasWindow(storedPaymentForQuote, todayIso, nowTime, stayStartedNow(id)).extrasClosedReason === 'endOfStayCollected';
     if (collected && forbiddenChanges.length > 0 && forbiddenChanges.every((change) => extrasFields.has(change.field))
       && extrasContentChanged(model.readExtraLinesWithQuantity(id), [...(quote.optionLines || []), ...(quote.resourceLines || [])])) {
       return res.status(400).json({ error: MID_STAY_EXTRAS_CLOSED_MESSAGE, code: 'MID_STAY_EXTRAS_CLOSED' });
@@ -2436,21 +2734,30 @@ function applyUpdate(req, res, pastUnlocked, { silent = false } = {}) {
     }
   }
 
-  if (quote.minNightsBreached && !forceMinNights && !pastReservationLocked) {
+  // Rule 9 of specs/pricing-components.md — a sale never re-judges the stay's shape (`staySale` reports no breach either).
+  if (quote.minNightsBreached && !forceMinNights && !pastReservationLocked && !sale) {
     return res.status(409).json({
       error: `Cette réservation comporte ${quote.nights} nuit(s), inférieur au minimum requis (${quote.requiredMinNights}).`,
       code: 'MIN_NIGHTS', requiredMinNights: quote.requiredMinNights, nights: quote.nights, minNightsRules: quote.minNightsRules,
     });
   }
-  if (quote.maxNightsBreached && !forceMaxNights && !pastReservationLocked) {
+  if (quote.maxNightsBreached && !forceMaxNights && !pastReservationLocked && !sale) {
     return res.status(409).json(maxNightsErrorPayload(quote));
   }
-  if (quote.changeoverBreached && !forceChangeover && !pastReservationLocked) {
+  if (quote.changeoverBreached && !forceChangeover && !pastReservationLocked && !sale) {
     return res.status(409).json(changeoverErrorPayload(quote));
   }
-  if (!req.body.forceOverpayment) {
-    const overpaid = overpaymentIntroducedBy(id, quote, windowEngineInputs);
-    if (overpaid) return res.status(409).json(overpaid);
+  // Rule 23 (owner O-10) — a paid line lowered is refused until the operator confirms; the confirmed excess is then owed back.
+  // Owner reading 2026-11-16: offering or removing an UNPAID line is never refused for the excess it leaves — it grows the
+  // trop-perçu by that much, refunded through the usual path, and opens no `lineLowered` obligation.
+  // Loop t5 S5-1 — the refusal is answered after the write is played (and rolled back): a paid line the save removes is refused for what it is
+  // (LINE_PAID, never a trop-perçu to confirm first).
+  let confirmedLowering = false;
+  let overpaidRefusal = null;
+  if (!unpaidLine && !req.body.forceOverpayment) {
+    overpaidRefusal = overpaymentIntroducedBy(id, quote, windowEngineInputs);
+  } else if (!unpaidLine) {
+    confirmedLowering = Boolean(overpaymentIntroducedBy(id, quote, windowEngineInputs));
   }
   if (!forceTypedCounts && !pastReservationLocked) {
     const typedAlerts = alertsForQuote(quote, req.body, rawUpdateOptions, model.getRow(id));
@@ -2545,16 +2852,21 @@ function applyUpdate(req, res, pastUnlocked, { silent = false } = {}) {
   };
   // The row, its lines and its history land together: a refused resource (409) must not leave the
   // lines half rewritten (specs/mid-stay-extras-on-locked-fiche.md).
+  let lineIdsBefore = null;
+  // Rules 23, 104 (loop t5 S5-1) — one judgment of a paid line offered, lowered or removed, whichever screen saved: taken before the write, answered after it.
+  const paidLines = paidLineJudgment.begin(db, id);
   const writeAll = () => {
     // specs/mid-stay-extras-to-end-of-stay-complement.md §3.1 rule 3 — capture the baseline BEFORE the
     // lines are replaced: the state the reservation had entering this save is exactly « what was sold
     // by the time the guest arrived », so an extra added in this very save is detected as mid-stay.
     // After every refusal of the save: a refused or previewed save writes nothing. The engine above read
     // the very baseline this stores (`resolveArrivalExtrasBaseline` synthesizes it).
-    if (midStayWindow) model.captureArrivalExtrasBaseline(id);
+    if (midStayWindow && midStayWindow.started) model.captureArrivalExtrasBaseline(id);
     else model.captureArrivalExtrasBaselineIfDue(id);
-    model.updateReservation(id, modelPayload, quote, nightBlocks, nextIcalSyncLocked, { keepPricing });
+    model.updateReservation(id, modelPayload, quote, nightBlocks, nextIcalSyncLocked, { keepPricing, stayPinned });
     if (!keepPricing) writePricedLines();
+    // Rule 102 — the open arrival complement's keys hold, in the baseline, what its arrival lines hold once written.
+    if (!keepPricing && midStayWindow && midStayWindow.rebaseKeys.length) model.rebaseArrivalExtrasKeys(id, midStayWindow.rebaseKeys);
     else if (customTextChanges.length > 0) model.renameCustomOptions(id, customTextChanges);
     const changes = computeAuditChanges(beforeAuditSnapshot, afterAuditSnapshot);
     customTextChanges.forEach(({ from, to }) => changes.push({ field: 'customOptionText', label: 'Prestation libre', from, to }));
@@ -2567,20 +2879,28 @@ function applyUpdate(req, res, pastUnlocked, { silent = false } = {}) {
     if (changes.length > 0) model.addHistoryEntry(id, 'update', changes);
   };
   const writePricedLines = () => {
-    // specs/direct-installments.md rules 7, 8, 13 — the plan follows the new total.
-    installments.syncAfterSave(id, quote);
+    // specs/direct-installments.md rules 7, 8, 13 — the plan follows the new total. A line gesture that leaves the plan where it stands
+    // writes no instalment row (pricing-components rule 93).
+    const planCents = () => db.prepare('SELECT COALESCE(SUM(amountCents), 0) AS cents FROM reservation_installments WHERE reservationId = ?').get(id).cents;
+    if (!(saleBase && Math.round(Number(quote.preArrivalAmount || 0) * 100) === planCents())) installments.syncAfterSave(id, quote);
 
     // Nights are never rewritten on a locked fiche, but its extras are while the window is open.
     const writesExtras = !pastReservationLocked || Boolean(midStayWindow);
     // specs/accounting-books-the-money-collected.md rule 17 (D11) — what the lines hold of the booked entries, before they go.
     const contribLinesBefore = writesExtras ? contribLinesOf(db, id) : null;
-    if (writesExtras && reservationOptions) model.replaceOptions(id, quote.optionLines);
+    lineIdsBefore = writesExtras ? require('../models/extraSalesModel').lineIds(id) : null;
+    if (writesExtras && reservationOptions) model.replaceOptions(id, withPostedLineIds(quote.optionLines, reservationOptions, 'optionId'));
     if (writesExtras) {
       const sasOriginLabels = model.sasOriginCustomLabels(id);
-      model.deleteCustomOptions(id);
-      if (reservationCustomOptions) model.insertCustomOptions(id, quote.optionLines, sasOriginLabels);
+      const carriedCustomLines = model.deleteCustomOptions(id) || [];
+      // Rule 94 reading (loop t16 S16-3 b) — only the rows the posted lines name carry their identity over: a line the fiche appends never
+      // takes, by its text, the number, discount and money of a row this save removes. Rule 79 reading (loop t17 D17-1) — the writer takes
+      // the row the judges' matcher chose over the posted lines, never a text comparison of its own.
+      if (reservationCustomOptions) {
+        model.insertCustomOptions(id, pricedCustomLinesNamingRows(reservationCustomOptions, quote.optionLines, carriedCustomLines), sasOriginLabels, carriedCustomLines);
+      }
     }
-    if (!pastReservationLocked) model.replaceNights(id, quote.nightlyBreakdown);
+    if (!pastReservationLocked && !stayPinned) model.replaceNights(id, quote.nightlyBreakdown);
     // specs/tariff-recipes/spec.md §3 rule 62 — the tariff snapshot follows the nights it describes:
     // a night added, or a stay repriced because its arrival moved (rule 57), is stored with the season
     // it was priced under, so the next save replays exactly what this one stored. Rule 66: it also
@@ -2589,8 +2909,9 @@ function applyUpdate(req, res, pastUnlocked, { silent = false } = {}) {
     if (writesExtras) model.refreshTariffSnapshot(id, quote.tariffSnapshot);
 
     if (writesExtras && reservationResources) {
-      model.deleteResources(id);
-      const resourceError = insertResourceLines(id, quote, { propertyId, startDate, endDate, excludeId: id });
+      const postedResources = withPostedLineIds(quote.resourceLines, reservationResources, 'resourceId');
+      const carried = model.deleteResources(id, postedResources);
+      const resourceError = insertResourceLines(id, { ...quote, resourceLines: postedResources }, { propertyId, startDate, endDate, excludeId: id, carried });
       if (resourceError) throw new CreationRefused(resourceError);
     }
 
@@ -2604,6 +2925,15 @@ function applyUpdate(req, res, pastUnlocked, { silent = false } = {}) {
     // specs/adjustable-complement-amounts.md §3.6 rule 36 — same ventilation, recomputed at every save
     // so a new option or a re-priced line moves the postes, never the announced total.
     model.syncComplementAllocation(id, { autoAmount: quote.complementAmountAuto });
+    syncLoweredObligations(id, quote, { confirmed: confirmedLowering, lineDiscounts: req.body.lineDiscounts });
+    const paidLineRefusal = paidLines.finish({ overpaid: Boolean(overpaidRefusal), forced: Boolean(req.body.forceOverpayment), lineDiscounts: req.body.lineDiscounts });
+    // Loop t6 B6-2 (rule 106 b) / loop t8 UI8-2 (rule 113) — the judgment's trop-perçu is split by poste and means as the ledger row's:
+    // read after the write, from the stay as it now stands, so the refund dialog opens on « Prestations complémentaires » with its cash part.
+    if (paidLineRefusal && paidLineRefusal.body && paidLineRefusal.body.code === 'OVERPAID') {
+      Object.assign(paidLineRefusal.body, judgedOverpaymentOf(id, quote, Number(paidLineRefusal.body.overpaymentTtc || 0)));
+    }
+    if (paidLineRefusal) throw new CreationRefused(paidLineRefusal);
+    if (overpaidRefusal) throw new CreationRefused({ status: 409, body: overpaidRefusal });
   };
   try {
     if (typeof db.transaction === 'function') db.transaction(writeAll)(); else writeAll();
@@ -2614,6 +2944,16 @@ function applyUpdate(req, res, pastUnlocked, { silent = false } = {}) {
 
   res.json({ ok: true, reservationNumber: model.getReservationNumber(id) });
   if (!silent) emitPluginEvent('reservation.updated', { reservationId: Number(id) });
+  publishCancelledLines(id, lineIdsBefore);
+}
+
+// specs/pricing-components.md rule 55 — the lines a save removed leave as an event, after the commit (an observer, never part of the save).
+function publishCancelledLines(reservationId, before) {
+  if (!before) return;
+  const extraSalesModel = require('../models/extraSalesModel');
+  const after = extraSalesModel.lineIds(reservationId);
+  const refs = [...before].filter((ref) => !after.has(ref));
+  if (refs.length) require('../models/ports/eventPublisher').publish('extraSale.lineCancelled', { reservationId: Number(reservationId), refs });
 }
 
 // specs/reception-sas-today-only.md §3.2 rule 6 — reception may flip the status toggles only on the
@@ -2626,10 +2966,10 @@ function receptionStatusLock(reservationId, body, now = new Date()) {
   const touchesArrival = body.checkInReady !== undefined || body.checkInDone !== undefined;
   const touchesDeparture = body.checkOutDone !== undefined;
   if (touchesArrival && !isWithinSasWindow(row.startDate, now)) {
-    return sasLockReason({ dateIso: row.startDate, doneAt: null, now });
+    return sasLockReason({ stay: row, side: 'arrival', doneAt: null, now });
   }
   if (touchesDeparture && !isWithinSasWindow(row.endDate, now)) {
-    return sasLockReason({ dateIso: row.endDate, doneAt: null, now });
+    return sasLockReason({ stay: row, side: 'departure', doneAt: null, now });
   }
   return null;
 }
@@ -2795,8 +3135,7 @@ function paymentMarkRefusal(row, body, today) {
       return { status: 400, body: { error: field === 'platformPayoutAmount' ? 'Virement reçu : montant requis.' : 'Commission invalide.', code: 'INVALID_AMOUNT', field } };
     }
     if (field === 'platformCommissionAmount') {
-      const gross = row.platformGrossAmount != null && row.platformGrossAmount !== ''
-        ? Number(row.platformGrossAmount) : Number(row.depositAmount || 0) + Number(row.balanceAmount || 0);
+      const gross = grossOf(row);
       if (n > round2(gross) + 0.004) {
         return { status: 400, body: { error: `La commission dépasse le montant facturé (${formatEurosFr(gross)}).`, code: 'INVALID_AMOUNT', field } };
       }
@@ -3168,7 +3507,9 @@ function updatePaymentCore(req, res) {
     model.updatePaymentField('UPDATE reservations SET checkInReady = ?, updatedAt = datetime(\'now\') WHERE id = ?', checkInReady ? 1 : 0, id);
   }
   if (checkInDone !== undefined) {
-    model.updatePaymentField('UPDATE reservations SET checkInDone = ?, updatedAt = datetime(\'now\') WHERE id = ?', checkInDone ? 1 : 0, id);
+    // specs/pricing-components.md rule 103 — unticking undoes the false start the tick made (its baseline, the lines it carved out).
+    if (checkInDone) model.updatePaymentField('UPDATE reservations SET checkInDone = ?, updatedAt = datetime(\'now\') WHERE id = ?', 1, id);
+    else require('../utils/extraSale').unmarkArrival(Number(id));
   }
   if (checkOutDone !== undefined) {
     model.updatePaymentField('UPDATE reservations SET checkOutDone = ?, updatedAt = datetime(\'now\') WHERE id = ?', checkOutDone ? 1 : 0, id);

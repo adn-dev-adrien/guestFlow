@@ -1,0 +1,1 @@
+- **Pricing — a single read of what was received** (`specs/pricing-components.md` rule 48). The instalment schedule and the refunds read what a stay has received (payments, share received per instalment) in a single read; the payment allocations are read again only when requested. No amount changes.

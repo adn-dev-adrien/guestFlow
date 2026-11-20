@@ -25,6 +25,7 @@
     "adjustMidStayNote",
     "applyEndOfStayAdjustment",
     "buildArrivalComplementDetail",
+    "buildArrivalSeed",
     "buildDepartureSeed",
     "cancelMidStayNote",
     "captureArrivalExtrasBaseline",
@@ -783,10 +784,13 @@
     "htOfPortion",
     "lineTotalCents",
     "netFirst",
+    "netFirstCents",
     "rateToBasis",
     "resolveRate",
     "settingsSchema",
     "splitTtc",
+    "ttcFromNet",
+    "ttcFromNetCents",
     "vatOf"
   ],
   "vatRegimeModel": [
@@ -951,6 +955,127 @@
   ],
   "standaloneSales": [
     "list"
+  ],
+  "accountingOutput": [
+    "buildCompensationEntry",
+    "buildPenaltyEntry",
+    "buildStandaloneEntry",
+    "create",
+    "journalEntries",
+    "resolveCommissionConfig"
+  ],
+  "legacyBucketSplit": [
+    "CONTRIB_RESIDUE_TOLERANCE_TTC",
+    "TTC_SPLIT_FALLBACK",
+    "bookedBucketSplit",
+    "bucketFromTtc",
+    "computeBucketTtcsFromContribs",
+    "computeTaxTtcForKind",
+    "legacyGrossUp",
+    "netOfTtc",
+    "nz",
+    "parseComplementPaidSplit",
+    "parsePaidSplit",
+    "round2",
+    "soldeCaptureMatches"
+  ],
+  "refundJournal": [
+    "adjustedBucketSplit",
+    "buildRefundEntry",
+    "closeStayBooks",
+    "earlierSplits",
+    "indemnityShare",
+    "isAdjustedLine"
+  ],
+  "csvJournal": [
+    "create"
+  ],
+  "salesJson": [
+    "create"
+  ],
+  "synthesisExporter": [
+    "create"
+  ],
+  "extraSale": [
+    "arrivalOpenAt",
+    "changeLine",
+    "collectionOf",
+    "departureSalesOf",
+    "paidSalesOf",
+    "quote",
+    "saleDetailOf",
+    "sell"
+  ],
+  "saleDetail": [
+    "buildDocumentDetail",
+    "buildSaleDetail",
+    "departureSection"
+  ],
+  "standaloneSale": [
+    "cancel",
+    "documentOf",
+    "offerLine",
+    "pay",
+    "paymentsOf",
+    "quote",
+    "receive",
+    "removeLine",
+    "sell"
+  ],
+  "suggestedArticles": [
+    "catalogue",
+    "catalogueGroups",
+    "kinds",
+    "resolve",
+    "save",
+    "settingsView"
+  ],
+  "standaloneSaleLinks": [
+    "draftLinkOf",
+    "emailLink",
+    "linkOf",
+    "mint",
+    "withdraw"
+  ],
+  "articles": [
+    "read",
+    "unitsPerQuantity"
+  ],
+  "stayClock": [
+    "phaseForReservation",
+    "dayReached",
+    "dayPassed"
+  ],
+  "catalogue": [
+    "getApplicableOptions",
+    "getApplicableResources",
+    "optionPriceOverride",
+    "resourcePriceOverride"
+  ],
+  "money": [
+    "eurosWithSpaces",
+    "fromCentsStrict",
+    "parseFrenchCents",
+    "parseFrenchEuros",
+    "roundMoney",
+    "roundMoneyOrZero",
+    "roundMoneyStrict",
+    "toCents",
+    "toCentsOrZero",
+    "toCentsStrict"
+  ],
+  "platformPayment": [
+    "acompteNet",
+    "grossOf",
+    "payoutWithPenalty"
+  ],
+  "basketRefundOutcome": [
+    "notHonoured",
+    "overpaidBy",
+    "partlyOwed"
+  ],
+  "refundGivenBack": [
+    "refGivenBack"
   ],
   "journalEntries": [
     "list"

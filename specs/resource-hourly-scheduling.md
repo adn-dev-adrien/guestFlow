@@ -153,7 +153,7 @@ guest + external rates, evening switch, opening hours, slot, min duration — is
 | Method | Endpoint | Notes |
 |---|---|---|
 | GET | `/api/planning/resource-cards?from&to` | `{ 'YYYY-MM-DD': { items: [{ reservationId, resourceId, name, clientName, propertyName, date, start, end, done }] } }`. |
-| POST | `/api/planning/resource-cards/done` | `{ reservationId, resourceId, date, start, done }` → toggles one session's done flag. |
+| POST | `/api/planning/resource-cards/done` | `{ reservationId, resourceId, lineId?, date, start, done }` → toggles one session's done flag. `lineId` (pricing-components rule 85) names the stored line when the stay holds several lines of one resource; without it, the first line that holds the session. |
 | PUT | `/api/resources/:id` | gains `showsPlanningCard`, `hourlyEveningStart`, `hourlyEveningRate`. |
 | (reservation save) | existing reservation endpoint | `selectedResources[]` gains `sessions: [{date,start,end}]`. |
 

@@ -22,7 +22,18 @@ const wholeNumber = (value) => (typeof value === 'number' || typeof value === 's
 function createController({ bookings: model, scheduling, planningCards, reservations, invoicing }) {
   // Rule 2 — whether an invoice can be made now: the server's answer, never guessed by the screen.
   const invoiceReady = () => sdk.coreModule('invoiceIssuers').ready();
-  const withReady = (booking) => (booking ? { ...booking, invoiceReady: invoiceReady() } : booking);
+  // Loop t1 UI-9 (outside-visit rule 27) — « Client absent » is offered when the server would take it: an administrator, a visit with no stay, from its day on,
+  // not arrived nor already absent. The screen reads `actions.noShow` and compares no date with the browser's clock.
+  const dayLock = (booking) => sdk.coreModule('sasEditWindow').sasLockReason({ stay: { startDate: booking.date, endDate: booking.date }, side: 'arrival', doneAt: null, now: new Date() });
+  const noShowOffered = (booking, req) => Boolean(req) && !isReceptionOnly(req.user) && !booking.reservationId && !booking.arrived && !booking.noShowAt
+    && dayLock(booking) !== 'future';
+  // Loop t2 UI2-7 (outside-visit rules 5, 6; resource-booking-pricing-and-invoicing rule 28) — « Arrivée » is offered on a visit with no stay, not arrived nor
+  // absent, inside its day window (D 00:00 → D+1 04:00 on the server's clock), the window the visit's writes are judged by. The screen compares no date.
+  const arriveOffered = (booking) => Boolean(booking.external) && !booking.reservationId && !booking.arrived && !booking.noShowAt && dayLock(booking) === null;
+  // Loop t2 UI2-6 — every booking payload carries its `actions`, the planning rows included: the screens read them and re-read nothing.
+  const actionsOf = (booking, req) => ({ noShow: noShowOffered(booking, req), arrive: arriveOffered(booking) });
+  const withActions = (booking, req) => (booking && booking.kind === 'booking' ? { ...booking, actions: actionsOf(booking, req) } : booking);
+  const withReady = (booking, req = null) => (booking ? { ...booking, invoiceReady: invoiceReady(), actions: actionsOf(booking, req) } : booking);
   const fail = (res, result) => res.status(result.status).json({ error: result.error, ...(result.code ? { code: result.code } : {}) });
 
   function planningEvents(req, res) {
@@ -33,7 +44,7 @@ function createController({ bookings: model, scheduling, planningCards, reservat
     const rangeError = checkPlanningRange(from, to);
     if (rangeError) return res.status(rangeError.status).json({ error: rangeError.error, message: rangeError.message });
 
-    const events = model().listPlanningEvents(from, to);
+    const events = model().listPlanningEvents(from, to).map((event) => ({ ...event, actions: actionsOf(event, req) }));
     // Reception must never receive the finance (price/paid) or PII (phone/notes/raw names) that the
     // full planning payload carries — project through the whitelist (AUTH-4). Admin keeps everything.
     if (isReceptionOnly(req.user)) return res.json(toReceptionPlanningEventList(events));
@@ -50,13 +61,13 @@ function createController({ bookings: model, scheduling, planningCards, reservat
     const { resourceId, date, weekStart } = req.query;
     if (!resourceId) return res.status(400).json({ error: 'resourceId required' });
     if (!date && !weekStart) return res.status(400).json({ error: 'date or weekStart required' });
-    return res.json(model().listForResource({ resourceId, date, weekStart }));
+    return res.json(model().listForResource({ resourceId, date, weekStart }).map((row) => withActions(row, req)));
   }
 
   function getOne(req, res) {
     const booking = model().findById(req.params.id);
     if (!booking) return res.status(404).json({ error: 'Non trouvée' });
-    return res.json(withReady(booking));
+    return res.json(withReady(booking, req));
   }
 
   function create(req, res) {
@@ -67,12 +78,17 @@ function createController({ bookings: model, scheduling, planningCards, reservat
 
   /**
    * POST /api/resource-bookings/preview — the price of a booking draft, written nowhere
-   * (specs/resource-supplements-total-server-side.md rules 4-7). Admin only: it carries money.
+   * (specs/resource-supplements-total-server-side.md rules 4-7). Admin only: it carries money. With `payment`, `invoiceable` too (loop t2 B2-7).
    */
   function preview(req, res) {
-    const result = model().priceBooking(req.body || {});
+    const body = req.body || {};
+    const result = model().priceBooking(body);
     if (result.error) return res.status(result.status).json({ error: result.error });
-    return res.json({ ...result, invoiceReady: invoiceReady() });
+    // Loop t2 B2-7 (outside-visit rule 54) — with the payment typed for « Payé maintenant », whether the save could make the invoice: the server's answer.
+    const payment = body.payment && typeof body.payment === 'object' && !Array.isArray(body.payment) ? body.payment : null;
+    const invoiceable = payment && invoicing
+      ? invoicing().draftInvoiceability({ id: body.bookingId ? Number(body.bookingId) : null, totalPrice: result.total, payment }) : undefined;
+    return res.json({ ...result, invoiceReady: invoiceReady(), ...(invoiceable ? { invoiceable } : {}) });
   }
 
   function update(req, res) {
@@ -92,39 +108,13 @@ function createController({ bookings: model, scheduling, planningCards, reservat
     const body = req.body || {};
     const result = model().recordPayment(req.params.id, { tenders: body.tenders, paidAt: body.paidAt });
     if (result.error) return fail(res, result);
-    return res.json(withReady(model().findById(req.params.id)));
+    return res.json(withReady(model().findById(req.params.id), req));
   }
 
   function clearPayment(req, res) {
     const result = model().clearPayment(req.params.id);
     if (result.error) return fail(res, result);
-    return res.json(withReady(model().findById(req.params.id)));
-  }
-
-  /**
-   * Rules 28-31, 45 — POST /:id/arrival `{ offeredMinutes?, payment: { tenders, paidAt } | null, invoice?: boolean, billing? }`. The
-   * arrival and the payment are committed first; the invoice is asked after, and its refusal never undoes them
-   * (rule 25): `{ booking, invoice: { ok, number } | { ok: false, code, error } | null }`.
-   */
-  async function arrival(req, res) {
-    const body = req.body || {};
-    if (body.payment !== undefined && body.payment !== null && (typeof body.payment !== 'object' || Array.isArray(body.payment))) {
-      return res.status(400).json({ error: 'Paiement invalide.' });
-    }
-    // Rule 45 — the invoice is the operator's explicit choice: anything but a boolean is refused before the arrival.
-    if (body.invoice !== undefined && typeof body.invoice !== 'boolean') {
-      return res.status(400).json({ error: 'Facture : oui ou non.' });
-    }
-    const result = model().recordArrival(req.params.id, {
-      offeredMinutes: body.offeredMinutes, payment: body.payment || null, billing: body.billing,
-    });
-    if (result.error) return fail(res, result);
-    let invoice = null;
-    if (body.invoice === true) {
-      const issued = await invoicing().issue(req.params.id);
-      invoice = issued.error ? { ok: false, code: issued.code || null, error: issued.error } : { ok: true, number: issued.invoice.number };
-    }
-    return res.json({ booking: withReady(model().findById(req.params.id)), invoice });
+    return res.json(withReady(model().findById(req.params.id), req));
   }
 
   // Rules 13-16 — POST /:id/invoice `{ billing? }`: the address typed after a refusal goes with the retry.
@@ -136,7 +126,7 @@ function createController({ bookings: model, scheduling, planningCards, reservat
     }
     const result = await invoicing().issue(req.params.id);
     if (result.error) return fail(res, result);
-    return res.json(withReady(model().findById(req.params.id)));
+    return res.json(withReady(model().findById(req.params.id), req));
   }
 
   // Rules 18-19 — POST /:id/invoice/attach `{ transactionId? }`.
@@ -145,7 +135,7 @@ function createController({ bookings: model, scheduling, planningCards, reservat
     const transactionId = typeof body.transactionId === 'string' && body.transactionId.trim() ? body.transactionId.trim() : null;
     const result = await invoicing().attach(req.params.id, { transactionId });
     if (result.error) return fail(res, result);
-    return res.json(withReady(model().findById(req.params.id)));
+    return res.json(withReady(model().findById(req.params.id), req));
   }
 
   /**
@@ -202,13 +192,14 @@ function createController({ bookings: model, scheduling, planningCards, reservat
     // A tick reads as INVALID_PAYMENT_FLAG does: `Boolean("false")` ticked the card.
     if (!Number.isInteger(reservationId) || reservationId <= 0
       || !Number.isInteger(resourceId) || resourceId <= 0
+      || (body.lineId != null && !(Number.isInteger(wholeNumber(body.lineId)) && wholeNumber(body.lineId) > 0))
       || !isIsoDate(date)
       || (start !== null && typeof start !== 'string')
       || (body.done !== undefined && ![true, false, 1, 0].includes(body.done))) {
       return res.status(400).json({ error: 'INVALID_PAYLOAD', message: 'Données invalides.' });
     }
     const result = planningCards().setSessionDone({
-      reservationId, resourceId, date, start: start || '', done: Boolean(body.done),
+      reservationId, resourceId, lineId: body.lineId == null ? undefined : wholeNumber(body.lineId), date, start: start || '', done: Boolean(body.done),
       kind: body.kind === 'ignition' ? 'ignition' : 'session',
     });
     if (result && result.error) {
@@ -220,8 +211,10 @@ function createController({ bookings: model, scheduling, planningCards, reservat
 
   return {
     planningEvents, occupiedSlots, list, getOne, create, preview, update, remove,
-    recordPayment, clearPayment, arrival, issueInvoice, attachInvoice,
+    recordPayment, clearPayment, issueInvoice, attachInvoice,
     freeSlots, resourceCards, setResourceCardDone,
+    // The booking as every route answers it (`invoiceReady`, `actions`), for the visit routes that answer a booking too.
+    bookingPayload: withReady,
   };
 }
 

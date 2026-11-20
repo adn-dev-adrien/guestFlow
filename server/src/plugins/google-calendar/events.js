@@ -1,3 +1,5 @@
+const sdk = require('../sdk');
+const { roundMoneyStrict } = sdk.coreModule('money');
 // Pure Google Calendar event builders + upsert/delete/diff helpers
 // (specs/google-calendar-oauth-rework.md §3 rules 12-17).
 // No DB; the mutating helpers take an authenticated calendar client.
@@ -26,7 +28,7 @@ function optionDisplayCount({
     const nights = Math.round((new Date(endDate) - new Date(startDate)) / 86400000);
     if (nights > 0) count = Number(billedUnits) / nights;
   }
-  return Number.isFinite(count) && count > 0 ? Math.round(count * 100) / 100 : fallback;
+  return Number.isFinite(count) && count > 0 ? roundMoneyStrict(count) : fallback;
 }
 
 function buildEventTitle(reservation) {

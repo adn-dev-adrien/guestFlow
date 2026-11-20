@@ -1,0 +1,631 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>M4 — Vente hors séjour et champs du catalogue</title>
+<style>
+:root{
+  --primary:#2F5D46; --primary-dark:#244A38; --honey:#C99038;
+  --paper:#F8F5EF; --card:#FFFFFF; --ink:#27251F; --mute:#6E6A5E;
+  --ok:#3E7D54; --ok-soft:#E6EFE7; --warn:#8F6A1D; --warn-soft:#F6EDD7;
+  --err:#A8433A; --err-soft:#F7E8E5; --info:#31556E; --info-soft:#E4EDF3;
+  --line:rgba(60,54,36,.10); --line-strong:rgba(60,54,36,.18);
+  --shadow:0 3px 16px rgba(60,54,36,.09);
+  --r:14px;
+  --serif:"Source Serif 4","Source Serif Pro",Georgia,"Times New Roman",serif;
+  --sans:Inter,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--paper);color:var(--ink);font:400 16px/1.55 var(--sans)}
+::selection{background:rgba(47,93,70,.18)}
+:focus-visible{outline:2px solid var(--primary);outline-offset:2px;border-radius:6px}
+a{color:var(--primary);text-underline-offset:3px}
+.wrap{max-width:1360px;margin:0 auto;padding:40px 24px 80px}
+.read{max-width:900px}
+h1{font:600 2rem/1.15 var(--serif);letter-spacing:-.01em;margin:0 0 .4rem}
+h2{font:600 1.35rem/1.25 var(--serif);margin:2.6rem 0 .8rem}
+h3{font:600 1.05rem/1.3 var(--serif);margin:1.4rem 0 .5rem}
+p{margin:.4rem 0 .8rem;max-width:72ch}
+.lede{color:var(--mute);font-size:1.02rem}
+.meta{display:flex;flex-wrap:wrap;gap:8px;margin:14px 0 0}
+.tag{display:inline-flex;align-items:center;gap:6px;font-size:.8rem;font-weight:600;padding:4px 10px;border-radius:999px;background:var(--card);border:1px solid var(--line)}
+.tag.ok{background:var(--ok-soft);border-color:transparent;color:#2c5b3c}
+.tag.warn{background:var(--warn-soft);border-color:transparent;color:var(--warn)}
+.tag.info{background:var(--info-soft);border-color:transparent;color:var(--info)}
+ul.tight{margin:.3rem 0 1rem;padding-left:1.2rem;max-width:72ch}
+ul.tight li{margin:.25rem 0}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+@media (max-width:820px){.grid2{grid-template-columns:1fr}}
+.panel{background:var(--card);border-radius:var(--r);box-shadow:var(--shadow);padding:18px 20px}
+.panel h3{margin-top:0}
+table.facts{width:100%;border-collapse:collapse;font-size:.92rem}
+table.facts th,table.facts td{text-align:left;vertical-align:top;padding:8px 10px;border-top:1px solid var(--line)}
+table.facts th{font-weight:600;color:var(--mute);width:28%}
+.scroll{overflow-x:auto;max-width:100%}
+code{font:500 .85em ui-monospace,SFMono-Regular,Menlo,monospace;background:rgba(60,54,36,.06);padding:1px 5px;border-radius:5px;overflow-wrap:anywhere}
+.note{font-size:.85rem;color:var(--mute);font-family:var(--sans);font-weight:500}
+
+/* Controls of the mock (not part of the screen) */
+.controls{display:flex;flex-wrap:wrap;gap:10px 12px;align-items:center;margin:8px 0 16px}
+.ctl-label{font-size:.78rem;font-weight:600;color:var(--mute);margin-right:-4px}
+.seg{display:inline-flex;flex-wrap:wrap;background:var(--card);border:1px solid var(--line-strong);border-radius:22px;padding:3px;max-width:100%}
+.seg button{font:600 .82rem var(--sans);border:0;background:transparent;color:var(--ink);padding:8px 13px;border-radius:999px;cursor:pointer;min-height:38px}
+.seg button[aria-pressed="true"]{background:var(--primary);color:#fff}
+.ghost{font:600 .82rem var(--sans);border:1px solid var(--line-strong);background:var(--card);color:var(--ink);padding:8px 14px;border-radius:999px;cursor:pointer;min-height:38px}
+.ghost.sim{border-style:dashed}
+.ghost:active,.seg button:active{transform:scale(.97)}
+
+/* Stage: same state, two widths */
+.stage{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,390px);gap:28px;align-items:start}
+.stage.only-desk{grid-template-columns:minmax(0,1fr)}
+.stage.only-desk>.col-phone{display:none}
+.stage.only-phone{grid-template-columns:minmax(0,390px);justify-content:center}
+.stage.only-phone>.col-desk{display:none}
+@media (max-width:1100px){.stage,.stage.only-phone{grid-template-columns:minmax(0,1fr)}}
+.stage>div{min-width:0}
+.frame-label{font-size:.8rem;font-weight:600;color:var(--mute);margin:0 0 8px}
+.desk{background:#E9E4DA;border-radius:18px;padding:22px 18px;min-width:0}
+.phone{width:390px;max-width:100%;height:800px;margin:0 auto;border-radius:44px;background:#1f1d19;padding:12px;box-shadow:0 12px 40px rgba(39,37,31,.22)}
+.phone .screen{height:100%;border-radius:34px;overflow:hidden auto;background:var(--paper);position:relative;overscroll-behavior:contain}
+@media (max-width:720px){.wrap{padding:28px 14px 64px}.desk{padding:12px 8px}.phone{border-radius:36px;padding:8px}.phone .screen{border-radius:28px}}
+
+/* App chrome (GuestFlow « Maison ») */
+.app{background:var(--paper);border-radius:12px;overflow:hidden;box-shadow:0 10px 36px rgba(60,54,36,.16);position:relative;min-height:200px}
+.phone .app{border-radius:0;box-shadow:none;min-height:100%}
+.appbar{background:var(--primary);color:#fff;display:flex;align-items:center;gap:10px;padding:0 16px;height:48px;font:600 .95rem var(--sans)}
+.appbar .dot{width:22px;height:22px;border-radius:6px;background:rgba(255,255,255,.18);display:grid;place-items:center;font-size:.7rem}
+.pab{position:sticky;top:0;z-index:3;display:flex;align-items:center;gap:8px;background:#fff;border-bottom:1px solid var(--line);padding:6px 14px;min-height:56px}
+.pab .t{font:600 1.05rem/1.2 var(--serif);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pab .sub{font:500 .75rem var(--sans);color:var(--mute)}
+.ib{width:44px;height:44px;border-radius:10px;border:1px solid var(--line-strong);background:#fff;display:inline-grid;place-items:center;cursor:pointer;color:var(--ink);position:relative;flex:none}
+.ib.info{border-color:var(--info);color:var(--info)}
+.ib.ok{border-color:var(--ok);color:var(--ok)}
+.ib.save{background:var(--primary);border-color:var(--primary);color:#fff}
+.ib:active{transform:scale(.96)}
+.ib[data-tip]:hover::after{content:attr(data-tip);position:absolute;top:50px;right:0;background:#3b3a36;color:#fff;font:500 .72rem var(--sans);padding:5px 8px;border-radius:6px;white-space:nowrap;z-index:9}
+.content{padding:16px}
+.phone .content{padding:12px}
+
+/* Cards, rows, chips, buttons */
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px 16px;margin-bottom:12px}
+.phone .card{padding:12px}
+.card-h{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin:0 0 6px}
+.card-h .ttl{font:600 1rem/1.3 var(--serif)}
+.sec-h{font:600 1rem/1.3 var(--serif);margin:12px 0 6px;display:flex;justify-content:space-between;align-items:baseline;gap:8px;flex-wrap:wrap}
+.box{border:1px solid var(--line-strong);border-radius:12px;padding:6px 12px;background:#fff}
+.row{display:flex;flex-wrap:wrap;gap:6px 10px;align-items:center;justify-content:space-between;padding:8px 0;border-top:1px solid var(--line)}
+.row:first-child{border-top:0}
+.row .l{min-width:0;flex:1 1 170px}
+.row>.acts{margin-left:auto}
+.row .nm{font-weight:500;overflow-wrap:anywhere}
+.row .dt{font-size:.8rem;color:var(--mute);font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
+.row.sub{padding-left:14px;border-top-style:dashed}
+.amt{font-variant-numeric:tabular-nums;white-space:nowrap;text-align:right}
+.amt.b{font-weight:700}
+.struck{text-decoration:line-through;color:#A39E90}
+.zero{font-weight:700;color:var(--ok)}
+.chips{display:flex;flex-wrap:wrap;gap:4px;margin-top:4px}
+.chip{display:inline-flex;align-items:center;font-family:var(--sans);font-size:.72rem;font-weight:600;padding:2px 8px;border-radius:999px;white-space:nowrap;border:1px solid var(--line-strong);background:#fff;color:var(--ink)}
+.chip.paid{background:var(--ok-soft);border-color:transparent;color:#2c5b3c}
+.chip.due{background:var(--warn-soft);border-color:transparent;color:var(--warn)}
+.chip.off{background:var(--info-soft);border-color:transparent;color:var(--info)}
+.chip.err{background:var(--err-soft);border-color:transparent;color:var(--err)}
+.chip.new{background:#FBF3E4;border-color:transparent;color:#8a5d17}
+.btn{font:600 .82rem var(--sans);border-radius:10px;border:1px solid var(--line-strong);background:var(--card);color:var(--ink);padding:0 12px;min-height:44px;min-width:44px;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:6px;text-align:center}
+.btn:active{transform:scale(.97)}
+.btn.primary{background:var(--primary);border-color:var(--primary);color:#fff}
+.btn.primary:hover{background:var(--primary-dark)}
+.btn.offer{border-color:var(--ok);color:var(--ok)}
+.btn.offer[aria-pressed="true"]{background:var(--ok);color:#fff}
+.btn.danger{color:var(--err);border-color:rgba(168,67,58,.45)}
+.btn.quiet{border-color:transparent;background:transparent;color:var(--primary)}
+.btn[disabled]{opacity:.45;cursor:not-allowed;transform:none}
+.btn.full{width:100%}
+.acts{display:flex;gap:6px;align-items:center;flex-wrap:wrap;justify-content:flex-end}
+.stepper{display:inline-flex;align-items:center;border:1px solid var(--line-strong);border-radius:10px;overflow:hidden;background:#fff;flex:none}
+.stepper button{border:0;background:transparent;width:44px;height:44px;cursor:pointer;display:grid;place-items:center;color:var(--ink);font:600 1.1rem var(--sans)}
+.stepper button[disabled]{opacity:.35;cursor:not-allowed}
+.stepper input{width:46px;border:0;text-align:center;font:600 .95rem var(--sans);font-variant-numeric:tabular-nums;background:transparent;color:var(--ink);height:44px;padding:0}
+.stepper.bad{border-color:var(--err);box-shadow:0 0 0 1px var(--err)}
+.field{display:block;margin:8px 0}
+.field>span{display:block;font-size:.78rem;font-weight:600;color:var(--mute);margin-bottom:4px}
+.field input,.field select,.field textarea{width:100%;min-height:44px;border:1px solid var(--line-strong);border-radius:10px;padding:0 12px;font:500 16px var(--sans);background:#fff;color:var(--ink)}
+.field textarea{padding:10px 12px;min-height:70px;resize:vertical}
+.field.bad input,.field.bad select,.field.bad textarea{border-color:var(--err);box-shadow:0 0 0 1px var(--err)}
+.help{font-size:.78rem;color:var(--mute);margin:4px 0 0}
+.refusal{font-size:.82rem;color:var(--err);margin:6px 0 0}
+.check{display:flex;gap:10px;align-items:center;font-size:.9rem;min-height:44px;cursor:pointer}
+.check input{width:20px;height:20px;accent-color:var(--primary);flex:none}
+.alert{border-radius:10px;padding:10px 12px;font-size:.86rem;margin:8px 0}
+.alert.warn{background:var(--warn-soft);color:#6d5216}
+.alert.ok{background:var(--ok-soft);color:#2c5b3c}
+.alert.err{background:var(--err-soft);color:#7d3029}
+.alert.info{background:var(--info-soft);color:#24435a}
+.alert .acts{justify-content:flex-start;margin-top:8px}
+.pills{display:flex;flex-wrap:wrap;gap:6px;margin:6px 0}
+.pills button{font:600 .82rem var(--sans);min-height:44px;padding:0 14px;border-radius:999px;border:1px solid var(--line-strong);background:#fff;cursor:pointer;color:var(--ink)}
+.pills button[aria-pressed="true"]{background:var(--primary);border-color:var(--primary);color:#fff}
+.pills button[disabled]{opacity:.45;cursor:not-allowed}
+.total-line{display:flex;justify-content:space-between;align-items:baseline;gap:8px;padding:4px 0}
+.total-line .k{color:var(--mute);font-size:.88rem}
+.total-line.big .k{color:var(--ink);font-weight:600;font-size:.95rem}
+.total-line.big .amt{font:700 1.3rem var(--sans);font-variant-numeric:tabular-nums}
+.divider{height:1px;background:var(--line);margin:8px 0}
+
+/* Dialog (FormDialog look), inside a frame */
+.scrim{position:absolute;inset:0;background:rgba(39,37,31,.38);display:flex;align-items:flex-start;justify-content:center;padding:32px 16px;z-index:10}
+.dlg{background:#fff;border-radius:14px;box-shadow:0 16px 48px rgba(39,37,31,.28);width:100%;max-width:620px;display:flex;flex-direction:column;max-height:100%;overflow:hidden}
+.dlg-h{display:flex;align-items:center;gap:8px;padding:14px 18px;border-bottom:1px solid var(--line)}
+.dlg-h .t{font:600 1.15rem/1.2 var(--serif);flex:1}
+.dlg-b{padding:12px 18px 16px;overflow-y:auto}
+.dlg-f{display:flex;gap:8px;justify-content:flex-end;padding:12px 18px;border-top:1px solid var(--line);flex-wrap:wrap}
+.phone .scrim{padding:0;background:#fff;position:absolute;min-height:100%}
+.phone .dlg{border-radius:0;box-shadow:none;max-height:none;min-height:100%}
+.phone .dlg-f{flex-direction:column-reverse}
+.phone .dlg-f .btn{width:100%}
+
+/* Decisions block */
+.q{background:var(--card);border-radius:var(--r);box-shadow:var(--shadow);padding:16px 18px;margin:12px 0}
+.q b.t{display:block;font:600 1rem/1.35 var(--serif);margin-bottom:4px}
+.q .why{font-size:.86rem;color:var(--mute);margin:0 0 8px}
+.opt{display:flex;gap:10px;align-items:flex-start;padding:10px 12px;border:1px solid var(--line-strong);border-radius:12px;margin:6px 0;cursor:pointer;background:#fff}
+.opt input{margin-top:4px;width:18px;height:18px;accent-color:var(--primary);flex:none}
+.opt.sel{border-color:var(--primary);box-shadow:0 0 0 1px var(--primary)}
+.opt .rec{font-size:.72rem;font-weight:700;color:var(--primary);background:var(--ok-soft);padding:1px 7px;border-radius:999px;margin-left:4px;white-space:nowrap}
+.opt small{display:block;color:var(--mute);font-size:.83rem;margin-top:2px}
+.summary{margin-top:14px}
+.summary textarea{width:100%;min-height:110px;font:500 .82rem ui-monospace,Menlo,monospace;border:1px solid var(--line-strong);border-radius:10px;padding:10px;background:#fff;color:var(--ink)}
+.added{animation:rise .16s ease-out}
+@keyframes rise{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+@media (prefers-reduced-motion:reduce){.added{animation:none}.btn:active,.ghost:active,.seg button:active,.ib:active{transform:none}}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+.card.mock{border-style:dashed;background:#FCFAF5}
+.card.mock .ttl::after{content:' · maquette seulement';font:500 .72rem var(--sans);color:var(--mute)}
+.simbar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:0 0 14px;padding:8px 10px;border:1px dashed var(--line-strong);border-radius:12px}
+.sec-h .note{font-family:var(--sans);font-weight:500}
+
+.skel{height:86px;border-radius:12px;background:repeating-linear-gradient(90deg,#efebe2 0 40%,#f5f2ec 40% 100%);opacity:.7;margin-bottom:12px}
+.skel-row{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+.phone .skel-row{grid-template-columns:minmax(0,1fr)}
+.search{display:flex;align-items:center;gap:8px;border:1px solid var(--line-strong);border-radius:10px;padding:0 12px;min-height:44px;background:#fff}
+.search input{border:0;outline:0;font:500 16px var(--sans);width:100%;background:transparent;color:var(--ink)}
+.picker{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0}
+.picker button{font:500 .85rem var(--sans);min-height:44px;padding:0 14px;border-radius:999px;border:1px solid var(--line-strong);background:var(--paper);cursor:pointer;color:var(--ink);font-variant-numeric:tabular-nums}
+.picker button b{font-weight:600;margin-left:6px;color:var(--mute)}
+.who{display:flex;gap:8px;align-items:center;border-radius:10px;padding:8px 10px;font-size:.86rem;background:var(--paper);margin-top:6px;flex-wrap:wrap}
+.linkbox{border:1px dashed var(--line-strong);border-radius:10px;padding:10px 12px;margin-top:8px}
+.linkbox .url{font:500 .8rem ui-monospace,Menlo,monospace;background:rgba(60,54,36,.06);border-radius:8px;padding:8px 10px;overflow-wrap:anywhere;margin:6px 0}
+.switch{display:flex;align-items:center;gap:10px;min-height:44px;cursor:pointer}
+.switch input{appearance:none;-webkit-appearance:none;width:42px;height:24px;border-radius:999px;background:#cfc9bb;position:relative;cursor:pointer;flex:none;transition:background .15s}
+.switch input::after{content:'';position:absolute;top:3px;left:3px;width:18px;height:18px;border-radius:50%;background:#fff;transition:transform .15s}
+.switch input:checked{background:var(--primary)}
+.switch input:checked::after{transform:translateX(18px)}
+.switch input:disabled{opacity:.45;cursor:not-allowed}
+@media (prefers-reduced-motion:reduce){.switch input,.switch input::after{transition:none}}
+.grid-f{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0 14px}
+.phone .grid-f{grid-template-columns:minmax(0,1fr)}
+@media (max-width:600px){.grid-f{grid-template-columns:minmax(0,1fr)}}
+.newsec{border-left:3px solid var(--honey);padding-left:12px;margin-top:10px}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header class="read">
+  <h1>M4 — « Vente hors séjour » au comptoir, et trois champs au catalogue</h1>
+  <p class="lede">Maquette à valider avant les commits C33 et C38 de la PR C (règles 53 et 74 de la refonte ; règle 8a de la spec du mini sas). Décisions déjà prises : Q-C9 (bouton du cœur dans Suivi financier, sans le plugin d’export) et Q-C11 (trois champs au catalogue).</p>
+  <div class="meta"><span class="tag info">PR C · passe 5</span><span class="tag">Suivi financier · Catalogue des options</span><span class="tag ok">Q-C9 et Q-C11 tranchées le 12/11</span></div>
+</header>
+<section class="read">
+  <h2>Le constat</h2>
+  <p>Une boisson vendue à quelqu’un qui n’a pas de séjour n’a aucun chemin dans GuestFlow. Le taux de TVA du client extérieur n’existe que pour les séances de bain, et rien ne dit quels articles peuvent se vendre sans séjour.</p>
+  <h2>Ce qu’on propose</h2>
+  <p>Un bouton « Vente hors séjour » dans la barre de Suivi financier. Il ouvre une fenêtre de vente au comptoir : articles marqués « Vendable hors séjour », quantités bornées, TVA du client extérieur, client « Passage » par défaut, encaissement tout de suite ou lien de paiement. Au catalogue, trois champs : la classe de TVA, le taux du client extérieur, et « Vendable hors séjour ». Basculez « Catalogue » pour changer un article, puis rouvrez la vente : la liste suit.</p>
+</section>
+
+<div class="controls" id="ctl" data-frame="ctl"></div>
+<div class="stage">
+  <div class="col-desk"><p class="frame-label">Ordinateur</p><div class="desk"><div id="f-desk" data-frame="desk"></div></div></div>
+  <div class="col-phone"><p class="frame-label">Téléphone · 390 px (fenêtre en plein écran)</p><div class="phone"><div class="screen" id="f-phone" data-frame="phone"></div></div></div>
+</div>
+
+<section class="read">
+  <h2>Ce qu’on ne fait pas</h2>
+  <ul class="tight">
+    <li>Pas de séance de bain vendue depuis cette fenêtre : une séance se réserve au planning, où les conflits sont jugés.</li>
+    <li>Pas de fiche client créée sans le geste « Enregistrer comme client », et aucun rapprochement par le nom.</li>
+    <li>Aucun e-mail ne part seul : le lien s’affiche, l’envoi demande un clic sur « Envoyer par e-mail ».</li>
+    <li>Pas d’écran de réglage de la TVA : les taux restent ceux de Réglages → TVA ; seul le taux du client extérieur s’ajoute, par classe.</li>
+  </ul>
+  <h2>Le risque</h2>
+  <table class="facts">
+    <tr><th>Comptabilité</th><td>Les boissons demandent un compte de produits choisi par la comptable : sans lui, l’export qui contient une boisson est refusé plutôt que passé en compte faux.</td></tr>
+    <tr><th>Taux par classe</th><td>Le taux du client extérieur s’applique à toute la classe : le changer depuis un article change toutes les boissons. Le champ le dit.</td></tr>
+    <tr><th>Lien payé tard</th><td>Un lien payé après une modification de la vente est enregistré en entier ; l’excédent devient un remboursement dû, avec une alerte.</td></tr>
+  </table>
+  <h2>À décider</h2>
+  <div id="questions"></div>
+</section>
+</div>
+<script>
+/* Shared helpers of the PR C mocks: money display, escaping, one state rendered into both frames, delegated events. */
+var GF = (function(){
+  'use strict';
+  var acts = {}, inputs = {}, renderers = [], view = 'both';
+  function eur(c){
+    var neg = c < 0; c = Math.abs(Math.round(c));
+    var s = (c / 100).toFixed(2).split('.');
+    s[0] = s[0].replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
+    return (neg ? '−' : '') + s[0] + ',' + s[1] + ' €';
+  }
+  function esc(s){ return String(s == null ? '' : s).replace(/[&<>"]/g, function(ch){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[ch]; }); }
+  function parseQty(text, min, max){
+    var t = String(text).trim();
+    if (t === '') return {error: 'Quantité requise.'};
+    if (!/^\d+$/.test(t)) return {error: 'Quantité : un nombre entier.'};
+    var n = parseInt(t, 10);
+    if (n < min || n > max) return {error: 'Quantité : ' + min + ' à ' + max + '.'};
+    return {n: n};
+  }
+  function parseAmount(text){
+    var t = String(text).trim().replace(/[\s  ]/g, '').replace(',', '.').replace(/€$/, '');
+    if (t === '') return {empty: true};
+    if (!/^\d+(\.\d{1,2})?$/.test(t)) return {bad: true};
+    return {cents: Math.round(parseFloat(t) * 100)};
+  }
+  function centsText(c){ return (c / 100).toFixed(2).replace('.', ','); }
+  function validEmail(t){ return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(String(t).trim()); }
+  // VAT once per rate group (pricing rule 62): round(ttc × rate / (100 + rate)), then HT = TTC − VAT.
+  function vatOfGroup(ttc, rate){ return rate > 0 ? Math.round(ttc * rate / (100 + rate)) : 0; }
+  // Largest remainder: shares of `total` over `weights`, summing exactly to `total` (pricing rule 40).
+  function allocate(total, weights){
+    var sum = weights.reduce(function(s, w){ return s + w; }, 0);
+    if (!sum) return weights.map(function(){ return 0; });
+    var raw = weights.map(function(w){ return total * w / sum; });
+    var base = raw.map(function(x){ return Math.floor(x); });
+    var left = total - base.reduce(function(s, x){ return s + x; }, 0);
+    var order = raw.map(function(x, i){ return {i: i, r: x - Math.floor(x)}; }).sort(function(a, b){ return b.r - a.r || a.i - b.i; });
+    for (var k = 0; k < left; k++) base[order[k % order.length].i]++;
+    return base;
+  }
+  function on(name, fn){ acts[name] = fn; }
+  function onInput(name, fn){ inputs[name] = fn; }
+  function frame(id, fn){ renderers.push({id: id, fn: fn}); }
+  function refresh(){
+    var a = document.activeElement, keep = null;
+    if (a && a.getAttribute && a.getAttribute('data-in')) {
+      var fr = a.closest('[data-frame]');
+      keep = {key: a.getAttribute('data-in'), id: a.getAttribute('data-id') || '', frame: fr ? fr.id : '', s: a.selectionStart, e: a.selectionEnd};
+    }
+    renderers.forEach(function(r){ var el = document.getElementById(r.id); if (el) el.innerHTML = r.fn(el.getAttribute('data-frame')); });
+    if (keep) {
+      var root = keep.frame ? document.getElementById(keep.frame) : document;
+      var sel = '[data-in="' + keep.key + '"]' + (keep.id ? '[data-id="' + keep.id + '"]' : '');
+      var el = root && root.querySelector(sel);
+      if (el) { el.focus(); try { if (keep.s != null) el.setSelectionRange(keep.s, keep.e); } catch (e) {} }
+    }
+  }
+  document.addEventListener('click', function(ev){
+    var el = ev.target.closest('[data-act]');
+    if (!el || el.disabled) return;
+    var fn = acts[el.getAttribute('data-act')];
+    if (fn) { ev.preventDefault(); fn(el, ev); refresh(); }
+  });
+  function handleInput(ev){
+    var el = ev.target.closest('[data-in]');
+    if (!el) return;
+    var fn = inputs[el.getAttribute('data-in')];
+    if (!fn) return;
+    if (ev.type === 'input' && (el.type === 'checkbox' || el.tagName === 'SELECT')) return;
+    if (ev.type === 'change' && el.type !== 'checkbox' && el.tagName !== 'SELECT') return;
+    fn(el.type === 'checkbox' ? el.checked : el.value, el, ev);
+    refresh();
+  }
+  document.addEventListener('input', handleInput);
+  document.addEventListener('change', handleInput);
+  on('view', function(el){
+    var st = document.querySelector('.stage'); var v = el.getAttribute('data-v'); view = v;
+    st.classList.toggle('only-desk', v === 'desk'); st.classList.toggle('only-phone', v === 'phone');
+    el.parentNode.querySelectorAll('button').forEach(function(b){ b.setAttribute('aria-pressed', String(b === el)); });
+  });
+  function seg(group, current, options, act){
+    return '<div class="seg" role="group" aria-label="' + esc(group) + '">' + options.map(function(o){
+      return '<button data-act="' + act + '" data-v="' + o[0] + '" aria-pressed="' + (o[0] === current) + '">' + esc(o[1]) + '</button>';
+    }).join('') + '</div>';
+  }
+  // Decision block: options to click, a summary to copy into the chat.
+  function questions(containerId, mockName, list){
+    var picks = {};
+    var box = document.getElementById(containerId);
+    function draw(){
+      var h = [];
+      list.forEach(function(q, qi){
+        h.push('<div class="q"><b class="t">' + (qi + 1) + '. ' + esc(q.t) + '</b><p class="why">' + q.why + '</p>');
+        q.opts.forEach(function(o){
+          var sel = picks[q.id] === o.v;
+          h.push('<label class="opt' + (sel ? ' sel' : '') + '"><input type="radio" name="' + q.id + '" data-q="' + q.id + '" value="' + o.v + '"' + (sel ? ' checked' : '') + '><span><b>' + o.v + '.</b> ' + esc(o.label) + (o.rec ? ' <span class="rec">Recommandé</span>' : '') + (o.detail ? '<small>' + o.detail + '</small>' : '') + '</span></label>');
+        });
+        h.push('</div>');
+      });
+      var lines = list.map(function(q, qi){
+        var o = q.opts.filter(function(x){ return x.v === picks[q.id]; })[0];
+        return mockName + ' · ' + (qi + 1) + '. ' + q.t + ' → ' + (o ? o.v + ' (' + o.label + ')' : 'non tranché');
+      });
+      h.push('<div class="summary"><p class="note">Les choix ci-dessus, à recopier dans la conversation :</p><textarea readonly aria-label="Résumé des choix">' + esc(lines.join('\n')) + '</textarea><div class="acts" style="justify-content:flex-start;margin-top:6px"><button class="ghost" id="copy-' + containerId + '">Copier</button><span class="note" id="copied-' + containerId + '"></span></div></div>');
+      box.innerHTML = h.join('');
+      document.getElementById('copy-' + containerId).onclick = function(){
+        var ta = box.querySelector('textarea'); ta.select();
+        var ok = false; try { ok = document.execCommand('copy'); } catch (e) {}
+        document.getElementById('copied-' + containerId).textContent = ok ? 'Copié.' : 'Sélectionné : copier au clavier.';
+      };
+    }
+    box.addEventListener('change', function(ev){ var r = ev.target; if (r.getAttribute('data-q')) { picks[r.getAttribute('data-q')] = r.value; draw(); } });
+    draw();
+  }
+  return {eur: eur, esc: esc, parseQty: parseQty, parseAmount: parseAmount, centsText: centsText, validEmail: validEmail,
+    vatOfGroup: vatOfGroup, allocate: allocate, on: on, onInput: onInput, frame: frame, refresh: refresh, seg: seg, questions: questions, getView: function(){ return view; },
+    viewSeg: function(){ return '<span class="ctl-label">Écran</span>' + seg('Largeur', view, [['both','Les deux'],['desk','Ordinateur'],['phone','Téléphone']], 'view'); }};
+})();
+
+(function(){
+  'use strict';
+  var eur = GF.eur, esc = GF.esc;
+  var CLASSES = {options: 'Options', resources: 'Ressources', drinks: 'Boissons', catering: 'Restauration'};
+  var KNOWN = {'client.connu@exemple.fr': 'Client #2041'};
+  var S, seq;
+  function fresh(){
+    seq = 0;
+    S = {screen: 'finance', online: true, dialog: false, sales: [],
+      rates: {options: 20, resources: 20, drinks: 20, catering: 10},
+      cat: {
+        beer: {label: 'Bière locale', price: 650, type: 'À l’unité', cls: 'drinks', sell: true, max: 24, stay: false},
+        lemon: {label: 'Limonade artisanale', price: 400, type: 'À l’unité', cls: 'drinks', sell: true, max: 24, stay: false},
+        board: {label: 'Planche apéritive', price: 1400, type: 'À l’unité', cls: 'catering', sell: true, max: 10, stay: false},
+        honey: {label: 'Miel du domaine (pot)', price: 900, type: 'À l’unité', cls: 'options', sell: false, max: 12, stay: false},
+        bfast: {label: 'Petit-déjeuner', price: 1200, type: 'Par personne et par nuit', cls: 'catering', sell: false, max: 10, stay: true}
+      },
+      edit: 'beer', draft: null, draftErr: null};
+    resetSale();
+  }
+  function resetSale(){
+    S.q = ''; S.lines = []; S.name = ''; S.email = ''; S.register = false; S.pay = 'now'; S.method = 'card'; S.amountText = ''; S.amountTouched = false; S.keepDue = false;
+    S.link = null; S.saved = null; S.tried = false; S.refusal = null;
+  }
+  fresh();
+
+  function lineTotal(l){ return l.offered ? 0 : l.qty * S.cat[l.ref].price; }
+  function total(){ return S.lines.reduce(function(s, l){ return s + (l.err ? 0 : lineTotal(l)); }, 0); }
+  function vatRows(){
+    var by = {};
+    S.lines.forEach(function(l){ if (l.err) return; var a = S.cat[l.ref], r = S.rates[a.cls]; by[r] = (by[r] || 0) + lineTotal(l); });
+    // one rounding per rate here (one class per rate in this example)
+    return Object.keys(by).map(Number).sort(function(a, b){ return a - b; }).map(function(r){ return {rate: r, vat: GF.vatOfGroup(by[r], r)}; }).filter(function(x){ return x.vat > 0; });
+  }
+  function emailState(){
+    var e = S.email.trim().toLowerCase();
+    if (!e) return {kind: 'none'};
+    if (!GF.validEmail(e)) return {kind: 'bad'};
+    if (KNOWN[e]) return {kind: 'match', label: KNOWN[e]};
+    return {kind: 'new'};
+  }
+  function payCheck(){
+    var d = total();
+    if (d <= 0) return {none: true};
+    var text = S.amountTouched ? S.amountText : GF.centsText(d), p = GF.parseAmount(text);
+    if (p.empty || p.bad || p.cents <= 0) return {text: text, error: 'Chaque moyen doit avoir un montant.'};
+    if (p.cents > d) return {text: text, error: 'Les moyens font ' + eur(p.cents) + ' pour ' + eur(d) + ' dus.'};
+    if (p.cents < d && !S.keepDue) return {text: text, short: true, error: eur(d - p.cents) + ' ne sont pas couverts : cocher « Reste à percevoir ».'};
+    return {text: text, cents: p.cents};
+  }
+  function blockers(){
+    var b = [];
+    if (!S.lines.length) b.push('Ajouter au moins un article.');
+    if (S.lines.some(function(l){ return l.err; })) b.push('Corriger les quantités.');
+    var es = emailState();
+    if (es.kind === 'bad') b.push('Adresse e-mail invalide.');
+    if (S.register && !S.name.trim()) b.push('Un nom pour enregistrer le client.');
+    if (S.pay === 'now') { var pc = payCheck(); if (pc.error) b.push(pc.error); }
+    if (S.pay === 'link' && !S.link) b.push('Créer le lien avant d’enregistrer.');
+    return b;
+  }
+
+  // ---------- Dialog ----------
+  function dialog(v){
+    var h = ['<div class="scrim"><div class="dlg" role="dialog" aria-label="Vente hors séjour"><div class="dlg-h"><span class="t">Vente hors séjour</span><button class="ib" data-act="close" aria-label="Fermer">✕</button></div><div class="dlg-b">'];
+    if (S.saved) {
+      var sv = S.saved;
+      h.push('<div class="alert ok" role="status">Vente n° ' + sv.id + ' enregistrée · ' + esc(sv.client) + '</div>');
+      sv.lines.forEach(function(l){ h.push('<div class="total-line"><span class="k">' + esc(l) + '</span></div>'); });
+      h.push('<div class="total-line big"><span class="k">Total</span><span class="amt">' + eur(sv.total) + '</span></div><div class="total-line"><span class="k">' + esc(sv.statusText) + '</span></div>');
+      h.push('</div><div class="dlg-f"><button class="btn" data-act="close">Fermer</button><button class="btn primary" data-act="again">Nouvelle vente</button></div></div></div>');
+      return h.join('');
+    }
+    // Articles
+    var list = Object.keys(S.cat).filter(function(k){ var a = S.cat[k]; return a.sell && !a.stay && (!S.q || a.label.toLowerCase().indexOf(S.q.toLowerCase()) >= 0); });
+    h.push('<div class="sec-h" style="margin-top:4px">Articles</div><label class="search"><span aria-hidden="true">⌕</span><input data-in="q" value="' + esc(S.q) + '" placeholder="Chercher un article" aria-label="Chercher un article"></label>');
+    h.push('<div class="picker">' + (list.length ? list.map(function(k){ return '<button data-act="add" data-ref="' + k + '">' + esc(S.cat[k].label) + '<b>' + eur(S.cat[k].price) + '</b></button>'; }).join('') : '<span class="note">Aucun article vendable hors séjour ne correspond.</span>') + '</div>');
+    if (S.lines.length) {
+      h.push('<div class="box">');
+      S.lines.forEach(function(l){
+        var a = S.cat[l.ref];
+        h.push('<div class="row"><div class="l"><div class="nm">' + esc(a.label) + '</div><div class="dt">' + (l.err ? '—' : l.qty + ' × ' + eur(a.price)) + ' · TVA ' + S.rates[a.cls] + ' %' + (l.offered ? ' · <span class="chip off">Offerte</span>' : '') + '</div></div><div class="acts">');
+        h.push('<div class="stepper' + (l.err ? ' bad' : '') + '" role="group" aria-label="Quantité"><button data-act="qty" data-id="' + l.id + '" data-d="-1" aria-label="Un de moins"' + (l.qty <= 1 && !l.err ? ' disabled' : '') + '>−</button><input inputmode="numeric" data-in="qty" data-id="' + l.id + '" value="' + esc(l.text) + '" aria-label="Quantité" aria-invalid="' + !!l.err + '"><button data-act="qty" data-id="' + l.id + '" data-d="1" aria-label="Un de plus"' + (l.qty >= a.max && !l.err ? ' disabled' : '') + '>+</button></div>');
+        h.push(l.offered ? '<span class="amt struck">' + eur(l.qty * a.price) + '</span>' : '<span class="amt">' + (l.err ? '—' : eur(lineTotal(l))) + '</span>');
+        h.push('<button class="btn offer" data-act="offer" data-id="' + l.id + '" aria-pressed="' + !!l.offered + '">' + (l.offered ? 'Offert' : 'Offrir') + '</button><button class="btn danger" data-act="rm" data-id="' + l.id + '">Retirer</button></div></div>');
+        if (l.err) h.push('<p class="refusal" role="alert">' + esc(l.err) + '</p>');
+      });
+      h.push('</div>');
+      h.push('<div style="margin-top:8px"><div class="total-line big"><span class="k">Total</span><span class="amt">' + eur(total()) + '</span></div>');
+      vatRows().forEach(function(r){ h.push('<div class="total-line"><span class="k">dont TVA ' + r.rate + ' % (client extérieur)</span><span class="amt">' + eur(r.vat) + '</span></div>'); });
+      h.push('</div>');
+    }
+    // Client
+    var es = emailState();
+    h.push('<div class="sec-h">Client <span class="note">facultatif</span></div><div class="grid-f">');
+    h.push('<label class="field' + (S.register && !S.name.trim() && S.tried ? ' bad' : '') + '"><span>Nom</span><input data-in="name" value="' + esc(S.name) + '" autocomplete="off"></label>');
+    h.push('<label class="field' + (es.kind === 'bad' ? ' bad' : '') + '"><span>E-mail</span><input type="email" data-in="email" value="' + esc(S.email) + '" autocomplete="off" aria-invalid="' + (es.kind === 'bad') + '"></label></div>');
+    if (es.kind === 'bad') h.push('<p class="refusal" role="alert">Adresse e-mail invalide.</p>');
+    if (es.kind === 'match') h.push('<div class="who"><span class="chip paid">' + esc(es.label) + '</span> Même e-mail qu’une fiche client : la vente y est rattachée.</div>');
+    else {
+      h.push('<div class="who"><span class="chip">Passage</span>' + (S.name.trim() || es.kind === 'new' ? 'Nom et e-mail gardés sur le reçu.' : 'Vente sans client nommé.') + '</div>');
+      if (es.kind !== 'bad') {
+        h.push('<label class="check"><input type="checkbox" data-in="register"' + (S.register ? ' checked' : '') + '> Enregistrer comme client</label>');
+        if (S.register && !S.name.trim()) h.push('<p class="refusal" role="alert">Un nom pour enregistrer le client.</p>');
+      }
+    }
+    // Payment
+    var pc = payCheck();
+    h.push('<div class="sec-h">Paiement</div>');
+    if (pc.none) h.push('<p class="note">' + (S.lines.length ? 'Tout est offert : rien à encaisser.' : 'Rien à encaisser.') + '</p>');
+    else {
+      var modes = [['now', 'Encaisser maintenant']];
+      if (S.online) modes.push(['link', 'Envoyer un lien']);
+      h.push('<div class="pills" role="group" aria-label="Paiement">' + modes.map(function(m){ return '<button data-act="pay" data-v="' + m[0] + '" aria-pressed="' + (S.pay === m[0]) + '">' + m[1] + '</button>'; }).join('') + '</div>');
+      if (S.pay === 'now') {
+        h.push('<div class="pills" role="group" aria-label="Moyen">' + [['card', 'Carte'], ['cash', 'Espèces'], ['check', 'Chèque'], ['internal', 'Caisse interne']].map(function(m){ return '<button data-act="method" data-v="' + m[0] + '" aria-pressed="' + (S.method === m[0]) + '">' + m[1] + '</button>'; }).join('') + '</div>');
+        h.push('<label class="field' + (pc.error ? ' bad' : '') + '"><span>Montant (€)</span><input inputmode="decimal" data-in="amount" value="' + esc(pc.text) + '" aria-invalid="' + !!pc.error + '"></label>');
+        if (pc.error) h.push('<p class="refusal" role="alert">' + esc(pc.error) + '</p>');
+        if (pc.short || S.keepDue) h.push('<label class="check"><input type="checkbox" data-in="keep"' + (S.keepDue ? ' checked' : '') + '> Reste à percevoir</label>');
+      } else {
+        var hasMail = es.kind === 'new' || es.kind === 'match';
+        h.push('<div class="linkbox">');
+        if (!S.link) {
+          h.push('<button class="btn" data-act="mint"' + (hasMail ? '' : ' disabled') + '>Créer le lien · ' + eur(total()) + '</button>');
+          if (!hasMail) h.push('<p class="refusal">Adresse e-mail requise.</p>');
+        } else {
+          h.push('<div class="note">Lien de ' + eur(S.link.amount) + ' · valable 36 h · jusqu’au 14/11 à 06:12</div><div class="url">https://pay.exemple.fr/l/' + S.link.code + '</div>');
+          if (S.link.amount !== total()) h.push('<div class="alert warn">La vente a changé : ce lien sera retiré et remplacé à l’enregistrement.</div>');
+          h.push('<div class="acts" style="justify-content:flex-start"><button class="btn" data-act="copy">Copier le lien</button><button class="btn" data-act="mail"' + (S.link.mailed ? ' disabled' : '') + '>' + (S.link.mailed ? 'E-mail envoyé' : 'Envoyer par e-mail') + '</button><button class="btn danger" data-act="unlink">Retirer le lien</button></div>');
+          if (S.link.copied) h.push('<p class="note">Lien copié.</p>');
+        }
+        h.push('</div>');
+      }
+    }
+    var b = blockers();
+    if (S.tried && b.length) h.push('<div class="alert err" role="alert">' + b.map(esc).join('<br>') + '</div>');
+    var cta = 'Enregistrer la vente' + (S.pay === 'now' && pc.cents ? ' · encaisser ' + eur(pc.cents) : '');
+    h.push('</div><div class="dlg-f"><button class="btn" data-act="close">Annuler</button><button class="btn primary" data-act="save"' + (S.tried && b.length ? ' disabled' : '') + '>' + cta + '</button></div></div></div>');
+    return h.join('');
+  }
+
+  function finance(v){
+    var h = ['<div class="app"' + (S.dialog && v === 'desk' ? ' style="min-height:880px"' : '') + '>'];
+    if (v === 'desk') h.push('<div class="appbar"><span class="dot">GF</span>GuestFlow</div>');
+    h.push('<div class="pab"><span class="t">Suivi financier</span><button class="ib ok" data-act="open" data-tip="Vente hors séjour" aria-label="Vente hors séjour">€+</button><button class="ib info" data-tip="Actualiser" aria-label="Actualiser">↻</button></div>');
+    h.push('<div class="content"><div class="skel-row"><div class="skel"></div><div class="skel"></div><div class="skel"></div></div>');
+    h.push('<div class="card"><div class="card-h"><span class="ttl">Ventes hors séjour · aujourd’hui</span><button class="btn" data-act="open">Vente hors séjour</button></div>');
+    if (!S.sales.length) h.push('<p class="note" style="margin:4px 0">Aucune vente aujourd’hui.</p>');
+    S.sales.forEach(function(s){ h.push('<div class="row"><div class="l"><div class="nm">Vente n° ' + s.id + ' · ' + esc(s.client) + '</div><div class="dt">' + esc(s.lines.join(' · ')) + '</div></div><div class="acts"><span class="chip ' + s.chip + '">' + esc(s.statusText) + '</span><span class="amt">' + eur(s.total) + '</span></div></div>'); });
+    h.push('</div><div class="skel" style="height:140px"></div></div>');
+    if (S.dialog) h.push(dialog(v));
+    h.push('</div>');
+    return h.join('');
+  }
+
+  function catalogue(v){
+    var d = S.draft || copy(S.cat[S.edit]), dirty = !!S.draft;
+    var h = ['<div class="app">'];
+    if (v === 'desk') h.push('<div class="appbar"><span class="dot">GF</span>GuestFlow</div>');
+    h.push('<div class="pab"><span class="t">Options · ' + esc(S.cat[S.edit].label) + '</span><button class="ib save" data-act="cat-save" aria-label="Enregistrer" data-tip="Enregistrer"' + (dirty && !S.draftErr ? '' : ' disabled style="opacity:.45"') + '>✓</button><button class="ib" data-act="cat-cancel" aria-label="Annuler" data-tip="Annuler"' + (dirty ? '' : ' disabled style="opacity:.45"') + '>↺</button></div><div class="content">');
+    h.push('<div class="pills" role="group" aria-label="Article">' + Object.keys(S.cat).map(function(k){ return '<button data-act="pick" data-v="' + k + '" aria-pressed="' + (S.edit === k) + '">' + esc(S.cat[k].label) + '</button>'; }).join('') + '</div>');
+    h.push('<div class="card"><div class="grid-f"><label class="field"><span>Nom</span><input value="' + esc(d.label) + '" readonly></label><label class="field"><span>Prix unitaire (EUR)</span><input value="' + GF.centsText(d.price) + '" readonly></label><label class="field"><span>Type de prix</span><input value="' + esc(d.type) + '" readonly></label><label class="field"><span>Catégorie</span><input value="Boutique" readonly></label></div>');
+    h.push('<div class="newsec"><div class="sec-h" style="margin-top:0">TVA et vente hors séjour</div><div class="grid-f">');
+    h.push('<label class="field"><span>Classe de TVA</span><select data-in="cls">' + Object.keys(CLASSES).map(function(c){ return '<option value="' + c + '"' + (d.cls === c ? ' selected' : '') + '>' + CLASSES[c] + '</option>'; }).join('') + '</select></label>');
+    var rt = S.rateText != null ? S.rateText : String(S.rates[d.cls]);
+    h.push('<label class="field' + (S.draftErr ? ' bad' : '') + '"><span>Taux client extérieur (%)</span><input inputmode="decimal" data-in="xrate" value="' + esc(rt) + '" aria-invalid="' + !!S.draftErr + '"></label></div>');
+    if (S.draftErr) h.push('<p class="refusal" role="alert">' + esc(S.draftErr) + '</p>');
+    h.push('<p class="help">Taux de toute la classe « ' + CLASSES[d.cls] + ' » pour une vente sans séjour. Le taux des séjours reste celui de Réglages → TVA (10 %).</p>');
+    h.push('<label class="switch"><input type="checkbox" role="switch" data-in="sell"' + (d.sell && !d.stay ? ' checked' : '') + (d.stay ? ' disabled' : '') + '> Vendable hors séjour</label>');
+    if (d.stay) h.push('<p class="help">Prix par personne et par nuit : lié à un séjour.</p>');
+    h.push('</div></div>');
+    if (S.catFlash) h.push('<div class="alert ok" role="status">' + esc(S.catFlash) + '</div>');
+    h.push('</div></div>');
+    return h.join('');
+  }
+  function copy(o){ return JSON.parse(JSON.stringify(o)); }
+  function screen(v){ return S.screen === 'finance' ? finance(v) : catalogue(v); }
+  function controls(){
+    return GF.viewSeg() + '<span class="ctl-label">Afficher</span>' + GF.seg('Afficher', S.screen, [['finance', 'Suivi financier et vente'], ['catalogue', 'Catalogue']], 'screen') +
+      '<span class="ctl-label">Paiement en ligne</span>' + GF.seg('En ligne', S.online ? '1' : '0', [['1', 'Connecté'], ['0', 'Non connecté']], 'online') +
+      '<span class="note">E-mail déjà connu, pour l’essai : client.connu@exemple.fr</span><button class="ghost" data-act="reset">Recommencer</button>';
+  }
+  function findLine(id){ for (var i = 0; i < S.lines.length; i++) if (S.lines[i].id === id) return S.lines[i]; return null; }
+  function setQty(l, n){ var max = S.cat[l.ref].max; l.text = String(n); if (n < 1 || n > max) { l.err = 'Quantité : 1 à ' + max + '.'; return; } l.qty = n; l.err = null; }
+
+  GF.frame('ctl', controls); GF.frame('f-desk', screen); GF.frame('f-phone', screen);
+  GF.on('screen', function(el){ S.screen = el.getAttribute('data-v'); });
+  GF.on('online', function(el){ S.online = el.getAttribute('data-v') === '1'; if (!S.online && S.pay === 'link') S.pay = 'now'; });
+  GF.on('reset', fresh);
+  GF.on('open', function(){ S.dialog = true; });
+  GF.on('close', function(){ S.dialog = false; resetSale(); });
+  GF.on('again', function(){ resetSale(); });
+  GF.onInput('q', function(v){ S.q = v; });
+  GF.on('add', function(el){
+    var ref = el.getAttribute('data-ref'), ex = S.lines.filter(function(l){ return l.ref === ref; })[0];
+    if (ex) { setQty(ex, (ex.err ? parseInt(ex.text, 10) || 0 : ex.qty) + 1); } else S.lines.push({id: 'l' + (++seq), ref: ref, qty: 1, text: '1', err: null, offered: false});
+    S.amountTouched = false;
+  });
+  GF.on('qty', function(el){ var l = findLine(el.getAttribute('data-id')); setQty(l, (l.err ? parseInt(l.text, 10) || 0 : l.qty) + Number(el.getAttribute('data-d'))); S.amountTouched = false; });
+  GF.onInput('qty', function(v, el){ var l = findLine(el.getAttribute('data-id')); l.text = v; var p = GF.parseQty(v, 1, S.cat[l.ref].max); if (p.error) { l.err = /^\d+$/.test(String(v).trim()) ? 'Quantité : 1 à ' + S.cat[l.ref].max + '.' : p.error; return; } l.err = null; l.qty = p.n; S.amountTouched = false; });
+  GF.on('offer', function(el){ var l = findLine(el.getAttribute('data-id')); l.offered = !l.offered; S.amountTouched = false; });
+  GF.on('rm', function(el){ S.lines = S.lines.filter(function(l){ return l.id !== el.getAttribute('data-id'); }); S.amountTouched = false; });
+  GF.onInput('name', function(v){ S.name = v; });
+  GF.onInput('email', function(v){ S.email = v; if (emailState().kind === 'match') S.register = false; });
+  GF.onInput('register', function(v){ S.register = v; });
+  GF.on('pay', function(el){ S.pay = el.getAttribute('data-v'); });
+  GF.on('method', function(el){ S.method = el.getAttribute('data-v'); });
+  GF.onInput('amount', function(v){ S.amountText = v; S.amountTouched = true; });
+  GF.onInput('keep', function(v){ S.keepDue = v; });
+  GF.on('mint', function(){ S.link = {amount: total(), code: 'v' + (1000 + seq) + 'x7q', mailed: false}; });
+  GF.on('copy', function(){ S.link.copied = true; });
+  GF.on('mail', function(){ S.link.mailed = true; });
+  GF.on('unlink', function(){ S.link = null; });
+  GF.on('save', function(){
+    S.tried = true; if (blockers().length) return;
+    var es = emailState(), pc = payCheck(), tot = total();
+    var client = es.kind === 'match' ? es.label : (S.register ? 'Nouveau client · ' + S.name.trim() : 'Passage' + (S.name.trim() ? ' · ' + S.name.trim() : ''));
+    var st, chip;
+    if (tot === 0) { st = 'Offerte'; chip = 'off'; }
+    else if (S.pay === 'link') { st = 'Lien de ' + eur(tot) + ' en attente'; chip = 'due'; }
+    else if (pc.cents < tot) { st = 'Reste ' + eur(tot - pc.cents); chip = 'due'; }
+    else { st = 'Payée'; chip = 'paid'; }
+    var sale = {id: 300 + S.sales.length + 1, client: client, total: tot, statusText: st, chip: chip,
+      lines: S.lines.map(function(l){ return S.cat[l.ref].label + ' × ' + l.qty + (l.offered ? ' (offerte)' : ''); })};
+    S.sales.unshift(sale); S.saved = sale;
+  });
+  // Catalogue editor
+  GF.on('pick', function(el){ S.edit = el.getAttribute('data-v'); S.draft = null; S.draftErr = null; S.rateText = null; S.catFlash = null; });
+  function draft(){ if (!S.draft) S.draft = copy(S.cat[S.edit]); S.catFlash = null; return S.draft; }
+  GF.onInput('cls', function(v){ draft().cls = v; S.rateText = null; S.draftErr = null; });
+  GF.onInput('xrate', function(v){ draft(); S.rateText = v; var t = String(v).trim().replace(',', '.'); S.draftErr = (!/^\d+(\.\d)?$/.test(t) || parseFloat(t) > 100) ? 'Taux : 0 à 100 %, une décimale au plus.' : null; });
+  GF.onInput('sell', function(v){ draft().sell = v; });
+  GF.on('cat-save', function(){
+    if (!S.draft || S.draftErr) return;
+    S.cat[S.edit] = S.draft; if (S.rateText != null) S.rates[S.draft.cls] = parseFloat(String(S.rateText).replace(',', '.'));
+    S.draft = null; S.rateText = null; S.catFlash = 'Enregistré.';
+  });
+  GF.on('cat-cancel', function(){ S.draft = null; S.rateText = null; S.draftErr = null; });
+  GF.refresh();
+
+  GF.questions('questions', 'M4', [
+    {id: 'where', t: 'Comment se présente le bouton dans Suivi financier ?', why: 'Q-C9 l’a placé dans Suivi financier, dans le cœur. Reste sa forme.',
+      opts: [
+        {v: 'A', label: 'Une icône « Vente hors séjour » dans la barre d’actions, plus un bouton texte dans la carte « Ventes hors séjour · aujourd’hui »', rec: true, detail: 'La barre suit la règle des icônes ; la carte rend le geste trouvable et montre les ventes du jour.'},
+        {v: 'B', label: 'L’icône dans la barre seulement', detail: 'Plus sobre, mais une icône seule se découvre mal.'}
+      ]},
+    {id: 'rate', t: 'Le taux du client extérieur : par classe ou par article ?', why: 'La refonte range les taux par classe (« Boissons ») et par client (séjour ou extérieur).',
+      opts: [
+        {v: 'A', label: 'Par classe, modifiable depuis n’importe quel article de la classe, avec la phrase « Taux de toute la classe »', rec: true, detail: 'Un seul taux par classe, comme la refonte le prévoit ; aucun article ne peut diverger.'},
+        {v: 'B', label: 'Par classe, mais modifiable seulement dans Réglages → TVA', detail: 'Plus sûr, mais il faut un écran de réglage de plus, hors du périmètre de la PR C.'}
+      ]},
+    {id: 'after', t: 'Après « Enregistrer la vente » ?', why: 'Au comptoir, plusieurs ventes peuvent s’enchaîner.',
+      opts: [
+        {v: 'A', label: 'La fenêtre affiche « Vente n° … enregistrée » avec « Nouvelle vente » et « Fermer »', rec: true},
+        {v: 'B', label: 'La fenêtre se ferme et un message bref confirme la vente'}
+      ]}
+  ]);
+})();
+</script>
+</body>
+</html>

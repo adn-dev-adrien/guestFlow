@@ -27,6 +27,8 @@ import SidePanel, { SidePanelSection } from '../../components/SidePanel';
 import LoadingState from '../../components/LoadingState';
 import ErrorAlert from '../../components/ErrorAlert';
 import OptionPropertyDefaultsMirror from '../../components/OptionPropertyDefaultsMirror';
+import ExternalSaleFields from '../../components/ExternalSaleFields';
+import useExternalVatRates from '../../hooks/useExternalVatRates';
 import { useToast } from '../../components/DialogProvider';
 import { Contribution } from '../../plugins/sdk/Slot';
 import { usePlugin } from '../../hooks/usePlugins';
@@ -83,6 +85,7 @@ export default function OptionEditorPanel({
   const setForm = (next) => { setServerErrors({}); setFormState(next); };
   const clientErrors = useMemo(() => (form ? validateOptionForm(form) : {}), [form]);
   const plugins = usePluginFields('options.fields', form);
+  const vatClasses = useExternalVatRates(open);
   const coreDirty = Boolean(form) && JSON.stringify(form) !== saved;
   const dirty = coreDirty || plugins.dirty;
   // A pristine form shows no error (a new option does not open on « Nom requis »): they appear once it is edited.
@@ -130,6 +133,7 @@ export default function OptionEditorPanel({
     { id: 'prices', label: 'Logements et prix', hasError: hasError('prices') },
     ...(!form.autoOptionType ? [{ id: 'planning', label: 'Planning' }] : []),
     { id: 'visibility', label: 'Visibilité' },
+    { id: 'external', label: 'Vente hors séjour', hasError: hasError('external') },
     ...(form.autoOptionType === 'breakfast' ? [{ id: 'breakfast', label: 'Petit-déjeuner' }] : []),
     ...(linenOn && (form.countsAsBedLinen || form.countsAsBathroomLinen) ? [{ id: 'linen', label: 'Linge' }] : []),
     ...(linenOn && form.countsAsBathMat ? [{ id: 'bathmat', label: 'Tapis de bain' }] : []),
@@ -244,6 +248,16 @@ export default function OptionEditorPanel({
             label="Visible du client"
           />
           {visibilityHelp() && <FormHelperText sx={{ mt: 0 }}>{visibilityHelp()}</FormHelperText>}
+        </SidePanelSection>
+
+        <SidePanelSection id="external" title="Vente hors séjour">
+          <ExternalSaleFields
+            value={form}
+            onChange={(patch) => setForm({ ...form, ...patch })}
+            classes={vatClasses}
+            defaultClass="options"
+            errors={errors}
+          />
         </SidePanelSection>
 
         {form.autoOptionType === 'breakfast' && (

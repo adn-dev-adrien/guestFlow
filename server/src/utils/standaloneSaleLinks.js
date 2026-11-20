@@ -1,0 +1,317 @@
+/**
+ * The payment link of a standalone sale's reste (the outside-visit spec rules 39-42; specs/pricing-components.md rules 53, 74, 86).
+ *
+ *   linkOf(saleId, { now })                       → `{ available, reason, email, open }`, what the screen shows (rule 39): `reason` is `PROVIDER_NOT_READY`, `NO_EMAIL`, `NOTHING_DUE` or null
+ *   draftLinkOf({ remainingCents, email })        → the same payload for a sale not written yet (an outside visit before its first write), `open: null`
+ *   mint(saleId, { email, now, deps })            → `{ status: 200, link: { id, url, amountCents, expiresAt, status, reused }, document } | { status, body }`   (rule 40)
+ *   withdraw(saleId, linkId, { now, deps })       → `{ status: 200, document } | { status, body }`   « Retirer le lien » (payment-link-lifecycle rule 42)
+ *   settlePaidLink({ database, link, paidDate, paidAt })  → the effect of a PAID link, called by the poll's `applyPaidEffect` (rule 41)
+ *   emailLink(saleId, linkId, { deps })           → `{ status: 200, sent, recipientEmail } | { status, body }`   the one e-mail, on the operator's click only (rule 42)
+ *
+ * The amount of a link is SETTLEMENT's `remainingCents` at that moment (rule 15), never a request's; at most one open link per document: asking again reuses an open
+ * link of the same amount that still has 24 hours to live, and replaces any other (rule 8 of the lifecycle). A link lives 36 hours (rule 6) and bills the document's VAT
+ * basket, one group per rate. It is a `complement` link with an explicit basket `{ source: 'standalone-sale', ref: <document> }` and `saleRef` (no stay).
+ * Nothing is e-mailed by minting; `emailLink` is the only sender and never runs by itself (`visit_payment_request` is stored manual, never an auto-send exception).
+ */
+const paymentProviders = require('./paymentProviders');
+const standaloneSale = require('./standaloneSale');
+const sales = require('../models/standaloneSalesModel');
+const { buildVatItems } = require('./paymentLinkItems');
+const { validityEnd, validityOf } = require('./paymentLinkLifecycle');
+const { retireOpenLink } = require('./paymentLinkDeactivation');
+const { withdrawPaymentLink } = require('./paymentLinkWithdrawal');
+const { LINK_REASONS } = require('../constants/paymentLinks');
+
+const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+const SOURCE = 'standalone-sale';
+const TEMPLATE_KEY = 'visit_payment_request';
+const LINK_TITLE = 'Règlement de votre passage';
+
+const refuse = (status, code, error) => ({ status, body: { error, code } });
+const model = () => require('../models/paymentLinksModel');
+const database = () => require('../database');
+
+function emailOf(sale) {
+  const typed = String(sale.customerEmail || '').trim();
+  if (typed) return typed;
+  const client = sale.clientId ? sales.clientById(sale.clientId) : null;
+  return client && !client.isPassage ? String(client.email || '').trim() : '';
+}
+
+// Why no link can be minted now, or null (rule 39): a provider first, then something to collect, then an address.
+function reasonOf({ remainingCents, email }) {
+  if (!paymentProviders.active()) return 'PROVIDER_NOT_READY';
+  if (remainingCents <= 0) return 'NOTHING_DUE';
+  if (!email) return 'NO_EMAIL';
+  return null;
+}
+
+/** The `paymentLink` payload of a sale not written yet (a visit whose document is born at its first write): the same reasons, no open link. */
+function draftLinkOf({ remainingCents = 0, email = '' } = {}) {
+  const typed = String(email || '').trim();
+  const reason = reasonOf({ remainingCents, email: typed });
+  return {
+    available: reason === null, reason, email: typed || null, open: null,
+  };
+}
+
+// Loop t1 UI-15 — the end of a link's validity as the operator reads it, in Europe/Paris whatever the browser's zone: « 16/11 à 14:30 ».
+function expiresLabelOf(iso) {
+  if (!iso) return null;
+  const date = new Date(/[zZ]|[+-]\d{2}:?\d{2}$/.test(String(iso)) || String(iso).includes('T') ? iso : `${String(iso).replace(' ', 'T')}Z`);
+  if (Number.isNaN(date.getTime())) return null;
+  const parts = new Intl.DateTimeFormat('fr-FR', {
+    timeZone: 'Europe/Paris', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23',
+  }).formatToParts(date);
+  const part = (type) => (parts.find((p) => p.type === type) || {}).value || '';
+  return `${part('day')}/${part('month')} à ${part('hour')}:${part('minute')}`;
+}
+
+function linkOf(saleId, { now = new Date() } = {}) {
+  const sale = sales.findSale(saleId);
+  const document = standaloneSale.documentOf(saleId);
+  if (!sale || !document) return null;
+  const links = model();
+  const open = links.findOpenForSale(sales.documentRef(saleId));
+  const email = emailOf(sale);
+  const reason = reasonOf({ remainingCents: sale.status === 'cancelled' ? 0 : document.totals.remainingCents, email });
+  return {
+    available: reason === null,
+    reason,
+    email: email || null,
+    open: open ? {
+      id: open.id, url: open.url, amountCents: open.amountCents, expiresAt: validityOf(open, now).expiresAt || open.expiresAt || null,
+      expiresLabel: expiresLabelOf(validityOf(open, now).expiresAt || open.expiresAt || null),
+    } : null,
+  };
+}
+
+// The VAT basket of the reste: what each unpaid line still asks, one `buildVatItems` per rate, so Qonto's total is exactly the reste.
+function basketOf(document) {
+  const byRate = new Map();
+  for (const line of document.lines) {
+    if (line.status !== 'due') continue;
+    const owed = line.totalCents - line.settledCents;
+    if (owed <= 0) continue;
+    const rate = Number(line.vatRate || 0);
+    if (!byRate.has(rate)) byRate.set(rate, []);
+    byRate.get(rate).push({ title: line.label, grossCents: owed, taxable: rate > 0 });
+  }
+  const items = [];
+  let expectedTotalCents = 0;
+  for (const [rate, components] of byRate) {
+    const built = buildVatItems({ components, vatRatePercent: rate });
+    items.push(...built.items);
+    expectedTotalCents += built.expectedTotalCents;
+  }
+  return { items, expectedTotalCents };
+}
+
+async function mint(saleId, { email = null, now = new Date(), deps = {} } = {}) {
+  const sale = sales.findSale(saleId);
+  if (!sale) return refuse(404, 'SALE_NOT_FOUND', 'Vente introuvable.');
+  if (sale.status === 'cancelled') return refuse(409, 'SALE_CANCELLED', 'Vente annulée.');
+  const provider = deps.provider || paymentProviders.active();
+  if (!provider) return refuse(409, 'PROVIDER_NOT_READY', 'Aucun moyen de paiement en ligne n’est connecté.');
+  const typed = String(email || '').trim();
+  if (typed && !EMAIL.test(typed)) return refuse(400, 'EMAIL_INVALID', 'Adresse e-mail invalide.');
+  if (typed && typed !== String(sale.customerEmail || '').trim()) sales.updateSale(saleId, { customerEmail: typed });
+  if (!typed && !emailOf(sale)) return refuse(409, 'NO_EMAIL', 'Adresse e-mail requise.');
+  const document = standaloneSale.documentOf(saleId);
+  const amountCents = document.totals.remainingCents;
+  if (amountCents <= 0) return refuse(409, 'NOTHING_DUE', 'Rien à encaisser.');
+
+  const links = deps.paymentLinksModel || model();
+  const ref = sales.documentRef(saleId);
+  const existing = links.findOpenForSale(ref);
+  if (existing && existing.url) {
+    const sameAmount = Number(existing.amountCents) === amountCents;
+    const validity = validityOf(existing, now);
+    if (sameAmount && validity.reusable) {
+      return { status: 200, link: { ...linkView(existing), reused: true }, document };
+    }
+    try {
+      await retireOpenLink(existing, {
+        paymentLinksModel: links, provider, now, reason: sameAmount ? LINK_REASONS.VALIDITY : LINK_REASONS.AMOUNT_CHANGED,
+      });
+    } catch (err) {
+      if (err && err.error === 'LINK_ALREADY_PAID') return refuse(409, 'LINK_ALREADY_PAID', 'Ce lien vient d’être payé : paiement enregistré.');
+      throw err;
+    }
+  }
+  const { items, expectedTotalCents } = basketOf(document);
+  const linkArgs = { title: LINK_TITLE, amountCents };
+  if (expectedTotalCents === amountCents && items.length) { linkArgs.items = items; linkArgs.expectedTotalCents = expectedTotalCents; }
+  const created = await provider.createLink(linkArgs, { origin: 'basket' });
+  const row = links.create({
+    reservationId: null,
+    type: 'complement',
+    amountCents,
+    provider: provider.id,
+    providerLinkId: created.id,
+    url: created.url,
+    status: created.status,
+    createdAt: now.toISOString().replace('T', ' ').slice(0, 19),
+    // The 36 hours of rule 6 run from the row's creation, whatever the provider answers about its own expiry.
+    expiresAt: validityEnd(now),
+    basket: { source: SOURCE, ref },
+    saleRef: ref,
+  });
+  return { status: 200, link: { ...linkView(row), reused: false }, document: standaloneSale.documentOf(saleId) };
+}
+
+const linkView = (row) => ({
+  id: row.id, url: row.url, amountCents: row.amountCents, expiresAt: row.expiresAt, expiresLabel: expiresLabelOf(row.expiresAt), status: row.status,
+});
+
+async function withdraw(saleId, linkId, { now = new Date(), deps = {} } = {}) {
+  const links = deps.paymentLinksModel || model();
+  const link = links.findById(Number(linkId));
+  if (!link || link.saleRef !== sales.documentRef(saleId)) return refuse(404, 'LINK_NOT_FOUND', 'Lien de paiement introuvable.');
+  try {
+    await withdrawPaymentLink(link.id, {
+      database: database(),
+      paymentLinksModel: links,
+      provider: deps.provider || paymentProviders.declared(),
+      now,
+      bookPaid: async () => {},
+    });
+  } catch (err) {
+    if (err && err.httpStatus) return refuse(err.httpStatus, err.error, err.message);
+    throw err;
+  }
+  return { status: 200, document: standaloneSale.documentOf(saleId) };
+}
+
+/**
+ * The paid effect of a link (rule 41): one payment (method `link`, source `payment-link:<id>`) and its allocations, in one transaction. The money is booked
+ * in full; what the document no longer asks (a line offered or removed meanwhile, a cancelled document) is a refund owed, and the admin is told.
+ */
+function settlePaidLink({ link, paidDate = null, paidAt = null }) {
+  const saleId = Number(String(link.saleRef || '').replace('standalone:', ''));
+  const sale = sales.findSale(saleId);
+  if (!sale) return { effect: 'no-reservation' };
+  const source = `payment-link:${link.id}`;
+  const already = database().prepare('SELECT 1 FROM standalone_sale_payments WHERE saleId = ? AND source = ?').get(saleId, source);
+  if (already) return { effect: 'already-processed' };
+  const cancelled = sale.status === 'cancelled';
+  // A durable obligation, not only a figure the document computes: the admin finds it on the document until the refund is made. It opens in the
+  // payment's transaction and follows the document from then on (loop t3 B3-1, rule 55).
+  const received = standaloneSale.receive(saleId, {
+    method: 'link',
+    amountCents: Number(link.amountCents),
+    paidAt: paidDate || (paidAt ? String(paidAt).slice(0, 10) : null),
+    source,
+    surplus: { paymentLinkId: link.id, reason: cancelled ? 'Lien payé après l’annulation de la vente' : 'Lien payé après un changement du reste' },
+  });
+  if (received.surplusCents > 0) {
+    return { effect: 'standalone-sale-refund-owed', saleId, surplusCents: received.surplusCents, cancelled };
+  }
+  return { effect: 'standalone-sale-settled', saleId };
+}
+
+const OBLIGATION_STATUSES = ['settled', 'cancelled'];
+
+/**
+ * Closes an open obligation of a document (outside-visit rule 41, end-review V-4): `settled` = the money went back (from the provider's space or by hand),
+ * `cancelled` = nothing was owed after all — the close action of the stay's « À rembourser » rows (pricing-components rule 75), for a sale. Only an
+ * open row closes (409 otherwise); the document's history says so, and the document stops claiming that money.
+ * Loop t1 B-1 (rule 49): a `lineLowered` row `settled` writes its refund allocations, the journal's avoir. Loop t1 B-6 (rule 50, owner 2026-11-16): a
+ * `linkSurplus` row `cancelled` is money kept, booked as a tip on the day it is closed (« 13,00 € gardés en pourboire »).
+ * Loop t3 B3-2 (rule 55): a `linkSurplus` row closed either way takes its money off the document's unallocated money — `settled` as a refund on no line,
+ * `cancelled` as a kept allocation — so it can never pay a line sold later.
+ * Loop t4 B4-1, B4-2 (owner 2026-11-16, rule 56 a): a `lineLowered` row closed « rien à rembourser » is a tip too — kept allocations on the lines its money
+ * leaves (« 13,00 € gardés en pourboire »), its line's revenue and VAT off the books that day.
+ */
+function closeObligation(saleId, obligationId, status, { actor = null } = {}) {
+  if (!OBLIGATION_STATUSES.includes(status)) return refuse(400, 'OBLIGATION_INVALID_STATUS', 'Statut invalide.');
+  if (!sales.findSale(saleId)) return refuse(404, 'SALE_NOT_FOUND', 'Vente introuvable.');
+  const row = sales.findObligation(saleId, obligationId);
+  if (!row) return refuse(404, 'OBLIGATION_NOT_FOUND', 'Remboursement à faire introuvable.');
+  if (row.status !== 'open') return refuse(409, 'OBLIGATION_ALREADY_CLOSED', 'Déjà clos.');
+  database().transaction(() => {
+    sales.closeObligation(row.id, { status, by: actor || 'operator' });
+    if (status === 'settled') standaloneSale.writeObligationRefund(saleId, row);
+    else standaloneSale.writeKept(saleId, row);
+    const { euros } = require('./paymentTenders');
+    sales.addHistory(saleId, status === 'settled' ? `${euros(row.amountCents)} remboursés` : `${euros(row.amountCents)} gardés en pourboire`, actor);
+  }).immediate();
+  return { status: 200, document: standaloneSale.documentOf(saleId) };
+}
+
+function recipientOf(sale) {
+  const client = sale.clientId ? sales.clientById(sale.clientId) : null;
+  const named = client && !client.isPassage ? client.firstName : '';
+  return { to: emailOf(sale), firstName: named || String(sale.customerName || '').trim().split(/\s+/)[0] || '' };
+}
+
+/**
+ * « Envoyer par e-mail » (rule 42): the template `visit_payment_request`, rendered in the client's language, sent once per call and logged in `email_log` with the
+ * document's `saleRef`; the document's history says « Lien envoyé à {e-mail} ». Never called by a cron, a queue or a mint.
+ */
+async function emailLink(saleId, linkId, { deps = {} } = {}) {
+  const sale = sales.findSale(saleId);
+  if (!sale) return refuse(404, 'SALE_NOT_FOUND', 'Vente introuvable.');
+  const links = deps.paymentLinksModel || model();
+  const link = links.findById(Number(linkId));
+  if (!link || link.saleRef !== sales.documentRef(saleId)) return refuse(404, 'LINK_NOT_FOUND', 'Lien de paiement introuvable.');
+  if (link.status !== 'open') return refuse(409, 'LINK_NOT_OPEN', 'Ce lien n’est plus ouvert.');
+  const { to, firstName } = recipientOf(sale);
+  if (!to) return refuse(409, 'NO_EMAIL', 'Adresse e-mail requise.');
+
+  const templatesModel = deps.templatesModel || require('../models/emailTemplatesModel');
+  const logModel = deps.logModel || require('../models/emailLogModel');
+  const settingsModel = deps.settingsModel || require('../models/settingsModel');
+  const emailServiceFactory = deps.emailServiceFactory || require('./emailService').createEmailService;
+  const template = templatesModel.findByStableKey(TEMPLATE_KEY);
+  if (!template || !template.enabled) return refuse(409, 'TEMPLATE_DISABLED', 'Le modèle de l’e-mail est désactivé.');
+
+  const { renderTemplate } = require('./emailTemplateRenderer');
+  const { normaliseLang, pickTemplateSide, englishMissing } = require('./emailTemplateLanguage');
+  const { emailAmount } = require('./emailMoney');
+  const { formatMomentLong } = require('./dateFr');
+  const { guestEmailMessage } = require('./guestEmailHtml');
+  const { resolveEmailIdentity } = require('./emailIdentity');
+
+  const client = sale.clientId ? sales.clientById(sale.clientId) : null;
+  const settings = settingsModel.read();
+  const lang = normaliseLang(client && client.emailLanguage);
+  const phone = String(settings.companyPhone || '');
+  const rendered = renderTemplate(
+    { subject: pickTemplateSide(template, lang).subject, body: pickTemplateSide(template, lang).body },
+    {
+      vars: {
+        clientFirstName: firstName,
+        paymentLink: link.url,
+        paymentAmount: emailAmount(Number(link.amountCents) / 100, lang),
+        paymentLinkValidUntil: formatMomentLong(link.expiresAt, lang),
+        companyPhone: phone,
+        senderName: resolveEmailIdentity(settings).fromName,
+      },
+      flags: { hasPaymentLink: true, hasPaymentLinkValidUntil: Boolean(formatMomentLong(link.expiresAt, lang)), hasCompanyPhone: phone.trim().length > 0 },
+    },
+  );
+  const entry = {
+    templateId: template.id, reservationId: null, saleRef: link.saleRef, renderedSubject: rendered.subject, renderedBody: rendered.body, recipientEmail: to,
+  };
+  if (englishMissing(template, lang)) {
+    logModel.insert({ ...entry, status: 'failed', errorMessage: 'ENGLISH_VERSION_MISSING' });
+    return refuse(409, 'ENGLISH_VERSION_MISSING', 'Version anglaise du modèle manquante.');
+  }
+  try {
+    const svc = emailServiceFactory(settingsModel.decryptedSmtpSettings());
+    await svc.send(guestEmailMessage({ to, subject: rendered.subject, text: rendered.body, settings, lang }));
+  } catch (err) {
+    const message = err && err.code === 'EMAIL_NOT_CONFIGURED' ? 'EMAIL_NOT_CONFIGURED' : String((err && err.message) || 'unknown');
+    logModel.insert({ ...entry, status: 'failed', errorMessage: message });
+    return refuse(502, message, 'L’e-mail n’a pas pu partir.');
+  }
+  logModel.insert({ ...entry, status: 'sent', channel: 'smtp', errorMessage: '' });
+  sales.addHistory(saleId, `Lien envoyé à ${to}`);
+  return { status: 200, sent: true, recipientEmail: to };
+}
+
+module.exports = {
+  expiresLabelOf,
+  linkOf, draftLinkOf, mint, withdraw, settlePaidLink, closeObligation, emailLink, basketOf, SOURCE, TEMPLATE_KEY,
+};

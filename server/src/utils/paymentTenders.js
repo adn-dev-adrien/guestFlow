@@ -26,16 +26,10 @@ const SHORTFALL_KINDS = new Set(['due', 'waived']);
 
 const methodLabel = (value) => (METHODS.find((m) => m.value === value) || { label: String(value) }).label;
 
-const euros = (cents) => `${(Math.round(Number(cents) || 0) / 100).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`;
+const eurosText = (cents) => `${(Math.round(Number(cents) || 0) / 100).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`;
 
 // Only a number or a numeric string is an amount: an object whose `toString` is not a function would throw.
-function toCents(value) {
-  if (typeof value !== 'number' && typeof value !== 'string') return null;
-  if (value === '') return null;
-  const n = Number(value);
-  if (!Number.isFinite(n)) return null;
-  return Math.round(n);
-}
+const { parseIntegerCents: toCents } = require('./pricing/money');
 
 /**
  * Rules 4-9, 15 — validates the typed lines against what the target owes.
@@ -73,12 +67,12 @@ function validateSettlement({ tenders, dueCents, shortfall = null }) {
   }
   const receivedCents = lines.reduce((s, l) => s + l.amountCents, 0);
   // Rule 6 — over the due: refused, the form keeps the lines.
-  if (receivedCents > due) return refuse(`Les moyens font ${euros(receivedCents)} pour ${euros(due)} dus.`);
+  if (receivedCents > due) return refuse(`Les moyens font ${eurosText(receivedCents)} pour ${eurosText(due)} dus.`);
   const shortfallCents = due - receivedCents;
   if (shortfallCents === 0) return { ok: true, lines, receivedCents, shortfallCents: 0, shortfallKind: null };
   // Rule 15 — under the due: never silently.
   const kind = shortfall && typeof shortfall === 'object' && SHORTFALL_KINDS.has(shortfall.kind) ? shortfall.kind : null;
-  if (!kind) return refuse(`${euros(shortfallCents)} ne sont pas couverts : reste à percevoir ou geste commercial ?`, 'shortfall');
+  if (!kind) return refuse(`${eurosText(shortfallCents)} ne sont pas couverts : reste à percevoir ou geste commercial ?`, 'shortfall');
   return { ok: true, lines, receivedCents, shortfallCents, shortfallKind: kind };
 }
 
@@ -255,14 +249,14 @@ function bucketSharesOf(settlements, row = null) {
 // « Espèces 50,00 € (caisse interne) · CB 72,00 € » — the history wording (rules 14, 24).
 function linesText(tenders) {
   return (tenders || [])
-    .map((t) => `${methodLabel(t.method)} ${euros(t.amountCents)}${Number(t.internal) === 1 || t.internal === true ? ' (caisse interne)' : ''}`)
+    .map((t) => `${methodLabel(t.method)} ${eurosText(t.amountCents)}${Number(t.internal) === 1 || t.internal === true ? ' (caisse interne)' : ''}`)
     .join(' · ');
 }
 
 function shortfallText(settlement) {
   const cents = Number(settlement.shortfallCents) || 0;
   if (!cents) return '';
-  return settlement.shortfallKind === 'waived' ? ` · geste commercial ${euros(cents)}` : ` · reste à percevoir ${euros(cents)}`;
+  return settlement.shortfallKind === 'waived' ? ` · geste commercial ${eurosText(cents)}` : ` · reste à percevoir ${eurosText(cents)}`;
 }
 
 function settlementText(settlement) {
@@ -273,7 +267,7 @@ const frDate = (iso) => String(iso || '').slice(0, 10).split('-').reverse().join
 
 module.exports = {
   METHODS, BANK_METHODS, MAX_LINES, toCents,
-  methodLabel, euros, frDate,
+  methodLabel, euros: eurosText, frDate,
   validateSettlement, parseParts, settlementFigures, currentCentsOf, targetFigures, reservationAggregates, bucketSharesOf,
   linesText, settlementText,
 };

@@ -3,7 +3,7 @@
  *
  * Groups the « Options » and « Ressources » catalogs under one menu entry, plus the tabs plugins
  * contribute through the `optionsResources.tabs` slot (`{ key, value, label, order, Component }`) —
- * the SAS plugin's « Facturables au SAS » (specs/settings-rationalization.md rule 2,
+ * the core « Proposés à l'arrivée » (specs/outside-booking-sas.md rule 37), the SAS plugin's « Facturables au SAS » (specs/settings-rationalization.md rule 2,
  * specs/plugins-phase-2-hosts.md rule 8). The tabs are handed to the active child, which passes them
  * to its `PageActionBar`: centred in the bar on sm+, second row of the same sticky block on xs
  * (specs/ds-tabs.md rule 2). The tab lives in `?tab=` so the old `/parametres/tarifs` link lands on
@@ -19,12 +19,14 @@ import PageTabs from '../components/PageTabs';
 import PageBarFallback from '../components/PageBarFallback';
 import OptionsPage from './OptionsPage';
 import ResourcesPage from './ResourcesPage';
+import SettingsSuggestedArticlesSection from './settings/SettingsSuggestedArticlesSection';
 import { useSlot } from '../plugins/sdk/useSlot';
 import { Contribution } from '../plugins/sdk/Slot';
 
 const CORE_ITEMS = [
   { value: 'options', label: 'Options' },
   { value: 'resources', label: 'Ressources' },
+  { value: 'suggested', label: 'Proposés à l’arrivée' },
 ];
 
 export default function OptionsResourcesPage() {
@@ -48,6 +50,7 @@ export default function OptionsResourcesPage() {
     <Box>
       {tab === 'options' && <OptionsPage barTabs={barTabs} />}
       {tab === 'resources' && <ResourcesPage barTabs={barTabs} />}
+      {tab === 'suggested' && <SettingsSuggestedArticlesSection barTabs={barTabs} />}
       {Contributed && <Contribution pluginId={active.pluginId} fallback={<PageBarFallback title={active.label} tabs={barTabs} withSave />}><Contributed barTabs={barTabs} /></Contribution>}
     </Box>
   );

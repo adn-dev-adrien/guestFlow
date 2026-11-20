@@ -56,7 +56,7 @@ test('a switch from today: the next reservation prints the mention, the old one 
   await summaryOf(page, fresh.id);
   await expect(page.getByTestId('vat-mention').first()).toHaveText(MENTION);
   await summaryOf(page, old.id);
-  await expect(page.getByText('TVA 10%').first()).toBeVisible();
+  await expect(page.getByText('TVA 10 %').first()).toBeVisible();
   await expect(page.getByTestId('vat-mention')).toHaveCount(0);
 });
 
@@ -75,7 +75,7 @@ test('the way back as a correction: acknowledgement first, then the reservation 
   await expect(page.getByLabel('Taux de TVA (%)')).toHaveValue('10');
 
   await summaryOf(page, ids.fresh);
-  await expect(page.getByText('TVA 10%').first()).toBeVisible();
+  await expect(page.getByText('TVA 10 %').first()).toBeVisible();
   await expect(page.getByTestId('vat-mention')).toHaveCount(0);
 });
 

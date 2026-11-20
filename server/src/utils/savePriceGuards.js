@@ -14,7 +14,7 @@
 const { formatEuros } = require('./reservationLedger');
 const { extraLineKey } = require('./midStayExtras');
 
-const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
+const { roundMoneyOrZero: round2 } = require('./pricing/money');
 const flag = (v) => Number(v || 0) === 1;
 
 const UNLOCKED_PRICE_CODE = 'UNLOCKED_PRICE_CHANGED';

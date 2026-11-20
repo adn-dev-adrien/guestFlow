@@ -22,6 +22,7 @@ const SCHEMA = fs.readFileSync(path.join(__dirname, '..', 'schema.sql'), 'utf8')
 function seed() {
   const db = new Database(':memory:');
   db.exec(SCHEMA);
+  require('../utils/pricingLinesMigration').runPricingLinesMigration(db);
   db.prepare("INSERT INTO properties (id, name) VALUES (1, 'Gîte')").run();
   db.prepare("INSERT INTO clients (id, firstName, lastName) VALUES (1, 'Jean', 'Dupont')").run();
   const id = Number(db.prepare(`INSERT INTO reservations (kind, propertyId, clientId, startDate, endDate, adults, finalPrice, complementAmount)
@@ -142,6 +143,9 @@ test('rule 36: money the plugin cannot honour is flagged « à rembourser » on 
     registry.reset();
   }
   assert.equal(JSON.parse(links.findById(link.id).basketJson).refundOwed, true);
+  // specs/pricing-components.md rule 75 — the register holds the same money, once, with its reason.
+  const owed = db.prepare("SELECT origin, amountCents, status, paymentLinkId, reason FROM refund_obligations WHERE reservationId = ?").all(id);
+  assert.deepEqual(owed, [{ origin: 'basket', amountCents: 4200, status: 'open', paymentLinkId: link.id, reason: 'créneau plus libre' }]);
   const history = db.prepare('SELECT changedFields FROM reservation_history WHERE reservationId = ?').all(id).flatMap((r) => JSON.parse(r.changedFields));
   assert.ok(history.some((c) => c.field === 'refundOwed' && c.to.includes('créneau plus libre')));
   assert.deepEqual([refundRow().label, refundRow().amount, refundRow().stateLabel], ['Paiement en ligne à rembourser', 42, 'À rembourser'], 'no owner declared: the core’s neutral words');

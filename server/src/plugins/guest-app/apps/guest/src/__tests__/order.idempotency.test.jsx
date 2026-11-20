@@ -6,7 +6,7 @@ import userEvent from '@testing-library/user-event';
 import {
   afterEach, describe, expect, it, vi,
 } from 'vitest';
-import { OFFLINE, baseRoutes, renderApp, stubApi } from './guestFixtures';
+import { OFFLINE, baseRoutes, renderApp, stubApi, SHOP } from './guestFixtures';
 import { useOrderStatus } from '../hooks/useOrderStatus';
 
 vi.mock('../hooks/useOrderStatus', () => ({ useOrderStatus: vi.fn() }));
@@ -23,7 +23,7 @@ describe('an order is created once (§4.3 Idempotency-Key)', () => {
   it('the order sent again after a network failure carries the same key', async () => {
     seedCart([{ kind: 'option', id: 11, quantity: 2 }]);
     let tries = 0;
-    const { fetchStub } = stubApi(baseRoutes({
+    const { fetchStub } = stubApi(baseRoutes({ 'GET /shop': { ...SHOP, canPayCard: false },
       'POST /orders/quote': QUOTE,
       'POST /orders': () => { tries += 1; return tries === 1 ? OFFLINE : { orderId: 7, status: 'confirmed' }; },
       'GET /orders/7': { id: 7, lines: [], totalLabel: '9 €', payment: 'note', status: 'confirmed', statusLabel: 'Sur votre note' },
@@ -44,7 +44,7 @@ describe('an order is created once (§4.3 Idempotency-Key)', () => {
   it('the first send still being written (ORDER_IN_PROGRESS) keeps the key: the next tap is the same order', async () => {
     seedCart([{ kind: 'option', id: 11, quantity: 2 }]);
     let tries = 0;
-    const { fetchStub } = stubApi(baseRoutes({
+    const { fetchStub } = stubApi(baseRoutes({ 'GET /shop': { ...SHOP, canPayCard: false },
       'POST /orders/quote': QUOTE,
       'POST /orders': () => { tries += 1; return { status: 409, error: { code: 'ORDER_IN_PROGRESS', message: 'Cette commande est en cours d’enregistrement.' } }; },
     }));
@@ -61,7 +61,7 @@ describe('an order is created once (§4.3 Idempotency-Key)', () => {
   it('an order refused for a reason other than the network gets a new key next time', async () => {
     seedCart([{ kind: 'option', id: 11, quantity: 2 }]);
     let tries = 0;
-    const { fetchStub } = stubApi(baseRoutes({
+    const { fetchStub } = stubApi(baseRoutes({ 'GET /shop': { ...SHOP, canPayCard: false },
       'POST /orders/quote': QUOTE,
       'POST /orders': () => { tries += 1; return { status: 409, error: { code: 'SHOP_CLOSED', message: 'La boutique est fermée.' } }; },
     }));
@@ -85,7 +85,7 @@ describe('an unpaid card order (rules 33, 35)', () => {
     const assign = vi.fn();
     vi.stubGlobal('location', { ...window.location, assign });
     useOrderStatus.mockReturnValue({ order: { ...ORDER, paymentUrl: 'https://pay.example.test/l/abc' }, error: null, polling: false, stalled: false, recheck: vi.fn() });
-    stubApi(baseRoutes());
+    stubApi(baseRoutes({ 'GET /shop': { ...SHOP, canPayCard: false } }));
     renderApp('/commandes/42');
     await userEvent.setup().click(await screen.findByRole('button', { name: 'Reprendre le paiement' }));
     expect(assign).toHaveBeenCalledWith('https://pay.example.test/l/abc');
@@ -93,7 +93,7 @@ describe('an unpaid card order (rules 33, 35)', () => {
 
   it('without a live link there is nothing to resume', async () => {
     useOrderStatus.mockReturnValue({ order: ORDER, error: null, polling: false, stalled: false, recheck: vi.fn() });
-    stubApi(baseRoutes());
+    stubApi(baseRoutes({ 'GET /shop': { ...SHOP, canPayCard: false } }));
     renderApp('/commandes/42');
     await screen.findByRole('button', { name: 'Abandonner et revenir au panier' });
     expect(screen.queryByRole('button', { name: 'Reprendre le paiement' })).toBeNull();

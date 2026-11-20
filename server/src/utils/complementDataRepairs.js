@@ -7,11 +7,14 @@
  *    réglé en fin de séjour » flow left behind. Idempotent (a filter).
  * 2. specs/frozen-complement-trusts-client.md — reduce a collected arrival complement that absorbed a
  *    later mid-stay sale. ONE-SHOT: it subtracts, so the caller guards it with the `migrations` table.
+ * 3. specs/arrival-moment-is-the-check-in.md rule 3 — clear the arrival-extras baselines of stays the stay clock has not started
+ *    (`clearPreArrivalBaselines`). Idempotent (a filter); runs on every boot.
  */
 
 const { GHOST_SOURCE, dropBathLinenGhost } = require('./bathLinenGhostLine');
 const { repairFrozenComplement } = require('./frozenComplementRepair');
 const { MID_STAY_SOURCE, resolveMidStaySplit, storedMidStayLines } = require('./midStayExtras');
+const { notDepartureCharge, syncDepartureChargeLines } = require('./departureChargeLines');
 
 // Same shape `midStayExtras` keys lines by. Unlike reservationsModel.readExtraLines (which only feeds
 // the baseline, i.e. keys + totals) this one MUST carry `inComplement`: that flag is what makes a
@@ -28,7 +31,7 @@ function readExtraLines(db, reservationId) {
         resourceId: Number(r.resourceId), totalPrice: Number(r.totalPrice || 0),
         offered: Number(r.offered || 0), inComplement: Number(r.inComplement || 0),
       })),
-    ...db.prepare('SELECT description, amount, offered, COALESCE(inComplement, 0) inComplement FROM reservation_custom_options WHERE reservationId = ?').all(reservationId)
+    ...db.prepare(`SELECT description, amount, offered, COALESCE(inComplement, 0) inComplement FROM reservation_custom_options WHERE reservationId = ?${notDepartureCharge(db)}`).all(reservationId)
       .map((c) => ({
         isCustom: true,
         title: c.description,
@@ -53,6 +56,8 @@ function repairBathLinenGhosts(db) {
     }
     db.prepare("UPDATE reservations SET endOfStayComplementAmount = ?, endOfStayComplementDetail = ?, updatedAt = datetime('now') WHERE id = ?")
       .run(cleaned.amount, cleaned.detail.length ? JSON.stringify(cleaned.detail) : null, row.id);
+    // Rule 90.2: a stay holding departure lines keeps them in step with the detail written.
+    syncDepartureChargeLines(db, row.id, cleaned.detail);
     repaired.push(row.id);
   }
   return repaired;
@@ -89,4 +94,53 @@ function repairFrozenComplements(db) {
   return repaired;
 }
 
-module.exports = { repairBathLinenGhosts, repairFrozenComplements };
+// specs/arrival-moment-is-the-check-in.md rule 3, as amended by pricing-components rules 102 and 103 b (loop t4, D4-2, 2026-11-16).
+// A baseline pinned before any arrival (master-era: by the mere arrival DATE) is stale: the stay is still pre-arrival, so an extra added to it
+// belongs to the arrival complement, and with the baseline in place it was billed at check-out instead. Rule 102 now lays a baseline on a
+// save once the stay clock has started (the check-in hour passed, nothing ticked): that one is the stay's own, and clearing it at a restart
+// sent the departure part of a grown line out of every bucket. So only a stay the clock has NOT started at `now` loses its baseline, and
+// never one that carved a line out to the departure (a line stamped `collectAt = 'departure'`, rule 103 b) — that baseline is the line's
+// bucket. Money-safe by construction: a stay that collected anything, ticked or committed its arrival SAS is excluded.
+// Loop t5 D5-2 — nor one whose arrival complement is overridden: the third reason `unmarkArrival` keeps a false start (S4-2), so a restart
+// never undoes what the untick kept. Loop t5 D5-3 — a stay whose stored dates the clock cannot read keeps its baseline (logged): the boot
+// never fails on one row.
+function clearPreArrivalBaselines(db, { now = new Date() } = {}) {
+  const stamped = ['reservation_options', 'reservation_resources', 'reservation_custom_options']
+    .filter((table) => db.prepare(`PRAGMA table_info(${table})`).all().some((c) => c.name === 'collectAt'));
+  const keepsDepartureLines = stamped
+    .map((table) => `AND NOT EXISTS (SELECT 1 FROM ${table} l WHERE l.reservationId = reservations.id AND l.collectAt = 'departure')`)
+    .join('\n      ');
+  const overridden = db.prepare('PRAGMA table_info(reservations)').all().some((c) => c.name === 'complementAmountOverride')
+    ? 'AND complementAmountOverride IS NULL' : '';
+  const candidates = db.prepare(`
+    SELECT id FROM reservations
+    WHERE arrivalExtrasBaseline IS NOT NULL
+      AND COALESCE(checkInDone, 0) = 0
+      AND arrivalSasDoneAt IS NULL
+      AND COALESCE(complementPaid, 0) = 0
+      AND COALESCE(complementPaidCash, 0) = 0
+      AND COALESCE(endOfStayComplementPaid, 0) = 0
+      AND COALESCE(endOfStayComplementPaidCash, 0) = 0
+      AND COALESCE(midStaySettledNotes, '') IN ('', '[]')
+      ${overridden}
+      ${keepsDepartureLines}
+  `).all().map((row) => Number(row.id));
+  if (!candidates.length) return [];
+  const clock = require('../models/stayClockModel').create(db);
+  const clear = db.prepare('UPDATE reservations SET arrivalExtrasBaseline = NULL WHERE id = ?');
+  const cleared = candidates.filter((id) => {
+    try {
+      const phase = clock.phaseForReservation(id, now);
+      return phase && !phase.started;
+    } catch (err) {
+      if (err.code !== 'STAY_CLOCK_INVALID') throw err;
+      // eslint-disable-next-line no-console
+      console.warn(`[arrival-baseline-repair] reservation ${id}: unreadable stay dates, baseline kept (${err.message})`);
+      return false;
+    }
+  });
+  db.transaction(() => cleared.forEach((id) => clear.run(id)))();
+  return cleared;
+}
+
+module.exports = { repairBathLinenGhosts, repairFrozenComplements, clearPreArrivalBaselines };

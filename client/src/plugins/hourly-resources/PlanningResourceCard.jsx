@@ -11,7 +11,6 @@ import HomeWorkIcon from '@mui/icons-material/HomeWork';
 import PersonIcon from '@mui/icons-material/Person';
 import EuroIcon from '@mui/icons-material/Euro';
 import { api, OptionDayCard, useToast, formatCurrency } from '../sdk';
-import { localIsoDate } from './localDate';
 
 // « pour demain 09:00 » / « 22:00 → pour demain 06:00 » — the « démarrer » card says what it prepares
 // (specs/resource-ignition-task.md §3 rule 5). A night-time ignition carries no hour of its own: the
@@ -37,6 +36,10 @@ const softChip = (status) => (t) => ({
   '& .MuiChip-icon': { color: 'inherit' },
 });
 
+// specs/outside-booking-sas.md rule 22 — the chip reads the server's `cardState` (« À encaisser », « Reste 13,00 € », « Payé », « Absent »).
+const CARD_TONES = { paid: 'success', toCollect: 'error', remaining: 'warning', absent: 'info' };
+const showsTotal = (state) => state === 'paid' || state === 'toCollect';
+
 // Calendrier › Ressources, on this booking's week, with its editor open (amendment 2026-11-13).
 const resourceBookingPath = (booking) => `/resource-planning?${new URLSearchParams({
   booking: String(booking.id), resource: String(booking.resourceId), date: booking.date,
@@ -46,9 +49,10 @@ function BookingCard({ booking, openable }) {
   const navigate = useNavigate();
   const open = () => navigate(resourceBookingPath(booking));
   const turnover = Number(booking.turnoverMinutes || 0);
-  // specs/resource-booking-pricing-and-invoicing.md rule 28 — a guest with no stay arrives from his card, on his day.
-  const canArrive = booking.external === true && !booking.arrived && booking.date === localIsoDate();
-  const tone = booking.paid ? 'success' : 'info';
+  // specs/resource-booking-pricing-and-invoicing.md rule 28 — a guest with no stay arrives from his card, on his day: the server's `actions.arrive` (loop t2 UI2-7).
+  const canArrive = Boolean(booking.actions && booking.actions.arrive);
+  const { cardState } = booking;
+  const tone = cardState && cardState.state === 'paid' ? 'success' : 'info';
   return (
     <Card
       variant="outlined"
@@ -102,13 +106,13 @@ function BookingCard({ booking, openable }) {
             <Typography variant="body1" sx={{ fontWeight: 600 }}>{booking.displayName}</Typography>
             {booking.clientPhone && <Typography variant="body2" color="text.secondary">· {booking.clientPhone}</Typography>}
           </Box>
-          {(booking.paid || booking.external === true) && (
+          {cardState && (
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mt: 1, flexWrap: 'wrap' }}>
-              <EuroIcon sx={{ fontSize: 16, color: booking.paid ? 'success.main' : 'error.main', flexShrink: 0 }} />
+              <EuroIcon sx={{ fontSize: 16, color: `${CARD_TONES[cardState.state]}.main`, flexShrink: 0 }} />
               <Chip
-                label={`${booking.paid ? 'Payé' : 'À encaisser'}${Number(booking.totalPrice) > 0 ? ` : ${formatCurrency(booking.totalPrice)}` : ''}`}
+                label={`${cardState.label}${showsTotal(cardState.state) && Number(booking.totalPrice) > 0 ? ` : ${formatCurrency(booking.totalPrice)}` : ''}`}
                 size="small"
-                sx={[softChip(booking.paid ? 'success' : 'error'), { height: 22, fontSize: 12, fontWeight: 700 }]}
+                sx={[softChip(CARD_TONES[cardState.state]), { height: 22, fontSize: 12, fontWeight: 700 }]}
               />
             </Box>
           )}
@@ -137,7 +141,7 @@ export default function PlanningResourceCard({ entry, reload, onOpenReservation 
     setDone(nextDone);
     try {
       await api.setPlanningResourceCardDone({
-        reservationId: item.reservationId, resourceId: item.resourceId, date: item.date, start: item.start, done: nextDone, kind: item.kind,
+        reservationId: item.reservationId, resourceId: item.resourceId, lineId: item.lineId ?? undefined, date: item.date, start: item.start, done: nextDone, kind: item.kind,
       });
       reload();
     } catch (e) {

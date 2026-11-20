@@ -10,6 +10,7 @@ const eventBus = require('./eventBus');
 const { EVENTS, PLUGIN_EMITTABLE } = eventBus;
 const coreServices = require('./coreServices');
 const articles = require('../../utils/pricing/articles');
+const articleFulfilment = require('../../utils/pricing/articleFulfilment');
 
 const METHODS = new Set(['get', 'post', 'put', 'patch', 'delete']);
 const PROVIDER_MEMBERS = ['id', 'label', 'errorCode', 'isReady', 'createLink', 'getPayment', 'getLinkStatus', 'cancelLink'];
@@ -17,6 +18,7 @@ const PROCESSOR_MEMBERS = ['id', 'isReady', 'priceSync', 'priceLive'];
 const CONTRIBUTOR_MEMBERS = ['id', 'priceTypes', 'priceLine'];
 const SAS_COMMIT_MEMBERS = ['step', 'validate', 'complementItems', 'write'];
 const SCHEDULER_MEMBERS = ['slotsForStay', 'validateSessions'];
+const SLOT_AVAILABILITY_MEMBERS = ['slots', 'validate'];
 const HOME_DATA_MEMBERS = ['channel', 'catalog', 'readings', 'series', 'queueCommand', 'command', 'confirmed'];
 const ISSUER_MEMBERS = ['id', 'isReady', 'issue', 'findCardBatch', 'attach', 'invoiceStatus'];
 const PUSH_CHANNEL_KEY = /^[a-z][a-z0-9-]{0,39}$/;
@@ -133,7 +135,7 @@ function createContext(id, { db, settingsModel, dataDir = null } = {}) {
       });
       record.priceLineContributor = contributor;
     },
-    // SDK 2.27.0 (specs/pricing-components.md rules 5, 47) — a pricing family for the Articles head:
+    // SDK 2.30.0 (specs/pricing-components.md rules 5, 47; plugins-phase-1-sdk rule 54) — a pricing family for the Articles head:
     // `{ id, configSchema, validate(config, request, ctx), price(config, request, ctx), describe(config, line) }`.
     // `ctx.priceLineContributor` stays as the alias of the hourly one. A family id is declared once
     // (DUPLICATE_FAMILY); it prices only while this plugin is live (FAMILY_UNAVAILABLE otherwise).
@@ -143,7 +145,8 @@ function createContext(id, { db, settingsModel, dataDir = null } = {}) {
     },
     // SDK 2.26.0 (specs/guest-app.md rules 28-31) — the slots of an hourly resource for a stay, read from the
     // resource planning by the plugin that owns it: `slotsForStay(args)` → `{ days }` | null and
-    // `validateSessions(args)` → `{ results }` | null. One per instance; the core hands it out as
+    // `validateSessions(args)` → `{ results }` | null, and optionally `orderSupplement(args)` → the evening supplement of sessions an order
+    // places on hours the stay already holds (guest-app rule 82). One per instance; the core hands it out as
     // `ctx.core.resourceScheduler()`, so a plugin never requires another.
     resourceScheduler(provider) {
       SCHEDULER_MEMBERS.forEach((m) => {
@@ -152,6 +155,23 @@ function createContext(id, { db, settingsModel, dataDir = null } = {}) {
       const other = registry.all().find((r) => r.id !== id && r.resourceScheduler);
       if (other) throw new Error(`${prefix} a resource scheduler is already declared by ${other.id}`);
       record.resourceScheduler = provider;
+    },
+    // SDK 2.30.0 (specs/pricing-components.md rule 49) — the downstream booking an article names (`fulfilment: 'hourly-slot'`):
+    // `{ reserve(draft, ctx), confirm(hold, line, tx), release(hold, reason) }`. A fulfilment id is declared once (DUPLICATE_FULFILMENT);
+    // it is asked only while this plugin is live.
+    articleFulfilment(fulfilmentId, adapter) {
+      articleFulfilment.register(fulfilmentId, adapter, { owner: id, isLive: () => registry.isLive(id) });
+      record.articleFulfilments.push(fulfilmentId);
+    },
+    // SDK 2.30.0 (specs/pricing-components.md rule 48) — the SlotAvailabilityProvider: `slots(resourceId, range)` and
+    // `validate(sessions)`, one per instance, handed out as `ctx.core.slotAvailability()`.
+    slotAvailability(provider) {
+      SLOT_AVAILABILITY_MEMBERS.forEach((m) => {
+        if (provider == null || typeof provider[m] !== 'function') throw new Error(`${prefix} slot availability lacks "${m}"`);
+      });
+      const other = registry.all().find((r) => r.id !== id && r.slotAvailability);
+      if (other) throw new Error(`${prefix} a slot availability provider is already declared by ${other.id}`);
+      record.slotAvailability = provider;
     },
     // SDK 2.26.0 (specs/guest-app.md rule 35) — ({ resourceId, from, to }) → [{ date, start, end, reservationId? }]:
     // slots a plugin holds on a resource before they reach the planning (an order awaiting payment). Read by
@@ -195,6 +215,18 @@ function createContext(id, { db, settingsModel, dataDir = null } = {}) {
       const other = registry.all().find((r) => r.id !== id && r.invoiceIssuer);
       if (other) throw new Error(`${prefix} an invoice issuer is already declared by ${other.id}`);
       record.invoiceIssuer = issuer;
+    },
+    // `{ kind, label, list }` — a kind of sale context the generic « Proposés à l'arrivée » lists are kept for (the outside-visit spec rule 37, SDK 2.32.0): `kind` names it
+    // (`resource`), `label` heads it in Réglages → Articles, `list() → [{ id, label }]` says which contexts of that kind exist now. `property` is the core's own kind. While the
+    // plugin is off its kind disappears from the settings page and from `suggestedArticles.resolve`; the stored lists stay.
+    suggestionContexts({ kind, label, list } = {}) {
+      if (!/^[a-z][a-zA-Z0-9-]{0,39}$/.test(String(kind || ''))) throw new Error(`${prefix} a suggestion context needs a kind like "resource"`);
+      if (kind === 'property') throw new Error(`${prefix} the "property" suggestion context is the core's`);
+      if (typeof label !== 'string' || !label.trim()) throw new Error(`${prefix} suggestion context "${kind}" needs a label`);
+      if (typeof list !== 'function') throw new Error(`${prefix} suggestion context "${kind}" needs a list function`);
+      const other = registry.all().find((r) => r.id !== id && (r.suggestionContexts || []).some((c) => c.kind === kind));
+      if (other) throw new Error(`${prefix} the suggestion context "${kind}" is already declared by ${other.id}`);
+      record.suggestionContexts.push({ kind, label, list });
     },
     // ({ from, to }) → [sale] — what the plugin sold outside any stay, for the journal and the card batch
     // (specs/resource-booking-pricing-and-invoicing.md rules 20-21). Synchronous, reads the plugin's own tables.

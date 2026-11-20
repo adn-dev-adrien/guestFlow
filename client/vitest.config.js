@@ -20,7 +20,9 @@ export default defineConfig({
     globals: true,
     // Loads `@testing-library/jest-dom` matchers (toBeInTheDocument, etc.) so the
     // existing tests don't need an `import '@testing-library/jest-dom'` at the top.
-    setupFiles: ['./src/setupTests.js'],
+    // specs/plugins-phase-1-sdk.md rule 54 (loop t22 A22-1), specs/server-test-isolation.md rule 23 — the SDK sale blocks' code
+    // arrives late in every suite, as in the browser.
+    setupFiles: ['./src/setupTests.js', './src/setupLateSaleChunks.js'],
     // specs/server-test-isolation.md rule 17 — one budget for every test on a loaded runner, instead of Vitest's 5 s
     // default and per-file overrides; `setupTests.js` gives Testing Library's waits their share of it.
     testTimeout: 30000,

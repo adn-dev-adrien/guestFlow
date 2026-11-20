@@ -1,10 +1,13 @@
 /**
  * VAT settings (specs/pricing-components.md §3 rules 50, 51, 61): one rate per (vatClass, customerContext), read through
  * SettingsProvider.for('vat', scope). A rate left `null` follows the regime's rate (PR A: every `hosted` rate is the
- * regime's, an `external` rate has no value until PR B moves the hourly resources' standalone rate here). The regime
+ * regime's; an `external` rate is the one set for its class in the catalogue (`vat_external_rates`), the resources' being the hourly
+ * resources' standalone rate until the operator sets one). The regime
  * itself stays outside the provider: it belongs to the sale's period (`vatRegimeModel.forRow`).
  */
-const VAT_CLASSES = ['accommodation', 'options', 'resources', 'outOfScope'];
+const VAT_CLASSES = ['accommodation', 'options', 'resources', 'drinks', 'catering', 'outOfScope'];
+// The classes an article of the catalogue may carry (owner Q-C11); `accommodation` and `outOfScope` are the stay's own.
+const ARTICLE_VAT_CLASSES = ['options', 'resources', 'drinks', 'catering'];
 const CUSTOMER_CONTEXTS = ['hosted', 'external'];
 
 const rateKey = (vatClass, customerContext) => `vat.rate.${vatClass}.${customerContext}`;
@@ -19,4 +22,6 @@ const settingsSchema = [
   }))),
 ];
 
-module.exports = { settingsSchema, rateKey, VAT_CLASSES, CUSTOMER_CONTEXTS };
+module.exports = {
+  settingsSchema, rateKey, VAT_CLASSES, ARTICLE_VAT_CLASSES, CUSTOMER_CONTEXTS,
+};

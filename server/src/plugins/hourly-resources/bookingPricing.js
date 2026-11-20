@@ -9,15 +9,14 @@
  */
 
 const sdk = require('../sdk');
-const { priceSessions, priceRange, toMinutes } = require('./hourlyPricing');
+const { priceSessions, bookingDeductions, toMinutes } = require('./hourlyPricing');
 
-const { netFirst } = sdk.coreModule('vat');
+const { splitTtc } = sdk.coreModule('vat');
 
 const OFFER_STEP_MINUTES = 15;
 
-const round2 = (value) => Math.round((Number(value) || 0) * 100) / 100;
-const hhmm = (min) => `${String(Math.floor(min / 60)).padStart(2, '0')}:${String(min % 60).padStart(2, '0')}`;
-const euros = (value) => `${round2(value).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`;
+const { roundMoneyOrZero: round2 } = sdk.coreModule('money');
+const eurosText = (value) => `${round2(value).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`;
 
 function duration(minutes) {
   if (minutes < 60) return `${minutes} min`;
@@ -42,7 +41,7 @@ function offeredRefusal(offeredMinutes, { durationMinutes, freeMinutesApplied, p
 function vatOf(total, vat) {
   if (!vat || vat.rate === null || vat.rate === undefined) return null;
   const rate = Number(vat.rate);
-  const { amount, net } = netFirst(total, rate);
+  const { vat: amount, net } = splitTtc(total, rate);
   return { rate, amount, net };
 }
 
@@ -55,8 +54,9 @@ function vatOf(total, vat) {
  * @param {boolean} p.external       no lodging reservation → the external rate pair (rule 6)
  * @param {number} [p.offeredMinutes] already validated by `offeredRefusal`
  * @param {{ rate: number|null }|null} [p.vat] the rate that applies, `rate: null` when the instance has no VAT
+ * @param {boolean} [p.freeHourAtDayRate] false for a booking stored before the one hourly grid: its free hour keeps the band it fell in
  */
-function priceBookingLines({ resource, startTime, endTime, override = null, external, offeredMinutes = 0, vat = null }) {
+function priceBookingLines({ resource, startTime, endTime, override = null, external, offeredMinutes = 0, vat = null, freeHourAtDayRate = true }) {
   const start = toMinutes(startTime);
   const end = toMinutes(endTime);
   const durationMinutes = Math.max(0, end - start);
@@ -75,7 +75,7 @@ function priceBookingLines({ resource, startTime, endTime, override = null, exte
     const lines = priced.bands.map((b) => ({
       key: `band:${b.band}:${b.from}`,
       label: `${BAND_LABELS[b.band] || b.band} · ${b.from}–${b.to}`,
-      detail: `${duration(b.minutes)} × ${euros(b.rate)}`,
+      detail: `${duration(b.minutes)} × ${eurosText(b.rate)}`,
       amount: b.amount,
     }));
     if (priced.freeMinutesApplied > 0) {
@@ -105,9 +105,7 @@ function priceBookingLines({ resource, startTime, endTime, override = null, exte
     const cfg = { dayRate, eveningRate, eveningStart: resource.hourlyEveningStart, slotMinutes: resource.slotDuration };
     const priced = priceSessions([{ date: '2000-01-01', start: startTime, end: endTime }], cfg, 0);
     if (priced.validSessions.length) {
-      const freeValue = freeApplied > 0 ? priceRange(hhmm(start), hhmm(start + freeApplied), cfg) : 0;
-      const offeredFrom = start + freeApplied;
-      const offeredValue = offeredApplied > 0 ? priceRange(hhmm(offeredFrom), hhmm(offeredFrom + offeredApplied), cfg) : 0;
+      const { freeValue, offeredValue } = bookingDeductions({ start, freeApplied, offeredApplied, freeAtDayRate: freeHourAtDayRate }, cfg);
       return finish({
         pricing: 'banded',
         rateGrid: external ? 'external' : 'guest',
@@ -116,8 +114,8 @@ function priceBookingLines({ resource, startTime, endTime, override = null, exte
         billedMinutes: durationMinutes - freeApplied - offeredApplied,
         grossTotal: priced.grossPrice,
         bands: priced.bands,
-        freeValue: round2(freeValue),
-        offeredValue: round2(offeredValue),
+        freeValue,
+        offeredValue,
       });
     }
     // off-grid range → the flat computation below.

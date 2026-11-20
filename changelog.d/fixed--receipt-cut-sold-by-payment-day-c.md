@@ -1,0 +1,1 @@
+- **Accounting — a receipt keeps the VAT cut of its month** (`specs/pricing-components.md` rules 61-63). On a stay booked from 4.2.0, a receipt is split over the lines sold by its payment day; a line sold later on the same stay no longer re-splits the receipts of a month already declared.

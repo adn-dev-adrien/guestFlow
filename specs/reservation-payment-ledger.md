@@ -868,12 +868,13 @@ tariff would fire on every platform stay (the brut is grossed up by the commissi
     the two SAS read theirs with `Boolean()`, so `stayPaid: "false"` booked the solde and `cautionReturned: "false"`
     returned the caution. Every tick of the arrival SAS (`cautionReceived`, `stayPaid`, `stayPaidCash`,
     `complementSettled`, `complementPaidCash`, `arrivalPaymentSplit`, `cleaningAdded`, `bathLinenAdded`,
-    `cleaningOffered`, `bathLinenOffered`, `extinguisherSealOkAtArrival`, the `offered` of `linenItems` /
+    `extinguisherSealOkAtArrival`, the `offered` of `linenItems` /
     `keptLines`) and of the departure SAS (`cautionReturned`, `complementsSettled`, `complementsPaidCash`,
     `cleaningCharged`, `cleaningOffered`, `extinguisherSealOkAtDeparture`, the `offered` of `missingItems` /
     `storedLines` / `extinguisherCharges`) is absent or one of those four, else 400 `INVALID_PAYMENT_FLAG`
     « Valeur invalide. » with its `field` (`<list>.offered` for a line), on the preview and the commit, before anything
-    is planned or written; `1` / `0` read as `true` / `false`. A reception session is held to it after its silent drop of
+    is planned or written; `1` / `0` read as `true` / `false`. _(2026-11-15, pricing-components rule 14: the arrival upsells'
+    « Offrir » is no longer a tick but a ref of the one `offered` list — `cleaningOffered` / `bathLinenOffered` left the arrival ticks.)_ A reception session is held to it after its silent drop of
     the stay settlement (collect-stay-payment-at-check-in rule 25): a `stayPaid` it sends is still dropped, not judged.
     The neighbouring payment writes already read their inputs strictly (single arrival payment: a `mode` text;
     installments and refunds: method, tenders, date; `/arrival`: `invoice === true`). Tests:
@@ -955,7 +956,7 @@ tariff would fire on every platform stay (the brut is grossed up by the commissi
 | `components/` | `reservation/PaymentMarkForm.jsx` | C | Specific: the inline mark form (date, « Caisse interne » on complements, « Virement reçu » + gap + commission button on a payout) (rules 8-9, 26). |
 | `components/` | `reservation/PlatformStatementEditor.jsx` | C | Specific: the statement fields of a payout row, a draft until « Valider » (rule 25). |
 | `components/` | `reservation/RefundDialog.jsx` | — | Unchanged: « Créer le remboursement » opens it in its trop-perçu mode on the gap (rule 19). |
-| `pages/` | `ReservationPage.jsx` | T | Holds `ledger` from the fiche and the live quote; `markFromLedger` saves first when the fiche is dirty or carries a transfer (rule 10); `checkLedgerEdit` re-sends the last quote body with `ledgerEdit`; `applyLedgerPatch` applies `formPatch` and remembers the edit for the history; stops sending the caution columns. |
+| `pages/` | `ReservationPage.jsx` | T | Holds `ledger` from the fiche and the live quote; `markFromLedger` saves first when the fiche is dirty or carries a transfer (rule 10); `checkLedgerEdit` builds the fiche's quote body when sent (`buildFicheQuoteBody`, pricing-components rule 94 reading loop t17 UI17-1) with `ledgerEdit`; `applyLedgerPatch` applies `formPatch` and remembers the edit for the history; stops sending the caution columns. |
 | `api.js` | `api.js` | T | `sendPaymentRequestOfType` (« Renvoyer la demande », rule 28); `markPayment` / `calculatePrice` carry `expectedAmountCents` / `ledgerEdit` in their bodies. |
 | `__tests__/` | `LedgerList.rendering.test.jsx`, `LedgerAmountEditor.refusals.test.jsx`, `FinanceSection.ledger.test.jsx` (+ `ledgerFixtures.jsx`) | C | One file per subject; the existing FinanceSection suites were moved onto the ledger rows. |
 | `components/` · `pages/` | `LedgerList.jsx` · `FinancePage.jsx` | T | Rule 68: an action sent `disabled` is drawn closed with its `reason` as a caption; « Tout solder » sends the row's `settleAllFields`. Test `LedgerList.end-of-stay-after-checkout.test.jsx`. |

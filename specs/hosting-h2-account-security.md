@@ -994,7 +994,9 @@ Implemented 2026-10-08 on `feature/hosting-h2-account-security` (target `inte/pl
   `SupportSessionBar.support-bar` (2), `roles.support-access` (2); the role suites give their admin
   `supportAccessEnabled`. Console client: `SupportAccessSection.support-access` (3).
 - **E2E:** `e2e/specs/account-security/hosting-h2.spec.js` (3), through the dev outbox and a TEST-ONLY
-  key pair (`e2e/fixtures/accountSecurity.js`).
+  key pair (`e2e/fixtures/accountSecurity.js`). _2026-11-16 (pricing-components loop t3):_ the support flow (rules 12-16) moved to
+  `account-security/support-access.spec.js`, a Playwright project of its own: its request is a banner of the whole app
+  (`specs/e2e-playwright-smoke-suite.md` rule 20).
 - **Browser check** on a copy of the dev database at 1280 px and 390 px: forgotten password through
   the outbox, refusal of a short password, TOTP enrolment (wrong code refused), backup codes, login
   with a computed code, trusted device, backup code at login, lock after 5 codes, banner, support

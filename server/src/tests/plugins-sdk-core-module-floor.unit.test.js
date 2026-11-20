@@ -62,9 +62,9 @@ test('every plugin calls only core modules and names that exist at the floor of 
   assert.deepEqual(late, []);
 });
 
-test('the audit case: accounting-export reaches installmentPlan, so it declares SDK 2.5 at least', { skip: skipWithout(['accounting-export']) }, () => {
-  assert.match(pluginSources('accounting-export'), /coreModule\('installmentPlan'\)/);
-  assert.ok(semver.gte(semver.minVersion(readSourceManifest('accounting-export').sdk), '2.5.0'));
+test('the audit case: accounting-export reaches paymentSettlementsModel (SDK 2.24.0), so it declares SDK 2.24 at least', { skip: skipWithout(['accounting-export']) }, () => {
+  assert.match(pluginSources('accounting-export'), /coreModule\('paymentSettlementsModel'\)/);
+  assert.ok(semver.gte(semver.minVersion(readSourceManifest('accounting-export').sdk), '2.24.0'));
 });
 
 // specs/plugins-phase-1-sdk.md rule 37 — `coreModule('stayDates')` ships with SDK 2.20.0, hands the stay's own guard
@@ -79,4 +79,12 @@ test('rule 37: stayDates is an SDK 2.20.0 module; accounting-export, linen, onli
   const consumers = PLUGIN_IDS.filter((id) => /coreModule\('stayDates'\)/.test(pluginSources(id))).sort();
   assert.deepEqual(consumers, ['accounting-export', 'guest-app', 'hourly-resources', 'linen', 'online-payment', 'school-holidays'].filter((id) => PLUGIN_IDS.includes(id)));
   consumers.forEach((id) => assert.ok(semver.gte(semver.minVersion(readSourceManifest(id).sdk), '2.20.0'), id));
+});
+
+// specs/plugins-phase-1-sdk.md rule 57 — the arrival SAS's re-open seed is a contract name of SDK 2.32.0, and sas ranges that floor.
+test('rule 57: reservationsModel#buildArrivalSeed is an SDK 2.32.0 name; sas reads it and declares ^2.32.0 at least', { skip: skipWithout(['sas']) }, () => {
+  assert.ok(CONTRACT.reservationsModel.includes('buildArrivalSeed'));
+  assert.deepEqual(namesSince.filter((n) => n.name === 'buildArrivalSeed'), [{ module: 'reservationsModel', name: 'buildArrivalSeed', version: '2.32.0' }]);
+  assert.match(pluginSources('sas'), /reservationsModel\.buildArrivalSeed\(/);
+  assert.ok(semver.gte(semver.minVersion(readSourceManifest('sas').sdk), '2.32.0'));
 });

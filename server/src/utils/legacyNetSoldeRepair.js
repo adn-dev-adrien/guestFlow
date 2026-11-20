@@ -22,7 +22,7 @@
  */
 
 const TOLERANCE = 0.02;
-const round2 = (value) => Math.round((Number(value) || 0) * 100) / 100;
+const { roundMoneyOrZero: round2 } = require('./pricing/money');
 const nz = (value) => Number(value || 0);
 
 /**

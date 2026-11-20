@@ -6,6 +6,7 @@
 
 const { todayIso: localTodayIso } = require('./localDate');
 const { bookingDayOf } = require('./vatRegime');
+const { vatByRateOf, vatByRateOfSingleRate } = require('./vatRecap');
 const { computeValidUntil } = require('./devisValidity');
 const path = require("path");
 const fs = require("fs");
@@ -16,8 +17,11 @@ const {
 } = require("./devisHelpers");
 const { labels } = require("./devisPdfLabels");
 const { isDirectChannel } = require("./platformNameFormat");
+const { netFirst } = require("./pricing/vat");
+const { unitFromTotal } = require("./pricing/touristTax");
 const { readableLogo } = require("./logoImage");
 const { DEFAULT_RATE: DEFAULT_VAT_RATE } = require("../models/vatRegimeModel");
+const { roundMoneyStrict } = require('./pricing/money');
 
 // specs/ui-review-2026-10-19-operations.md rule 17 — the « Maison » tokens of client/src/theme.js:
 // fir green, ink, warm paper, honey and the success soft fill. No navy left.
@@ -145,7 +149,7 @@ function printable(value) {
 // into the next row.
 function formatQuantity(qty, language) {
   if (typeof qty !== 'number' || !Number.isFinite(qty)) return String(qty == null ? '' : qty);
-  const text = String(Math.round(qty * 100) / 100);
+  const text = String(roundMoneyStrict(qty));
   return language === 'en' ? text : text.replace('.', ',');
 }
 
@@ -607,7 +611,7 @@ function renderDevisPdf(storedFull, storedSettings, quote, logoBytes) {
 
     if (showOriginal) {
       const originalHt = rate > 0
-        ? roundMoney(originalTtc / (1 + (rate / 100)))
+        ? netFirst(originalTtc, rate).net
         : roundMoney(originalTtc);
       if (!notSubject) drawStruckAmount(formatCurrency(originalHt), COL_HT, PAGE_W * 0.16 - RIGHT_PAD, lineY);
       drawStruckAmount(formatCurrency(originalTtc), COL_TOTAL, PAGE_W * 0.14 - RIGHT_PAD, lineY);
@@ -855,7 +859,13 @@ function renderDevisPdf(storedFull, storedSettings, quote, logoBytes) {
     totY += 16;
   }
 
-  if (!notSubject) drawTotalLine(L.subtotalHt, subtotalHt, false);
+  // Rule 65 — the VAT is cut once: « Sous-total HT » is the base total of the « Récapitulatif TVA » below it, never the sum of rows rounded one by one
+  // (that sum can differ from the recap by a cent).
+  const recapRows = notSubject ? [] : (quote && quoteReconciles
+    ? vatByRateOf(quote)
+    : vatByRateOfSingleRate({ regime: full.vatRegime, rate: vatRate, net: subtotalHt, vat: roundMoney(subtotalTtc - subtotalHt) }));
+  const recapBaseTotal = roundMoney(recapRows.reduce((total, row) => total + row.base, 0));
+  if (!notSubject) drawTotalLine(L.subtotalHt, recapRows.length > 0 ? recapBaseTotal : subtotalHt, false);
   drawTotalLine(notSubject ? L.subtotal : L.subtotalTtc, subtotalTtc, false);
   if (liveTaxTotal > 0) {
     drawTotalLine(L.touristTax, liveTaxTotal, false);
@@ -873,7 +883,7 @@ function renderDevisPdf(storedFull, storedSettings, quote, logoBytes) {
       // fixed-amount + department tax + capping into a single coherent number.
       const taxUnitAmount = engineBreakdown
         ? Number(quote.touristTaxUnitAmount || 0)
-        : roundMoney(liveTaxTotal / (taxablePersons * taxNights));
+        : roundMoney(unitFromTotal(liveTaxTotal, taxNights, taxablePersons));
       const taxDetail = L.touristTaxBreakdown(taxablePersons, taxNights, formatCurrency(taxUnitAmount));
       doc.fontSize(8).fillColor(TEXT_LIGHT).font(F.italic)
         .text(taxDetail, TOTAL_RX, totY - 4, { width: TOTAL_LW - RIGHT_PAD, align: 'right' });
@@ -894,6 +904,36 @@ function renderDevisPdf(storedFull, storedSettings, quote, logoBytes) {
     totY += doc.heightOfString(legalMention, { width: mentionWidth }) + 4;
   }
   totY = Math.max(totY, bankBottomY);
+
+  // specs/pricing-components.md §3 rule 15 — « Récapitulatif TVA »: one row per rate, the same template for one rate or several.
+  // A « Sans TVA » stay prints none: its legal mention above is the whole VAT statement.
+  if (!notSubject) {
+    if (recapRows.length > 0) {
+      const RECAP_W = PAGE_W * 0.7;
+      const cols = [0, 0.16, 0.46, 0.73].map((f) => LEFT + RECAP_W * f);
+      const colW = [0.16, 0.30, 0.27, 0.27].map((f) => RECAP_W * f);
+      const touristTaxNote = liveTaxTotal > 0;
+      totY = checkBreak(totY + 6, 40 + recapRows.length * 14 + (touristTaxNote ? 14 : 0));
+      doc.fontSize(9).fillColor(TEXT_DARK).font(F.bold).text(L.vatRecapHeading, LEFT, totY);
+      totY += 14;
+      const drawRecapRow = (cells, bold, border) => {
+        doc.fontSize(8.5).fillColor(bold ? TEXT_DARK : TEXT_LIGHT).font(bold ? F.bold : F.regular);
+        cells.forEach((cell, i) => doc.text(cell, cols[i] + 3, totY, { width: colW[i] - RIGHT_PAD, align: i === 0 ? 'left' : 'right' }));
+        totY += 13;
+        if (border) doc.moveTo(LEFT, totY - 2).lineTo(LEFT + RECAP_W, totY - 2).strokeColor(MID_GRAY).lineWidth(0.5).stroke();
+      };
+      drawRecapRow([L.vatRecapRate, L.vatRecapBase, L.vatRecapVat, L.vatRecapTtc], true, true);
+      for (const row of recapRows) {
+        drawRecapRow([`${String(row.rate).replace('.', ',')} %`, formatCurrency(row.base), formatCurrency(row.vat), formatCurrency(row.ttc)], false, false);
+      }
+      const sum = (key) => roundMoney(recapRows.reduce((total, row) => total + row[key], 0));
+      drawRecapRow([L.vatRecapTotal, formatCurrency(sum('base')), formatCurrency(sum('vat')), formatCurrency(sum('ttc'))], true, false);
+      if (touristTaxNote) {
+        doc.fontSize(8).fillColor(TEXT_LIGHT).font(F.italic).text(L.vatRecapTouristTax, LEFT, totY, { width: RECAP_W });
+        totY += 14;
+      }
+    }
+  }
 
   // ── Payment schedule ──────────────────────────────────────────────────────
   totY = checkBreak(totY, 60);
@@ -1111,7 +1151,7 @@ function resolveDevisDates(full, settings) {
 // HT of one table row: its TTC net of the line's VAT, rounded like the column prints it.
 function rowHt(totalTtc, vatRate) {
   const rate = Number(vatRate || 0);
-  return rate > 0 ? roundMoney(Number(totalTtc || 0) / (1 + (rate / 100))) : roundMoney(Number(totalTtc || 0));
+  return rate > 0 ? netFirst(Number(totalTtc || 0), rate).net : roundMoney(Number(totalTtc || 0));
 }
 
 module.exports = {

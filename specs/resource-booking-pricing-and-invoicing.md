@@ -227,7 +227,7 @@ Rules are numbered once and never renumbered (new rules go at the end).
     - **Facture**: « Créer la facture dans Qonto » (rule 13) and the optional billing address (rules
       25–27).
     Nothing else: no checklist, no rules to accept, no inventory.
-30. **Commit** (`POST /api/resource-bookings/:id/arrival`), one transaction: stores `arrivedAt`, the
+30. **Commit** (`POST /api/resource-bookings/:id/visit` since C38 of the refonte, outside-booking-sas §4.3; the one-screen `POST /:id/arrival` is removed), one transaction: stores `arrivedAt`, the
     offered minutes, the payment; then issues the invoice if asked (outside the transaction: a Qonto
     failure leaves the arrival and the payment recorded, rule 25).
 31. « Pas maintenant » stores the arrival only: the booking stays « À encaisser » on the planning, in
@@ -303,7 +303,7 @@ Rules are numbered once and never renumbered (new rules go at the end).
     only by an explicit action: the box « Créer la facture dans Qonto » ticked (rule 13: ticked by default on a card
     payment typed in the dialog, unticked otherwise) or the button « Créer la facture ». « Valider l'arrivée » of a guest
     who paid at booking time records the arrival with `invoice: false`; the invoice block's « Créer la facture » records
-    the arrival then asks the invoice. Server side, `POST /:id/arrival` issues only on `invoice: true`, and an `invoice`
+    the arrival then asks the invoice. Server side, `POST /:id/visit` (the former `POST /:id/arrival`, removed in C38) issues only on `invoice: true`, and an `invoice`
     that is not a boolean is refused before anything is written (400 « Facture : oui ou non. »); recording a payment,
     editing a booking and the hourly job never issue one.
 
@@ -341,6 +341,32 @@ Rules are numbered once and never renumbered (new rules go at the end).
     invoice creates one. *Why:* a client invoiced once with no address, his address then filled on his record: every
     later invoice went to the first Qonto client, with no address, and only an edit in Qonto by hand fixed it.
 
+### 3.M Pricing refonte (2026-11-12)
+
+51. **The free hour is worth the day rate, for new bookings only** (owner, 2026-11-12; `pricing-components` rules 24, 37 and 83). A booking
+    created, or whose slot or party the operator moves, values the lodging's free minutes at the day rate of the grid (external or guest);
+    a booking stored before keeps the valuation it was sold with (`freeHourAtDayRate` NULL) until the operator moves it. The offered
+    minutes (rule 7) still keep the band they fall in. Edge case: an unpaid booking saved without moving its slot is still priced again
+    (rule 36 reading), with the valuation it already has.
+52. **A visit's money may live on a sale document** (added 2026-11-13, pricing-components PR C, C37; `outside-booking-sas.md` rules 5, 15-27,
+    31, 34). Once the mini SAS of an outside visit has written (« Valider l'arrivée », a payment or a link asked there), the booking names its
+    core sale document (`saleRef`) and its money is the document's: the session is a line of it, extras beside it, a reste allowed
+    (amends rule 44's « no reste, no geste » for those visits), the VAT rate frozen on the line at sale (amends rule 35 for them), the
+    journal and the card batch fed by the core document (amends rule 21: the plugin's `standaloneSales` lists only the money on the
+    booking's own columns, `paid = 1`), the arrival committed from `D 00:00` to `D+1 04:00` (amends rule 28's strict day for the mini
+    SAS; the former `POST /:id/arrival` kept the strict day until the screens moved to the visit routes; it is removed in C38). On such a booking the
+    dialog's payment pays the document's whole reste, « Retirer le paiement » answers 409 `SALE_PAYMENT`, « Supprimer » cancels the
+    document of an unpaid visit and is refused (409 `BOOKING_PAID`) once it holds money, and a moved slot re-prices the session line
+    only while it is unpaid. A booking paid before its document keeps rules 11-12, 21, 35 and 44 unchanged for that money.
+    Its invoice (owner, 2026-11-15; `outside-booking-sas.md` rule 31): once that booking's document holds a money line, the one invoice
+    covers the session and the document's lines, after everything is settled; with no such line, rules 13-14 and 36 unchanged.
+    Tests: `visit-remaining-and-payment.unit.test.js`, `visit-legacy-money.unit.test.js`, `visit-refund-cancel-noshow.unit.test.js` (plugin).
+53. **The invoice of a booking states the booking journal's VAT** _(stabilisation loop t5, B5-2, B5-3, 2026-11-16; reading of rules 14, 40, 48;
+    `outside-booking-sas.md` rule 57)_. The journal books the booking as one line, HT = the net of its TTC; the invoice's items and its discount name
+    the group `booking:session|<rate>`, so the issuer sends them with that VAT (20 € − 15 € at 10 %: 0,45 €, not Qonto's per-line 0,46 €), within
+    rule 40's moves and its « Arrondi de TVA » line. On the folded fallback (rule 48) the rounding line may be wider than two cents when no smaller one
+    reaches the cut (a cent of VAT at 5,5 % needs 0,10 € HT); it stays positive. Test `booking-invoice-vat-booking-journal`.
+
 **Edge cases:**
 - Booking edited before payment → priced again, as today.
 - Two card payments of the bath on the same day + a card payment of a stay → one batch; three rows
@@ -368,7 +394,7 @@ Rules are numbered once and never renumbered (new rules go at the end).
 | plugin | `plugins/hourly-resources/bookingPricing.js` | C | Pure: lines, offered time, VAT of a booking (extracted from `breakdownOf`). |
 | plugin | `plugins/hourly-resources/bookingsModel.js` | T | Calls `bookingPricing`; offered time refusals; payment through `sdk.coreModule('paymentTenders').validateSettlement`; freeze; delete guard. |
 | plugin | `plugins/hourly-resources/invoicing.js` | C | Builds the invoice request from a frozen breakdown; asks the issuer; stores the result. |
-| plugin | `plugins/hourly-resources/controller.js`, `routes.js` | T | `POST /:id/payment`, `DELETE /:id/payment`, `POST /:id/arrival`, `POST /:id/invoice`, `POST /:id/invoice/attach`. |
+| plugin | `plugins/hourly-resources/controller.js`, `routes.js` | T | `POST /:id/payment`, `DELETE /:id/payment`, `POST /:id/invoice`, `POST /:id/invoice/attach` (`POST /:id/arrival` removed in C38; the arrival is `POST /:id/visit`, outside-booking-sas §4.3). |
 | plugin | `plugins/hourly-resources/settings.js` | C | « TVA des ventes hors séjour » (default 20 %), validated 0–100. |
 | plugin | `plugins/hourly-resources/index.js` | T | Registers `standaloneSales`; erase warning counts invoices. |
 | plugin | `plugins/online-payment/invoiceIssuer.js` | C | Implements the `invoiceIssuer` contract on Qonto: client, invoice, mark paid, PDF, attachment. |
@@ -388,13 +414,13 @@ Rules are numbered once and never renumbered (new rules go at the end).
 | plugin | `plugins/hourly-resources/ResourceBookingDialog.jsx` | T | Two-column layout kept; the summary becomes `ResourceBookingSummary`; adds offered time, payment and invoice blocks. |
 | plugin | `plugins/hourly-resources/ResourceBookingSummary.jsx` | C | Renders `lines`, VAT and total of the preview. Specific: tied to the booking payload. |
 | plugin | `plugins/hourly-resources/OfferedTimeField.jsx` | C | Stepper by 15 min; shows the server's refusal. |
-| plugin | `plugins/hourly-resources/BookingPaymentFields.jsx` | C | `TenderLines` (one CB line of the total by default) + payment date. |
+| plugin | `plugins/hourly-resources/BookingPaymentFields.jsx` | C | `TenderLines` (one CB line of the total by default) + payment date; reports the `dueCents` the lines were typed against (loop t24, outside-booking-sas rule 54 reading). |
 | plugin | `plugins/hourly-resources/SettingsSection.jsx` | C | « TVA des ventes hors séjour » card of Réglages › Intégrations. |
 | plugin | `plugins/hourly-resources/PlanningResourceCard.jsx` | T | « À encaisser » chip and « Arrivée » button on a booking outside a stay. |
-| plugin | `plugins/hourly-resources/BookingInvoiceBlock.jsx` | C | Invoice state, number, attachment state, retry. |
+| plugin | `plugins/hourly-resources/BookingInvoiceBlock.jsx` | C | Invoice state, number, attachment state, retry; before issue, the server's refusal `reason` for the payment typed (`reason`, outside-booking-sas rule 54 reading 2026-11-16). |
 | component | `components/TenderLines` (via client SDK) | — | Consumed as is for the payment (rule 11); no fork. |
 | plugin | `plugins/hourly-resources/ResourcePlanningPage.jsx` | T | Card of a booking shows « Payé CB · F-2026-0142 » / « À encaisser » and « Arrivée ». |
-| plugin | `plugins/hourly-resources/ResourceArrivalDialog.jsx` | C | Rules 28–33: the one-screen arrival SAS (recap, offered time, payment, invoice). |
+| plugin | `plugins/hourly-resources/ResourceArrivalDialog.jsx` | C | Rules 28–33: the one-screen arrival SAS (recap, offered time, payment, invoice) — since C38 the mini SAS of the visit (`outside-booking-sas.md` §4.2), on the `/visit` routes. |
 | plugin | `plugins/hourly-resources/BillingAddressFields.jsx` | C | Optional street / postcode (digits) / city picked from the list. |
 | hook | `hooks/usePostalCodeCities.js` | C | Generic: communes of a postcode (debounced, abortable). Replaces the two copies in `ClientsPage` and `ReservationPage`; exported by the client SDK. |
 | page | `pages/ClientsPage.jsx`, `pages/ReservationPage.jsx` | T | Use the hook; no behaviour change. |
@@ -414,7 +440,7 @@ total on its own row) is copied.
 | POST/PUT | `/api/resource-bookings[/:id]` | `+ offeredMinutes`, `+ billing` (external) | unchanged | 409 `BOOKING_INVOICED` when frozen. |
 | POST | `/api/resource-bookings/:id/payment` | `{ tenders: [{ method, amountCents, internal }], paidAt }` | booking | 400 with `validateSettlement`'s refusals. |
 | DELETE | `/api/resource-bookings/:id/payment` | — | booking | 409 when invoiced. |
-| POST | `/api/resource-bookings/:id/arrival` | `{ offeredMinutes, payment: { tenders, paidAt } \| null, invoice: bool, billing? }` | `{ booking, invoice: { ok, number? , refusal? } }` | Rules 30–31; 400 when `invoice` is not a boolean, issues only on `true` (rule 45). |
+| POST | `/api/resource-bookings/:id/visit` _(replaces `POST /:id/arrival`, removed in C38)_ | `{ offeredMinutes?, extras, payment: { tenders, shortfall, paidAt } \| null, invoice: bool, billing?, … }` | `{ visit, invoice: { ok, number? , code?, error? } \| null }` | Rules 30–31; 400 when `invoice` is not a boolean, issues only on `true` (rule 45); see outside-booking-sas §4.3. |
 | POST | `/api/resource-bookings/:id/invoice` | `{ billing? }` | `{ invoiceNumber, attachment }` | 409 `ISSUER_UNAVAILABLE`, 422 `QONTO_NEEDS_ADDRESS`, 502 Qonto. |
 | POST | `/api/resource-bookings/:id/invoice/attach` | `{ transactionId? }` | `{ attachment }` | Retry or manual choice. |
 
@@ -433,6 +459,8 @@ Migration `resource_bookings_v3` (2026-11-09): `paidVatRate REAL` (rule 35, NULL
 INTEGER NOT NULL DEFAULT 0` (rule 38).
 Migration `resource_bookings_v4` (2026-11-10): `qontoClientIdentity TEXT` (rule 50, NULL on rows invoiced before: their
 Qonto client is not reused).
+Migration `resource_bookings_v5` (2026-11-12): `freeHourAtDayRate INTEGER` (rule 51: NULL on rows priced before, 1 on rows priced on the
+one hourly grid).
 `clients` is not touched: the Qonto client of a registered guest is read back from his earlier invoiced booking.
 
 **Data impact:** existing rows keep their price (`offeredMinutes = 0`). `paid = 1` rows get
@@ -462,15 +490,15 @@ See the interactive summary. In short, the dialog keeps its two zones (planner l
 - [x] `plugins/hourly-resources/tests/booking-pricing-lines.unit.test.js` — rules 3–6
 - [x] `…/booking-offered-time.unit.test.js` — rules 7–10
 - [x] `…/booking-payment.unit.test.js` — rules 11–12
-- [x] `…/booking-arrival.unit.test.js` — rules 28–33
+- [x] `…/visit-commit-reopen.unit.test.js`, `visit-window-and-roles.unit.test.js`, `visit-invoice-explicit.unit.test.js` — rules 28–33 on the visit's commit (the former `booking-arrival.unit.test.js` went with the route, C38)
 - [x] `…/booking-billing-address.unit.test.js` — rules 25–26 (address optional, postcode shape, Qonto refusal keeps the payment)
 - [x] `…/booking-vat-standalone.unit.test.js` — rules 5, 21, 35 on a core database (20 % setting, stay-linked booking, VAT
   off, rate frozen at payment, a split payment's books part, the v3 backfill). The line was ticked before the file existed;
   written 2026-11-09 (audit R35-S2).
 - [x] `…/booking-paid-sale-guards.unit.test.js` — rules 34, 36, 37
 - [x] `…/booking-invoice-numbered-kept.unit.test.js` — rules 38, 41, 43
-- [x] `…/booking-arrival-day.unit.test.js` — rules 28, 32
-- [x] `…/booking-invoice-explicit.unit.test.js` — rule 45
+- [x] `…/visit-window-and-roles.unit.test.js` — rules 28, 32 (the day window of the visit; the former `booking-arrival-day.unit.test.js` went with the route)
+- [x] `…/visit-invoice-explicit.unit.test.js` — rule 45 (moved onto the visit's commit)
 - [x] `…/booking-payment-taken-back.unit.test.js` — rule 36 (re-priced after « Retirer le paiement »)
 - [x] `…/hourly-erase-journaled-sales.unit.test.js` — rule 21 (erase warning)
 - [x] `…/booking-stay-link-refused.unit.test.js` (3, 2026-11-10) — rule 46
@@ -519,6 +547,8 @@ See the interactive summary. In short, the dialog keeps its two zones (planner l
 - Credit notes (avoirs): a paid invoice is corrected in Qonto by hand.
 - Selling a bath through the public website or by payment link.
 - Hourly resources other than `per_hour` + scheduled (unchanged pricing).
+- _(Amended 2026-11-13, rule 52.)_ Extras sold with a session and a reste left to collect are no longer out of scope: they are the mini SAS
+  of `outside-booking-sas.md`, on a sale document. A booking paid whole on its own columns keeps this spec's rules.
 
 ## 9. Open questions
 

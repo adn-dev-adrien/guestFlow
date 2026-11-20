@@ -24,10 +24,10 @@ const { roundMoney } = require('./money');
  * Rounded to the cent and never negative. Pure.
  */
 
-const round2 = (n) => Math.round(n * 100) / 100;
+const { roundMoneyStrict: round2 } = require('./money');
 // The four helpers below stand for copies that read a stored row, where a column can be NULL, '' or text: a figure that is not a
 // number counts as 0 (`round2` above is the commission formula's own, kept as it was).
-const roundSafe = (n) => Math.round((Number(n) || 0) * 100) / 100;
+const { roundMoneyOrZero: roundSafe } = require('./money');
 const asNumber = (v) => (v === '' || v == null ? 0 : Number(v));
 
 function computePlatformCommission({ gross, payout, touristTax = 0, acompteCommission = 0 }) {
@@ -111,6 +111,27 @@ const acompteNet = (row) => (Number(row.depositDisabled || 0) === 1 || !(Number(
 
 const grossOf = (row) => (present(row.platformGrossAmount) ? Number(row.platformGrossAmount) : roundSafe(Number(row.depositAmount || 0) + Number(row.balanceAmount || 0)));
 
+/** What the platform's statement leaves unexplained once its payout, the tourist tax it withheld and the acompte commission are out (negative when the figures disagree). */
+const statementRemainder = ({ gross, payout, tax = 0, acompteCommission = 0 }) => roundSafe(Number(gross) - Number(payout) - Number(tax) - Number(acompteCommission));
+
+/** The payout a statement implies from its gross and its commissions (no payout recorded yet). */
+const statementPayout = ({ gross, commission = 0, acompteCommission = 0, tax = 0 }) => roundSafe(Number(gross) - Number(commission || 0) - Number(acompteCommission) - Number(tax));
+
+/** What reaches the bank for the solde: the payout less the acompte already paid out and the penalties the platform kept (null without a payout). */
+const bankReceived = ({ payout, acompteNet: paidOut = 0, penalties = 0 }) => (payout == null ? null : roundSafe(Number(payout) - Number(paidOut) - Number(penalties)));
+
+/** What a still-unpaid échéance will actually bring in: its amount less the commission the platform takes on it and the penalty it keeps. */
+const netOfCommission = ({ amount, commission = 0, penalty = 0 }) => Number(amount || 0) - Number(commission || 0) - Number(penalty || 0);
+
+/** The two per-échéance commissions together. */
+const totalCommission = (acompte, solde) => roundSafe(Number(acompte) + Number(solde));
+
+/** The pre-arrival amount a stored row carries (acompte + solde). */
+const storedPreArrival = (row) => roundSafe(asNumber(row.depositAmount) + asNumber(row.balanceAmount));
+
+/** The net a stored row stands for (specs/platform-statement-after-payout.md rule 4): its pre-arrival amount less both commissions. */
+const storedNet = (row) => roundSafe(storedPreArrival(row) - totalCommission(asNumber(row.acompteCommissionAmount), asNumber(row.platformCommissionAmount)));
+
 /** The payout the platform made, penalty it kept included. */
 const payoutWithPenalty = ({ payout, penalty }) => roundSafe(Number(payout || 0) + Math.max(0, Number(penalty || 0)));
 
@@ -124,4 +145,5 @@ function withheldOnCancellation(row) {
 
 module.exports = {
   computePlatformCommission, commissionOf, clampCommissions, netReceived, acompteNet, grossOf, payoutWithPenalty, withheldOnCancellation,
+  statementRemainder, statementPayout, bankReceived, totalCommission, netOfCommission, storedPreArrival, storedNet,
 };

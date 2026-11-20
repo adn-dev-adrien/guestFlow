@@ -16,7 +16,9 @@
  * a 09:00 one has to be lit the night before.
  */
 
-const { formatTimeShort } = require('../sdk').coreModule('dateFr');
+const sdk = require('../sdk');
+
+const { formatTimeShort } = sdk.coreModule('dateFr');
 
 function buildModel(database) {
   // The thermal columns landed with specs/hourly-resource-quantity-and-sas-scheduling.md; a minimal
@@ -30,12 +32,17 @@ function buildModel(database) {
   const THERMAL_SELECT = HAS_THERMAL
     ? 'rs.heatUpMinutes AS heatUpMinutes, rs.heatRetentionMinutes AS heatRetentionMinutes,'
     : '0 AS heatUpMinutes, 0 AS heatRetentionMinutes,';
+  const HAS_LINE_ID = (() => {
+    try { return database.prepare('PRAGMA table_info(reservation_resources)').all().some((c) => c.name === 'lineId'); }
+    catch { return false; }
+  })();
   const stmt = (() => {
     try {
       return database.prepare(`
         SELECT
           rr.reservationId AS reservationId,
           rr.resourceId AS resourceId,
+          ${HAS_LINE_ID ? 'rr.lineId' : 'NULL'} AS lineId,
           rr.sessions AS sessions,
           rs.name AS name,
           ${THERMAL_SELECT}
@@ -133,28 +140,33 @@ function buildModel(database) {
   // Toggle one session's « préparé » flag, matched by (reservationId, resourceId, date, start).
   // `kind: 'ignition'` ticks the « démarrer » task instead of the session's own « préparé » — two
   // distinct gestures on the same session (specs/resource-ignition-task.md §3 rule 6).
-  function setSessionDone({ reservationId, resourceId, date, start, done, kind } = {}) {
+  function setSessionDone({ reservationId, resourceId, lineId, date, start, done, kind } = {}) {
     const field = kind === 'ignition' ? 'ignitionDone' : 'done';
     if (!HAS_SESSIONS) return { error: 'NO_COLUMN' };
-    const row = database.prepare('SELECT sessions FROM reservation_resources WHERE reservationId = ? AND resourceId = ?')
-      .get(Number(reservationId), Number(resourceId));
-    if (!row) return { error: 'NOT_FOUND' };
-    let list;
-    try { list = JSON.parse(row.sessions || '[]'); } catch { list = []; }
-    if (!Array.isArray(list)) list = [];
+    // Rule 85: with a `lineId` the tick lands on that line; without one, on the first line of the resource that holds the session.
+    const byLine = HAS_LINE_ID && lineId != null;
+    const rows = database.prepare(`SELECT ${HAS_LINE_ID ? 'lineId, ' : ''}sessions FROM reservation_resources WHERE reservationId = ? AND resourceId = ?${byLine ? ' AND lineId = ?' : ''}${HAS_LINE_ID ? ' ORDER BY lineId' : ''}`)
+      .all(...[Number(reservationId), Number(resourceId), ...(byLine ? [Number(lineId)] : [])]);
+    if (rows.length === 0) return { error: 'NOT_FOUND' };
     const wantStart = formatTimeShort(start) || String(start || '');
-    let matched = false;
-    const next = list.map((s) => {
-      if (!matched && String(s?.date || '') === String(date) && (formatTimeShort(s?.start) || String(s?.start || '')) === wantStart) {
-        matched = true;
-        return { ...s, [field]: Boolean(done) };
-      }
-      return s;
-    });
-    if (!matched) return { error: 'SESSION_NOT_FOUND' };
-    database.prepare('UPDATE reservation_resources SET sessions = ? WHERE reservationId = ? AND resourceId = ?')
-      .run(JSON.stringify(next), Number(reservationId), Number(resourceId));
-    return { ok: true, done: Boolean(done) };
+    for (const row of rows) {
+      let list;
+      try { list = JSON.parse(row.sessions || '[]'); } catch { list = []; }
+      if (!Array.isArray(list)) list = [];
+      let matched = false;
+      const next = list.map((s) => {
+        if (!matched && String(s?.date || '') === String(date) && (formatTimeShort(s?.start) || String(s?.start || '')) === wantStart) {
+          matched = true;
+          return { ...s, [field]: Boolean(done) };
+        }
+        return s;
+      });
+      if (!matched) continue;
+      database.prepare(`UPDATE reservation_resources SET sessions = ? WHERE ${row.lineId != null ? 'lineId = ?' : 'reservationId = ? AND resourceId = ?'}`)
+        .run(JSON.stringify(next), ...(row.lineId != null ? [row.lineId] : [Number(reservationId), Number(resourceId)]));
+      return { ok: true, done: Boolean(done) };
+    }
+    return { error: 'SESSION_NOT_FOUND' };
   }
 
   return {
@@ -188,6 +200,8 @@ function buildModel(database) {
         const base = {
           reservationId: r.reservationId,
           resourceId: r.resourceId,
+          // Rule 85: a stay may hold two lines of one resource, each with sessions of its own.
+          lineId: r.lineId == null ? null : Number(r.lineId),
           name: r.name || 'Ressource',
           clientName,
           propertyName: r.propertyName || '',
@@ -228,4 +242,25 @@ function buildModel(database) {
   };
 }
 
-module.exports = { buildModel };
+/**
+ * The chip of an outside booking's planning card (specs/outside-booking-sas.md rule 22), the server's answer the card renders:
+ *   « Absent »            the client did not come (rule 27)
+ *   « Payé »              nothing left to collect
+ *   « Reste 13,00 € »     the visit was opened and left a reste (warning)
+ *   « À encaisser »       not opened yet, money still due
+ * The amounts are SETTLEMENT's (`booking.visit`, a booking whose money is on a document) or the booking's own (`paid`, `totalPrice`, rule 34).
+ */
+function bookingCardState(booking) {
+  const euros = sdk.coreModule('money').eurosWithSpaces;
+  if (booking.noShowAt) return { state: 'absent', label: 'Absent', remainingCents: 0 };
+  if (booking.visit) {
+    const { remainingCents } = booking.visit;
+    if (remainingCents <= 0) return { state: 'paid', label: 'Payé', remainingCents: 0 };
+    if (booking.arrivedAt) return { state: 'remaining', label: `Reste ${euros(remainingCents)}`, remainingCents };
+    return { state: 'toCollect', label: 'À encaisser', remainingCents };
+  }
+  if (booking.paid) return { state: 'paid', label: 'Payé', remainingCents: 0 };
+  return { state: 'toCollect', label: 'À encaisser', remainingCents: sdk.coreModule('money').toCents(booking.totalPrice) };
+}
+
+module.exports = { buildModel, bookingCardState };

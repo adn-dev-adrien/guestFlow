@@ -220,6 +220,16 @@ The former J+7 satisfaction survey and the « season reminder, 8 weeks before th
     French one; the neutral unknown-token page stays `fr`. *Why:* it always declared `fr`, so a screen reader or a
     browser's translation offer read the English text as French, while the guest e-mails and the guest app declare
     their language. Test: `tests/email-preferences-lang.unit.test.js`.
+38. **The J-7 may say the guests can already order** (2026-11-10, `specs/guest-app.md` rules 70, 89, 90; reworded by Adrien's third
+    message the same day). The core seed of the J-7 is unchanged and neutral; the guest-app plugin's operator script inserts a
+    short paragraph into the *stored* `arrival_reminder_7d` (FR `body`, EN `bodyEn`), just before « Une question » / « Any
+    question »: no word about paying, no app name, no tour of features — « Vous pouvez déjà commander ce que vous aimeriez trouver à
+    votre arrivée » and, only when the stay holds the nordic bath or has a session offered, « …, et programmer votre séance de bain
+    nordique », then the link. Two flat blocks (the renderer's conditionals do not nest) under the plugin's flags `hasStayAppBath`
+    and `hasStayAppShopOnly`, with `hasStayAppShop` as their parent condition; all three are server-computed from the same judge
+    as the shop (an order can be taken now), so the sentence never promises what the link does not give. The send mode, the subject
+    and the eligibility (§3.2; not sent to a stay booked within the week) do not move; a template stays manual unless the operator
+    chose otherwise. Plugin inactive → the paragraph renders nothing.
 
 **Edge cases:**
 - One-night stay booked the day before → confirmation carries the arrival block; J-7 and J-2 not

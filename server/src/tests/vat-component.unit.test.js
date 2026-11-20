@@ -158,7 +158,7 @@ test('rule 50 — settingsSchema declares a rate per (vatClass, customerContext)
   assert.equal(by[rateKey('options', 'hosted')].validate(null), null);
   assert.equal(by[rateKey('options', 'hosted')].validate(5.5), null);
   assert.notEqual(by[rateKey('options', 'hosted')].validate(120), null);
-  assert.equal(settingsSchema.length, 4 * 2);
+  assert.equal(settingsSchema.length, 6 * 2, 'the stay\'s classes and the catalogue\'s drinks and catering, each hosted and external');
 });
 
 test('rule 51 — the VAT step prints the rate each group was taxed at, not the regime rate', () => {
@@ -169,4 +169,14 @@ test('rule 51 — the VAT step prints the rate each group was taxed at, not the 
   };
   const out = step.apply(ctx);
   assert.deepEqual([out.vatPercentageAccommodation, out.vatPercentageOptions, out.vatPercentageResources], [10, 5.5, 10]);
+});
+
+test('rule 65 — the gross of a net amount equals the former divisor product on a sweep (the tourist-tax nightly price)', () => {
+  const { ttcFromNet } = require('../utils/pricing/vat');
+  for (const rate of [0, 2.1, 5.5, 8.5, 10, 20]) {
+    for (let cents = 0; cents <= 20000; cents += 137) {
+      const net = cents / 100;
+      assert.equal(ttcFromNet(net, rate), Math.round(net * (1 + (rate / 100)) * 100) / 100, `${net} at ${rate}`);
+    }
+  }
 });

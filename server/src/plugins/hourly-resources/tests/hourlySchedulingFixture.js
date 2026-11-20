@@ -3,7 +3,7 @@
 // evening-supplement suites.
 
 const Database = require('better-sqlite3');
-const { bookingsV2 } = require('../migrations');
+const { bookingsV2, bookingsV5 } = require('../migrations');
 
 const resourceSchedulingModel = require('../schedulingModel');
 const { create: createReservationsModel } = require('../../../models/reservationsModel');
@@ -81,6 +81,7 @@ function seed({ hoursSold = 3, sessions = null, resource = {} } = {}) {
   const db = new Database(':memory:');
   db.exec(DDL);
   bookingsV2(db);
+  bookingsV5(db);
   db.prepare("INSERT INTO properties (id, name) VALUES (1, 'Aventura lodge')").run();
   const r = {
     name: 'Bain nordique', price: 30, turnoverMinutes: 15, minimumUsageMinutes: 60, slotDuration: 60,

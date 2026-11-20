@@ -158,6 +158,8 @@ changed something the price depends on; money collected beyond the total is repo
     reduce the excess: the refund of a sold line takes its price off the stay too.
 13. **The live ledger moves both ways.** It reports `max(0, stored + after − before)`: an edit that absorbs the
     stored excess takes it down, so the fiche never invites a refund the edit cancels.
+    _Reading of 2026-11-16 (stabilisation loop t7, N7-1):_ the live figure is floored only by the part of an open `lineLowered` obligation the
+    save keeps — the note money no line claims (pricing-components rule 106 a) — so an edit that absorbs a confirmed excess still reads 0.
 
 14. **One refund basis in the live figure.** The stored trop-perçu is net of the free refunds only (rule 12); the
     two engine excesses the live ledger compares — the posted fiche and the stored stay — are raw (before any
@@ -173,6 +175,10 @@ changed something the price depends on; money collected beyond the total is repo
     en trop », never an « encaissés / dus » pair that contradicts the amount. Limit: a stay whose history was
     lost falls back on the accommodation; the correction of an adjusted complement (rule 12) uses today's
     engine for the complement it routes on its own, no stamp of that amount exists.
+    > **Amended 2026-11-12** (pricing-components rules 74 and 76, PR B pass 4b): the audit log is no longer read. What left the stay is, per
+    > line, what the payments naming it collected beyond what it now costs (the quote's line before a save, the stored line after), plus the
+    > contribs of paid lines since removed (`removedLineContribs`) and the tourist tax on its stay line; a stay whose payments name no line
+    > falls back on the accommodation. `postesLeft` (`models/refundInputModel.js`) is the one reader.
 16. **No trop-perçu on a platform stay, live preview included (audit R3 N1, 2026-10-29).** The engine excess the
     live ledger compares (`engineExcessOf`) carries the same `isDirectChannel` guard as `overpaymentOf` and
     `storedOverpaymentOf` (reservation-refunds rule 38): a Gîtes de France or Airbnb stay whose solde is paid and
@@ -187,6 +193,8 @@ changed something the price depends on; money collected beyond the total is repo
     the schedule share already covers on that poste, whatever the way it was split (leftover hints or captured
     contribs). A solde option removed in the window is thus not counted twice, and a drop that belongs to the
     complement is never cut. A paid complement with no paid date reads no history.
+    > **Amended 2026-11-12** (rules 74 and 76): the complement's lost lines are the lines of its frozen split (and the allocations that name a
+    > line) the stay no longer carries; the tourist tax it collected is its stamp, else the allocation on the stay's tax line. No signature is parsed.
 18. **The complement's history window reads only the complement's lines (audit R4 N5, 2026-10-29).** `droppedSince`
     filters the signature parts by their `cN` flag (`reservationAudit.js` `getOptionsSignature` /
     `getResourcesSignature`): the complement window (`complementLeftOf`) counts the `c1` lines only, the schedule
@@ -194,6 +202,8 @@ changed something the price depends on; money collected beyond the total is repo
     option dropped from an unpaid or already refunded solde therefore no longer takes the excess of a removed complement
     activity (X1, X2). A signature written before the flag existed carries none: its lines count in both windows, which
     is why rule 17's overflow correction stays.
+    > **Amended 2026-11-12** (rules 74 and 76): the two scopes are read from the payments themselves — `bucket:complement` (and a settlement
+    > of the complement alone) against every other payment — so they cannot overlap; `droppedSince` and the `cN` flag reading are gone.
 
 19. **A priced save keeps what each custom line collected (audit R21-M1, 2026-11-03).** A save that re-prices the stay
     deletes and rewrites the custom lines, and neither the fiche nor `toUpdateBody` posts their contribs, so they came
@@ -206,6 +216,11 @@ changed something the price depends on; money collected beyond the total is repo
     routing pin reads the same match, so a line's routing and contribs come from one row. A contrib in a save's request
     is never read, and a line with no stored row has none. As for a catalogue option: a line that grows keeps its contrib and the growth goes to the complement,
     a line forced to the complement drops it, a line removed takes it along. Stored rows already at NULL are not repaired.
+    > _Reading 2026-11-17 (stabilisation loop t16, S16-3 b, pricing-components rule 94 reading):_ a line its caller appends (`newLine`: every
+    > line typed on the fiche, as a sale's appended line) is never matched by its text: it takes no row, no contribs and no routing of a stored
+    > line, even one this save removes under the same label (before: a line removed and typed again in one save took the removed row's
+    > contribs, number and discount). Any other line is matched as above (id, then text). The save's write carries the identity of the rows
+    > the posted lines name, nothing else.
 20. **A save priced without the snapshot keeps what each catalogue line collected (review of #954, 2026-11-03).**
     « Utiliser les tarifs actuels » and a change of logement drop `getPricingSnapshot` so the catalogue prices the lines
     again, and the contribs travelled in that snapshot: an option or resource came back with none. The journal held on
@@ -226,6 +241,19 @@ changed something the price depends on; money collected beyond the total is repo
   was refused with `PAST_RESERVATION_LOCKED` on a no-op save).
 - A save on a past stay passes the same gate; its allowlist is evaluated on the pinned figures, so a
   untouched save is never refused as « locked ».
+
+21. **A live quote that fails says so (loop t24 S24-3, 2026-11-18).** The fiche quotes itself live as dates, people
+    and lines change. When that quote fails (network, 5xx), the fiche used to keep the previous quote's figures with
+    no word and no way to ask again. It now shows « Tarif non recalculé : les montants ci-dessous ne sont pas à
+    jour. » with the server's reason and « Réessayer » above the finance card, and dims that card (`data-stale`,
+    opacity 0.55) until a quote lands — the same contract as the sale dialogs' previews (plugins-phase-1-sdk rule 54
+    reading of 2026-11-18): « Réessayer » keeps the message and its focus while it asks; an edit of the fiche asks
+    afresh without the older message, and only its own failure shows one; any quote that lands (the live one, the
+    save's, a reset) ends it. The form keeps its state and the save is unchanged: it quotes again before writing and
+    stops on a failure, so no money is ever written from the older figures. OLD (the same silent catch on master).
+    A refusal (4xx other than 408/429: the server will not price what the fiche asks) shows its reason the same way but
+    without « Réessayer » — the same request would be refused again; the next edit asks afresh. « Réessayer » is for a
+    network or server failure (verification of 2026-11-18).
 
 ---
 
@@ -255,7 +283,7 @@ changed something the price depends on; money collected beyond the total is repo
 |---|---|---|---|
 | `components/` | `reservation/PricingNotices.jsx` | C | Renders `quote.notices` (generic: `{ code, text, action? }`) |
 | `constants/` | `pricingSummaryStrings.js` | T | The notice action label |
-| `pages/` | `ReservationPage.jsx` | T | Mounts the notices; Save disabled on a clean form (rule 7) |
+| `pages/` | `ReservationPage.jsx` | T | Mounts the notices; Save disabled on a clean form (rule 7); a failed live quote shows its reason with « Réessayer » and dims the finance card (rule 21, `FocusKeeper` region) |
 
 ### 4.3 API contract
 
@@ -270,6 +298,10 @@ as stored when the arrival complement was collected. Legacy rows stay NULL.
 ## 6. UI / UX
 
 An amber alert above the platform price alert, one per notice, 44 px action target, full width at 390 px.
+Rule 21: a failed live quote puts a red `ErrorAlert` (reason + « Réessayer ») right above the finance card and dims the card; the
+finance card moves down by the alert's height (a failure path: measured 76 px at 1280, 96-116 px at 390 — reading of 2026-11-19, loop
+t25 UI25-3), and what is above the alert stays where it was. A refusal (a 4xx other
+than 408 / 429) shows its reason without « Réessayer ». At 390 px the alert is full width like the others.
 
 ## 7. Test plan
 
@@ -302,6 +334,9 @@ An amber alert above the platform price alert, one per notice, 44 px action targ
 - [x] `custom-line-contribs-survive-priced-save.unit.test.js` (21) — rule 19: solde only, acompte + solde, renamed, stale id, same text, removed, grown, forced, posted contribs, trop-perçu, mid-stay window, routing pin, admin unlock, dry run, tariff refresh, replayed SAS commit, cancellation; journal byte-identical, catalogue option as the control.
 - [x] `tariff-refresh-keeps-line-contribs.unit.test.js` (15) — rule 20: option, resource, engine-derived line, refresh then a later save, refresh and addition in one save, raised and lowered catalogue price, change of logement, line the new logement does not sell, admin unlock, forced, removed, added, unpaid; journal byte-identical.
 - [x] `fiche-pricing-notices.unit.test.js` (6) — rules 5-6; client `PricingNotices.test.jsx` (3).
+- [x] Client `ReservationPage.live-quote-failure.test.jsx` (4) — rule 21: a refusal (4xx) shows its reason without « Réessayer »; a failed live quote shows its reason with
+      « Réessayer » and dims the finance card, the retry keeps both and the focus until the quote lands; an edit asks
+      afresh without the older message and its own failure shows again; the save still quotes before writing.
 - [x] Client `RefundDialog.overpayment.test.jsx` (5, `defaultMethod`) and `FinanceSection.refunds.test.jsx`
       (7, the row's own prefill).
 - [x] `vat-regime-golden`: the `quote/*` family of the golden capture was regenerated (quotes of stored

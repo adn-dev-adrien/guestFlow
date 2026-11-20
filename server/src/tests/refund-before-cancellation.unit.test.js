@@ -47,13 +47,21 @@ function depsOf(db, installmentsModel = null) {
   };
 }
 
+// The migrated base is built once per file and each case opens its own copy of it (specs/server-test-isolation.md rule 22):
+// the fuzz below opens 180 databases, and the boot migrations cost ~26 ms each on a fresh schema.
+let baseImage = null;
 function baseDb() {
-  const db = new Database(':memory:');
-  db.exec(SCHEMA);
-  migrateInstallmentsSchema(db);
-  db.prepare("INSERT INTO properties (id, name) VALUES (1, 'Gîte Test')").run();
-  db.prepare("INSERT INTO clients (id, firstName, lastName) VALUES (1, 'Camille', 'Test')").run();
-  return db;
+  if (!baseImage) {
+    const db = new Database(':memory:');
+    db.exec(SCHEMA);
+    require('../utils/pricingLinesMigration').runPricingLinesMigration(db);
+    migrateInstallmentsSchema(db);
+    db.prepare("INSERT INTO properties (id, name) VALUES (1, 'Gîte Test')").run();
+    db.prepare("INSERT INTO clients (id, firstName, lastName) VALUES (1, 'Camille', 'Test')").run();
+    baseImage = db.serialize();
+    db.close();
+  }
+  return new Database(baseImage);
 }
 
 // The shape of stay #22326, anonymised: 3 053,60 € with 1 054 € of options and 36 € of tax, in

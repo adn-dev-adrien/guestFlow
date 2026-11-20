@@ -1,0 +1,2 @@
+- **Sale screens — the server shapes what they show** (`specs/pricing-components.md` rule 31, `specs/outside-booking-sas.md` rule 11). The « Remise » chip of a sale line shows the discount total the server computed, and the « Autre article » search of an outside visit arrives grouped by category from the server. No figure changes.
+- plugin:guest-app The orders list of the arrival SAS folds without animation when the device asks for reduced motion.

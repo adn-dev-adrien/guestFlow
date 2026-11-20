@@ -1,0 +1,1 @@
+- **A sale can be collected on the spot (pricing refonte, PR B)**: an added product paid in cash, by terminal or by card on a stay that has started is written paid, off the departure complement.

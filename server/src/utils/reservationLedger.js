@@ -22,6 +22,8 @@ const { saleChannel } = require('./saleChannel');
 const { platformDisplay } = require('./platformDisplay');
 const { localIsoDate, localHourMinute } = require('./localDate');
 const { METHODS: TENDER_METHODS, methodLabel, targetFigures, currentCentsOf } = require('./paymentTenders');
+const { roundedToCents: cents } = require('./pricing/money');
+const { netOfCommission, storedNet } = require('./pricing/platformPayment');
 
 const NBSP = ' ';
 
@@ -46,11 +48,6 @@ function shortDate(iso, stayYear) {
   return stayYear && y !== stayYear ? `${day}/${m}/${y}` : `${day}/${m}`;
 }
 
-const cents = (n) => Math.round(round2(n) * 100);
-// specs/platform-statement-after-payout.md rule 4 — the transfer a received payout stands for, read from the stored
-// row only: the live quote of a fiche being edited must not move what already came in.
-const storedPlatformNet = (r) => round2(Number(r.depositAmount || 0) + Number(r.balanceAmount || 0)
-  - Number(r.acompteCommissionAmount || 0) - Number(r.platformCommissionAmount || 0));
 const flag = (v) => Number(v || 0) === 1 || v === true;
 
 // Edge case « Devis » — the devis does not store an acompte override yet: an edit would be lost.
@@ -80,6 +77,15 @@ function basketRefundCents(link) {
   } catch { /* the whole payment */ }
   return Number(link.amountCents || 0);
 }
+
+// The words of the register's rows (rule 75), short and impersonal.
+const OBLIGATION_WORDS = Object.freeze({
+  basket: 'Paiement en ligne à rembourser',
+  duplicatePayment: 'Paiement en double à rembourser',
+  withdrawnLink: 'Paiement sur un lien retiré à rembourser',
+  orderConflict: 'Commande en conflit à rembourser',
+  neverBooked: 'Paiement sans séjour à rembourser',
+});
 
 const NEUTRAL_REFUND = Object.freeze({ refundOne: 'Paiement en ligne à rembourser', refundMany: 'Paiements en ligne à rembourser' });
 const basketSource = (link) => { try { return String(JSON.parse(link.basketJson).source || ''); } catch { return ''; } };
@@ -274,7 +280,7 @@ function retainedLabel(refund, r, planRows) {
  * @returns {{ rows: object[], remaining: number, remainingLabel: string, settled: boolean }}
  */
 function buildLedger({
-  row = null, quote = null, live = {}, links = [], refunds = [], overpayment = null,
+  row = null, quote = null, live = {}, links = [], refunds = [], overpayment = null, obligations = null,
   midStayNotes = [], cautionAmount = 0, canRequest = false, installmentPlan = null, today,
   storedAccommodationPreArrival = null, penalties = [], providerLabel = null, nightsUnavailable = false, stayReadOnly = false,
   nettedRefundIds = null, endOfStayCollectible = true, settlements = [],
@@ -423,7 +429,7 @@ function buildLedger({
       const others = otherOpenLinks(links, 'deposit', shown).map((l) => linkDetail(l, { stayYear, due: false, canRequest, canWithdraw, providerLabel, settleContext }));
       if (others.length > 0) detail.otherLinks = others;
       if (isPlatform && acompteCommission > 0) {
-        detail.commission = `Commission ${formatEuros(acompteCommission)} · net ${formatEuros(depositAmount - acompteCommission)}`;
+        detail.commission = `Commission ${formatEuros(acompteCommission)} · net ${formatEuros(netOfCommission({ amount: depositAmount, commission: acompteCommission }))}`;
       }
       let base;
       if (paid.deposit) {
@@ -520,7 +526,8 @@ function buildLedger({
             reason: `Versement reçu le ${shortDate(r.balancePaidDate, stayYear)} : annuler la réception pour corriger les montants.`,
           };
         }
-        const net = payout != null ? payout : storedPlatformNet(r);
+        // Rule 4 — read from the stored row only: the live quote of a fiche being edited must not move what already came in.
+        const net = payout != null ? payout : storedNet(r);
         return {
           editable: true, mode: 'statement', min: null, max: null, reason: null, correctable: true,
           received: { date: r.balancePaidDate || null, net, label: `Virement reçu le ${shortDate(r.balancePaidDate, stayYear)} (€)` },
@@ -665,7 +672,21 @@ function buildLedger({
   }
   // specs/plugins-phase-1-sdk.md rule 47 (guest-app rule 36) — a basket paid by card that its plugin could not honour:
   // the money is on the link, nothing reached the fiche, the operator refunds it from the provider's space.
-  const owedBaskets = (links || []).filter((l) => l.status === 'paid' && basketRefundOwed(l));
+  const owedBaskets = obligations ? [] : (links || []).filter((l) => l.status === 'paid' && basketRefundOwed(l));
+  // Rule 75 — with the register of obligations at hand, each open row is a row of its own with its close action. The lowered
+  // paid line is the trop-perçu row below (the same money, one face), so it has none here.
+  for (const obligation of (obligations || []).filter((o) => o.status === 'open' && o.origin !== 'lineLowered')) {
+    const link = (links || []).find((l) => Number(l.id) === Number(obligation.paymentLinkId));
+    const words = OBLIGATION_WORDS[obligation.origin] || OBLIGATION_WORDS.basket;
+    rows.push({
+      key: `obligation-${obligation.id}`,
+      label: obligation.origin === 'basket' && link ? basketRefundLabel([link]) : words,
+      amount: round2(obligation.amountCents / 100), state: 'due', tone: 'warning', stateLabel: 'À rembourser',
+      action: stored ? { kind: 'closeObligation', label: 'Marquer remboursé', obligationId: obligation.id, confirmTitle: 'Marquer comme remboursé ?', confirmLabel: 'Marquer remboursé' } : null,
+      amountEdit: { editable: false, mode: 'none', min: null, max: null, reason: null },
+      detail: { lines: [`${formatEuros(obligation.amountCents / 100)}${obligation.reason ? ` : ${obligation.reason}` : ''}${link ? `, lien ${link.id}` : ''}`] },
+    });
+  }
   if (owedBaskets.length > 0) {
     rows.push({
       key: 'basketRefunds', label: basketRefundLabel(owedBaskets),
@@ -697,7 +718,11 @@ function buildLedger({
       action: canAct ? { kind: 'refund', label: 'Rembourser' } : null,
       amountEdit: { editable: false, mode: 'none', min: null, max: null, reason: null },
       // What the refund dialog opens on, so a fiche that shows only the stored ledger still prefills it.
-      refundPrefill: { overpaymentTtc: round2(overpayment.ttc), overpaymentLines: overpayment.lines || [], method: overpayment.method || null },
+      // Loop t7 B7-3 (rule 112) — and the cash notes' part of it, when only a part: proposed first, « caisse interne ».
+      refundPrefill: {
+        overpaymentTtc: round2(overpayment.ttc), overpaymentLines: overpayment.lines || [], method: overpayment.method || null,
+        ...(overpayment.cash ? { cashPart: overpayment.cash } : {}),
+      },
       detail: {
         lines: (overpayment.lines || []).filter((l) => Number(l.collectedTtc) > 0)
           .map((l) => (l.excessOnly

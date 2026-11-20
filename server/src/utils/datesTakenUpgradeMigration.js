@@ -12,7 +12,7 @@
 
 const MIGRATION_NAME = 'dates_taken_links_withdrawn_v1';
 
-const euros = (cents) => `${(Number(cents || 0) / 100).toFixed(2).replace('.', ',')} €`;
+const eurosText = (cents) => `${(Number(cents || 0) / 100).toFixed(2).replace('.', ',')} €`;
 
 function runDatesTakenUpgradeMigration(database, { now = new Date(), logger = console } = {}) {
   if (database.prepare('SELECT 1 FROM migrations WHERE name = ?').get(MIGRATION_NAME)) return { ran: false, withdrawn: [], seeded: 0 };
@@ -31,7 +31,7 @@ function runDatesTakenUpgradeMigration(database, { now = new Date(), logger = co
   })();
   for (const link of withdrawn) {
     const outcome = link.remoteCancelPendingAt ? `deactivation owed at ${link.provider}` : 'no provider link to deactivate';
-    logger.log(`[migration:dates-taken-links] link #${link.id} (${link.type}, ${euros(link.amountCents)}, stay ${link.stayId}) withdrawn: dates taken by stay ${link.takenByReservationId}; ${outcome}`);
+    logger.log(`[migration:dates-taken-links] link #${link.id} (${link.type}, ${eurosText(link.amountCents)}, stay ${link.stayId}) withdrawn: dates taken by stay ${link.takenByReservationId}; ${outcome}`);
   }
   logger.log(`[migration:dates-taken-links] ${withdrawn.length} link(s) withdrawn, ${seeded} notice row(s) seeded (not-sent, upgrade)`);
   return { ran: true, withdrawn, seeded };

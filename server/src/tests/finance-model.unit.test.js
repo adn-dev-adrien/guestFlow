@@ -1,4 +1,4 @@
-const { todayIso: localTodayIso } = require('../utils/localDate');
+const { todayIso: localTodayIso, localIsoDate } = require('../utils/localDate');
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const Database = require('better-sqlite3');
@@ -30,10 +30,12 @@ const DDL = `
   );
 `;
 
+// The local day, like the model's « today » (`localDate.todayIso`): the UTC day of a local date is the next day in the evening
+// west of UTC, and a stay ending « yesterday » read as ending today (specs/server-test-isolation.md rule 6, reading of 2026-11-19).
 function iso(daysFromToday) {
   const d = new Date();
   d.setDate(d.getDate() + daysFromToday);
-  return d.toISOString().split('T')[0];
+  return localIsoDate(d);
 }
 const TODAY = localTodayIso();
 

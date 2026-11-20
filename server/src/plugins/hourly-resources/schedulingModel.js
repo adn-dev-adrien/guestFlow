@@ -35,9 +35,8 @@ function eachDate(startDate, endDate) {
   return out;
 }
 
-function round2(v) {
-  return Math.round((Number(v) || 0) * 100) / 100;
-}
+const sdk = require('../sdk');
+const { roundMoneyOrZero: round2 } = sdk.coreModule('money');
 
 function createModel(database) {
   const resources = resourcesModel.create(database);
@@ -48,6 +47,13 @@ function createModel(database) {
     catch { return false; }
   };
   const HAS_SESSIONS = hasColumn('reservation_resources', 'sessions');
+  const HAS_COMPONENTS = hasColumn('reservation_resources', 'components');
+  // specs/pricing-components.md rule 90.3 — the evening a session line already carries as its component, in euros.
+  const eveningComponentOf = (raw) => {
+    let list = [];
+    try { list = raw ? JSON.parse(raw) : []; } catch { list = []; }
+    return Array.isArray(list) ? list.filter((c) => c && c.kind === 'evening').reduce((sum, c) => sum + (Number(c.cents) || 0), 0) / 100 : 0;
+  };
 
   /** The hourly-schedulable resources sold on this reservation, with what they still owe. */
   function soldSchedulableResources(reservation) {
@@ -55,14 +61,14 @@ function createModel(database) {
     try {
       rows = database.prepare(`
         SELECT rr.resourceId, rr.quantity, rr.unitPrice, rr.billedUnits, rr.totalPrice, rr.offered,
-          ${HAS_SESSIONS ? 'rr.sessions' : 'NULL AS sessions'}
+          ${HAS_SESSIONS ? 'rr.sessions' : 'NULL AS sessions'}, ${HAS_COMPONENTS ? 'rr.components' : 'NULL AS components'}
         FROM reservation_resources rr
         JOIN resources r ON r.id = rr.resourceId
         WHERE rr.reservationId = ? AND r.showsPlanningCard = 1 AND r.priceType = 'per_hour'
       `).all(Number(reservation.id));
     } catch { return []; }
 
-    return rows.map((row) => {
+    const perLine = rows.map((row) => {
       const resource = resources.list(Number(reservation.propertyId))
         .find((r) => Number(r.id) === Number(row.resourceId));
       if (!resource) return null;
@@ -75,13 +81,15 @@ function createModel(database) {
       const hoursPlaced = round2(placedMinutes / 60);
       // What the sold line already bills above the day rate — a line priced from evening sessions
       // before the sale carries its evening difference in its own amount (rule 30). An offered line
-      // keeps its real amount in unitPrice × billedUnits.
+      // keeps its real amount in unitPrice × billedUnits. The evening component the SAS put on the line is not
+      // the sale's: it is the supplement itself, recomputed whole on every commit (pricing-components rule 90.3).
       const billedUnits = Math.max(0, Number(row.billedUnits) || 0);
       const lineAmount = Number(row.offered) === 1
         ? round2((Number(row.unitPrice) || 0) * billedUnits)
-        : round2(row.totalPrice);
+        : round2(Number(row.totalPrice || 0) - eveningComponentOf(row.components));
       const eveningCredit = Math.max(0, round2(lineAmount - Number(resource.price || 0) * billedUnits));
       return {
+        orderCharged: orderChargedFor(reservation.id, resource),
         resource,
         sessions,
         hoursSold,
@@ -90,6 +98,44 @@ function createModel(database) {
         eveningCredit,
       };
     }).filter(Boolean);
+    // Rule 85: a stay may hold several lines of one resource. The step speaks per resource: the hours sold and placed and the evening
+    // credit of every line add up, and the sessions of every line are the resource's sessions.
+    const byResource = new Map();
+    for (const entry of perLine) {
+      const held = byResource.get(Number(entry.resource.id));
+      if (!held) { byResource.set(Number(entry.resource.id), entry); continue; }
+      const hoursSold = round2(held.hoursSold + entry.hoursSold);
+      const hoursPlaced = round2(held.hoursPlaced + entry.hoursPlaced);
+      byResource.set(Number(entry.resource.id), {
+        ...held, sessions: [...held.sessions, ...entry.sessions], hoursSold, hoursPlaced,
+        hoursRemaining: Math.max(0, round2(hoursSold - hoursPlaced)), eveningCredit: round2(held.eveningCredit + entry.eveningCredit),
+      });
+    }
+    return [...byResource.values()];
+  }
+
+  /**
+   * What the guest app's orders already bill for this resource's evening on the fiche (guest-app rule 82): the lines of the stay an order
+   * sold under the supplement's own words (`orderRef = order:<id>:<n>`, pricing-components rules 13, 25). The arrival recompute does not
+   * bill that evening again.
+   */
+  function orderChargedFor(reservationId, resource) {
+    if (!hasColumn('reservation_custom_options', 'orderRef')) return 0;
+    // Loop t2 N-6 — by the stable key the order gave the line (`evening:resource:<id>`), never by its label: a second supplement of the stay
+    // is numbered « … (2) » (pricing-components rule 94). A line written before the key existed is still read by its words.
+    const keyed = hasColumn('reservation_custom_options', 'fulfilmentRef');
+    const label = `${resource.name} — supplément soirée`;
+    try {
+      const rows = keyed
+        ? database.prepare(`SELECT amount FROM reservation_custom_options
+                             WHERE reservationId = ? AND orderRef LIKE 'order:%'
+                               AND (fulfilmentRef = ? OR (fulfilmentRef IS NULL AND description = ?))`)
+          .all(Number(reservationId), `evening:resource:${Number(resource.id)}`, label)
+        : database.prepare(`SELECT amount FROM reservation_custom_options
+                             WHERE reservationId = ? AND orderRef LIKE 'order:%' AND description = ?`)
+          .all(Number(reservationId), label);
+      return round2(rows.reduce((sum, r) => sum + (Number(r.amount) || 0), 0));
+    } catch { return 0; }
   }
 
   const supplementLabel = (entry) => `${entry.resource.name} — supplément soirée`;
@@ -120,7 +166,7 @@ function createModel(database) {
 
   /** One resource's supplement for a set of blocks, what the SAS recap shows as it changes. */
   function supplementOf(entry, blocks) {
-    return Math.max(0, round2(eveningOf(entry, blocks) - entry.eveningCredit));
+    return Math.max(0, round2(eveningOf(entry, blocks) - entry.eveningCredit - (entry.orderCharged || 0)));
   }
 
   /** The supplements of the stored sessions — a commit whose scheduling step did not run. */

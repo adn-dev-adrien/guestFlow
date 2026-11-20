@@ -28,12 +28,13 @@
 const { quoteStoredReservation } = require('./storedReservationQuote');
 const { clearRemovedLineContribs } = require('./removedLineContribs');
 const { readComplementPaidSplit } = require('./complementPaidSplit');
+const { extraLineKey } = require('./pricing/storedLines');
+const { keyLines } = require('./pricing/lineKeys');
 
 const CONSERVATION_TOLERANCE_EUR = 0.01;
 
-function roundCents(value) {
-  return Math.round(Number(value || 0) * 100) / 100;
-}
+const { roundMoney: roundCents } = require('./pricing/money');
+const { notDepartureCharge } = require('./departureChargeLines');
 
 function computeAccommodationTtc(quote) {
   // Accommodation portion of finalPrice = finalPrice - options - resources (TTC, before tax).
@@ -111,12 +112,12 @@ function captureContribsOnFlip({ db, reservation, bucket }) {
     for (const line of quote.optionLines || []) {
       if (line.isCustom) continue;
       if (isLineForced(line)) {
-        optionContribsByOptionId.set(Number(line.optionId), null);
+        optionContribsByOptionId.set(extraLineKey(line), null);
         continue;
       }
       // Auto-options (line.optionId set, never in selectedOptions) still get a contrib so the
       // sum reconciles. Offered → totalPrice 0 → contrib 0.
-      optionContribsByOptionId.set(Number(line.optionId), roundCents(Number(line.totalPrice || 0) * depositPercent));
+      optionContribsByOptionId.set(extraLineKey(line), roundCents(Number(line.totalPrice || 0) * depositPercent));
     }
     for (const line of quote.optionLines || []) {
       if (!line.isCustom) continue;
@@ -130,10 +131,10 @@ function captureContribsOnFlip({ db, reservation, bucket }) {
     }
     for (const line of quote.resourceLines || []) {
       if (isLineForced(line)) {
-        resourceContribsByResourceId.set(Number(line.resourceId), null);
+        resourceContribsByResourceId.set(extraLineKey(line), null);
         continue;
       }
-      resourceContribsByResourceId.set(Number(line.resourceId), roundCents(Number(line.totalPrice || 0) * depositPercent));
+      resourceContribsByResourceId.set(extraLineKey(line), roundCents(Number(line.totalPrice || 0) * depositPercent));
     }
 
     const accommodationContrib = roundCents(accommodationTtc * depositPercent);
@@ -172,23 +173,21 @@ function captureContribsOnFlip({ db, reservation, bucket }) {
   const customContribsByCustomId = new Map();
   const resourceContribsByResourceId = new Map();
 
-  const optionDbRows = db.prepare('SELECT optionId, acompteContribTtc FROM reservation_options WHERE reservationId = ?').all(reservation.id);
-  const optionAcompteByOptionId = new Map(optionDbRows.map((r) => [Number(r.optionId), r.acompteContribTtc]));
-  const customDbRows = db.prepare('SELECT id as customOptionId, acompteContribTtc FROM reservation_custom_options WHERE reservationId = ?').all(reservation.id);
+  const optionAcompteByOptionId = acompteByLineKey(db, 'reservation_options', reservation.id);
+  const customDbRows = db.prepare(`SELECT id as customOptionId, acompteContribTtc FROM reservation_custom_options WHERE reservationId = ?${notDepartureCharge(db)}`).all(reservation.id);
   const customAcompteByCustomId = new Map(customDbRows.map((r) => [Number(r.customOptionId), r.acompteContribTtc]));
-  const resourceDbRows = db.prepare('SELECT resourceId, acompteContribTtc FROM reservation_resources WHERE reservationId = ?').all(reservation.id);
-  const resourceAcompteByResourceId = new Map(resourceDbRows.map((r) => [Number(r.resourceId), r.acompteContribTtc]));
+  const resourceAcompteByResourceId = acompteByLineKey(db, 'reservation_resources', reservation.id);
 
   for (const line of quote.optionLines || []) {
     if (line.isCustom) continue;
     if (isLineForced(line)) {
-      optionContribsByOptionId.set(Number(line.optionId), null);
+      optionContribsByOptionId.set(extraLineKey(line), null);
       continue;
     }
-    const acompte = optionAcompteByOptionId.get(Number(line.optionId));
+    const acompte = optionAcompteByOptionId.get(extraLineKey(line));
     const totalPrice = Number(line.totalPrice || 0);
     const solde = acompte == null ? totalPrice : Math.max(0, totalPrice - Number(acompte));
-    optionContribsByOptionId.set(Number(line.optionId), roundCents(solde));
+    optionContribsByOptionId.set(extraLineKey(line), roundCents(solde));
   }
   for (const line of quote.optionLines || []) {
     if (!line.isCustom || line.customOptionId == null) continue;
@@ -203,13 +202,13 @@ function captureContribsOnFlip({ db, reservation, bucket }) {
   }
   for (const line of quote.resourceLines || []) {
     if (isLineForced(line)) {
-      resourceContribsByResourceId.set(Number(line.resourceId), null);
+      resourceContribsByResourceId.set(extraLineKey(line), null);
       continue;
     }
-    const acompte = resourceAcompteByResourceId.get(Number(line.resourceId));
+    const acompte = resourceAcompteByResourceId.get(extraLineKey(line));
     const totalPrice = Number(line.totalPrice || 0);
     const solde = acompte == null ? totalPrice : Math.max(0, totalPrice - Number(acompte));
-    resourceContribsByResourceId.set(Number(line.resourceId), roundCents(solde));
+    resourceContribsByResourceId.set(extraLineKey(line), roundCents(solde));
   }
 
   const accommodationAcompte = Number(reservation.accommodationAcompteContribTtc != null ? reservation.accommodationAcompteContribTtc : 0);
@@ -266,37 +265,49 @@ function assertConservation(sum, encaissement, label) {
   }
 }
 
-function applyDepositContribsToDb(db, reservation, contribs) {
-  const upOpt = db.prepare('UPDATE reservation_options SET acompteContribTtc = ? WHERE reservationId = ? AND optionId = ?');
-  for (const [optionId, value] of contribs.optionContribsByOptionId) {
-    upOpt.run(value, reservation.id, optionId);
+const ARTICLE_COLUMN = { reservation_options: 'optionId', reservation_resources: 'resourceId' };
+
+// Rule 85: the stored lines of one table keyed like the engine's (an article's first line `opt:<id>` / `res:<id>`, a later one by its
+// `lineRef`), with the column that addresses exactly that row. A schema that predates `lineId` addresses the article, as it always did.
+function storedLineKeys(db, table, reservationId) {
+  const article = ARTICLE_COLUMN[table];
+  const hasLineId = db.prepare(`PRAGMA table_info(${table})`).all().some((c) => c.name === 'lineId');
+  const rows = db.prepare(`SELECT ${hasLineId ? 'lineId, ' : ''}${article}, acompteContribTtc FROM ${table} WHERE reservationId = ?`).all(reservationId);
+  return keyLines(table, rows).map(({ row, key }) => ({
+    key, acompteContribTtc: row.acompteContribTtc, where: hasLineId ? ['lineId', row.lineId] : [article, row[article]],
+  }));
+}
+
+function acompteByLineKey(db, table, reservationId) {
+  return new Map(storedLineKeys(db, table, reservationId).map((entry) => [entry.key, entry.acompteContribTtc]));
+}
+
+function writeContribsByLineKey(db, table, column, reservationId, valuesByKey) {
+  for (const entry of storedLineKeys(db, table, reservationId)) {
+    if (!valuesByKey.has(entry.key)) continue;
+    db.prepare(`UPDATE ${table} SET ${column} = ? WHERE reservationId = ? AND ${entry.where[0]} = ?`).run(valuesByKey.get(entry.key), reservationId, entry.where[1]);
   }
+}
+
+function applyDepositContribsToDb(db, reservation, contribs) {
+  writeContribsByLineKey(db, 'reservation_options', 'acompteContribTtc', reservation.id, contribs.optionContribsByOptionId);
   const upCustom = db.prepare('UPDATE reservation_custom_options SET acompteContribTtc = ? WHERE reservationId = ? AND id = ?');
   for (const [customOptionId, value] of contribs.customContribsByCustomId) {
     upCustom.run(value, reservation.id, customOptionId);
   }
-  const upRes = db.prepare('UPDATE reservation_resources SET acompteContribTtc = ? WHERE reservationId = ? AND resourceId = ?');
-  for (const [resourceId, value] of contribs.resourceContribsByResourceId) {
-    upRes.run(value, reservation.id, resourceId);
-  }
+  writeContribsByLineKey(db, 'reservation_resources', 'acompteContribTtc', reservation.id, contribs.resourceContribsByResourceId);
   db.prepare(`
     UPDATE reservations SET accommodationAcompteContribTtc = ?, touristTaxAcompteContribTtc = ? WHERE id = ?
   `).run(contribs.accommodation, contribs.tax, reservation.id);
 }
 
 function applyBalanceContribsToDb(db, reservation, contribs) {
-  const upOpt = db.prepare('UPDATE reservation_options SET soldeContribTtc = ? WHERE reservationId = ? AND optionId = ?');
-  for (const [optionId, value] of contribs.optionContribsByOptionId) {
-    upOpt.run(value, reservation.id, optionId);
-  }
+  writeContribsByLineKey(db, 'reservation_options', 'soldeContribTtc', reservation.id, contribs.optionContribsByOptionId);
   const upCustom = db.prepare('UPDATE reservation_custom_options SET soldeContribTtc = ? WHERE reservationId = ? AND id = ?');
   for (const [customOptionId, value] of contribs.customContribsByCustomId) {
     upCustom.run(value, reservation.id, customOptionId);
   }
-  const upRes = db.prepare('UPDATE reservation_resources SET soldeContribTtc = ? WHERE reservationId = ? AND resourceId = ?');
-  for (const [resourceId, value] of contribs.resourceContribsByResourceId) {
-    upRes.run(value, reservation.id, resourceId);
-  }
+  writeContribsByLineKey(db, 'reservation_resources', 'soldeContribTtc', reservation.id, contribs.resourceContribsByResourceId);
   db.prepare(`
     UPDATE reservations SET accommodationSoldeContribTtc = ?, touristTaxSoldeContribTtc = ? WHERE id = ?
   `).run(contribs.accommodation, contribs.tax, reservation.id);
@@ -328,10 +339,11 @@ function captureStoredSplit({ db, reservation, bucket }) {
   const reclass = isDeposit || routedToComplement ? 0 : roundCents(reservation.touristTaxAcompteContribTtc);
   // What is left to collect on each pre-arrival line (forced and offered lines are not on the schedule),
   // the accommodation taking the rest — the same pro-rata the export's stored-money path uses.
+  const lineIdOr = (table, fallback) => (db.prepare(`PRAGMA table_info(${table})`).all().some((c) => c.name === 'lineId') ? 'lineId' : fallback);
   const tables = [
-    ['reservation_options', 'optionId'],
+    ['reservation_options', lineIdOr('reservation_options', 'optionId')],
     ['reservation_custom_options', 'id'],
-    ['reservation_resources', 'resourceId'],
+    ['reservation_resources', lineIdOr('reservation_resources', 'resourceId')],
   ];
   const lines = [];
   let linesTotal = 0;
@@ -339,7 +351,7 @@ function captureStoredSplit({ db, reservation, bucket }) {
     const totalCol = table === 'reservation_custom_options'
       ? 'CASE WHEN COALESCE(offered, 0) = 1 THEN 0 ELSE amount END' : 'totalPrice';
     for (const l of db.prepare(`SELECT ${key} AS k, ${totalCol} AS total, COALESCE(inComplement, 0) AS forced,
-      COALESCE(offered, 0) AS offered, acompteContribTtc FROM ${table} WHERE reservationId = ?`).all(reservation.id)) {
+      COALESCE(offered, 0) AS offered, acompteContribTtc FROM ${table} WHERE reservationId = ?${table === 'reservation_custom_options' ? notDepartureCharge(db) : ''}`).all(reservation.id)) {
       linesTotal += Number(l.total || 0);
       if (Number(l.forced) === 1 || Number(l.offered) === 1) continue;
       const left = Math.max(0, Number(l.total || 0) - (isDeposit ? 0 : Number(l.acompteContribTtc || 0)));

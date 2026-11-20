@@ -5,11 +5,12 @@
  */
 
 const sdk = require('../sdk');
-const { buildRows, buildStructuredEntries, CSV_HEADERS } = require('./accountingExport');
-const { toLatin1Text } = require('./latin1');
+const { csvJournal, salesJson } = require('./accountingExport');
+const { drinksAccountRefusal } = require('./drinksGuard');
+const { roundMoneyStrict, fromCentsStrict } = sdk.coreModule('money');
 const { MOLLIE_DEFAULTS } = require('./settings');
 
-const { serializeCsv } = sdk.coreModule('csv');
+const { journalEntries } = sdk.coreModule('accountingOutput');
 
 function parseMonthYear(query) {
   const month = Number(query.month);
@@ -19,18 +20,11 @@ function parseMonthYear(query) {
   return { month, year };
 }
 
-// Sales + refunds + cancellation compensations of the month, in one chronological stream. Neither a
-// refund nor a compensation is an encaissement, but both belong to the same journal at their own
-// date (specs/reservation-refunds.md §3.4 rule 21, specs/cancellation-compensation.md §3.3 rule 15).
-// Building the stream here means the CSV and the JSON preview can never drift apart.
+// Sales + refunds + cancellation compensations of the month (the core's `journalEntries`), and the entries a live plugin books
+// in its own journal (the Mollie journal, specs/mollie-rolling-reserve-and-incoming-payments.md rules 28-31), in one
+// chronological stream: the CSV, the JSON preview and the synthesis can never drift apart.
 function monthEntries(accountingModel, params, plan = {}, mollie = null) {
-  const sales = accountingModel.encaissementsByMonth(params);
-  const refunds = accountingModel.refundsByMonth ? accountingModel.refundsByMonth(params) : [];
-  const compensations = accountingModel.compensationsByMonth ? accountingModel.compensationsByMonth(params) : [];
-  const penalties = accountingModel.platformPenaltiesByMonth ? accountingModel.platformPenaltiesByMonth(params) : [];
-  // specs/resource-booking-pricing-and-invoicing.md rule 21 — the sales made outside any stay.
-  const standalone = accountingModel.standaloneSalesByMonth ? accountingModel.standaloneSalesByMonth(params) : [];
-  return [...sales, ...refunds, ...compensations, ...penalties, ...standalone, ...(mollie || mollieEntries(accountingModel, params, plan)).entries]
+  return [...journalEntries(params, accountingModel), ...(mollie || mollieEntries(accountingModel, params, plan)).entries]
     .sort((a, b) => String(a.paidDate || '').localeCompare(String(b.paidDate || '')));
 }
 
@@ -51,31 +45,28 @@ function mollieEntries(accountingModel, params, plan = {}) {
     [String(accounts.mollieBankAccount)]: 'Banque',
     [String(accounts.mollieFeeAccount)]: 'Frais Mollie',
   };
+  // The journal code and the three accounts ride on the entry: the core's journal lines book a Mollie entry on them, outside the
+  // sales journal's plan.
+  const mollieAccounts = {
+    journal: String(accounts.mollieJournalCode), clearing: String(accounts.mollieClearingAccount),
+    bank: String(accounts.mollieBankAccount), fee: String(accounts.mollieFeeAccount),
+  };
   const entries = found.entries.filter((e) => MOLLIE_KINDS.has(e.kind) && (withBank || e.kind !== 'credit')).map((e) => ({
     reservationId: e.reservationId == null ? null : e.reservationId, kind: 'mollie', direction: 'mollie', mollieKind: e.kind, paidDate: e.date,
-    client: e.client || { firstName: '', lastName: '' }, amount: e.amountCents / 100, encaissementTtc: e.amountCents / 100,
+    client: e.client || { firstName: '', lastName: '' }, amount: fromCentsStrict(e.amountCents), encaissementTtc: fromCentsStrict(e.amountCents),
     libelle: e.libelle || '', settlementReference: e.settlementReference || '', qontoReference: e.qontoReference || '', accountLabels: labels,
+    mollieAccounts,
   }));
   return {
     entries,
-    unattached: found.unattached.map((u) => ({ ...u, amount: u.amountCents / 100 })),
+    unattached: found.unattached.map((u) => ({ ...u, amount: fromCentsStrict(u.amountCents) })),
     clearing: found.clearing ? {
-      account: String(accounts.mollieClearingAccount), asOf: found.clearing.asOf, balance: found.clearing.balanceCents / 100,
-      clients: found.clearing.clients.map((c) => ({ ...c, balance: c.balanceCents / 100 })),
+      account: String(accounts.mollieClearingAccount), asOf: found.clearing.asOf, balance: fromCentsStrict(found.clearing.balanceCents),
+      clients: found.clearing.clients.map((c) => ({ ...c, balance: fromCentsStrict(c.balanceCents) })),
     } : null,
   };
 }
 
-const TOURIST_TAX_ACCOUNT = '46710000';
-function taxOnlyEntries(structured) {
-  return structured
-    .filter((e) => e.direction === 'sale')
-    .filter((e) => {
-      const credits = (e.lines || []).filter((l) => Number(l.credit) > 0);
-      return credits.length > 0 && credits.every((l) => String(l.compte) === TOURIST_TAX_ACCOUNT);
-    })
-    .map((e) => ({ reservationId: e.reservationId, kind: e.kind, libelle: e.libelle, paidDate: e.paidDate, amount: e.encaissementTtc }));
-}
 
 // `plan()` — the account plan of the export (specs/plugins-phase-p-productisation.md rule 27); none
 // means the defaults.
@@ -86,20 +77,13 @@ function createAccountingController(accountingModel, { plan = () => undefined, o
       const params = parseMonthYear(req.query);
       if (!params) return res.status(400).json({ error: 'INVALID_MONTH_OR_YEAR' });
       const entries = monthEntries(accountingModel, params, plan());
-      const rows = buildRows(entries, plan());
-      // ISO-8859-1 (latin1) without BOM — the « Format standard (CSV) », byte-for-byte the
-      // accountant's example file. French accounting software (Sage/EBP/Cegid) defaults to
-      // latin1 and chokes on the UTF-8 BOM, so we drop it via `{ bom: false }` and re-encode
-      // the string into a latin1 Buffer, once every cell's characters outside latin1 (’, Œ, …) have
-      // been transliterated (rule 31) — before the quoting, which a « ” » → « " » must go through.
-      const latin1Rows = rows.map((row) => row.map((cell) => (typeof cell === 'string' ? toLatin1Text(cell) : cell)));
-      const csv = serializeCsv(CSV_HEADERS, latin1Rows, { bom: false });
-      const buffer = Buffer.from(csv, 'latin1');
-      const mm = String(params.month).padStart(2, '0');
-      onCsvExported(`${params.year}-${mm}`, req);
-      res.setHeader('Content-Type', 'text/csv; charset=ISO-8859-1');
-      res.setHeader('Content-Disposition', `attachment; filename="ventes-${params.year}-${mm}.csv"`);
-      return res.send(buffer);
+      const refusal = drinksAccountRefusal(entries, plan());
+      if (refusal) return res.status(refusal.status).json(refusal.body);
+      const file = csvJournal.export(entries, { plan: plan(), period: params });
+      onCsvExported(`${params.year}-${String(params.month).padStart(2, '0')}`, req);
+      res.setHeader('Content-Type', file.contentType);
+      res.setHeader('Content-Disposition', `attachment; filename="${file.filename}"`);
+      return res.send(file.body);
     },
 
     // JSON mirror of the CSV — same encaissements, same lines, but grouped per entry and pre-classified
@@ -111,21 +95,11 @@ function createAccountingController(accountingModel, { plan = () => undefined, o
       // The Mollie facts are read once for the response: the stream and the clearing aid come from the same read.
       const mollie = mollieEntries(accountingModel, params, plan());
       const entries = monthEntries(accountingModel, params, plan(), mollie);
-      const structured = buildStructuredEntries(entries, plan());
-      const totalDebits = structured.reduce((s, e) => s + e.sumDebits, 0);
-      const totalCredits = structured.reduce((s, e) => s + e.sumCredits, 0);
+      const refusal = drinksAccountRefusal(entries, plan());
+      if (refusal) return res.status(refusal.status).json(refusal.body);
+      // Rules 30-31 — the aid to the accountant: what Mollie still holds, and the credits left unattached.
       return res.json({
-        entries: structured,
-        totals: {
-          entriesCount: structured.length,
-          totalDebits: Math.round(totalDebits * 100) / 100,
-          totalCredits: Math.round(totalCredits * 100) / 100,
-          allBalanced: structured.every((e) => e.balanced),
-          // specs/reservation-payment-ledger.md rule 43 — a sale whose credits are all on the
-          // tourist-tax account carries no revenue and no VAT: shown, never silently exported.
-          taxOnlyEntries: taxOnlyEntries(structured),
-        },
-        // Rules 30-31 — the aid to the accountant: what Mollie still holds, and the credits left unattached.
+        ...salesJson.export(entries, { plan: plan() }).body,
         mollie: mollie.clearing ? { clearing: mollie.clearing, unattached: mollie.unattached } : null,
       });
     },
@@ -158,7 +132,7 @@ function createAccountingController(accountingModel, { plan = () => undefined, o
           // specs/platform-commission-line.md — the commission is the engine-computed line
           // (operator-entered `platformCommissionAmount`, or the legacy gross−net fallback inside
           // buildEntry). Read it off the entry instead of re-deriving from the gross here.
-          commission: e.commission ? Math.round(Number(e.commission.ttc) * 100) / 100 : null,
+          commission: e.commission ? roundMoneyStrict(e.commission.ttc) : null,
           // specs/single-payment-at-check-in.md §3.3 rule 13 — la collecte à laquelle cette écriture
           // appartient. Le tableau replie les écritures d'un même paiement en UNE ligne : sans ça il
           // affichait deux encaissements pour un seul mouvement bancaire, à rebours de la carte de
@@ -166,7 +140,7 @@ function createAccountingController(accountingModel, { plan = () => undefined, o
           paymentGroup: e.paymentGroup || null,
         }));
       const totalCommission = platformRows.reduce((s, r) => s + (r.commission || 0), 0);
-      return res.json({ rows: platformRows, totalCommission: Math.round(totalCommission * 100) / 100 });
+      return res.json({ rows: platformRows, totalCommission: roundMoneyStrict(totalCommission) });
     },
   };
 }
@@ -174,5 +148,5 @@ function createAccountingController(accountingModel, { plan = () => undefined, o
 module.exports = {
   create: createAccountingController,
   monthEntries,
-  __test: { parseMonthYear, monthEntries, mollieEntries, taxOnlyEntries },
+  __test: { parseMonthYear, monthEntries, mollieEntries, taxOnlyEntries: salesJson.__test.taxOnlyEntries },
 };

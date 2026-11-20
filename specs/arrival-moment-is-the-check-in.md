@@ -49,6 +49,19 @@ Nothing counts as « sold during the stay » before the guest has actually arriv
    end-of-stay, cash or not) and no settled mid-stay note. Those stays are still pre-arrival, so a
    stale baseline is exactly what misfiles their extras. Money-safe by construction — every excluded
    condition is a case where something has already been collected against that baseline.
+   > **Amended 2026-11-16** (stabilisation loop t4, D4-2, D4-3; [pricing-components.md](pricing-components.md) rules 102 a and
+   > 103 b). The repair runs on every boot, and since rule 102 a save made once the stay clock has started (the check-in hour
+   > passed, nothing ticked yet) lays a baseline of the stay's own. Clearing it at a restart sent the departure part of a line
+   > that grew above it out of every bucket (306 + 0 + 45 = 351 € on a final price of 363 €). So the repair now also requires
+   > that the **stay clock has not started** at the boot's `now` (`stayClockModel.phaseForReservation`, the one clock) — before
+   > the arrival day, or on it before the check-in hour — and it never clears a baseline that carved a line out to the departure
+   > (a line stamped `collectAt = 'departure'`, rule 103 b): that baseline is the line's bucket. Written once in
+   > `complementDataRepairs.clearPreArrivalBaselines(db, { now })`, called by `database.js`.
+   > **Amended 2026-11-16** (stabilisation loop t5, D5-2, D5-3). The repair keeps the same three reasons as the untick of
+   > pricing-components rule 103 b: something collected, a line carved out, **or an overridden arrival complement**
+   > (`complementAmountOverride`) — before, a restart cleared what the untick had kept, and the next sale was refused or its
+   > money moved to the balance. A stay whose stored dates the stay clock cannot read (`STAY_CLOCK_INVALID`) keeps its baseline
+   > and is logged; the boot never fails on one row.
 
 **Edge cases:**
 - **Walk-in / stay recorded after the fact** (created while already running): no baseline until the
@@ -58,6 +71,13 @@ Nothing counts as « sold during the stay » before the guest has actually arriv
   complement until either signal appears, or until a complement is collected (rule 2).
 - **Re-opened arrival SAS**: `arrivalSasDoneAt` stays set, so the baseline stays pinned — a re-commit
   never re-opens the pre-arrival window.
+
+> **Amendment 2026-11-12 — routing of new sales** ([pricing-components.md](pricing-components.md) rules 19-20 and 45,
+> PR B). Rule 1 above stays true for the arrival baseline; the **routing of a new sale** is decided by STAY CLOCK from
+> the date and the check-in time (« started » = the arrival date reached **and** the check-in time passed,
+> Europe/Paris), and by the `collectAt` the line is written with. A sale between the check-in time and a late
+> check-in mark moves from the arrival to the departure complement; one after an early check-in mark but before the
+> check-in time moves the other way. These are the listed differences 1 of PR B, owner-reviewed in `allowlist.json`.
 
 ---
 
@@ -70,7 +90,7 @@ Nothing counts as « sold during the stay » before the guest has actually arriv
 
 | Layer | File | T/C | Responsibility in this change |
 |---|---|---|---|
-| `utils/` | `arrivalMoment.js` | C | `hasGuestArrived(row)` — check-in box or arrival SAS. Its own module because « is the guest here? » is asked from more than one layer and was answered differently in each; one place makes divergence impossible. |
+| `utils/` | `arrivalMoment.js` | C (deleted by PR C: no reader left, the display reads `checkInDone` / `arrivalSasDoneAt`) | `hasGuestArrived(row)` — check-in box or arrival SAS. Its own module because « is the guest here? » is asked from more than one layer and was answered differently in each; one place makes divergence impossible. |
 | `models/` | `reservationsModel.js` | T | `arrivalExtrasBaselineIsDue`: its calendar branch becomes `hasGuestArrived(row)`; the collected-complement branch (PR #486) is untouched. `resolveArrivalExtrasBaseline` / `captureArrivalExtrasBaselineIfDue` lose their now-dead `todayIso` parameter and read the whole row, so a minimal test schema without the check-in columns degrades to « not arrived » instead of failing the query. |
 | `controllers/` | `reservationsController.js` | T | The three call sites drop the date argument. |
 | `database.js` | `database.js` | T | The idempotent baseline cleanup of rule 3. |
@@ -117,6 +137,11 @@ touched).
       valve and the arrival-detail carving keep their PR #486 tests, green and untouched.
 - [x] `reservations-mid-stay-sync.unit.test.js` (20) — capture cases realigned on the arrival signal.
 - [x] Full server suite green: **3636 pass**.
+- [x] `arrival-baseline-boot-repair-clock.unit.test.js` (8, new 2026-11-16, loop t4 D4-2/D4-3, t5 D5-2/D5-3) — rule 3 as amended: a stay not
+      started loses its baseline; one that carved a line out to the departure (or holds a departure charge stamped there)
+      keeps it; on the arrival day the baseline is cleared before the check-in hour and kept after; a clock-started stay
+      whose plan line grew keeps every euro in a bucket across a restart; a kept false start with an overridden complement
+      keeps its baseline across a restart; an unreadable stored date keeps that baseline and the others are still cleared.
 
 ### Migration
 - [x] Replayed on a copy of the operator's base: 0 legitimate baseline touched; a row forced into the

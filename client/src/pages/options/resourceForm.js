@@ -5,6 +5,7 @@
  */
 import { FIELD } from '../../constants/optionsResourcesTexts';
 import { amountProblem, isBlank, parseAmount } from './optionForm';
+import { emptyExternalSale, externalSaleFromItem, externalSalePayload } from './externalSaleForm';
 
 const toText = (value) => (value === null || value === undefined ? '' : String(value).replace('.', ','));
 const ALL_DAYS = [0, 1, 2, 3, 4, 5, 6];
@@ -16,6 +17,7 @@ export const emptyResource = {
   showsPlanningCard: false, hourlyEveningStart: '', hourlyEveningRate: 0, hourlyExternalDayRate: 0, hourlyExternalEveningRate: 0,
   heatUpMinutes: 0, heatRetentionMinutes: 0,
   emailBookedText: '', emailBookedTextEn: '',
+  ...emptyExternalSale,
 };
 
 const DEFAULT_HOURLY_SETTINGS = {
@@ -84,6 +86,7 @@ export function toResourcePayload(form) {
     note: form.description || '',
     emailBookedText: form.emailBookedText || '',
     emailBookedTextEn: form.emailBookedTextEn || '',
+    ...externalSalePayload(form),
     ...hourlySettings(form),
   };
 }
@@ -131,6 +134,7 @@ export function formFromResource(item) {
     heatRetentionMinutes: Number(item.heatRetentionMinutes || 0),
     emailBookedText: item.emailBookedText || '',
     emailBookedTextEn: item.emailBookedTextEn || '',
+    ...externalSaleFromItem(item),
   };
 }
 

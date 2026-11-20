@@ -79,8 +79,8 @@ function refuseInvalidServedPersons(lines, stored = {}) {
     for (const { field, code, error, valid } of TYPED_COUNTS) {
       const count = readNumber(line?.[field]);
       if (count === undefined || valid(count)) continue;
-      const kept = stored[Number(line.optionId)]?.[field];
-      if (kept != null && Number(kept) === count) continue;
+      const heldBy = stored[Number(line.optionId)];
+      if ([heldBy, ...((heldBy && heldBy.others) || [])].some((entry) => entry?.[field] != null && Number(entry[field]) === count)) continue;
       return { error, code, optionId: line.optionId ?? null };
     }
   }
@@ -99,14 +99,17 @@ const LINE_IDS = { options: 'optionId', selectedOptions: 'optionId', resources: 
 
 const sent = (value) => value !== undefined && value !== null;
 
+// Rule 85: an article may be sold on several lines, each named by its own `lineId`; the same line twice, or two lines of one article that
+// name none, say nothing about which is which.
 function repeatedLineList(body) {
   for (const [field, key] of Object.entries(LINE_IDS)) {
     const seen = new Set();
     for (const line of body[field] || []) {
       const id = readNumber(line[key]);
       if (!id) continue;
-      if (seen.has(id)) return field;
-      seen.add(id);
+      const slot = `${id}:${readNumber(line.lineId) || ''}`;
+      if (seen.has(slot)) return field;
+      seen.add(slot);
     }
   }
   return null;

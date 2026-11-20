@@ -579,14 +579,14 @@ Optional: a plugin that declares nothing reads « Actif ».
     (`labels: { refundOne, refundMany }`, the guest app's « Commande client à rembourser »), else the core's neutral
     « Paiement en ligne à rembourser »; with no live owner the payment is `basket-unallocated` and the admin is
     alerted. The provider sees the origin `basket`. `midStayOrderCommit` prices an order by the
-    fiche's own save played without writing (`priceOrder(reservationId, lines, { pending? })`: the caller's promised,
-    unwritten lines — a card order awaiting payment — take their allowances first) and writes it as mid-stay extras through `performUpdate`, a
+    fiche's own save played without writing (`priceOrder(reservationId, lines)`; its `pending` option was removed on 2026-11-13, an unpaid card order
+    reserves nothing, guest-app rule 108) and writes it as mid-stay extras through `performUpdate`, a
     card order's money as a settled mid-stay note `{ source, ref }`, in one transaction with the plugin's own step
     (`commitOrder(reservationId, { source, ref, history: { field, label, text }, lines, paid?, within? })` — the
     caller names its order and writes the history entry in its own words; an order not named is refused before
     anything is written). A row of
     `plugin-core-hardening-floor.unit.test.js` makes a plugin calling them floor at `^2.26.0`. Tests:
-    `payment-complement-link.unit.test.js`, `mid-stay-order-commit.unit.test.js`, `guest-app-order-card`,
+    `payment-complement-link.unit.test.js`, `mid-stay-order-alias.unit.test.js` (the module is a thin alias over `extraSale` since C30, 2026-11-13; `commitOrder` answers `overpaidCents`, formerly `excessCents`), `guest-app-order-card`,
     `guest-app-order-note`. Reading of 2026-11-10 (audit R36-M-H1): the engine serves a per-person line at most
     max(1, party, the lodging's capacity) persons, so persons ordered beyond it were written and never billed. Both
     calls refuse such an order before anything is priced or written — `{ status: 409, body: { code:
@@ -634,6 +634,9 @@ Optional: a plugin that declares nothing reads « Actif ».
     `plugin-core-hardening-floor` holds it); hourly-resources and accounting-export range `^2.27.0`; `coreModuleHistory.json`
     records 2.27.0 (`vat`). Tests: `article-family-sdk.unit.test.js`, `plugin-core-hardening-floor.unit.test.js`,
     `sdk-v2-plugin-ranges.unit.test.js`.
+    > _Amended 2026-11-15 (stabilisation loop t1, AS-3, AS-4; rule 54):_ v4.1.0 shipped SDK 2.27.0 without `vat` nor `ctx.articleFamily`; both are
+    > first shipped by 2.30.0, which `coreModuleHistory.json` records, the hardening floor holds (`ctx.articleFamily(` asks `^2.30.0`) and the SDK's
+    > comments say. The in-tree plugins that use them range `^2.31.0` or `^2.32.0`.
 51. *(Added 2026-11-16, specs/mollie-rolling-reserve-and-incoming-payments.md rules 18, 23, 28, SDK 2.29.0.)* **A plugin
     tells the core what is still to arrive on the bank.** `ctx.ledgerBankTranches(({ reservationId }) → { rows: { [ledgerKey]:
     [tranche] }, schedule } | null)` adds dated tranches under a paid row of the payments ledger and a recap line to the
@@ -644,6 +647,295 @@ Optional: a plugin that declares nothing reads « Actif ».
     1.8.0 and `accounting-export` 1.3.0 range `^2.29.0`; `coreModuleHistory.json` records 2.29.0 (`journalEntries`). Tests:
     `plugin-core-hardening-floor.unit.test.js`, `incoming-payments.unit.test.js`, `mollie-ledger-tranches.unit.test.js`,
     `accounting-mollie-journal.unit.test.js`.
+52. *(Added 2026-11-12, specs/pricing-components.md rules 10, 27, 31, 44-49, SDK 2.30.0.)* **A plugin sells through the same services as the
+    core, and declares the booking an article needs.** `coreModule('extraSale')` hands out the sale service (`quote`, `sell`,
+    `changeLine`, `saleDetailOf`, `departureSalesOf`), `coreModule('saleDetail')` its read model, `coreModule('articles')` the head's reads
+    (`read` prices one candidate line for a stay with no free unit spent, `unitsPerQuantity` the billed units of one quantity),
+    `coreModule('stayClock')` `phaseForReservation` (has the stay started), `coreModule('catalogue')` the lodging's own price of an option or a
+    resource. `sasOptionSale` keeps its name and its names (the SAS is the first caller of the services above; removing it would be a MAJOR bump).
+    `ctx.articleFulfilment(id, { reserve(draft, ctx), confirm(hold, line, tx), release(hold, reason) })` declares the downstream booking an
+    article names (`config.fulfilment`, today `hourly-slot`): an id belongs to one plugin (`DUPLICATE_FULFILMENT`), it is asked only while that
+    plugin is live, and a refusal at `confirm` — inside the sale transaction, before the line is written — aborts the sale (`SLOT_TAKEN`).
+    `ctx.slotAvailability({ slots(args), validate(args) })` declares the planning's availability, one per instance, handed out as
+    `ctx.core.slotAvailability()`. `ctx.core.reservations.fromPlatform(reservationId, intake, { label, client, reuseByEmail })` is the platform booking port
+    (`update` is the same save fed with a patch). Four events join `ctx.events.on` — `extraSale.sold`, `extraSale.lineMoved`, `extraSale.lineCancelled`,
+    `extraSale.refundOwed` — published after the sale commits (a plugin may not emit them); google-calendar 1.3.0 listens to the first three. *(Reading of 2026-11-17, loop t10 A10-1:* the versions this branch ships are
+    hourly-resources 1.8.0 and sas 1.11.0, which range `^2.32.0`, and google-calendar 1.3.0, which ranges `^2.31.0`, all at or above 2.30.0;
+    hourly-resources 1.6.0 and sas 1.10.0 are v4.1.0's packages and range lower.) The floor is 2.30.0: a plugin calling `ctx.articleFulfilment(` or
+    `ctx.slotAvailability(` asks for it (the hardening floor list holds both); `coreModuleHistory.json` records 2.30.0. Tests:
+    `article-fulfilment-contract`, `bath-fulfilment-contract`, `extra-sale-sas`, `plugin-core-hardening-floor`, `plugins-sdk-core-module-floor`.
+53. *(Added 2026-11-12, specs/pricing-components.md rule 38, SDK 2.31.0.)* **A plugin rounds through the shared money helpers.** `coreModule('money')`
+    hands out the exact variants of `money.js`: `roundMoney`, `roundMoneyOrZero`, `roundMoneyStrict`, `toCents`, `toCentsOrZero`, `toCentsStrict`,
+    `fromCentsStrict`, `parseFrenchCents`, `parseFrenchEuros` and `eurosWithSpaces`. Each reproduces one of the private copies the plugins held, so no
+    figure moves; the variant is picked by what the copy did with a blank or a non-number, never swapped for `roundMoney`. airbnb-intake, booking-intake,
+    gites-de-france-intake, google-calendar, google-vacation-rentals, hourly-resources, online-payment, sas, tariff-recipes, website-booking and
+    accounting-export range `^2.31.0` or later (hourly-resources and sas range `^2.32.0`); the hardening floor list holds the module (`shared money helpers`), `coreModuleHistory.json` records 2.31.0.
+    `coreModule('stayClock')` also hands out `dayReached(day, today)` / `dayPassed(day, today)` (the day comparisons the intakes and the public form used to write
+    inline), `coreModule('platformPayment')` the reads of what a platform pays out (`acompteNet`, `grossOf`, `payoutWithPenalty`), and
+    `ctx.core.reservations.platformCommission({ basis: 'rentOnly', rent, netRent })` the rent-only commission of Gîtes de France (the statement basis is unchanged).
+    `coreModule('basketRefundOutcome')` (`notHonoured`, `overpaidBy`, `partlyOwed`) is guest-app's reader of what a basket tells the poller; it is the
+    only refund-register exposure of 2.31.0. *(Reading of 2026-11-17, loop t10 A10-2:* `refundObligationsModel` (`open`, `openFor`) was removed from
+    the unreleased 2.31.0 before it shipped: nothing consumed it, and its `open` was a raw insert into the refund register that would let a plugin
+    open an obligation outside `paidLineJudgment` and the refund dialog's judgment.)
+    Tests: `pricing-money-variants`, `plugin-core-hardening-floor`, `plugins-sdk-core-module-floor`, `mollie-cents-shared-helper` (2, the Mollie client reads cents through the shared helper).
+54. *(Added 2026-11-15, end review R3-3, R3-10, R3-11; specs/pricing-components.md rules 53, 74, 86, specs/outside-booking-sas.md rules 35-42,
+    SDK 2.32.0.)* **A plugin sells outside a stay, and suggests articles, through the core.** SDK 2.32.0 adds `coreModule('standaloneSale')`
+    (quote / sell / offerLine / removeLine / pay / cancel / receive / documentOf / paymentsOf of a document with no reservation),
+    `coreModule('standaloneSaleLinks')` (linkOf / draftLinkOf / mint / withdraw / emailLink of its payment link), `coreModule('suggestedArticles')`
+    (the articles suggested for a sale context), `saleDetail.buildDocumentDetail`, the context hook `ctx.suggestionContexts({ kind, label, list })`, the
+    event `standaloneSale.sold` (after the commit, an observer), and the client exports `SuggestedArticlesStep`, `SalePaymentLink`
+    and `StandaloneSaleDialog` (optional `client` prop, outside-booking-sas rule 48)
+    (`client/src/plugins/sdk/index.js`; `StaySalesSection` is SDK 2.30.0's). guest-app and hourly-resources range `^2.32.0`.
+    _Reading of 2026-11-18 (loop t19 A19-1):_ the four sale blocks are handed out lazily (`components/LazySaleComponents.jsx`, the
+    LazyReportCharts pattern): same names, same props, their code fetched on first render (« Vente hors séjour » on its first `open`), so
+    the SDK no longer puts them in every first page (specs/inte-performance.md rule 4: 315.3 → 309.1 kB gzip measured locally, budget
+    313.3 kB). Test `LazySaleComponents.lazy`.
+    _Reading of 2026-11-18 (loop t20 UI20-1):_ fetched on first render, a block arrived one round trip after its dialog had drawn its own
+    content and pushed it down (+186 px in the outside visit's arrival at 1280 px, « Récapitulatif » and « Encaisser » 126 px lower on a
+    phone, +56 px in the departure SAS). A dialog that renders a sale block now starts the four imports when it opens, in parallel with
+    its own data, and shows its content once both are there: `useSaleComponentsReady(open)` (client export of SDK 2.32.0, its rule 55
+    floor row in `plugin-client-sdk-floor`) answers false until the code is loaded (or its loading failed: `React.lazy` retries the import and the error reaches the
+    nearest boundary — the plugin route's `ChunkBoundary` for the arrival dialog, the slot's `ContributionBoundary` for the SAS, which
+    closes the dialog and shows « Module mis à jour. Recharger »), and the dialog's loading state covers the wait — `ResourceArrivalDialog` (body, phone « Reste à payer » bar, « Nouvelle
+    vente », « Valider l’arrivée ») and `ReservationSasDialog` (body and footer). The imports are made once per session
+    (`preloadSaleComponents()`, memoised, a failure tried again); a block whose code is already there renders on its first paint without
+    suspending, so nothing lands under drawn content and the Suspense fallback stays `null`. « Vente hors séjour » opens on its click's
+    own paint. Initial JavaScript 309.4 kB gzip (budget 313.3 kB). Tests `LazySaleComponents.preload`, `LazySaleComponents.consumers`
+    (the consumers enumerated from the code).
+    _Reading of 2026-11-18 (loop t21 UI21-1):_ the same holds for a block that waits for a **second** request of its dialog — it is drawn
+    with the content in a pending state of the place it takes, and the answer fills it. The members, enumerated from the code (a file that
+    asks a quote/preview hook and renders a sale block): `ResourceArrivalDialog` and `ResourceBookingDialog` — the « Facture » block of
+    « Payé maintenant » (outside-booking-sas rule 54 reading of 2026-11-18); `ReservationSasDialog` — the « Séjour » step reads the
+    preview's `stayPayment`, so until it answers the page takes its shape from the SAS payload's served block (the platform notice, the
+    « Acompte » / « Solde » lines) with every amount « — » (`SasStayPaymentPage` prop `pending`), the « Calcul du total » bar of both recaps
+    keeps its 2 px while idle, and the plan's answer to whether the stay is asked is applied before paint (`useLayoutEffect`), so the steps
+    and headings never show the served answer for a frame; `StandaloneSaleDialog` — the « Total » row is drawn with the first article, « — »
+    until the quote answers. Not members: `StaySalesSection`, `SuggestedArticlesStep` and `SalePaymentLink` render props only (their
+    search list answers a typed query); the fiche's `ExtraSalesPanel` takes the fiche's own read (`initialDetail`, rule 31) and asks alone
+    only when that read carried none (no stay, or a quote that failed). What a gesture asks (a line added, a tender changed, the counter's
+    payment once its total is known) is the answer to that gesture, dimmed while pending — not a late block. Test
+    `SaleDialogs.pending-blocks` (the dialogs enumerated from the code equal the table; each row holds the second request, finds its block
+    pending with the content, then filled).
+    _Reading of 2026-11-18 (loop t22 UI22-1/UI22-2/UI22-3, owner decision of 2026-11-18 on layout shifts):_ what holds exactly is **the
+    nominal path is steady** — on the answer accepted and the normal flow, nothing drawn moves; on another outcome (a refusal, « Caisse
+    interne », a silent refusal, a failed request) content may move, and that is not a defect. Three things hold on **every** path: the
+    focus, the typed input, and a way out. Measured frame by frame in Chromium (2026-11-11 copy, 1280 and 390 px, answer +0 and +800 ms):
+    « Vente hors séjour » — its « Total » row stayed at 277 / 297 px from the first article to the answer (before: −101 / +24 px) because the
+    dialog is now a **sheet** (`FormDialog` prop `sheet`: from `sm` up it hangs from the top at the screen's full height, its content
+    scrolling inside, so the payment the answer adds below the Total fills room already there and the actions stay at 816 px), its VAT line
+    keeps its place and the draft row draws its detail and amount « — » until priced (`SuggestedArticlesStep`, every dialog using it); the
+    outside visit's « Récapitulatif » puts the VAT rates side by side on one line, so an article of another rate no longer pushes « Paiement »
+    down 26 px when the answer lands; the booking dialog's save button already reads « Enregistrer et facturer » when the pending « Facture »
+    block is drawn ticked, so the accepted answer no longer rewraps it at 390 px (784 → 775). **No control of a pending block can be used:**
+    a block drawn with placeholder values carries `data-pending-block`, and nothing inside it is enabled — the « Facture » address fields too
+    (they stayed live while the box was disabled, and a refusal, « Caisse interne » or a silent answer removed the field being typed in:
+    the focus fell to the page and the text was lost), the « Séjour » page's settlement buttons while its amount is « — » (pricing-components
+    rule 117 reading of 2026-11-18). **The focus never falls to the page:** `FocusKeeper` (`components/FocusKeeper.jsx`, client export of
+    SDK 2.32.0 with its rule 55 floor row) is a region that, when the control holding the focus is removed, disabled or hidden by a change of
+    its subtree, moves the focus to the nearest region still drawn around it (`data-focus-anchor`, `tabIndex -1`, no Tab stop, no outline);
+    it never takes the focus from a control the operator chose, and it acts after a dialog's focus trap caught the loss. Members, enumerated
+    from the code: `BookingInvoiceBlock` (the block), the contents of `ResourceArrivalDialog`, of the booking dialog's form side, of
+    `StandaloneSaleDialog` and of each `ReservationSasDialog` page, and the roots of `SuggestedArticlesStep`, `StaySalesSection` and
+    `SalePaymentLink` (one root for both states, so the link that replaces « Créer le lien » keeps the focus in the block). Measured in
+    Chromium: the address typed in while a second answer refuses → focus on the « Facture » block (refusal, « Caisse interne ») or the
+    dialog's content (silent: the section is hidden), never the page. **Every failure has its way out:** « Vente hors séjour » says a failed
+    quote and a catalogue that did not load with « Réessayer » (`ErrorAlert`). Tests `SaleDialogs.pending-blocks` (no live control in a
+    pending block, every row), `SaleDialogs.focus-on-answer` (14, 17 since loop t23: every file drawing a `FocusKeeper` has its rows; the four « Facture »
+    outcomes in the arrival), `FocusKeeper` (7), `ReservationSasDialog.failed-preview` (7, pricing-components rule 117). Initial JavaScript 310.1 kB gzip (budget 313.3 kB).
+    _Reading of 2026-11-18 (loop t23 S23-1):_ **a recompute that FAILS after an earlier answer leaves nothing of that answer on screen.**
+    `useLatestPreview` (SDK export, part of the unpublished 2.32.0) kept `data` on a failure — right while a newer request is pending
+    (dimmed), wrong once it failed — and each screen decided alone what « unknown » meant: the counter kept « Total 6,50 € » and an editable
+    « Montant CB » 6,50 while its stepper read 2, the visit « Reste à payer » 126,50 € from before the article was added, the booking dialog
+    its 70 € with no « Prix indisponible » and no « Réessayer », the SAS arrival recap (« Régler séparément ») its stay settlement buttons on
+    « Séjour : — », and the payout split and the platform penalty their older figures with no word. The hook now answers **`data: null` and
+    `failed: true` from the failure until a new answer** (through a pending « Réessayer » too), and `last` for the one screen that draws its
+    layout from the last answer with every amount « — » and every settlement control disabled while `failed` (the SAS recap pages, through
+    `useSasRecapPreview`). Every screen that previews money through it, enumerated from the code — `StandaloneSaleDialog`,
+    `ResourceArrivalDialog`, `ResourceBookingDialog`, `ReservationSasDialog`, `PlatformPenaltyDialog`, `SplitSharesDialog`,
+    `LinkTransactionDialog` — then shows the reason with « Réessayer », no figure of the older answer and no money field set from it (the
+    counter's payment reads « — », the visit's « Total », « Reste à payer », VAT and session amounts read « — » and its payment is not
+    typed, the booking dialog reads « Prix indisponible »), keeps its commit disabled, and draws the new answer once « Réessayer » brings it.
+    The arrival therefore no longer asks the payment's invoice answer while its draft's amounts are unknown (outside-booking-sas rule 54
+    reading of the same day). **What holds for the operator's own inputs** (second pass of the same day, the loop's verifier in Chromium:
+    « Plus 15 minutes » took the booking's « min offertes » away, a click on a penalty radio took the choice away, and « Réessayer » dropped
+    the focus on the dialog): a **draft input is never drawn from the answer** — the article quantities and their steppers, the visit's
+    offered time, the booking's times and its « Temps offert » stepper (the summary keeps the last answer's layout with every amount and
+    detail « — », `ResourceBookingSummary` prop `unknown`), the SAS « Offrir » toggles, the penalty's amount, motif, date and its before /
+    after choice once asked (`choice` set, or the last answer needed it), the payout shares and the ticked credits — so each stays mounted,
+    where the operator left it, through a failure and its retry; only what is set FROM an answer goes (the figures, the tender lines whose
+    amount the answer's remainder fills). The hook keeps `error` until a new answer as it keeps `failed`, so the alert and its « Réessayer »
+    stay drawn while the retry is asked and the focus stays on the button. The booking's price block, the penalty, the payout split and the
+    credit link dialog are `FocusKeeper` regions like the other sale dialogs, so a control an answer does take away leaves the focus on the
+    nearest region, never on the dialog's root. A credit-link list that fails after a tick hides the ticked rows, so « Rattacher » waits
+    for the list again (no action on a selection the screen no longer shows). Test `useLatestPreview.failed-recompute` (10: the hook through a failure and a pending retry;
+    the consumers read from the code equal the table; one row per consumer — no figure of the older answer, no live money field set from it,
+    every draft input still mounted, the focus neither on the page nor on the dialog root after the failing edit, still on « Réessayer »
+    while the retry is asked, and not lost when the new answer lands; the credit link's « Rattacher » disabled while its list is unknown).
+    _Reading 2026-11-18 (loop t24 UI24-2):_ **the failure belongs to the draft it was asked for, and only `retry` keeps it.** Keeping `error`
+    through any later request made a preview whose draft is built from another answer show a failure that was no longer true: the visit
+    arrival's and the hourly booking's invoice question failed together with the draft, and once « Réessayer » brought the draft back the new
+    payment's question was in flight under « Facture non vérifiée pour ce paiement. » for about a second. The hook now remembers the draft and
+    scope that failed: `error` and `failed` are answered only while the current draft and scope are those, and a request the screen asks on
+    its own — an edited draft, a new scope, the draft enabled again — ends the failure, so the new draft is in its ordinary pending state
+    (`data` the latest answer, not `fresh`) and only its own outcome can fail it. `retry` alone keeps `error` and `failed` through its pending
+    request (the alert and its focused « Réessayer » stay). Every consumer, read from the code, keeps that contract: the counter sale, the
+    visit (draft and invoice question), the booking (price and invoice question), the SAS recap, the payout split, the penalty and both
+    credit-link previews (list and allocation) — each of them gates its commit on `fresh`, so an edit after a failure never enables a commit
+    before its own answer. Tests `useLatestPreview.failed-recompute` (+7: the hook's table — a retry keeps the error, an edit after a good
+    retry shows none, an edit while failed is pending without it then shows its own success or failure, back to the failed draft, the draft
+    enabled again, a new scope), `ResourceArrivalDialog.invoice-answer` and `ResourceBookingDialog.invoice-answer` (+1 each: after a good
+    « Réessayer », the new payment's question is pending without the older failure, focus kept in the dialog).
+    _Same day (loop t24 S24-2):_ a draft that can no longer be asked — `enabled` false: the counter's or the visit's last line removed, an
+    invalid e-mail, the screen closed — ends the failure too, and `retry` asks nothing while disabled (before: the message and « Réessayer »
+    outlived the draft, and « Réessayer » posted an empty draft, `lines: []` or `{}`). Tests `useLatestPreview.failed-recompute` (+2 hook rows;
+    +2 consumer cases, counter and visit: the only line removed after a failure leaves no message, no « Réessayer », no empty draft asked).
+    _Same day (loop t24 A24-2):_ the SAS recap with « Plusieurs moyens » open no longer keeps the older answer's amount after a failed
+    recompute: the arrival's tender lines (typed against the answer's total) give way to « À encaisser : — » and come back filled from the
+    new total; the commit button reads « Encaisser — », disabled (arrival and departure; the departure's lines were already hidden). Every
+    label or field of the 7 consumers that carries an amount of the answer was read from the code: the counter's « encaisser X » and the
+    visit/booking tender lines already go with `payNow` on an unknown amount; the SAS lines and button were the last. Tests
+    `useLatestPreview.failed-recompute` (+2: SAS arrival and departure with « Plusieurs moyens » open).
+    _Reading of 2026-11-19 (loop t25 UI25-1):_ **a draft that cannot be asked shows no older answer.** Once `enabled` turned false the
+    hook stopped asking and (since S24-2) dropped the failure, so `data` was the last answer of an OLDER draft, not pending, not failed, not
+    dimmed — drawn as current: the counter with an e-mail being typed read quantity 3 next to « Total 3,00 € » and a 3,00 € tender line
+    (true 9,00 €), and after a failure the e-mail's first keystroke replaced « — » with the total from before it; the penalty with its amount
+    emptied, « 0 » or « 30x » kept the figures of an earlier amount. The hook now answers **`data` null while disabled unless the latest
+    answer is for the draft on screen** (gated on `enabled`, not on `pending`: an edited draft still asked keeps the latest answer, dimmed);
+    `last` still keeps it. The visit's and the booking's invoice question no longer show an older answer while the typed payment waits:
+    their block is pending until the fresh answer (outside-booking-sas rule 54 reading of 2026-11-19). Members, enumerated from the code
+    (every consumer whose draft stays on screen while it cannot be asked): the penalty (no figures), the payout split (no older message) and the credit link's manual
+    split (no older summary; a split with an unreadable amount is its own draft, no longer the ticked transfers', and its fields keep their
+    receipt names from `last`); not members: the visit and the booking (a null draft draws the stored visit / no price) and the SAS recap
+    (`last` with « — » while failed); since loop t26 the counter is not a member either (only its articles disable its quote, and an
+    emptied sale draws no figure) nor the mid-stay note (asked from its opening to its closing). Test `useLatestPreview.disabled-draft` (16 —
+    18 until loop t26 removed the counter's two rows: 5 hook rows; the consumers read from the code equal the
+    members and the non-members; each member with and without a failure first — the penalty for an emptied, « 0 » and « 30x » amount — shows
+    no figure of the older answer, no « Réessayer », a disabled commit, then the new answer once asked).
+    _Same day (loop t25 verifier):_ an amount typed with its decimal separator last (« 100, », « 30, ») is that whole amount for the
+    payout split, « Modifier la répartition » (`parseEuroInput`) and the penalty (`toAmount`): it no longer reads as unreadable for one
+    keystroke (« Montant invalide », the figures « — »). Everything else they refused stays refused; the server validates every amount.
+    The penalty refuses more than two decimals on the field (« 30,123 »), as its message says; the server already refused it
+    (`platform-penalties` test, « deux décimales »). SDK 2.32.0 also exports `tendersForDue` (mixed-method-payments rule 59 reading of the
+    same day). Tests `parseEuroInput.trailing-separator` (15), `PlatformPenaltyDialog.trailing-separator` (7).
+    _Reading of 2026-11-19 (loop t26 UI26-1, UI26-2):_ **a field that decides no amount never disables a money preview nor makes it
+    refuse.** The counter disabled its quote while the e-mail was not yet an address: since the reading above, each keystroke of
+    « client@… » drew Total « — », payment « — » and unmounted the tender lines for 1.6-2.2 s in Chromium, and the valid address brought
+    back one card line of the whole due (CB 2 + Espèces 4,00 → CB 6,00); in « Envoyer un lien » the mode switch vanished too. Only the
+    articles enable its quote now; the customer part (`quoteCustomerOf`) carries the address once it reads as one and « Enregistrer comme
+    client » once a name is there — the server refuses either otherwise (400 `EMAIL_INVALID` / `NAME_REQUIRED`), and a refused quote has
+    no amount. The customer decides no amount: it only names who the sale is for; the save stays blocked on an invalid address or a
+    missing name. Enumerated from the code: the counter's e-mail, name and « Enregistrer comme client », and the penalty's « Motif », are
+    the only fields of a hook consumer that decide no amount and reach its preview (the penalty keeps the reason in its draft — the server
+    validates it — and never disables on it); the other consumers' drafts hold amount-relevant fields only (`resourceBookingDraft` checked
+    key by key). « Nouvelle note » now previews through the hook too (specs/mid-stay-notes.md rule 22 reading): it joins the
+    failed-recompute, pending-block, focus and commit-label tables. Tests `useLatestPreview.non-amount-fields` (8: the consumers read from
+    the code each have their fields typed key by key or say why none; at every keystroke and 250 ms later the Total, the payment, the
+    typed lines and the label are unchanged; `quoteCustomerOf`; the booking draft's keys), `useLatestPreview.failed-recompute` (24: +1 row
+    `MidStayNoteDialog`).
+    **The SDK history records what each shipped minor exposed:** v4.1.0 shipped SDK 2.27.0 without `vat`, `accountingOutput`, `legacyBucketSplit`,
+    `refundJournal`, `csvJournal`, `salesJson` and `synthesisExporter`, and neither SDK 2.28.0 (the home-data extension points,
+    specs/guest-app-home-automation.md, merged first) nor SDK 2.29.0 (the Mollie tranches and journal, rule 51, merged first) recorded them,
+    so `coreModuleHistory.json` records them under 2.30.0, the first minor of this branch (no in-tree plugin ranges below `^2.30.0` for them).
+    This branch's minors were renumbered 2.28 → 2.29, 2.29 → 2.30, 2.30 → 2.31 on 2026-11-15 when master's 2.28.0 landed first, then
+    2.29 → 2.30, 2.30 → 2.31, 2.31 → 2.32 on 2026-11-17 when master's 2.29.0 landed first (its rule 51 kept its number, this branch's
+    rules 51-56 became 52-57).
+    **The SDK 2.26.0 shape of `coreModule('midStayOrderCommit')` still works:** `priceOrder(id, lines, { pending })` is accepted and `pending` is an
+    explicit no-op since guest-app rule 108 (a card order awaiting its payment reserves nothing; the first call that passes some is logged once);
+    `commitOrder` answers `excessCents` (its 2.26.0 name) beside `overpaidCents`, the same cents. Removing either is a MAJOR.
+    Tests: `mid-stay-order-sdk-2-26-shape`, `plugins-sdk-core-module-floor`, `plugins-sdk-history-shipped-minors`.
+55. *(Added 2026-11-16, loop t1 AS-3.)* **The client SDK exports have floors too.** `plugin-core-hardening-floor` scans server sources only, so a plugin
+    whose CLIENT code imports `StaySalesSection` (2.30.0), `SuggestedArticlesStep`, `SalePaymentLink` or `StandaloneSaleDialog` (2.32.0; the last
+    one added to the list 2026-11-16, loop t2 AS2-1), `TransactionRef` (2.29.0, master's Mollie rule 51), `ClientPickerField` (2.27.0),
+    `usePostalCodeCities` (2.25.0), `TenderLines` / `TENDER_TEXTS` (2.24.0), `FilterChip` or `PlatformPenaltyDialog` (2.9.0) must range that SDK
+    or later in its manifest, or an older core would load a bundle that crashes. Adding a client export means adding its row to
+    `plugin-client-sdk-floor.unit.test.js`. Test: `plugin-client-sdk-floor`. *(Reading of 2026-11-16, loop t2 AS2-1:* every barrel export placed
+    under a comment naming an SDK ≥ 2.24.0 must carry its row at that SDK — the suite reads the barrel, so a new export cannot ship without it.)
+56. *(Added 2026-11-16, loop t2 AG2-2.)* **`coreModule('refundGivenBack')` (SDK 2.32.0)** — `refGivenBack(reservationId, refPrefix)`: whether
+    the stored lines whose `orderRef` starts with `refPrefix` were given back by the stay's refund register (every article key refunded outside
+    a requalification, nothing left refundable on it). guest-app reads it for its staff list's « Remboursée » (`guest-app.md` rule 111 b); a
+    plugin calling it ranges `^2.32.0` (`plugin-core-hardening-floor`). Test: `guest-order-cancelled-refunded-label`.
+57. *(Added 2026-11-16, loop t6 S6-3.)* **`ctx.core.reservations.buildArrivalSeed(reservationId)` (SDK 2.32.0)** — what the arrival SAS opens
+    with: `{ offeredKeys }`, the stored lines already offered, keyed by the recap's key rule (specs/sas-offer-complement-lines.md 4.3,
+    specs/pricing-components.md rule 85), so a later line of an article offered on the fiche reopens as exactly that line. `sas` 1.11.0 serves
+    it as `arrivalSeed` and ranges `^2.32.0` (`plugins-sdk-core-module-floor`); `coreModules.json` lists the name and `coreModuleHistory.json`
+    records it under 2.32.0 (rule 35). Tests: `sas-arrival-paid-line-judged`, `plugins-sdk-core-names-census`, `plugins-sdk-core-module-floor`.
+58. *(Added 2026-11-19, loop t26; owner decision of 2026-11-19 « corriger les problèmes à la source… qu'on en finisse ».)* **The money-dialog
+    contract, in one module, checked by a generative harness.** Rounds 19-26 kept finding members of one family one screen at a time (S23-1,
+    UI24-2, S24-2, A24-2, B25-1, UI25-1, UI25-2, UI26-1), because each dialog decided alone what « fresh », « unknown », « typed » and « a way
+    out » meant. Every money dialog — read from the code: the counter sale (`StandaloneSaleDialog`, opened from `FinancePage`), the outside
+    visit's arrival (`ResourceArrivalDialog`), the hourly booking (`ResourceBookingDialog`), the SAS arrival and departure recaps
+    (`ReservationSasDialog`), « Nouvelle note » (`MidStayNoteDialog`), the platform penalty, the payout split, the credit link, and the fiche's
+    « Encaisser en une fois » and ledger payment forms (`FinanceSection`, `PaymentMarkForm`), with the pieces they share (`useLatestPreview`
+    and the hooks on it, `TenderLines`, `BookingPaymentFields`) — keeps six invariants after every gesture and every server outcome:
+    - **I1** every amount on screen is the server's answer to the draft on screen, what the operator typed, or the stored data the dialog
+      opened with — or « — »; while the draft on screen is asked the latest answer may stay, dimmed; once its answer is there nothing reads
+      « — » where an amount is due.
+    - **I2** a commit is enabled only on a fresh answer for the draft on screen, with the tender lines' report answering the due on screen
+      and allowing it, and every required question answered; a disabled commit sends nothing; a commit sends the draft, the lines and the
+      shortfall choice on screen.
+    - **I3** nothing the operator typed is lost: the typed tender lines (method and amount), the shortfall choice for the same due (another
+      due asks it again — B25-1), the invoice tick, the address and the draft fields survive answers, failures and the remount of their
+      block; closing « Plusieurs moyens » or choosing another payment mode starts the lines afresh (the operator's choice). The default line
+      of the whole due (« one line CB of the total ») is not typed: it follows a new due until the operator types its amount.
+    - **I4** the focus is never on the page nor on the dialog's root — a focused control disabled, hidden or removed counts as lost, as in
+      a browser — and an answer never moves it onto another control.
+    - **I5** a failure says why; « Réessayer » when retrying can help (no answer, 5xx, 408, 429); a refusal (another 4xx) shows its reason
+      without it — editing the draft is the way out; a retry or an edit recovers, and a failure's words never outlive it nor show for a draft
+      that has not failed; nothing is asked for a screen that holds no draft.
+    - **I6** no React warning or error, before or after the dialog is unmounted with requests still held.
+    The shared logic lives in `client/src/hooks/useMoneyCommit.jsx` (SDK 2.32.0 client exports `useMoneyCommit`, `useTenderDraft`,
+    `PreviewFailure`, `isRetryable`, `MoneyActions`, with their rule 55 floor row): `useMoneyCommit({ previews, dueCents, tenders,
+    splitting, questions })` answers `ready` (I2) and `live()` (asked again by the commit handler); `useTenderDraft()` keeps the lines'
+    report and hands it back as `initialDraft` (I3: the counter and `BookingPaymentFields` no longer remount the lines on a new due with
+    `key={due}`, and `TenderLines` marks a single prefilled line of the whole due `seeded` so it reads the due on screen until typed);
+    `PreviewFailure` draws a failure by `isRetryable` (I5); `MoneyActions` makes a dialog's actions row a `FocusKeeper` region (I4), as are
+    `FormDialog`'s actions, the SAS body and footer (`FocusKeeper` now hands its node on to a host's `ref`), `TenderLines` itself,
+    `PaymentMarkForm`, the fiche's « Encaisser en une fois » block and its « Paiements » area. Nothing in it computes money.
+    **The harness** (`client/src/__tests__/moneyDialogsHarness.jsx`, one `moneyDialogs.invariants.<family>.test.jsx` per family) is a seeded
+    generator (mulberry32, no dependency): a fake server holds every preview and commit request until the run settles it — an answer
+    priced like the server for that draft, 5xx, 408, 429, a 4xx refusal, a silent refusal, in any order, or never — and the run draws
+    operator gestures (amounts and separators, articles added and removed, offers, the invoice tick, « Plusieurs moyens », tender lines,
+    shortfall, steps back, a fiche read again, « Réessayer », the commit, a remount), checking I1-I6 after every step; a failure prints its
+    seed and the shrunk list of steps. The permanent suite runs fixed seeds within the CI budget; `HARNESS_SEEDS=<n>` (`HARNESS_STEPS`,
+    `HARNESS_SEED_BASE`, `HARNESS_REPORT=<file>` to collect every failing seed) widens a local run. On the parent commits of rounds 23-26 it
+    finds the known classes (validated 2026-11-19, per commit, in the round-26 loop status). A test (`moneyDialogs.invariants.coverage`) reads the
+    members from the code and fails until a new one has its family.
+    _Same day (loop t26, the harness's long run):_ **a draft that comes back is not asked again.** `useLatestPreview` re-asked a draft that
+    came back to the one already on its way or already answered (« Plus 15 minutes » then « Moins 15 minutes », a time chosen and chosen
+    back): during the render before that redundant request `fresh` read true on the earlier answer and flipped to false a frame later, so the
+    visit's and the booking's invoice question left for a draft the screen was about to ask over, and the booking's save could send a price
+    the hook had just put back in question (booking seed 1706, visit seeds 229, 895, booking seeds 738, 1312, 1592 — kept in the permanent
+    list at 60 steps). The hook now keeps the request on its way when the draft comes back to it, and when the draft comes back to the latest
+    accepted answer it drops what was asked since and is current again (not pending); a draft back to a FAILED one is still asked afresh
+    (loop t24 UI24-2). `fresh` therefore follows the request the screen waits for, for every consumer. And the commit gate no longer trusts
+    a boolean: `useLatestPreview` (and `useVisitQuote`, `useResourceBookingPreview`, `useSasRecapPreview`) also answer `answerKey` (the draft
+    the latest answer was for) and `draftKey` (the draft on screen), and `useMoneyCommit` (`isCurrentAnswer`) enables a commit only when they
+    are the same, settled, not failed, for EVERY input — the price or quote, the invoice question of the payment typed (silent answer
+    included), and the lines' report by `tendersForDue`. The visit's « Valider l’arrivée » and the booking's save now go through it too
+    (their own `quoteReady` / `paymentReady` / `canSave` conditions are gone; the booking's save handler asks the gate again before writing).
+    A request scheduled for the draft on screen (its quiet time running) keeps the screen pending whatever an older request answers
+    meanwhile: a failed « Réessayer » of another draft no longer ended the pending state of a draft about to be asked (booking seed 944).
+    _Reading of 2026-11-20 (loop t26 verifier):_ the same holds when a draft that could not be asked for a while (a payment unreadable for a
+    keystroke, the invoice question waiting for its price — `enabled` false) is asked again on the very draft of the latest accepted answer:
+    current at once, nothing re-asked (« Un de plus » then « Un de moins » enabled « Valider l’arrivée » for a frame, then took it back for
+    the question asked again). That reuse is opt-in (`reuseOnReenable`), given to the visit's and the booking's invoice question only: a
+    disable that spans a change the server answers differently — a SAS step that committed something before the recap is shown again —
+    asks the draft afresh, the server being the source of truth (`ReservationSasDialog.stay-step-plan` UI9-1 a/b): without the option a
+    disable forgets the latest accepted answer as a candidate for reuse and marks it `stale` (still drawn, never current), so neither the
+    render that enables the draft again nor a draft coming back to that answer afterwards takes it as current before its new request. After a failure the answer kept from before it names no draft (`answerKey` null) until a new answer, so a
+    draft back to it is asked afresh, never shown current for a frame. **The harness judges I2 and the commit label's I1 at every React
+    commit** (a `Profiler` around the dialog calls `probeCommit` in its commit phase), not only once a step's effects have settled, and its
+    strength is proved by a mutation check (round-26 status): removing the identity comparison, typing only on the last line, dropping
+    `shortDueCents`, `MoneyActions` as a plain `DialogActions`, « Réessayer » on a 4xx, the counter's lines remounted without their draft —
+    each turns the permanent suite red. « Ajouter un produit » (`AddProductDialog`) joins the contract (`useLatestPreview`, `PreviewFailure`
+    with « Réessayer » on a 5xx, `useMoneyCommit`, a `FocusKeeper` content) and the harness (family `product`); the coverage reads the
+    members by behaviour too — any file asking `api.quote…` / `api.preview…`, except the previews listed as carrying no amount.
+    `TenderLines` takes `defaultLine` for the screen's proposed line of the whole due (seeded, it follows the due); a correction's lines stay
+    as recorded. The answer kept from before a failure that was put aside (the draft edited or disabled after it) is marked `stale`: drawn
+    (dimmed, as before), never current — neither `fresh` nor an `answerKey` — until a new answer; before, the render that asked the draft
+    again showed it current for a frame (counter, SAS, visit, penalty, credit link, « Ajouter un produit »: seeds 368, 202, 208, 271, 250,
+    275, 328, 209, 210 of the per-commit probe). And a tender block once unmounted reports nothing live: a « Plusieurs moyens » reopened no
+    longer named, for its first commit, the amount of the lines just closed (fiche seeds 276, 310).
 
 **Edge cases:**
 - **A plugin throws during `register`.** Rule 4 applies: the other plugins and the core boot. The Plugins
@@ -731,7 +1023,11 @@ No new npm dependency. `googleapis` and `qrcode` stay in `server/package.json`.
 
 | Layer | File | T/C | Responsibility |
 |---|---|---|---|
-| `plugins/sdk/` | `index.js` | C | What a plugin may import (rule 16) |
+| `plugins/sdk/` | `index.js` | C | What a plugin may import (rule 16); the four sale blocks re-pointed to their lazy wrappers and `useSaleComponentsReady` (rule 54, readings of 2026-11-18, loops t19 A19-1 and t20 UI20-1) |
+| `components/` | `LazySaleComponents.jsx` | C | The four sale blocks as the SDK hands them out, their code apart from the first page; `preloadSaleComponents()` (once per session) and `useSaleComponentsReady(active)`; a block already loaded renders without suspending (rule 54, readings of 2026-11-18) |
+| `plugins/hourly-resources/`, `plugins/sas/` | `ResourceArrivalDialog.jsx`, `ReservationSasDialog.jsx` | T | Start the sale blocks' code on open and show their content once it is there (rule 54, reading of 2026-11-18, loop t20 UI20-1) |
+| `plugins/hourly-resources/`, `plugins/sas/`, `components/` | `ResourceArrivalDialog.jsx`, `ResourceBookingDialog.jsx`, `BookingInvoiceBlock.jsx`, `ReservationSasDialog.jsx`, `SasStayPaymentPage.jsx`, `StandaloneSaleDialog.jsx` | T | A block that waits for a second request is drawn pending with the content and filled by the answer (rule 54, reading of 2026-11-18, loop t21 UI21-1) |
+| `components/` | `FocusKeeper.jsx`, `FormDialog.jsx` (prop `sheet`) | C | A region that keeps the focus when an answer removes, disables or hides the control holding it; a form dialog that hangs from the top at full height so an answer adds content without moving anything (rule 54, reading of 2026-11-18, loop t22) |
 | `plugins/sdk/` | `registry.js`, `useSlot.js`, `Slot.jsx` | C | Contributions by slot; the active ones (`usePlugin` once per module); lazy rendering in place |
 | `plugins/` | `index.js` | C | The list of client modules |
 | `plugins/weather-alerts/` | `index.js`, `SettingsWeatherSection.jsx`, `SasWeatherAlertPage.jsx`, `sasStep.jsx`, `__tests__/` | C (moved) | The settings card saves through `/api/plugins/weather-alerts/settings`; the SAS step loads its alerts |
@@ -842,7 +1138,7 @@ full width (44 px). Nothing else moves.
   (moved from `settings-model-encryption`, which now tests the SMTP secret).
 - `plugins/school-holidays/tests/school-holidays-sync-dates.unit.test.js` (5) — rule 27.
 - Rule 19 is cited on the moved OAuth flow tests (`google-oauth-flow`), whose redirect assertions changed.
-- `plugins-sdk-core-module-floor.unit.test.js` (3, audit 2026-10-27) — every `coreModule()` module and dated
+- `plugins-sdk-core-module-floor.unit.test.js` (5: 3 at the audit 2026-10-27, 4 on master, +1 loop t6 S6-3 — the `buildArrivalSeed` floor of rule 57) — every `coreModule()` module and dated
   name a plugin uses exists at the floor of its `sdk` range; the history dates every contract module.
 
 ### Moved tests
@@ -864,6 +1160,52 @@ still in the core. Server: 4,611 tests after, of which 37 are new. Client: 1,416
 - `components/sas/__tests__/ReservationSasDialog.plugins.test.jsx` (5) — the portal step without Sowel,
   with a Sowel key, and absent (rule 17); the weather step gated and shown (rule 13).
 - `components/__tests__/SettingsCompanySection.portal-code.test.jsx` (2) — rule 17.
+- `components/__tests__/LazySaleComponents.lazy.test.jsx` (6) — rule 54 (reading of 2026-11-18, loop t19 A19-1): the SDK exports are the
+  lazy wrappers, each renders the real block with its props, « Vente hors séjour » is not fetched until its first `open`.
+- `components/__tests__/LazySaleComponents.preload.test.jsx` (6) — rule 54 (reading of 2026-11-18, loop t20 UI20-1): an inactive
+  consumer starts nothing, an active one the four imports, once; once loaded every block is in the first paint. Each test of this file and of
+  `LazySaleComponents.lazy` takes a fresh module registry (`vi.resetModules` + `vi.doMock`), so the session-wide memoised imports never leak
+  from one test to the next and the outcome is the same in any order (loop t21 A21-1, shuffled seeds 1-12).
+- `hooks/__tests__/useLatestPreview.disabled-draft.test.jsx` (16: −2 loop t26, the counter no longer a member) — rule 54 (reading of 2026-11-19, loop t25 UI25-1): a draft that cannot be asked shows no older answer; hook rows and one row per member screen, read from the code.
+- `hooks/__tests__/useLatestPreview.non-amount-fields.test.jsx` (8) — rule 54 (reading of 2026-11-19, loop t26 UI26-1): a field that decides no amount, typed key by key, keeps the figures, the payment and the typed tender lines; every consumer read from the code has its row or says why none.
+- `plugins/online-payment/__tests__/parseEuroInput.trailing-separator.test.jsx` (15) and `components/reservation/__tests__/PlatformPenaltyDialog.trailing-separator.test.jsx` (7) — rule 54 (reading of 2026-11-19, loop t25 verifier): « 100, » is 100,00; the penalty refuses more than two decimals.
+- `hooks/__tests__/useLatestPreview.failed-recompute.test.jsx` (25: +1 loop t26 verifier, « Ajouter un produit »; +1 loop t26 UI26-2, the mid-stay note; +7 loop t24 UI24-2, the hook's table of a failure owned by its draft; +4 loop t24 S24-2, a disabled draft ends the failure; +2 loop t24 A24-2, the SAS tender lines and button) — rule 54 (reading of 2026-11-18, loop t23 S23-1): a failed request
+  makes the answer unknown until a new one; every money preview screen, read from the code, shows no figure of the older answer, no live
+  money field set from it, the reason with « Réessayer » (kept while the retry is asked), a disabled commit, every draft input still
+  mounted, the focus never on the page or the dialog root, then the new answer; « Rattacher » disabled while the credit list is unknown.
+- `components/__tests__/LazySaleComponents.late-chunks.test.jsx` (3) — rule 54 (reading of 2026-11-18, loop t22 A22-1, loop t23 UI23-1;
+  specs/server-test-isolation.md rule 23): every TEST gets the four blocks' code cold and late (`src/setupLateSaleChunks.js` resets
+  them before each test), a later test of the same file included; the dialogs waiting for it, read from the code, each have a suite.
+- `components/__tests__/LazySaleComponents.consumers.test.jsx` (5) — rule 54 (loop t20 UI20-1): the consumers enumerated from the code
+  equal the table; each asks for the blocks when opened, keeps its content back until they are there, and starts nothing when closed.
+- `components/__tests__/SaleDialogs.commit-label-pending.test.jsx` (4) — rule 54 (reading of 2026-11-18, loop t24 second pass;
+  outside-booking-sas rule 54 reading of the same day): through a pending edit the commit label of every screen that previews through
+  `useLatestPreview` (read from the code) stays stable and no false refusal of a stale (draft, payment) pair is drawn.
+- `components/__tests__/SaleDialogs.pending-blocks.test.jsx` (10: +1 loop t26, « Total de la note » of the mid-stay note) — rule 54 (reading of 2026-11-18, loop t21 UI21-1): the dialogs that ask a
+  second request and render a sale block, enumerated from the code, equal the table; « Facture » (arrival, booking), « Séjour à régler »
+  (SAS) and « Total » (counter) are drawn pending with the content, then filled; the arrival's « Facture » through its four outcomes
+  (accepted, refused with a caption, silent, failed), each keeping the pending block's height (outside-booking-sas rule 54); unticking the box gives the reserved height back (a gesture resizes).
+  Loop t22 UI22-1: every row also finds no usable control inside a `data-pending-block` (the « Facture » address disabled while pending).
+- `components/__tests__/SaleDialogs.focus-on-answer.test.jsx` (18: +1 loop t26, the mid-stay note's « Réessayer »; +3 loop t23, the « Réessayer » of the penalty, the payout split and the
+  credit link dialogs, now `FocusKeeper` regions, goes with the failure and the focus stays in the content, not on the dialog root) — rule 54 (reading of 2026-11-18, loop t22 UI22-1): every file that
+  draws a `FocusKeeper`, enumerated from the code, has its rows; the control an answer (or « Réessayer ») takes away held the focus, and the
+  focus ends in the dialog, never on the page — the arrival's « Facture » address through a second answer accepted / refused / silent /
+  « Caisse interne », the booking dialog's, the block alone, the counter's « Réessayer », « Retirer », « Percevoir maintenant », the minted
+  link, the SAS « Séjour » page's « Réessayer ».
+- `hooks/__tests__/useLatestPreview.draft-back.test.jsx` (6: +2 the reuse on re-enable, opted in or not) — rule 58 (readings of 2026-11-19 and 2026-11-20, loop t26): a draft back to the one on its way keeps that request, back to the latest accepted answer is current and not pending, back to a failed one is asked afresh; the answer kept from before a failure put aside is never current, not even for the render before its new request.
+- `hooks/__tests__/useMoneyCommit.identity.test.jsx` (3), `components/__tests__/TenderLines.typed-lines.test.jsx` (2), `components/__tests__/MoneyActions.focus.test.jsx` (1) — rule 58 (reading of 2026-11-20): the identity gate, a typed line kept when the next one is removed, the shortfall choice back on its own due, the actions row keeping the focus.
+- `__tests__/moneyDialogs.invariants.*.test.jsx` (10 files, 22 tests) — rule 58 (loop t26): the generative harness
+  (`__tests__/moneyDialogsHarness.jsx`), one suite per family — `counter` (1), `visit` (1), `booking` (1), `sas` (2: arrival, departure),
+  `note` (1), `penalty` (1), `reconciliation` (2: split, link), `fiche` (1: « Encaisser en une fois » and a ledger row's `PaymentMarkForm`), `product` (1: « Ajouter un produit »)
+  — each running its fixed seeds (1-3 seeds × 25-30 steps) and every seed a long run found, at 60 steps (visit 229, 402, 782, 895;
+  booking 263, 275, 307, 738, 841, 944, 1312, 1592, 1706; counter 258, 321, 498, 551; SAS arrival 210, 211, 224, 227, 229, 235, 257, 298,
+  306, 307, 332, 334, 335; note 215, 290, 319, 400; split 383; link 273, 289, 309, 389; fiche 461), checking I1-I6 after every step — about
+  120 s on one worker, the booking file the longest (≈ 41 s); `coverage` (11): the members read from the code equal the table, each
+  family has its suite rendering its dialog. Run locally with 0 violations: seeds 1-200 × 60 steps for every family (before the two
+  `useLatestPreview` fixes of the long run), then on the final code seeds 201-1000 × 60 for the visit, the booking, the counter and the SAS
+  and 201-600 × 60 for the others, plus the pinned seeds.
+- `components/__tests__/FocusKeeper.test.jsx` (7) — a focused control removed, disabled, hidden, or hidden with its nearest region: the
+  focus lands on the nearest region still drawn; a control that stays keeps it; a control the operator left is never taken back; no Tab stop.
 
 ### E2E
 - `plugins/plugins-page.spec.js`: + Météo uninstalled with erasure, then reinstalled → the key is gone.

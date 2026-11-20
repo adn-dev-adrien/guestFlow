@@ -24,6 +24,7 @@
  */
 
 const { parsePaidSplit } = require('../utils/installmentPaidSplit');
+const { syncStay: syncAllocations } = require('../utils/paymentAllocationsSync');
 
 function buildModel(database) {
   const COLS = 'id, reservationId, number, dueDate, amountCents, paid, paidDate, paidMethod, requestedAt, dateEdited, amountEdited, addedCents';
@@ -143,6 +144,8 @@ function buildModel(database) {
 
   function setPaidSplit(id, split) {
     database.prepare('UPDATE reservation_installments SET paidSplit = ? WHERE id = ?').run(split ? JSON.stringify(split) : null, Number(id));
+    const row = findById(id);
+    if (row) syncAllocations(database, row.reservationId);
   }
 
   function markRequested(id, at) {

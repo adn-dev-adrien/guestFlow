@@ -1,0 +1,1 @@
+- **An early-arrival option a stay never stored is no longer asked again at departure (pricing refonte, PR B)**: it stays in the stay total as before, a started stay does not owe it at check-out, and the next save of a stay not yet over stores the line at its price, which a later catalogue edit no longer moves.

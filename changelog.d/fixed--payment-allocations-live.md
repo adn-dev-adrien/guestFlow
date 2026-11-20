@@ -1,0 +1,1 @@
+- **Payment allocations are written as money moves**: a payment ticked, taken back, split, refunded or paid by link after the boot is allocated to the stay's lines in the same transaction (before, only the boot's backfill wrote them).

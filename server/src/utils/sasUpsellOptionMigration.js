@@ -27,7 +27,7 @@
 
 const { isCleaningOption, normalizeOptionName } = require('./cleaningOption');
 
-const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
+const { roundMoneyOrZero: round2 } = require('./pricing/money');
 
 // Billed units the option would carry for this reservation — the same shape the pricing engine uses
 // (`getTypeMultiplier`), kept local so the migration never depends on a live quote.

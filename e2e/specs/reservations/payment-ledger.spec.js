@@ -7,6 +7,7 @@ import { test, expect } from '@playwright/test';
 import { createClient, createProperty, createReservation } from '../../fixtures/apiSeed.js';
 import { enablePropertyDeposit, setReservationAmounts, setReservationDates } from '../../fixtures/dbSeed.js';
 import { FAR_YEAR } from '../../fixtures/farYear.js';
+import { API_TIMEOUT } from '../../clientUrl.js';
 
 const today = () => new Date().toLocaleDateString('sv-SE');
 
@@ -61,7 +62,7 @@ test('direct stay: set the solde, refusal in place, mark the acompte (future ref
   await deposit.getByLabel('Perçu le').fill(today());
   await deposit.getByRole('button', { name: 'Valider' }).click();
   await expect(deposit.getByText(/^Perçu le /)).toBeVisible({ timeout: 10_000 });
-  const stored = await (await page.request.get(`/api/reservations/${reservation.id}`)).json();
+  const stored = await (await page.request.get(`/api/reservations/${reservation.id}`, { timeout: API_TIMEOUT })).json();
   expect(stored.depositPaid).toBeTruthy();
   expect(stored.balanceAmount).toBe(150);
 
@@ -99,7 +100,7 @@ test('platform stay: « Marquer reçu » asks for the transfer, typed when the c
   await payout.getByLabel('Virement reçu (€)').fill('100');
   await payout.getByRole('button', { name: 'Valider' }).click();
   await expect(payout.getByText(/^Reçu le .* · Booking$/)).toBeVisible({ timeout: 10_000 });
-  const stored = await (await page.request.get(`/api/reservations/${reservation.id}`)).json();
+  const stored = await (await page.request.get(`/api/reservations/${reservation.id}`, { timeout: API_TIMEOUT })).json();
   expect(stored.balancePaid).toBeTruthy();
   expect(stored.platformPayoutAmount).toBe(100);
 });
@@ -125,7 +126,7 @@ test('past platform stay: « Marquer reçu » records the transfer without savin
   });
   setReservationDates(reservation.id, '2026-01-05', '2026-01-08');
   setReservationAmounts(reservation.id, { balanceDueDate: '2026-01-18', depositDueDate: null });
-  const before = await (await page.request.get(`/api/reservations/${reservation.id}`)).json();
+  const before = await (await page.request.get(`/api/reservations/${reservation.id}`, { timeout: API_TIMEOUT })).json();
   const puts = watchSaves(page);
   await openFiche(page, reservation.id);
   const payout = page.locator('[data-row="balance"]');
@@ -134,7 +135,7 @@ test('past platform stay: « Marquer reçu » records the transfer without savin
   await payout.getByLabel('Virement reçu (€)').fill('250');
   await payout.getByRole('button', { name: 'Valider' }).click();
   await expect(payout.getByText(/^Reçu le .* · Booking$/)).toBeVisible({ timeout: 10_000 });
-  const after = await (await page.request.get(`/api/reservations/${reservation.id}`)).json();
+  const after = await (await page.request.get(`/api/reservations/${reservation.id}`, { timeout: API_TIMEOUT })).json();
   expect(after.balancePaid).toBeTruthy();
   expect(after.platformPayoutAmount).toBe(250);
   expect([after.balanceAmount, after.finalPrice]).toEqual([before.balanceAmount, before.finalPrice]);
@@ -156,7 +157,7 @@ test('drifted stored amount: shown and marked as stored, no save, the fiche stay
   const reservation = await createReservation({
     propertyId: property.id, clientId: client.id, startDate: `${FAR_YEAR}-09-05`, endDate: `${FAR_YEAR}-09-08`, adults: 2,
   });
-  const stored = await (await page.request.get(`/api/reservations/${reservation.id}`)).json();
+  const stored = await (await page.request.get(`/api/reservations/${reservation.id}`, { timeout: API_TIMEOUT })).json();
   const drifted = Math.round((stored.balanceAmount - 24) * 100) / 100;
   setReservationAmounts(reservation.id, { balanceAmount: drifted });
   const puts = watchSaves(page);
@@ -167,7 +168,7 @@ test('drifted stored amount: shown and marked as stored, no save, the fiche stay
   await balance.getByRole('button', { name: 'Valider' }).click();
   await expect(balance.getByText(/^Perçu le /)).toBeVisible({ timeout: 10_000 });
   expect(puts).toEqual([]);
-  const after = await (await page.request.get(`/api/reservations/${reservation.id}`)).json();
+  const after = await (await page.request.get(`/api/reservations/${reservation.id}`, { timeout: API_TIMEOUT })).json();
   expect(after.balancePaid).toBeTruthy();
   expect(after.balanceAmount).toBe(drifted);
   // Unmodified: leaving the fiche asks nothing.

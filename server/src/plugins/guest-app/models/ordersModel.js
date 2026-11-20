@@ -1,16 +1,19 @@
 /**
  * `guest_orders` (specs/guest-app.md §5) — a stay's orders and their lifecycle (rules 33-38, 43-45), what the home
- * and the shop read of them (rules 11, 25), and the hourly slots the unpaid card orders hold (rule 35).
+ * and the shop read of them (rules 11, 25). An unpaid card order is a technical record that matches the incoming payment: it reserves nothing and
+ * the staff never sees it (rule 35).
  *
- * Statuses: `awaiting_payment` (card, holding its slots until `heldUntil`) → `paid` | `expired` | `abandoned` |
+ * Statuses: `awaiting_payment` (card, its link living until `heldUntil`) → `paid` | `expired` | `abandoned` |
  * `paid_conflict`; a late payment moves `expired` / `abandoned` on to `paid` or `paid_conflict`; `confirmed` (note or
- * 0 €) and `paid` → `delivered`. Every move is conditional on the status it leaves, so a webhook, the order page's
+ * 0 €) and `paid` → `delivered`; an order of a cancelled stay, or one emptied at the arrival SAS, is `cancelled`
+ * (rules 72, 87). Every move is conditional on the status it leaves, so a webhook, the order page's
  * read and the expiry pass can race without a double move.
  */
 
 const READY_MS = 60 * 60 * 1000;
 
-const STANDING = Object.freeze(['awaiting_payment', 'confirmed', 'paid', 'delivered']);
+// Rule 35 — an order awaiting its card payment stands for nothing: only the orders on the fiche count.
+const STANDING = Object.freeze(['confirmed', 'paid', 'delivered']);
 // Rule 38 — what the staff prepares: an order on the fiche, not yet delivered.
 const TO_PREPARE = Object.freeze(['confirmed', 'paid']);
 
@@ -24,9 +27,6 @@ function parseLines(text) {
 }
 
 const toOrder = (row) => (row ? { ...row, lines: parseLines(row.linesJson) } : null);
-
-// Rule 35 — the planning's words on a slot an order awaiting payment holds.
-const HELD_LABEL = 'Commande client en attente de paiement';
 
 function createOrdersModel(db) {
   function linesOf(reservationId, statuses) {
@@ -53,17 +53,63 @@ function createOrdersModel(db) {
     /** Rule 33 — a new order: `lines` is the priced snapshot (sessions, mornings and amounts included). */
     create({
       reservationId, sessionId, payment, status, lines, total, deliverAt = null, heldUntil = null, fulfilment = 'delivery', pickupPlace = null,
-      clientKey = null, now,
+      clientKey = null, collectAt = 'departure', now,
     }) {
       const at = now.toISOString();
       // Rule 41bis — the mode and the place are the order's own: a later change of the setting rewrites no order.
       const info = db.prepare(`
-        INSERT INTO guest_orders (reservationId, sessionId, payment, status, linesJson, total, deliverAt, heldUntil, fulfilment, pickupPlace, createdAt, confirmedAt, clientKey)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO guest_orders (reservationId, sessionId, payment, status, linesJson, total, deliverAt, heldUntil, fulfilment, pickupPlace, createdAt, confirmedAt, clientKey, collectAt)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `).run(Number(reservationId), sessionId == null ? null : Number(sessionId), payment, status, JSON.stringify(lines), Number(total),
         deliverAt, heldUntil, fulfilment === 'pickup' ? 'pickup' : 'delivery', fulfilment === 'pickup' ? pickupPlace : null, at, status === 'confirmed' ? at : null,
-        clientKey || null);
+        clientKey || null, collectAt === 'arrival' ? 'arrival' : 'departure');
       return findById(info.lastInsertRowid);
+    },
+
+    /** Rule 66 — the core says where the order it just wrote is collected. */
+    setCollectAt(id, collectAt) {
+      db.prepare('UPDATE guest_orders SET collectAt = ? WHERE id = ?').run(collectAt === 'arrival' ? 'arrival' : 'departure', Number(id));
+    },
+
+    /**
+     * Rules 71, 87 — the stay's orders taken before the arrival, which the arrival SAS names: on the note (unpaid, to collect)
+     * or paid by card (read-only), standing and not cancelled; oldest first.
+     */
+    atArrivalFor(reservationId) {
+      return db.prepare("SELECT * FROM guest_orders WHERE reservationId = ? AND collectAt = 'arrival' AND status IN ('confirmed', 'paid', 'delivered') ORDER BY id")
+        .all(Number(reservationId)).map(toOrder);
+    },
+
+    /**
+     * Rule 72 — a stay cancelled, superseded or deleted cancels its orders: every one not already `expired`, `abandoned` or
+     * `cancelled`. → the orders it moved, as they were (their payment, lines and status before).
+     */
+    cancelForStay(reservationId, { now, reason = 'stay' }) {
+      const rows = db.prepare("SELECT * FROM guest_orders WHERE reservationId = ? AND status IN ('awaiting_payment', 'confirmed', 'paid', 'delivered', 'paid_conflict')")
+        .all(Number(reservationId)).map(toOrder);
+      const moved = rows.filter((order) => move(order.id, [order.status], 'cancelled', {
+        cancelledAt: now.toISOString(), cancelReason: reason, heldUntil: null, closedAt: now.toISOString(),
+      }));
+      return moved;
+    },
+
+    /**
+     * Rule 87 — an unpaid order changed at the arrival SAS: its snapshot and total rewritten, its amendment journaled; an
+     * order left with no line is `cancelled` (`cancelReason = 'sas'`). Only an order still on the note and standing moves.
+     */
+    amend(id, { lines, total, entry, now }) {
+      const order = findById(id);
+      if (!order || !['note', 'none'].includes(order.payment) || !['confirmed', 'delivered'].includes(order.status)) return null;
+      const journal = (() => { try { const list = JSON.parse(order.amendmentsJson || '[]'); return Array.isArray(list) ? list : []; } catch { return []; } })();
+      journal.push(entry);
+      const emptied = !lines.length;
+      db.prepare(`UPDATE guest_orders SET linesJson = ?, total = ?, amendmentsJson = ?,
+                         status = CASE WHEN ? THEN 'cancelled' ELSE status END,
+                         cancelledAt = CASE WHEN ? THEN ? ELSE cancelledAt END,
+                         cancelReason = CASE WHEN ? THEN 'sas' ELSE cancelReason END
+                   WHERE id = ?`)
+        .run(JSON.stringify(lines), Number(total), JSON.stringify(journal), emptied ? 1 : 0, emptied ? 1 : 0, now.toISOString(), emptied ? 1 : 0, Number(id));
+      return findById(id);
     },
 
     /** §4.3 — the order a session already created under this `Idempotency-Key`, or null. */
@@ -121,9 +167,14 @@ function createOrdersModel(db) {
     listForStaff({ all = false, from = null, today = null } = {}) {
       const where = [];
       const params = [];
+      // Rule 35 — an order never paid is no order for the staff: unpaid, expired, abandoned, or cancelled before any payment.
+      where.push("o.status NOT IN ('awaiting_payment', 'expired', 'abandoned')");
+      where.push("NOT (o.status = 'cancelled' AND o.payment = 'card' AND o.paidAt IS NULL)");
       if (!all) {
         where.push(`o.status IN (${TO_PREPARE.map(() => '?').join(', ')})`);
         params.push(...TO_PREPARE);
+        // Rule 72 — an order of a cancelled, superseded or deleted stay is no longer prepared.
+        where.push("r.kind = 'reservation'");
         if (today) {
           where.push('r.endDate >= ?');
           params.push(today);
@@ -142,9 +193,11 @@ function createOrdersModel(db) {
 
     /** Rule 43 — the orders that stand, delivered between two instants (the planning's days). */
     deliveriesBetween(fromIso, toIso) {
+      // Rule 72 — a cancelled stay's orders leave the planning.
       return db.prepare(`
-        SELECT * FROM guest_orders WHERE deliverAt >= ? AND deliverAt < ? AND status IN ('confirmed', 'paid', 'delivered')
-         ORDER BY deliverAt, id
+        SELECT o.* FROM guest_orders o JOIN reservations r ON r.id = o.reservationId
+         WHERE o.deliverAt >= ? AND o.deliverAt < ? AND o.status IN ('confirmed', 'paid', 'delivered') AND r.kind = 'reservation'
+         ORDER BY o.deliverAt, o.id
       `).all(fromIso, toIso).map(toOrder);
     },
 
@@ -156,17 +209,17 @@ function createOrdersModel(db) {
     },
     /** Rule 36 — paid, but its slots were taken: nothing reached the fiche, the money is to refund. */
     markPaidConflict(id, { now, paidAt }) {
-      return move(id, ['awaiting_payment', 'expired', 'abandoned'], 'paid_conflict', { paidAt: paidAt || now.toISOString(), heldUntil: null, closedAt: now.toISOString() });
+      return move(id, ['awaiting_payment', 'expired', 'abandoned', 'cancelled'], 'paid_conflict', { paidAt: paidAt || now.toISOString(), heldUntil: null, closedAt: now.toISOString() });
     },
     /** Rule 36 — no link could be minted: the order never held a payable slot. */
     markFailed(id, now) {
       return move(id, ['awaiting_payment'], 'expired', { heldUntil: null, closedAt: now.toISOString() });
     },
-    /** Rule 35 — the guest gave up the card payment: the holds go at once. */
+    /** Rule 35 — the guest gave up the card payment: its lines go back in the cart. */
     markAbandoned(id, now) {
       return move(id, ['awaiting_payment'], 'abandoned', { heldUntil: null, closedAt: now.toISOString() });
     },
-    /** Rule 36 — unpaid 30 minutes on: expired, holds released. → the orders it moved. */
+    /** Rule 36 — unpaid 30 minutes on: expired. → the orders it moved. */
     expireDue(now) {
       const due = db.prepare("SELECT id FROM guest_orders WHERE status = 'awaiting_payment' AND heldUntil IS NOT NULL AND heldUntil <= ?")
         .all(now.toISOString());
@@ -185,44 +238,9 @@ function createOrdersModel(db) {
       `).get(Number(reservationId), since, now.toISOString()));
     },
 
-    /**
-     * Rule 25 — the lines of the orders not on the fiche yet: an order awaiting payment will consume the
-     * free units once paid. A confirmed, paid or delivered order is on the fiche already (rule 34), an
-     * expired, abandoned or conflicting one never reaches it.
-     */
-    pendingLines(reservationId, { at = new Date() } = {}) {
-      // A hold that has lapsed holds nothing, even before the minute's expiry job flips its order.
-      return db.prepare("SELECT linesJson FROM guest_orders WHERE reservationId = ? AND status = 'awaiting_payment' AND heldUntil > ?")
-        .all(Number(reservationId), at.toISOString())
-        .flatMap((row) => parseLines(row.linesJson));
-    },
-
-    /** Rule 35 — the stay's card order still waiting for its payment, its link live; or null. */
-    livePendingCard(reservationId, { at = new Date() } = {}) {
-      return toOrder(db.prepare("SELECT * FROM guest_orders WHERE reservationId = ? AND payment = 'card' AND status = 'awaiting_payment' AND heldUntil > ? ORDER BY id LIMIT 1")
-        .get(Number(reservationId), at.toISOString()));
-    },
-
     /** Rule 25 — the lines of every order that stands (an expired, abandoned or conflicting one sold nothing). */
     orderedLines(reservationId) {
       return linesOf(reservationId, STANDING);
-    },
-
-    /**
-     * Rule 35 — the sessions of `resourceId` between `from` and `to` that an order awaiting payment still holds
-     * at `now` (`heldUntil` not passed): `[{ date, start, end, reservationId, label }]`, the `ctx.resourceHolds` source —
-     * `label` is what the planning shows on the held slot.
-     */
-    heldSessions({ resourceId, from, to, now }) {
-      return db.prepare("SELECT reservationId, linesJson FROM guest_orders WHERE status = 'awaiting_payment' AND heldUntil > ?")
-        .all(now.toISOString())
-        .flatMap((row) => parseLines(row.linesJson)
-          .filter((line) => line && line.kind === 'resource' && Number(line.id) === Number(resourceId) && Array.isArray(line.sessions))
-          .flatMap((line) => line.sessions)
-          .filter((s) => s && typeof s.date === 'string' && s.date >= from && s.date <= to)
-          .map((s) => ({
-            date: s.date, start: s.start, end: s.end, reservationId: Number(row.reservationId), label: HELD_LABEL,
-          })));
     },
   };
 }

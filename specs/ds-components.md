@@ -234,7 +234,7 @@ n-3, n-4, m-5 and the systemic touch targets) left these rules. They hold for ev
 |---|---|---|---|
 | components | `LoadingState.js`, `EmptyState.js`, `ErrorAlert.js`, `PlatformChip.js`, `UnsavedChangesDialog.js`, `ResponsiveTable.js`, `ErrorBoundary.js` | C | §3.1 + §3.4 generics (JSDoc each). |
 | components | `DialogProvider.js` | T | `useToast` (Snackbar) + fullScreen alert dialog. |
-| components | `FormDialog.js`, `ConfirmDialog.js` | T | fullScreen on xs. |
+| components | `FormDialog.js`, `ConfirmDialog.js` | T | fullScreen on xs. `FormDialog` prop `sheet` (2026-11-18, loop t22 UI22-2, specs/plugins-phase-1-sdk.md rule 54): from `sm` up the dialog hangs from the top at the screen's full height, for a form an answer grows — nothing drawn nor the actions move. `ConfirmDialog` prop `onExited` (2026-11-18, loop t22): called once the dialog has left; given, the focus is not put back where it was, the caller places it (specs/arrival-departure-sas.md §3.0 reading). |
 | components | `DataPageScaffold.js` | T | PageActionBar + EmptyState. |
 | components | `StatusBadge.js` | T | Soft-bg DS restyle + JSDoc. |
 | components | `TableCard.js` | T | JSDoc (ResponsiveTable composes it). |

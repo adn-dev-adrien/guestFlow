@@ -12,6 +12,10 @@
  *   commit(quoted, tx)       the lines to write (PR A: no fulfilment adapter yet, rule 49 is PR B); a refused quote throws
  *   release(line, reason)    what a removed line gives back to the allowance pool
  *   describe(line)           `{ label, detail }` every screen prints
+ *   read({ option, unitPrice, persons, nights, maxGuests, request, freeUnits })   the price of ONE candidate line for a stay, nothing sold (rule 10):
+ *       `{ figures, offeredFigures }` or null. No free units are spent — a read quotes the line as the catalogue sells it — unless the caller
+ *       names the stay's grant left for that article (`freeUnits`, rule 41): the line is then priced net of it, as the engine prices it.
+ *   unitsPerQuantity(priceType, persons, nights)   how many billed units one quantity of this price type is on that stay
  *   makeArticle, registerFamily   the factory of rule 47 and the family registry's `register`
  *
  * A request is `{ article, quantity, locked, offered, ... }`; the modes below are chosen by its family:
@@ -25,7 +29,8 @@
  *                             early check-in / late check-out options (formula in `pricing/timedOptions.js`)
  * `families` (the families live at this instant, by id; default `liveFamilies()`) is an input of `quote`: the head reads that
  * map, never the registry, while it prices.
- * Only customerContext 'hosted' exists in PR A.
+ * `customerContext` is 'hosted' (a stay's lines) or 'external' (a sale with no stay, rule 53: its tagged amounts carry the external context, a
+ * family that reads the stay answers NEEDS_STAY).
  */
 const { roundMoney } = require('../money');
 const {
@@ -64,8 +69,32 @@ registerCoreFamilies();
 
 const refuse = (code, message, ref) => ({ code, message, ref });
 
+// The free units this line may still take: the article's grant minus what the lines priced before it took (rule 85).
 function grantedFor(allowance, config) {
+  if (allowance && allowance.remainingFreeUnitsFor) return allowance.remainingFreeUnitsFor(config.id);
   return allowance && allowance.grantedFreeUnitsFor ? allowance.grantedFreeUnitsFor(config.id) : config.freeUnits;
+}
+
+// The free units a stored line says it consumed (`allowanceUsed`, rule 26), or null when it stored none.
+function storedFreeUnitsOf(locked) {
+  if (!locked || locked.allowanceUsed == null) return null;
+  try {
+    const parsed = typeof locked.allowanceUsed === 'string' ? JSON.parse(locked.allowanceUsed) : locked.allowanceUsed;
+    const units = Number(parsed && parsed.freeUnits);
+    return Number.isFinite(units) && units >= 0 ? units : null;
+  } catch { return null; }
+}
+
+// What a stored line is net of: the article's consumed units, shared out over its lines in order and never beyond a line's own units.
+// A line that stored what it consumed (rule 41: a SAS sale, written outside the engine) is net of exactly that.
+function soldFreeUnitsOf(allowance, config, locked) {
+  if (!allowance || !allowance.consumedFreeUnitsFor) return 0;
+  if (!allowance.consumedLeftFor) return allowance.consumedFreeUnitsFor(config.id);
+  const units = locked ? normalizeBilledUnits(locked.billedUnits !== undefined ? locked.billedUnits : locked.quantity) : 0;
+  const stored = storedFreeUnitsOf(locked);
+  const share = stored != null ? Math.min(stored, units) : Math.min(allowance.consumedLeftFor(config.id), units);
+  if (locked && share > 0 && Number(locked.totalPrice) > 0 && Number(locked.unitPrice) > 0) allowance.takeConsumed(config.id, share);
+  return share;
 }
 
 function taggedOf(config, ref, totalPrice) {
@@ -81,13 +110,35 @@ function pricedAmount(request) {
   };
 }
 
+// Rule 90.3 — a resource line sold with no hours that holds an evening component (the evening the placed sessions add once the session line
+// is paid or not the arrival's) bills that component: it is kept, never dropped like an empty line, so no save loses its amount.
+function eveningOnlyLine(article, request) {
+  const { locked } = request;
+  if (!locked || Number(locked.billedUnits || 0) > 0) return null;
+  let components = [];
+  try { components = typeof locked.components === 'string' ? JSON.parse(locked.components) : (locked.components || []); } catch { components = []; }
+  const eveningCents = (Array.isArray(components) ? components : []).filter((c) => c && c.kind === 'evening').reduce((sum, c) => sum + (Number(c.cents) || 0), 0);
+  if (!(eveningCents > 0)) return null;
+  const offeredFigures = applyOfferedToLine(eveningCents / 100, request.offered);
+  return {
+    ref: article.ref,
+    family: article.family,
+    article,
+    figures: { quantity: 0, unitPrice: Number(locked.unitPrice || 0), billedUnits: 0 },
+    offeredFigures,
+    components: [],
+    allowanceUsed: 0,
+    taggedAmounts: taggedOf(article.config, article.ref, offeredFigures.totalPrice),
+  };
+}
+
 // Options with a planning card, resources and every simple price type: units from the family, merged with the sold
 // snapshot (rule 13), then the free units (rule 41) and « offert » (rule 14).
 function priceMerged(family, article, request, stay, allowance) {
   const { config } = article;
   const isResource = config.kind === 'resource';
   const { locked } = request;
-  if (isResource && request.quantity <= 0) return { line: null };
+  if (isResource && request.quantity <= 0) return eveningOnlyLine(article, request) || { line: null };
   const isPercentOfStay = article.family === 'percentOfStay';
   const isStayWideYesNo = isPercentOfStay || config.isCancellationInsurance;
   const effectiveQuantity = isStayWideYesNo ? 1 : request.quantity;
@@ -115,7 +166,7 @@ function priceMerged(family, article, request, stay, allowance) {
       : (neatOverride !== null ? 1 : priced.billedUnits));
   // Only what a snapshot says was deducted is added back: a row stored without one predates the
   // free units and holds a gross total (rule 56).
-  const soldFreeUnits = allowance && allowance.consumedFreeUnitsFor ? allowance.consumedFreeUnitsFor(config.id) : 0;
+  const soldFreeUnits = soldFreeUnitsOf(allowance, config, locked);
   const merged = mergeLineWithLockedSnapshot({
     lockedLine: isResource
       ? reconstructLockedRealTotal(locked, unitBase)
@@ -136,9 +187,13 @@ function priceMerged(family, article, request, stay, allowance) {
       taggedAmounts: taggedOf(config, article.ref, offeredFigures.totalPrice),
     };
   }
+  // A sale that declares its units already in place (guest-app rule 107: an offered drink is in the fridge) takes no free unit, and a line that stored
+  // that it consumed none (`allowanceUsed.freeUnits = 0`) keeps taking none whenever the stay is saved again (rule 26).
+  const noneStored = locked && storedFreeUnitsOf(locked) === 0;
   const free = consumeAllowance({
-    granted: grantedFor(allowance, config), isDirect: stay.isDirectBooking, billedUnits: merged.billedUnits, unitPrice: merged.unitPrice,
+    granted: request.noFreeUnits || noneStored ? 0 : grantedFor(allowance, config), isDirect: stay.isDirectBooking, billedUnits: merged.billedUnits, unitPrice: merged.unitPrice,
   });
+  if (allowance && allowance.takeFreeUnits) allowance.takeFreeUnits(config.id, free.used);
   const typed = priced ? priced.typed : null;
   const offeredFigures = applyOfferedToLine(free.realTotal, request.offered);
   return {
@@ -195,6 +250,7 @@ function priceCard(family, article, request, stay, allowance) {
   const free = consumeAllowance({
     granted: grantedFor(allowance, config), isDirect: stay.isDirectBooking, billedUnits, unitPrice: unitBase,
   });
+  if (allowance && allowance.takeFreeUnits) allowance.takeFreeUnits(config.id, free.used);
   const common = {
     quantity: priced.quantity,
     unitPrice: unitBase,
@@ -301,8 +357,18 @@ function priceHourly(family, article, request, stay, allowance) {
   const quantity = contributed
     ? roundMoney(sold ? Math.max(request.quantity, contributed.quantity) : contributed.quantity)
     : request.quantity;
+  // A sold line a sale reads frozen (`soldFrozen`, rule 74) keeps the hours it billed while it asks no more hours than it sold. The stored `billedUnits`
+  // counts the hours before the lodging's free minutes (a free hour stores 1 billed unit at 0 €), so the hours it billed are its stored total over its
+  // unit price — a reading that only holds while the stored total is a billed one: an offered line (stored at 0 €), or one the request offers or bills
+  // again, is not frozen and is judged by the engine (end-review V-2: an offered hour billed again stayed at 0 €).
+  const { locked } = request;
+  const storedOffered = sold && Boolean(Number(locked.offered));
+  const offerChanges = sold && request.offered !== undefined && Boolean(Number(request.offered)) !== storedOffered;
+  const frozenBilled = sold && locked.soldFrozen && !storedOffered && !offerChanges && Number(locked.unitPrice) > 0
+    && roundMoney(quantity) <= roundMoney(Number(locked.quantity || 0))
+    ? roundMoney(Number(locked.totalPrice || 0) / Number(locked.unitPrice)) : null;
   const result = priceMerged(null, article, {
-    ...request, quantity, targetBilledUnits: applyPerHourFreeMinutes(roundMoney(quantity), config.freeMinutes),
+    ...request, quantity, targetBilledUnits: frozenBilled != null ? frozenBilled : applyPerHourFreeMinutes(roundMoney(quantity), config.freeMinutes),
   }, stay, allowance);
   return contributed && !result.refusals && result.line !== null ? { ...result, extra: contributed.extra } : result;
 }
@@ -332,13 +398,18 @@ function quote({
   const out = {
     lines: [], taggedAmounts: [], allowanceUsed: 0, refusals: [],
   };
-  if (customerContext !== 'hosted') {
+  if (customerContext !== 'hosted' && customerContext !== 'external') {
     out.refusals.push(refuse('CONTEXT_UNSUPPORTED', `customer context "${customerContext}" is not priced yet`, null));
     out.lines = requests.map(() => null);
     return out;
   }
+  // The external context (rule 53) prices the same lines; its amounts are tagged for the external VAT rate, and a family that reads the stay refuses.
+  const context = customerContext === 'external' ? { ...stayContext, customerContext } : stayContext;
   for (const request of requests) {
-    const result = priceOne(request, stayContext, allowance, families);
+    const priced = priceOne(request, context, allowance, families);
+    const result = customerContext === 'external' && priced.taggedAmounts
+      ? { ...priced, taggedAmounts: priced.taggedAmounts.map((tagged) => ({ ...tagged, customerContext })) }
+      : priced;
     if (result.refusals) {
       out.refusals.push(...result.refusals.map((refusal) => ({ ref: request.article ? request.article.ref : request.ref, ...refusal })));
       out.lines.push(null);
@@ -362,6 +433,22 @@ function commit(quoted) {
   return quoted.lines.filter(Boolean);
 }
 
+const NO_FREE_UNITS = Object.freeze({ grantedFreeUnitsFor: () => 0, consumedFreeUnitsFor: () => 0 });
+
+function read({
+  option, unitPrice = null, persons, nights, maxGuests = 0, request = {}, freeUnits = 0,
+} = {}) {
+  if (!option) return null;
+  const article = makeArticle(unitPrice == null ? option : { ...option, price: unitPrice });
+  const units = Number(request.quantity);
+  const line = quote({
+    requests: [{ article, portions: () => ({ quantity: units, clampedFrom: null }), ...request }],
+    stayContext: { persons, nights, maxGuests, isDirectBooking: true },
+    allowance: Number(freeUnits) > 0 ? { grantedFreeUnitsFor: () => Number(freeUnits), consumedFreeUnitsFor: () => 0 } : NO_FREE_UNITS,
+  }).lines[0];
+  return line ? { figures: line.figures, offeredFigures: line.offeredFigures } : null;
+}
+
 function release(line) {
   const flat = { ...(line.figures || {}), ...(line.offeredFigures || {}) };
   return releaseAllowance(flat);
@@ -375,6 +462,7 @@ function describe(line) {
 
 module.exports = {
   quote,
+  read,
   commit,
   release,
   describe,
@@ -384,6 +472,7 @@ module.exports = {
   registerCoreFamilies,
   lockedUnitPriceOr,
   getTypeMultiplier,
+  unitsPerQuantity: getTypeMultiplier,
   resolveServedPersons,
   resolveNonCardUnits,
   computePercentOfStayAmount: percentOfStay.computePercentOfStayAmount,

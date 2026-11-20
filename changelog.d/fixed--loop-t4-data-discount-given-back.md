@@ -1,0 +1,1 @@
+- Selling an extra: a discount reduced or removed on an arrival line before or at the open arrival gives the money back to the arrival complement; before, the arrival collected the line whole and the departure billed the given-back part a second time.

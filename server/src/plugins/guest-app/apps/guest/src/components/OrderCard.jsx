@@ -11,6 +11,7 @@ import OrderTimeline from './OrderTimeline';
 import { useT } from '../i18n';
 
 export function statusTone(status) {
+  if (status === 'cancelled') return 'mut';
   if (status === 'awaiting_payment') return 'warn';
   if (status === 'paid_conflict') return 'bad';
   if (status === 'expired' || status === 'abandoned') return 'mut';
@@ -35,6 +36,7 @@ export default function OrderCard({ order, compact = false, onOpen, onAbandon, o
         ))}
         <li style={{ borderTop: '1px solid var(--line)', paddingTop: 6, marginTop: 4 }}><span>{t('cart.total')}</span><span>{order.totalLabel}</span></li>
       </ul>
+      {order.amendedLabel ? <p className="notice">{order.amendedLabel}</p> : null}
       {(order.notices || []).map((n) => <p key={n} className="notice">{n}</p>)}
       {!compact ? <OrderTimeline order={order} /> : null}
       {!compact && order.status === 'awaiting_payment' ? (

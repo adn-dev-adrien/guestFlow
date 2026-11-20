@@ -15,7 +15,7 @@
 
 const GHOST_SOURCE = 'arrivalBathLinen';
 
-const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
+const { roundMoneyOrZero: round2 } = require('./pricing/money');
 
 function parseDetail(raw) {
   if (Array.isArray(raw)) return raw;

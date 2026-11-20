@@ -21,7 +21,9 @@ const { optionalPlugin } = require('../plugins/sdk/testing');
 // tourist-tax case and the cascade. Rule 23 compares the money figures that already existed.
 const STORED_SUMMARY_ADDED = ['nights', 'nightlyBreakdown', 'optionLines', 'resourceLines', 'discountAmount', 'vatPercentageAccommodation',
   'touristTaxInComplement', 'touristTaxOfferedByPlatform', 'touristTaxCollectedOnArrival', 'touristTaxReversedByPlatform', 'platformSale',
-  'midStaySettledTotal', 'midStayRemainingTotal', 'complementSplit', 'refundsTotal', 'summaryCascade'];
+  'midStaySettledTotal', 'midStayRemainingTotal', 'complementSplit', 'refundsTotal', 'summaryCascade',
+  // specs/pricing-components.md §3 rule 15 — the VAT per rate the fiche prints; the totals it adds up are in the compared keys.
+  'vatByRate'];
 
 function withoutStoredLines(summary) {
   if (!summary) return summary;
@@ -36,7 +38,13 @@ const VOLATILE = new Set(['createdAt', 'updatedAt', 'cancelledAt', 'vatRegime', 
   'touristTaxAddedGuestsDeclaredAt', 'touristTaxDeclaredWithAddedAmount',
   'complementPaidSplit', 'removedLineContribs', 'availableTtc', 'sharedBucketTtc',
   // Additive, no VAT, and `declarable` reads today (specs/tourist-tax-declared-checkbox.md rule 8).
-  'declarable', 'touristTaxInComplementLockedReason']);
+  'declarable', 'touristTaxInComplementLockedReason',
+  // The columns of PR B of the pricing refonte (specs/pricing-components.md §5) that a payload spreading a whole row now
+  // carries: they hold no VAT and no figure of today. Only names no existing payload uses.
+  'discountTarget', 'discountAmountCents', 'cancellationKeptCents', 'cancellationIndemnityCents', 'lineId', 'collectAt', 'collectAtDefault', 'soldAt',
+  'settlementRef', 'discountCents', 'allowanceUsed', 'orderRef', 'articleRef', 'fulfilmentRef',
+  // PR C (rule 8): the records a sale reads the extra guests and the tax from, the same figures the row already holds.
+  'storedExtraGuests', 'storedTouristTax']);
 
 function canonical(value) {
   if (Array.isArray(value)) return `[${value.map(canonical).join(',')}]`;
@@ -205,7 +213,9 @@ async function capture(db, { years = [2025, 2026, 2027, 2028] } = {}) {
         await cancel({ params: { id: r.id }, body: {}, user: { id: 1 } }, res);
         const refunds = db.prepare('SELECT id FROM reservation_refunds WHERE reservationId = ? ORDER BY id').all(r.id)
           .map((h) => require('../models/refundsModel').getById(h.id));
-        const comps = db.prepare('SELECT * FROM cancellation_compensations WHERE reservationId = ? ORDER BY id').all(r.id);
+        // `refundId` (specs/pricing-components.md rule 78) is the column PR B adds to the row; `refunds` below already says which avoir it mirrors.
+        const comps = db.prepare('SELECT * FROM cancellation_compensations WHERE reservationId = ? ORDER BY id').all(r.id)
+          .map(({ refundId, ...row }) => row); // eslint-disable-line no-unused-vars
         return { status: res.statusCode, body: res.body, refunds, comps };
       } finally {
         db.exec('ROLLBACK');

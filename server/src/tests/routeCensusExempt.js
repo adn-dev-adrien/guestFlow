@@ -121,7 +121,8 @@ const EXEMPT = {
     'POST /api/reservations/:id/sas/departure/preview',
     'PUT /api/plugins/:id/settings',
   ],
-  'Judged by its own suites: guest-app-input-shape (public guest routes, generic 404 by design; service hours, delivery times; the studio\'s pages, blocks and photos), guest-app-lodging-config, guest-app-items, guest-app-service-hours, guest-app-booklet, guest-app-block-validation, guest-app-media, guest-app-qr, guest-app-stay-links, guest-app-shop-quote (the order and quote input shapes), guest-app-order-card, guest-app-orders-admin, guest-app-studio-lodgings and guest-app-fulfilment (the studio settings, judged together; « Synchroniser », which reads no body).': [
+  'Judged by its own suites: guest-app-input-shape (public guest routes, generic 404 by design; service hours, delivery times; the studio\'s pages, blocks and photos), guest-app-lodging-config, guest-app-items, guest-app-service-hours, guest-app-booklet, guest-app-block-validation, guest-app-media, guest-app-qr, guest-app-stay-links, guest-app-shop-quote (the order and quote input shapes), guest-app-order-card, guest-app-orders-admin, guest-app-arrival-orders (the amend input shape), guest-app-studio-lodgings and guest-app-fulfilment (the studio settings, judged together; « Synchroniser », which reads no body).': [
+    'POST /api/guest-app/orders/:id/amend',
     'POST /api/guest-app/orders/:id/delivered',
     'DELETE /api/guest-app/studio/blocks/:id',
     'DELETE /api/guest-app/studio/pages/:id',
@@ -167,6 +168,25 @@ const EXEMPT = {
     'POST /api/settings/website-connection/regenerate',
     'POST /api/users/:id/reset-password',
     'PUT /api/school-holidays/:id/unlock',
+  ],
+  'Judged by its own suites: standalone-sale and standalone-sale-passage-client (every field of the sale is refused with a code), suggested-articles (the list, its bound and its references), standalone-sale-obligation-close (the status refused with a code, the row named in the URL).': [
+    'PATCH /api/standalone-sales/:id/obligations/:oid',
+    'POST /api/standalone-sales',
+    'POST /api/standalone-sales/quote',
+    'POST /api/standalone-sales/:id/payment-link',
+    'DELETE /api/standalone-sales/:id/payment-link/:linkId',
+    'POST /api/standalone-sales/:id/payment-link/:linkId/email',
+    'PUT /api/settings/suggested-articles/:kind/:id',
+  ],
+  'Judged by the outside-visit suites of hourly-resources (visit-*: every field refused with a code, the window and the roles); a link route names its row in the URL.': [
+    'DELETE /api/resource-bookings/:id/visit/payment-link/:linkId',
+    'PATCH /api/resource-bookings/:id/visit/lines/:lineId',
+    'POST /api/resource-bookings/:id/no-show',
+    'POST /api/resource-bookings/:id/visit',
+    'POST /api/resource-bookings/:id/visit/payment',
+    'POST /api/resource-bookings/:id/visit/payment-link',
+    'POST /api/resource-bookings/:id/visit/payment-link/:linkId/email',
+    'POST /api/resource-bookings/:id/visit/quote',
   ],
   'Reads a body or delegates; not in the table yet, no defect known, no fix this round (2026-11-05).': [
     'PATCH /api/devis/:id/status',

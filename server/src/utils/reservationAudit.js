@@ -11,7 +11,9 @@
  * See specs/reservation-history-granular-diff.md.
  */
 
+const { discountAmountCentsOf } = require('./pricing/discounts');
 const { capitalizeFirst } = require('./textFormatters');
+const { roundMoney, roundMoneyStrict } = require('./pricing/money');
 
 const HISTORY_FIELD_LABELS = {
   propertyId: 'Logement',
@@ -33,6 +35,8 @@ const HISTORY_FIELD_LABELS = {
   touristTaxRate: 'Taux taxe de séjour',
   touristTaxTotal: 'Taxe de séjour',
   discountPercent: 'Réduction (%)',
+  discountTarget: 'Réduction sur',
+  discountAmountCents: 'Réduction (montant)',
   finalPrice: 'Prix final',
   depositAmount: 'Acompte',
   // specs/reservation-history-granular-diff.md rule 13 — an acompte typed by hand is a decision, not a
@@ -60,7 +64,7 @@ const HISTORY_FIELD_LABELS = {
 
 function normalizeHistoryValue(value) {
   if (value === undefined || value === null || value === '') return null;
-  if (typeof value === 'number') return Math.round(value * 100) / 100;
+  if (typeof value === 'number') return roundMoneyStrict(value);
   return value;
 }
 
@@ -118,6 +122,8 @@ function buildAuditSnapshotFromPayload(payload, quote) {
     touristTaxRate: Number(quote.touristTaxRate || 0),
     touristTaxTotal: Number(quote.touristTaxTotal || 0),
     discountPercent: Number(payload.discountPercent || 0),
+    discountTarget: ['extras', 'all'].includes(payload.discountTarget) ? payload.discountTarget : 'nights',
+    discountAmountCents: discountAmountCentsOf(payload.discountAmountCents),
     finalPrice: quote.finalPrice == null ? null : Number(quote.finalPrice),
     depositAmount: Number(quote.depositAmount || 0),
     // Same rule as the model: a zero acompte carries no deadline (disable-deposit-per-reservation rule 2).
@@ -156,7 +162,7 @@ function buildAuditSnapshotFromPayload(payload, quote) {
 }
 
 function formatHistoryMoney(amount) {
-  const value = Math.round(Number(amount || 0) * 100) / 100;
+  const value = roundMoney(amount);
   const text = Number.isInteger(value) ? String(value) : value.toFixed(2).replace('.', ',');
   return `${text} €`;
 }
@@ -199,6 +205,8 @@ const HISTORY_FIELD_FORMATS = {
   balanceAmount: 'money',
   cautionAmount: 'money',
   discountPercent: 'percent',
+  discountTarget: 'discountTarget',
+  discountAmountCents: 'cents',
   cautionReceived: 'boolean',
   cautionReturned: 'boolean',
   extraGuestSurchargeOffered: 'boolean',
@@ -216,6 +224,9 @@ const HISTORY_FIELD_FORMATS = {
 // specs/payment-schedule-and-cancellation.md rule 23 reading of 2026-11-10 (audits R45-RES-L1, R45-DB-L1) — a cancel
 // confirmed with an empty « Motif » stores the derived key; it reads French, the stored row untouched. Only the whole
 // value is matched, so a reason the operator typed reads as typed.
+// Rule 16: what a stay discount is aimed at, as the history reads it.
+const DISCOUNT_TARGET_LABELS = Object.freeze({ nights: 'Nuits', extras: 'Articles', all: 'Tout' });
+
 const CANCELLATION_REASON_LABELS = Object.freeze({
   unpaid_deposit: 'Acompte impayé',
   unpaid_balance: 'Solde impayé',
@@ -234,7 +245,7 @@ const SIGNATURE_GROUPS = {
 };
 
 function formatHistoryNumber(value) {
-  const rounded = Math.round(Number(value || 0) * 100) / 100;
+  const rounded = roundMoney(value);
   return Number.isInteger(rounded) ? String(rounded) : rounded.toFixed(2).replace('.', ',');
 }
 
@@ -266,6 +277,8 @@ function formatHistoryFieldValue(field, value, context = {}) {
     case 'date': return formatHistoryDateFr(value);
     case 'property': return propertyDisplayName(value, context.propertyNames);
     case 'client': return clientDisplayName(value, context.clientNames);
+    case 'cents': return formatHistoryMoney(Number(value) / 100);
+    case 'discountTarget': return DISCOUNT_TARGET_LABELS[String(value)] || String(value);
     case 'cancellationReason': return Object.hasOwn(CANCELLATION_REASON_LABELS, String(value)) ? CANCELLATION_REASON_LABELS[String(value)] : String(value);
     default: return String(value);
   }

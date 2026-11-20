@@ -419,6 +419,11 @@ CREATE TABLE IF NOT EXISTS reservation_nights (
     FOREIGN KEY (reservationId) REFERENCES reservations(id) ON DELETE CASCADE
   );
 
+-- The three line tables (reservation_options, reservation_resources, reservation_custom_options) carry more than is declared
+-- here: `utils/pricingLinesMigration.js` adds a stable `lineId` (rule 79) and the sale columns of rule 74 at boot
+-- (specs/pricing-components.md). The primary key declared below is the shape of a fresh baseline only: at boot
+-- `utils/pricingSalesMigration.js` rebuilds the two catalogue line tables WITHOUT it (rule 85, `lineId` is the key, the article an index) and
+-- raises the schema floor (self-update rule 57).
 CREATE TABLE IF NOT EXISTS reservation_options (
     reservationId INTEGER NOT NULL,
     optionId INTEGER NOT NULL,
@@ -434,8 +439,9 @@ CREATE TABLE IF NOT EXISTS reservation_options (
 
 -- Remboursements (specs/reservation-refunds.md §5). An « avoir »: money returned to the guest AFTER
 -- the sale, at its own date, WITHOUT touching the sale (finalPrice, échéances, paid flags stay
--- verbatim). One header + N lines; `vatRate` is frozen per line at creation so a later settings
--- change never re-prices an avoir already sent to the accountant.
+-- verbatim). One header + N lines; `vatRate` is stored per line at creation so a later settings
+-- change never re-prices an avoir already sent to the accountant; a VAT regime switch re-rates the lines
+-- with the stay's period (vat-optional-mode rule 16, pricing-components rule 77).
 CREATE TABLE IF NOT EXISTS reservation_refunds (
     id            INTEGER PRIMARY KEY AUTOINCREMENT,
     reservationId INTEGER NOT NULL,

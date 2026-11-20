@@ -149,8 +149,8 @@ function toReceptionReservationView(reservation, now = new Date()) {
   if (Array.isArray(reservation.resources)) {
     view.resources = reservation.resources.map(receptionResourceLine);
   }
-  view.arrivalSasLock = sasLockReason({ dateIso: reservation.startDate, doneAt: reservation.arrivalSasDoneAt, now });
-  view.departureSasLock = sasLockReason({ dateIso: reservation.endDate, doneAt: reservation.departureSasDoneAt, now });
+  view.arrivalSasLock = sasLockReason({ stay: reservation, side: 'arrival', doneAt: reservation.arrivalSasDoneAt, now });
+  view.departureSasLock = sasLockReason({ stay: reservation, side: 'departure', doneAt: reservation.departureSasDoneAt, now });
   // The toggles follow the DAY window only — a committed SAS still leaves them editable until the
   // window closes (§3.2 rule 6).
   view.checkInStatusEditable = isWithinSasWindow(reservation.startDate, now);
@@ -200,6 +200,13 @@ const PLANNING_EVENT_KEEP = [
   'endTime',
   'turnoverMinutes',
   'displayName',
+  // specs/outside-booking-sas.md rules 6-7, 22 — the reception opens the mini SAS from the card of a visit and reads its state (door money only: « Reste 13,00 € »).
+  'external',
+  'arrived',
+  'noShowAt',
+  'cardState',
+  // Loop t2 UI2-6, UI2-7 — what the caller may do on the visit now (`{ noShow, arrive }`, booleans the server judged for this caller).
+  'actions',
 ];
 
 function toReceptionPlanningEvent(event) {
@@ -239,7 +246,7 @@ function toReceptionSasCommit(body) {
   // not lose a whole check-in over a field it should not have sent. Dropping the mode leaves the
   // complement to settle through its own field, which reception is allowed to use.
   const {
-    stayPaid, stayPaidCash, arrivalPaymentMode, arrivalPaymentSplit, ...rest
+    stayPaid, stayPaidCash, arrivalPaymentMode, arrivalPaymentSplit, forceOverpayment, ...rest
   } = body || {};
   return rest;
 }

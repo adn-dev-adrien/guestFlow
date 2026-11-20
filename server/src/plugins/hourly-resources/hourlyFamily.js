@@ -12,8 +12,10 @@
  * `{ quantity, selected, sold, startDate, endDate }`, `ctx` the stay's `{ nights, persons }`.
  */
 const NBSP = ' ';
-const euros = (value) => `${(Math.round((Number(value) || 0) * 100) / 100).toFixed(2).replace('.', ',')}${NBSP}€`;
-const toCents = (value) => Math.round((Number(value) || 0) * 100);
+const eurosText = (value) => `${roundMoneyOrZero(value).toFixed(2).replace('.', ',')}${NBSP}€`;
+const sdk = require('../sdk');
+const { toCentsOrZero: toCents } = sdk.coreModule('money');
+const { roundMoneyOrZero } = sdk.coreModule('money');
 const nonNegative = (value) => (Number.isFinite(Number(value)) && Number(value) >= 0 ? null : 'Un nombre positif ou nul est attendu.');
 
 function createHourlyFamily(contributor) {
@@ -63,7 +65,7 @@ function createHourlyFamily(contributor) {
 
   function describe(config, line) {
     const hours = Number(line && line.billedUnits != null ? line.billedUnits : (line && line.quantity) || 0);
-    const parts = [`${String(hours).replace('.', ',')} h × ${euros(line && line.unitPrice)}`];
+    const parts = [`${String(hours).replace('.', ',')} h × ${eurosText(line && line.unitPrice)}`];
     if (line && line.detail) parts.push(line.detail);
     return { label: config.label, detail: parts.join(' · ') };
   }

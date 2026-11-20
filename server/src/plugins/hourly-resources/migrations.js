@@ -173,7 +173,39 @@ function bookingsV4(db) {
   });
 }
 
+// specs/pricing-components.md §3 rule 24 (E4): NULL marks a booking priced before the one hourly grid — its free hour stays valued on the
+// band it falls in, as stored; 1 marks a booking priced since (the free hour is worth the day rate).
+const BOOKING_COLUMNS_V5 = [
+  ['freeHourAtDayRate', 'INTEGER'],
+];
+
+function bookingsV5(db) {
+  if (!hasTable(db, 'resource_bookings')) return;
+  BOOKING_COLUMNS_V5.forEach(([column, type]) => {
+    if (!hasColumn(db, 'resource_bookings', column)) db.exec(`ALTER TABLE resource_bookings ADD COLUMN ${column} ${type}`);
+  });
+}
+
+// the outside-visit spec (outside-booking-sas) rules 27, 34: the sale document an outside visit belongs to, and the no-show mark.
+const BOOKING_COLUMNS_V6 = [
+  ['saleRef', 'TEXT'],
+  ['noShowAt', 'TEXT'],
+];
+
+function bookingsV6(db) {
+  if (!hasTable(db, 'resource_bookings')) return;
+  BOOKING_COLUMNS_V6.forEach(([column, type]) => {
+    if (!hasColumn(db, 'resource_bookings', column)) db.exec(`ALTER TABLE resource_bookings ADD COLUMN ${column} ${type}`);
+  });
+}
+
 /** @param {(db, row: { reservationId, date }) => number|null} rateOf the rate in force for a booking (rule 5) */
+// specs/plugin-removal-resilience.md rule 22 — after an erase and a reinstall the id counter restarts above the visits the sales still cite.
+function keepBookingIdsCited(db) {
+  const { highestCitedId, raiseCounter } = require('../sdk/citedIdCounterFloor');
+  raiseCounter(db, 'resource_bookings', highestCitedId(db, 'resource-booking:', [{ table: 'standalone_sales', column: 'originRef' }]));
+}
+
 function migrationsFor(rateOf) {
   return [
     { name: 'tables_v1', up: createTables },
@@ -181,9 +213,12 @@ function migrationsFor(rateOf) {
     { name: 'resource_bookings_v2', up: bookingsV2 },
     { name: 'resource_bookings_v3', up: (db) => bookingsV3(db, rateOf) },
     { name: 'resource_bookings_v4', up: bookingsV4 },
+    { name: 'resource_bookings_v5', up: bookingsV5 },
+    { name: 'resource_bookings_v6', up: bookingsV6 },
+    { name: 'resource_bookings_counter_floor_v7', up: keepBookingIdsCited },
   ];
 }
 
 module.exports = {
-  migrationsFor, BOOKING_COLUMNS_V2, BOOKING_COLUMNS_V3, BOOKING_COLUMNS_V4, bookingsV2, bookingsV3, bookingsV4, createTables, hasColumn, tagEveningSupplements, resetHourlyColumns, countHourlySettings, hasTable, SUPPLEMENT_SUFFIX,
+  migrationsFor, BOOKING_COLUMNS_V2, BOOKING_COLUMNS_V3, BOOKING_COLUMNS_V4, BOOKING_COLUMNS_V5, BOOKING_COLUMNS_V6, bookingsV2, bookingsV3, bookingsV4, bookingsV5, bookingsV6, createTables, hasColumn, tagEveningSupplements, resetHourlyColumns, countHourlySettings, hasTable, SUPPLEMENT_SUFFIX,
 };

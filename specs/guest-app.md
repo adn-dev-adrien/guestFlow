@@ -2,8 +2,8 @@
 
 | Field | Value |
 |---|---|
-| **Status** | Implemented (2026-11-09) — approved 2026-11-04 |
-| **Branch** | `claude/granja-estival-app-spec-77uvgj` (spec) — implementation base `inte/plugins` |
+| **Status** | Implemented — rules 1-64 (2026-11-09) and rules 65-113 (pricing-components PR C and its stabilisation loop, 2026-11-20; `midStayOrderCommit` was removed by C30, 2026-11-13); ships in **4.2.0** — approved 2026-11-04 |
+| **Branch** | `claude/granja-estival-app-spec-77uvgj` (spec) — implementation base `master` (`inte/plugins` retired 2026-11-13) |
 | **Created** | 2026-11-04 |
 | **Author** | Adrien |
 | **Related PR** | (slice A: link once opened) |
@@ -291,15 +291,15 @@ is pushed every order.
       `tariff-recipes/spec.md`, `applyFreeUnitsToLine`) and a resource's **free minutes**
       (`property_resource_prices.freeMinutes`) are granted **once per stay** (the stay's tariff snapshot grant wins over today's catalogue): the server
       subtracts what the stay already received (its lines on the fiche, which already carry its confirmed, paid
-      and delivered orders, rule 34, plus the orders still awaiting payment) and shows what is left
+      and delivered orders, rule 34; a card order awaiting payment reserves nothing, rule 35) and shows what is left
       (« 1 h offerte avec votre séjour », « 1 h offerte — déjà utilisée »);
     - an option **offered by default** to the lodging (`property_option_defaults.offered`) that the stay
       already carries is shown « Déjà inclus dans votre séjour » and not sold again;
     - an item not linked to the stay's lodging is not shown;
     - a 0 € item (included or free) is limited per stay to its `maxQuantity`, counted across orders.
-    The quote prices an order **after** the stay's card orders awaiting payment (`priceOrder(…, { pending })`): those
-    hold the free units and minutes they were quoted with, so a later order never takes them and the shop's « déjà
-    utilisée » says the same (review of 2026-11-09).
+    The quote prices an order on the stay **as it is**: a card order awaiting payment reserves no free unit and no minute, so the
+    shop's « déjà utilisée » counts only what is on the fiche. *Reading of 2026-11-13 (owner), replaces the review of 2026-11-09, which
+    priced after the pending orders (`pending`): an unpaid card order does not exist (rule 35).*
     An order whose quote total is **0 €** (only free / included units) needs no payment and no name: one
     button « Réserver », the order is `confirmed` and written to the fiche like a note order (rule 34).
 26. **Categories.** Items are grouped by the existing option `category` (e.g. « Boissons »,
@@ -328,7 +328,7 @@ is pushed every order.
     arrival SAS picker and the Calendrier › Ressources page:
     - occupancy = `occupancyModel.listRange` — every **guest session** of every reservation
       (`reservation_resources.sessions`), every **outside booking** (`resource_bookings`, the
-      « extérieurs »), plus the slots **held** by guest-app orders awaiting payment (rule 35);
+      « extérieurs ») — the slots of guest-app orders awaiting payment are **not** held (rule 35, reading of 2026-11-13);
     - slots = `availability.buildDays` / `validateBlock` — slot grid (`slotDuration`), opening window
       (`openTime`/`closeTime`), open days and closed days, turnover between uses (`turnoverMinutes`),
       minimum use (`minimumUsageMinutes`), capacity (`quantity` units of the resource), the thermal model
@@ -380,26 +380,33 @@ is pushed every order.
     add to the existing line of the same option/resource (no duplicate line). Note orders flow into
     `endOfStayComplementDetail` with `source:'midStayExtra'` exactly like an operator addition — no new
     arithmetic.
+    > **Amended (pricing-components rules 13, 85, slice d of PR C):** an order no longer adds to the stay's line of the same article — each unit, per-person and resource
+    > line of an order is a NEW line (breakfast mornings still join the stay's breakfast line). Consequences: a per-person article ordered twice is two lines whose persons add up for
+    > the ceiling of rule 55; the free units and minutes of an article are counted once across its lines, so an article the fiche offers is ordered as a billed line of its own and the
+    > « never confirmed at 0 € » refusals of rules 55, 60 and 61 no longer fire for it (a quote asked beyond the free units left is billed, not refused).
 35. **Card orders** are recorded as **already paid**: the lines join the reservation, and the payment is
     recorded against the reservation's payment ledger as a `complement` payment (amount, date, Qonto
     reference), so the end-of-stay complement owes nothing for them and the accounting books the money on
     the payment date. This wires the `complement` type end to end: `ensurePaymentLink` accepts it **only**
     with an explicit guest-order basket, `applyPaidEffect` gets a `complement` branch that commits the order.
     Exempt from the arrival-day lapse (`payment-link-lifecycle.md` rule 9); its own lifetime is **30 min**.
-    While `awaiting_payment` the order **holds** its hourly slots (rule 28) and the free minutes it uses; the guest can abandon it from « Mes commandes » (status `abandoned`, chip *Abandonnée*, holds released at
-    once, its lines back in the cart; a payment that lands on it anyway is `paid_conflict`, never committed). At payment, a `deliverAt` earlier than payment + lead moves to the next valid slot and the order says so.
+    **Amended 2026-11-12 (owner, Q-C3):** the order's line appears **only once paid**. A pending card order writes no line on the
+    fiche, and the line is written by the paid effect.
+    **Reading of 2026-11-13 (owner): an unpaid card order does not exist** — « tant que le paiement n'est pas passé, la commande ne
+    doit pas nous arriver, elle ne doit même pas être enregistrée. Sauf s'il choisit de l'ajouter à sa note de séjour. » While
+    `awaiting_payment` the order **reserves nothing**: no offered unit or minute, no price, no person (rule 55), no stock unit (rule 37ter), no
+    hourly slot (rule 28); the staff sees nothing of it (not in « Commandes clients », « À préparer » or « Toutes », not on the planning, not in
+    the SAS) and receives no push until it is paid. The row only lets the payment find its order (its link, its 30 minutes). The guest can
+    abandon it from « Mes commandes » (status `abandoned`, chip *Abandonnée*, its lines back in the cart; a payment that lands on it anyway
+    is `paid_conflict`, never committed). Rule 108 states what the payment does. At payment, a `deliverAt` earlier than payment + lead moves to the next valid slot and the order says so.
     **The fiche is never billed beyond the payment** (review of 2026-11-09): when the commit costs more than was paid
-    (a price raised meanwhile), the order is `paid_conflict` — unless orders committed while it awaited its payment
-    were quoted that amount above what they added to the fiche (they priced after it, rule 25; `deferredCents`): that
-    gap is theirs, left on the end-of-stay complement. When it costs less (a price lowered), the order is committed and
+    (a price raised meanwhile, or the offered units spent by another order), the order is `paid_conflict`; no `deferredCents` gap exists any more (reading
+    of 2026-11-13). When it costs less (a price lowered), the order is committed and
     only the gap is flagged « à rembourser » on the link (`basketJson.refundCents`), with its history entry
-    (« 6,00 € sur 18,00 € payés… ») and the ledger row for that part. An order paid while it still awaited its payment
-    held its units: it is never judged on the stock (rule 37quater is for a late payment). **One card order waits for
-    its payment at a time** (final review of 2026-11-09): while one's link is live, a second card order is refused
-    (`CARD_ORDER_PENDING`), the note staying open — two pending card orders paid out of order would see the later one
-    take the earlier one's allowance. A hold that has lapsed holds nothing, even before the expiry job flips its order.
-36. **Unpaid card order.** If the link is not paid within 30 min the order goes `expired`, its holds are
-    released, nothing reaches the fiche. A payment confirmed after expiry (late webhook) still commits the
+    (« 6,00 € sur 18,00 € payés… ») and the ledger row for that part. An unpaid order held no unit, so the stock is judged at payment,
+    always (rule 37quater). **Several card orders may wait at once** (reading of 2026-11-13, replaces the final review of 2026-11-09 and its 409
+    `CARD_ORDER_PENDING`): a second order, card or note, is accepted while one awaits its payment; each is sold at the price of the moment it is paid.
+36. **Unpaid card order.** If the link is not paid within 30 min the order goes `expired`, nothing reaches the fiche. A payment confirmed after expiry (late webhook) still commits the
     order if its slots are still free; otherwise the order goes `paid_conflict`, the operator is pushed, and
     refunds by hand (refund out of scope). A `paid_conflict` payment is recorded on the reservation ledger as a
     `complement` payment flagged « à rembourser », with a history entry; no line is added. A late payment whose
@@ -423,8 +430,8 @@ is pushed every order.
 37ter. **Every sale counts, when the article leaves the cellar** (Adrien, 2026-11-06). The stock goes down for the
     app's orders *and* for the lines the website or the staff put on a reservation, at the moment the article is
     actually taken:
-    - an app order counts when it is confirmed (note, 0 €) or paid (card); a card order **holds** its units while it
-      awaits its payment (rule 35) and releases them when it expires or is abandoned;
+    - an app order counts when it is confirmed (note, 0 €) or paid (card); a card order awaiting its payment holds **nothing** (rule 35,
+      reading of 2026-11-13);
     - a line already on the reservation counts on the **arrival day** of the stay (the plugin's arrival sweep —
       idempotent, every 5 minutes, so within minutes of midnight — and at once for a stay created or moved to a start
       date already reached); a line added or raised
@@ -588,7 +595,7 @@ is pushed every order.
     (`pricing.resolveServedPersons`): an order whose persons exceed what is left of it is refused before anything is
     priced — 409 `PERSONS_EXCEEDED` « 3 personnes au plus pour « Planche apéritive ». » / « « Couverts » sert déjà
     toutes les personnes du séjour. », on the quote and the order, on the note, by card (no link minted), at 0 € and in
-    pickup mode alike; the persons of a card order awaiting its payment count as served. A breakfast asking more
+    pickup mode alike; the persons of a card order awaiting its payment are **not** counted (rule 35, reading of 2026-11-13). A breakfast asking more
     persons than its line already serves (that line keeps its persons, rule 27bis) is refused the same way: « Le
     petit-déjeuner du séjour est prévu pour 2 personnes. ». The refusal is the core's
     (`midStayOrderCommit` `ORDER_PERSONS_EXCEEDED`, `plugins-phase-1-sdk.md` rule 47 reading of 2026-11-10). And a
@@ -644,6 +651,482 @@ is pushed every order.
     password at a prompt that writes nothing back (`prompt.mjs` `askSecret`: the question only, the typed keys never
     reach the terminal, Ctrl-C still stops the script), so it stays out of the scrollback, a screen share or a
     recording; `GUESTFLOW_PASSWORD` still replaces the prompt. The 2FA code keeps a plain prompt.
+
+> **Rules 65-106 — « Mon séjour » from J-7** (ported from the branch `feature/guest-app-from-j7` into PR C, 2026-11-12). The J-7 code is
+> rebuilt on the line API of `pricing-components.md`: rules 66, 67, 85, 90-93, 95-101 are reworded as references, **68 and 94 are dropped**
+> (owner Q-C4, 2026-11-12), the card order line appears only once paid (Q-C3, rule 35), and rules 104-106 are new. Numbers are identities.
+
+65. **The app is usable from J-7, ordering included** (Adrien, 2026-11-10). The pre-arrival session of rule 2 — opened by
+    the stay link, or by the lookup of rule 6 for a platform's number only (rule 54 and D28 unchanged: a number the core
+    made never opens anything) — from **J-7 00:00 Europe/Paris** (the arrival date minus 7 calendar days,
+    `currentStay.preArrivalOpensAt`, the day the J-7 e-mail is due) until the window opens (check-in − 3 h) reads and
+    uses the shop like a stay session: the catalogue, the slots, the delivery times, the quote, the order, « Mes
+    commandes ». It still has no gate (rule 13). Before J-7 the link opens the visitor mode as today, and that visitor
+    session ends at J-7 00:00 so the app's next exchange opens the pre-arrival one: a J-7 e-mail sent early by hand
+    opens the booklet only until that midnight. A lookup session and a link session get exactly the same. The session
+    keeps rules 4 and 9: at the window's opening a link session ends and the app exchanges the link again; a lookup
+    session moves to the stay by itself. *Why:* a guest who wants cold drinks or a bath on the evening of the arrival
+    orders them before leaving home.
+    > **Delivered by PR C** (pass 4, C26-C29, C31-C32): server `guest-app` 1.3.0 on `extraSale` / `saleDetail`; tests listed in §7 (`guest-order-*`, `guest-app-arrival-orders`, `guest-app-orders-from-j7`, …).
+66. **An order taken before the arrival is collected at the arrival.** *Reworded in PR C (2026-11-12) on the pricing refonte.* The
+    order is a sale on the stay's line API (`extraSale`, `pricing-components.md` rules 8, 9, 10, 13: it appends its own lines, it
+    never re-prices the nights, the extra guests or the tourist tax, and it is not measured against a bucket). SCHEDULE routes
+    the amount to the **arrival complement** while the arrival is not reached (rule 104) and the line is stored with `collectAt =
+    'arrival'`; once the arrival is marked it is today's end-of-stay commit (rule 34, `collectAt = 'departure'`). The retired
+    `midStayOrderCommit` measure and its refusals (`ORDER_OFF_ARRIVAL_COMPLEMENT`, `ORDER_STAY_PRICE_MOVED`, `ORDER_PAID_BEFORE_ARRIVAL`,
+    `ITEM_UNAVAILABLE` on a zero remainder) are replaced by the line API's own refusals (rule 9, rule 30 `PRICE_CHANGED`). The arrival SAS
+    collects that complement with the rest of the arrival payment — one payment (`single-payment-at-check-in.md`), the
+    mixed-method rules of `mixed-method-payments.md`, « Plus tard » and « Percevoir en fin de séjour » as for any complement; a
+    complement left « Plus tard » or deferred carries it to the departure (`defer-arrival-complement-to-checkout.md`), never billed
+    twice. *Why:* before the arrival there is no end-of-stay remainder.
+    > **Delivered by PR C** (pass 4, C26-C29, C31-C32): server `guest-app` 1.3.0 on `extraSale` / `saleDetail`; tests listed in §7 (`guest-order-*`, `guest-app-arrival-orders`, `guest-app-orders-from-j7`, …).
+67. **Before the arrival, card or « Régler à l'arrivée ».** *Amended 2026-11-10 (Adrien, fifth message; Q13), reworded in PR C.* From
+    J-7 the guest pays by card exactly as during the stay: the `complement` basket link of rule 35 (30-minute life, one card order
+    awaiting payment reserves nothing, `paid_conflict` rules unchanged), committed at payment by rule 85. `canPayCard` is true whenever the
+    shop is open and the `online-payment` plugin is live and connected; `CARD_AFTER_ARRIVAL` is retired. The note button reads the
+    server's `noteLabel`: « Régler à l'arrivée » / « Pay on arrival » before the arrival, « Ajouter à ma note » / « Add to my bill »
+    after it. The shop payload carries `orderCollection` ∈ `arrival | departure | closed`, read from the stay clock (rule 104) and
+    the settlement of the stay (`pricing-components.md` rules 20, 21): `arrival` while the arrival is not marked, `departure` once
+    marked with the end-of-stay complement open, `closed` once it is collected. The choice is presented by rule 86.
+    > **Delivered by PR C** (pass 4, C26-C29, C31-C32): server `guest-app` 1.3.0 on `extraSale` / `saleDetail`; tests listed in §7 (`guest-order-*`, `guest-app-arrival-orders`, `guest-app-orders-from-j7`, …).
+68. ~~**A stay whose pre-arrival money is still due orders on site.**~~ **Dropped 2026-11-12 (owner, Q-C4).** The shop is open from J-7
+    for every stay whatever its payment state: an order is accepted and added to the arrival complement, and `ORDERS_OPEN_ON_ARRIVAL`
+    / `orderCollection = 'unavailable'` no longer exist. The amendment of 2026-11-10 (platform stays order from J-7) holds for
+    every stay. The number stays an identity.
+    > **Sans test** — dropped rule (owner Q-C4, 2026-11-12): nothing to prove, the refusal no longer exists.
+69. **Every time offered lies inside the stay, and the server judges it.** The bounds of rules 28, 27bis and 41 are kept
+    and pinned for a pre-arrival session, where *now* lies days before the check-in: a delivery or pickup time t has
+    check-in ≤ t < check-out (arrival day never before the check-in time, departure day strictly before the check-out
+    time); an hourly session starts at or after the check-in and ends at or before the check-out (`hourly-resources`
+    `boundsOf`); a breakfast morning is a morning of the stay (the day after each night). The check-in and check-out
+    are the reservation's `checkInTime` / `checkOutTime` (filled from the lodging at creation), else 15:00 / 10:00
+    (`stayWindow`), read the same by the delivery times, the slots and the window. A time sent outside is refused at the
+    quote (`deliverAtUnavailable`, `unavailable` on the session or morning) and at the order (409
+    `DELIVERY_TIME_UNAVAILABLE` for a time; `SLOT_TAKEN` or `ITEM_UNAVAILABLE` for a session or a morning, as rule 29
+    answers), never moved into the stay. Before the check-in, « Dès que possible » is never offered (`asap: null` while now < check-in): the first time
+    is preselected with its day (« ven. 13 nov., 16 h 30 »), and the service banner of rule 42 reads « À partir de votre
+    arrivée, le ven. 13 nov. » / « From your arrival, Fri 13 Nov » (pickup alike).
+    **Amended 2026-11-10 (Adrien, second message):** the day list the guest picks from holds **only the stay's days**
+    (arrival day to departure day): a day that holds no time once presence, service hours and lead are combined (rule 77)
+    is shown greyed with its reason (« Service fermé », « Complet ») and cannot be picked; a day before the arrival or
+    after the departure is never listed, not even greyed. The nordic bath follows the
+    same presence bound with the bath's own hours (rules 78-80).
+    > **Delivered by PR C** (pass 4, C26-C29, C31-C32): server `guest-app` 1.3.0 on `extraSale` / `saleDetail`; tests listed in §7 (`guest-order-*`, `guest-app-arrival-orders`, `guest-app-orders-from-j7`, …).
+70. **The J-7 e-mail gives the link and says what the guests can already do.** **Amended 2026-11-10 (Adrien, third
+    message):** no word about paying or settling, no app name, no tour of the features: two short sentences and the link.
+    The operator script `specs/guest-app-livret/import.mjs`, which already adds the J-2 paragraph (slice I), also adds a
+    paragraph to the stored J-7 template (`arrival_reminder_7d`), French in `body`, English in `bodyEn`:
+    - FR: `{{#if hasStayAppBath}}Vous pouvez déjà commander ce que vous aimeriez trouver à votre arrivée, et programmer
+      votre séance de bain nordique : {{stayAppUrl}}` + blank line + `{{/if}}{{#if hasStayAppShopOnly}}Vous pouvez déjà
+      commander ce que vous aimeriez trouver à votre arrivée : {{stayAppUrl}}` + blank line + `{{/if}}`
+    - EN: the same two blocks (« You can already order anything you would like to find on arrival, and book your nordic
+      bath session: … » / « … on arrival: … »).
+
+    **Implementation note (2026-11-10):** the template renderer's conditionals do not nest (single-level, non-greedy), so the
+    nested `{{#if hasStayAppShop}}…{{#if hasStayAppBath}}` first written here could not render; the paragraph is two flat
+    blocks and the plugin declares a third flag, **`hasStayAppShopOnly`** « Si boutique Mon séjour sans bain » (`hasStayAppShop`
+    and not `hasStayAppBath`). The three flags are offered in the J-7 and the J-2.
+
+    ~~Earlier wording (« Votre séjour a sa petite application, « Mon séjour » … vous le réglerez sur place. »), struck by
+    the third message.~~ The paragraph hangs on `hasStayAppShop` only: a stay whose guests cannot order (shop module off,
+    nothing sold, `unavailable`, `closed`) gets no paragraph at all, so the sentence never promises something the link
+    does not give. The bath clause hangs on **`hasStayAppBath`** (rule 89): it appears only when the stay holds the bath
+    (booked on the reservation) or a session is offered to it, never otherwise.
+    It goes immediately before « Une question » / « Any question » — at the anchor itself, never at its line start: in
+    the J-7 that line opens with the `{{/if}}` of the previous block, and inserting at the line start would put the
+    paragraph inside it. A body already holding `{{stayAppUrl}}` is left alone; no anchor → the script stops with
+    « ajoutez le paragraphe à la main dans Paramètres › E-mails ». It sends `body` and `bodyEn` only: subject, `enabled`
+    and `sendMode` are untouched (`no-automatic-email-without-approval.md`; every template stays manual unless the
+    operator chose otherwise). The plugin's flags offered in the J-7 and J-2 (rule 9bis b) gain **`hasStayAppShop`**
+    « Si boutique Mon séjour »: true only while `hasStayApp` is, the lodging shows the `shop` module with at least one
+    article sold, and `orderCollection` is `arrival` or `departure` when the e-mail is rendered. Plugin inactive, lodging
+    out of the app, no guest host, no e-mail address, stay not live → `hasStayApp` false and the paragraph renders
+    nothing: never a dead link, never the gate link under the app's words (`stayAppUrl` falls back to it, the paragraph
+    does not). The core seed stays neutral (`plugins-phase-p-productisation.md` rule 13). The J-2 paragraph stays.
+    > **Delivered by PR C** (pass 4, C26-C29, C31-C32): server `guest-app` 1.3.0 on `extraSale` / `saleDetail`; tests listed in §7 (`guest-order-*`, `guest-app-arrival-orders`, `guest-app-orders-from-j7`, …).
+71. **The arrival SAS names the app's orders it collects.** While the stay holds orders with `collectAt = 'arrival'`,
+    status `confirmed` or `delivered`, payment `note`, and its arrival complement is not collected (`complementPaid` and
+    `complementPaidCash` 0), the plugin's SAS data (`ctx.sasData`) carries `ordersAtArrival: { orders: [{ id, label,
+    lines: [{ label, amountLabel }], deliveryLabel? }], total, totalLabel, changed }`, and its step **« Commandes Mon
+    séjour »** (`sas.arrival.steps`, just before the recap) lists them read-only under « Comprises dans le complément
+    d'arrivée. »; the recap recalls « Commandes Mon séjour : 18,00 € (dans le complément d'arrivée) ». The step collects
+    nothing itself: the recap's single payment does (rule 66), so nothing is billed twice; a card order never appears
+    (none exists before the arrival, rule 67). Amounts are the orders' snapshots; when the fiche's lines were lowered
+    since (Σ snapshots above the arrival complement), `changed` is true and the step adds « Lignes modifiées depuis la
+    commande : le montant à percevoir est celui du récapitulatif. ». The reception runs it (door money,
+    `reception-role-checkin-only.md` rule 4): these lines and their amounts, nothing of the stay's other money. No such
+    order → no step; plugin inactive → no step, the SAS as today.
+    **Reading of 2026-11-10 (audit items 4, 5, 9, 10):** the payload also carries `summaryLabel` (« 2 commandes · 34 € à percevoir
+    · 18 € payés par carte », the line that folds the list — the step repeats no title, the dialog's header is the title) and
+    `recapNote` (the recap's recall, in the server's words; the step seeds a value so the recap shows it); `changed` is the
+    fiche-lowered reading above (Σ unpaid snapshots − the arrival complement ≥ 0,01 €), not « amended »; no `ordersAtArrival` at
+    all — no step — once the arrival complement is collected, however many orders the stay holds. A row is one article: a bath's
+    evening supplement is said **inside** the bath's row (« Bain nordique » / « ven. 13 nov., 20 h – 21 h · offerte · + 10 € soirée »,
+    its price added to the row's), never a row of its own; line keys have one namespace per kind (`opt:`, `res:`, `brk:`, `chg:`),
+    so an option and a resource of the same id never share a React key nor a payload key. Amounts read in the app's price format
+    (« 12 € », « 4,50 € »). Rendered first in `specs/guest-app-j7-resume.html` (390 and 1280 px, headless Chromium).
+    **Amended 2026-11-10 (Adrien, fourth and fifth messages).** The step is the stay's orders taken before the arrival,
+    shown as a **collapsible list** under its line « Commandes Mon séjour — 2 commandes · 36,00 € à percevoir »: folded by
+    default when every order is paid, unfolded otherwise; each order a group headed by its number, its delivery day and
+    time (« ven. 13 nov., 18 h ») and its status chip, then one row per article — label, quantity, unit price, line price
+    (« Cidre fermier · 2 × 6,00 € · 12,00 € »; a bath session « Bain nordique · ven. 13 nov. 20 h – 21 h · offerte ·
+    + 10,00 € soirée »), then the order's total; under the list, « Total à percevoir » (the unpaid orders) and, when
+    any, « Déjà payé par carte » (the paid ones). Every label, figure and caption is the server's
+    (`ordersAtArrival.orders[].lines[] = { key, label, quantity, unitLabel, amountLabel, editable, maxQuantity }`,
+    `order.{ number, deliveryLabel, statusLabel, paid, totalLabel, editable }`, `toCollectLabel`, `paidLabel`); the client
+    folds and unfolds, nothing else. A **paid** order (card, rule 85) is listed read-only with « Payée par carte » and never
+    counts in « Total à percevoir »: the SAS never collects it again. An **unpaid** order (`payment = note`, not
+    collected) can be edited from the step (rule 87). Orders taken during the stay (`collectAt = 'departure'`) stay out of
+    the arrival step. The step reads at 390 px as a single column, rows wrapping the price under the label.
+    > **Delivered by PR C** (pass 4, C26-C29, C31-C32): server `guest-app` 1.3.0 on `extraSale` / `saleDetail`; tests listed in §7 (`guest-order-*`, `guest-app-arrival-orders`, `guest-app-orders-from-j7`, …).
+    > _Amended 2026-11-15 (end review R3-8):_ the fold of the list honours « reduce motion » like its chevron (no height animation). Test
+    > `SasArrivalOrdersStep.reduced-motion`.
+72. **A cancelled stay cancels its orders.** **Amended 2026-11-10 (Adrien, fourth message):** a stay cancelled,
+    superseded or deleted ends its sessions (rule 9) and moves every order of it not yet `expired`, `abandoned` or already
+    `cancelled` to the new status **`cancelled`** (`cancelledAt`, `cancelReason = 'stay'`), in the plugin's handler of the
+    core's `reservation.cancelled / deleted` event (and `updated` when `kind` leaves `reservation`): its held stock is
+    released (rules 37ter, 74 — a unit already counted by the arrival sweep returns through the cancellation's count), its
+    hourly holds end, it leaves « À préparer » and the planning's « Commande client » cards, it is never prepared nor
+    billed, and the guest — whose session is closed by rule 9 — reads it « Annulée » if the stay comes back. Under
+    « Toutes » it reads « Séjour annulé ». An unpaid order (note, collected at the arrival) was never collected: nothing to
+    refund. A **paid** card order is cancelled too and its money is owed back (rule 88). A card order awaiting its payment
+    is cancelled (link left to expire); a payment that still lands follows rule 36 (`paid_conflict`). The order rows and
+    their history stay. No push to the guest; the staff's « Commandes clients » channel is not pushed either.
+    > **Delivered by PR C** (pass 4, C26-C29, C31-C32): server `guest-app` 1.3.0 on `extraSale` / `saleDetail`; tests listed in §7 (`guest-order-*`, `guest-app-arrival-orders`, `guest-app-orders-from-j7`, …).
+73. **A moved stay keeps its orders, flagged when they fall outside.** The session follows the new dates (rule 9, the
+    « dates changed » edge case); a pre-arrival link session whose phase no longer matches dies and the app exchanges
+    the link again. The order's lines move with the fiche like any line. An order whose `deliverAt` now lies outside
+    [check-in, check-out) is never moved nor re-billed by the plugin: the staff list and its planning card read « Hors
+    des dates du séjour : à replanifier », the guest's order « Horaire à revoir avec l'équipe ».
+    > **Delivered by PR C** (pass 4, C26-C29, C31-C32): server `guest-app` 1.3.0 on `extraSale` / `saleDetail`; tests listed in §7 (`guest-order-*`, `guest-app-arrival-orders`, `guest-app-orders-from-j7`, …).
+74. **An order taken before the arrival holds its stock until the arrival day.** Rule 37ter counts a reservation's lines
+    on its arrival day; an app order with `collectAt = 'arrival'` holds its units (rule 37quater's « Plus que 2 ») from its confirmation until that day, when the sweep counts the line and the hold
+    ends; a cancelled stay releases it. Nothing is counted twice.
+    > **Delivered by PR C** (pass 4, C26-C29, C31-C32): server `guest-app` 1.3.0 on `extraSale` / `saleDetail`; tests listed in §7 (`guest-order-*`, `guest-app-arrival-orders`, `guest-app-orders-from-j7`, …).
+75. **The staff reads the day and the payment.** An order whose delivery time is not today names its day in the push
+    and on the orders list (« L'Estiva · Marie — 2 × Cidre pour ven. 13 nov. 18 h (à régler à l'arrivée) »); the
+    payment words are « à régler à l'arrivée » for `collectAt = 'arrival'`, the rest unchanged (rule 44).
+    > **Delivered by PR C** (pass 4, C26-C29, C31-C32): server `guest-app` 1.3.0 on `extraSale` / `saleDetail`; tests listed in §7 (`guest-order-*`, `guest-app-arrival-orders`, `guest-app-orders-from-j7`, …).
+76. **The guest's chips say when the order is paid.** An order with `collectAt = 'arrival'` reads « À régler à
+    l'arrivée » while the arrival complement is open, « Sur votre note » once it is deferred to the departure, « Réglée »
+    once collected (rule 38's other chips unchanged), built by the server from the stay's stored markers.
+    **Amended 2026-11-10:** a card order paid before the arrival reads « Payée » (rule 85); a cancelled order « Annulée »
+    (rule 72); an order the team changed at the arrival keeps its chip and adds the line « Modifiée à votre arrivée »
+    with its new lines and total (rule 87).
+
+**Added 2026-11-10 (Adrien, second, fourth and fifth messages) — times, the nordic bath, card from J-7, editing at the
+arrival.** Everything below is judged by the server; the apps render what it offers.
+    > **Delivered by PR C** (pass 4, C26-C29, C31-C32): server `guest-app` 1.3.0 on `extraSale` / `saleDetail`; tests listed in §7 (`guest-order-*`, `guest-app-arrival-orders`, `guest-app-orders-from-j7`, …).
+77. **One judge for an order's times: presence × service × lead.** A delivery or pickup time is offered only when all
+    three hold at once (`serviceHours.deliveryTimes`, the only producer): the guest is there (rule 69: arrival day from
+    the check-in time, departure day strictly before the check-out time, the days between whole), the shop's service is
+    open for the whole preparation interval [t − max(leadMinutes), t] (rules 40-41, exceptions and establishment closures
+    included — never during a closing hour), and that interval starts after *now*. The payload is `days: [{ date,
+    label, available, reasonLabel?, times: [{ at, label }] }]`, every day of the stay in order, `available: false` with
+    its reason when no time is left; the client draws the day chips and the times it is given, never a time it could tap
+    that the server did not send. A crafted `deliverAt` outside → refused, never moved (rule 69:
+    `deliverAtUnavailable` at the quote, 409 `DELIVERY_TIME_UNAVAILABLE` at the order).
+    > **Delivered by PR C** (pass 4, C26-C29, C31-C32): server `guest-app` 1.3.0 on `extraSale` / `saleDetail`; tests listed in §7 (`guest-order-*`, `guest-app-arrival-orders`, `guest-app-orders-from-j7`, …).
+78. **The nordic bath from the app, from J-7: presence × the bath's own hours.** An hourly resource sold in the shop
+    (rule 23) is bookable by a pre-arrival or stay session through the slot picker of rule 28. A slot is offered only when
+    it lies inside the stay (starts at or after the check-in, ends at or before the check-out — the same bounds as rule
+    69) **and** inside the bath's own opening: its `openTime` / `closeTime`, `openDays`, `closedDays`, its
+    `minimumUsageMinutes` and `slotDuration` grid (never the shop's service hours, which govern only the ignition of rule
+    31). Every day of the stay is in the day list; a day on which the bath is closed or has no slot left reads greyed
+    « Fermé » / « Complet » and cannot be picked; outside the stay nothing is listed. The chosen day shows the bath's
+    opening as a thin bar of the day (`openingBands: [{ from, to, open }]`, closed hours greyed); taken, heating and
+    staff slots are not offered and never drawn (rule 28, §6.4: no other guest's use shows).
+    > **Delivered by PR C** (pass 4, C26-C29, C31-C32): server `guest-app` 1.3.0 on `extraSale` / `saleDetail`; tests listed in §7 (`guest-order-*`, `guest-app-arrival-orders`, `guest-app-orders-from-j7`, …).
+79. **A slot is offered only if the bath can be hot by then, counted from now.** For the app, the thermal model of
+    `hourly-resources` (`heatUpMinutes` from cold, `heatRetentionMinutes` once warm) is measured **from the present
+    moment**, not from the check-in: a slot starting sooner than now + `heatUpMinutes` is `heating` and not offered, unless
+    the bath is already warm at its start from a use ending within `heatRetentionMinutes` before it (another stay's
+    session, an outside booking, a held order, or a session of the same order taken earlier in time — rule 29). A cold
+    slot also needs someone to light it at start − `heatUpMinutes` inside the service hours (rule 31, `staff`). A week
+    ahead, the arrival evening is reachable; on the day, at 17 h with a 4 h heat-up, the first cold slot is 21 h. This is
+    `hourly-resources`' `heatFrom` (`hourly-resource-quantity-and-sas-scheduling.md` rule 36): the arrival SAS keeps
+    max(now, check-in), unchanged.
+    > **Delivered by PR C** (pass 4, C26-C29, C31-C32): server `guest-app` 1.3.0 on `extraSale` / `saleDetail`; tests listed in §7 (`guest-order-*`, `guest-app-arrival-orders`, `guest-app-orders-from-j7`, …).
+80. **Other uses of the bath come first, and a crafted slot is refused before anything.** Every guest session of every
+    stay, every outside booking (« extérieurs ») and every use of the bath occupies it with
+    its turnover (rule 28, capacity `quantity`); a slot they take is not offered. A quote or an order asking a session the
+    picker would not offer (taken, heating, staff, closed, past, outside the stay, off the grid, shorter than the minimum)
+    is refused first, before any pricing, with one short sentence per reason and nothing written: `unavailable` on the
+    session at the quote, 409 `SLOT_TAKEN` (taken) or 409 `SLOT_UNAVAILABLE` « Ce créneau n'est pas proposé. » / « This
+    slot is not offered. » (every other reason) at the order. `SLOT_UNAVAILABLE` joins `refusals.js`. **Reading of 2026-11-10 (audit
+    item 12):** a crafted session starting before the check-in answers `unavailable` with « Ce créneau est hors de votre séjour » /
+    « This slot is outside your stay » (reason `outside`), no longer « Ce créneau est passé » (reserved for a slot of today already gone).
+    > **Delivered by PR C** (pass 4, C26-C29, C31-C32): server `guest-app` 1.3.0 on `extraSale` / `saleDetail`; tests listed in §7 (`guest-order-*`, `guest-app-arrival-orders`, `guest-app-orders-from-j7`, …).
+81. **« 1 h offerte » covers the day rate, never the evening supplement.** The free time configured in GuestFlow for the
+    stay's lodging (`property_resource_prices.freeMinutes`, granted once per stay — rule 25) is valued at the bath's
+    **day rate**: an offered hour placed before `hourlyEveningStart` costs 0 €; placed in the evening it costs the
+    evening supplement (evening rate − day rate per hour, `hourly-resources` `eveningSupplement`), shown and billed as
+    such; a session straddling the switch owes the supplement of its evening part only. This is the reading the arrival
+    SAS already applies (`hourly-resource-quantity-and-sas-scheduling.md` rules 22, 30); `hourlyPricing.priceSessions`
+    is aligned on it (that spec's rule 37), so the fiche, the SAS and the app say the same. R36b N4 (« inside the free
+    minutes the order is confirmed at 0 € ») holds for the day rate; an offered evening hour is a priced order.
+    **Implementation note (2026-11-10):** a saved line replays its free minutes at 0 €, so the fiche's hourly line leaves the
+    evening supplement of the offered minutes out of its own total (`priceSessions.freeSupplement`, kept by the line contributor);
+    the supplement is billed on its own — the app's order charge (rule 83) or the arrival SAS (hourly rules 30, 38). The order's total is the same.
+    > **Delivered by PR C** (pass 4, C26-C29, C31-C32): server `guest-app` 1.3.0 on `extraSale` / `saleDetail`; tests listed in §7 (`guest-order-*`, `guest-app-arrival-orders`, `guest-app-orders-from-j7`, …).
+82. **Hours already on the stay are placed first, at no charge.** When the reservation already holds the bath (a sold
+    line: hours bought at booking or offered) whose hours are not all on a slot yet (`quantity` − placed hours), the
+    bath sheet says « 2 h comprises dans votre séjour, à programmer » / « 2 h included in your stay, to schedule » and the
+    sessions the guest picks take those hours first: they add sessions to the line without raising its sold hours (the
+    line's quantity becomes max(sold, placed), `hourly-resource-quantity-and-sas-scheduling.md` rule 31), so they cost
+    nothing but their evening supplement (rule 81). Beyond those hours, the free minutes left (rule 25), then the
+    lodging's price. `midStayOrderCommit.withResource` follows: an order's sessions raise the line's quantity only by
+    what they place beyond the hours not yet placed. Such an order needs no payment when its total is 0 € (rule 25,
+    « Réserver »).
+    > **Delivered by PR C** (pass 4, C26-C29, C31-C32): server `guest-app` 1.3.0 on `extraSale` / `saleDetail`; tests listed in §7 (`guest-order-*`, `guest-app-arrival-orders`, `guest-app-orders-from-j7`, …).
+    > _Reading of 2026-11-16 (loop t2 N-6, pricing-components rule 102 f):_ the evening supplement line an order writes carries the stable key
+    > `fulfilmentRef = evening:resource:<id>`; the arrival recompute (`hourly-resources` `orderChargedFor`) sums the order lines of that key, so a
+    > second supplement numbered « … (2) » (rule 94) is read too (a line without the key is still read by its words). Test `guest-order-evening-stable-key`.
+83. **The evening supplement of an app session is billed once, with its order.** _(Reworded in PR C, 2026-11-15, end review R3-5: the
+    `orderChargeKey` charge described before was never built — hourly spec rule 38.)_ The order's quote and commit carry the evening supplement
+    of its sessions, computed by `hourly-resources` (the scheduler's `orderSupplement({ resourceId, propertyId, sessions, lineGain })`: the
+    evening difference of those sessions minus what the order's line gain already bills above the day rate, rule 30 of the hourly spec). The
+    order re-quotes with it: the supplement is one more line of the order, « Bain nordique — supplément soirée », a custom line sold by
+    `extraSale` with the rest of the order (`ordersController`, `requestsOf`), so the price the guest accepts and the price written are one, and
+    the line carries the order's `orderRef` like every line of the order. It is collected like the rest of the order (card or note). Being a line
+    of the order, it never travels the fiche by its label: the fiche's save keeps it by its line id (rule 85 of `pricing-components.md`), and the
+    arrival SAS's recompute of the supplements subtracts what the order's supplement lines already bill (hourly rule 38), so the same evening is
+    never billed twice, whether the SAS runs before or after the order, re-opened or not. An offered supplement line still covers its evening:
+    its amount is kept, only its billing is waived.
+    > **Delivered by PR C** (pass 4, C26-C29, C31-C32): server `guest-app` 1.3.0 on `extraSale` / `saleDetail`; tests listed in §7 (`guest-order-*`, `guest-app-arrival-orders`, `guest-app-orders-from-j7`, …).
+84. **Each slot says what it costs this stay, now.** The slot payload's `priceLabel` is the server's reading for one
+    slot picked alone after the stay's lines: « Compris dans votre séjour » (hours of rule 82),
+    « Offert » (free minutes, day), « Offert · + 10,00 € soirée » (free minutes, evening), « 30,00 € », « 40,00 € · tarif
+    soirée »; with `band: 'day' | 'evening'` for the gold dot of §6.4. Several picks are priced by the quote, the only
+    total (rule 32); the slot labels never add up on the client.
+    > **Delivered by PR C** (pass 4, C26-C29, C31-C32): server `guest-app` 1.3.0 on `extraSale` / `saleDetail`; tests listed in §7 (`guest-order-*`, `guest-app-arrival-orders`, `guest-app-orders-from-j7`, …).
+85. **A card order before the arrival is paid at once and never collected again.** Reference rule, reworded in PR C. At payment
+    (`applyPaidEffect`, rule 35) the order's lines are written by the line API with the `holds` of the fulfilment adapter
+    (`pricing-components.md` rule 49), settled as one mid-stay note naming its lines (rule 29), allocated (rule 74) and read net by
+    SCHEDULE (rule 21): the arrival complement, the SAS, the ledger, the J-2 and J-1 complement lines and the payment links read what
+    is left to collect. **The order's line appears only once paid** (owner Q-C3; rule 35 as in production): a card order awaiting
+    payment writes no line and reserves nothing (rule 35, reading of 2026-11-13), and `deferredCents` / `PRICE_ROSE` end.
+    The order is `paid`, `collectAt = 'arrival'`, chip « Payée »; the SAS lists it read-only (rule 71). The money is the provider's:
+    the fiche's register can neither cancel nor edit it.
+    > **Delivered by PR C** (pass 4, C26-C29, C31-C32): server `guest-app` 1.3.0 on `extraSale` / `saleDetail`; tests listed in §7 (`guest-order-*`, `guest-app-arrival-orders`, `guest-app-orders-from-j7`, …).
+86. **« Payer par carte » first, preselected, in the same family as the other choice.** For a non-zero total with
+    `canPayCard`, the cart's payment choice is one group of two options of the **same component, size and weight**
+    (`PaymentChoice`, one radio group): « Payer par carte » / « Pay by card » first and **selected when the cart opens**,
+    its row carrying the card mark and the line « Paiement sécurisé, rien à régler sur place » / « Secure payment, nothing
+    to settle on site »; « Régler à l'arrivée » (or « Ajouter à ma note ») second. The selected row takes the sapin
+    outline and tint every selected control of the app takes; no banner, no badge, no colour or type style the rest of the
+    app does not use. The main button follows the choice (« Payer 18,00 € » / « Régler à l'arrivée · 18 € » — the server's `noteLabel` and the total the guest commits to; reading of 2026-11-10, audit item 14). The
+    guest's last choice is not remembered between carts: the card is preselected each time. Without `canPayCard`, the
+    group shows the note alone, already selected.
+    > **Delivered by PR C** (pass 4, C26-C29, C31-C32): server `guest-app` 1.3.0 on `extraSale` / `saleDetail`; tests listed in §7 (`guest-order-*`, `guest-app-arrival-orders`, `guest-app-orders-from-j7`, …).
+87. **The arrival SAS can change an unpaid order.** From the step of rule 71, an order still unpaid (`payment = note`,
+    `collectAt = 'arrival'`, status `confirmed` or `delivered`, arrival complement not collected) can be edited before it
+    is collected: an article's quantity (stepper, 1 to the article's bounds of rules 37 and 37quater — `maxQuantity`, stock
+    left, persons ceiling), an article removed (quantity 0), a bath session or a breakfast morning removed (moving a
+    session stays the « Planifier les ressources » step's job), the whole order removed (« Retirer la commande », with a
+    `ConfirmDialog`). Each edit is one request (`POST /api/guest-app/orders/:id/amend`), applied at once through the core
+    (`midStayOrderCommit.amendOrder`): the stay's lines lowered by the difference, never below what the stay held without
+    the order; re-priced by the engine (free units and minutes return to the allowance, rule 25), measured on the arrival
+    complement (rule 66 guards); the order's snapshot and total rewritten; the stock released or taken (rules 37ter, 74,
+    raising refused 409 `OUT_OF_STOCK` with what is left); the stay's history « Commande client #12 modifiée à l'arrivée :
+    Cidre fermier 4 → 2 (Sophie) »; the order's own `amendmentsJson` entry `{ at, by, changes }`. An order left with no
+    line is `cancelled` with `cancelReason = 'sas'`. The step then re-reads the SAS data and the recap's preview. The guest
+    sees the new lines and total with « Modifiée à votre arrivée » (rule 76). A **paid** order is read-only: the request
+    answers 409 `ORDER_PAID_READ_ONLY` « Commande payée par carte : non modifiable ici. »; an order of another stay, an
+    already collected complement or a stay whose arrival is marked → 409 `ORDER_NOT_EDITABLE` « Commande non modifiable. ».
+    Roles: the admin and the **reception** (`reception-role-checkin-only.md` rule 4, door money: these lines and their
+    amounts only) — the reception only on a stay whose arrival SAS it may run, its arrival day (`reception-sas-today-only.md`),
+    otherwise 403 as any reception call outside its scope.
+    **Amended 2026-11-10 (audit items 3, 11):** after every edit the dialog reads the SAS data again (`onRefresh`: the payload is
+    replaced in place, the wizard keeps its page, the recap's figures are read afresh), so leaving the step and coming back never
+    shows the pre-edit orders nor sends steppers computed from them; a page whose last order was removed hands over to the recap
+    (« Plus aucune commande à percevoir. » if it is still shown). A quantity beyond the article's own `maxQuantity` is 409
+    `ITEM_MAX_QUANTITY` « 5 au plus pour « Cidre fermier ». »; beyond the stock, 409 `OUT_OF_STOCK` « Plus que 1 en stock. » — two
+    limits, two sentences; the « + » of the step stops at the smaller.
+    > **Delivered by PR C** (pass 4, C26-C29, C31-C32): server `guest-app` 1.3.0 on `extraSale` / `saleDetail`; tests listed in §7 (`guest-order-*`, `guest-app-arrival-orders`, `guest-app-orders-from-j7`, …).
+    > _Owner reading of 2026-11-16 (loop t1 AG-2, rule 110 a):_ the order stays editable at the arrival SAS **until the arrival is validated**,
+    > whatever the hour — the check-in time does not close it (rule 109 c's reading is withdrawn). What is kept is re-sold into the arrival complement.
+88. **A paid order of a cancelled stay is owed back, never kept.** When a stay with a card-paid order is cancelled
+    (rule 72), the order is `cancelled` and its payment is flagged « à rembourser » on its link (`basketJson.refundOwed`,
+    `refundCents` = what the order's note collected) with a history entry « Commande client #12 payée 18,00 € : à
+    rembourser (séjour annulé) »; « Commandes clients » shows « Payée · à rembourser ». The money is given back by the
+    operator through the existing refund of a cancelled stay (`reservation-refunds.md`: D3, booked as any refund on a
+    cancelled stay; D15, never above what that line collected — the order's note is that collected money); no automatic
+    refund at the provider (§8). The flag clears when refunds on the stay cover the order's notes. The cancellation's own
+    retention rules are not changed by this rule.
+    > _Owner reading of 2026-11-16 (loop t1 B-2, rule 110 b):_ the refund of an order paid by card before the cancellation lives in the
+    > **cancellation's refund dialog only** (the order's note is a collected line there); the « À rembourser » register holds no row for it.
+    > **Delivered by PR C** (pass 4, C26-C29, C31-C32): server `guest-app` 1.3.0 on `extraSale` / `saleDetail`; tests listed in §7 (`guest-order-*`, `guest-app-arrival-orders`, `guest-app-orders-from-j7`, …).
+89. **The J-7 knows whether the stay has a bath to schedule.** The plugin's e-mail flags gain **`hasStayAppBath`** « Si
+    bain nordique à programmer », offered in the J-7 and the J-2 beside `hasStayAppShop`: true only while
+    `hasStayAppShop` is, the lodging's shop sells an hourly resource (rule 23), and the stay either holds a line of that
+    resource with hours (booked on the reservation, bought or offered, rule 82) or has free minutes of it left for the stay
+    (« 1 h offerte », rule 25). Neither → false and the bath clause of rule 70 renders nothing. **Reading of 2026-11-10 (audit item
+    14):** « holds a line of that resource with hours » means hours **not yet placed on a slot** (`includedHoursLeft` > 0), the better
+    reading: a stay whose bought hours are all placed has nothing left to schedule, so the sentence would promise a dead end. The
+    shop flag and the bath flag are computed by one function, `emailFacts`, from the same `orderCollection` as the shop (rule 90).
+    > **Delivered by PR C** (pass 4, C26-C29, C31-C32): server `guest-app` 1.3.0 on `extraSale` / `saleDetail`; tests listed in §7 (`guest-order-*`, `guest-app-arrival-orders`, `guest-app-orders-from-j7`, …).
+90. **One judge decides whether a shop is offered.** Reworded in PR C: the shop's `orderCollection` / `canPayCard`, the quote, the
+    order, the J-7 and J-2 flags (`hasStayAppShop`, `hasStayAppBath`, `hasStayAppShopOnly`, rule 89) and the SAS step's `editable`
+    all call the same function over the stay clock (rule 104) and `extraSale.quote`, so the J-7 e-mail never invites to a shop the
+    sale would refuse. *Test:* `guest-app-email-flags`, `guest-order-stay-started-routing`.
+    > **Delivered by PR C** (pass 4, C26-C29, C31-C32): server `guest-app` 1.3.0 on `extraSale` / `saleDetail`; tests listed in §7 (`guest-order-*`, `guest-app-arrival-orders`, `guest-app-orders-from-j7`, …).
+91. **What each owner message decided, in one place** (2026-11-10, reworded in PR C). Fourth message: the SAS step lists the orders
+    in a collapsible, server-worded list (rule 71) and a cancelled stay cancels its orders (rule 72). Fifth message: an unpaid order
+    is editable at the SAS (rule 87), card payment opens at J-7 (rules 67, 85) with « Payer par carte » first and preselected
+    (rule 86). Money rules that hold: a card-paid order is never collected again (rule 85), a cancelled stay owes its paid orders
+    back through the refund of a cancelled stay (rule 88), the books take the card payment as the basket links do. The reception
+    edits only on its arrival day, door money only (Q25).
+    > **Delivered by PR C** (pass 4, C26-C29, C31-C32): server `guest-app` 1.3.0 on `extraSale` / `saleDetail`; tests listed in §7 (`guest-order-*`, `guest-app-arrival-orders`, `guest-app-orders-from-j7`, …).
+92. **An order's charges are keyed by a stable id.** Superseded in PR C by the stable line id (`pricing-components.md` rule 79): the
+    evening supplement is a component of the session line (rule 24), not a separate charge row. *Test:* `hourly-order-supplement`.
+    > **Delivered by PR C** (pass 4, C26-C29, C31-C32): server `guest-app` 1.3.0 on `extraSale` / `saleDetail`; tests listed in §7 (`guest-order-*`, `guest-app-arrival-orders`, `guest-app-orders-from-j7`, …).
+93. **An order never re-prices the stay** (third pass, 2026-11-10). Reference rule: `pricing-components.md` rules 8 and 9. The order's
+    write adds its own lines and nothing else; the nights, the tourist tax, the payout, the deposit and the installments are not
+    rewritten. The guard `pinOrderGrowth` / `orderGrowth` is retired with the save-path sale. *Test:* `guest-order-never-reprices-stay` (named `extra-sale-parity` until 2026-11-15, rule 109 e).
+    > **Delivered by PR C** (pass 4, C26-C29, C31-C32): server `guest-app` 1.3.0 on `extraSale` / `saleDetail`; tests listed in §7 (`guest-order-*`, `guest-app-arrival-orders`, `guest-app-orders-from-j7`, …).
+94. ~~**A stay whose arrival complement carries an operator's adjustment orders on site.**~~ **Dropped 2026-11-12 (owner, Q-C4).** An
+    order is accepted and added to the complement; the operator's adjustment stays on its own line. The number stays an identity.
+    > **Sans test** — dropped rule (owner Q-C4, 2026-11-12): nothing to prove, the refusal no longer exists.
+95. **An order never moves the installment plan** (fourth pass, 2026-11-10). Reference rule: `pricing-components.md` rules 8 and 9 (the
+    sale path never touches the plan). The shop is not refused for it: the order lands in the arrival complement.
+    > **Delivered by PR C** (pass 4, C26-C29, C31-C32): server `guest-app` 1.3.0 on `extraSale` / `saleDetail`; tests listed in §7 (`guest-order-*`, `guest-app-arrival-orders`, `guest-app-orders-from-j7`, …).
+96. **An order merged into a line held at an older price never drifts** (fourth pass). Reference rule: `pricing-components.md` rules 12
+    and 13 (a line stores its total; a sale after the stay is sold appends a line). `exactMergedTotals` is not ported.
+    > **Delivered by PR C** (pass 4, C26-C29, C31-C32): server `guest-app` 1.3.0 on `extraSale` / `saleDetail`; tests listed in §7 (`guest-order-*`, `guest-app-arrival-orders`, `guest-app-orders-from-j7`, …).
+97. **The arrival note of a card order stores the quantity sold** (fourth pass). Reference rule: `pricing-components.md` rules 12 and 13.
+    > **Delivered by PR C** (pass 4, C26-C29, C31-C32): server `guest-app` 1.3.0 on `extraSale` / `saleDetail`; tests listed in §7 (`guest-order-*`, `guest-app-arrival-orders`, `guest-app-orders-from-j7`, …).
+98. **Paid bath hours work on a platform stay exactly as on a direct one** (fifth pass). Reference rule: `pricing-components.md` rule 17
+    (« inside the platform price » is the line fact `collectAt = 'platform'`; a paid bath hour is outside it).
+    > **Delivered by PR C** (pass 4, C26-C29, C31-C32): server `guest-app` 1.3.0 on `extraSale` / `saleDetail`; tests listed in §7 (`guest-order-*`, `guest-app-arrival-orders`, `guest-app-orders-from-j7`, …).
+99. **`exactMergedTotals` is the order commit's own switch** (fifth pass). Superseded: the switch is not ported (`pricing-components.md`
+    rules 12 and 13).
+    > **Delivered by PR C** (pass 4, C26-C29, C31-C32): server `guest-app` 1.3.0 on `extraSale` / `saleDetail`; tests listed in §7 (`guest-order-*`, `guest-app-arrival-orders`, `guest-app-orders-from-j7`, …).
+    > **Sans test** — superseded rule (pricing-components rules 12, 13): the switch it described does not exist, nothing to prove.
+100. **The arrival note of a card order, and the SAS list, state the TRUE unit price** (fifth pass). Reference rule:
+    `pricing-components.md` rules 12 and 31 (the line stores its total; `saleDetail` is the one read model).
+    > **Delivered by PR C** (pass 4, C26-C29, C31-C32): server `guest-app` 1.3.0 on `extraSale` / `saleDetail`; tests listed in §7 (`guest-order-*`, `guest-app-arrival-orders`, `guest-app-orders-from-j7`, …).
+101. **The judge never promises what the measure refuses** (fifth pass; completes rule 90). Reference rule: `pricing-components.md` rule 10
+    (one engine for every seller: the quote is the commit).
+    > **Delivered by PR C** (pass 4, C26-C29, C31-C32): server `guest-app` 1.3.0 on `extraSale` / `saleDetail`; tests listed in §7 (`guest-order-*`, `guest-app-arrival-orders`, `guest-app-orders-from-j7`, …).
+102. **The bath slots follow the shop (fifth pass, 2026-11-10).** `GET /shop/resources/:id/slots` answers `open` beside its days; a
+    shop that does not take orders answers `{ open: false, closedReason, days: [] }` (the shop's own sentence) and the slot picker draws
+    that sentence, no day and no button; a crafted order for a session is refused before anything is priced (rule 94's refusal). *Test:*
+    `guest-app-sas-free-order`, guest app `SlotPickerPage.shop-closed`.
+    > **Delivered by PR C** (pass 4, C26-C29, C31-C32): server `guest-app` 1.3.0 on `extraSale` / `saleDetail`; tests listed in §7 (`guest-order-*`, `guest-app-arrival-orders`, `guest-app-orders-from-j7`, …).
+103. **A 0 € order is an unpaid order for the SAS (fifth pass, 2026-11-10).** The free bath hour (`payment = 'none'`) reads « Offert »,
+    never « À régler à l'arrivée » (nothing to settle: it adds nothing to « à percevoir »), is editable and removable like any unpaid
+    order, and removing it cancels the order (`cancelReason = 'sas'`) and frees its slot. A card order stays read-only. *Test:*
+    > **Delivered by PR C** (pass 4, C26-C29, C31-C32): server `guest-app` 1.3.0 on `extraSale` / `saleDetail`; tests listed in §7 (`guest-order-*`, `guest-app-arrival-orders`, `guest-app-orders-from-j7`, …).
+104. **An order is routed by the stay clock: the arrival date and the check-in time** (PR C, 2026-11-12; owner Q-C4). An order
+    belongs to the arrival complement while the arrival is not reached, and to the end-of-stay complement once it is, where « reached »
+    is `arrivalDayReached` / the check-in hour of `pricing-components.md` rule 20 (Europe/Paris): the date **and the check-in time**, no
+    longer `startDate < today`. The same judge serves the stock, the shop state and the slots. *Test:* `guest-order-stay-started-routing`.
+    > **Delivered by PR C** (pass 4, C26-C29, C31-C32): server `guest-app` 1.3.0 on `extraSale` / `saleDetail`; tests listed in §7 (`guest-order-*`, `guest-app-arrival-orders`, `guest-app-orders-from-j7`, …).
+105. **A line held inside the platform price is a line fact** (PR C). An order line the platform price already contains carries
+    `collectAt = 'platform'` (`pricing-components.md` rule 17); the guest app reads that fact, never the platform's name or a routing
+    guess. *Test:* `guest-order-platform-bath` (named `guest-app-held-in-stay-price` until 2026-11-15, rule 109 e).
+    > **Delivered by PR C** (pass 4, C26-C29, C31-C32): server `guest-app` 1.3.0 on `extraSale` / `saleDetail`; tests listed in §7 (`guest-order-*`, `guest-app-arrival-orders`, `guest-app-orders-from-j7`, …).
+106. **The collected split is net of card orders** (PR C). The arrival detail, the collected split and the SAS recap are net of the
+    card-paid lines: `pricing-components.md` rule 21 (paid is stored on the line, `settledCents` = Σ allocations).
+    > **Delivered by PR C** (pass 4, C26-C29, C31-C32): server `guest-app` 1.3.0 on `extraSale` / `saleDetail`; tests listed in §7 (`guest-order-*`, `guest-app-arrival-orders`, `guest-app-orders-from-j7`, …).
+
+107. **Offered units already in place are never consumed by an app order** _(owner, 2026-11-13; appended)_. An article the stay offers and an order asks
+    again is billed as a line of its own (`pricing-components.md` rule 13). The offered units of a **drink** are already in the fridge at the arrival:
+    every app order of such an article is billed from the first one, the allowance is consumed there and never by an order. The switch is the
+    article's (`guest_app_items.offeredInPlace`, NULL follows the class — on for the drinks class, 1 / 0 the operator's word; `PUT /api/guest-app/items/:kind/:id
+    { offeredInPlace }`); the order sends `noFreeUnits` (`pricing-components.md` rule 92) and its line stores that it took none. An article that is
+    not in place keeps rule 25: its granted free units cover a first order. A card order awaiting its payment reserves nothing (rule 35, reading of 2026-11-13). Breakfast mornings sold by an order
+    merge into the stay's breakfast line and are edited on the fiche, not from the SAS step (rule 87).
+    > **Delivered by PR C** (pass 4). Tests: `guest-order-offered-in-place`, `guest-order-card-hold`.
+108. **An unpaid card order does not exist** _(owner, 2026-11-13; appended; replaces the one-pending-card-order guard `CARD_ORDER_PENDING` of rule 35)_. « Tant que le paiement
+    n'est pas passé, la commande ne doit pas nous arriver, elle ne doit même pas être enregistrée. Sauf s'il choisit de l'ajouter à sa note de séjour. Mais sinon oui il peut refaire une demande
+    pour une nouvelle commande. » Consequences: (a) `POST /orders` never refuses a second order because of a card order awaiting payment, and `extraSale.quote` has no `pending`
+    parameter: every quote and sale is priced on the stay as it is; (b) the `awaiting_payment` row is a technical record that matches the incoming payment, never read by a staff view
+    (« Commandes clients » lists, planning cards, SAS, stock, `ctx.resourceHolds` — the plugin declares no hold any more); an `expired`, `abandoned` or never-paid `cancelled` card order is
+    as invisible; (c) a note order, and a 0 € order, are recorded at once (rule 34); (d) **at payment the order is sold at that moment's price** by `extraSale.sell`: if the sale is refused
+    for any reason (slot taken, stay cancelled, units gone, offered units spent by an order placed meanwhile so that it now costs more than was paid, `PRICE_ROSE`) the order is
+    `paid_conflict`, nothing reaches the fiche, the staff is pushed and the money stays an open `orderConflict` refund obligation (`pricing-components.md` rule 75) — never lost, never
+    sold above what was paid; a sale that costs less than was paid is committed and the gap is the existing overpayment handling (rule 35). Tests: `guest-app-unpaid-card-order`.
+    > _Amended 2026-11-15 (end review R2-3, `pricing-components.md` rule 93):_ an order paid by card before the arrival is netted out of the stay's stored arrival
+    > complement in the sale's own transaction: the SAS reads « Rien à encaisser », the bucket states and a complement link bill nothing for it — the guest is
+    > never asked again at the door for what the card paid. Test: `guest-app-card-order-before-arrival-netted`.
+109. **The money of an order on a cancelled stay, and the SAS's change of a bath** _(stabilisation loop t1, 2026-11-15; readings of rules 72, 87, 88, 92,
+    93, 105, 108)_. (a) **Rule 88 as delivered:** no `basketJson.refundOwed` flag and no « à rembourser (séjour annulé) » history line were built; the
+    cancellation opens one `orderConflict` row (`pricing-components.md` rule 75) for what the order's link paid **less what the register already holds
+    for that link, open or closed** (an order sold below its payment already left its gap owed, rule 108 d): the gap is never owed twice and the honoured
+    part never forgotten (before: 0 € opened while the gap row was open, the whole payment again once it was closed). The same money also stays a
+    collected line of the cancelled stay's refund dialog (`reservation-refunds.md`); which of the two is its home is the owner's open question (loop t1 B-2).
+    **Superseded 2026-11-16 by rule 110 b** (the cancellation opens no row; the gap row of a sale below its payment, and the row of a payment that lands
+    after the cancellation, stay the register's).
+    (b) A payment that lands on an order cancelled with its stay — the stay restored since or not — is a conflict (`paid_conflict`, staff pushed, « Payée
+    · à rembourser », the money an `orderConflict` row): it is never sold on the fiche (before: sold already paid while the order stayed `cancelled`).
+    (c) **Rule 87, reading:** the step's edit closes at the check-in hour (rule 104: from then on a sale is the departure's, so a re-sold line could not
+    stay in the arrival complement); a guest who arrives after that hour has the order edited on the fiche. **Withdrawn 2026-11-16 by rule 110 a.** (d) The SAS removes an order's evening
+    supplement (a custom line of its own, rules 83 and hourly 38 — **rule 92's « component of the session line » is superseded**, the supplement is a
+    line `« <bain> — supplément soirée »` carrying the order's `orderRef`) together with its bath; a bath that keeps some sessions keeps its supplement
+    whole, so taking one session of a supplemented bath off is refused here (409 `ORDER_NOT_EDITABLE` « Supplément soirée : retirer le bain entier, ou
+    modifier sur la fiche. »). A bath whose sessions sit partly on hours the stay already held (rule 82) is shown not removable and its change refused:
+    those sessions are on the stay's own line. (e) Test names: rule 93's proof is `guest-order-never-reprices-stay`, rule 105's `guest-order-platform-bath`.
+    Tests `guest-order-cancelled-stay-money`, `guest-order-arrival-amend-bath`.
+110. **Owner decisions of 2026-11-16 on an order at the arrival and on a cancelled stay** _(stabilisation loop t1, AG-2 and B-2; readings of rules 87,
+    88, 109 a and c)_. (a) **An order taken before the arrival stays editable at the arrival SAS until the arrival is validated, whatever the
+    hour.** « Validated » is the arrival marked (`checkInDone`) or the arrival SAS committed (`arrivalSasDoneAt`); the collected arrival complement
+    and a stay that is no live reservation or whose departure is settled close it too (409 `ORDER_NOT_EDITABLE`). The check-in hour no longer
+    closes it: a guest who arrives after it has the order changed at the door. What the change keeps is re-sold **into the arrival complement**
+    (`extraSale.sell(…, { atArrival: true })`: an unpaid re-sale routed to the arrival whatever the clock), so the door collects it in the same
+    piece and nothing moves to the departure. Test: `guest-order-arrival-amend-after-check-in`. **Bounded 2026-11-16 by rule 111 a:** never
+    after the stay's departure day.
+    > _Reading of 2026-11-16 (loop t2 N-2, pricing-components rule 102 d):_ the core now reads the amend's own `now` (it read the wall clock, so the
+    > suite proved nothing past the hour): the removal of the unpaid arrival line is no longer refused `ARRIVAL_EXTRAS_FROZEN` while the arrival is
+    > not validated, and the re-sale lands in the arrival complement (it was written to the end-of-stay complement). Test `sale-one-moment`.
+    (b) **The refund of a card order paid before the stay was cancelled lives in the cancellation's refund dialog only.** The order's note is a
+    collected line of the cancelled stay (`reservation-refunds.md` D3, D15): the dialog offers it, at most what it collected, and once given
+    back it leaves the dialog — a second refund of it is refused (`REFUND_UNKNOWN_LINE` / `REFUND_EXCEEDS_LINE`). The cancellation
+    (`cancelOrdersOf`) opens **no** `orderConflict` row any more, so the « À rembourser » register never repeats that money and it cannot be paid
+    out twice. The register keeps only money that never reached the fiche: the gap of an order sold below its payment (rule 108 d) and a payment
+    that lands after the cancellation (`paid_conflict`, rule 109 b) — those the dialog does not offer. The staff list reads « Payée · à
+    rembourser » on the cancelled order until the dialog gave it back, then « Remboursée » (rule 111 b). Test: `guest-order-cancelled-stay-refund-home`
+    (both paths, and the gap case).
+111. **Owner decisions of 2026-11-16 on the end of an order's edit and on a refunded order's label** _(stabilisation loop t2, AG2-2 and the
+    observation on rule 110 a; readings of rules 87, 110 a and b)_. (a) **An app order is never editable at the arrival SAS after the stay's
+    departure day.** Rule 110 a's edit stays open until the arrival is validated, but an arrival never validated (no SAS, no check-in mark, the
+    departure not settled) no longer keeps it open once the stay is over: from the day after `endDate` (Paris day) the step shows the order not
+    editable and the change is refused, 409 `ORDER_NOT_EDITABLE`. The departure day itself is still editable. The order is then changed on the
+    fiche. Test: `guest-order-arrival-amend-departure-day`. _(Loop t4, A4-1, 2026-11-16:)_ « the arrival still open » has one judge, the core's
+    `extraSale.arrivalOpenAt` (SDK 2.32): the step's `editable` and the sale's `atArrival` refusal both read it. A stay whose false start was kept
+    (a baseline stored, unticked before the hour) already carves its sales out to the departure: until the check-in hour the order is shown not
+    editable, and the sale refuses `atArrival` 409 `ARRIVAL_CLOSED` « Les ventes de ce séjour se règlent déjà au départ : la commande aussi. »
+    (never « Arrivée déjà validée » when it is not). Test: `guest-order-arrival-kept-false-start`. (b) **A paid card order of a cancelled stay reads « Remboursée » in the staff list
+    once the cancellation's refund dialog gave it back** (before: « Payée · à rembourser » for ever). The register keys a line by its article,
+    not by its order, so « given back » means: every article key of the lines the order placed on the fiche (`orderRef` `order:<id>:…`) has
+    been refunded outside a requalification **and** the dialog offers nothing more on it; a part given back, or a key still holding refundable
+    money, reads « Payée · à rembourser ». The reading is the core's (`refundGivenBack`, `plugins-phase-1-sdk.md` rule 56); a `paid_conflict`
+    order (paid after the cancellation, the register's row) keeps « Payée · à rembourser ». Test: `guest-order-cancelled-refunded-label`.
+112. **Readings of 2026-11-16 on an order with two baths and on two orders of one article** _(stabilisation loop t3, A3-1 and A3-2; readings of
+    rules 109 d and 111 b)_. (a) **The evening supplement goes with ITS bath, not with the order.** The arrival SAS reads the supplement of the bath it
+    changes by the stable key the order gave it (`fulfilmentRef = evening:resource:<id>`, rule 82 reading N-6; a line written before the key, by its
+    words « <bain> — supplément soirée »). Removing a bath removes its own supplement only; another bath of the same order — supplemented or not —
+    keeps its line and its money. The « Supplément soirée : retirer le bain entier » refusal (rule 109 d) applies to a supplemented bath only: taking a
+    session off an unsupplemented bath of the same order is accepted. Test: `guest-order-arrival-amend-two-baths`. (b) **« Remboursée » keys a line
+    as the register does.** The first line of an article on the stay is keyed by the article (`opt:<id>` / `res:<id>`), every later line of that
+    article `line:<table>:<lineId>` (`pricing-components.md` rule 85); `refundGivenBack` keys the order's lines with the same scheme over every line of
+    the stay. Two paid orders of one article are two keys: giving back the first order's line leaves the second « Payée · à rembourser » until its
+    own line is given back; giving back the stay's own line of the article does not read a later order's line « Remboursée ». Test:
+    `guest-order-cancelled-refunded-label`.
+113. **Readings of 2026-11-16 on a paid card order given back on a live stay and on an early check-in mark** _(stabilisation loop t5, A5-1 and
+    S5-6; readings of rules 87, 110 a)_. (a) **A paid card order given back on a live stay is owed back, on any channel.** Its money was taken by
+    the establishment (the Qonto link), never by the platform: its line offered on a Booking or Airbnb stay asks the trop-perçu confirmation (409
+    `OVERPAID`) and then holds the `lineLowered` refund, as on a direct stay (`pricing-components.md` rule 104 c, loop t5 reading). Its note is
+    never cancelled (409 `NOTE_PAID_ONLINE`): the money is given back through the register. Tests: `sale-paid-line-lowered-credited`,
+    `sale-paid-card-note-kept`. _Reading of 2026-11-16 (loop t6, A6-2):_ nor adjusted — « Modifier la note » refuses a new amount or « Caisse
+    interne » on a note paid online (`method 'card'`: an app or shop card order, a payment link) with the same 409 `NOTE_PAID_ONLINE`; only its
+    date moves. Before, lowering a 12 € card note to 6 € put 6 € back in the departure remainder (the guest asked again for money paid online),
+    and « Caisse interne » took the card money off the books. The fiche's GET serves the lock (`midStayNoteLocks`: `{ [noteId]: reason }`), and
+    the note's row draws neither « Modifier la note » nor « Reporter au départ » but the reason. Tests: `sale-paid-card-note-not-adjusted`,
+    Vitest `MidStayNoteRow.paid-online`. (b) **A check-in box ticked before the arrival day closes no order.** The step's `editable` reads the core's judge
+    (`extraSale.arrivalOpenAt`) and nothing else; the judge counts the box or the committed SAS from the arrival day only (`pricing-components.md`
+    rule 105 c). Test: `sale-arrival-open-early-tick`; `guest-app-arrival-orders` ticks the box on the arrival day.
 
 **Edge cases:**
 - Guest scans the La Granja poster while staying at L'Estiva → La Granja's visitor mode; their own stay opens
@@ -744,7 +1227,8 @@ plugins only through the functions they export to other plugins (no direct table
 | `utils/` | `basketPayments.js` | C | `ctx.core.payments`: mint, read on demand and withdraw a basket's link (rules 33, 35) |
 | `models/paymentLinksModel.js` · `utils/ledgerLinks.js` · `utils/reservationLedger.js` | — | T | `basketJson` read and written; a basket link is no bucket's link (stale, settled, the complement row); the ledger row of a basket to refund, in the owner's words (« Commande client à rembourser », else the core's neutral « Paiement en ligne à rembourser », rule 36) |
 | `utils/paymentPollRunner.js` | — | T | `applyPaidEffect` `complement` branch → the basket owner's `paid` (`ctx.paymentBasket`) |
-| `utils/` | `midStayOrderCommit.js` | C | **Core, generic**: commits a plugin's order lines (options + resource sessions) as mid-stay extras, records a card payment as a settled note `{ source, ref }`, the history entry in the caller's words — one transaction (rules 30, 34, 35). The guest app names its orders « Commande client #N » |
+| `utils/` | `midStayOrderCommit.js` | C → removed (C30) | **Removed 2026-11-13**: `extraSale` + `utils/stayOrderLines.js` carry it; `coreModule('midStayOrderCommit')` stays a thin SDK alias (`plugins/sdk/midStayOrderCommit.js`). Was: commits a plugin's order lines (options + resource sessions) as mid-stay extras, records a card payment as a settled note `{ source, ref }`, the history entry in the caller's words — one transaction (rules 30, 34, 35). The guest app names its orders « Commande client #N » |
+| `utils/` | `extraSale.js` | T | `sell(…, { atArrival: true })` re-sells an unpaid order line into the arrival complement whatever the clock — the arrival SAS's change of an order before the arrival is validated (rule 110 a) |
 | `utils/` | `stayWindow.js` | C | The stay window, moved from `gate-access/window.js` (rule 2) |
 | `plugins/sdk/index.js` | — | T | Add `stayWindow`, `encryption` (SDK 2.26.0), `midStayOrderCommit`, `pricing` free-units helper, `midStayExtrasWindow` to `CORE_MODULES` (one reviewed line each) |
 | `index.js` | — | T | `pluginLoader.mountWebApps(app)` before the favicon and the client: the plugin serves its guest app on the guest host and its studio at `/studio`, only while it is live |
@@ -846,7 +1330,7 @@ shape for every plugin: `{ error: 'PLUGIN_INACTIVE', plugin }`.
 | GET | `/public/v1/guest/shop/resources/:id/slots?from&to` | stay session, `shop` module | — | `{ freeMinutesLeft, freeLabel?, days:[{date, label, slots:[{start, end, state:'free'\|'evening', priceLabel}]}] }` — bookable slots only, days without one dropped; 404 `ITEM_NOT_FOUND` (not a sold hourly item here, or `hourly-resources` inactive), 400 `INVALID_INPUT` |
 | POST | `/public/v1/guest/shop/delivery-slots` | stay session | `{ lines:[{kind, id}] }` (1-20) | `{ needed, mode:'delivery'\|'pickup', question (« Quand souhaitez-vous la recevoir ? » / « … la récupérer ? », rule 41bis), asap:{at,label}\|null (null while the service is closed), days:[{date, label, slots:[{at, label}]}], bannerLabel? }`; lead = the longest `leadMinutes` of the cart's staff items |
 | POST | `/public/v1/guest/orders/quote` | stay session, `shop` module, shop open | `{ lines:[{kind:'option',id,quantity} \| {kind:'resource',id,sessions:[{date,start,end}]} \| {kind:'breakfast',id,mornings,time,persons}], deliverAt? }` | `{ lines:[{kind, id, title, label, quantity?, sessions?:[{…, unavailable?, reason?, reasonLabel?}], mornings?, unavailableMornings?, unitPrice, total, totalLabel, unavailable?, unavailableReason?, outOfStock?:{left, label}}], total, totalLabel, needsDelivery, deliverAt?, deliverAtUnavailable? }`; 409 `SHOP_CLOSED`, 400 `INVALID_INPUT` / `ORDER_LIMIT` |
-| POST | `/public/v1/guest/orders` | idem, 10 / hour / session; optional header `Idempotency-Key` (8-100 of `A-Z a-z 0-9 . _ : -`, else 400): a replay within the session answers the first order's response (a card order's link only while it is live; a paid one `{ orderId, status }`), nothing created again | `{ lines, deliverAt?, payment:'card'\|'note'\|'none', returnPath? }` | card → `{ orderId, paymentUrl }`; note/none → `{ orderId, status:'confirmed' }`; 409 `SLOT_TAKEN` (details `{ quote }`), `OUT_OF_STOCK` (details `{ itemKey:'option:12', left, quote }`), `ITEM_UNAVAILABLE`, `DELIVERY_TIME_UNAVAILABLE`, `SHOP_CLOSED`, `CARD_UNAVAILABLE`, `CARD_ORDER_PENDING` (a card order of the stay still waits for its payment: pay or abandon it first), `ORDER_KEY_SPENT` (a replayed key whose card order is no longer awaiting payment: start again with a new key), `STAY_NOT_WRITABLE`, `PERSONS_EXCEEDED` (rule 55); 400 `ORDER_LIMIT`, `INVALID_INPUT`; 429 (10 / hour / session; 6 card orders / hour / stay, rule 57) |
+| POST | `/public/v1/guest/orders` | idem, 10 / hour / session; optional header `Idempotency-Key` (8-100 of `A-Z a-z 0-9 . _ : -`, else 400): a replay within the session answers the first order's response (a card order's link only while it is live; a paid one `{ orderId, status }`), nothing created again | `{ lines, deliverAt?, payment:'card'\|'note'\|'none', returnPath? }` | card → `{ orderId, paymentUrl }`; note/none → `{ orderId, status:'confirmed' }` (a card order awaiting its payment never blocks another order, rule 108; the staff sees it only once paid); 409 `SLOT_TAKEN` (details `{ quote }`), `OUT_OF_STOCK` (details `{ itemKey:'option:12', left, quote }`), `ITEM_UNAVAILABLE`, `DELIVERY_TIME_UNAVAILABLE`, `SHOP_CLOSED`, `CARD_UNAVAILABLE`, `ORDER_KEY_SPENT` (a replayed key whose card order is no longer awaiting payment: start again with a new key), `STAY_NOT_WRITABLE`, `PERSONS_EXCEEDED` (rule 55); 400 `ORDER_LIMIT`, `INVALID_INPUT`; 429 (10 / hour / session; 6 card orders / hour / stay, rule 57) |
 | POST | `/public/v1/guest/orders/:id/abandon` | idem | — | the order, `abandoned`, with `cartLines`; 409 `ORDER_NOT_PENDING` |
 | GET | `/public/v1/guest/orders` | stay session | — | `{ orders:[{id, createdAt, deliverAt, lines, total, payment, status, statusLabel, deliveryLabel?, fulfilment:'delivery'\|'pickup', promise:string\|null, extraPromises?:[string], movedNotice:string\|null, notices?, cartLines?, paymentUrl?}] }` — `paymentUrl` (« Reprendre le paiement ») only on a card order still `awaiting_payment` whose link lives (its 30 minutes); `promise` (rule 41ter) once the order stands (confirmed, paid) and has a `deliverAt`: « Livrée à L'Estiva aujourd'hui vers 17 h 30 » / « Prête aujourd'hui à 17 h 30. Lieu de retrait : … »; `extraPromises` the bath's own lines (« Bain nordique — ven. 9 oct., 20 h, il sera chaud »); `movedNotice` « Votre commande sera prête un peu plus tard que prévu »; `deliveryLabel` « Prévue … » / « Livrée », pickup « Prête … » / « Retirée » |
 | GET | `/public/v1/guest/orders/:id` | stay session, the core's `paymentStatusLimiter` | — | one order (an unpaid card order reads its link at the provider, like `/booking-requests/:id/status`, at most once per 10 s per link) |
@@ -947,6 +1431,12 @@ bills (rule 35). Everything below is created by the `guest-app` plugin's migrati
 
 **Data impact:** additive only, all in plugin tables. Reservations receive lines and resource sessions only
 through the existing mid-stay path. Changelog `Migration` note at implementation.
+
+- *(Amendment 2026-11-10, rules 66 and 74)* `guest_orders.collectAt TEXT NOT NULL DEFAULT 'departure' CHECK (collectAt IN
+  ('arrival', 'departure'))` — where the order's money is collected; added by the plugin migration
+  `guest_app_orders_collect_at_v2` (one `ALTER TABLE … ADD COLUMN` carrying the default and the CHECK). Every existing row
+  keeps `departure`: until now an order was only taken during the stay. No core column.
+- *(PR C, rules 72 and 88)* `guest_orders.status` gains `cancelled`; `cancelledAt`, `cancelReason`, `amendmentsJson` are added by the plugin migration `guest_app_orders_status_v3` (rebuild of the table). `deferredCents` stays a column, no longer read (`pricing-components.md` rule 26).
 
 ## 6. UI / UX
 
@@ -1121,6 +1611,15 @@ le nom et le numéro. »
 ## 7. Test plan
 
 ### Server unit tests (one file per subject)
+- [x] `guest-order-cancelled-stay-money` — rule 109 a-b (loop t1 B-2, AG-4, AG-5, AG-6): the cancellation leaves the register alone (rule 110 b); a payment on a cancelled order is a conflict
+- [x] `guest-order-cancelled-stay-refund-home` — rule 110 b (owner 2026-11-16, B-2): paid before the cancellation → the refund dialog only, never twice; paid after → the register only
+- [x] `guest-order-arrival-amend-after-check-in` — rule 110 a (owner 2026-11-16, AG-2): editable past the check-in hour until the arrival is validated, re-sold into the arrival complement
+- [x] `guest-order-arrival-kept-false-start` — rule 111 a reading (loop t4, A4-1): a kept false start before the hour shows the order read-only and refuses `atArrival` without « validée »; editable again from the check-in hour
+- [x] `guest-order-evening-stable-key` — rule 82 (loop t2 N-6): the supplement carries its bath's key; the recompute reads every supplement of that bath
+- [x] `guest-order-arrival-amend-bath` — rule 109 d (AG-1, AG-3): the supplement goes with its bath; a bath on held hours is not changed from the SAS
+- [x] `guest-order-cancelled-refunded-label` — rules 111 b, 112 b (loop t2 AG2-2, t3 A3-2): « Remboursée » once given back; two orders of one article are two keys
+- [x] `guest-order-arrival-amend-two-baths` — rule 112 a (loop t3 A3-1): an order with two baths — the supplement goes with its own bath only; a session off the unsupplemented bath is accepted
+- [x] `guest-app-fulfilment` — rule 41ter: the pickup push names the day of a slot past midnight
 - [x] `plugins/guest-app/tests/guest-app-current-stay.unit.test.js` (15) — rules 2, 4, 5, 6, 9 (window edges and
   DST, what the link opens before J-7 / from J-7 / in the window / after, cancelled, a pre-arrival link session
   ending at H-3, a lookup session moving on by itself)
@@ -1174,7 +1673,7 @@ le nom et le numéro. »
 - [x] `…/guest-app-orders-admin.unit.test.js` (8) — rules 11, 38, 43, 45 (staff-prepared lines only on the card, « À préparer » ages out): the list, « Marquer livrée », planning cards, reception
 - [x] `tests/payment-complement-link.unit.test.js` (9) — a part owed back (`refundCents`), a basket paid after its stay was cancelled, `ensurePaymentLink` / `applyPaidEffect` complement
   branch, refusal without basket, 30 min, no arrival lapse, « à rembourser », `ctx.paymentBasket`
-- [x] `tests/mid-stay-order-commit.unit.test.js` (12) — the pending lines priced first, a breakfast line kept, rules 24, 25, 27bis, 30, 34, 35: the core commit and its pricing
+- [x] `tests/mid-stay-order-alias.unit.test.js` (renamed from `mid-stay-order-commit`, C30; the pending-lines test was dropped 2026-11-13) — a breakfast line kept, rules 24, 25, 27bis, 30, 34, 35: the core commit and its pricing
 - [x] `…/guest-app-stock.unit.test.js` (13) — rules 37bis-37quater (a per-person article counts its people): restock sets the count with its history line and
   is what the cellar holds now, « En rupture », no stock for the bath or the breakfast, holds of an unpaid card order
   released on expiry / abandon and counted once paid, a site line counted on the arrival day and not before, a line

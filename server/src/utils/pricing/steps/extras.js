@@ -12,6 +12,9 @@ const articles = require('../articles');
 const { createFreeUnitsLedger } = require('../allowances');
 const { portionCap, clampPortions } = require('../../mealPortions');
 const { buildBabyBedSupplementLine, isBabyBedOption } = require('../../babyBedSupplement');
+const { discountLines } = require('../discounts');
+const { extraLineKey, isPricedCustomLine } = require('../storedLines');
+const { keyLines, lineRef, parseLineRef } = require('../lineKeys');
 const { lockedUnitPriceOr } = articles;
 
 // What an option line's `quantity` counts, when the summary has to say it
@@ -60,11 +63,11 @@ const step = {
     'defaultOfferedOptionIds', 'endDate', 'families', 'isDirectBooking', 'lockedOptionLines', 'lockedOptionUnits',
     'lockedResourceLines', 'lockedResourceUnits', 'lockedTariff', 'nightlyBreakdown', 'nights', 'offeredOptionIds',
     'optionsById', 'persons', 'planningCardAsQuantity', 'resourcesById', 'rules', 'selectedOptions',
-    'selectedResources', 'settings', 'startDate',
+    'selectedResources', 'settings', 'startDate', 'typedDiscountPercent', 'discountTarget', 'discountFixedAmount', 'lineFacts', 'totalPrice', 'platform',
   ],
   provides: [
-    'consumedMap', 'finalOptionLines', 'grantedFreeUnitsFor', 'optionsTotal', 'resourceLines', 'resourcesTotal',
-    'soldGrantMap',
+    'accommodationDiscountShareCents', 'consumedMap', 'extrasDiscountCents', 'finalOptionLines', 'grantedFreeUnitsFor', 'optionsTotal',
+    'resourceLines', 'resourcesTotal', 'soldGrantMap',
   ],
   apply(ctx) {
     const {
@@ -73,23 +76,50 @@ const step = {
       defaultOfferedOptionIds, endDate, families, isDirectBooking, lockedOptionLines, lockedOptionUnits,
       lockedResourceLines, lockedResourceUnits, lockedTariff, nightlyBreakdown, nights, offeredOptionIds,
       optionsById, persons, planningCardAsQuantity, resourcesById, rules, selectedOptions,
-      selectedResources, settings, startDate,
+      selectedResources, settings, startDate, typedDiscountPercent, discountTarget, discountFixedAmount, lineFacts, totalPrice, platform,
     } = ctx;
 
-    const optionUnitOverrides = lockedOptionUnits || {};
+    // A unit override names an article (`<optionId>`) or one stored line (`line:<table>:<lineId>`); any other key — the « undefined » a
+    // free line once produced — names nothing and is dropped, so it can never price a line (loop t16 S16-1).
+    const unitOverridesOf = (map) => Object.fromEntries(Object.entries(map && typeof map === 'object' ? map : {})
+      .filter(([key]) => /^\d+$/.test(key) || parseLineRef(key) != null));
+    const optionUnitOverrides = unitOverridesOf(lockedOptionUnits);
     const resourceUnitOverrides = lockedResourceUnits || {};
     const offeredOptionIdSet = new Set((Array.isArray(offeredOptionIds) ? offeredOptionIds : []).map((id) => Number(id)));
-    const lockedOptionsById = new Map(
-      (Array.isArray(lockedOptionLines) ? lockedOptionLines : [])
-        .map((line) => [Number(line.optionId), line])
+    // Rule 85: an article sold twice is two stored lines. A line that names itself (`lineId`) reads ITS snapshot; a request that names
+    // none addresses the article's first line, which is the only one a stay held before the second sale existed.
+    const lockedByArticle = (lines, field) => {
+      const byId = new Map();
+      for (const line of Array.isArray(lines) ? lines : []) {
+        const id = Number(line[field]);
+        const held = byId.get(id);
+        if (!held || (line.lineId != null && (held.lineId == null || Number(line.lineId) < Number(held.lineId)))) byId.set(id, line);
+      }
+      return byId;
+    };
+    const lockedByLineId = (lines) => new Map((Array.isArray(lines) ? lines : []).filter((line) => line.lineId != null).map((line) => [Number(line.lineId), line]));
+    const lockedOptionsById = lockedByArticle(lockedOptionLines, 'optionId');
+    const lockedResourcesById = lockedByArticle(lockedResourceLines, 'resourceId');
+    const lockedOptionsByLine = lockedByLineId(lockedOptionLines);
+    const lockedResourcesByLine = lockedByLineId(lockedResourceLines);
+    const lineIdentity = (table, selectedLines) => {
+      const identity = new Map();
+      for (const entry of keyLines(table, selectedLines)) {
+        if (!entry.first && entry.row.lineId != null) identity.set(entry.row, { lineId: Number(entry.row.lineId), lineKey: lineRef(table, entry.row.lineId) });
+      }
+      return (selected) => identity.get(selected) || {};
+    };
+    const optionIdentity = lineIdentity('reservation_options', Array.isArray(selectedOptions) ? selectedOptions : []);
+    const resourceIdentity = lineIdentity('reservation_resources', Array.isArray(selectedResources) ? selectedResources : []);
+    // A line the caller appends (`newLine`) is a sale of its own: the writer gives it no stored line's columns, and its number is the one it was priced under.
+    const appendedOf = (selected) => (selected.newLine && selected.lineId != null ? { lineId: Number(selected.lineId), newLine: true } : {});
+    const isOfferedLine = (selected, optionId) => (
+      selected.lineId != null && selected.offered !== undefined ? Boolean(Number(selected.offered)) : offeredOptionIdSet.has(optionId)
     );
-    const lockedResourcesById = new Map(
-      (Array.isArray(lockedResourceLines) ? lockedResourceLines : [])
-        .map((line) => [Number(line.resourceId), line])
-    );
-    const { soldGrantMap, consumedMap, grantedFreeUnitsFor, consumedFreeUnitsFor } = createFreeUnitsLedger({
+    const freeUnitsLedger = createFreeUnitsLedger({
       lockedTariff, optionsById, lockedOptionsById, isDirectBooking,
     });
+    const { soldGrantMap, consumedMap, grantedFreeUnitsFor } = freeUnitsLedger;
 
     // Per-item routing (spec force-item-to-complement.md):
     //   `inComplement` flag → returned in each line so the client renders the chip and the
@@ -126,7 +156,6 @@ const step = {
     const articleStay = {
       persons, nights, maxGuests: settings.articles.maxGuests, isDirectBooking, cancellationInsuranceBase,
     };
-    const freeUnitsLedger = { grantedFreeUnitsFor, consumedFreeUnitsFor };
     // One price through the Articles head: the families price, the head keeps the sold snapshot, the free units and « offert ».
     const quoteArticle = (request) => articles.quote({
       requests: [request], stayContext: articleStay, allowance: freeUnitsLedger, families,
@@ -140,10 +169,13 @@ const step = {
         const option = optionsById.get(optionId);
         if (!option) return null;
         const priceType = option.priceType || 'per_stay';
-        const locked = lockedOptionsById.get(optionId);
+        const identity = optionIdentity(selected);
+        // A line that names itself reads its own snapshot only: a line sold after the first has no snapshot yet and is priced at the catalogue.
+        const locked = selected.lineId != null ? lockedOptionsByLine.get(Number(selected.lineId)) : lockedOptionsById.get(optionId);
         const article = articles.makeArticle(option);
         const request = {
-          article, locked, offered: offeredOptionIdSet.has(optionId), unitOverride: optionUnitOverrides[optionId],
+          article, locked, offered: isOfferedLine(selected, optionId), ...(selected.noFreeUnits ? { noFreeUnits: true } : {}),
+          unitOverride: identity.lineKey != null && optionUnitOverrides[identity.lineKey] !== undefined ? optionUnitOverrides[identity.lineKey] : optionUnitOverrides[optionId],
         };
 
         // Option-driven planning card (specs/option-planning-card.md §3.4): the per-reservation
@@ -195,6 +227,8 @@ const step = {
           if (!priced) return null;
           return {
             optionId,
+            ...identity,
+            ...appendedOf(selected),
             title: option.title,
             titleEn: option.titleEn || null,
             ...priced.figures,
@@ -218,6 +252,8 @@ const step = {
         if (!priced) return null;
         return {
           optionId,
+          ...identity,
+          ...appendedOf(selected),
           title: option.title,
           titleEn: option.titleEn || null,
           ...priced.figures,
@@ -235,10 +271,10 @@ const step = {
     // has none and needs none: they move no figure of the quote.
     const customOptionLines = (Array.isArray(customOptions) ? customOptions : [])
       .map((line, index) => {
+        if (!isPricedCustomLine(line)) return null;
         const description = String(line?.description || '').trim();
         const amount = roundMoney(Math.max(0, Number(line?.amount || 0)));
         const offered = Boolean(line?.offered);
-        if (!description || amount <= 0) return null;
         const customOffered = offeredOf(`custom:${line?.customOptionId != null ? Number(line.customOptionId) : index + 1}`, 'options', amount, offered);
         return {
           isCustom: true,
@@ -275,7 +311,10 @@ const step = {
             unitPrice: lockedUnitPriceOr(lockedOptionsById.get(Number(option.id)), Number(option.price || 0)),
           })
           : computeAutoTimedOptionContext({
-            option,
+            // A fixed auto price is the one the line was sold at (rule 74); a proportional one follows the time and the locked nights.
+            option: String(option.autoPricingMode || 'fixed') === 'fixed' && lockedOptionsById.has(Number(option.id))
+              ? { ...option, price: lockedUnitPriceOr(lockedOptionsById.get(Number(option.id)), Number(option.price || 0)) }
+              : option,
             checkInTime,
             checkOutTime,
             defaultCheckIn: settings.stayClock.defaultCheckIn || '15:00',
@@ -333,7 +372,8 @@ const step = {
         const resourceId = Number(selected.resourceId);
         const resource = resourcesById.get(resourceId);
         if (!resource) return null;
-        const lockedLine = lockedResourcesById.get(resourceId);
+        const identity = resourceIdentity(selected);
+        const lockedLine = selected.lineId != null ? lockedResourcesByLine.get(Number(selected.lineId)) : lockedResourcesById.get(resourceId);
         const hasExplicitOffered = selected?.offered !== undefined && selected?.offered !== null;
         const offered = hasExplicitOffered ? Boolean(selected?.offered) : Boolean(lockedLine?.offered);
 
@@ -341,8 +381,11 @@ const step = {
         // family (specs/plugins-phase-3c-hourly-resources.md rules 1-3): an UNSOLD line takes its amounts; a SOLD one goes
         // through the locked snapshot with its sold hours, never fewer, so placing them never re-prices it
         // (hourly-resource-quantity-and-sas-scheduling.md rules 30-31). The hours are billed after the free minutes of the lodging.
+        // Rule 85: the lodging's free minutes of an hourly resource are the article's, taken once by its lines in order.
+        const hourly = resource.priceType === 'per_hour';
+        const freeLeft = hourly ? freeUnitsLedger.remainingFreeMinutesFor(resourceId, resource.freeMinutes) : resource.freeMinutes;
         const priced = quoteArticle({
-          article: articles.makeArticle(resource, { kind: 'resource' }),
+          article: articles.makeArticle(hourly ? { ...resource, freeMinutes: freeLeft } : resource, { kind: 'resource' }),
           quantity: Math.max(0, Number(selected?.quantity || 0)),
           selected,
           locked: lockedLine,
@@ -351,9 +394,12 @@ const step = {
           endDate,
         });
         if (!priced) return null;
+        if (hourly) freeUnitsLedger.takeFreeMinutes(resourceId, Math.min(freeLeft, Math.max(0, Math.round((Number(priced.figures.quantity) - Number(priced.figures.billedUnits)) * 60))));
 
         return {
           resourceId,
+          ...identity,
+          ...appendedOf(selected),
           name: resource.name,
           nameEn: resource.nameEn || null,
           ...priced.figures,
@@ -367,13 +413,27 @@ const step = {
       .filter(Boolean)
       .sort((a, b) => String(a.name || '').localeCompare(String(b.name || ''), 'fr'));
 
-    const optionsTotal = roundMoney(finalOptionLines.reduce((sum, line) => sum + Number(line.totalPrice || 0), 0));
-    const resourcesTotal = roundMoney(resourceLines.reduce((sum, line) => sum + Number(line.totalPrice || 0), 0));
+    // Rules 16, 39, 40: a line's own discount, then the stay discount aimed at the extras (or at everything) shared out in cents.
+    // A platform stay's gross pin supersedes the stay discount (rule 16): it keeps the target `nights`' own behaviour.
+    const stayTarget = isDirectBooking ? discountTarget : 'nights';
+    const discounted = discountLines({
+      discount: { target: stayTarget, percent: typedDiscountPercent, amount: discountFixedAmount },
+      accommodation: totalPrice,
+      lines: [...finalOptionLines, ...resourceLines],
+      facts: lineFacts,
+      keyOf: extraLineKey,
+    });
+    const discountedOptionLines = discounted.lines.slice(0, finalOptionLines.length);
+    const discountedResourceLines = discounted.lines.slice(finalOptionLines.length);
+
+    const optionsTotal = roundMoney(discountedOptionLines.reduce((sum, line) => sum + Number(line.totalPrice || 0), 0));
+    const resourcesTotal = roundMoney(discountedResourceLines.reduce((sum, line) => sum + Number(line.totalPrice || 0), 0));
 
     return {
       ...ctx,
-      consumedMap, finalOptionLines, grantedFreeUnitsFor, optionsTotal, resourceLines, resourcesTotal,
-      soldGrantMap,
+      accommodationDiscountShareCents: discounted.accommodationShareCents,
+      consumedMap, extrasDiscountCents: discounted.extrasDiscountCents, finalOptionLines: discountedOptionLines, grantedFreeUnitsFor,
+      optionsTotal, resourceLines: discountedResourceLines, resourcesTotal, soldGrantMap,
     };
   },
 };

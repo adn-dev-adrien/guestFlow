@@ -45,6 +45,9 @@ Two findings on reservation **11773** (id 22308, Gîtes de France, 13→15/11/20
      (`hasGuestArrived`, [arrival-moment-is-the-check-in.md](arrival-moment-is-the-check-in.md)).
    A stay on its arrival day **without a `checkInTime`** starts at 00:00 (today's behaviour — nothing to
    wait for).
+   > _Reading of 2026-11-16 (pricing-components rule 102, loop t2 N-3):_ the moment of a new sale, the extras baseline and the SAS read
+   > this same answer through the stay clock (`phaseForReservation`, which now reads the two marks): an arrival marked before its hour
+   > locks the fiche **and** sends a new sale to the departure. Before, the sale still read « before » and wrote part of the line nowhere.
 2. This single definition replaces `startDate <= today` everywhere the fiche lock is decided:
    `midStayExtrasWindow` / `buildEditLock` (read), `pastReservationLocked` and the `started` test of
    the PUT, the ledger-edit refusal of the quote. One helper, no second copy.
@@ -83,7 +86,7 @@ Two findings on reservation **11773** (id 22308, Gîtes de France, 13→15/11/20
 
 ### 4.1 Server side (`server/src/`)
 
-- `utils/arrivalMoment.js` — add `hasStayStarted(row, today, nowTime)`: the rule 1 definition. It is the interim home of « started »: `specs/pricing-components.md` rules 44-46 (revised 2026-11-11, « started = arrival date and check-in time passed ») move it behind the STAY CLOCK in PR C.
+- `utils/pricing/stayClock.js` — `hasStayStarted(row, today, nowTime)`: the rule 1 definition. It shipped first in `utils/arrivalMoment.js`, its interim home; reading of 2026-11-15 (sync of the pricing refonte, `specs/pricing-components.md` rules 44-46): PR C moved it into the STAY CLOCK, the only home of « started », and `arrivalMoment.js` stays deleted. Same answer, same tests (`stay-started-at-arrival-time.unit.test.js` requires it from the clock).
 - `utils/midStayExtrasWindow.js` — `midStayExtrasWindow` / `buildEditLock` call it instead of `startDate <= today`.
 - `controllers/reservationsController.js` — `pastReservationLocked`, `started`, ledger-edit `startedStay` call it; `getById` adds `arrivalComplementLines` and passes `nowTime`.
 - `models/reservationsModel.js` — `getEditLock` takes `nowTime`.

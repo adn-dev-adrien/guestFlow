@@ -7,21 +7,16 @@
  */
 
 const flag = (v) => Number(v || 0) === 1 || v === true;
-const cents = (n) => Math.round((Number(n) || 0) * 100);
-const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
+const sdk = require('../../sdk');
+const { toCentsOrZero: cents } = sdk.coreModule('money');
 const { day } = require('./dates');
-const { afterRefund, expectedDates, trancheKey, splitIdOf, reservePercentOf, immediatePercentOf, LATE_AFTER_DAYS } = require('./molliePaymentSplits');
+const {
+  afterRefund, expectedDates, trancheKey, splitIdOf, reservePercentOf, immediatePercentOf, LATE_AFTER_DAYS, saleLinkLedgerKey,
+} = require('./molliePaymentSplits');
 const { settlementLedgerRow } = require('./mollieCardSources');
 
-/**
- * Rule 46 — what a platform that took an acompte already paid out for it: the acompte net of its own
- * commission. Its solde credit is the rest of the payout, so the fiche's payout (the whole stay's net,
- * the figure `computePlatformCommission` reads) is that credit plus this. 0 without a platform acompte.
- */
-function platformAcompteNet(row) {
-  if (flag(row.depositDisabled) || !(Number(row.depositAmount || 0) > 0)) return 0;
-  return Math.max(0, round2(Number(row.depositAmount) - Number(row.acompteCommissionAmount || 0)));
-}
+// Rule 46 — what a platform that took an acompte already paid out for it (PLATFORM PAYMENT's `acompteNet`).
+const { acompteNet: platformAcompteNet, grossOf } = sdk.coreModule('platformPayment');
 
 // The ledger rows of the direct buckets, with the stored column of their cash flag and their date.
 const DIRECT_ROWS = {
@@ -121,8 +116,7 @@ function receiptsOfReservation(row, { buildLedger, parseGroup, links, installmen
     const balance = ledger.rows.find((r) => r.key === 'balance');
     if (!balance) return baskets;
     const paid = isPaid(balance);
-    const grossRaw = row.platformGrossAmount != null && row.platformGrossAmount !== ''
-      ? Number(row.platformGrossAmount) : Number(row.depositAmount || 0) + Number(row.balanceAmount || 0);
+    const grossRaw = grossOf(row);
     const payout = row.platformPayoutAmount != null && row.platformPayoutAmount !== '' && Number(row.platformPayoutAmount) > 0
       ? Number(row.platformPayoutAmount) : null;
     if (!(grossRaw > 0) && payout == null) return baskets;
@@ -239,7 +233,6 @@ function receiptsOfReservation(row, { buildLedger, parseGroup, links, installmen
 
 // The stay's split payments, read through the core's model (specs/mixed-method-payments.md rule 28).
 function settlementsReader(db) {
-  const sdk = require('../../sdk');
   const model = sdk.coreModule('paymentSettlementsModel').buildModel(db);
   const { settlementFigures } = sdk.coreModule('paymentTenders');
   return { settlementsOf: (reservationId) => model.listFor(reservationId), settlementFigures };
@@ -261,7 +254,7 @@ function installmentsReader(db, listInstallments) {
 }
 
 /** Rule 2 — every in-scope reservation with its receipts. */
-function expectedReceipts({ db, startDate, today, buildLedger, parseGroup, listLinks, listInstallments, splitFor, sourceSplit, sales = [] }) {
+function expectedReceipts({ db, startDate, today, buildLedger, parseGroup, listLinks, listInstallments, splitFor, sourceSplit, sales = [], saleLinks = [] }) {
   const rows = db.prepare(`${RESERVATION_SQL} ORDER BY r.endDate, r.id`).all(startDate);
   const installmentsOf = installmentsReader(db, listInstallments);
   const { settlementsOf, settlementFigures } = settlementsReader(db);
@@ -270,25 +263,45 @@ function expectedReceipts({ db, startDate, today, buildLedger, parseGroup, listL
     receiptsOfReservation(row, { buildLedger, parseGroup, links: listLinks(row.id), installments: installmentsOf(row.id), settlements: settlementsOf(row.id), settlementFigures, splitFor, sourceSplit, today })
       .forEach((rc) => receipts.push(rc));
   });
-  return [...receipts, ...saleReceipts(sales, sourceSplit)];
+  return [...receipts, ...saleReceipts(sales, sourceSplit, { saleLinks, splitFor })];
 }
+
+/** The brief of a sale outside a stay: no stay, the sale named by its key, its client when it has one. */
+function saleBrief(sale) {
+  const client = [sale.client && sale.client.firstName, sale.client && sale.client.lastName].filter(Boolean).join(' ').trim();
+  return {
+    id: null, saleKey: String(sale.key), clientName: client || sale.label, lastName: (sale.client && sale.client.lastName) || '', hasClient: Boolean(client),
+    propertyName: '', startDate: null, endDate: null, platform: 'direct', reservationNumber: '', createdAt: null, saleLabel: sale.label,
+  };
+}
+
+const SALE_LABEL = 'Vente hors séjour';
 
 /**
  * Rule 1 (second half) — a sale made outside any stay and paid by card through Mollie: the same two tranches as a link,
  * with no fiche. Its receipts carry reservation id 0 (no stay) and a brief that names the sale (`saleKey`) and its client.
+ * Loop t10 D10-2 (rule 32) — a paid payment link of a sale outside a stay (`saleLinks`: links with `saleRef`, no stay) yields its own
+ * tranches (`splitFor(link)`: the stored split, else the provisional one), keyed `sale:<sale key>:link-<id>`, the sale key being
+ * `<saleRef>:<Paris day paid>` — named by the sale of that day when it is listed, else by the link alone.
  */
-function saleReceipts(sales, sourceSplit = () => null) {
-  return sales.flatMap(({ sale, sourceType, sourceKey }) => {
+function saleReceipts(sales, sourceSplit = () => null, { saleLinks = [], splitFor = () => null } = {}) {
+  const card = sales.flatMap(({ sale, sourceType, sourceKey }) => {
     const split = sourceSplit(sourceType, sourceKey);
     // A card amount that is gone from the sale leaves nothing to expect, unless Mollie's own payment is the proof of it.
     if (!split || (!split.molliePaymentId && !(Number(sale.cardCents) > 0))) return [];
-    const client = [sale.client && sale.client.firstName, sale.client && sale.client.lastName].filter(Boolean).join(' ').trim();
-    const brief = {
-      id: null, saleKey: String(sale.key), clientName: client || sale.label, lastName: (sale.client && sale.client.lastName) || '', hasClient: Boolean(client),
-      propertyName: '', startDate: null, endDate: null, platform: 'direct', reservationNumber: '', createdAt: null, saleLabel: sale.label,
-    };
-    return trancheReceipts({ split, ledgerKey: `sale:${sale.key}`, label: sale.label, brief, platform: 'direct', reservationId: 0, ledgerRow: null });
+    return trancheReceipts({ split, ledgerKey: `sale:${sale.key}`, label: sale.label, brief: saleBrief(sale), platform: 'direct', reservationId: 0, ledgerRow: null });
   });
+  const byKey = new Map(sales.filter(({ sale }) => !sale.role).map(({ sale }) => [String(sale.key), sale]));
+  const links = saleLinks.filter((l) => l.status === 'paid' && l.saleRef && l.paidAt && Number(l.amountCents) > 0).flatMap((l) => {
+    const split = splitFor(l);
+    if (!split) return [];
+    const saleKey = `${l.saleRef}:${day(l.paidAt)}`;
+    const sale = byKey.get(saleKey) || { key: saleKey, label: SALE_LABEL, client: null };
+    return trancheReceipts({
+      split, ledgerKey: saleLinkLedgerKey(saleKey, l.id), label: `${sale.label} (lien ${l.id})`, brief: saleBrief(sale), platform: 'direct', reservationId: 0, ledgerRow: null,
+    });
+  });
+  return [...card, ...links];
 }
 
 /** The receipts of one reservation, scope included (the fiche's block). */

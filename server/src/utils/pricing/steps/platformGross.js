@@ -7,6 +7,7 @@
  */
 
 const { roundMoney } = require('../money');
+const { isPlatformLine } = require('../platformPrice');
 
 const step = {
   id: 'platformGross',
@@ -25,7 +26,7 @@ const step = {
     // PLATFORM-PAID portion of the stay (the brut the guest paid the platform). It supersedes
     // `customPrice`/`discountPercent` (the brut is the single price lever for platforms). The accommodation
     // is back-solved so that `accommodation + extra-guest + the NON-complement options/resources = brut`.
-    // Complement items (extras collected ON ARRIVAL — `inComplement = 1`) are NOT part of the platform
+    // Complement items (extras not declared `collectAt = 'platform'`, rule 17) are NOT part of the platform
     // payment, so they are excluded from the back-solve and END UP ADDED ON TOP: finalPrice = brut +
     // complement. Clamped ≥ 0 so an inconsistent brut (< pre-arrival options) can't go negative.
     const platformGrossPin = channel.namedChannel
@@ -33,8 +34,8 @@ const step = {
       ? roundMoney(Number(platformGrossAmountInput))
       : null;
     const complementOptionsResourcesTotal = roundMoney(
-      finalOptionLines.reduce((s, l) => s + (Number(l.inComplement || 0) ? Number(l.totalPrice || 0) : 0), 0)
-      + resourceLines.reduce((s, l) => s + (Number(l.inComplement || 0) ? Number(l.totalPrice || 0) : 0), 0),
+      finalOptionLines.reduce((s, l) => s + (isPlatformLine(l) ? 0 : Number(l.totalPrice || 0)), 0)
+      + resourceLines.reduce((s, l) => s + (isPlatformLine(l) ? 0 : Number(l.totalPrice || 0)), 0),
     );
     // Extras sold mid-stay are collected by US at check-out, never by the platform: like the complement
     // items, they are excluded from the brut back-solve (`midStayForced` is already out via

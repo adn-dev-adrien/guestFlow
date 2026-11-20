@@ -1,0 +1,1 @@
+- **Pricing allocations, stored data (pricing refonte, PR B)**: every paid deposit, balance, arrival complement, end-of-stay complement, mid-stay note and installment that kept no per-line detail now has one stay-level payment allocation derived from the stored amounts, so the sum allocated to a paid bucket is the bucket. No amount is rewritten and a second boot changes nothing.

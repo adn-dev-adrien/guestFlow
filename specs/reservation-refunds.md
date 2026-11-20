@@ -151,10 +151,14 @@ and the monthly accounting export carries a **reversed journal entry (avoir)** d
     → **400 `REFUND_INVALID_DATE`**.
     *Reading of 2026-11-02 — the date window.* `refundDate` is a real calendar day (`2026-02-30` used to pass the
     regex) and not before today − 5 years, « Date trop ancienne : 5 ans au plus. » (`specs/reservations-backend-mvc.md` rule 13, second reading).
-14. **VAT is frozen at creation.** Each line stores the `vatRate` that applied when it was recorded:
-    the app's single global `vatRate` ([single-vat-rate.md](single-vat-rate.md)) for the three revenue
-    buckets, **0** for the `touristTax` bucket (a pass-through bears no VAT). A later settings change
-    never re-prices an avoir already issued — same principle as the stored-money accounting path.
+14. **VAT is stored at creation and re-rated with the stay's period.** Each line stores the `vatRate` that applied
+    when it was recorded: the app's single global `vatRate` ([single-vat-rate.md](single-vat-rate.md)) for the
+    three revenue buckets, **0** for the `touristTax` bucket (a pass-through bears no VAT). A later settings
+    change never re-prices an avoir already issued — same principle as the stored-money accounting path. A VAT
+    regime switch and its undo ([vat-optional-mode.md](vat-optional-mode.md) rules 16 and 26) re-rate the refund
+    lines of the stays they move with the stay's period, as the code does (`vatRegimeSwitchModel`).
+    _(Amended 2026-11-12, owner O-8 (a), pricing-components Q16 and rule 77: the word « frozen » was read as
+    « never re-rated », which the code never did and the owner did not want once he saw the 4457 residue.)_
 15. Refunds are available on a **past-locked** reservation
     ([admin-unlock-past-reservations.md](admin-unlock-past-reservations.md)): an early departure is
     discovered *after* the stay by construction, so the past lock must not block them. They are
@@ -588,6 +592,16 @@ and the monthly accounting export carries a **reversed journal entry (avoir)** d
     > trop-perçu on its free line, then a cancellation and the give-back, returns every euro but leaves a pair across revenue
     > accounts, for example 70600000 +90,90 / 70600010 -90,91 (line removed), ±54,55 (lowered), ±45,45 (complement line): no euro
     > lost. It is the exception to the cross-account residue rule 51 closes. Test: `live-refund-per-line`.
+    > **Reading of 2026-11-16 (stabilisation loop t8, D8-1) — a refund on no line comes off its own poste.** A book refund line
+    > that names no line (`lineKey` empty: a trop-perçu refunded on its poste, pricing-components rule 111) gave back money of ITS
+    > bucket. On a cancelled stay, the excess it leaves over the lines comes off the lines of that bucket first — the lines holding
+    > money they no longer bill (offered or removed since, lowered after they were paid) before the others — and only the rest by
+    > the rank above. The register offers the same total; only which line holds it changes. *Why:* plan paid (solde 300 €), beer
+    > 30 € and breakfast 60 € ordered by card, beer offered, the 30 € trop-perçu refunded on « Prestations complémentaires »,
+    > then the stay cancelled: the register offered accommodation 270 €, breakfast 60 €, beer 30 €, so giving everything back
+    > reversed 120 € of options for 90 € sold and kept 30 € of accommodation revenue on a cancelled stay. It now offers
+    > accommodation 300 € and breakfast 60 €: options 90 €, accommodation 300 €, direct and Booking. Test:
+    > `refund-note-overpayment-poste`.
 50. **A live stay refuses a book refund above what it collected** _(D10, Adrien, 2026-11-05; audit R22-7)_. The total of a
     refund made by transfer or in cash (`Espèces`) on a stay that is not cancelled cannot exceed `collectedTtc`, net of the
     refunds already made: 409 `REFUND_EXCEEDS_COLLECTED` « Dépasse l'encaissé (X €). », the same refusal as a cancelled
@@ -649,6 +663,25 @@ and the monthly accounting export carries a **reversed journal entry (avoir)** d
     message and stays open (`RefundDialog.before-payment`). *Why:* the refund that closes a stay's books (mixed-method-payments
     rules 56, 58) reads the encaissements up to its own date; a split solde paid on the 12th and refunded « on the 9th »
     skipped that encaissement and left 70600000 −10,68 / 70900000 +10,68 open. Test: `reservation-refunds-before-last-payment`.
+
+> **Amendment 2026-11-12 — PR B of the pricing refonte** ([pricing-components.md](pricing-components.md) §9 Q16, rules 72
+> and 75-79; the rules live there, in the spec that delivers them). Not renumbered here: it describes what changes
+> in this spec's rules and data model.
+> - Unpaid refunds live in the `refund_obligations` register (origin, status `open` / `settled` / `cancelled`, a
+>   close action on the « À rembourser » rows); the register holds money that left only (rule 75).
+> - `reservation_refunds` gains `kind` (`refund` / `requalification`), `origin` (`operator` / `cancellation` /
+>   `overpayment`), `amountCents`, `providerRefundRef`; `reservation_refund_lines` gain `amountCents`, `source`,
+>   `revenueBucket`, `vatClass`, `lineRef` (the precise sale line, the legacy `lineKey` kept). The means `card` is
+>   admitted. A refund is a negative `payment_allocations` row naming the payment it gives back.
+> - Rules 42 and 44 read the trop-perçu as Σ allocations − line totals; only a free line of origin `overpayment`
+>   lowers it (rule 76). History entries `refund` and `refundDeleted` are written (map M-6).
+> - `refund_nettings` records, once at the cancellation, the refunds a requalification avoir netted (rule 78).
+> - Reading of 2026-11-16 (pricing-components rules 119, 120, loop t9 D9-2/D9-3): creating a refund and settling the obligations it covers, and
+>   deleting a refund, reopening them and the credit it gives back, are each one transaction; a `lineLowered` obligation is not closed by the close action (409 `OBLIGATION_REFUND_ONLY`).
+> - Delivered (pass 3): the close action is `PATCH /api/reservations/:id/refund-obligations/:oid`; the refund dialog offers
+>   « Carte » with an optional provider reference (no refund API is called); every reader of the register states its scope
+>   (`given`, `journal`, `turnover`, `commune`) through `refunds.totals` / `scopeSql`; the un-tick and the correction of a split payment
+>   share one guard (`takeBackRefusal`), judged in cents on the amount collected before and after the gesture.
 
 ---
 
@@ -994,6 +1027,9 @@ of the solde refunded before the cancellation: the solde commission requalified 
 avoir and the card agree, and everything given back leaves 706, 4457, 4671 and the client at 0, 75880000 at −27,42 €,
 622600 at +27,42 €; the commission lands on the buckets that still hold solde money; the #22226 shape, its solde
 refunded before, at −6,82 / +6,82 €.
+`tests/refund-note-overpayment-poste.unit.test.js` (2 of 5, rule 49 reading of 2026-11-16, loop t8 D8-1) — direct and
+Booking: the trop-perçu of an offered card note refunded on « Prestations complémentaires », then the stay cancelled and
+everything given back: options give back what the notes sold (90 €), the plan postes what the plan collected.
 `client/src/components/reservation/__tests__/FinanceSection.cancelled-refund-delete.test.jsx` (3) — on a cancelled
 fiche « Supprimer » is drawn outside the fieldset and deletes the refund; « Acompte conservé » offers none; a
 duplicate set aside none.

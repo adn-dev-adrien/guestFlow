@@ -1,10 +1,12 @@
 // specs/pricing-components.md §3 rules 16 and 40 — DISCOUNTS alone: the target `nights` is today's euro formula bit for
-// bit (percent or manual price), every other target and a fixed amount throw NOT_IN_PR_A (PR B), and the unit equals the
+// bit (percent or manual price), the targets `extras` and `all` and a fixed amount are PR B's (`pricing-discount-allocation`), an
+// unknown target throws, and the unit equals the
 // engine's accommodation on every stay of the price gate's fixture (skipped without the fixture).
 process.env.DB_PATH = ':memory:';
 process.env.TZ = 'Europe/Paris';
 
 const test = require('node:test');
+const { skipWithout } = require('../plugins/sdk/testing');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
@@ -38,15 +40,14 @@ test('rule 16 — the percent is clamped to 0..100 like the engine\'s typed leve
   assert.equal(normalizeCustomPrice('12.5'), 12.5);
 });
 
-test('rule 16 — the targets extras and all, and a fixed amount, are PR B: NOT_IN_PR_A', () => {
-  for (const discount of [{ percent: 10, target: 'extras' }, { percent: 10, target: 'all' }, { amount: 20, target: 'nights' }]) {
-    assert.throws(() => allocateDiscount({ discount, accommodation: 100, lines: [] }), (error) => error.code === 'NOT_IN_PR_A');
-  }
+test('rule 16 — an unknown target is refused', () => {
+  assert.throws(() => allocateDiscount({ discount: { percent: 10, target: 'rooms' }, accommodation: 100 }), (error) => error.code === 'DISCOUNT_TARGET_UNKNOWN');
 });
 
 const DIR = process.env.PRICE_GATE_FIXTURE_DIR || path.join(__dirname, 'fixtures', 'price-gate');
 const captured = fs.existsSync(path.join(DIR, 'inputs.json'));
-const SKIP = captured ? false : 'price-gate fixture absent (inputs.json)';
+// loop t1 AS-2 — the fixture holds `resource_bookings` rows, a table of the hourly-resources plugin: skipped in the cell that removes it.
+const SKIP = skipWithout(['hourly-resources']) || (captured ? false : 'price-gate fixture absent (inputs.json)');
 
 test('rule 16 — nights equals the engine on every fixture stay (percent, manual price, platform pin)', { skip: SKIP }, () => {
   const inputs = JSON.parse(fs.readFileSync(path.join(DIR, 'inputs.json'), 'utf8'));

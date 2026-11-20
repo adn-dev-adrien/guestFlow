@@ -6,7 +6,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
-const { db, inDays, freshProperty, addStay } = require('./datesTakenFixture');
+const { db, inDays, dayLabel, freshProperty, addStay } = require('./datesTakenFixture');
 const devisModel = require('../models/devisModel');
 
 const payload = (propertyId, start, end, extra = {}) => ({ propertyId, clientId: 1, startDate: start, endDate: end, adults: 2, ...extra });
@@ -22,7 +22,8 @@ test('rule 46: a devis created on held nights is refused with the stays that hol
   assert.equal(out.stays.length, 1);
   assert.equal(out.stays[0].id, held);
   assert.equal(out.stays[0].url, `/reservations/${held}`);
-  assert.match(out.stays[0].label, new RegExp(`^T${held} · Lina Exemple · \\d{2}/\\d{2} → \\d{2}/\\d{2}$`));
+  const [d1, d2] = [inDays(40), inDays(44)].map((iso) => dayLabel(iso, inDays(42)));
+  assert.equal(out.stays[0].label, `T${held} · Lina Exemple · ${d1} → ${d2}`);
 });
 
 test('rule 46: on nights of an unpaid direct reservation or another devis, the devis is saved', () => {

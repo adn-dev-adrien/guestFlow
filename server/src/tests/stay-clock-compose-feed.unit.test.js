@@ -1,0 +1,61 @@
+// specs/pricing-components.md §3 rules 20, 44-46 (class E1, D2) — the clock feeds the engine. The extras baseline COMPOSE reads
+// (`arrivalExtrasBaseline`, through `resolveArrivalExtrasBaseline`) exists exactly when the stay clock says the stay has started
+// (or a complement is collected). Rule 102 (loop t2, 2026-11-16): an arrival validated on its day — the mark or the committed arrival
+// SAS — starts the stay before its hour, for the baseline as for the fiche lock: one moment.
+const test = require('node:test');
+const assert = require('node:assert/strict');
+const Database = require('better-sqlite3');
+
+const { create: createReservationsModel } = require('../models/reservationsModel');
+const { todayIso, withNow } = require('../utils/localDate');
+const { addDaysToIsoDate } = require('../utils/devisHelpers');
+
+function modelDb({ startDate, endDate, checkInTime = null, checkInDone = 0, arrivalSasDoneAt = null }) {
+  const db = new Database(':memory:');
+  db.exec(`
+    CREATE TABLE reservations (id INTEGER PRIMARY KEY, propertyId INTEGER, checkInTime TEXT, checkOutTime TEXT, startDate TEXT, endDate TEXT,
+      arrivalExtrasBaseline TEXT, complementPaid INTEGER DEFAULT 0, complementPaidCash INTEGER DEFAULT 0, checkInDone INTEGER DEFAULT 0,
+      arrivalSasDoneAt TEXT, updatedAt TEXT);
+    CREATE TABLE reservation_options (reservationId INTEGER, optionId INTEGER, totalPrice REAL DEFAULT 0, offered INTEGER DEFAULT 0);
+    CREATE TABLE reservation_resources (reservationId INTEGER, resourceId INTEGER, totalPrice REAL DEFAULT 0, offered INTEGER DEFAULT 0);
+    CREATE TABLE reservation_custom_options (id INTEGER PRIMARY KEY AUTOINCREMENT, reservationId INTEGER, description TEXT, amount REAL DEFAULT 0, offered INTEGER DEFAULT 0);
+  `);
+  db.prepare('INSERT INTO reservations (id, startDate, endDate, checkInTime, checkInDone, arrivalSasDoneAt) VALUES (1, ?, ?, ?, ?, ?)')
+    .run(startDate, endDate, checkInTime, checkInDone, arrivalSasDoneAt);
+  db.prepare('INSERT INTO reservation_options (reservationId, optionId, totalPrice) VALUES (1, 9, 10)').run();
+  return db;
+}
+const day = (n) => addDaysToIsoDate(todayIso(), n);
+
+// The day before the arrival day of the next test, at noon in Paris: one fixed moment, whatever the process zone (rule 6).
+const NOW = new Date('2099-10-09T12:00:00+01:00');
+
+test('the baseline follows the clock: started and not marked → due; not started and marked → not due', () => {
+  const startedUnmarked = createReservationsModel(modelDb({ startDate: '2099-10-08', endDate: '2099-10-11' }));
+  assert.notEqual(withNow(NOW, () => startedUnmarked.resolveArrivalExtrasBaseline(1)), null);
+  assert.equal(withNow(NOW, () => startedUnmarked.arrivalBaselineNotDue(1)), false);
+
+  const futureMarked = createReservationsModel(modelDb({ startDate: '2099-10-12', endDate: '2099-10-14', checkInDone: 1, arrivalSasDoneAt: '2026-01-01 10:00:00' })); // date-literal-ok — fixture rows written by raw SQL and read back by key, no write path checks them against today
+  assert.equal(withNow(NOW, () => futureMarked.resolveArrivalExtrasBaseline(1)), null);
+  assert.equal(withNow(NOW, () => futureMarked.arrivalBaselineNotDue(1)), true);
+});
+
+test('on the arrival day the check-in time decides, or the arrival validated before it (rule 102, loop t2 N-3)', () => {
+  // The gesture's moment is fixed (`withNow`): the stay clock judges in Paris whatever the process zone or the runner's hour
+  // (specs/server-test-isolation.md rule 6, reading of 2026-11-19). 10:00 and 18:00 at +01:00 stay on their side of 16:00 in
+  // winter and in summer time.
+  const stay = { startDate: '2099-10-10', endDate: '2099-10-12', checkInTime: '16:00' };
+  const morning = new Date('2099-10-10T10:00:00+01:00');
+  const evening = new Date('2099-10-10T18:00:00+01:00');
+  const unmarked = createReservationsModel(modelDb(stay));
+  assert.equal(withNow(morning, () => unmarked.resolveArrivalExtrasBaseline(1)), null, 'unmarked, and 16:00 has not passed');
+  const markedEarly = createReservationsModel(modelDb({ ...stay, checkInDone: 1 }));
+  assert.notEqual(withNow(morning, () => markedEarly.resolveArrivalExtrasBaseline(1)), null, 'marked before 16:00: the guest is there, the stay has started (the lock says so too)');
+  assert.notEqual(withNow(evening, () => unmarked.resolveArrivalExtrasBaseline(1)), null, 'unmarked, but 16:00 has passed');
+});
+
+test('a collected complement still closes the question, started or not (rule 21)', () => {
+  const db = modelDb({ startDate: day(5), endDate: day(7) });
+  db.prepare('UPDATE reservations SET complementPaid = 1 WHERE id = 1').run();
+  assert.notEqual(createReservationsModel(db).resolveArrivalExtrasBaseline(1), null);
+});

@@ -1,0 +1,1 @@
+- **Tourist tax, internal (pricing refonte, PR B)**: the person-nights arithmetic of the tax, the report of the tax a platform remits itself and the net-of-VAT readers of the finance view and the devis PDF now go through the tourist-tax and VAT components; every figure is unchanged.

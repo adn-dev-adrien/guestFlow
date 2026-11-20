@@ -173,7 +173,9 @@ function candidateStarts({ norm, ranges, dayStart }) {
  * needs someone at `start − heatUpMinutes`, and when the caller answers no it is `staff`
  * (specs/guest-app.md rule 31). Without one, every ignition is possible — the operator lights it.
  */
-function classifyBlock({ norm, ranges, dayClosed, start, end, notBefore, notAfter = Infinity, canIgnite = null }) {
+function classifyBlock({
+  norm, ranges, dayClosed, start, end, notBefore, notAfter = Infinity, canIgnite = null, heatFrom = notBefore,
+}) {
   const warm = isWarmAt(ranges, start, norm.retention);
   if (dayClosed) return { state: 'closed', warm };
   const dayStart = Math.floor(start / MINUTES_PER_DAY) * MINUTES_PER_DAY;
@@ -187,7 +189,9 @@ function classifyBlock({ norm, ranges, dayClosed, start, end, notBefore, notAfte
   if (countOverlaps(ranges, start, end, norm.turnover) >= norm.capacity) return { state: 'taken', warm };
   // Thermal readiness: warm → the turnover (already enforced above) is the only wait;
   // cold → the resource has to be brought up to temperature first.
-  if (!warm && start < notBefore + norm.heatUp) return { state: 'heating', warm };
+  // `heatFrom` is when the heating can begin: `notBefore` unless the caller knows better (the guest app counts it
+  // from now, a week before the arrival — specs/guest-app.md rule 79).
+  if (!warm && start < heatFrom + norm.heatUp) return { state: 'heating', warm };
   if (!warm && norm.heatUp > 0 && canIgnite && !canIgnite(start - norm.heatUp)) return { state: 'staff', warm };
   return { state: 'free', warm };
 }
@@ -203,11 +207,13 @@ function classifyBlock({ norm, ranges, dayClosed, start, end, notBefore, notAfte
  * @param {object[]} args.pending       blocks placed in the current SAS run, not saved yet
  * @param {number}   args.notBefore     absolute minutes: `max(now, check-in)`
  * @param {number}   args.notAfter      absolute minutes: the check-out
+ * @param {number}   [args.heatFrom]    absolute minutes the heating can start from (default `notBefore`)
  * @param {Function} [args.canIgnite]   absolute minutes → whether someone can light the resource then
  * @returns {object[]} `[{ date, weekdayLabel, closed, occupancy, slots }]`
  */
 function buildDays({
   resource, dayRate = 0, stayDates = [], occupancy = [], pending = [], notBefore = -Infinity, notAfter = Infinity, canIgnite = null,
+  heatFrom = notBefore,
 }) {
   const norm = normalizeResource(resource);
   // Pending blocks gate the slots exactly like a saved booking — they hold their slot and keep the
@@ -230,7 +236,9 @@ function buildDays({
 
     for (const { start, offGrid } of candidateStarts({ norm, ranges, dayStart })) {
       const end = start + norm.minDuration;
-      const { state, warm } = classifyBlock({ norm, ranges, dayClosed, start, end, notBefore, notAfter, canIgnite });
+      const { state, warm } = classifyBlock({
+        norm, ranges, dayClosed, start, end, notBefore, notAfter, canIgnite, heatFrom,
+      });
       // The grid is shown whole — a blocked slot has to say WHY. An off-grid start exists only to
       // offer the moment a reset ends, so it earns its place only when it is actually bookable;
       // otherwise it would be a stray odd time explaining nothing.
@@ -272,6 +280,7 @@ function buildDays({
  */
 function validateBlock({
   resource, block, occupancy = [], notBefore = -Infinity, notAfter = Infinity, remainingMinutes = Infinity, canIgnite = null,
+  heatFrom = notBefore,
 }) {
   const norm = normalizeResource(resource);
   const ranges = toRanges(occupancy);
@@ -290,7 +299,9 @@ function validateBlock({
   if (duration > remainingMinutes) return { ok: false, reason: 'budget' };
 
   const dayClosed = !norm.openDays.includes(weekdayOf(block.date)) || norm.closedDays.includes(String(block.date));
-  const { state } = classifyBlock({ norm, ranges, dayClosed, start, end, notBefore, notAfter, canIgnite });
+  const { state } = classifyBlock({
+    norm, ranges, dayClosed, start, end, notBefore, notAfter, canIgnite, heatFrom,
+  });
   return state === 'free' ? { ok: true } : { ok: false, reason: state };
 }
 

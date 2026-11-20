@@ -337,6 +337,34 @@ brought it; and the accountant receives entries that explain every Mollie credit
 31. A Mollie credit not reconciled at export time is listed as « Versement Mollie non rattaché » in the
     export summary and produces no line (never guess an allocation into the books).
 
+### 3.7 Sales outside a stay of the pricing refonte (stabilisation loop t10, 2026-11-17)
+
+32. **The payment link of a sale outside a stay is a Mollie payment like any link** (outside-booking-sas rules 39-42: a
+    `complement` link with `saleRef`, no stay). Once paid, its split is stored with no reservation id and the ledger key
+    `sale:<sale key>:link-<link id>`, the sale key being `<saleRef>:<Paris day paid>` — the key of the sale day its payment
+    books on. The reconciliation lists every paid link of a sale from the reconciliation start date as two receipts of its
+    own (reservation id `0`, `reservation.id` null, the brief of that sale day — its label and client — or « Vente hors
+    séjour » when no sale day lists it), beside the sale day's own card tranches (`sale:<sale key>`); so its Mollie credits
+    are matched and confirmed, « Versements à venir » lists its tranches and the Mollie journal books its `link` entry
+    (rule 28) on the payment day under the sale. (D10-2: before, the split was stored under `basket-<id>`, reservation 0,
+    and nothing read it.)
+33. **One Mollie split per card payment, never one per invoice.** A sale outside a stay is listed once per document and
+    payment day, every day carrying the document's invoice number. Only one of those days is the `invoice` source of rule 1
+    — the first day paid by card (else the first day; never a refund or a tip row), read over every sale up to today — and
+    the number a Mollie payment's `description` is paired with (rule 16) points to it; every other day is a `tender`
+    source of its own (`sale:<sale key>`). A document paid by card 30 € then 50 € on two days is two splits, four tranches
+    (24 + 6, 40 + 10) and two `link` entries in the journal. (D10-1: before, the two days shared one split whose gross
+    followed the last candidate.)
+    > _Reading of 2026-11-17 (loop t12 B12-1):_ when the document has several card days and none free of the payment's amount, the
+    > payment stays unknown — never the invoice day; the invoice-day fallback only serves a single-day invoice.
+    >
+    > _Reading of 2026-11-17 (loop t11 B11-1):_ a split already bound to a Mollie payment is never re-pointed to another one
+    > (`fromMolliePayment` leaves it as it is). A second Mollie payment whose `description` names the same invoice number pairs
+    > with the document's card day of the same amount still free (the invoice day or one of its later card days, `nextDays` of
+    > `invoiceSources`; the closest date first), else it stays unknown. Two payments 30 € and 20 € naming one invoice are two
+    > splits bound to their own payment, journal 30 + 20, with or without « CB sur place via Mollie depuis » (before: the
+    > second re-pointed the first split, and without the setting the 20 € never reached 46720000).
+
 ## 4. Architecture
 
 ### 4.1 Server side (`server/src/`)
@@ -353,7 +381,7 @@ brought it; and the accountant receives entries that explain every Mollie credit
 | | `schema.js` | T | Tables of §5, `reconciliation_v3` and the remediation `reconciliation_v3b` (final schema from any state). |
 | | `mollieTranches.js`, `mollieJournal.js` | C | Rules 18-19 (the words and states of a tranche, the recap line); rules 28-31 (the Mollie facts a month books). Pure. |
 | | `receiptStates.js` | T | `trancheDaysLate`: the one definition of a late tranche (rule 4). |
-| `plugins/online-payment/` | `mollieClient.js` | C | Read-only Mollie API client (settlements, settlement payments, balance transactions, primary balance, a payment), `httpRetry`, token from settings. |
+| `plugins/online-payment/` | `mollieClient.js` | C | Read-only Mollie API client (settlements, settlement payments, balance transactions, primary balance, a payment), `httpRetry`, token from settings; reads every amount in cents through `coreModule('money').toCentsStrict` (SDK 2.31, pricing-components rule 38; test `mollie-cents-shared-helper`). |
 | | `mollieConnection.js` | C | « Compte Mollie »: token check, « Tester », the read (settlements + balance), `status()` with `balance`. |
 | | `index.js`, `settingsStore.js`, `manifest.json` | T | Settings of rules 2, 14; registration of the SDK contributions below; version → 1.8.0. |
 | `plugins/sdk/` | `createContext.js`, `version.js` | T | New entries (MINOR, SDK 2.29.0): `ledgerBankTranches(provider)` (rule 18), `incomingPayments(provider)` (rule 23), `journalEntries(provider)` (rule 28). |
@@ -460,6 +488,11 @@ See the summary page for the interactive mock-ups (fiche, tile + table, settings
 - `mollie-review-matching`, `mollie-review-settlements-read`, `mollie-review-splits`, `mollie-review-migration`, `mollie-review-read-paths`, `mollie-review-journal`, `mollie-review-lateness-and-words` (online-payment) and `accounting-mollie-libelle` (accounting-export) — the review of 2026-11-16: rules 1, 4-6, 8-10, 13-19, 28 (no amount fallback « sûr » next to a settlement read; one failing reference; re-read of unknown payments; complement and basket links; estimates that follow the data; `reconciliation_v3b` from both drafts; no write on a read; fee gap, refunds, unknown costs and Paris days in the journal; late everywhere; the recap line; the reserve-attention route).
 - `mollie-final-reserve-reachable`, `mollie-final-journal-fees-per-client`, `mollie-final-provisional-splits`, `mollie-final-connection-and-rotation`, `mollie-final-late-reserve-attention`, `mollie-final-since-crossing` (online-payment) — the final pass of 2026-11-16: rule 10 (a reserve picked by amount from a payments-list settlement must be reachable on the credit's day), rule 28 (the clearing per client takes fees off as well as credits), rule 1 (provisional splits on every read, no write from the journal, links that can never have a ledger key never trigger a sync), rules 6, 16, 17 (the card tells every settlement still cooling down; a network failure stops the pass; refund refresh rotates on `refundCheckedAt`; the re-read selection only holds references a credit names), rules 4 and 13 (a late reserve is late whether or not a proposal waits), rule 2 (a correction crossing « Retenue appliquée depuis » decides the reserve again).
 - `incoming-payments.unit.test.js` — rules 21–27 (grouping, sort, late first, without plugin).
+- `mollie-sale-payment-link.unit.test.js` (6) — rule 32 (split with no stay, two receipts, credit proposed and confirmed under id 0, journal `link` entry, « Versements à venir », a link no sale day lists).
+- `mollie-invoice-several-card-days.unit.test.js` (5) — rule 33 (two candidates, two splits idempotent, four tranches, invoice pairing on the first card day, « Versements à venir » 80 €).
+- `mollie-invoice-two-payments.unit.test.js` (4) — rule 33 readings (loop t11 B11-1, t12 B12-1: wrong amount on a multi-day invoice → unknown): two Mollie payments naming one invoice → two splits bound to their own payment, journal 30 + 20, with and without the on-site card setting; a split bound to another payment is never taken again.
+- `accounting-synthesis-mollie-plan.unit.test.js` (3, accounting-export) — rule 29 in the synthesis: it reads the export's plan (bank lines off, operator's accounts).
+- `accounting-mollie-anonymous-sale-libelle.unit.test.js` (3, accounting-export) — rule 28: an anonymous sale's `link` entry reads the sale's label, never « RÉSERVATION #null ».
 - `accounting-mollie-journal.unit.test.js` — rules 28–31 (balanced entries, clearing balance, switch, unattached).
 
 ### Client tests
@@ -527,6 +560,8 @@ See the summary page for the interactive mock-ups (fiche, tile + table, settings
 - **Sales outside a stay (rule 1, second half).** Their receipts carry reservation id `0` in `bank_reconciliation_lines` (the column is NOT NULL) and `reservation: { id: null, saleKey, saleLabel, hasClient, clientName }` in the payload; they are never written to a fiche. The sale's card amount (`cardCents`) is the estimate until the Mollie payment is read.
 - **Tender sources.** An instalment paid by card via a payment link is the link's split, never a second one; a settlement's `internal` card line cannot exist (only cash goes to the caisse interne).
 
+- **Sales outside a stay of the pricing refonte (loop t10, 2026-11-17).** A sale's payment link (rule 32) and a document paid by card on several days (rule 33) — both reached only once the core lists its own standalone documents. Two OLD items of the same pass: the accounting synthesis reads the Mollie entries with the export's own plan (rule 29: « Exporter les versements Mollie reçus » off totals like the CSV; B10-3), and an anonymous sale's Mollie `link` entry reads the sale's label, else « VENTE HORS SÉJOUR » (rule 28; B10-4).
+
 ### Tests (server)
 
 94 new tests in 10 files (the 10 of `mollie-card-sources` are rule 1 second half, 3, 13, 16, 23, 28): `mollie-payment-split` (10), `mollie-reconciliation-matching` (16), `mollie-settlements` (8), `mollie-settings-validation` (9), `mollie-ledger-tranches` (6), `mollie-incoming-payments` (5), `mollie-journal-entries` (5) under `server/src/plugins/online-payment/tests/`; `accounting-mollie-journal` (11) under `server/src/plugins/accounting-export/tests/`; `incoming-payments` (14) under `server/src/tests/`. Existing suites adjusted: the route census, the env-name list, the VAT golden (`tiles.incoming`), the dashboard payload pin, the accounting settings key lists, the hardening floor. Full server suite: green. The old acquirer test of rule 15 was removed (replaced by rule 9).
@@ -541,6 +576,8 @@ See the summary page for the interactive mock-ups (fiche, tile + table, settings
 - [x] Discard of a sale outside a stay (reservation id 0); the client sends 0 for a null `reservation.id`, hides « Ouvrir la fiche » and the fiche links of a sale (`IncomingPaymentsTable`, `MollieReserveAlert`, `ReconciliationAlert`, `ReconciliationLine`, `ReconciliationPage`).
 - Migration `reconciliation_v3` was edited in place while unreleased; `reconciliation_v3b` (review 2026-11-16) makes the final schema reachable from any state, including a development or shadow database that ran a draft.
 - Tests: `mollie-balance-composition` (9), `mollie-sale-discard` (2) on the server; 4 new files / 7 tests on the client.
+- Reading of 2026-11-17 (loop t11 UI11-2): the reconciliation items carry `expectedWording` (« Attendu » for a sale outside a stay, « La fiche attend » for a stay) and `clientHeading` (empty for a sale without a client, so its label is printed once). Tests: `reconciliation-sale-wording` (1) on the server, `ReconciliationLine.sale-wording` (2) on the client.
+- Reading of 2026-11-17 (loop t12 UI12-2): every `alsoCovers` entry also carries `clientHeading`, and the home alert, « couvre aussi » (three places) and the shares dialog labels print it (`coveredLabel` / `shareLabels`), so an anonymous sale shows its label once there too. Tests: `reconciliation-covered-heading` (1) on the server, `ReconciliationShared.covered-heading` (3) on the client.
 
 ### Review corrections (2026-11-16, server)
 

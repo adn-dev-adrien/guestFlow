@@ -16,6 +16,7 @@
  */
 
 const { formatTimeShort } = require('../utils/dateFr');
+const { hasLineId } = require('../utils/lineRowTarget');
 
 function buildModel(database) {
   // Card-options on real reservations, with their stored occurrences. Guarded by the column's
@@ -35,12 +36,14 @@ function buildModel(database) {
     try { return database.prepare('PRAGMA table_info(reservation_options)').all().some((c) => c.name === 'cardPersons'); }
     catch { return false; }
   })();
+  const HAS_LINE_ID = hasLineId(database, 'reservation_options');
   const stmt = (() => {
     try {
       return database.prepare(`
         SELECT
           ro.reservationId AS reservationId,
           ro.optionId AS optionId,
+          ${HAS_LINE_ID ? 'ro.lineId' : 'NULL'} AS lineId,
           ro.cardOccurrences AS cardOccurrences,
           ${HAS_CARD_PERSONS ? 'ro.cardPersons' : 'NULL'} AS cardPersons,
           o.title AS title,
@@ -82,27 +85,32 @@ function buildModel(database) {
     try { return database.prepare("PRAGMA table_info(reservation_options)").all().some((c) => c.name === 'cardOccurrences'); }
     catch { return false; }
   })();
-  function setOccurrenceDone({ reservationId, optionId, date, time, done } = {}) {
+  function setOccurrenceDone({ reservationId, optionId, lineId, date, time, done } = {}) {
     if (!HAS_CARD_OCCURRENCES) return { error: 'NO_COLUMN' };
-    const row = database.prepare('SELECT cardOccurrences FROM reservation_options WHERE reservationId = ? AND optionId = ?')
-      .get(Number(reservationId), Number(optionId));
-    if (!row) return { error: 'NOT_FOUND' };
-    let list;
-    try { list = JSON.parse(row.cardOccurrences || '[]'); } catch { list = []; }
-    if (!Array.isArray(list)) list = [];
+    // Rule 85: with a `lineId` the tick lands on that line; without one it lands on the first line of the article that holds the moment.
+    const byLine = HAS_LINE_ID && lineId != null;
+    const rows = database.prepare(`SELECT ${HAS_LINE_ID ? 'lineId, ' : ''}cardOccurrences FROM reservation_options WHERE reservationId = ? AND optionId = ?${byLine ? ' AND lineId = ?' : ''}${HAS_LINE_ID ? ' ORDER BY lineId' : ''}`)
+      .all(...[Number(reservationId), Number(optionId), ...(byLine ? [Number(lineId)] : [])]);
+    if (rows.length === 0) return { error: 'NOT_FOUND' };
     const wantTime = formatTimeShort(time) || String(time || '');
-    let matched = false;
-    const next = list.map((o) => {
-      if (!matched && String(o?.date || '') === String(date) && (formatTimeShort(o?.time) || String(o?.time || '')) === wantTime) {
-        matched = true;
-        return { ...o, done: Boolean(done) };
-      }
-      return o;
-    });
-    if (!matched) return { error: 'OCCURRENCE_NOT_FOUND' };
-    database.prepare('UPDATE reservation_options SET cardOccurrences = ? WHERE reservationId = ? AND optionId = ?')
-      .run(JSON.stringify(next), Number(reservationId), Number(optionId));
-    return { ok: true, done: Boolean(done) };
+    for (const row of rows) {
+      let list;
+      try { list = JSON.parse(row.cardOccurrences || '[]'); } catch { list = []; }
+      if (!Array.isArray(list)) list = [];
+      let matched = false;
+      const next = list.map((o) => {
+        if (!matched && String(o?.date || '') === String(date) && (formatTimeShort(o?.time) || String(o?.time || '')) === wantTime) {
+          matched = true;
+          return { ...o, done: Boolean(done) };
+        }
+        return o;
+      });
+      if (!matched) continue;
+      database.prepare(`UPDATE reservation_options SET cardOccurrences = ? WHERE ${row.lineId != null ? 'lineId = ?' : 'reservationId = ? AND optionId = ?'}`)
+        .run(JSON.stringify(next), ...(row.lineId != null ? [row.lineId] : [Number(reservationId), Number(optionId)]));
+      return { ok: true, done: Boolean(done) };
+    }
+    return { error: 'OCCURRENCE_NOT_FOUND' };
   }
 
   return {
@@ -126,6 +134,8 @@ function buildModel(database) {
           result[occ.date].items.push({
             reservationId: r.reservationId,
             optionId: r.optionId,
+            // Rule 85: a stay may hold two lines of one article, each with moments of its own: a card belongs to ONE line.
+            lineId: r.lineId == null ? null : Number(r.lineId),
             title: r.title || 'Option',
             clientName,
             propertyName: r.propertyName || '',

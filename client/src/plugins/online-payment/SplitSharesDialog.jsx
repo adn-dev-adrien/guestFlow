@@ -9,7 +9,9 @@
  */
 import React, { useEffect, useState } from 'react';
 import { Typography } from '@mui/material';
-import { api, FormDialog, useLatestPreview } from '../sdk';
+import {
+  api, FocusKeeper, FormDialog, useLatestPreview, PreviewFailure, useMoneyCommit,
+} from '../sdk';
 import AmountPairFields from './AmountPairFields';
 import { money, parseEuroInput, centsToInput } from './reconciliationShared';
 
@@ -31,24 +33,30 @@ export default function SplitSharesDialog({ open, onClose, busy = false, proposa
   });
   const answer = preview.fresh ? preview.data : null;
   const shown = preview.data;
+  // The money-dialog contract (plugins-phase-1-sdk rule 58): a fresh, valid answer for the shares on screen.
+  const commit = useMoneyCommit({ previews: [preview], questions: [Boolean(answer && answer.valid), !invalid] });
 
   return (
     <FormDialog
       open={open} onClose={onClose} maxWidth="xs" title="Répartir le versement" submitLabel="Répartir et confirmer"
-      submitDisabled={!answer || !answer.valid || invalid} submitBusy={busy} onSubmit={() => onSubmit({ pairs, proposalId: proposal.id })}
+      submitDisabled={!commit.ready} submitBusy={busy} onSubmit={() => { if (commit.ready) onSubmit({ pairs, proposalId: proposal.id }); }}
     >
-      {proposal && (
-        <Typography variant="body2" sx={{ mt: 0.5 }}>
-          Versement de <b>{money(proposal.bank.amountCents)}</b> du {proposal.bank.dateLabel} : les montants sont estimés, saisir la part de chaque séjour.
-        </Typography>
-      )}
-      <AmountPairFields
-        pairs={shares.map((s) => ({ id: `${s.reservationId}|${s.ledgerKey}`, label: labels[`${s.reservationId}|${s.ledgerKey}`] || s.ledgerKey, text: s.text }))}
-        onChange={(i, text) => setShares((cur) => cur.map((x, j) => (j === i ? { ...x, text } : x)))}
-      />
-      {shown && shown.errors.map((e) => (
-        <Typography key={`${e.code}-${e.field}`} variant="caption" component="div" color="error.main" role="alert">{e.message}</Typography>
-      ))}
+      <FocusKeeper>
+        {proposal && (
+          <Typography variant="body2" sx={{ mt: 0.5 }}>
+            Versement de <b>{money(proposal.bank.amountCents)}</b> du {proposal.bank.dateLabel} : les montants sont estimés, saisir la part de chaque séjour.
+          </Typography>
+        )}
+        <AmountPairFields
+          pairs={shares.map((s) => ({ id: `${s.reservationId}|${s.ledgerKey}`, label: labels[`${s.reservationId}|${s.ledgerKey}`] || s.ledgerKey, text: s.text }))}
+          onChange={(i, text) => setShares((cur) => cur.map((x, j) => (j === i ? { ...x, text } : x)))}
+        />
+        {shown && shown.errors.map((e) => (
+          <Typography key={`${e.code}-${e.field}`} variant="caption" component="div" color="error.main" role="alert">{e.message}</Typography>
+        ))}
+        {/* Loop t23 S23-1 — a failed check says so with its way out; nothing of an older answer stays drawn (`data` is null). */}
+        <PreviewFailure error={preview.error} onRetry={preview.retry} fallback="Vérification impossible." sx={{ mt: 1 }} />
+      </FocusKeeper>
     </FormDialog>
   );
 }

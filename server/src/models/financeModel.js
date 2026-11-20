@@ -5,11 +5,16 @@ const { addDays } = require('../utils/dateDays');
 const { todayIso: localTodayIso } = require('../utils/localDate');
 const { isTouristTaxDeclarable, isTouristTaxFrozen } = require('../utils/touristTaxFreeze');
 const { isCheckoutDone } = require('../utils/endOfStayCheckout');
+const {
+  scopeSql: refundScopeSql, refundsTotalSql, refundLinesTotalSql,
+} = require('../utils/pricing/refunds/register');
 const db = require('../database');
 const { quoteStoredReservation } = require('../utils/storedReservationQuote');
 const { computePaymentStatus, round2 } = require('../utils/paymentStatus');
 const { getMonthBounds } = require('../utils/financeCalcs');
-const { htOfPortion } = require('../utils/pricing/vat');
+const { htOfPortion, netFirst } = require('../utils/pricing/vat');
+const financeSaleLines = require('../utils/financeSaleLines');
+const { personNights, unitFromTotal } = require('../utils/pricing/touristTax');
 
 // The column of the platform penalties (specs/reconciliation-assisted-matching.md rule 27). Named in an
 // explicit column list, so a hand-built reservations table of a unit suite without it still reads 0.
@@ -234,10 +239,8 @@ function createFinanceModel(database) {
     } catch { return false; }
   })();
   const REFUND_COLS = hasRefundTables
-    ? `COALESCE((SELECT SUM(rf.totalTtc) FROM reservation_refunds rf
-                 WHERE rf.reservationId = r.id AND rf.method <> 'internal'), 0) AS refundsBookTtc,
-       COALESCE((SELECT SUM(rf.totalTtc) FROM reservation_refunds rf
-                 WHERE rf.reservationId = r.id), 0) AS refundsWithCashTtc`
+    ? `${refundsTotalSql('turnover', 'book')} AS refundsBookTtc,
+       ${refundsTotalSql('turnover', 'withCash')} AS refundsWithCashTtc`
     : '0 AS refundsBookTtc, 0 AS refundsWithCashTtc';
   // specs/reservation-refunds.md §3.5 — the tourist tax given back to the guest, in euros and in
   // nights. EVERY means counts here (caisse interne included): « hors comptabilité » excludes money
@@ -290,12 +293,10 @@ function createFinanceModel(database) {
   const planOfStay = HAS_PLAN_SQL === '(0)' ? null : database.prepare('SELECT 1 FROM reservation_installments WHERE reservationId = ? LIMIT 1');
   const stayHasPlan = (id) => Boolean(planOfStay && planOfStay.get(id));
   const REFUNDED_TAX_COLS = hasRefundTables
-    ? `COALESCE((SELECT SUM(rl.amountTtc) FROM reservation_refund_lines rl
-                 JOIN reservation_refunds rf ON rf.id = rl.refundId
-                 WHERE rf.reservationId = r.id AND rl.lineKey = 'touristTax'), 0) AS refundedTaxAmount,
+    ? `${refundLinesTotalSql('commune', 'withCash', "rl.lineKey = 'touristTax'")} AS refundedTaxAmount,
        COALESCE((SELECT SUM(COALESCE(rl.quantity, 0)) FROM reservation_refund_lines rl
                  JOIN reservation_refunds rf ON rf.id = rl.refundId
-                 WHERE rf.reservationId = r.id AND rl.lineKey = 'touristTax'), 0) AS refundedTaxNights`
+                 WHERE rf.reservationId = r.id AND rl.lineKey = 'touristTax' AND ${refundScopeSql('commune', 'withCash', 'rf.method')}), 0) AS refundedTaxNights`
     : '0 AS refundedTaxAmount, 0 AS refundedTaxNights';
 
   // specs/finance-dashboard-redesign.md §4.1 — optional scoping of the money queries: one logement
@@ -391,6 +392,19 @@ function createFinanceModel(database) {
     return byStay;
   }
 
+  // pricing-components rules 31, 67 (owner 2026-11-15) — a stay the sale-line readers serve shows the HT its sale lines give
+  // (utils/financeSaleLines.js); every other stay keeps `htAmount`. The earnings stay `totalSejour` for every stay. One reader per page read.
+  let saleReader = null;
+  const htOf = (r, portion, rate) => {
+    const fromLines = saleReader ? saleReader.ht(r, portion) : null;
+    return fromLines == null ? htAmount(r, portion, rate) : fromLines;
+  };
+  const withSaleReader = (fn) => function readingSaleLines(...args) {
+    const previous = saleReader;
+    saleReader = previous || financeSaleLines.create(database);
+    try { return fn.apply(this, args); } finally { saleReader = previous; }
+  };
+
   const model = {
     // specs/stay-profile.md rule 22 and specs/finance-dashboard-redesign.md rule 53 — the ONE reading of
     // the tourist tax inside each stay's « total de séjour » (utils/stayTouristTaxInTotal.js): where it
@@ -409,8 +423,7 @@ function createFinanceModel(database) {
           ? '(EXISTS (SELECT 1 FROM reservation_installments i WHERE i.reservationId = r.id))'
           : '(0)';
         const refunded = tableExists('reservation_refund_lines') && tableExists('reservation_refunds')
-          ? `COALESCE((SELECT SUM(rl.amountTtc) FROM reservation_refund_lines rl JOIN reservation_refunds rf ON rf.id = rl.refundId
-                        WHERE rf.reservationId = r.id AND rl.lineKey = 'touristTax' AND rf.method <> 'internal'), 0)`
+          ? refundLinesTotalSql('journal', 'book', "rl.lineKey = 'touristTax'")
           : '0';
         // In chunks: SQLite caps the bound parameters of one statement (32 766), a large book must not 500.
         for (let i = 0; i < ids.length; i += TAX_FACTS_CHUNK) {
@@ -634,7 +647,7 @@ function createFinanceModel(database) {
       let revenueTotalNights = 0;
       const enriched = reservations.map((r) => {
         const stay = totalSejour(r);
-        const stayHt = htAmount(r, stay, vatOf(r));
+        const stayHt = htOf(r, stay, vatOf(r));
         const settled = isSettled(r);
         const collected = comptaCollected(r);
         const nights = nightsBetween(r.startDate, r.endDate);
@@ -642,7 +655,7 @@ function createFinanceModel(database) {
         revenueTotalHt += stayHt;
         revenueTotalNights += nights;
         totalCollected += collected;
-        totalCollectedHt += htAmount(r, collected, vatOf(r));
+        totalCollectedHt += htOf(r, collected, vatOf(r));
 
         accumulate(byProperty, r, stay, stayHt, nights);
         accumulateChannel(byChannel, r, stay, stayHt, nights);
@@ -673,7 +686,7 @@ function createFinanceModel(database) {
         if (isSettled(r)) continue;
         const remaining = remainingToPay(r);
         totalPending += remaining;
-        totalPendingHt += htAmount(r, remaining, vatOf(r));
+        totalPendingHt += htOf(r, remaining, vatOf(r));
       }
 
       // Exercise cards — the SELECTED fiscal year, independent of the du/au period. Attributed by the
@@ -707,7 +720,7 @@ function createFinanceModel(database) {
       const byMonth = new Map(exerciseMonths(exercise.from, exercise.to).map((m) => [m.month, { ...m, revenue: 0, revenueHt: 0, past: 0, upcoming: 0, nights: 0 }]));
       for (const r of yearRows) {
         const stay = totalSejour(r);
-        const stayHt = htAmount(r, stay, vatOf(r));
+        const stayHt = htOf(r, stay, vatOf(r));
         const nights = nightsBetween(r.startDate, r.endDate);
         yearTotal += stay;
         yearTotalHt += stayHt;
@@ -1263,7 +1276,7 @@ function createFinanceModel(database) {
             // accommodation the guest was charged, HT.
             accommodationAmount: isPercentageMode
               ? round2(Number(quote.touristTaxBaseHt || 0))
-              : round2(Number(quote.totalPrice || 0) / (1 + (Number(quote.vatPercentageAccommodation || 0) / 100))),
+              : netFirst(Number(quote.totalPrice || 0), Number(quote.vatPercentageAccommodation || 0)).net,
             // What the rate covered and therefore left the BASE. Zero outside percentage mode, where
             // there is no base for it to leave: the engine still computes it, it just plays no part.
             includedServicesDeduction: isPercentageMode
@@ -1308,8 +1321,8 @@ function createFinanceModel(database) {
             adults: noGuestAdded ? null : addedAdults,
             children: noGuestAdded ? null : 0,
             nightsCount: declaredNights,
-            adultNights: addedAdults * declaredNights,
-            taxRate: noGuestAdded ? null : round2(addedTax / (addedAdults * nightsCount)),
+            adultNights: personNights(addedAdults, declaredNights),
+            taxRate: noGuestAdded ? null : round2(unitFromTotal(addedTax, nightsCount, addedAdults)),
             taxAmount: declaredTaxAmount,
             refundedTaxNights,
             refundedTaxAmount: round2(addedTax - declaredTaxAmount),
@@ -1386,6 +1399,7 @@ function createFinanceModel(database) {
       return { ok: true, data: { declaredAt } };
     },
   };
+  for (const [name, value] of Object.entries(model)) if (typeof value === 'function') model[name] = withSaleReader(value);
 
   return model;
 }

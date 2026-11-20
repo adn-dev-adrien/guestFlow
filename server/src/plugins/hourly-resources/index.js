@@ -15,19 +15,23 @@ const bookingsModel = require('./bookingsModel');
 const schedulingModel = require('./schedulingModel');
 const planningCardsModel = require('./planningCardsModel');
 const { createController } = require('./controller');
+const { createVisitModel } = require('./visitModel');
+const { createVisitController } = require('./visitController');
 const { buildRouter } = require('./routes');
 const { createHourlyContributor } = require('./pricing');
 const { createHourlyFamily } = require('./hourlyFamily');
 const { createSasStep } = require('./sasStep');
 const { buildCatalogueLines } = require('./catalogueLines');
 const { createScheduler } = require('./scheduler');
+const { createSlotAvailability } = require('./slotAvailability');
+const { createBathFulfilment } = require('./bathFulfilment');
 const { createInvoicing } = require('./invoicing');
-const { SETTINGS, standaloneVatRateOf } = require('./settings');
+const { SETTINGS, standaloneVatRateOf, outsideVatRateOf } = require('./settings');
 
 const id = 'hourly-resources';
 
 const plural = (n, one, many) => (n > 1 ? `${n} ${many}` : `1 ${one}`);
-const euros = (amount) => `${Number(amount).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`;
+const eurosText = (amount) => `${Number(amount).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`;
 
 function register(ctx) {
   // specs/resource-booking-pricing-and-invoicing.md rule 5 (A1) — « TVA des ventes hors séjour ».
@@ -46,15 +50,32 @@ function register(ctx) {
     get.reset = () => { built = null; };
     return get;
   };
-  const bookings = lazy(() => bookingsModel.create(ctx.db, { standaloneVatRate }));
+  // specs/outside-booking-sas.md — the visit of an outside client: its money is the core's sale document, read and written through the visit model.
+  let visits = null;
+  // Loop t1 B-3 (pricing-components rules 61, 88, outside-booking-sas rule 28) — one rate per (class, context): the rate typed on the catalogue for the
+  // `resources` class wins over the plugin's setting, as the core's settings provider reads it, so a session paid in the booking dialog and one sold at
+  // the visit's mini SAS are booked and invoiced at the same rate.
+  const outsideVatRate = () => outsideVatRateOf(ctx.db, standaloneVatRate);
+  const bookings = lazy(() => bookingsModel.create(ctx.db, { standaloneVatRate: outsideVatRate, visits: () => visits() }));
+  visits = lazy(() => createVisitModel({ db: ctx.db, bookings }));
   const scheduling = lazy(() => schedulingModel.create(ctx.db));
   const planningCards = lazy(() => planningCardsModel.buildModel(ctx.db));
   const reservations = sdk.coreModule('reservationsModel');
-  const invoicing = lazy(() => createInvoicing({ bookings }));
+  const invoicing = lazy(() => createInvoicing({ bookings, visits }));
   const controller = lazy(() => createController({ bookings, scheduling, planningCards, reservations, invoicing }));
+  const visitController = lazy(() => createVisitController({ bookings, visits, invoicing, bookingPayload: (booking, req) => controller().bookingPayload(booking, req) }));
 
   // Rules 20-21 — the sales made outside any stay, for the journal and the card batch.
   ctx.standaloneSales((window) => (hasTable(ctx.db, 'resource_bookings') ? bookings().standaloneSales(window) : []));
+  // The outside-visit spec rule 37 — the resources sold by the hour are the contexts of the generic « Proposés à l'arrivée » lists (kind `resource`); the lists
+  // themselves are the core's `suggested_articles` rows, never a setting of this plugin.
+  ctx.suggestionContexts({
+    kind: 'resource',
+    label: 'Ressources à l’heure',
+    list: () => (hasTable(ctx.db, 'resources')
+      ? ctx.db.prepare("SELECT id, name AS label FROM resources WHERE priceType = 'per_hour' AND showsPlanningCard = 1 ORDER BY name, id").all()
+      : []),
+  });
   // Rules 18, A2 — the attachments still to join, the invoices cancelled by hand in Qonto.
   ctx.jobs.every({ name: 'resource-invoices-watch', intervalMs: 60 * 60 * 1000, bootDelayMs: 5 * 60 * 1000, run: () => invoicing().watch() });
 
@@ -68,7 +89,7 @@ function register(ctx) {
 
   // Rule 10 — the external bookings, the SAS picker's free slots and the planning cards, at their
   // current URLs.
-  ctx.mount('/api/resource-bookings', buildRouter(controller));
+  ctx.mount('/api/resource-bookings', buildRouter(controller, visitController));
   ctx.route('get', '/api/resources/:id/free-slots', (req, res) => controller().freeSlots(req, res));
   ctx.route('get', '/api/planning/resource-cards', (req, res) => controller().resourceCards(req, res));
   ctx.route('post', '/api/planning/resource-cards/done', (req, res) => controller().setResourceCardDone(req, res));
@@ -76,6 +97,12 @@ function register(ctx) {
   ctx.reception([
     { method: 'POST', re: /^\/planning\/resource-cards\/done$/ },
     { method: 'GET', re: /^\/resource-bookings\/planning-events$/ },
+    // specs/outside-booking-sas.md rule 7 — the reception runs the mini SAS inside the day window; paid lines and refunds stay the administrator's (403 in the controller).
+    { method: 'GET', re: /^\/resource-bookings\/\d+\/visit(\/articles)?$/ },
+    { method: 'POST', re: /^\/resource-bookings\/\d+\/visit(\/quote|\/payment)?$/ },
+    { method: 'PATCH', re: /^\/resource-bookings\/\d+\/visit\/lines\/\d+$/ },
+    { method: 'POST', re: /^\/resource-bookings\/\d+\/visit\/payment-link(\/\d+\/email)?$/ },
+    { method: 'DELETE', re: /^\/resource-bookings\/\d+\/visit\/payment-link\/\d+$/ },
   ]);
 
   // specs/guest-app.md rules 28-31 — the slots a guest books from the app, read from this planning.
@@ -83,7 +110,12 @@ function register(ctx) {
   ctx.resourceScheduler({
     slotsForStay: (args) => scheduler().slotsForStay(args),
     validateSessions: (args) => scheduler().validateSessions(args),
+    orderSupplement: (args) => scheduler().orderSupplement(args),
   });
+  // Rules 48-49 of the pricing components — the planning's availability, and the booking a sale of an hourly resource takes.
+  const slotAvailability = createSlotAvailability(scheduler);
+  ctx.slotAvailability(slotAvailability);
+  ctx.articleFulfilment('hourly-slot', createBathFulfilment({ slotAvailability }));
 
   // Rule 12 — the « Planifier » step of the arrival SAS.
   const sasStep = createSasStep({ scheduling, reservations });
@@ -111,14 +143,14 @@ function register(ctx) {
         const unledgered = paidRows.filter((row) => !onTheBooks(row));
         if (sold.length > 0) {
           lines.push({
-            label: `${plural(sold.length, 'réservation hors séjour', 'réservations hors séjour')}, ${euros(sum(sold))} encaissés, retirés de l’export comptable`,
+            label: `${plural(sold.length, 'réservation hors séjour', 'réservations hors séjour')}, ${eurosText(sum(sold))} encaissés, retirés de l’export comptable`,
             count: sold.length,
             warning: true,
           });
         }
         if (unledgered.length > 0) {
           lines.push({
-            label: `${plural(unledgered.length, 'réservation hors séjour', 'réservations hors séjour')}, ${euros(sum(unledgered))} encaissés, absents de la compta`,
+            label: `${plural(unledgered.length, 'réservation hors séjour', 'réservations hors séjour')}, ${eurosText(sum(unledgered))} encaissés, absents de la compta`,
             count: unledgered.length,
             warning: true,
           });
@@ -128,6 +160,20 @@ function register(ctx) {
           : 0;
         if (invoiced > 0) {
           lines.push({ label: `${plural(invoiced, 'facture Qonto émise', 'factures Qonto émises')} : elles restent dans Qonto`, count: invoiced, warning: true });
+        }
+        // Loop t1 D-4 — since 4.2.0 a visit's money lives on its sale document: received, and owed back, it stays with the core's sale (the counter lists it).
+        if (hasTable(db, 'standalone_sales') && hasColumn(db, 'resource_bookings', 'saleRef')) {
+          const money = db.prepare(`SELECT COUNT(DISTINCT s.id) AS n, COALESCE(SUM(p.receivedCents), 0) AS cents FROM standalone_sales s
+            JOIN resource_bookings b ON b.saleRef = 'standalone:' || s.id JOIN standalone_sale_payments p ON p.saleId = s.id`).get();
+          const owed = db.prepare(`SELECT COALESCE(SUM(o.amountCents), 0) AS cents FROM standalone_sale_obligations o
+            JOIN resource_bookings b ON b.saleRef = 'standalone:' || o.saleId WHERE o.status = 'open'`).get().cents;
+          if (money.cents > 0) {
+            lines.push({
+              label: `${plural(money.n, 'visite', 'visites')} hors séjour, ${eurosText(money.cents / 100)} encaissés sur leur vente${owed > 0 ? `, dont ${eurosText(owed / 100)} à rembourser` : ''} : la vente reste dans « Ventes hors séjour »`,
+              count: money.n,
+              warning: true,
+            });
+          }
         }
         const unpaid = all - paidRows.length;
         if (unpaid > 0) lines.push({ label: plural(unpaid, 'réservation hors séjour', 'réservations hors séjour'), count: unpaid });
@@ -141,6 +187,8 @@ function register(ctx) {
     purge: (db) => {
       resetHourlyColumns(db);
       bookings.reset();
+      visits.reset();
+      visitController.reset();
       invoicing.reset();
       scheduling.reset();
       planningCards.reset();

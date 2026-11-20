@@ -193,6 +193,8 @@ test('GET editLock — locked, editable, and the floor of each arrival line (rul
       'custom:bouteille de vin': { minQuantity: 1, frozen: true, reason: 'arrival' },
     },
     frozenCustomOptionIds: db.prepare('SELECT id FROM reservation_custom_options WHERE reservationId = ?').all(id).map((r) => r.id),
+    // pricing-components rule 123 — no note nor collected complement pays a free line here.
+    paidCustomOptionIds: [],
   });
 });
 

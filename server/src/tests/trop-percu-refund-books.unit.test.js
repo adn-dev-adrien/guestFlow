@@ -66,7 +66,7 @@ test('rule 36 — 465,60 € paid, reduced, 110,40 € refunded: every surface r
   refunds.create({
     params: { id },
     body: {
-      refundDate: inDays(-16), method: 'transfer', reason: 'Trop-perçu',
+      refundDate: inDays(-16), method: 'transfer', reason: 'Trop-perçu', fromOverpayment: true,
       lines: refused.body.overpaymentLines.map((l) => ({ label: 'Trop-perçu', bucket: l.bucket, amountTtc: l.amountTtc })),
     },
   }, refunded);

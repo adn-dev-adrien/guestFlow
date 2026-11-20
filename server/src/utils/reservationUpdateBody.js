@@ -5,6 +5,9 @@
  * (`client/src/utils/bookingFormHydration.js`) and save (`ReservationPage.jsx` handleSaveReservation)
  * mappings. The paid flags are not in it: the update reads them from the stored row anyway.
  *
+ * Each stored catalogue line travels with its `lineId` (and its own `offered`): a stay that sold an article twice holds two lines, and a
+ * save addresses each by its identity (specs/pricing-components.md §3 rule 85). A line the caller appends carries `newLine: true`.
+ *
  * @param {object} reservation  `reservationsModel.getByIdWithDetails(id)`
  * @param {Set<number>} autoEnabledOptionIds  option ids the engine adds itself (`options.autoEnabled = 1`)
  */
@@ -42,6 +45,8 @@ function toUpdateBody(reservation, autoEnabledOptionIds = new Set()) {
       .map((o) => Number(o.optionId)),
     totalPrice: r.totalPrice,
     discountPercent: r.discountPercent,
+    discountTarget: r.discountTarget,
+    discountAmountCents: r.discountAmountCents,
     finalPrice: r.finalPrice,
     customPrice: r.customPrice,
     extraGuestSurchargeOffered: r.extraGuestSurchargeOffered,
@@ -67,6 +72,7 @@ function toUpdateBody(reservation, autoEnabledOptionIds = new Set()) {
     notes: r.notes,
     offeredOptionIds: catalogueLines.filter((o) => Boolean(o.offered)).map((o) => o.optionId),
     options: catalogueLines.filter((o) => !isAuto(o)).map((o) => ({
+      ...(o.lineId != null ? { lineId: Number(o.lineId), offered: Boolean(o.offered) } : {}),
       optionId: o.optionId,
       quantity: o.quantity,
       inComplement: Number(o.inComplement || 0) === 1 ? 1 : 0,
@@ -83,6 +89,7 @@ function toUpdateBody(reservation, autoEnabledOptionIds = new Set()) {
       inComplement: Number(o.inComplement || 0) === 1 ? 1 : 0,
     })),
     resources: (r.resources || []).map((rr) => ({
+      ...(rr.lineId != null ? { lineId: Number(rr.lineId) } : {}),
       resourceId: rr.resourceId,
       quantity: rr.quantity,
       unitPrice: rr.unitPrice,

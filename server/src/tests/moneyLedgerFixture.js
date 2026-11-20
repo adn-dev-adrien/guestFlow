@@ -96,9 +96,9 @@ const keyOf = (id, label) => {
   return line ? line.key : null;
 };
 
-function refund(id, lines, method = 'transfer') {
+function refund(id, lines, method = 'transfer', extra = {}) {
   const res = respond();
-  refundsController.create({ params: { id }, body: { refundDate: TODAY, method, reason: 'p', lines } }, res);
+  refundsController.create({ params: { id }, body: { refundDate: TODAY, method, reason: 'p', lines, ...extra } }, res);
   return res;
 }
 

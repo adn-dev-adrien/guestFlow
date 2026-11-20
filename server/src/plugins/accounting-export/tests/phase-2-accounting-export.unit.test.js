@@ -205,7 +205,7 @@ test('specs/plugins-phase-2-hosts.md rule 19 — the four account and VAT settin
   // specs/mollie-rolling-reserve-and-incoming-payments.md rule 28.
   assert.deepEqual(Object.keys(res.body).sort(), [
     'accommodationAccount', 'activitiesAccount', 'cancellationCompensationAccount', 'commissionVatAccount',
-    'complementaryAccount', 'defaultCommissionAccountNumber', 'discountAccount', 'journalCode',
+    'complementaryAccount', 'defaultCommissionAccountNumber', 'discountAccount', 'drinksRevenueAccount', 'journalCode',
     'mollieBankAccount', 'mollieClearingAccount', 'mollieExportBank', 'mollieFeeAccount', 'mollieJournalCode', 'platformPenaltyAccount', 'tipAccount',
     'touristTaxAccount', 'vat10Account', 'vat20Account', 'vatRateCancellationCompensation', 'vatRateCommission',
   ]);

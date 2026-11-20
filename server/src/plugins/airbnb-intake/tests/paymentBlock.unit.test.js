@@ -3,7 +3,11 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
-const { paymentBlock } = require('../paymentBlock');
+const { paymentBlock: block } = require('../paymentBlock');
+const { computePlatformCommission } = require('../../../utils/platformCommission');
+
+// The core's PLATFORM PAYMENT, as the SDK hands it to the plugin.
+const paymentBlock = (booking, options) => block(booking, { platformCommission: computePlatformCommission, ...options });
 
 const LOUIS = { total: 1236.26, payout: 1028.44, guestTaxes: 81.66, hostTaxes: 52.8, hostFee: 178.96 };
 const NICOLAS = { total: 868.87, payout: 704.22, guestTaxes: 63.87, hostTaxes: 24, hostFee: 124.78 };
@@ -29,4 +33,13 @@ test('rule 10: outside the `platform` tax mode the box stays empty', () => {
   assert.equal(r.taxLeftEmpty, true);
   assert.equal(r.block.platformTouristTaxAmount, null);
   assert.equal(r.block.platformGrossAmount, 1236.26);
+});
+
+test('specs/pricing-components.md rule 70 — the commission is the core\'s PLATFORM PAYMENT (SDK platformCommission), never worked out here', () => {
+  const booking = { total: 1236.26, payout: 1028.44, guestTaxes: 81.66, hostTaxes: 52.8, hostFee: 178.96 };
+  const seen = [];
+  const spy = (figures) => { seen.push(figures); return computePlatformCommission(figures); };
+  assert.equal(block(booking, { withholds: true, platformCommission: spy }).ok, true);
+  assert.deepEqual(seen, [{ gross: 1236.26, payout: 1028.44, touristTax: 28.86 }]);
+  assert.equal(block(booking, { withholds: true, platformCommission: () => null }).ok, false, 'a figure missing: refused');
 });

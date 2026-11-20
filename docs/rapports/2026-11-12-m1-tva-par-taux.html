@@ -1,0 +1,516 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>M1 — TVA par taux sur la fiche et le devis PDF</title>
+<style>
+:root{
+  --primary:#2F5D46; --primary-dark:#244A38; --honey:#C99038;
+  --paper:#F8F5EF; --card:#FFFFFF; --ink:#27251F; --mute:#6E6A5E;
+  --ok:#3E7D54; --ok-soft:#E6EFE7; --warn:#8F6A1D; --warn-soft:#F6EDD7;
+  --err:#A8433A; --err-soft:#F7E8E5; --info:#31556E; --info-soft:#E4EDF3;
+  --line:rgba(60,54,36,.10); --line-strong:rgba(60,54,36,.18);
+  --shadow:0 3px 16px rgba(60,54,36,.09);
+  --r:14px;
+  --serif:"Source Serif 4","Source Serif Pro",Georgia,"Times New Roman",serif;
+  --sans:Inter,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--paper);color:var(--ink);font:400 16px/1.55 var(--sans)}
+::selection{background:rgba(47,93,70,.18)}
+:focus-visible{outline:2px solid var(--primary);outline-offset:2px;border-radius:6px}
+a{color:var(--primary);text-underline-offset:3px}
+.wrap{max-width:1360px;margin:0 auto;padding:40px 24px 80px}
+.read{max-width:900px}
+h1{font:600 2rem/1.15 var(--serif);letter-spacing:-.01em;margin:0 0 .4rem}
+h2{font:600 1.35rem/1.25 var(--serif);margin:2.6rem 0 .8rem}
+h3{font:600 1.05rem/1.3 var(--serif);margin:1.4rem 0 .5rem}
+p{margin:.4rem 0 .8rem;max-width:72ch}
+.lede{color:var(--mute);font-size:1.02rem}
+.meta{display:flex;flex-wrap:wrap;gap:8px;margin:14px 0 0}
+.tag{display:inline-flex;align-items:center;gap:6px;font-size:.8rem;font-weight:600;padding:4px 10px;border-radius:999px;background:var(--card);border:1px solid var(--line)}
+.tag.ok{background:var(--ok-soft);border-color:transparent;color:#2c5b3c}
+.tag.warn{background:var(--warn-soft);border-color:transparent;color:var(--warn)}
+.tag.info{background:var(--info-soft);border-color:transparent;color:var(--info)}
+ul.tight{margin:.3rem 0 1rem;padding-left:1.2rem;max-width:72ch}
+ul.tight li{margin:.25rem 0}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+@media (max-width:820px){.grid2{grid-template-columns:1fr}}
+.panel{background:var(--card);border-radius:var(--r);box-shadow:var(--shadow);padding:18px 20px}
+.panel h3{margin-top:0}
+table.facts{width:100%;border-collapse:collapse;font-size:.92rem}
+table.facts th,table.facts td{text-align:left;vertical-align:top;padding:8px 10px;border-top:1px solid var(--line)}
+table.facts th{font-weight:600;color:var(--mute);width:28%}
+.scroll{overflow-x:auto;max-width:100%}
+code{font:500 .85em ui-monospace,SFMono-Regular,Menlo,monospace;background:rgba(60,54,36,.06);padding:1px 5px;border-radius:5px;overflow-wrap:anywhere}
+.note{font-size:.85rem;color:var(--mute);font-family:var(--sans);font-weight:500}
+
+/* Controls of the mock (not part of the screen) */
+.controls{display:flex;flex-wrap:wrap;gap:10px 12px;align-items:center;margin:8px 0 16px}
+.ctl-label{font-size:.78rem;font-weight:600;color:var(--mute);margin-right:-4px}
+.seg{display:inline-flex;flex-wrap:wrap;background:var(--card);border:1px solid var(--line-strong);border-radius:22px;padding:3px;max-width:100%}
+.seg button{font:600 .82rem var(--sans);border:0;background:transparent;color:var(--ink);padding:8px 13px;border-radius:999px;cursor:pointer;min-height:38px}
+.seg button[aria-pressed="true"]{background:var(--primary);color:#fff}
+.ghost{font:600 .82rem var(--sans);border:1px solid var(--line-strong);background:var(--card);color:var(--ink);padding:8px 14px;border-radius:999px;cursor:pointer;min-height:38px}
+.ghost.sim{border-style:dashed}
+.ghost:active,.seg button:active{transform:scale(.97)}
+
+/* Stage: same state, two widths */
+.stage{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,390px);gap:28px;align-items:start}
+.stage.only-desk{grid-template-columns:minmax(0,1fr)}
+.stage.only-desk>.col-phone{display:none}
+.stage.only-phone{grid-template-columns:minmax(0,390px);justify-content:center}
+.stage.only-phone>.col-desk{display:none}
+@media (max-width:1100px){.stage,.stage.only-phone{grid-template-columns:minmax(0,1fr)}}
+.stage>div{min-width:0}
+.frame-label{font-size:.8rem;font-weight:600;color:var(--mute);margin:0 0 8px}
+.desk{background:#E9E4DA;border-radius:18px;padding:22px 18px;min-width:0}
+.phone{width:390px;max-width:100%;height:800px;margin:0 auto;border-radius:44px;background:#1f1d19;padding:12px;box-shadow:0 12px 40px rgba(39,37,31,.22)}
+.phone .screen{height:100%;border-radius:34px;overflow:hidden auto;background:var(--paper);position:relative;overscroll-behavior:contain}
+@media (max-width:720px){.wrap{padding:28px 14px 64px}.desk{padding:12px 8px}.phone{border-radius:36px;padding:8px}.phone .screen{border-radius:28px}}
+
+/* App chrome (GuestFlow « Maison ») */
+.app{background:var(--paper);border-radius:12px;overflow:hidden;box-shadow:0 10px 36px rgba(60,54,36,.16);position:relative;min-height:200px}
+.phone .app{border-radius:0;box-shadow:none;min-height:100%}
+.appbar{background:var(--primary);color:#fff;display:flex;align-items:center;gap:10px;padding:0 16px;height:48px;font:600 .95rem var(--sans)}
+.appbar .dot{width:22px;height:22px;border-radius:6px;background:rgba(255,255,255,.18);display:grid;place-items:center;font-size:.7rem}
+.pab{position:sticky;top:0;z-index:3;display:flex;align-items:center;gap:8px;background:#fff;border-bottom:1px solid var(--line);padding:6px 14px;min-height:56px}
+.pab .t{font:600 1.05rem/1.2 var(--serif);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pab .sub{font:500 .75rem var(--sans);color:var(--mute)}
+.ib{width:44px;height:44px;border-radius:10px;border:1px solid var(--line-strong);background:#fff;display:inline-grid;place-items:center;cursor:pointer;color:var(--ink);position:relative;flex:none}
+.ib.info{border-color:var(--info);color:var(--info)}
+.ib.ok{border-color:var(--ok);color:var(--ok)}
+.ib.save{background:var(--primary);border-color:var(--primary);color:#fff}
+.ib:active{transform:scale(.96)}
+.ib[data-tip]:hover::after{content:attr(data-tip);position:absolute;top:50px;right:0;background:#3b3a36;color:#fff;font:500 .72rem var(--sans);padding:5px 8px;border-radius:6px;white-space:nowrap;z-index:9}
+.content{padding:16px}
+.phone .content{padding:12px}
+
+/* Cards, rows, chips, buttons */
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px 16px;margin-bottom:12px}
+.phone .card{padding:12px}
+.card-h{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin:0 0 6px}
+.card-h .ttl{font:600 1rem/1.3 var(--serif)}
+.sec-h{font:600 1rem/1.3 var(--serif);margin:12px 0 6px;display:flex;justify-content:space-between;align-items:baseline;gap:8px;flex-wrap:wrap}
+.box{border:1px solid var(--line-strong);border-radius:12px;padding:6px 12px;background:#fff}
+.row{display:flex;flex-wrap:wrap;gap:6px 10px;align-items:center;justify-content:space-between;padding:8px 0;border-top:1px solid var(--line)}
+.row:first-child{border-top:0}
+.row .l{min-width:0;flex:1 1 170px}
+.row>.acts{margin-left:auto}
+.row .nm{font-weight:500;overflow-wrap:anywhere}
+.row .dt{font-size:.8rem;color:var(--mute);font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
+.row.sub{padding-left:14px;border-top-style:dashed}
+.amt{font-variant-numeric:tabular-nums;white-space:nowrap;text-align:right}
+.amt.b{font-weight:700}
+.struck{text-decoration:line-through;color:#A39E90}
+.zero{font-weight:700;color:var(--ok)}
+.chips{display:flex;flex-wrap:wrap;gap:4px;margin-top:4px}
+.chip{display:inline-flex;align-items:center;font-family:var(--sans);font-size:.72rem;font-weight:600;padding:2px 8px;border-radius:999px;white-space:nowrap;border:1px solid var(--line-strong);background:#fff;color:var(--ink)}
+.chip.paid{background:var(--ok-soft);border-color:transparent;color:#2c5b3c}
+.chip.due{background:var(--warn-soft);border-color:transparent;color:var(--warn)}
+.chip.off{background:var(--info-soft);border-color:transparent;color:var(--info)}
+.chip.err{background:var(--err-soft);border-color:transparent;color:var(--err)}
+.chip.new{background:#FBF3E4;border-color:transparent;color:#8a5d17}
+.btn{font:600 .82rem var(--sans);border-radius:10px;border:1px solid var(--line-strong);background:var(--card);color:var(--ink);padding:0 12px;min-height:44px;min-width:44px;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:6px;text-align:center}
+.btn:active{transform:scale(.97)}
+.btn.primary{background:var(--primary);border-color:var(--primary);color:#fff}
+.btn.primary:hover{background:var(--primary-dark)}
+.btn.offer{border-color:var(--ok);color:var(--ok)}
+.btn.offer[aria-pressed="true"]{background:var(--ok);color:#fff}
+.btn.danger{color:var(--err);border-color:rgba(168,67,58,.45)}
+.btn.quiet{border-color:transparent;background:transparent;color:var(--primary)}
+.btn[disabled]{opacity:.45;cursor:not-allowed;transform:none}
+.btn.full{width:100%}
+.acts{display:flex;gap:6px;align-items:center;flex-wrap:wrap;justify-content:flex-end}
+.stepper{display:inline-flex;align-items:center;border:1px solid var(--line-strong);border-radius:10px;overflow:hidden;background:#fff;flex:none}
+.stepper button{border:0;background:transparent;width:44px;height:44px;cursor:pointer;display:grid;place-items:center;color:var(--ink);font:600 1.1rem var(--sans)}
+.stepper button[disabled]{opacity:.35;cursor:not-allowed}
+.stepper input{width:46px;border:0;text-align:center;font:600 .95rem var(--sans);font-variant-numeric:tabular-nums;background:transparent;color:var(--ink);height:44px;padding:0}
+.stepper.bad{border-color:var(--err);box-shadow:0 0 0 1px var(--err)}
+.field{display:block;margin:8px 0}
+.field>span{display:block;font-size:.78rem;font-weight:600;color:var(--mute);margin-bottom:4px}
+.field input,.field select,.field textarea{width:100%;min-height:44px;border:1px solid var(--line-strong);border-radius:10px;padding:0 12px;font:500 16px var(--sans);background:#fff;color:var(--ink)}
+.field textarea{padding:10px 12px;min-height:70px;resize:vertical}
+.field.bad input,.field.bad select,.field.bad textarea{border-color:var(--err);box-shadow:0 0 0 1px var(--err)}
+.help{font-size:.78rem;color:var(--mute);margin:4px 0 0}
+.refusal{font-size:.82rem;color:var(--err);margin:6px 0 0}
+.check{display:flex;gap:10px;align-items:center;font-size:.9rem;min-height:44px;cursor:pointer}
+.check input{width:20px;height:20px;accent-color:var(--primary);flex:none}
+.alert{border-radius:10px;padding:10px 12px;font-size:.86rem;margin:8px 0}
+.alert.warn{background:var(--warn-soft);color:#6d5216}
+.alert.ok{background:var(--ok-soft);color:#2c5b3c}
+.alert.err{background:var(--err-soft);color:#7d3029}
+.alert.info{background:var(--info-soft);color:#24435a}
+.alert .acts{justify-content:flex-start;margin-top:8px}
+.pills{display:flex;flex-wrap:wrap;gap:6px;margin:6px 0}
+.pills button{font:600 .82rem var(--sans);min-height:44px;padding:0 14px;border-radius:999px;border:1px solid var(--line-strong);background:#fff;cursor:pointer;color:var(--ink)}
+.pills button[aria-pressed="true"]{background:var(--primary);border-color:var(--primary);color:#fff}
+.pills button[disabled]{opacity:.45;cursor:not-allowed}
+.total-line{display:flex;justify-content:space-between;align-items:baseline;gap:8px;padding:4px 0}
+.total-line .k{color:var(--mute);font-size:.88rem}
+.total-line.big .k{color:var(--ink);font-weight:600;font-size:.95rem}
+.total-line.big .amt{font:700 1.3rem var(--sans);font-variant-numeric:tabular-nums}
+.divider{height:1px;background:var(--line);margin:8px 0}
+
+/* Dialog (FormDialog look), inside a frame */
+.scrim{position:absolute;inset:0;background:rgba(39,37,31,.38);display:flex;align-items:flex-start;justify-content:center;padding:32px 16px;z-index:10}
+.dlg{background:#fff;border-radius:14px;box-shadow:0 16px 48px rgba(39,37,31,.28);width:100%;max-width:620px;display:flex;flex-direction:column;max-height:100%;overflow:hidden}
+.dlg-h{display:flex;align-items:center;gap:8px;padding:14px 18px;border-bottom:1px solid var(--line)}
+.dlg-h .t{font:600 1.15rem/1.2 var(--serif);flex:1}
+.dlg-b{padding:12px 18px 16px;overflow-y:auto}
+.dlg-f{display:flex;gap:8px;justify-content:flex-end;padding:12px 18px;border-top:1px solid var(--line);flex-wrap:wrap}
+.phone .scrim{padding:0;background:#fff;position:absolute;min-height:100%}
+.phone .dlg{border-radius:0;box-shadow:none;max-height:none;min-height:100%}
+.phone .dlg-f{flex-direction:column-reverse}
+.phone .dlg-f .btn{width:100%}
+
+/* Decisions block */
+.q{background:var(--card);border-radius:var(--r);box-shadow:var(--shadow);padding:16px 18px;margin:12px 0}
+.q b.t{display:block;font:600 1rem/1.35 var(--serif);margin-bottom:4px}
+.q .why{font-size:.86rem;color:var(--mute);margin:0 0 8px}
+.opt{display:flex;gap:10px;align-items:flex-start;padding:10px 12px;border:1px solid var(--line-strong);border-radius:12px;margin:6px 0;cursor:pointer;background:#fff}
+.opt input{margin-top:4px;width:18px;height:18px;accent-color:var(--primary);flex:none}
+.opt.sel{border-color:var(--primary);box-shadow:0 0 0 1px var(--primary)}
+.opt .rec{font-size:.72rem;font-weight:700;color:var(--primary);background:var(--ok-soft);padding:1px 7px;border-radius:999px;margin-left:4px;white-space:nowrap}
+.opt small{display:block;color:var(--mute);font-size:.83rem;margin-top:2px}
+.summary{margin-top:14px}
+.summary textarea{width:100%;min-height:110px;font:500 .82rem ui-monospace,Menlo,monospace;border:1px solid var(--line-strong);border-radius:10px;padding:10px;background:#fff;color:var(--ink)}
+.added{animation:rise .16s ease-out}
+@keyframes rise{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+@media (prefers-reduced-motion:reduce){.added{animation:none}.btn:active,.ghost:active,.seg button:active,.ib:active{transform:none}}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+.card.mock{border-style:dashed;background:#FCFAF5}
+.card.mock .ttl::after{content:' · maquette seulement';font:500 .72rem var(--sans);color:var(--mute)}
+.simbar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:0 0 14px;padding:8px 10px;border:1px dashed var(--line-strong);border-radius:12px}
+.sec-h .note{font-family:var(--sans);font-weight:500}
+
+.split{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.1fr);gap:16px;align-items:start}
+@media (max-width:980px){.split{grid-template-columns:minmax(0,1fr)}}
+.phone .split{display:block}
+.pdf{background:#fff;border:1px solid var(--line-strong);border-radius:4px;box-shadow:0 6px 20px rgba(39,37,31,.12);padding:22px 22px 26px;font:400 11px/1.45 Helvetica,Arial,sans-serif;color:#222;min-width:0}
+.phone .pdf{padding:14px 12px;font-size:9.5px;margin-top:12px}
+.pdf .ph{font-weight:700;font-size:1.05em;letter-spacing:.04em;color:#2F5D46;margin:12px 0 6px}
+.pdf table{width:100%;border-collapse:collapse;table-layout:fixed}
+.pdf th{font-weight:700;text-align:right;border-bottom:1.5px solid #2F5D46;padding:4px 3px;font-size:.92em}
+.pdf th:first-child,.pdf td:first-child{text-align:left}
+.pdf td{padding:4px 3px;border-bottom:1px solid #e6e2d8;text-align:right;font-variant-numeric:tabular-nums;vertical-align:top;overflow-wrap:anywhere}
+.pdf .tot{width:62%;margin-left:auto;margin-top:8px}
+.phone .pdf .tot{width:100%}
+.pdf .tot td{border:0;padding:2px 3px}
+.pdf .tot tr.vat td{color:#2F5D46}
+.pdf .tot tr.grand td{font-weight:700;border-top:1.5px solid #2F5D46;padding-top:5px;font-size:1.08em}
+.pdf .recap{margin-top:12px;width:70%}
+.phone .pdf .recap{width:100%}
+.pdf .recap caption{text-align:left;font-weight:700;padding-bottom:3px}
+.pdf .mention{margin-top:10px;font-style:italic;color:#444}
+.pdf .head{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap}
+.pdf .head b{font-size:1.25em;color:#2F5D46}
+.hl{background:#FBF3E4;outline:1px dashed #C99038;outline-offset:1px}
+.check-ok{display:flex;gap:6px;align-items:center;font-size:.78rem;color:#2c5b3c;background:var(--ok-soft);border-radius:8px;padding:6px 10px;margin-top:8px;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
+.ctlbox{display:flex;flex-wrap:wrap;gap:10px 14px;align-items:flex-end}
+.ctlbox .field{margin:0}
+.ctlbox .field input{width:110px}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header class="read">
+  <h1>M1 — La TVA par taux, sur la fiche et sur le devis</h1>
+  <p class="lede">Maquette à valider avant le code de la PR C (règle 15 de la refonte des prix, décision D12). Le Markdown <code>specs/pricing-components.md</code> reste la référence.</p>
+  <div class="meta"><span class="tag info">PR C · commit C24</span><span class="tag">Fiche · Devis PDF</span><span class="tag warn">Les octets des devis de référence changent (classe C-E8)</span></div>
+</header>
+
+<section class="read">
+  <h2>Le constat</h2>
+  <p>La fiche affiche « Total HT » et une seule ligne « TVA 10 % ». Le devis PDF porte une colonne « TVA % » par ligne, mais ses totaux ne donnent aucun montant de TVA. Tant que tout est à 10 %, ça passe. Dès qu’un article passe dans une autre classe (les boissons à 20 %, pour la vente hors séjour et la boutique), une seule ligne « TVA » devient fausse ou illisible.</p>
+  <h2>Ce qu’on propose</h2>
+  <p>Une ligne de TVA par taux, sur la fiche comme sur le devis. Chaque montant vient du composant TVA du serveur : la TVA est arrondie une fois par groupe, puis répartie sur les lignes. La somme des lignes tombe donc juste, au centime. Changez les quantités, le taux ou le régime : les deux écrans suivent.</p>
+</section>
+
+<div class="controls" id="ctl" data-frame="ctl"></div>
+<div class="stage">
+  <div class="col-desk"><p class="frame-label">Ordinateur · fiche de réservation et devis PDF</p><div class="desk"><div id="f-desk" data-frame="desk"></div></div></div>
+  <div class="col-phone"><p class="frame-label">Téléphone · 390 px</p><div class="phone"><div class="screen" id="f-phone" data-frame="phone"></div></div></div>
+</div>
+
+<section class="read">
+  <h2>Ce qu’on ne fait pas</h2>
+  <ul class="tight">
+    <li>Aucun réglage de taux dans cette maquette au-delà du champ de démonstration : les trois champs du catalogue sont dans M4.</li>
+    <li>Pas de TVA par ligne dans le récapitulatif de la fiche : la colonne « TVA % » du devis suffit.</li>
+    <li>Aucun devis déjà envoyé n’est régénéré : seul un nouvel export prend le nouveau gabarit.</li>
+  </ul>
+  <h2>Le risque</h2>
+  <table class="facts">
+    <tr><th>Devis de référence</th><td>Les PDF de référence des tests changent d’octets (classe C-E8). La liste est jointe au point de contrôle CP2 (M7).</td></tr>
+    <tr><th>Un seul taux</th><td>Sur un séjour à 10 % seulement, le seul changement visible est la ligne « TVA 10 % » avec son montant sur le devis. Aucun montant ne bouge.</td></tr>
+    <tr><th>Sans TVA</th><td>Le régime « Sans TVA » garde sa mention légale et une seule colonne « Total » : aucune ligne de TVA n’apparaît.</td></tr>
+  </table>
+  <h2>À décider</h2>
+  <div id="questions"></div>
+</section>
+</div>
+<script>
+/* Shared helpers of the PR C mocks: money display, escaping, one state rendered into both frames, delegated events. */
+var GF = (function(){
+  'use strict';
+  var acts = {}, inputs = {}, renderers = [], view = 'both';
+  function eur(c){
+    var neg = c < 0; c = Math.abs(Math.round(c));
+    var s = (c / 100).toFixed(2).split('.');
+    s[0] = s[0].replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
+    return (neg ? '−' : '') + s[0] + ',' + s[1] + ' €';
+  }
+  function esc(s){ return String(s == null ? '' : s).replace(/[&<>"]/g, function(ch){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[ch]; }); }
+  function parseQty(text, min, max){
+    var t = String(text).trim();
+    if (t === '') return {error: 'Quantité requise.'};
+    if (!/^\d+$/.test(t)) return {error: 'Quantité : un nombre entier.'};
+    var n = parseInt(t, 10);
+    if (n < min || n > max) return {error: 'Quantité : ' + min + ' à ' + max + '.'};
+    return {n: n};
+  }
+  function parseAmount(text){
+    var t = String(text).trim().replace(/[\s  ]/g, '').replace(',', '.').replace(/€$/, '');
+    if (t === '') return {empty: true};
+    if (!/^\d+(\.\d{1,2})?$/.test(t)) return {bad: true};
+    return {cents: Math.round(parseFloat(t) * 100)};
+  }
+  function centsText(c){ return (c / 100).toFixed(2).replace('.', ','); }
+  function validEmail(t){ return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(String(t).trim()); }
+  // VAT once per rate group (pricing rule 62): round(ttc × rate / (100 + rate)), then HT = TTC − VAT.
+  function vatOfGroup(ttc, rate){ return rate > 0 ? Math.round(ttc * rate / (100 + rate)) : 0; }
+  // Largest remainder: shares of `total` over `weights`, summing exactly to `total` (pricing rule 40).
+  function allocate(total, weights){
+    var sum = weights.reduce(function(s, w){ return s + w; }, 0);
+    if (!sum) return weights.map(function(){ return 0; });
+    var raw = weights.map(function(w){ return total * w / sum; });
+    var base = raw.map(function(x){ return Math.floor(x); });
+    var left = total - base.reduce(function(s, x){ return s + x; }, 0);
+    var order = raw.map(function(x, i){ return {i: i, r: x - Math.floor(x)}; }).sort(function(a, b){ return b.r - a.r || a.i - b.i; });
+    for (var k = 0; k < left; k++) base[order[k % order.length].i]++;
+    return base;
+  }
+  function on(name, fn){ acts[name] = fn; }
+  function onInput(name, fn){ inputs[name] = fn; }
+  function frame(id, fn){ renderers.push({id: id, fn: fn}); }
+  function refresh(){
+    var a = document.activeElement, keep = null;
+    if (a && a.getAttribute && a.getAttribute('data-in')) {
+      var fr = a.closest('[data-frame]');
+      keep = {key: a.getAttribute('data-in'), id: a.getAttribute('data-id') || '', frame: fr ? fr.id : '', s: a.selectionStart, e: a.selectionEnd};
+    }
+    renderers.forEach(function(r){ var el = document.getElementById(r.id); if (el) el.innerHTML = r.fn(el.getAttribute('data-frame')); });
+    if (keep) {
+      var root = keep.frame ? document.getElementById(keep.frame) : document;
+      var sel = '[data-in="' + keep.key + '"]' + (keep.id ? '[data-id="' + keep.id + '"]' : '');
+      var el = root && root.querySelector(sel);
+      if (el) { el.focus(); try { if (keep.s != null) el.setSelectionRange(keep.s, keep.e); } catch (e) {} }
+    }
+  }
+  document.addEventListener('click', function(ev){
+    var el = ev.target.closest('[data-act]');
+    if (!el || el.disabled) return;
+    var fn = acts[el.getAttribute('data-act')];
+    if (fn) { ev.preventDefault(); fn(el, ev); refresh(); }
+  });
+  function handleInput(ev){
+    var el = ev.target.closest('[data-in]');
+    if (!el) return;
+    var fn = inputs[el.getAttribute('data-in')];
+    if (!fn) return;
+    if (ev.type === 'input' && (el.type === 'checkbox' || el.tagName === 'SELECT')) return;
+    if (ev.type === 'change' && el.type !== 'checkbox' && el.tagName !== 'SELECT') return;
+    fn(el.type === 'checkbox' ? el.checked : el.value, el, ev);
+    refresh();
+  }
+  document.addEventListener('input', handleInput);
+  document.addEventListener('change', handleInput);
+  on('view', function(el){
+    var st = document.querySelector('.stage'); var v = el.getAttribute('data-v'); view = v;
+    st.classList.toggle('only-desk', v === 'desk'); st.classList.toggle('only-phone', v === 'phone');
+    el.parentNode.querySelectorAll('button').forEach(function(b){ b.setAttribute('aria-pressed', String(b === el)); });
+  });
+  function seg(group, current, options, act){
+    return '<div class="seg" role="group" aria-label="' + esc(group) + '">' + options.map(function(o){
+      return '<button data-act="' + act + '" data-v="' + o[0] + '" aria-pressed="' + (o[0] === current) + '">' + esc(o[1]) + '</button>';
+    }).join('') + '</div>';
+  }
+  // Decision block: options to click, a summary to copy into the chat.
+  function questions(containerId, mockName, list){
+    var picks = {};
+    var box = document.getElementById(containerId);
+    function draw(){
+      var h = [];
+      list.forEach(function(q, qi){
+        h.push('<div class="q"><b class="t">' + (qi + 1) + '. ' + esc(q.t) + '</b><p class="why">' + q.why + '</p>');
+        q.opts.forEach(function(o){
+          var sel = picks[q.id] === o.v;
+          h.push('<label class="opt' + (sel ? ' sel' : '') + '"><input type="radio" name="' + q.id + '" data-q="' + q.id + '" value="' + o.v + '"' + (sel ? ' checked' : '') + '><span><b>' + o.v + '.</b> ' + esc(o.label) + (o.rec ? ' <span class="rec">Recommandé</span>' : '') + (o.detail ? '<small>' + o.detail + '</small>' : '') + '</span></label>');
+        });
+        h.push('</div>');
+      });
+      var lines = list.map(function(q, qi){
+        var o = q.opts.filter(function(x){ return x.v === picks[q.id]; })[0];
+        return mockName + ' · ' + (qi + 1) + '. ' + q.t + ' → ' + (o ? o.v + ' (' + o.label + ')' : 'non tranché');
+      });
+      h.push('<div class="summary"><p class="note">Les choix ci-dessus, à recopier dans la conversation :</p><textarea readonly aria-label="Résumé des choix">' + esc(lines.join('\n')) + '</textarea><div class="acts" style="justify-content:flex-start;margin-top:6px"><button class="ghost" id="copy-' + containerId + '">Copier</button><span class="note" id="copied-' + containerId + '"></span></div></div>');
+      box.innerHTML = h.join('');
+      document.getElementById('copy-' + containerId).onclick = function(){
+        var ta = box.querySelector('textarea'); ta.select();
+        var ok = false; try { ok = document.execCommand('copy'); } catch (e) {}
+        document.getElementById('copied-' + containerId).textContent = ok ? 'Copié.' : 'Sélectionné : copier au clavier.';
+      };
+    }
+    box.addEventListener('change', function(ev){ var r = ev.target; if (r.getAttribute('data-q')) { picks[r.getAttribute('data-q')] = r.value; draw(); } });
+    draw();
+  }
+  return {eur: eur, esc: esc, parseQty: parseQty, parseAmount: parseAmount, centsText: centsText, validEmail: validEmail,
+    vatOfGroup: vatOfGroup, allocate: allocate, on: on, onInput: onInput, frame: frame, refresh: refresh, seg: seg, questions: questions, getView: function(){ return view; },
+    viewSeg: function(){ return '<span class="ctl-label">Écran</span>' + seg('Largeur', view, [['both','Les deux'],['desk','Ordinateur'],['phone','Téléphone']], 'view'); }};
+})();
+
+(function(){
+  'use strict';
+  var eur = GF.eur, esc = GF.esc;
+  var S;
+  function fresh(){ S = {mixed: true, regime: 'subject', layout: 'recap', beerText: '4', beer: 4, beerErr: null, drinksText: '20', drinksRate: 20, rateErr: null}; }
+  fresh();
+
+  function lines(){
+    var r = S.mixed ? S.drinksRate : 10;
+    var L = [
+      {label: 'Hébergement — 3 nuits (Moyenne saison)', qty: '3', ttc: 42000, cls: 'accommodation', rate: 10},
+      {label: 'Petit-déjeuner — 2 pers. × 3 matins', qty: '6', ttc: 7200, cls: 'options', rate: 10},
+      {label: 'Ménage de fin de séjour', qty: '1', ttc: 6000, cls: 'options', rate: 10}
+    ];
+    if (S.beer > 0) L.push({label: 'Bière locale', qty: String(S.beer), ttc: S.beer * 650, cls: S.mixed ? 'drinks' : 'options', rate: r});
+    L.push({label: 'Planche apéritive', qty: '1', ttc: 1400, cls: S.mixed ? 'drinks' : 'options', rate: r});
+    return L;
+  }
+  var TAX = 660;
+  // VAT component: one rounding per (class, rate) group, allocation over the group's lines, then rows per rate.
+  function vat(){
+    var L = lines(), groups = {};
+    L.forEach(function(l, i){ var k = l.cls + '|' + l.rate; (groups[k] = groups[k] || {rate: l.rate, idx: [], ttc: 0}); groups[k].idx.push(i); groups[k].ttc += l.ttc; });
+    Object.keys(groups).forEach(function(k){
+      var g = groups[k], v = GF.vatOfGroup(g.ttc, g.rate);
+      var shares = GF.allocate(v, g.idx.map(function(i){ return L[i].ttc; }));
+      g.idx.forEach(function(i, j){ L[i].vat = shares[j]; L[i].ht = L[i].ttc - shares[j]; });
+    });
+    var byRate = {};
+    L.forEach(function(l){ var b = (byRate[l.rate] = byRate[l.rate] || {rate: l.rate, ttc: 0, vat: 0, ht: 0}); b.ttc += l.ttc; b.vat += l.vat; b.ht += l.ht; });
+    var rates = Object.keys(byRate).map(Number).sort(function(a, b){ return a - b; }).map(function(k){ return byRate[k]; });
+    var ttc = L.reduce(function(s, l){ return s + l.ttc; }, 0), ht = L.reduce(function(s, l){ return s + l.ht; }, 0);
+    return {lines: L, rates: rates, ttc: ttc, ht: ht, vat: ttc - ht};
+  }
+
+  function controls(){
+    return GF.viewSeg() +
+      '<span class="ctl-label">Séjour</span>' + GF.seg('Séjour', S.mixed ? 'mixed' : 'single', [['mixed','Deux taux (boissons à part)'],['single','Un seul taux']], 'mixed') +
+      '<span class="ctl-label">Régime</span>' + GF.seg('Régime', S.regime, [['subject','Assujetti'],['none','Sans TVA']], 'regime') +
+      '<span class="ctl-label">Devis</span>' + GF.seg('Devis', S.layout, [['recap','Tableau de TVA'],['rows','Lignes dans les totaux']], 'layout') +
+      '<button class="ghost" data-act="reset">Recommencer</button>';
+  }
+
+  function fiche(v){
+    var V = vat(), h = [];
+    h.push('<div class="card"><div class="card-h"><span class="ttl">Récapitulatif du prix</span><span class="chip">Séjour #20412</span></div>');
+    V.lines.forEach(function(l){ h.push('<div class="total-line"><span class="k">' + esc(l.label) + '</span><span class="amt">' + eur(l.ttc) + '</span></div>'); });
+    h.push('<div class="total-line"><span class="k">Taxe de séjour</span><span class="amt">' + eur(TAX) + '</span></div><div class="divider"></div>');
+    if (S.regime === 'none') {
+      h.push('<p class="note" style="margin:4px 0">TVA non applicable, art. 293 B du CGI</p>');
+    } else {
+      h.push('<div class="total-line"><span class="k">Total HT</span><span class="amt">' + eur(V.ht) + '</span></div>');
+      V.rates.forEach(function(r){ h.push('<div class="total-line hl"><span class="k">TVA ' + r.rate + ' %<span class="note"> sur ' + eur(r.ht) + '</span></span><span class="amt">' + eur(r.vat) + '</span></div>'); });
+    }
+    h.push('<div class="divider"></div><div class="total-line big"><span class="k">Total du séjour</span><span class="amt">' + eur(V.ttc + TAX) + '</span></div>');
+    if (S.regime !== 'none') h.push('<div class="check-ok" role="status">Contrôle : ' + eur(V.ht) + ' HT + ' + V.rates.map(function(r){ return eur(r.vat); }).join(' + ') + ' TVA + ' + eur(TAX) + ' taxe = ' + eur(V.ttc + TAX) + ' ✓</div>');
+    h.push('</div>');
+    // Inputs of the demo: a quantity on the fiche, the drinks class rate
+    h.push('<div class="card mock"><div class="card-h"><span class="ttl">Pour essayer</span></div><div class="ctlbox">');
+    h.push('<label class="field' + (S.beerErr ? ' bad' : '') + '"><span>Bière locale (quantité)</span><input inputmode="numeric" data-in="beer" value="' + esc(S.beerText) + '" aria-invalid="' + !!S.beerErr + '"></label>');
+    if (S.mixed) h.push('<label class="field' + (S.rateErr ? ' bad' : '') + '"><span>Taux des boissons (%)</span><input inputmode="decimal" data-in="rate" value="' + esc(S.drinksText) + '" aria-invalid="' + !!S.rateErr + '"></label>');
+    h.push('</div>');
+    if (S.beerErr) h.push('<p class="refusal" role="alert">' + esc(S.beerErr) + '</p>');
+    if (S.rateErr) h.push('<p class="refusal" role="alert">' + esc(S.rateErr) + '</p>');
+    h.push('<p class="help">Un refus garde les derniers montants valides.</p></div>');
+    return h.join('');
+  }
+
+  function pdf(v){
+    var V = vat(), none = S.regime === 'none', h = [];
+    h.push('<div class="pdf" aria-label="Devis PDF, page 1"><div class="head"><b>Domaine — Devis n° D-2026-118</b><span>12/11/2026</span></div>');
+    h.push('<div class="ph">DÉTAIL TARIFAIRE</div><table><colgroup><col style="width:' + (none ? '64%' : '44%') + '"><col style="width:9%">' + (none ? '<col>' : '<col><col style="width:12%"><col>') + '</colgroup>');
+    h.push('<tr><th>Désignation</th><th>Qté</th>' + (none ? '<th>Total</th>' : '<th>Total HT</th><th>TVA %</th><th>Total TTC</th>') + '</tr>');
+    V.lines.forEach(function(l){
+      h.push('<tr><td>' + esc(l.label) + '</td><td>' + l.qty + '</td>' + (none ? '<td>' + eur(l.ttc) + '</td>' : '<td>' + eur(l.ht) + '</td><td>' + l.rate + ' %</td><td>' + eur(l.ttc) + '</td>') + '</tr>');
+    });
+    h.push('</table><table class="tot">');
+    if (!none) h.push('<tr><td>Sous-total HT</td><td>' + eur(V.ht) + '</td></tr>');
+    if (!none && S.layout === 'rows') V.rates.forEach(function(r){ h.push('<tr class="vat hl"><td>TVA ' + r.rate + ' %</td><td>' + eur(r.vat) + '</td></tr>'); });
+    h.push('<tr><td>' + (none ? 'Sous-total' : 'Sous-total TTC') + '</td><td>' + eur(V.ttc) + '</td></tr>');
+    h.push('<tr><td>Taxe de séjour<br><span style="color:#777">2 pers. × 3 nuits × 1,10 € / pers./nuit</span></td><td>' + eur(TAX) + '</td></tr>');
+    h.push('<tr class="grand"><td>' + (none ? 'TOTAL' : 'TOTAL TTC') + '</td><td>' + eur(V.ttc + TAX) + '</td></tr></table>');
+    if (!none && S.layout === 'recap') {
+      h.push('<table class="recap hl"><caption>Récapitulatif TVA</caption><tr><th>Taux</th><th>Base HT</th><th>TVA</th><th>TTC</th></tr>');
+      V.rates.forEach(function(r){ h.push('<tr><td>' + r.rate + ' %</td><td>' + eur(r.ht) + '</td><td>' + eur(r.vat) + '</td><td>' + eur(r.ttc) + '</td></tr>'); });
+      h.push('<tr><td><b>Total</b></td><td><b>' + eur(V.ht) + '</b></td><td><b>' + eur(V.vat) + '</b></td><td><b>' + eur(V.ttc) + '</b></td></tr></table>');
+      h.push('<p style="color:#777;margin:4px 0 0">La taxe de séjour n’est pas soumise à la TVA.</p>');
+    }
+    if (none) h.push('<p class="mention">TVA non applicable, art. 293 B du CGI</p>');
+    h.push('</div>');
+    return h.join('');
+  }
+
+  function screen(v){
+    var h = ['<div class="app">'];
+    if (v === 'desk') h.push('<div class="appbar"><span class="dot">GF</span>GuestFlow</div>');
+    h.push('<div class="pab"><span class="t">Réservation #20412<div class="sub">3 nuits · 2 adultes</div></span><button class="ib info" data-tip="Télécharger le devis PDF" aria-label="Télécharger le devis PDF">PDF</button><button class="ib save" aria-label="Enregistrer" data-tip="Enregistrer">✓</button></div>');
+    h.push('<div class="content"><div class="split"><div>' + fiche(v) + '</div><div><p class="note" style="margin:0 0 6px">Devis PDF · page 1 (extrait)</p>' + pdf(v) + '</div></div></div></div>');
+    return h.join('');
+  }
+
+  GF.frame('ctl', controls);
+  GF.frame('f-desk', screen);
+  GF.frame('f-phone', screen);
+  GF.on('mixed', function(el){ S.mixed = el.getAttribute('data-v') === 'mixed'; });
+  GF.on('regime', function(el){ S.regime = el.getAttribute('data-v'); });
+  GF.on('layout', function(el){ S.layout = el.getAttribute('data-v'); });
+  GF.on('reset', function(){ fresh(); });
+  GF.onInput('beer', function(val){
+    S.beerText = val; var p = GF.parseQty(val, 0, 24);
+    if (p.error) { S.beerErr = p.error; return; }
+    S.beerErr = null; S.beer = p.n;
+  });
+  GF.onInput('rate', function(val){
+    S.drinksText = val; var t = String(val).trim().replace(',', '.');
+    if (!/^\d+(\.\d)?$/.test(t) || parseFloat(t) > 100) { S.rateErr = 'Taux : 0 à 100 %, une décimale au plus.'; return; }
+    S.rateErr = null; S.drinksRate = parseFloat(t);
+  });
+  GF.refresh();
+
+  GF.questions('questions', 'M1', [
+    {id: 'fiche', t: 'Sur la fiche, combien de lignes de TVA ?', why: 'La fiche montre aujourd’hui « Total HT » puis « TVA 10 % ».',
+      opts: [
+        {v: 'A', label: 'Une ligne par taux, avec sa base (« TVA 20 % sur 26,33 € »), sans ligne « Total TVA »', rec: true, detail: 'Un séjour à un seul taux garde exactement l’écran d’aujourd’hui.'},
+        {v: 'B', label: 'Une ligne par taux, plus une ligne « Total TVA »', detail: 'Un chiffre de plus à lire ; utile seulement à partir de trois taux.'},
+        {v: 'C', label: 'Une ligne « TVA » unique, le détail par taux au survol', detail: 'Rien n’est visible sur téléphone, où le survol n’existe pas.'}
+      ]},
+    {id: 'pdf', t: 'Sur le devis PDF, où va la TVA par taux ?', why: 'Basculez « Devis » au-dessus de la maquette pour comparer.',
+      opts: [
+        {v: 'A', label: 'Un tableau « Récapitulatif TVA » (taux, base HT, TVA, TTC) sous les totaux', rec: true, detail: 'C’est la forme habituelle d’une facture française ; les totaux gardent leurs lignes d’aujourd’hui.'},
+        {v: 'B', label: 'Une ligne « TVA x % » par taux entre « Sous-total HT » et « Sous-total TTC »', detail: 'Plus compact, mais la base HT de chaque taux n’apparaît pas.'}
+      ]},
+    {id: 'single', t: 'Un devis à un seul taux reçoit-il aussi la TVA détaillée ?', why: 'Aujourd’hui, aucun devis n’imprime le montant de TVA.',
+      opts: [
+        {v: 'A', label: 'Oui : même gabarit pour tous les devis, une seule ligne de taux', rec: true, detail: 'Un seul gabarit à tester ; tous les devis de référence changent une fois (C-E8).'},
+        {v: 'B', label: 'Non : le détail apparaît seulement à partir de deux taux', detail: 'Moins de devis de référence changent, mais deux gabarits à maintenir.'}
+      ]}
+  ]);
+})();
+</script>
+</body>
+</html>

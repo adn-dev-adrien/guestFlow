@@ -26,7 +26,7 @@ test('rules 18–19 — a group whose shares are typed offers « Répartir et co
   const item = proposed();
   item.proposal = {
     ...item.proposal, needsShares: true, confidence: 'verifier', confidenceLabel: 'à vérifier',
-    alsoCovers: [{ reservationId: 8, ledgerKey: 'balance', label: 'Versement Booking', clientName: 'Camille Lefevre' }],
+    alsoCovers: [{ reservationId: 8, ledgerKey: 'balance', label: 'Versement Booking', clientName: 'Camille Lefevre', clientHeading: 'Camille Lefevre' }],
   };
   const h = handlers();
   render(<ReconciliationLine item={item} {...h} />);
@@ -47,7 +47,7 @@ test('rule 21 — a line confirmed automatically carries the « auto » badge; a
 });
 
 test('rule 19 — a confirmed group says which other stays the credit covered', () => {
-  const item = done({ bank: [{ ...bankSide(), allocatedCents: 40000, auto: false, alsoCovers: [{ reservationId: 8, ledgerKey: 'balance', label: 'Versement Booking', clientName: 'Camille Lefevre' }] }] });
+  const item = done({ bank: [{ ...bankSide(), allocatedCents: 40000, auto: false, alsoCovers: [{ reservationId: 8, ledgerKey: 'balance', label: 'Versement Booking', clientName: 'Camille Lefevre', clientHeading: 'Camille Lefevre' }] }] });
   render(<ReconciliationLine item={item} {...handlers()} />);
   expect(screen.getByText(/couvre aussi Camille Lefevre/)).toBeTruthy();
 });

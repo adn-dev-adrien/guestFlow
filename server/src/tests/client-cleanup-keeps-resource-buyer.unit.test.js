@@ -27,6 +27,7 @@ function seed() {
   db.pragma('foreign_keys = ON');
   hourly.createTables(db);
   hourly.bookingsV2(db);
+  hourly.bookingsV5(db);
   hourly.bookingsV3(db, () => 20);
   db.prepare("INSERT INTO properties (id, name) VALUES (1, 'Gite fictif'), (2, 'Logement sonde')").run();
   const resourceId = Number(db.prepare("INSERT INTO resources (name, priceType, price) VALUES ('Sauna fictif', 'per_stay', 40)").run().lastInsertRowid);

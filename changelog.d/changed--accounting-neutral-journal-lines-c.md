@@ -1,0 +1,1 @@
+- **Accounting — neutral journal lines** (`specs/pricing-components.md` rule 63). Each entry now reads as lines by role (client, product, VAT, tourist tax, commission), computed once; the CSV, the sales JSON and the summary only format them. No exported month changes by a single byte.

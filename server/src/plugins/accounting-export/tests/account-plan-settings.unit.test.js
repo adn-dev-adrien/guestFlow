@@ -50,6 +50,7 @@ test('rule 27: the defaults are today\'s constants', () => {
     discountAccount: DISCOUNT_ACCOUNT,
     tipAccount: TIP_ACCOUNT,
     platformPenaltyAccount: '658000',
+    drinksRevenueAccount: '',
     journalCode: SALES_JOURNAL_CODE,
   });
   for (const key of Object.keys(PLAN_DEFAULTS)) assert.ok(DECLARED.some((d) => d.key === key && d.default === PLAN_DEFAULTS[key]), key);

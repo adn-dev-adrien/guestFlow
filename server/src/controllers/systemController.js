@@ -21,6 +21,7 @@ const { createPreUpdateBackup, rotateBackups } = require('../utils/dbBackup');
 const { shouldEnforceHttps } = require('../utils/securityConfig');
 const { phaseLabel, isTerminal, errorMessage } = require('../constants/updatePhases');
 const updateStateModel = require('../models/updateStateModel');
+const { isBelowSchemaFloor, BELOW_FLOOR_MESSAGE } = require('../utils/schemaFloor');
 
 const CHECK_THROTTLE_MS = 10_000;
 const REQUIRED_FREE_BYTES = 2 * 1024 * 1024 * 1024; // 2 GB — archive + node_modules + headroom
@@ -276,6 +277,11 @@ async function startUpdate(req, res) {
   const model = updateStateModel;
   const current = getAppVersion();
   const targetVersion = req.body?.targetVersion;
+
+  // specs/self-update-and-releases.md rule 57 — judged first, before the host and « newer than the running version »: the floor is a property of the database.
+  if (isValidVersion(targetVersion) && isBelowSchemaFloor(require('../database'), targetVersion)) {
+    return res.status(422).json({ error: 'BELOW_SCHEMA_FLOOR', message: BELOW_FLOOR_MESSAGE });
+  }
 
   const support = selfUpdateSupported();
   if (!support.supported) {

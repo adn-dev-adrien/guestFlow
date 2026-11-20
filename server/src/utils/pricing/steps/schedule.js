@@ -18,13 +18,14 @@ const step = {
     'midStayRemainingTotal', 'midStaySettledNotes', 'midStaySettledTotal', 'midStayTotal', 'midStayUnforced',
     'paidSoldeCaptured', 'paymentLedger', 'platform', 'platformGrossPin', 'platformPayoutDueDays',
     'platformTakesDeposit', 'quoteKind', 'settings', 'startDate', 'totalStayPrice', 'touristTaxAddedGuestsAmount',
-    'touristTaxInComplement', 'touristTaxTotal', 'validUntil', 'clock',
+    'touristTaxInComplement', 'touristTaxTotal', 'validUntil', 'clock', 'refundedStayCredit',
+    'complementCreditPhantom',
   ],
   provides: [
     'accommodationPreArrival', 'autoComplementAmount', 'autoDepositAmount', 'balanceDueDate',
     'complementCollectedExcess', 'depositDueDate', 'endOfStayComplementAutoTotal', 'endOfStayComplementTotal',
     'installmentPlan', 'isTouristTaxForcedToComplement', 'midStayLinesWithExcess', 'midStayRemainingDue',
-    'midStaySettledAll', 'overCollectedTtc', 'planScheduled', 'platformIsNonDirect', 'preArrivalAmount',
+    'midStaySettledAll', 'noteCreditCuts', 'overCollectedTtc', 'planScheduled', 'platformIsNonDirect', 'preArrivalAmount',
     'rawComplement', 'resolvedBalanceAmount', 'resolvedComplementAmount', 'resolvedDepositAmount',
     'taxInComplement',
   ],
@@ -37,14 +38,16 @@ const step = {
       midStayExtras, midStayRemainingTotal, midStaySettledNotes, midStaySettledTotal, midStayTotal,
       midStayUnforced, paidSoldeCaptured, paymentLedger, platform, platformGrossPin,
       platformPayoutDueDays, platformTakesDeposit, quoteKind, settings, startDate, totalStayPrice,
-      touristTaxAddedGuestsAmount, touristTaxInComplement, touristTaxTotal, validUntil,
+      touristTaxAddedGuestsAmount, touristTaxInComplement, touristTaxTotal, validUntil, refundedStayCredit,
+      complementCreditPhantom,
     } = ctx;
     const { bookingDate, existingDepositDueDate } = ctx.clock;
 
     // The two readings of money received go through the PaymentLedger port here, under the conditions the plan has always
-    // read them: a collected bucket has a split to carve out; a direct stay with nothing collected may have an installment
-    // plan (rule 35 of specs/direct-installments.md: a bucket already collected is never zeroed). The unit gets values.
-    const splitReceived = (depositPaid || balancePaid || complementPaid) ? paymentLedger.splitReceived(bookingId) : null;
+    // read them: a collected bucket has a split to carve out, read from the stay's receipts (rule 48: the one read of what was
+    // received); a direct stay with nothing collected may have an installment plan (rule 35 of specs/direct-installments.md: a
+    // bucket already collected is never zeroed). The unit gets values.
+    const splitReceived = (depositPaid || balancePaid || complementPaid) ? paymentLedger.receipts(bookingId).splitReceived : null;
     const installmentPlanRead = isDirectChannel(platform) && !depositPaid && !balancePaid ? paymentLedger.installments(bookingId) : null;
 
     // The two due dates are resolved AFTER the amounts (further down), because whether an échéance
@@ -54,7 +57,7 @@ const step = {
     const {
       accommodationPreArrival, autoComplementAmount, autoDepositAmount, balanceDueDate, complementCollectedExcess,
       depositDueDate, endOfStayComplementAutoTotal, endOfStayComplementTotal, installmentPlan,
-      isTouristTaxForcedToComplement, midStayLinesWithExcess, midStayRemainingDue, midStaySettledAll, overCollectedTtc,
+      isTouristTaxForcedToComplement, midStayLinesWithExcess, midStayRemainingDue, midStaySettledAll, noteCreditCuts, overCollectedTtc,
       planScheduled, platformIsNonDirect, preArrivalAmount, rawComplement, resolvedBalanceAmount,
       resolvedComplementAmount, resolvedDepositAmount, taxInComplement,
     } = planSchedule({
@@ -73,7 +76,7 @@ const step = {
       overrides: { depositAmountOverride, complementAmountOverride },
       receipts: {
         depositPaid, balancePaid, complementPaid, depositAmount, balanceAmount, complementAmount, existingDepositDueDate,
-        paidSoldeCaptured, endOfStayComplementSettled,
+        paidSoldeCaptured, endOfStayComplementSettled, refundedStayCredit, complementCreditPhantom,
       },
       ledger: { splitReceived, installmentPlan: installmentPlanRead },
     });
@@ -83,7 +86,7 @@ const step = {
       accommodationPreArrival, autoComplementAmount, autoDepositAmount, balanceDueDate,
       complementCollectedExcess, depositDueDate, endOfStayComplementAutoTotal, endOfStayComplementTotal,
       installmentPlan, isTouristTaxForcedToComplement, midStayLinesWithExcess, midStayRemainingDue,
-      midStaySettledAll, overCollectedTtc, planScheduled, platformIsNonDirect, preArrivalAmount,
+      midStaySettledAll, noteCreditCuts, overCollectedTtc, planScheduled, platformIsNonDirect, preArrivalAmount,
       rawComplement, resolvedBalanceAmount, resolvedComplementAmount, resolvedDepositAmount,
       taxInComplement,
     };

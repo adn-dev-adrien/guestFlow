@@ -10,7 +10,9 @@
  *   resetKey      — anything that identifies one run of the wizard; a new value forgets the last answer
  *   delay         — quiet time before a request (200 ms); the first request of a page leaves at once
  *
- * Returns `{ recap, pending, error, fresh, retry }`.
+ * Returns `{ recap, pending, error, failed, fresh, retry }`. `recap` is the hook's `last` answer: the recap pages draw their
+ * layout from it after a failed request and show every amount « — » and every settlement control disabled while `failed`
+ * (loop t23 S23-1).
  */
 import { useCallback } from 'react';
 import { useLatestPreview } from '../sdk';
@@ -22,8 +24,12 @@ export default function useSasRecapPreview({
     (body, options) => request(reservationId, body, options),
     [request, reservationId],
   );
-  const { data, pending, error, fresh, retry } = useLatestPreview({
+  const {
+    last, pending, error, failed, fresh, retry, answerKey, draftKey,
+  } = useLatestPreview({
     fetcher, draft, enabled: Boolean(enabled && reservationId), scope: reservationId, resetKey, delay,
   });
-  return { recap: data, pending, error, fresh, retry };
+  return {
+    recap: last, pending, error, failed, fresh, retry, answerKey, draftKey,
+  };
 }

@@ -1,0 +1,6 @@
+- Selling an extra: offering, discounting or removing a paid line from the reservation form is judged exactly as from the line's own action. A paid line can no longer be removed (offer it instead), and money paid on a line no remaining amount can take back is a confirmed overpayment owed back to the guest, on platform stays too (the establishment collected it). Before, a card order paid in the guest app then offered in the form left its amount on no bucket.
+- A paid line once offered can be billed again but is neither removed nor moved, and a later sale of the same article no longer reads as already paid.
+- Offering then re-billing a paid line on a stay whose arrival complement the engine no longer reproduces asks nothing again; the refund owed is closed instead. A confirmed save that lowers the overpayment lowers the refund owed too.
+- The credit of a paid line given back is shown as its own « Déjà réglé (…) » line in the arrival e-mail, the arrival SAS recap and « Ventes du séjour — au départ », and the end-of-stay line it lowered says so; each article keeps its price.
+- A note paid online (guest-app or shop card payment) can no longer be cancelled; its money is refunded through the register.
+- The check-in box ticked before the arrival day no longer closes the arrival for app orders: the arrival is validated from its day only.

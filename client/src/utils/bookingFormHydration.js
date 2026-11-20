@@ -19,7 +19,7 @@
  * @param {function} buildCardGrid  `buildCardGridFromStored`, injected so this module stays dependency-free
  */
 export function hydrateSelectedOptions(options, stay, catalogue, buildCardGrid) {
-  return (options || []).filter((o) => !o.isCustom).map((o) => {
+  return (options || []).filter((o) => !o.isCustom && !o.laterLine).map((o) => {
     // Option-driven planning cards (specs/option-planning-card.md §3.2): rebuild the working occurrence
     // grid from the stored {date,time}[] so the checklist restores the exact saved selection. The
     // option's catalog config (mode + slots) drives the grid.
@@ -45,6 +45,34 @@ export function hydrateSelectedOptions(options, stay, catalogue, buildCardGrid) 
   });
 }
 
+/**
+ * The lines an article was sold on AFTER its first one (specs/pricing-components.md §3 rule 85; the server flags them `laterLine`) → the wire lines the form
+ * carries as they are and sends back with every quote and save: the form edits an article's first line, a later line is changed from « Ventes du
+ * séjour ». Each names its `lineId` and its own `offered`, so a save updates that very row.
+ */
+export function hydrateLaterLines(options, resources) {
+  const wire = (o, idKey) => ({
+    lineId: Number(o.lineId),
+    [idKey]: Number(o[idKey]),
+    quantity: Number(o.quantity || 0),
+    offered: Boolean(o.offered),
+    inComplement: Number(o.inComplement || 0) === 1 ? 1 : 0,
+  });
+  return {
+    laterOptions: (options || []).filter((o) => !o.isCustom && o.laterLine).map((o) => ({
+      ...wire(o, 'optionId'),
+      ...(Array.isArray(o.cardOccurrences) && o.cardOccurrences.length ? { cardOccurrences: o.cardOccurrences } : {}),
+      ...(o.cardPersons != null ? { cardPersons: Number(o.cardPersons) } : {}),
+      ...(o.cardNights != null ? { cardNights: Number(o.cardNights) } : {}),
+    })),
+    laterResources: (resources || []).filter((r) => r.laterLine).map((r) => ({
+      ...wire(r, 'resourceId'),
+      unitPrice: r.unitPrice,
+      sessions: Array.isArray(r.sessions) ? r.sessions : parseSessions(r.sessions),
+    })),
+  };
+}
+
 /** Custom (free-text) lines → `form.customOptions`. */
 export function hydrateCustomOptions(options) {
   return (options || []).filter((o) => o.isCustom).map((o, index) => ({
@@ -61,7 +89,7 @@ export function hydrateCustomOptions(options) {
 
 /** Resource lines → `form.selectedResources`, hourly sessions included. */
 export function hydrateSelectedResources(resources) {
-  return (resources || []).map((r) => ({
+  return (resources || []).filter((r) => !r.laterLine).map((r) => ({
     resourceId: r.resourceId,
     quantity: r.quantity,
     unitPrice: r.unitPrice,
@@ -81,15 +109,17 @@ export function hydrateSelectedResources(resources) {
 
 /** The offered catalogue options, as the `Set` the form keeps beside `selectedOptions`. */
 export function hydrateOfferedOptionIds(options) {
-  return new Set((options || []).filter((o) => !o.isCustom && Boolean(o.offered)).map((o) => o.optionId));
+  return new Set((options || []).filter((o) => !o.isCustom && !o.laterLine && Boolean(o.offered)).map((o) => o.optionId));
 }
 
 /**
- * The unit prices a saved booking was sold at, keyed by line id — what the fiche sends back as
- * `lockedOptionUnits` / `lockedResourceUnits` so a re-save can't silently re-price it.
+ * The unit prices a saved booking was sold at, keyed by article id — what the fiche sends back as
+ * `lockedOptionUnits` / `lockedResourceUnits` so a re-save can't silently re-price it. Only the
+ * catalogue lines carry one: a free line has no article id, and keying it anyway put its unit under
+ * « undefined », which priced every new option at that free line's amount (loop t16 S16-1).
  */
 export function frozenUnitPrices(lines, idKey) {
-  return Object.fromEntries((lines || []).map((line) => [
+  return Object.fromEntries((lines || []).filter((line) => !line.laterLine && !line.isCustom && line[idKey] != null).map((line) => [
     line[idKey],
     line.unitPrice !== undefined
       ? Number(line.unitPrice || 0)
@@ -104,4 +134,45 @@ function parseSessions(value) {
     const parsed = JSON.parse(value);
     return Array.isArray(parsed) ? parsed : [];
   } catch { return []; }
+}
+
+/**
+ * The stored rows of the free lines a save just wrote, keyed by the `customKey` each was sent under (pricing-components rule 94 reading,
+ * loop t16 VS16-2): `Map<customKey, { customOptionId, title, sent }>`. A save rewrites the free lines in the order it posted them (blank /
+ * 0 € lines are never posted), so the re-read's free lines answer the sent ones one by one; each must carry the sent text, or that text
+ * numbered by the save (« Bois (2) »). Anything else — a line sold meanwhile, a different count — answers null: the fiche then keeps what it
+ * had and the server matches by text (rule 19).
+ */
+export function storedCustomIdsByKey(sentLines, storedOptions) {
+  const norm = (text) => String(text || '').trim().toLowerCase().replace(/\s+/g, ' ');
+  const sent = sentLines || [];
+  const stored = (storedOptions || []).filter((o) => o.isCustom);
+  if (sent.length === 0 || stored.length !== sent.length) return null;
+  const rows = new Map();
+  for (let i = 0; i < sent.length; i += 1) {
+    const typed = norm(sent[i].description);
+    const title = String(stored[i].title || stored[i].description || '').trim();
+    const label = norm(title);
+    const numbered = label.startsWith(`${typed} (`) && /^\(\d+\)$/.test(label.slice(typed.length + 1));
+    if ((label !== typed && !numbered) || stored[i].customOptionId == null) return null;
+    rows.set(String(sent[i].customKey), { customOptionId: Number(stored[i].customOptionId), title, sent: String(sent[i].description || '').trim() });
+  }
+  return rows;
+}
+
+/**
+ * The fiche's free lines once a save that keeps it open has been re-read (loop t16 VS16-2, VS16-3): each line the save sent takes its row id,
+ * and — when its text is still the one sent — the label the save stored, as a reload would show it (« Bois (2) » for a repeated « Bois »).
+ * A line whose text changed since keeps that text: the next save reads it as a rename of its row. Without the stored label, a line on the
+ * numbered row would post « Bois » and read as a rename onto the other line's label (409 LINE_LABEL_TAKEN). Returns null when nothing applies.
+ */
+export function adoptStoredCustomLines(customOptions, sentLines, storedOptions) {
+  const rows = storedCustomIdsByKey(sentLines, storedOptions);
+  if (!rows) return null;
+  return (customOptions || []).map((line) => {
+    const row = rows.get(String(line.customKey));
+    if (!row) return line;
+    const unchanged = String(line.description || '').trim() === row.sent;
+    return { ...line, customOptionId: row.customOptionId, ...(unchanged ? { description: row.title } : {}) };
+  });
 }

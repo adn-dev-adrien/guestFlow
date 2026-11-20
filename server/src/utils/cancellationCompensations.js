@@ -21,9 +21,7 @@ const { isRealIsoDay, dateWindowMessage, dateBeforeHorizon, PAST_HORIZON_MESSAGE
 const MAX_AMOUNT = 100000;
 const isValidIsoDate = isRealIsoDay;
 
-function round2(n) {
-  return Math.round(Number(n) * 100) / 100;
-}
+const { roundMoneyStrict: round2 } = require('./pricing/money');
 
 // `positive: false` accepts 0 — an expected amount the platform hasn't announced yet.
 function parseAmount(value, { positive }) {

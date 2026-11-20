@@ -13,10 +13,14 @@ const { summaryCascade, storedWithheldTax } = require('./quoteHeadline');
 const { isPlatformCollectingTouristTax, isTouristTaxRemittedByOwner } = require('./pricing');
 const { saleChannel } = require('./saleChannel');
 const { splitTtc } = require('./pricing/vat');
+const { vatByRateOfSingleRate } = require('./vatRecap');
+const { totalCommission: platformTotalCommission } = require('./pricing/platformPayment');
 const { displayCountOf } = require('./typedCounts');
 const { isComplementDeferred } = require('./checkoutComplement');
 
-const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
+const { roundMoneyOrZero: round2 } = require('./pricing/money');
+const { extraLineKey } = require('./pricing/storedLines');
+const { notDepartureCharge } = require('./departureChargeLines');
 const flag = (v) => Number(v || 0) === 1;
 
 function safeAll(db, sql, ...params) {
@@ -62,12 +66,13 @@ function storedOptionLines(db, row) {
   });
   const customs = safeAll(db, `
     SELECT id, description, amount, offered, inComplement, acompteContribTtc, soldeContribTtc
-      FROM reservation_custom_options WHERE reservationId = ? ORDER BY sortOrder, id`, row.id).map((r) => {
+      FROM reservation_custom_options WHERE reservationId = ?${notDepartureCharge(db)} ORDER BY sortOrder, id`, row.id).map((r) => {
     const offered = flag(r.offered);
     return {
       isCustom: true,
       customOptionId: Number(r.id),
       customKey: `custom_${r.id}`,
+      key: extraLineKey({ isCustom: true, title: r.description }),
       title: r.description,
       quantity: 1,
       unitPrice: round2(r.amount),
@@ -142,7 +147,7 @@ function buildStoredSummary({ row, db, vatRegime, headline, refundsTotal = 0, mi
   const isPlatform = channel.namedChannel;
   const acompteCommission = isPlatform ? round2(row.acompteCommissionAmount) : 0;
   const soldeCommission = isPlatform ? round2(row.platformCommissionAmount) : 0;
-  const totalCommission = round2(acompteCommission + soldeCommission);
+  const totalCommission = platformTotalCommission(acompteCommission, soldeCommission);
   // With an installment plan the pre-arrival money is the plan's, not the (zeroed) acompte and solde.
   const preArrival = round2(Number(row.depositAmount || 0) + Number(row.balanceAmount || 0)
     + Number(row.installmentsPaidAmount || 0) + Number(row.installmentsUnpaidAmount || 0));
@@ -192,6 +197,9 @@ function buildStoredSummary({ row, db, vatRegime, headline, refundsTotal = 0, mi
     vatPercentageAccommodation: vatRate,
     totalVatAmount,
     totalNetPrice: round2(Number(row.finalPrice || 0) - totalVatAmount),
+    vatByRate: vatByRateOfSingleRate({
+      regime: vatRegime, rate: vatRate, net: round2(Number(row.finalPrice || 0) - totalVatAmount), vat: totalVatAmount,
+    }),
     depositDueDate: row.depositDueDate || null,
     balanceDueDate: row.balanceDueDate || null,
     finalPrice: round2(row.finalPrice),

@@ -1,0 +1,1 @@
+- **Google Calendar is updated when an extra is sold, moved or removed (pricing refonte, PR B)**: the stay's event no longer waits for the next edit of the fiche.

@@ -11,10 +11,10 @@
  */
 
 const { extraLineKey, parseBaseline } = require('./midStayExtras');
-const { hasStayStarted } = require('./arrivalMoment');
+const { hasStayStarted } = require('./pricing/stayClock');
 
 const EPSILON = 0.001;
-const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
+const { roundMoneyOrZero: round2 } = require('./pricing/money');
 const ceil2 = (n) => Math.ceil(Math.round(n * 1e6) / 1e4) / 100;
 
 const isEndOfStayCollected = (row) => Number(row.endOfStayComplementPaid || 0) === 1
@@ -22,11 +22,12 @@ const isEndOfStayCollected = (row) => Number(row.endOfStayComplementPaid || 0) =
 
 /**
  * Rule 1 — a reservation is open for mid-stay extras when it is locked (`hasStayStarted`), is a
- * live reservation, and its end-of-stay complement has not been collected.
+ * live reservation, and its end-of-stay complement has not been collected. `started`: the stay clock's
+ * answer when the caller holds it (pricing-components rule 102: one moment for the lock and the sale).
  * @returns {{ locked: boolean, extrasEditable: boolean, extrasClosedReason: string|null }}
  */
-function midStayExtrasWindow(row, today, nowTime) {
-  const locked = hasStayStarted(row, today, nowTime);
+function midStayExtrasWindow(row, today, nowTime, started = null) {
+  const locked = started == null ? hasStayStarted(row, today, nowTime) : Boolean(started);
   if (!locked) return { locked: false, extrasEditable: false, extrasClosedReason: null };
   if (String(row.kind || 'reservation') !== 'reservation') {
     return { locked, extrasEditable: false, extrasClosedReason: null };
@@ -51,7 +52,8 @@ function aggregateByKey(lines) {
       ? 1
       : Number(line.quantity == null ? 1 : line.quantity);
     const offered = Number(line.offered || 0) === 1 || line.offered === true;
-    const entry = byKey.get(key) || { quantity: 0, total: 0, offeredCount: 0, count: 0, hourly: false, typedCount: null, frozenCount: null };
+    const entry = byKey.get(key) || { quantity: 0, total: 0, offeredCount: 0, count: 0, departureCount: 0, hourly: false, typedCount: null, frozenCount: null };
+    if (line.collectAt === 'departure') entry.departureCount += 1;
     if (line.hourly) entry.hourly = true;
     if (line.typedCount != null) entry.typedCount = Number(line.typedCount);
     // What a submitted line froze; NULL follows the party or the stay, and is never a reduction.
@@ -74,7 +76,7 @@ const isAllOffered = (entry) => entry.count > 0 && entry.offeredCount === entry.
  * amount (the usual case, and exact). Once extended, it is the proportional estimate — baseline amount
  * over the amount per unit — rounded UP to a whole unit, or to 0.01 for an hourly resource. The
  * amount check of `arrivalExtrasViolations` stays the real guard. An offered line present before is
- * frozen at its current quantity. No baseline → nothing is frozen.
+ * frozen at its current quantity, unless every line of its key is collected at the departure (end-review V-5). No baseline → nothing is frozen.
  * `reason` tells the fiche which caption to print.
  * @returns {Object<string, { minQuantity: number, frozen: true, reason: 'arrival'|'offered' }>}
  */
@@ -83,6 +85,9 @@ function arrivalLineFloors(baselineRaw, beforeLines) {
   if (!baseline) return {};
   const floors = {};
   for (const [key, entry] of aggregateByKey(beforeLines)) {
+    // End-review V-5 — a line sold for the departure and offered since is not a line offered at arrival: billing it again or removing it is
+    // the operator undoing a geste on money not collected yet (the window closes once the end-of-stay complement is).
+    if (isAllOffered(entry) && entry.departureCount === entry.count) continue;
     if (isAllOffered(entry)) {
       floors[key] = { minQuantity: entry.quantity, frozen: true, reason: 'offered', ...(entry.typedCount != null ? { minTypedCount: entry.typedCount } : {}) };
       continue;
@@ -114,6 +119,7 @@ function arrivalLineFloors(baselineRaw, beforeLines) {
 function arrivalExtrasViolations(baselineRaw, beforeLines, afterLines) {
   const baseline = parseBaseline(baselineRaw) || {};
   const floors = arrivalLineFloors(baselineRaw, beforeLines);
+  const before = aggregateByKey(beforeLines);
   const after = aggregateByKey(afterLines);
   const violations = [];
   for (const [key, floor] of Object.entries(floors)) {
@@ -132,8 +138,11 @@ function arrivalExtrasViolations(baselineRaw, beforeLines, afterLines) {
       continue;
     }
     // The amount is the line's real price: fewer served persons, a lower price or a lost free allowance
-    // all shrink it without touching the quantity.
-    if (!wasOffered && next.total + 0.005 < Number(baseline[key] || 0)) violations.push({ key, reason: 'reduced' });
+    // all shrink it without touching the quantity. Loop t8 B8-6 — measured against what the line held entering the save when that is
+    // less: a line lowered BEFORE the arrival on a collected complement (its excess owed back, pricing-components rule 106) is no
+    // reduction of this save, or every later sale of the stay would be refused.
+    const floorAmount = Math.min(Number(baseline[key] || 0), before.has(key) ? before.get(key).total : Infinity);
+    if (!wasOffered && next.total + 0.005 < floorAmount) violations.push({ key, reason: 'reduced' });
   }
   return violations;
 }
@@ -176,8 +185,8 @@ function withLockedOccurrences(floors, beforeLines) {
 }
 
 /** Read-side payload of rule 13. */
-function buildEditLock(row, today, baselineRaw, beforeLines, nowTime) {
-  const window = midStayExtrasWindow(row, today, nowTime);
+function buildEditLock(row, today, baselineRaw, beforeLines, nowTime, started = null) {
+  const window = midStayExtrasWindow(row, today, nowTime, started);
   const arrivalLines = window.extrasEditable ? withLockedOccurrences(arrivalLineFloors(baselineRaw, beforeLines), beforeLines) : {};
   return {
     ...window,

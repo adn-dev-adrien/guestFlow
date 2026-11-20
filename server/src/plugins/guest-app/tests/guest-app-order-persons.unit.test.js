@@ -65,8 +65,9 @@ test('rule 55: beyond the persons left, the order says how many are left; up to 
     assert.equal(rest.status, 200);
     assert.equal(rest.body.data.total, 30);
     assert.equal((await call('POST', ORDERS, { ...perPerson(402, 3), payment: 'note' })).status, 200);
-    assert.equal(optionLine(stay, 402).billedUnits, 8);
-    assert.equal(optionLine(stay, 402).totalPrice, 80);
+    // Rule 85: each order is a line of its own (5 and 3 persons, billed whole).
+    const lines = db.prepare('SELECT cardPersons, totalPrice FROM reservation_options WHERE reservationId = ? AND optionId = 402 ORDER BY lineId').all(stay);
+    assert.deepEqual(lines.map((l) => [l.cardPersons, l.totalPrice]), [[5, 50], [3, 30]]);
   }, { settingsStore: () => settings });
 });
 
@@ -81,7 +82,7 @@ test('rule 55: a 0 € per-person item is refused beyond the persons too: it wou
   }, { propertyId: 2 });
 });
 
-test('rule 55: the persons of a card order awaiting its payment are taken; a card order beyond the persons mints no link', async () => {
+test('rule 55: the persons of a card order awaiting its payment are not taken (reading of 2026-11-13); a card order beyond the persons mints no link', async () => {
   const card = fakeProvider();
   const stay = seedStay({ propertyId: 1, adults: 2 });
   await withOrdering(stay, async ({ call }) => {
@@ -89,9 +90,8 @@ test('rule 55: the persons of a card order awaiting its payment are taken; a car
     assert.equal(pending.status, 200, JSON.stringify(pending.body));
     assert.equal(card.created.length, 1);
     const note = await call('POST', ORDERS, { ...perPerson(402, 3), payment: 'note' });
-    assert.equal(note.status, 409);
-    assert.equal(note.body.error.message, '2 personnes au plus pour « Planche apéritive ».');
-    assert.equal(optionLine(stay, 402), undefined, 'nothing on the fiche');
+    assert.equal(note.status, 200, JSON.stringify(note.body));
+    assert.equal(optionLine(stay, 402).cardPersons, 3, 'only the note order is on the fiche');
   }, { card });
   const other = seedStay({ propertyId: 1, adults: 2 });
   await withOrdering(other, async ({ call }) => {
@@ -115,15 +115,14 @@ test('rule 55: a breakfast asking more persons than its line already serves is r
   });
 });
 
-test('rule 55: a priced article the engine adds nothing for — a line the fiche offers — is refused, never confirmed at 0 €', async () => {
+test('specs/pricing-components.md rule 85 (was guest-app rule 55): an article the fiche offers is ordered as a line of its own — billed, never confirmed at 0 €', async () => {
   const stay = seedStay({ propertyId: 1 });
   db.prepare(`INSERT INTO reservation_options (reservationId, optionId, quantity, unitPrice, billedUnits, priceType, totalPrice, offered)
     VALUES (?, 404, 1, 12, 1, 'per_stay', 0, 1)`).run(stay);
   await withOrdering(stay, async ({ call }) => {
     const res = await call('POST', ORDERS, { lines: [{ kind: 'option', id: 404, quantity: 1 }], payment: 'note' });
-    assert.equal(res.status, 409, JSON.stringify(res.body));
-    assert.equal(res.body.error.code, 'ITEM_UNAVAILABLE');
-    assert.equal(res.body.error.message, '« Fagot de bois » ne se commande pas dans l’application pour ce séjour : contactez l’équipe.');
-    assert.equal(ordersOf(stay), 0);
+    assert.equal(res.status, 200, JSON.stringify(res.body));
+    const lines = db.prepare('SELECT offered, totalPrice FROM reservation_options WHERE reservationId = ? AND optionId = 404 ORDER BY lineId').all(stay);
+    assert.deepEqual(lines.map((l) => [l.offered, l.totalPrice]), [[1, 0], [0, 12]]);
   });
 });

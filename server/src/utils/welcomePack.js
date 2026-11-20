@@ -11,7 +11,7 @@
  * Pure — no DB access. The rows come from `propertiesModel.listWelcomePackOptions`.
  */
 
-const { getTypeMultiplier } = require('./pricing');
+const articles = require('./pricing/articles');
 const { isDirectChannel } = require('./platformNameFormat');
 const { enumerateStayDates, nightsBetween, cardSlots, seedTime } = require('./cardOccurrences');
 
@@ -84,7 +84,7 @@ function buildWelcomePackLines({ packOptions = [], platform, ...context } = {}) 
 
     // Plain option: the billed units are quantity × the type multiplier, so the pack grants the
     // largest whole quantity the free units still cover — 0 ⇒ no line at all.
-    const multiplier = getTypeMultiplier(priceType, persons, nights);
+    const multiplier = articles.unitsPerQuantity(priceType, persons, nights);
     if (!(multiplier > 0)) continue;
     const quantity = Math.floor(freeUnits / multiplier);
     if (quantity <= 0) continue;

@@ -1,0 +1,1 @@
+- The mini SAS shows the VAT rate of each line, and an invoiced outside visit offers « Nouvelle vente » on the same client (the counter sale dialog, seeded with that client, is exported by the client SDK 2.32.0).

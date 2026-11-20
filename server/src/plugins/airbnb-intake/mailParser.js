@@ -1,3 +1,5 @@
+const sdk = require('../sdk');
+const { parseFrenchCents: cents, fromCentsStrict: euros } = sdk.coreModule('money');
 /**
  * Airbnb « Réservation confirmée » mail → structured booking (specs/airbnb-mail-intake.md rules 5–8).
  * Pure: reads the plain-text part only, returns `{ ok: true, booking }` or `{ ok: false, error }` with a
@@ -24,8 +26,6 @@ const isAirbnbHost = (host) => { const m = /^(?:www\.)?airbnb\.([a-z.]+)$/i.exec
 
 // Rule 8 — the raw mail writes « 4 nuits », « 15,5 % », « 1 154,60 » with non-breaking spaces.
 const normalizeSpaces = (s) => String(s || '').replace(/[   ]/g, ' ');
-const cents = (amount) => Math.round(Number(String(amount).replace(/ /g, '').replace(',', '.')) * 100);
-const euros = (c) => c / 100;
 const sentenceCase = (s) => { const low = s.toLocaleLowerCase('fr-FR'); return low.charAt(0).toLocaleUpperCase('fr-FR') + low.slice(1); };
 const titleCase = (s) => s.toLocaleLowerCase('fr-FR').replace(/(^|[\s'-])(\p{L})/gu, (m, sep, ch) => sep + ch.toLocaleUpperCase('fr-FR'));
 const stripQuery = (url) => (url ? url.split('?')[0] : null);

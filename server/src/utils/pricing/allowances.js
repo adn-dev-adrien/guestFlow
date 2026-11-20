@@ -8,6 +8,9 @@
  *   releaseAllowance(line)                                            → { returned, amount } — a removed line's share back to the pool
  *   createFreeUnitsLedger({ lockedTariff, optionsById, lockedOptionsById, isDirectBooking })
  *                                                                     → { grantedFreeUnitsFor, consumedFreeUnitsFor, ... }
+ *                                                                       and, for an article sold on several lines (rule 85), the allowance of the
+ *                                                                       article counted ONCE: `remainingFreeUnitsFor` / `takeFreeUnits`,
+ *                                                                       `consumedLeftFor` / `takeConsumed`, `remainingFreeMinutesFor` / `takeFreeMinutes`
  *   applyFreeUnitsToLine, applyPerHourFreeMinutes, normalizeBilledUnits  — the engine's own helpers, unchanged
  *
  * Pure: no DB, no clock, no settings.
@@ -98,7 +101,23 @@ function createFreeUnitsLedger({ lockedTariff, optionsById, lockedOptionsById, i
     const consumed = Math.max(0, Number(consumedMap[String(optionId)] || 0));
     return soldGrantMap || isDirectBooking ? consumed : 0;
   };
-  return { soldGrantMap, consumedMap, grantedFreeUnitsFor, consumedFreeUnitsFor };
+  // Rule 85: the allowance belongs to the article, not to a line. The lines of an article are priced in order and each takes what the
+  // ones before left; an article on one line sees the whole grant, exactly as before.
+  const taken = { grant: new Map(), consumed: new Map(), minutes: new Map() };
+  const left = (kind, id, total) => Math.max(0, total - (taken[kind].get(String(id)) || 0));
+  const take = (kind, id, units) => taken[kind].set(String(id), (taken[kind].get(String(id)) || 0) + Math.max(0, Number(units) || 0));
+  return {
+    soldGrantMap,
+    consumedMap,
+    grantedFreeUnitsFor,
+    consumedFreeUnitsFor,
+    remainingFreeUnitsFor: (optionId) => left('grant', optionId, grantedFreeUnitsFor(optionId)),
+    takeFreeUnits: (optionId, units) => take('grant', optionId, units),
+    consumedLeftFor: (optionId) => left('consumed', optionId, consumedFreeUnitsFor(optionId)),
+    takeConsumed: (optionId, units) => take('consumed', optionId, units),
+    remainingFreeMinutesFor: (resourceId, freeMinutes) => left('minutes', resourceId, Math.max(0, Number(freeMinutes) || 0)),
+    takeFreeMinutes: (resourceId, minutes) => take('minutes', resourceId, minutes),
+  };
 }
 
 module.exports = {

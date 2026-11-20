@@ -148,13 +148,14 @@ test('rule 42: the next opening, and the banner that says when the service resum
 test('rules 41-42: the picker — « Dès que possible » on the first time while open, grouped by day with their labels', () => {
   const open = deliveryPicker({ now: paris('2099-07-07', '10:00'), stay: STAY, leadMinutes: 30, schedule: schedule(), lang: 'fr' });
   assert.deepEqual(open.asap, { at: '2099-07-07T10:30:00+02:00', label: 'Dès que possible — vers 10 h 30' });
-  assert.deepEqual(open.days.map((d) => d.label), ['Aujourd’hui', 'Demain', 'jeu. 9 juil.']);
-  assert.deepEqual(open.days[0].slots[0], { at: '2099-07-07T10:30:00+02:00', label: '10 h 30' });
-  assert.equal(open.days[0].slots[3].label, '12 h');
+  assert.deepEqual(open.days.map((d) => d.label), ['lun. 6 juil.', 'Aujourd’hui', 'Demain', 'jeu. 9 juil.'], 'every day of the stay (rule 77), arrival day greyed once past');
+  assert.deepEqual(open.days.map((d) => d.available), [false, true, true, true]);
+  assert.deepEqual(open.days.filter((d) => d.available)[0].times[0], { at: '2099-07-07T10:30:00+02:00', label: '10 h 30' });
+  assert.equal(open.days.filter((d) => d.available)[0].times[3].label, '12 h');
   const closed = deliveryPicker({ now: paris('2099-07-07', '21:00'), stay: STAY, leadMinutes: 30, schedule: schedule(), lang: 'en' });
   assert.equal(closed.asap, null, 'closed now: the picker starts at the next opening, the banner explains');
-  assert.equal(closed.days[0].label, 'Tomorrow');
-  assert.deepEqual(closed.days[0].slots[0], { at: '2099-07-08T08:30:00+02:00', label: '8:30' });
+  assert.equal(closed.days.find((d) => d.available).label, 'Tomorrow');
+  assert.deepEqual(closed.days.filter((d) => d.available)[0].times[0], { at: '2099-07-08T08:30:00+02:00', label: '8:30' });
 });
 
 test('rule 31: an ignition is in the hours from the range’s start to its end, both included', () => {
@@ -298,7 +299,7 @@ withApi('rule 41: POST /shop/delivery-slots — the longest lead of the cart’s
   assert.deepEqual(drinks.asap, { at: '2099-07-07T17:00:00+02:00', label: 'Dès que possible — vers 17 h' });
   const both = await post([{ kind: 'option', id: 2 }, { kind: 'option', id: 1 }, { kind: 'option', id: 3 }]);
   assert.equal(both.asap.label, 'Dès que possible — vers 18 h', '16:10 + 1 h 30');
-  assert.deepEqual(both.days.map((d) => d.label), ['Aujourd’hui', 'Demain', 'jeu. 9 juil.']);
+  assert.deepEqual(both.days.map((d) => d.label), ['lun. 6 juil.', 'Aujourd’hui', 'Demain', 'jeu. 9 juil.'], 'every day of the stay (rule 77)');
   assert.equal(both.bannerLabel, undefined);
   assert.deepEqual(await post([{ kind: 'option', id: 3 }, { kind: 'option', id: 99 }]), {
     needed: false, asap: null, days: [], mode: 'delivery', question: 'Quand souhaitez-vous la recevoir ?',
@@ -306,7 +307,7 @@ withApi('rule 41: POST /shop/delivery-slots — the longest lead of the cart’s
   clock.now = paris('2099-07-07', '21:00');
   const evening = await post([{ kind: 'option', id: 2 }]);
   assert.equal(evening.asap, null);
-  assert.equal(evening.days[0].slots[0].label, '8 h 30');
+  assert.equal(evening.days.filter((d) => d.available)[0].times[0].label, '8 h 30');
   assert.equal(evening.bannerLabel, 'Le service reprend demain à 8 h — vous pouvez commander dès maintenant pour plus tard');
 });
 
@@ -323,7 +324,7 @@ withApi('rule 27bis: the breakfast sheet asks its own times — alone, its lead;
   const post = async (lines) => (await call('POST', '/public/v1/guest/shop/delivery-slots', { lines }, { cookie })).body.data;
   const alone = await post([{ kind: 'breakfast', id: 1 }]);
   assert.equal(alone.needed, true);
-  assert.equal(alone.days[0].slots[0].label, '8 h', 'opening at 7 h + its own hour of preparation');
+  assert.equal(alone.days.filter((d) => d.available)[0].times[0].label, '8 h', 'opening at 7 h + its own hour of preparation');
   const mixed = await post([{ kind: 'breakfast', id: 1 }, { kind: 'option', id: 2 }]);
-  assert.equal(mixed.days[0].slots[0].label, '7 h 30', 'the cider’s 30 min, not the breakfast’s hour');
+  assert.equal(mixed.days.filter((d) => d.available)[0].times[0].label, '7 h 30', 'the cider’s 30 min, not the breakfast’s hour');
 });

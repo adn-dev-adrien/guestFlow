@@ -13,9 +13,7 @@ function parseJsonArray(raw) {
   }
 }
 
-function roundMoney(value) {
-  return Math.round(Number(value || 0) * 100) / 100;
-}
+const { roundMoney } = require('./pricing/money');
 
 function getTodayIsoDate() {
   return require('./localDate').todayIso();

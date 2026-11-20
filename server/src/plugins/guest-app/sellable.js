@@ -9,6 +9,7 @@ const sdk = require('../sdk');
 
 const { applyFreeUnitsToLine, roundMoney } = sdk.coreModule('pricing');
 const { isClientVisibleOption } = sdk.coreModule('optionVisibility');
+const { dayPassed } = sdk.coreModule('stayClock');
 
 const HOURLY = 'per_hour';
 
@@ -71,22 +72,18 @@ const lineMinutes = (line) => Math.max(Number(line.quantity || 0) * 60, sessions
 
 /**
  * Rule 25 — what the stay already received, and what its orders already took:
- *  - `optionUnits` / `resourceMinutes`, for the free units and minutes: the lines on the fiche, plus the
- *    orders not on it yet (awaiting payment). An option counts its billed units (what the free units apply
+ *  - `optionUnits` / `resourceMinutes`, for the free units and minutes: the lines on the fiche (an order
+ *    awaiting its card payment reserves nothing, rule 35). An option counts its billed units (what the free units apply
  *    to), an hourly resource its minutes — the sold hours, or the sessions placed when they say more;
  *  - `orderedUnits` (`kind:id`), for the allowance of a 0 € item: every order that stands, in units, an
  *    hourly resource in hours.
  */
-function stayConsumption({ optionLines = [], resourceLines = [], pendingOrderLines = [], orderedLines = [] }) {
+function stayConsumption({ optionLines = [], resourceLines = [], orderedLines = [] }) {
   const optionUnits = new Map();
   const resourceMinutes = new Map();
   const orderedUnits = new Map();
   optionLines.forEach((line) => add(optionUnits, Number(line.optionId), Number(line.billedUnits) || Number(line.quantity) || 0));
   resourceLines.forEach((line) => add(resourceMinutes, Number(line.resourceId), lineMinutes(line)));
-  pendingOrderLines.forEach((line) => {
-    if (catalogueKind(line.kind) === 'option') add(optionUnits, Number(line.id), Number(line.quantity) || 0);
-    if (line.kind === 'resource') add(resourceMinutes, Number(line.id), lineMinutes(line));
-  });
   orderedLines.forEach((line) => {
     const units = line.kind === 'resource' && Array.isArray(line.sessions) && line.sessions.length
       ? lineMinutes(line) / 60
@@ -109,11 +106,21 @@ const addDays = (ymd, days) => {
  */
 function remainingMornings({ startDate, endDate, today, time, serviceTime }) {
   const fromToday = String(time) < String(serviceTime || DEFAULT_BREAKFAST_TIME) ? today : addDays(today, 1);
-  const first = addDays(startDate, 1) > fromToday ? addDays(startDate, 1) : fromToday;
+  const afterArrival = addDays(startDate, 1);
+  const first = dayPassed(fromToday, afterArrival) ? afterArrival : fromToday;
   const mornings = [];
   for (let date = first; date <= endDate; date = addDays(date, 1)) mornings.push(date);
   return mornings;
 }
+
+/**
+ * Rule 107 — whether an app order of this article takes none of the stay's free units: the offered units are already in place
+ * at the arrival (the fridge's drinks), so the allowance is consumed there, never by an order. The operator's word wins; the
+ * default follows the article's class — on for drinks.
+ */
+const offeredInPlaceOf = (row, item) => (item.offeredInPlace === null || item.offeredInPlace === undefined
+  ? String(row.vatClass || '') === 'drinks'
+  : Number(item.offeredInPlace) === 1);
 
 /**
  * Rule 25 — an option's free units, granted once per stay to an own-channel booking: what the stay was
@@ -146,8 +153,8 @@ function resourceFreeMinutes(row, consumed) {
  *  offeredDefaultIds: the options the lodging offers by default
  *  stay: { isDirectBooking, grantedFreeUnitsByOption, optionLines, optionUnits, resourceMinutes, orderedUnits }
  *  hourlyOffered(resource): whether something prices the hours (the `hourly-resources` plugin)
- * → [{ kind ('option' | 'breakfast' | 'resource'), row, item, included, alreadyIncluded, includedLeft,
- *      freeUnits, freeMinutes, hourly }]
+ * → [{ kind ('option' | 'breakfast' | 'resource'), row, item, included, includedLeft,
+ *      freeUnits, freeMinutes, hourly, noFreeUnits }]
  * A 0 € item is limited per stay to its `maxQuantity`, across the orders that stand: `includedLeft`.
  */
 function shopItems({ options = [], resources = [], items, linkedResourceIds, offeredDefaultIds, stay, hourlyOffered }) {
@@ -162,19 +169,21 @@ function shopItems({ options = [], resources = [], items, linkedResourceIds, off
     if (!item) return;
     const breakfast = row.autoOptionType === BREAKFAST;
     const carried = stay.optionUnits.has(Number(row.id));
-    const alreadyIncluded = carried && (offeredDefaultIds.has(Number(row.id))
-      || (breakfast && (stay.optionLines || []).some((line) => Number(line.optionId) === Number(row.id) && Number(line.offered) === 1)));
-    // Rule 27bis — a breakfast the stay already has is still ordered, to choose its mornings and hour.
-    const included = Number(row.price || 0) === 0 || (breakfast && alreadyIncluded);
+    // Rule 27bis — a breakfast the stay already has offered is still ordered, to choose its mornings and hour. Any other article the
+    // stay carries offered is ordered again as a line of its own, billed (rules 13, 107).
+    const breakfastOffered = breakfast && carried && (offeredDefaultIds.has(Number(row.id))
+      || (stay.optionLines || []).some((line) => Number(line.optionId) === Number(row.id) && Number(line.offered) === 1));
+    const included = Number(row.price || 0) === 0 || breakfastOffered;
     const consumed = stay.optionUnits.get(Number(row.id)) || 0;
+    const inPlace = !breakfast && offeredInPlaceOf(row, item);
     sold.push({
       kind: breakfast ? BREAKFAST : 'option',
       row,
       item,
       included,
-      alreadyIncluded: alreadyIncluded && !breakfast,
       includedLeft: included ? includedLeft('option', row.id, item) : null,
-      freeUnits: included ? null : optionFreeUnits(row, { ...stay, consumed }),
+      freeUnits: included || inPlace ? null : optionFreeUnits(row, { ...stay, consumed }),
+      noFreeUnits: inPlace,
       freeMinutes: null,
       hourly: false,
     });
@@ -191,7 +200,6 @@ function shopItems({ options = [], resources = [], items, linkedResourceIds, off
       row,
       item,
       included,
-      alreadyIncluded: false,
       includedLeft: included ? includedLeft('resource', row.id, item) : null,
       freeUnits: null,
       freeMinutes: hourly && !included ? resourceFreeMinutes(row, stay.resourceMinutes.get(Number(row.id)) || 0) : null,

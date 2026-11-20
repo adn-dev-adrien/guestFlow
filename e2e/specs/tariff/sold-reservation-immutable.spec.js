@@ -15,7 +15,7 @@ import Database from 'better-sqlite3';
 import { createProperty, createClient, createReservation } from '../../fixtures/apiSeed.js';
 // The core seeds no catalogue (specs/plugins-phase-p-productisation.md rule 12): the spec brings one.
 import { seedCateringOptions } from '../../fixtures/dbSeed.js';
-import { CLIENT_URL } from '../../clientUrl.js';
+import { CLIENT_URL, API_TIMEOUT } from '../../clientUrl.js';
 
 const STORAGE_STATE = path.join(process.cwd(), 'e2e', '.auth', 'admin.json');
 const DB_PATH = process.env.GUESTFLOW_E2E_DB_PATH || '/tmp/guestflow-e2e.db';
@@ -23,7 +23,7 @@ const RECIPE_ID = 'aventura-lodge-2026';
 
 let sharedCtx;
 test.beforeAll(async () => {
-  sharedCtx = await pwRequest.newContext({ baseURL: CLIENT_URL, storageState: STORAGE_STATE });
+  sharedCtx = await pwRequest.newContext({ baseURL: CLIENT_URL, storageState: STORAGE_STATE, timeout: API_TIMEOUT });
 });
 test.afterAll(async () => { await sharedCtx?.dispose(); });
 

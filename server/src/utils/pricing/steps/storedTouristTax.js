@@ -1,0 +1,24 @@
+/**
+ * STEP storedTouristTax — TOURIST TAX as stored, for a sale (specs/pricing-components.md §3 rule 8).
+ *
+ * A sale on a stay reads the tax the stay was priced with (`reservations.storedTouristTax`: the total, its detail — base,
+ * rate, unit amount —, where it is collected, the added guests' part) instead of running TOURIST TAX: no tax setting nor
+ * platform tax mode is read. A stay with no record, or whose record was computed on other inputs of the stay
+ * (`storedSaleFigures.touristTaxBasis`: the party, the nights' price, the platform price, the frozen tax, the lines the base
+ * reads), is priced by TOURIST TAX as before. It provides the keys of the `touristTax` step.
+ * `apply(ctx)` returns a new context and never mutates the one it receives.
+ */
+const touristTax = require('./touristTax');
+const { touristTaxBasis, matchingRecord } = require('../storedSaleFigures');
+
+const step = {
+  id: 'storedTouristTax',
+  requires: [...touristTax.requires, 'startDate', 'endDate', 'storedSaleFigures'],
+  provides: touristTax.provides,
+  apply(ctx) {
+    const figures = matchingRecord(ctx.storedSaleFigures, 'touristTax', touristTaxBasis(ctx));
+    return figures ? { ...ctx, ...figures } : touristTax.apply(ctx);
+  },
+};
+
+module.exports = step;

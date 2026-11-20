@@ -130,7 +130,7 @@ organised by topic — on a laptop and on a phone. No pricing or catalogue rule 
 13. The panel is divided into sections, in this order: **Général** (Nom, Description, Catégorie with
     the existing labels as one-tap suggestions, « Toujours visible » once a category is set),
     **Logements et prix**, **Planning** (manual options only, as today), **Visibilité** (« Visible du
-    client »), then the type-specific sections only for the options that carry them today
+    client »), **Vente hors séjour** (« Vendable hors séjour », VAT class, external rate: owner Q-C11, C38, `ExternalSaleFields`), then the type-specific sections only for the options that carry them today
     (Petit-déjeuner, Linge, Tapis de bain, the insurance note). A row of section chips at the top
     scrolls to each section; a section holding an error shows its chip in the error colour.
 14. **Logements et prix** is one table with one line per property: « Proposée » (switch — the option's
@@ -179,7 +179,7 @@ organised by topic — on a laptop and on a phone. No pricing or catalogue rule 
 20. The resources render as cards (one column on `xs`), the stock in large tabular figures top right.
     A card opens the same side panel with the sections Général (Nom, Description, quantity labelled
     « En stock » / « En service »), Prix (type, base price, one line per property with its price and,
-    for an hourly resource, « 1re heure offerte »), then the `resources.fields` plugin slot as its own
+    for an hourly resource, « 1re heure offerte »), Vente hors séjour (the same three fields as an option), then the `resources.fields` plugin slot as its own
     section « Horaires », then Mails (« Phrase une fois réservée »). Deleting stays in the card's « ⋯ »
     menu with the existing impact confirmation (`resources.md`), then the toast « Ressource supprimée »; the
     baby bed stays non-deletable, the item carries `deleteBlockedReason` and the menu writes it under « Supprimer ».
@@ -366,7 +366,7 @@ cannot exist — the model already skipped them on write — so no backfill.
 
 Interactive mockup: [docs/specs/2026-10-28-options-resources-ux.html](../docs/specs/2026-10-28-options-resources-ux.html).
 
-- **PageActionBar:** title « Options & ressources »; tabs Options · Ressources · plugin tabs centred
+- **PageActionBar:** title « Options & ressources »; tabs Options · Ressources · « Proposés à l'arrivée » (core, `outside-booking-sas.md` rule 37, C38) · plugin tabs centred
   (`xs`: second row); one action `AddIcon` « Nouvelle option » / « Nouvelle ressource » (primary). No
   Save/Cancel on the page: saving happens in the panel.
 - **Toolbar** (options tab): search field full width; property filter right of it on `md`+, full width

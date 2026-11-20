@@ -12,15 +12,14 @@
  * Reads NIGHTS only. Pure: no DB, no clock, no settings.
  */
 const { roundMoney } = require('./money');
+const { readableTime } = require('./stayClock');
 const { getRuleNightBaseForDate, getProgressiveExtraNightPrice } = require('./nights');
 
+// `H:MM` and `HH:MM:SS` read like the stay clock's resolver (rule 44): `09:00:00` is 9, not the fallback.
 function timeToDecimalHour(timeStr, fallback = 0) {
-  const value = String(timeStr || '').trim();
-  const match = value.match(/^(\d{1,2}):(\d{2})$/);
-  if (!match) return Number(fallback || 0);
-  const hours = Number(match[1]);
-  const minutes = Number(match[2]);
-  if (!Number.isFinite(hours) || !Number.isFinite(minutes)) return Number(fallback || 0);
+  const time = readableTime(timeStr);
+  if (!time) return Number(fallback || 0);
+  const [hours, minutes] = time.split(':').map(Number);
   return hours + minutes / 60;
 }
 

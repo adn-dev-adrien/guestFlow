@@ -25,7 +25,7 @@
 
 const { todayIso } = require('./localDate');
 
-const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
+const { roundMoneyOrZero: round2 } = require('./pricing/money');
 
 const CANDIDATES_SQL = `
   SELECT r.id, r.reservationNumber, r.finalPrice, r.depositAmount, r.balanceAmount,

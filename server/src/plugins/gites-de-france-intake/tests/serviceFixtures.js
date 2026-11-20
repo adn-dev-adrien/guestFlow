@@ -46,6 +46,7 @@ function setup({
     ] }),
     today: () => today,
     core: {
+      platformCommission: (figures) => require('../../../utils/platformCommission').commissionOf(figures),
       // Like the core: the client of `opts.client` is found or created with the update (SDK 2.7.0), and only kept on success.
       updateReservation: (id, patch, opts) => {
         const own = opts && opts.client ? { id: 141, ...opts.client } : null;

@@ -7,13 +7,15 @@ process.env.DB_PATH = ':memory:';
 process.env.TZ = 'Europe/Paris';
 
 const test = require('node:test');
+const { skipWithout } = require('../plugins/sdk/testing');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 
 const DIR = process.env.PRICE_GATE_FIXTURE_DIR || path.join(__dirname, 'fixtures', 'price-gate');
 const present = ['inputs.json', 'quotes.json'].every((name) => fs.existsSync(path.join(DIR, name)));
-const SKIP = present ? false : 'price-gate fixture absent (captured on the price-gate-baseline tag: node scripts/price-gate/buildFixture.mjs)';
+// loop t1 AS-2 — the fixture holds `resource_bookings` rows, a table of the hourly-resources plugin: skipped in the cell that removes it.
+const SKIP = skipWithout(['hourly-resources']) || (present ? false : 'price-gate fixture absent (captured on the price-gate-baseline tag: node scripts/price-gate/buildFixture.mjs)');
 
 const db = require('../database');
 const { calculateReservationQuote } = require('../utils/pricing');
@@ -28,7 +30,7 @@ const END = addDaysToIsoDate(START, 3);
 
 let recomputed = null;
 let expected = null;
-if (present) {
+if (!SKIP) {
   const inputs = JSON.parse(fs.readFileSync(path.join(DIR, 'inputs.json'), 'utf8'));
   expected = JSON.parse(fs.readFileSync(path.join(DIR, 'quotes.json'), 'utf8'));
   const { freezeClock } = require('./vatRegimeGoldenFixture');
@@ -72,7 +74,8 @@ test('rule 4: calculateReservationQuote is the loader, COMPOSE and nothing else'
   assert.ok(direct.nights === 3 && direct.totalPrice === 300);
   const source = fs.readFileSync(path.join(__dirname, '..', 'utils', 'pricing.js'), 'utf8');
   const wrapper = source.slice(source.indexOf('function calculateReservationQuote'));
-  assert.match(wrapper.slice(0, wrapper.indexOf('\n}\n')), /return compose\(stay\)/);
+  // Rules 8, 9, 54: a sale on the stored stay is the seller's sale pipeline, named by the caller's input, on the stay's stored records.
+  assert.match(wrapper.slice(0, wrapper.indexOf('\n}\n')), /return compose\(stay, \{ sale: \(input && input\.storedStaySale\) \|\| null, stored: \(input && input\.storedSaleFigures\) \|\| null \}\)/);
   assert.ok(!/priceStay|roundMoney\(|Math\./.test(wrapper.slice(0, wrapper.indexOf('\n}\n'))), 'no arithmetic in the wrapper');
 });
 

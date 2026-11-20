@@ -6,12 +6,12 @@ import { test, expect, request as pwRequest } from '@playwright/test';
 import path from 'path';
 import { createProperty } from '../../fixtures/apiSeed.js';
 import { seedCateringOptions } from '../../fixtures/dbSeed.js';
-import { CLIENT_URL } from '../../clientUrl.js';
+import { CLIENT_URL, API_TIMEOUT } from '../../clientUrl.js';
 
 const STORAGE_STATE = path.join(process.cwd(), 'e2e', '.auth', 'admin.json');
 
 async function createOption(data) {
-  const ctx = await pwRequest.newContext({ baseURL: CLIENT_URL, storageState: STORAGE_STATE });
+  const ctx = await pwRequest.newContext({ baseURL: CLIENT_URL, storageState: STORAGE_STATE, timeout: API_TIMEOUT });
   try {
     const res = await ctx.post('/api/options', { data });
     if (!res.ok()) throw new Error(`createOption failed: ${res.status()} ${await res.text()}`);

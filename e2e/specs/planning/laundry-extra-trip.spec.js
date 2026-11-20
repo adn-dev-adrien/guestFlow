@@ -5,7 +5,7 @@
 // E2E DB is non-trivial and the arithmetic is pinned by the server suites (ledger, engine,
 // end-to-end regression). This spec exercises the API contract (PUT / GET / preview / DELETE,
 // the laundry-day refusal) and confirms `/planning` still mounts with an extra trip stored.
-import { test, expect } from '@playwright/test';
+import { test, expect } from '../../fixtures/test.js';
 import { farYearWeekday } from '../../fixtures/farYear.js';
 
 // Inside the date window (specs/reservations-backend-mvc.md rule 13): 2099 is refused since 2026-11-02.

@@ -11,15 +11,20 @@ const { allocateDiscount, normalizeDiscountPercent, normalizeCustomPrice } = req
 
 const step = {
   id: 'discountLevers',
-  requires: ['customPrice', 'discountPercent', 'extraGuestSurcharge', 'totalPrice'],
-  provides: ['cancellationInsuranceBase', 'customFinalPrice', 'normalizedDiscountPercent'],
+  requires: ['customPrice', 'discountFixedAmount', 'discountPercent', 'discountTarget', 'extraGuestSurcharge', 'totalPrice'],
+  provides: ['cancellationInsuranceBase', 'customFinalPrice', 'nightsFixedAmount', 'normalizedDiscountPercent', 'typedDiscountPercent'],
   apply(ctx) {
-    const { customPrice, discountPercent, extraGuestSurcharge, totalPrice } = ctx;
+    const { customPrice, discountFixedAmount, discountPercent, discountTarget, extraGuestSurcharge, totalPrice } = ctx;
 
     // Price levers, normalised HERE rather than beside the totals below: a `percent_of_stay` option
     // (specs/cancellation-insurance.md §3.1) is priced inside the option loop and needs them.
-    const normalizedDiscountPercent = normalizeDiscountPercent(discountPercent);
+    // Rule 16: the percent of a stay discount aimed at the extras (or at everything) is shared out by `extras` over the lines and
+    // the accommodation (rule 40); the nights' own formula then sees none, so nothing is discounted twice.
+    const typedDiscountPercent = normalizeDiscountPercent(discountPercent);
+    const normalizedDiscountPercent = discountTarget === 'nights' ? typedDiscountPercent : 0;
     const customFinalPrice = normalizeCustomPrice(customPrice);
+    // Rule 16: a fixed amount aimed at the nights replaces the percent there; aimed elsewhere, EXTRAS shares it out.
+    const nightsFixedAmount = discountTarget === 'nights' ? discountFixedAmount : null;
     // Assiette of a `percent_of_stay` option (rule 3): the ACCOMMODATION actually charged — the
     // nights after a discount or a manual override, plus the extra-guest surcharge (a supplement on
     // the nights, not an option). Options, resources, taxe de séjour and caution are excluded.
@@ -30,11 +35,11 @@ const step = {
     const cancellationInsuranceBase = roundMoney(
       (Number.isFinite(customFinalPrice)
         ? customFinalPrice
-        : allocateDiscount({ discount: { percent: normalizedDiscountPercent, target: 'nights' }, accommodation: totalPrice }).accommodation)
+        : allocateDiscount({ discount: { percent: normalizedDiscountPercent, amount: nightsFixedAmount, target: 'nights' }, accommodation: totalPrice }).accommodation)
       + extraGuestSurcharge,
     );
 
-    return { ...ctx, cancellationInsuranceBase, customFinalPrice, normalizedDiscountPercent };
+    return { ...ctx, cancellationInsuranceBase, customFinalPrice, nightsFixedAmount, normalizedDiscountPercent, typedDiscountPercent };
   },
 };
 

@@ -1,3 +1,4 @@
+// specs/pricing-components.md §3 rule 77 — the refund lines are re-rated with the period, as vat-optional-mode rule 16 says; no figure moved in PR B.
 // specs/vat-optional-mode.md rules 26 and 28 — a switch dated in the future is reversible: its target is
 // compared with the LATEST period (not today's), and « Annuler ce changement » puts each reservation it
 // moved back on the period it had, while the date is still ahead.

@@ -432,7 +432,33 @@ const api = {
   // specs/resource-booking-pricing-and-invoicing.md §4.3 — payment, arrival and Qonto invoice of a booking.
   recordResourceBookingPayment: (id, body) => request(`/resource-bookings/${id}/payment`, { method: 'POST', body }),
   clearResourceBookingPayment: (id) => request(`/resource-bookings/${id}/payment`, { method: 'DELETE' }),
-  recordResourceBookingArrival: (id, body) => request(`/resource-bookings/${id}/arrival`, { method: 'POST', body }),
+  // specs/outside-booking-sas.md §4.3 — the mini SAS of an outside visit: one payload, a quote that writes nothing, one commit, explicit actions on stored lines.
+  getResourceVisit: (id) => request(`/resource-bookings/${id}/visit`),
+  searchResourceVisitArticles: (id, q = '') => request(`/resource-bookings/${id}/visit/articles?q=${encodeURIComponent(q)}`),
+  quoteResourceVisit: (id, body, { signal } = {}) => request(`/resource-bookings/${id}/visit/quote`, {
+    method: 'POST', body, signal, readOnly: true,
+  }),
+  commitResourceVisit: (id, body) => request(`/resource-bookings/${id}/visit`, { method: 'POST', body }),
+  patchResourceVisitLine: (id, lineId, body) => request(`/resource-bookings/${id}/visit/lines/${lineId}`, { method: 'PATCH', body }),
+  markResourceNoShow: (id) => request(`/resource-bookings/${id}/no-show`, { method: 'POST' }),
+  mintVisitPaymentLink: (id, body = {}) => request(`/resource-bookings/${id}/visit/payment-link`, { method: 'POST', body }),
+  withdrawVisitPaymentLink: (id, linkId) => request(`/resource-bookings/${id}/visit/payment-link/${linkId}`, { method: 'DELETE' }),
+  emailVisitPaymentLink: (id, linkId) => request(`/resource-bookings/${id}/visit/payment-link/${linkId}/email`, { method: 'POST' }),
+  // « Vente hors séjour » (specs/pricing-components.md rules 53, 74): the counter's quote, sale, day list and link.
+  getStandaloneSales: (day) => request(`/standalone-sales${day ? `?day=${day}` : ''}`),
+  getStandaloneVatRates: () => request('/standalone-sales/vat-rates'),
+  quoteStandaloneSale: (body, { signal } = {}) => request('/standalone-sales/quote', {
+    method: 'POST', body, signal, readOnly: true,
+  }),
+  sellStandaloneSale: (body) => request('/standalone-sales', { method: 'POST', body }),
+  mintStandaloneSaleLink: (id, body = {}) => request(`/standalone-sales/${id}/payment-link`, { method: 'POST', body }),
+  withdrawStandaloneSaleLink: (id, linkId) => request(`/standalone-sales/${id}/payment-link/${linkId}`, { method: 'DELETE' }),
+  emailStandaloneSaleLink: (id, linkId) => request(`/standalone-sales/${id}/payment-link/${linkId}/email`, { method: 'POST' }),
+  closeStandaloneSaleObligation: (id, obligationId, status = 'settled') => request(`/standalone-sales/${id}/obligations/${obligationId}`, { method: 'PATCH', body: { status } }),
+  // specs/outside-booking-sas.md rules 36-37 — the « Proposés à l'arrivée » lists and the articles that can join them.
+  getSuggestedArticlesSettings: () => request('/settings/suggested-articles'),
+  saveSuggestedArticles: (kind, id, articleRefs) => request(`/settings/suggested-articles/${encodeURIComponent(kind)}/${encodeURIComponent(id)}`, { method: 'PUT', body: { articleRefs } }),
+  getSuggestedArticlesCatalogue: ({ customerContext = 'external', q = '' } = {}) => request(`/suggested-articles/catalogue?customerContext=${customerContext}&q=${encodeURIComponent(q)}`),
   issueResourceBookingInvoice: (id, body = {}) => request(`/resource-bookings/${id}/invoice`, { method: 'POST', body }),
   attachResourceBookingInvoice: (id, body = {}) => request(`/resource-bookings/${id}/invoice/attach`, { method: 'POST', body }),
 
@@ -479,7 +505,9 @@ const api = {
   calculatePrice: (data) => request('/reservations/calculate-price', { method: 'POST', body: data, readOnly: true }),
   suggestBeds: (data) => request('/reservations/suggest-beds', { method: 'POST', body: data, readOnly: true }),
   // specs/mid-stay-notes.md rule 22 — the « Nouvelle note » items and total, derived by the server.
-  previewMidStayNote: (data) => request('/reservations/mid-stay-note/preview', { method: 'POST', body: data, readOnly: true }),
+  previewMidStayNote: (data, { signal } = {}) => request('/reservations/mid-stay-note/preview', {
+    method: 'POST', body: data, signal, readOnly: true,
+  }),
   computePlatformCommission: (figures) => request('/reservations/platform-commission', { method: 'POST', body: figures, readOnly: true }),
   createReservation: (data) => request('/reservations', { method: 'POST', body: data }),
   updateReservation: (id, data) => request(`/reservations/${id}`, { method: 'PUT', body: data }),
@@ -503,6 +531,7 @@ const api = {
   // Remboursements (specs/reservation-refunds.md §4.3). The register also rides the reservation
   // payload, so the fiche only calls these two on a mutation.
   createReservationRefund: (id, data) => request(`/reservations/${id}/refunds`, { method: 'POST', body: data }),
+  closeRefundObligation: (id, obligationId, status) => request(`/reservations/${id}/refund-obligations/${obligationId}`, { method: 'PATCH', body: { status } }),
   deleteReservationRefund: (id, refundId) => request(`/reservations/${id}/refunds/${refundId}`, { method: 'DELETE' }),
   getOccupiedDates: (propertyId, from, to, excludeReservationId) => {
     const params = new URLSearchParams();
@@ -697,6 +726,10 @@ const api = {
 
   // Cancellation compensations (specs/cancellation-compensation.md §4.3). The month filters only the
   // received ones — a pending compensation has no accounting date, so it is always returned.
+  getSaleDetail: (reservationId) => request(`/reservations/${reservationId}/sale-detail`),
+  quoteExtraSale: (reservationId, payload) => request(`/reservations/${reservationId}/extras/quote`, { method: 'POST', body: payload }),
+  sellExtra: (reservationId, payload) => request(`/reservations/${reservationId}/extras`, { method: 'POST', body: payload }),
+  patchExtraLine: (reservationId, ref, payload) => request(`/reservations/${reservationId}/extras/${encodeURIComponent(ref)}`, { method: 'PATCH', body: payload }),
   getCancellationCompensations: (month, year) => request(`/accounting/cancellation-compensations?month=${month}&year=${year}`),
   createCancellationCompensation: (payload) => request('/accounting/cancellation-compensations', { method: 'POST', body: payload }),
   updateCancellationCompensation: (id, payload) => request(`/accounting/cancellation-compensations/${id}`, { method: 'PUT', body: payload }),

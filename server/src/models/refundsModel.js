@@ -11,9 +11,24 @@
  */
 
 const db = require('../database');
-const { isOffBooks, isRetainedDeposit } = require('../utils/refunds');
+const {
+  totals: registerTotals, scopeSql: refundScopeSql, stayRefundLinesSumSql, isRetainedDeposit,
+} = require('../utils/refunds');
+const { syncStay: syncAllocations, lineRefsByKey } = require('../utils/paymentAllocationsSync');
 
-const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
+const { roundMoneyOrZero: round2 } = require('../utils/pricing/money');
+const { isResourceKey } = require('../utils/pricing/lineKeys');
+
+// S3 — what a line is and which revenue bucket it lands on (the same reading the migration backfills).
+function refundLineColumns(line) {
+  const key = line.lineKey || null;
+  if (line.bucket === 'indemnity') {
+    const revenueBucket = key === 'accommodation' ? 'accommodation' : key === 'touristTax' ? 'touristTax'
+      : key === null ? null : isResourceKey(key) ? 'resources' : 'options';
+    return { source: 'indemnity', revenueBucket };
+  }
+  return { source: key === 'commission' ? 'commission' : 'sale', revenueBucket: line.bucket };
+}
 
 function createRefundsModel(database) {
   // Statements are prepared LAZILY (memoized on first use): several accounting/finance unit tests
@@ -36,27 +51,58 @@ function createRefundsModel(database) {
     WHERE refundId = ?
     ORDER BY id
   `);
-  const insertHeader = () => prep(`
+  // The columns of the refund tables PR B added (rule 72): a minimal test schema predates them.
+  let wide = null;
+  const hasWideSchema = () => {
+    if (wide == null) {
+      const header = new Set(database.prepare('PRAGMA table_info(reservation_refunds)').all().map((c) => c.name));
+      wide = header.has('kind') && header.has('origin') && header.has('amountCents') && header.has('providerRefundRef');
+    }
+    return wide;
+  };
+  const insertHeader = () => (hasWideSchema() ? prep(`
+    INSERT INTO reservation_refunds (reservationId, refundDate, method, totalTtc, reason, afterCancellation, kind, origin, amountCents, providerRefundRef)
+    VALUES (@reservationId, @refundDate, @method, @totalTtc, @reason,
+            (SELECT CASE WHEN kind = 'cancelled' THEN 1 ELSE 0 END FROM reservations WHERE id = @reservationId),
+            @kind, @origin, @amountCents, @providerRefundRef)
+  `) : prep(`
     INSERT INTO reservation_refunds (reservationId, refundDate, method, totalTtc, reason, afterCancellation)
     VALUES (@reservationId, @refundDate, @method, @totalTtc, @reason,
             (SELECT CASE WHEN kind = 'cancelled' THEN 1 ELSE 0 END FROM reservations WHERE id = @reservationId))
-  `);
-  const insertLine = () => prep(`
+  `));
+  const insertLine = () => (hasWideSchema() ? prep(`
+    INSERT INTO reservation_refund_lines (refundId, lineKey, label, bucket, quantity, unitPrice, amountTtc, vatRate, amountCents, source, revenueBucket, lineRef)
+    VALUES (@refundId, @lineKey, @label, @bucket, @quantity, @unitPrice, @amountTtc, @vatRate, @amountCents, @source, @revenueBucket, @lineRef)
+  `) : prep(`
     INSERT INTO reservation_refund_lines (refundId, lineKey, label, bucket, quantity, unitPrice, amountTtc, vatRate)
     VALUES (@refundId, @lineKey, @label, @bucket, @quantity, @unitPrice, @amountTtc, @vatRate)
-  `);
+  `));
 
   let createTx = null;
   function insertRefund(reservationId, refund) {
+    const requalification = isRetainedDeposit(refund.method);
+    const wideHeader = hasWideSchema() ? {
+      kind: requalification ? 'requalification' : 'refund',
+      origin: refund.origin || (requalification ? 'cancellation' : 'operator'),
+      amountCents: Math.round(round2(refund.totalTtc) * 100),
+      providerRefundRef: refund.providerRefundRef || null,
+    } : {};
     const info = insertHeader().run({
       reservationId,
       refundDate: refund.refundDate,
       method: refund.method,
       totalTtc: round2(refund.totalTtc),
       reason: refund.reason || '',
+      ...wideHeader,
     });
     const refundId = Number(info.lastInsertRowid);
+    const refs = hasWideSchema() ? lineRefsByKey(database, reservationId) : null;
     for (const line of refund.lines) {
+      const wideLine = refs ? {
+        amountCents: Math.round(round2(line.amountTtc) * 100),
+        ...refundLineColumns(line),
+        lineRef: (line.lineKey && refs.get(line.lineKey)) || null,
+      } : {};
       insertLine().run({
         refundId,
         lineKey: line.lineKey || null,
@@ -66,8 +112,11 @@ function createRefundsModel(database) {
         unitPrice: line.unitPrice == null ? null : round2(line.unitPrice),
         amountTtc: round2(line.amountTtc),
         vatRate: Number(line.vatRate || 0),
+        ...wideLine,
       });
     }
+    // Rule 74 — the refund is a negative allocation, written with it.
+    syncAllocations(database, reservationId);
     return refundId;
   }
 
@@ -102,6 +151,7 @@ function createRefundsModel(database) {
     remove(reservationId, refundId) {
       const info = prep('DELETE FROM reservation_refunds WHERE id = ? AND reservationId = ?')
         .run(refundId, reservationId);
+      if (info.changes > 0) syncAllocations(database, reservationId);
       return info.changes > 0;
     },
 
@@ -113,23 +163,15 @@ function createRefundsModel(database) {
     totalsByReservation(reservationId) {
       const rows = prep('SELECT method, totalTtc FROM reservation_refunds WHERE reservationId = ?')
         .all(reservationId);
-      let book = 0;
-      let withCash = 0;
-      for (const row of rows) {
-        if (isRetainedDeposit(row.method)) continue;
-        const amount = Number(row.totalTtc || 0);
-        withCash += amount;
-        if (!isOffBooks(row.method)) book += amount;
-      }
-      return { book: round2(book), withCash: round2(withCash) };
+      const given = registerTotals(rows, { scope: 'given' });
+      return { book: given.bookCents / 100, withCash: given.withCashCents / 100 };
     },
 
-    // What was given back through FREE lines (« Trop-perçu », no line key): the only refunds that reduce a
-    // trop-perçu. The refund of a sold line takes its price off the stay as well (a retained avoir counts in none).
-    freeLinesTotal(reservationId) {
-      const row = prep(`SELECT COALESCE(SUM(l.amountTtc), 0) AS total FROM reservation_refund_lines l
-        JOIN reservation_refunds r ON r.id = l.refundId
-        WHERE r.reservationId = ? AND l.lineKey IS NULL AND r.method != 'retained'`).get(reservationId);
+    // What was given back through FREE lines of a refund opened on the trop-perçu (origin `overpayment`, owner O-6): the only
+    // refunds that lower it. A gesture, a sold line's refund and a retained avoir lower nothing (rule 76).
+    overpaymentRefundedTtc(reservationId) {
+      const wide = hasWideSchema();
+      const row = prep(stayRefundLinesSumSql(`l.lineKey IS NULL AND ${refundScopeSql('given', 'withCash', 'r.method')} ${wide ? "AND r.origin = 'overpayment'" : ''}`)).get(reservationId);
       return round2(row.total);
     },
 
@@ -144,12 +186,14 @@ function createRefundsModel(database) {
         SELECT reservationId, method, totalTtc FROM reservation_refunds
         WHERE reservationId IN (${placeholders})
       `).all(...list);
+      const byStay = new Map();
       for (const row of rows) {
-        if (isRetainedDeposit(row.method)) continue;
-        const entry = totals[row.reservationId] || (totals[row.reservationId] = { book: 0, withCash: 0 });
-        const amount = Number(row.totalTtc || 0);
-        entry.withCash = round2(entry.withCash + amount);
-        if (!isOffBooks(row.method)) entry.book = round2(entry.book + amount);
+        if (!byStay.has(row.reservationId)) byStay.set(row.reservationId, []);
+        byStay.get(row.reservationId).push(row);
+      }
+      for (const [stayId, refunds] of byStay) {
+        const given = registerTotals(refunds, { scope: 'given' });
+        if (refunds.some((r) => r.method !== 'retained')) totals[stayId] = { book: given.bookCents / 100, withCash: given.withCashCents / 100 };
       }
       return totals;
     },
@@ -158,18 +202,21 @@ function createRefundsModel(database) {
     // indemnity share cumulatively, so the shares' HT add up to the compensation's HT to the cent
     // (specs/reservation-refunds.md rule 48).
     indemnityGivenBefore({ reservationId, refundDate, id }) {
-      const row = prep(`SELECT COALESCE(SUM(l.amountTtc), 0) AS total FROM reservation_refund_lines l
-        JOIN reservation_refunds r ON r.id = l.refundId
-        WHERE r.reservationId = ? AND l.bucket = 'indemnity' AND r.method <> 'internal'
-          AND (r.refundDate < ? OR (r.refundDate = ? AND r.id < ?))`).get(reservationId, refundDate, refundDate, id);
+      const row = prep(stayRefundLinesSumSql(`l.bucket = 'indemnity' AND ${refundScopeSql('journal', 'book', 'r.method')}
+          AND (r.refundDate < ? OR (r.refundDate = ? AND r.id < ?))`)).get(reservationId, refundDate, refundDate, id);
       return round2(row.total);
+    },
+
+    // Rule 78 — the refunds the stay's (last) requalification avoir netted, written once at the cancellation; null without an avoir.
+    nettedRefundIds(reservationId) {
+      const avoir = prep("SELECT MAX(id) AS id FROM reservation_refunds WHERE reservationId = ? AND method = 'retained'").get(reservationId);
+      if (!avoir || avoir.id == null) return null;
+      return new Set(prep('SELECT refundId FROM refund_nettings WHERE avoirId = ?').all(avoir.id).map((r) => Number(r.refundId)));
     },
 
     // TTC every refund of a stay took from its cancellation indemnity (rule 48).
     indemnityGivenBack(reservationId) {
-      const row = prep(`SELECT COALESCE(SUM(l.amountTtc), 0) AS total FROM reservation_refund_lines l
-        JOIN reservation_refunds r ON r.id = l.refundId
-        WHERE r.reservationId = ? AND l.bucket = 'indemnity' AND r.method <> 'internal'`).get(reservationId);
+      const row = prep(stayRefundLinesSumSql(`l.bucket = 'indemnity' AND ${refundScopeSql('journal', 'book', 'r.method')}`)).get(reservationId);
       return round2(row.total);
     },
 
@@ -186,7 +233,7 @@ function createRefundsModel(database) {
         JOIN reservations r ON rf.reservationId = r.id
         JOIN clients c ON r.clientId = c.id
         JOIN properties p ON r.propertyId = p.id
-        WHERE rf.method <> 'internal'
+        WHERE ${refundScopeSql('journal', 'book', 'rf.method')}
           -- specs/payment-schedule-and-cancellation.md §3.6 rule 34 — a cancelled stay keeps its
           -- booked money visible: its requalification avoir is precisely an entry of the cancellation
           -- month, so accounting reads both kinds while every operational query keeps its filter.

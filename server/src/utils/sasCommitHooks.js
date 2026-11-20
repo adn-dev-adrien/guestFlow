@@ -4,7 +4,7 @@
  * the SAS controller runs them around the core commit, only while the plugin is live.
  *
  *   validate(reservation, payload)        → { ok: true } | { ok: false, status, body }   (step ran)
- *   complementItems(reservation, payload) → [{ key, label, amount }]                     (every commit)
+ *   complementItems(reservation, payload) → [{ key, label, amount, component? }]         (every commit)
  *   write(db, reservation, payload)       → void, inside the commit's transaction         (step ran)
  *
  * `payload` is `pluginSteps[step]` of the commit body; `undefined` when the step did not run.
@@ -15,6 +15,8 @@
  */
 
 const registry = require('../plugins/sdk/registry');
+const { roundMoneyStrict } = require('./pricing/money');
+const { notDepartureCharge } = require('./departureChargeLines');
 
 function liveHooks() {
   return registry.all()
@@ -30,7 +32,7 @@ const hasColumn = (db, table, column) => {
 // dialog carries back (rule 7); those of a plugin that is not live are kept as stored (rule 8).
 function storedPluginLines(db, reservationId) {
   if (!hasColumn(db, 'reservation_custom_options', 'sasLineKey')) return [];
-  return db.prepare('SELECT description, amount, offered, sasLineKey FROM reservation_custom_options WHERE reservationId = ? AND sasLineKey IS NOT NULL')
+  return db.prepare(`SELECT description, amount, offered, sasLineKey FROM reservation_custom_options WHERE reservationId = ? AND sasLineKey IS NOT NULL${notDepartureCharge(db)}`)
     .all(Number(reservationId));
 }
 
@@ -61,9 +63,12 @@ function prepare({ reservation, pluginSteps = {}, db = require('../database') })
       writes.push((db) => hook.write(db, reservation, payload));
     }
     for (const item of hook.complementItems(reservation, payload) || []) {
-      const amount = Math.round(Number(item.amount) * 100) / 100;
-      if (!(amount > 0)) continue;
-      items.push({ label: String(item.label || '').trim(), amount, sasLineKey: `${pluginId}:${item.key}` });
+      const amount = roundMoneyStrict(item.amount);
+      // specs/pricing-components.md rule 90.3 — a component of a line (`component: { kind, resourceId }`) rides along, 0 € included:
+      // the commit puts it on the line it belongs to, and a component that drops to 0 shrinks back.
+      const component = item.component && item.component.kind ? { kind: String(item.component.kind), resourceId: Number(item.component.resourceId) } : null;
+      if (!(amount > 0) && !(component && amount === 0)) continue;
+      items.push({ label: String(item.label || '').trim(), amount, sasLineKey: `${pluginId}:${item.key}`, ...(component ? { component } : {}) });
     }
   }
   const labels = new Set([...stored.map((row) => String(row.description).trim()), ...items.map((i) => i.label)]);

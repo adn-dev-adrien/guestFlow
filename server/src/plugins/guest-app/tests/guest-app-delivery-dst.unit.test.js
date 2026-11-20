@@ -58,7 +58,7 @@ test('rule 41 reading: the night the clocks go forward, no wall time that does n
     assertCoherent(list);
   });
   const picker = deliveryPicker({ now: new Date(`${date}T00:15:00Z`), stay, leadMinutes: 30, schedule: FREE, lang: 'fr' });
-  const slots = picker.days.flatMap((d) => d.slots);
+  const slots = picker.days.flatMap((d) => d.times);
   slots.forEach((slot, i) => { if (i) assert.ok(Date.parse(slot.at) > Date.parse(slots[i - 1].at)); });
   assert.equal(picker.asap.label, 'Dès que possible — vers 3 h');
 });

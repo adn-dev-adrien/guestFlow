@@ -65,7 +65,8 @@ const GUARDS = [
   },
   {
     name: 'refunds',
-    isHome: (file) => file.startsWith('utils/pricing/refunds/'),
+    // `settlement.js` hosts `scheduleExcess` only: SCHEDULE's two quote keys read the receipts and no pricing unit may import REFUNDS (rule 72).
+    isHome: (file) => file.startsWith('utils/pricing/refunds/') || file === 'utils/pricing/settlement.js',
     rules: [
       { re: /REFUND_EXCEEDS_\w+/, probe: "throw new Error('REFUND_EXCEEDS_SALE');" },
       { re: /\b(excessCents|duplicateCents)\s*[:=]/, probe: 'const excessCents = paid - due;' },
@@ -74,9 +75,12 @@ const GUARDS = [
       { re: /\bSUM\([^)]*(totalTtc|amountTtc)/, probe: "db.prepare('SELECT SUM(amountTtc) FROM refunds')" },
       { re: /\b(keptFromGuest|writtenOffBalance):\s*round2\(/, probe: 'keptFromGuest: round2(kept),' },
       { re: /\brefundOwed\s*:\s*true|\brefundCents\s*:\s*excess/, probe: 'return { refundOwed: true };' },
+      // Loop t2 B2-4 — what a document line holds beyond what it asks (the money a refund or a lowered row can take from it) is REFUNDS' `refundRowsOfDocument`.
+      { re: /\bsettledCents\)?\s*-\s*(?:whole\()?[\w.]*\bdueCents\b/, probe: ['const take = Math.min(left, Math.max(0, line.settledCents - line.dueCents));', 'whole(line.settledCents) - whole(line.dueCents)'] },
     ],
-    removedBy: () => 'PR B',
-    reason: (file, text, pr) => `a refund figure computed outside refunds/ until ${pr || 'PR B or PR C'} routes it through the component`,
+    // PR B delivered the trop-perçu, the caps and the postes on the allocations (rules 72-76). What stays is read-model SQL (PR C).
+    removedBy: () => 'PR C',
+    reason: (file, text, pr) => `a refund sum or cap outside refunds/: ${pr || 'PR C'} routes the finance pages and the cancellation figures through the component`,
   },
   {
     name: 'money',
@@ -117,7 +121,11 @@ const GUARDS = [
   },
   {
     name: 'families',
-    isHome: (file) => file.startsWith('utils/pricing/articles/'),
+    // The person × night arithmetic of the tourist tax is TOURIST TAX's own (rule 3): its `personNights` and `unitFromTotal`, and the
+    // step that feeds them (Q-B11). `utils/pricing.js` only re-exports the head's multiplier under its SDK name (removing it is a
+    // MAJOR bump). `sasUpsellOptionMigration` is a frozen one-shot migration: it never depends on a live quote.
+    isHome: (file) => file.startsWith('utils/pricing/articles/') || file === 'utils/pricing/touristTax.js'
+      || file === 'utils/pricing/steps/touristTax.js' || file === 'utils/pricing.js' || file === 'utils/sasUpsellOptionMigration.js',
     rules: [
       { re: /\bgetTypeMultiplier\b/, probe: 'const multiplier = getTypeMultiplier(priceType, persons, nights);' },
       { re: /\b(persons|guests|nbPersons)\s*\*\s*(nights|nbNights)\b|\b(nights|nbNights)\s*\*\s*(persons|guests|nbPersons)\b/, probe: ['const units = nights * persons;', 'const units = persons * nights;'] },
@@ -127,7 +135,7 @@ const GUARDS = [
   {
     name: 'exporters',
     isHome: () => false,
-    scope: (file) => file.startsWith(`${plugin('accounting-export')}/`) && !file.includes('/tests/'),
+    scope: (file) => (file.startsWith(`${plugin('accounting-export')}/`) || file.startsWith('utils/accounting/exporters/')) && !file.includes('/tests/'),
     rules: [
       { re: /require\(\s*['"][^'"]*\/vat(\/[^'"]*)?['"]\s*\)/, probe: "const { vatOf } = require('../../utils/pricing/vat');" },
       { re: /require\(\s*['"][^'"]*\/articles(\/[^'"]*)?['"]\s*\)/, probe: "const articles = require('../../utils/pricing/articles');" },

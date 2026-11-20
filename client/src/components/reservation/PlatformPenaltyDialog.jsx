@@ -12,14 +12,17 @@ import {
   Autocomplete, Box, FormControlLabel, Radio, RadioGroup, TextField, Typography,
 } from '@mui/material';
 import api from '../../api';
+import FocusKeeper from '../FocusKeeper';
 import FormDialog from '../FormDialog';
 import useLatestPreview from '../../hooks/useLatestPreview';
+import useMoneyCommit, { PreviewFailure } from '../../hooks/useMoneyCommit';
 import { useToast } from '../DialogProvider';
 import { formatCurrency } from '../../utils/formatters';
 
+// A trailing separator (« 30, », being typed) reads as the whole amount, so the preview does not flash « — » for one keystroke (loop t25).
 const toAmount = (text) => {
   const v = String(text ?? '').replace(/[\s€]/g, '').replace(',', '.');
-  return /^\d+(\.\d+)?$/.test(v) ? Number(v) : null;
+  return /^\d+(\.\d{0,2})?$/.test(v) ? Number(v) : null;
 };
 const asInput = (n) => (n == null ? '' : String(n).replace('.', ','));
 
@@ -51,10 +54,17 @@ export default function PlatformPenaltyDialog({ open, onClose, reservationId, so
     delay: 250,
   });
   const shown = preview.data;
+  // Loop t23 — the before / after choice is a draft input: once asked, it stays while a request fails (the last answer said it was
+  // needed), so the radio the operator just clicked is never taken away; only the figures go.
+  const asksChoice = choice != null || Boolean((shown || preview.last)?.needsChoice);
   const answer = preview.fresh ? preview.data : null;
   const refused = (shown ? shown.errors : []).filter((e) => e.field !== 'payoutIncludesPenalty' && touched[e.field]);
 
+  const amountInvalid = amount.trim() !== '' && toAmount(amount) == null;
+  // The money-dialog contract (plugins-phase-1-sdk rule 58): a fresh, valid answer for the figures on screen.
+  const commit = useMoneyCommit({ previews: [preview], questions: [Boolean(answer && answer.valid), !amountInvalid] });
   const submit = async () => {
+    if (!commit.ready) return;
     setBusy(true);
     try {
       await api.declarePlatformPenalty(reservationId, body);
@@ -67,7 +77,6 @@ export default function PlatformPenaltyDialog({ open, onClose, reservationId, so
   };
 
   const touch = (field) => setTouched((t) => ({ ...t, [field]: true }));
-  const amountInvalid = amount.trim() !== '' && toAmount(amount) == null;
   const errorOf = (field) => (field === 'amount' && amountInvalid ? { message: 'Montant invalide : chiffres et virgule, deux décimales au plus.' } : refused.find((e) => e.field === field));
   const figures = (label, key, fmt) => (shown && shown.before && shown.after && shown.before[key] != null && shown.after[key] != null
     ? `${label} ${fmt(shown.before[key])} → ${fmt(shown.after[key])}` : null);
@@ -75,48 +84,52 @@ export default function PlatformPenaltyDialog({ open, onClose, reservationId, so
   return (
     <FormDialog
       open={open} onClose={onClose} title="Pénalité plateforme" submitLabel="Enregistrer" onSubmit={submit} submitBusy={busy}
-      submitDisabled={!answer || !answer.valid || amountInvalid}
+      submitDisabled={!commit.ready}
     >
-      <TextField
-        fullWidth label="Montant (€)" value={amount} sx={{ mt: 1 }} onChange={(e) => { setAmount(e.target.value); touch('amount'); }}
-        error={Boolean(errorOf('amount'))} helperText={errorOf('amount')?.message || ' '}
-        slotProps={{ htmlInput: { inputMode: 'decimal', autoComplete: 'off', style: { fontSize: 16 } } }}
-      />
-      <Autocomplete
-        freeSolo openOnFocus options={suggestions} inputValue={reason} onInputChange={(_e, v) => { setReason(v); touch('reason'); }}
-        renderInput={(params) => (
-          <TextField {...params} label="Motif" error={Boolean(errorOf('reason'))} helperText={errorOf('reason')?.message || ' '} slotProps={{ ...params.slotProps, htmlInput: { ...params.slotProps.htmlInput, style: { fontSize: 16 } } }} />
+      <FocusKeeper>
+        <TextField
+          fullWidth label="Montant (€)" value={amount} sx={{ mt: 1 }} onChange={(e) => { setAmount(e.target.value); touch('amount'); }}
+          error={Boolean(errorOf('amount'))} helperText={errorOf('amount')?.message || ' '}
+          slotProps={{ htmlInput: { inputMode: 'decimal', autoComplete: 'off', style: { fontSize: 16 } } }}
+        />
+        <Autocomplete
+          freeSolo openOnFocus options={suggestions} inputValue={reason} onInputChange={(_e, v) => { setReason(v); touch('reason'); }}
+          renderInput={(params) => (
+            <TextField {...params} label="Motif" error={Boolean(errorOf('reason'))} helperText={errorOf('reason')?.message || ' '} slotProps={{ ...params.slotProps, htmlInput: { ...params.slotProps.htmlInput, style: { fontSize: 16 } } }} />
+          )}
+        />
+        <TextField
+          fullWidth type="date" label="Date" value={date} onChange={(e) => { setDate(e.target.value); touch('date'); }}
+          slotProps={{ inputLabel: { shrink: true } }} error={Boolean(errorOf('date'))}
+          helperText={errorOf('date')?.message || 'Par défaut : la date de réception du versement, sinon aujourd’hui.'}
+        />
+        {asksChoice && (
+          <Box sx={{ mt: 1.5 }}>
+            <Typography id="penalty-choice" variant="body2" sx={{ fontWeight: 600 }}>
+              Le versement saisi ({shown && shown.before.payout != null ? formatCurrency(shown.before.payout) : '—'}) est :
+            </Typography>
+            <RadioGroup aria-labelledby="penalty-choice" value={choice == null ? '' : String(choice)} onChange={(e) => setChoice(e.target.value === 'true')}>
+              <FormControlLabel value="false" control={<Radio />} label="le montant du relevé, avant pénalité" />
+              <FormControlLabel value="true" control={<Radio />} label="le montant reçu sur le compte, pénalité déjà déduite" />
+            </RadioGroup>
+          </Box>
         )}
-      />
-      <TextField
-        fullWidth type="date" label="Date" value={date} onChange={(e) => { setDate(e.target.value); touch('date'); }}
-        slotProps={{ inputLabel: { shrink: true } }} error={Boolean(errorOf('date'))}
-        helperText={errorOf('date')?.message || 'Par défaut : la date de réception du versement, sinon aujourd’hui.'}
-      />
-      {shown && (shown.needsChoice || choice != null) && (
-        <Box sx={{ mt: 1.5 }}>
-          <Typography id="penalty-choice" variant="body2" sx={{ fontWeight: 600 }}>
-            Le versement saisi ({shown.before.payout != null ? formatCurrency(shown.before.payout) : ''}) est :
-          </Typography>
-          <RadioGroup aria-labelledby="penalty-choice" value={choice == null ? '' : String(choice)} onChange={(e) => setChoice(e.target.value === 'true')}>
-            <FormControlLabel value="false" control={<Radio />} label="le montant du relevé, avant pénalité" />
-            <FormControlLabel value="true" control={<Radio />} label="le montant reçu sur le compte, pénalité déjà déduite" />
-          </RadioGroup>
-        </Box>
-      )}
-      {shown && shown.before && (
-        <Box sx={{ mt: 1.5, p: 1.25, borderRadius: 1.5, bgcolor: 'background.default' }} aria-live="polite">
-          {[figures('Commission', 'commission', formatCurrency), figures('Versement attendu', 'netReceived', formatCurrency)].filter(Boolean).map((line) => (
-            <Typography key={line} variant="body2" sx={{ fontVariantNumeric: 'tabular-nums' }}>{line}</Typography>
-          ))}
-        </Box>
-      )}
-      {shown && shown.warnings.map((w) => (
-        <Typography key={w} variant="caption" component="div" sx={{ mt: 1, px: 1.25, py: 0.75, borderRadius: 1, bgcolor: 'warning.soft', color: 'warning.text' }}>{w}</Typography>
-      ))}
-      {shown && shown.errors.filter((e) => !['amount', 'reason', 'date', 'payoutIncludesPenalty'].includes(e.field)).map((e) => (
-        <Typography key={e.code} variant="caption" component="div" color="error.main" role="alert" sx={{ mt: 1 }}>{e.message}</Typography>
-      ))}
+        {shown && shown.before && (
+          <Box sx={{ mt: 1.5, p: 1.25, borderRadius: 1.5, bgcolor: 'background.default' }} aria-live="polite">
+            {[figures('Commission', 'commission', formatCurrency), figures('Versement attendu', 'netReceived', formatCurrency)].filter(Boolean).map((line) => (
+              <Typography key={line} variant="body2" sx={{ fontVariantNumeric: 'tabular-nums' }}>{line}</Typography>
+            ))}
+          </Box>
+        )}
+        {shown && shown.warnings.map((w) => (
+          <Typography key={w} variant="caption" component="div" sx={{ mt: 1, px: 1.25, py: 0.75, borderRadius: 1, bgcolor: 'warning.soft', color: 'warning.text' }}>{w}</Typography>
+        ))}
+        {shown && shown.errors.filter((e) => !['amount', 'reason', 'date', 'payoutIncludesPenalty'].includes(e.field)).map((e) => (
+          <Typography key={e.code} variant="caption" component="div" color="error.main" role="alert" sx={{ mt: 1 }}>{e.message}</Typography>
+        ))}
+        {/* Loop t23 S23-1 — a failed preview says so with its way out; nothing of an older answer stays drawn (`data` is null). */}
+        <PreviewFailure error={preview.error} onRetry={preview.retry} fallback="Calcul impossible." sx={{ mt: 1.5 }} />
+      </FocusKeeper>
     </FormDialog>
   );
 }

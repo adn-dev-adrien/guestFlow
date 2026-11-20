@@ -1,0 +1,1 @@
+- Reopened arrival SAS: lines already written are changed in place (same line, same identity) and new ones are added, instead of being erased then rewritten; a line added on reopening carries the « Ajoutée à la réouverture » badge and a log entry. Totals are unchanged (specs/pricing-components.md, rules 14 and 25).

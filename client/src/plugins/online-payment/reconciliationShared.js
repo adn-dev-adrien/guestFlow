@@ -6,10 +6,11 @@ export const money = (cents) => formatCurrency(Number(cents) / 100);
 
 export const CONFIDENCE_STATUS = { sur: 'success', probable: 'info', verifier: 'warning' };
 
-/** « 460,00 » or « 460.5 » → cents, or null when it is not a plain amount (comma or dot, 2 decimals max). */
+/** « 460,00 » or « 460.5 » → cents, or null when it is not a plain amount (comma or dot, 2 decimals max). A trailing separator
+ * (« 100, », being typed) reads as the whole amount, so the field never flashes « — » for one keystroke (loop t25). */
 export function parseEuroInput(text) {
   const v = String(text ?? '').replace(/[\s€]/g, '').replace(',', '.');
-  if (!/^\d+(\.\d{1,2})?$/.test(v)) return null;
+  if (!/^\d+(\.\d{0,2})?$/.test(v)) return null;
   const [int, dec = ''] = v.split('.');
   return Number(int) * 100 + Number(dec.padEnd(2, '0'));
 }
@@ -36,9 +37,12 @@ export const readFailureLabel = (lastError) => {
   return `Lecture du compte impossible${when} · ${lastError.message}`;
 };
 
+/** « Heading (label) » of a receipt covered by the same credit; the label alone for an anonymous sale (no doubled label). */
+export const coveredLabel = (c) => (c.clientHeading ? `${c.clientHeading} (${c.label})` : c.label);
+
 /** The names of the stays of a group proposal, by `reservationId|ledgerKey`, for the shares dialog. */
 export const shareLabels = (item) => {
-  const labels = { [`${item.reservation.id == null ? 0 : item.reservation.id}|${item.ledgerKey}`]: `${item.reservation.clientName || 'Client'} · ${item.label}` };
-  (item.proposal ? item.proposal.alsoCovers : []).forEach((c) => { labels[`${c.reservationId}|${c.ledgerKey}`] = `${c.clientName || 'Client'} · ${c.label}`; });
+  const labels = { [`${item.reservation.id == null ? 0 : item.reservation.id}|${item.ledgerKey}`]: `${item.clientHeading ? `${item.clientHeading} · ` : ''}${item.label}` };
+  (item.proposal ? item.proposal.alsoCovers : []).forEach((c) => { labels[`${c.reservationId}|${c.ledgerKey}`] = `${c.clientHeading ? `${c.clientHeading} · ` : ''}${c.label}`; });
   return labels;
 };

@@ -9,8 +9,9 @@ const path = require('node:path');
 // EXTRAS (articles/) sit above the allowances and below the platform price. A file of `articles/`, `vat/` or `refunds/`
 // takes its folder's rank; imports inside the same folder are free.
 const RANK = {
-  money: 0,
+  money: -1, // below every unit: storedLines (rank 0) rounds through it
   storedLines: 0,
+  lineKeys: -0.5, // the names of the stored lines (rule 85): imports nothing
   nights: 1,
   stayClock: 1,
   vat: 1,
@@ -19,21 +20,35 @@ const RANK = {
   allowances: 3,
   timedOptions: 3,
   articles: 3.5,
+  // The registry of the downstream bookings an article names: it imports nothing, the sale services call it.
+  articleFulfilment: 3.6,
   platformPrice: 4,
   discounts: 4,
   settlement: 5,
   totals: 6,
   schedule: 7,
+  // PLATFORM PAYMENT is read by SETTLEMENT's `remainingToPay` (through `reservationSettlement`) and by REFUNDS (withheld commissions).
+  platformPayment: 7.5,
   refunds: 8,
-  platformPayment: 90,
+  // The backfill derivations of PR B read stored shapes only: after the units they describe.
+  legacyCollectAt: 9,
+  legacyAllocations: 9,
+  // The records a sale reads EXTRA GUESTS and TOURIST TAX from (rule 8): pure, imports no unit; the stored steps and COMPOSE read it.
+  storedSaleFigures: 10,
   // The orchestration sits above every unit: a step imports the units it calls, the use cases import the steps.
   pipeline: 100,
   pipelines: 200,
   compose: 300,
 };
 const STEPS = ['loadStay', 'clock', 'nights', 'extraGuests', 'discountLevers', 'extras', 'midStay', 'platformGross', 'touristTax',
-  'platformPrice', 'discounts', 'vat', 'totals', 'inComplement', 'schedule', 'platformPayment', 'settlement', 'netTotals'];
+  'platformPrice', 'discounts', 'vat', 'totals', 'inComplement', 'schedule', 'platformPayment', 'settlement', 'netTotals',
+  'externalCatalogue', 'externalExtras', 'externalVat', 'externalTotals', 'externalPayment'];
 for (const step of STEPS) RANK[`steps/${step}`] = 100;
+// The NIGHTS of `staySale` (rules 8, 9) falls back to the `nights` step on a stay whose stored nights do not cover it: just above the steps.
+RANK['steps/storedNights'] = 101;
+// The EXTRA GUESTS and TOURIST TAX of `staySale` (rule 8) fall back to their steps the same way.
+RANK['steps/storedExtraGuests'] = 101;
+RANK['steps/storedTouristTax'] = 101;
 
 const FOLDERS = ['articles', 'vat', 'refunds'];
 const folderOf = (name) => FOLDERS.find((folder) => name.startsWith(`${folder}/`));
@@ -44,7 +59,7 @@ const STAY_UNITS = ['nights', 'extraGuests', 'touristTax'];
 const FORBIDDEN_FOR_STAY_UNITS = [/^articles(\/|$)/, /^allowances$/, /^platformPayment$/, /^settlement$/, /^schedule$/, /^totals$/];
 // Rule 2: EXTRAS read NIGHTS (and the money), never the tourist tax or the extra guests.
 const FORBIDDEN_FOR_ARTICLES = [/^touristTax$/, /^extraGuests$/];
-const REFUNDS_MAY_IMPORT = ['money', 'platformPayment', 'storedLines'];
+const REFUNDS_MAY_IMPORT = ['money', 'platformPayment', 'storedLines', 'lineKeys'];
 const FORBIDDEN_CLOSURE = [/(^|\/)models\//, /(^|\/)database$/, /plugins\/sdk\/registry$/, /(^|\/)priceLineContributors$/];
 
 const stripComments = (source) => source.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');

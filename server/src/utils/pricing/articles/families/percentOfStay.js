@@ -36,7 +36,7 @@ const configSchema = kit.configSchemaFor(PRICE_TYPES).map((entry) => (entry.key 
 // A percentage of the stay is bought once.
 const multiplier = () => 1;
 
-const validate = (config, request, ctx) => kit.refusalsOf(request, ctx);
+const validate = (config, request, ctx) => kit.refusalsOf(request, ctx, { stayBound: true });
 
 function price(config, request, ctx) {
   const unitPrice = computePercentOfStayAmount(config.price, ctx.cancellationInsuranceBase);

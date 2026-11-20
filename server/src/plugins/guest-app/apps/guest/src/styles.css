@@ -203,6 +203,12 @@ summary::-webkit-details-marker{display:none}
 .day b{display:block;font:400 23px var(--display);color:var(--sapin);letter-spacing:0}
 .day[aria-pressed="true"]{background:var(--sapin);border-color:var(--sapin);color:var(--paper)}
 .day[aria-pressed="true"] b{color:var(--paper)}
+.day:disabled{opacity:.45;cursor:default}
+.openbar{display:flex;gap:2px;height:6px;margin:2px 0 4px}
+.openbar span{border-radius:3px}
+.openbar .on{background:var(--sapin)}
+.openbar .off{background:var(--line)}
+.dgroup[aria-disabled="true"] small{opacity:.55}
 .slots{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}
 .slot{border:1px solid var(--ctl);border-radius:4px;background:var(--card);padding:10px 12px;text-align:left;display:grid;gap:2px;color:var(--ink);min-height:62px;align-content:center;transition:background-color .15s,border-color .15s}
 .slot b{font:700 15px var(--body);font-variant-numeric:tabular-nums}

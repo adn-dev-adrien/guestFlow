@@ -113,7 +113,7 @@ function service(text, { authenticated = true } = {}) {
     core: {
       updateReservation: (id, patch) => { writes.push({ id, number: patch.reservationNumber }); return { status: 200 }; },
       suggestBeds: () => ({ singleBeds: 0, doubleBeds: 0 }),
-      platformCommission: () => 1,
+      platformCommission: require('../../../utils/platformCommission').computePlatformCommission,
       withholdsTouristTax: () => true,
     },
     now: () => new Date('2026-10-25T09:00:00Z'),

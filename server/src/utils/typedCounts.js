@@ -1,3 +1,4 @@
+const { roundMoneyStrict } = require('./pricing/money');
 /**
  * Typed counts that no longer match the stay (specs/non-card-option-served-persons.md rules 20-23).
  *
@@ -31,7 +32,7 @@ function displayCountOf(line, stay, { isCard = false, isInsurance = false } = {}
   const quantity = Number(line?.quantity || 0);
   if (isCard || isInsurance) return quantity;
   const count = typedCountOf(line, stay);
-  return Number.isFinite(count) && count > 0 ? Math.round(count * 100) / 100 : quantity;
+  return Number.isFinite(count) && count > 0 ? roundMoneyStrict(count) : quantity;
 }
 
 const unitLabel = (kind, n) => (kind === 'nights'
@@ -64,10 +65,12 @@ function typedCountAlerts({
   quoteLines = [], requestLines = [], persons, nights, storedPersons = null, storedNights = null,
 } = {}) {
   const requested = new Map((Array.isArray(requestLines) ? requestLines : []).map((line) => [Number(line?.optionId), line]));
+  // Rule 85: a request line that names its stored line (`lineId`) answers for that line alone.
+  const requestedByLine = new Map((Array.isArray(requestLines) ? requestLines : []).filter((line) => line?.lineId != null).map((line) => [Number(line.lineId), line]));
   const alerts = [];
   for (const line of quoteLines || []) {
     if (line?.isCustom || line?.optionId == null) continue;
-    const asked = requested.get(Number(line.optionId));
+    const asked = (line.lineId != null && requestedByLine.get(Number(line.lineId))) || requested.get(Number(line.optionId));
     if (line.cardPersons != null) {
       const reference = Number(asked?.typedAtParty) > 0 ? Number(asked.typedAtParty) : storedPersons;
       if (reference != null && reference !== persons && Number(line.cardPersons) !== persons) {

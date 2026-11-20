@@ -5,11 +5,12 @@
 
 const { addDays } = require('./dateDays');
 const { localIsoDate } = require('./localDate');
+const { personNights } = require('./pricing/touristTax');
 
 const DECLARATION_FILTERS = ['all', 'todo', 'done'];
 
-const cents = (euros) => Math.round(Number(euros || 0) * 100);
-const euros = (c) => c / 100;
+const { toCents: cents } = require('./pricing/money');
+const { fromCentsStrict: euros } = require('./pricing/money');
 const count = (value) => Math.max(0, Math.round(Number(value || 0)));
 
 /**
@@ -58,7 +59,7 @@ function ourStayRow(row, { babies = 0, platformLabel = '' } = {}) {
     taxedPersons,
     exemptPersons,
     taxedPersonNights: count(row.adultNights),
-    exemptPersonNights: exemptPersons * nightsCount,
+    exemptPersonNights: personNights(exemptPersons, nightsCount),
     taxAmount: euros(cents(row.taxAmount)),
     refundedTaxNights: count(row.refundedTaxNights),
     refundedTaxAmount: euros(cents(row.refundedTaxAmount)),
@@ -93,8 +94,8 @@ function platformStayRow(row) {
     persons: taxedPersons + exemptPersons,
     taxedPersons,
     exemptPersons,
-    taxedPersonNights: taxedPersons * nightsCount,
-    exemptPersonNights: exemptPersons * nightsCount,
+    taxedPersonNights: personNights(taxedPersons, nightsCount),
+    exemptPersonNights: personNights(exemptPersons, nightsCount),
     taxAmount: euros(cents(row.taxAmount)),
     refundedTaxNights: 0,
     refundedTaxAmount: 0,

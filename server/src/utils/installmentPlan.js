@@ -27,7 +27,7 @@ const NBSP = ' ';
 const frDate = (iso) => String(iso || '').slice(0, 10).split('-').reverse().join('/');
 const frShort = (iso) => frDate(iso).slice(0, 5);
 
-function euros(cents) {
+function eurosText(cents) {
   const sign = cents < 0 ? '−' : '';
   const abs = Math.abs(Math.round(cents));
   const whole = Math.floor(abs / 100).toString().replace(/\B(?=(\d{3})+(?!\d))/g, NBSP);
@@ -307,5 +307,5 @@ module.exports = {
   MIN_COUNT, MAX_COUNT, LATE_AFTER_DAYS, MIN_SHARE_CENTS,
   spreadCents, splitEuros, taxShares, lastDueDate, maxCountFor, defaultDates, floatingOf,
   rebalance, validateDate, validateAmount, statusOf, statusLabel, buildPlanPayload, requestContext,
-  euros, frDate,
+  euros: eurosText, frDate,
 };

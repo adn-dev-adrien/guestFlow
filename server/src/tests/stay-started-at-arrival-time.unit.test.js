@@ -3,7 +3,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
-const { hasStayStarted } = require('../utils/arrivalMoment');
+const { hasStayStarted } = require('../utils/pricing/stayClock');
 const { midStayExtrasWindow, buildEditLock } = require('../utils/midStayExtrasWindow');
 
 const TODAY = '2026-11-13'; // date-literal-ok: `today` is injected, never read from the calendar

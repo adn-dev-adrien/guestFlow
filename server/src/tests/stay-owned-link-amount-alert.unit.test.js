@@ -131,7 +131,7 @@ test('rule 47: a stay-owned full link alert says « le séjour », not « le dev
   assert.match(buildPaidAfterCancelEmail({ id: 1, kind: 'devis' }, link, '', { amountMismatch: mismatch }).text, /alors que le devis demande aujourd’hui/);
 });
 
-const { storedOverpaymentOf } = require('../utils/overpayment');
+const { storedOverpaymentTtc } = require('./helpers/storedOverpayment');
 
 test('rule 47 (E1): an acompte link paid above the whole pre-arrival total names the trop-perçu and holds the confirmation', async () => {
   const s = seedDeposit({ asDevis: false });
@@ -142,7 +142,7 @@ test('rule 47 (E1): an acompte link paid above the whole pre-arrival total names
   assert.match(text, /Acompte enregistré à 100,00\s€ \(30,00\s€ demandés\) ; solde porté à 0,00\s€\./);
   assert.match(text, /Trop-perçu de 20,00\s€ à rembourser\./);
   assert.match(text, /Aucun e-mail de confirmation n’a été envoyé au client\./);
-  assert.equal(storedOverpaymentOf({ row: s.db.prepare('SELECT * FROM reservations WHERE id = ?').get(s.rid), captured: {} }), 20);
+  assert.equal(storedOverpaymentTtc(s.db, s.rid), 20);
 });
 
 test('rule 47 (B3): a full link paid below the acompte is worded as an acompte, not as a complement', async () => {

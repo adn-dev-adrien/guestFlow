@@ -3,7 +3,8 @@
 // whatever the live plugins expect (`ctx.incomingPayments`). The grouping, the states and the words are
 // `utils/incomingPayments.js`; this model only gathers.
 
-const { round2 } = require('../utils/paymentStatus');
+const { roundMoney: round2, toCentsStrict } = require('../utils/pricing/money');
+const { netOfCommission } = require('../utils/pricing/platformPayment');
 const { buildIncoming } = require('../utils/incomingPayments');
 const pluginIncoming = require('../utils/pluginIncomingPayments');
 const { platformPenalty } = require('../utils/reservationSettlement');
@@ -66,7 +67,9 @@ function buildModel(database) {
     return rows.flatMap((r) => {
       const balance = round2(r.balanceAmount);
       const recorded = Number(r.platformPayoutAmount) > 0;
-      const payout = recorded ? round2(r.platformPayoutAmount) : round2(Math.max(0, balance - Number(r.platformCommissionAmount || 0) - platformPenalty(r)));
+      // The payout not entered on the fiche is estimated by the platform-payment unit (pricing-components rule 70): the solde less its commission and penalty.
+      const payout = recorded ? round2(r.platformPayoutAmount)
+        : round2(Math.max(0, netOfCommission({ amount: balance, commission: r.platformCommissionAmount, penalty: platformPenalty(r) })));
       const due = addDaysToIsoDate(String(r.endDate).slice(0, 10), normalizePayoutDueDays(payoutDueDaysOf(r.platform)));
       if (!(payout > 0) || !due) return [];
       const received = Boolean(r.balancePaid);
@@ -74,7 +77,7 @@ function buildModel(database) {
         key: `payout:${r.id}`, kind: 'platformPayout', kindLabel: 'Versement plateforme', icon: 'house',
         natureLabel: `Versement plateforme · ${platformDisplayName(r.platform)}`,
         natureDetail: recorded ? `Séjour du ${frShort(String(r.startDate).slice(0, 10))} au ${frShort(String(r.endDate).slice(0, 10))}` : 'Montant estimé : versement non saisi sur la fiche',
-        reservationId: r.id, amountCents: Math.round(payout * 100), expectedDate: due,
+        reservationId: r.id, amountCents: toCentsStrict(payout), expectedDate: due,
         receivedDate: received ? String(r.balancePaidDate || due).slice(0, 10) : null,
       }];
     });

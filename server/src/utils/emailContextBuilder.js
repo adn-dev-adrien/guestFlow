@@ -22,6 +22,7 @@ const { resolveCancelOn } = require('./paymentSchedule');
 const { buildStayContent } = require('./stayContentContext');
 const { resolveEmailIdentity } = require('./emailIdentity');
 const { isPlaceholderClient } = require('./placeholderClient');
+const { roundMoneyOrZero, roundMoneyOrZero: round2c } = require('./pricing/money');
 
 function safeStr(v) {
   return v == null ? '' : String(v);
@@ -159,7 +160,8 @@ function buildContext({ reservation, client, property, options = [], resources =
     .map(optionName)
     .filter(Boolean)
     .sort((a, b) => a.localeCompare(b, 'fr'));
-  const optionsList = optionsTitles.join(', ');
+  // Rule 13 — an article sold twice is two lines of the stay and one title in the mail.
+  const optionsList = [...new Set(optionsTitles)].join(', ');
 
   const hasOptions = optionsTitles.length > 0;
   const hasBedLinenOption = (options || []).some((o) => safeStr(o.autoOptionType) === 'bed_linen');
@@ -185,7 +187,7 @@ function buildContext({ reservation, client, property, options = [], resources =
     .map(optionName)
     .filter(Boolean)
     .sort((a, b) => a.localeCompare(b, 'fr'));
-  const reservedOptionsList = reservedOptionsTitles.join(', ');
+  const reservedOptionsList = [...new Set(reservedOptionsTitles)].join(', ');
   const hasReservedOptions = reservedOptionsTitles.length > 0;
   // "Bring your own linen" only when linen is neither provided by default nor on the reservation —
   // never contradicts the "beds made" line.
@@ -197,7 +199,7 @@ function buildContext({ reservation, client, property, options = [], resources =
     .map(resourceName)
     .filter(Boolean)
     .sort((a, b) => a.localeCompare(b, 'fr'));
-  const resourcesList = resourcesTitles.join(', ');
+  const resourcesList = [...new Set(resourcesTitles)].join(', ');
   const hasResources = resourcesTitles.length > 0;
 
   // A booked resource speaks through its own sentence (specs/plugins-phase-p-productisation.md rule
@@ -280,14 +282,17 @@ function buildContext({ reservation, client, property, options = [], resources =
   // it's COMPLETE (options + resources + tourist-tax-in-complement + a « Complément d'arrivée »
   // remainder) and carries qty/unitPrice/kind. The inline `inComplementItems` list is the fallback for
   // callers that don't provide the detail — topped up with a remainder line so it still sums to the total.
-  const round2c = (n) => Math.round((Number(n) || 0) * 100) / 100;
   const sasDetailLines = Array.isArray(arrivalComplementDetail?.detail) ? arrivalComplementDetail.detail : null;
   const usingSasDetail = sasDetailLines && sasDetailLines.length > 0;
   let noticeLines;
   if (usingSasDetail) {
     noticeLines = sasDetailLines
-      .filter((it) => Number(it.amount) > 0)
-      .map((it) => ({ kind: it.kind, addedGuests: Boolean(it.addedGuests), label: safeStr(it.label).trim(), qty: Number(it.qty || 1), unitPrice: Number(it.unitPrice || 0), amount: round2c(it.amount) }));
+      // Pricing-components rule 104 (loop t5 S5-3) — a « Déjà réglé » credit line is listed with its negative amount: the lines sum to the total.
+      .filter((it) => Number(it.amount) > 0 || (it.kind === 'credit' && Number(it.amount) < 0))
+      .map((it) => ({
+        kind: it.kind, addedGuests: Boolean(it.addedGuests), label: safeStr(it.label).trim(), qty: Number(it.qty || 1), unitPrice: Number(it.unitPrice || 0), amount: round2c(it.amount),
+        ...(it.kind === 'credit' ? { paidLabels: Array.isArray(it.paidLabels) ? it.paidLabels.map((name) => safeStr(name).trim()) : [] } : {}),
+      }));
   } else {
     noticeLines = inComplementItems
       .filter((it) => it.label && it.amount > 0)
@@ -302,11 +307,27 @@ function buildContext({ reservation, client, property, options = [], resources =
     if (l.kind === 'tax' && l.addedGuests) return addedGuestsTaxLabel;
     if (l.kind === 'tax') return isEn ? 'Tourist tax' : 'Taxe de séjour';
     if (l.kind === 'remainder') return isEn ? 'Arrival balance' : "Complément d'arrivée";
+    if (l.kind === 'credit' && isEn) return `Already paid${l.paidLabels && l.paidLabels.length ? ` (${l.paidLabels.join(', ')})` : ''}`;
     return l.label;
   };
   const complementSep = isEn ? ': ' : ' : ';
+  // Rule 13 — the lines of one article read as one entry: « Bière locale : 3 × 6,50 € = 19,50 € », or
+  // « 1 × 6,50 € + 2 × 7,00 € = 20,50 € » when the lines were sold at different prices.
+  const groupedNoticeLines = () => {
+    const groups = [];
+    for (const l of noticeLines) {
+      const group = ['option', 'resource', 'custom'].includes(l.kind) ? groups.find((g) => g.kind === l.kind && g.label === l.label) : null;
+      if (group) { group.amount = round2c(group.amount + l.amount); group.parts.push([l.qty, l.unitPrice]); } else groups.push({ ...l, parts: [[l.qty, l.unitPrice]] });
+    }
+    return groups;
+  };
   const complementLineText = (l) => {
     const label = localizedComplementLabel(l);
+    const units = new Set(l.parts.map(([, unit]) => unit));
+    if (l.parts.length > 1 && l.parts.every(([, unit]) => unit > 0)) {
+      const shown = units.size === 1 ? [[l.parts.reduce((sum, [qty]) => sum + qty, 0), l.parts[0][1]]] : l.parts;
+      return `- ${label}${complementSep}${shown.map(([qty, unit]) => `${qty} × ${money(unit)}`).join(' + ')} = ${money(l.amount)}`;
+    }
     return (l.qty > 1 && l.unitPrice > 0)
       ? `- ${label}${complementSep}${l.qty} × ${money(l.unitPrice)} = ${money(l.amount)}`
       : `- ${label}${complementSep}${money(l.amount)}`;
@@ -314,7 +335,7 @@ function buildContext({ reservation, client, property, options = [], resources =
   // Only itemise when there's at least one identifiable prestation (option / resource / tax). A pure
   // accommodation auto-gap (a lone « remainder » line, or nothing) → the one-line amount sentence, which
   // is also what the SAS recap shows (no line items then).
-  const hasRealItems = noticeLines.some((l) => l.kind !== 'remainder');
+  const hasRealItems = noticeLines.some((l) => l.kind !== 'remainder' && l.kind !== 'credit');
   let complementNotice = '';
   const whenEn = complementAtCheckout ? 'on departure' : 'on arrival';
   const whenFr = complementAtCheckout ? 'à votre départ' : 'à votre arrivée';
@@ -325,7 +346,7 @@ function buildContext({ reservation, client, property, options = [], resources =
     const totalLine = isEn
       ? `Total: ${money(complementAmountNum)}`
       : `Total : ${money(complementAmountNum)}`;
-    complementNotice = [intro, ...noticeLines.map(complementLineText), totalLine].join('\n');
+    complementNotice = [intro, ...groupedNoticeLines().map(complementLineText), totalLine].join('\n');
   } else if (complementToCollect) {
     complementNotice = isEn
       ? `A balance of ${money(complementAmountNum)} is payable directly on site ${whenEn}.`
@@ -343,7 +364,7 @@ function buildContext({ reservation, client, property, options = [], resources =
     balanceDueDate: r.balanceDueDate,
     cancelAfterBalanceDueDays: p.cancelAfterBalanceDueDays,
   });
-  const retainedDepositAmount = Math.max(0, Math.round((Number(cancellationKept) || 0) * 100) / 100);
+  const retainedDepositAmount = Math.max(0, roundMoneyOrZero(cancellationKept));
 
   const cautionReceivedFlag = Number(r.cautionReceived || 0) === 1;
   // specs/caution-live-from-property.md §3 — caution is live from the property's current

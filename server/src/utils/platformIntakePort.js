@@ -16,6 +16,7 @@
  * `fromPlatform` (PR B) will build the same payload from a plugin's own data and call the same save. Pure: no DB, no clock.
  */
 const { saleChannel } = require('./saleChannel');
+const { dayReached } = require('./pricing/stayClock');
 
 const SCALARS = Object.freeze({
   platform: ['platform'],
@@ -92,7 +93,7 @@ function toUpdatePatch(intake) {
 }
 
 function isIntakeOnStartedStay(startDate, today) {
-  return String(startDate) <= today;
+  return dayReached(startDate, today);
 }
 
 module.exports = { toPlatformIntake, toUpdatePatch, isIntakeOnStartedStay, collectAtOf };

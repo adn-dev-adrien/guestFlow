@@ -35,12 +35,19 @@ function createSasStep({ scheduling, reservations }) {
         : { ok: false, status: 409, body: { error: 'SLOT_CONFLICT', block: verdict.block, reason: verdict.reason } };
     },
     // Rules 30, 32 — the evening supplement of every hour on a slot, recomputed on every commit: the
-    // step's blocks when it ran, the stored sessions otherwise.
+    // step's blocks when it ran, the stored sessions otherwise. specs/pricing-components.md rule 90.3 — it is the evening component of
+    // the resource's session line: every sold resource is named, 0 € included, so a component the sessions left shrinks back.
     complementItems(reservation, payload) {
       const supplements = payload === undefined
         ? scheduling().storedSupplements(reservation)
         : verdictFor(reservation, payload).supplements;
-      return supplements.map((s) => ({ key: `evening:${s.resourceId}`, label: s.label, amount: s.amount }));
+      const owed = new Map(supplements.map((s) => [Number(s.resourceId), s]));
+      const sold = scheduling().soldSchedulableResources(reservation);
+      const named = [...owed.values(), ...sold.filter((e) => !owed.has(Number(e.resource.id)))
+        .map((e) => ({ resourceId: Number(e.resource.id), label: `${e.resource.name} — supplément soirée`, amount: 0 }))];
+      return named.map((s) => ({
+        key: `evening:${s.resourceId}`, label: s.label, amount: s.amount, component: { kind: 'evening', resourceId: Number(s.resourceId) },
+      }));
     },
     // Rule 26 — replace, never append, and only for the resources the payload names: a resource the
     // operator never saw keeps its sessions.
@@ -52,10 +59,19 @@ function createSasStep({ scheduling, reservations }) {
         if (!byResource.has(key)) byResource.set(key, []);
         byResource.get(key).push({ date: block.date, start: block.start, end: block.end });
       }
-      const writeSessions = db.prepare('UPDATE reservation_resources SET sessions = ? WHERE reservationId = ? AND resourceId = ?');
+      // Rule 85: the picker shows the resource's sessions whatever the number of lines that sold it, and replaces them as a whole: the
+      // resource's first line takes the new set, a later line of it is emptied (its hours live in the set now), never written twice.
+      const hasLineId = db.prepare('PRAGMA table_info(reservation_resources)').all().some((c) => c.name === 'lineId');
+      const writeFirst = db.prepare(hasLineId
+        ? 'UPDATE reservation_resources SET sessions = ? WHERE lineId = (SELECT MIN(lineId) FROM reservation_resources WHERE reservationId = ? AND resourceId = ?)'
+        : 'UPDATE reservation_resources SET sessions = ? WHERE reservationId = ? AND resourceId = ?');
+      const emptyOthers = hasLineId
+        ? db.prepare(`UPDATE reservation_resources SET sessions = '[]' WHERE reservationId = ? AND resourceId = ? AND sessions IS NOT NULL AND TRIM(sessions) NOT IN ('', '[]')
+            AND lineId <> (SELECT MIN(lineId) FROM reservation_resources WHERE reservationId = ? AND resourceId = ?)`) : null;
       for (const [resourceId, sessions] of byResource) {
         sessions.sort((a, b) => String(a.date).localeCompare(String(b.date)) || String(a.start).localeCompare(String(b.start)));
-        writeSessions.run(JSON.stringify(sessions), Number(reservation.id), resourceId);
+        writeFirst.run(JSON.stringify(sessions), Number(reservation.id), resourceId);
+        if (emptyOthers) emptyOthers.run(Number(reservation.id), resourceId, Number(reservation.id), resourceId);
       }
     },
   };

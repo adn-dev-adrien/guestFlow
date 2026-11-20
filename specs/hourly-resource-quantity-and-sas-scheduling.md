@@ -7,6 +7,7 @@
 | **Created** | 2026-08-17 |
 | **Author** | Adrien |
 | **Related PR** | (link once opened) |
+| **Amendment** | 2026-11-10 — rules 36-38 (`heatFrom`, free minutes at the day rate, an app order's evening supplement), for `guest-app.md` rules 78-84 — **Implemented** in pricing-components PR C (hourly-resources 1.8.0) |
 
 ---
 
@@ -298,6 +299,10 @@ Found while mapping phase 3c of the plugins (`specs/plugins-phase-3c-hourly-reso
     a re-opened SAS could neither replace nor see, and the fresh supplement doubled it. The marker is
     now carried over by label, one row per stored SAS line, as it already was for the catalogue options
     the SAS sells. This also protects the linen lines.
+    _Reading 2026-11-18 (pricing-components rule 79 reading, loop t17 D17-1):_ « by label » now means « on the line that
+    takes the SAS line's row »: the writer gives each posted line the stored row `matchStoredCustomLines` chose (its id
+    first, then its label case and spacing aside), and the marker, the plugin key and the count ride that row. A line
+    the caller appends never takes a removed SAS line's marker; a re-cased SAS line, or one renamed under its id, keeps it.
 
 **The recap shows the supplement the server bills.** `getSas` returns each resource's current
 `supplement` and its `supplementLabel`; `GET /api/resources/:id/free-slots` returns the supplement of
@@ -355,6 +360,37 @@ a placed block can be removed or moved. The dialog also clears its blocks when i
     still keeps the resource for its `turnoverMinutes` after it, and the session for its own after it,
     so the pairwise rule of rule 34 is unchanged for a resource ×1; two uses one after the other, reset
     included, take one unit, not two.
+
+### 3.8 The guest app books the bath ahead (Adrien, 2026-11-10; `guest-app.md` rules 78-84)
+
+36. **The heat-up can be counted from now (`heatFrom`).** `buildDays`, `validateBlock` and the scheduler's `slotsForStay` /
+    `validateSessions` accept an optional `heatFrom` (absolute minutes): the cold path of rule 12 becomes
+    `S ≥ heatFrom + heatUpMinutes`, while `notBefore` (rule 13) still bounds every start. Absent, `heatFrom = notBefore`:
+    the SAS, the fiche and Calendrier › Ressources answer exactly as before. The guest app passes `heatFrom = now`: a bath
+    booked a week ahead can be heated before the guests arrive, so the arrival evening is offered; booked the same day, a
+    cold slot still waits the whole heat-up from the present moment. The hot path (rule 12, retention) and the ignition
+    check (`canIgnite`) are unchanged.
+37. **The free minutes are worth the day rate.** `priceSessions` values the free allowance at the **day rate** of its
+    minutes (`freeValue = dayRate × freeMinutesApplied / 60`), wherever they fall: an offered hour placed in the evening
+    owes the evening supplement, as the arrival SAS already bills it (rules 22, 30). Before this rule an unsold line priced
+    from its sessions gave an evening free hour away whole, while the SAS charged its supplement: the fiche and the SAS now
+    say the same. Sold (locked) lines are never re-priced by it (rule 30); `freeMinutesApplied`, `billedMinutes` and
+    `bands` keep their meaning. It changes on purpose the figure `resource-supplements-total-server-side.md` documents
+    (« `freeValue`: the offered hour, at its own band's rate ») and the case of `resource-hourly-pricing.unit.test.js`
+    that pins an evening free hour at the evening rate (19:00-21:00, 25 / 35 €, 60 free minutes: `freeValue` 35 → 25,
+    `totalPrice` 35 → 45); a free hour on the day band (`resource-booking-preview` rule 1) is unchanged. Outside bookings
+    priced with a logement's free minutes follow the same reading.
+38. **An app order's evening supplement is not billed again.** An order of the guest app writes the evening supplement
+    of its sessions as its own line of the stay, under the supplement's own words (« <resource> — supplément soirée », a
+    custom line tagged with its order: `reservation_custom_options.orderRef = 'order:<id>:<n>'`, `guest-app.md` rule 83;
+    pricing-components rule 90.3), computed by the scheduler's `orderSupplement({ resourceId, propertyId, sessions,
+    lineGain })` with the same arithmetic as rule 30 (the evening difference of those sessions minus what the order's line
+    gain already bills above the day rate). The arrival commit's recompute (rule 32, `storedSupplements`) subtracts, per
+    resource, what those tagged lines already bill — offered or not, a line the operator offered still covers its evening —
+    never below 0: whether the SAS runs before or after the order, or is re-opened, the same evening is billed once. A line
+    with no order tag is the operator's own and is not subtracted. _(The mechanism of this branch: the `orderChargeKey` column
+    the first draft named was never built; the order tag is the line's `orderRef`.)_
+    Tests: `hourly-order-supplement.unit.test.js`; rule 37's line side: `hourly-free-minutes-day-rate.unit.test.js`.
 
 ---
 
@@ -707,6 +743,17 @@ Covered by automated tests but **not exercised by hand** — worth a pass on the
       _(unit-tested in `resource-occupancy-conflicts.unit.test.js`.)_
 - [ ] Gîte free first hour → 0 € line, still placeable. _(unit-tested; not seen on screen.)_
 - [ ] Skip path in the browser: « Planifier plus tard » → recap « N h non planifiées ».
+
+### Amendment 2026-11-10 (rules 36-38)
+
+Code in `server/src/plugins/hourly-resources/` (`availability.js`, `scheduler.js`, `hourlyPricing.js`,
+`schedulingModel.js`; plugin 1.6.0, shipped with hourly-resources 1.8.0 in PR C). Tests, one file each: `hourly-heat-from-now.unit.test.js` (rule 36: absent =
+every existing fixture unchanged, J-5 arrival evening offered, same-day heat-up from now, warm path, `staff`),
+`hourly-free-minutes-day-rate.unit.test.js` (rule 37: day 0 €, evening = the supplement, straddling, locked line not
+re-priced), `hourly-order-supplement.unit.test.js` (rule 38: sold / unsold line, the recompute subtracts the order's
+charge before and after the order and on a re-opened SAS). The existing suites (`resource-availability`,
+`resource-hourly-pricing`, `hourly-evening-billed-once`, `sas-resource-scheduling`) stay green unchanged except the
+cases that pin an evening free hour at 0 €, which rule 37 changes on purpose (named in the PR).
 
 ## 8. Out of scope
 

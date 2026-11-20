@@ -11,11 +11,11 @@ const path = require('path');
 // Hit the API through the client dev proxy so the cached storageState cookie — bound to that
 // origin by globalSetup — gets sent. Hitting the backend directly at `127.0.0.1:4000` would
 // silently drop the cookie and every call would 401.
-const { CLIENT_URL: SERVER_URL } = require('../clientUrl');
+const { CLIENT_URL: SERVER_URL, API_TIMEOUT } = require('../clientUrl');
 const STORAGE_STATE = path.join(__dirname, '..', '.auth', 'admin.json');
 
 async function withRequest(fn) {
-  const ctx = await request.newContext({ baseURL: SERVER_URL, storageState: STORAGE_STATE });
+  const ctx = await request.newContext({ baseURL: SERVER_URL, storageState: STORAGE_STATE, timeout: API_TIMEOUT });
   try {
     return await fn(ctx);
   } finally {
@@ -132,7 +132,20 @@ async function createHourlyResource({
   });
 }
 
+// An article sold at the counter to someone with no stay (« Vendable hors séjour »), at the external customer's VAT of its class
+// (specs/outside-booking-sas.md rule 11, owner Q-C11).
+async function createCounterArticle({ title, price = 6.5, vatClass = 'drinks', externalVatRate = 20 } = {}) {
+  return withRequest(async (ctx) => {
+    const res = await ctx.post('/api/options', {
+      data: { title, price, priceType: 'per_stay', propertyIds: [], sellableExternally: true, vatClass, externalVatRate },
+    });
+    if (!res.ok()) throw new Error(`createCounterArticle failed: ${res.status()} ${await res.text()}`);
+    return { ...(await res.json()), title, price };
+  });
+}
+
 module.exports = {
+  createCounterArticle,
   createClient,
   createProperty,
   createReservation,

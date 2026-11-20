@@ -1,0 +1,1 @@
+- Departure SAS: sales already paid are listed under « Déjà payé » and can be offered; if the stay is then overpaid, a confirmation states the amount to refund (« Offrir · 13,00 € à rembourser ») and the SAS shows the reminder « À rembourser (depuis la fiche) » (specs/pricing-components.md, rules 14, 23 and 32).

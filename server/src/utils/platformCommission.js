@@ -1,3 +1,3 @@
-const { computePlatformCommission } = require('./pricing/platformPayment');
+const { computePlatformCommission, commissionOf } = require('./pricing/platformPayment');
 
-module.exports = { computePlatformCommission };
+module.exports = { computePlatformCommission, commissionOf };

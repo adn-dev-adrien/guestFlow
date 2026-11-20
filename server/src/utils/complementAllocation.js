@@ -21,7 +21,7 @@
  * Pure: no DB, no clock. Unit-tested in tests/complement-allocation.unit.test.js.
  */
 
-const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
+const { roundMoneyOrZero: round2 } = require('./pricing/money');
 
 // A line of `buildArrivalComplementDetail` → the poste that books it.
 const POSTE_BY_KIND = {

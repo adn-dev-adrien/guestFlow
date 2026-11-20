@@ -51,6 +51,9 @@ const quotePostProcessors = require('../utils/quotePostProcessors');
 const insuranceOffer = require('../utils/insuranceOffer');
 const resourceOffer = require('../utils/resourceOffer');
 const { provenComplementAmount } = require('../utils/createdComplementRepair');
+const { roundMoneyStrict } = require('../utils/pricing/money');
+const { notDepartureCharge } = require('../utils/departureChargeLines');
+const { numberRepeatedCustomLines, isPricedCustomLine } = require('../utils/pricing/storedLines');
 
 /**
  * Now, in UTC, as `YYYY-MM-DD HH:MM:SS` matching SQLite's `datetime('now')` format. Used as
@@ -268,7 +271,7 @@ function createModel(database) {
         rco.amount as unitPrice, 1 as billedUnits, 'per_stay' as priceType,
         CASE WHEN COALESCE(rco.offered, 0) = 1 THEN 0 ELSE rco.amount END as totalPrice,
         rco.amount as originalTotalPrice, COALESCE(rco.offered, 0) as offered, 1 as isCustom
-      FROM reservation_custom_options rco WHERE rco.reservationId = ? ORDER BY rco.sortOrder, rco.id
+      FROM reservation_custom_options rco WHERE rco.reservationId = ?${notDepartureCharge(database, 'rco')} ORDER BY rco.sortOrder, rco.id
     `).all(row.id);
     const resources = database.prepare(`
       SELECT rr.*, r.name, r.priceType as resourcePriceType,
@@ -319,7 +322,7 @@ function createModel(database) {
   // ---- audit / history ----
   function normalizeDevisHistoryValue(value) {
     if (value === undefined || value === null || value === '') return null;
-    if (typeof value === 'number') return Math.round(value * 100) / 100;
+    if (typeof value === 'number') return roundMoneyStrict(value);
     return value;
   }
 
@@ -434,12 +437,14 @@ function createModel(database) {
       ...(o.cardNights !== undefined ? { cardNights: o.cardNights } : {}),
       inComplement: routing(o.inComplement),
     })).filter((line) => !isEngineManagedAuto(line.optionId));
-    const customOptions = (body.customOptions || []).map((line, index) => ({
+    // Rule 94 (loop t15 S15-3) — a repeated free label is numbered on the devis as on a stay (« Ménage (2) »), so the devis, its PDF and the
+    // stay it converts into each carry lines of their own (a line's discount, payment and removal stay its own).
+    const customOptions = numberRepeatedCustomLines((body.customOptions || []).map((line, index) => ({
       customKey: String(line.customKey || `custom_${index + 1}`),
       description: String(line.description || '').trim(),
       amount: Number(line.amount || 0), offered: Boolean(line.offered),
       inComplement: routing(line.inComplement),
-    })).filter((line) => line.description && Number(line.amount || 0) > 0);
+    })).filter(isPricedCustomLine));
     const selectedResources = (body.selectedResources || []).map((r) => ({
       resourceId: Number(r.resourceId), quantity: Number(r.quantity || 1),
       unitPrice: r.unitPrice != null ? Number(r.unitPrice) : undefined, offered: Boolean(r.offered),
@@ -952,6 +957,8 @@ function createModel(database) {
         // specs/force-item-to-complement.md rule 19 — the arrival complement the engine priced, carried
         // to the reservation at conversion.
         complementAmount: roundMoney(quote.complementAmount || 0),
+        // pricing-components rules 31, 61, 63, 91 (owner 2026-11-15) — a devis quoted from now on is served by the sale-line readers.
+        readsSaleLines: 1,
       };
       const names = Object.keys(columns).filter(hasReservationColumn);
       const info = database
@@ -1353,6 +1360,7 @@ function createModel(database) {
       extraGuestSurchargeOffered: sourceRow.extraGuestSurchargeOffered ? 1 : 0,
       touristTaxInComplement: sourceRow.touristTaxInComplement ? 1 : 0,
       tariffSnapshot: sourceRow.tariffSnapshot || null,
+      readsSaleLines: Number(sourceRow.readsSaleLines || 0) === 1 ? 1 : 0,
       ...extra,
     };
     const names = Object.keys(values).filter(hasReservationColumn);

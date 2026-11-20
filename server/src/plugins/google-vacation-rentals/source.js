@@ -29,25 +29,13 @@ function createSource({ db }) {
   });
   const websiteQuote = (stay) => directQuote.buildEngineQuote(stayInput(stay));
 
-  // The same quote for a whole run, bound to a handle on the same database that compiles each SQL
-  // statement once instead of once per quote — a quarter of the engine's time over a full horizon.
-  // Nothing else differs from the website's call; the price check (rule 17) compares the two.
+  // The same quote for a whole run, bound to the database this source reads. Each SQL statement is compiled once per
+  // handle by the core's statement cache (specs/pricing-components.md rule 48, utils/statementCache.js), which replaced
+  // this module's own per-run cache (loop t20). Nothing else differs from the website's call; the price check (rule 17)
+  // compares the two.
   function runQuote() {
-    const statements = new Map();
-    const cached = new Proxy(db, {
-      get(target, key) {
-        if (key === 'prepare') {
-          return (sql) => {
-            if (!statements.has(sql)) statements.set(sql, target.prepare(sql));
-            return statements.get(sql);
-          };
-        }
-        const value = target[key];
-        return typeof value === 'function' ? value.bind(target) : value;
-      },
-    });
     const { buildEngineQuote } = directQuote.createDirectQuote({
-      db: cached,
+      db,
       calculateReservationQuote: pricing.calculateReservationQuote,
       getTodayIsoDate: () => sdk.coreModule('reservationHelpers').getTodayIsoDate(),
       optionsModel: sdk.coreModule('optionsModel'),

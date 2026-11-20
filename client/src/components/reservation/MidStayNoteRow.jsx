@@ -12,6 +12,8 @@
  * Props :
  *   - note        `{ id, paidDate, paidCash, total, lines[] }`
  *   - settled     le complément de fin de séjour est encaissé → plus rien ne bouge
+ *   - lockedReason raison servie par le serveur (`midStayNoteLocks`) : une note payée en ligne ne se modifie ni ne se
+ *                 reporte (guest-app règle 113 a) → ni ✎ ni « Reporter au départ », la raison en légende
  *   - onCancel()  reporter la note au départ (les prestations redeviennent à percevoir)
  *   - onAdjust({ total?, paidDate?, cash? })  → Promise ; rejette avec le message serveur
  */
@@ -27,7 +29,7 @@ function shortDate(iso) {
   return full ? full.slice(0, 5) : '';
 }
 
-export default function MidStayNoteRow({ note, settled = false, onCancel, onAdjust }) {
+export default function MidStayNoteRow({ note, settled = false, lockedReason = null, onCancel, onAdjust }) {
   const [editing, setEditing] = useState(false);
   const [total, setTotal] = useState(Number(note.total || 0));
   const [paidDate, setPaidDate] = useState(note.paidDate || '');
@@ -66,6 +68,7 @@ export default function MidStayNoteRow({ note, settled = false, onCancel, onAdju
             <Typography variant="body2" sx={{ fontWeight: 600 }}>
               {shortDate(note.paidDate)} — {formatCurrency(note.total)} — {note.paidCash ? 'Caisse interne' : 'CB'}
             </Typography>
+            {!lockedReason && (
             <Box sx={{ display: 'flex', gap: 0.5 }}>
               <Tooltip title={disabledReason || 'Modifier la note'}>
                 <span>
@@ -94,7 +97,11 @@ export default function MidStayNoteRow({ note, settled = false, onCancel, onAdju
                 </span>
               </Tooltip>
             </Box>
+            )}
           </Box>
+          {lockedReason && (
+            <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>{lockedReason}</Typography>
+          )}
           {(note.lines || []).map((line, i) => (
             <Typography key={i} variant="body2" sx={{ color: 'text.secondary' }}>
               {line.label} : {formatCurrency(line.amount || 0)}

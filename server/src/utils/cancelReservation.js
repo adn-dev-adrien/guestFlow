@@ -24,7 +24,7 @@
 
 const { withConvertedDevis } = require('./deletionGuard');
 const {
-  buildCancellationRequalification, resolveCancellationReason, givenBackByBucket, keptSignature, cashDepositKeptOf,
+  buildCancellationRequalification, resolveCancellationReason, givenBackByBucket, keptSignature, cashDepositKeptOf, cancellationFigures,
 } = require('./pricing/refunds/cancellation');
 const { isDirectChannel } = require('./platformNameFormat');
 const { taxShares } = require('./installmentPlan');
@@ -35,7 +35,7 @@ const { taxRidesTheComplement } = require('./touristTaxFreeze');
 const { bucketSharesOf } = require('./paymentTenders');
 const paymentSettlementsModel = require('../models/paymentSettlementsModel');
 
-const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
+const { roundMoneyOrZero: round2 } = require('./pricing/money');
 
 // specs/direct-installments.md rule 46 — what the installments of a plan collected, and how the accounting booked
 // each one: its tourist-tax share (rule 39) and its revenue per bucket, installment by installment.
@@ -213,6 +213,27 @@ function cancellationNettedRefundIds(deps, reservationId, refunds, vatRate = 0) 
   return netted;
 }
 
+// Rule 78 — the refunds the avoir netted (read once, here, from the register as the cancellation leaves it) and the refund the
+// received compensation paired with; both columns are guarded for a schema that predates them.
+function writeCancellationRecords(deps, reservationId, { refundId, compensationId, vatRate }) {
+  const { database, refundsModel } = deps;
+  const present = (table) => Boolean(database.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?").get(table));
+  if (present('refund_nettings')) {
+    const netted = cancellationNettedRefundIds(deps, reservationId, refundsModel.listByReservation(reservationId), vatRate);
+    const insert = database.prepare('INSERT OR IGNORE INTO refund_nettings (avoirId, refundId) VALUES (?, ?)');
+    for (const nettedId of netted || []) insert.run(refundId, nettedId);
+  }
+  if (compensationId != null && database.prepare('PRAGMA table_info(cancellation_compensations)').all().some((c) => c.name === 'refundId')) {
+    database.prepare('UPDATE cancellation_compensations SET refundId = ? WHERE id = ?').run(refundId, compensationId);
+  }
+}
+
+function storeCancellationFigures(database, reservationId, { keptFromGuest, indemnityAmount }) {
+  if (!database.prepare('PRAGMA table_info(reservations)').all().some((c) => c.name === 'cancellationKeptCents')) return;
+  database.prepare('UPDATE reservations SET cancellationKeptCents = ?, cancellationIndemnityCents = ? WHERE id = ?')
+    .run(Math.max(0, Math.round(keptFromGuest * 100)), Math.max(0, Math.round(indemnityAmount * 100)), reservationId);
+}
+
 // What a cancellation cannot go through: an unknown stay, one already cancelled, a platform booking.
 function cancellationRefusalOf(row) {
   if (!row) return { error: 'NOT_FOUND', status: 404, message: 'Réservation non trouvée' };
@@ -245,8 +266,7 @@ function cancellationFiguresOf(deps, row, { today = null, vatRate = 0, reason = 
     indemnityAmount,
     // Rule 61 — what the guest loses: the indemnity booked plus the caisse-interne acompte kept. The cancellation notice
     // states this one, never a formula of its own.
-    keptFromGuest: round2(indemnityAmount + cashDepositKeptOf(row, refunds)),
-    writtenOffBalance: round2((Number(row.balancePaid) ? 0 : round2(row.balanceAmount)) + round2(row.installmentsUnpaidAmount)),
+    ...cancellationFigures({ row, refunds, indemnityAmount }),
   };
 }
 
@@ -297,7 +317,10 @@ function cancelReservation(deps, reservationId, { reason = '', cancelledBy = nul
     if (requalification) {
       refundId = refundsModel.create(id, { ...requalification.refund, totalTtc: requalification.requalifiedTtc });
       compensationId = compensationsModel.createReceived(requalification.compensation).id;
+      writeCancellationRecords(deps, id, { refundId, compensationId, vatRate });
     }
+    // Rule 78 — the figures the notice states are stored with the cancellation, not derived from its history.
+    storeCancellationFigures(database, id, { keptFromGuest, indemnityAmount });
     // The links of the devis converted into the stay keep the devis id and stay payable otherwise.
     for (const ownerId of withConvertedDevis(database, [id])) {
       for (const link of paymentLinksModel.listForReservation(ownerId)) {

@@ -18,7 +18,7 @@ const TONE_THRESHOLD = 0.05;
 
 const toMs = (iso) => Date.parse(`${iso}T00:00:00Z`);
 const addDays = (iso, n) => new Date(toMs(iso) + n * DAY).toISOString().slice(0, 10);
-const round2 = (n) => Math.round(n * 100) / 100;
+const { roundMoneyStrict: round2 } = require('./pricing/money');
 const round4 = (n) => Math.round(n * 10000) / 10000;
 const nightsOf = (s) => Math.max(0, Math.round((toMs(s.endDate) - toMs(s.startDate)) / DAY));
 

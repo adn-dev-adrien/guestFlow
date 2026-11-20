@@ -1,0 +1,551 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>M3 — Le sas d’arrivée et de départ sur les lignes</title>
+<style>
+:root{
+  --primary:#2F5D46; --primary-dark:#244A38; --honey:#C99038;
+  --paper:#F8F5EF; --card:#FFFFFF; --ink:#27251F; --mute:#6E6A5E;
+  --ok:#3E7D54; --ok-soft:#E6EFE7; --warn:#8F6A1D; --warn-soft:#F6EDD7;
+  --err:#A8433A; --err-soft:#F7E8E5; --info:#31556E; --info-soft:#E4EDF3;
+  --line:rgba(60,54,36,.10); --line-strong:rgba(60,54,36,.18);
+  --shadow:0 3px 16px rgba(60,54,36,.09);
+  --r:14px;
+  --serif:"Source Serif 4","Source Serif Pro",Georgia,"Times New Roman",serif;
+  --sans:Inter,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--paper);color:var(--ink);font:400 16px/1.55 var(--sans)}
+::selection{background:rgba(47,93,70,.18)}
+:focus-visible{outline:2px solid var(--primary);outline-offset:2px;border-radius:6px}
+a{color:var(--primary);text-underline-offset:3px}
+.wrap{max-width:1360px;margin:0 auto;padding:40px 24px 80px}
+.read{max-width:900px}
+h1{font:600 2rem/1.15 var(--serif);letter-spacing:-.01em;margin:0 0 .4rem}
+h2{font:600 1.35rem/1.25 var(--serif);margin:2.6rem 0 .8rem}
+h3{font:600 1.05rem/1.3 var(--serif);margin:1.4rem 0 .5rem}
+p{margin:.4rem 0 .8rem;max-width:72ch}
+.lede{color:var(--mute);font-size:1.02rem}
+.meta{display:flex;flex-wrap:wrap;gap:8px;margin:14px 0 0}
+.tag{display:inline-flex;align-items:center;gap:6px;font-size:.8rem;font-weight:600;padding:4px 10px;border-radius:999px;background:var(--card);border:1px solid var(--line)}
+.tag.ok{background:var(--ok-soft);border-color:transparent;color:#2c5b3c}
+.tag.warn{background:var(--warn-soft);border-color:transparent;color:var(--warn)}
+.tag.info{background:var(--info-soft);border-color:transparent;color:var(--info)}
+ul.tight{margin:.3rem 0 1rem;padding-left:1.2rem;max-width:72ch}
+ul.tight li{margin:.25rem 0}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+@media (max-width:820px){.grid2{grid-template-columns:1fr}}
+.panel{background:var(--card);border-radius:var(--r);box-shadow:var(--shadow);padding:18px 20px}
+.panel h3{margin-top:0}
+table.facts{width:100%;border-collapse:collapse;font-size:.92rem}
+table.facts th,table.facts td{text-align:left;vertical-align:top;padding:8px 10px;border-top:1px solid var(--line)}
+table.facts th{font-weight:600;color:var(--mute);width:28%}
+.scroll{overflow-x:auto;max-width:100%}
+code{font:500 .85em ui-monospace,SFMono-Regular,Menlo,monospace;background:rgba(60,54,36,.06);padding:1px 5px;border-radius:5px;overflow-wrap:anywhere}
+.note{font-size:.85rem;color:var(--mute);font-family:var(--sans);font-weight:500}
+
+/* Controls of the mock (not part of the screen) */
+.controls{display:flex;flex-wrap:wrap;gap:10px 12px;align-items:center;margin:8px 0 16px}
+.ctl-label{font-size:.78rem;font-weight:600;color:var(--mute);margin-right:-4px}
+.seg{display:inline-flex;flex-wrap:wrap;background:var(--card);border:1px solid var(--line-strong);border-radius:22px;padding:3px;max-width:100%}
+.seg button{font:600 .82rem var(--sans);border:0;background:transparent;color:var(--ink);padding:8px 13px;border-radius:999px;cursor:pointer;min-height:38px}
+.seg button[aria-pressed="true"]{background:var(--primary);color:#fff}
+.ghost{font:600 .82rem var(--sans);border:1px solid var(--line-strong);background:var(--card);color:var(--ink);padding:8px 14px;border-radius:999px;cursor:pointer;min-height:38px}
+.ghost.sim{border-style:dashed}
+.ghost:active,.seg button:active{transform:scale(.97)}
+
+/* Stage: same state, two widths */
+.stage{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,390px);gap:28px;align-items:start}
+.stage.only-desk{grid-template-columns:minmax(0,1fr)}
+.stage.only-desk>.col-phone{display:none}
+.stage.only-phone{grid-template-columns:minmax(0,390px);justify-content:center}
+.stage.only-phone>.col-desk{display:none}
+@media (max-width:1100px){.stage,.stage.only-phone{grid-template-columns:minmax(0,1fr)}}
+.stage>div{min-width:0}
+.frame-label{font-size:.8rem;font-weight:600;color:var(--mute);margin:0 0 8px}
+.desk{background:#E9E4DA;border-radius:18px;padding:22px 18px;min-width:0}
+.phone{width:390px;max-width:100%;height:800px;margin:0 auto;border-radius:44px;background:#1f1d19;padding:12px;box-shadow:0 12px 40px rgba(39,37,31,.22)}
+.phone .screen{height:100%;border-radius:34px;overflow:hidden auto;background:var(--paper);position:relative;overscroll-behavior:contain}
+@media (max-width:720px){.wrap{padding:28px 14px 64px}.desk{padding:12px 8px}.phone{border-radius:36px;padding:8px}.phone .screen{border-radius:28px}}
+
+/* App chrome (GuestFlow « Maison ») */
+.app{background:var(--paper);border-radius:12px;overflow:hidden;box-shadow:0 10px 36px rgba(60,54,36,.16);position:relative;min-height:200px}
+.phone .app{border-radius:0;box-shadow:none;min-height:100%}
+.appbar{background:var(--primary);color:#fff;display:flex;align-items:center;gap:10px;padding:0 16px;height:48px;font:600 .95rem var(--sans)}
+.appbar .dot{width:22px;height:22px;border-radius:6px;background:rgba(255,255,255,.18);display:grid;place-items:center;font-size:.7rem}
+.pab{position:sticky;top:0;z-index:3;display:flex;align-items:center;gap:8px;background:#fff;border-bottom:1px solid var(--line);padding:6px 14px;min-height:56px}
+.pab .t{font:600 1.05rem/1.2 var(--serif);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pab .sub{font:500 .75rem var(--sans);color:var(--mute)}
+.ib{width:44px;height:44px;border-radius:10px;border:1px solid var(--line-strong);background:#fff;display:inline-grid;place-items:center;cursor:pointer;color:var(--ink);position:relative;flex:none}
+.ib.info{border-color:var(--info);color:var(--info)}
+.ib.ok{border-color:var(--ok);color:var(--ok)}
+.ib.save{background:var(--primary);border-color:var(--primary);color:#fff}
+.ib:active{transform:scale(.96)}
+.ib[data-tip]:hover::after{content:attr(data-tip);position:absolute;top:50px;right:0;background:#3b3a36;color:#fff;font:500 .72rem var(--sans);padding:5px 8px;border-radius:6px;white-space:nowrap;z-index:9}
+.content{padding:16px}
+.phone .content{padding:12px}
+
+/* Cards, rows, chips, buttons */
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px 16px;margin-bottom:12px}
+.phone .card{padding:12px}
+.card-h{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin:0 0 6px}
+.card-h .ttl{font:600 1rem/1.3 var(--serif)}
+.sec-h{font:600 1rem/1.3 var(--serif);margin:12px 0 6px;display:flex;justify-content:space-between;align-items:baseline;gap:8px;flex-wrap:wrap}
+.box{border:1px solid var(--line-strong);border-radius:12px;padding:6px 12px;background:#fff}
+.row{display:flex;flex-wrap:wrap;gap:6px 10px;align-items:center;justify-content:space-between;padding:8px 0;border-top:1px solid var(--line)}
+.row:first-child{border-top:0}
+.row .l{min-width:0;flex:1 1 170px}
+.row>.acts{margin-left:auto}
+.row .nm{font-weight:500;overflow-wrap:anywhere}
+.row .dt{font-size:.8rem;color:var(--mute);font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
+.row.sub{padding-left:14px;border-top-style:dashed}
+.amt{font-variant-numeric:tabular-nums;white-space:nowrap;text-align:right}
+.amt.b{font-weight:700}
+.struck{text-decoration:line-through;color:#A39E90}
+.zero{font-weight:700;color:var(--ok)}
+.chips{display:flex;flex-wrap:wrap;gap:4px;margin-top:4px}
+.chip{display:inline-flex;align-items:center;font-family:var(--sans);font-size:.72rem;font-weight:600;padding:2px 8px;border-radius:999px;white-space:nowrap;border:1px solid var(--line-strong);background:#fff;color:var(--ink)}
+.chip.paid{background:var(--ok-soft);border-color:transparent;color:#2c5b3c}
+.chip.due{background:var(--warn-soft);border-color:transparent;color:var(--warn)}
+.chip.off{background:var(--info-soft);border-color:transparent;color:var(--info)}
+.chip.err{background:var(--err-soft);border-color:transparent;color:var(--err)}
+.chip.new{background:#FBF3E4;border-color:transparent;color:#8a5d17}
+.btn{font:600 .82rem var(--sans);border-radius:10px;border:1px solid var(--line-strong);background:var(--card);color:var(--ink);padding:0 12px;min-height:44px;min-width:44px;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:6px;text-align:center}
+.btn:active{transform:scale(.97)}
+.btn.primary{background:var(--primary);border-color:var(--primary);color:#fff}
+.btn.primary:hover{background:var(--primary-dark)}
+.btn.offer{border-color:var(--ok);color:var(--ok)}
+.btn.offer[aria-pressed="true"]{background:var(--ok);color:#fff}
+.btn.danger{color:var(--err);border-color:rgba(168,67,58,.45)}
+.btn.quiet{border-color:transparent;background:transparent;color:var(--primary)}
+.btn[disabled]{opacity:.45;cursor:not-allowed;transform:none}
+.btn.full{width:100%}
+.acts{display:flex;gap:6px;align-items:center;flex-wrap:wrap;justify-content:flex-end}
+.stepper{display:inline-flex;align-items:center;border:1px solid var(--line-strong);border-radius:10px;overflow:hidden;background:#fff;flex:none}
+.stepper button{border:0;background:transparent;width:44px;height:44px;cursor:pointer;display:grid;place-items:center;color:var(--ink);font:600 1.1rem var(--sans)}
+.stepper button[disabled]{opacity:.35;cursor:not-allowed}
+.stepper input{width:46px;border:0;text-align:center;font:600 .95rem var(--sans);font-variant-numeric:tabular-nums;background:transparent;color:var(--ink);height:44px;padding:0}
+.stepper.bad{border-color:var(--err);box-shadow:0 0 0 1px var(--err)}
+.field{display:block;margin:8px 0}
+.field>span{display:block;font-size:.78rem;font-weight:600;color:var(--mute);margin-bottom:4px}
+.field input,.field select,.field textarea{width:100%;min-height:44px;border:1px solid var(--line-strong);border-radius:10px;padding:0 12px;font:500 16px var(--sans);background:#fff;color:var(--ink)}
+.field textarea{padding:10px 12px;min-height:70px;resize:vertical}
+.field.bad input,.field.bad select,.field.bad textarea{border-color:var(--err);box-shadow:0 0 0 1px var(--err)}
+.help{font-size:.78rem;color:var(--mute);margin:4px 0 0}
+.refusal{font-size:.82rem;color:var(--err);margin:6px 0 0}
+.check{display:flex;gap:10px;align-items:center;font-size:.9rem;min-height:44px;cursor:pointer}
+.check input{width:20px;height:20px;accent-color:var(--primary);flex:none}
+.alert{border-radius:10px;padding:10px 12px;font-size:.86rem;margin:8px 0}
+.alert.warn{background:var(--warn-soft);color:#6d5216}
+.alert.ok{background:var(--ok-soft);color:#2c5b3c}
+.alert.err{background:var(--err-soft);color:#7d3029}
+.alert.info{background:var(--info-soft);color:#24435a}
+.alert .acts{justify-content:flex-start;margin-top:8px}
+.pills{display:flex;flex-wrap:wrap;gap:6px;margin:6px 0}
+.pills button{font:600 .82rem var(--sans);min-height:44px;padding:0 14px;border-radius:999px;border:1px solid var(--line-strong);background:#fff;cursor:pointer;color:var(--ink)}
+.pills button[aria-pressed="true"]{background:var(--primary);border-color:var(--primary);color:#fff}
+.pills button[disabled]{opacity:.45;cursor:not-allowed}
+.total-line{display:flex;justify-content:space-between;align-items:baseline;gap:8px;padding:4px 0}
+.total-line .k{color:var(--mute);font-size:.88rem}
+.total-line.big .k{color:var(--ink);font-weight:600;font-size:.95rem}
+.total-line.big .amt{font:700 1.3rem var(--sans);font-variant-numeric:tabular-nums}
+.divider{height:1px;background:var(--line);margin:8px 0}
+
+/* Dialog (FormDialog look), inside a frame */
+.scrim{position:absolute;inset:0;background:rgba(39,37,31,.38);display:flex;align-items:flex-start;justify-content:center;padding:32px 16px;z-index:10}
+.dlg{background:#fff;border-radius:14px;box-shadow:0 16px 48px rgba(39,37,31,.28);width:100%;max-width:620px;display:flex;flex-direction:column;max-height:100%;overflow:hidden}
+.dlg-h{display:flex;align-items:center;gap:8px;padding:14px 18px;border-bottom:1px solid var(--line)}
+.dlg-h .t{font:600 1.15rem/1.2 var(--serif);flex:1}
+.dlg-b{padding:12px 18px 16px;overflow-y:auto}
+.dlg-f{display:flex;gap:8px;justify-content:flex-end;padding:12px 18px;border-top:1px solid var(--line);flex-wrap:wrap}
+.phone .scrim{padding:0;background:#fff;position:absolute;min-height:100%}
+.phone .dlg{border-radius:0;box-shadow:none;max-height:none;min-height:100%}
+.phone .dlg-f{flex-direction:column-reverse}
+.phone .dlg-f .btn{width:100%}
+
+/* Decisions block */
+.q{background:var(--card);border-radius:var(--r);box-shadow:var(--shadow);padding:16px 18px;margin:12px 0}
+.q b.t{display:block;font:600 1rem/1.35 var(--serif);margin-bottom:4px}
+.q .why{font-size:.86rem;color:var(--mute);margin:0 0 8px}
+.opt{display:flex;gap:10px;align-items:flex-start;padding:10px 12px;border:1px solid var(--line-strong);border-radius:12px;margin:6px 0;cursor:pointer;background:#fff}
+.opt input{margin-top:4px;width:18px;height:18px;accent-color:var(--primary);flex:none}
+.opt.sel{border-color:var(--primary);box-shadow:0 0 0 1px var(--primary)}
+.opt .rec{font-size:.72rem;font-weight:700;color:var(--primary);background:var(--ok-soft);padding:1px 7px;border-radius:999px;margin-left:4px;white-space:nowrap}
+.opt small{display:block;color:var(--mute);font-size:.83rem;margin-top:2px}
+.summary{margin-top:14px}
+.summary textarea{width:100%;min-height:110px;font:500 .82rem ui-monospace,Menlo,monospace;border:1px solid var(--line-strong);border-radius:10px;padding:10px;background:#fff;color:var(--ink)}
+.added{animation:rise .16s ease-out}
+@keyframes rise{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+@media (prefers-reduced-motion:reduce){.added{animation:none}.btn:active,.ghost:active,.seg button:active,.ib:active{transform:none}}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+.card.mock{border-style:dashed;background:#FCFAF5}
+.card.mock .ttl::after{content:' · maquette seulement';font:500 .72rem var(--sans);color:var(--mute)}
+.simbar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:0 0 14px;padding:8px 10px;border:1px dashed var(--line-strong);border-radius:12px}
+.sec-h .note{font-family:var(--sans);font-weight:500}
+
+.sas-band{display:flex;align-items:center;gap:10px;padding:12px 18px;color:#fff}
+.sas-band.arrival{background:#8F6A1D}.sas-band.departure{background:#31556E}
+.sas-band .t{font:600 1.1rem/1.2 var(--serif);flex:1}
+.sas-band .s{font:500 .78rem var(--sans);opacity:.9}
+.cols{display:grid;grid-template-columns:minmax(0,1.3fr) minmax(0,1fr);gap:18px}
+.phone .cols{display:block}
+@media (max-width:900px){.cols{grid-template-columns:minmax(0,1fr)}}
+.sticky-due{position:sticky;top:0;z-index:2;display:flex;justify-content:space-between;align-items:baseline;padding:10px 14px;background:#fff;border-bottom:1px solid var(--line)}
+.sticky-due .fig{font:700 1.3rem var(--sans);font-variant-numeric:tabular-nums}
+.foot{display:flex;gap:10px;justify-content:flex-end;padding:12px 18px;border-top:1px solid var(--line);background:#fff;flex-wrap:wrap}
+.phone .foot{flex-direction:column-reverse}
+.phone .foot .btn{width:100%}
+.journal{font-size:.8rem;color:var(--mute);margin:0;padding-left:1.1rem}
+.journal li{margin:2px 0;font-variant-numeric:tabular-nums}
+details.paid>summary{cursor:pointer;min-height:44px;display:flex;align-items:center;justify-content:space-between;gap:8px;font:600 1rem var(--serif);list-style:none}
+details.paid>summary::-webkit-details-marker{display:none}
+details.paid>summary::after{content:'▾';font-size:.8rem;color:var(--mute)}
+details.paid[open]>summary::after{content:'▴'}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header class="read">
+  <h1>M3 — Le sas vend et encaisse sur les lignes du séjour</h1>
+  <p class="lede">Maquette à valider avant les commits C21 et C25 de la PR C (règles 14, 25, 32, et la règle 4 de la réouverture du sas, amendée).</p>
+  <div class="meta"><span class="tag info">PR C · passe 3</span><span class="tag">Sas d’arrivée · sas de départ</span><span class="tag warn">Réouverture : on ajoute, on ne réécrit plus</span></div>
+</header>
+<section class="read">
+  <h2>Le constat</h2>
+  <p>Le sas écrit aujourd’hui ses propres lignes et les réécrit en entier quand on le rouvre (« remplacer puis compenser »). Une ligne effacée puis réécrite n’a pas d’identité : on ne peut ni l’offrir proprement, ni dire ce qui a déjà été payé. Trois mécanismes « offert » cohabitent (ménage, linge, autres articles).</p>
+  <h2>Ce qu’on propose</h2>
+  <p>Le sas lit les lignes du séjour (<code>saleDetail</code>) et vend par le même service que la fiche. Trois blocs : « À percevoir maintenant », « Déjà payé » (non offrable depuis le sas), et, après l’heure d’arrivée, « Ventes du séjour — au départ ». Le sas de départ montre « À percevoir au départ », avec le rappel des lignes non perçues à l’arrivée. Rouvrir un sas ajoute des lignes ; rien n’est effacé.</p>
+</section>
+
+<div class="controls" id="ctl" data-frame="ctl"></div>
+<div class="stage">
+  <div class="col-desk"><p class="frame-label">Ordinateur · fenêtre du sas</p><div class="desk"><div id="f-desk" data-frame="desk"></div></div></div>
+  <div class="col-phone"><p class="frame-label">Téléphone · 390 px, plein écran</p><div class="phone"><div class="screen" id="f-phone" data-frame="phone"></div></div></div>
+</div>
+
+<section class="read">
+  <h2>Ce qu’on ne fait pas</h2>
+  <ul class="tight">
+    <li>Les étapes du sas (portail, caution, petit-déjeuner, linge…) ne changent pas : seul leur récapitulatif et leur écriture passent par les lignes.</li>
+    <li>Pas de remise en pourcentage depuis le sas : « Offrir » seulement, comme aujourd’hui.</li>
+    <li>Le remboursement lui-même se fait depuis la fiche : le sas annonce le montant dû, il ne rembourse pas.</li>
+  </ul>
+  <h2>Le risque</h2>
+  <table class="facts">
+    <tr><th>Sas rouverts</th><td>Les chiffres des sas déjà rouverts changent de forme (classe C-E5) : des lignes ajoutées au lieu d’une réécriture. Les totaux restent égaux ; la liste est jointe à CP2 (M7).</td></tr>
+    <tr><th>Heure offerte</th><td>Un article vendu au sas consomme désormais les unités offertes restantes du séjour (classe C-E4) : son montant peut baisser.</td></tr>
+    <tr><th>Accueil</th><td>L’accueil voit l’argent à percevoir, jamais un remboursement, et ne peut pas offrir une ligne payée.</td></tr>
+  </table>
+  <h2>À décider</h2>
+  <div id="questions"></div>
+</section>
+</div>
+<script>
+/* Shared helpers of the PR C mocks: money display, escaping, one state rendered into both frames, delegated events. */
+var GF = (function(){
+  'use strict';
+  var acts = {}, inputs = {}, renderers = [], view = 'both';
+  function eur(c){
+    var neg = c < 0; c = Math.abs(Math.round(c));
+    var s = (c / 100).toFixed(2).split('.');
+    s[0] = s[0].replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
+    return (neg ? '−' : '') + s[0] + ',' + s[1] + ' €';
+  }
+  function esc(s){ return String(s == null ? '' : s).replace(/[&<>"]/g, function(ch){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[ch]; }); }
+  function parseQty(text, min, max){
+    var t = String(text).trim();
+    if (t === '') return {error: 'Quantité requise.'};
+    if (!/^\d+$/.test(t)) return {error: 'Quantité : un nombre entier.'};
+    var n = parseInt(t, 10);
+    if (n < min || n > max) return {error: 'Quantité : ' + min + ' à ' + max + '.'};
+    return {n: n};
+  }
+  function parseAmount(text){
+    var t = String(text).trim().replace(/[\s  ]/g, '').replace(',', '.').replace(/€$/, '');
+    if (t === '') return {empty: true};
+    if (!/^\d+(\.\d{1,2})?$/.test(t)) return {bad: true};
+    return {cents: Math.round(parseFloat(t) * 100)};
+  }
+  function centsText(c){ return (c / 100).toFixed(2).replace('.', ','); }
+  function validEmail(t){ return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(String(t).trim()); }
+  // VAT once per rate group (pricing rule 62): round(ttc × rate / (100 + rate)), then HT = TTC − VAT.
+  function vatOfGroup(ttc, rate){ return rate > 0 ? Math.round(ttc * rate / (100 + rate)) : 0; }
+  // Largest remainder: shares of `total` over `weights`, summing exactly to `total` (pricing rule 40).
+  function allocate(total, weights){
+    var sum = weights.reduce(function(s, w){ return s + w; }, 0);
+    if (!sum) return weights.map(function(){ return 0; });
+    var raw = weights.map(function(w){ return total * w / sum; });
+    var base = raw.map(function(x){ return Math.floor(x); });
+    var left = total - base.reduce(function(s, x){ return s + x; }, 0);
+    var order = raw.map(function(x, i){ return {i: i, r: x - Math.floor(x)}; }).sort(function(a, b){ return b.r - a.r || a.i - b.i; });
+    for (var k = 0; k < left; k++) base[order[k % order.length].i]++;
+    return base;
+  }
+  function on(name, fn){ acts[name] = fn; }
+  function onInput(name, fn){ inputs[name] = fn; }
+  function frame(id, fn){ renderers.push({id: id, fn: fn}); }
+  function refresh(){
+    var a = document.activeElement, keep = null;
+    if (a && a.getAttribute && a.getAttribute('data-in')) {
+      var fr = a.closest('[data-frame]');
+      keep = {key: a.getAttribute('data-in'), id: a.getAttribute('data-id') || '', frame: fr ? fr.id : '', s: a.selectionStart, e: a.selectionEnd};
+    }
+    renderers.forEach(function(r){ var el = document.getElementById(r.id); if (el) el.innerHTML = r.fn(el.getAttribute('data-frame')); });
+    if (keep) {
+      var root = keep.frame ? document.getElementById(keep.frame) : document;
+      var sel = '[data-in="' + keep.key + '"]' + (keep.id ? '[data-id="' + keep.id + '"]' : '');
+      var el = root && root.querySelector(sel);
+      if (el) { el.focus(); try { if (keep.s != null) el.setSelectionRange(keep.s, keep.e); } catch (e) {} }
+    }
+  }
+  document.addEventListener('click', function(ev){
+    var el = ev.target.closest('[data-act]');
+    if (!el || el.disabled) return;
+    var fn = acts[el.getAttribute('data-act')];
+    if (fn) { ev.preventDefault(); fn(el, ev); refresh(); }
+  });
+  function handleInput(ev){
+    var el = ev.target.closest('[data-in]');
+    if (!el) return;
+    var fn = inputs[el.getAttribute('data-in')];
+    if (!fn) return;
+    if (ev.type === 'input' && (el.type === 'checkbox' || el.tagName === 'SELECT')) return;
+    if (ev.type === 'change' && el.type !== 'checkbox' && el.tagName !== 'SELECT') return;
+    fn(el.type === 'checkbox' ? el.checked : el.value, el, ev);
+    refresh();
+  }
+  document.addEventListener('input', handleInput);
+  document.addEventListener('change', handleInput);
+  on('view', function(el){
+    var st = document.querySelector('.stage'); var v = el.getAttribute('data-v'); view = v;
+    st.classList.toggle('only-desk', v === 'desk'); st.classList.toggle('only-phone', v === 'phone');
+    el.parentNode.querySelectorAll('button').forEach(function(b){ b.setAttribute('aria-pressed', String(b === el)); });
+  });
+  function seg(group, current, options, act){
+    return '<div class="seg" role="group" aria-label="' + esc(group) + '">' + options.map(function(o){
+      return '<button data-act="' + act + '" data-v="' + o[0] + '" aria-pressed="' + (o[0] === current) + '">' + esc(o[1]) + '</button>';
+    }).join('') + '</div>';
+  }
+  // Decision block: options to click, a summary to copy into the chat.
+  function questions(containerId, mockName, list){
+    var picks = {};
+    var box = document.getElementById(containerId);
+    function draw(){
+      var h = [];
+      list.forEach(function(q, qi){
+        h.push('<div class="q"><b class="t">' + (qi + 1) + '. ' + esc(q.t) + '</b><p class="why">' + q.why + '</p>');
+        q.opts.forEach(function(o){
+          var sel = picks[q.id] === o.v;
+          h.push('<label class="opt' + (sel ? ' sel' : '') + '"><input type="radio" name="' + q.id + '" data-q="' + q.id + '" value="' + o.v + '"' + (sel ? ' checked' : '') + '><span><b>' + o.v + '.</b> ' + esc(o.label) + (o.rec ? ' <span class="rec">Recommandé</span>' : '') + (o.detail ? '<small>' + o.detail + '</small>' : '') + '</span></label>');
+        });
+        h.push('</div>');
+      });
+      var lines = list.map(function(q, qi){
+        var o = q.opts.filter(function(x){ return x.v === picks[q.id]; })[0];
+        return mockName + ' · ' + (qi + 1) + '. ' + q.t + ' → ' + (o ? o.v + ' (' + o.label + ')' : 'non tranché');
+      });
+      h.push('<div class="summary"><p class="note">Les choix ci-dessus, à recopier dans la conversation :</p><textarea readonly aria-label="Résumé des choix">' + esc(lines.join('\n')) + '</textarea><div class="acts" style="justify-content:flex-start;margin-top:6px"><button class="ghost" id="copy-' + containerId + '">Copier</button><span class="note" id="copied-' + containerId + '"></span></div></div>');
+      box.innerHTML = h.join('');
+      document.getElementById('copy-' + containerId).onclick = function(){
+        var ta = box.querySelector('textarea'); ta.select();
+        var ok = false; try { ok = document.execCommand('copy'); } catch (e) {}
+        document.getElementById('copied-' + containerId).textContent = ok ? 'Copié.' : 'Sélectionné : copier au clavier.';
+      };
+    }
+    box.addEventListener('change', function(ev){ var r = ev.target; if (r.getAttribute('data-q')) { picks[r.getAttribute('data-q')] = r.value; draw(); } });
+    draw();
+  }
+  return {eur: eur, esc: esc, parseQty: parseQty, parseAmount: parseAmount, centsText: centsText, validEmail: validEmail,
+    vatOfGroup: vatOfGroup, allocate: allocate, on: on, onInput: onInput, frame: frame, refresh: refresh, seg: seg, questions: questions, getView: function(){ return view; },
+    viewSeg: function(){ return '<span class="ctl-label">Écran</span>' + seg('Largeur', view, [['both','Les deux'],['desk','Ordinateur'],['phone','Téléphone']], 'view'); }};
+})();
+
+(function(){
+  'use strict';
+  var eur = GF.eur, esc = GF.esc;
+  var S, seq;
+  function fresh(){
+    seq = 10;
+    S = {mode: 'arrival', role: 'admin', clock: 'after', committedArrival: false, committedDeparture: false, reopened: false, open: true,
+      lines: [
+        {id: 'tax', label: 'Taxe de séjour', detail: '2 pers. × 3 nuits × 1,10 €', total: 660, source: 'Séjour', moment: 'arrival', settled: 0, offerable: false},
+        {id: 'bf', label: 'Petit-déjeuner', detail: '2 pers. × 3 matins × 12,00 €', total: 7200, source: 'Fiche', moment: 'arrival', settled: 0, offerable: true},
+        {id: 'bath', label: 'Bain nordique · jeu. 18:00', detail: '1 h offerte · supplément soirée', total: 1000, source: 'Boutique', moment: 'arrival', settled: 0, offerable: true},
+        {id: 'beer', label: 'Bière locale', detail: '2 × 6,50 €', total: 1300, source: 'Boutique', moment: 'arrival', settled: 1300, paidLabel: 'Payée par carte le 12/11', offerable: true},
+        {id: 'lem', label: 'Limonade artisanale', detail: '2 × 4,00 €', total: 800, source: 'Boutique', moment: 'departure', settled: 0, offerable: true, late: true},
+        {id: 'board', label: 'Planche apéritive', detail: '1 × 14,00 €', total: 1400, source: 'Fiche', moment: 'departure', settled: 0, offerable: true, late: true}
+      ],
+      now: {}, offered: {}, confirm: null, refusal: null, refundOwed: 0, method: 'card', amountText: '', amountTouched: false, keepDue: false, flash: null,
+      journal: []};
+  }
+  fresh();
+
+  function due(l){ return l.offered ? 0 : Math.max(0, l.total - l.settled); }
+  function isPaid(l){ return !l.offered && l.settled >= l.total && l.total > 0; }
+  function visible(l){ return S.mode === 'departure' || S.clock === 'after' || !l.late; }
+  function sections(){
+    var L = S.lines.filter(visible), now = [], paid = [], later = [];
+    L.forEach(function(l){
+      if (isPaid(l)) { paid.push(l); return; }
+      if (S.mode === 'departure') { now.push(l); return; }
+      if (l.moment === 'arrival' || S.now[l.id]) now.push(l); else later.push(l);
+    });
+    return {now: now, paid: paid, later: later};
+  }
+  function dueNow(){ return sections().now.reduce(function(s, l){ return s + due(l); }, 0); }
+  function payCheck(){
+    var d = dueNow();
+    if (d <= 0) return {none: true};
+    var text = S.amountTouched ? S.amountText : GF.centsText(d);
+    var p = GF.parseAmount(text);
+    if (p.empty || p.bad || p.cents <= 0) return {text: text, error: 'Chaque moyen doit avoir un montant.'};
+    if (p.cents > d) return {text: text, error: 'Les moyens font ' + eur(p.cents) + ' pour ' + eur(d) + ' dus.'};
+    if (p.cents < d && !S.keepDue) return {text: text, error: eur(d - p.cents) + ' ne sont pas couverts : cocher « Reste à percevoir ».', short: true};
+    return {text: text, cents: p.cents};
+  }
+  function chip(l){
+    if (l.offered) return '<span class="chip off">Offerte</span>';
+    if (isPaid(l)) return '<span class="chip paid">' + esc(l.paidLabel || 'Payée le 15/11') + '</span>';
+    if (l.settled > 0) return '<span class="chip due">Reste ' + eur(due(l)) + '</span>';
+    return '<span class="chip due">' + (l.moment === 'arrival' ? 'À payer à l’arrivée' : 'À payer au départ') + '</span>';
+  }
+  function lineRow(l, ctx){
+    var h = ['<div class="row"><div class="l"><div class="nm">' + esc(l.label) + '</div><div class="dt">' + esc(l.detail) + '</div><div class="chips"><span class="chip">' + l.source + '</span>' + chip(l) +
+      (l.reopen ? '<span class="chip new">Ajoutée à la réouverture</span>' : '') +
+      (S.mode === 'departure' && l.moment === 'arrival' && !isPaid(l) ? '<span class="chip err">Non perçue à l’arrivée</span>' : '') + '</div></div><div class="acts">'];
+    h.push(l.offered ? '<span class="amt struck">' + eur(l.total) + '</span><span class="zero">0 €</span>' : '<span class="amt">' + eur(ctx === 'paid' ? l.total : due(l)) + '</span>');
+    if (ctx === 'later') h.push('<button class="btn" data-act="now" data-id="' + l.id + '">Percevoir maintenant</button>');
+    if (ctx === 'now' && S.now[l.id]) h.push('<button class="btn quiet" data-act="now" data-id="' + l.id + '">Laisser au départ</button>');
+    if (l.offerable && ctx !== 'later') h.push('<button class="btn offer" data-act="offer" data-id="' + l.id + '" aria-pressed="' + !!l.offered + '">' + (l.offered ? 'Offert' : 'Offrir') + '</button>');
+    h.push('</div></div>');
+    if (S.confirm === l.id) h.push('<div class="alert warn" role="alertdialog">Ligne déjà payée : l’offrir rend ' + eur(l.settled) + ' au client.<div class="acts"><button class="btn danger" data-act="confirm-offer" data-id="' + l.id + '">Offrir · ' + eur(l.settled) + ' à rembourser</button><button class="btn" data-act="cancel-offer">Annuler</button></div></div>');
+    if (S.refusal && S.refusal.id === l.id) h.push('<p class="refusal" role="alert">' + esc(S.refusal.text) + '</p>');
+    return h.join('');
+  }
+  function render(v){
+    var arr = S.mode === 'arrival', sec = sections(), d = dueNow(), h = [];
+    var committed = arr ? S.committedArrival : S.committedDeparture;
+    h.push('<div class="app" style="background:#fff">');
+    h.push('<div class="sas-band ' + S.mode + '"><span class="t">' + (arr ? 'Arrivée' : 'Départ') + ' · Réservation #20412<div class="s">' + (arr ? 'Jeudi 15/11 · ' + (S.clock === 'after' ? '17:30, après l’heure d’arrivée' : '15:30, avant l’heure d’arrivée') : 'Dimanche 18/11 · 10:00') + ' · ' + (S.role === 'admin' ? 'Administrateur' : 'Accueil') + '</div></span></div>');
+    if (v === 'phone') h.push('<div class="sticky-due"><span class="note">' + (arr ? 'À percevoir maintenant' : 'À percevoir au départ') + '</span><span class="fig">' + eur(d) + '</span></div>');
+    h.push('<div class="content">');
+    if (S.flash) h.push('<div class="alert ok" role="status">' + esc(S.flash) + '</div>');
+    if (committed && !S.reopened) {
+      h.push('<div class="alert ok">Sas ' + (arr ? 'd’arrivée' : 'de départ') + ' validé.<div class="acts"><button class="btn" data-act="reopen">Rouvrir le sas</button></div></div>');
+    }
+    h.push('<div class="cols"><div>');
+    h.push('<div class="sec-h"><span>' + (arr ? 'À percevoir maintenant' : 'À percevoir au départ') + '</span><span class="amt b">' + eur(d) + '</span></div><div class="box">');
+    if (!sec.now.length) h.push('<div class="row"><div class="l note">Rien à percevoir.</div></div>');
+    sec.now.forEach(function(l){ h.push(lineRow(l, 'now')); });
+    h.push('</div>');
+    if (!committed || S.reopened) h.push('<div class="pills" style="margin-top:8px"><button data-act="add-towel">+ Linge de toilette · 2 × 8,00 €</button><button data-act="add-beer">+ Bière locale · 6,50 €</button></div>');
+    if (arr && sec.later.length) {
+      h.push('<div class="sec-h"><span>Ventes du séjour — au départ</span><span class="amt">' + eur(sec.later.reduce(function(s, l){ return s + due(l); }, 0)) + '</span></div><div class="box">');
+      sec.later.forEach(function(l){ h.push(lineRow(l, 'later')); });
+      h.push('</div><div class="acts" style="justify-content:flex-start;margin-top:6px"><button class="btn quiet" data-act="all-now">Tout percevoir maintenant</button></div>');
+    }
+    if (sec.paid.length) {
+      h.push('<details class="paid"' + (S.open ? ' open' : '') + '><summary data-act="toggle-paid"><span>Déjà payé · ' + sec.paid.length + ' ligne' + (sec.paid.length > 1 ? 's' : '') + '</span><span class="amt" style="font:600 .95rem var(--sans)">' + eur(sec.paid.reduce(function(s, l){ return s + l.total; }, 0)) + '</span></summary><div class="box">');
+      sec.paid.forEach(function(l){ h.push(lineRow(l, 'paid')); });
+      h.push('</div></details>');
+    }
+    h.push('</div><div>');
+    // Recap and payment
+    h.push('<div class="sec-h">Récapitulatif</div><div class="box">');
+    h.push('<div class="total-line big"><span class="k">' + (arr ? 'À percevoir maintenant' : 'À percevoir au départ') + '</span><span class="amt">' + eur(d) + '</span></div>');
+    if (arr && sec.later.length) h.push('<div class="total-line"><span class="k">Restera au départ</span><span class="amt">' + eur(sec.later.reduce(function(s, l){ return s + due(l); }, 0)) + '</span></div>');
+    if (S.refundOwed > 0 && S.role === 'admin') h.push('<div class="total-line"><span class="k" style="color:var(--err)">À rembourser (depuis la fiche)</span><span class="amt" style="color:var(--err)">' + eur(S.refundOwed) + '</span></div>');
+    h.push('</div>');
+    var pc = payCheck();
+    h.push('<div class="sec-h">Paiement</div>');
+    if (pc.none) h.push('<p class="note">Rien à encaisser.</p>');
+    else if (!committed || S.reopened) {
+      h.push('<div class="pills" role="group" aria-label="Moyen">' + [['card', 'Carte'], ['cash', 'Espèces'], ['check', 'Chèque'], ['internal', 'Caisse interne']].map(function(m){ return '<button data-act="method" data-v="' + m[0] + '" aria-pressed="' + (S.method === m[0]) + '">' + m[1] + '</button>'; }).join('') + '</div>');
+      h.push('<label class="field' + (pc.error ? ' bad' : '') + '"><span>Montant (€)</span><input inputmode="decimal" data-in="amount" value="' + esc(pc.text) + '" aria-invalid="' + !!pc.error + '"></label>');
+      if (pc.error) h.push('<p class="refusal" role="alert">' + esc(pc.error) + '</p>');
+      if (pc.short || S.keepDue) h.push('<label class="check"><input type="checkbox" data-in="keep"' + (S.keepDue ? ' checked' : '') + '> Reste à percevoir au départ</label>');
+    }
+    if (S.journal.length) { h.push('<div class="sec-h">Journal du séjour</div><ul class="journal">'); S.journal.forEach(function(j){ h.push('<li>' + esc(j) + '</li>'); }); h.push('</ul>'); }
+    h.push('</div></div></div>');
+    if (!committed || S.reopened) h.push('<div class="foot"><button class="btn" data-act="noop">Fermer</button><button class="btn primary" data-act="commit"' + (pc.error ? ' disabled' : '') + '>Valider ' + (arr ? 'l’arrivée' : 'le départ') + (pc.cents ? ' · encaisser ' + eur(pc.cents) : '') + '</button></div>');
+    h.push('</div>');
+    return h.join('');
+  }
+  function controls(){
+    return GF.viewSeg() +
+      '<span class="ctl-label">Sas</span>' + GF.seg('Sas', S.mode, [['arrival', 'Arrivée'], ['departure', 'Départ']], 'mode') +
+      '<span class="ctl-label">Ouvert à</span>' + GF.seg('Heure', S.clock, [['before', 'Avant l’heure d’arrivée'], ['after', 'Après l’heure d’arrivée']], 'clock') +
+      '<span class="ctl-label">Rôle</span>' + GF.seg('Rôle', S.role, [['admin', 'Administrateur'], ['reception', 'Accueil']], 'role') +
+      '<button class="ghost" data-act="reset">Recommencer</button>';
+  }
+  function byId(id){ for (var i = 0; i < S.lines.length; i++) if (S.lines[i].id === id) return S.lines[i]; return null; }
+  function stamp(){ return (S.mode === 'arrival' ? '15/11 17:3' : '18/11 10:0') + (S.journal.length % 10); }
+
+  GF.frame('ctl', controls);
+  GF.frame('f-desk', render);
+  GF.frame('f-phone', render);
+  GF.on('mode', function(el){ S.mode = el.getAttribute('data-v'); S.reopened = false; S.flash = null; S.amountTouched = false; S.keepDue = false; S.confirm = null; S.refusal = null; });
+  GF.on('clock', function(el){ S.clock = el.getAttribute('data-v'); });
+  GF.on('role', function(el){ S.role = el.getAttribute('data-v'); S.confirm = null; S.refusal = null; });
+  GF.on('reset', fresh);
+  GF.on('noop', function(){ S.flash = 'Fermer garde le sas tel quel : rien n’est écrit.'; });
+  GF.on('toggle-paid', function(){ S.open = !S.open; });
+  GF.on('now', function(el){ var id = el.getAttribute('data-id'); S.now[id] = !S.now[id]; S.amountTouched = false; });
+  GF.on('all-now', function(){ sections().later.forEach(function(l){ S.now[l.id] = true; }); S.amountTouched = false; });
+  GF.on('method', function(el){ S.method = el.getAttribute('data-v'); });
+  GF.onInput('amount', function(val){ S.amountText = val; S.amountTouched = true; });
+  GF.onInput('keep', function(val){ S.keepDue = val; });
+  GF.on('offer', function(el){
+    var l = byId(el.getAttribute('data-id')); S.refusal = null; S.confirm = null;
+    if (l.offered) { if (l.refunded) { S.refusal = {id: l.id, text: 'Remboursement annoncé : annuler depuis la fiche.'}; return; } l.offered = false; S.journal.push(stamp() + ' · « Offert » retiré · ' + l.label); return; }
+    if (l.settled > 0) {
+      if (S.role === 'reception') { S.refusal = {id: l.id, text: 'Ligne payée : à offrir depuis la fiche, par un administrateur.'}; return; }
+      S.confirm = l.id; return;
+    }
+    l.offered = true; S.amountTouched = false; S.journal.push(stamp() + ' · offerte · ' + l.label + ' (' + eur(l.total) + ')');
+  });
+  GF.on('confirm-offer', function(el){ var l = byId(el.getAttribute('data-id')); l.offered = true; l.refunded = true; S.refundOwed += l.settled; S.confirm = null; S.journal.push(stamp() + ' · offerte après paiement · ' + l.label + ' · ' + eur(l.settled) + ' à rembourser'); });
+  GF.on('cancel-offer', function(){ S.confirm = null; });
+  function addLine(base){
+    var l = Object.assign({id: 'n' + (++seq), source: 'Sas', moment: S.mode === 'arrival' ? 'arrival' : 'departure', settled: 0, offerable: true, reopen: S.reopened}, base);
+    S.lines.push(l); S.amountTouched = false;
+    S.journal.push(stamp() + ' · ajoutée · ' + l.label + ' (' + l.detail + ')');
+  }
+  GF.on('add-towel', function(){ addLine({label: 'Linge de toilette', detail: '2 × 8,00 €', total: 1600}); });
+  GF.on('add-beer', function(){ addLine({label: 'Bière locale', detail: '1 × 6,50 €', total: 650}); });
+  GF.on('commit', function(){
+    var pc = payCheck(); if (pc.error) return;
+    var left = pc.cents || 0, paidIds = [];
+    sections().now.forEach(function(l){ if (S.now[l.id]) l.moment = 'arrival'; var a = Math.min(left, due(l)); if (a > 0) { l.settled += a; left -= a; if (isPaid(l)) { l.paidLabel = 'Payée au sas le ' + (S.mode === 'arrival' ? '15/11' : '18/11'); paidIds.push(l.label); } } });
+    if (pc.cents) S.journal.push(stamp() + ' · encaissé ' + eur(pc.cents) + ' (' + ({card: 'carte', cash: 'espèces', check: 'chèque', internal: 'caisse interne'})[S.method] + ')');
+    if (S.mode === 'arrival') S.committedArrival = true; else S.committedDeparture = true;
+    S.reopened = false; S.now = {}; S.amountTouched = false; S.keepDue = false;
+    S.flash = pc.cents ? eur(pc.cents) + ' encaissés.' : 'Sas validé sans encaissement.';
+  });
+  GF.on('reopen', function(){ S.reopened = true; S.flash = 'Sas rouvert : les lignes restent, un ajout fait une nouvelle ligne.'; });
+  GF.refresh();
+
+  GF.questions('questions', 'M3', [
+    {id: 'later', t: 'Sur une vente « au départ » affichée au sas d’arrivée, quel geste ?', why: 'La spec cite deux boutons, « Percevoir maintenant » et « Passer à l’arrivée ». Pour l’argent, ils font la même chose : la ligne est encaissée avec l’arrivée.',
+      opts: [
+        {v: 'A', label: 'Un seul bouton par ligne, « Percevoir maintenant » (réversible : « Laisser au départ »), plus « Tout percevoir maintenant »', rec: true, detail: 'C’est la maquette. La ligne prend le moment « arrivée » à la validation, et le journal le garde.'},
+        {v: 'B', label: 'Les deux boutons de la spec, côte à côte', detail: 'Deux mots pour un même résultat : plus de place prise sur téléphone, sans gain.'}
+      ]},
+    {id: 'paid', t: 'Le bloc « Déjà payé » : ouvert ou replié ?', why: 'Il sert de trace ; on n’y agit presque jamais.',
+      opts: [
+        {v: 'A', label: 'Replié par défaut, avec son nombre de lignes et son total dans le titre', rec: true, detail: 'L’écran du sas reste court sur téléphone.'},
+        {v: 'B', label: 'Toujours ouvert', detail: 'Tout est visible d’un coup, au prix d’un défilement de plus.'}
+      ]},
+    {id: 'reopen', t: 'Après une réouverture, comment marquer ce qui a été ajouté ?', why: 'Rouvrir n’efface plus rien : les lignes d’avant restent avec leur statut.',
+      opts: [
+        {v: 'A', label: 'Une pastille « Ajoutée à la réouverture » sur les lignes nouvelles, plus le journal du séjour', rec: true},
+        {v: 'B', label: 'Le journal seulement', detail: 'L’écran est plus calme, mais il faut lire le journal pour savoir ce qui a changé.'}
+      ]}
+  ]);
+})();
+</script>
+</body>
+</html>

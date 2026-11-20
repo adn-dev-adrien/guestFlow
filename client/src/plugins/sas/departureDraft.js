@@ -15,7 +15,7 @@
  *   offered           — Set of offer keys (« Offrir »)
  */
 
-const RECALLED_REF = /^(option|resource|custom|extraGuests):(\d+)$/;
+const RECALLED_REF = /^(option|resource|custom|extraGuests):(\d+)(?::(\d+))?$/;
 
 export default function buildDepartureDraft({
   cleaningOk = null, missingDep = {}, extinguisherCheck = false, extinguisherOk = true,
@@ -41,6 +41,6 @@ export default function buildDepartureDraft({
     offeredArrivalExtras: [...offered]
       .map((key) => RECALLED_REF.exec(String(key)))
       .filter(Boolean)
-      .map(([, kind, id]) => ({ kind, id: Number(id) })),
+      .map(([, kind, id, lineId]) => ({ kind, id: Number(id), ...(lineId ? { lineId: Number(lineId) } : {}) })),
   };
 }

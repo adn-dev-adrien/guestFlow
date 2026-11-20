@@ -14,9 +14,8 @@ function toMinutes(time) {
   return (Number.isFinite(h) ? h : 0) * 60 + (Number.isFinite(m) ? m : 0);
 }
 
-function round2(value) {
-  return Math.round((Number(value) || 0) * 100) / 100;
-}
+const sdk = require('../sdk');
+const { roundMoneyOrZero: round2 } = sdk.coreModule('money');
 
 /**
  * cfg: { dayRate, eveningRate, eveningStart ('HH:MM' | null), slotMinutes = 30 }.
@@ -91,6 +90,27 @@ function priceRange(start, end, cfg = {}) {
 }
 
 /**
+ * What a booking does not charge (specs/pricing-components.md §3 rules 24, 37-diff 4): the lodging's free minutes are worth the DAY
+ * rate — the same value a stay's free hour has on its quantity path — and the offered minutes right after them are worth the band
+ * they fall in. `start`/`end` are minutes of the day, `freeApplied`/`offeredApplied` already capped to the duration.
+ * `freeAtDayRate: false` is a booking stored before this rule (rule 74: its price is not re-priced): its free minutes are valued on the band
+ * they fall in.
+ */
+function bookingDeductions({ start, freeApplied, offeredApplied, freeAtDayRate = true }, cfg = {}) {
+  const norm = normalizeConfig(cfg);
+  let freeValue = 0;
+  if (freeApplied > 0) freeValue = freeAtDayRate ? (norm.dayRate * freeApplied) / 60 : priceMinutes(start, start + freeApplied, norm);
+  const offeredFrom = start + freeApplied;
+  const offeredValue = offeredApplied > 0 ? priceMinutes(offeredFrom, offeredFrom + offeredApplied, norm) : 0;
+  return { freeValue: round2(freeValue), offeredValue: round2(offeredValue) };
+}
+
+/** The gross price of one slot of the grid (the free-slots picker and the SAS preview print it). */
+function slotPrice(start, end, cfg = {}) {
+  return priceRange(start, end, cfg);
+}
+
+/**
  * Validate a session against the resource window/granularity.
  * cfg adds: openTime, closeTime ('HH:MM'), minMinutes. Returns true when billable.
  */
@@ -114,7 +134,7 @@ function isValidSession(session, cfg = {}) {
  *  - cfg: { dayRate, eveningRate, eveningStart, slotMinutes, openTime, closeTime, minMinutes }
  *  - freeMinutes: free allowance applied ONCE, to the earliest valid session's first minutes.
  * Returns { totalPrice, grossPrice, totalHours, billedHours, unitPrice, validSessions,
- * freeMinutesApplied, billedMinutes, freeValue, bands } — the last four let a screen show the offered
+ * freeMinutesApplied, billedMinutes, freeValue, freeSupplement, bands } — the last five let a screen show the offered
  * minutes and the per-band detail exactly as priced here.
  *
  * `totalHours` are the hours the guest actually gets (what the SAS has to place);
@@ -130,7 +150,7 @@ function priceSessions(sessions, cfg = {}, freeMinutes = 0) {
   if (valid.length === 0) {
     return {
       totalPrice: 0, grossPrice: 0, totalHours: 0, billedHours: 0, unitPrice: 0, validSessions: [],
-      freeMinutesApplied: 0, billedMinutes: 0, freeValue: 0, bands: [],
+      freeMinutesApplied: 0, billedMinutes: 0, freeValue: 0, freeSupplement: 0, bands: [],
     };
   }
 
@@ -142,12 +162,17 @@ function priceSessions(sessions, cfg = {}, freeMinutes = 0) {
   const first = valid[0];
   const firstStart = toMinutes(first.start);
   const freeApplied = Math.min(free, toMinutes(first.end) - firstStart);
-  const freeValue = freeApplied > 0 ? priceMinutes(firstStart, firstStart + freeApplied, norm) : 0;
+  // Rule 37 — the free minutes are worth the DAY rate wherever they fall: an offered hour placed in the evening owes the evening supplement, as the arrival
+  // SAS bills it. `freeSupplement` is what the offered minutes would cost above the day rate (the evening supplement of the free window).
+  const dayOnly = { ...norm, eveningRate: norm.dayRate, eveningStart: Infinity };
+  const freeValue = freeApplied > 0 ? priceMinutes(firstStart, firstStart + freeApplied, dayOnly) : 0;
+  const freeSupplement = freeApplied > 0 ? Math.max(0, priceMinutes(firstStart, firstStart + freeApplied, norm) - freeValue) : 0;
 
   const billedMinutes = Math.max(0, totalMinutes - freeApplied);
   const billedHours = round2(billedMinutes / 60);
   const totalPrice = Math.max(0, round2(gross - freeValue));
-  const unitPrice = billedHours > 0 ? round2(totalPrice / billedHours) : 0;
+  // An offered evening hour bills no hour yet owes its supplement: that amount is the line's one unit, so a stored line replays to the same total.
+  const unitPrice = billedHours > 0 ? round2(totalPrice / billedHours) : totalPrice;
 
   return {
     totalPrice,
@@ -159,6 +184,7 @@ function priceSessions(sessions, cfg = {}, freeMinutes = 0) {
     freeMinutesApplied: freeApplied,
     billedMinutes,
     freeValue: round2(freeValue),
+    freeSupplement: round2(freeSupplement),
     bands: roundedBands(valid.flatMap((s) => bandsOf(toMinutes(s.start), toMinutes(s.end), norm)), round2(gross)),
   };
 }
@@ -184,4 +210,6 @@ function eveningSupplement(blocks, cfg = {}) {
   return round2(total);
 }
 
-module.exports = { toMinutes, priceRange, priceSessions, isValidSession, normalizeConfig, eveningSupplement };
+module.exports = {
+  toMinutes, priceRange, slotPrice, bookingDeductions, priceSessions, isValidSession, normalizeConfig, eveningSupplement,
+};

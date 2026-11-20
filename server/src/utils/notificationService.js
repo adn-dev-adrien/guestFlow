@@ -23,6 +23,8 @@ const { buildNotificationDigest } = require('./notificationDigest');
 const { platformDisplay } = require('./platformDisplay');
 const { parisDateTimeLabel } = require('./parisDateTime');
 const { DEACTIVATION_ALERT_AFTER_HOURS } = require('../constants/paymentLinks');
+const { roundMoneyOrZero } = require('./pricing/money');
+const { owedOnDuplicate, duplicatePayment } = require('./pricing/refunds/owed');
 
 // The iCal source's own name, else the platform as every page writes it (« GreenGo », « Gîtes de
 // France »), never the stored key (2026-10-27 spec review).
@@ -42,7 +44,7 @@ function oneLine(value) {
 }
 
 function euro(n) {
-  return `${(Math.round((Number(n) || 0) * 100) / 100).toFixed(2).replace('.', ',')} €`;
+  return `${roundMoneyOrZero(n).toFixed(2).replace('.', ',')} €`;
 }
 
 // ISO (YYYY-MM-DD) → DD/MM/YYYY for human-facing notification copy; pass through anything else.
@@ -486,8 +488,8 @@ function buildNotificationService({
   const PAID_UNAVAILABLE_TITLES = { closed: '⚠️ Paiement reçu sur des dates fermées', taken: '⚠️ Paiement reçu sur des dates déjà prises' };
   // specs/payment-link-lifecycle.md rule 63 (audit R11 M1) — beside an installment plan the payment is not the stay's.
   const PAID_BESIDE_PLAN_TITLE = '⚠️ Paiement à rembourser : échéancier en place';
-  function buildPaidAfterCancelEmail(resa, link, publicUrl, { settledOn = null, amountMismatch = null, doublePaid = false, duplicateCents = null, confirmationSent = true, nightsUnavailable = null, datesTaken = false, takenBy = null, livePayment = false, installmentPlan = false } = {}) {
-    const amount = eurosFr(doublePaid && duplicateCents != null ? duplicateCents : link.amountCents);
+  function buildPaidAfterCancelEmail(resa, link, publicUrl, { settledOn = null, amountMismatch = null, doublePaid = false, duplicateCents, confirmationSent = true, nightsUnavailable = null, datesTaken = false, takenBy = null, livePayment = false, installmentPlan = false } = {}) {
+    const amount = eurosFr(doublePaid && duplicateCents != null ? owedOnDuplicate({ paidCents: link.amountCents, ...duplicatePayment(duplicateCents) }).owedCents : link.amountCents);
     const owner = String(resa.kind) === 'devis' ? 'le devis' : 'le séjour';
     const ref = resa.devisNumber || `#${Number(resa.id)}`;
     const title = (installmentPlan && PAID_BESIDE_PLAN_TITLE) || PAID_UNAVAILABLE_TITLES[nightsUnavailable]
@@ -625,8 +627,38 @@ function buildNotificationService({
     return await deliver({ recipient: ctx.recipient, subject: email.subject, text: email.text });
   }
 
+  // the outside-visit spec rule 41 — a link of an outside sale paid beyond what its document asks: booked in full, the surplus owed back.
+  const STANDALONE_REFUND_TITLE = 'Paiement à rembourser sur une vente hors séjour';
+  function buildStandaloneRefundEmail(link, { surplusCents = 0, cancelled = false } = {}) {
+    const surplus = eurosFr(surplusCents);
+    const subject = `${STANDALONE_REFUND_TITLE} — ${surplus}`;
+    const lines = [
+      cancelled
+        ? 'Un client a payé un lien de paiement dont la vente hors séjour a été annulée depuis.'
+        : 'Un client a payé un lien de paiement pour un montant supérieur à ce que sa vente hors séjour demande aujourd’hui.',
+      'Le paiement est enregistré en entier sur la vente ; l’excédent est un remboursement dû.',
+      'Action requise : rembourser l’excédent depuis votre espace du prestataire de paiement.',
+      '',
+      `Vente : ${oneLine(link.saleRef)}`,
+      `Lien : #${Number(link.id)}`,
+      `Montant payé : ${eurosFr(link.amountCents)}`,
+      `Excédent à rembourser : ${surplus}`,
+      `Identifiant du paiement : ${oneLine(link.providerPaymentId)}`,
+    ];
+    return { subject, text: lines.join('\n') };
+  }
+
+  async function notifyStandaloneRefund(link, options) {
+    const email = buildStandaloneRefundEmail(link, options.standaloneSale);
+    await pushNewReservation({ title: STANDALONE_REFUND_TITLE, body: email.subject.slice(`${STANDALONE_REFUND_TITLE} — `.length) });
+    const ctx = resolveContext();
+    if (ctx.skip) return { sent: false, skipped: ctx.skip };
+    return await deliver({ recipient: ctx.recipient, subject: email.subject, text: email.text });
+  }
+
   async function notifyPaidAfterCancel(link, options = {}) {
     try {
+      if (link.saleRef) return await notifyStandaloneRefund(link, options);
       const resa = options.orphan ? null : loadReservation(link.reservationId);
       if (!resa) return await notifyOrphanPaid(link, options);
       const { subject } = buildPaidAfterCancelEmail(resa, link, '', options);
@@ -711,7 +743,7 @@ function buildNotificationService({
     }
   }
 
-  return { notifyNewSiteDevis, flushDueDigests, notifyNewIcalReservation, notifyBookingConflict, notifyPaidAfterCancel, notifyDeactivationStuck, notifyPaymentInFlight, __test: { buildDevisEmail, buildSiteDigestEmail, buildReservationEmail, buildConflictEmail, buildPaidAfterCancelEmail, buildOrphanPaidEmail, buildDeactivationStuckEmail, buildPaymentInFlightEmail } };
+  return { notifyNewSiteDevis, flushDueDigests, notifyNewIcalReservation, notifyBookingConflict, notifyPaidAfterCancel, notifyDeactivationStuck, notifyPaymentInFlight, __test: { buildDevisEmail, buildSiteDigestEmail, buildReservationEmail, buildConflictEmail, buildPaidAfterCancelEmail, buildOrphanPaidEmail, buildStandaloneRefundEmail, buildDeactivationStuckEmail, buildPaymentInFlightEmail } };
 }
 
 const defaultService = buildNotificationService();

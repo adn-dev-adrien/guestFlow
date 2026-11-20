@@ -3,12 +3,18 @@
  *
  * The plugin never requires the issuer's plugin: it asks the core for the live issuer (`invoiceIssuers`). The invoice
  * copies the stored booking's breakdown; GuestFlow never numbers it (rule 16). A refusal keeps the payment (rule 25).
+ *
+ * A booking whose session is a line of a sale document (specs/outside-booking-sas.md rules 31, 34) is invoiced from the document: every money line
+ * (the session's parts, the extras) at the rate frozen on it, once the document owes nothing (409 `REMAINING_DUE`) and holds no caisse interne. The
+ * invoice columns stay on the booking (one booking, one document, one invoice); Qonto's total must equal the document's (`expectedTotalCents`).
+ * A session paid on the booking before its document (rule 34) is the document's `paidElsewhere` line: once the document holds a money line of its own,
+ * the ONE invoice covers the session and every document line (owner, 2026-11-15); a document with no money line of its own keeps the booking's invoice.
  */
 
 const sdk = require('../sdk');
 
 const ATTACH_WINDOW_DAYS = 7;
-const cents = (euros) => Math.round(Number(euros || 0) * 100);
+const { toCents: cents } = sdk.coreModule('money');
 const dayMs = 86400000;
 
 /**
@@ -27,14 +33,49 @@ function invoiceRefusal(row, issuer) {
   return null;
 }
 
-function createInvoicing({ bookings, issuers = () => sdk.coreModule('invoiceIssuers').current(), now = () => new Date(), logger = console }) {
+// Rule 34 of the outside-visit spec — the session paid on the booking, carried by the document as its `paidElsewhere` line.
+const paidElsewhereLine = (money) => money.document.lines.find((line) => line.source === 'paidElsewhere') || null;
+// Does the document hold money of its own (a line sold on it, offered and cancelled lines aside)?
+const documentHoldsMoney = (money) => money.document.lines.some((line) => line.source !== 'paidElsewhere' && line.status !== 'offered' && line.status !== 'cancelled' && line.totalCents > 0);
+
+// Rule 31 of the outside-visit spec — why the document of a visit cannot be invoiced now, or null. A session paid on the booking (rule 34) brings the
+// booking's own payment checks (rule 13: a method named, on the books) and its tariff check (rule 36).
+function documentInvoiceRefusal(row, money, issuer, { basis = null } = {}) {
+  if (row.reservationId) return { status: 409, code: 'BOOKING_HAS_STAY', error: 'Cette séance appartient à un séjour.' };
+  if (row.frozen) return { status: 409, code: 'BOOKING_INVOICED', error: 'Déjà facturée.' };
+  if (!(money.totalCents > 0)) return { status: 400, code: 'NOTHING_TO_INVOICE', error: 'Total à 0 € : pas de facture.' };
+  if (money.remainingCents > 0) return { status: 409, code: 'REMAINING_DUE', error: 'Reste à payer : facture après le solde.' };
+  // Loop t1 AV-1 — money owed back on the document is given back first: an invoice states what was kept.
+  if (money.document && money.document.totals && money.document.totals.refundOwedCents > 0) {
+    return { status: 409, code: 'REFUND_OWED', error: 'Remboursement à faire : facture après le remboursement.' };
+  }
+  // Loop t4 B4-5 (rule 56 c) — judged on the caisse-interne money the document still holds (the core's `internalHeldCents`), not on the tenders of a
+  // payment whose internal money was given back since.
+  if (money.document.totals.internalHeldCents > 0) return { status: 400, code: 'INTERNAL_CASH', error: 'Caisse interne : hors comptabilité.' };
+  if (paidElsewhereLine(money)) {
+    if (!row.payment || !row.payment.tenders.length) return { status: 400, code: 'NO_METHOD', error: 'Moyen de paiement non saisi : retirer le paiement puis l’enregistrer à nouveau.' };
+    if (!row.payment.onTheBooks) return { status: 400, code: 'INTERNAL_CASH', error: 'Caisse interne : hors comptabilité.' };
+    if (basis && cents(basis.breakdown.total) !== cents(row.totalPrice)) {
+      return { status: 409, code: 'TARIFF_CHANGED', error: 'Le tarif a changé depuis le paiement : facture à établir dans Qonto.' };
+    }
+  }
+  if (!issuer || !issuer.isReady()) return { status: 409, code: 'ISSUER_UNAVAILABLE', error: 'Facturation Qonto non connectée.' };
+  return null;
+}
+
+function createInvoicing({ bookings, visits = null, issuers = () => sdk.coreModule('invoiceIssuers').current(), now = () => new Date(), logger = console }) {
   // Rule 14 — one item per money line of the breakdown; the deductions go as one discount.
+  // Loop t5 B5-2 (pricing-components rule 62, outside-visit rule 56 e) — the journal books the booking as ONE line, its HT the net of its TTC: every item
+  // and the discount name the `booking:` group, so the issuer sends them with that VAT (20 € − 15 € at 10 % → 0,45, not Qonto's per-line 0,46).
   function requestOf(basis) {
     const { row, breakdown, who } = basis;
     const rate = breakdown.vat ? breakdown.vat.rate : 0;
+    const vatGroup = `booking:session|${rate}`;
     const positive = breakdown.lines.filter((l) => l.amount > 0);
     const negative = breakdown.lines.filter((l) => l.amount < 0);
-    const items = positive.map((l) => ({ title: `${basis.resource.name || 'Ressource'} · ${l.label}`, description: l.detail, amountCents: cents(l.amount), vatRate: rate }));
+    const items = positive.map((l) => ({
+      title: `${basis.resource.name || 'Ressource'} · ${l.label}`, description: l.detail, amountCents: cents(l.amount), vatRate: rate, vatGroup,
+    }));
     const discountCents = negative.reduce((sum, l) => sum + cents(-l.amount), 0);
     return {
       idempotencyKey: `resource-booking:${row.id}:invoice:${row.invoiceCancelledAt ? Date.parse(row.invoiceCancelledAt) || 1 : 0}`,
@@ -42,14 +83,164 @@ function createInvoicing({ bookings, issuers = () => sdk.coreModule('invoiceIssu
       issueDate: row.payment.paidAt,
       performanceDate: row.date,
       items,
-      discount: discountCents > 0 ? { title: negative.map((l) => l.label).join(' + '), amountCents: discountCents, vatRate: rate } : null,
+      discount: discountCents > 0 ? {
+        title: negative.map((l) => l.label).join(' + '), amountCents: discountCents, vatRate: rate, vatGroup,
+      } : null,
       expectedTotalCents: cents(row.totalPrice),
       paid: true,
     };
   }
 
+  // Rule 31 of the outside-visit spec — one item per money line of the document: the session's parts at its rate (its deductions as one discount),
+  // each extra at its own rate. Offered and cancelled lines carry no money and are not sent.
+  // Loop t4 B4-4 (pricing-components rule 62, outside-visit rule 56 e) — each item names its (class, rate) group, so the issuer sends a group's items with
+  // the VAT the journal cuts once on the group; a session paid on the booking is a group of its own (its journal is the booking's).
+  function documentRequestOf(basis, money) {
+    const { row, who } = basis;
+    const lines = money.document.lines.filter((line) => line.status === 'paid' && line.totalCents > 0);
+    const items = [];
+    let discount = null;
+    for (const line of lines) {
+      const vatRate = Number(line.vatRate || 0);
+      const vatGroup = `${line.source === 'paidElsewhere' ? 'booking:' : ''}${line.vatClass}|${vatRate}`;
+      const parts = line.components && line.components.length ? line.components : null;
+      if (!parts) {
+        items.push({
+          title: line.label, description: line.detail || '', amountCents: line.totalCents, vatRate, vatGroup,
+        });
+        continue;
+      }
+      parts.filter((part) => part.amountCents > 0).forEach((part) => items.push({
+        title: `${line.label} · ${part.label}`, description: part.detail || '', amountCents: part.amountCents, vatRate, vatGroup,
+      }));
+      const deductions = parts.filter((part) => part.amountCents < 0);
+      if (deductions.length) {
+        discount = {
+          title: deductions.map((part) => part.label).join(' + '), amountCents: -deductions.reduce((sum, part) => sum + part.amountCents, 0), vatRate, vatGroup,
+        };
+      }
+    }
+    // The invoice is issued once everything is settled: on the last payment day, the booking's own payment of a session paid before included.
+    const days = money.payments.map((payment) => payment.paidAt);
+    if (paidElsewhereLine(money) && row.payment && row.payment.paidAt) days.push(row.payment.paidAt);
+    return {
+      idempotencyKey: `resource-booking:${row.id}:invoice:${row.invoiceCancelledAt ? Date.parse(row.invoiceCancelledAt) || 1 : 0}`,
+      client: { ...who, countryCode: 'FR' },
+      issueDate: days.sort().pop(),
+      performanceDate: row.date,
+      items,
+      discount,
+      expectedTotalCents: money.totalCents,
+      paid: true,
+    };
+  }
+
+  async function issueDocument(id, money) {
+    const basis = bookings().invoiceBasis(id);
+    const row = bookings().findById(id);
+    const issuer = issuers();
+    const refusal = documentInvoiceRefusal(row, money, issuer, { basis });
+    if (refusal) return refusal;
+    const request = documentRequestOf({ ...basis, row }, money);
+    let issued;
+    try {
+      issued = await issuer.issue(request);
+    } catch (err) {
+      return issueFailure(id, err);
+    }
+    const rates = [...new Set(request.items.map((item) => item.vatRate))];
+    bookings().storeInvoice(id, {
+      invoiceId: issued.invoiceId, number: issued.number, clientId: issued.clientId, clientIdentity: basis.clientIdentity,
+      vatRate: rates.length === 1 ? rates[0] : null, total: sdk.coreModule('money').fromCentsStrict(money.totalCents), markedPaid: issued.markedPaid,
+      markPending: Boolean(issued.markPending),
+    });
+    if (row.payment && row.payment.hasCard) {
+      bookings().setAttachment(id, { state: 'pending' });
+      await attach(id).catch(() => {});
+    }
+    return { ok: true, invoice: bookings().findById(id).invoice };
+  }
+
+  function issueFailure(id, err) {
+    const known = {
+      ISSUER_NEEDS_ADDRESS: 422, ISSUER_REAUTH: 409, ISSUER_AMOUNT_MISMATCH: 502, ISSUER_AMOUNT_UNREACHABLE: 422,
+    }[err && err.code];
+    if (known) return { error: err.message, status: known, code: err.code === 'ISSUER_NEEDS_ADDRESS' ? 'QONTO_NEEDS_ADDRESS' : err.code };
+    logger.error(`[hourly-resources] invoice of booking ${id} failed:`, err && err.message);
+    return { error: 'Qonto n’a pas répondu : la facture n’est pas créée, le paiement reste enregistré.', status: 502, code: 'ISSUER_FAILED' };
+  }
+
+  // Loop t2 UI2-5 (outside-booking-sas rule 48) — refusals that state no step the operator can take on this visit: no Qonto on the install, nothing to
+  // invoice, no payment yet, a stay's session, an invoice already there. The screen shows no « Facture » block for them, as before the invoiceability existed.
+  const SILENT_REFUSALS = new Set(['ISSUER_UNAVAILABLE', 'NOTHING_TO_INVOICE', 'NOT_PAID', 'BOOKING_HAS_STAY', 'BOOKING_NOT_FOUND', 'BOOKING_INVOICED']);
+
+  /**
+   * Loop t1 AV-11, UI-10 — whether « Créer la facture » can be offered now, judged by the refusals `issue` would answer before Qonto is called:
+   * `{ ok, code, reason, silent? }`, so the screen offers what the server would accept and rebuilds no rule; `silent` (a refusal only) asks the screen to show no reason.
+   */
+  function invoiceability(id) {
+    const raw = bookings().rawById(id);
+    if (!raw) return { ok: false, code: 'BOOKING_NOT_FOUND', reason: 'Réservation non trouvée', silent: true };
+    if (raw.qontoInvoiceId && !raw.invoiceCancelledAt) return { ok: false, code: 'BOOKING_INVOICED', reason: 'Déjà facturée.', silent: true };
+    const money = raw.saleRef && visits ? visits().moneyOf(raw) : null;
+    let refusal;
+    if (money && (Number(raw.paid) !== 1 || documentHoldsMoney(money))) {
+      refusal = documentInvoiceRefusal(bookings().findById(id), money, issuers(), { basis: bookings().invoiceBasis(id) });
+    } else {
+      const basis = bookings().invoiceBasis(id);
+      if (!basis) return { ok: false, code: 'BOOKING_NOT_FOUND', reason: 'Réservation non trouvée', silent: true };
+      refusal = invoiceRefusal(basis.row, issuers())
+        || (cents(basis.breakdown.total) !== cents(basis.row.totalPrice) ? { code: 'TARIFF_CHANGED', error: 'Le tarif a changé depuis le paiement : facture à établir dans Qonto.' } : null);
+    }
+    return refusal ? { ok: false, code: refusal.code || null, reason: refusal.error, silent: SILENT_REFUSALS.has(refusal.code) } : { ok: true, code: null, reason: null };
+  }
+
+  /**
+   * Loop t2 B2-7 (outside-visit rule 54) — `invoiceability` of what the operator is about to save with a payment typed now, so « Créer la facture dans Qonto »
+   * is offered by the server, never decided from the typed tenders: the tenders are validated against what is due, then judged by the refusals `issue`
+   * would answer once the commit is written. A booking whose money is on a document (or a visit, `draft` its quote body) is judged on the document as
+   * the commit would leave it; a booking paid on its own columns on `{ totalPrice, reservationId }`. Nothing is written.
+   * @param {{ id?: number, draft?: object, totalPrice?: number, reservationId?: number, payment: { tenders, shortfall? } }} args
+   */
+  function draftInvoiceability({
+    id = null, draft = null, totalPrice = 0, reservationId = null, payment,
+  }) {
+    const raw = id ? bookings().rawById(id) : null;
+    if (id && !raw) return { ok: false, code: 'BOOKING_NOT_FOUND', reason: 'Réservation non trouvée', silent: true };
+    if (raw && raw.qontoInvoiceId && !raw.invoiceCancelledAt) return { ok: false, code: 'BOOKING_INVOICED', reason: 'Déjà facturée.', silent: true };
+    const { validateSettlement } = sdk.coreModule('paymentTenders');
+    const tenders = payment && payment.tenders;
+    const onDocument = Boolean(raw && visits && !raw.reservationId && (raw.saleRef || draft));
+    const money = onDocument ? visits().draftMoneyOf(raw, draft) : null;
+    const dueCents = money ? money.remainingCents : cents(totalPrice);
+    const checked = validateSettlement({ tenders, dueCents, shortfall: (payment && payment.shortfall) || null });
+    if (!checked.ok) return { ok: false, code: 'TENDERS_INVALID', reason: checked.error, silent: false };
+    let refusal;
+    if (money) {
+      const typedInternal = checked.lines.filter((line) => line.internal).reduce((sum, line) => sum + line.amountCents, 0);
+      const document = { ...money.document, totals: { ...money.document.totals, internalHeldCents: money.document.totals.internalHeldCents + typedInternal } };
+      const after = {
+        ...money, document, remainingCents: checked.shortfallKind === 'due' ? checked.shortfallCents : 0, payments: [...money.payments, { tenders: checked.lines }],
+      };
+      refusal = documentInvoiceRefusal(bookings().findById(raw.id), after, issuers(), { basis: bookings().invoiceBasis(raw.id) });
+    } else {
+      const lines = checked.lines;
+      refusal = invoiceRefusal({
+        reservationId: raw ? raw.reservationId : reservationId, frozen: false, totalPrice: Number(totalPrice),
+        payment: { tenders: lines, onTheBooks: lines.length > 0 && !lines.some((t) => t.internal) },
+      }, issuers());
+    }
+    // Loop t3 UI3-5 — the screens print a draft's `reason` under the payment typed, so the draft answer marks its silent refusals like `invoiceability`.
+    return refusal ? { ok: false, code: refusal.code || null, reason: refusal.error, silent: SILENT_REFUSALS.has(refusal.code) } : { ok: true, code: null, reason: null };
+  }
+
   /** POST /:id/invoice — `{ ok, invoice }` or `{ error, status, code }`. Never touches the payment. */
   async function issue(id) {
+    const raw = bookings().rawById(id);
+    // The outside-visit spec rules 31, 34 — the session sold on a document is invoiced from it. A session paid on the booking keeps its own basis
+    // while the document holds no money of its own; once it does, one invoice covers the session and the document (owner, 2026-11-15).
+    const money = raw && raw.saleRef && visits ? visits().moneyOf(raw) : null;
+    if (money && (Number(raw.paid) !== 1 || documentHoldsMoney(money))) return issueDocument(id, money);
     const basis = bookings().invoiceBasis(id);
     if (!basis) return { error: 'Réservation non trouvée', status: 404 };
     const issuer = issuers();
@@ -64,12 +255,7 @@ function createInvoicing({ bookings, issuers = () => sdk.coreModule('invoiceIssu
     try {
       issued = await issuer.issue(requestOf(basis));
     } catch (err) {
-      const known = {
-        ISSUER_NEEDS_ADDRESS: 422, ISSUER_REAUTH: 409, ISSUER_AMOUNT_MISMATCH: 502, ISSUER_AMOUNT_UNREACHABLE: 422,
-      }[err && err.code];
-      if (known) return { error: err.message, status: known, code: err.code === 'ISSUER_NEEDS_ADDRESS' ? 'QONTO_NEEDS_ADDRESS' : err.code };
-      logger.error(`[hourly-resources] invoice of booking ${id} failed:`, err && err.message);
-      return { error: 'Qonto n’a pas répondu : la facture n’est pas créée, le paiement reste enregistré.', status: 502, code: 'ISSUER_FAILED' };
+      return issueFailure(id, err);
     }
     bookings().storeInvoice(id, {
       invoiceId: issued.invoiceId, number: issued.number, clientId: issued.clientId, clientIdentity: basis.clientIdentity,
@@ -147,7 +333,11 @@ function createInvoicing({ bookings, issuers = () => sdk.coreModule('invoiceIssu
     }
   }
 
-  return { issue, attach, watch, requestOf };
+  return {
+    issue, invoiceability, draftInvoiceability, attach, watch, requestOf, documentRequestOf,
+  };
 }
 
-module.exports = { createInvoicing, invoiceRefusal, ATTACH_WINDOW_DAYS };
+module.exports = {
+  createInvoicing, invoiceRefusal, documentInvoiceRefusal, ATTACH_WINDOW_DAYS,
+};

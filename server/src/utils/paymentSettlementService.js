@@ -19,7 +19,9 @@ const {
 const { parseGroup, serialiseGroup } = require('./arrivalPaymentGroup');
 const { parseNotes } = require('./midStayExtras');
 const { comptaCollected } = require('./reservationSettlement');
+const { takeBackRefusal } = require('./pricing/refunds/judge');
 const { validateCollectionDate } = require('./arrivalPaymentDate');
+const { syncStay: syncAllocations } = require('./paymentAllocationsSync');
 
 const BUCKETS = ['deposit', 'balance', 'complement', 'endOfStayComplement'];
 const BUCKET_LABEL = {
@@ -35,7 +37,7 @@ const AMOUNT_COLUMN = {
   endOfStayComplement: 'endOfStayComplementAmount',
 };
 
-const cents = (euroAmount) => Math.round((Number(euroAmount) || 0) * 100);
+const { toCentsOrZero: cents } = require('./pricing/money');
 const isPaid = (row, bucket) => Number(row && row[`${bucket}Paid`] || 0) === 1 || Number(row && row[`${bucket}PaidCash`] || 0) === 1;
 const getRow = (id) => db.prepare('SELECT * FROM reservations WHERE id = ?').get(Number(id));
 
@@ -226,20 +228,21 @@ function reconciledRefusal(reservationId, settlementId) {
   return hasBankLines(reservationId, [`settlement-${settlementId}`]) ? RECONCILED : null;
 }
 
-// specs/reservation-refunds.md rule 52 — what stays on the books never drops below the book refunds.
-function refundRefusal(reservationId) {
+// specs/reservation-refunds.md rule 52 — what stays on the books never drops below the book refunds: the one take-back guard of
+// REFUNDS, judged on the collected amount before and after the correction (cents).
+function refundRefusal(reservationId, collectedBefore) {
   const row = getRow(reservationId);
   if (!row) return null;
-  let refunded = 0;
+  let refunds = [];
   try {
-    refunded = Number(require('../models/refundsModel').totalsByReservation(Number(reservationId)).book) || 0;
+    refunds = require('../models/refundsModel').listByReservation(Number(reservationId));
   } catch {
-    refunded = 0;
+    refunds = [];
   }
-  if (refunded <= 0) return null;
-  return comptaCollected({ ...row, refundsBookTtc: 0 }) + 0.005 < refunded
-    ? 'Un remboursement a déjà été fait sur cet encaissement : il ne peut plus baisser.'
-    : null;
+  const refusal = takeBackRefusal({
+    beforeCents: Math.round(collectedBefore * 100), afterCents: Math.round(comptaCollected({ ...row, refundsBookTtc: 0 }) * 100), refunds,
+  });
+  return refusal ? refusal.body.error : null;
 }
 
 // The target's own paid date follows its first settlement (rule 20: the date moves with the correction).
@@ -266,6 +269,7 @@ function moveTargetDate(reservationId, settlement, date) {
     db.prepare('UPDATE reservation_installments SET paidDate = ? WHERE id = ? AND reservationId = ?')
       .run(date, Number(settlement.targetKey), Number(reservationId));
   }
+  syncAllocations(db, reservationId);
 }
 
 // What a recorded settlement paid, as `prepare` judges a target.
@@ -330,13 +334,14 @@ function modify({ reservationId, settlementId, date: rawDate, tenders, shortfall
   if (reconciled) return { ok: false, status: 409, error: reconciled };
 
   const before = { ...current };
+  const collectedBefore = comptaCollected({ ...getRow(reservationId), refundsBookTtc: 0 });
   settlementsModel.replace(current.id, {
     paidDate: date, shortfallCents: prepared.shortfallCents, shortfallKind: prepared.shortfallKind, lines: prepared.lines,
   });
   if (index === 0 && date !== current.paidDate) moveTargetDate(reservationId, current, date);
   applyCashFlag(reservationId, current.targetKind, index === 0 && current.targetKind === 'arrivalGroup' ? date : current.targetKey);
 
-  const refused = refundRefusal(reservationId);
+  const refused = refundRefusal(reservationId, collectedBefore);
   if (refused) {
     // Put everything back as it was: the correction would leave the books under what was refunded.
     settlementsModel.replace(current.id, {

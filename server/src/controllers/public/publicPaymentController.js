@@ -28,6 +28,7 @@ const { checkChangeover } = require('../../utils/changeover');
 const settingsModel = require('../../models/settingsModel');
 const { computeBlockedDates, rangeHasBlockedNight, stayTimesRefused } = require('../../utils/blockedDates');
 const { ok, fail, failT } = require('./publicHttp');
+const { roundMoneyFixed } = require('../../utils/pricing/money');
 
 // Build the site success URL from the configured site origin + a caller-supplied path. Allowlisted to
 // the origin to prevent open redirects; returns '' (no redirect) when unset/invalid.
@@ -185,7 +186,7 @@ function recap(reservationRow) {
     endDate: reservationRow.endDate,
     finalPrice,
     // Tax-inclusive stay total — matches what the guest was charged online (the site displays this).
-    totalStayPrice: Number((finalPrice + Number(reservationRow.touristTaxTotal || 0)).toFixed(2)),
+    totalStayPrice: roundMoneyFixed(finalPrice + Number(reservationRow.touristTaxTotal || 0)),
   };
   const balanceAmount = Number(reservationRow.balanceAmount || 0);
   if (Number(reservationRow.balancePaid || 0) !== 1 && balanceAmount > 0) {

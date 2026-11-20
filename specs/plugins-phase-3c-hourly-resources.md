@@ -181,7 +181,7 @@ This phase moves the fixed behaviour into the plugin; it does not fix it again.
    |---|---|
    | `step` | The step key, as contributed to `sas.arrival.steps` (`'resourceScheduling'`) |
    | `validate(reservation, payload)` | `{ ok: true } \| { ok: false, status, body }`, before anything is written |
-   | `complementItems(reservation, payload)` | `[{ key, label, amount }]`: lines the plugin bills at the SAS |
+   | `complementItems(reservation, payload)` | `[{ key, label, amount, component? }]`: lines the plugin bills at the SAS; `component: { kind, resourceId }` names the component of a line the amount is (pricing-components rule 90.3), 0 € included |
    | `write(db, reservation, payload)` | Writes the plugin's data. Runs inside the commit's transaction |
 
    - **The payload** is `pluginSteps[<step>]` of `POST …/sas/arrival`. It is `undefined` when the step
@@ -247,7 +247,9 @@ This phase moves the fixed behaviour into the plugin; it does not fix it again.
       - `validate`: today's `validateBlocks` (opening hours, capacity, turnover, heat-up, sold-hours
         budget). A conflict gives the 409 `SLOT_CONFLICT`.
       - `complementItems`: one « <resource> — supplément soirée » per resource, with
-        `key: 'evening:<resourceId>'`.
+        `key: 'evening:<resourceId>'`. Since pricing-components rule 90.3 (hourly-resources 1.6.3) every sold resource is
+        named, 0 € included, as the evening component of its session line (`component: { kind: 'evening', resourceId }`); the core
+        decides whether the session line holds it or a line of its own does.
       - `write`: the sessions of every resource the step showed, replaced — by none when every block
         was removed. A resource it did not show keeps its sessions.
 

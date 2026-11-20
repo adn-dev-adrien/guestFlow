@@ -7,17 +7,17 @@ const Database = require('better-sqlite3');
 
 const { create: createReservationsModel } = require('../models/reservationsModel');
 const { MID_STAY_SOURCE } = require('../utils/midStayExtras');
-
-const TODAY = '2026-07-11';
+const { withNow } = require('../utils/localDate');
 
 // `checkedIn` — specs/arrival-moment-is-the-check-in.md : c'est l'arrivée constatée (check-in ou
 // SAS d'arrivée), et non la date du calendrier, qui ouvre la fenêtre « vendu en cours de séjour ».
-function makeDb({ startDate = '2026-07-10', checkedIn = true } = {}) {
+// date-literal-ok: fixture rows written by raw SQL; the cases that ask the clock pin their moment (withNow)
+function makeDb({ startDate = '2026-07-10', endDate = '2026-07-15', checkedIn = true } = {}) {
   const db = new Database(':memory:');
   db.exec(`
     CREATE TABLE reservations (
       id INTEGER PRIMARY KEY AUTOINCREMENT, kind TEXT NOT NULL DEFAULT 'reservation',
-      clientId INTEGER, propertyId INTEGER, startDate TEXT, endDate TEXT, platform TEXT DEFAULT 'direct',
+      clientId INTEGER, propertyId INTEGER, checkInTime TEXT, checkOutTime TEXT, startDate TEXT, endDate TEXT, platform TEXT DEFAULT 'direct',
       adults INTEGER NOT NULL DEFAULT 0, teens INTEGER NOT NULL DEFAULT 0, children INTEGER NOT NULL DEFAULT 0, babies INTEGER NOT NULL DEFAULT 0,
       cautionAmount REAL DEFAULT 0, cautionReceived INTEGER DEFAULT 0, cautionWaived INTEGER NOT NULL DEFAULT 0, cautionReceivedDate TEXT,
       cautionReturned INTEGER DEFAULT 0, cautionReturnedDate TEXT,
@@ -66,8 +66,8 @@ function makeDb({ startDate = '2026-07-10', checkedIn = true } = {}) {
     CREATE TABLE properties (id INTEGER PRIMARY KEY AUTOINCREMENT, defaultCautionAmount REAL DEFAULT 0);
   `);
   db.prepare('INSERT INTO properties (id, defaultCautionAmount) VALUES (7, 500)').run();
-  db.prepare("INSERT INTO reservations (id, propertyId, startDate, endDate, adults, complementAmount, checkInDone) VALUES (1, 7, ?, '2026-07-15', 2, 30, ?)")
-    .run(startDate, checkedIn ? 1 : 0);
+  db.prepare("INSERT INTO reservations (id, propertyId, startDate, endDate, adults, complementAmount, checkInDone) VALUES (1, 7, ?, ?, 2, 30, ?)")
+    .run(startDate, endDate, checkedIn ? 1 : 0);
   db.prepare("INSERT INTO options (id, title, price) VALUES (9, 'Petit-déjeuner', 12)").run();
   db.prepare("INSERT INTO reservation_options (reservationId, optionId, quantity, unitPrice, billedUnits, totalPrice) VALUES (1, 9, 1, 12, 1, 12)").run();
   return db;
@@ -86,17 +86,24 @@ test('readExtraLines: options + ressources + lignes personnalisées, une offerte
 });
 
 test('capture — client pas encore arrivé → aucune base (comportement inchangé)', () => {
-  const db = makeDb({ startDate: '2026-08-01', checkedIn: false });
+  const db = makeDb({ startDate: '2099-08-01', checkedIn: false });
   assert.equal(createReservationsModel(db).captureArrivalExtrasBaselineIfDue(1), null);
   assert.equal(baselineOf(db), null);
 });
 
 // specs/arrival-moment-is-the-check-in.md rule 1 — le bug remonté par Adrien : le jour de l'arrivée,
 // avant tout check-in, une option ajoutée à la main partait au complément de fin de séjour.
-test('capture — jour d\'arrivée atteint mais check-in pas fait → toujours aucune base', () => {
-  const db = makeDb({ startDate: TODAY, checkedIn: false });
-  assert.equal(createReservationsModel(db).captureArrivalExtrasBaselineIfDue(1), null);
+// Le moment du geste est fixé (`withNow`) : l'horloge du séjour juge à Paris, quel que soit le fuseau du processus ou l'heure
+// du runner (specs/server-test-isolation.md rule 6, reading of 2026-11-19). 10:00 et 18:00, en +01:00, restent du bon côté
+// de 16:00 en heure d'hiver comme d'été.
+test('capture — jour d\'arrivée atteint mais heure du check-in pas passée → toujours aucune base', () => {
+  const db = makeDb({ startDate: '2099-08-01', endDate: '2099-08-04', checkedIn: false });
+  db.prepare("UPDATE reservations SET checkInTime = '16:00' WHERE id = 1").run();
+  const model = createReservationsModel(db);
+  withNow(new Date('2099-08-01T10:00:00+01:00'), () => model.captureArrivalExtrasBaselineIfDue(1));
   assert.equal(baselineOf(db), null, "rien n'est « vendu en cours de séjour » tant que le client n'est pas là");
+  withNow(new Date('2099-08-01T18:00:00+01:00'), () => model.captureArrivalExtrasBaselineIfDue(1));
+  assert.deepEqual(JSON.parse(baselineOf(db)), { 'opt:9': 12 }, 'le même jour, l\'heure passée : la base est posée');
 });
 
 test('capture — séjour commencé → la base fige les extras du moment', () => {
@@ -295,14 +302,14 @@ test('resolveArrivalExtrasBaseline — base synthétisée pour l\'aperçu tant q
 });
 
 test('resolveArrivalExtrasBaseline — client pas encore arrivé → aucune base (aperçu inchangé)', () => {
-  const db = makeDb({ startDate: '2026-08-01', checkedIn: false });
+  const db = makeDb({ startDate: '2099-08-01', checkedIn: false });
   assert.equal(createReservationsModel(db).resolveArrivalExtrasBaseline(1), null);
 });
 
 // Le filet de sécurité (rule 2) : un complément d'arrivée déjà encaissé est figé, donc une vente
 // ultérieure doit avoir une base sur laquelle s'appuyer — sans quoi son montant n'atteint aucun bucket.
 test('resolveArrivalExtrasBaseline — complément déjà encaissé → base synthétisée même sans check-in', () => {
-  const db = makeDb({ startDate: '2026-08-01', checkedIn: false });
+  const db = makeDb({ startDate: '2099-08-01', checkedIn: false });
   db.prepare('UPDATE reservations SET complementPaid = 1 WHERE id = 1').run();
   assert.deepEqual(JSON.parse(createReservationsModel(db).resolveArrivalExtrasBaseline(1)), { 'opt:9': 12 });
 });

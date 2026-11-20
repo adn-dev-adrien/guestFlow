@@ -1,0 +1,1 @@
+- Visit arrival and hourly booking paid « now »: while the invoice check for the payment being typed is on its way, « Créer la facture dans Qonto » is drawn pending (disabled, ticked or not as left, address kept) instead of showing the previous payment's answer as current (`specs/outside-booking-sas.md` rule 54, reading of 2026-11-19).

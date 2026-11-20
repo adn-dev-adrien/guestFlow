@@ -294,7 +294,8 @@ signed-off releases over HTTPS, when the operator asks for it.
     line. The one visible seam is a helper that outlives us and then judges the new version
     unhealthy: the boot has already published `done`, so the operator may see the update close
     before the rollback restarts the app. The history is corrected when it does — the run's line is
-    replaced, never doubled (§5).
+    replaced, never doubled (§5). The boot's verdict carries `concludedBy: 'boot'` (the helper's own write
+    drops it), so a step that must wait for the helper's verification can tell the two apart (rule 57).
 
 31. On verification failure the helper **rolls back**: `current` → previous release, restart, wait
     for health again, and record the status `rolled_back` with the last 50 log lines. The database
@@ -620,6 +621,39 @@ signed-off releases over HTTPS, when the operator asks for it.
     previous bullet and cannot be changed; test `release-body-size-guard.unit.test.js` runs that parser, kept verbatim in
     `tests/fixtures/releaseClient.v3.21.0.js`, on a folded section). Every `Migration` item stays
     explicit in the condensed section. Test: `release-body-size-guard.unit.test.js`.
+57. **A schema floor: a database migrated by 4.2.0 is never handed to an older release** (owner decision Q-C1 a, 2026-11-12; pricing-components
+    rule 85). 4.2.0 rebuilds the two line tables without their article primary key; the previous release's arrival-SAS commit
+    (`ON CONFLICT(reservationId, optionId)`) cannot run on them. The migration therefore stores a **schema floor**, `4.2.0`, in the database
+    (`migrations` row `schema_floor`, written in the same transaction as the rebuild, only ever raised, never lowered). The updater reads it:
+    `POST /api/system/update` refuses a target below the floor, `422 BELOW_SCHEMA_FLOOR`, with the short impersonal message « Cette version est
+    plus ancienne que la base de données : installation refusée. » and nothing is staged. Limits, stated honestly: the floor is read by the code that
+    is installed (rule 35), so the install of 4.2.0 itself is guarded by the 4.0.x updater, which knows no floor; and the helper's automatic
+    rollback of rule 31 (a boot that fails after its migration) still lands on the previous release, whose only loss is the arrival-SAS commit of
+    an option or resource line until roll-forward. Test: `schema-floor.unit.test.js`.
+    > _Amended 2026-11-15 (end review R1-1, R1-2) — what the floor protects, stated honestly._ The floor guards **future installs only**: the
+    > updater refuses to install a target below it. It never stops the two routes that actually put older code on this database — the helper's
+    > automatic rollback (performed by the previous release's helper, rule 35) and a manual repoint of `current` — because neither reads it.
+    > What protects them instead:
+    > - **The automatic rollback.** The one step the previous release cannot run on (the rebuild of the line tables, pricing-components rule
+    >   85, T10) waits until the helper has verified the release: a boot whose `update-status.json` says the swap towards this version is still in
+    >   flight (`swapping` / `restarting`, a rollback under way included) leaves it for later, and the running process applies it — and raises the
+    >   floor — as soon as the **helper** has written `done` (checked every 3 s, `utils/updateVerification.js`, `runTrueLinesWhenVerified`).
+    >   _Amended 2026-11-15 (end-review verification V-3):_ the `done` the boot writes itself (rule 30b) is not the helper's verdict — it lands at
+    >   `listen`, while the helper is still polling health. The boot marks its own verdict `concludedBy: 'boot'`; the helper rewrites the whole file
+    >   without that field, so its `done` is the signal. A boot `done` with no helper verdict (a helper that died) ends the wait after
+    >   `HELPER_WINDOW_MS` (10 min: the helper's 120 s health-check timeout plus the rollback restart). A fresh install (no status file, `idle`) runs
+    >   T10 and the floor at boot. A 4.2.0 that fails its verification — before `listen` or after, `HEALTHCHECK_TIMEOUT` included — is therefore
+    >   rolled back onto a database 4.1.0 runs unchanged: every other 4.2.0 step adds a table, a column or a trigger 4.1.0 ignores, or relaxes a
+    >   `NOT NULL`. Until the helper's verdict 4.2.0 runs with the article key, so a second line of an article already on the stay is refused.
+    >   Test: `pricing-true-lines-wait-for-helper-verdict` (fresh install, verified update, rollback after a failed health check, dead helper).
+    > - **The departure charges.** A trigger (`trg_departure_line_guard`, T12) refuses to delete a departure charge line of a stay that still
+    >   exists unless the deleting code names it first in `departure_line_deletes`, which only 4.2.0 does: 4.1.0's fiche save (it deletes and
+    >   re-inserts every custom line, and would bill those charges a second time inside `finalPrice`) fails loudly instead.
+    > - **Everything else is unsupported.** Running a release older than 4.2.0 on a database 4.2.0 has served (a manual repoint, a restored older
+    >   release) is not supported once the new tables are used: the old fiche save renumbers the lines and drops their new columns (the
+    >   `line:<table>:<lineId>` keys of the refunds and notes then name lines that no longer exist), re-prices a second line of the same article at
+    >   today's catalogue price, its link lifecycle withdraws an open outside-sale link as an orphan, and its arrival-SAS commit throws. The release
+    >   notes say so. Tests: `pricing-sales-migration-rollback` (v4.1.0's own statements), `schema-floor`.
 
 ---
 

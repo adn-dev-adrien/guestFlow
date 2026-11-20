@@ -12,7 +12,7 @@ const { LINK_REASONS } = require('../constants/paymentLinks');
 
 const MIGRATION_NAME = 'orphan_payment_links_withdrawn_v1';
 
-const euros = (cents) => `${(Number(cents || 0) / 100).toFixed(2).replace('.', ',')} €`;
+const eurosText = (cents) => `${(Number(cents || 0) / 100).toFixed(2).replace('.', ',')} €`;
 
 function runOrphanPaymentLinksMigration(database, { now = new Date(), logger = console } = {}) {
   if (database.prepare('SELECT 1 FROM migrations WHERE name = ?').get(MIGRATION_NAME)) return { ran: false, withdrawn: [] };
@@ -36,7 +36,7 @@ function runOrphanPaymentLinksMigration(database, { now = new Date(), logger = c
   })();
   for (const link of withdrawn) {
     const outcome = link.remoteCancelPendingAt ? `deactivation owed at ${link.provider}` : 'no provider link to deactivate';
-    logger.log(`[migration:orphan-links] link #${link.id} (${link.type}, ${euros(link.amountCents)}, former stay ${link.reservationId}) withdrawn: ${outcome}`);
+    logger.log(`[migration:orphan-links] link #${link.id} (${link.type}, ${eurosText(link.amountCents)}, former stay ${link.reservationId}) withdrawn: ${outcome}`);
   }
   return { ran: true, withdrawn };
 }

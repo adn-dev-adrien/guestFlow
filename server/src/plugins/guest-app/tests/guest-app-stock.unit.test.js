@@ -199,12 +199,12 @@ withShop('rule 37quater: « Stock bas » once the threshold is reached, « épui
   assert.equal(stockPushes().length, 3, 'a restock re-arms the threshold');
 });
 
-withShop('rule 37ter: an unpaid card order holds its units; they come back when it expires or is abandoned, and count once paid', async ({ call, api, card, clock, stayId }) => {
+withShop('rule 37ter (reading of 2026-11-13): an unpaid card order holds no units — the stock counts only once it is paid', async ({ call, api, card, clock, stayId }) => {
   const id = await tracked(call, { quantity: 3 });
   const leftOf = async () => (await call('GET', `/api/guest-app/items/option/${id}`)).body.stock;
   const first = (await call('POST', '/public/v1/guest/orders', { lines: [{ kind: 'option', id, quantity: 2 }], payment: 'card' })).body.data;
-  assert.deepEqual([(await leftOf()).held, (await leftOf()).left], [2, 1]);
-  assert.equal((await call('POST', '/public/v1/guest/orders/quote', { lines: [{ kind: 'option', id, quantity: 2 }] })).body.data.lines[0].outOfStock.left, 1);
+  assert.deepEqual([(await leftOf()).held, (await leftOf()).left], [0, 3]);
+  assert.equal((await call('POST', '/public/v1/guest/orders/quote', { lines: [{ kind: 'option', id, quantity: 3 }] })).body.data.lines[0].outOfStock, undefined);
   await call('POST', `/public/v1/guest/orders/${first.orderId}/abandon`);
   assert.equal((await leftOf()).left, 3);
   const second = (await call('POST', '/public/v1/guest/orders', { lines: [{ kind: 'option', id, quantity: 1 }], payment: 'card' })).body.data;

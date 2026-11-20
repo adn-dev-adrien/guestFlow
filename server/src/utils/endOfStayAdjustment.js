@@ -17,7 +17,7 @@
 const ADJUSTMENT_SOURCE = 'adjustment';
 const ADJUSTMENT_LABEL = 'Ajustement';
 
-const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
+const { roundMoneyOrZero: round2 } = require('./pricing/money');
 
 const isAdjustmentLine = (l) => Boolean(l) && l.source === ADJUSTMENT_SOURCE;
 

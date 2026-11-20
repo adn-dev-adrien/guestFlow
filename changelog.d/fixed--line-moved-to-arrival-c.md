@@ -1,0 +1,1 @@
+- Fiche and SAS: an extra switched to « à l'arrivée » on a started stay (« Percevoir maintenant ») enters the arrival complement the SAS collects, instead of swelling the balance (specs/pricing-components.md, rules 31 and 37).

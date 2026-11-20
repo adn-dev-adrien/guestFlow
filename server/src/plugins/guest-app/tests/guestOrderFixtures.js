@@ -30,16 +30,20 @@ function isoPlus(days) {
 
 let stayNumber = 0;
 
-/** A direct stay that started yesterday and ends in three days, 4 nights at 100 €, checked in. */
-function seedStay({ propertyId = 1, start = -1, end = 3, platform = 'direct', adults = 2, endOfStayPaid = 0 } = {}) {
+/** A direct stay that started yesterday and ends in three days, 4 nights at 100 €, checked in (`checkedIn: 0`: not arrived). */
+function seedStay({
+  propertyId = 1, start = -1, end = 3, platform = 'direct', adults = 2, endOfStayPaid = 0, checkedIn = 1, balancePaid = 1,
+} = {}) {
   stayNumber += 1;
+  // The stored price is the nights' own: a stay whose stored price disagrees with its nights reads as re-priced by every sale.
+  const price = (end - start) * 100;
   const id = Number(db.prepare(`INSERT INTO reservations
       (propertyId, clientId, startDate, endDate, adults, children, teens, babies, platform, totalPrice,
        discountPercent, finalPrice, depositAmount, balanceAmount, depositDisabled, touristTaxTotal, kind,
        checkInDone, checkInTime, checkOutTime, singleBeds, doubleBeds, babyBeds, endOfStayComplementPaid,
        cautionAmount, balanceDueDate, balancePaid, reservationNumber)
-      VALUES (?, 1, ?, ?, ?, 0, 0, 0, ?, 400, 0, 400, 0, 400, 1, 0, 'reservation', 1, '16:00', '10:00', 0, 0, 0, ?, 0, ?, 1, ?)`)
-    .run(propertyId, isoPlus(start), isoPlus(end), adults, platform, endOfStayPaid, isoPlus(start), `GO-${stayNumber}`).lastInsertRowid);
+      VALUES (?, 1, ?, ?, ?, 0, 0, 0, ?, ?, 0, ?, 0, ?, 1, 0, 'reservation', ?, '16:00', '10:00', 0, 0, 0, ?, 0, ?, ?, ?)`)
+    .run(propertyId, isoPlus(start), isoPlus(end), adults, platform, price, price, price, checkedIn, endOfStayPaid, isoPlus(start), balancePaid, `GO-${stayNumber}`).lastInsertRowid);
   for (let i = start; i < end; i += 1) {
     db.prepare("INSERT INTO reservation_nights (reservationId, date, seasonLabel, pricingMode, price) VALUES (?, ?, 'Base', 'night', 100)")
       .run(id, isoPlus(i));
@@ -119,22 +123,26 @@ function livePlugins(api, { card = null } = {}) {
   }
   if (card) registry.ensure('online-payment').paymentProvider = card.provider;
   const own = registry.ensure('guest-app');
-  own.resourceHolds = api.heldSessions;
   own.paymentBaskets.push({ source: ORDER_SOURCE, paid: api.orderPaid, labels: ORDER_REFUND_LABELS });
+  own.handlers.set('extraSale.sold', [api.orderSold]);
   return () => registry.reset();
 }
 
 /** The guest app's routes on the app's database, its clock on now, and a stay session on `reservationId`. */
-async function openOrdering(reservationId, { propertyId = 1, card = null, ...options } = {}) {
+// `now` is the moment the session opens and the API's clock: a test of a given hour opens its session at that hour, never at the wall clock's.
+async function openOrdering(reservationId, {
+  propertyId = 1, card = null, now = new Date(), ...options
+} = {}) {
   const pushes = [];
   const ctx = await startApi(db, {
+    commit: require('../../../utils/extraSale'),
     push: () => ({ sendToPref: async (key, payload) => { pushes.push({ key, payload }); return { sent: 1 }; } }),
     ...options,
   });
-  ctx.clock.now = new Date();
+  ctx.clock.now = now;
   const teardown = livePlugins(ctx.api, { card });
   require('../models/lodgingsModel')(db).save(propertyId, { enabled: true });
-  const token = require('../models/stayLinksModel')(db).ensure(reservationId, new Date()).token;
+  const token = require('../models/stayLinksModel')(db).ensure(reservationId, now).token;
   const opened = await ctx.call('POST', '/public/v1/guest/sessions', { stayToken: token });
   const cookie = opened.setCookie.split(';')[0];
   const call = (method, url, body) => ctx.call(method, url, body, { cookie });

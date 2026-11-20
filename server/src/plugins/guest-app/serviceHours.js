@@ -37,6 +37,9 @@ const LABELS = Object.freeze({
     resumes: (when, time) => `Le service reprend ${when ? `${when} ` : ''}à ${time} — vous pouvez commander dès maintenant pour plus tard`,
     resumesTomorrow: 'demain',
     closedUntilDeparture: 'Le service est fermé jusqu’à votre départ',
+    fromArrival: (day) => `À partir de votre arrivée, le ${day}`,
+    serviceClosed: 'Service fermé',
+    noTimeLeft: 'Complet',
   }),
   en: Object.freeze({
     locale: 'en-GB',
@@ -47,6 +50,9 @@ const LABELS = Object.freeze({
     resumes: (when, time) => `Service resumes ${when ? `${when} ` : ''}at ${time} — you can order now for later`,
     resumesTomorrow: 'tomorrow',
     closedUntilDeparture: 'The service is closed until your departure',
+    fromArrival: (day) => `From your arrival, ${day}`,
+    serviceClosed: 'Service closed',
+    noTimeLeft: 'Fully booked',
   }),
 });
 
@@ -161,6 +167,13 @@ function deliveryTimes({ now, stay, leadMinutes, schedule }) {
 
 const instantOf = (moment) => toParisIso(new Date(moment.at !== undefined ? moment.at : instantMs(moment)));
 
+/** « ven. 13 nov. » / « Fri 13 Nov »: a date as the guest reads it, never « Aujourd'hui ». */
+const dateText = (date, L) => new Intl.DateTimeFormat(L.locale, { timeZone: 'UTC', weekday: 'short', day: 'numeric', month: 'short' })
+  .format(new Date(`${date}T12:00:00Z`));
+
+/** Rule 69 — before the check-in nothing is delivered: the guest orders for the stay's own days. */
+const beforeCheckIn = (now, stay) => absolute(wallClock(now)) < absolute(stayBounds(stay).checkIn);
+
 function dayLabel(date, today, L) {
   if (date === today) return L.today;
   if (date === addDays(today, 1)) return L.tomorrow;
@@ -169,20 +182,30 @@ function dayLabel(date, today, L) {
 }
 
 /**
- * Rules 41-42 — the delivery picker, ready to render: the times grouped by day with their labels, and
- * « Dès que possible » on the first one while the service is open now (else the picker starts at the next
- * opening, and the shop's banner says so).
+ * Rules 41-42, 77 — the delivery picker, ready to render: EVERY day of the stay in order (arrival day to departure day,
+ * never one outside), each with the times the guest can pick — presence × the service's open hours × the lead, judged by
+ * `deliveryTimes`, the only producer — or `available: false` with its reason (« Service fermé » when the service has no
+ * hours that day, « Complet » when none is left). « Dès que possible » is on the first time while the service is open now
+ * and the guest is in; before the check-in it is never offered (rule 69).
  */
 function deliveryPicker({ now, stay, leadMinutes, schedule, lang }) {
   const L = LABELS[lang] || LABELS.fr;
   const at = wallClock(now);
   const times = deliveryTimes({ now, stay, leadMinutes, schedule });
+  const { checkIn, checkOut } = stayBounds(stay);
   const days = [];
-  times.forEach((t) => {
-    if (!days.length || days[days.length - 1].date !== t.date) days.push({ date: t.date, label: dayLabel(t.date, at.date, L), slots: [] });
-    days[days.length - 1].slots.push({ at: instantOf(t), label: L.time(t.minutes) });
-  });
-  const asap = times.length && isOpenAt(at, schedule) ? { at: instantOf(times[0]), label: L.asap(L.time(times[0].minutes)) } : null;
+  for (let date = checkIn.date; dayIndex(date) <= dayIndex(checkOut.date); date = addDays(date, 1)) {
+    const ofDay = times.filter((t) => t.date === date).map((t) => ({ at: instantOf(t), label: L.time(t.minutes) }));
+    const closed = !schedule.unconstrained && !rangesOn(date, schedule).length;
+    days.push({
+      date,
+      label: dayLabel(date, at.date, L),
+      available: ofDay.length > 0,
+      ...(ofDay.length ? {} : { reasonLabel: closed ? L.serviceClosed : L.noTimeLeft }),
+      times: ofDay,
+    });
+  }
+  const asap = times.length && !beforeCheckIn(now, stay) && isOpenAt(at, schedule) ? { at: instantOf(times[0]), label: L.asap(L.time(times[0].minutes)) } : null;
   return { asap, days };
 }
 
@@ -193,6 +216,10 @@ function deliveryPicker({ now, stay, leadMinutes, schedule, lang }) {
 function serviceState({ now, stay, schedule, lang }) {
   const L = LABELS[lang] || LABELS.fr;
   const at = wallClock(now);
+  if (beforeCheckIn(now, stay)) {
+    const arrivalLabel = L.fromArrival(dateText(stayBounds(stay).checkIn.date, L));
+    return { openNow: false, arrivalLabel, bannerLabel: arrivalLabel };
+  }
   if (isOpenAt(at, schedule)) return { openNow: true };
   const next = nextOpening(at, schedule);
   if (!next || absolute(next) >= absolute(stayBounds(stay).checkOut)) return { openNow: false, bannerLabel: L.closedUntilDeparture };
@@ -200,6 +227,17 @@ function serviceState({ now, stay, schedule, lang }) {
   return { openNow: false, nextOpening: instantOf(next), bannerLabel: L.resumes(when, L.time(next.minutes)) };
 }
 
+/**
+ * Rule 73 — whether an order's delivery time lies outside the stay's dates now: before the check-in or at / after the
+ * check-out. An order without a time is never outside.
+ */
+function outsideStay(order, stay) {
+  if (!order.deliverAt || !stay || !stay.startDate) return false;
+  const at = Date.parse(order.deliverAt);
+  const { checkIn, checkOut } = stayBounds(stay);
+  return at < instantMs(checkIn) || at >= instantMs(checkOut);
+}
+
 module.exports = {
-  deliveryPicker, deliveryTimes, ignitionInHours, nextOpening, rangesOn, serviceState, wallClock,
+  deliveryPicker, deliveryTimes, ignitionInHours, nextOpening, outsideStay, rangesOn, serviceState, wallClock,
 };

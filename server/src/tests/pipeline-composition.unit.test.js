@@ -34,7 +34,8 @@ test('rule 52: a step that provides a key an earlier one already provided throws
   assert.throws(() => buildPipeline([...steps, clash], { initial: ['input'] }), /PIPELINE_DUPLICATE_PROVIDE clash\.nights/);
 });
 
-test('rule 52: no use case but stayQuote is built (externalSale never calls nights, tax, clock or schedule — it is not in PR A)', () => {
-  const source = fs.readFileSync(path.join(__dirname, '..', 'utils', 'pricing', 'pipelines.js'), 'utf8');
-  assert.ok(!/externalSale\s*=|ficheSale\s*=|sasSale\s*=|shopSale\s*=/.test(source));
+test('rules 52, 54: ficheSale, sasSale and shopSale are the staySale steps, and externalSale never calls nights, tax, clock or schedule', () => {
+  const pipelines = require('../utils/pricing/pipelines');
+  for (const name of ['ficheSale', 'sasSale', 'shopSale']) assert.deepEqual([...pipelines[name].steps], [...pipelines.staySale.steps], name);
+  assert.deepEqual([...require('../utils/pricing/pipelines').externalSale.steps].filter((id) => /nights|touristTax|clock|schedule|midStay/i.test(id)), []);
 });

@@ -167,7 +167,7 @@ function regimeLabel(period) {
 
 const MONTHS = ['janvier', 'février', 'mars', 'avril', 'mai', 'juin', 'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre'];
 const plural = (n, one, many) => `${n} ${n > 1 ? many : one}`;
-const euros = (n) => `${Math.abs(n).toFixed(2).replace('.', ',')}\u00a0€`;
+const eurosText = (n) => `${Math.abs(n).toFixed(2).replace('.', ',')}\u00a0€`;
 
 function monthLabel(ym) {
   const [year, month] = ym.split('-');
@@ -223,7 +223,7 @@ function previewLines(input, preview, { accountingExportActive = false, today = 
   }
   lines.push(`Prix inchangés.${!toNo && fromRegime === REGIMES.NOT_SUBJECT && targetRate(input) > 0 ? ' Le chiffre d’affaires HT baisse d’autant.' : ''}`);
   if (preview.touristTaxChanged) {
-    lines.push(`Taxe de séjour recalculée sur ${plural(preview.touristTaxChanged, 'séjour', 'séjours')} (${preview.touristTaxDelta >= 0 ? '+' : '−'}${euros(preview.touristTaxDelta)}).`);
+    lines.push(`Taxe de séjour recalculée sur ${plural(preview.touristTaxChanged, 'séjour', 'séjours')} (${preview.touristTaxDelta >= 0 ? '+' : '−'}${eurosText(preview.touristTaxDelta)}).`);
   }
   if (preview.touristTaxKept) {
     lines.push(`${plural(preview.touristTaxKept, 'taxe de séjour figée inchangée', 'taxes de séjour figées inchangées')}.`);

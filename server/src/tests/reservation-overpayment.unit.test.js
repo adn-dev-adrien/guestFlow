@@ -1,3 +1,4 @@
+// specs/pricing-components.md §3 rule 76 — the one trop-perçu formula (Σ allocations − the stay's total − the free lines given back).
 // specs/reservation-refunds.md rule 34 — a stay reduced below what the guest already paid is a
 // trop-perçu: the save says so with the amount the server computed, and the fiche offers the refund.
 // Review 2026-10-18, F3: reservation 22296 had 798,20 € received online and a solde lowered to 665 €,
@@ -13,33 +14,31 @@ const { addDaysToIsoDate } = require('../utils/devisHelpers');
 // The stays hang on today: a literal date becomes a stay in the past.
 const inDays = (days) => addDaysToIsoDate(todayIso(), days);
 
-const { collectedOnSchedule, overpaymentOf } = require('../utils/overpayment');
+const { overpayment } = require('../utils/pricing/refunds/overpayment');
 
-const PAID_BALANCE = { depositPaid: 0, depositAmount: 0, balancePaid: 1, balanceAmount: 665 };
+// Rule 76: the one formula, in cents — Σ allocations less the stay's total less the free « Trop-perçu » lines given back.
+const ctx = (over = {}) => ({ platform: 'direct', paymentsCents: 0, totalCents: 0, overpaymentRefundedCents: 0, ...over });
 
 test('rule 34 — a paid bucket counts what its captured contribs collected, not the lowered stored amount', () => {
-  assert.equal(collectedOnSchedule(PAID_BALANCE, { deposit: null, balance: 798.2 }), 798.2);
-  assert.equal(overpaymentOf({ row: PAID_BALANCE, captured: { balance: 798.2 } }), 133.2);
+  assert.equal(overpayment(ctx({ paymentsCents: 79820, totalCents: 66500 })).cents, 13320);
 });
 
-test('rule 34 — without a capture the stored amount is the collected one; unpaid buckets count nothing', () => {
-  assert.equal(collectedOnSchedule(PAID_BALANCE, { deposit: null, balance: null }), 665);
-  assert.equal(collectedOnSchedule({ depositPaid: 0, depositAmount: 300, balancePaid: 0, balanceAmount: 500 }, {}), 0);
-  assert.equal(overpaymentOf({ row: { depositPaid: 1, depositAmount: 300, balanceAmount: 500 }, captured: null }), 0);
+test('rule 34 — an unpaid bucket collects nothing, so nothing is in excess', () => {
+  assert.deepEqual(overpayment(ctx({ paymentsCents: 0, totalCents: 80000 })), { cents: 0, unclampedCents: -80000 });
 });
 
-test('rule 34 — caisse interne is money received; refunds already given back are netted', () => {
-  const row = { ...PAID_BALANCE, balancePaid: 0, balancePaidCash: 1 };
-  assert.equal(overpaymentOf({ row, captured: { balance: 798.2 } }), 133.2);
-  assert.equal(overpaymentOf({ row, captured: { balance: 798.2 }, refundedTtc: 100 }), 33.2);
-  assert.equal(overpaymentOf({ row, captured: { balance: 798.2 }, refundedTtc: 200 }), 0);
+test('rule 34 — the caisse interne is money received; the trop-perçu given back is netted', () => {
+  assert.equal(overpayment(ctx({ paymentsCents: 79820, totalCents: 66500 })).cents, 13320);
+  assert.equal(overpayment(ctx({ paymentsCents: 79820, totalCents: 66500, overpaymentRefundedCents: 10000 })).cents, 3320);
+  assert.equal(overpayment(ctx({ paymentsCents: 79820, totalCents: 66500, overpaymentRefundedCents: 20000 })).cents, 0);
 });
 
-test('rule 34 — the new schedule is what the save would store', () => {
-  const row = { depositPaid: 1, depositAmount: 240, balancePaid: 0, balanceAmount: 560 };
-  const captured = { deposit: 240, balance: null };
-  assert.equal(overpaymentOf({ row, captured, depositAmount: 60, balanceAmount: 140 }), 40);
-  assert.equal(overpaymentOf({ row, captured, depositAmount: 100, balanceAmount: 300 }), 0);
+test('rule 34 — the new schedule is what the save would store: the posted fiche lowers the stored total by the engine drift', () => {
+  const held = ctx({ paymentsCents: 24000, totalCents: 80000 });
+  assert.equal(overpayment({ ...held, totalCents: 24000 + 5600 }, { basis: 'asSaved' }).cents, 0);
+  assert.equal(overpayment({ ...held, totalCents: 24000, engineDriftCents: 0 }, { basis: 'asSaved' }).cents, 0);
+  assert.equal(overpayment({ ...held, totalCents: 24000, engineDriftCents: 4000 }, { basis: 'asSaved' }).cents, 4000, 'a fiche 40 € cheaper: 40 € in excess');
+  assert.equal(overpayment({ ...held, totalCents: 1000, engineDriftCents: 9000 }, { basis: 'asSaved' }).cents, 24000, 'a posted fiche costs 0 at least');
 });
 
 // End to end on the real boot schema: a solde paid online, then a save with fewer guests.
@@ -95,7 +94,7 @@ test('rule 34 — paid online, then reduced: 409 OVERPAID with the amount, saved
   const res = { statusCode: 200, body: null, status(c) { this.statusCode = c; return this; }, json(b) { this.body = b; return this; } };
   refunds.create({
     params: { id },
-    body: { refundDate: inDays(-16), method: 'transfer', reason: '', lines: [{ label: 'Trop-perçu', bucket: 'options', amountTtc: expected }] },
+    body: { refundDate: inDays(-16), method: 'transfer', reason: '', fromOverpayment: true, overpaymentTtc: expected, lines: [{ label: 'Trop-perçu', bucket: 'options', amountTtc: expected }] },
   }, res);
   assert.equal(res.statusCode, 201, JSON.stringify(res.body));
   assert.equal(await liveOverpayment(controller, id, body(2)), 0);

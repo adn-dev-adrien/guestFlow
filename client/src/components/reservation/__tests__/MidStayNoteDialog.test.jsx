@@ -48,7 +48,8 @@ test('les prestations à percevoir sont listées et cochables ; le total est cel
   const user = userEvent.setup();
   renderDialog();
   expect(screen.getByText('Petit-déjeuner : 24,00 €')).toBeInTheDocument();
-  expect(screen.getByText('0,00 €')).toBeInTheDocument(); // rien de coché → note vide
+  // Avant la réponse le total est inconnu (« — », loop t26 UI26-2) ; rien de coché → note vide.
+  expect(await screen.findByText('0,00 €')).toBeInTheDocument();
 
   await user.click(screen.getAllByRole('checkbox')[0]);
   await waitFor(() => expect(screen.getByText('24,00 €')).toBeInTheDocument());
@@ -57,7 +58,7 @@ test('les prestations à percevoir sont listées et cochables ; le total est cel
     opening: [{ key: 'opt:9', label: 'Petit-déjeuner', amount: 24 }, { key: 'res:3', label: 'Location vélo', amount: 18 }],
     current: PENDING,
     checkedKeys: ['opt:9'],
-  });
+  }, expect.anything());
 });
 
 test('« CB / Chèque » envoie les clés cochées et le reste à l\'ouverture, aucun montant', async () => {
@@ -89,7 +90,7 @@ test('une prestation ajoutée au catalogue : le reste vivant part au serveur, qu
   const live = [{ label: 'Petit-déjeuner', amount: 34, key: 'opt:9' }, PENDING[1]];
   renderDialog({ quote: { midStayExtrasLines: live } });
   await waitFor(() => expect(screen.getByText('10,00 €')).toBeInTheDocument());
-  expect(api.previewMidStayNote).toHaveBeenCalledWith(expect.objectContaining({ current: live, checkedKeys: [] }));
+  expect(api.previewMidStayNote).toHaveBeenCalledWith(expect.objectContaining({ current: live, checkedKeys: [] }), expect.anything());
 });
 
 test('les boutons de règlement sont inertes tant que la note est vide', async () => {

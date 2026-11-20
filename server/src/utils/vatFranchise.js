@@ -34,8 +34,8 @@ function parseThreshold(value) {
   return { ok: false, error: GOAL_TO_OWN.get(parsed.error) || MESSAGES.notANumber };
 }
 
-const cents = (n) => Math.round((Number(n) || 0) * 100);
-const euros = (n) => cents(n) / 100;
+const { toCentsOrZero: cents } = require('./pricing/money');
+const { roundMoneyOrZero: euros } = require('./pricing/money');
 
 /** Rule 35 — the follow-up exists only under « Sans TVA » with the franchise mention. */
 function franchiseApplies(block) {

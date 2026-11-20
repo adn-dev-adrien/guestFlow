@@ -3,19 +3,19 @@
 // lines in the order given, `spreadBucketRefund` spreads in proportion with the leftover cent on the earlier line.
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const refundable = require('../utils/pricing/refunds/refundable');
+const refundableUnit = require('../utils/pricing/refunds/refundable');
 const legacy = require('../utils/refunds');
 const money = require('../utils/pricing/money');
 
-const { cancelledRefundBudget, buildRefundableLines, capInOrder, spreadBucketRefund } = refundable;
+const { budget, refundable, capInOrder, spreadBucketRefund } = refundableUnit;
 
 test('rule 72 — the legacy module re-exports the budget and the refundable lines', () => {
-  assert.equal(legacy.cancelledRefundBudget, cancelledRefundBudget);
-  assert.equal(legacy.buildRefundableLines, buildRefundableLines);
+  assert.equal(legacy.cancelledRefundBudget, budget);
+  assert.equal(legacy.buildRefundableLines, refundable);
 });
 
 test('rule 72 — a cancelled stay: the indemnity left is what the avoir requalified less what was drawn from it, within what was collected', () => {
-  const budget = cancelledRefundBudget({
+  const left = budget({
     collectedTtc: 300,
     cashCollectedTtc: 50,
     refunds: [
@@ -24,14 +24,14 @@ test('rule 72 — a cancelled stay: the indemnity left is what the avoir requali
       { id: 3, method: 'transfer', totalTtc: 30, lines: [{ bucket: 'indemnity', amountTtc: 30 }] },
     ],
   });
-  assert.deepEqual(budget, { collectedTtc: 300, indemnityLeftTtc: 170, saleLeftTtc: 130, cashCollectedTtc: 50, cashLeftTtc: 30 });
-  assert.deepEqual(cancelledRefundBudget({ collectedTtc: 0 }), {
+  assert.deepEqual(left, { collectedTtc: 300, indemnityLeftTtc: 170, saleLeftTtc: 130, cashCollectedTtc: 50, cashLeftTtc: 30 });
+  assert.deepEqual(budget({ collectedTtc: 0 }), {
     collectedTtc: 0, indemnityLeftTtc: 0, saleLeftTtc: 0, cashCollectedTtc: 0, cashLeftTtc: 0,
   });
 });
 
 test('rule 72 — a live stay: accommodation is the final price less the extras, a refund lowers only its own line', () => {
-  const lines = buildRefundableLines({
+  const lines = refundable({
     finalPrice: 480,
     touristTaxTotal: 13.2,
     vatRate: 10,
@@ -44,7 +44,7 @@ test('rule 72 — a live stay: accommodation is the final price less the extras,
 });
 
 test('rule 72 — a cancelled stay is capped on what the sale still holds', () => {
-  const lines = buildRefundableLines({
+  const lines = refundable({
     finalPrice: 480,
     touristTaxTotal: 13.2,
     vatRate: 10,

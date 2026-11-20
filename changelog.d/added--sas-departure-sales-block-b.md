@@ -1,0 +1,1 @@
+- **The arrival SAS lists the sales due at departure separately (pricing refonte, PR B)**: a « Ventes du séjour — au départ » block at the top of the summary, outside the total collected at the arrival.

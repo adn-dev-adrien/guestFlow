@@ -139,6 +139,11 @@ geste commercial is recorded as such instead of being billed, hidden, or left pe
 12. **A collected complement is frozen, as today.** The arrival complement already marked
     `complementPaid = 1` is not re-priced by the SAS commit, so its lines cannot be offered from the SAS
     (existing rule, unchanged); the fiche stays the way to fix an over-collected stay.
+    _Reading of 2026-11-16 (stabilisation loop t9, A9-2):_ the recap says so. Its lines of a collected complement are served
+    `offerable: false` and read as stored whatever the draft's offered set (the dialog draws no « Offrir »), and the commit writes no
+    « Offrir » on them (the dead `applyOfferedComplementExtras` call is gone). Before, the dialog offered the toggle, the commit answered 200
+    with a recap « offered, billed 0 » and wrote nothing. Test `sas-arrival-collected-complement-not-offerable`. On the 2026-11-11 prod
+    copy the replay moves 12 arrival plans (`offerable` true → false, no amount), approved by the owner on 2026-11-17.
 
 ### 3.4 Re-open
 
@@ -208,16 +213,33 @@ Same endpoints, additive fields (no breaking change):
   the SAS payload only — the **offered** in-complement extras are now listed with
   `offered: 1, amount: 0, originalAmount: <real price>`.
 
+- `arrivalSeed: { offeredKeys: string[] }` (arrival only; stabilisation loop t6, S6-3, 2026-11-16) — the keys of the in-complement lines already
+  offered, by the recap's own key rule (pricing-components rule 85: `option:<id>` / `resource:<id>` for an article's first line,
+  `option:<id>:<lineId>` for a later one, `custom:<id>`, `extraGuests:0`; the arrival SAS's own rows excluded). The dialog seeds its `offered`
+  set from it, so a later line of an article offered on the fiche reopens offered under its own key and the commit keeps exactly that line
+  offered (before: the dialog seeded `option:<id>` for every line, which the server reads as the article's first line).
+
 `POST /api/reservations/:id/sas/arrival`
 - `complementItems[]` gains `offered?: boolean` (bed-linen elements).
-- `cleaningOffered?: boolean`, `bathLinenOffered?: boolean` — the upsell is activated but billed 0 €.
-- `offeredExtras?: [{ kind: 'option'|'resource'|'custom', id: number }]` — authoritative offered set for
-  the pre-existing in-complement extras (absent = leave every flag untouched).
+- `forceOverpayment?: true` (also on `/sas/departure`; loop t6, S6-4, 2026-11-16) — the commit is judged like every save of the stay
+  (pricing-components rules 105, 107): offering a line a note paid with nothing left to absorb its money answers 409 `OVERPAID`
+  (`overpaymentTtc`) and writes nothing; the dialog asks « Offrir · X à rembourser » / « Garder » and, confirmed, commits again with this flag
+  (the `lineLowered` obligation opens). A paid line that leaves the stay answers 409 `LINE_PAID`.
+  _Reading of 2026-11-16 (loop t7, UI7-2):_ the 409 `OVERPAID` of both commits also carries `overpaymentKeys: string[]`, the recap keys of
+  the lines it offered that a note paid and that were not offered before; « Garder » takes exactly those keys out of the dialog's offered set,
+  so the recap bills them again.
+  _Reading of 2026-11-16 (loop t7, S7-1):_ a line a note paid that the `offered` set no longer names (« Offert » unticked) is billed again and
+  comes back the fiche's way (pricing-components rule 109): its open `lineLowered` obligation closes, then the acompte and the solde not yet
+  paid get back the credit the offer took off them. The preview plays the same write (rule 90.1). No new field.
+- `offered?: [{ kind: 'option'|'resource'|'custom'|'extraGuests', id: number, lineId? } | { kind: 'upsell', key: 'cleaning'|'bathLinen' }]`
+  — ONE input since 2026-11-15 (pricing-components rule 14; it replaces `cleaningOffered`, `bathLinenOffered` and `offeredExtras`): an
+  upsell ref activates the upsell billed 0 €; the line refs are the authoritative offered set for the pre-existing in-complement extras
+  (absent list = leave every flag untouched).
 
 `POST /api/reservations/:id/sas/departure`
 - `endOfStayComplementDetail[]` gains `offered?: boolean`.
 - `extinguisherCharges[]` gains `offered?: boolean`.
-- `offeredArrivalExtras?: [{ kind, id }]` — same contract as `offeredExtras`, applied to the recalled
+- `offeredArrivalExtras?: [{ kind, id, lineId? }]` — same contract as `offeredExtras`, applied to the recalled
   arrival complement. **Sent only when the recap recalled that complement** (§3.2 rule 6.ter); the
   server ignores it otherwise, so an omitted or stale field can never bill an offered line back.
 
@@ -274,6 +296,12 @@ Same endpoints, additive fields (no breaking change):
   - **(2026-08-29)** re-sending a stored offered row verbatim keeps its `originalAmount` — the write is
     idempotent, so no refactor can silently zero a price.
 - [x] Full server suite green.
+- [x] `sas-arrival-paid-line-judged` (4) and `sas-departure-paid-line-judged` (3) — pricing-components rule 107 c, d (stabilisation loop
+      t6 S6-3, S6-4; t7 UI7-2, UI7-3): the re-open seed names the exact line, both commits judge a paid line offered (409 `OVERPAID` naming
+      it in `overpaymentKeys`, nothing written; confirmed with `forceOverpayment`), the controllers answer the 409 and record no history.
+- [x] `sas-arrival-paid-line-unoffered` (4) — pricing-components rule 109 (stabilisation loop t7 S7-1): « Offert » unticked on a card-paid
+      line at the arrival SAS closes its obligation (plan paid) or asks the solde again (solde unpaid), Σ unchanged; the kept seed and the
+      preview move nothing.
 
 ### Client tests (vitest, `components/sas/__tests__/ReservationSasDialog.test.jsx`)
 - [x] Arrival recap: « Offrir » on a bed-linen line → total drops, commit sends
@@ -289,6 +317,9 @@ Same endpoints, additive fields (no breaking change):
       `offeredArrivalExtras` entirely.
 - [x] **(2026-08-29)** Re-open: an offered *preserved* check-out line shows its real price, and
       withdrawing the gesture sends `qty`, `unitPrice` and the real `amount` back (rule 3.bis).
+- [x] `ReservationSasDialog.arrival-seed` (2) — the arrival seed read from `arrivalSeed.offeredKeys` (loop t6 S6-3, 2026-11-16).
+- [x] `ReservationSasDialog.paid-line-offer` (4) — the paid-line 409 at the arrival and at the departure: confirmed commits again with
+      `forceOverpayment`; « Garder » bills the named line again and commits nothing (loop t6 S6-4, loop t7 UI7-2 / UI7-3, 2026-11-16).
 
 ### Manual UI verification
 - [x] Arrival + departure SAS run in the browser at `xs` and desktop widths, screenshot in the PR.

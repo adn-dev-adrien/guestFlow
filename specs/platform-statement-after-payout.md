@@ -128,6 +128,8 @@ when the typed figures do not give the transfer, the operator is warned, not blo
 | `utils/` | `storedReservationQuote.js` | T | Exports `pricedProjection` (line and night comparison of rule 7). |
 | `utils/` | `reservationLedger.js` | T | Received platform-sale payout row: `amountEdit.mode = 'statement'` (was `locked`), with `received: { date, net, label }` read from the stored row; `correctable: true` on platform-sale payout rows. |
 | `utils/` | `reservationAudit.js` | T | The five statement columns print as money in the history (review L1). |
+| `utils/` | `pricing/platformPayment.js` | T | _(pricing-components branch, 2026-11-16)_ `storedPreArrival(row)` and `storedNet(row)`: the stored row's pre-arrival amount and net (rule 4), read by the correction and the ledger instead of their own copies. |
+| `models/` | `stayClockModel.js` | — | _(pricing-components branch, 2026-11-16)_ « Has the stay started? » (rule 11) is the stay clock's `phaseForReservation(id, gestureNow()).started`, the same lock the fiche shows (pricing-components rule 102). |
 
 No change to `savePriceGuards` (D21 stays for the fiche save), nor to the accounting models: they already read
 the stored buckets and commission.

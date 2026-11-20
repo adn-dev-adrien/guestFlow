@@ -6,7 +6,8 @@
  * The gross to configure is NOT computed here: it depends on the commission at read time (rule 9).
  */
 
-const round2 = (n) => Math.round(n * 100) / 100;
+const sdk = require('../sdk');
+const { roundMoneyStrict: round2 } = sdk.coreModule('money');
 
 function resolvePlatformCleaningFees(cleaning, platformNames = []) {
   const byLowerName = new Map(platformNames.map((name) => [String(name).trim().toLowerCase(), name]));

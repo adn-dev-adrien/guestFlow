@@ -17,7 +17,12 @@
 //   synthesis/<year>       the accounting synthesis of the year (`/api/accounting/synthesis`, accounting-export live)
 //
 //   node scripts/pricing-replay.mjs <copy.db> --out before.json
-//   node scripts/pricing-replay.mjs <copy.db> --compare before.json
+//   node scripts/pricing-replay.mjs <copy.db> --compare before.json [--expect expected.json]
+//   node scripts/pricing-replay.mjs <copy.db> --out-values before-values.json     (the values behind the hashes)
+//   node scripts/pricing-replay.mjs <copy.db> --compare-values before-values.json  (added keys ignored)
+//
+// `--expect` lists the artefact keys that are ALLOWED to move, each with its reason and rule (rule 81): a listed key
+// that did not move fails as stale, an unlisted one that moved fails as a difference.
 //
 // Prints ids, months and hashes only — never a name. The database is opened by the application's own boot, which
 // migrates it: pass a copy, never the original.
@@ -33,7 +38,7 @@ const args = process.argv.slice(2);
 const flag = (name) => (args.includes(name) ? args[args.indexOf(name) + 1] : null);
 const dbPath = args[0] && !args[0].startsWith('--') ? args[0] : null;
 if (!dbPath || !fs.existsSync(dbPath)) {
-  console.error('usage: pricing-replay.mjs <copy.db> [--out file] [--compare file]   (pass a COPY of the database)');
+  console.error('usage: pricing-replay.mjs <copy.db> [--out file] [--out-values file] [--compare file [--expect file]] [--compare-values file]   (pass a COPY of the database)');
   process.exit(2);
 }
 if (path.resolve(dbPath).split(path.sep).includes('shadows') && !args.includes('--i-am-a-copy')) {
@@ -50,6 +55,18 @@ const silent = console.log;
 console.log = () => {};
 const server = (relative) => require(path.join(root, 'server/src', relative));
 const db = server('database.js');
+// What `index.js` does once the application is up (rules 74 and 78): the nettings and the stay-level allocations.
+// A tree that predates them (the baseline run on `inte/plugins`) has neither module: nothing to do there.
+if (fs.existsSync(path.join(root, 'server/src/utils/pricingLinesMigration.js'))) {
+  const lines = server('utils/pricingLinesMigration.js');
+  lines.backfillRefundNettings(db);
+  lines.backfillStayLevelAllocations(db);
+  server('utils/paymentAllocationsSync.js').flushDirty(db);
+}
+// Rule 8 — the stored extra guests and tax of each stay, as `index.js` writes them once the controller can load.
+if (fs.existsSync(path.join(root, 'server/src/utils/pricingStoredFiguresMigration.js'))) {
+  server('utils/pricingStoredFiguresMigration.js').backfillSaleFiguresOnce(db);
+}
 const { capture, canonical, sha } = server('tests/vatRegimeGoldenCapture.js');
 const { optionalPlugin } = server('plugins/sdk/testing.js');
 const { figuresOfStay, fakeRes, recomputeResourceBookings } = require(path.join(root, 'scripts/price-gate/recompute.js'));
@@ -161,6 +178,20 @@ console.log = silent;
 const hashes = Object.fromEntries(Object.entries(captured).sort(([a], [b]) => a.localeCompare(b)).map(([k, v]) => [k, sha(v)]));
 const out = flag('--out');
 if (out) fs.writeFileSync(out, `${JSON.stringify(hashes, null, 1)}\n`);
+const outValues = flag('--out-values');
+if (outValues) fs.writeFileSync(outValues, `${JSON.stringify(Object.fromEntries(Object.entries(captured).sort(([x], [y]) => x.localeCompare(y))))}\n`);
+
+// A migration that adds a column changes every payload that spreads a whole row (`SELECT *`) in the hashes, not in any
+// figure. `--compare-values` judges the captured VALUES of a baseline taken on the code before the migration, ignoring the
+// keys the current code adds: what is left is a figure that moved (specs/pricing-components.md rule 81).
+const againstValues = flag('--compare-values');
+if (againstValues) {
+  const { valueDifferences } = require(path.join(root, 'scripts/price-gate/replayExpect.js'));
+  const found = valueDifferences(JSON.parse(fs.readFileSync(againstValues, 'utf8')), captured);
+  console.log(`compared ${Object.keys(captured).length} artefacts by value, added keys ignored: ${Object.keys(found).length} difference(s)`);
+  for (const [k, why] of Object.entries(found)) console.log(`  DIFF ${k} ${why}`);
+  process.exit(Object.keys(found).length ? 1 : 0);
+}
 
 const against = flag('--compare');
 if (!against) {
@@ -172,8 +203,12 @@ if (!against) {
 }
 
 const before = JSON.parse(fs.readFileSync(against, 'utf8'));
-const keys = new Set([...Object.keys(before), ...Object.keys(hashes)]);
-const diffs = [...keys].filter((k) => before[k] !== hashes[k]);
-console.log(`compared ${keys.size} artefacts: ${diffs.length} difference(s)`);
-for (const k of diffs) console.log(`  DIFF ${k}`);
-process.exit(diffs.length ? 1 : 0);
+const expectFile = flag('--expect');
+const expectList = expectFile ? JSON.parse(fs.readFileSync(expectFile, 'utf8')) : [];
+const { classifyReplay } = require(path.join(root, 'scripts/price-gate/replayExpect.js'));
+const verdict = classifyReplay(before, hashes, expectList);
+console.log(`compared ${verdict.compared} artefacts: ${verdict.unexpected.length} difference(s)${expectFile ? `, ${verdict.expected.length} expected` : ''}`);
+for (const k of verdict.unexpected) console.log(`  DIFF ${k}`);
+for (const k of verdict.expected) console.log(`  EXPECTED ${k}`);
+for (const k of verdict.stale) console.log(`  STALE ${k} (listed in --expect but unchanged)`);
+process.exit(verdict.unexpected.length || verdict.stale.length ? 1 : 0);

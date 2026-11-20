@@ -24,7 +24,7 @@ const articles = require('./pricing/articles');
 const { applyFreeUnitsToLine } = require('./pricing/allowances');
 const { computeExtraGuestSurcharge, splitExtraGuestCount } = require('./pricing/extraGuests');
 const { getApplicableOptions, getApplicableResources } = require('../models/ports/catalogueProvider');
-const { compose } = require('./pricing/compose');
+const { compose, touristTaxFigure } = require('./pricing/compose');
 const { withQuantityUnit } = require('./pricing/steps/extras');
 const { timeToDecimalHour, computeAutoTimedOptionContext } = require('./pricing/timedOptions');
 
@@ -41,10 +41,19 @@ function isTouristTaxRemittedByOwner(db, propertyId, platformKey) {
   return touristTaxRemittedByOwner(platformKey, resolveGlobalPlatformTaxRow(db, platformKey));
 }
 
+// `input.storedStaySale` (rules 8, 9, 54): the quote of a sale on the stored stay, named by its seller (`extraSale` through
+// `performUpdate(…, { sale: 'fiche' | 'sas' | 'shop' })`); `input.storedSaleFigures` the stay's stored extra guests and tax (rule 8).
 function calculateReservationQuote(input) {
   const stay = pricingInputModel.load(input);
   if (stay.error) return stay;
-  return compose(stay);
+  return compose(stay, { sale: (input && input.storedStaySale) || null, stored: (input && input.storedSaleFigures) || null });
+}
+
+// The tax figures of a stay (`touristTaxOriginalTotal`, `platformTouristTaxWithheld`) without pricing the rest of it.
+function calculateTouristTaxFigure(input) {
+  const stay = pricingInputModel.load(input);
+  if (stay.error) return stay;
+  return touristTaxFigure(stay);
 }
 
 module.exports = {
@@ -65,6 +74,7 @@ module.exports = {
   normalizeProgressiveTiers,
   buildProgressivePreview,
   calculateReservationQuote,
+  calculateTouristTaxFigure,
   isPlatformCollectingTouristTax,
   isTouristTaxRemittedByOwner,
   getTypeMultiplier,

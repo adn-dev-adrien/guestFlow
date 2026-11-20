@@ -197,7 +197,7 @@ test('rule 4 — a history row stamped just before or after midnight changes not
   assert.deepEqual(linesOf(controller.performUpdate(id, body(1))), [['touristTax', 6]]);
 });
 
-test('rule 4 — a row collected before the stamp existed falls back to the history; with neither, the options take it', async () => {
+test('rule 4 — a row collected before the stamp existed reads the allocation on the tax line; with neither, the accommodation takes it', async () => {
   const { db, controller, id, body } = await taxStay();
   collect(db, id, 6);
   db.prepare('UPDATE reservations SET complementCollectedTax = NULL WHERE id = ?').run(id);

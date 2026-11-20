@@ -1,0 +1,1 @@
+- plugin:sas « Offrir » in the arrival SAS — cleaning, towels and lines already sold — is sent to the server as a single list, the same offered property as the fiche (`specs/pricing-components.md` rule 14). Nothing changes on screen or in the amounts.

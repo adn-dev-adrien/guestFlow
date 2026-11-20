@@ -15,6 +15,7 @@ const vatRegimeModel = require('./vatRegimeModel');
 const rules = require('../utils/vatFranchise');
 const { DEFAULT_PAYOUT_DUE_DAYS, normalizePayoutDueDays } = require('../utils/platformPayout');
 const { todayIso } = require('../utils/localDate');
+const { roundMoneyStrict } = require('../utils/pricing/money');
 
 const SETTINGS_PATH = '/settings/tva-exercice';
 const ratioOf = (value, whole) => (whole > 0 ? Math.round((value / whole) * 10000) / 10000 : null);
@@ -95,7 +96,7 @@ function createModel(database) {
         yearEnd,
         share,
       }), 0) + rules.expectedCompensationsOf({ compensations: pendingCompensations(), from: yearStart, to: yearEnd });
-    const projected = Math.round((collected + expected) * 100) / 100;
+    const projected = roundMoneyStrict(collected + expected);
 
     const stored = storedThreshold();
     const threshold = stored.amount == null ? null : Number(stored.amount);

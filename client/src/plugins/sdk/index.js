@@ -69,9 +69,25 @@ export { default as PlatformPenaltyDialog } from '../../components/reservation/P
 // sas — one payment split over several methods (specs/mixed-method-payments.md rule 32) — SDK 2.24.0.
 export { default as TenderLines } from '../../components/TenderLines';
 export { TENDER_TEXTS } from '../../constants/tenderMethods';
+// sas — the lines' report a commit may send: only the one answering the due on screen (specs/mixed-method-payments.md rule 59, loop t25) — SDK 2.32.0.
+export { tendersForDue } from '../../components/TenderLines';
 // hourly-resources — the communes of a postcode (specs/resource-booking-pricing-and-invoicing.md rule 27) — SDK 2.25.0.
 export { default as usePostalCodeCities } from '../../hooks/usePostalCodeCities';
 // hourly-resources — the client picker ordered by stay (specs/resource-booking-client-picker.md §4.2) — SDK 2.27.0.
 export { default as ClientPickerField } from '../../components/ClientPickerField';
 // online-payment — an external identifier shortened in the middle, with a copy button (specs/mollie-rolling-reserve-and-incoming-payments.md rule 12) — SDK 2.29.0.
 export { default as TransactionRef } from '../../components/TransactionRef';
+// sas — the sale lines of a stay, offered / moved / removed from the SAS (specs/pricing-components.md rules 31, 37) — SDK 2.30.0.
+// The four sale blocks load apart from the shell, started when their dialog opens (specs/plugins-phase-1-sdk.md rule 54, loops t19 A19-1, t20 UI20-1).
+export { LazyStaySalesSection as StaySalesSection } from '../../components/LazySaleComponents';
+// hourly-resources — the generic « Proposés à l'arrivée » step and the payment-link block (specs/outside-booking-sas.md rules 35, 39-42) — SDK 2.32.0.
+export { LazySuggestedArticlesStep as SuggestedArticlesStep, LazySalePaymentLink as SalePaymentLink } from '../../components/LazySaleComponents';
+// hourly-resources — « Nouvelle vente » on the client of an invoiced visit (specs/outside-booking-sas.md rule 24, loop t1 AV-8) — SDK 2.32.0.
+export { LazyStandaloneSaleDialog as StandaloneSaleDialog } from '../../components/LazySaleComponents';
+// sas, hourly-resources — a dialog that renders a sale block starts its code when it opens and shows its content once it is there (specs/plugins-phase-1-sdk.md rule 54, reading 2026-11-18, loop t20 UI20-1) — SDK 2.32.0.
+export { useSaleComponentsReady } from '../../components/LazySaleComponents';
+// sas, hourly-resources — a region that keeps the focus when a server answer removes the control holding it (specs/plugins-phase-1-sdk.md rule 54, reading 2026-11-18, loop t22 UI22-1) — SDK 2.32.0.
+export { default as FocusKeeper } from '../../components/FocusKeeper';
+// sas, hourly-resources, online-payment — the money-dialog contract in one module: commit gating, typed lines kept, failure with its way
+// out, the actions row as a focus region (specs/plugins-phase-1-sdk.md rule 58, loop t26) — SDK 2.32.0.
+export { default as useMoneyCommit, PreviewFailure, MoneyActions, useTenderDraft, isRetryable } from '../../hooks/useMoneyCommit';

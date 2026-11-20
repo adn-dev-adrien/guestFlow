@@ -1,0 +1,1 @@
+- Arrival SAS: the stay's sales planned « au départ » can now be collected, line by line (« Percevoir maintenant ») or all at once (« Tout percevoir maintenant »); lines already paid fold under « Déjà payé » and a line added on reopening carries the « Ajoutée à la réouverture » badge (specs/pricing-components.md, rules 32 and 85).

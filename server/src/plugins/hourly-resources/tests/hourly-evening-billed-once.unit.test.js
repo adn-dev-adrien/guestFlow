@@ -222,7 +222,11 @@ function commitArrival(ctx, body, t) {
 }
 
 const step = (ctx, blocks) => ({ resourceScheduling: { blocks: blocks.map((b) => ({ ...b, resourceId: ctx.resourceId })), resourceIds: [ctx.resourceId] } });
-const SUPPLEMENT = (ctx, amount) => ({ label: 'Bain nordique — supplément soirée', amount, sasLineKey: `hourly-resources:evening:${ctx.resourceId}` });
+// specs/pricing-components.md rule 90.3 — the supplement names the session line's component it is; at 0 € too, so a component shrinks back
+// (a stay holding the legacy `evening:` line, as here, drops a 0 € item and its line, as before).
+const SUPPLEMENT = (ctx, amount) => ({
+  label: 'Bain nordique — supplément soirée', amount, sasLineKey: `hourly-resources:evening:${ctx.resourceId}`, component: { kind: 'evening', resourceId: ctx.resourceId },
+});
 
 // What the previous commit stored: the supplement, tagged as this plugin's line (rule 7; the
 // migration tags the lines written before the phase), and a linen line of the SAS itself.
@@ -260,13 +264,13 @@ test('rule 32: hours moved to the day band drop the supplement', { skip: skipWit
     keptLines: [OLD_SUPPLEMENT(ctx)],
     pluginSteps: step(ctx, [{ date: '2026-09-12', start: '17:00', end: '19:00' }]),
   }, t);
-  assert.deepEqual(items, []);
+  assert.deepEqual(items, [SUPPLEMENT(ctx, 0)]);
 });
 
 test('rule 26: removing every block of a resource clears its sessions and its supplement', { skip: skipWithout(['sas']) }, (t) => {
   const ctx = seedReopened(seed({ hoursSold: 2, sessions: DAY_AND_EVENING }));
   const { items } = commitArrival(ctx, { keptLines: [OLD_SUPPLEMENT(ctx)], pluginSteps: step(ctx, []) }, t);
-  assert.deepEqual(items, []);
+  assert.deepEqual(items, [SUPPLEMENT(ctx, 0)]);
 });
 
 // ── A fiche save keeps the SAS's own lines its own (rule 33) ───────────────────────────────────────

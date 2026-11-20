@@ -9,7 +9,14 @@
  * The only exception is the versioned allowlist (`fixtures/price-gate/allowlist.json`): an entry
  * `{ reservationId, field, old, corrected, reason, rule, defect, approvedBy, approvedAt }` removes ONE
  * difference — the one on that stay and that field whose expected value is exactly `old` and whose actual
- * value is exactly `corrected`. Any other value on that field still fails.
+ * value is exactly `corrected`. Any other value on that field still fails. JSON cannot write `undefined`, so a
+ * figure that no longer exists is approved with `removed: true` and `corrected: null`; that entry matches only an
+ * absent actual value, never a real `null`.
+ *
+ * An entry may carry a `scope` (rule 81): `stays` (the default, so an existing entry keeps its meaning),
+ * `synthetic`, `resourceBookings`, `propertyGrids` or `writes` (the refund write-path replay). `compareFigures(expected, actual, allowlist, { scope })`
+ * considers only the entries of that scope (default `stays`): an entry of another scope neither absorbs a
+ * difference here nor is reported unused here.
  *
  * Returns `{ differences, allowed, unusedEntries }`: what still fails, what the allowlist absorbed, and the
  * entries that matched nothing (a stale entry is reported, never silently kept).
@@ -17,6 +24,8 @@
 const { isDeepStrictEqual } = require('node:util');
 
 const ENTRY_FIELDS = ['reservationId', 'field', 'old', 'corrected', 'reason', 'rule', 'defect', 'approvedBy', 'approvedAt'];
+const SCOPES = ['stays', 'synthetic', 'resourceBookings', 'propertyGrids', 'writes'];
+const DEFAULT_SCOPE = 'stays';
 const TEXT_FIELDS = ['field', 'reason', 'rule', 'defect', 'approvedBy', 'approvedAt'];
 
 /** The problems of an allowlist as a list of messages; empty when every entry is complete. */
@@ -32,6 +41,7 @@ function allowlistProblems(allowlist) {
         problems.push(`entry ${index}: ${key} is empty`);
       }
     }
+    if (entry && entry.scope !== undefined && !SCOPES.includes(entry.scope)) problems.push(`entry ${index}: scope ${JSON.stringify(entry.scope)} is not one of ${SCOPES.join(', ')}`);
     if (entry && entry.reservationId == null) problems.push(`entry ${index}: reservationId is empty`);
     if (entry && isDeepStrictEqual(entry.old, entry.corrected)) problems.push(`entry ${index}: old and corrected are equal`);
   });
@@ -56,9 +66,11 @@ function differencesOf(expected, actual) {
   return out;
 }
 
-function compareFigures(expected, actual, allowlist = []) {
-  const problems = allowlistProblems(allowlist);
+function compareFigures(expected, actual, fullAllowlist = [], { scope = DEFAULT_SCOPE } = {}) {
+  const problems = allowlistProblems(fullAllowlist);
   if (problems.length) throw new Error(`price-gate allowlist is invalid: ${problems.join('; ')}`);
+  if (!SCOPES.includes(scope)) throw new Error(`price-gate scope ${JSON.stringify(scope)} is not one of ${SCOPES.join(', ')}`);
+  const allowlist = fullAllowlist.filter((entry) => (entry.scope || DEFAULT_SCOPE) === scope);
   const differences = [];
   const allowed = [];
   const used = new Set();
@@ -67,7 +79,9 @@ function compareFigures(expected, actual, allowlist = []) {
       && Number(entry.reservationId) === difference.reservationId
       && entry.field === difference.field
       && isDeepStrictEqual(entry.old, difference.expected)
-      && isDeepStrictEqual(entry.corrected, difference.actual));
+      && (entry.removed === true
+        ? entry.corrected === null && difference.actual === undefined
+        : isDeepStrictEqual(entry.corrected, difference.actual)));
     if (index === -1) {
       differences.push(difference);
     } else {
@@ -79,4 +93,4 @@ function compareFigures(expected, actual, allowlist = []) {
   return { differences, allowed, unusedEntries };
 }
 
-module.exports = { compareFigures, allowlistProblems, differencesOf };
+module.exports = { compareFigures, allowlistProblems, differencesOf, SCOPES };

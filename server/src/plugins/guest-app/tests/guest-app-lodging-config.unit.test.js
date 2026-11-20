@@ -61,9 +61,9 @@ test('rule 11bis: the bath is a shortcut into the shop — shop off or empty hid
   assert.equal(keysOf(shownModules(allOn(), FACTS, 'stay')).includes('bath'), true);
 });
 
-test('rules 5, 6: a visitor has no gate, shop, bath or orders; pre-arrival keeps the catalogue', () => {
+test('rules 5, 6, 65: a visitor has no gate, shop, bath or orders; pre-arrival uses the shop and the bath from J-7, never the gate', () => {
   assert.deepEqual(keysOf(shownModules(allOn(), FACTS, 'visitor')), ['wifi', 'soliomap', 'booklet', 'contacts']);
-  assert.deepEqual(keysOf(shownModules(allOn(), FACTS, 'preArrival')), ['wifi', 'shop', 'soliomap', 'booklet', 'contacts']);
+  assert.deepEqual(keysOf(shownModules(allOn(), FACTS, 'preArrival')), ['wifi', 'shop', 'bath', 'soliomap', 'booklet', 'orders', 'contacts']);
 });
 
 test('rule 11bis: a stored list survives a module it does not know, and drops one that is gone', () => {

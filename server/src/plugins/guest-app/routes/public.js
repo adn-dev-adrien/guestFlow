@@ -29,13 +29,13 @@ function buildPublicRouter({
   router.get('/gate', limiters.read, guestSession.requireSession, controller.gateRead);
   const shopRoute = [limiters.read, guestSession.requireSession, requireModule('shop', controller.shownKeysOf)];
   router.get('/shop', ...shopRoute, shop.read);
-  router.get('/shop/resources/:id/slots', ...shopRoute, guestSession.requireStay, shop.slots);
-  router.post('/shop/delivery-slots', ...shopRoute, guestSession.requireStay, shop.deliverySlots);
+  router.get('/shop/resources/:id/slots', ...shopRoute, guestSession.requireStayGuest, shop.slots);
+  router.post('/shop/delivery-slots', ...shopRoute, guestSession.requireStayGuest, shop.deliverySlots);
   // Rules 32-38 — a stay's orders: the quote, the order and its page belong to the shop, the list to « Mes commandes ».
-  const stayShop = [...shopRoute, guestSession.requireStay];
+  const stayShop = [...shopRoute, guestSession.requireStayGuest];
   router.post('/orders/quote', ...stayShop, orders.quote);
   router.post('/orders', ...stayShop, limiters.order, limiters.cardOrder, orders.create);
-  router.get('/orders', limiters.read, guestSession.requireSession, requireModule('orders', controller.shownKeysOf), guestSession.requireStay, orders.list);
+  router.get('/orders', limiters.read, guestSession.requireSession, requireModule('orders', controller.shownKeysOf), guestSession.requireStayGuest, orders.list);
   // §4.3 — the return page polls the order, and an unpaid one is read at the provider: the core's payment-status budget.
   router.get('/orders/:id', limiters.status, ...stayShop, orders.read);
   router.post('/orders/:id/abandon', ...stayShop, orders.abandon);
@@ -45,7 +45,7 @@ function buildPublicRouter({
   router.get('/booklet/search', ...bookletRoute, booklet.search);
   router.get('/booklet/pages/:slug', ...bookletRoute, booklet.page);
   // specs/guest-app-home-automation.md rules 17-22 — the « Domotique » page, a stay session only.
-  const homeRoute = [limiters.read, guestSession.requireSession, requireModule('home', controller.shownKeysOf), guestSession.requireStay];
+  const homeRoute = [limiters.read, guestSession.requireSession, requireModule('home', controller.shownKeysOf), guestSession.requireStayGuest];
   router.get('/home', ...homeRoute, home.read);
   router.post('/home/lights/:lightId', ...homeRoute, limiters.homeCommand, home.switchLight);
   router.get('/home/commands/:id', limiters.read, ...homeRoute.slice(1), limiters.homeStatus, home.command);

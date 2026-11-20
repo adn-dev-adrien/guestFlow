@@ -13,7 +13,8 @@
 const { priceSessions, toMinutes } = require('./hourlyPricing');
 
 const schedulable = (resource) => Number(resource.showsPlanningCard || 0) === 1;
-const round2 = (value) => Math.round((Number(value) || 0) * 100) / 100;
+const sdk = require('../sdk');
+const { roundMoneyOrZero: round2 } = sdk.coreModule('money');
 const hours = (value) => `${String(round2(value)).replace('.', ',')} h`;
 
 // What the summary says under the line: nothing once every hour sold sits on a slot.
@@ -49,11 +50,14 @@ function createHourlyContributor() {
         const extra = { sessions: priced.validSessions, scheduledHours: placed, detail: detailOf(placed, quantity) };
         // Sold: the engine bills the sold hours through the lock; the sessions only say when.
         if (sold) return { quantity, extra };
+        // The evening supplement of the offered minutes is not the line's (rule 37): a saved line replays its free minutes at 0, so that supplement is billed on
+        // its own — by the arrival SAS's evening component, or by the charge of an app order (rule 38).
+        const totalPrice = Math.max(0, round2(priced.totalPrice - priced.freeSupplement));
         return {
           quantity,
-          unitPrice: priced.unitPrice,
+          unitPrice: priced.billedHours > 0 ? round2(totalPrice / priced.billedHours) : 0,
           billedUnits: priced.billedHours,
-          totalPrice: priced.totalPrice,
+          totalPrice,
           extra,
         };
       }

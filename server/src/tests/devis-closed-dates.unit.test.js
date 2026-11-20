@@ -7,7 +7,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
-const { db, inDays, freshProperty, addStay, addLink } = require('./datesTakenFixture');
+const { db, inDays, dayLabel, freshProperty, addStay, addLink } = require('./datesTakenFixture');
 const devisModel = require('../models/devisModel');
 const paymentLinksModel = require('../models/paymentLinksModel');
 const { processPaidLink } = require('../utils/paymentPollRunner');
@@ -26,7 +26,8 @@ test('rule 55: a devis created on closed nights is refused with the closure', ()
   assert.equal(out.error, MESSAGE);
   assert.equal(out.closures.length, 1);
   assert.equal(out.closures[0].id, closure);
-  assert.match(out.closures[0].label, /^Travaux · \d{2}\/\d{2} → \d{2}\/\d{2}$/);
+  const [d1, d2] = [inDays(40), inDays(42)].map((iso) => dayLabel(iso, inDays(41)));
+  assert.equal(out.closures[0].label, `Travaux · ${d1} → ${d2}`);
   assert.equal(out.closures[0].url, '/establishment-closures');
 });
 

@@ -1,0 +1,1 @@
+- **Reserving an hour of bath checks the slot when the sale is made (pricing refonte, PR B)**: a slot taken in the meantime refuses the sale instead of leaving a line without its place.

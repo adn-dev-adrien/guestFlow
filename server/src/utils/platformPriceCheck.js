@@ -13,12 +13,14 @@
 
 const { isDirectChannel } = require('./platformNameFormat');
 const { matchNightRule, calculateBaseStayPrice } = require('./pricing');
+const { platformLinesTotal } = require('./pricing/platformPrice');
+const { dayReached } = require('./pricing/stayClock');
 
 const BELOW_PERCENT = -15;
 const ABOVE_PERCENT = 25;
 const MIN_GAP_EUR = 30;
 
-const cents = (value) => Math.round(Number(value || 0) * 100) / 100;
+const { roundMoney: cents } = require('./pricing/money');
 
 // The sale's saved nights, against what today's seasons price for the same dates. They differ when the
 // tariff moved since the sale — or when the sale was priced on the 100 € fallback of a night no season
@@ -51,7 +53,7 @@ function platformPriceCheck({
   quote, stay, nightsReplayed, loadContext, today,
 }) {
   if (!quote || !stay || stay.kind !== 'reservation') return null;
-  if (!stay.startDate || stay.startDate <= today) return null;
+  if (!stay.startDate || dayReached(stay.startDate, today)) return null;
   if (!stay.platform || isDirectChannel(stay.platform)) return null;
   if (quote.platformGrossAmount == null || !(Number(quote.platformGrossAmount) > 0)) return null;
   if (Array.isArray(quote.unpricedNights) && quote.unpricedNights.length > 0) return null;
@@ -66,9 +68,7 @@ function platformPriceCheck({
   if (!channel || !(Number(channel.commissionPercent) < 100)) return null;
 
   // What the brut carries beside the accommodation, at the stay's own price (not collected on arrival).
-  const extrasInBrut = [...(quote.optionLines || []), ...(quote.resourceLines || [])]
-    .filter((line) => !Number(line.inComplement || 0))
-    .reduce((sum, line) => sum + Number(line.totalPrice || 0), 0);
+  const extrasInBrut = platformLinesTotal([...(quote.optionLines || []), ...(quote.resourceLines || [])]);
 
   const seasonsById = new Map((grid.seasons || []).map((s) => [s.ruleId, s]));
   const nights = Array.isArray(quote.nightlyBreakdown) ? quote.nightlyBreakdown : [];

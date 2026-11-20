@@ -1,0 +1,1 @@
+- SAS: a line that cannot change moment says so as a move (« Cette ligne ne peut pas changer de moment : elle a été vendue à l’arrivée. »), no longer with a removal's message (specs/pricing-components.md, rule 37).

@@ -157,6 +157,69 @@ if (process.env.SKIP_MIGRATIONS !== 'true') {
   }
 }
 
+// specs/pricing-components.md rule 78 — once, after the models can load: the refunds each requalification avoir netted.
+if (process.env.SKIP_MIGRATIONS !== 'true') {
+  try {
+    const nettings = require('./utils/pricingLinesMigration').backfillRefundNettings(db);
+    if (nettings > 0) console.log(`[migration:refund-nettings] ${nettings} netting(s) recorded`);
+  } catch (err) {
+    logErrorMarker(`Refund nettings backfill failed: ${err.message}`);
+  }
+}
+
+// Self-update rule 31, pricing-components rule 85 (end review R1-2) — the true lines (T10) wait until the update helper has verified this
+// release: until then a rollback lands on a database the previous release runs unchanged. Checked now, then every 3 s until it ran.
+if (process.env.SKIP_MIGRATIONS !== 'true') {
+  const { runTrueLinesWhenVerified } = require('./utils/pricingSalesMigration');
+  const settleTrueLines = () => {
+    try {
+      const outcome = runTrueLinesWhenVerified(db);
+      if (outcome.state === 'ran') console.log(`[migration:true-lines] ${outcome.tables} table(s) keyed by line, schema floor raised (update verified)`);
+      return outcome.state !== 'awaiting';
+    } catch (err) {
+      logErrorMarker(`True lines migration failed: ${err.message}`);
+      return true;
+    }
+  };
+  if (!settleTrueLines()) {
+    console.log('[migration:true-lines] waiting for the update to be verified');
+    const timer = setInterval(() => { if (settleTrueLines()) clearInterval(timer); }, 3000);
+    if (typeof timer.unref === 'function') timer.unref();
+  }
+}
+
+// Rule 36 — once the guest app's table exists: the order each line came from, where a line names exactly one.
+if (process.env.SKIP_MIGRATIONS !== 'true') {
+  try {
+    const orderRefs = require('./utils/pricingSalesMigration').backfillOrderRefsOnce(db);
+    if (orderRefs > 0) console.log(`[migration:order-refs] ${orderRefs} line(s) linked to their order`);
+  } catch (err) {
+    logErrorMarker(`Order refs backfill failed: ${err.message}`);
+  }
+}
+
+// Rule 8 — once, after the controller can load: the extra guests and the tax each live stay's sale reads as stored.
+if (process.env.SKIP_MIGRATIONS !== 'true') {
+  try {
+    const { written, refused } = require('./utils/pricingStoredFiguresMigration').backfillSaleFiguresOnce(db);
+    if (written.length > 0 || refused.length > 0) {
+      console.log(`[migration:stored-sale-figures] ${written.length} stay(s) recorded; ${refused.length} left to the units (${refused.join(', ') || 'none'})`);
+    }
+  } catch (err) {
+    logErrorMarker(`Stored sale figures backfill failed: ${err.message}`);
+  }
+}
+
+// Rule 74 — the stay-level allocation of every paid bucket no per-line truth describes (needs the platform's tax mode).
+if (process.env.SKIP_MIGRATIONS !== 'true') {
+  try {
+    const stayLevel = require('./utils/pricingLinesMigration').backfillStayLevelAllocations(db);
+    if (stayLevel > 0) console.log(`[migration:stay-level-allocations] ${stayLevel} allocation(s) recorded`);
+  } catch (err) {
+    logErrorMarker(`Stay-level allocations backfill failed: ${err.message}`);
+  }
+}
+
 // VAPID keypair for Web Push (specs/pwa-push-notifications.md). Auto-generated + persisted to
 // server/.env.local on first boot; the private key configures web-push, the public key is exposed
 // to the client for the push subscription. Never logged.
@@ -255,12 +318,15 @@ app.use('/api/properties', require('./routes/properties'));
 app.use('/api/options', require('./routes/options'));
 app.use('/api/resources', require('./routes/resources'));
 app.use('/api/reservations', require('./routes/reservations'));
+app.use('/api/standalone-sales', require('./routes/standaloneSales'));
 app.use('/api/calendar', require('./routes/calendar'));
 app.use('/api/platforms', require('./routes/platforms'));
 app.use('/api/finance', require('./routes/finance'));
 app.use('/api/public-holidays', require('./routes/publicHolidays'));
 app.use('/api/calendar-notes', require('./routes/calendarNotes'));
 app.use('/api/ical', require('./routes/ical'));
+app.use('/api/suggested-articles', require('./routes/suggestedArticles').resolved);
+app.use('/api/settings/suggested-articles', require('./routes/suggestedArticles').settings);
 app.use('/api/settings', require('./routes/settings'));
 app.use('/api/push', require('./routes/push'));
 app.use('/api/payments', require('./middleware/stayVersionsTrail').stayVersionsTrail());

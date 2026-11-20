@@ -8,7 +8,7 @@
  * every reader of a stay's money already holds it and none of them learns about this table.
  */
 
-const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
+const { roundMoneyOrZero: round2 } = require('../utils/pricing/money');
 
 function buildModel(database) {
   const syncTotal = (reservationId) => {

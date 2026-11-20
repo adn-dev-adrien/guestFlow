@@ -54,7 +54,7 @@ function assertRefused(res, stay, finalPrice) {
 test('open trop-perçu net of a free refund: the rise it covers passes, above it refused', async () => {
   const { stay, moved } = await typoAfterCollection();
   assert.equal(overpayment(stay.id), 90);
-  assert.equal(refund(stay.id, [{ label: 'Trop-perçu', bucket: 'accommodation', amountTtc: 30 }]).statusCode, 201);
+  assert.equal(refund(stay.id, [{ label: 'Trop-perçu', bucket: 'accommodation', amountTtc: 30 }], 'transfer', { fromOverpayment: true }).statusCode, 201);
   assert.equal(overpayment(stay.id), 60);
   assertRefused(await save(stay, { ...moved, discountPercent: 5 }), stay, 540);
   const res = await save(stay, { ...moved, discountPercent: 10 });
@@ -65,7 +65,7 @@ test('open trop-perçu net of a free refund: the rise it covers passes, above it
 
 test('a refund already made is not a claim: the whole trop-perçu given back, the discount cannot be taken back', async () => {
   const { stay, moved } = await typoAfterCollection();
-  assert.equal(refund(stay.id, [{ label: 'Trop-perçu', bucket: 'accommodation', amountTtc: 90 }]).statusCode, 201);
+  assert.equal(refund(stay.id, [{ label: 'Trop-perçu', bucket: 'accommodation', amountTtc: 90 }], 'transfer', { fromOverpayment: true }).statusCode, 201);
   assert.equal(overpayment(stay.id), 0);
   assertRefused(await save(stay, { ...moved, discountPercent: 5 }), stay, 540);
   assert.equal((await save(stay, { ...moved, discountPercent: 20 })).statusCode, 200);

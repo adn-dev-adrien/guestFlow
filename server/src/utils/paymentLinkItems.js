@@ -16,26 +16,28 @@ const { rateToBasis, lineTotalCents, htFromTtc } = require('./pricing/vat');
 
 /**
  * Build the wire items for a payment link.
- *   components: [{ title, grossCents, taxable }]  — grossCents are TTC cents; the SUM is the exact charge.
- *   vatRatePercent: the global VAT rate applied to taxable components (non-taxable → 0 %).
+ *   components: [{ title, grossCents, taxable, vatRatePercent? }]  — grossCents are TTC cents; the SUM is the exact charge.
+ *   vatRatePercent: the VAT rate applied to taxable components that carry none of their own (non-taxable → 0 %).
  * Returns { items: [{ title, amountCents(HT, cents), vatRate(percent) }], expectedTotalCents }.
  * `expectedTotalCents` MUST equal the caller's charged amount and is asserted against Qonto's response.
  */
 function buildVatItems({ components, vatRatePercent }) {
   const list = (Array.isArray(components) ? components : []).filter((c) => c && Math.round(Number(c.grossCents || 0)) > 0);
   const target = list.reduce((s, c) => s + Math.round(Number(c.grossCents)), 0);
-  const R = rateToBasis(vatRatePercent);
 
   const items = list.map((c) => {
     const grossCents = Math.round(Number(c.grossCents));
     // A component may carry an optional free-text `description` (specs/qonto-payment-link-reference.md):
     // pure passenger data forwarded to the Qonto item, it never affects amounts.
     const description = c.description != null && String(c.description).trim() ? String(c.description) : undefined;
+    // A component may carry its own rate (a line of the sale detail, pricing-components rule 91); otherwise the basket's.
+    const ratePercent = c.vatRatePercent != null ? Number(c.vatRatePercent) : vatRatePercent;
+    const R = rateToBasis(ratePercent);
     if (!c.taxable || R <= 0) {
       return { title: String(c.title || 'Ligne'), amountCents: grossCents, vatRate: 0, description, _lineTotal: grossCents, _taxable: false };
     }
     const htCents = htFromTtc(grossCents, R);
-    return { title: String(c.title || 'Ligne'), amountCents: htCents, vatRate: vatRatePercent, description, _lineTotal: lineTotalCents(htCents, R), _taxable: true };
+    return { title: String(c.title || 'Ligne'), amountCents: htCents, vatRate: ratePercent, description, _lineTotal: lineTotalCents(htCents, R), _taxable: true };
   });
 
   const predicted = items.reduce((s, it) => s + it._lineTotal, 0);

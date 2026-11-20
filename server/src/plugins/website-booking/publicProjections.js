@@ -1,4 +1,5 @@
 const sdk = require('../sdk');
+const { roundMoneyStrict } = sdk.coreModule('money');
 
 const { isPerPersonCardOption, portionCap, portionWording } = sdk.coreModule('mealPortions');
 const { normalisePublicLang, errorMessage } = sdk.coreModule('publicLabels');
@@ -134,9 +135,7 @@ function resourceOfferedNote(quantity, billedUnits, totalPrice, lang = 'fr') {
   return `${hoursLabel(minutes)} ${offeredAgreement(minutes, lang)}`;
 }
 
-function roundHours(value) {
-  return Math.round(Number(value || 0) * 100) / 100;
-}
+const { roundMoney: roundHours } = sdk.coreModule('money');
 
 /**
  * Collapse a sorted array of ISO dates into contiguous inclusive ranges:
@@ -184,7 +183,7 @@ function perPersonPerNight(totalStayPrice, persons, nights) {
   const p = Number(persons || 0);
   const n = Number(nights || 0);
   if (!(p > 0) || !(n > 0)) return null;
-  return Math.round((Number(totalStayPrice || 0) / p / n) * 100) / 100;
+  return roundMoneyStrict(Number(totalStayPrice || 0) / p / n);
 }
 
 /**

@@ -259,18 +259,74 @@
       }
     },
     {
-      "version": "2.27.0",
-      "modules": [
-        "vat"
-      ],
-      "names": {}
-    },
-    {
       "version": "2.29.0",
       "modules": [
         "journalEntries"
       ],
       "names": {}
+    },
+    {
+      "version": "2.30.0",
+      "modules": [
+        "vat",
+        "accountingOutput",
+        "legacyBucketSplit",
+        "refundJournal",
+        "csvJournal",
+        "salesJson",
+        "synthesisExporter",
+        "extraSale",
+        "saleDetail",
+        "articles",
+        "stayClock",
+        "catalogue"
+      ],
+      "names": {}
+    },
+    {
+      "version": "2.31.0",
+      "modules": [
+        "money",
+        "platformPayment",
+        "basketRefundOutcome"
+      ],
+      "names": {
+        "extraSale": [
+          "paidSalesOf",
+          "collectionOf"
+        ],
+        "stayClock": [
+          "dayReached",
+          "dayPassed"
+        ],
+        "vat": [
+          "netFirstCents",
+          "ttcFromNetCents"
+        ]
+      }
+    },
+    {
+      "version": "2.32.0",
+      "modules": [
+        "standaloneSale",
+        "standaloneSaleLinks",
+        "suggestedArticles",
+        "refundGivenBack"
+      ],
+      "names": {
+        "extraSale": [
+          "arrivalOpenAt"
+        ],
+        "reservationsModel": [
+          "buildArrivalSeed"
+        ],
+        "saleDetail": [
+          "buildDocumentDetail"
+        ],
+        "suggestedArticles": [
+          "catalogueGroups"
+        ]
+      }
     }
   ]
 }

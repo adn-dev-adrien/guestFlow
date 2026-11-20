@@ -23,7 +23,7 @@
  * complement's own detail. Unit-tested in tests/arrival-payment-detail.unit.test.js.
  */
 
-const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
+const { roundMoneyOrZero: round2 } = require('./pricing/money');
 const nz = (v) => (v == null ? 0 : Number(v) || 0);
 
 // The two stay buckets, in the order they are collected, with the columns each one reads.

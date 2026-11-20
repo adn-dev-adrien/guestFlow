@@ -12,7 +12,8 @@ const step = {
   id: 'discounts',
   requires: [
     'accommodationAdjustedPrice', 'accommodationBaseTotal', 'baseAccommodationPrice', 'customFinalPrice',
-    'extraGuestSurcharge', 'normalizedDiscountPercent', 'optionsTotal', 'pinnedAccommodation', 'resourcesTotal',
+    'extraGuestSurcharge', 'nightsFixedAmount', 'normalizedDiscountPercent', 'optionsTotal', 'pinnedAccommodation', 'resourcesTotal',
+    'accommodationDiscountShareCents',
   ],
   provides: [
     'accommodationDeltaAmount', 'accommodationDeltaType', 'accommodationDiscountAmount',
@@ -21,7 +22,8 @@ const step = {
   apply(ctx) {
     const {
       accommodationAdjustedPrice, accommodationBaseTotal, baseAccommodationPrice, customFinalPrice,
-      extraGuestSurcharge, normalizedDiscountPercent, optionsTotal, pinnedAccommodation, resourcesTotal,
+      extraGuestSurcharge, nightsFixedAmount, normalizedDiscountPercent, optionsTotal, pinnedAccommodation, resourcesTotal,
+      accommodationDiscountShareCents,
     } = ctx;
 
     const accommodationDiscountAmount = roundMoney(Math.max(0, accommodationBaseTotal - accommodationAdjustedPrice));
@@ -30,9 +32,9 @@ const step = {
       pinnedAccommodation != null
         ? pinnedAccommodation
         : allocateDiscount({
-          discount: { percent: normalizedDiscountPercent, customPrice: customFinalPrice, target: 'nights' },
+          discount: { percent: normalizedDiscountPercent, amount: nightsFixedAmount, customPrice: customFinalPrice, target: 'nights' },
           accommodation: baseAccommodationPrice,
-        }).accommodation
+        }).accommodation - accommodationDiscountShareCents / 100
     );
     const accommodationDeltaType = accommodationAdjustedPrice < accommodationBaseTotal
       ? 'reduction'
@@ -44,9 +46,9 @@ const step = {
     // show the engine value alongside an overridden price. `finalPrice` stays the effective amount.
     const priceOverridden = pinnedAccommodation != null || Number.isFinite(customFinalPrice);
     const engineAccommodationPrice = allocateDiscount({
-      discount: { percent: normalizedDiscountPercent, target: 'nights' },
+      discount: { percent: normalizedDiscountPercent, amount: nightsFixedAmount, target: 'nights' },
       accommodation: accommodationBaseTotal,
-    }).accommodation;
+    }).accommodation - accommodationDiscountShareCents / 100;
     const engineFinalPrice = sumMoney([engineAccommodationPrice, extraGuestSurcharge, optionsTotal, resourcesTotal]);
 
     return {

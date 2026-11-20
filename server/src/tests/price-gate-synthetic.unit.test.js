@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rules 68 and 72 (PR A bullet) — the price gate's synthetic stays. The snapshot
+// specs/pricing-components.md §3 rules 68, 72 and 81 (PR A bullet) — the price gate's synthetic stays. The snapshot
 // holds one refund and no example of several money paths, so the refund cases the suites pin (cancelled with indemnity,
 // caisse interne, mixed methods, installments, line refund, trop-perçu) and one named case for every other money path
 // (7.77 % discount, progressive option fresh and sold, insurance on the stay and per night, typed counts, mid-stay notes
@@ -11,6 +11,7 @@ process.env.DB_PATH = ':memory:';
 process.env.TZ = 'Europe/Paris';
 
 const test = require('node:test');
+const { skipWithout } = require('../plugins/sdk/testing');
 const { mock } = test;
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
@@ -18,16 +19,19 @@ const path = require('node:path');
 const { compareFigures } = require('./helpers/priceGateCompare');
 
 const DIR = process.env.PRICE_GATE_FIXTURE_DIR || path.join(__dirname, 'fixtures', 'price-gate');
+const allowlist = JSON.parse(fs.readFileSync(path.join(__dirname, 'fixtures', 'price-gate', 'allowlist.json'), 'utf8'));
 const read = (name) => JSON.parse(fs.readFileSync(path.join(DIR, name), 'utf8'));
 const captured = ['inputs.json', 'expected.json'].every((name) => fs.existsSync(path.join(DIR, name)));
 const present = captured && read('inputs.json').synthetic && read('expected.json').synthetic;
-const SKIP = present ? false : 'price-gate synthetic section absent (captured on the price-gate-baseline tag: node scripts/price-gate/buildFixture.mjs)';
+// loop t1 AS-2 — the fixture holds `resource_bookings` rows, a table of the hourly-resources plugin: skipped in the cell that removes it.
+// loop t18 A18-1 — the captured figures hold the accounting-export journal of the refunded stays: skipped in that plugin's cell too.
+const SKIP = skipWithout(['hourly-resources', 'accounting-export']) || (present ? false : 'price-gate synthetic section absent (captured on the price-gate-baseline tag: node scripts/price-gate/buildFixture.mjs)');
 
 let recomputed = null;
 let recomputedBookings = null;
 let recomputedGrids = null;
 let expected = null;
-if (present) {
+if (!SKIP) {
   const inputs = read('inputs.json');
   expected = read('expected.json').synthetic;
   const { freezeClock } = require('./vatRegimeGoldenFixture');
@@ -45,19 +49,19 @@ if (present) {
 }
 
 test('rule 68: no figure of a synthetic resource booking moved', { skip: SKIP }, () => {
-  const { differences } = compareFigures(expected.resourceBookings, recomputedBookings, []);
+  const { differences } = compareFigures(expected.resourceBookings, recomputedBookings, allowlist, { scope: 'synthetic' });
   const shown = differences.slice(0, 40).map((d) => `  booking ${d.reservationId} ${d.field}: expected ${JSON.stringify(d.expected)}, got ${JSON.stringify(d.actual)}`);
   assert.equal(differences.length, 0, `${differences.length} figure(s) moved\n${shown.join('\n')}`);
 });
 
 test('rule 70: no figure of the platform price grid of a synthetic property moved (commissions of 15 and 15.5 %)', { skip: SKIP }, () => {
-  const { differences } = compareFigures(expected.propertyGrids, recomputedGrids, []);
+  const { differences } = compareFigures(expected.propertyGrids, recomputedGrids, allowlist, { scope: 'synthetic' });
   assert.equal(differences.length, 0, `${differences.length} figure(s) moved`);
   assert.ok(Object.values(expected.propertyGrids).some((g) => Object.keys(g).length > 10), 'the grids hold prices');
 });
 
 test('rule 72: no refund figure moved on any synthetic stay', { skip: SKIP }, () => {
-  const { differences } = compareFigures(expected.stays, recomputed, []);
+  const { differences } = compareFigures(expected.stays, recomputed, allowlist, { scope: 'synthetic' });
   const shown = differences.slice(0, 40).map((d) => `  stay ${d.reservationId} ${d.field}: expected ${JSON.stringify(d.expected)}, got ${JSON.stringify(d.actual)}`);
   assert.equal(differences.length, 0, `${differences.length} figure(s) moved\n${shown.join('\n')}`);
 });
@@ -125,4 +129,12 @@ test('rule 68: a mid-stay note is settled in the caisse in one case and on the b
   assert.ok(notes('mid-stay-notes-settled-cash').every((n) => Number(n.paidCash) === 1));
   assert.ok(notes('mid-stay-notes-settled-book').every((n) => Number(n.paidCash || 0) === 0));
   assert.ok(notes('mid-stay-notes-settled-cash').every((n) => (n.items || []).every((i) => /^Line \d+$/.test(i.label || 'Line 1'))), 'labels are placeholders');
+});
+
+test('rule 81: every synthetic allowlist entry still matches a difference of one of the three synthetic families', { skip: SKIP }, () => {
+  const unusedIn = (expectedSet, actualSet) => compareFigures(expectedSet, actualSet, allowlist, { scope: 'synthetic' }).unusedEntries;
+  const stale = unusedIn(expected.stays, recomputed)
+    .filter((entry) => unusedIn(expected.resourceBookings, recomputedBookings).includes(entry))
+    .filter((entry) => unusedIn(expected.propertyGrids, recomputedGrids).includes(entry));
+  assert.deepEqual(stale, []);
 });

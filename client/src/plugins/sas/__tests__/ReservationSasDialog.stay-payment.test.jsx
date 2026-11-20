@@ -6,7 +6,7 @@ import { screen, waitFor } from '@testing-library/react';
 import { vi } from 'vitest';
 
 import api from '../../../api';
-import { sasPayload, stayDue, renderDialog, clickBtn } from './sasFixtures';
+import { sasPayload, stayDue, renderDialog, clickBtn, stayPageReady } from './sasFixtures';
 import { previewLikeTheServer } from './sasPreviewFake';
 
 // Every plugin active — the Solio configuration these tests describe (specs/plugins-phase-0-foundation.md).
@@ -57,7 +57,8 @@ test('arrival SAS: « CB / Chèque » on the stay step commits stayPaid without 
   clickBtn('Commencer');
 
   await screen.findByText('Séjour à régler :');
-  expect(screen.getByText('480,00 €')).toBeInTheDocument();
+  // UI9-1 — the amount is the plan's: « — » until the preview answers.
+  expect(await screen.findByText('480,00 €')).toBeInTheDocument();
   // Direct channel → no platform warning.
   expect(screen.queryByText(/versé par la plateforme/)).toBeNull();
   clickBtn('CB / Chèque');
@@ -84,7 +85,7 @@ test('arrival SAS: « Payé en liquide » on the stay commits the caisse interne
   await screen.findByText('Commencer');
   clickBtn('Commencer');
 
-  await screen.findByText('Séjour à régler :');
+  await stayPageReady();
   clickBtn('Payé en liquide');
   expect(screen.getByText('Encaissé en caisse interne (hors comptabilité).')).toBeInTheDocument();
   clickBtn('Suivant');
@@ -133,7 +134,7 @@ test('arrival SAS: an OTA stay warns that the solde is the platform payout, and 
   clickBtn('Commencer');
 
   await screen.findByText('Séjour à régler :');
-  expect(screen.getByText(/versé par la plateforme après le séjour/)).toBeInTheDocument();
+  expect(await screen.findByText(/versé par la plateforme après le séjour/)).toBeInTheDocument();
   expect(screen.getByText("Le séjour reste dû (rien n'est encaissé).")).toBeInTheDocument();
 });
 
@@ -156,7 +157,7 @@ test('arrival SAS: a re-opened SAS pre-selects the mode it recorded, and can und
 
   await screen.findByText('Séjour à régler :');
   // The amount survives the re-open: it is what THIS SAS collected, not what is still owed.
-  expect(screen.getByText('480,00 €')).toBeInTheDocument();
+  expect(await screen.findByText('480,00 €')).toBeInTheDocument();
   expect(screen.getByText('Encaissé en caisse interne (hors comptabilité).')).toBeInTheDocument();
   clickBtn('Pas maintenant');
   clickBtn('Suivant');

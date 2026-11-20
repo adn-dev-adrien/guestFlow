@@ -5,7 +5,7 @@
 
 const db = require('../database');
 const financeModel = require('./financeModel');
-const { quoteStoredReservation } = require('../utils/storedReservationQuote');
+const { touristTaxFigureOfStoredReservation } = require('../utils/storedReservationQuote');
 const { platformDisplayName } = require('../utils/attributionChannel');
 const { isDirectChannel } = require('../utils/platformNameFormat');
 const { resolveTaxPeriod, periodChoices } = require('../utils/touristTaxPeriod');
@@ -32,7 +32,7 @@ const PLATFORM_COLLECTS_SQL = `(
   )
 )`;
 
-const round2 = (value) => Math.round(Number(value || 0) * 100) / 100;
+const { roundMoney: round2 } = require('../utils/pricing/money');
 
 function createTouristTaxReportModel(database, finance) {
   // Rule 51 (review V3R-4) — an iCal key (`booking`) reads as its platform's label (`Booking`), through the same
@@ -68,9 +68,9 @@ function createTouristTaxReportModel(database, finance) {
         AND DATE(r.endDate, '-1 day') < ?
     `).all(start, endExclusive);
     return rows.map((r) => {
-      const quote = quoteStoredReservation(database, r) || {};
+      const figure = touristTaxFigureOfStoredReservation(database, r) || {};
       // The figure the fiche shows struck through: what the platform says it withheld, else the engine's estimate.
-      const amount = quote.platformTouristTaxWithheld != null ? quote.platformTouristTaxWithheld : quote.touristTaxOriginalTotal;
+      const amount = figure.platformTouristTaxWithheld != null ? figure.platformTouristTaxWithheld : figure.touristTaxOriginalTotal;
       return platformStayRow({
         reservationId: r.id,
         propertyId: r.propertyId,

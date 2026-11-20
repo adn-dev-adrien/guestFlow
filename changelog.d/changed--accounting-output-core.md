@@ -1,0 +1,1 @@
+- **Accounting export, internal (pricing refonte, PR B)**: the monthly journal and its three writers (CSV, sales JSON, synthesis) now live in the core as `AccountingOutput` and its exporters, with the legacy bucket derivation in one module; the plugin keeps its routes, account plan and settings. Every month of the CSV, the sales JSON and the synthesis is byte-identical.

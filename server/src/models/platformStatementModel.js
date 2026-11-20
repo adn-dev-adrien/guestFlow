@@ -8,8 +8,7 @@ const { saleChannel } = require('../utils/saleChannel');
 const { captureBucketSplit } = require('../utils/forceItemContribsCapture');
 const correction = require('../utils/platformStatementCorrection');
 const { formatEuros } = require('../utils/reservationLedger');
-const { hasStayStarted } = require('../utils/arrivalMoment');
-const { localNow } = require('../utils/localDate');
+const stayClockModel = require('./stayClockModel');
 
 const HISTORY_LABELS = {
   platformGrossAmount: 'Montant total payé par le client',
@@ -32,6 +31,16 @@ const fail = (status, error, extra = {}) => ({ ok: false, status, error, ...extr
 
 function createPlatformStatementModel(database) {
   const balanceContribsCaptured = (row) => row.accommodationSoldeContribTtc != null;
+  // The fiche's lock is the stay clock's (pricing-components rule 102), read at the gesture's moment.
+  const stayStarted = (id) => {
+    try {
+      const phase = stayClockModel.create(database).phaseForReservation(id, stayClockModel.gestureNow());
+      return Boolean(phase && phase.started);
+    } catch (err) {
+      if (err.code !== 'STAY_CLOCK_INVALID') throw err;
+      return false;
+    }
+  };
 
   /**
    * @param {number} id
@@ -52,8 +61,7 @@ function createPlatformStatementModel(database) {
     }
     const received = flag(stored.balancePaid) || flag(stored.balancePaidCash);
     // Rule 11 — the endpoint serves what the fiche save cannot: a received payout or a started (locked) stay.
-    const now = localNow();
-    if (!received && !hasStayStarted(stored, now.today, now.nowTime)) {
+    if (!received && !stayStarted(stored.id)) {
       return fail(409, 'Séjour à venir : saisir le relevé dans la fiche puis enregistrer.', { code: 'STATEMENT_THROUGH_FICHE' });
     }
     const plan = database.prepare('SELECT COUNT(*) AS n FROM reservation_installments WHERE reservationId = ?').get(stored.id);

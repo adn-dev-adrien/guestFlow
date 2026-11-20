@@ -1,7 +1,7 @@
 {
   "id": "hourly-resources",
   "name": "Ressources à l’heure",
-  "version": "1.7.0",
+  "version": "1.8.0",
   "description": "Louer un équipement par créneau : bain nordique, sauna.",
   "icon": "hot-tub",
   "surfaces": [
@@ -14,7 +14,7 @@
   ],
   "requires": [],
   "guestflow": ">=3.18.0",
-  "sdk": "^2.27.0",
+  "sdk": "^2.32.0",
   "changelog": {
     "1.0.0": [
       "Première version publiée en paquet."
@@ -139,12 +139,65 @@
     ],
     "1.6.1": [
       "Le tarif à l’heure est calculé par la famille d’article « hourly » du calcul des prix ; aucun prix ne change.",
-      "La TVA d’une réservation de ressource est calculée par le composant TVA du cœur ; aucun montant ne change.",
+      "La TVA d’une réservation de ressource est calculée par le composant TVA du cœur ; à 20 %, le net et la TVA peuvent bouger d’un centime, le total ne change pas.",
       "Demande le SDK 2.27 de GuestFlow."
     ],
     "1.7.0": [
       "Sur le planning, un clic sur la carte d’une séance hors séjour ouvre cette réservation dans Calendrier › Ressources.",
       "Demande le SDK 2.27 de GuestFlow."
+    ],
+    "1.8.0": [
+      "La première heure offerte par le logement est comptée au tarif de jour, comme sur un séjour, même si elle tombe dans la tranche du soir : pour les nouvelles réservations seulement, une réservation déjà enregistrée garde son prix tant qu’on ne déplace pas son créneau ni son logement.",
+      "Le prix propre au logement est lu par le cœur de GuestFlow, un seul endroit pour la grille horaire.",
+      "Vendre une heure de bain refuse le créneau déjà pris, au moment même de la vente, avant que la ligne soit écrite.",
+      "Une réservation de ressource garde la trace de la vente hors séjour dont elle fait partie et de l’absence du client (colonnes ajoutées, vides pour l’existant).",
+      "Les arrondis en euros et en centimes passent par un calcul commun du cœur : aucun montant ne change.",
+      "Une séance cochée au planning reste sur la ligne qui la porte quand une ressource a été vendue plusieurs fois.",
+      "Le supplément de soirée des séances placées au sas d’arrivée devient une part de la ligne de la séance tant que cette ligne est à percevoir à l’arrivée : il grandit ou diminue avec les séances, les heures vendues ne bougent pas ; une ligne déjà payée ou vendue avec le séjour garde la ligne « supplément soirée » à part, et un séjour qui en a déjà une la garde (jamais facturé deux fois).",
+      "La chauffe du bain peut se compter à partir de maintenant plutôt que de l’arrivée, pour les commandes passées une semaine avant ; chaque créneau dit s’il est de jour ou de soirée et son supplément.",
+      "L’heure offerte vaut le tarif de jour : placée le soir, elle doit le supplément de soirée, qui fait partie du prix de la séance.",
+      "Le supplément de soirée de séances placées sur des heures que le séjour détient déjà n’est jamais facturé deux fois au sas d’arrivée.",
+      "Une séance dont l'argent est sur une vente hors séjour du cœur n'est plus comptée deux fois dans le journal ni dans le lot de cartes.",
+      "Les ressources à l'heure sont les contextes « Proposés à l'arrivée » des ventes hors séjour (Réglages → Options & ressources → Proposés à l’arrivée).",
+      "L'heure offerte d'une ligne pas encore vendue vaut le tarif de jour partout : le supplément du soir de cette heure se facture à part (sas d'arrivée ou commande), jamais deux fois.",
+      "Le sas d’arrivée d’un client sans séjour devient une petite vente : sa séance, les articles proposés à l’arrivée (boissons…), « Offrir » sur chaque ligne et le reste à payer, calculés par le serveur.",
+      "Un paiement partiel laisse un « reste à percevoir » : la carte du planning affiche « Reste … », puis « Payé » ; le reste se règle plus tard, depuis la réservation, en rouvrant l’arrivée ou par un lien de paiement envoyé sur un clic.",
+      "L’accueil ouvre et rouvre l’arrivée du jour jusqu’à 4 h le lendemain ; une ligne payée et un remboursement restent à l’administrateur.",
+      "« Client absent » ferme la visite sans arrivée : les lignes non payées sont retirées, l’argent déjà pris est gardé.",
+      "La facture Qonto reprend toutes les lignes payées de la visite, une fois le reste soldé ; une séance payée sur la réservation garde son paiement, et si des boissons ou des articles sont vendus à l’arrivée, une seule facture couvre la séance et ces articles.",
+      "Retirer le lien de paiement d’une visite ou l’envoyer par e-mail suit les règles des autres gestes : l’accueil le jour de la séance seulement, personne sur une visite close (client absent, facturée). Un paiement qui solde le reste retire le lien encore ouvert, et un lien payé malgré tout est gardé comme remboursement dû, visible par l’administrateur.",
+      "Un remboursement dû sur une visite s’affiche dans l’arrivée pour l’administrateur, avec « Marquer remboursé » ; l’accueil ne le voit pas.",
+      "L’administrateur peut retirer le lien de paiement d’une visite le lendemain de la séance, même sans arrivée enregistrée.",
+      "Offrir ou retirer une ligne payée d’une visite, avec confirmation, inscrit la somme dans « À rembourser » (bouton « Marquer remboursé ») ; la facture attend ce remboursement.",
+      "Un lien de paiement payé au-delà du reste règle d’abord les lignes encore dues de la visite ; seul ce qui reste est « À rembourser ». Une fois remboursé ou gardé en pourboire, cet argent ne paie plus une ligne ajoutée ensuite, et la confirmation d’une ligne payée annonce la somme réellement à rendre.",
+      "L’accueil ne voit plus l’adresse e-mail du client ni le nom d’un client reconnu, et ne peut plus demander la facture ni saisir l’adresse de facturation.",
+      "L’adresse de facturation n’est enregistrée qu’avec l’arrivée acceptée ; changer le client d’une réservation change celui de sa vente.",
+      "Le serveur dit si « Client absent », « Créer la facture » et « Retirer le lien » sont possibles, et ouvre une nouvelle vente sur le même client après la facture.",
+      "Le taux de TVA saisi au catalogue pour les ressources vaut aussi pour le paiement d’une réservation et sa facture : un seul taux hors séjour.",
+      "Une ressource, un logement ou un client dont une visite a de l’argent sur sa vente ne peut plus être supprimé de force.",
+      "L’avertissement de désinstallation nomme l’argent des visites encaissé sur leur vente ; une vente dont la réservation a disparu reste dans « Ventes hors séjour ».",
+      "« Arrivée » et « Client absent » ne s’affichent que si le serveur les propose, selon l’heure du serveur : le planning ne compare plus le jour avec l’horloge du navigateur.",
+      "L’arrivée d’une visite n’affiche plus de raison de facture qui ne s’applique pas : rien sans Qonto ni pendant un encaissement en cours.",
+      "« Créer la facture dans Qonto » au paiement immédiat est proposé quand le serveur, interrogé avec le paiement saisi, répond que la facture peut être faite : ni l’arrivée ni la réservation ne le devinent plus d’après les moyens de paiement.",
+      "Le sas d’arrivée lit les suppléments de soirée des commandes par la clé de leur bain : un second supplément, numéroté « (2) », n’est plus facturé une seconde fois.",
+      "Au paiement immédiat, l’arrivée et la réservation attendent la réponse du serveur sur la facture avant d’enregistrer, et affichent « Facture non vérifiée pour ce paiement. » avec « Réessayer » si elle échoue ; « Caisse interne » et les autres refus viennent du serveur.",
+      "Au paiement immédiat, un refus ou un échec de la vente de l’arrivée ne s’affiche qu’une fois, sans second message ni second « Réessayer » pour le paiement saisi.",
+      "Vente d’une visite : une ligne payée puis offerte ou retirée, close « rien à rembourser », devient un pourboire et quitte le chiffre d’affaires ; la facture n’est refusée « Caisse interne » que tant que la visite garde de l’argent de la caisse interne ; pendant la saisie, « À rembourser » montre le montant que l’enregistrement laissera.",
+      "La facture Qonto d’une séance indique la TVA que le journal déclare pour cette séance : une séance avec du temps offert à 10 % ne s’écarte plus d’un centime.",
+      "Dans l’arrivée d’une visite, « Réessayer » relance aussi la vérification de la facture du paiement saisi, et la raison sous « Marquer remboursé » dit d’enregistrer d’abord les modifications, quelles qu’elles soient.",
+      "La fenêtre d’arrivée s’affiche d’un bloc : « Proposés à l’arrivée », « Envoyer un lien » et le bloc « Facture » arrivent avec le reste ; la réponse sur la facture remplit ce bloc sans décaler le récapitulatif ni « Encaisser ».",
+      "Réservation payée « Maintenant » : le bloc « Facture » montre aussitôt la case, en attente de la réponse sur la facture, au lieu d’afficher d’abord « La facture se propose une fois le paiement saisi. ».",
+      "Bloc « Facture » en attente de la réponse : l’adresse de facturation est grisée comme la case ; une réponse qui retire le champ saisi laisse le curseur dans la fenêtre au lieu de le perdre.",
+      "Réservation payée « Maintenant » : le bouton indique « Enregistrer et facturer » dès que la case « Facture » s’affiche cochée ; le récapitulatif d’une visite range plusieurs taux de TVA sur une même ligne.",
+      "Quand le calcul d’une arrivée ou d’une réservation échoue après un premier montant, ce montant n’est plus affiché : « — » ou « Prix indisponible » avec « Réessayer », sans paiement à saisir, jusqu’à la réponse suivante ; le temps offert et les quantités restent en place, et « Réessayer » reste affiché pendant le nouvel essai.",
+      "Après un « Réessayer » réussi, le bloc « Facture » d’une arrivée ou d’une réservation attend la réponse pour le nouveau paiement au lieu de réafficher « Facture non vérifiée pour ce paiement. ».",
+      "Après une modification d’une arrivée ou d’une réservation payée « Maintenant », la facture n’est vérifiée qu’une fois le nouveau montant connu : plus de refus « Les moyens font … dus » affiché une seconde, et le bouton garde « Enregistrer et facturer ».",
+      "Arrivée d’une visite : retirer le dernier article après un calcul en échec retire aussi le message et « Réessayer ».",
+      "Arrivée et réservation payées « Maintenant » : pendant que la facture est vérifiée pour le paiement saisi, « Créer la facture dans Qonto » reste grisé (coché ou non comme laissé) au lieu d’afficher la réponse du paiement précédent.",
+      "Arrivée et réservation payées « Maintenant » : un paiement saisi pour un ancien montant n’est jamais enregistré, le bouton attend les lignes du nouveau montant.",
+      "Arrivée et réservation : les lignes de paiement saisies restent telles quelles quand le montant change ou après un calcul en échec ; la ligne CB proposée d’office suit le nouveau montant.",
+      "Arrivée et réservation : le focus reste dans la fenêtre pendant l’enregistrement.",
+      "Demande GuestFlow 4.2 (SDK 2.32)."
     ]
   }
 }

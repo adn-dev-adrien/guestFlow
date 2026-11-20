@@ -8,6 +8,8 @@
  *   onStay:         () => void   « Rester sur la page » (also the backdrop/escape close)
  *   onDiscard:      () => void   « Quitter sans enregistrer » (destructive)
  *   onSaveAndQuit:  () => void   « Enregistrer et quitter » (primary)
+ *   saveDisabledReason: string|null — set while the page cannot save (e.g. the fiche is re-read): « Enregistrer et
+ *                   quitter » is disabled and the reason reads in the body, so the button never does nothing silently
  */
 import React from 'react';
 import { Dialog, DialogTitle, DialogContent, DialogActions, Button, Typography, useMediaQuery } from '@mui/material';
@@ -22,7 +24,7 @@ const ACTIONS_SX = {
   '& > :not(style) ~ :not(style)': { ml: { xs: 0, sm: 1 } },
 };
 
-export default function UnsavedChangesDialog({ open, onStay, onDiscard, onSaveAndQuit }) {
+export default function UnsavedChangesDialog({ open, onStay, onDiscard, onSaveAndQuit, saveDisabledReason = null }) {
   const theme = useTheme();
   const fullScreen = useMediaQuery(theme.breakpoints.down('sm'));
   return (
@@ -32,11 +34,14 @@ export default function UnsavedChangesDialog({ open, onStay, onDiscard, onSaveAn
         <Typography variant="body2">
           Des modifications ne sont pas enregistrées. Les enregistrer avant de quitter ?
         </Typography>
+        {saveDisabledReason && (
+          <Typography id="unsaved-save-held" variant="body2" color="text.secondary" sx={{ mt: 1 }}>{saveDisabledReason}</Typography>
+        )}
       </DialogContent>
       <DialogActions sx={ACTIONS_SX}>
         <Button onClick={onStay} sx={TOUCH_TARGET}>Rester sur la page</Button>
         <Button color="error" onClick={onDiscard} sx={TOUCH_TARGET}>Quitter sans enregistrer</Button>
-        <Button variant="contained" onClick={onSaveAndQuit} sx={TOUCH_TARGET}>Enregistrer et quitter</Button>
+        <Button variant="contained" onClick={onSaveAndQuit} disabled={Boolean(saveDisabledReason)} aria-describedby={saveDisabledReason ? 'unsaved-save-held' : undefined} sx={TOUCH_TARGET}>Enregistrer et quitter</Button>
       </DialogActions>
     </Dialog>
   );

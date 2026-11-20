@@ -178,6 +178,12 @@ commission) stays exactly as correct as it is today.
     (reservation-refunds rule 52). The recap seeds its mode from the stored flags on the first run
     too, so it sends what is stored rather than « Plus tard ».
     ([defer-arrival-complement-to-checkout.md](defer-arrival-complement-to-checkout.md) rule 21.)
+19. **The guest app's orders taken before the arrival are part of the complement it collects** (2026-11-10,
+    `specs/guest-app.md` rules 66 and 71). They land on the arrival complement through the engine's ordinary routing,
+    so the single payment collects them with the rest — no new bucket, no second payment, the mixed-method rules
+    unchanged. The guest-app plugin's read-only SAS step « Commandes Mon séjour » names them before the recap and the
+    recap recalls their total « dans le complément d'arrivée »; « Plus tard » and « Percevoir en fin de séjour » carry
+    them like the rest of the complement. Plugin inactive → nothing changes.
 
 **Edge cases:**
 - Complement already paid before the SAS → no unified block; the existing « ⚠ Le complément était déjà

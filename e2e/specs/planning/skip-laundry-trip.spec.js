@@ -9,7 +9,7 @@
 // API contract (round-trip via `/api/laundry/skips`) and confirms the `/planning` page
 // still mounts cleanly with the skip set non-empty — proving the wiring through
 // `api.listLaundrySkips → useState → LaundryDayCard` doesn't crash.
-import { test, expect } from '@playwright/test';
+import { test, expect } from '../../fixtures/test.js';
 import { farYearWeekday } from '../../fixtures/farYear.js';
 
 // Inside the date window (specs/reservations-backend-mvc.md rule 13): 2099 is refused since 2026-11-02.

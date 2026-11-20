@@ -92,6 +92,7 @@ function register(ctx) {
     core: {
       updateReservation: ctx.core.reservations.update,
       updateBody: ctx.core.reservations.updateBody,
+      platformCommission: ctx.core.reservations.platformCommission,
       suggestBeds: ctx.core.reservations.suggestBeds,
     },
   });

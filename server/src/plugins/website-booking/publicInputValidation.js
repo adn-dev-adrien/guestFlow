@@ -11,6 +11,7 @@
  */
 
 const sdk = require('../sdk');
+const { dayPassed } = sdk.coreModule('stayClock');
 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 const ISO_TIME = /^([01]\d|2[0-3]):[0-5]\d$/;
@@ -120,7 +121,7 @@ function validateStayInput(body = {}, { todayIso } = {}) {
       errors.push({ field: 'endDate', issue: `stay must not exceed ${MAX_STAY_NIGHTS} nights` });
     }
     if (isValidIsoDate(todayIso)) {
-      if (body.startDate < todayIso) errors.push({ field: 'startDate', issue: 'must not be in the past' });
+      if (dayPassed(body.startDate, todayIso)) errors.push({ field: 'startDate', issue: 'must not be in the past' });
       if (daysBetween(todayIso, body.endDate) > MAX_BOOKING_HORIZON_DAYS) {
         errors.push({ field: 'endDate', issue: `must be within ${MAX_BOOKING_HORIZON_DAYS} days from today` });
       }

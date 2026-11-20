@@ -12,7 +12,7 @@
 
 const { extraLineKey } = require('./midStayExtras');
 
-const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
+const { roundMoneyOrZero: round2 } = require('./pricing/money');
 
 function byKey(lines) {
   const out = new Map();

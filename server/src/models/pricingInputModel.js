@@ -19,10 +19,11 @@
  * Queries are the ones the engine ran inline, unchanged.
  */
 const vatRegimeModel = require('./vatRegimeModel');
-const { getApplicableOptions, getApplicableResources } = require('./ports/catalogueProvider');
+const { getApplicableOptions, getApplicableResources, soldArticles } = require('./ports/catalogueProvider');
 const { create: createPaymentLedger } = require('./ports/paymentLedger');
 const settingsProvider = require('./ports/settingsProvider');
 const articles = require('../utils/pricing/articles');
+const { isNamedChannel } = require('../utils/saleChannel');
 const { findBabyBedOption, resolveBillableBabyBeds } = require('../utils/babyBedSupplement');
 
 // GLOBAL per-platform tourist-tax mode resolver (specs/per-platform-tourist-tax-three-way.md). The
@@ -35,7 +36,7 @@ const { findBabyBedOption, resolveBillableBabyBeds } = require('../utils/babyBed
 // to recover the canonical `platformLabel`, then match `platforms.name`. The `propertyId` argument is
 // kept for call-site compatibility but ignored — the mode is global.
 function resolveGlobalPlatformTaxRow(db, platform) {
-  if (!platform || platform === 'direct') return null;
+  if (!isNamedChannel(platform)) return null;
   const needle = String(platform).toLowerCase();
   try {
     let row = db.prepare(
@@ -92,6 +93,19 @@ function load(input) {
   const rules = settings.nights.tariff.rules;
   const optionsById = new Map(getApplicableOptions(db, propertyId).map((option) => [Number(option.id), option]));
   const resourcesById = new Map(getApplicableResources(db, propertyId).map((resource) => [Number(resource.id), resource]));
+  // Rules 13, 74 (owner OD1 « sold lines kept ») — a sale on a stored stay keeps the lines of an article its lodging no longer offers: the engine prices them
+  // from their snapshot instead of dropping them (a sale on a stay that has not started used to delete them; on a started one it refused every sale).
+  // Scoped to the sale pipelines (`storedStaySale`): the reading of a stay and its plain save are left as they were (owner 2026-11-15, no figure moves).
+  if (input.storedStaySale && quoteKind === 'reservation' && Number(bookingId) > 0) {
+    const sold = soldArticles(db, propertyId, bookingId);
+    sold.options.forEach((option) => { if (!optionsById.has(Number(option.id))) optionsById.set(Number(option.id), option); });
+    sold.resources.forEach((resource) => { if (!resourcesById.has(Number(resource.id))) resourcesById.set(Number(resource.id), resource); });
+  }
+  // Rule 74 — on a sale an hourly line already sold keeps the hours it billed: free minutes granted since never re-judge it (a stay sold at 1 h billed
+  // before « 1 h offerte » refused every later sale as « reduced »).
+  const lockedResourceLines = input.storedStaySale && Array.isArray(input.lockedResourceLines)
+    ? input.lockedResourceLines.map((line) => ({ ...line, soldFrozen: true }))
+    : input.lockedResourceLines;
   // specs/per-property-default-options.md — options that are a property DEFAULT configured « offered »
   // (`property_option_defaults.offered = 1`) are INCLUDED in the night rate, not a one-off geste
   // commercial. When such a line is offered we tag it `includedInRate` so the summary renders « Comprise »
@@ -114,6 +128,7 @@ function load(input) {
 
   return {
     ...input,
+    ...(lockedResourceLines !== input.lockedResourceLines ? { lockedResourceLines } : {}),
     property,
     vatRegime,
     vatRate,

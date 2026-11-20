@@ -10,11 +10,18 @@
  * be written on one side and forgotten on the other.
  *
  * `reservationsModel` and `devisModel` both delegate here; neither writes those four tables directly.
+ *
+ * Line identity (specs/pricing-components.md §3 rule 79): every line row has a stable `lineId`, and a save keeps it. A save
+ * stays a DELETE + INSERT in the engine's order (the rows are read back in that order by readers that sort nothing, and a
+ * custom line's `id` is still renumbered), but each line that is sold again is written with the `lineId` and every column
+ * this writer does not know, read from the row it replaces: by article for a catalogue line, by text for a custom line.
  * Column presence is probed once per instance so the minimal schemas used by unit tests degrade instead of
  * throwing. Exposes a `createBookingLinesModel(db)` factory (default instance bound to the production DB).
  */
 
 const db = require('../database');
+const { notDepartureCharge } = require('../utils/departureChargeLines');
+const { matchStoredCustomLines } = require('../utils/storedCustomLines');
 
 function createBookingLinesModel(database) {
   const columnsOf = (table) => {
@@ -49,6 +56,52 @@ function createBookingLinesModel(database) {
   const insertOption = insertInto('reservation_options', OPTION_COLUMNS);
   const insertCustomOption = insertInto('reservation_custom_options', CUSTOM_OPTION_COLUMNS);
   const insertResource = insertInto('reservation_resources', RESOURCE_COLUMNS);
+  // What a save carries across from the line it replaces: every column of the row that this writer does not write — the
+  // `lineId`, and the sale columns of rule 74. Read before the DELETE, by article.
+  const WRITTEN = {
+    reservation_options: ['reservationId', 'optionId', 'quantity', 'unitPrice', 'billedUnits', 'priceType', 'totalPrice', 'offered', 'inComplement',
+      'acompteContribTtc', 'soldeContribTtc', 'cardOccurrences', 'cardPersons', 'cardNights', 'sasArrivalOrigin', 'allowanceUsed'],
+    reservation_resources: ['reservationId', 'resourceId', 'quantity', 'unitPrice', 'billedUnits', 'priceType', 'totalPrice', 'offered', 'inComplement',
+      'acompteContribTtc', 'soldeContribTtc', 'sessions'],
+  };
+  WRITTEN.reservation_custom_options = ['id', 'reservationId', 'description', 'amount', 'offered', 'sortOrder', 'createdAt', 'updatedAt', 'inComplement',
+    'acompteContribTtc', 'soldeContribTtc', 'sasArrivalOrigin', 'sasLineKey', 'quantity'];
+  const carriedColumns = (table, present) => [...present].filter((name) => !WRITTEN[table].includes(name));
+  // Rule 85: an article may be stored on several lines. `get(article)` hands out the carried columns of ONE stored line per call, in the
+  // order the lines were numbered, so each line of a save takes the identity of a different stored line (never two the same `lineId`);
+  // `get(article, lineId)` asks for the line a posted line names (a number no stored line has is a line appended by this save: nothing
+  // carried), a posted line that names none takes the first stored line that no other posted line names. An article with one stored
+  // line answers once, as it always did.
+  class CarriedLines extends Map {
+    // The numbers a save names itself: an unnamed line never takes one of them.
+    reserve(lineIds) { this.named = new Set((lineIds || []).filter((id) => id != null).map(Number)); return this; }
+    // What a posted line is written with. A line the save appends (`newLine`, rule 85) takes the number it was priced under and nothing of any stored line.
+    forLine(article, line) {
+      return line.newLine && line.lineId != null ? { lineId: Number(line.lineId) } : (this.get(article, line.lineId) || {});
+    }
+    get(article, lineId) {
+      const queue = super.get(article);
+      if (!queue || queue.length === 0) return undefined;
+      if (lineId != null) {
+        const at = queue.findIndex((entry) => entry.lineId === Number(lineId));
+        return at >= 0 ? queue.splice(at, 1)[0].columns : undefined;
+      }
+      const at = queue.findIndex((entry) => !(this.named && this.named.has(entry.lineId)));
+      return at >= 0 ? queue.splice(at, 1)[0].columns : undefined;
+    }
+  }
+  const carriedByArticle = (table, present, articleColumn, bookingId) => {
+    const carried = carriedColumns(table, present);
+    const byArticle = new CarriedLines();
+    if (carried.length === 0) return byArticle;
+    const ordered = present.has('lineId') ? ' ORDER BY lineId' : '';
+    for (const row of database.prepare(`SELECT ${articleColumn}, ${carried.join(', ')} FROM ${table} WHERE reservationId = ?${ordered}`).all(bookingId)) {
+      const article = Number(row[articleColumn]);
+      if (!Map.prototype.has.call(byArticle, article)) Map.prototype.set.call(byArticle, article, []);
+      Map.prototype.get.call(byArticle, article).push({ lineId: row.lineId == null ? null : Number(row.lineId), columns: Object.fromEntries(carried.map((name) => [name, row[name]])) });
+    }
+    return byArticle;
+  };
 
   // Option-driven planning cards (specs/option-planning-card.md §3.2) — the selected occurrences.
   const HAS_CARD_OCCURRENCES = hasColumn('reservation_options', 'cardOccurrences');
@@ -63,6 +116,10 @@ function createBookingLinesModel(database) {
   // Client-visibility flag on the options catalog (specs/laundry-bath-mat.md §3 rule 11).
   const HAS_OPTION_DISPLAY_TO_CLIENT = hasColumn('options', 'displayToClient');
 
+  // Rule 26 — the free units a line consumed stay with it (`{ freeUnits, amount }`), NULL when it used none.
+  const allowanceUsedOf = (line) => (Number(line.freeUnits) > 0
+    ? JSON.stringify({ freeUnits: Number(line.freeUnits), amount: Number(line.freeUnitsAmount || 0) })
+    : null);
   const serializeCardOccurrences = (line) => (
     Array.isArray(line.cardOccurrences) && line.cardOccurrences.length > 0
       ? JSON.stringify(line.cardOccurrences)
@@ -96,23 +153,26 @@ function createBookingLinesModel(database) {
     // `acompteContribTtc`/`soldeContribTtc` are owned by the payment-flip path (`updatePayment` →
     // `captureContribsOnFlip`); regular saves preserve whatever the engine returned. Lines in Complément
     // always get NULL contribs — they live 100 % in the Complément entry, never in Acompte/Solde.
-    insertOptions(bookingId, optionLines, sasOriginIds = []) {
+    insertOptions(bookingId, optionLines, sasOriginIds = [], carried = new CarriedLines()) {
       const sasOriginSet = new Set((sasOriginIds || []).map((id) => Number(id)));
       const internalLinenIds = internalLinenOptionIds();
       for (const opt of (optionLines || []).filter((line) => !line.isCustom && !internalLinenIds.has(Number(line.optionId)))) {
         const forced = opt.inComplement ? 1 : 0;
         insertOption({
+          ...carried.forLine(Number(opt.optionId), opt),
           reservationId: bookingId,
           optionId: opt.optionId,
           quantity: opt.quantity || 1,
           unitPrice: Number(opt.unitPrice || 0),
           billedUnits: Number(opt.billedUnits || 0),
           priceType: opt.priceType || 'per_stay',
-          totalPrice: opt.totalPrice || 0,
+          // A line keeps its catalogue amount: a discount (rules 39, 40) is a fact beside it, never a lower stored total.
+          totalPrice: opt.grossTotalPrice ?? opt.totalPrice ?? 0,
           offered: opt.offered ? 1 : 0,
           inComplement: forced,
           acompteContribTtc: forced ? null : (opt.acompteContribTtc != null ? Number(opt.acompteContribTtc) : null),
           soldeContribTtc: forced ? null : (opt.soldeContribTtc != null ? Number(opt.soldeContribTtc) : null),
+          allowanceUsed: allowanceUsedOf(opt),
           ...(HAS_CARD_OCCURRENCES ? { cardOccurrences: serializeCardOccurrences(opt) } : {}),
           // How many covers each moment of a per-person card option serves
           // (specs/card-option-served-persons.md §3.1). NULL = the whole party; the engine resolves it
@@ -124,7 +184,7 @@ function createBookingLinesModel(database) {
       }
     },
 
-    // A fiche save is a DELETE + INSERT, so the SAS-origin marker must be carried over per optionId;
+    // A fiche save is a DELETE + INSERT (rule 79: the identity and the sale columns are carried too), so the SAS-origin marker must be carried over per optionId;
     // otherwise the arrival SAS loses the right to remove its own upsell at the first save
     // (specs/sas-upsells-activate-catalogue-option.md §3.2 rule 9). Guarded: absent column → nothing to carry.
     replaceOptions(bookingId, optionLines) {
@@ -133,17 +193,26 @@ function createBookingLinesModel(database) {
         sasOriginIds = database.prepare('SELECT optionId FROM reservation_options WHERE reservationId = ? AND COALESCE(sasArrivalOrigin, 0) = 1')
           .all(bookingId).map((r) => Number(r.optionId));
       }
+      const carried = carriedByArticle('reservation_options', OPTION_COLUMNS, 'optionId', bookingId)
+        .reserve((optionLines || []).filter((line) => !line.newLine).map((line) => line.lineId));
       database.prepare('DELETE FROM reservation_options WHERE reservationId = ?').run(bookingId);
-      model.insertOptions(bookingId, optionLines, sasOriginIds);
+      model.insertOptions(bookingId, optionLines, sasOriginIds, carried);
     },
 
     // ── Custom (free-text) options ───────────────────────────────────────────────────────────────
+    // Returns what the deleted lines carried (rule 79), one entry per line in the order of the save, for `insertCustomOptions`.
     deleteCustomOptions(bookingId) {
-      database.prepare('DELETE FROM reservation_custom_options WHERE reservationId = ?').run(bookingId);
+      const carriedNames = carriedColumns('reservation_custom_options', CUSTOM_OPTION_COLUMNS);
+      // Rule 90.2: the departure charge lines are not the fiche's — no save posts them, none deletes them.
+      const own = notDepartureCharge(database);
+      const carried = database.prepare(`SELECT ${['id AS rowKey', 'description', ...carriedNames].join(', ')} FROM reservation_custom_options WHERE reservationId = ?${own} ORDER BY sortOrder, id`)
+        .all(bookingId).map((row) => ({ id: Number(row.rowKey), description: String(row.description || '').trim(), columns: Object.fromEntries(carriedNames.map((name) => [name, row[name]])) }));
+      database.prepare(`DELETE FROM reservation_custom_options WHERE reservationId = ?${own}`).run(bookingId);
+      return carried;
     },
 
-    // The labels of the lines the arrival SAS wrote, one entry per row. A fiche save is a DELETE +
-    // INSERT, so `insertCustomOptions` carries the marker over by label; without it the SAS lost its
+    // The lines the arrival SAS wrote, one entry per row. A fiche save is a DELETE +
+    // INSERT, so `insertCustomOptions` carries the marker over to the line that takes the row (by `id`, loop t17 D17-1); without it the SAS lost its
     // own lines at the first save and a re-opened SAS billed them again
     // (specs/hourly-resource-quantity-and-sas-scheduling.md §3.6 rule 33).
     // Each entry is `{ description, sasLineKey, quantity }`: the key of a line a plugin billed rides along
@@ -152,23 +221,34 @@ function createBookingLinesModel(database) {
       if (!CUSTOM_OPTION_COLUMNS.has('sasArrivalOrigin')) return [];
       const key = CUSTOM_OPTION_COLUMNS.has('sasLineKey') ? 'sasLineKey' : 'NULL AS sasLineKey';
       const qty = CUSTOM_OPTION_COLUMNS.has('quantity') ? 'quantity' : '1 AS quantity';
-      return database.prepare(`SELECT description, ${key}, ${qty} FROM reservation_custom_options WHERE reservationId = ? AND COALESCE(sasArrivalOrigin, 0) = 1`)
-        .all(bookingId).map((r) => ({ description: String(r.description || '').trim(), sasLineKey: r.sasLineKey || null, quantity: Number(r.quantity) || 1 }));
+      return database.prepare(`SELECT id, description, ${key}, ${qty} FROM reservation_custom_options WHERE reservationId = ? AND COALESCE(sasArrivalOrigin, 0) = 1`)
+        .all(bookingId).map((r) => ({ id: Number(r.id), description: String(r.description || '').trim(), sasLineKey: r.sasLineKey || null, quantity: Number(r.quantity) || 1 }));
     },
 
-    insertCustomOptions(bookingId, optionLines, sasOriginLabels = []) {
-      const pendingSasLabels = [...sasOriginLabels];
+    // `carried`: what `deleteCustomOptions` returned for the lines this save replaces, one entry per stored line. Each line takes the row
+    // `matchStoredCustomLines` gives it — the one matcher every judge of the save reads (loop t17 D17-1): by `customOptionId` first, so a
+    // renamed line keeps its number, moment and discount (loop t13 S13-1) and two lines of one text keep their own rows, then by normalised
+    // text (case and spacing), never for a line the caller appends (`newLine`). A save's controller hands the lines already resolved
+    // (`pricedCustomLinesNamingRows`); the SAS marker (rule 33) rides the row it was stored on.
+    insertCustomOptions(bookingId, optionLines, sasOriginLabels = [], carried = []) {
+      const customLines = (optionLines || []).filter((line) => line.isCustom);
+      const amountOf = (line) => Number(line.originalTotalPrice || line.grossTotalPrice || line.totalPrice || 0);
+      const rows = matchStoredCustomLines(customLines.map((line) => ({
+        customOptionId: line.customOptionId, newLine: line.newLine, description: String(line.title || line.description || ''), amount: amountOf(line),
+      })), carried || []);
+      const sasOfRow = new Map((sasOriginLabels || []).filter((entry) => entry.id != null).map((entry) => [Number(entry.id), entry]));
       let sortOrder = 0;
-      for (const line of optionLines || []) {
-        if (!line.isCustom) continue;
+      for (const line of customLines) {
         const forced = line.inComplement ? 1 : 0;
         const description = String(line.title || line.description || '').trim();
-        const sasIndex = pendingSasLabels.findIndex((l) => l.description === description);
-        const sasLine = sasIndex >= 0 ? pendingSasLabels.splice(sasIndex, 1)[0] : null;
+        const row = rows[sortOrder];
+        const sasLine = row ? sasOfRow.get(Number(row.id)) || null : null;
+        const kept = row ? row.columns : {};
         insertCustomOption({
+          ...kept,
           reservationId: bookingId,
           description,
-          amount: Number(line.originalTotalPrice || line.totalPrice || 0),
+          amount: amountOf(line),
           offered: line.offered ? 1 : 0,
           sortOrder,
           inComplement: forced,
@@ -183,25 +263,32 @@ function createBookingLinesModel(database) {
 
     replaceCustomOptions(bookingId, optionLines) {
       const sasOriginLabels = model.sasOriginCustomLabels(bookingId);
-      model.deleteCustomOptions(bookingId);
-      model.insertCustomOptions(bookingId, optionLines, sasOriginLabels);
+      const carried = model.deleteCustomOptions(bookingId);
+      model.insertCustomOptions(bookingId, optionLines, sasOriginLabels, carried);
     },
 
     // ── Resources ────────────────────────────────────────────────────────────────────────────────
-    deleteResources(bookingId) {
+    // Returns what the deleted lines carried (rule 79), by resource id: the caller hands it back to `insertResourceLine` for
+    // each line it sells again.
+    deleteResources(bookingId, postedLines = []) {
+      const carried = carriedByArticle('reservation_resources', RESOURCE_COLUMNS, 'resourceId', bookingId)
+        .reserve((postedLines || []).filter((line) => !line.newLine).map((line) => line.lineId));
       database.prepare('DELETE FROM reservation_resources WHERE reservationId = ?').run(bookingId);
+      return carried;
     },
 
-    insertResourceLine(bookingId, rr, unitPrice, qty, priceType) {
+    insertResourceLine(bookingId, rr, unitPrice, qty, priceType, carried = null) {
       const forced = rr.inComplement ? 1 : 0;
       // specs/devis-offered-resource-parity.md §3 rule 1 — an OFFERED line is priced 0 € by the engine,
       // and `||` used to read that legitimate zero as « no total supplied » and re-bill the resource at
       // its catalogue price. The line was then stored `offered = 1` WITH its price, so the devis PDF
       // printed it unmarked and subtracted it from the accommodation row. The fallback now only covers
       // a caller that supplies no total at all.
-      const suppliedTotal = rr.totalPrice == null || rr.totalPrice === '' ? null : Number(rr.totalPrice);
+      const grossTotal = rr.grossTotalPrice ?? rr.totalPrice;
+      const suppliedTotal = grossTotal == null || grossTotal === '' ? null : Number(grossTotal);
       const billedTotal = suppliedTotal != null ? suppliedTotal : Number(unitPrice) * Number(qty);
       insertResource({
+        ...(carried || {}),
         reservationId: bookingId,
         resourceId: rr.resourceId,
         quantity: qty,
@@ -220,9 +307,9 @@ function createBookingLinesModel(database) {
     // The engine's `resourceLines` straight from a quote: each line already carries its unit price,
     // billed units and price type.
     replaceResources(bookingId, resourceLines) {
-      model.deleteResources(bookingId);
+      const carried = model.deleteResources(bookingId, resourceLines);
       for (const line of resourceLines || []) {
-        model.insertResourceLine(bookingId, line, Number(line.unitPrice || 0), Number(line.quantity || 1), line.priceType);
+        model.insertResourceLine(bookingId, line, Number(line.unitPrice || 0), Number(line.quantity || 1), line.priceType, carried.forLine(Number(line.resourceId), line));
       }
     },
 
@@ -246,13 +333,13 @@ function createBookingLinesModel(database) {
     // and sessions included.
     copyLineGraph(fromId, toId) {
       model.replaceOptions(toId, database.prepare('SELECT * FROM reservation_options WHERE reservationId = ?').all(fromId)
-        .map((o) => ({
+        .map(({ lineId, ...o }) => ({
           ...o,
           cardOccurrences: parseJsonArray(o.cardOccurrences),
         })));
       // `reservation_custom_options` stores one `amount`; the writer speaks the engine's shape
       // (`title` + `originalTotalPrice`), so the row is translated rather than spread as-is.
-      model.replaceCustomOptions(toId, database.prepare('SELECT * FROM reservation_custom_options WHERE reservationId = ? ORDER BY sortOrder, id').all(fromId)
+      model.replaceCustomOptions(toId, database.prepare(`SELECT * FROM reservation_custom_options WHERE reservationId = ?${notDepartureCharge(database)} ORDER BY sortOrder, id`).all(fromId)
         .map((o) => ({
           isCustom: true,
           title: o.description,
@@ -262,9 +349,9 @@ function createBookingLinesModel(database) {
           acompteContribTtc: o.acompteContribTtc,
           soldeContribTtc: o.soldeContribTtc,
         })));
-      model.deleteResources(toId);
+      const carried = model.deleteResources(toId);
       for (const r of database.prepare('SELECT * FROM reservation_resources WHERE reservationId = ?').all(fromId)) {
-        model.insertResourceLine(toId, { ...r, sessions: parseJsonArray(r.sessions) }, r.unitPrice, r.quantity, r.priceType);
+        model.insertResourceLine(toId, { ...r, sessions: parseJsonArray(r.sessions) }, r.unitPrice, r.quantity, r.priceType, carried.get(Number(r.resourceId)));
       }
       model.replaceNights(toId, database.prepare('SELECT * FROM reservation_nights WHERE reservationId = ?').all(fromId));
     },
@@ -277,13 +364,13 @@ function createBookingLinesModel(database) {
       const options = {};
       if (HAS_CARD_OCCURRENCES) {
         for (const row of database.prepare('SELECT optionId, cardOccurrences FROM reservation_options WHERE reservationId = ?').all(bookingId)) {
-          options[Number(row.optionId)] = datesOf(row.cardOccurrences);
+          options[Number(row.optionId)] = [...(options[Number(row.optionId)] || []), ...datesOf(row.cardOccurrences)];
         }
       }
       const resources = {};
       if (HAS_RESOURCE_SESSIONS) {
         for (const row of database.prepare('SELECT resourceId, sessions FROM reservation_resources WHERE reservationId = ?').all(bookingId)) {
-          resources[Number(row.resourceId)] = parseJsonArray(row.sessions).map((item) => String((item && item.date) || ''));
+          resources[Number(row.resourceId)] = [...(resources[Number(row.resourceId)] || []), ...parseJsonArray(row.sessions).map((item) => String((item && item.date) || ''))];
         }
       }
       return { options, resources };
@@ -296,7 +383,11 @@ function createBookingLinesModel(database) {
       const columns = [HAS_CARD_PERSONS ? 'cardPersons' : 'NULL AS cardPersons', HAS_CARD_NIGHTS ? 'cardNights' : 'NULL AS cardNights'];
       const counts = {};
       for (const row of database.prepare(`SELECT optionId, ${columns.join(', ')} FROM reservation_options WHERE reservationId = ?`).all(bookingId)) {
-        counts[Number(row.optionId)] = { cardPersons: row.cardPersons, cardNights: row.cardNights };
+        // Rule 85: a stay may store several lines of one article; a count any of them stores is not re-judged (`others` only when there are several).
+        const entry = { cardPersons: row.cardPersons, cardNights: row.cardNights };
+        const held = counts[Number(row.optionId)];
+        if (held) held.others = [...(held.others || []), entry];
+        else counts[Number(row.optionId)] = entry;
       }
       return counts;
     },
@@ -319,13 +410,18 @@ function createBookingLinesModel(database) {
         present.has('soldeContribTtc') ? 'soldeContribTtc' : 'NULL as soldeContribTtc',
       ].join(', ');
       const lockedOptionLines = database.prepare(`
-        SELECT optionId, quantity, unitPrice, billedUnits, priceType, totalPrice, offered,
-          ${routingSelect(OPTION_COLUMNS)}
+        SELECT ${OPTION_COLUMNS.has('lineId') ? 'lineId, ' : ''}optionId, quantity, unitPrice, billedUnits, priceType, totalPrice, offered,
+          ${routingSelect(OPTION_COLUMNS)}${OPTION_COLUMNS.has('allowanceUsed') ? ', allowanceUsed' : ''}
         FROM reservation_options WHERE reservationId = ?
-      `).all(bookingId);
+      `).all(bookingId)
+        // Rule 41 — what a line consumed is the line's own stored fact; a line stored without it keeps the snapshot's reading.
+        .map((line) => {
+          if (line.allowanceUsed == null) { const { allowanceUsed, ...rest } = line; return rest; }
+          return line;
+        });
       const lockedResourceLines = database.prepare(`
-        SELECT resourceId, quantity, unitPrice, billedUnits, priceType, totalPrice, offered,
-          ${routingSelect(RESOURCE_COLUMNS)}
+        SELECT ${RESOURCE_COLUMNS.has('lineId') ? 'lineId, ' : ''}resourceId, quantity, unitPrice, billedUnits, priceType, totalPrice, offered,
+          ${routingSelect(RESOURCE_COLUMNS)}${RESOURCE_COLUMNS.has('components') ? ', components' : ''}
         FROM reservation_resources WHERE reservationId = ?
       `).all(bookingId);
       // The property-level tariff the booking was sold under (tariff-recipes rule 12bis). NULL for a row

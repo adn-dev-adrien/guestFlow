@@ -48,7 +48,7 @@ async function proposedIntake() {
     commissionPercent: () => 10,
     propertyOptions: (pid) => optionsModel.listForProperty(pid),
     getReservation: (rid) => reservationsModel.getByIdWithDetails(rid),
-    core: { updateReservation: core.reservations.update, updateBody: core.reservations.updateBody, suggestBeds: core.reservations.suggestBeds },
+    core: { platformCommission: (figures) => require('../../../utils/platformCommission').commissionOf(figures), updateReservation: core.reservations.update, updateBody: core.reservations.updateBody, suggestBeds: core.reservations.suggestBeds },
   });
   await service.runPass();
   const intake = idb.prepare('SELECT id, parsed FROM gdf_intakes').get();

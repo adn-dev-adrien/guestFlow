@@ -11,15 +11,28 @@ function seedCart(lines) {
 }
 
 describe('cart — payment choice and the server total', () => {
-  it('rule 33: both ways offered, « Ajouter à ma note » first; the button follows the choice with the server total', async () => {
+  it('rules 33, 86: both ways offered in one radio group, « Payer par carte » first and selected; the button follows the choice with the server total', async () => {
     seedCart([{ kind: 'option', id: 11, quantity: 2 }]);
     stubApi(baseRoutes({ 'POST /orders/quote': QUOTE }));
     renderApp('/panier');
-    await screen.findByRole('button', { name: 'Ajouter à ma note · 9 €' });
-    expect(screen.getByRole('radio', { name: /Ajouter à ma note/ })).toHaveAttribute('aria-checked', 'true');
-    fireEvent.click(screen.getByRole('radio', { name: /Payer maintenant/ }));
-    expect(await screen.findByRole('button', { name: 'Payer 9 €' })).toBeEnabled();
-    expect(screen.queryByRole('button', { name: 'Ajouter à ma note · 9 €' })).toBeNull();
+    await screen.findByRole('button', { name: 'Payer 9 €' });
+    const [first, second] = screen.getAllByRole('radio');
+    expect(first).toHaveTextContent('Payer par carte');
+    expect(first).toHaveAttribute('aria-checked', 'true');
+    expect(second).toHaveAttribute('aria-checked', 'false');
+    expect(first.className).toBe(second.className);
+    fireEvent.click(screen.getByRole('radio', { name: /Ajouter à ma note/ }));
+    expect(await screen.findByRole('button', { name: 'Ajouter à ma note · 9 €' })).toBeEnabled();
+    expect(screen.queryByRole('button', { name: 'Payer 9 €' })).toBeNull();
+  });
+
+  it('rules 67, 86: before the arrival the note reads the server\'s words and the card is still first', async () => {
+    seedCart([{ kind: 'option', id: 11, quantity: 2 }]);
+    stubApi(baseRoutes({ 'GET /shop': { ...SHOP, noteLabel: 'Régler à l’arrivée' }, 'POST /orders/quote': QUOTE }));
+    renderApp('/panier');
+    await screen.findByRole('button', { name: 'Payer 9 €' });
+    fireEvent.click(screen.getByRole('radio', { name: /Régler à l’arrivée/ }));
+    expect(await screen.findByRole('button', { name: 'Régler à l’arrivée · 9 €' })).toBeEnabled();
   });
 
   it('rule 33: card unavailable → the note is stated, not offered', async () => {
@@ -28,7 +41,7 @@ describe('cart — payment choice and the server total', () => {
     renderApp('/panier');
     await screen.findByRole('button', { name: 'Ajouter à ma note · 9 €' });
     expect(screen.queryByRole('radio')).toBeNull();
-    expect(screen.getByText('Sur votre note')).toBeInTheDocument();
+    expect(screen.getByText('Ajouter à ma note')).toBeInTheDocument();
   });
 
   it('rule 25: a 0 € quote needs no payment: « Réserver »', async () => {
@@ -56,7 +69,7 @@ describe('cart — payment choice and the server total', () => {
       'POST /orders/quote': { ...QUOTE, needsDelivery: true },
       'POST /shop/delivery-slots': {
         needed: true, mode: 'pickup', asap: { at: '2099-07-07T15:30:00.000Z', label: 'Dès que possible — vers 17 h 30' },
-        days: [{ date: '2099-07-07', label: 'Aujourd’hui', slots: [{ at: '2099-07-07T15:30:00.000Z', label: '17 h 30' }, { at: '2099-07-07T16:00:00.000Z', label: '18 h' }] }],
+        days: [{ date: '2099-07-07', label: 'Aujourd’hui', available: true, times: [{ at: '2099-07-07T15:30:00.000Z', label: '17 h 30' }, { at: '2099-07-07T16:00:00.000Z', label: '18 h' }] }],
       },
     }));
     renderApp('/panier');
@@ -72,6 +85,8 @@ describe('cart — payment choice and the server total', () => {
       'GET /orders/7': { id: 7, createdAt: '2099-07-07T10:00:00.000Z', lines: [{ label: '2 × Cidre', totalLabel: '9 €' }], totalLabel: '9 €', payment: 'note', status: 'confirmed', statusLabel: 'Sur votre note', promise: 'Livrée à La Granja aujourd’hui vers 17 h 30.' },
     }));
     renderApp('/panier');
+    await screen.findByRole('button', { name: 'Payer 9 €' });
+    fireEvent.click(screen.getByRole('radio', { name: /Ajouter à ma note/ }));
     fireEvent.click(await screen.findByRole('button', { name: 'Ajouter à ma note · 9 €' }));
     expect(await screen.findByRole('heading', { name: 'Commande envoyée' })).toBeInTheDocument();
     expect(screen.getByText('Livrée à La Granja aujourd’hui vers 17 h 30.')).toBeInTheDocument();

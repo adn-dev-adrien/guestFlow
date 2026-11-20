@@ -15,6 +15,7 @@
  */
 
 const { captureContribsOnFlip, captureBucketSplit } = require('./forceItemContribsCapture');
+const { syncStay: syncAllocations } = require('./paymentAllocationsSync');
 
 const BUCKETS = { deposit: ['deposit'], balance: ['balance'], full: ['deposit', 'balance'] };
 const COLUMNS = {
@@ -79,6 +80,8 @@ function recordStayPayment({ db, reservationsModel, emit }, { reservationId, buc
       reservationsModel.releaseStayBucket(id, b);
       flipped.push(b);
     });
+    // Rule 74 — the allocations of the money just received, in the same transaction.
+    syncAllocations(db, id);
   }).immediate();
 
   if (flipped.length) {

@@ -11,9 +11,9 @@
  * Other plugins add read-only pages through `sas.arrival.steps` / `sas.departure.steps` (rule 10).
  */
 
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
-  Dialog, DialogContent, DialogActions, Button, Box, Typography, Stack,
+  Dialog, DialogContent, Button, Box, Typography, Stack,
   CircularProgress, TextField, Link, Divider, Chip, Switch, useMediaQuery,
   LinearProgress, IconButton,
 } from '@mui/material';
@@ -48,9 +48,9 @@ import CheckIcon from '@mui/icons-material/Check';
 import { useNavigate } from 'react-router';
 import {
   api, getPlatformColor, formatPlatformLabel, ConfirmDialog, OccurrenceGrid, LoadingState, ErrorAlert,
-  useToast, SasKeypadCode, formatCurrency, displayDate, displayDateLong, PRICE_TYPE_LABELS,
+  useToast, useAppDialogs, SasKeypadCode, formatCurrency, displayDate, displayDateLong, PRICE_TYPE_LABELS,
   sasLockTitle, sasLockMessage, Slot, Contribution, useSlot, WheatIcon, BaguetteIcon, StatusBadge,
-  TenderLines, TENDER_TEXTS,
+  TenderLines, TENDER_TEXTS, tendersForDue, StaySalesSection, useSaleComponentsReady, FocusKeeper, MoneyActions,
 } from '../sdk';
 import OfferableLine from './OfferableLine';
 import buildArrivalDraft from './arrivalDraft';
@@ -60,7 +60,7 @@ import placePluginSteps from './placePluginSteps';
 import stepNumbering from './sasStepNumbering';
 
 const round2 = (v) => Math.round((Number(v) || 0) * 100) / 100;
-const EXTRA_GUESTS_OFFER_KEY = 'extraGuests:0';
+const REFRESH_FAILED = 'Données du sas non rechargées : les montants affichés peuvent être périmés.';
 // French display for stepper values: integers as-is, halves with a comma (« 1,5 »).
 function formatStepperValue(value) {
   return Number.isInteger(value) ? String(value) : String(value).replace('.', ',');
@@ -132,7 +132,8 @@ function StepLayout({ Icon, color, children }) {
           <Icon sx={{ fontSize: 48 }} />
         </Box>
       )}
-      <Box sx={{ width: '100%', '& .MuiTypography-body1': { fontSize: '1.1rem' }, '& .MuiTypography-body2': { fontSize: '0.95rem' } }}>{children}</Box>
+      {/* Loop t22 UI22-1 — an answer (or « Réessayer ») that removes the control holding the focus leaves it on the page's content. */}
+      <FocusKeeper sx={{ width: '100%', '& .MuiTypography-body1': { fontSize: '1.1rem' }, '& .MuiTypography-body2': { fontSize: '0.95rem' } }}>{children}</FocusKeeper>
     </Stack>
   );
 }
@@ -207,6 +208,12 @@ const MAX_SAS_COUNT = 999;
 // an end-of-stay complement collected elsewhere takes no charge nor sale).
 const saidByTheServer = (error) => error?.error === 'INVALID_QUANTITY' || error?.code === 'END_OF_STAY_ALREADY_COLLECTED';
 function RecapPreviewError({ error, onRetry, onBack, unavailable = 'Total indisponible : pas de réponse du serveur.' }) {
+  // Loop t22 UI22-3 — the failure disables the page's money buttons: if one of them held the focus, the way out takes it.
+  const action = useRef(null);
+  useLayoutEffect(() => {
+    const active = document.activeElement;
+    if (action.current && (!active || active === document.body || active.disabled)) action.current.focus({ preventScroll: true });
+  }, []);
   if (saidByTheServer(error)) {
     return (
       <Box role="alert" sx={(t) => ({ bgcolor: alpha(t.palette.error.main, 0.08), color: 'error.dark', borderRadius: 1.5, px: 1.5, py: 1 })}>
@@ -221,7 +228,7 @@ function RecapPreviewError({ error, onRetry, onBack, unavailable = 'Total indisp
         <Typography variant="body2" sx={{ fontWeight: 600 }}>
           {refused ? (RECAP_REFUSALS[error?.error] || 'Le récapitulatif est refusé.') : unavailable}
         </Typography>
-        <Button size="small" color="inherit" onClick={refused ? onBack : onRetry} sx={{ minHeight: 44 }}>
+        <Button ref={action} size="small" color="inherit" onClick={refused ? onBack : onRetry} sx={{ minHeight: 44 }}>
           {refused ? 'Revenir à l’étape' : 'Réessayer'}
         </Button>
       </Stack>
@@ -259,9 +266,14 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
   const fullScreen = useMediaQuery(theme.breakpoints.down('sm'));
   const navigate = useNavigate();
   const { showError } = useToast();
+  const { confirm } = useAppDialogs();
 
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(false);
+  // « Déjà payé » / « Ventes du séjour » code is fetched with the SAS; the wizard shows once both are there, so the recap
+  // never grows under the operator's thumb (plugins-phase-1-sdk rule 54, loop t20 UI20-1).
+  const salesReady = useSaleComponentsReady(open);
+  const sasWaiting = loading || !salesReady;
   const [error, setError] = useState('');
   const [committing, setCommitting] = useState(false);
   const [stepKey, setStepKey] = useState(null);
@@ -369,6 +381,20 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
   // key) are handed to it as `gateStep`, its fallback.
   const portalContributions = useSlot('sas.portal');
   const [pluginStepData, setPluginStepData] = useState({});
+  // A plugin step that changed what the server holds (an order amended at the SAS) asks for the SAS data again: the payload is
+  // replaced in place, the wizard keeps its page, and the recap's last answer is forgotten so its figures are read afresh.
+  const [dataRevision, setDataRevision] = useState(0);
+  // Rule 117 (loop t9 UI9-1) — whether the plan asks a stay amount, from the latest preview; `null` until one answered in this run.
+  const [planAsksStay, setPlanAsksStay] = useState(null);
+  const refreshSasData = useCallback(async () => {
+    try {
+      setData(await api.getReservationSas(reservationId, mode));
+      setError('');
+    } catch {
+      setError(REFRESH_FAILED);
+    }
+    setDataRevision((n) => n + 1);
+  }, [reservationId, mode]);
   const pluginStepFor = (key) => pluginSteps.find((c) => c.key === key) || null;
   // specs/plugins-phase-3c-hourly-resources.md rule 6 — a step without `load` reads what its plugin
   // put in the SAS payload (`pluginData[pluginId]`). A step that collects keeps a value: `initialValue`
@@ -467,17 +493,9 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
         // not the SAS was committed: an offered extra may come from the fiche, or from the other SAS.
         const seed = new Set();
         if (mode === 'arrival') {
-          for (const o of (res.options || [])) {
-            if (Number(o.inComplement || 0) !== 1 || Number(o.offered || 0) !== 1) continue;
-            if (Number(o.sasArrivalOrigin || 0) === 1) continue; // seeded below, on its own SAS key
-            seed.add(Number(o.isCustom || 0) === 1 ? `custom:${o.customOptionId}` : `option:${o.optionId}`);
-          }
-          for (const rs of (res.resources || [])) {
-            if (Number(rs.inComplement || 0) === 1 && Number(rs.offered || 0) === 1) seed.add(`resource:${rs.resourceId}`);
-          }
-          if (Number(res.extraGuestComplementSurcharge || 0) > 0 && Number(res.extraGuestSurchargeOffered || 0) === 1) {
-            seed.add(EXTRA_GUESTS_OFFER_KEY);
-          }
+          // Loop t6 S6-3 — the server names each offered line by the recap's own key (a later line of an article carries its lineId),
+          // so the commit offers exactly that line, never the article's first one.
+          (d.arrivalSeed?.offeredKeys || []).forEach((key) => seed.add(key));
         } else {
           // specs/sas-departure-recap-server-side.md rule 12 — the server says which stored lines the
           // check-out carries and which lines (carried, recalled, and the SAS's own once committed) are
@@ -632,7 +650,9 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
         // specs/collect-stay-payment-at-check-in.md §3.2 rule 5 — the door-money pages are grouped,
         // caution first. Served `applicable: false` when there is nothing to collect (the ordinary
         // prepaid stay) and for a reception-only user, who never sees the stay amounts.
-        data.stayPayment?.applicable ? 'stayPayment' : null,
+        // pricing-components rule 117 (loop t9 UI9-1): once a preview answered, the PLAN decides — a gesture can raise the stay the
+        // stored row leaves at 0, or settle the one it asks. The served block only stands in before the first answer.
+        (planAsksStay ?? Boolean(data.stayPayment?.applicable)) ? 'stayPayment' : null,
         hasOptions ? 'options' : null,
         data.breakfast?.applicable ? 'breakfast' : null,
         r.bedLinenAlert ? 'linen' : null,
@@ -673,7 +693,7 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
       'recap',
     ].filter(Boolean), shownPluginSteps);
   }, [data, mode, r, linenOk, missingAsk, extinguisherOk, pluginSteps, pluginStepData, sasLock,
-    breakfastSold, cateringWanted, portalLead]);
+    breakfastSold, cateringWanted, portalLead, planAsksStay]);
 
   const goNext = useCallback(() => {
     const i = activeKeys.indexOf(stepKey);
@@ -694,6 +714,45 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
   const goBack = useCallback(() => {
     const i = activeKeys.indexOf(stepKey);
     if (i > 0) setStepKey(activeKeys[i - 1]);
+  }, [activeKeys, stepKey]);
+
+  // Loop t22 (owner decision 2026-11-18: lost focus is a defect on every path) — a step change replaces the page and the footer: the
+  // control that moved the wizard (« Suivant », an answer, « Précédent ») is often gone and the focus fell on the page, or React kept
+  // the same button for the next page's answer (« Non » of the keys became « Non » of the extinguisher, « Suivant » became « Valider et
+  // terminer »), so a second Enter answered a question never read. After every transition, forward or back, the focus goes to the new
+  // step's title in the band when it was lost or sat on the band or the footer; a focus inside the page itself stays.
+  const stepTitleRef = useRef(null);
+  const bandRef = useRef(null);
+  const footerRef = useRef(null);
+  const shownStepRef = useRef(null);
+  useLayoutEffect(() => {
+    const shown = `${stepKey}:${commitWarning ? 1 : 0}`;
+    const previous = shownStepRef.current;
+    shownStepRef.current = shown;
+    if (previous === null || previous === shown || !stepTitleRef.current) return;
+    const active = document.activeElement;
+    const lost = !active || active === document.body || !active.isConnected || active.disabled === true;
+    const onChrome = [bandRef.current, footerRef.current].some((zone) => zone && zone.contains(active));
+    if (lost || onChrome) stepTitleRef.current.focus({ preventScroll: true });
+  }, [stepKey, commitWarning]);
+  useEffect(() => { if (!open) shownStepRef.current = null; }, [open]);
+
+  // A plugin page whose data just emptied (its last order removed from the page itself) is no longer an active page: hand over to
+  // the recap rather than leave « Suivant » reading an index of -1.
+  useEffect(() => {
+    if (!stepKey || activeKeys.length === 0 || activeKeys.includes(stepKey) || !pluginSteps.some((c) => c.key === stepKey)) return;
+    setStepKey(activeKeys.includes('recap') ? 'recap' : activeKeys[activeKeys.length - 1]);
+  }, [activeKeys, stepKey, pluginSteps]);
+
+  // The stay page left by the plan (rule 117, loop t9 UI9-1): the operator is on it when the answer says nothing is due — go on to the
+  // page that followed it rather than leave « Suivant » reading an index of -1.
+  const previousKeysRef = useRef(activeKeys);
+  useEffect(() => {
+    const previous = previousKeysRef.current;
+    previousKeysRef.current = activeKeys;
+    if (stepKey !== 'stayPayment' || activeKeys.length === 0 || activeKeys.includes(stepKey)) return;
+    const after = previous.slice(previous.indexOf(stepKey) + 1).find((key) => activeKeys.includes(key));
+    setStepKey(after || 'recap');
   }, [activeKeys, stepKey]);
 
   // ---- totals ----
@@ -778,8 +837,9 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
     offered,
   }) : null), [mode, data, cleaningOk, missingDep, extinguisherOk, extinguisherQty, extinguisherTariffs, storedKeys, offered]);
   // Rule 17 / rule 16 — the pages that show money ask the server; the others leave it alone.
+  // Rule 117 (loop t8 S8-1) — the stay page too: its « Séjour à régler » is the plan's, once the recap's gestures moved the solde.
   const previewShown = mode === 'arrival'
-    ? ['recap', 'breakfastMornings', 'cateringItems'].includes(stepKey)
+    ? ['recap', 'breakfastMornings', 'cateringItems', 'stayPayment'].includes(stepKey)
     : ['recap', 'extinguisherItems'].includes(stepKey);
   const draft = mode === 'arrival' ? arrivalDraft : departureDraft;
   const preview = useSasRecapPreview({
@@ -787,9 +847,48 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
     reservationId,
     draft,
     enabled: previewShown && Boolean(draft) && !sasLock,
-    resetKey: `${open ? 1 : 0}:${reservationId}:${mode}`,
+    resetKey: `${open ? 1 : 0}:${reservationId}:${mode}:${dataRevision}`,
   });
   const recap = preview.recap;
+  useEffect(() => { setPlanAsksStay(null); }, [open, reservationId, mode, dataRevision]);
+  // Before paint: the steps and the recap's headings follow the plan in the frame the recap lands in (loop t21 UI21-1).
+  useLayoutEffect(() => {
+    if (mode === 'arrival' && recap) setPlanAsksStay(Boolean(recap.stayPayment?.applicable));
+  }, [mode, recap]);
+  // Mock M3 — « Percevoir maintenant »: the lines the stay sold for its departure join what is collected at the door. The line API moves
+  // them (the server refuses a moment that is no longer possible); the SAS payload and the recap are read again, the wizard stays where it is.
+  const collectSalesNow = async (refs) => {
+    let refused = null;
+    for (const ref of refs) {
+      try {
+        // eslint-disable-next-line no-await-in-loop
+        await api.patchExtraLine(reservationId, ref, { collectAt: 'arrival' });
+      } catch (err) {
+        refused = err;
+        break;
+      }
+    }
+    try {
+      const fresh = await api.getReservationSas(reservationId, mode);
+      setData((held) => ({ ...held, staySales: fresh?.staySales ?? null }));
+      preview.retry();
+    } catch (err) {
+      showError(err?.message || 'Lecture du sas impossible.');
+    }
+    if (refused) showError(refused.message || 'Cette vente ne peut pas être perçue maintenant.');
+  };
+  // Mock M3 — « Offrir » on a line already paid: the line API judges it (409 OVERPAID until confirmed, the excess is then owed back from the fiche). The
+  // refusal goes back to the section, which asks; once offered the SAS payload and the recap are read again.
+  const offerPaidSale = async (ref, force) => {
+    await api.patchExtraLine(reservationId, ref, { offered: true, forceOverpayment: Boolean(force) });
+    try {
+      const fresh = await api.getReservationSas(reservationId, mode);
+      setData((held) => ({ ...held, staySales: fresh?.staySales ?? null }));
+      preview.retry();
+    } catch (err) {
+      showError(err?.message || 'Lecture du sas impossible.');
+    }
+  };
   // specs/mixed-method-payments.md rule 45 — reception never splits; the departure lines only count where the recap has
   // something to collect (audit R34-C-M1).
   const canSplitPayment = data ? data.canSplitPayment !== false : false;
@@ -797,6 +896,10 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
   // specs/mixed-method-payments.md rule 32 — the arrival lines only stand for the single payment (one amount asked).
   const arrivalSplitActive = mode === 'arrival' && arrivalTenderOpen && Boolean(recap && recap.unifiable)
     && activeKeys.includes('stayPayment') && !splitSettlement;
+  // Loop t25 — the lines' report counts only for the due on screen (`tendersForDue`): right after the recap's due moved, the older report
+  // (and its shortfall choice) is pending, for the button and for the commit.
+  const arrivalTendersNow = tendersForDue(arrivalTenders, recap ? Math.round(Number(recap.totalAtArrival) * 100) : null);
+  const departureTendersNow = tendersForDue(departureTenders, recap ? Math.round(Number(recap.grandTotal) * 100) : null);
   // specs/sas-departure-recap-server-side.md rule 9 — a stored line's key is recomputed by the server at
   // every preview (a mid-stay sync can rewrite the detail between the load and the recap): the draft
   // follows the keys of the LAST answer, and a line the server reports offered under a key never seen
@@ -877,7 +980,45 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [breakfastServed, breakfastSold, breakfastFoodFor]);
+  // Rules 23, 105 (loop t6 S6-4) — a commit that offers a line the guest already paid is judged like the fiche: the server answers 409
+  // OVERPAID with what it would owe back; once the operator confirms, the same commit goes again with `forceOverpayment`. « Garder »
+  // (loop t7 UI7-2) puts the paid lines the server names (`overpaymentKeys`) back to billed, so the recap and « Valider » agree with it.
+  const withPaidLineConfirm = async (send, body) => {
+    try {
+      return await send(body);
+    } catch (e) {
+      // Reception is answered no amount (reception-role-checkin-only rule 18): there is nothing to confirm, the refusal is shown as is —
+      // and the lines it names are put back to billed, as « Garder » does (loop t8 A8-2), so the next « Valider » goes through.
+      if (e?.code === 'OVERPAID' && e.overpaymentTtc === undefined && Array.isArray(e.overpaymentKeys) && e.overpaymentKeys.length > 0) {
+        const refused = e.overpaymentKeys;
+        setOffered((prev) => new Set([...prev].filter((key) => !refused.includes(key))));
+      }
+      // Loop t9 A9-4 — a paid line whose money is owed back stays offered for reception: the lines the refusal names go back to offered.
+      if (e?.code === 'LINE_OWED' && Array.isArray(e.owedKeys) && e.owedKeys.length > 0) {
+        const owed = e.owedKeys;
+        setOffered((prev) => new Set([...prev, ...owed]));
+      }
+      if (e?.code !== 'OVERPAID' || e.overpaymentTtc === undefined) throw e;
+      const amount = formatCurrency(Number(e.overpaymentTtc) || 0);
+      const ok = await confirm({
+        title: 'Ligne déjà payée',
+        message: `L’offrir rend ${amount} au client (à rembourser depuis la fiche).`,
+        confirmLabel: `Offrir · ${amount} à rembourser`,
+        cancelLabel: 'Garder',
+        confirmColor: 'error',
+      });
+      if (!ok) {
+        const kept = Array.isArray(e.overpaymentKeys) ? e.overpaymentKeys : [];
+        if (kept.length > 0) setOffered((prev) => new Set([...prev].filter((key) => !kept.includes(key))));
+        return { cancelled: true };
+      }
+      return send({ ...body, forceOverpayment: true });
+    }
+  };
   const commit = async () => {
+    // Loop t25 — never send lines (or a shortfall choice) answering another due than the one on screen: the button is disabled then too.
+    const splitNow = mode === 'departure' ? (departureSplitActive ? departureTendersNow : undefined) : (arrivalSplitActive ? arrivalTendersNow : undefined);
+    if (splitNow !== undefined && !(splitNow && splitNow.canSubmit && splitNow.live())) return;
     setCommitting(true); setError('');
     try {
       if (mode === 'arrival') {
@@ -900,8 +1041,8 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
           arrivalPaymentMode: arrivalSplitActive ? 'split' : arrivalPayMode,
           arrivalPaymentSplit: splitSettlement,
           ...(arrivalSplitActive ? {
-            arrivalPaymentTenders: arrivalTenders ? arrivalTenders.tenders : [],
-            ...(arrivalTenders && arrivalTenders.shortfall ? { arrivalPaymentShortfall: arrivalTenders.shortfall } : {}),
+            arrivalPaymentTenders: arrivalTendersNow ? arrivalTendersNow.tenders : [],
+            ...(arrivalTendersNow && arrivalTendersNow.shortfall ? { arrivalPaymentShortfall: arrivalTendersNow.shortfall } : {}),
           } : {}),
           complementSettled: arrivalPayMode === 'card' || arrivalPayMode === 'cash',
           complementPaidCash: arrivalPayMode === 'cash',
@@ -913,6 +1054,9 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
           stayPaidCash: stayPayMode === 'cash',
           // Rule 22 — what the recap showed, compared by the server and never used as an amount.
           displayedArrivalTotal: recap ? recap.arrivalComplementTotal : undefined,
+          // Pricing-components rule 117 (loop t8 S8-1) — the « Séjour » the recap showed: the server marks paid that, or refuses and the
+          // recap is read again.
+          displayedStayDue: recap && activeKeys.includes('stayPayment') ? recap.stayDue : undefined,
         };
         // The composition page ran — either for a booked breakfast or for one just sold (its counts
         // would otherwise be written back as zeros).
@@ -927,7 +1071,8 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
           payload.breakfastBread = breakfastFood.bread;
           payload.breakfastNote = breakfastNote;
         }
-        const result = await api.commitArrivalSas(reservationId, payload);
+        const result = await withPaidLineConfirm((body) => api.commitArrivalSas(reservationId, body), payload);
+        if (result && result.cancelled) return;
         // Rule 22 — recorded on another total than the one shown: the dialog stays open on the warning,
         // and « Fermer » hands over to the page (`onDone` closes the dialog and reloads the planning).
         if (result && result.warning) {
@@ -938,7 +1083,7 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
         // specs/sas-departure-recap-server-side.md rules 4, 22 — the draft the preview priced (intent only:
         // the server prices it again and keeps the stored lines), the settlement, and the total the
         // recap showed, compared by the server and never used as an amount.
-        const result = await api.commitDepartureSas(reservationId, {
+        const result = await withPaidLineConfirm((body) => api.commitDepartureSas(reservationId, body), {
           cautionReturned: activeKeys.includes('cautionReturn') ? (cautionReturned === true) : undefined,
           ...departureDraft,
           // specs/sas-recap-payment-buttons.md — settlement mode → mark every positive complement paid
@@ -947,10 +1092,11 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
           complementsPaidCash: !departureSplitActive && departurePayMode === 'cash',
           displayedDepartureTotal: recap ? recap.grandTotal : undefined,
           ...(departureSplitActive ? {
-            complementsTenders: departureTenders ? departureTenders.tenders : [],
-            ...(departureTenders && departureTenders.shortfall ? { complementsShortfall: departureTenders.shortfall } : {}),
+            complementsTenders: departureTendersNow ? departureTendersNow.tenders : [],
+            ...(departureTendersNow && departureTendersNow.shortfall ? { complementsShortfall: departureTendersNow.shortfall } : {}),
           } : {}),
         });
+        if (result && result.cancelled) return;
         if (result && result.warning) {
           setCommitWarning(result.warning);
           return;
@@ -968,6 +1114,7 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
       // Inline (visible in the fullscreen dialog) + toast (app-wide feedback channel).
       setError(message || "Échec de l'enregistrement.");
       showError(message || "Échec de l'enregistrement du SAS.");
+      if (e?.code === 'STAY_DUE_CHANGED') preview.retry();
     } finally {
       setCommitting(false);
     }
@@ -1022,11 +1169,11 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
   // when the server answers, and until then the last figures stay, dimmed. No figure of ours fills the gap.
   function renderDepartureRecap() {
     if (!recap) {
-      return preview.error && !preview.pending
+      return preview.error
         ? <RecapPreviewError error={preview.error} onRetry={preview.retry} onBack={backToRefusingStep} />
         : <LoadingState />;
     }
-    const failed = Boolean(preview.error) && !preview.pending;
+    const failed = preview.failed;
     const shown = (value) => (failed ? '—' : formatCurrency(value));
     const lineText = (l) => {
       const qty = Number(l.qty || 0);
@@ -1040,7 +1187,7 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
         key={`${l.group}${l.key || i}`}
         text={lineText(l)}
         offered={l.offerable && l.key ? isOffered(l.key) : false}
-        onToggle={l.offerable && l.key ? () => toggleOffered(l.key) : undefined}
+        onToggle={l.offerable && l.key && !l.offerLocked ? () => toggleOffered(l.key) : undefined}
       />
     );
     const ownLines = recap.lines.filter((l) => l.group !== 'recalled');
@@ -1056,7 +1203,8 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
         )}
         {/* specs/mid-stay-notes.md §3.5 rule 20 — read-only reminder: these prestations were
             already collected during the stay, they are NOT part of the total to collect here. */}
-        {recap.midStaySettled > 0 && (
+        {data?.staySales && <StaySalesSection section={data.staySales} onOffer={sasLock ? null : offerPaidSale} />}
+        {recap.midStaySettled > 0 && !data?.staySales?.lines?.length && (
           <Typography variant="body2" color="text.secondary" sx={{ fontStyle: 'italic', fontVariantNumeric: 'tabular-nums' }}>
             Déjà réglé en séjour : {shown(recap.midStaySettled)}
           </Typography>
@@ -1097,9 +1245,10 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
               </Typography>
             </>
           )}
-          {preview.pending && (
-            <LinearProgress aria-label="Calcul du total" sx={{ height: 2, mt: 0.5, borderRadius: 1 }} color="secondary" />
-          )}
+          {/* Its 2 px are kept while idle: a re-price never moves what follows (loop t21 UI21-1). */}
+          <Box sx={{ height: 2, mt: 0.5 }}>
+            {preview.pending && <LinearProgress aria-label="Calcul du total" sx={{ height: 2, borderRadius: 1 }} color="secondary" />}
+          </Box>
         </Box>
         {/* Rule 24 — the operator's adjustment on the fiche wins; the computed figure stays visible. */}
         {!failed && recap.adjusted?.endOfStay && (
@@ -1125,7 +1274,10 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
             <Typography variant="body2" sx={{ fontWeight: 600 }}>Règlement</Typography>
             {!departureSplitActive && <PaymentModeButtons value={departurePayMode} onChange={setDeparturePayMode} showDefer={false} />}
             {departureSplitActive && (
-              <TenderLines dueCents={Math.round(Number(recap.grandTotal) * 100)} onChange={setDepartureTenders} autoFocus />
+              // Loop t24 — the lines the operator typed come back as typed when the block reappears (a recovery, the due back from 0).
+              // Loop t25 UI25-2 — the first amount takes the focus only when the operator opens the block (the toggle empties the lines); a
+              // remount with lines of their own (a recovery, the due back from 0) leaves the focus on the control they just used.
+              <TenderLines dueCents={Math.round(Number(recap.grandTotal) * 100)} onChange={setDepartureTenders} initialDraft={departureTenders ? departureTenders.draft : null} autoFocus={!departureTenders} />
             )}
             {/* specs/mixed-method-payments.md rule 45 — reception records the check-out with one method. */}
             {canSplitPayment && <Button
@@ -1146,7 +1298,7 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
   }
 
   function renderStepContent() {
-    if (loading) return <LoadingState py={5} />;
+    if (sasWaiting) return <LoadingState py={5} />;
     if (error && !data) return <ErrorAlert message={error} />;
     if (!data) return null;
 
@@ -1225,12 +1377,21 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
             {caution === 'aucune' && <Chip label="Aucune caution pour ce séjour" color="error" variant="outlined" sx={{ alignSelf: 'flex-start' }} />}
           </Stack>
         );
-      case 'stayPayment':
+      case 'stayPayment': {
+        // Rule 117 (loop t22 UI22-3) — the amounts are the plan's: « — » until it answered, and while it fails. A failure says so with
+        // « Réessayer » (as the breakfast page), and the settlement buttons wait for an amount: none can be chosen on « — ».
+        const stayUnknown = !recap || preview.failed;
         return (
-          <SasStayPaymentPage stayPayment={data.stayPayment} value={stayPayMode}>
-            <PaymentModeButtons value={stayPayMode} onChange={setStayPayMode} showDefer deferLabel="Pas maintenant" />
-          </SasStayPaymentPage>
+          <Stack spacing={1.5}>
+            <SasStayPaymentPage stayPayment={recap ? recap.stayPayment : data.stayPayment} pending={stayUnknown} value={stayPayMode}>
+              <PaymentModeButtons value={stayPayMode} onChange={setStayPayMode} showDefer deferLabel="Pas maintenant" disabled={stayUnknown} />
+            </SasStayPaymentPage>
+            {preview.error && (
+              <RecapPreviewError error={preview.error} onRetry={preview.retry} onBack={backToRefusingStep} unavailable="Montant indisponible" />
+            )}
+          </Stack>
         );
+      }
       case 'options': {
         const opts = (r.options || []);
         const reslist = (r.resources || []);
@@ -1372,7 +1533,7 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
         const bf = salesOffer.breakfast;
         const chosen = breakfastMornings.filter((m) => m.checked).length;
         const served = servedFor(bf, breakfastServed);
-        const sale = recap && !preview.error ? recap.sales?.breakfast : null;
+        const sale = recap && !preview.failed ? recap.sales?.breakfast : null;
         return (
           <Stack spacing={1}>
             <Typography variant="body1" sx={{ fontWeight: 600 }}>Quels matins ?</Typography>
@@ -1434,7 +1595,7 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
               const picked = Boolean(cateringPicked[o.optionId]);
               const served = servedFor(o, cateringServed[o.optionId]);
               const units = o.showsPlanningCard ? chosen : Number(cateringUnits[o.optionId]) || 0;
-              const sale = recap && !preview.error
+              const sale = recap && !preview.failed
                 ? (recap.sales?.catering?.options || []).find((x) => Number(x.optionId) === Number(o.optionId)) : null;
               const amount = money(sale ? sale.amount : null);
               return (
@@ -1520,7 +1681,7 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
               );
             })}
             <Typography variant="body2" sx={{ fontWeight: 700, pt: 1, ...previewDim }}>
-              Total restauration : {money(recap && !preview.error ? recap.sales?.catering?.amount ?? 0 : null)}
+              Total restauration : {money(recap && !preview.failed ? recap.sales?.catering?.amount ?? 0 : null)}
             </Typography>
             {preview.error && (
               <RecapPreviewError error={preview.error} onRetry={preview.retry} onBack={backToRefusingStep} unavailable="Montant indisponible" />
@@ -1579,8 +1740,12 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
               <>
                 <Divider />
                 <Typography variant="body2" sx={{ fontWeight: 700, fontVariantNumeric: 'tabular-nums', ...previewDim }}>
-                  Sous-total : {recap && !preview.error ? formatCurrency(recap.extinguisherTotal) : '—'}
+                  Sous-total : {recap && !preview.failed ? formatCurrency(recap.extinguisherTotal) : '—'}
                 </Typography>
+                {/* Loop t22 UI22-3 — a failed preview says so, with its way out, instead of « — » for ever. */}
+                {preview.error && (
+                  <RecapPreviewError error={preview.error} onRetry={preview.retry} onBack={backToRefusingStep} unavailable="Montant indisponible" />
+                )}
               </>
             )}
           </Stack>
@@ -1596,11 +1761,11 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
           // may be deferred to the check-out while the other is collected at the door.
           const stayStep = activeKeys.includes('stayPayment');
           if (!recap) {
-            return preview.error && !preview.pending
+            return preview.error
               ? <RecapPreviewError error={preview.error} onRetry={preview.retry} onBack={backToRefusingStep} />
               : <LoadingState />;
           }
-          const failed = Boolean(preview.error) && !preview.pending;
+          const failed = preview.failed;
           const total = recap.arrivalComplementTotal;
           const stayDue = stayStep ? recap.stayDue : 0;
           // specs/single-payment-at-check-in.md §3.1 rule 1 — both sides collectible at the door, the
@@ -1623,11 +1788,12 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
               <Typography variant="sectionHeader">
                 {stayStep ? 'Récapitulatif — à percevoir' : 'Récapitulatif — complément à percevoir'}
               </Typography>
+              <StaySalesSection section={data?.staySales} onCollectNow={mode === 'arrival' && !sasLock ? collectSalesNow : null} onOffer={mode === 'departure' && !sasLock ? offerPaidSale : null} />
               {stayStep && !unifiedPayment && (
                 <>
                   <Typography variant="body1" sx={{ fontWeight: 600, fontVariantNumeric: 'tabular-nums', ...previewDim }}>Séjour : {shown(stayDue)}</Typography>
                   <Typography variant="body2" sx={{ fontWeight: 600 }}>Règlement du séjour</Typography>
-                  <PaymentModeButtons value={stayPayMode} onChange={setStayPayMode} showDefer deferLabel="Pas maintenant" />
+                  <PaymentModeButtons value={stayPayMode} onChange={setStayPayMode} showDefer deferLabel="Pas maintenant" disabled={settleBlocked} />
                   {stayPayMode === 'defer' && (
                     <Typography variant="body2" color="text.secondary">Le séjour reste dû (rien n'est encaissé).</Typography>
                   )}
@@ -1660,7 +1826,7 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
                       key={`d${l.key || i}`}
                       text={recapLineText(l)}
                       offered={l.offerable && l.key ? isOffered(l.key) : false}
-                      onToggle={l.offerable && l.key ? () => toggleOffered(l.key) : undefined}
+                      onToggle={l.offerable && l.key && !l.offerLocked ? () => toggleOffered(l.key) : undefined}
                     />
                   ))
                   : recap.existingTotal > 0 && <Typography variant="body2">Déjà dû : <strong>{shown(recap.existingTotal)}</strong></Typography>}
@@ -1670,7 +1836,7 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
                     prefix="+ "
                     text={recapLineText(l)}
                     offered={l.offerable && l.key ? isOffered(l.key) : false}
-                    onToggle={l.offerable && l.key ? () => toggleOffered(l.key) : undefined}
+                    onToggle={l.offerable && l.key && !l.offerLocked ? () => toggleOffered(l.key) : undefined}
                   />
                 ))}
               </Box>
@@ -1695,9 +1861,10 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
                     Total à percevoir à l'arrivée : {formatCurrency(recap.totalAtArrival)}
                   </Typography>
                 )}
-                {preview.pending && (
-                  <LinearProgress aria-label="Calcul du total" sx={{ height: 2, mt: 0.5, borderRadius: 1 }} color="secondary" />
-                )}
+                {/* Its 2 px are kept while idle: a re-price never moves what follows (loop t21 UI21-1). */}
+                <Box sx={{ height: 2, mt: 0.5 }}>
+                  {preview.pending && <LinearProgress aria-label="Calcul du total" sx={{ height: 2, borderRadius: 1 }} color="secondary" />}
+                </Box>
               </Box>
               {/* Rule 24 — the operator's adjustment on the fiche wins; the computed figure stays visible. */}
               {!failed && recap.adjusted && (
@@ -1721,8 +1888,14 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
                   {!arrivalTenderOpen && (
                     <PaymentModeButtons value={arrivalPayMode} onChange={setArrivalPayMode} showDefer deferLabel="Plus tard" disabled={settleBlocked} />
                   )}
-                  {arrivalTenderOpen && (
-                    <TenderLines dueCents={Math.round(Number(recap.totalAtArrival) * 100)} onChange={setArrivalTenders} disabled={settleBlocked} autoFocus />
+                  {/* Loop t24 A24-2 — the lines are typed against the answer's total: after a failed recompute no line keeps the
+                      older amount; they come back as the operator left them with the next answer (mixed-method-payments rule 59).
+                      Loop t25 UI25-2 — and without taking the focus: only the operator's opening of the block focuses the first amount. */}
+                  {arrivalTenderOpen && !failed && (
+                    <TenderLines dueCents={Math.round(Number(recap.totalAtArrival) * 100)} onChange={setArrivalTenders} initialDraft={arrivalTenders ? arrivalTenders.draft : null} disabled={settleBlocked} autoFocus={!arrivalTenders} />
+                  )}
+                  {arrivalTenderOpen && failed && (
+                    <Typography variant="body2" color="text.secondary" data-testid="tenders-unknown">À encaisser : —</Typography>
                   )}
                   <Button
                     size="small"
@@ -1788,6 +1961,7 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
               value={pluginStepValues[stepKey]}
               onChange={setPluginStepValue(stepKey)}
               reservationId={r.id}
+              onRefresh={refreshSasData}
             />
           </Contribution>
         );
@@ -1797,7 +1971,7 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
 
   // ---- footer (page-specific forward actions) ----
   function renderActions() {
-    if (loading || !data) return null;
+    if (sasWaiting || !data) return null;
     if (sasLock) return <Button variant="contained" onClick={onClose}>Fermer</Button>;
     const quit = null;
     const next = (label = 'Suivant') => <Button variant="contained" onClick={goNext}>{label}</Button>;
@@ -1913,10 +2087,13 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
         // Rule 20 / rule 19 of the departure spec — never commit against a total the operator has not seen.
         const waiting = !preview.fresh;
         // specs/mixed-method-payments.md §6 — with the lines open, the button names what it collects.
-        const tenders = mode === 'departure' ? (departureSplitActive ? departureTenders : null) : (arrivalSplitActive ? arrivalTenders : null);
+        const tenders = mode === 'departure' ? (departureSplitActive ? departureTendersNow : null) : (arrivalSplitActive ? arrivalTendersNow : null);
         const splitting = mode === 'departure' ? departureSplitActive : arrivalSplitActive;
         const splitDue = recap ? Number(mode === 'departure' ? recap.grandTotal : recap.totalAtArrival) || 0 : 0;
-        const splitLabel = TENDER_TEXTS.collect(formatCurrency(tenders && tenders.gapCents > 0 ? tenders.receivedCents / 100 : splitDue));
+        // Loop t24 A24-2 — after a failed recompute the amount is unknown: the button names no figure of the older answer.
+        // Loop t25 — while the lines have not reported for the due on screen (`tenders` null) the label names that due, never an older
+        // report's amount, and the button waits; « — » only when the due itself is unknown (a failed recompute).
+        const splitLabel = TENDER_TEXTS.collect(preview.failed ? '—' : formatCurrency(tenders && tenders.gapCents > 0 ? tenders.receivedCents / 100 : splitDue));
         return <>{quit}
           <Button
             variant="contained"
@@ -1942,7 +2119,7 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
   }
 
   function renderBody() {
-    if (loading) return <LoadingState />;
+    if (sasWaiting) return <LoadingState />;
     if (error && !data) return <ErrorAlert message={error} />;
     if (!data) return null;
     if (sasLock) {
@@ -1988,14 +2165,14 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
     <Dialog open={open} onClose={committing ? undefined : onClose} maxWidth="sm" fullWidth fullScreen={fullScreen}
       disableAutoFocus disableEnforceFocus disableRestoreFocus>
       {/* Mode-coloured header band (specs/arrival-departure-sas.md §6 refonte). The ✕ IS the Quitter. */}
-      <Box sx={{ bgcolor: modeColor, color: 'common.white', px: { xs: 2, sm: 3 }, pt: 1.5, pb: stepIdx >= 0 ? 1 : 1.5 }}>
+      <Box ref={bandRef} sx={{ bgcolor: modeColor, color: 'common.white', px: { xs: 2, sm: 3 }, pt: 1.5, pb: stepIdx >= 0 ? 1 : 1.5 }}>
         <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center' }}>
           {stepIdx > 0 && (
             <IconButton onClick={goBack} disabled={committing} sx={{ color: 'common.white', ml: -0.5 }} aria-label="Précédent"><ArrowBackIcon /></IconButton>
           )}
           {StepIcon && <StepIcon sx={{ fontSize: 28 }} />}
           <Box sx={{ flex: 1, minWidth: 0 }}>
-            <Typography variant="sectionHeader" sx={{ display: 'block', lineHeight: 1.2, textTransform: 'uppercase', letterSpacing: 0.5, color: 'inherit' }}>{bandTitle}</Typography>
+            <Typography ref={stepTitleRef} tabIndex={-1} data-testid="sas-step-title" data-step={stepKey} variant="sectionHeader" sx={{ display: 'block', lineHeight: 1.2, textTransform: 'uppercase', letterSpacing: 0.5, color: 'inherit', outline: 'none' }}>{bandTitle}</Typography>
             {r && <Typography variant="caption" noWrap sx={{ display: 'block', opacity: 0.9 }}>{r.firstName} {r.lastName} · {r.propertyName}</Typography>}
           </Box>
           {/* specs/reception-role-checkin-only.md §3.4 — hidden for the reception role (no reservation
@@ -2021,15 +2198,18 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
           </Box>
         )}
       </Box>
-      <DialogContent dividers sx={{ p: { xs: 2, sm: 3 }, minHeight: 240 }}>
+      {/* specs/plugins-phase-1-sdk.md rule 58 (I4) — the body is a focus region too: a page replaced while its control held the focus (the
+          recap's commit, a step that changes) leaves the focus in the dialog, never on the page. */}
+      <FocusKeeper component={DialogContent} dividers sx={{ p: { xs: 2, sm: 3 }, minHeight: 240 }}>
         {renderBody()}
         {error && data && <Typography color="error" variant="body2" sx={{ mt: 2 }}>{error}</Typography>}
-      </DialogContent>
+      </FocusKeeper>
       {/* Reading order on a phone: the primary action, rendered last, lands at the bottom under the
           thumb (specs/ui-review-2026-10-19-operations.md rule 1); on the right from sm. */}
-      <DialogActions sx={{ p: { xs: 2, sm: 2 }, pb: { xs: 'calc(16px + env(safe-area-inset-bottom, 0px))', sm: 2 }, gap: 1, flexDirection: { xs: 'column', sm: 'row' }, justifyContent: { sm: 'flex-end' }, '& > :not(style) ~ :not(style)': { ml: 0 }, '& .MuiButton-root': { width: { xs: '100%', sm: 'auto' }, py: 1.5, fontSize: '1rem', minHeight: 48 } }}>
+      {/* specs/plugins-phase-1-sdk.md rule 58 (I4) — the commit goes busy on its click: the focus stays in the footer. */}
+      <MoneyActions ref={footerRef} sx={{ p: { xs: 2, sm: 2 }, pb: { xs: 'calc(16px + env(safe-area-inset-bottom, 0px))', sm: 2 }, gap: 1, flexDirection: { xs: 'column', sm: 'row' }, justifyContent: { sm: 'flex-end' }, '& > :not(style) ~ :not(style)': { ml: 0 }, '& .MuiButton-root': { width: { xs: '100%', sm: 'auto' }, py: 1.5, fontSize: '1rem', minHeight: 48 } }}>
         {renderActions()}
-      </DialogActions>
+      </MoneyActions>
     </Dialog>
     <ConfirmDialog
       open={breakfastWarnOpen}
@@ -2040,6 +2220,7 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
       confirmLabel="Continuer"
       cancelLabel="Modifier"
       confirmColor="warning"
+      onExited={() => { if (stepTitleRef.current) stepTitleRef.current.focus({ preventScroll: true }); }}
     />
     </>
   );

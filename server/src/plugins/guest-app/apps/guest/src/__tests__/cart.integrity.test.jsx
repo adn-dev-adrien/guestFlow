@@ -34,7 +34,7 @@ const sessionsQuote = (sessions) => ({
 describe('cart — a failed quote (rule 32)', () => {
   it('leaves no total to order: the button waits for a quote that succeeds', async () => {
     seedCart([{ kind: 'option', id: 11, quantity: 2 }], { 'option:11': { title: 'Cidre', max: 10 } });
-    stubApi(baseRoutes({
+    stubApi(baseRoutes({ 'GET /shop': { ...SHOP, canPayCard: false },
       'POST /orders/quote': (body) => (body.lines[0].quantity === 2
         ? { lines: [{ kind: 'option', id: 11, title: 'Cidre', quantity: 2, total: 9, totalLabel: '9 €' }], total: 9, totalLabel: '9 €' }
         : { status: 500, error: { code: 'QUOTE_FAILED', message: 'Le total n’a pas pu être calculé.' } }),
@@ -52,7 +52,7 @@ describe('cart — a failed quote (rule 32)', () => {
 describe('cart — a bath session no longer free (rule 29)', () => {
   it('blocks the order, is removed on its own, and the order opens again', async () => {
     seedCart([{ kind: 'resource', id: 5, sessions: [S1, S2] }], { 'resource:5': { title: 'Bain nordique' } });
-    stubApi(baseRoutes({ 'POST /orders/quote': (body) => sessionsQuote(body.lines[0].sessions) }));
+    stubApi(baseRoutes({ 'GET /shop': { ...SHOP, canPayCard: false }, 'POST /orders/quote': (body) => sessionsQuote(body.lines[0].sessions) }));
     renderApp('/panier');
     const user = userEvent.setup();
     expect(await screen.findByText('Retirez d’abord ce qui n’est plus disponible.')).toBeInTheDocument();
@@ -68,7 +68,7 @@ describe('cart — a bath session no longer free (rule 29)', () => {
     seedCart([{ kind: 'resource', id: 5, sessions: [S1, S2] }], { 'resource:5': { title: 'Bain nordique' } });
     stubApi(baseRoutes({
       'GET /shop': { ...SHOP, categories: [{ name: 'Bien-être', items: [BATH] }] },
-      'GET /shop/resources/5/slots': { days: [{ date: '2099-07-07', label: 'mar. 7 juil.', slots: [{ start: '17:00', end: '18:00', state: 'free', priceLabel: '30 €' }] }] },
+      'GET /shop/resources/5/slots': { days: [{ date: '2099-07-07', label: 'mar. 7 juil.', available: true, slots: [{ start: '17:00', end: '18:00', state: 'free', priceLabel: '30 €' }] }] },
       'POST /orders/quote': (body) => sessionsQuote(body.lines[0].sessions),
     }));
     renderApp('/boutique/bain/5');
@@ -81,7 +81,7 @@ describe('cart — a bath session no longer free (rule 29)', () => {
 describe('cart — the article bound counts what the cart holds (rules 24, 37quater)', () => {
   it('the sheet lets add only what is left of the bound', async () => {
     seedCart([{ kind: 'option', id: 11, quantity: 9 }], { 'option:11': { title: 'Cidre', max: 10 } });
-    stubApi(baseRoutes({ 'POST /orders/quote': (body) => ({ lines: body.lines.map((l) => ({ ...l, title: 'Cidre', totalLabel: '4,50 €' })), total: 4.5, totalLabel: '4,50 €' }) }));
+    stubApi(baseRoutes({ 'GET /shop': { ...SHOP, canPayCard: false }, 'POST /orders/quote': (body) => ({ lines: body.lines.map((l) => ({ ...l, title: 'Cidre', totalLabel: '4,50 €' })), total: 4.5, totalLabel: '4,50 €' }) }));
     renderApp('/boutique');
     const user = userEvent.setup();
     await user.click(await screen.findByRole('button', { name: /^Cidre, 4,50 €/ }));

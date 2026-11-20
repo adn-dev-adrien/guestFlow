@@ -65,6 +65,7 @@ function gateResources({ db, bookingId, selectedResources, lockedResourceLines }
   if (stored.length === 0) return unchanged;
 
   const kept = stored.map((line) => ({
+    ...(line.lineId != null ? { lineId: Number(line.lineId) } : {}),
     resourceId: Number(line.resourceId),
     quantity: Number(line.quantity || 0),
     offered: Number(line.offered || 0) === 1,

@@ -17,7 +17,7 @@
 import React, { useEffect, useState } from 'react';
 import { Box, Button, Chip, Stack, Typography } from '@mui/material';
 import { api, PlatformChip, StatusBadge, TransactionRef, useToast } from '../sdk';
-import { money, CONFIDENCE_STATUS } from './reconciliationShared';
+import { money, CONFIDENCE_STATUS, coveredLabel } from './reconciliationShared';
 
 /**
  * BankRefs — the identifiers of a bank credit (specs/mollie-rolling-reserve-and-incoming-payments.md rule 12): the
@@ -99,7 +99,7 @@ function BankRow({ label, side, amountCents, auto = false, alsoCovers = [] }) {
       </Typography>
       <Typography component="span" variant="body2" color="text.secondary" sx={{ overflowWrap: 'anywhere' }}>
         {side.counterparty}{side.reference ? ` · « ${side.reference} »` : ''}
-        {alsoCovers.length > 0 && ` · couvre aussi ${alsoCovers.map((c) => `${c.clientName || 'client'} (${c.label})`).join(', ')}`}
+        {alsoCovers.length > 0 && ` · couvre aussi ${alsoCovers.map((c) => coveredLabel(c)).join(', ')}`}
       </Typography>
       {auto && <Chip size="small" variant="outlined" label="auto" />}
     </Box>
@@ -125,7 +125,7 @@ export function BankCell({ item }) {
           {b.auto && <Chip size="small" variant="outlined" label="auto" sx={{ ml: 0.75, height: 20 }} />}
           <Typography variant="caption" color="text.secondary" component="div" sx={{ overflowWrap: 'anywhere' }}>
             {b.counterparty}
-            {(b.alsoCovers || []).length > 0 && ` · couvre aussi ${b.alsoCovers.map((c) => `${c.clientName || 'client'} (${c.label})`).join(', ')}`}
+            {(b.alsoCovers || []).length > 0 && ` · couvre aussi ${b.alsoCovers.map((c) => coveredLabel(c)).join(', ')}`}
           </Typography>
           <BankRefs refs={b.refs} />
           <MollieStatementState side={b} />
@@ -142,7 +142,7 @@ export function BankCell({ item }) {
           ))}
           {proposal.alsoCovers.length > 0 && (
             <Typography variant="caption" color="text.secondary" component="div">
-              Versement groupé · couvre aussi {proposal.alsoCovers.map((c) => `${c.clientName || 'client'} (${c.label})`).join(', ')}
+              Versement groupé · couvre aussi {proposal.alsoCovers.map((c) => coveredLabel(c)).join(', ')}
             </Typography>
           )}
         </>
@@ -160,11 +160,11 @@ export default function ReconciliationLine({ item, busy = false, blocked = '', o
       <Stack direction="row" gap={1} sx={{ justifyContent: 'space-between', alignItems: 'flex-start' }}>
         <Box sx={{ minWidth: 0 }}>
           <Typography component="div" variant="body2" sx={{ fontWeight: 600 }}>
-            {showReservation && `${item.reservation.clientName || item.reservation.saleLabel || 'Client'} · `}{item.label}
+            {showReservation && item.clientHeading && `${item.clientHeading} · `}{item.label}
             {showReservation && <PlatformChip platform={item.reservation.platform} sx={{ ml: 1 }} />}
           </Typography>
           <Typography variant="caption" color="text.secondary">
-            La fiche attend <span style={{ fontVariantNumeric: 'tabular-nums' }}>{money(item.expectedCents)}</span>
+            {item.expectedWording} <span style={{ fontVariantNumeric: 'tabular-nums' }}>{money(item.expectedCents)}</span>
             {item.expectedDateLabel ? ` · ${item.paid ? 'reçu' : 'attendu'} le ${item.expectedDateLabel}` : ''}
           </Typography>
         </Box>
@@ -183,7 +183,7 @@ export default function ReconciliationLine({ item, busy = false, blocked = '', o
           <Typography variant="caption" color="text.secondary" component="div" sx={{ mt: 0.5 }}>
             <StatusBadge status={CONFIDENCE_STATUS[proposal.confidence] || 'neutral'} label={proposal.confidenceLabel} />
             {' '}{proposal.reason}
-            {proposal.alsoCovers.length > 0 && ` · couvre aussi ${proposal.alsoCovers.map((c) => `${c.clientName || 'client'} (${c.label})`).join(', ')}`}
+            {proposal.alsoCovers.length > 0 && ` · couvre aussi ${proposal.alsoCovers.map((c) => coveredLabel(c)).join(', ')}`}
           </Typography>
         </>
       )}

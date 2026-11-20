@@ -1,0 +1,1 @@
+- **A platform booking's extras carry their moment (pricing refonte, PR B)**: what the platform included in its price and what is collected at the arrival are recorded at import, instead of being guessed later.

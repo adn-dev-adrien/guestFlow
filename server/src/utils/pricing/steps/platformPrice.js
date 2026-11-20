@@ -12,14 +12,16 @@ const { allocateDiscount } = require('../discounts');
 const step = {
   id: 'platformPrice',
   requires: [
-    'accommodationBaseTotal', 'customFinalPrice', 'extraGuestInBrutSurcharge', 'normalizedDiscountPercent',
+    'accommodationBaseTotal', 'customFinalPrice', 'extraGuestInBrutSurcharge', 'nightsFixedAmount', 'normalizedDiscountPercent',
     'platformGrossPin', 'preArrivalOptionsResources', 'reversedTouristTaxInBrut', 'withheldTouristTaxInBrut',
+    'accommodationDiscountShareCents',
   ],
   provides: ['accommodationAdjustedPrice', 'pinnedAccommodation'],
   apply(ctx) {
     const {
-      accommodationBaseTotal, customFinalPrice, extraGuestInBrutSurcharge, normalizedDiscountPercent,
+      accommodationBaseTotal, customFinalPrice, extraGuestInBrutSurcharge, nightsFixedAmount, normalizedDiscountPercent,
       platformGrossPin, preArrivalOptionsResources, reversedTouristTaxInBrut, withheldTouristTaxInBrut,
+      accommodationDiscountShareCents,
     } = ctx;
 
     // « Offered » case (platform collects the tax AND remits it to the commune itself): what the brut
@@ -39,9 +41,9 @@ const step = {
       pinnedAccommodation != null
         ? pinnedAccommodation
         : allocateDiscount({
-          discount: { percent: normalizedDiscountPercent, customPrice: customFinalPrice, target: 'nights' },
+          discount: { percent: normalizedDiscountPercent, amount: nightsFixedAmount, customPrice: customFinalPrice, target: 'nights' },
           accommodation: accommodationBaseTotal,
-        }).accommodation
+        }).accommodation - accommodationDiscountShareCents / 100
     );
 
     return { ...ctx, accommodationAdjustedPrice, pinnedAccommodation };

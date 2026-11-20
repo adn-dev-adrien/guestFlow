@@ -17,6 +17,10 @@
 const HOURLY = 'per_hour';
 const BREAKFAST = 'breakfast';
 
+const sdk = require('../../sdk');
+const { parisDate } = require('../currentStay');
+
+const { dayReached } = sdk.coreModule('stayClock');
 const keyOf = (kind, id) => `${kind}:${Number(id)}`;
 
 function parseLines(text) {
@@ -43,14 +47,18 @@ function createStockModel(db) {
   const limited = () => db.prepare('SELECT * FROM guest_app_items WHERE stockTracked = 1 OR soldOut = 1').all();
   const limitedRow = (kind, id) => db.prepare('SELECT * FROM guest_app_items WHERE kind = ? AND itemId = ? AND (stockTracked = 1 OR soldOut = 1)').get(kind, Number(id)) || null;
 
-  /** Rule 37ter — the units every unpaid card order holds at `at`, by `kind:id`. */
+  /** Rule 37ter — the units held for the arrival day, by `kind:id` (an unpaid card order holds none, rule 35). */
   function heldByKey(at) {
     const held = new Map();
-    db.prepare("SELECT linesJson FROM guest_orders WHERE status = 'awaiting_payment' AND heldUntil > ?").all(at.toISOString())
-      .forEach((row) => parseLines(row.linesJson).forEach((line) => {
-        const units = orderLineUnits(line);
-        if (units) held.set(units.key, (held.get(units.key) || 0) + units.units);
-      }));
+    const add = (row) => parseLines(row.linesJson).forEach((line) => {
+      const units = orderLineUnits(line);
+      if (units) held.set(units.key, (held.get(units.key) || 0) + units.units);
+    });
+    // Rule 74 — an order taken before the arrival holds its units until the arrival day, when the sweep counts the line.
+    db.prepare(`
+      SELECT o.linesJson FROM guest_orders o JOIN reservations r ON r.id = o.reservationId
+       WHERE o.collectAt = 'arrival' AND o.status IN ('confirmed', 'paid') AND r.kind = 'reservation' AND r.startDate > ?
+    `).all(parisDate(at)).forEach(add);
     return held;
   }
 
@@ -92,7 +100,7 @@ function createStockModel(db) {
   function targetFor(reservationId, today, keys) {
     const target = new Map();
     const stay = db.prepare('SELECT kind, startDate FROM reservations WHERE id = ?').get(Number(reservationId));
-    if (!stay || stay.kind !== 'reservation' || String(stay.startDate) > today) return target;
+    if (!stay || stay.kind !== 'reservation' || !dayReached(stay.startDate, today)) return target;
     // A per-person option is one line of the people it serves (`cardPersons`, else the party): its units are those people,
     // as an order line's quantity counts them (`orderLineUnits`).
     db.prepare(`

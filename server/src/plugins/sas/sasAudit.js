@@ -1,3 +1,5 @@
+const sdk = require('../sdk');
+const { roundMoneyOrZero } = sdk.coreModule('money');
 /**
  * Arrival / departure SAS → « Historique des modifications » of the reservation.
  *
@@ -39,7 +41,7 @@ const SAS_FIELD_LABELS = {
 };
 
 const money = (amount) => {
-  const value = Math.round((Number(amount) || 0) * 100) / 100;
+  const value = roundMoneyOrZero(amount);
   const text = Number.isInteger(value) ? String(value) : value.toFixed(2).replace('.', ',');
   return `${text} €`;
 };

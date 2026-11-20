@@ -61,6 +61,7 @@ function serviceFor() {
     getReservation: (rid) => reservationsModel.getByIdWithDetails(rid),
     core: {
       updateReservation: core.reservations.update,
+      platformCommission: core.reservations.platformCommission,
       updateBody: core.reservations.updateBody,
       suggestBeds: core.reservations.suggestBeds,
     },

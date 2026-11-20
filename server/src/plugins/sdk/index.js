@@ -25,7 +25,7 @@ const CORE_MODULES = Object.freeze({
   breakfastModel: '../../models/breakfastModel', // the breakfast page state of the arrival SAS
   optionsModel: '../../models/optionsModel', // the catalogue the arrival SAS may still sell
   sasCommitHooks: '../../utils/sasCommitHooks', // the steps of other plugins, around the core commit (phase 3c rule 6)
-  sasOptionSale: '../../utils/sasOptionSale', // what the check-in may sell, priced by the core
+  sasOptionSale: '../../utils/sasOptionSale', // what the check-in may sell, priced by the core — kept under this name over `extraSale` (SDK 2.30.0, pricing-components D24)
   arrivalSasPlan: '../../utils/arrivalSasPlan', // the arithmetic of the arrival plan, shared by preview and commit
   departureSasPlan: '../../utils/departureSasPlan', // the arithmetic of the departure plan, shared by preview and commit
   arrivalPaymentGroup: '../../utils/arrivalPaymentGroup', // the single arrival payment the commit recorded
@@ -74,14 +74,28 @@ const CORE_MODULES = Object.freeze({
   // accounting-export
   platformsModel: '../../models/platformsModel', // the journal's commission config; the account plan writes its two columns (rule 20)
   refundsModel: '../../models/refundsModel', // refunds by month, mirrored as avoirs in the journal
+  basketRefundOutcome: '../../utils/pricing/refunds/basketOutcome', // guest-app — what a basket tells the poller: not honoured, partly owed (pricing-components rule 75, SDK 2.31.0)
+  refundGivenBack: '../../utils/refundGivenBack', // guest-app — whether an order's lines were given back by the refund register: the staff list's « Remboursée » (guest-app rule 110 b reading of 2026-11-16, SDK 2.32.0)
   cancellationCompensationsModel: '../../models/cancellationCompensationsModel', // compensations received by month, booked in the journal
   midStayExtras: '../../utils/midStayExtras', // the mid-stay share of a complement, kept out of its entry
   storedMoneySplit: '../../utils/storedMoneySplit', // accounting-export — the stored-money split, shared with the cancellation (payment-schedule rule 55)
   complementAllocation: '../../utils/complementAllocation', // the stored ventilation of an adjusted complement
   csv: '../../utils/csv', // the generic CSV writer the sales export serialises with
   settingsValidation: '../../utils/settingsValidation', // the VAT-rate validator of the account plan
-  vat: '../../utils/pricing/vat', // the VAT component: the one place a TTC amount is split (pricing-components rule 61, SDK 2.27.0)
+  vat: '../../utils/pricing/vat', // the VAT component: the one place a TTC amount is split (pricing-components rule 61, SDK 2.30.0 — plugins-phase-1-sdk rule 54)
   vatRegimeModel: '../../models/vatRegimeModel', // the VAT rate and regime of each sale: the journal reads them per reservation (vat-optional-mode rule 8, SDK 2.8.0)
+  // sas, hourly-resources, website-booking — one sale service, its read model and the head's price read (pricing-components rules 10, 27, 31, SDK 2.30.0)
+  extraSale: '../../utils/extraSale', // quote / sell / changeLine, the sale detail and the departure section of the SAS
+  saleDetail: '../../utils/saleDetail', // the one read model of what a stay sold (rule 31); `buildDocumentDetail` is its form for a standalone document (SDK 2.32.0)
+  standaloneSaleLinks: '../../utils/standaloneSaleLinks', // the payment link of a standalone sale's reste: linkOf / mint / withdraw / emailLink (outside-booking-sas rules 39-42, SDK 2.32.0)
+  suggestedArticles: '../../utils/suggestedArticles', // the articles suggested for a sale context: resolve / kinds / save (outside-booking-sas rules 35-38, SDK 2.32.0; plugins declare contexts with `ctx.suggestionContexts`)
+  standaloneSale: '../../utils/standaloneSale', // the sale of an article with no stay: quote / sell / offerLine / removeLine / pay / cancel (pricing-components rules 53, 74, SDK 2.32.0)
+  articles: '../../utils/pricing/articles', // the Articles head: `read` prices one candidate line, `unitsPerQuantity` its units
+  catalogue: '../../models/ports/catalogueProvider', // the lodging's own price of an option or a resource (hourly-resources: the booking's price row)
+  stayClock: '../../models/stayClockModel', // `phaseForReservation`: has the stay started (rules 44-46)
+  // every plugin that rounds an amount or reads cents — the named exact variants of the shared helpers (pricing-components rule 38, SDK 2.31.0)
+  money: '../../utils/pricing/money', // `roundMoney` and its exact variants, `toCents`…, the French parsers
+  platformPayment: '../../utils/pricing/platformPayment', // online-payment — what a platform pays out: `acompteNet`, `grossOf`, `payoutWithPenalty` (rule 70)
   // online-payment — the provider hands the core what it reads; the core records it (phase 3a rule 4)
   paymentLinksModel: '../../models/paymentLinksModel', // the webhook finds its link by provider id
   paymentPollRunner: '../../utils/paymentPollRunner', // the paid effect and the poll pass, core money
@@ -118,7 +132,7 @@ const CORE_MODULES = Object.freeze({
   // guest-app — the booklet photos live under the instance's uploads, served by `/uploads` (specs/guest-app.md §5)
   instancePaths: '../../utils/instancePaths',
   // guest-app — a plugin's order written on the fiche as mid-stay extras, priced by its engine (specs/plugins-phase-1-sdk.md rule 47)
-  midStayOrderCommit: '../../utils/midStayOrderCommit',
+  midStayOrderCommit: './midStayOrderCommit', // kept thin over `extraSale` (SDK 2.26.0 names, pricing-components D24)
   // guest-app — its own session cookie is Secure exactly when the core's is (`HTTPS_ENABLED`, specs/guest-app.md rule 4)
   securityConfig: '../../utils/securityConfig',
   // guest-app — the studio re-reads its admin like every `/api` route does (specs/guest-app.md rule 47)
@@ -142,6 +156,14 @@ const CORE_MODULES = Object.freeze({
   // accounting-export — the entries a plugin books in its own journal (specs/mollie-rolling-reserve-and-incoming-payments.md
   // rules 28-31, SDK 2.29.0)
   journalEntries: '../../utils/pluginJournalEntries',
+  // accounting-export — the journal is the core's AccountingOutput; the plugin keeps its routes, account plan and settings
+  // (specs/pricing-components.md rule 63, SDK 2.30.0 — plugins-phase-1-sdk rule 54)
+  accountingOutput: '../../utils/accounting/accountingOutput', // the journal entries of a period, built from the read models (pricing-components rule 63, SDK 2.30.0)
+  legacyBucketSplit: '../../utils/accounting/legacyBucketSplit', // the legacy derivation of the buckets an entry books from stored money (rule 63)
+  refundJournal: '../../utils/pricing/refunds/journal', // the avoir, requalification and closing entries of a refund (rules 63-64)
+  csvJournal: '../../utils/accounting/exporters/csvJournal', // the CSV journal exporter (rule 63)
+  salesJson: '../../utils/accounting/exporters/salesJson', // the sales JSON exporter (rule 63)
+  synthesisExporter: '../../utils/accounting/exporters/synthesis', // the synthesis exporter: VAT return, checks, collections (rule 63)
 });
 
 function coreModule(name) {

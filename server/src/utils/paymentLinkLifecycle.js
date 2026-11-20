@@ -58,13 +58,15 @@ const withdrawStatement = (database) => database.prepare(`
   `);
 
 function withdrawGoneOrCancelled(database, links, now) {
+  // A link of an outside sale bills a document, not a stay: its NULL reservation is no orphan (pricing-components rule 86).
+  const ofSale = database.prepare('PRAGMA table_info(payment_links)').all().some((c) => c.name === 'saleRef') ? ' AND l.saleRef IS NULL' : '';
   const rows = database.prepare(`
     SELECT l.id,
            CASE WHEN r.id IS NULL THEN ? WHEN r.kind = 'superseded' OR c.kind = 'superseded' THEN ? END AS reason
       FROM payment_links l
       LEFT JOIN reservations r ON r.id = l.reservationId
       LEFT JOIN reservations c ON c.id = r.convertedReservationId
-     WHERE l.status = 'open' AND (r.id IS NULL OR r.kind IN ('cancelled', 'superseded') OR c.kind IN ('cancelled', 'superseded'))
+     WHERE l.status = 'open'${ofSale} AND (r.id IS NULL OR r.kind IN ('cancelled', 'superseded') OR c.kind IN ('cancelled', 'superseded'))
      ORDER BY l.id
   `).all(LINK_REASONS.ORPHAN, LINK_REASONS.SUPERSEDED);
   const withdraw = withdrawStatement(database);

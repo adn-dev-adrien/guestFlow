@@ -17,14 +17,15 @@
  * because both resolve the same module path).
  */
 import React from 'react';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { expect } from 'vitest';
 import { MemoryRouter } from 'react-router';
 import { ThemeProvider } from '@mui/material/styles';
 
 import theme from '../../../theme';
 import DialogProvider from '../../../components/DialogProvider';
 import ReservationSasDialog from '../ReservationSasDialog';
-import { departureSeedFor } from './sasPreviewFake';
+import { arrivalSeedFor, departureSeedFor } from './sasPreviewFake';
 
 const BASE_RES = {
   id: 1, firstName: 'Jean', lastName: 'Dupont', propertyName: 'Tente', platform: 'direct',
@@ -40,6 +41,8 @@ export function sasPayload(over = {}) {
     portalCode: over.portalCode || '',
     // specs/plugins-phase-1-sdk.md rule 17 — what live plugin modules add, by plugin id.
     pluginData: over.pluginData || {},
+    // specs/pricing-components.md rule 32 — the departure sales of a started stay; absent by default.
+    staySales: over.staySales,
     cleaning: over.cleaning || { included: false, price: 80 },
     bathLinen: over.bathLinen || { available: false, unitPrice: 0, priceType: null, persons: 0, nights: 0, amount: 0, label: 'Linge de toilette' },
     linenItems: over.linenItems || [{ id: 1, label: 'Taie d\'oreiller', price: 5, category: 'bed' }],
@@ -61,6 +64,8 @@ export function sasPayload(over = {}) {
     // specs/ui-review-2026-10-19-operations.md rule 4 — the server's « nothing owed before this run »;
     // derived here like the server does for the fixtures' direct, prepaid stays.
     // specs/sas-departure-recap-server-side.md rule 12 — what the stored detail says the check-out decided.
+    // Loop t6 S6-3 — the arrival's offered lines by the recap's keys, as the server serves them.
+    arrivalSeed: over.arrivalSeed || arrivalSeedFor({ ...BASE_RES, ...(over.reservation || {}) }),
     departureSeed: over.departureSeed || departureSeedFor({ ...BASE_RES, ...(over.reservation || {}) }, over.linenItems || [{ id: 1, label: 'Taie d\'oreiller', price: 5, category: 'bed' }]),
     nothingToCollect: over.nothingToCollect ?? !(Number(over.reservation?.complementAmount || 0) > 0
       && !Number(over.reservation?.complementPaid || 0)),
@@ -123,3 +128,10 @@ export function renderDialog(props) {
 }
 
 export const clickBtn = (name) => fireEvent.click(screen.getByRole('button', { name }));
+
+// Loop t22 (pricing-components rule 117 reading) — the stay page's settlement buttons wait for the plan's amount: a test chooses a
+// settlement once they are enabled, never on « — ».
+export async function stayPageReady() {
+  await screen.findByText('Séjour à régler :');
+  await waitFor(() => expect(screen.getByRole('button', { name: 'CB / Chèque' })).toBeEnabled());
+}

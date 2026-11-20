@@ -19,7 +19,7 @@ const { quoteStoredReservation } = require('../utils/storedReservationQuote');
 const { staleLinks } = require('../utils/ledgerLinks');
 const { todayIso, localIsoDate } = require('../utils/localDate');
 
-const round2 = (n) => Math.round(Number(n) * 100) / 100;
+const { roundMoneyStrict: round2 } = require('../utils/pricing/money');
 const TAX_EPSILON = 0.004;
 
 const tableExists = (db, name) => Boolean(db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?").get(name));

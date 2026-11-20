@@ -10,3 +10,10 @@ for (const suffix of ['', '-wal', '-shm']) {
   try { fs.unlinkSync(`${DB_PATH}${suffix}`); } catch { /* not there — fine */ }
 }
 console.log(`[wipe-db] cleared ${DB_PATH}{,-wal,-shm}`);
+
+// The support access request lives beside the database (server/src/utils/supportAccess.js reads it from the DB's folder), and
+// support-access.spec.js leaves its file there: a second run on a fresh database in the same folder opened with the banner of every
+// admin page already up, and mobile/page-tabs measured the strip 238 px down (smoke rule 20, reading of loop t6). It is the run's state.
+const path = require('path');
+const REQUEST_FILE = path.join(path.dirname(DB_PATH), 'support-request.jws');
+try { fs.unlinkSync(REQUEST_FILE); console.log(`[wipe-db] cleared ${REQUEST_FILE}`); } catch { /* not there — fine */ }

@@ -7,7 +7,7 @@ const Database = require('better-sqlite3');
 const registry = require('../../sdk/registry');
 const { createContext } = require('../../sdk/createContext');
 const plugin = require('..');
-const { createTables, tagEveningSupplements, resetHourlyColumns, bookingsV2 } = require('../migrations');
+const { createTables, tagEveningSupplements, resetHourlyColumns, bookingsV2, bookingsV5 } = require('../migrations');
 
 test.afterEach(() => registry.reset());
 
@@ -60,6 +60,7 @@ test('rule 16: tables_v1 keeps every external booking of an existing database', 
   const db = freshDb();
   db.exec("CREATE TABLE resource_bookings (id INTEGER PRIMARY KEY AUTOINCREMENT, resourceId INTEGER NOT NULL, reservationId INTEGER, clientId INTEGER, clientName TEXT, clientPhone TEXT, propertyId INTEGER, date TEXT NOT NULL, startTime TEXT NOT NULL, endTime TEXT NOT NULL, notes TEXT DEFAULT '', totalPrice REAL DEFAULT 0, paid INTEGER DEFAULT 0, createdAt TEXT, updatedAt TEXT)");
   bookingsV2(db);
+  bookingsV5(db);
   db.prepare("INSERT INTO resource_bookings (resourceId, date, startTime, endTime, totalPrice, paid) VALUES (2, '2026-10-01', '18:00', '19:00', 50, 1)").run();
   createTables(db);
   assert.equal(db.prepare('SELECT COUNT(*) AS n FROM resource_bookings').get().n, 1);

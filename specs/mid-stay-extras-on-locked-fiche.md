@@ -70,6 +70,16 @@ arrival stays frozen, and everything else on the fiche stays locked.
    added units are a mid-stay sale and go to the end-of-stay complement (mid-stay spec rule 6).
    Offered lines present before the save (outside the baseline by construction, mid-stay spec rule 5)
    are frozen the same way.
+   > _Amended 2026-11-15 (end-review verification V-5):_ except a line collected at the departure
+   > (`collectAt = 'departure'`, pricing-components rule 20): sold during the stay and offered since, it is
+   > a rule 7 line — billed again or removed freely while the end-of-stay complement is not collected (an
+   > operator undoing a mis-click). And removing a line takes only its own article out of the offered list
+   > (only when no other line of it is left), so an offered line the fiche's body does not name (an
+   > automatic one) stays offered instead of being billed again and refused as « unoffered ». Measured on a
+   > fresh copy of the prod database of 2026-11-11: sell, offer, bill again, discount, remove on each of the
+   > 55 open stays — before, 45 refused the bill-again and the removal and 14 the direct removal; after, 54
+   > of 55 pass (the 55th, 22224, refuses the offer as `OVERPAID`, a stay already overpaid). Test
+   > `sale-departure-line-offered-undo`.
 7. **Lines sold during the stay** (absent from the baseline, or the part above it) can be added,
    modified and removed freely — that is how a typo is corrected (arbitrated 2026-10-26).
 8. Still locked inside the window: dates, times, property, guests, notes, deletion, cancellation,
@@ -77,6 +87,9 @@ arrival stays frozen, and everything else on the fiche stays locked.
    sale goes to the end-of-stay complement whatever its routing, so the switch would do nothing but
    confuse). The bed-count sub-block of a bed-linen option follows its line: frozen if the linen was
    sold at arrival, editable if the linen option is added during the stay.
+   _Reading of 2026-11-16 (pricing-components rule 85, loop t9 B9-5):_ the routing the save carries back
+   is each LINE's own (by `lineId`): two lines of one article — one in the paid solde, one sold at the
+   arrival — keep their own flag; the article's flag is only the fallback of a line sent without `lineId`.
 
 ### 3.3 Server enforcement
 
@@ -262,6 +275,8 @@ Decisions the spec did not cover, taken during implementation (2026-10-26):
 - **`editLock`** entries carry `reason` (`arrival` | `offered`) and, for a planning-card option,
   `lockedOccurrences` (the first `minQuantity` moments, which cannot be unchecked); `frozenCustomOptionIds`
   lists the persisted custom lines that are frozen — the fiche freezes custom lines by id, never by label.
+  `paidCustomOptionIds` (pricing-components rule 123, 2026-11-17, whatever the window) lists the custom lines a note or a
+  collected platform complement paid: their label is greyed and a rename is refused 409 `LINE_PAID_RENAMED`.
 - **Fiche.** Captions « Vendu à l'arrivée » / « Offerte » follow `reason`; « Personnes servies » is
   disabled on an arrival line; the price summary's routing chips are read-only and « Offrir » is hidden on
   frozen lines inside the window; the Neat retry/void buttons stay disabled on a locked fiche; the

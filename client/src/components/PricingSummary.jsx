@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { createContext, useContext, useState } from 'react';
 import { Box, Card, Stack, Typography, Divider, Button, Chip, IconButton, Tooltip } from '@mui/material';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import StatusBadge from './StatusBadge';
@@ -17,6 +17,7 @@ import { COMPLEMENT_LABELS, COMPLEMENT_BREAKDOWN_LABELS } from '../constants/com
  * platform already billed can't be offered).
  */
 function ExtraGuestRow({ label, caption, amount, offered, onToggleOffered, chip = null }) {
+  const held = useContext(HeldContext);
   return (
     <>
       <Divider />
@@ -35,6 +36,7 @@ function ExtraGuestRow({ label, caption, amount, offered, onToggleOffered, chip 
               variant={offered ? 'contained' : 'outlined'}
               color={offered ? 'success' : 'inherit'}
               onClick={onToggleOffered}
+              disabled={held}
               sx={{ minWidth: 60, fontSize: 11, textTransform: 'none' }}
             >
               {offered ? '✓ Offert' : 'Offrir'}
@@ -58,8 +60,15 @@ function ExtraGuestRow({ label, caption, amount, offered, onToggleOffered, chip 
   );
 }
 
+// specs/pricing-components.md rule 108 — an offered paid line whose money was refunded stays offered: sold again, it is a new line.
+const REFUNDED_SUFFIX = ' · remboursée';
+// specs/pricing-components.md rule 101 (reading 2026-11-17, loop t16 UI16-1) — while the fiche is not the server's, every
+// per-line control of the summary reads and takes no click: one flag, read by each control.
+const HeldContext = createContext(false);
+
 function ComplementChip({ active = true, onClick, readOnly = false }) {
-  const clickable = Boolean(onClick) && !readOnly;
+  const held = useContext(HeldContext);
+  const clickable = Boolean(onClick) && !readOnly && !held;
   return (
     <Chip
       size="small"
@@ -131,11 +140,16 @@ function getLineSplit(line, totalPrice) {
  *   onToggleResourceInComplement(resourceId, next)
  *   onToggleTouristTaxInComplement(next)
  *   touristTaxInComplementLocked — the server's rule 20 reason is set: the chip reads, it does not toggle
+ *   isRefundedLine(kind, line)     true for an offered paid line whose money a refund gave back (the server's `refundedLoweredLines`,
+ *                                  specs/pricing-components.md rule 108): it reads « ✓ Offert · remboursée » and cannot be put back
  *   mode                           'live' (default) | 'stored' — the quote is then the server's `storedSummary`
  *                                  (specs/reservation-payment-ledger.md rules 50-52): the same sections,
  *                                  labels and rows, with every per-line control left out, since a value
  *                                  shown as stored is never edited in place
  *   topNotice                      node rendered above « Prix hébergement » (the platform price alert)
+ *   heldReason                     string|null — set while the fiche is not the server's (re-read, save, logement switch):
+ *                                  every « Offrir » and « compl. » toggle and « Recalculer la taxe de séjour » is disabled, and
+ *                                  the reason reads under the title (specs/pricing-components.md rule 101)
  *   ledgerRows                     the stored ledger's rows: a paid acompte, solde or complement whose split payment left a reste
  *                                  reads the server's state (« Perçu en partie »), not « payé »
  *                                  (specs/mixed-method-payments.md rule 16, audit R34-C-L3)
@@ -164,6 +178,7 @@ export default function PricingSummary({
   // line sold at arrival can be neither offered nor un-offered.
   routingLocked = false,
   isFrozenLine = () => false,
+  isRefundedLine = () => false,
   // specs/tourist-tax-freeze-past-with-refresh.md — a past reservation's tourist tax is frozen; show a
   // refresh button next to the label to force a live recompute.
   isTouristTaxFrozen = false,
@@ -171,7 +186,9 @@ export default function PricingSummary({
   mode = 'live',
   topNotice = null,
   ledgerRows = null,
+  heldReason = null,
 }) {
+  const held = Boolean(heldReason);
   const stored = mode === 'stored';
   // Rule 16 — a target paid with a reste still due is not settled: its badge says what the ledger says.
   const partialLabel = (keys) => {
@@ -230,14 +247,9 @@ export default function PricingSummary({
   const optionsTotal = Number(quote?.optionsTotal || 0);
   const resourcesTotal = Number(quote?.resourcesTotal || 0);
   const discountAmount = Number(quote?.discountAmount || 0);
-  // Single global VAT rate (specs/single-vat-rate.md §4.2). The engine still ships three
-  // separate `vatPercentage*` keys for backward compatibility — they all carry the same
-  // value, so we read one and ignore the others.
-  const vatRate = Number(quote?.vatPercentageAccommodation ?? quote?.vatPercentageOptions ?? quote?.vatPercentageResources ?? 10);
-  // Per-bucket HT/VAT amounts were dropped from the UI when the dual rate collapsed
-  // (specs/single-vat-rate.md §6.2) — only the aggregated `totalNetPrice` and
-  // `totalVatAmount` are still shown.
-  const totalVatAmount = Number(quote?.totalVatAmount || 0);
+  // specs/pricing-components.md §3 rule 15 — one VAT line per rate, ready to render from the server
+  // (`vatByRate: [{ rate, label, base, vat }]`); a « Sans TVA » stay gets none.
+  const vatByRate = Array.isArray(quote?.vatByRate) ? quote.vatByRate : [];
   const totalNetPrice = Number(quote?.totalNetPrice || 0);
   // « Sans TVA » (specs/vat-optional-mode.md rule 12a): the server's mention replaces the VAT lines.
   const vatMention = quote?.vatRegime?.regime === 'not_subject' ? quote.vatRegime.legalMentionText : null;
@@ -273,6 +285,7 @@ export default function PricingSummary({
   const unpricedNights = Array.isArray(quote?.unpricedNights) ? quote.unpricedNights : [];
 
   return (
+    <HeldContext.Provider value={held}>
     <Box
       sx={{
         // Beside the form from lg (the fiche's two-column breakpoint), in the page flow below it.
@@ -294,6 +307,11 @@ export default function PricingSummary({
         <Typography variant="body2" color="text.secondary" sx={{ mb: 2, overflowWrap: 'anywhere' }}>
           {selectedProperty?.label || selectedProperty?.name || 'Logement non sélectionné'}
         </Typography>
+        {held && (
+          <Typography variant="caption" color="text.secondary" role="status" sx={{ display: 'block', mt: -1.5, mb: 2 }}>
+            {heldReason}
+          </Typography>
+        )}
 
         {topNotice}
 
@@ -468,7 +486,8 @@ export default function PricingSummary({
                   ? ` · ${quantity} matin${quantity > 1 ? 's' : ''}`
                   : (quantity > 1 ? ` ×${quantity}` : '');
                 const baseLabel = `${so.title || opt?.title || '—'}${quantitySuffix}`;
-                const baseKey = so.optionId || so.customKey || `custom_${index}`;
+                // A later sale of an article (rule 85) is a row of its own, named by its line; « Offert » is changed from « Ventes du séjour » for it.
+                const baseKey = so.lineKey || so.optionId || so.customKey || `custom_${index}`;
 
                 // Single callback unifies regular / auto / custom — the page knows which channel
                 // to update; the summary just signals "the user clicked compl. on THIS line".
@@ -485,7 +504,8 @@ export default function PricingSummary({
                 };
 
                 const frozen = isFrozenLine(isCustom ? 'custom' : 'option', so);
-                const renderRow = (row) => renderRowRaw({ ...row, chip: lockChip(row.chip), withOfferedToggle: row.withOfferedToggle && !frozen && !stored });
+                const refunded = isOffered && isRefundedLine(isCustom ? 'custom' : 'option', so);
+                const renderRow = (row) => renderRowRaw({ ...row, chip: lockChip(row.chip), withOfferedToggle: row.withOfferedToggle && !frozen && !stored && !refunded });
                 const renderRowRaw = ({ label, amount, chip /* 'on'|'off'|'readonly'|null */, withOfferedToggle }) => (
                   <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 1 }}>
                     <Box sx={{ flex: 1, display: 'flex', alignItems: 'center', flexWrap: 'wrap' }}>
@@ -527,9 +547,9 @@ export default function PricingSummary({
                       )}
                     </Box>
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                      {stored && isOffered && (
+                      {(stored || refunded) && isOffered && (
                         <Typography variant="caption" sx={{ fontWeight: 600, color: 'success.main' }}>
-                          {isIncludedInRate ? 'Comprise' : '✓ Offert'}
+                          {isIncludedInRate ? 'Comprise' : `✓ Offert${refunded ? REFUNDED_SUFFIX : ''}`}
                         </Typography>
                       )}
                       {withOfferedToggle && (
@@ -546,6 +566,7 @@ export default function PricingSummary({
                             }
                             onToggleOptionOffered(so.optionId, !isOffered);
                           }}
+                          disabled={held}
                           sx={{ minWidth: 60, fontSize: 11, textTransform: 'none' }}
                         >
                           {isIncludedInRate ? 'Comprise' : (isOffered ? '✓ Offert' : 'Offrir')}
@@ -586,21 +607,21 @@ export default function PricingSummary({
                 if (split.kind === 'forced') {
                   return (
                     <Box key={baseKey}>
-                      {renderRow({ label: baseLabel, amount: split.delta, chip: hideChipForPlatform ? null : 'on', withOfferedToggle: true })}
+                      {renderRow({ label: baseLabel, amount: split.delta, chip: hideChipForPlatform ? null : 'on', withOfferedToggle: !so.lineKey })}
                     </Box>
                   );
                 }
                 if (split.kind === 'split') {
                   return (
                     <Stack key={baseKey} spacing={0.5}>
-                      {renderRow({ label: baseLabel, amount: split.snapshot, chip: null, withOfferedToggle: true })}
+                      {renderRow({ label: baseLabel, amount: split.snapshot, chip: null, withOfferedToggle: !so.lineKey })}
                       {renderRow({ label: baseLabel, amount: split.delta, chip: hideChipForPlatform ? null : 'readonly', withOfferedToggle: false })}
                     </Stack>
                   );
                 }
                 return (
                   <Box key={baseKey}>
-                    {renderRow({ label: baseLabel, amount: total, chip: (isOffered || hideChipForPlatform) ? null : 'off', withOfferedToggle: true })}
+                    {renderRow({ label: baseLabel, amount: total, chip: (isOffered || hideChipForPlatform) ? null : 'off', withOfferedToggle: !so.lineKey })}
                   </Box>
                 );
               })}
@@ -639,7 +660,8 @@ export default function PricingSummary({
                 };
 
                 const frozen = isFrozenLine('resource', sr);
-                const renderRow = (row) => renderRowRaw({ ...row, chip: lockChip(row.chip), withOfferedToggle: row.withOfferedToggle && !frozen && !stored });
+                const refunded = isOffered && isRefundedLine('resource', sr);
+                const renderRow = (row) => renderRowRaw({ ...row, chip: lockChip(row.chip), withOfferedToggle: row.withOfferedToggle && !frozen && !stored && !refunded });
                 const renderRowRaw = ({ amount, chip /* 'on'|'off'|'readonly'|null */, withOfferedToggle }) => (
                   <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 1 }}>
                     <Box sx={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', flexWrap: 'wrap' }}>
@@ -664,8 +686,8 @@ export default function PricingSummary({
                       )}
                     </Box>
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                      {stored && isOffered && (
-                        <Typography variant="caption" sx={{ fontWeight: 600, color: 'success.main' }}>✓ Offert</Typography>
+                      {(stored || refunded) && isOffered && (
+                        <Typography variant="caption" sx={{ fontWeight: 600, color: 'success.main' }}>{`✓ Offert${refunded ? REFUNDED_SUFFIX : ''}`}</Typography>
                       )}
                       {withOfferedToggle && (
                         <Button
@@ -673,6 +695,7 @@ export default function PricingSummary({
                           variant={isOffered ? 'contained' : 'outlined'}
                           color={isOffered ? 'success' : 'inherit'}
                           onClick={() => onToggleResourceOffered(sr.resourceId, !isOffered)}
+                          disabled={held}
                           sx={{ minWidth: 60, fontSize: 11, textTransform: 'none' }}
                         >
                           {isOffered ? '✓ Offert' : 'Offrir'}
@@ -698,17 +721,17 @@ export default function PricingSummary({
                 // editable — including on platform reservations (specs/force-extras-complement-on-platform.md
                 // §3 rule 1bis): the operator can pull a resource back out of Complément.
                 if (split.kind === 'forced') {
-                  return <Box key={sr.resourceId}>{renderRow({ amount: split.delta, chip: 'on', withOfferedToggle: true })}</Box>;
+                  return <Box key={sr.lineKey || sr.resourceId}>{renderRow({ amount: split.delta, chip: 'on', withOfferedToggle: !sr.lineKey })}</Box>;
                 }
                 if (split.kind === 'split') {
                   return (
-                    <Stack key={sr.resourceId} spacing={0.5}>
-                      {renderRow({ amount: split.snapshot, chip: null, withOfferedToggle: true })}
+                    <Stack key={sr.lineKey || sr.resourceId} spacing={0.5}>
+                      {renderRow({ amount: split.snapshot, chip: null, withOfferedToggle: !sr.lineKey })}
                       {renderRow({ amount: split.delta, chip: 'readonly', withOfferedToggle: false })}
                     </Stack>
                   );
                 }
-                return <Box key={sr.resourceId}>{renderRow({ amount: displayedOriginalTotal, chip: isOffered ? null : 'off', withOfferedToggle: true })}</Box>;
+                return <Box key={sr.lineKey || sr.resourceId}>{renderRow({ amount: displayedOriginalTotal, chip: isOffered ? null : 'off', withOfferedToggle: !sr.lineKey })}</Box>;
               })}
             </>
           )}
@@ -726,9 +749,11 @@ export default function PricingSummary({
                         recompute (then Save persists it). */}
                     {!stored && isTouristTaxFrozen && onRefreshTouristTax && (
                       <Tooltip title="Recalculer la taxe de séjour (figée — déjà encaissée ou déclarée)">
-                        <IconButton size="small" onClick={onRefreshTouristTax} aria-label="Recalculer la taxe de séjour" sx={{ ml: 0.25, p: 0.25 }}>
-                          <RefreshIcon sx={{ fontSize: 16 }} />
-                        </IconButton>
+                        <span>
+                          <IconButton size="small" onClick={onRefreshTouristTax} disabled={held} aria-label="Recalculer la taxe de séjour" sx={{ ml: 0.25, p: 0.25 }}>
+                            <RefreshIcon sx={{ fontSize: 16 }} />
+                          </IconButton>
+                        </span>
                       </Tooltip>
                     )}
                     {/* Manual routing to Complément (spec force-item-to-complement.md §6.2).
@@ -863,9 +888,8 @@ export default function PricingSummary({
             </Box>
           </>
 
-          {/* TVA — single global rate (specs/single-vat-rate.md §6.2). Collapsed from the former
-              per-bucket breakdown since accommodation / options / resources all share the
-              same rate now. Total HT + TVA on two lines under the séjour total. */}
+          {/* TVA — « Total HT » then one line per rate with its base (specs/pricing-components.md §3 rule 15);
+              no « Total TVA » line. */}
           <Divider />
           {vatMention ? (
             <Typography variant="caption" color="text.secondary" data-testid="vat-mention">{vatMention}</Typography>
@@ -875,10 +899,19 @@ export default function PricingSummary({
                 <Typography variant="caption" color="text.secondary">Total HT</Typography>
                 <Typography variant="caption" sx={{ fontWeight: 500 }}>{formatCurrency(totalNetPrice)}</Typography>
               </Box>
-              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <Typography variant="caption" color="text.secondary">TVA {vatRate}%</Typography>
-                <Typography variant="caption" sx={{ fontWeight: 500 }}>{formatCurrency(totalVatAmount)}</Typography>
-              </Box>
+              {vatByRate.map((row) => (
+                <Box
+                  key={row.rate}
+                  data-testid="vat-rate-line"
+                  sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 1 }}
+                >
+                  <Typography variant="caption" color="text.secondary">
+                    {row.label}
+                    <Box component="span" sx={{ opacity: 0.8 }}>{` sur ${formatCurrency(row.base)}`}</Box>
+                  </Typography>
+                  <Typography variant="caption" sx={{ fontWeight: 500, whiteSpace: 'nowrap' }}>{formatCurrency(row.vat)}</Typography>
+                </Box>
+              ))}
             </Box>
           )}
 
@@ -1064,5 +1097,6 @@ export default function PricingSummary({
         </Stack>
       </Card>
     </Box>
+    </HeldContext.Provider>
   );
 }

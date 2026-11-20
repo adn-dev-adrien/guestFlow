@@ -10,6 +10,7 @@ process.env.DB_PATH = ':memory:';
 process.env.TZ = 'Europe/Paris';
 
 const test = require('node:test');
+const { skipWithout } = require('../plugins/sdk/testing');
 const { mock } = test;
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
@@ -19,7 +20,9 @@ const { compareFigures, allowlistProblems } = require('./helpers/priceGateCompar
 const DIR = process.env.PRICE_GATE_FIXTURE_DIR || path.join(__dirname, 'fixtures', 'price-gate');
 const read = (name) => JSON.parse(fs.readFileSync(path.join(DIR, name), 'utf8'));
 const captured = ['inputs.json', 'expected.json'].every((name) => fs.existsSync(path.join(DIR, name)));
-const SKIP = captured ? false : 'price-gate fixture absent (inputs.json / expected.json are captured on the price-gate-baseline tag: node scripts/price-gate/buildFixture.mjs <copy.db> --out server/src/tests/fixtures/price-gate/)';
+// loop t1 AS-2 — the fixture holds `resource_bookings` rows, a table of the hourly-resources plugin: skipped in the cell that removes it.
+// loop t18 A18-1 — the captured figures hold the accounting-export journal of the refunded stays: skipped in that plugin's cell too.
+const SKIP = skipWithout(['hourly-resources', 'accounting-export']) || (captured ? false : 'price-gate fixture absent (inputs.json / expected.json are captured on the price-gate-baseline tag: node scripts/price-gate/buildFixture.mjs <copy.db> --out server/src/tests/fixtures/price-gate/)');
 
 const allowlist = JSON.parse(fs.readFileSync(path.join(__dirname, 'fixtures', 'price-gate', 'allowlist.json'), 'utf8'));
 
@@ -31,7 +34,7 @@ let recomputed = null;
 let recomputedBookings = null;
 let recomputedGrids = null;
 let expected = null;
-if (captured) {
+if (!SKIP) {
   const inputs = read('inputs.json');
   expected = read('expected.json');
   const { freezeClock } = require('./vatRegimeGoldenFixture');
@@ -55,14 +58,14 @@ test('rule 68: no price moved on any stay or devis of the production copy', { sk
 });
 
 test('rule 68: no figure of a standalone resource booking moved', { skip: SKIP }, () => {
-  const { differences } = compareFigures(expected.resourceBookings, recomputedBookings, []);
+  const { differences } = compareFigures(expected.resourceBookings, recomputedBookings, allowlist, { scope: 'resourceBookings' });
   const shown = differences.slice(0, 40).map((d) => `  booking ${d.reservationId} ${d.field}: expected ${JSON.stringify(d.expected)}, got ${JSON.stringify(d.actual)}`);
   assert.equal(differences.length, 0, `${differences.length} figure(s) moved\n${shown.join('\n')}`);
   assert.ok(Object.keys(expected.resourceBookings).length > 0, 'the fixture holds resource bookings');
 });
 
 test('rule 70: no figure of the platform price grid of a property moved', { skip: SKIP }, () => {
-  const { differences } = compareFigures(expected.propertyGrids, recomputedGrids, []);
+  const { differences } = compareFigures(expected.propertyGrids, recomputedGrids, allowlist, { scope: 'propertyGrids' });
   const shown = differences.slice(0, 40).map((d) => `  property ${d.reservationId} ${d.field}: expected ${JSON.stringify(d.expected)}, got ${JSON.stringify(d.actual)}`);
   assert.equal(differences.length, 0, `${differences.length} figure(s) moved\n${shown.join('\n')}`);
   assert.ok(Object.keys(expected.propertyGrids).length > 0, 'the fixture holds property grids');
@@ -71,6 +74,10 @@ test('rule 70: no figure of the platform price grid of a property moved', { skip
 test('rule 68: every allowlist entry still matches a difference (a stale entry is removed)', { skip: SKIP }, () => {
   const { unusedEntries } = compareFigures(expected.stays, recomputed, allowlist);
   assert.deepEqual(unusedEntries, []);
+  const bookings = compareFigures(expected.resourceBookings, recomputedBookings, allowlist, { scope: 'resourceBookings' });
+  assert.deepEqual(bookings.unusedEntries, []);
+  const grids = compareFigures(expected.propertyGrids, recomputedGrids, allowlist, { scope: 'propertyGrids' });
+  assert.deepEqual(grids.unusedEntries, []);
 });
 
 test('rule 70: the platform stays carry their commission, net received and payout figures', { skip: SKIP }, () => {

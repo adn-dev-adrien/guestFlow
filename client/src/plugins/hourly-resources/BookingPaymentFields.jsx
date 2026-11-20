@@ -5,30 +5,43 @@
  * with the fiches' rules; this only collects them.
  *
  * Props:
- *   dueCents  number — the booking's total
- *   value     { tenders, canSubmit, paidAt } | null
+ *   dueCents  number — the amount due (the booking's total; the visit's reste)
+ *   value     { tenders, shortfall, canSubmit, gapCents, paidAt, dueCents, draft } | null — `dueCents` is the amount the lines were typed
+ *             against, so a screen can tell a payment of the amount on screen from one still on an older amount (loop t24); `draft` the
+ *             lines as the operator left them: the block drawn again (a failed quote, a new due) shows them as typed, the default line of
+ *             the whole due following the due (specs/plugins-phase-1-sdk.md rule 58 I3, loop t26)
+ *   whole     boolean (default true) — the amount is paid whole; false on the mini SAS, where a gap is a « Reste à percevoir »
+ *   shortfallKinds  ['due'] — passed to `TenderLines` when `whole` is false (specs/outside-booking-sas.md rule 17)
  *   onChange  (next) => void
  *   disabled  boolean
  *   error     string|null — the server's refusal of the payment, shown under the lines
  *
- * The amount is paid whole (`whole`): a booking takes one payment of its total, no « Reste à percevoir » nor « Geste
- * commercial » (spec §8, rule 44).
+ * By default the amount is paid whole (`whole`): a booking takes one payment of its total, no « Reste à percevoir » nor « Geste
+ * commercial » (spec §8, rule 44). The visit's mini SAS lets a gap through as « Reste à percevoir » only (outside-booking-sas rule 17).
  */
 import React from 'react';
 import { Alert, Box, TextField } from '@mui/material';
 import { TenderLines } from '../sdk';
 import { localIsoDate } from './localDate';
 
-export default function BookingPaymentFields({ dueCents, value, onChange, disabled = false, error = null }) {
+export default function BookingPaymentFields({
+  dueCents, value, onChange, disabled = false, error = null, whole = true, shortfallKinds,
+}) {
   const paidAt = (value && value.paidAt) || localIsoDate();
   return (
     <Box sx={{ display: 'grid', gap: 1.5 }}>
       <TenderLines
-        key={dueCents}
         dueCents={dueCents}
-        whole
+        initialDraft={value && value.draft ? value.draft : null}
+        whole={whole}
+        shortfallKinds={shortfallKinds}
         initialTenders={[{ method: 'card', amountCents: dueCents, internal: false }]}
-        onChange={({ tenders, canSubmit, gapCents }) => onChange({ tenders, canSubmit: canSubmit && gapCents === 0, paidAt })}
+        defaultLine
+        onChange={({
+          tenders, shortfall, canSubmit, gapCents, dueCents: answered, live, draft,
+        }) => onChange({
+          tenders, shortfall, gapCents, canSubmit: whole ? canSubmit && gapCents === 0 : canSubmit, paidAt, dueCents: answered, live, draft,
+        })}
         disabled={disabled}
       />
       <TextField
@@ -46,12 +59,16 @@ export default function BookingPaymentFields({ dueCents, value, onChange, disabl
   );
 }
 
+/**
+ * The payment a dialog may commit (loop t25, mixed-method-payments rule 59): the last report only while it answers the due on screen —
+ * between a new due and the lines' report for it, the older one (amounts, shortfall) is pending, for the button and the request alike.
+ */
+export const paymentForDue = (value, dueCents) => (value && value.dueCents === dueCents && (!value.live || value.live()) ? value : null);
+
 /** What the server is told: the lines, or null when nothing is typed. */
 export function paymentBody(value) {
   if (!value || !Array.isArray(value.tenders)) return null;
-  return { tenders: value.tenders, paidAt: value.paidAt };
+  return { tenders: value.tenders, ...(value.shortfall ? { shortfall: value.shortfall } : {}), paidAt: value.paidAt };
 }
 
-/** Rule 13 — an invoice is offered on a payment entirely on the books. */
-export const allOnTheBooks = (value) => Boolean(value && Array.isArray(value.tenders) && value.tenders.length > 0 && value.tenders.every((t) => !t.internal));
 export const hasCard = (value) => Boolean(value && Array.isArray(value.tenders) && value.tenders.some((t) => t.method === 'card'));

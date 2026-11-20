@@ -140,7 +140,7 @@ function buildController({
 
     /**
      * POST /api/planning/option-cards/done
-     * Body: { reservationId, optionId, date, time, done }
+     * Body: { reservationId, optionId, lineId?, date, time, done } — `lineId` names the stored line when the stay holds several of one article (rule 85).
      * Toggles the « préparé » flag of one occurrence (specs/option-planning-card.md §3.5).
      */
     setOptionCardDone(req, res) {
@@ -152,13 +152,14 @@ function buildController({
       // (specs/hosting-h2-account-security.md rule 68).
       if (!Number.isInteger(reservationId) || reservationId <= 0
         || !Number.isInteger(optionId) || optionId <= 0
+        || (body.lineId != null && !(Number.isInteger(numeric(body.lineId)) && numeric(body.lineId) > 0))
         || !isIsoDate(date)
         || !isOptionalText(body.time)
         || (body.done !== undefined && !isFlag(body.done))) {
         return res.status(400).json({ error: 'INVALID_PAYLOAD', message: 'Données invalides.' });
       }
       let result = injectedOptionCardsModel.setOccurrenceDone({
-        reservationId, optionId, date, time: asText(body.time), done: Boolean(body.done),
+        reservationId, optionId, lineId: body.lineId == null ? undefined : numeric(body.lineId), date, time: asText(body.time), done: Boolean(body.done),
       });
       // A breakfast served without chosen mornings has a card every morning but no stored occurrence:
       // its flag is kept apart (specs/breakfast-option-planning-card.md, 2026-10-27 spec review).

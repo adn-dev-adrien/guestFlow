@@ -102,8 +102,12 @@ function expectedDates({ paidAt, holdDays, immediateBankDate = null }) {
   return { immediat, retenue: addDays(day(immediateBankDate) || immediat, holdDays) };
 }
 
-/** The ledger row a paid link settles (the same keys the expected receipts and the core ledger use). */
+/**
+ * The ledger row a paid link settles (the same keys the expected receipts and the core ledger use). Loop t10 D10-2 (rule 32): the link of a
+ * sale outside a stay (`saleRef`, no stay) is that sale's day — `sale:<sale key>:link-<id>`, the sale key being `<saleRef>:<Paris day paid>`.
+ */
 function linkLedgerKey(link, installmentNumberOf = () => null) {
+  if (link.saleRef) return saleLinkLedgerKey(`${link.saleRef}:${day(link.paidAt)}`, link.id);
   if (link.basketJson) return `basket-${link.id}`;
   if (String(link.type) === 'installment') {
     const number = installmentNumberOf(link.installmentId);
@@ -113,6 +117,11 @@ function linkLedgerKey(link, installmentNumberOf = () => null) {
   if (link.type === 'balance' || link.type === 'full') return 'balance';
   if (link.type === 'complement') return 'complement';
   return null;
+}
+
+/** Rule 32 — the receipts of a sale's payment link: one ledger key per link, beside the sale's own card tranches (`sale:<key>`). */
+function saleLinkLedgerKey(saleKey, linkId) {
+  return `sale:${saleKey}:link-${linkId}`;
 }
 
 // The one definition of a link that has a split: the sync and the migration's key rewrite read it alike (rule 8).
@@ -173,7 +182,7 @@ function createSplitsModel(db) {
   const linkSource = (link, numbers) => {
     const ledgerKey = linkLedgerKey(link, (id) => numbers.get(Number(id)) ?? null);
     return ledgerKey ? {
-      sourceType: SOURCE_TYPES.link, sourceKey: String(link.id), reservationId: Number(link.reservationId), ledgerKey,
+      sourceType: SOURCE_TYPES.link, sourceKey: String(link.id), reservationId: link.reservationId == null ? null : Number(link.reservationId), ledgerKey,
       grossCents: link.amountCents, paidAt: link.paidAt,
     } : null;
   };
@@ -250,6 +259,8 @@ function createSplitsModel(db) {
      */
     fromMolliePayment(source, payment, { settings, now = new Date() }) {
       const stored = forSource(source.sourceType, source.sourceKey);
+      // Loop t11 B11-1 — a split another Mollie payment already is keeps it: never re-pointed, never re-grossed.
+      if (stored && stored.molliePaymentId && String(stored.molliePaymentId) !== String(payment.id)) return;
       if (!stored) {
         create({ ...source, grossCents: payment.amountCents, paidAt: payment.paidAt, molliePaymentId: payment.id }, readReserveSettings(settings), now);
       } else if (!stored.molliePaymentId && Number(payment.amountCents) > 0 && day(payment.paidAt)) {
@@ -342,6 +353,6 @@ function createSplitsModel(db) {
 
 module.exports = {
   PAID_LINK_FILTER, reservePercentOf, immediatePercentOf, DEFAULT_RATE_PERCENT, DEFAULT_HOLD_DAYS, IMMEDIATE_DELAY_DAYS, LATE_AFTER_DAYS, RESERVE_EARLY_DAYS, TRANCHES, SOURCE_TYPES, splitIdOf,
-  rateMessage, holdMessage, sinceMessage, readReserveSettings, computeSplit, afterRefund, expectedDates, linkLedgerKey, trancheKey,
+  rateMessage, holdMessage, sinceMessage, readReserveSettings, computeSplit, afterRefund, expectedDates, linkLedgerKey, saleLinkLedgerKey, trancheKey,
   createSplitsModel, addDays,
 };

@@ -12,7 +12,7 @@
  *   (`money.allocateCents`) for per-line display: `amounts[i] = { ...tagged, rate, vatCents, netCents }`.
  * - Named rounding strategies, each the arithmetic of a reader that existed before this unit and moved here unchanged:
  *   `splitTtc` (engine, accounting buckets: VAT first, net by difference), `netFirst` (hourly bookings: net first, VAT by
- *   difference), `htOfPortion` (finance pages: the HT share of a TTC portion), and the Qonto basket's integer-cent helpers
+ *   difference; `netFirstCents` / `ttcFromNetCents` its twin on the cents of a Qonto invoice line), `htOfPortion` (finance pages: the HT share of a TTC portion), and the Qonto basket's integer-cent helpers
  *   `rateToBasis`, `lineTotalCents`, `htFromTtc`.
  *
  * Pure: no DB, no clock. The caller hands the regime (`vatRegimeModel.forRow`) and, optionally, the settings.
@@ -20,7 +20,9 @@
 const {
   roundMoney, toCents, fromCents, allocateCents,
 } = require('../money');
-const { rateKey, settingsSchema } = require('./settingsSchema');
+const {
+  rateKey, settingsSchema, VAT_CLASSES, ARTICLE_VAT_CLASSES,
+} = require('./settingsSchema');
 
 function readSetting(settings, key) {
   if (!settings) return undefined;
@@ -52,6 +54,11 @@ function netFirst(total, rate) {
   return { amount: roundMoney(total - net), net };
 }
 
+// Strategy « TTC from net »: the gross of a net amount at a rate (a frozen HT base read back as the TTC nightly price).
+function ttcFromNet(net, rate) {
+  return roundMoney(net * (1 + rate / 100));
+}
+
 // Strategy « HT share »: the HT of a TTC portion of a stay is the portion times the HT fraction of the stay's whole TTC
 // (the VAT-able price over the VAT-able price plus the tourist tax, the tax bearing no VAT).
 function htOfPortion({
@@ -66,6 +73,27 @@ function htOfPortion({
   const ratio = (finalPrice / (1 + vatRate / 100)) / fullTtc;
   return roundMoney(portion * ratio);
 }
+
+// Strategy « HT share of the lines »: the HT of a TTC portion of a stay is the portion times the share of the stay's sale lines
+// that is revenue net of VAT, each line cut by `vatOf` (rule 61): Σ net of the revenue lines over Σ the TTC of every line, the
+// tourist tax (`kind: 'touristTax'`) weighing in the TTC and bringing no revenue. `lines` = `[{ kind, totalCents, vat: { vatCents } }]`.
+function htOfLines({ portion: ttcPortion, lines }) {
+  const portion = Number(ttcPortion || 0);
+  if (portion <= 0) return 0;
+  const ttcOf = (line) => Math.max(0, Number(line.totalCents || 0));
+  const ttcCents = (lines || []).reduce((sum, line) => sum + ttcOf(line), 0);
+  if (ttcCents <= 0) return 0;
+  const netCents = (lines || []).filter((line) => line.kind !== 'touristTax')
+    .reduce((sum, line) => sum + ttcOf(line) - Math.max(0, Number((line.vat && line.vat.vatCents) || 0)), 0);
+  return roundMoney(portion * (netCents / ttcCents));
+}
+
+// Strategy « net first, in cents » (the Qonto invoice lines): the HT of a TTC amount in cents, and back. Qonto numbers each line itself,
+// so the invoice issuer starts from the HT a line would have and nudges it by a cent or two until Qonto's own totals add up. Both
+// are the float arithmetic the issuer always used, moved here unchanged (rule 64, Q-C8: no issued document moves); `lineTotalCents`
+// below is the integer-exact twin, which agrees on 10 % and 20 % and may differ by one cent on a half-cent tie at other rates.
+const netFirstCents = (ttcCents, rate) => Math.round(ttcCents / (1 + Number(rate || 0) / 100));
+const ttcFromNetCents = (htCents, rate) => Math.round(htCents * (1 + Number(rate || 0) / 100));
 
 // Rate as integer hundredths-of-a-percent so 10 % → 1000, 8.5 % → 850, 20 % → 2000. Keeps everything
 // in integers: a line total = htCents × (10000 + R) / 10000.
@@ -143,13 +171,28 @@ function vatOf(taggedAmounts, { regime = null, settings = null } = {}) {
   };
 }
 
+// Rule 62 (loop t4 B4-4) — the VAT of one (class, rate) group of a document, cut ONCE on the group's TTC: what the journal books for a sale document and
+// what its Qonto invoice must state for the items of that group (`invoiceIssuer` per-group targets). 0 on a group with no money.
+function groupVatCents(ttcCents, rate) {
+  return ttcCents > 0
+    ? vatOf([{ amountCents: ttcCents, vatClass: 'external', customerContext: 'external' }], { regime: null, settings: { get: () => rate } }).totals.vatCents
+    : 0;
+}
+
 module.exports = {
+  groupVatCents,
   settingsSchema,
+  VAT_CLASSES,
+  ARTICLE_VAT_CLASSES,
   vatOf,
   resolveRate,
   splitTtc,
   netFirst,
+  netFirstCents,
+  ttcFromNetCents,
+  ttcFromNet,
   htOfPortion,
+  htOfLines,
   rateToBasis,
   lineTotalCents,
   htFromTtc,

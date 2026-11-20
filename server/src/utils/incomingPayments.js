@@ -36,7 +36,7 @@ function stateOf(item, today) {
   return { state: 'upcoming', stateLabel: `Dans ${Math.round(days / 30)} mois`, tone: 'neutral' };
 }
 
-const euros2 = (cents) => Math.round(cents) / 100;
+const { fromCentsRounded: euros2 } = require('./pricing/money');
 
 /**
  * @param {{ items: object[], stays: Map<number, object>, today: string, recent?: boolean }} p

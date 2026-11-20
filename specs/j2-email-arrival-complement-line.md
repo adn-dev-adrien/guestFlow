@@ -64,6 +64,11 @@ to the full complement amount.
 - Complement = accommodation auto-gap only → « … Il comprend : Complément d'arrivée (X €). »
 - Offered (free) in-complement items → excluded (as in the SAS).
 
+> **Amended 2026-11-13** (specs/pricing-components.md rule 91): the breakdown is now read from the sale detail
+> (`extraSale.arrivalComplementDetailOf`), measured identical to `buildArrivalComplementDetail` on every stay of the prod copy of
+> 2026-11-11; `buildArrivalComplementDetail` stays the reading of a stay the engine cannot quote. The loader is
+> `utils/reservationEmailGraph.js` (`loadArrivalComplementDetail`), shared by the e-mail graph and the auto-send runner.
+
 ---
 
 ## 4. Architecture

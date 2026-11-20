@@ -1,7 +1,7 @@
 {
   "id": "online-payment",
   "name": "Paiement en ligne (Qonto)",
-  "version": "1.9.0",
+  "version": "1.9.1",
   "description": "Liens de paiement envoyés aux voyageurs, et rapprochement des virements du compte Qonto avec les fiches, retenue Mollie comprise.",
   "icon": "payments",
   "surfaces": [
@@ -16,7 +16,7 @@
   ],
   "requires": [],
   "guestflow": ">=3.18.0",
-  "sdk": "^2.29.0",
+  "sdk": "^2.32.0",
   "changelog": {
     "1.0.0": [
       "Première version publiée en paquet."
@@ -177,6 +177,24 @@
       "Relevé de versement Mollie joint dans Qonto : chaque crédit Mollie reçoit en pièce jointe un PDF écrit par GuestFlow à partir des données Mollie (paiements, retenue, frais, retenues libérées), à partir d'une date choisie.",
       "Rapprochement : l'état du relevé sur la ligne du versement, « Voir le relevé » et « Réessayer ».",
       "Demande le SDK 2.29 de GuestFlow."
+    ],
+    "1.9.1": [
+      "Les arrondis en euros et en centimes passent par un calcul commun : aucun montant ne change.",
+      "Le rapprochement bancaire lit les montants d'une plateforme dans le calcul commun du cœur : aucun montant ne change.",
+      "La TVA des lignes de facture Qonto est coupée par le composant TVA du cœur : mêmes montants que les factures déjà émises.",
+      "La facture Qonto d’une vente hors séjour indique la même TVA que la comptabilité, calculée une fois par taux et par type d’article.",
+      "Quand Qonto refuse une ligne de remise, la facture repliée reste possible avec une ligne « Arrondi de TVA » au lieu d’être refusée, et la TVA d’une séance payée sur la réservation est celle de son journal.",
+      "Le lien de paiement d’une vente hors séjour, une fois payé, donne ses deux versements Mollie : rapprochement, « Versements à venir » et journal Mollie.",
+      "Une vente hors séjour payée par carte en plusieurs jours sous une seule facture attend un versement Mollie par paiement, et non plus un seul.",
+      "Deux paiements Mollie portant le même numéro de facture vont chacun à leur jour de paiement par carte : aucun ne prend la place de l’autre.",
+      "Rapprochement : « Attendu » et le nom d’une vente hors séjour sans client s’affichent une seule fois, y compris dans « couvre aussi », la répartition et la carte « Écarts de règlement ».",
+      "Un paiement Mollie d’une facture de plusieurs jours sans jour du même montant reste à identifier.",
+      "Répartition d’un versement groupé : un contrôle qui échoue ne laisse plus l’ancien message affiché, il dit pourquoi avec « Réessayer », et les parts saisies restent en place.",
+      "« Rattacher des virements » : une liste qui ne se charge pas affiche la raison avec « Réessayer », et « Rattacher » reste grisé jusqu’à son retour ; les virements cochés sont gardés.",
+      "Répartition d’un versement et « Modifier la répartition » : tant qu’un montant saisi est illisible, plus aucun ancien message ni ancien total n’est affiché comme actuel.",
+      "Répartition d’un versement : un montant en cours de saisie qui finit par la virgule (« 100, ») vaut le montant entier, sans « Montant invalide » le temps d’une touche.",
+      "Répartition d’un versement et rattachement de virements : un refus du serveur affiche sa raison sans « Réessayer » ; le focus reste dans la fenêtre pendant l’enregistrement.",
+      "Demande GuestFlow 4.2 (SDK 2.32)."
     ]
   }
 }
