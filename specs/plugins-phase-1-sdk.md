@@ -915,6 +915,19 @@ Optional: a plugin that declares nothing reads « Actif ».
     (their own `quoteReady` / `paymentReady` / `canSave` conditions are gone; the booking's save handler asks the gate again before writing).
     A request scheduled for the draft on screen (its quiet time running) keeps the screen pending whatever an older request answers
     meanwhile: a failed « Réessayer » of another draft no longer ended the pending state of a draft about to be asked (booking seed 944).
+    _Reading of 2026-11-20 (loop t26 verifier):_ the same holds when a draft that could not be asked for a while (a payment unreadable for a
+    keystroke, the invoice question waiting for its price — `enabled` false) is asked again on the very draft of the latest accepted answer:
+    current at once, nothing re-asked (« Un de plus » then « Un de moins » enabled « Valider l’arrivée » for a frame, then took it back for
+    the question asked again). After a failure the answer kept from before it names no draft (`answerKey` null) until a new answer, so a
+    draft back to it is asked afresh, never shown current for a frame. **The harness judges I2 and the commit label's I1 at every React
+    commit** (a `Profiler` around the dialog calls `probeCommit` in its commit phase), not only once a step's effects have settled, and its
+    strength is proved by a mutation check (round-26 status): removing the identity comparison, typing only on the last line, dropping
+    `shortDueCents`, `MoneyActions` as a plain `DialogActions`, « Réessayer » on a 4xx, the counter's lines remounted without their draft —
+    each turns the permanent suite red. « Ajouter un produit » (`AddProductDialog`) joins the contract (`useLatestPreview`, `PreviewFailure`
+    with « Réessayer » on a 5xx, `useMoneyCommit`, a `FocusKeeper` content) and the harness (family `product`); the coverage reads the
+    members by behaviour too — any file asking `api.quote…` / `api.preview…`, except the previews listed as carrying no amount.
+    `TenderLines` takes `defaultLine` for the screen's proposed line of the whole due (seeded, it follows the due); a correction's lines stay
+    as recorded.
 
 **Edge cases:**
 - **A plugin throws during `register`.** Rule 4 applies: the other plugins and the core boot. The Plugins
@@ -1172,13 +1185,14 @@ still in the core. Server: 4,611 tests after, of which 37 are new. Client: 1,416
   « Caisse interne », the booking dialog's, the block alone, the counter's « Réessayer », « Retirer », « Percevoir maintenant », the minted
   link, the SAS « Séjour » page's « Réessayer ».
 - `hooks/__tests__/useLatestPreview.draft-back.test.jsx` (3) — rule 58 (reading of 2026-11-19, loop t26): a draft back to the one on its way keeps that request, back to the latest accepted answer is current and not pending, back to a failed one is asked afresh.
-- `__tests__/moneyDialogs.invariants.*.test.jsx` (9 files, 20 tests) — rule 58 (loop t26): the generative harness
+- `hooks/__tests__/useMoneyCommit.identity.test.jsx` (3), `components/__tests__/TenderLines.typed-lines.test.jsx` (2), `components/__tests__/MoneyActions.focus.test.jsx` (1) — rule 58 (reading of 2026-11-20): the identity gate, a typed line kept when the next one is removed, the shortfall choice back on its own due, the actions row keeping the focus.
+- `__tests__/moneyDialogs.invariants.*.test.jsx` (10 files, 22 tests) — rule 58 (loop t26): the generative harness
   (`__tests__/moneyDialogsHarness.jsx`), one suite per family — `counter` (1), `visit` (1), `booking` (1), `sas` (2: arrival, departure),
-  `note` (1), `penalty` (1), `reconciliation` (2: split, link), `fiche` (1: « Encaisser en une fois » and a ledger row's `PaymentMarkForm`)
+  `note` (1), `penalty` (1), `reconciliation` (2: split, link), `fiche` (1: « Encaisser en une fois » and a ledger row's `PaymentMarkForm`), `product` (1: « Ajouter un produit »)
   — each running its fixed seeds (1-3 seeds × 25-30 steps) and every seed a long run found, at 60 steps (visit 229, 402, 782, 895;
   booking 263, 275, 307, 738, 841, 944, 1312, 1592, 1706; counter 258, 321, 498, 551; SAS arrival 210, 211, 224, 227, 229, 235, 257, 298,
   306, 307, 332, 334, 335; note 215, 290, 319, 400; split 383; link 273, 289, 309, 389; fiche 461), checking I1-I6 after every step — about
-  120 s on one worker, the booking file the longest (≈ 41 s); `coverage` (10): the members read from the code equal the table, each
+  120 s on one worker, the booking file the longest (≈ 41 s); `coverage` (11): the members read from the code equal the table, each
   family has its suite rendering its dialog. Run locally with 0 violations: seeds 1-200 × 60 steps for every family (before the two
   `useLatestPreview` fixes of the long run), then on the final code seeds 201-1000 × 60 for the visit, the booking, the counter and the SAS
   and 201-600 × 60 for the others, plus the pinned seeds.

@@ -19,6 +19,7 @@
 //   I6 no React warning or error, before or after the dialog is unmounted.
 // A failing seed is replayed and shrunk to a minimal list of steps, printed with the seed. `HARNESS_SEEDS=<n>` and `HARNESS_STEPS=<m>`
 // widen a local run; the permanent suite keeps its fixed seeds within the CI budget.
+import React, { Profiler } from 'react';
 import { act, cleanup, render } from '@testing-library/react';
 import { vi } from 'vitest';
 
@@ -286,6 +287,8 @@ class Ctx {
     this.afterUnmountCalls = [];
     this.consoleErrors = [];
     this.askedForNothing = [];
+    this.commitViolations = [];
+    this.probeSig = null;
     this.state = {};
   }
 
@@ -340,6 +343,9 @@ class Ctx {
   }
 }
 
+// The dialog under a `Profiler`: its commit phase calls the probe after every React commit of the dialog's tree.
+export const probed = (ctx) => <Profiler id="money-dialog" onRender={() => probeCommit(ctx)}>{ctx.adapter.render(ctx)}</Profiler>;
+
 // ---------------------------------------------------------------------------------------------------------------- time and gestures
 // A handler's continuations (an answer, then its own awaits) run inside one `act`, so none of them updates React outside it.
 const ticks = async (n = 12) => { for (let i = 0; i < n; i += 1) await Promise.resolve(); };
@@ -363,6 +369,90 @@ export async function realWait(ms) {
 const IGNORE = process.env.HARNESS_IGNORE ? new RegExp(process.env.HARNESS_IGNORE) : null;
 function violation(list, code, message) { if (!IGNORE || !IGNORE.test(`${code} ${message}`)) list.push({ code, message }); }
 
+const blocksIn = (roots) => tenderBlocks(roots[0] ? roots[0].ownerDocument.body : document.body).filter((b) => roots.some((r) => r.contains(b.block)));
+const commitButtonsOf = (ctx) => [].concat(ctx.adapter.commitButton ? ctx.adapter.commitButton(ctx) : []).filter(Boolean);
+
+// What an amount on screen may be: the stored data, what the operator typed, the answer to the draft on screen (or, while that draft is
+// asked, the latest answer, dimmed), and what the tender lines add up to.
+function allowedCents(ctx, states, blocks) {
+  const { adapter } = ctx;
+  const allowed = new Set(ctx.staticCents);
+  blocks.forEach((b) => b.lines.forEach((l) => { const c = centsOfInput(l.value); if (c != null) allowed.add(c); }));
+  ctx.typed.forEach((value) => { const c = centsOfInput(value); if (c != null) { allowed.add(c); allowed.add(-c); } });
+  (adapter.typedCents ? adapter.typedCents(ctx) : []).forEach((c) => allowed.add(c));
+  (adapter.channels || []).forEach((channel) => {
+    const state = states[channel.name];
+    if (channel.figures === false) return;
+    if (state.kind === 'fresh') state.req.cents.forEach((c) => allowed.add(c));
+    if (state.kind === 'pending' && ctx.server.accepted[channel.name]) ctx.server.accepted[channel.name].cents.forEach((c) => allowed.add(c));
+  });
+  blocks.forEach((b) => {
+    const total = b.lines.map((l) => centsOfInput(l.value) || 0).reduce((sum, c) => sum + c, 0);
+    allowed.add(total);
+    if (b.dueCents != null) { allowed.add(b.dueCents - total); allowed.add(total - b.dueCents); }
+  });
+  if (adapter.derivedCents) adapter.derivedCents(ctx, allowed).forEach((c) => allowed.add(c));
+  return allowed;
+}
+
+// Why an enabled commit should not be (I2): a preview not answered for the draft on screen, lines that do not answer the due, a question
+// left open.
+function gateReasons(ctx, states, blocks, commit) {
+  const { adapter } = ctx;
+  const reasons = [];
+  (adapter.channels || []).filter((c) => c.gates !== false).forEach((channel) => {
+    const state = states[channel.name];
+    const idleOk = channel.idleCommits !== false;
+    if (state.kind === 'idle' && idleOk) return;
+    if (state.kind !== 'fresh') reasons.push(`${channel.name} ${state.kind}`);
+    else if (channel.refusal && channel.refusal(state.req.answer)) reasons.push(`${channel.name} answer refuses`);
+  });
+  // The lines a commit sends are those of its own form (the fiche shows the arrival block and a ledger row's form at once).
+  blocks.filter((b) => b.block.closest('form') === commit.closest('form'))
+    .filter((b) => !adapter.tendersOutsideCommit || !adapter.tendersOutsideCommit(b, commit)).forEach((b) => {
+      if (b.lines.some((l) => l.disabled)) return;
+      if (b.over) reasons.push('tender lines over the due');
+      if (b.short && !b.whole && !b.shortfall) reasons.push('tender lines short, no shortfall chosen');
+      if (b.short && b.whole) reasons.push('tender lines short of a whole due');
+      if (b.lines.some((l) => !l.auto && l.value.trim() !== '' && centsOfInput(l.value) == null)) reasons.push('unreadable tender line');
+    });
+  if (adapter.requirements) adapter.requirements(ctx, commit).forEach((r) => reasons.push(r));
+  return reasons;
+}
+
+// I2 and the commit label's I1 at EVERY React commit (a `Profiler` around the dialog calls this from its commit phase): a commit enabled for
+// one frame on an answer of another draft, or a label naming such an amount, is caught even when the next effect takes it back before
+// the step ends (loop t26 verifier).
+export function probeCommit(ctx) {
+  if (!ctx.ready || ctx.done || ctx.closed || ctx.unmounted) return;
+  const roots = scopeOf(ctx);
+  if (!roots.length) return;
+  const buttons = commitButtonsOf(ctx);
+  const sig = buttons.map((b) => `${b.disabled ? 0 : 1}:${b.textContent}`).join('|');
+  if (sig === ctx.probeSig) return;
+  ctx.probeSig = sig;
+  // A draft that changed at this commit changed now: its quiet time starts here, as the step's own bookkeeping would say.
+  trackKeys(ctx);
+  const keys = ctx.keys();
+  const states = {};
+  (ctx.adapter.channels || []).forEach((channel) => { states[channel.name] = ctx.channelState(channel, keys[channel.name]); });
+  ctx.states = states;
+  const blocks = blocksIn(roots);
+  let allowed = null;
+  buttons.forEach((button) => {
+    const label = button.textContent.trim();
+    if (!button.disabled) {
+      const reasons = gateReasons(ctx, states, blocks, button);
+      if (reasons.length) ctx.commitViolations.push({ code: 'I2', message: `« ${label} » enabled at a React commit while ${reasons.join(', ')}` });
+    }
+    const cents = centsOfText(label);
+    if (cents.length) {
+      allowed = allowed || allowedCents(ctx, states, blocks);
+      cents.filter((c) => !allowed.has(c)).forEach((c) => ctx.commitViolations.push({ code: 'I1', message: `« ${label} » named ${c / 100} € at a React commit — from no answer to the draft on screen (${describeStates(states)})` }));
+    }
+  });
+}
+
 export function checkInvariants(ctx) {
   const v = [];
   const { adapter } = ctx;
@@ -374,30 +464,8 @@ export function checkInvariants(ctx) {
   ctx.states = states;
 
   // I1 — the amounts on screen.
-  const allowed = new Set(ctx.staticCents);
-  const blocks = tenderBlocks(roots[0] ? roots[0].ownerDocument.body : document.body).filter((b) => roots.some((r) => r.contains(b.block)));
-  blocks.forEach((b) => b.lines.forEach((l) => { const c = centsOfInput(l.value); if (c != null) allowed.add(c); }));
-  ctx.typed.forEach((value) => { const c = centsOfInput(value); if (c != null) { allowed.add(c); allowed.add(-c); } });
-  (adapter.typedCents ? adapter.typedCents(ctx) : []).forEach((c) => allowed.add(c));
-  const answerSets = [];
-  (adapter.channels || []).forEach((channel) => {
-    const state = states[channel.name];
-    if (channel.figures === false) return;
-    if (state.kind === 'fresh') answerSets.push(state.req.cents);
-    if (state.kind === 'pending') {
-      if (ctx.server.accepted[channel.name]) answerSets.push(ctx.server.accepted[channel.name].cents);
-    }
-  });
-  answerSets.forEach((set) => set.forEach((c) => allowed.add(c)));
-  const sums = new Set();
-  blocks.forEach((b) => {
-    const amounts = b.lines.map((l) => centsOfInput(l.value) || 0);
-    const total = amounts.reduce((s, c) => s + c, 0);
-    sums.add(total);
-    if (b.dueCents != null) { sums.add(b.dueCents - total); sums.add(total - b.dueCents); }
-  });
-  sums.forEach((c) => allowed.add(c));
-  if (adapter.derivedCents) adapter.derivedCents(ctx, allowed).forEach((c) => allowed.add(c));
+  const blocks = blocksIn(roots);
+  const allowed = allowedCents(ctx, states, blocks);
   const texts = moneyTexts(roots, adapter.ignore);
   const seen = new Set();
   texts.forEach(({ el, text }) => {
@@ -421,29 +489,12 @@ export function checkInvariants(ctx) {
   }
 
   // I2 — the commit.
-  const commitButtons = [].concat(adapter.commitButton ? adapter.commitButton(ctx) : []).filter(Boolean);
+  const commitButtons = commitButtonsOf(ctx);
   commitButtons.filter((commit) => !commit.disabled).forEach((commit) => {
-    const reasons = [];
-    (adapter.channels || []).filter((c) => c.gates !== false).forEach((channel) => {
-      const state = states[channel.name];
-      const idleOk = channel.idleCommits !== false;
-      if (state.kind === 'idle' && idleOk) return;
-      if (state.kind !== 'fresh') reasons.push(`${channel.name} ${state.kind}`);
-      else if (channel.refusal && channel.refusal(state.req.answer)) reasons.push(`${channel.name} answer refuses`);
-    });
-    // The lines a commit sends are those of its own form (the fiche shows the arrival block and a ledger row's form at once).
-    blocks.filter((b) => b.block.closest('form') === commit.closest('form'))
-      .filter((b) => !adapter.tendersOutsideCommit || !adapter.tendersOutsideCommit(b, commit)).forEach((b) => {
-      const anyDisabled = b.lines.some((l) => l.disabled);
-      if (anyDisabled) return;
-      if (b.over) reasons.push('tender lines over the due');
-      if (b.short && !b.whole && !b.shortfall) reasons.push('tender lines short, no shortfall chosen');
-      if (b.short && b.whole) reasons.push('tender lines short of a whole due');
-      if (b.lines.some((l) => !l.auto && l.value.trim() !== '' && centsOfInput(l.value) == null)) reasons.push('unreadable tender line');
-    });
-    if (adapter.requirements) adapter.requirements(ctx, commit).forEach((r) => reasons.push(r));
+    const reasons = gateReasons(ctx, states, blocks, commit);
     if (reasons.length) violation(v, 'I2', `« ${commit.textContent.trim()} » enabled while ${reasons.join(', ')}`);
   });
+  ctx.commitViolations.splice(0).forEach((x) => violation(v, x.code, x.message));
   // Liveness (the ⇐ of I2) is judged once the screen is quiet: nothing on its way, the quiet time over.
   const quiet = ctx.server.pending().length === 0 && (adapter.channels || []).every((c) => ctx.now - (ctx.changedAt[c.name] ?? -Infinity) > (c.delay ?? PREVIEW_DELAY) + 20);
   if (commitButtons.length && adapter.liveness && quiet) {
@@ -556,12 +607,15 @@ function describeStates(states) {
 // ---------------------------------------------------------------------------------------------------------------- generic gestures
 // The focus moves inside `act`: MUI's fields keep their focused state in React.
 export const focusOn = (el) => act(() => { el.focus(); });
-export const press = async (ctx, el) => {
+// `beforeClick` moves a model the adapter keeps of the draft at the click itself — after the focus, whose own React commit still shows
+// the draft before the gesture — so the per-commit probe judges each commit against the draft on screen.
+export const press = async (ctx, el, beforeClick = null) => {
   if (!el) return false;
   const { fireEvent } = await import('@testing-library/react');
   ctx.clickEnabled = !el.disabled && el.getAttribute('aria-disabled') !== 'true';
   focusOn(el);
   if (document.activeElement === el) ctx.focusedOnce = true;
+  if (beforeClick) beforeClick();
   await act(async () => { fireEvent.click(el); await ticks(); });
   return true;
 };
@@ -603,7 +657,7 @@ export const remountOp = (readyCheck) => ({
     ctx.server.accepted = {};
     ctx.server.settled = {};
     Object.keys(ctx.changedAt).forEach((name) => { ctx.changedAt[name] = ctx.now; });
-    await act(async () => { ctx.view = ctx.adapter.mount ? ctx.adapter.mount(ctx) : render(ctx.adapter.render(ctx)); });
+    await act(async () => { ctx.view = render(probed(ctx)); });
     for (let i = 0; i < 60 && !readyCheck(ctx); i += 1) { await realWait(10); await advance(ctx, 50); }
     (ctx.adapter.channels || []).forEach((c) => { ctx.changedAt[c.name] = ctx.now; ctx.changedStep[c.name] = ctx.stepIndex; });
     return true;
@@ -753,14 +807,17 @@ async function perform(ctx, action) {
   }
   const op = ctx.ops[action.name];
   if (!op || (op.applicable && !op.applicable(ctx))) return false;
-  // A dialog may tie a default to the payment lines (the invoice box ticked for a card): a gesture on the lines re-asks it.
-  if (TENDER_OPS[action.name] && ctx.adapter.onTenderGesture) ctx.adapter.onTenderGesture(ctx);
+  // A dialog may tie a default to the payment lines (the invoice box follows the presence of a card line): the adapter is told the lines
+  // before and after a gesture on them, to expect what the dialog does.
+  const tenderGesture = TENDER_OPS[action.name] && ctx.adapter.onTenderGesture;
+  const linesBefore = tenderGesture ? tendersOnScreen(tenderBlocks(document.body)[0]) : null;
   if (op.commit) {
     ctx.clickSnap = ctx.adapter.snapshot ? ctx.adapter.snapshot(ctx) : null;
     ctx.commitClickStep = ctx.stepIndex;
   }
   const done = await op.run(ctx, action.args || {});
   await flush();
+  if (tenderGesture) ctx.adapter.onTenderGesture(ctx, linesBefore, tendersOnScreen(tenderBlocks(document.body)[0]));
   trackKeys(ctx);
   await advance(ctx, action.then || 0);
   return done !== false;
@@ -820,7 +877,7 @@ async function episode(adapter, api, { seed = 0, steps = 40, actions = null, sto
   let failure = null;
   try {
     ctx.server.install(api, adapter.routes(ctx));
-    await act(async () => { ctx.view = adapter.mount ? adapter.mount(ctx) : render(adapter.render(ctx)); });
+    await act(async () => { ctx.view = render(probed(ctx)); });
     for (let i = 0; i < 80 && !(adapter.ready ? adapter.ready(ctx) : true); i += 1) { await realWait(15); await advance(ctx, 50); }
     if (adapter.ready && !adapter.ready(ctx)) throw new Error(`${adapter.name}: the dialog never became ready`);
     if (adapter.setup) await adapter.setup(ctx);

@@ -472,8 +472,10 @@ read the settlements themselves (`utils/paymentTenders.settlementFigures`).
     the last one was, so removing the line after a typed one turned it into the remainder and its amount was lost. The shortfall choice
     travels in the draft with the due it answered (`shortDueCents`), so a block drawn again on another due and back keeps it for its own due
     (B25-1 still holds: another due asks it again). Every host's lines are a `FocusKeeper` region: a line
-    removed, or « Ajouter un moyen » gone at the fourth line, leaves the focus in the block. Found and proved by the generative harness
-    (`moneyDialogs.invariants.*`, I3 and I4).
+    removed, or « Ajouter un moyen » gone at the fourth line, leaves the focus in the block. Found by the generative harness
+    (`moneyDialogs.invariants.*`, I3 and I4) and proved by it: with « typed » on the last line only, or `shortDueCents` ignored, its permanent
+    suite turns red (mutation check of 2026-11-20), as do `TenderLines.typed-lines` (2). The prefilled line of the whole due is seeded only
+    where the screen proposes it (`defaultLine`: the counter, `BookingPaymentFields`); a correction's lines stay as recorded.
 
 **Edge cases:**
 - All lines `cash` + internal, no shortfall → same storage as « Caisse interne » + settlement (rule 11).

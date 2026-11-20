@@ -124,12 +124,14 @@ export default function useLatestPreview({
     // to the draft of the latest accepted answer: that answer is current again — what was asked since is dropped, and the screen is not
     // pending. Either way `fresh` follows the request the screen actually waits for, never a render ahead of it.
     const isCurrent = (ref) => Boolean(ref) && ref.signature === signature && Object.is(ref.scope, scope);
+    // The same holds when the draft is asked again after a while it could not be (`first`: a payment unreadable for a keystroke, the
+    // invoice question waiting for its price): enabled again on the very draft it answered, the hook asks nothing (loop t26 verifier).
     if (!first && isCurrent(inflightRef.current)) {
       clearTimeout(timerRef.current);
       setPending(true);
       return () => clearTimeout(timerRef.current);
     }
-    if (!first && isCurrent(settledRef.current)) {
+    if (isCurrent(settledRef.current)) {
       seqRef.current += 1;
       if (abortRef.current) abortRef.current.abort();
       inflightRef.current = null;
@@ -169,7 +171,8 @@ export default function useLatestPreview({
     fresh: !pending && !answer.failed && answer.signature === signature && answer.data != null,
     // Loop t26 (rule 58) — the identities behind `fresh`: the draft the latest answer was for, and the draft on screen. A commit gate
     // (`useMoneyCommit`) compares them itself, so no boolean of an earlier request can stand for the draft on screen.
-    answerKey: answer.data != null ? answer.signature : null,
+    // After a failure the answer kept is from before it: it names no draft until a new answer (the draft back to it is asked afresh).
+    answerKey: answer.data != null && !answer.failed ? answer.signature : null,
     draftKey: signature,
     retry,
   };

@@ -12,7 +12,7 @@ import { makeMockContext } from '../components/reservation/__tests__/mockReserva
 import { dueRow, ledgerOf } from '../components/reservation/__tests__/ledgerFixtures';
 import {
   runFamily, formatFailures, harnessSeeds, harnessSteps, harnessTimeout, press, findButton, findButtons, tenderBlocks, tendersOnScreen,
-  tenderSig, centsOfInput,
+  tenderSig, centsOfInput, probed,
 } from './moneyDialogsHarness';
 
 vi.mock('../api', async () => (await import('./moneyDialogsHarness')).apiModule());
@@ -113,7 +113,7 @@ const adapter = {
       weight: 1,
       async run(ctx) {
         ctx.state.read += 1;
-        await act(async () => { ctx.view.rerender(tree(ctx)); });
+        await act(async () => { ctx.view.rerender(probed(ctx)); });
         return true;
       },
     },
@@ -123,6 +123,6 @@ const adapter = {
 };
 
 test('the fiche\'s payment forms keep the money-dialog invariants on every generated seed', async () => {
-  const failures = await runFamily(adapter, api, { seeds: harnessSeeds([1, 2, 3, [461, 60]]), steps: harnessSteps(30) });
+  const failures = await runFamily(adapter, api, { seeds: harnessSeeds([1, [70, 60], [73, 60], [461, 60]]), steps: harnessSteps(30) });
   expect(formatFailures(failures)).toBe('');
 }, harnessTimeout(120000));

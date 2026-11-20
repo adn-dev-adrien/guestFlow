@@ -184,12 +184,15 @@ const link = {
         const boxes = rowBoxes().filter((b) => !b.disabled);
         const box = boxes[at % boxes.length];
         const id = rowId(box);
-        const ok = await press(ctx, box);
-        if (ok && id) {
+        // The model moves with the click, before React commits it: the probe judges every commit against the draft clicked.
+        const before = { ticked: ctx.state.ticked, manual: ctx.state.manual };
+        const ok = await press(ctx, box, () => {
+          if (!id) return;
           ctx.state.ticked = ctx.state.ticked.includes(id) ? ctx.state.ticked.filter((x) => x !== id) : [...ctx.state.ticked, id];
           ctx.state.manual = null;
-          [...ctx.typed.keys()].filter((k) => k.startsWith('manual:')).forEach((k) => ctx.typed.delete(k));
-        }
+        });
+        if (!ok) { ctx.state.ticked = before.ticked; ctx.state.manual = before.manual; }
+        if (ok && id) [...ctx.typed.keys()].filter((k) => k.startsWith('manual:')).forEach((k) => ctx.typed.delete(k));
         return ok;
       },
     },
@@ -197,9 +200,10 @@ const link = {
       weight: 1,
       gen: (rnd) => ({ value: rnd.pick(['', '12/03', 'zzz', 'Int']) }),
       async run(ctx, { value }) {
-        const ok = await typeInto(ctx, document.querySelector('[role="dialog"] input[type="search"]'), value, 'search');
-        if (ok) ctx.state.query = value;
-        return ok;
+        const field = document.querySelector('[role="dialog"] input[type="search"]');
+        if (!field || field.value === value) return false;
+        ctx.state.query = value;
+        return typeInto(ctx, field, value, 'search');
       },
     },
     modify: {
@@ -207,9 +211,10 @@ const link = {
       applicable: () => Boolean([...document.querySelectorAll('[role="dialog"] button')].find((b) => b.textContent === 'Modifier la répartition')),
       async run(ctx) {
         const ids = (ctx.server.accepted.allocation && ctx.server.accepted.allocation.answer.pairs.map((p) => p.transactionId)) || [];
-        const ok = await press(ctx, [...document.querySelectorAll('[role="dialog"] button')].find((b) => b.textContent === 'Modifier la répartition'));
+        const before = ctx.state.manual;
+        const ok = await press(ctx, [...document.querySelectorAll('[role="dialog"] button')].find((b) => b.textContent === 'Modifier la répartition'), () => { ctx.state.manual = ids; });
         const shownPairs = manualFields().length;
-        if (ok && shownPairs) ctx.state.manual = ids.slice(0, shownPairs);
+        ctx.state.manual = ok && shownPairs ? ids.slice(0, shownPairs) : before;
         return ok;
       },
     },

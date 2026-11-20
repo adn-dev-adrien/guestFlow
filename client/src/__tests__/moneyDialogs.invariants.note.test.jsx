@@ -116,8 +116,10 @@ const adapter = {
         const box = boxes()[at];
         if (!box || box.disabled) return false;
         const key = LINES[at].key;
-        const ok = await press(ctx, box);
-        if (ok) ctx.state.order = ctx.state.order.includes(key) ? ctx.state.order.filter((k) => k !== key) : [...ctx.state.order, key];
+        // The model moves with the click, before React commits it: the probe judges every commit against the draft clicked.
+        const before = ctx.state.order;
+        const ok = await press(ctx, box, () => { ctx.state.order = before.includes(key) ? before.filter((k) => k !== key) : [...before, key]; });
+        if (!ok) ctx.state.order = before;
         return ok;
       },
     },
@@ -144,6 +146,6 @@ const adapter = {
 
 // Seeds found by the long runs (loop t26): ticks undone and redone in another order.
 test('« Nouvelle note » keeps the money-dialog invariants on every generated seed', async () => {
-  const failures = await runFamily(adapter, api, { seeds: harnessSeeds([1, 2, [215, 60], [290, 60], [319, 60], [400, 60]]), steps: harnessSteps(30) });
+  const failures = await runFamily(adapter, api, { seeds: harnessSeeds([1, 2, [73, 60], [149, 60], [215, 60], [290, 60], [319, 60], [400, 60]]), steps: harnessSteps(30) });
   expect(formatFailures(failures)).toBe('');
 }, harnessTimeout(180000));

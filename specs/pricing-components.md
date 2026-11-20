@@ -545,6 +545,10 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
     > exactly what the write adds to the stored row.
     > _Amended 2026-11-16 (loop t4, S4-4):_ a quote paid now announces the departure net of the note the sale writes in the same transaction
     > (`buckets.departure` 0 where it said the line's price). Test `sale-quote-paid-now-buckets`.
+    > _Reading of 2026-11-20 (loop t26 verifier, plugins-phase-1-sdk rule 58):_ « Ajouter un produit » (`AddProductDialog`) asks its quote
+    > through `useLatestPreview` (latest request only; a failure shows its reason, with « Réessayer » when the server did not answer — a 4xx
+    > alone), and « Ajouter » is enabled only on the answer for the product and quantity on screen (`useMoneyCommit`). Test
+    > `moneyDialogs.invariants.product`.
 
 ### 3.G The detail, everywhere the same
 

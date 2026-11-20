@@ -15,6 +15,8 @@
  *   initialTenders:  [{ method, amountCents, internal }] | null — prefill (a correction); null = two lines
  *                    Espèces (caisse interne) + CB, or one cash line with `single`
  *   initialShortfallKind: 'due' | 'waived' | null — prefill of the shortfall choice, for the `dueCents` of the mount
+ *   defaultLine:     boolean — `initialTenders` is the screen's proposal of one line of the whole due, not a correction: that line reads
+ *                    the due on screen until the operator types its amount (loop t26)
  *   initialDraft:    the `draft` an earlier mount reported (onChange) — the lines exactly as the operator left them, typed or not,
  *                    the shortfall choice and the due it answered (`shortDueCents`, loop t26), the due of the report (`dueCents`); takes precedence over `initialTenders`. A screen that unmounts the block (a failed
  *                    recompute, a step back) passes it back, so nothing typed is lost; an untyped last line still shows what the
@@ -52,11 +54,12 @@ const toCents = (text) => {
 };
 const euros = (cents) => formatCurrency(cents / 100);
 
-// A single prefilled line of the whole due (the counter, a booking, a visit: « one line CB of the total ») is `seeded`: until the
-// operator types its amount it IS the due, so a new due moves it — and only it (loop t26, rule 59). A correction's lines are typed.
-function seedLines(initialTenders, single, cashInternal, dueCents) {
+// The default line a screen proposes (`defaultLine`: the counter, a booking, a visit — « one line CB of the total ») is `seeded`: until
+// the operator types its amount it IS the due, so a new due moves it — and only it (loop t26, rule 59). A correction's lines (a recorded
+// settlement prefilled, `defaultLine` false) are what was recorded: typed, whatever their amount.
+function seedLines(initialTenders, single, cashInternal, dueCents, defaultLine) {
   if (Array.isArray(initialTenders) && initialTenders.length > 0) {
-    const whole = initialTenders.length === 1 && Number(initialTenders[0].amountCents) === Number(dueCents);
+    const whole = defaultLine && initialTenders.length === 1 && Number(initialTenders[0].amountCents) === Number(dueCents);
     return initialTenders.map((t) => ({
       method: t.method, amount: formatAmountInput(Number(t.amountCents) / 100), internal: Boolean(t.internal), typed: true, ...(whole ? { seeded: true } : {}),
     }));
@@ -94,7 +97,7 @@ export function tenderFigures(lines, dueCents) {
 
 export default function TenderLines({
   dueCents, methods, initialTenders = null, initialShortfallKind = null, initialDraft = null, single = false, onChange, disabled = false, autoFocus = false,
-  whole = false, noCaisse = false, shortfallKinds = DEFAULT_SHORTFALL_KINDS,
+  whole = false, noCaisse = false, shortfallKinds = DEFAULT_SHORTFALL_KINDS, defaultLine = false,
 }) {
   const list = methods && methods.length ? methods : TENDER_METHODS;
   const labelOf = (value) => (list.find((m) => m.value === value) || { label: value }).label;
@@ -102,7 +105,7 @@ export default function TenderLines({
   const cashInternal = !whole && !noCaisse;
   const [stored, setLines] = useState(() => (initialDraft && Array.isArray(initialDraft.lines) && initialDraft.lines.length > 0
     ? initialDraft.lines.map((l) => ({ ...l }))
-    : seedLines(initialTenders, single, cashInternal, dueCents)));
+    : seedLines(initialTenders, single, cashInternal, dueCents, defaultLine)));
   // A seeded line reads the due on screen; any line the operator typed keeps what was typed (mixed-method-payments rule 59).
   const lines = useMemo(
     () => stored.map((l) => (l.seeded ? { ...l, amount: formatAmountInput(dueCents / 100) } : l)),

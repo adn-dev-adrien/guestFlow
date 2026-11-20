@@ -5,7 +5,12 @@ import React from 'react';
 import { act } from '@testing-library/react';
 import { vi } from 'vitest';
 import api from '../api';
-import { renderDialog, sasPayload, stayDue } from '../plugins/sas/__tests__/sasFixtures';
+import { MemoryRouter } from 'react-router';
+import { ThemeProvider } from '@mui/material/styles';
+import theme from '../theme';
+import DialogProvider from '../components/DialogProvider';
+import ReservationSasDialog from '../plugins/sas/ReservationSasDialog';
+import { sasPayload, stayDue } from '../plugins/sas/__tests__/sasFixtures';
 import { recapFor, departureRecapFor } from '../plugins/sas/__tests__/sasPreviewFake';
 import {
   runFamily, formatFailures, harnessSeeds, harnessSteps, harnessTimeout, press, findButton, findButtons, retryOp, tenderBlocks, tendersOnScreen, tenderSig,
@@ -97,7 +102,14 @@ function sasFamily(end) {
       [route]: { kind: 'preview', channel: 'recap', key: (_id, draft) => draftKeyOf(draft), answer: (_id, draft) => recapOf(draft) },
       [commitRoute]: { kind: 'commit', answer: () => ({ ok: true }) },
     }),
-    mount: (ctx) => renderDialog({ mode: end, onClose: () => { ctx.closed = true; }, onDone: () => { ctx.done = true; } }),
+    // The tree of the SAS suites' `renderDialog`, rendered by the harness (its React-commit probe wraps it).
+    render: (ctx) => (
+      <MemoryRouter>
+        <ThemeProvider theme={theme}><DialogProvider>
+          <ReservationSasDialog open reservationId={1} mode={end} onClose={() => { ctx.closed = true; }} onDone={() => { ctx.done = true; }} />
+        </DialogProvider></ThemeProvider>
+      </MemoryRouter>
+    ),
     ready,
     setup: async (ctx) => {
       if (end === 'arrival') await walkArrival(ctx); else await walkDeparture(ctx);
@@ -159,11 +171,13 @@ function sasFamily(end) {
           const list = offerButtons(ctx);
           const i = at % list.length;
           if (!list[i] || list[i].disabled) return false;
-          const ok = await press(ctx, list[i]);
-          if (ok) {
+          // The model moves with the click, before React commits it: the probe judges every commit against the draft clicked.
+          const before = { offers: [...ctx.state.offers], order: ctx.state.order };
+          const ok = await press(ctx, list[i], () => {
             ctx.state.offers[i] = ctx.state.offers[i] === 'O' ? 'F' : 'O';
             ctx.state.order = ctx.state.offers[i] === 'O' ? [...ctx.state.order, i] : ctx.state.order.filter((x) => x !== i);
-          }
+          });
+          if (!ok) { ctx.state.offers = before.offers; ctx.state.order = before.order; }
           return ok;
         },
       },
@@ -210,7 +224,7 @@ function sasFamily(end) {
 
 test('the SAS arrival recap keeps the money-dialog invariants on every generated seed', async () => {
   // Seeds found by the long runs (loop t26): steps back and forth around the recap, « Offrir » undone at once.
-  const failures = await runFamily(sasFamily('arrival'), api, { seeds: harnessSeeds([1, [210, 60], [211, 60], [224, 60], [227, 60], [229, 60], [235, 60], [257, 60], [298, 60], [306, 60], [307, 60], [332, 60], [334, 60], [335, 60]]), steps: harnessSteps(25) });
+  const failures = await runFamily(sasFamily('arrival'), api, { seeds: harnessSeeds([1, [85, 60], [88, 60], [95, 60], [210, 60], [211, 60], [224, 60], [227, 60], [229, 60], [235, 60], [257, 60], [298, 60], [306, 60], [307, 60], [332, 60], [334, 60], [335, 60]]), steps: harnessSteps(25) });
   expect(formatFailures(failures)).toBe('');
 }, harnessTimeout(180000));
 

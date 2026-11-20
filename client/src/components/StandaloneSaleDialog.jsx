@@ -354,6 +354,7 @@ export default function StandaloneSaleDialog({ open, onClose, onSold, client = n
                   whole={false}
                   shortfallKinds={['due']}
                   initialTenders={[{ method: 'card', amountCents: remainingCents, internal: false }]}
+                  defaultLine
                   initialDraft={tender.initialDraft}
                   onChange={setPayment}
                 />

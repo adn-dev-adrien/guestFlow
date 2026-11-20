@@ -36,6 +36,7 @@ export default function BookingPaymentFields({
         whole={whole}
         shortfallKinds={shortfallKinds}
         initialTenders={[{ method: 'card', amountCents: dueCents, internal: false }]}
+        defaultLine
         onChange={({
           tenders, shortfall, canSubmit, gapCents, dueCents: answered, live, draft,
         }) => onChange({

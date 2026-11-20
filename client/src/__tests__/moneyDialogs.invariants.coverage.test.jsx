@@ -5,6 +5,19 @@ import fs from 'fs';
 import path from 'path';
 
 const SRC = path.resolve(__dirname, '..');
+// By behaviour too (loop t26 verifier): any file that asks the server for a quote or a preview (`api.quote…(` / `api.preview…(`) previews
+// money unless it is listed below as previewing something else.
+const ASKS = /\bapi\.(quote|preview)[A-Za-z]*\(/;
+const NOT_MONEY = {
+  'components/EmailManualSendDialog.jsx': 'previews an e-mail text',
+  'components/OnboardingEmailsStep.jsx': 'previews an e-mail text',
+  'pages/settings/EmailTextsSettingsPage.jsx': 'previews an e-mail text',
+  'pages/settings/TermsSettingsPage.jsx': 'previews the terms text',
+  'pages/PropertyPricingSeasonsPage.jsx': 'previews a price configuration (seasons, degressivity); nothing is collected or sold',
+  'plugins/tariff-recipes/TariffRecipeCard.jsx': 'previews a tariff recipe before it is applied; nothing is collected or sold',
+  'plugins/linen/LaundryExtraTripDialog.jsx': 'previews laundry trip dates; no amount',
+  'plugins/linen/LaundryScheduleSection.jsx': 'previews laundry dates; no amount',
+};
 const MEMBER = /\b(useLatestPreview|useVisitQuote|useResourceBookingPreview|useSasRecapPreview|useMoneyCommit)\(|<(TenderLines|BookingPaymentFields|BookingInvoiceBlock|StandaloneSaleDialog|StaySalesSection|SuggestedArticlesStep|SalePaymentLink)\b|\b(tendersForDue|paymentForDue)\(/;
 
 function filesOf(dir) {
@@ -20,6 +33,7 @@ const TENDERS = ['counter', 'visit', 'booking', 'sas', 'note', 'fiche'];
 const PREVIEWS = ['counter', 'visit', 'booking', 'sas', 'note', 'penalty', 'reconciliation'];
 const MEMBERS = {
   'components/StandaloneSaleDialog.jsx': ['counter'],
+  'components/AddProductDialog.jsx': ['product'],
   'pages/FinancePage.jsx': ['counter'],
   'components/TenderLines.jsx': TENDERS,
   'components/reservation/FinanceSection.jsx': ['fiche'],
@@ -48,12 +62,17 @@ const RENDERS = {
   penalty: ['PlatformPenaltyDialog'],
   reconciliation: ['SplitSharesDialog', 'LinkTransactionDialog'],
   fiche: ['FinanceSection'],
+  product: ['AddProductDialog'],
 };
 
 test('the money dialogs read from the code are exactly the members the harness drives', () => {
   const found = filesOf(SRC)
-    .filter((f) => MEMBER.test(fs.readFileSync(f, 'utf8')))
     .map((f) => path.relative(SRC, f).split(path.sep).join('/'))
+    .filter((f) => !/\.test\.jsx?$/.test(f))
+    .filter((f) => {
+      const text = fs.readFileSync(path.join(SRC, f), 'utf8');
+      return MEMBER.test(text) || (ASKS.test(text) && !NOT_MONEY[f]);
+    })
     .filter((f) => fs.existsSync(path.join(SRC, f)))
     .sort();
   const known = Object.keys(MEMBERS).filter((f) => fs.existsSync(path.join(SRC, f))).sort();

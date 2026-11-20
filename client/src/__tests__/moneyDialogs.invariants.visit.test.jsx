@@ -143,8 +143,12 @@ const adapter = {
     return [];
   },
   findTick: () => invoiceBox(),
-  // « Créer la facture dans Qonto » follows the card by default (ticked for a card line): a gesture on the lines may set it again.
-  onTenderGesture: (ctx) => { ctx.tickSnap.clear(); },
+  // « Créer la facture dans Qonto » follows the card: when a gesture on the lines adds or takes away the presence of a card line, the
+  // dialog ticks the box for a card and unticks it otherwise (`setInvoiceChecked(hasCard(next))`); any other gesture leaves it.
+  onTenderGesture: (ctx, before, after) => {
+    const card = (lines) => Boolean(lines && lines.some((l) => l.method === 'card'));
+    if (ctx.tickSnap.has('invoice') && card(before) !== card(after)) ctx.tickSnap.set('invoice', card(after));
+  },
   snapshot: () => {
     const block = tenderBlocks(document.body)[0];
     return { draft: screenDraft(), payment: screenPayment(), tick: invoiceBox() ? invoiceBox().checked : null, offered: Boolean(block) };
@@ -233,6 +237,6 @@ const adapter = {
 // Seeds found by the long run (loop t26, 2026-11-19): a draft back to its answered value asked the invoice question / showed a save over a
 // re-ask in flight; fixed in useLatestPreview (no re-ask of a draft already asked or answered).
 test('the outside visit\'s arrival keeps the money-dialog invariants on every generated seed', async () => {
-  const failures = await runFamily(adapter, api, { seeds: harnessSeeds([1, [229, 60], [402, 60], [782, 60], [895, 60]]), steps: harnessSteps(30) });
+  const failures = await runFamily(adapter, api, { seeds: harnessSeeds([1, [3, 60], [8, 60], [110, 60], [229, 60], [402, 60], [782, 60], [895, 60]]), steps: harnessSteps(30) });
   expect(formatFailures(failures)).toBe('');
 }, harnessTimeout(180000));

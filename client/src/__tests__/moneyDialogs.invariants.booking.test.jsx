@@ -143,8 +143,12 @@ const adapter = {
   },
   findTyped: (_ctx, ident) => { const el = fieldByLabel(ident); return el ? [el] : []; },
   findTick: () => invoiceBox(),
-  // « Créer la facture dans Qonto » follows the card by default (ticked for a card line): a gesture on the lines may set it again.
-  onTenderGesture: (ctx) => { ctx.tickSnap.clear(); },
+  // « Créer la facture dans Qonto » follows the card: when a gesture on the lines adds or takes away the presence of a card line, the
+  // dialog ticks the box for a card and unticks it otherwise (`setInvoiceChecked(hasCard(next))`); any other gesture leaves it.
+  onTenderGesture: (ctx, before, after) => {
+    const card = (lines) => Boolean(lines && lines.some((l) => l.method === 'card'));
+    if (ctx.tickSnap.has('invoice') && card(before) !== card(after)) ctx.tickSnap.set('invoice', card(after));
+  },
   snapshot: (ctx) => ({ draft: screenDraft(ctx), payment: screenPayment(), tick: invoiceBox() ? invoiceBox().checked : null }),
   commitCheck: (ctx, req, snap) => {
     const out = [];
