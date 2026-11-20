@@ -80,8 +80,12 @@ test('three quick gestures make one request, and only the latest answer is shown
     .mockImplementationOnce((id, draft) => answer(draft, 0));
   clickBtn('✓ Offert');                                  // → 80 €, slow
   await act(() => wait(260));
-  clickBtn('Offrir');                                    // → 0 €, fast
-  await waitFor(() => expect(api.previewDepartureSas.mock.calls.length - before).toBe(3));
+  clickBtn('Offrir');                                    // → back to the answered draft (0 €): nothing new is asked
+  await act(() => wait(300));
+  // plugins-phase-1-sdk rule 58 (loop t26): a draft back to the latest accepted answer makes that answer current again — the slow
+  // request is dropped and no third request is sent.
+  expect(api.previewDepartureSas.mock.calls.length - before).toBe(2);
+  expect(screen.queryByText(/Total à percevoir/)).toBeNull();
   await act(() => wait(700));
   expect(screen.queryByText(/Total à percevoir/)).toBeNull();
 });

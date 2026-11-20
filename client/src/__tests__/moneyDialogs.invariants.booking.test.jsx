@@ -211,4 +211,4 @@ const adapter = {
 test('an hourly booking keeps the money-dialog invariants on every generated seed', async () => {
   const failures = await runFamily(adapter, api, { seeds: harnessSeeds([[263, 60], [275, 60], [307, 60], [738, 60], [841, 60], [1312, 60], [1592, 60], [1706, 60], [944, 60]]), steps: harnessSteps(30) });
   expect(formatFailures(failures)).toBe('');
-}, harnessTimeout(90000));
+}, harnessTimeout(240000));

@@ -231,9 +231,9 @@ const link = {
 test('« Répartir le versement » keeps the money-dialog invariants on every generated seed', async () => {
   const failures = await runFamily(split, api, { seeds: harnessSeeds([1, 2, 3, [383, 60]]), steps: harnessSteps(30) });
   expect(formatFailures(failures)).toBe('');
-}, harnessTimeout(60000));
+}, harnessTimeout(180000));
 
 test('« Rattacher des virements » keeps the money-dialog invariants on every generated seed', async () => {
   const failures = await runFamily(link, api, { seeds: harnessSeeds([1, [273, 60], [289, 60], [309, 60], [389, 60]]), steps: harnessSteps(30) });
   expect(formatFailures(failures)).toBe('');
-}, harnessTimeout(60000));
+}, harnessTimeout(180000));

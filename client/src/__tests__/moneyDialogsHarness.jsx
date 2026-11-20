@@ -906,7 +906,8 @@ export const harnessSeeds = (fixed) => {
 };
 export const harnessSteps = (fixed) => envInt('HARNESS_STEPS', fixed);
 // The permanent suite keeps Vitest's budget; a widened local run (`HARNESS_SEEDS`) gets the time it needs.
-export const harnessTimeout = (fixed = 30000) => (process.env.HARNESS_SEEDS ? 24 * 3600 * 1000 : fixed);
+// Budgets are about three times a family's single-worker time: the full client suite runs these files beside many others (CI shards).
+export const harnessTimeout = (fixed = 120000) => (process.env.HARNESS_SEEDS ? 24 * 3600 * 1000 : fixed);
 
 /**
  * Runs every seed of one dialog family; collects each failing seed's shrunk steps. With `HARNESS_REPORT=<file>` it appends one JSON line

@@ -98,4 +98,4 @@ const adapter = {
 test('« Pénalité plateforme » keeps the money-dialog invariants on every generated seed', async () => {
   const failures = await runFamily(adapter, api, { seeds: harnessSeeds([1, 2, 3, 4, 5, 6]), steps: harnessSteps(30) });
   expect(formatFailures(failures)).toBe('');
-}, harnessTimeout());
+}, harnessTimeout(120000));

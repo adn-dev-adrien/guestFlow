@@ -235,4 +235,4 @@ const adapter = {
 test('the outside visit\'s arrival keeps the money-dialog invariants on every generated seed', async () => {
   const failures = await runFamily(adapter, api, { seeds: harnessSeeds([1, [229, 60], [402, 60], [782, 60], [895, 60]]), steps: harnessSteps(30) });
   expect(formatFailures(failures)).toBe('');
-}, harnessTimeout(60000));
+}, harnessTimeout(180000));

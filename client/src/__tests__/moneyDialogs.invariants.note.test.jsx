@@ -146,4 +146,4 @@ const adapter = {
 test('« Nouvelle note » keeps the money-dialog invariants on every generated seed', async () => {
   const failures = await runFamily(adapter, api, { seeds: harnessSeeds([1, 2, [215, 60], [290, 60], [319, 60], [400, 60]]), steps: harnessSteps(30) });
   expect(formatFailures(failures)).toBe('');
-}, harnessTimeout(60000));
+}, harnessTimeout(180000));
