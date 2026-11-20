@@ -123,6 +123,8 @@ const adapter = {
     const dues = [];
     if (state.kind === 'fresh') dues.push(state.req.answer.document.totals.remainingCents);
     if (state.kind === 'pending' && ctx.server.accepted.quote) dues.push(ctx.server.accepted.quote.answer.document.totals.remainingCents);
+    // Any answer given for the very draft on screen (the fake prices a draft the same way every time).
+    ctx.server.requests.filter((r) => r.channel === 'quote' && r.state === 'ok' && r.key === ctx.lastKeys.quote).forEach((r) => dues.push(r.answer.document.totals.remainingCents));
     return dues;
   },
   liveness: (ctx, blocks) => {

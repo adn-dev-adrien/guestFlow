@@ -109,6 +109,7 @@ const adapter = {
     { name: 'price', key: screenDraft, failureWords: (req) => [req.message, /Prix indisponible/] },
     {
       name: 'invoice',
+      reuseOnReenable: true,
       // Asked once the price on screen is answered: before that the question waits, pending.
       key: (ctx) => {
         const pay = screenPayment();

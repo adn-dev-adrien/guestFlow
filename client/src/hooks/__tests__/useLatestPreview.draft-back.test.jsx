@@ -85,3 +85,20 @@ test('back to an answered draft after another one failed: never current before i
   await act(async () => { releases.splice(0).forEach((go) => go()); });
   expect(view.result.current).toMatchObject({ data: { n: 1 }, fresh: true });
 });
+
+// Loop t26 verifier — enabled again on the draft of its latest answer: a question that opts in (`reuseOnReenable`, the invoice question
+// while a typed payment catches up) reuses it at once, nothing asked; any other preview asks afresh (a SAS step may have changed what the
+// server answers).
+test.each([[true, 1], [false, 2]])('enabled again on its answered draft (reuseOnReenable %s): %i request(s)', async (reuse, calls) => {
+  const releases = [];
+  const fetcher = vi.fn((draft) => new Promise((resolve) => { releases.push(() => resolve({ n: draft.n })); }));
+  const view = renderHook(({ enabled }) => useLatestPreview({ fetcher, draft: { n: 1 }, enabled, delay: 0, reuseOnReenable: reuse }), { initialProps: { enabled: true } });
+  await waitFor(() => expect(fetcher).toHaveBeenCalledTimes(1));
+  await act(async () => { releases.splice(0).forEach((go) => go()); });
+  view.rerender({ enabled: false });
+  view.rerender({ enabled: true });
+  await act(async () => { await new Promise((r) => { setTimeout(r, 20); }); });
+  expect(fetcher).toHaveBeenCalledTimes(calls);
+  if (reuse) expect(view.result.current).toMatchObject({ pending: false, fresh: true, data: { n: 1 } });
+  else expect(view.result.current).toMatchObject({ pending: true, fresh: false });
+});

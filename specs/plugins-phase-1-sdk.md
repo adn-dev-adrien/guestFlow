@@ -918,7 +918,11 @@ Optional: a plugin that declares nothing reads « Actif ».
     _Reading of 2026-11-20 (loop t26 verifier):_ the same holds when a draft that could not be asked for a while (a payment unreadable for a
     keystroke, the invoice question waiting for its price — `enabled` false) is asked again on the very draft of the latest accepted answer:
     current at once, nothing re-asked (« Un de plus » then « Un de moins » enabled « Valider l’arrivée » for a frame, then took it back for
-    the question asked again). After a failure the answer kept from before it names no draft (`answerKey` null) until a new answer, so a
+    the question asked again). That reuse is opt-in (`reuseOnReenable`), given to the visit's and the booking's invoice question only: a
+    disable that spans a change the server answers differently — a SAS step that committed something before the recap is shown again —
+    asks the draft afresh, the server being the source of truth (`ReservationSasDialog.stay-step-plan` UI9-1 a/b): without the option a
+    disable forgets the latest accepted answer as a candidate for reuse and marks it `stale` (still drawn, never current), so neither the
+    render that enables the draft again nor a draft coming back to that answer afterwards takes it as current before its new request. After a failure the answer kept from before it names no draft (`answerKey` null) until a new answer, so a
     draft back to it is asked afresh, never shown current for a frame. **The harness judges I2 and the commit label's I1 at every React
     commit** (a `Profiler` around the dialog calls `probeCommit` in its commit phase), not only once a step's effects have settled, and its
     strength is proved by a mutation check (round-26 status): removing the identity comparison, typing only on the last line, dropping
@@ -1188,7 +1192,7 @@ still in the core. Server: 4,611 tests after, of which 37 are new. Client: 1,416
   focus ends in the dialog, never on the page — the arrival's « Facture » address through a second answer accepted / refused / silent /
   « Caisse interne », the booking dialog's, the block alone, the counter's « Réessayer », « Retirer », « Percevoir maintenant », the minted
   link, the SAS « Séjour » page's « Réessayer ».
-- `hooks/__tests__/useLatestPreview.draft-back.test.jsx` (4) — rule 58 (readings of 2026-11-19 and 2026-11-20, loop t26): a draft back to the one on its way keeps that request, back to the latest accepted answer is current and not pending, back to a failed one is asked afresh; the answer kept from before a failure put aside is never current, not even for the render before its new request.
+- `hooks/__tests__/useLatestPreview.draft-back.test.jsx` (6: +2 the reuse on re-enable, opted in or not) — rule 58 (readings of 2026-11-19 and 2026-11-20, loop t26): a draft back to the one on its way keeps that request, back to the latest accepted answer is current and not pending, back to a failed one is asked afresh; the answer kept from before a failure put aside is never current, not even for the render before its new request.
 - `hooks/__tests__/useMoneyCommit.identity.test.jsx` (3), `components/__tests__/TenderLines.typed-lines.test.jsx` (2), `components/__tests__/MoneyActions.focus.test.jsx` (1) — rule 58 (reading of 2026-11-20): the identity gate, a typed line kept when the next one is removed, the shortfall choice back on its own due, the actions row keeping the focus.
 - `__tests__/moneyDialogs.invariants.*.test.jsx` (10 files, 22 tests) — rule 58 (loop t26): the generative harness
   (`__tests__/moneyDialogsHarness.jsx`), one suite per family — `counter` (1), `visit` (1), `booking` (1), `sas` (2: arrival, departure),

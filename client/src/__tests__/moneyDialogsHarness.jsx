@@ -385,6 +385,10 @@ function allowedCents(ctx, states, blocks) {
     if (channel.figures === false) return;
     if (state.kind === 'fresh') state.req.cents.forEach((c) => allowed.add(c));
     if (state.kind === 'pending' && ctx.server.accepted[channel.name]) ctx.server.accepted[channel.name].cents.forEach((c) => allowed.add(c));
+    // The fake server prices a draft the same way every time: any answer it gave for the very draft on screen is that draft's answer, even
+    // one the harness cannot tell the hook kept (a fetcher that takes no abort signal).
+    const key = ctx.lastKeys[channel.name];
+    if (key != null) ctx.server.requests.filter((r) => r.channel === channel.name && r.state === 'ok' && r.key === key).forEach((r) => r.cents.forEach((c) => allowed.add(c)));
   });
   blocks.forEach((b) => {
     const total = b.lines.map((l) => centsOfInput(l.value) || 0).reduce((sum, c) => sum + c, 0);
@@ -835,6 +839,13 @@ function trackKeys(ctx) {
     // A draft that cannot be asked drops what is on its way: a late answer to it is never the screen's (useLatestPreview's sequence).
     if (key == null) {
       ctx.server.requests.filter((r) => r.channel === name && r.state === 'pending').forEach((r) => { r.orphan = true; });
+      // Enabled again, only a channel that reuses its answer (`reuseOnReenable`) skips the request; the others ask afresh.
+      const channel = (ctx.adapter.channels || []).find((c) => c.name === name);
+      if (!channel || !channel.reuseOnReenable) {
+        ctx.server.settled[name] = null;
+        // Every answer so far predates the disable: the hook asks the draft afresh once enabled again.
+        ctx.server.requests.filter((r) => r.channel === name).forEach((r) => { r.orphan = true; });
+      }
     }
 
   });

@@ -7,7 +7,7 @@ import api from '../api';
 import SplitSharesDialog from '../plugins/online-payment/SplitSharesDialog';
 import LinkTransactionDialog from '../plugins/online-payment/LinkTransactionDialog';
 import {
-  runFamily, formatFailures, harnessSeeds, harnessSteps, harnessTimeout, press, typeInto, fieldByLabel, actionButton, retryOp, remountOp,
+  centsIn, runFamily, formatFailures, harnessSeeds, harnessSteps, harnessTimeout, press, typeInto, fieldByLabel, actionButton, retryOp, remountOp,
 } from './moneyDialogsHarness';
 
 vi.mock('../api', async () => (await import('./moneyDialogsHarness')).apiModule());
@@ -55,6 +55,13 @@ const split = {
   render: (ctx) => <SplitSharesDialog open onClose={() => {}} onSubmit={(body) => { ctx.state.submitted = body; }} proposal={PROPOSAL} labels={LABELS} />,
   ready: () => Boolean(fieldByLabel('Séjour 7 (€)')),
   channels: [{ name: 'shares', delay: 150, key: splitScreen, refusal: (a) => !a.valid }],
+  // The server's answer is a function of the shares on screen: its figures for them are that draft's, whichever request brought them.
+  derivedCents: () => {
+    const key = splitScreen();
+    if (!key) return [];
+    const pairs = key.split('+').map((c) => ({ amountCents: Number(c) }));
+    return [...centsIn(splitAnswer({ pairs }))];
+  },
   commitButton: splitSubmit,
   findTyped: (_ctx, ident) => { const el = fieldByLabel(ident); return el ? [el] : []; },
   requirements: () => (splitScreen() == null ? ['a share unreadable'] : []),

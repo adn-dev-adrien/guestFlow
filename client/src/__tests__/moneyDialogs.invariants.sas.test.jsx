@@ -131,6 +131,10 @@ function sasFamily(end) {
       const dues = [];
       if (state.kind === 'fresh') dues.push(dueOf(state.req.answer));
       if (state.kind === 'pending' && ctx.server.accepted.recap) dues.push(dueOf(ctx.server.accepted.recap.answer));
+      // The recap is a function of the offers on screen: its due for them is that draft's, whichever request brought it.
+      if (end === 'arrival' && ctx.state.order) {
+        dues.push(dueOf(recapOf({ offered: ctx.state.order.map((i) => { const [kind, id] = LINE_KEYS[i].split(':'); return { kind, id: Number(id) }; }) })));
+      }
       return dues;
     },
     nominal: (ctx) => {

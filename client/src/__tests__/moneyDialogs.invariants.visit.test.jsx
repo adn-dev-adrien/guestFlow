@@ -105,6 +105,7 @@ const adapter = {
     { name: 'draft', key: screenDraft, failureWords: (req) => [req.message, /Total indisponible|Montant indisponible/] },
     {
       name: 'invoice',
+      reuseOnReenable: true,
       // The question is asked for the payment typed against the due of the draft on screen, once that draft is answered.
       key: (ctx) => {
         const pay = screenPayment();

@@ -364,7 +364,8 @@ export default function ResourceBookingDialog({
     [paymentTyped, preview.fresh, payment, dueCents, draft],
   );
   const invoiceAwaiting = paymentTyped && !invoiceDraft;
-  const invoicePreview = useResourceBookingPreview({ draft: invoiceDraft, enabled: open });
+  // The invoice question waits (null) while the typed payment catches up with a new price: back on the same pair it reuses its answer.
+  const invoicePreview = useResourceBookingPreview({ draft: invoiceDraft, enabled: open, reuseOnReenable: true });
   const qontoReady = Boolean(price ? price.invoiceReady : booking?.invoiceReady);
   // Rule 44 (R35-C-L1) — a payment on the books whose invoice is still to make, or was cancelled in Qonto (A2).
   const invoiceLater = Boolean(booking?.paid && booking.payment?.onTheBooks && (!booking.invoice || booking.invoice.cancelled));

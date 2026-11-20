@@ -15,12 +15,12 @@ import { api, useLatestPreview } from '../sdk';
 
 const REFUSAL_STATUSES = [400, 409];
 
-export default function useResourceBookingPreview({ draft, enabled }) {
+export default function useResourceBookingPreview({ draft, enabled, reuseOnReenable = false }) {
   const fetcher = useCallback((body, options) => api.previewResourceBooking(body, options), []);
   const {
     data, last, pending, error, failed, fresh, retry, answerKey, draftKey,
   } = useLatestPreview({
-    fetcher, draft, enabled: Boolean(enabled && draft), resetKey: enabled ? 'open' : 'closed',
+    fetcher, draft, enabled: Boolean(enabled && draft), resetKey: enabled ? 'open' : 'closed', reuseOnReenable,
   });
   const refused = Boolean(error) && REFUSAL_STATUSES.includes(error.status);
   return {

@@ -18,13 +18,13 @@ import { api, useLatestPreview } from '../sdk';
 const REFUSAL_STATUSES = [400, 409];
 
 export default function useVisitQuote({
-  bookingId, draft, enabled, version = 0,
+  bookingId, draft, enabled, version = 0, reuseOnReenable = false,
 }) {
   const fetcher = useCallback((body, options) => api.quoteResourceVisit(bookingId, body, options), [bookingId]);
   const {
     data, pending, error, failed, fresh, retry, answerKey, draftKey,
   } = useLatestPreview({
-    fetcher, draft, enabled: Boolean(enabled && draft && bookingId), scope: `${bookingId}:${version}`, resetKey: enabled ? `open:${bookingId}` : 'closed',
+    fetcher, draft, enabled: Boolean(enabled && draft && bookingId), scope: `${bookingId}:${version}`, resetKey: enabled ? `open:${bookingId}` : 'closed', reuseOnReenable,
   });
   const refused = Boolean(error) && REFUSAL_STATUSES.includes(error.status);
   return {

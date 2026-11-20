@@ -203,7 +203,10 @@ export default function ResourceArrivalDialog({ open, bookingId, onClose, onDone
     [paymentTyped, draftCurrent, payment, remainingCents, draft],
   );
   const invoiceAwaiting = paymentTyped && !paymentDraft;
-  const invoiceQuote = useVisitQuote({ bookingId, draft: paymentDraft, enabled: open, version: visit ? visit.document.version : 0 });
+  // The invoice question waits (null) while the typed payment catches up with a new due: back on the same pair it reuses its answer.
+  const invoiceQuote = useVisitQuote({
+    bookingId, draft: paymentDraft, enabled: open, version: visit ? visit.document.version : 0, reuseOnReenable: true,
+  });
   // Loop t3 UI3-4/UI3-5 — no caption ↔ checkbox flip per keystroke: the pending block keeps the place of the answer (loop t21 `reserve`); the commit
   // still waits for the answer to the payment typed (the commit gate below). « Caisse interne » and any other refusal are the server's words too.
   const draftAnswerFailed = Boolean(quote.refusal || quote.error);

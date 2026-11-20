@@ -10,6 +10,8 @@
  *              restarts the request for the same draft
  *   resetKey — identifies one run of the screen; a new value forgets the last answer
  *   delay    — quiet time before a request (200 ms); the first request after `enabled` leaves at once
+ *   reuseOnReenable — enabled again on the very draft of the latest accepted answer, reuse it instead of asking (loop t26): only for a
+ *              question disabled for a moment inside one screen state (the invoice question while the typed payment catches up)
  *
  * Returns `{ data, last, pending, error, failed, fresh, retry }`: `data` is the latest answer (kept while a
  * newer one is pending), `fresh` says it is for the current draft. Only the latest request counts: an older
@@ -44,7 +46,7 @@ const failureOf = (answer, signature, scope) => Boolean(answer.failedFor)
   && answer.failedFor.signature === signature && Object.is(answer.failedFor.scope, scope);
 
 export default function useLatestPreview({
-  fetcher, draft, enabled, scope, resetKey, delay = 200,
+  fetcher, draft, enabled, scope, resetKey, delay = 200, reuseOnReenable = false,
 }) {
   const signature = useMemo(() => JSON.stringify(draft || {}), [draft]);
   const [answer, setAnswer] = useState(EMPTY);
@@ -113,12 +115,15 @@ export default function useLatestPreview({
       clearTimeout(timerRef.current);
       wasEnabledRef.current = false;
       inflightRef.current = null;
+      // An answer from before the disable is not reused afterwards unless the screen asks for it (a SAS step may change the server's answer).
+      if (!reuseOnReenable) settledRef.current = null;
       setPending(false);
       // Nothing is asked any more (the draft emptied, made invalid, the screen closed): a failure about it has nothing left to retry
-      // (loop t24 S24-2).
+      // (loop t24 S24-2). And unless the screen reuses its answer when enabled again (`reuseOnReenable`), that answer will be asked over
+      // then: it is `stale` from now on, so the render that enables the draft again never shows it current before its request (loop t26).
       setAnswer((prev) => (prev.failed ? {
         ...prev, error: null, failed: false, failedFor: null, stale: true,
-      } : prev));
+      } : (reuseOnReenable || prev.stale || prev.data == null ? prev : { ...prev, stale: true })));
       return undefined;
     }
     const first = !wasEnabledRef.current;
@@ -134,7 +139,10 @@ export default function useLatestPreview({
       setPending(true);
       return () => clearTimeout(timerRef.current);
     }
-    if (isCurrent(settledRef.current)) {
+    // Enabled again, the latest answer is reused only where the screen asks for it (`reuseOnReenable`: a question disabled for a keystroke
+    // inside the same screen state, the invoice question of a typed payment). Elsewhere a disable may span a change the server answers
+    // differently (a SAS step committed something): the draft is asked afresh, the server being the source of truth.
+    if ((!first || reuseOnReenable) && isCurrent(settledRef.current)) {
       seqRef.current += 1;
       if (abortRef.current) abortRef.current.abort();
       inflightRef.current = null;
@@ -155,7 +163,7 @@ export default function useLatestPreview({
     scheduledRef.current = true;
     timerRef.current = setTimeout(() => send(signature), first ? 0 : delay);
     return () => { clearTimeout(timerRef.current); scheduledRef.current = false; };
-  }, [enabled, scope, signature, delay, send]);
+  }, [enabled, scope, signature, delay, send, reuseOnReenable]);
 
   useEffect(() => () => {
     clearTimeout(timerRef.current);
