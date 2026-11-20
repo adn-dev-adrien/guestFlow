@@ -3,7 +3,7 @@ Contributors: adrien
 Tags: booking, availability, quote, gutenberg
 Requires at least: 6.4
 Requires PHP: 8.0
-Stable tag: 1.19.1
+Stable tag: 1.20.0
 License: GPLv2 or later
 
 Affiche les disponibilités, calcule des devis et envoie des demandes de réservation vers GuestFlow via son API publique.
@@ -36,6 +36,21 @@ Non. Elle est lue uniquement côté serveur (constante `wp-config` ou option mas
 Non. Elle crée un devis « brouillon » côté GuestFlow, que l'administrateur revoit puis convertit éventuellement en réservation.
 
 == Changelog ==
+
+= 1.20.0 =
+* Bons cadeaux : le lien de paiement vit une heure ; passé ce délai, la page de retour affiche « Le lien de paiement a expiré. Aucun paiement n’a été pris. » avec un bouton « Recommencer ».
+* Bons cadeaux : un bloc « GuestFlow — Bon cadeau » (et le shortcode `[guestflow_gift_voucher]`) pour acheter un bon : montant libre dans les bornes de GuestFlow, repères de prix, « Pour » / « De la part de », un mot, e-mail, conditions de vente, aperçu du bon en direct, puis paiement en ligne et page du bon (PDF, impression) au retour. Tant que GuestFlow ne propose pas la vente en ligne, le formulaire s'affiche avec « Vente en ligne bientôt disponible. ».
+* Après le paiement, le visiteur revient sur la page du formulaire : le bloc transmet le chemin de la page, GuestFlow le rattache à l'adresse du site.
+* Le shortcode `[guestflow_gift_voucher_button url="…"]` affiche un bouton « Bon cadeau » à placer à côté de « Réserver ».
+* Le code d'un bon (16 caractères, dernier caractère de contrôle) est normalisé et pré-vérifié côté navigateur avant d'être envoyé à GuestFlow, qui le revérifie.
+* Demande GuestFlow avec le plugin « Bons cadeaux » actif ; sans lui, le bloc affiche « Réservation temporairement indisponible. ».
+* Moteur de réservation : un champ « Bon cadeau » à l'étape du paiement, tant que le plugin est actif dans GuestFlow. Le code est normalisé et son caractère de contrôle vérifié avant tout appel ; GuestFlow le revérifie, déduit le bon (l'acompte d'abord, puis le solde) et annonce « À payer aujourd'hui ». Quand le bon couvre tout ce qui est demandé, le bouton devient « Confirmer la réservation » et aucun paiement n'est demandé. Le code du QR d'un bon (`#bon=…`) remplit le champ.
+* Moteur de réservation : le calendrier s'arrête à l'horizon annoncé par GuestFlow (12 mois par défaut) : les jours au-delà sont fermés, la navigation s'arrête sur le mois de l'horizon, et une rangée de pastilles de mois permet de sauter directement à un mois. Avec un GuestFlow plus ancien, qui n'annonce pas d'horizon, le calendrier reste libre comme avant.
+* Bons cadeaux composés : le bloc « Bon cadeau » propose les offres en vente, groupées par nature (séjours, séances). Une offre de séance affiche ce que contient le bon, le temps supplémentaire et les options au pas et dans les limites de GuestFlow, puis le récapitulatif calculé par GuestFlow (lignes, total TTC, TVA) à chaque changement ; les conditions de vente sont celles de l'activité de l'offre. Une offre de séjour garde le montant libre. L'adresse `#campagne=<slug>` d'une carte ouvre directement l'offre, avec les mêmes options que depuis le site.
+* Nouveau bloc « GuestFlow — Utiliser un bon cadeau » (et le shortcode `[guestflow_gift_voucher_use]`) : le code vient du QR code (`#bon=…`, jamais envoyé dans une adresse) ou d'un champ « Code du bon » pré-vérifié ; un bon de séjour renvoie au moteur de réservation, un bon de séance affiche « Votre bon comprend », les mois jusqu'à l'horizon, les créneaux (« Inclus » ou « + x € soirée »), le récapitulatif, puis la confirmation ou le paiement du reste (créneau gardé 15 minutes). Chaque refus reprend la phrase de GuestFlow.
+* Liens permanents des cartes : `/<début>/offrir/<offre>` mène à la page d'achat de l'offre et `/<début>/utiliser` à la page « Utiliser un bon cadeau » (Réglages → GuestFlow ; début des liens `bon-cadeau` par défaut). Bons cadeaux inactifs dans GuestFlow ou GuestFlow injoignable : la page d'accueil.
+* La page des conditions générales accepte `?activity=resource` pour lire les conditions de l'activité, et celles du logement sans paramètre.
+* Sans le plugin « Bons cadeaux » dans GuestFlow, les deux blocs ne s'affichent pas et la page de réglages le signale (« Bons cadeaux inactifs dans GuestFlow ») sans gêner les autres blocs.
 
 = 1.19.1 =
 * Moteur de réservation : des dates déjà prises (arrivées par un lien, ou réservées depuis l'ouverture de la page) sont refusées dans le calendrier, comme un séjour trop court : aucun total n'est affiché, l'étape suivante du tiroir reste fermée, et le calendrier relit ses nuits prises. Même chose pour des horaires que les séjours voisins ne permettent pas.

@@ -47,7 +47,7 @@ import FinanceSection from '../components/reservation/FinanceSection';
 import { isLinkAlreadyPaid } from '../constants/paymentLinks';
 import Slot from '../plugins/sdk/Slot';
 import ReservationHistoryPanel from '../components/reservation/ReservationHistoryPanel';
-import TermsAcceptanceLine from '../components/reservation/TermsAcceptanceLine';
+import TermsAcceptanceLine, { ActivityTermsAcceptanceLines } from '../components/reservation/TermsAcceptanceLine';
 import usePlatforms from '../hooks/usePlatforms';
 import { formatPlatformLabel } from '../constants/platforms';
 import { useAppDialogs, useToast } from '../components/DialogProvider';
@@ -4184,6 +4184,7 @@ export default function ReservationPage() {
                       </Button>
                     </Box>
                     <PluginGate id={WEBSITE_BOOKING}><TermsAcceptanceLine block={cgvBlock} /></PluginGate>
+                    <ActivityTermsAcceptanceLines block={cgvBlock} />
                   </>
                 ) : (
                   <>

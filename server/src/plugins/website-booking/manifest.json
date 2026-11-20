@@ -1,7 +1,7 @@
 {
   "id": "website-booking",
   "name": "Réservation depuis le site",
-  "version": "1.8.15",
+  "version": "1.9.0",
   "description": "Le moteur de réservation du site WordPress.",
   "icon": "language",
   "surfaces": [
@@ -13,7 +13,7 @@
   ],
   "requires": [],
   "guestflow": ">=3.10.0",
-  "sdk": "^2.31.0",
+  "sdk": "^2.33.0",
   "changelog": {
     "1.0.0": [
       "Première version publiée en paquet."
@@ -152,6 +152,17 @@
       "Les arrondis en euros et en centimes passent par un calcul commun du cœur : aucun montant ne change.",
       "Le refus d'une arrivée dans le passé lit l'horloge du séjour du cœur : même résultat qu'avant.",
       "Compatible avec GuestFlow 4 (SDK 2.31)."
+    ],
+    "1.8.16": [
+      "Aucun changement visible : la clé d’API du site, le visiteur relayé et la preuve de travail viennent désormais de GuestFlow, qu’un autre module partage.",
+      "Demande le SDK 2.33 de GuestFlow."
+    ],
+    "1.9.0": [
+      "Un moyen de paiement déjà versé (le bon cadeau) peut accompagner la demande : le devis le retient, le prix à payer aujourd’hui est calculé par GuestFlow, et sans rien à payer la réservation est confirmée tout de suite.",
+      "Le devis du site annonce, tant qu’un tel moyen est proposé, de quoi afficher le champ de saisie.",
+      "Les conditions générales publiques se lisent aussi par activité (?activity=) ; sans ce paramètre, ce sont celles de l’hébergement, comme avant.",
+      "L’horizon de réservation en ligne devient un réglage (12 mois par défaut, Paramètres › Établissement), à la place des 2 ans fixes : une date au-delà est refusée avec « Réservable jusqu’au … », et le calendrier et la prochaine disponibilité s’arrêtent à cette date, qu’il annonce au site.",
+      "Demande le SDK 2.33 de GuestFlow."
     ]
   }
 }

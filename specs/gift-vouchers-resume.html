@@ -1,0 +1,512 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bons cadeaux — résumé de la spec et maquettes</title>
+<style>
+:root{
+  --paper:#F5F0E6;--card:#FDFAF3;--ink:#22271F;--ink-soft:#5C6153;--sapin:#2E3B2A;--lichen:#5A6B48;
+  --ocre:#B87B2A;--action:#9A6318;--action-strong:#7F5112;--line:#DCD4C2;--ctl:#857D6B;--chip:#EDE5D4;
+  --ok:#2F6A43;--ok-soft:#E6EFE7;--warn:#6F5112;--warn-soft:#F6EDD7;--err:#A8433A;--err-soft:#F7E8E5;
+  --display:'Marcellus',Georgia,'Times New Roman',serif;
+  --body:'Karla',-apple-system,'Helvetica Neue',Helvetica,Arial,sans-serif;
+  --mono:ui-monospace,'SF Mono',Menlo,Consolas,monospace;
+  --out:cubic-bezier(.22,1,.36,1);
+}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%;scroll-behavior:smooth}
+body{margin:0;background:#E9E3D6;color:var(--ink);font:17px/1.55 var(--body)}
+::selection{background:#E3C99A;color:#22271F}
+:focus-visible{outline:2px solid var(--action);outline-offset:2px}
+button,input,textarea{font:inherit;color:inherit}
+button{cursor:pointer;-webkit-tap-highlight-color:transparent;touch-action:manipulation}
+a{color:var(--action-strong);text-underline-offset:3px}
+.doc{max-width:1120px;margin:0 auto;padding:48px 24px 96px}
+h1{font:400 clamp(30px,4.4vw,46px)/1.08 var(--display);letter-spacing:-.015em;margin:0 0 16px;max-width:20ch;text-wrap:balance}
+h2{font:400 28px/1.15 var(--display);letter-spacing:-.01em;margin:72px 0 14px;text-wrap:balance}
+h3{font:700 15px/1.3 var(--body);letter-spacing:.02em;margin:0 0 6px}
+p{margin:0 0 12px;max-width:68ch}
+.lead{font-size:19px;color:#3a3f35;max-width:62ch}
+.cols{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:32px;margin-top:20px}
+.cols>div{border-top:1px solid var(--ctl);padding-top:14px}
+.cols p{font-size:16px;color:#3a3f35}
+ul.plain{margin:8px 0 0;padding-left:20px;max-width:68ch}
+ul.plain li{margin:6px 0}
+table.t{width:100%;border-collapse:collapse;font-size:15px;margin-top:10px}
+.t th,.t td{text-align:left;padding:10px 12px 10px 0;border-bottom:1px solid #D5CDBB;vertical-align:top}
+.t th{font:700 12px var(--body);letter-spacing:.08em;text-transform:uppercase;color:var(--ink-soft)}
+.t td:first-child{font-weight:700;width:26%}
+.num{font-variant-numeric:tabular-nums}
+.tag{display:inline-block;font:700 11.5px var(--body);letter-spacing:.06em;padding:2px 8px;border-radius:2px;background:var(--chip);color:var(--ink)}
+.tag.ok{background:var(--ok-soft);color:var(--ok)}.tag.warn{background:var(--warn-soft);color:var(--warn)}.tag.err{background:var(--err-soft);color:var(--err)}
+.arb{display:grid;gap:0;margin-top:8px}
+.arb>div{display:grid;grid-template-columns:28px minmax(0,1fr);gap:8px 14px;padding:18px 0;border-bottom:1px solid #D5CDBB}
+.arb .n{font:400 22px var(--display);color:var(--action-strong)}
+.arb p{margin:0 0 6px;font-size:16px}
+.arb .reco{color:var(--ok);font-weight:700}
+
+/* ───── stage ───── */
+.stage{margin-top:22px;background:#DDD6C6;border-radius:6px;padding:16px}
+.bar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between;margin-bottom:14px}
+.seg{display:inline-flex;flex-wrap:wrap;border:1px solid var(--ctl);border-radius:999px;overflow:hidden;background:var(--card)}
+.seg button{border:0;background:none;padding:9px 16px;min-height:44px;font:700 14px var(--body);transition:background .18s var(--out),color .18s var(--out)}
+.seg button[aria-pressed="true"]{background:var(--sapin);color:var(--paper)}
+.frame{margin:0 auto;background:var(--paper);border-radius:4px;box-shadow:0 18px 40px rgba(22,28,22,.18);overflow:hidden;transition:max-width .35s var(--out)}
+.frame.mobile{max-width:400px}
+.frame.desktop{max-width:100%}
+.note{font-size:14px;color:var(--ink-soft);margin:12px 2px 0;max-width:none}
+
+/* site chrome */
+.site-h{display:flex;align-items:center;justify-content:space-between;gap:12px;background:var(--sapin);color:#fff;padding:12px 18px}
+.logo{font:400 21px var(--display);letter-spacing:.04em}
+.cta{display:inline-flex;align-items:center;gap:8px;min-height:44px;padding:0 16px;border-radius:2px;border:1px solid transparent;font:700 13px var(--body);letter-spacing:.1em;text-transform:uppercase;transition:transform .1s ease-out,background .18s var(--out)}
+.cta:active{transform:scale(.97)}
+.cta.fill{background:var(--action);color:#fff}
+.cta.line{background:none;color:#fff;border-color:rgba(255,255,255,.55)}
+.cta svg{width:17px;height:17px}
+.site-h .ctas{display:flex;gap:8px}
+.site-h[hidden]{display:none}
+.cta{white-space:nowrap}
+.mobile .site-h{padding:10px 12px}.mobile .logo{font-size:17px}.mobile .cta{padding:0 10px;font-size:11.5px;letter-spacing:.04em;gap:6px}.mobile .cta svg{width:15px;height:15px}
+.view{padding:26px 22px 34px}
+.mobile .view{padding:20px 16px 28px}
+.view[hidden]{display:none}
+.vt{font:400 27px/1.15 var(--display);margin:0 0 6px}
+.vs{color:var(--ink-soft);font-size:16px;margin:0 0 20px}
+.two{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:36px;align-items:start}
+.mobile .two{grid-template-columns:minmax(0,1fr);gap:24px}
+@media (max-width:860px){.two{grid-template-columns:minmax(0,1fr);gap:24px}.cols{grid-template-columns:minmax(0,1fr);gap:18px}}
+
+/* form */
+.f{display:grid;gap:16px}
+label.l{display:block;font:700 14px var(--body);margin-bottom:6px}
+label.l i{font-style:normal;font-weight:400;color:var(--ink-soft)}
+.in,.ta{width:100%;min-height:48px;padding:10px 12px;border:1px solid var(--ctl);border-radius:2px;background:#fff;font-size:17px;caret-color:var(--action)}
+.ta{min-height:84px;resize:vertical;line-height:1.4}
+.in:focus,.ta:focus{outline:2px solid var(--action);outline-offset:1px}
+.in[aria-invalid="true"],.ta[aria-invalid="true"]{border-color:var(--err);background:#FFFBFA}
+.amt{position:relative}
+.amt .in{font:400 30px var(--display);padding-right:44px;min-height:60px}
+.amt span{position:absolute;right:14px;top:50%;transform:translateY(-50%);font:400 24px var(--display);color:var(--ink-soft);pointer-events:none}
+.msg{font-size:14.5px;margin:6px 0 0;min-height:21px}
+.msg.e{color:var(--err)}.msg.h{color:var(--ink-soft)}
+.ideas{display:grid;gap:8px;margin-top:4px}
+.idea{display:grid;grid-template-columns:minmax(0,1fr);gap:6px;padding:10px 0;border-top:1px solid var(--line)}
+.idea b{font-weight:700;font-size:15px}
+.idea small{color:var(--ink-soft);font-size:14px}
+.chips{display:flex;flex-wrap:wrap;gap:8px}
+.chip{min-height:40px;padding:0 13px;border-radius:999px;border:1px solid var(--ctl);background:var(--card);font:600 14px var(--body);font-variant-numeric:tabular-nums;transition:transform .1s ease-out,background .18s var(--out)}
+.chip:active{transform:scale(.96)}
+.chip[aria-pressed="true"]{background:var(--sapin);border-color:var(--sapin);color:var(--paper)}
+.chk{display:grid;grid-template-columns:24px minmax(0,1fr);gap:10px;align-items:start;font-size:15px}
+.chk input{width:22px;height:22px;margin:1px 0 0;accent-color:var(--sapin)}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;width:100%;min-height:52px;padding:0 18px;border:0;border-radius:2px;background:var(--action);color:#fff;font:700 16px var(--body);transition:transform .1s ease-out,background .18s var(--out)}
+.btn:active{transform:scale(.98)}
+.btn.alt{background:none;color:var(--ink);border:1px solid var(--ctl)}
+.btn.sm{width:auto;min-height:44px;font-size:14.5px;padding:0 14px}
+.btn[disabled]{opacity:.45;cursor:default}
+@media (hover:hover){.btn:not(.alt):not([disabled]):hover,.cta.fill:hover{background:var(--action-strong)}.chip:hover,.btn.alt:hover{background:var(--chip)}}
+.row{display:flex;flex-wrap:wrap;gap:10px}
+.alert{padding:12px 14px;border-radius:2px;font-size:15.5px}
+.alert.e{background:var(--err-soft);color:#7A2A22}.alert.ok{background:var(--ok-soft);color:#1F4F31}.alert.w{background:var(--warn-soft);color:var(--warn)}
+.alert[hidden]{display:none}
+
+/* voucher */
+.vch{position:relative;background:var(--card);border:1px solid #CFC5AE;border-radius:3px;padding:26px 24px 20px;box-shadow:0 10px 24px rgba(22,28,22,.12);container-type:inline-size}
+.vch::before{content:"";position:absolute;inset:7px;border:1px solid #E3D9C2;border-radius:1px;pointer-events:none}
+.vch .brand{font:400 15px var(--display);letter-spacing:.22em;text-transform:uppercase;color:var(--lichen)}
+.vch .ttl{font:400 clamp(26px,9cqi,40px)/1.05 var(--display);margin:10px 0 2px}
+.vch .am{font:400 clamp(40px,15cqi,64px)/1 var(--display);color:var(--action-strong);font-variant-numeric:tabular-nums;margin:8px 0 14px}
+.vch .who{font-size:16px;margin:0;overflow-wrap:anywhere}
+.vch .who b{font-weight:700}
+.vch .say{font:italic 400 17px/1.4 Georgia,serif;color:#3a3f35;margin:12px 0 0;overflow-wrap:anywhere}
+.vch .say:empty{display:none}
+.vch .foot{display:grid;grid-template-columns:minmax(0,1fr) 84px;gap:16px;align-items:end;margin-top:18px;padding-top:14px;border-top:1px dashed #CFC5AE}
+.vch .lbl{font:700 11.5px var(--body);letter-spacing:.1em;text-transform:uppercase;color:var(--ink-soft)}
+.vch .code{font:600 clamp(15px,5.2cqi,20px) var(--mono);letter-spacing:.04em;margin:2px 0 8px;overflow-wrap:anywhere}
+.vch .code.wait{color:#857D6B;font:400 15px var(--body);letter-spacing:0}
+.vch .small{font-size:13px;color:var(--ink-soft);margin:0;line-height:1.4}
+.vch svg.qr{width:84px;height:84px;display:block}
+.pay{max-width:420px;margin:10px auto;background:#fff;border:1px solid var(--line);border-radius:4px;padding:22px}
+.pay h4{font:700 16px var(--body);margin:0 0 4px}
+.sum{display:grid;gap:0;margin:0}
+.sum div{display:flex;justify-content:space-between;gap:12px;padding:9px 0;border-bottom:1px solid var(--line);font-size:16px}
+.sum div.tot{font-weight:700;border-bottom:0;font-size:18px}
+.sum div.minus{color:var(--ok)}
+.sum dd,.sum dt{margin:0}
+.sum dd{font-variant-numeric:tabular-nums;white-space:nowrap}
+.demo{font-size:14px;background:#EFE8D8;border-radius:2px;padding:12px 14px;margin-top:6px}
+.demo button{border:0;background:none;padding:6px 0;min-height:36px;font:600 14px var(--mono);color:var(--action-strong);text-decoration:underline;text-underline-offset:3px;text-align:left}
+.demo div{display:flex;flex-wrap:wrap;justify-content:space-between;gap:4px 12px;align-items:center}
+/* admin */
+.adm{background:#fff}
+.adm-h{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:12px 18px;border-bottom:1px solid var(--line);background:#fff}
+.adm-h b{font:400 20px var(--display)}
+.list{display:grid}
+.it{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(0,1fr) auto;gap:4px 14px;align-items:center;padding:12px 18px;border:0;border-bottom:1px solid var(--line);background:none;text-align:left;width:100%;min-height:60px}
+.it[aria-pressed="true"]{background:#F3EEE2}
+.it small{display:block;color:var(--ink-soft);font-size:13.5px}
+.it .r{text-align:right;font-variant-numeric:tabular-nums}
+.det{padding:18px}
+.mv{display:grid;grid-template-columns:86px minmax(0,1fr) auto;gap:10px;padding:8px 0;border-bottom:1px solid var(--line);font-size:15px}
+.mv span:last-child{font-variant-numeric:tabular-nums;white-space:nowrap}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;scroll-behavior:auto}}
+@media (max-width:520px){.doc{padding:28px 14px 64px}.stage{padding:10px}h2{margin-top:52px}.t td:first-child{width:34%}}
+@media print{body{background:#fff}.doc>*:not(#printzone){display:none}}
+</style>
+</head>
+<body>
+<div class="doc">
+
+<h1>Vendre des bons cadeaux sur le site, et les accepter à la réservation</h1>
+<p class="lead">Résumé de <a href="gift-vouchers.md">specs/gift-vouchers.md</a>. Un plugin GuestFlow « Bons cadeaux » : le client achète un montant libre dans un tunnel proche de celui d'une réservation mais sans dates, reçoit un bon imprimable portant un code, et le bénéficiaire saisit ce code quand il réserve ses dates.</p>
+
+<div class="cols">
+  <div><h3>Constat</h3><p>GuestFlow ne sait vendre qu'un séjour daté. Rien ne permet d'encaisser un montant « à valoir », ni de le déduire plus tard. Le seul « bon cadeau » existant est un modèle de mail saisonnier.</p></div>
+  <div><h3>Ce que font les autres</h3><p>Le site cité vend un montant libre, valable 18 mois, envoyé par mail en quelques minutes, puis accepté comme moyen de paiement à la réservation ; le reliquat reste utilisable. Il n'affiche aucun prix repère : on fait mieux sur ce point.</p></div>
+  <div><h3>Ce qu'on propose</h3><p>Le même principe, avec des repères de prix tirés des vrais tarifs, un bon affiché tout de suite après le paiement (et envoyé par mail), et un code de 16 caractères tiré au hasard, jamais stocké en clair.</p></div>
+</div>
+
+<h2>Maquette à manipuler</h2>
+<p>Quatre écrans. Tout répond : montant refusé, paiement abandonné, code mal recopié, bon expiré, trop d'essais. Les prix et les noms sont des exemples.</p>
+
+<div class="stage">
+  <div class="bar">
+    <div class="seg" id="tabs" role="group" aria-label="Écran">
+      <button data-v="buy" aria-pressed="true">1 · Acheter</button>
+      <button data-v="got" aria-pressed="false">2 · Recevoir</button>
+      <button data-v="use" aria-pressed="false">3 · Utiliser</button>
+      <button data-v="adm" aria-pressed="false">4 · Dans GuestFlow</button>
+    </div>
+    <div class="seg" id="sizes" role="group" aria-label="Largeur">
+      <button data-s="mobile" aria-pressed="false">Mobile</button>
+      <button data-s="desktop" aria-pressed="true">Ordinateur</button>
+    </div>
+  </div>
+
+  <div class="frame desktop" id="frame">
+    <div class="site-h" id="siteh">
+      <span class="logo">SOLIO</span>
+      <span class="ctas">
+        <button class="cta line" id="hGift"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="9" width="17" height="11.5" rx="1"/><path d="M2.5 9h19V6h-19zM12 6v14.5M12 6c-1.2-2.6-5-3-5-.6C7 6.6 9.6 6 12 6zm0 0c1.2-2.6 5-3 5-.6C17 6.6 14.4 6 12 6z"/></svg>Bon cadeau</button>
+        <button class="cta fill" id="hBook">Réserver</button>
+      </span>
+    </div>
+
+    <!-- 1 · ACHETER -->
+    <section class="view" id="v-buy">
+      <div id="buyForm">
+        <h3 class="vt">Offrir un séjour</h3>
+        <p class="vs">Un montant au choix, valable 18 mois, à utiliser en une ou plusieurs fois.</p>
+        <div class="two">
+          <div class="f">
+            <div>
+              <label class="l" for="amt">Montant</label>
+              <div class="amt"><input class="in num" id="amt" inputmode="decimal" autocomplete="off" value="150" aria-describedby="amtMsg"><span>€</span></div>
+              <p class="msg h" id="amtMsg">De 20 € à 2 000 €.</p>
+            </div>
+            <div>
+              <label class="l">Pour se repérer</label>
+              <div class="ideas" id="ideas"></div>
+              <p class="msg h">Prix indicatifs, susceptibles d'évoluer.</p>
+            </div>
+            <div><label class="l" for="to">Pour <i>(facultatif)</i></label><input class="in" id="to" maxlength="40" placeholder="Camille et Jules"></div>
+            <div><label class="l" for="from">De la part de <i>(facultatif)</i></label><input class="in" id="from" maxlength="40" placeholder="Mamie Jo"></div>
+            <div><label class="l" for="say">Un mot <i>(facultatif)</i></label><textarea class="ta" id="say" maxlength="200" aria-describedby="sayMsg"></textarea><p class="msg h num" id="sayMsg">0 / 200</p></div>
+            <div><label class="l" for="mail">E-mail de réception du bon</label><input class="in" id="mail" type="email" inputmode="email" autocomplete="email" placeholder="prenom@exemple.fr" aria-describedby="mailMsg"><p class="msg e" id="mailMsg"></p></div>
+            <label class="chk"><input type="checkbox" id="cgv"><span>J'accepte les <a href="#" onclick="return false">conditions de vente</a> des bons cadeaux.</span></label>
+            <p class="msg e" id="cgvMsg" style="margin-top:-8px"></p>
+            <button class="btn" id="payBtn">Payer 150,00 €</button>
+            <div class="alert e" id="abandon" hidden>Paiement non abouti. Aucun bon n'a été émis.</div>
+          </div>
+          <div>
+            <label class="l">Aperçu du bon</label>
+            <div class="vch" data-vch></div>
+          </div>
+        </div>
+      </div>
+      <div id="buyPay" hidden>
+        <div class="pay">
+          <h4>Page de paiement de la banque</h4>
+          <p class="msg h" style="margin-bottom:14px">Simulée ici. En réel, c'est la page Qonto déjà utilisée pour une réservation.</p>
+          <dl class="sum"><div class="tot"><dt>Bon cadeau</dt><dd id="payAmt">150,00 €</dd></div></dl>
+          <div class="f" style="margin-top:14px"><button class="btn" id="payOk">Paiement accepté</button><button class="btn alt" id="payKo">Abandonner</button></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 2 · RECEVOIR -->
+    <section class="view" id="v-got" hidden>
+      <div class="alert w" id="gotNone">Aucun bon émis pour l'instant : passer par « 1 · Acheter » et accepter le paiement.</div>
+      <div id="gotYes" hidden>
+        <h3 class="vt">Le bon est prêt</h3>
+        <p class="vs" id="gotMail"></p>
+        <div class="two">
+          <div id="printzone"><div class="vch" data-vch></div></div>
+          <div class="f">
+            <div class="row"><button class="btn sm" id="dl">Télécharger le PDF</button><button class="btn alt sm" id="pr">Imprimer</button></div>
+            <div class="alert ok" id="dlMsg" hidden>En réel : un PDF A4, le bon en haut, les conditions en dessous.</div>
+            <p style="font-size:16px;margin:0">Le bénéficiaire saisit le code au moment de réserver ses dates. Le QR code ouvre la page de réservation avec le code déjà rempli.</p>
+            <p style="font-size:16px;margin:0">Cette page reste accessible depuis le lien reçu par mail.</p>
+            <button class="btn alt sm" id="goUse" style="justify-self:start">Essayer ce code à la réservation</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 3 · UTILISER -->
+    <section class="view" id="v-use" hidden>
+      <h3 class="vt">Réserver — paiement</h3>
+      <p class="vs">La Granja · du 12 au 14 juin 2027 · 2 nuits · 2 personnes</p>
+      <div class="two">
+        <div class="f">
+          <div class="seg" id="mode" role="group" aria-label="Paiement" style="justify-self:start">
+            <button data-m="deposit" aria-pressed="true">Acompte 30 %</button>
+            <button data-m="full" aria-pressed="false">Totalité</button>
+          </div>
+          <div>
+            <label class="l" for="code">Bon cadeau <i>(facultatif)</i></label>
+            <div class="row" style="flex-wrap:nowrap">
+              <input class="in" id="code" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="XXXX-XXXX-XXXX-XXXX" style="font-family:var(--mono);font-size:16px;letter-spacing:.02em;min-width:0" aria-describedby="codeMsg">
+              <button class="btn alt sm" id="apply" style="flex:none">Appliquer</button>
+            </div>
+            <p class="msg" id="codeMsg"></p>
+          </div>
+          <div class="alert ok" id="applied" hidden></div>
+          <button class="btn" id="bookBtn">Payer 80,40 €</button>
+        </div>
+        <div>
+          <label class="l">Récapitulatif</label>
+          <dl class="sum" id="recap"></dl>
+        </div>
+      </div>
+
+      <div class="demo" style="margin-top:22px">
+        <b>Codes d'essai</b> (un clic les recopie)
+        <div id="demoCodes"></div>
+        <div><span>5 essais ratés bloquent la saisie.</span><button id="unlock" style="font-family:var(--body)">Lever le blocage</button></div>
+      </div>
+    </section>
+
+    <!-- 4 · GUESTFLOW -->
+    <section class="view adm" id="v-adm" hidden style="padding:0">
+      <div class="adm-h"><b>Bons cadeaux</b><span class="num" id="admTot" style="font-size:14.5px;color:var(--ink-soft)"></span></div>
+      <div class="two" style="gap:0">
+        <div class="list" id="admList"></div>
+        <div class="det" id="admDet"></div>
+      </div>
+    </section>
+  </div>
+  <p class="note" id="stageNote">Le bouton « Bon cadeau » se place à côté de « Réserver » dans l'en-tête du site ; les deux boutons de l'en-tête ci-dessus fonctionnent.</p>
+</div>
+
+<h2>Comment le code est protégé</h2>
+<table class="t">
+<tr><th>Risque</th><th>Réponse</th></tr>
+<tr><td>Deviner un code</td><td>16 caractères tirés par le générateur cryptographique du serveur : 15 aléatoires (75 bits, environ 38 000 milliards de milliards de combinaisons) et 1 de contrôle. Aucun lien avec le montant, la date ou un numéro d'ordre.</td></tr>
+<tr><td>Essais en rafale</td><td>5 échecs par visiteur et par quart d'heure, preuve de travail avant chaque essai (celle du tunnel de réservation), et coupure générale avec alerte dans GuestFlow si les échecs s'accumulent sur l'ensemble du site.</td></tr>
+<tr><td>Vol de la base ou d'une sauvegarde</td><td>Le code n'y figure pas en clair : seulement une empreinte calculée avec un secret gardé hors de la base, et une copie chiffrée pour pouvoir réimprimer le bon. Sans le secret, la base ne permet ni de lire ni de vérifier un code.</td></tr>
+<tr><td>Fabriquer un bon</td><td>Un code ne vaut que s'il existe côté serveur, émis après un paiement confirmé par la banque (jamais sur le simple retour du navigateur). Le PDF n'est qu'une impression : le modifier ne change rien.</td></tr>
+<tr><td>Dépenser deux fois</td><td>Le solde est la somme d'un journal de mouvements, écrit dans la même transaction que la réservation. Un bon engagé sur une demande en attente de paiement est bloqué pour ce montant, puis libéré si la demande expire.</td></tr>
+<tr><td>Erreur ou abus interne</td><td>Chaque mouvement garde sa date, son auteur et la réservation concernée. Le code est masqué dans GuestFlow (4 derniers caractères), l'affichage complet et les corrections de solde sont réservés à l'administrateur et tracés.</td></tr>
+</table>
+
+<h2>Deux tunnels, des pièces communes</h2>
+<p>L'achat d'un bon ne passe jamais dans le code du tunnel de réservation. Il a son propre bloc WordPress, ses propres routes et ses propres tables. Sont partagés uniquement des éléments sans état : appels à l'API, preuve de travail, champs de formulaire, styles, page de paiement, écran de retour de paiement.</p>
+<table class="t">
+<tr><th>Élément</th><th>Où</th></tr>
+<tr><td>Plugin <span class="tag">gift-vouchers</span></td><td>Tables, routes publiques et d'administration, PDF, page « Bons cadeaux », réglages (validité, montants min et max, repères de prix, préfixe). Désactivé, plus rien n'apparaît ; les bons déjà vendus restent en base.</td></tr>
+<tr><td>Cœur, ajouts génériques</td><td>Un mail hors séjour envoyé par un plugin, un montant reçu d'avance déduit d'une réservation, la clé d'API publique utilisable par un second plugin. Le lien de paiement sans réservation vient de la refonte des prix (PR C). Aucun de ces ajouts ne nomme les bons cadeaux.</td></tr>
+<tr><td>Plugin WordPress</td><td>Un bloc « Bon cadeau » et un bouton, plus le champ « Bon cadeau » à l'étape de paiement du moteur de réservation, affiché seulement si le plugin est actif.</td></tr>
+<tr><td>Site Solio</td><td>Le bouton dans l'en-tête et la page « Bon cadeau » : contenu du site, posé à part sur le WordPress.</td></tr>
+</table>
+
+<h2>Ce qu'on ne fait pas dans cette version</h2>
+<ul class="plain">
+<li>Pas de bon « forfait » (une nuit pour deux à telle date) : uniquement un montant.</li>
+<li>Pas d'envoi programmé au bénéficiaire, pas de bon papier envoyé par la poste, pas de choix de visuel.</li>
+<li>Pas de bon sur une réservation de plateforme : réservations directes uniquement.</li>
+<li>Pas de remboursement en argent du reliquat, pas de rendu de monnaie.</li>
+<li>Pas de code promotionnel : un bon est de l'argent déjà versé, pas une remise.</li>
+</ul>
+
+<h2>Risques</h2>
+<ul class="plain">
+<li><b>Le chantier dépend de la refonte des prix (PR C), pas encore fusionnée.</b> C'est elle qui autorise un lien de paiement sans réservation et la vente hors séjour, dont l'achat d'un bon a besoin. Les bons cadeaux se construisent donc après sa fusion.</li>
+<li><b>Le registre des paiements est la zone la plus sensible du dépôt.</b> Déduire un montant déjà reçu touche l'échéancier, les liens de paiement, l'export comptable et le rapprochement bancaire. Le chantier arrive en un seul lot : cette partie porte l'essentiel des tests.</li>
+<li><b>Comptabilité et TVA.</b> Un bon vendu n'est pas encore un chiffre d'affaires de séjour. Le moment où la TVA est due dépend de la nature du bon (usage unique ou multiple) : à faire confirmer par le comptable avant la mise en vente.</li>
+<li><b>Droit de rétractation.</b> Un bon acheté en ligne et non utilisé peut y être soumis pendant 14 jours : à vérifier, et à écrire dans les conditions de vente. L'administrateur peut de toute façon annuler et rembourser un bon intact.</li>
+</ul>
+
+<h2>Arbitrages tranchés le 15/11/2026</h2>
+<div class="arb">
+  <div><span class="n">1</span><div><p><b>Le bon est un moyen de paiement</b>, pas une remise. Le séjour garde son prix, sa taxe de séjour et son indemnité d'annulation ; une annulation recrédite le bon.</p></div></div>
+  <div><span class="n">2</span><div><p><b>Le mail du bon part tout seul</b> dès que le paiement est confirmé. C'est la seule exception à la règle « aucun mail client sans validation ».</p></div></div>
+  <div><span class="n">3</span><div><p><b>Validité par défaut : 18 mois</b>, modifiable dans les réglages ; un bon se prolonge à la main.</p></div></div>
+  <div><span class="n">4</span><div><p><b>Un seul lot, après la fusion de la PR C</b> : vente, délivrance, gestion et saisie du code arrivent ensemble.</p></div></div>
+</div>
+<h2>Encore ouvert, à voir avec le comptable</h2>
+<ul class="plain">
+<li>TVA due à la vente du bon ou à son utilisation, et compte qui porte l'encours des bons non utilisés.</li>
+<li>Droit de rétractation de 14 jours sur un bon acheté en ligne et non utilisé, à écrire dans les conditions de vente.</li>
+</ul>
+</div>
+
+</div>
+<script>
+(function(){
+'use strict';
+var $=function(s,r){return (r||document).querySelector(s)},$$=function(s,r){return Array.prototype.slice.call((r||document).querySelectorAll(s))};
+var eur=function(n){return n.toLocaleString('fr-FR',{minimumFractionDigits:2,maximumFractionDigits:2})+' €'};
+var eur0=function(n){return n.toLocaleString('fr-FR',{maximumFractionDigits:2})+' €'};
+var A='0123456789ABCDEFGHJKMNPQRSTVWXYZ';
+function check(body){var s=0;for(var i=0;i<body.length;i++)s+=(i+1)*A.indexOf(body[i]);return A[s%32]}
+function fmt(raw){return raw.replace(/(.{4})(?=.)/g,'$1-')}
+function norm(v){return v.toUpperCase().replace(/[IL]/g,'1').replace(/O/g,'0').replace(/[^0-9A-Z]/g,'').slice(0,16)}
+function mk(body){return body+check(body)}
+function addMonths(d,m){var x=new Date(d);x.setMonth(x.getMonth()+m);return x}
+var dfr=function(d){return d.toLocaleDateString('fr-FR',{day:'numeric',month:'long',year:'numeric'})};
+var today=new Date(2026,10,15);
+
+/* bons connus du « serveur » de la maquette */
+var vouchers=[
+ {id:'BC-2026-0007',code:mk('7K2QHD9M4TXB3NP'),amount:150,used:0,buyer:'Jo Martin',mail:'jo.martin@exemple.fr',to:'Camille et Jules',from:'Mamie Jo',bought:new Date(2026,9,28),until:new Date(2028,3,28),state:'ok',mv:[{d:'28/10/2026',t:'Achat en ligne (CB)',a:150}]},
+ {id:'BC-2026-0004',code:mk('M3ZP8WQ1C6RYA5E'),amount:300,used:268,buyer:'Paul Renaud',mail:'p.renaud@exemple.fr',to:'Léa',from:'Paul',bought:new Date(2026,5,2),until:new Date(2027,11,2),state:'ok',mv:[{d:'02/06/2026',t:'Achat en ligne (CB)',a:300},{d:'19/09/2026',t:'Réservation 22310 · La Granja',a:-268}]},
+ {id:'BC-2025-0002',code:mk('4HT6VN0X2KSJ8DG'),amount:100,used:0,buyer:'Inès Caron',mail:'ines.c@exemple.fr',to:'',from:'Inès',bought:new Date(2025,2,10),until:new Date(2026,8,10),state:'expired',mv:[{d:'10/03/2025',t:'Vendu au comptoir (chèque)',a:100}]},
+ {id:'BC-2026-0005',code:mk('Q9B5E1FZ7A3MCWR'),amount:80,used:80,buyer:'Hugo Lemaire',mail:'hugo.l@exemple.fr',to:'Nina',from:'Hugo',bought:new Date(2026,6,14),until:new Date(2028,0,14),state:'ok',mv:[{d:'14/07/2026',t:'Achat en ligne (CB)',a:80},{d:'03/08/2026',t:'Réservation 22298 · L\'Estiva',a:-80}]}
+];
+var issued=null;
+
+/* ── onglets / largeur ── */
+function show(v){$$('#tabs button').forEach(function(b){b.setAttribute('aria-pressed',b.dataset.v===v)});
+  ['buy','got','use','adm'].forEach(function(k){$('#v-'+k).hidden=k!==v});
+  $('#siteh').hidden=v==='adm';
+  $('#stageNote').textContent=v==='adm'?'Page du plugin dans GuestFlow. Le code reste masqué tant que l\'administrateur ne demande pas à le voir ; cette demande est tracée.':v==='use'?'Le champ « Bon cadeau » s\'ajoute à l\'étape de paiement du moteur de réservation existant, sans en changer les autres étapes.':'Le bouton « Bon cadeau » se place à côté de « Réserver » dans l\'en-tête du site ; les deux boutons de l\'en-tête ci-dessus fonctionnent.';
+  if(v==='adm')renderAdm(); if(v==='use')renderUse();}
+$('#tabs').addEventListener('click',function(e){var b=e.target.closest('button');if(b)show(b.dataset.v)});
+$('#sizes').addEventListener('click',function(e){var b=e.target.closest('button');if(!b)return;$$('#sizes button').forEach(function(x){x.setAttribute('aria-pressed',x===b)});$('#frame').className='frame '+b.dataset.s});
+$('#hGift').addEventListener('click',function(){show('buy')});
+$('#hBook').addEventListener('click',function(){show('use')});
+if(window.matchMedia('(max-width:700px)').matches){$('#frame').className='frame mobile';$$('#sizes button').forEach(function(x){x.setAttribute('aria-pressed',x.dataset.s==='mobile')})}
+
+/* ── repères de prix (calculés par le serveur à partir des tarifs) ── */
+var ideas=[
+ {t:'Une nuit à deux à La Granja',c:[['Basse saison',95],['Moyenne',115],['Haute saison',140]]},
+ {t:'Un week-end de deux nuits à L\'Estiva',c:[['Basse saison',170],['Moyenne',210],['Haute saison',260]]}
+];
+$('#ideas').innerHTML=ideas.map(function(i){return '<div class="idea"><b>'+i.t+'</b><div class="chips">'+i.c.map(function(c){return '<button type="button" class="chip" data-a="'+c[1]+'" aria-pressed="false">'+(c[0]?c[0]+' · ':'')+eur0(c[1])+'</button>'}).join('')+'</div></div>'}).join('');
+$('#ideas').addEventListener('click',function(e){var b=e.target.closest('.chip');if(!b)return;$('#amt').value=b.dataset.a;sync()});
+
+/* ── formulaire d'achat ── */
+function parseAmt(){var v=$('#amt').value.trim().replace(/\s/g,'').replace(',','.');
+  if(v==='')return {e:'Indiquer un montant.'};
+  if(!/^\d+(\.\d{1,2})?$/.test(v))return {e:'Montant en euros, deux décimales au plus.'};
+  var n=parseFloat(v); if(n<20)return {e:'Montant minimum : 20 €.'}; if(n>2000)return {e:'Montant maximum : 2 000 €.'}; return {n:n}}
+function esc(s){return s.replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]})}
+function qr(seed){var h=2166136261,out='',n=21,s=4;for(var i=0;i<seed.length;i++){h^=seed.charCodeAt(i);h=Math.imul(h,16777619)}
+  function eye(x,y){return x<7&&y<7||x>=n-7&&y<7||x<7&&y>=n-7}
+  for(var y=0;y<n;y++)for(var x=0;x<n;x++){var on;if(eye(x,y)){var ex=x<7?x:x-(n-7),ey=y<7?y:y-(n-7);on=ex===0||ex===6||ey===0||ey===6||(ex>1&&ex<5&&ey>1&&ey<5)}else{h^=h<<13;h^=h>>>17;h^=h<<5;on=(h>>>0)%100<47}
+    if(on)out+='<rect x="'+x*s+'" y="'+y*s+'" width="'+s+'" height="'+s+'"/>'}
+  return '<svg class="qr" viewBox="0 0 84 84" role="img" aria-label="QR code vers la réservation" fill="#22271F">'+out+'</svg>'}
+function voucherHtml(o){
+  var who=[];if(o.to)who.push('Pour <b>'+esc(o.to)+'</b>');if(o.from)who.push('de la part de <b>'+esc(o.from)+'</b>');
+  var w=who.join(', ');w=w?w.charAt(0).toUpperCase()+w.slice(1):'';
+  return '<div class="brand">Solio</div><div class="ttl">Bon cadeau</div><div class="am">'+(o.amount!=null?eur0(o.amount):'—')+'</div>'+
+   (w?'<p class="who">'+w+'</p>':'')+'<p class="say">'+esc(o.say||'')+'</p>'+
+   '<div class="foot"><div><div class="lbl">Code</div><div class="code'+(o.code?'':' wait')+'">'+(o.code?fmt(o.code):'délivré après le paiement')+'</div>'+
+   '<p class="small">Valable jusqu\'au '+dfr(o.until)+' sur une réservation directe, en une ou plusieurs fois. Ni repris ni échangé contre de l\'argent.</p></div>'+
+   (o.code?qr(o.code):'<svg class="qr" viewBox="0 0 84 84" aria-hidden="true"><rect x=".5" y=".5" width="83" height="83" fill="none" stroke="#CFC5AE" stroke-dasharray="4 4"/></svg>')+'</div>'}
+function draft(){var a=parseAmt();return {amount:a.n!=null?a.n:null,to:$('#to').value.trim(),from:$('#from').value.trim(),say:$('#say').value.trim(),until:addMonths(today,18),code:null}}
+function sync(){var a=parseAmt(),m=$('#amtMsg');
+  $('#amt').setAttribute('aria-invalid',a.e?'true':'false');m.className='msg '+(a.e?'e':'h');m.textContent=a.e||'De 20 € à 2 000 €.';
+  $('#payBtn').textContent=a.n!=null?'Payer '+eur(a.n):'Payer';
+  $$('#ideas .chip').forEach(function(c){c.setAttribute('aria-pressed',a.n!=null&&+c.dataset.a===a.n)});
+  $('#sayMsg').textContent=$('#say').value.length+' / 200';
+  $('#v-buy [data-vch]').innerHTML=voucherHtml(draft());}
+['amt','to','from','say'].forEach(function(id){$('#'+id).addEventListener('input',sync)});
+$('#mail').addEventListener('input',function(){$('#mailMsg').textContent='';this.setAttribute('aria-invalid','false')});
+$('#cgv').addEventListener('change',function(){$('#cgvMsg').textContent=''});
+$('#payBtn').addEventListener('click',function(){var a=parseAmt(),ok=!a.e,mail=$('#mail').value.trim();
+  $('#abandon').hidden=true;
+  if(!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(mail)){$('#mailMsg').textContent=mail?'Adresse e-mail incomplète.':'Indiquer l\'adresse où recevoir le bon.';$('#mail').setAttribute('aria-invalid','true');if(ok)$('#mail').focus();ok=false}
+  if(!$('#cgv').checked){$('#cgvMsg').textContent='Les conditions de vente doivent être acceptées.';ok=false}
+  if(a.e){$('#amt').focus();sync()}
+  if(!ok)return;
+  $('#payAmt').textContent=eur(a.n);$('#buyForm').hidden=true;$('#buyPay').hidden=false;$('#payOk').focus()});
+$('#payKo').addEventListener('click',function(){$('#buyPay').hidden=true;$('#buyForm').hidden=false;$('#abandon').hidden=false});
+$('#payOk').addEventListener('click',function(){var d=draft(),body='';var r=new Uint8Array(15);crypto.getRandomValues(r);for(var i=0;i<15;i++)body+=A[r[i]%32];
+  d.code=mk(body);issued=d;
+  vouchers.unshift({id:'BC-2026-0008',code:d.code,amount:d.amount,used:0,buyer:$('#mail').value.trim().split('@')[0],mail:$('#mail').value.trim(),to:d.to,from:d.from,bought:today,until:d.until,state:'ok',mv:[{d:'15/11/2026',t:'Achat en ligne (CB)',a:d.amount}]});
+  $('#buyPay').hidden=true;$('#buyForm').hidden=false;
+  $('#gotNone').hidden=true;$('#gotYes').hidden=false;$('#gotMail').textContent='Paiement de '+eur(d.amount)+' reçu. Un lien vers ce bon vient de partir à '+$('#mail').value.trim()+'.';
+  $('#v-got [data-vch]').innerHTML=voucherHtml(d);demo();show('got')});
+$('#dl').addEventListener('click',function(){$('#dlMsg').hidden=false});
+$('#pr').addEventListener('click',function(){window.print()});
+$('#goUse').addEventListener('click',function(){if(issued){$('#code').value=fmt(issued.code)}show('use')});
+
+/* ── utilisation ── */
+var TOTAL=268,DEP=80.40,mode='deposit',applied=null,fails=0,locked=false;
+function demo(){var rows=vouchers.slice(0,5).map(function(v){var left=v.amount-v.used;var s=v.state==='expired'?'expiré':left<=0?'épuisé':'solde '+eur0(left);
+  return '<div><button data-c="'+v.code+'">'+fmt(v.code)+'</button><span>'+s+'</span></div>'}).join('');
+  var typo=vouchers[vouchers.length-4]||vouchers[0];var bad=typo.code.slice(0,15)+(typo.code[15]==='A'?'B':'A');
+  rows+='<div><button data-c="'+bad+'">'+fmt(bad)+'</button><span>mal recopié</span></div>';
+  rows+='<div><button data-c="'+mk('ZZZZ0000ZZZZ000')+'">'+fmt(mk('ZZZZ0000ZZZZ000'))+'</button><span>inconnu</span></div>';
+  $('#demoCodes').innerHTML=rows}
+$('#demoCodes').addEventListener('click',function(e){var b=e.target.closest('button');if(!b)return;$('#code').value=fmt(b.dataset.c);setMsg('','');$('#apply').focus()});
+function setMsg(t,k){var m=$('#codeMsg');m.textContent=t;m.className='msg '+(k||'');$('#code').setAttribute('aria-invalid',k==='e'?'true':'false')}
+$('#code').addEventListener('input',function(){var n=norm(this.value);this.value=fmt(n);if(!locked)setMsg('','')});
+$('#code').addEventListener('keydown',function(e){if(e.key==='Enter'){e.preventDefault();$('#apply').click()}});
+function lock(on){locked=on;$('#code').disabled=on;$('#apply').disabled=on;if(on)setMsg('Trop d\'essais. Nouvelle saisie possible dans 15 minutes.','e');else{fails=0;setMsg('','')}}
+$('#unlock').addEventListener('click',function(){lock(false)});
+$('#apply').addEventListener('click',function(){
+  if(applied){applied=null;$('#code').value='';$('#code').disabled=false;renderUse();setMsg('','');return}
+  var n=norm($('#code').value);
+  if(n.length<16)return setMsg('Le code compte 16 caractères.','e');
+  if(check(n.slice(0,15))!==n[15])return setMsg('Code mal recopié : vérifier chaque caractère. Cet essai n\'est pas compté.','e');
+  var v=vouchers.filter(function(x){return x.code===n})[0];
+  if(!v){fails++;if(fails>=5)return lock(true);return setMsg('Code inconnu. Encore '+(5-fails)+' essai'+(5-fails>1?'s':'')+'.','e')}
+  if(v.state==='expired')return setMsg('Ce bon a expiré le '+dfr(v.until)+'. L\'hébergeur peut le prolonger sur demande.','e');
+  if(v.amount-v.used<=0)return setMsg('Ce bon est entièrement utilisé.','e');
+  applied=v;fails=0;setMsg('','');renderUse()});
+$('#mode').addEventListener('click',function(e){var b=e.target.closest('button');if(!b)return;mode=b.dataset.m;$$('#mode button').forEach(function(x){x.setAttribute('aria-pressed',x===b)});renderUse()});
+function renderUse(){
+  var bal=applied?applied.amount-applied.used:0,usedNow=Math.min(bal,TOTAL),rest=TOTAL-usedNow;
+  var dueNow=mode==='full'?rest:Math.max(0,DEP-usedNow),later=rest-dueNow,keep=bal-usedNow;
+  var h='<div><dt>2 nuits, 2 personnes</dt><dd>'+eur(TOTAL)+'</dd></div>';
+  if(applied)h+='<div class="minus"><dt>Bon cadeau ····'+applied.code.slice(-4)+'</dt><dd>− '+eur(usedNow)+'</dd></div><div><dt>Reste à payer</dt><dd>'+eur(rest)+'</dd></div>';
+  h+='<div class="tot"><dt>À payer aujourd\'hui</dt><dd>'+eur(dueNow)+'</dd></div>';
+  if(later>0)h+='<div><dt>Solde, à régler avant l\'arrivée</dt><dd>'+eur(later)+'</dd></div>';
+  $('#recap').innerHTML=h;
+  $('#bookBtn').textContent=dueNow>0?'Payer '+eur(dueNow):'Confirmer la réservation';
+  $('#apply').textContent=applied?'Retirer':'Appliquer';$('#code').disabled=!!applied||locked;
+  var a=$('#applied');a.hidden=!applied;
+  if(applied)a.textContent=eur(usedNow)+' déduits avec ce bon.'+(keep>0?' Il restera '+eur(keep)+' sur ce bon, utilisables jusqu\'au '+dfr(applied.until)+'.':' Il sera entièrement utilisé.')+(dueNow===0?' Rien à payer aujourd\'hui.':'');}
+
+/* ── GuestFlow ── */
+var sel=0,shown={};
+function stateTag(v){var left=v.amount-v.used;return v.state==='expired'?'<span class="tag err">Expiré</span>':v.state==='cancelled'?'<span class="tag err">Annulé</span>':left<=0?'<span class="tag">Épuisé</span>':v.used>0?'<span class="tag warn">Entamé</span>':'<span class="tag ok">Valable</span>'}
+function renderAdm(){
+  var due=vouchers.reduce(function(s,v){return s+(v.state==='ok'?v.amount-v.used:0)},0);
+  $('#admTot').textContent='Encours à honorer : '+eur(due);
+  $('#admList').innerHTML=vouchers.map(function(v,i){return '<button class="it" data-i="'+i+'" aria-pressed="'+(i===sel)+'"><span><b>'+v.id+'</b><small>'+esc(v.buyer)+' · '+v.bought.toLocaleDateString('fr-FR')+'</small></span><span>'+stateTag(v)+'</span><span class="r"><b>'+eur0(v.amount-v.used)+'</b><small>sur '+eur0(v.amount)+'</small></span></button>'}).join('');
+  var v=vouchers[sel],left=v.amount-v.used,dead=v.state==='cancelled';
+  $('#admDet').innerHTML='<h3 style="font:400 22px var(--display);margin:0 0 4px">'+v.id+' '+stateTag(v)+'</h3>'+
+   '<p style="font-size:15px;color:var(--ink-soft);margin:0 0 12px">'+esc(v.mail)+(v.to?' · pour '+esc(v.to):'')+'</p>'+
+   '<dl class="sum"><div><dt>Code</dt><dd style="font-family:var(--mono)">'+(shown[v.id]?fmt(v.code):'····-····-····-'+v.code.slice(-4))+'</dd></div><div><dt>Valable jusqu\'au</dt><dd>'+dfr(v.until)+'</dd></div><div class="tot"><dt>Solde</dt><dd>'+eur(left)+'</dd></div></dl>'+
+   '<div class="row" style="margin:14px 0 18px"><button class="btn alt sm" data-act="show">'+(shown[v.id]?'Masquer le code':'Afficher le code')+'</button><button class="btn alt sm" data-act="ext"'+(dead?' disabled':'')+'>Prolonger de 6 mois</button><button class="btn alt sm" data-act="mail"'+(dead?' disabled':'')+'>Renvoyer le mail</button><button class="btn alt sm" data-act="cancel"'+(dead||v.used>0?' disabled':'')+' style="color:var(--err);border-color:var(--err)">Annuler et rembourser</button></div>'+
+   '<div class="alert ok" id="admMsg" hidden></div><label class="l" style="margin-top:14px">Mouvements</label>'+
+   v.mv.map(function(m){return '<div class="mv"><span>'+m.d+'</span><span>'+esc(m.t)+'</span><span>'+(m.a===0?'':(m.a>0?'+ ':'− ')+eur(Math.abs(m.a)))+'</span></div>'}).join('');}
+$('#admList').addEventListener('click',function(e){var b=e.target.closest('.it');if(!b)return;sel=+b.dataset.i;renderAdm()});
+$('#admDet').addEventListener('click',function(e){var b=e.target.closest('[data-act]');if(!b||b.disabled)return;var v=vouchers[sel],msg='';
+  if(b.dataset.act==='show'){shown[v.id]=!shown[v.id]}
+  if(b.dataset.act==='ext'){v.until=addMonths(v.until,6);if(v.state==='expired'&&v.until>today)v.state='ok';v.mv.push({d:'15/11/2026',t:'Prolongé jusqu\'au '+dfr(v.until),a:0});msg='Validité prolongée jusqu\'au '+dfr(v.until)+'.'}
+  if(b.dataset.act==='mail'){msg='Mail renvoyé à '+v.mail+'.'}
+  if(b.dataset.act==='cancel'){if(!window.confirm('Annuler ce bon et rembourser '+eur(v.amount)+' ? Le code ne sera plus utilisable.'))return;v.state='cancelled';v.used=v.amount;v.mv.push({d:'15/11/2026',t:'Annulé, à rembourser',a:-v.amount});msg='Bon annulé. Remboursement de '+eur(v.amount)+' à faire depuis la banque.'}
+  renderAdm();demo();if(msg){var m=$('#admMsg');m.textContent=msg;m.hidden=false}});
+
+sync();demo();renderUse();
+})();
+</script>
+</body>
+</html>

@@ -35,6 +35,8 @@ function buildPublicRouter({
   const stayShop = [...shopRoute, guestSession.requireStayGuest];
   router.post('/orders/quote', ...stayShop, orders.quote);
   router.post('/orders', ...stayShop, limiters.order, limiters.cardOrder, orders.create);
+  // specs/gift-voucher-campaigns.md rule 37 — the text of the terms the cart asks the guest to accept.
+  router.get('/terms/:activity', ...stayShop, orders.termsText);
   router.get('/orders', limiters.read, guestSession.requireSession, requireModule('orders', controller.shownKeysOf), guestSession.requireStayGuest, orders.list);
   // §4.3 — the return page polls the order, and an unpaid one is read at the provider: the core's payment-status budget.
   router.get('/orders/:id', limiters.status, ...stayShop, orders.read);

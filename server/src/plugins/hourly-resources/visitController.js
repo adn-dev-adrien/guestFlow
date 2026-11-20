@@ -7,6 +7,8 @@
  *   POST   /:id/visit                              « Valider l'arrivée » / « Enregistrer », then the invoice when asked (its failure never undoes the commit)
  *   POST   /:id/visit/payment                      a payment on the reste
  *   PATCH  /:id/visit/lines/:lineId                « Offrir » / « Retirer » a stored line
+ *   POST   /:id/visit/lines/:lineId/not-taken      an element paid in advance that the client did not take (rules 15, 36 of the campaigns spec)
+ *   GET    /:id/fiche                               the whole fiche of the booking (rule 53 of the campaigns spec), the administrator's
  *   POST   /:id/no-show                            « Client absent » (admin)
  *   POST   /:id/visit/payment-link                 « Envoyer un lien » for the reste
  *   DELETE /:id/visit/payment-link/:linkId         « Retirer le lien »
@@ -29,7 +31,9 @@ const LINK_REFUSALS = Object.freeze({
   NO_EMAIL: 'Adresse e-mail requise.',
 });
 
-function createVisitController({ bookings, visits, invoicing, bookingPayload = (booking) => booking }) {
+function createVisitController({
+  bookings, visits, invoicing, fiche = null, bookingPayload = (booking) => booking,
+}) {
   const fail = (res, result) => res.status(result.status).json({
     error: result.error, ...(result.code ? { code: result.code } : {}), ...(result.refusals ? { refusals: result.refusals } : {}), ...(result.field ? { field: result.field } : {}),
     ...(result.refundCents ? { refundCents: result.refundCents } : {}),
@@ -191,6 +195,24 @@ function createVisitController({ bookings, visits, invoicing, bookingPayload = (
     return sendView(res, row, req);
   }
 
+  // Rules 15, 36 — « non pris »: a record, never a refund; the line is the visit's, the instrument that paid it is told through the core.
+  function notTaken(req, res) {
+    const { row, refusal } = bookingOf(req);
+    if (refusal) return fail(res, refusal);
+    const closed = writeRefusal(row, req);
+    if (closed) return fail(res, closed);
+    const result = visits().notTaken(row, req.params.lineId, { actor: actorOf(req) });
+    if (result.error) return fail(res, result);
+    return sendView(res, row, req);
+  }
+
+  // Rule 53 — money, contact and journal of one booking: the administrator's. The reception never reaches the route (it is outside its list).
+  function getFiche(req, res) {
+    const row = bookings().rawById(req.params.id);
+    if (!row) return fail(res, { status: 404, code: 'BOOKING_NOT_FOUND', error: 'Réservation non trouvée' });
+    return res.json({ fiche: fiche().ficheOf(row) });
+  }
+
   async function noShow(req, res) {
     const { row, refusal } = bookingOf(req);
     if (refusal) return fail(res, refusal);
@@ -256,7 +278,7 @@ function createVisitController({ bookings, visits, invoicing, bookingPayload = (
   }
 
   return {
-    getVisit, articles, quote, commit, pay, patchLine, noShow, mintLink, withdrawLink, emailLink,
+    getVisit, articles, quote, commit, pay, patchLine, notTaken, getFiche, noShow, mintLink, withdrawLink, emailLink,
   };
 }
 

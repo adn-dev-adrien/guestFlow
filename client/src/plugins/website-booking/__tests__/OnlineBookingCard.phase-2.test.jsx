@@ -16,6 +16,7 @@ vi.mock('../../../api', () => ({
   __esModule: true,
   default: {
     getTerms: vi.fn(),
+    getTermsActivities: vi.fn(),
     previewTerms: vi.fn(),
     getOnlineBooking: vi.fn(),
     updateTermsEnforcement: vi.fn(),
@@ -46,6 +47,7 @@ const overview = {
 beforeEach(() => {
   Object.values(api).forEach((m) => m.mockReset());
   api.getTerms.mockResolvedValue(overview);
+  api.getTermsActivities.mockResolvedValue({ activities: [{ key: 'lodging', label: 'Hébergement', currentVersion: 1 }] });
   api.previewTerms.mockResolvedValue({ html: { fr: '', en: '' }, unknownVariables: [] });
   api.getOnlineBooking.mockResolvedValue({
     requireTermsAcceptance: true, lastSeenPluginVersion: '', minPluginVersion: '1.8.0',

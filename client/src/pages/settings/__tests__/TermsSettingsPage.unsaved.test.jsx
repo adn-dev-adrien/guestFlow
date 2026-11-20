@@ -7,7 +7,7 @@ import { MemoryRouter } from 'react-router';
 
 vi.mock('../../../api', () => ({
   __esModule: true,
-  default: { getTerms: vi.fn(), saveTermsDraft: vi.fn(), previewTerms: vi.fn(), publishTerms: vi.fn(), getTermsVersion: vi.fn() },
+  default: { getTermsActivities: vi.fn(), getTerms: vi.fn(), saveTermsDraft: vi.fn(), previewTerms: vi.fn(), publishTerms: vi.fn(), getTermsVersion: vi.fn() },
 }));
 vi.mock('../../../hooks/useAuth', () => ({ __esModule: true, useAuth: () => ({ user: { roles: ['admin'], enabledPlugins: [] } }) }));
 vi.mock('../../../components/DialogProvider', () => {
@@ -32,6 +32,7 @@ const overview = (draft = { fr: '## Conditions', en: '## Terms', updatedAt: 'x' 
 
 beforeEach(() => {
   Object.values(api).forEach((m) => m.mockReset());
+  api.getTermsActivities.mockResolvedValue({ activities: [{ key: 'lodging', label: 'Hébergement', currentVersion: 1 }] });
   api.getTerms.mockResolvedValue(overview());
   api.previewTerms.mockResolvedValue({ html: { fr: '', en: '' }, unknownVariables: [] });
   api.saveTermsDraft.mockImplementation(async (d) => overview({ ...d, updatedAt: 'x' }));

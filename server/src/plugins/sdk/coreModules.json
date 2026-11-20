@@ -341,16 +341,35 @@
     "updateStatus"
   ],
   "termsModel": [
+    "LODGING",
     "create",
     "findAcceptanceByReservation",
+    "findAcceptanceBySubject",
     "getById",
     "getByVersion",
     "getCurrent",
     "getDraft",
+    "hasDraft",
     "insertAcceptance",
+    "listOtherAcceptancesByReservation",
     "listVersionsWithCounts",
     "publishVersion",
     "saveDraft"
+  ],
+  "termsActivities": [
+    "LODGING",
+    "find",
+    "list",
+    "resolve",
+    "seedDrafts"
+  ],
+  "termsAcceptance": [
+    "CHANNELS",
+    "NOT_ACCEPTED",
+    "OUTDATED",
+    "SUBJECT_TYPES",
+    "accept",
+    "requireAccepted"
   ],
   "updateStateModel": [
     "HISTORY_MAX",
@@ -413,6 +432,14 @@
     "inferCustomAccommodationPrice",
     "parseJsonArray",
     "roundMoney"
+  ],
+  "bookingHorizon": [
+    "DEFAULT_LODGING_MONTHS",
+    "addMonthsIso",
+    "horizonUntil",
+    "lodgingHorizonUntil",
+    "lodgingMonths",
+    "refusalSentence"
   ],
   "capacity": [
     "checkGuestCapacity",
@@ -936,7 +963,10 @@
   ],
   "paymentTenders": [
     "currentCentsOf",
+    "lineLabel",
     "methodLabel",
+    "METHODS",
+    "PREPAID",
     "settlementFigures",
     "targetFigures",
     "validateSettlement"
@@ -1014,13 +1044,17 @@
   "standaloneSale": [
     "cancel",
     "documentOf",
+    "historyOf",
     "offerLine",
+    "paidByOf",
     "pay",
     "paymentsOf",
     "quote",
     "receive",
+    "recordHistory",
     "removeLine",
-    "sell"
+    "sell",
+    "takePrepaid"
   ],
   "suggestedArticles": [
     "catalogue",
@@ -1038,6 +1072,8 @@
     "withdraw"
   ],
   "articles": [
+    "liveFamilies",
+    "makeArticle",
     "read",
     "unitsPerQuantity"
   ],
@@ -1079,5 +1115,32 @@
   ],
   "journalEntries": [
     "list"
+  ],
+  "pdfFonts": [
+    "FACES",
+    "registerFaces"
+  ],
+  "prepaidSources": [
+    "apply",
+    "byKind",
+    "heldCentsFor",
+    "heldFor",
+    "labelOf",
+    "liveSources",
+    "reduceComponents",
+    "reductionCents",
+    "releaseFor",
+    "unusedFor",
+    "wordingOf"
+  ],
+  "prepaidReceipts": [
+    "allocate",
+    "confirmWithoutLink",
+    "owedCentsOn",
+    "owedOnStay",
+    "receivedOn",
+    "recordOnStay",
+    "settleAtConversion",
+    "undoOnStay"
   ]
 }

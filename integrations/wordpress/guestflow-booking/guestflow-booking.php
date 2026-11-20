@@ -3,7 +3,7 @@
  * Plugin Name:       GuestFlow Booking
  * Plugin URI:        https://github.com/adn-dev-adrien/guestFlow
  * Description:       Affiche les disponibilités, calcule des devis et envoie des demandes de réservation vers GuestFlow via son API publique. Le site ne parle qu'au proxy PHP du plugin ; la clé d'API reste côté serveur.
- * Version:           1.19.1
+ * Version:           1.20.0
  * Requires at least: 6.4
  * Requires PHP:      8.0
  * Author:            GuestFlow
@@ -22,7 +22,7 @@ if (!defined('ABSPATH')) {
     exit; // No direct access.
 }
 
-define('GF_BOOKING_VERSION', '1.19.1');
+define('GF_BOOKING_VERSION', '1.20.0');
 define('GF_BOOKING_FILE', __FILE__);
 define('GF_BOOKING_DIR', plugin_dir_path(__FILE__));
 define('GF_BOOKING_URL', plugin_dir_url(__FILE__));
@@ -37,9 +37,14 @@ require_once GF_BOOKING_DIR . 'includes/class-gf-api-client.php';
 require_once GF_BOOKING_DIR . 'includes/class-gf-rest-proxy.php';
 require_once GF_BOOKING_DIR . 'includes/class-gf-blocks.php';
 require_once GF_BOOKING_DIR . 'includes/class-gf-shortcodes.php';
+require_once GF_BOOKING_DIR . 'includes/class-gf-redirects.php';
 require_once GF_BOOKING_DIR . 'includes/class-gf-plugin.php';
 // specs/wordpress-plugin-self-update.md — native WordPress updates against the GuestFlow manifest.
 require_once GF_BOOKING_DIR . 'includes/class-gf-updater.php';
+
+// The permanent links of the gift voucher cards (specs/gift-voucher-campaigns.md rule 9) are rewrite rules: flushed with the plugin.
+register_activation_hook(__FILE__, ['GF_Redirects', 'activate']);
+register_deactivation_hook(__FILE__, ['GF_Redirects', 'deactivate']);
 
 add_action('plugins_loaded', static function () {
     load_plugin_textdomain('guestflow-booking', false, dirname(plugin_basename(__FILE__)) . '/languages');

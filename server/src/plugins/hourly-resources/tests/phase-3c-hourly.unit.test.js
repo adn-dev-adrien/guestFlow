@@ -96,7 +96,7 @@ test('rule 17 (P16): the erasure warns about the paid external bookings, then li
     { label: '1 réservation hors séjour', count: 1 },
     { label: 'les réglages horaires des ressources (créneaux, chauffe, maintien en température, soirée, tarifs extérieurs)', count: 1 },
   ]);
-  assert.deepEqual(registry.get(plugin.id).data.tables, ['resource_bookings']);
+  assert.deepEqual(registry.get(plugin.id).data.tables, ['resource_bookings', 'resource_booking_holds', 'resource_visit_line_marks']);
 });
 
 test('rule 17: the erasure empties the slot settings; prices and free minutes stay', () => {

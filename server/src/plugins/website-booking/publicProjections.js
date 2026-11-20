@@ -160,15 +160,17 @@ function collapseToRanges(sortedDates) {
 
 // `arrivals` and `nightPrices` (specs/booking-drawer-friction.md rules 10 + 13) are computed by the
 // controller; the projection only shapes them, so an older caller still gets its original fields.
-function toPublicAvailability({ propertyId, from, to, blockedDates, nextAvailableDate = null, arrivals = [], nightPrices = [] }) {
+function toPublicAvailability({ propertyId, from, to, horizonUntil = null, blockedDates, nextAvailableDate = null, arrivals = [], nightPrices = [] }) {
   const sorted = Array.from(new Set(blockedDates || [])).filter(Boolean).sort();
   return {
     propertyId: Number(propertyId),
     from,
     to,
+    // The last day the public may book: the calendar greys out what lies past it, nothing to compute.
+    horizonUntil,
     blockedDates: sorted,
     blockedRanges: collapseToRanges(sorted),
-    // The first free night on or after max(from, today), looked up to a year ahead; null when none.
+    // The first free night on or after max(from, today), looked up to the booking horizon; null when none.
     nextAvailableDate: nextAvailableDate || null,
     arrivals: (arrivals || []).map((a) => ({
       date: a.date, minNights: Number(a.minNights), earliestDeparture: a.earliestDeparture,

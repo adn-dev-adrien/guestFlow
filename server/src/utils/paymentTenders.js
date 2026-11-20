@@ -24,7 +24,15 @@ const BANK_METHODS = new Set(['card', 'cheque', 'transfer']);
 const MAX_LINES = 4;
 const SHORTFALL_KINDS = new Set(['due', 'waived']);
 
-const methodLabel = (value) => (METHODS.find((m) => m.value === value) || { label: String(value) }).label;
+// SDK 2.33.0 — money a plugin's prepaid instrument already holds (a stored credit, a prepaid card): never typed by the operator, so not in
+// `METHODS`, and never collected at the bank or the till — the instrument's sale was the encaissement. The tender line carries
+// the plugin's `source`, its own `ref` and the `label` the plugin gave it when the line was written.
+const PREPAID = 'prepaid';
+const NOT_COLLECTED_METHODS = new Set([PREPAID]);
+
+const methodLabel = (value) => (METHODS.find((m) => m.value === value) || { label: value === PREPAID ? 'Prépayé' : String(value) }).label;
+// The label a line shows: a prepaid line says what the plugin called it.
+const lineLabel = (tender) => (tender && tender.method === PREPAID && tender.label ? String(tender.label) : methodLabel(tender && tender.method));
 
 const eurosText = (cents) => `${(Math.round(Number(cents) || 0) / 100).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`;
 
@@ -96,6 +104,7 @@ function settlementFigures(settlement) {
   let booksCents = 0;
   let internalCents = 0;
   let bankCents = 0;
+  let prepaidCents = 0;
   const byMethod = {};
   for (const t of tenders) {
     const amount = Number(t.amountCents) || 0;
@@ -103,11 +112,21 @@ function settlementFigures(settlement) {
     if (Number(t.internal) === 1 || t.internal === true) internalCents += amount;
     else booksCents += amount;
     if (BANK_METHODS.has(t.method)) bankCents += amount;
+    if (NOT_COLLECTED_METHODS.has(t.method)) prepaidCents += amount;
     byMethod[t.method] = (byMethod[t.method] || 0) + amount;
   }
   const waivedCents = settlement.shortfallKind === 'waived' ? Number(settlement.shortfallCents) || 0 : 0;
   const bookedWaivedCents = receivedCents > 0 ? Math.round((waivedCents * booksCents) / receivedCents) : 0;
-  return { receivedCents, booksCents, internalCents, bankCents, waivedCents, bookedWaivedCents, byMethod };
+  // `collectedCents` is what a payment journal counts as an encaissement of this settlement: the money on the books minus what a
+  // prepaid instrument had already collected (its own sale was the encaissement). `booksCents` still counts it as received.
+  return {
+    receivedCents, booksCents, internalCents, bankCents, prepaidCents, collectedCents: booksCents - prepaidCents, waivedCents, bookedWaivedCents, byMethod,
+  };
+}
+
+/** What the prepaid lines of these settlements carry, in cents (rule 63: never given back in money). */
+function prepaidCentsOf(settlements) {
+  return (settlements || []).reduce((sum, s) => sum + settlementFigures(s).prepaidCents, 0);
 }
 
 // The stay columns a bucket part is worth now. A paid installment and a split note cannot change amount
@@ -249,7 +268,7 @@ function bucketSharesOf(settlements, row = null) {
 // « Espèces 50,00 € (caisse interne) · CB 72,00 € » — the history wording (rules 14, 24).
 function linesText(tenders) {
   return (tenders || [])
-    .map((t) => `${methodLabel(t.method)} ${eurosText(t.amountCents)}${Number(t.internal) === 1 || t.internal === true ? ' (caisse interne)' : ''}`)
+    .map((t) => `${lineLabel(t)} ${eurosText(t.amountCents)}${Number(t.internal) === 1 || t.internal === true ? ' (caisse interne)' : ''}`)
     .join(' · ');
 }
 
@@ -267,7 +286,7 @@ const frDate = (iso) => String(iso || '').slice(0, 10).split('-').reverse().join
 
 module.exports = {
   METHODS, BANK_METHODS, MAX_LINES, toCents,
-  methodLabel, euros: eurosText, frDate,
-  validateSettlement, parseParts, settlementFigures, currentCentsOf, targetFigures, reservationAggregates, bucketSharesOf,
+  PREPAID, NOT_COLLECTED_METHODS, methodLabel, lineLabel, euros: eurosText, frDate,
+  validateSettlement, parseParts, settlementFigures, prepaidCentsOf, currentCentsOf, targetFigures, reservationAggregates, bucketSharesOf,
   linesText, settlementText,
 };

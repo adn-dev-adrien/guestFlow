@@ -31,6 +31,8 @@ final class GF_Settings
     private const PAGE_MARKERS = [
         'booking' => '<!-- wp:guestflow/booking',
         'cgv'     => '[guestflow_cgv]',
+        'gift_voucher' => '<!-- wp:guestflow/gift-voucher',
+        'gift_voucher_use' => '<!-- wp:guestflow/gift-voucher-use',
     ];
     /**
      * A page whose content holds one of these is not the generic page of `$kind`: a booking block
@@ -38,8 +40,12 @@ final class GF_Settings
      */
     private const PAGE_EXCLUSIONS = [
         'booking' => '"propertyId":',
+        // The marker of the purchase block is the beginning of the use block's name.
+        'gift_voucher' => 'wp:guestflow/gift-voucher-use',
     ];
-    private const DETECTED_TRANSIENT = 'gf_detected_pages_v2';
+    /** The first segment of the permanent paths of the printed cards (specs/gift-voucher-campaigns.md rule 9). */
+    public const DEFAULT_LINK_BASE = 'bon-cadeau';
+    private const DETECTED_TRANSIENT = 'gf_detected_pages_v3';
     private const CREATE = '__create__';
 
     public function boot(): void
@@ -63,6 +69,8 @@ final class GF_Settings
             'default_property_id'    => 0,
             'booking_page_url'       => '',
             'cgv_page_url'           => '',
+            'gift_voucher_use_page_url' => '',
+            'gift_voucher_link_base' => self::DEFAULT_LINK_BASE,
             'trusted_proxies'        => '',
             'trust_local_proxies'    => 1,
         ];
@@ -111,6 +119,39 @@ final class GF_Settings
         }
         $detected = $this->detected_page('booking');
         return $detected ? (string) get_permalink($detected) : '';
+    }
+
+    /**
+     * The page holding « Utiliser un bon cadeau »: the one picked in the settings, else the published page holding the
+     * block; '' when there is none (rule 9 — `/<base>/utiliser` then leads to the home page).
+     */
+    public function get_gift_voucher_use_page_url(): string
+    {
+        $url = trim((string) $this->get('gift_voucher_use_page_url', ''));
+        if ($url !== '') {
+            return self::in_current_language($url);
+        }
+        $detected = $this->detected_page('gift_voucher_use');
+        return $detected ? self::in_current_language((string) get_permalink($detected)) : '';
+    }
+
+    /** `bon-cadeau` unless the settings say otherwise: one lowercase segment, as GuestFlow prints it on the cards. */
+    public function get_gift_voucher_link_base(): string
+    {
+        return self::clean_link_base((string) $this->get('gift_voucher_link_base', self::DEFAULT_LINK_BASE));
+    }
+
+    public static function clean_link_base(string $raw): string
+    {
+        $base = strtolower(trim($raw, " \t\n\r/"));
+        return strlen($base) <= 40 && preg_match('/^[a-z0-9]+(-[a-z0-9]+)*$/', $base) ? $base : self::DEFAULT_LINK_BASE;
+    }
+
+    /** The page holding the gift voucher block, in the language of this request; '' when there is none. */
+    public function get_gift_voucher_page_url(): string
+    {
+        $detected = $this->detected_page('gift_voucher');
+        return $detected ? self::in_current_language((string) get_permalink($detected)) : '';
     }
 
     /** The oldest published page whose content holds the block or shortcode of `$kind` (and none of its exclusions), or 0. */
@@ -265,6 +306,8 @@ final class GF_Settings
         $out['default_property_id']    = max(0, (int) ($input['default_property_id'] ?? 0));
         $out['booking_page_url']       = $this->sanitize_page_choice('booking', $input['booking_page_url'] ?? '');
         $out['cgv_page_url']           = $this->sanitize_page_choice('cgv', $input['cgv_page_url'] ?? '');
+        $out['gift_voucher_use_page_url'] = $this->sanitize_page_choice('gift_voucher_use', $input['gift_voucher_use_page_url'] ?? '');
+        $out['gift_voucher_link_base'] = self::clean_link_base((string) ($input['gift_voucher_link_base'] ?? self::DEFAULT_LINK_BASE));
         $out['trusted_proxies']        = implode(', ', self::parse_ip_list((string) ($input['trusted_proxies'] ?? '')));
         $out['trust_local_proxies']    = empty($input['trust_local_proxies']) ? 0 : 1;
 
@@ -295,11 +338,16 @@ final class GF_Settings
         if ($existing) {
             return esc_url_raw((string) get_permalink($existing));
         }
-        $page = $kind === 'cgv'
-            ? ['post_title' => __('Conditions générales', 'guestflow-booking'), 'post_name' => 'cgv',
-               'post_content' => "<!-- wp:shortcode -->\n[guestflow_cgv]\n<!-- /wp:shortcode -->"]
-            : ['post_title' => __('Réserver', 'guestflow-booking'), 'post_name' => 'reserver',
-               'post_content' => '<!-- wp:guestflow/booking /-->'];
+        if ($kind === 'cgv') {
+            $page = ['post_title' => __('Conditions générales', 'guestflow-booking'), 'post_name' => 'cgv',
+                     'post_content' => "<!-- wp:shortcode -->\n[guestflow_cgv]\n<!-- /wp:shortcode -->"];
+        } elseif ($kind === 'gift_voucher_use') {
+            $page = ['post_title' => __('Utiliser un bon cadeau', 'guestflow-booking'), 'post_name' => 'utiliser-un-bon-cadeau',
+                     'post_content' => '<!-- wp:guestflow/gift-voucher-use /-->'];
+        } else {
+            $page = ['post_title' => __('Réserver', 'guestflow-booking'), 'post_name' => 'reserver',
+                     'post_content' => '<!-- wp:guestflow/booking /-->'];
+        }
         $id = wp_insert_post($page + ['post_type' => 'page', 'post_status' => 'publish'], true);
         $this->forget_detected_pages();
         if (is_wp_error($id) || !$id) {
@@ -373,6 +421,8 @@ final class GF_Settings
         // A public-address proxy is the one case the local rule does not cover: name it so it can be
         // pasted into the list (rule 14).
         $remote = isset($_SERVER['REMOTE_ADDR']) ? trim((string) $_SERVER['REMOTE_ADDR']) : '';
+        // Rule 40 — the vouchers are a GuestFlow plugin that may be off: say so, without blocking the other blocks.
+        $vouchers_off = $this->is_configured() && self::vouchers_off(GF_Api_Client::instance()->get('/gift-vouchers/offer'));
         $proxy_hint = (!empty($_SERVER['HTTP_X_FORWARDED_FOR']) && $remote !== '' && !GF_Api_Client::is_local_ip($remote)
             && !in_array($remote, $this->get_trusted_proxies(), true)) ? $remote : '';
         ?>
@@ -449,6 +499,31 @@ final class GF_Settings
                         <td>
                             <?php $this->render_page_select('booking', 'gf_booking_page', GF_BOOKING_OPTION . '[booking_page_url]', (string) $o['booking_page_url']); ?>
                             <p class="description"><?php echo esc_html__("Les cartes de logements pointent vers cette page avec ?property=ID. Automatique : la page qui contient le bloc de réservation.", 'guestflow-booking'); ?></p>
+                        </td>
+                    </tr>
+                    <tr>
+                        <th scope="row"><label for="gf_gv_use_page"><?php echo esc_html__('Page « Utiliser un bon cadeau »', 'guestflow-booking'); ?></label></th>
+                        <td>
+                            <?php $this->render_page_select('gift_voucher_use', 'gf_gv_use_page', GF_BOOKING_OPTION . '[gift_voucher_use_page_url]', (string) $o['gift_voucher_use_page_url']); ?>
+                            <p class="description"><?php echo esc_html__("Le lien /…/utiliser des cartes et du QR code mène ici. Automatique : la page qui contient le bloc « Utiliser un bon cadeau ».", 'guestflow-booking'); ?></p>
+                            <?php if ($vouchers_off) : ?>
+                                <p class="description"><strong><?php echo esc_html__('Bons cadeaux inactifs dans GuestFlow', 'guestflow-booking'); ?></strong> — <?php echo esc_html__('les blocs « Bon cadeau » et « Utiliser un bon cadeau » n’affichent rien ; les autres blocs fonctionnent normalement.', 'guestflow-booking'); ?></p>
+                            <?php endif; ?>
+                        </td>
+                    </tr>
+                    <tr>
+                        <th scope="row"><label for="gf_gv_link_base"><?php echo esc_html__('Début des liens des bons cadeaux', 'guestflow-booking'); ?></label></th>
+                        <td>
+                            <input name="<?php echo esc_attr(GF_BOOKING_OPTION); ?>[gift_voucher_link_base]" id="gf_gv_link_base" type="text" class="regular-text"
+                                   value="<?php echo esc_attr($this->get_gift_voucher_link_base()); ?>" placeholder="<?php echo esc_attr(self::DEFAULT_LINK_BASE); ?>" />
+                            <p class="description"><?php
+                                echo esc_html(sprintf(
+                                    /* translators: 1: link to a campaign, 2: link to the use page */
+                                    __('Les liens permanents imprimés sur les cartes : %1$s et %2$s. Identique au réglage de GuestFlow.', 'guestflow-booking'),
+                                    home_url('/' . $this->get_gift_voucher_link_base() . '/offrir/<slug>'),
+                                    home_url('/' . $this->get_gift_voucher_link_base() . '/utiliser')
+                                ));
+                            ?></p>
                         </td>
                     </tr>
                     <tr>
@@ -538,6 +613,13 @@ final class GF_Settings
             return true;
         }
         return (int) $res['status'] === 404 && is_array($error) && ($error['code'] ?? '') === 'NOT_FOUND';
+    }
+
+    /** GuestFlow answers `PLUGIN_INACTIVE` for the gift voucher plugin (and not for another one). */
+    public static function vouchers_off(array $res): bool
+    {
+        $plugin = $res['body']['plugin'] ?? '';
+        return self::is_module_off($res) && ($plugin === '' || $plugin === 'gift-vouchers');
     }
 
     public function ajax_test_connection(): void

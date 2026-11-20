@@ -61,6 +61,8 @@ const HARDENINGS = [
   // specs/plugins-phase-1-sdk.md rule 56 (specs/guest-app.md rule 110 b reading of 2026-11-16, loop t2 AG2-2).
   { feature: 'lines given back by the refund register', sdk: '2.32.0', pattern: /coreModule\(\s*['"`]refundGivenBack['"`]/ },
   { feature: 'slot availability', sdk: '2.30.0', pattern: /\bctx\.slotAvailability\(/ },
+  // The campaigns spec rules 25, 29, 53 — the booking offer of the outside bookings, and the prepaid source's optional `unused` call (SDK 2.33.0, unreleased with the rest of 2.33.0).
+  { feature: 'resource booking offer', sdk: '2.33.0', pattern: /\bctx\.resourceBookingOffer\(|\bctx\.core\.resourceBookingOffer\(/ },
   // specs/plugins-phase-1-sdk.md rule 53 (specs/pricing-components.md rule 38) — the shared money helpers.
   { feature: 'shared money helpers', sdk: '2.31.0', pattern: /coreModule\(\s*['"`]money['"`]/ },
   // specs/outside-booking-sas.md rules 36-37 (SDK 2.32.0) — the generic suggested-articles lists and their sale contexts.
@@ -68,6 +70,13 @@ const HARDENINGS = [
   { feature: 'sale events', sdk: '2.30.0', pattern: /['"]extraSale\.(sold|lineMoved|lineCancelled|refundOwed)['"]/ },
   // specs/plugins-phase-1-sdk.md rule 51.
   { feature: 'ledger bank tranches, incoming payments and journal entries', sdk: '2.29.0', pattern: /\bctx\.(?:ledgerBankTranches|incomingPayments|journalEntries)\(|coreModule\(\s*['"`]journalEntries['"`]/ },
+  // specs/gift-vouchers.md §4.1 — the public key guard, the signed proof of work and the e-mail outside a stay, shared by plugins.
+  { feature: 'public API guard chain', sdk: '2.33.0', pattern: /\.middleware\.(?:publicApi|requirePublicApiKey|visitorContext)\b/ },
+  { feature: 'shared proof of work', sdk: '2.33.0', pattern: /\.proofOfWork\b/ },
+  // specs/gift-vouchers.md rules 16-17 — a payment link with no stay, settled by the plugin that minted it.
+  { feature: 'payment link with no stay', sdk: '2.33.0', pattern: /\bpayments\.saleLink\b/ },
+  { feature: 'prepaid instruments', sdk: '2.33.0', pattern: /\bctx\.prepaid\(/ },
+  { feature: 'e-mail outside a stay', sdk: '2.33.0', pattern: /\bctx\.mail\.send\(/ },
 ];
 
 function sourceFiles(dir) {

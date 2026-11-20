@@ -207,6 +207,9 @@ const PLANNING_EVENT_KEEP = [
   'cardState',
   // Loop t2 UI2-6, UI2-7 — what the caller may do on the visit now (`{ noShow, arrive }`, booleans the server judged for this caller).
   'actions',
+  // Rule 35 of the campaigns spec — the card is the preparation ticket: the options to prepare and the badge of what paid them (no amount, no client detail).
+  'options',
+  'badges',
 ];
 
 function toReceptionPlanningEvent(event) {

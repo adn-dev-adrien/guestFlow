@@ -5,6 +5,7 @@ const router = require('express').Router();
 const termsController = require('../controllers/termsController');
 
 router.get('/', termsController.getOverview);
+router.get('/activities', termsController.listActivities);
 router.put('/draft', termsController.saveDraft);
 router.post('/preview', termsController.preview);
 router.post('/publish', termsController.publish);

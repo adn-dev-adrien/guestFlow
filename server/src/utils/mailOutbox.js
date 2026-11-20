@@ -41,9 +41,9 @@ async function composeMime(message) {
   return String(await new MailComposer(message).compile().build());
 }
 
-/** `writeToOutbox`, with the raw message added when the email has an HTML part. */
+/** `writeToOutbox`, with the raw message added when the email has an HTML part or attachments (the MIME is where they can be read). */
 async function writeMessageToOutbox(dir, message, now = new Date()) {
-  const mime = message.html ? await composeMime(message) : undefined;
+  const mime = message.html || (message.attachments && message.attachments.length) ? await composeMime(message) : undefined;
   return writeToOutbox(dir, { ...message, mime }, now);
 }
 

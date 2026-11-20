@@ -16,7 +16,7 @@ const resourcesModel = sdk.coreModule('resourcesModel');
 const { hideUnoffered } = sdk.coreModule('resourceOffer');
 const { isBabyBedResource } = sdk.coreModule('babyBedResource');
 const { checkGuestCapacity, publicGuestCap } = sdk.coreModule('capacity');
-const { validateStayInput } = require('../publicInputValidation');
+const { validateStayInput, withHorizonMessages } = require('../publicInputValidation');
 const {
   toPublicQuote, toPublicCancellationInsurance, toPublicOptionLimits, hasUnpricedNights,
 } = require('../publicProjections');
@@ -29,6 +29,8 @@ const propertyOptionDefaultsModel = sdk.coreModule('propertyOptionDefaultsModel'
 const paymentProviders = sdk.coreModule('paymentProviders');
 const quotePostProcessors = sdk.coreModule('quotePostProcessors');
 const { ok, failT, langOf } = sdk.coreModule('publicHttp');
+const publicPrepaid = require('../publicPrepaid');
+const prepaidSources = sdk.coreModule('prepaidSources');
 const translationResolver = sdk.coreModule('translationResolver');
 const { isPerPersonCardOption } = sdk.coreModule('mealPortions');
 
@@ -139,8 +141,11 @@ async function quote(req, res) {
   // One resolver for the whole quote: the lines, the insurance block and the portion hints all name
   // labels, and one catalogue read serves them all (specs/translation-catalogue.md rule 21).
   const translate = translationResolver.forLang(lang);
-  const v = validateStayInput(req.body, { todayIso: sdk.coreModule('reservationHelpers').getTodayIsoDate() });
-  if (!v.ok) return failT(res, req, 422, 'VALIDATION_FAILED', 'devisInvalid', v.errors);
+  const v = validateStayInput(req.body, {
+    todayIso: sdk.coreModule('reservationHelpers').getTodayIsoDate(),
+    horizonUntil: sdk.coreModule('bookingHorizon').lodgingHorizonUntil(),
+  });
+  if (!v.ok) return failT(res, req, 422, 'VALIDATION_FAILED', 'devisInvalid', withHorizonMessages(v.errors, lang));
 
   const optErrors = checkOptionApplicability(v.value.propertyId, v.value.options);
   if (optErrors) return failT(res, req, 422, 'VALIDATION_FAILED', 'optionUnavailable', optErrors);
@@ -184,14 +189,37 @@ async function quote(req, res) {
   // Server-decided payment mode: deposit only when the property opted in AND the deposit is positive.
   const paymentMode = resolvePublicPaymentMode(db, v.value.propertyId, Math.round(Number(engineQuote.depositAmount || 0) * 100));
 
-  return ok(res, toPublicQuote(engineQuote, {
+  // SDK 2.33.0 (specs/gift-vouchers.md rules 36-38) — what a typed prepaid code is worth on this stay and what is left to pay
+  // today, priced here and held by nothing: the request holds it. A refused code never fails the quote: the stay stays priced
+  // and the refusal travels in `payment.prepaid.refused`, for the field to say.
+  const prepaidInput = publicPrepaid.read(req.body);
+  let prepaid = null;
+  if (prepaidInput && prepaidInput.error) return failT(res, req, 400, 'PREPAID_UNAVAILABLE', 'prepaidUnavailable');
+  if (prepaidInput) {
+    const depositCents = Math.round(Number(engineQuote.depositAmount || 0) * 100);
+    const balanceCents = Math.round(Number(engineQuote.balanceAmount || 0) * 100);
+    const answer = prepaidSources.apply(null, prepaidInput, { capCents: depositCents + balanceCents, visitor: req.visitor, dryRun: true });
+    if (answer.retryAfterSeconds) res.set('Retry-After', String(answer.retryAfterSeconds));
+    prepaid = answer.ok
+      ? publicPrepaid.projection(answer, publicPrepaid.amounts({
+        mode: paymentMode, depositCents, balanceCents, heldCents: answer.heldCents,
+      }))
+      : { refused: publicPrepaid.refusal(answer) };
+  }
+
+  const publicQuote = toPublicQuote(engineQuote, {
     available, startDate: v.value.startDate, endDate: v.value.endDate, paymentMode,
     onlinePaymentReady: Boolean(paymentProviders.active()),
     cancellationInsurance: buildCancellationInsurance(v.value, engineQuote, insurancePrice, { lang, translate }),
     optionLimits: buildOptionLimits(v.value, engineQuote, lang),
     lang,
     translate,
-  }));
+  });
+  if (prepaid) publicQuote.payment.prepaid = prepaid;
+  // The means of payment a plugin lets the page offer beside the card, while it is live (the field the page shows).
+  const kinds = prepaidSources.liveSources().map((source) => ({ kind: source.source, label: source.label }));
+  if (kinds.length) publicQuote.payment.prepaidKinds = kinds;
+  return ok(res, publicQuote);
 }
 
 module.exports = {

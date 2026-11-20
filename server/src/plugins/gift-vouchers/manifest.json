@@ -1,0 +1,60 @@
+{
+  "id": "gift-vouchers",
+  "name": "Bons cadeaux",
+  "version": "1.3.0",
+  "description": "Des bons cadeaux vendus en ligne, au téléphone ou par carte commerçant : un montant pour un séjour, ou un contenu composé (bain nordique et options) réservé en ligne par le bénéficiaire.",
+  "icon": "gift",
+  "surfaces": [
+    "La page « Bons cadeaux »",
+    "L’API publique des bons cadeaux : l’offre, la commande, son paiement, la page du bon et la vérification d’un code",
+    "Le mail envoyé à l’acheteur quand son bon est émis, avec le PDF en pièce jointe",
+    "La carte « Bon cadeau » de la fiche de réservation",
+    "Le PDF du bon cadeau (carte A6 recto verso) et la carte du commerçant pour l’imprimeur",
+    "La bibliothèque de visuels des bons et des cartes",
+    "L’alerte « Vérification des bons cadeaux suspendue »",
+    "La notification push « Bons cadeaux : vérifications suspendues »"
+  ],
+  "requires": [],
+  "guestflow": ">=3.10.0",
+  "sdk": "^2.33.0",
+  "changelog": {
+    "1.3.0": [
+      "Les bons se vendent par campagne : un montant libre pour un séjour (les bornes, la validité, la TVA et les idées de prix des réglages deviennent la campagne « séjour »), ou un contenu composé à partir du catalogue — une séance de ressource à l’heure dans la journée ou la soirée, des options comprises, des options et du temps en plus au choix de l’acheteur.",
+      "Chaque prix vient du moteur de prix de GuestFlow, au tarif extérieur de la tranche, avec la remise de chaque heure et la TVA de chaque ligne ; rien n’existe avant la confirmation de la banque que la commande, dont le prix est recalculé au moment du lien de paiement.",
+      "« Nouveau bon » propose « Payé », « Offert » (aucune vente ni TVA, le registre le dit) et « Envoyer un lien de paiement » (le lien d’une heure part par e-mail au clic), pour une campagne en vente ou un bon sur mesure.",
+      "Un bon ne paie que son genre : un bon séjour est refusé sur une ressource, un bon composé sur un séjour ou sur une autre ressource, avec une phrase qui nomme la ressource.",
+      "Le lien de paiement d’un bon dure une heure (30 minutes avant) ; passé ce délai il est retiré chez le prestataire et la page de retour propose de recommencer. Un paiement fait dans l’heure mais confirmé après émet quand même le bon.",
+      "Une commande jamais payée reste 7 jours en coulisse, invisible, puis disparaît.",
+      "Un réglage « TVA des bons cadeaux » (10 % par défaut, de 0 à 100 %, deux décimales au plus) : le taux est figé sur chaque bon à sa vente, le reçu de l’acheteur indique la TVA (variable {vat}), la fiche du bon montre HT et TVA, et la vente entre dans l’export comptable en HT + TVA.",
+      "Les visuels des bons et des cartes se rangent dans une bibliothèque : JPEG ou PNG au format A6 portrait, 1240 × 1748 px au moins, gardés tels que reçus. Remplacer une image crée une version ; un bon déjà émis garde la sienne, et le fichier n’est effacé qu’une fois plus aucun bon valable ne le porte.",
+      "Le bon est une carte A6 recto verso avec 3 mm de fond perdu : le visuel au recto, au verso le logo, le QR code vers la page « Utiliser », ce que le bon comprend, le code et la validité. Aucun montant sur un bon de bain ; la mention « Ne pas jeter sur la voie publique. » et le site figurent sur chaque verso.",
+      "La carte du commerçant se télécharge pour l’imprimeur (traits de coupe, case blanche du code d’au moins 22 mm) ; la télécharger verrouille le lien permanent de la campagne. Le début des liens permanents (par défaut « bon-cadeau ») devient un réglage.",
+      "Le mail de l’acheteur donne le code, ce que le bon comprend et, pour un bon payé, un récapitulatif façon facture (lignes, TTC, TVA par taux) lu sur ce qui a été figé à la vente ; le PDF est joint. Le modèle de mail et l’adresse de la page de réservation ne sont plus des réglages.",
+      "« Télécharger le bon » et « Renvoyer le mail » (à l’acheteur ou à une autre adresse, tracé dans l’historique) ne sont offerts que pour un bon encore utilisable.",
+      "« Annuler le bon » : dans les 14 jours du paiement, une rétractation ; au-delà, un geste commercial à confirmer avec un motif. Les réservations en attente sont libérées, une ligne de remboursement s’ouvre (rien pour un bon offert), passe en comptabilité comme un avoir daté du jour, et se marque « effectué » une fois le virement fait.",
+      "Écrans d’administration : une page « Campagnes » (liste, éditeur avec le prix calculé par le serveur, import et export de recette, carte du commerçant), une bibliothèque « Visuels », une page « Nouveau bon » qui suit le parcours du site avec « Sur mesure », et dans la liste du bon la campagne, le contenu, le jour d’utilisation et l’annulation avec remboursement à marquer. Les réglages ne gardent que la page du bon et le début des liens permanents.",
+      "Les conditions acceptées à la commande d’un bon (hébergement, ou bain pour une campagne de ressource) sont enregistrées dans le registre des conditions du cœur ; un bain ne peut pas se vendre tant que ses conditions ne sont pas publiées.",
+      "Une campagne composée s’exporte en recette (.zip : campaign.json et ses images, les articles nommés, jamais un prix) et s’importe d’un bloc, ou pas du tout.",
+      "« Utiliser un bon cadeau » : le destinataire d’un bon composé le lit avec son code (jamais dans une adresse), choisit un créneau libre — « inclus » ou « + x € soirée » chiffré par GuestFlow, un bon du soir n’offrant que des créneaux du soir — ajoute du temps et des options, accepte les conditions et réserve.",
+      "Rien n’est réservé ni créé avant la confirmation de la banque, à une exception : quand un reste est à payer, le créneau et le bon sont retenus 15 minutes, avec un lien de paiement de 15 minutes. Passé ce délai le créneau et le bon sont libres ; un paiement confirmé après coup sur un créneau pris est signalé « à rembourser » sur son lien et le bon reste intact, sur un créneau encore libre la séance est réservée.",
+      "Quand rien n’est dû, la séance est réservée et le bon réglé en une seule fois ; le destinataire reçoit un mail avec le jour, les heures, l’adresse, ce qui est compris et ce qui a été payé.",
+      "Le bon règle les lignes de la vente de la séance par son moyen prépayé, la carte le reste : la comptabilité voit l’argent du bon une seule fois. Une option marquée « non pris » à l’arrivée est tracée sur le bon (« Écart non utilisé »), sans rien garder en solde.",
+      "Demande le SDK 2.33 de GuestFlow."
+    ],
+    "1.2.0": [
+      "Un bon se règle sur une réservation : au moment de réserver sur le site (un champ « Bon cadeau », le code vérifié avant tout appel), ou depuis la fiche (« Payer par bon cadeau », annulable).",
+      "Le bon paie d’abord l’acompte, puis le solde ; la carte ne règle que le reste, et rien n’est demandé quand le bon couvre tout. Le montant est reçu comme un moyen de paiement : le prix, la taxe de séjour et la commission du séjour ne changent pas, et la banque n’attend pas cette somme.",
+      "Le montant d’un bon est retenu dès la demande et rendu si la demande est refusée, supprimée ou jamais payée. Une annulation de séjour propose « Recréditer le bon » ; un bon expiré qui reçoit un remboursement est prolongé de 3 mois.",
+      "Demande le SDK 2.33 de GuestFlow."
+    ],
+    "1.1.0": [
+      "La vente en ligne : la commande depuis le site, son paiement par lien sans réservation, l’émission du bon à la confirmation de la banque, la page du bon et son PDF par un lien personnel, la purge des commandes jamais payées après 7 jours.",
+      "Le mail de confirmation part tout seul à l’acheteur (montant, validité, lien du bon, jamais le code) ; s’il échoue, il est réessayé et le bon porte « Mail non parti ».",
+      "Demande le SDK 2.33 de GuestFlow ; la vente en ligne n’est proposée que lorsqu’un paiement en ligne est connecté."
+    ],
+    "1.0.0": [
+      "Première version : le registre des bons (numéro, code protégé, montant, solde calculé depuis ses mouvements, validité figée à l’émission), la création d’un bon vendu hors du site, la prolongation, l’annulation, la correction du solde, le code affiché masqué et révélé sur demande, le renvoi du mail, le PDF d’une page avec QR code, l’offre publique avec ses idées chiffrées, la vérification d’un code avec preuve de travail et limites par visiteur.",
+      "Demande le SDK 2.33 de GuestFlow."
+    ]
+  }
+}

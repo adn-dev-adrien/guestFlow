@@ -477,6 +477,52 @@ read the settlements themselves (`utils/paymentTenders.settlementFigures`).
     suite turns red (mutation check of 2026-11-20), as do `TenderLines.typed-lines` (2). The prefilled line of the whole due is seeded only
     where the screen proposes it (`defaultLine`: the counter, `BookingPaymentFields`); a correction's lines stay as recorded.
 
+### 3.15 An amount received in advance from a plugin's prepaid instrument (SDK 2.33.0, 2026-11-15)
+
+> The rules below are numbered 60-63 and added at the end, never inserted: a rule number is an identity. They are written for
+> a plugin that keeps a balance (the gift vouchers of `specs/gift-vouchers.md` rules 36-42), and name none: a made-up stored
+> credit is what `prepaid-received-amount.unit.test.js` uses.
+
+60. **A prepaid line.** `payment_tenders.method` gains `'prepaid'`; a line of that method carries the plugin's `source`, its own
+    `ref` and the `label` the plugin gave it when it was written (`source`, `ref`, `label`, all nullable). The operator never
+    types it: it is not in `METHODS` (rule 4), and `validateSettlement` refuses it (« Moyen de paiement inconnu. »). It is written
+    only by `utils/prepaidReceipts` (module of the SDK), into the settlement of the bucket it paid — the acompte first, then the
+    solde — beside the card line of the payment link that paid the rest of that bucket. The stay's price, tourist tax,
+    commission and statistics are those of the same stay paid by card: the line only says how a part of a bucket was received.
+    A plugin declares such an instrument with `ctx.prepaid({ source, label, apply, held, settle, release })`; the core asks the
+    live plugin and never names it.
+61. **What it counts for.** A prepaid line is money received by the stay (`booksCents`, `receivedCents`: the remaining to pay, the
+    « Perçu » state, the refund register), never money collected: `settlementFigures` gives it its own `prepaidCents` and a
+    `collectedCents` (books minus prepaid) that the accounting export (`bookedFigures`) and the finance dashboard's encaissements
+    read, and it is not a bank method (`BANK_METHODS`), so the reconciliation's `expectedReceipts` never expects it. The sale of
+    the instrument was the encaissement. A prepaid line has no « Modifier » on the fiche (rule 20): its plugin undoes it.
+62. **Public payment.** A quote that holds prepaid money (`prepaidSources.heldFor`) lowers what the public payment asks for, the
+    earliest amounts first (rule 60): a `deposit`-mode link asks the acompte less the held amount, a `full` one the whole
+    pre-arrival amount less it, its VAT basket reduced the stay line first. The amount-mismatch guard of `applyPaidEffect`
+    expects that reduced amount; at the conversion the sources redeem what the stay takes and the settlements are written
+    (`settleAtConversion`). When nothing is left to ask, no link is minted: `confirmWithoutLink` converts the quote through the same
+    effect a paid link has (convert, tick the covered buckets, confirm the guest, announce `reservation.created`). A solde only
+    partly covered is ticked with a `due` shortfall (rule 16): the reste is collected like any other.
+63. **Taking it back.** A prepaid payment the fiche recorded (`recordOnStay`: the acompte whole, then the solde, then a reste
+    already open) is undone by its plugin through `undoOnStay`: the settlement goes, the bucket it alone paid is open again,
+    refused while a later settlement of the bucket rests on it, when the bank reconciliation matched it, when it shares a line
+    with a card (the booking's own), or when the take-back would leave refunds above what stays collected (rule 38 of
+    `reservation-refunds.md`). A deleted, purged or lapsed quote gives its hold back (`prepaidSources.releaseFor`).
+
+64. **Never given back in money.** What a prepaid line paid is received money (rule 61) but not refundable money: the refund register
+    (`refundsController.buildRegister`) takes `prepaidCentsOf(settlements)` off what the stay collected, so a cancelled stay's
+    budget (`refundable.budget({ prepaidTtc })`) is the other payments only. The cancellation indemnity therefore comes from the card
+    and the other payments first: 100 € prepaid + 168 € card with a 50 € indemnity owes 118 € in money, a stay paid only by prepaid
+    money owes none. The prepaid part goes back through its plugin's own gesture.
+65. **A prepaid part declares no VAT on the stay (Adrien, 2026-11-16).** The VAT of the money a prepaid instrument took in was declared when that
+    instrument was sold (its plugin lists the sale with `ctx.standaloneSales`, at the VAT rate it froze). The stay's export entries are
+    scaled to the share the collected part carries (`bookedFigures` → `scaleEntry`: `booksCents` = `collectedCents`, rule 61), so the stay's
+    HT and VAT are those of what the card, cash or transfer collected only — the VAT of the prepaid part is not counted a second time.
+    Nothing names an instrument: the rule holds for every `prepaid` line, and a plugin whose instrument carries no VAT at its sale is
+    that plugin's to declare in its own sale.
+66. **To be confirmed by the accountant.** The treatment of rule 65 assumes the instrument's VAT is due at its sale (single-purpose voucher). If the
+    accountant decides the VAT is due when the instrument is used, the sale lists no VAT (rate 0 in the plugin's setting) and the stay's
+    export is the place to restore it: that decision is not taken here.
 **Edge cases:**
 - All lines `cash` + internal, no shortfall → same storage as « Caisse interne » + settlement (rule 11).
 - A single line equal to the amount due → accepted; it records the method (« Chèque 122,00 € »).

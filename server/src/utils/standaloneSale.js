@@ -6,6 +6,9 @@
  *   offerLine(saleId, lineId, { offered, confirmRefund, version, actor })    « Offrir » / « Offert » on one line (rule 14)
  *   removeLine(saleId, lineId, { confirmRefund, version, actor })            a line taken off (an unpaid one freely, a paid one with the confirmation, rule 25)
  *   pay(saleId, { tenders, shortfall, paidAt, version, actor, source })      a payment on the reste, allocated by SETTLEMENT (rules 16-19)
+ *   takePrepaid(saleId, { tender, covers, paidAt, actor })                   money a plugin's prepaid instrument already collected, filed on the lines it paid (SDK 2.33.0)
+ *   paidByOf(saleId)                                                         what paid each line: `[{ lineRef, amountCents, paymentId, paidAt, kind: 'prepaid' | 'money', label, source?, ref? }]`
+ *   recordHistory(saleId, text, actor) · historyOf(saleId)                   the document's journal of events
  *   cancel(saleId)                                                           every line cancelled; money already taken stays and is owed back (rules 26, 41)
  *   writeObligationRefund(saleId, obligation, { day })                       an open row marked refunded: its refund allocations (rules 49, 55)
  *   writeKept(saleId, obligation, { day })                                   an open row closed « rien à rembourser »: its kept allocations, a tip (rules 50, 55, 56)
@@ -17,6 +20,9 @@
  * (the same families, the external VAT, SETTLEMENT's remaining amount); a line already stored is never re-priced (rule 74) and a new line of the same article is
  * a line of its own (rule 13). `sell` re-quotes inside its transaction: a price that moved since the quote answers 409 `PRICE_CHANGED`, a document changed
  * underneath (its `version`) the same. Every figure comes from the server; money in cents; errors `{ error, code }` in French.
+ *
+ * A `quote` also takes a dateless session — `{ articleRef: 'resource:<id>', session: { band: 'day' | 'evening', minutes, rankOffsetMinutes? } }` — priced by the family that owns the hourly
+ * resource for the customer with no stay (its external rate of the band, its degressive tiers by hour rank, the VAT of its class). It is a price, never a sale: `sell` refuses it (`NEEDS_FULFILMENT`).
  *
  * `fulfilments` are lines a plugin's family priced for a booking it fulfils — the session of an outside visit (the outside-visit spec rule 10):
  * `[{ articleRef, label, quantity, unitCents, totalCents, catalogueCents, offered, vatClass, components: [{ label, detail, amountCents }], fulfilmentRef }]`, stored with
@@ -124,6 +130,7 @@ function requestsOf(lines, { families = COUNTER_FAMILIES } = {}) {
   const refusals = [];
   for (const raw of Array.isArray(lines) ? lines : []) {
     const articleRef = asString(raw && raw.articleRef);
+    if (raw && raw.session != null) { refusals.push({ articleRef, code: 'NEEDS_FULFILMENT', message: 'Une séance se réserve au planning.' }); continue; }
     const found = sales.catalogueRow(articleRef);
     if (!found) { refusals.push({ articleRef, code: 'ARTICLE_UNKNOWN', message: 'Article inconnu.' }); continue; }
     const article = articles.makeArticle(found.row, { kind: found.kind });
@@ -141,6 +148,28 @@ function requestsOf(lines, { families = COUNTER_FAMILIES } = {}) {
     requests.push({ article, quantity, offered: raw.offered === true });
   }
   return { requests, refusals };
+}
+
+// A session with no date, quoted and never sold (`session: { band, minutes, rankOffsetMinutes? }`): the family that owns the hourly resource prices it for the
+// customer with no stay, and answers a line of the shape a fulfilled booking has. The sale itself still takes a booked session (`sell` refuses it).
+function sessionQuotesOf(lines) {
+  const fulfilments = [];
+  const refusals = [];
+  const families = articles.liveFamilies();
+  for (const raw of Array.isArray(lines) ? lines : []) {
+    if (!raw || raw.session == null) continue;
+    const articleRef = asString(raw.articleRef);
+    const found = sales.catalogueRow(articleRef);
+    if (!found) { refusals.push({ articleRef, code: 'ARTICLE_UNKNOWN', message: 'Article inconnu.' }); continue; }
+    const article = articles.makeArticle(found.row, { kind: found.kind });
+    if (!article.config.sellableExternally) { refusals.push({ articleRef, code: 'NOT_SELLABLE', message: 'Article non vendable hors séjour.' }); continue; }
+    const family = article.family === 'hourly' ? families.hourly : null;
+    if (!family || typeof family.quoteSession !== 'function') { refusals.push({ articleRef, code: 'NEEDS_FULFILMENT', message: 'Une séance se réserve au planning.' }); continue; }
+    const answer = family.quoteSession(article.config, raw.session);
+    if (answer.refusal) refusals.push({ articleRef, ...answer.refusal });
+    else fulfilments.push(answer.line);
+  }
+  return { fulfilments, refusals };
 }
 
 // Rule 34 of the outside-visit spec — a line paid before the document existed: counted whole, paid whole, by one allocation SETTLEMENT reads like any other.
@@ -222,7 +251,7 @@ function owedOf(ctx, saleId, amounts = null) {
 function internalHeldOf(allocations) {
   const byRef = new Map();
   for (const row of allocations || []) {
-    if (Number(row.books) !== 0) continue;
+    if (Number(row.books) !== 0 || String(row.paymentRef || '').endsWith(':prepaid')) continue;
     const key = row.lineRef == null ? '' : row.lineRef;
     byRef.set(key, (byRef.get(key) || 0) + Math.round(Number(row.amountCents || 0)));
   }
@@ -260,11 +289,13 @@ function quote(request = {}) {
   if (body.saleId && !sale) return refuse(404, 'SALE_NOT_FOUND', 'Vente introuvable.');
   const customer = resolveCustomer(body.customer || (sale ? { clientId: sale.clientId } : null), { write: false });
   if (customer.error) return customer.error;
-  const { requests, refusals } = requestsOf(body.lines, { families: body.families });
+  const sessions = sessionQuotesOf(body.lines);
+  const { requests, refusals: own } = requestsOf((Array.isArray(body.lines) ? body.lines : []).filter((line) => !(line && line.session != null)), { families: body.families });
+  const refusals = [...sessions.refusals, ...own];
   // Loop t4 B4-6 (rule 56 d) — the preview is the plan the commit runs (rules 52-55), nothing written: the unallocated money and a lowered line's
   // money pay the new lines, and the open rows are shown at the amounts that plan leaves them.
   const plan = planOf(sale ? sale.id : null, {
-    stored, allocations, requests, fulfilments: body.fulfilments,
+    stored, allocations, requests, fulfilments: [...(body.fulfilments || []), ...sessions.fulfilments],
   });
   const client = sale ? clientView(sale) : { id: customer.clientId, label: customer.label, kind: customer.kind };
   return {
@@ -348,6 +379,83 @@ function receive(saleId, {
   })();
   return outcome;
 }
+
+/**
+ * Money a plugin's prepaid instrument already collected (SDK 2.33.0, mixed-method-payments rules 60-61, 65), filed on the lines it paid: `tender` is
+ * `{ source, ref, label }` as the plugin wrote it, `covers` `[{ fulfilmentRef | articleRef, amountCents }]` — which line each cent pays, the plugin's call, never
+ * the walk's. It is received money, never collected money: the allocations are off the books (`:prepaid`), the VAT of that money was declared when the
+ * instrument was sold. Refused when a cover names no line, or more than the line still asks.
+ */
+function takePrepaid(saleId, {
+  tender, covers, paidAt, actor = null,
+}) {
+  const db = database();
+  let outcome = null;
+  try {
+    db.transaction(() => {
+      const { stored, allocations } = storedOf(saleId);
+      const ctx = price({ requests: [], stored, allocations });
+      const room = new Map(ctx.settlement.lines.map((row, index) => [ctx.lines[index].ref, row.dueCents - row.settledCents]));
+      const rows = [];
+      for (const cover of Array.isArray(covers) ? covers : []) {
+        const index = ctx.lines.findIndex((line) => (cover.fulfilmentRef ? line.fulfilmentRef === cover.fulfilmentRef : line.articleRef === cover.articleRef)
+          && room.has(line.ref) && !rows.some((r) => r.lineRef === line.ref));
+        const amount = Math.round(Number(cover.amountCents));
+        if (index < 0 || !(amount > 0) || amount > room.get(ctx.lines[index].ref)) { outcome = refuse(409, 'PREPAID_COVER_INVALID', 'Part prépayée invalide.'); throw outcome; }
+        rows.push({ lineRef: ctx.lines[index].ref, amountCents: amount, prepaid: true });
+      }
+      const total = rows.reduce((sum, row) => sum + row.amountCents, 0);
+      if (!(total > 0)) { outcome = refuse(409, 'PREPAID_COVER_INVALID', 'Part prépayée invalide.'); throw outcome; }
+      const day = /^\d{4}-\d{2}-\d{2}$/.test(String(paidAt || '')) ? paidAt : todayIso();
+      const paymentId = payments.record({
+        saleId,
+        paidAt: day,
+        tenders: [{ method: 'prepaid', amountCents: total, internal: false, source: tender.source, ref: tender.ref, label: tender.label }],
+        receivedCents: total,
+        source: `prepaid:${tender.source}:${tender.ref}`,
+        createdBy: actor,
+        allocations: rows,
+      });
+      sales.addHistory(saleId, `${euros(total)} réglés : ${tender.label}`, actor);
+      refreshInPlace(saleId);
+      sales.bumpVersion(saleId);
+      outcome = { status: 200, paymentId, receivedCents: total };
+    })();
+  } catch (err) {
+    if (err !== outcome || !outcome || outcome.status === 200) throw err;
+  }
+  return outcome;
+}
+
+/**
+ * What paid each line of the document, payment by payment (rules 35-36, 53 of the campaigns spec; SDK 2.33.0):
+ * `[{ lineRef, amountCents, paymentId, paidAt, kind: 'prepaid' | 'money', label, source?, ref? }]`. A `prepaid` row is money a plugin's instrument already collected
+ * (its tender names the `source`, its `ref` and its `label`); a `money` row carries the methods of its payment (« CB », « Espèces + CB »). Read from the payments and
+ * the allocations they filed, never recomputed.
+ */
+function paidByOf(saleId) {
+  const rows = payments.paymentsOf(saleId);
+  if (!rows.length) return [];
+  const allocations = payments.allocationsOf(saleId);
+  return rows.flatMap((payment) => {
+    const base = `standalone-payment:${payment.id}`;
+    const prepaid = payment.tenders.find((tender) => tender.method === 'prepaid') || null;
+    const money = [...new Set(payment.tenders.filter((tender) => tender.method !== 'prepaid').map((tender) => methodLabel(tender.method)))].join(' + ');
+    return allocations
+      .filter((row) => row.lineRef && (row.paymentRef === base || row.paymentRef === `${base}:internal` || row.paymentRef === `${base}:prepaid`))
+      .map((row) => (row.paymentRef.endsWith(':prepaid') && prepaid
+        ? {
+          lineRef: row.lineRef, amountCents: Number(row.amountCents), paymentId: payment.id, paidAt: payment.paidAt, kind: 'prepaid', label: prepaid.label, source: prepaid.source, ref: prepaid.ref,
+        }
+        : {
+          lineRef: row.lineRef, amountCents: Number(row.amountCents), paymentId: payment.id, paidAt: payment.paidAt, kind: 'money', label: money || 'Paiement',
+        }));
+  });
+}
+
+/** A line of the document's history (rule 53 of the campaigns spec): the journal of everything that happened to a sale, newest first when read by `historyOf`. */
+const recordHistory = (saleId, text, actor = null) => sales.addHistory(saleId, text, actor);
+const historyOf = (saleId) => sales.historyOf(saleId);
 
 function sell(request = {}, { actor = null, now = new Date() } = {}) {
   const body = request || {};
@@ -652,5 +760,5 @@ const paymentsOf = (saleId) => payments.paymentsOf(saleId).map((row) => ({
 }));
 
 module.exports = {
-  quote, sell, offerLine, removeLine, pay, cancel, receive, documentOf, paymentsOf, takePayment, writeObligationRefund, writeKept, MAX_QUANTITY,
+  quote, sell, offerLine, removeLine, pay, cancel, receive, documentOf, paymentsOf, takePayment, takePrepaid, paidByOf, recordHistory, historyOf, writeObligationRefund, writeKept, MAX_QUANTITY,
 };

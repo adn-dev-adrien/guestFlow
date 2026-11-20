@@ -48,7 +48,7 @@ test('rule 2: the worker solves with the same file, served beside it', () => {
   assert.match(worker, /GFPow\.search\(/);
   const blocks = read('includes', 'class-gf-blocks.php');
   assert.match(blocks, /'powWorkerUrl'\s*=>/);
-  assert.match(blocks, /\$name === 'booking' \? \['gf-runtime', 'gf-pow'\]/);
+  assert.match(blocks, /\$name === 'booking' \? \['gf-runtime', 'gf-voucher-code', 'gf-pow'\]/);
 });
 
 test('rule 2: the challenge is relayed on a fixed path, never cached', () => {

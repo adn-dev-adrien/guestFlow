@@ -330,9 +330,16 @@ const ensureBasketLinkFor = (id, basket, { redirectUrl = null } = {}) => withPro
   origin: 'basket',
 }, Number(id), 'complement', { basket }));
 
+// SDK 2.33.0 — the link of a plugin's basket with no stay (`ctx.paymentBasket`'s paid effect, `reservationId` null): the exact amount, back to `redirectUrl` once paid.
+const ensureSaleLinkFor = (sale, { redirectUrl = null } = {}) => withProviderLink((deps) => paymentRequestService.ensureSaleLink({
+  ...deps,
+  ...(redirectUrl ? { redirectUrl } : {}),
+  origin: 'basket',
+}, sale));
+
 module.exports = {
   createReservationPaymentLink, listReservationPaymentLinks, sendPaymentRequestEmail, pollPaymentsNow,
-  sendBalanceRequestFor, sendDepositRequestFor, ensureInstallmentLinkFor, ensurePaymentLinkFor, ensureBasketLinkFor, withdrawLink, settleLink,
+  sendBalanceRequestFor, sendDepositRequestFor, ensureInstallmentLinkFor, ensurePaymentLinkFor, ensureBasketLinkFor, ensureSaleLinkFor, withdrawLink, settleLink,
 };
 
 // The two money resolvers, with their quote source injectable (specs/payment-link-quote-parity.md §7):

@@ -71,6 +71,10 @@ const TEXTS = Object.freeze({
     lightNotPilotable: 'Cette lumière ne se commande pas depuis l’application.',
     commandNotFound: 'Demande introuvable.',
     tooManyLightCommands: 'Trop de demandes. Réessayer dans quelques minutes.',
+    // specs/gift-voucher-campaigns.md rules 37-38 — the terms of an activity the cart holds.
+    termsNotAccepted: 'Acceptez les conditions générales pour commander.',
+    termsOutdated: 'Les conditions générales ont changé : relisez-les et acceptez-les pour commander.',
+    termsNotFound: 'Ces conditions n’existent pas.',
   }),
   en: Object.freeze({
     unknownCode: 'This code is not recognised.',
@@ -131,6 +135,9 @@ const TEXTS = Object.freeze({
     lightNotPilotable: 'This light cannot be switched from the app.',
     commandNotFound: 'Request not found.',
     tooManyLightCommands: 'Too many requests. Try again in a few minutes.',
+    termsNotAccepted: 'Accept the general terms to order.',
+    termsOutdated: 'The general terms have changed: read them again and accept them to order.',
+    termsNotFound: 'These terms do not exist.',
   }),
 });
 

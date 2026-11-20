@@ -553,9 +553,12 @@ CREATE TABLE IF NOT EXISTS payment_tenders (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     settlementId INTEGER NOT NULL REFERENCES payment_settlements(id) ON DELETE CASCADE,
     position INTEGER NOT NULL,
-    method TEXT NOT NULL CHECK (method IN ('card','cash','cheque','transfer','holidayVoucher','other')),
+    method TEXT NOT NULL CHECK (method IN ('card','cash','cheque','transfer','holidayVoucher','other','prepaid')),
     amountCents INTEGER NOT NULL CHECK (amountCents > 0),
-    internal INTEGER NOT NULL DEFAULT 0 CHECK (internal IN (0,1) AND (internal = 0 OR method = 'cash'))
+    internal INTEGER NOT NULL DEFAULT 0 CHECK (internal IN (0,1) AND (internal = 0 OR method = 'cash')),
+    source TEXT,
+    ref TEXT,
+    label TEXT
   );
 
 CREATE TABLE IF NOT EXISTS resource_properties (
@@ -575,7 +578,7 @@ CREATE TABLE IF NOT EXISTS resources (
     propertyId INTEGER,
     note TEXT DEFAULT '',
     createdAt TEXT DEFAULT (datetime('now')),
-    updatedAt TEXT DEFAULT (datetime('now')), isComplex INTEGER NOT NULL DEFAULT 0, slotDuration INTEGER NOT NULL DEFAULT 60, openTime TEXT NOT NULL DEFAULT '08:00', closeTime TEXT NOT NULL DEFAULT '22:00', closedDays TEXT NOT NULL DEFAULT '[]', openDays TEXT NOT NULL DEFAULT '[0,1,2,3,4,5,6]', turnoverMinutes INTEGER NOT NULL DEFAULT 0, minimumUsageMinutes INTEGER NOT NULL DEFAULT 0, showsPlanningCard INTEGER NOT NULL DEFAULT 0, hourlyEveningStart TEXT, hourlyEveningRate REAL NOT NULL DEFAULT 0, hourlyExternalDayRate REAL NOT NULL DEFAULT 0, hourlyExternalEveningRate REAL NOT NULL DEFAULT 0,
+    updatedAt TEXT DEFAULT (datetime('now')), isComplex INTEGER NOT NULL DEFAULT 0, slotDuration INTEGER NOT NULL DEFAULT 60, openTime TEXT NOT NULL DEFAULT '08:00', closeTime TEXT NOT NULL DEFAULT '22:00', closedDays TEXT NOT NULL DEFAULT '[]', openDays TEXT NOT NULL DEFAULT '[0,1,2,3,4,5,6]', turnoverMinutes INTEGER NOT NULL DEFAULT 0, minimumUsageMinutes INTEGER NOT NULL DEFAULT 0, showsPlanningCard INTEGER NOT NULL DEFAULT 0, hourlyEveningStart TEXT, hourlyEveningRate REAL NOT NULL DEFAULT 0, hourlyExternalDayRate REAL NOT NULL DEFAULT 0, hourlyExternalEveningRate REAL NOT NULL DEFAULT 0, hourlyDegressiveTiers TEXT NOT NULL DEFAULT '[]', bookingHorizonMonths INTEGER NOT NULL DEFAULT 3,
     FOREIGN KEY (propertyId) REFERENCES properties(id) ON DELETE SET NULL
   );
 
@@ -604,7 +607,8 @@ CREATE TABLE IF NOT EXISTS user_roles (
   );
 
 CREATE TABLE IF NOT EXISTS terms_draft (
-    id INTEGER PRIMARY KEY CHECK (id = 1),
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    activity TEXT NOT NULL UNIQUE DEFAULT 'lodging',
     markdownFr TEXT NOT NULL DEFAULT '',
     markdownEn TEXT NOT NULL DEFAULT '',
     updatedAt TEXT
@@ -612,7 +616,8 @@ CREATE TABLE IF NOT EXISTS terms_draft (
 
 CREATE TABLE IF NOT EXISTS terms_versions (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    version INTEGER NOT NULL UNIQUE,
+    activity TEXT NOT NULL DEFAULT 'lodging',
+    version INTEGER NOT NULL,
     markdownFr TEXT NOT NULL,
     markdownEn TEXT NOT NULL,
     htmlFr TEXT NOT NULL,
@@ -620,17 +625,22 @@ CREATE TABLE IF NOT EXISTS terms_versions (
     variablesJson TEXT NOT NULL,
     contentHash TEXT NOT NULL,
     publishedAt TEXT NOT NULL,
-    publishedBy INTEGER REFERENCES users(id) ON DELETE SET NULL
+    publishedBy INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    UNIQUE (activity, version)
   );
 
 CREATE TABLE IF NOT EXISTS terms_acceptances (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    reservationId INTEGER NOT NULL,
+    reservationId INTEGER,
     termsVersionId INTEGER NOT NULL,
     acceptedAt TEXT NOT NULL,
     ip TEXT,
     userAgent TEXT,
     pluginVersion TEXT,
+    activity TEXT NOT NULL DEFAULT 'lodging',
+    subjectType TEXT NOT NULL DEFAULT 'reservation',
+    subjectRef TEXT,
+    channel TEXT NOT NULL DEFAULT 'site',
     FOREIGN KEY (reservationId) REFERENCES reservations(id) ON DELETE CASCADE,
     FOREIGN KEY (termsVersionId) REFERENCES terms_versions(id)
   );

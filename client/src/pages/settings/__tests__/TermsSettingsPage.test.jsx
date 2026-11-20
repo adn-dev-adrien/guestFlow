@@ -11,6 +11,7 @@ import { MemoryRouter } from 'react-router';
 vi.mock('../../../api', () => ({
   __esModule: true,
   default: {
+    getTermsActivities: vi.fn(),
     getTerms: vi.fn(),
     saveTermsDraft: vi.fn(),
     previewTerms: vi.fn(),
@@ -45,6 +46,7 @@ const overview = (over = {}) => ({
 
 beforeEach(() => {
   Object.values(api).forEach((m) => m.mockReset());
+  api.getTermsActivities.mockResolvedValue({ activities: [{ key: 'lodging', label: 'Hébergement', currentVersion: 1 }] });
   api.getTerms.mockResolvedValue(overview());
   api.previewTerms.mockResolvedValue({ html: { fr: '<h2>Conditions</h2>', en: '<h2>Terms</h2>' }, unknownVariables: [] });
   api.saveTermsDraft.mockImplementation(async (d) => overview({ draft: { ...d, updatedAt: 'x' } }));
@@ -68,7 +70,7 @@ test('an edited draft must be saved before it can be published', async () => {
   fireEvent.change(field, { target: { value: '## Conditions\n\nArticle 7.' } });
   expect(publishButton()).toBeDisabled();
   await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Enregistrer le brouillon' })); });
-  await waitFor(() => expect(api.saveTermsDraft).toHaveBeenCalledWith({ fr: '## Conditions\n\nArticle 7.', en: '## Terms' }));
+  await waitFor(() => expect(api.saveTermsDraft).toHaveBeenCalledWith({ fr: '## Conditions\n\nArticle 7.', en: '## Terms', activity: 'lodging' }));
   await waitFor(() => expect(publishButton()).toBeEnabled());
 });
 
@@ -99,6 +101,6 @@ test('« Voir » opens the frozen text of the version', async () => {
   renderPage();
   await screen.findByText('abcdef123456');
   await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Voir' })); });
-  expect(api.getTermsVersion).toHaveBeenCalledWith(1);
+  expect(api.getTermsVersion).toHaveBeenCalledWith(1, 'lodging');
   expect(await screen.findByTitle('Français')).toBeInTheDocument();
 });

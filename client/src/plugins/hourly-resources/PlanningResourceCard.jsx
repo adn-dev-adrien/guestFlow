@@ -2,7 +2,7 @@
 // rule 14): the ignition of a resource, a session of a stay, or a booking made outside a stay.
 import React, { useState } from 'react';
 import {
-  Box, Card, CardContent, Chip, Typography, Button,
+  Box, Card, CardContent, Chip, Link, Typography, Button,
 } from '@mui/material';
 import { useNavigate } from 'react-router';
 import Inventory2Icon from '@mui/icons-material/Inventory2';
@@ -10,7 +10,7 @@ import AccessTimeIcon from '@mui/icons-material/AccessTime';
 import HomeWorkIcon from '@mui/icons-material/HomeWork';
 import PersonIcon from '@mui/icons-material/Person';
 import EuroIcon from '@mui/icons-material/Euro';
-import { api, OptionDayCard, useToast, formatCurrency } from '../sdk';
+import { api, OptionDayCard, useToast, formatCurrency, StatusBadge } from '../sdk';
 
 // « pour demain 09:00 » / « 22:00 → pour demain 06:00 » — the « démarrer » card says what it prepares
 // (specs/resource-ignition-task.md §3 rule 5). A night-time ignition carries no hour of its own: the
@@ -106,6 +106,31 @@ function BookingCard({ booking, openable }) {
             <Typography variant="body1" sx={{ fontWeight: 600 }}>{booking.displayName}</Typography>
             {booking.clientPhone && <Typography variant="body2" color="text.secondary">· {booking.clientPhone}</Typography>}
           </Box>
+          {(booking.badges || []).length > 0 && (
+            <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap', mb: 0.5 }}>
+              {booking.badges.map((badge) => <StatusBadge key={badge.label} status="info" label={badge.label} />)}
+            </Box>
+          )}
+          {(booking.options || []).length > 0 && (
+            <Box component="ul" aria-label="À préparer" sx={{ m: 0, mb: 0.5, p: 0, listStyle: 'none', display: 'flex', flexWrap: 'wrap', columnGap: 1.5, rowGap: 0.25 }}>
+              {booking.options.map((option, index) => (
+                <Typography key={`${option.label}-${index}`} component="li" variant="body2" color="text.secondary" sx={{ overflowWrap: 'anywhere' }}>
+                  {option.quantity > 1 ? `${option.quantity} × ` : ''}{option.label}
+                </Typography>
+              ))}
+            </Box>
+          )}
+          {openable && booking.external && (
+            <Link
+              component="button"
+              type="button"
+              variant="body2"
+              onClick={(e) => { e.stopPropagation(); navigate(`/passages/${booking.id}`); }}
+              sx={{ minHeight: 44, display: 'inline-flex', alignItems: 'center' }}
+            >
+              Ouvrir la fiche
+            </Link>
+          )}
           {cardState && (
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mt: 1, flexWrap: 'wrap' }}>
               <EuroIcon sx={{ fontSize: 16, color: `${CARD_TONES[cardState.state]}.main`, flexShrink: 0 }} />

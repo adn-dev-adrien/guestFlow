@@ -76,6 +76,10 @@ function shapeResponse(row, env = process.env, vat = null) {
       // specs/finance-dashboard-redesign.md §3.8 — `{ "<exercise key>": amount }`, {} when none.
       revenueGoals: readRevenueGoals(row.revenueGoals),
     },
+    // How far ahead the public may book a lodging, in months (specs/gift-voucher-campaigns.md rule 51).
+    booking: {
+      horizonMonths: Number(row.bookingHorizonMonths) || 12,
+    },
     // SMTP block. The password is masked: the row comes from settingsModel.read(), which
     // substitutes smtpPasswordEncrypted with the boolean smtpPasswordSet. `fromEmail`, `username` and
     // `fromName` are the operator's OVERRIDES ('' = derived); `derived` is what each one falls back to

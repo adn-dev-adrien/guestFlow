@@ -27,6 +27,14 @@ function duration(minutes) {
 
 const BAND_LABELS = { day: 'Jour', evening: 'Soir' };
 
+/** One band of a priced session as the lines of a price breakdown print it: « Jour · 18:00–19:00 », « 1 h × 50,00 € ». */
+const bandLineOf = (b) => ({
+  key: `band:${b.band}:${b.from}`,
+  label: `${BAND_LABELS[b.band] || b.band} · ${b.from}–${b.to}`,
+  detail: `${duration(b.minutes)} × ${eurosText(b.rate)}`,
+  amount: b.amount,
+});
+
 /** Rule 9 — `null` when the value is acceptable, else the French refusal. */
 function offeredRefusal(offeredMinutes, { durationMinutes, freeMinutesApplied, perHour }) {
   const n = offeredMinutes;
@@ -43,6 +51,16 @@ function vatOf(total, vat) {
   const rate = Number(vat.rate);
   const { vat: amount, net } = splitTtc(total, rate);
   return { rate, amount, net };
+}
+
+/** The day and evening rates a banded resource is sold at: the external pair for a customer with no stay (each falls back to the guest rate), the guest pair otherwise. */
+function rateGridOf(resource, { external, guestDayRate = Number(resource.price ?? 0) }) {
+  const guestEveningRate = Number(resource.hourlyEveningRate) || 0;
+  const dayRate = external && Number(resource.hourlyExternalDayRate) > 0 ? Number(resource.hourlyExternalDayRate) : guestDayRate;
+  const eveningRate = external
+    ? (Number(resource.hourlyExternalEveningRate) > 0 ? Number(resource.hourlyExternalEveningRate) : (guestEveningRate > 0 ? guestEveningRate : dayRate))
+    : guestEveningRate;
+  return { dayRate, eveningRate };
 }
 
 /**
@@ -72,12 +90,7 @@ function priceBookingLines({ resource, startTime, endTime, override = null, exte
 
   const finish = (priced) => {
     const total = Math.max(0, round2(priced.grossTotal - priced.freeValue - priced.offeredValue));
-    const lines = priced.bands.map((b) => ({
-      key: `band:${b.band}:${b.from}`,
-      label: `${BAND_LABELS[b.band] || b.band} · ${b.from}–${b.to}`,
-      detail: `${duration(b.minutes)} × ${eurosText(b.rate)}`,
-      amount: b.amount,
-    }));
+    const lines = priced.bands.map(bandLineOf);
     if (priced.freeMinutesApplied > 0) {
       lines.push({ key: 'free', label: 'Offert par le logement', detail: duration(priced.freeMinutesApplied), amount: -priced.freeValue });
     }
@@ -97,12 +110,10 @@ function priceBookingLines({ resource, startTime, endTime, override = null, exte
 
   // Hourly-scheduled resource: time-banded grid (specs/resource-hourly-scheduling.md §3.5).
   if (Number(resource.showsPlanningCard || 0) === 1) {
-    const guestEveningRate = Number(resource.hourlyEveningRate) || 0;
-    const dayRate = external && Number(resource.hourlyExternalDayRate) > 0 ? Number(resource.hourlyExternalDayRate) : guestDayRate;
-    const eveningRate = external
-      ? (Number(resource.hourlyExternalEveningRate) > 0 ? Number(resource.hourlyExternalEveningRate) : (guestEveningRate > 0 ? guestEveningRate : dayRate))
-      : guestEveningRate;
-    const cfg = { dayRate, eveningRate, eveningStart: resource.hourlyEveningStart, slotMinutes: resource.slotDuration };
+    const { dayRate, eveningRate } = rateGridOf(resource, { external, guestDayRate });
+    const cfg = {
+      dayRate, eveningRate, eveningStart: resource.hourlyEveningStart, slotMinutes: resource.slotDuration, degressiveTiers: resource.hourlyDegressiveTiers,
+    };
     const priced = priceSessions([{ date: '2000-01-01', start: startTime, end: endTime }], cfg, 0);
     if (priced.validSessions.length) {
       const { freeValue, offeredValue } = bookingDeductions({ start, freeApplied, offeredApplied, freeAtDayRate: freeHourAtDayRate }, cfg);
@@ -136,4 +147,6 @@ function priceBookingLines({ resource, startTime, endTime, override = null, exte
   });
 }
 
-module.exports = { priceBookingLines, offeredRefusal, vatOf, OFFER_STEP_MINUTES };
+module.exports = {
+  priceBookingLines, offeredRefusal, vatOf, rateGridOf, bandLineOf, duration, OFFER_STEP_MINUTES,
+};

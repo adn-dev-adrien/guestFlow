@@ -1282,6 +1282,7 @@ function createModel(database) {
         .filter((name) => database.prepare(`PRAGMA table_info("${name}")`).all().some((c) => c.name === 'reservationId'));
       tables.forEach((name) => database.prepare(`DELETE FROM "${name}" WHERE reservationId = ?`).run(numId));
       database.prepare("DELETE FROM reservations WHERE id = ? AND kind = 'devis'").run(numId);
+      require('../utils/prepaidSources').releaseFor(numId, 'deleted');
       return { deleted: true, clientId: row.clientId, devisNumber: row.devisNumber };
     });
     return tx();
@@ -1334,6 +1335,8 @@ function createModel(database) {
     const refusal = removeRefusal(id);
     if (refusal) return refusal;
     database.prepare("DELETE FROM reservations WHERE id = ? AND kind = 'devis'").run(Number(id));
+    // SDK 2.33.0 — what a plugin's prepaid instrument held for this quote goes back to it.
+    require('../utils/prepaidSources').releaseFor(Number(id), 'deleted');
     return { ok: true, data: { success: true } };
   }
 

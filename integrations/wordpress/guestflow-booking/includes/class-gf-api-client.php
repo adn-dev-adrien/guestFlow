@@ -36,6 +36,15 @@ final class GF_Api_Client
     }
 
     /**
+     * A GET whose answer is a file (the gift voucher PDF), not JSON: `body` is the raw bytes and
+     * `type` the upstream content type. A refusal still comes back as the JSON error body.
+     */
+    public function get_raw(string $path, array $query = []): array
+    {
+        return $this->request('GET', $path, ['query' => $query, 'raw' => true]);
+    }
+
+    /**
      * The visitor's address: REMOTE_ADDR, unless it is a trusted reverse proxy — then the right-most
      * X-Forwarded-For entry that is not itself a trusted proxy (the left part of that header is
      * written by the client and cannot be believed).
@@ -135,6 +144,10 @@ final class GF_Api_Client
 
         $status = (int) wp_remote_retrieve_response_code($response);
         $raw = wp_remote_retrieve_body($response);
+        $type = strtolower((string) wp_remote_retrieve_header($response, 'content-type'));
+        if (!empty($opts['raw']) && $status >= 200 && $status < 300 && strpos($type, 'application/pdf') === 0) {
+            return ['status' => $status, 'body' => $raw, 'type' => 'application/pdf'];
+        }
         $body = json_decode($raw, true);
         if (!is_array($body)) {
             $body = ['error' => ['code' => 'BAD_UPSTREAM_RESPONSE', 'message' => __('Réponse inattendue du service.', 'guestflow-booking')]];

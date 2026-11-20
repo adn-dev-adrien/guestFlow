@@ -189,7 +189,21 @@ function createModel(database, { standaloneVatRate = () => 20, now = () => new D
     }
     b.noShow = Boolean(b.noShowAt);
     b.cardState = bookingCardState(b);
+    Object.assign(b, preparationOf(b, money));
     return b;
+  }
+
+  /**
+   * The preparation ticket of an outside booking's planning card (specs/gift-voucher-campaigns.md rule 35): every option of the booking's sale, whoever paid it, and a
+   * badge per instrument that paid in advance — the instrument's own label, read from its tender, never named here. Empty for a booking with no sale document.
+   */
+  function preparationOf(b, money) {
+    if (!money) return { options: [], badges: [] };
+    const options = money.document.lines
+      .filter((line) => !line.fulfilmentRef && line.status !== 'cancelled' && line.source !== 'paidElsewhere')
+      .map((line) => ({ label: line.label, quantity: line.quantity }));
+    const labels = [...new Set(sdk.coreModule('standaloneSale').paidByOf(money.saleId).filter((paid) => paid.kind === 'prepaid').map((paid) => paid.label))];
+    return { options, badges: labels.map((label) => ({ label })) };
   }
 
   /**
@@ -244,7 +258,7 @@ function createModel(database, { standaloneVatRate = () => 20, now = () => new D
   // The refusals shared by the preview and the commit: a real day inside the date window (unless it is the
   // edited booking's stored day, specs/reservations-backend-mvc.md rule 13, reading of 2026-11-02), minimum
   // duration, then capacity — the booking itself excluded when it is edited.
-  function checkBookable({ resource, date, startTime, endTime, excludeId = null, storedDate, storedTimes }) {
+  function checkBookable({ resource, date, startTime, endTime, excludeId = null, storedDate, storedTimes, excludeHoldRef = null }) {
     const dateError = sdk.coreModule('stayDates').entryDateMessage(date, { stored: storedDate });
     if (dateError) return { error: dateError, status: 400 };
     // Rule 23, reading of 2026-11-05 — a booking ends after it starts; only the stored pair sent back is exempt.
@@ -258,7 +272,7 @@ function createModel(database, { standaloneVatRate = () => 20, now = () => new D
       return { error: `Durée minimale ${minUsage} min requise`, status: 400 };
     }
     const turnover = Number(resource.turnoverMinutes || 0);
-    if (countConflicts(resource.id, date, startTime, endTime, turnover, excludeId) >= resource.quantity) {
+    if (countConflicts(resource.id, date, startTime, endTime, turnover, excludeId, excludeHoldRef) >= resource.quantity) {
       return { error: 'Créneau non disponible (capacité atteinte)', status: 409 };
     }
     return null;
@@ -320,9 +334,9 @@ function createModel(database, { standaloneVatRate = () => 20, now = () => new D
   // booking. Delegates to `resourceOccupancyModel` so guest sessions count too: this predicate used to
   // read `resource_bookings` alone, which let a standalone booking be created straight on top of a
   // reservation's session (specs/hourly-resource-quantity-and-sas-scheduling.md §1 defect 4).
-  function countConflicts(resourceId, date, startTime, endTime, turnover, excludeId) {
+  function countConflicts(resourceId, date, startTime, endTime, turnover, excludeId, excludeHoldRef = null) {
     return occupancyModel.countConflicts({
-      resourceId, date, startTime, endTime, turnover, excludeBookingId: excludeId,
+      resourceId, date, startTime, endTime, turnover, excludeBookingId: excludeId, excludeHoldRef,
     });
   }
 
@@ -348,7 +362,7 @@ function createModel(database, { standaloneVatRate = () => 20, now = () => new D
   }
 
   function getResourceForBooking(resourceId) {
-    return database.prepare('SELECT id, quantity, price, turnoverMinutes, priceType, minimumUsageMinutes, slotDuration, isComplex, showsPlanningCard, hourlyEveningStart, hourlyEveningRate, hourlyExternalDayRate, hourlyExternalEveningRate FROM resources WHERE id = ?')
+    return database.prepare('SELECT * FROM resources WHERE id = ?')
       .get(resourceId);
   }
 
@@ -366,13 +380,20 @@ function createModel(database, { standaloneVatRate = () => 20, now = () => new D
       WHERE rb.resourceId = ? AND rb.date = ?
       ORDER BY rb.startTime
     `).all(resourceId, date);
-    return bookings.map((b) => ({
-      id: b.id,
-      startTime: b.startTime,
-      endTime: b.endTime,
-      turnover: Number(b.turnoverMinutes || 0),
-      description: [b.firstName, b.lastName].filter(Boolean).join(' ') || b.clientName || 'Client externe',
-    }));
+    const held = occupancyModel.listHolds({ resourceId, from: date, to: date });
+    const turnover = held.length ? Number((database.prepare('SELECT turnoverMinutes FROM resources WHERE id = ?').get(Number(resourceId)) || {}).turnoverMinutes || 0) : 0;
+    return [
+      ...bookings.map((b) => ({
+        id: b.id,
+        startTime: b.startTime,
+        endTime: b.endTime,
+        turnover: Number(b.turnoverMinutes || 0),
+        description: [b.firstName, b.lastName].filter(Boolean).join(' ') || b.clientName || 'Client externe',
+      })),
+      ...held.map((h) => ({
+        id: null, startTime: h.start, endTime: h.end, turnover, description: h.label || HELD_SLOT,
+      })),
+    ];
   }
 
   /**
@@ -473,7 +494,8 @@ function createModel(database, { standaloneVatRate = () => 20, now = () => new D
     return booking ? enrich(booking) : null;
   }
 
-  function createBooking(payload) {
+  // `excludeHoldRef` (specs/gift-voucher-campaigns.md rule 29): the hold this booking consumes does not block it. Never read from a request body.
+  function createBooking(payload, { excludeHoldRef = null } = {}) {
     const { resourceId, reservationId, clientId, clientName, clientPhone, propertyId, date, startTime, endTime, notes } = payload;
     const offeredMinutes = Number(payload.offeredMinutes) || 0;
     if (!resourceId || !date || !startTime || !endTime) {
@@ -485,7 +507,7 @@ function createModel(database, { standaloneVatRate = () => 20, now = () => new D
     const resource = getResourceForBooking(positiveId(resourceId));
     if (!resource) return { error: 'Ressource non trouvée', status: 404 };
 
-    const refusal = checkBookable({ resource, date, startTime, endTime })
+    const refusal = checkBookable({ resource, date, startTime, endTime, excludeHoldRef })
       || offeredCheck({ resource, startTime, endTime, propertyId, reservationId, offeredMinutes: payload.offeredMinutes, date });
     if (refusal) return refusal;
 
@@ -576,12 +598,17 @@ function createModel(database, { standaloneVatRate = () => 20, now = () => new D
       id,
     );
     const visit = visitsOf(existing);
-    if (!visit || !pricedMoved) database.transaction(write)();
+    const slotMoved = existing.date !== newDate || existing.startTime !== newStart || existing.endTime !== newEnd;
+    const writeMoved = () => {
+      write();
+      if (visit && slotMoved) visit.history(existing, `Séance déplacée : ${existing.date} ${existing.startTime}–${existing.endTime} → ${newDate} ${newStart}–${newEnd}`);
+    };
+    if (!visit || !pricedMoved) database.transaction(writeMoved)();
     else {
       // The outside-visit spec, edge case « booking moved after the arrival » — its session line follows while unpaid, in the same transaction.
       try {
         database.transaction(() => {
-          write();
+          writeMoved();
           const repriced = visit.repriceSession(rawById(id));
           if (repriced.error) throw refusalError(repriced);
         })();

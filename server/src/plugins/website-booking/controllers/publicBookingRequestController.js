@@ -19,7 +19,7 @@ const devisModel = sdk.coreModule('devisModel');
 const notificationService = sdk.coreModule('notificationService');
 const settings = require('../settings');
 const termsModel = sdk.coreModule('termsModel');
-const { validateStayInput, validateGuest, validateAttribution, cleanFreeText, withFieldMessages } = require('../publicInputValidation');
+const { validateStayInput, validateGuest, validateAttribution, cleanFreeText, withFieldMessages, withHorizonMessages } = require('../publicInputValidation');
 const { classifyAttribution } = sdk.coreModule('attributionChannel');
 const { checkGuestCapacity, publicGuestCap } = sdk.coreModule('capacity');
 const { generateToken, tokensMatch } = sdk.coreModule('publicDevisToken');
@@ -32,6 +32,8 @@ const { isPerPersonCardOption, portionCap, portionWording } = sdk.coreModule('me
 const { ok, fail, failT, langOf, langStated } = sdk.coreModule('publicHttp');
 const { labels } = sdk.coreModule('publicLabels');
 const requestStore = require('../requestStore');
+const publicPrepaid = require('../publicPrepaid');
+const prepaidSources = sdk.coreModule('prepaidSources');
 
 // specs/public-request-abuse-and-grouping.md rule 7 — new quotes per e-mail address per 24 h.
 const NEW_DEVIS_PER_EMAIL_PER_DAY = 3;
@@ -88,13 +90,14 @@ function newDevisLastDay(email, now = Date.now()) {
  * What a request asks for, beyond who and when: two requests with the same fingerprint are the same
  * request (a double click, edge case of rule 13), and the second changes nothing.
  */
-function requestFingerprint(value, message) {
+function requestFingerprint(value, message, prepaid = null) {
   const lines = (list, key) => (list || []).map((l) => [Number(l[key]), Number(l.quantity || 1)]).sort((a, b) => a[0] - b[0]);
   return require('crypto').createHash('sha256').update(JSON.stringify({
     adults: value.adults, teens: value.teens, children: value.children, babies: value.babies, babyBeds: value.babyBeds,
     checkInTime: value.checkInTime || null, checkOutTime: value.checkOutTime || null,
     options: lines(value.options, 'optionId'), resources: lines(value.resources, 'resourceId'),
     message: String(message || '').trim(),
+    prepaid: prepaid ? `${prepaid.kind}:${String(prepaid.code || '').replace(/[\s-]/g, '').toUpperCase()}` : null,
   })).digest('hex');
 }
 
@@ -167,8 +170,11 @@ function create(req, res) {
     return ok(res, { status: 'pending' }, 201);
   }
 
-  const v = validateStayInput(body, { todayIso: sdk.coreModule('reservationHelpers').getTodayIsoDate() });
-  if (!v.ok) return failT(res, req, 422, 'VALIDATION_FAILED', 'requestInvalid', v.errors);
+  const v = validateStayInput(body, {
+    todayIso: sdk.coreModule('reservationHelpers').getTodayIsoDate(),
+    horizonUntil: sdk.coreModule('bookingHorizon').lodgingHorizonUntil(),
+  });
+  if (!v.ok) return failT(res, req, 422, 'VALIDATION_FAILED', 'requestInvalid', withHorizonMessages(v.errors, langOf(req)));
 
   const g = validateGuest(body.guest);
   // Each refused field carries its own sentence, so the site can print it under that field
@@ -185,6 +191,12 @@ function create(req, res) {
 
   const resErrors = checkResourceApplicability(v.value.propertyId, v.value.resources);
   if (resErrors) return failT(res, req, 422, 'VALIDATION_FAILED', 'resourceUnavailable', resErrors);
+
+  // SDK 2.33.0 (specs/gift-vouchers.md rule 36) — an amount already paid elsewhere, named by an opaque field this plugin never reads.
+  const prepaidInput = publicPrepaid.read(body);
+  if (prepaidInput && prepaidInput.error) {
+    return failT(res, req, 400, 'PREPAID_UNAVAILABLE', 'prepaidUnavailable', [{ field: 'prepaid', issue: 'unavailable' }]);
+  }
 
   const property = db.prepare('SELECT maxGuests, maxBabies, basePriceIncludedGuests FROM properties WHERE id = ?').get(v.value.propertyId);
   if (!property) return failT(res, req, 404, 'PROPERTY_NOT_FOUND', 'propertyNotFound');
@@ -228,6 +240,12 @@ function create(req, res) {
   }
 
   const visitor = req.visitor || {};
+  // The code is judged once here, outside the transaction below: a refusal raised inside it would roll back the try the source
+  // just counted, and a guessed code would never run out of tries. Nothing is held by this call.
+  if (prepaidInput) {
+    const judged = prepaidSources.apply(null, prepaidInput, { capCents: 0, visitor, dryRun: true });
+    if (!judged.ok) return refusePrepaid(res, req, judged);
+  }
   if (body.message !== undefined && body.message !== null && typeof body.message !== 'string') {
     return failT(res, req, 422, 'VALIDATION_FAILED', 'requestInvalid', [{ field: 'message', issue: 'must be a string' }]);
   }
@@ -237,12 +255,14 @@ function create(req, res) {
     return failT(res, req, 422, 'VALIDATION_FAILED', 'messageTooLong',
       [{ field: 'message', issue: `at most ${MAX_MESSAGE_LENGTH} characters` }]);
   }
-  const fingerprint = requestFingerprint(v.value, message);
+  const fingerprint = requestFingerprint(v.value, message, prepaidInput);
 
   // Rules 12-16 — the same stay as an open website quote updates that quote instead of creating one.
   const sameStay = findOpenSameStay(g.value.email, v.value);
   if (sameStay) {
-    return updateSameStay(req, res, { sameStay, value: v.value, guest: g.value, message, fingerprint, terms, visitor });
+    return updateSameStay(req, res, {
+      sameStay, value: v.value, guest: g.value, message, fingerprint, terms, visitor, prepaidInput,
+    });
   }
   // Rule 7 — a per-address cap on NEW quotes; never shared with any other visitor (rule 8).
   if (newDevisLastDay(g.value.email) >= NEW_DEVIS_PER_EMAIL_PER_DAY) {
@@ -331,13 +351,16 @@ function create(req, res) {
       });
     }
     requestStore.recordStay(devis.id, fingerprint, { createdClientId });
-    return { devis, publicToken };
+    const prepaid = prepaidInput ? holdPrepaid(devis.id, prepaidInput, visitor) : null;
+    return { devis, publicToken, prepaid };
   });
 
   let persisted;
   try {
-    persisted = persist();
+    // A hold and the quote are one transaction: two requests for the same code cannot both take its last cents.
+    persisted = prepaidInput ? persist.immediate() : persist();
   } catch (e) {
+    if (e.prepaidRefusal) return refusePrepaid(res, req, e.prepaidRefusal);
     if (e.devisError) {
       // Same reasoning as the engine above: the model's French wording is a diagnostic.
       return failT(res, req, e.devisError.status || 400, 'BOOKING_REQUEST_FAILED', 'quoteRefused',
@@ -345,7 +368,7 @@ function create(req, res) {
     }
     throw e;
   }
-  const { devis, publicToken } = persisted;
+  const { devis, publicToken, prepaid } = persisted;
   if (visitor.pluginVersion) settings.recordPluginVersion(visitor.pluginVersion);
 
   // Best-effort admin notification (specs/site-booking-notifications.md §3 rule 6). Fire-and-forget:
@@ -366,7 +389,29 @@ function create(req, res) {
     currency: 'EUR',
     updated: false,
     requestedOn: String(devis.createdAt || '').slice(0, 10) || null,
+    ...(prepaid ? { prepaid } : {}),
   }, 201);
+}
+
+/**
+ * Holds what the request's `prepaid` field is worth on the quote just created (inside its transaction), never above what the
+ * stay asks before arrival. A refusal rolls the quote back. → the block the page shows.
+ */
+function holdPrepaid(devisId, input, visitor) {
+  const stored = db.prepare('SELECT propertyId, depositAmount, balanceAmount FROM reservations WHERE id = ?').get(Number(devisId));
+  const depositCents = Math.round(Number(stored.depositAmount || 0) * 100);
+  const balanceCents = Math.round(Number(stored.balanceAmount || 0) * 100);
+  const answer = prepaidSources.apply(devisId, input, { capCents: depositCents + balanceCents, visitor });
+  if (!answer.ok) throw Object.assign(new Error(answer.code), { prepaidRefusal: answer });
+  const mode = sdk.coreModule('publicPaymentMode').resolvePublicPaymentMode(db, stored.propertyId, depositCents);
+  return publicPrepaid.projection(answer, publicPrepaid.amounts({
+    mode, depositCents, balanceCents, heldCents: answer.heldCents,
+  }));
+}
+
+function refusePrepaid(res, req, answer) {
+  if (answer.retryAfterSeconds) res.set('Retry-After', String(answer.retryAfterSeconds));
+  return fail(res, answer.status, answer.code, answer.message, publicPrepaid.refusalDetails(answer));
 }
 
 /**
@@ -380,9 +425,13 @@ function create(req, res) {
  * - The quote's id, number, price and payment token are answered only to a request that carries its
  *   current token (rule 20): knowing a guest's e-mail and dates must never hand anyone their quote.
  */
-function updateSameStay(req, res, { sameStay, value, guest, message, fingerprint, terms, visitor }) {
+function updateSameStay(req, res, {
+  sameStay, value, guest, message, fingerprint, terms, visitor, prepaidInput,
+}) {
   const holdsToken = Boolean(sameStay.publicToken) && tokensMatch(sameStay.publicToken, req.body.publicToken);
-  const respond = ({ updated, messageAdded = false, messageOnly = false, finalPrice = sameStay.finalPrice }) => ok(res, {
+  const respond = ({
+    updated, messageAdded = false, messageOnly = false, finalPrice = sameStay.finalPrice, prepaid = null,
+  }) => ok(res, {
     status: 'pending',
     propertyId: value.propertyId,
     startDate: value.startDate,
@@ -399,6 +448,7 @@ function updateSameStay(req, res, { sameStay, value, guest, message, fingerprint
       reference: sameStay.devisNumber || null,
       finalPrice: Number(finalPrice || 0),
       currency: 'EUR',
+      ...(prepaid ? { prepaid } : {}),
     } : {}),
   }, 201);
 
@@ -447,13 +497,20 @@ function updateSameStay(req, res, { sameStay, value, guest, message, fingerprint
       });
     }
     requestStore.recordStay(sameStay.id, fingerprint, { appended: appendsLeft });
+    // A quote the visitor changed asks for what it now is: the voucher held for the old one goes back, the typed one is held again.
+    if (!messageOnly) {
+      prepaidSources.releaseFor(sameStay.id, 'replaced');
+      if (prepaidInput) prepaid = holdPrepaid(sameStay.id, prepaidInput, visitor);
+    }
     return result.data;
   });
 
   let devis;
+  let prepaid = null;
   try {
-    devis = persist();
+    devis = prepaidInput && !messageOnly ? persist.immediate() : persist();
   } catch (e) {
+    if (e.prepaidRefusal) return refusePrepaid(res, req, e.prepaidRefusal);
     if (e.devisError) {
       return failT(res, req, e.devisError.status || 400, 'BOOKING_REQUEST_FAILED', 'quoteRefused',
         [{ field: 'devis', issue: String(e.devisError.error || '') }]);
@@ -467,7 +524,7 @@ function updateSameStay(req, res, { sameStay, value, guest, message, fingerprint
   // « message ajouté » would be true. `messageAdded: false` still marks the answer message-only, so the
   // drawer never pays it (rule 27).
   if (messageOnly) return respond({ updated: !messageDropped, messageAdded: !messageDropped, messageOnly: true });
-  return respond({ updated: true, finalPrice: devis && devis.finalPrice });
+  return respond({ updated: true, finalPrice: devis && devis.finalPrice, prepaid });
 }
 
 /**

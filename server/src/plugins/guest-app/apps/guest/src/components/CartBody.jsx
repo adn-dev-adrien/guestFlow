@@ -8,6 +8,8 @@
  * Every refusal names the next step (§6.5): a slot taken → back to the slots, sold out → the quantity comes
  * down to what is left, a delivery time gone → the times are asked again.
  *
+ * Rule 37 — the terms of the activities the cart holds (`quote.termsRequired`) are ticked before « Commander », and sent as `acceptedTerms`.
+ *
  * Props: `shop` (the `/shop` payload: `canPayCard`, `canPayNote`, `open`), `inPanel`.
  */
 import { useEffect, useRef, useState } from 'react';
@@ -20,6 +22,7 @@ import Banner from './Banner';
 import EmptyState from './EmptyState';
 import DeliveryTimeChips from './DeliveryTimeChips';
 import PaymentChoice from './PaymentChoice';
+import TermsAcceptance from './TermsAcceptance';
 import BreakfastSheet from './BreakfastSheet';
 import { lineKey, useCart } from '../hooks/useCart';
 import { useSession } from '../hooks/useSession';
@@ -53,8 +56,18 @@ export default function CartBody({ shop, inPanel = false }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
   const [editing, setEditing] = useState(null);
+  const [ticked, setTicked] = useState(() => new Set());
   const attempt = useRef(null);
   const { quote } = cart;
+
+  // Rule 37 — the terms the server says this cart owes; each is ticked for the version it names, so a new version asks again.
+  const termsRequired = (quote && quote.termsRequired) || [];
+  const termsOpen = termsRequired.some((r) => !ticked.has(r.versionId));
+  const toggleTerms = (versionId) => setTicked((prev) => {
+    const next = new Set(prev);
+    if (next.has(versionId)) next.delete(versionId); else next.add(versionId);
+    return next;
+  });
 
   const canCard = Boolean(shop && shop.canPayCard);
   const canNote = Boolean(shop && shop.canPayNote);
@@ -82,6 +95,7 @@ export default function CartBody({ shop, inPanel = false }) {
   const why = blocked ? t('cart.blocked')
       : !online ? t('net.needed')
         : needsTime && !cart.deliverAt ? t('cart.noDelivery')
+          : termsOpen ? t('cart.termsNeeded')
           : (shop && shop.open === false && shop.closedReason) || '';
   const pay = zero ? 'none' : payment;
   const disabled = Boolean(why) || !fresh || Boolean(cart.quoteError) || busy || (!zero && !pay);
@@ -92,7 +106,10 @@ export default function CartBody({ shop, inPanel = false }) {
   const submit = async () => {
     setBusy(true);
     setError(null);
-    const body = { lines: cart.lines, ...(needsTime && cart.deliverAt ? { deliverAt: cart.deliverAt } : {}), payment: pay };
+    const acceptedTerms = termsRequired.map(({ activity, versionId }) => ({ activity, versionId }));
+    const body = {
+      lines: cart.lines, ...(needsTime && cart.deliverAt ? { deliverAt: cart.deliverAt } : {}), payment: pay, ...(acceptedTerms.length ? { acceptedTerms } : {}),
+    };
     // The same order sent again (an answer lost on a weak network, a second tap) keeps its key, so the server answers
     // the first order instead of creating another; a changed cart is a new order with a new key.
     const signature = JSON.stringify(body);
@@ -111,6 +128,7 @@ export default function CartBody({ shop, inPanel = false }) {
       if (err.code !== 'NETWORK' && err.code !== 'ORDER_IN_PROGRESS') attempt.current = null;
       if (err.code === 'OUT_OF_STOCK' && err.details && err.details.itemKey) cart.lowerTo(err.details.itemKey, Number(err.details.left) || 0, err.message);
       if (err.code === 'DELIVERY_TIME_UNAVAILABLE') cart.refreshDelivery();
+      if (err.code === 'TERMS_OUTDATED') cart.refreshQuote();
       setError(err);
     } finally {
       setBusy(false);
@@ -176,6 +194,7 @@ export default function CartBody({ shop, inPanel = false }) {
       {zero && !blocked ? <Banner tone="ok">{t('cart.free')}</Banner> : null}
       {needsTime ? <DeliveryTimeChips delivery={cart.delivery} value={cart.deliverAt} onChange={cart.setDeliverAt} /> : null}
       {!zero ? <PaymentChoice canNote={canNote} canCard={canCard} noteLabel={noteLabel} value={payment} onChange={setPayment} /> : null}
+      <TermsAcceptance required={termsRequired} accepted={(quote && quote.termsAccepted) || []} checked={ticked} onToggle={toggleTerms} />
       {why ? <p className="hint bad">{why}</p> : null}
       <button type="button" className="btn block" disabled={disabled} onClick={submit} aria-busy={busy || cart.quoting}>{cta}</button>
       {editing ? (

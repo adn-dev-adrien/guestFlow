@@ -6,6 +6,7 @@ import {
   Box, Typography, FormControlLabel, Switch, FormControl, InputLabel, Select, MenuItem,
   TextField, FormGroup, Checkbox,
 } from '@mui/material';
+import DegressiveTiersEditor from './DegressiveTiersEditor';
 
 const SLOT_DURATION_OPTIONS = [
   { value: 5, label: '5 min' },
@@ -82,6 +83,16 @@ export default function HourlyResourceFields({ draft, onChange }) {
               slotProps={{ inputLabel: { shrink: true } }}
             />
           </Box>
+          <TextField
+            label="Réservable jusqu'à (mois)"
+            type="number"
+            size="small"
+            value={draft.bookingHorizonMonths ?? 3}
+            onChange={(e) => onChange({ bookingHorizonMonths: e.target.value })}
+            helperText="Jusqu'où le public peut réserver, à partir d'aujourd'hui (3 par défaut)"
+            fullWidth
+            slotProps={{ htmlInput: { min: 1, max: 24, step: 1 } }}
+          />
           <TextField
             label="Temps de remise en état (min)"
             type="number"
@@ -188,6 +199,10 @@ export default function HourlyResourceFields({ draft, onChange }) {
                     slotProps={{ htmlInput: { min: 0, step: '0.5' } }}
                   />
                 </Box>
+                <DegressiveTiersEditor
+                  tiers={draft.hourlyDegressiveTiers}
+                  onChange={(next) => onChange({ hourlyDegressiveTiers: next })}
+                />
               </Box>
             )}
           </Box>

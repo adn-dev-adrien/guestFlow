@@ -345,7 +345,7 @@ function buildShopController({
    * Rules 28-31, 78-80, 82, 84 — the slots the guest can book on an hourly resource, by day: EVERY day of the stay (a day
    * with no bookable slot is `available: false` with its reason), none outside it; only `free` and `evening` slots are
    * drawn (§6.4). The scheduler judges the stay's presence, the bath's own hours, the other uses of the bath and the
-   * heat-up counted from now (`heatFrom`); a slot that needs the resource lit from cold is bookable only when its ignition
+   * heat-up counted from now (`heatFrom`) and the resource's booking horizon (rule 51 of the gift-voucher campaigns spec: a slot past it reads closed); a slot that needs the resource lit from cold is bookable only when its ignition
    * falls in the service hours.
    */
   function slots(req, res) {
@@ -371,6 +371,8 @@ function buildShopController({
     const opening = found.opening || { from: '00:00', to: '24:00' };
     return publicHttp.ok(res, {
       open: true,
+      // The last day the resource is offered (specs/gift-voucher-campaigns.md rule 51): the picker greys out the days after it.
+      horizonUntil: found.horizonUntil,
       freeMinutesLeft: sold.freeMinutes ? sold.freeMinutes.left : 0,
       ...(freeLabel ? { freeLabel } : {}),
       includedHoursLeft: hoursLeft,

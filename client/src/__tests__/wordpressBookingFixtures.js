@@ -49,13 +49,16 @@ afterEach(() => {
 
 /**
  * Loads the runtime, then the block script `view`, for the containers already in the document.
- * `routes` answers the fake proxy: (method, path, body) → { status, body }.
+ * `routes` answers the fake proxy: (method, path, body) → { status, body }. `assets` are the shared scripts the block
+ * depends on (`assets/voucher-code.js`, `assets/voucher-parts.js`), loaded between the runtime and the block as WordPress does.
  */
-export function loadBlock(view, { routes, locale = 'fr-FR', lang = 'fr', configured = true }) {
+export function loadBlock(view, {
+  routes, locale = 'fr-FR', lang = 'fr', configured = true, assets = [], config = {},
+}) {
   const calls = [];
   window.GFBooking = {
     restUrl: '/wp-json/guestflow/v1', nonce: 'n', configured, locale, lang,
-    cgvPageUrl: 'https://site.example/cgv/', bookingPageUrl: '', i18n: frenchStrings(),
+    cgvPageUrl: 'https://site.example/cgv/', bookingPageUrl: '', i18n: frenchStrings(), ...config,
   };
   trackTimers();
   run('assets/runtime.js');
@@ -63,6 +66,7 @@ export function loadBlock(view, { routes, locale = 'fr-FR', lang = 'fr', configu
     calls.push({ method, path: p, body });
     return Promise.resolve(routes(method, p.split('?')[0], body));
   };
+  assets.forEach(run);
   run(view);
   return { calls, GF: window.GFBooking };
 }
