@@ -21,10 +21,11 @@ test('rule 79 (N13): the arrival day first free slot counts the heat-up from now
   // 12:30 UTC is 13:30 or 14:30 in Paris whatever the season: inside the window, before the check-in.
   const ctx = await openOrdering(stayId, { guestHost: 'sejour.example.test', now: new Date(`${isoPlus(0)}T12:30:00Z`) });
   try {
-    const highlight = (await ctx.call('GET', '/public/v1/guest/me')).body.data.highlight;
-    assert.equal(highlight && highlight.key, 'bath', JSON.stringify(highlight));
-    const hour = Number(/(\d{1,2})\s*h/.exec(highlight.detail)[1]);
-    assert.ok(hour <= 18, `the first free slot is ${highlight.detail}`);
+    // specs/guest-app-bath-home-scheduling.md rule 6 — the home's bath card carries the first free slot of today.
+    const [card] = (await ctx.call('GET', '/public/v1/guest/me')).body.data.bath;
+    assert.ok(card && card.firstSlotToday, JSON.stringify(card));
+    const hour = Number(card.firstSlotToday.slice(0, 2));
+    assert.ok(hour <= 18, `the first free slot is ${card.detail}`);
   } finally {
     await ctx.close();
   }
