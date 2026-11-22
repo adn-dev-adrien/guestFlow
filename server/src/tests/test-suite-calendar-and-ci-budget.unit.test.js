@@ -466,7 +466,10 @@ test('specs/self-update-and-releases.md rule 52: the release runs the server sui
   const workflow = read('.github/workflows/release.yml');
   assert.doesNotMatch(workflow, /\n {2}tests:\n/);
   const server = jobBlock(workflow, 'server-tests');
-  assert.match(server, /cd server && npm test/);
+  // Amended 2026-11-22: two shards, as the PR workflow (the whole suite outgrew the 20-minute cap).
+  assert.match(server, /shard: \[1, 2\]/);
+  assert.match(server, /fail-fast: false/);
+  assert.match(server, /cd server && node \.\.\/scripts\/test-runner\/run-test-shard\.mjs \$\{\{ matrix\.shard \}\}\/2/);
   assert.doesNotMatch(server, /client/);
   const client = jobBlock(workflow, 'client-tests');
   assert.match(client, /shard: \[1, 2, 3\]/);

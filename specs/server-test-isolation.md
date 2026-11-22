@@ -520,7 +520,8 @@ being on the preload's lists fails the run once the suite executes the read (rul
    every file once. The runner splits the FILES: rule 10's completeness reporter and rule 15's per-file cap hold per
    shard; no test is hidden. `npm test` alone still runs the whole suite locally. *Why:* one process per file, run one
    after another, took 13.8 min of the 15 (11 727 tests), and the run of 802b17ac was cancelled at the cap. The release
-   workflow keeps one server job under its 20-minute cap (≈70 % used, rule 52 of self-update).
+   workflow ran one server job under its 20-minute cap (≈70 % used) until 2026-11-22, when the v4.2.0 run was
+   cancelled at it; it now runs the same two shards (rule 52 of self-update, amended).
 20. **A control-plane test file takes its instances and its temp tree with it** (added 2026-11-10, audit R39-S1).
    Rule 18 for the console's suite. `control-plane/server`'s `npm test` preloads `src/tests/setup/fileTempRoot.js`
    (and `hosting-lifecycle.integration.test.js` requires it first): in a test file's process it creates the file's own

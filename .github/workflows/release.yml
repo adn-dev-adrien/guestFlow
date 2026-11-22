@@ -123,11 +123,17 @@ jobs:
   # specs/server-test-isolation.md rule 8 — the server suite and three client shards run side by side. In one
   # job, one after the other, the suites of inte/plugins add up to 1030–1310 s against a 1200 s cap (audit R8
   # M-2): a release cancelled at its limit publishes nothing. `package` needs every one of them.
+  # Two shards since 4.2.0 (rule 52, amended 2026-11-22): the whole suite took ≈24 min on the runner and the first
+  # v4.2.0 run was cancelled at the 20-minute cap with nothing published. Same split as unit-tests.yml's `server`.
   server-tests:
-    name: tests (server)
+    name: tests (server ${{ matrix.shard }}/2)
     needs: verify
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
@@ -142,8 +148,8 @@ jobs:
       - name: ⚛️ Build native modules against the runtime Node
         run: cd server && env npm_config_build_from_source=true npm rebuild better-sqlite3
 
-      - name: 🧪 Server unit suite
-        run: cd server && npm test
+      - name: 🧪 Server unit suite (shard ${{ matrix.shard }}/2)
+        run: cd server && node ../scripts/test-runner/run-test-shard.mjs ${{ matrix.shard }}/2
 
   client-tests:
     name: tests (client ${{ matrix.shard }}/3)
