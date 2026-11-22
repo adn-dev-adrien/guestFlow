@@ -601,6 +601,18 @@ Rules are identities: a rule is never renumbered, new rules are appended
     number the CGV page pins: the site's links read `?activity=<key>&v=<termsVersion>`, never the
     internal id, which no longer matches the number once each activity numbers its own versions.
 
+61. **The back-office price follows the money-dialog contract** (`specs/plugins-phase-1-sdk.md` rules 54, 58; added
+    2026-11-22, CI of PR #1055).
+    - « Nouveau bon » asks the price of what changes it only: a campaign with its extra time and add-ons, or a free
+      amount; a « Sur mesure » is priced on its composition alone (`/campaigns/preview-price`), so its validity, its
+      visual and the recipient's add-ons never ask the server again. Their refusals come at « Créer le bon ».
+    - « Créer le bon » is enabled only on a fresh price for the offer on screen.
+    - A failed price says why; « Réessayer » only when retrying can help (no answer, 5xx, 408, 429); a refusal shows its
+      reason alone (`PreviewFailure`). The page and the campaign editor's preview keep the focus in place when a control
+      goes (`FocusKeeper`).
+    - « Nouveau bon » is a member of the generated money-dialog harness (`moneyDialogs.invariants.voucher`); the campaign
+      editor previews a price but sells and collects nothing, and is listed as such.
+
 ## 4. Architecture
 
 ### 4.1 Server side (`server/src/`)

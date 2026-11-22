@@ -86,9 +86,9 @@ test('rule 18: an order never paid is deleted after 7 days, never an issued one'
   db, api, clock, id,
 }) => {
   const stale = api.orders.create({ amountCents: 5000, source: 'site' });
-  clock.at = new Date('2026-11-21T10:00:00Z');
+  clock.at = new Date('2026-11-21T10:00:00Z'); // date-literal-ok: the suite runs on its own clock, never the real today
   assert.equal(api.orders.purgeStalePending(), 0);
-  clock.at = new Date('2026-11-23T10:00:00Z');
+  clock.at = new Date('2026-11-23T10:00:00Z'); // date-literal-ok: the suite runs on its own clock, never the real today
   assert.equal(api.orders.purgeStalePending(), 1);
   assert.equal(api.orders.find(stale.id), null);
   assert.ok(db.prepare('SELECT 1 FROM gift_vouchers WHERE id = ?').get(id), 'the issued voucher’s order stays');

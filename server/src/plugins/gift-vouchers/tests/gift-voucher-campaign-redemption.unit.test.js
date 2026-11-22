@@ -115,7 +115,7 @@ api.campaigns.insert(campaignRules.validateCampaign(fx.bathCampaign(ids, {
   name: 'Bain soirée', title: 'Un bain nordique le soir', slug: 'bain-soir', composition: { resourceId: ids.bath, band: 'evening', minutes: 120, options: [] }, addOns: [], extraTimeMaxMinutes: 0,
 }), fx.rulesContext(api)).value);
 
-const MONDAY = '2026-11-16';
+const MONDAY = '2026-11-16'; // date-literal-ok: the suite runs on its own clock, never the real today
 const day = (n) => new Date(Date.parse(`${MONDAY}T12:00:00Z`) + n * 86400000).toISOString().slice(0, 10);
 const PARTIES = {
   recipientName: 'Léa', senderName: 'Paul', message: 'Joyeux anniversaire', email: 'paul@example.test', language: 'fr',
@@ -155,9 +155,9 @@ test('« Mon bain » opens a voucher: its contents, the names, the validity, the
     ['session', 'Bain nordique', '2 h en journée · de 10:00 à 19:00', 1],
     ['option', 'Planche apéro', null, 1],
   ]);
-  assert.deepEqual([data.kind, data.recipientName, data.senderName, data.message, data.expiresOn], ['resource', 'Léa', 'Paul', 'Joyeux anniversaire', '2027-11-15']);
+  assert.deepEqual([data.kind, data.recipientName, data.senderName, data.message, data.expiresOn], ['resource', 'Léa', 'Paul', 'Joyeux anniversaire', '2027-11-15']); // date-literal-ok: the suite runs on its own clock, never the real today
   assert.deepEqual(data.addOns, [{ articleRef: `option:${ids.drink}`, label: 'Boisson', maxQty: 20 }]);
-  assert.deepEqual([data.extraTime, data.horizonUntil, data.usedOn], [{ stepMinutes: 60 }, '2027-02-15', null]);
+  assert.deepEqual([data.extraTime, data.horizonUntil, data.usedOn], [{ stepMinutes: 60 }, '2027-02-15', null]); // date-literal-ok: the suite runs on its own clock, never the real today
   assert.equal(data.termsVersionId, 9, 'the version of the activity’s terms the confirmation will ask to have accepted');
   assert.equal(JSON.stringify(data).includes(voucher.code), false, 'the code is never echoed');
 });
@@ -178,7 +178,7 @@ test('the refusals of rule 32, each with its sentence: unknown, mistyped, expire
   api.vouchers.setCancelled(cancelled.id, clock.at.toISOString());
   assert.deepEqual([ask.open(cancelled).code, ask.open(cancelled).message], ['VOUCHER_CANCELLED', 'Ce bon a été annulé.']);
   const old = clock.at;
-  clock.at = new Date('2027-12-01T10:00:00Z');
+  clock.at = new Date('2027-12-01T10:00:00Z'); // date-literal-ok: the suite runs on its own clock, never the real today
   try {
     assert.deepEqual([ask.open(voucher).code, ask.open(voucher).message], ['VOUCHER_EXPIRED', 'Ce bon a expiré le 15/11/2027.']);
   } finally { clock.at = old; }
@@ -206,7 +206,7 @@ test('the slots of a day voucher: all the day starts of the window, the evening 
   assert.deepEqual(Object.keys(byStart), ['10:00', '11:00', '12:00', '13:00', '14:00', '15:00', '16:00', '17:00', '18:00']);
   assert.deepEqual([byStart['17:00'].tag, byStart['17:00'].supplementCents, byStart['17:00'].end], ['in', 0, '19:00']);
   assert.deepEqual([byStart['18:00'].tag, byStart['18:00'].supplementCents, byStart['18:00'].end], ['supplement', 1800, '20:00']);
-  assert.equal(data.horizonUntil, '2027-02-15');
+  assert.equal(data.horizonUntil, '2027-02-15'); // date-literal-ok: the suite runs on its own clock, never the real today
   const evening = eveningVoucher();
   const eve = ask.slots(evening, { from: day(1), to: day(1) }).data.days[0].slots;
   assert.deepEqual(eve.map((s) => [s.start, s.end, s.tag, s.supplementCents]), [['19:00', '21:00', 'in', 0], ['20:00', '22:00', 'in', 0]]);
@@ -214,10 +214,10 @@ test('the slots of a day voucher: all the day starts of the window, the evening 
 
 test('the slots leave out the closed hours, the past and what is beyond the horizon, and name the horizon', () => {
   const voucher = dayVoucher();
-  assert.deepEqual(ask.slots(voucher, { from: '2026-11-10', to: '2026-11-15' }).data.days.map((d) => d.date), ['2026-11-15'], 'today only, from now on');
-  const beyond = ask.slots(voucher, { from: '2027-02-16', to: '2027-02-20' });
+  assert.deepEqual(ask.slots(voucher, { from: '2026-11-10', to: '2026-11-15' }).data.days.map((d) => d.date), ['2026-11-15'], 'today only, from now on'); // date-literal-ok: the suite runs on its own clock, never the real today
+  const beyond = ask.slots(voucher, { from: '2027-02-16', to: '2027-02-20' }); // date-literal-ok: the suite runs on its own clock, never the real today
   assert.deepEqual([beyond.ok, beyond.code, beyond.message], [false, 'BEYOND_HORIZON', 'Réservable jusqu’au 15 février 2027.']);
-  assert.equal(ask.slots(voucher, { from: day(0), to: '2027-05-01' }).code, 'PERIOD_TOO_LONG');
+  assert.equal(ask.slots(voucher, { from: day(0), to: '2027-05-01' }).code, 'PERIOD_TOO_LONG'); // date-literal-ok: the suite runs on its own clock, never the real today
   assert.equal(ask.slots(voucher, { from: 'demain', to: day(1) }).code, 'PERIOD_INVALID');
 });
 
@@ -244,7 +244,7 @@ test('the refusals of a choice: a session past closing time, an add-on not offer
   assert.equal(ask.quote(voucher, { start: `${day(2)}T10:00`, extraMinutes: 30 }).code, 'SESSION_STEP');
   assert.equal(ask.quote(voucher, { start: 'lundi 10h' }).code, 'SLOT_INVALID');
   assert.equal(ask.quote(voucher, { start: `${day(-3)}T10:00` }).code, 'SLOT_TAKEN', 'a past slot is not free');
-  const beyond = ask.quote(voucher, { start: '2027-03-01T10:00' });
+  const beyond = ask.quote(voucher, { start: '2027-03-01T10:00' }); // date-literal-ok: the suite runs on its own clock, never the real today
   assert.deepEqual([beyond.code, beyond.message], ['BEYOND_HORIZON', 'Réservable jusqu’au 15 février 2027.']);
 });
 

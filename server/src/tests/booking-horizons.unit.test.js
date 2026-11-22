@@ -23,6 +23,9 @@ const website = optionalPlugin(() => ({
 }));
 const NEEDS_WEBSITE = { skip: skipWithout(['website-booking']) };
 
+// The suite's today is 2026-11-18: the date window and every « today + N months » read this pinned clock.
+test.mock.timers.enable({ apis: ['Date'], now: new Date('2026-11-18T12:00:00').getTime() });
+
 const NOON = (iso) => new Date(`${iso}T12:00:00`);
 const settingsDb = (months) => {
   const db = new Database(':memory:');

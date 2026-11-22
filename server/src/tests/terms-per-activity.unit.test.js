@@ -35,12 +35,12 @@ function freshDb() {
   db.exec(SCHEMA);
   db.prepare("INSERT INTO properties (id, name) VALUES (1, 'La Granja')").run();
   db.prepare("INSERT INTO clients (id, firstName, lastName) VALUES (1, 'C', 'M')").run();
-  db.prepare("INSERT INTO reservations (id, propertyId, clientId, startDate, endDate) VALUES (10, 1, 1, '2026-10-01', '2026-10-03'), (11, 1, 1, '2026-11-01', '2026-11-03')").run();
+  db.prepare("INSERT INTO reservations (id, propertyId, clientId, startDate, endDate) VALUES (10, 1, 1, '2026-10-01', '2026-10-03'), (11, 1, 1, '2026-11-01', '2026-11-03')").run(); // date-literal-ok: the suite runs on its own clock, never the real today
   return db;
 }
 
 const version = (n, extra = {}) => ({
-  markdownFr: `fr ${n}`, markdownEn: `en ${n}`, htmlFr: `<p>fr ${n}</p>`, htmlEn: `<p>en ${n}</p>`, variables: {}, contentHash: `h${n}`, publishedAt: '2026-11-01T10:00:00.000Z', ...extra,
+  markdownFr: `fr ${n}`, markdownEn: `en ${n}`, htmlFr: `<p>fr ${n}</p>`, htmlEn: `<p>en ${n}</p>`, variables: {}, contentHash: `h${n}`, publishedAt: '2026-11-01T10:00:00.000Z', ...extra, // date-literal-ok: the suite runs on its own clock, never the real today
 });
 
 test('migration: the single-document tables are rebuilt, every row kept as the lodging activity, ids and acceptances intact', () => {
@@ -58,13 +58,13 @@ test('migration: the single-document tables are rebuilt, every row kept as the l
       FOREIGN KEY (termsVersionId) REFERENCES terms_versions(id));
     CREATE INDEX idx_terms_acceptances_reservation ON terms_acceptances (reservationId);
     INSERT INTO reservations (id) VALUES (10), (11);
-    INSERT INTO terms_draft (id, markdownFr, markdownEn, updatedAt) VALUES (1, 'brouillon', 'draft', '2026-10-01');
+    INSERT INTO terms_draft (id, markdownFr, markdownEn, updatedAt) VALUES (1, 'brouillon', 'draft', '2026-10-01'); -- date-literal-ok: rows of an old database, never compared with today
     INSERT INTO terms_versions (id, version, markdownFr, markdownEn, htmlFr, htmlEn, variablesJson, contentHash, publishedAt)
-      VALUES (4, 1, 'a', 'a', '<p>a</p>', '<p>a</p>', '{}', 'h1', '2026-09-01'), (7, 2, 'b', 'b', '<p>b</p>', '<p>b</p>', '{}', 'h2', '2026-10-01');
-    INSERT INTO terms_acceptances (id, reservationId, termsVersionId, acceptedAt, ip, userAgent, pluginVersion) VALUES (3, 10, 4, '2026-09-02', '203.0.113.7', 'UA', '1.2.3'), (5, 11, 7, '2026-10-02', NULL, NULL, NULL);
+      VALUES (4, 1, 'a', 'a', '<p>a</p>', '<p>a</p>', '{}', 'h1', '2026-09-01'), (7, 2, 'b', 'b', '<p>b</p>', '<p>b</p>', '{}', 'h2', '2026-10-01'); -- date-literal-ok: rows of an old database, never compared with today
+    INSERT INTO terms_acceptances (id, reservationId, termsVersionId, acceptedAt, ip, userAgent, pluginVersion) VALUES (3, 10, 4, '2026-09-02', '203.0.113.7', 'UA', '1.2.3'), (5, 11, 7, '2026-10-02', NULL, NULL, NULL); -- date-literal-ok: rows of an old database, never compared with today
   `);
   assert.equal(migrateTermsPerActivity(db), true);
-  assert.deepEqual(db.prepare('SELECT id, activity, markdownFr, updatedAt FROM terms_draft').all(), [{ id: 1, activity: 'lodging', markdownFr: 'brouillon', updatedAt: '2026-10-01' }]);
+  assert.deepEqual(db.prepare('SELECT id, activity, markdownFr, updatedAt FROM terms_draft').all(), [{ id: 1, activity: 'lodging', markdownFr: 'brouillon', updatedAt: '2026-10-01' }]); // date-literal-ok: the suite runs on its own clock, never the real today
   assert.deepEqual(db.prepare('SELECT id, activity, version, contentHash FROM terms_versions ORDER BY id').all(), [
     { id: 4, activity: 'lodging', version: 1, contentHash: 'h1' }, { id: 7, activity: 'lodging', version: 2, contentHash: 'h2' },
   ]);
@@ -78,9 +78,9 @@ test('migration: the single-document tables are rebuilt, every row kept as the l
   ]);
   assert.deepEqual(db.pragma('foreign_key_check'), []);
   // Version numbers are unique per activity now, and an acceptance may belong to no reservation.
-  db.prepare("INSERT INTO terms_versions (activity, version, markdownFr, markdownEn, htmlFr, htmlEn, variablesJson, contentHash, publishedAt) VALUES ('resource', 1, 'x', 'x', 'x', 'x', '{}', 'r1', '2026-11-01')").run();
-  assert.throws(() => db.prepare("INSERT INTO terms_versions (activity, version, markdownFr, markdownEn, htmlFr, htmlEn, variablesJson, contentHash, publishedAt) VALUES ('lodging', 2, 'x', 'x', 'x', 'x', '{}', 'dup', '2026-11-01')").run(), /UNIQUE/);
-  db.prepare("INSERT INTO terms_acceptances (reservationId, termsVersionId, acceptedAt, activity, subjectType, subjectRef, channel) VALUES (NULL, 8, '2026-11-02', 'resource', 'voucherOrder', '55', 'site')").run();
+  db.prepare("INSERT INTO terms_versions (activity, version, markdownFr, markdownEn, htmlFr, htmlEn, variablesJson, contentHash, publishedAt) VALUES ('resource', 1, 'x', 'x', 'x', 'x', '{}', 'r1', '2026-11-01')").run(); // date-literal-ok: the suite runs on its own clock, never the real today
+  assert.throws(() => db.prepare("INSERT INTO terms_versions (activity, version, markdownFr, markdownEn, htmlFr, htmlEn, variablesJson, contentHash, publishedAt) VALUES ('lodging', 2, 'x', 'x', 'x', 'x', '{}', 'dup', '2026-11-01')").run(), /UNIQUE/); // date-literal-ok: the suite runs on its own clock, never the real today
+  db.prepare("INSERT INTO terms_acceptances (reservationId, termsVersionId, acceptedAt, activity, subjectType, subjectRef, channel) VALUES (NULL, 8, '2026-11-02', 'resource', 'voucherOrder', '55', 'site')").run(); // date-literal-ok: the suite runs on its own clock, never the real today
   // The old model still reads what it used to: the draft keeps its id, and a re-run changes nothing.
   assert.equal(db.prepare('SELECT markdownFr FROM terms_draft WHERE id = 1').get().markdownFr, 'brouillon');
   assert.equal(migrateTermsPerActivity(db), false);
@@ -148,7 +148,7 @@ test('an acceptance names its subject and channel: a reservation writes its hist
   const db = freshDb();
   const model = termsModelModule.create(db);
   const v = model.publishVersion(version(1, { activity: 'resource' }));
-  const base = { termsVersionId: v.id, version: 1, acceptedAt: '2026-11-18T09:00:00.000Z', activity: 'resource', ip: '203.0.113.9', userAgent: 'UA' };
+  const base = { termsVersionId: v.id, version: 1, acceptedAt: '2026-11-18T09:00:00.000Z', activity: 'resource', ip: '203.0.113.9', userAgent: 'UA' }; // date-literal-ok: the suite runs on its own clock, never the real today
 
   model.insertAcceptance({
     ...base, reservationId: 10, subjectType: 'reservation', channel: 'guest-app', historyLabel: 'Conditions générales — Bain',
@@ -182,7 +182,7 @@ test('the existing lodging writer is unchanged: reservation, site, history', () 
   const db = freshDb();
   const model = termsModelModule.create(db);
   const v = model.publishVersion(version(1));
-  model.insertAcceptance({ reservationId: 11, termsVersionId: v.id, version: 1, acceptedAt: '2026-11-18T09:00:00.000Z' });
+  model.insertAcceptance({ reservationId: 11, termsVersionId: v.id, version: 1, acceptedAt: '2026-11-18T09:00:00.000Z' }); // date-literal-ok: the suite runs on its own clock, never the real today
   const a = model.findAcceptanceByReservation(11);
   assert.deepEqual([a.activity, a.subjectType, a.subjectRef, a.channel], ['lodging', 'reservation', '11', 'site']);
 });
@@ -197,7 +197,7 @@ test('refusals keep their codes: nothing published asks nothing, none sent is NO
   assert.equal(owed(v1.id + 100), 'TERMS_OUTDATED');
   assert.equal(owed(v1.id), null);
   model.insertAcceptance({
-    activity: 'resource', subjectType: 'voucherOrder', subjectRef: 'o1', termsVersionId: v1.id, version: 1, acceptedAt: '2026-11-18T09:00:00.000Z', channel: 'site',
+    activity: 'resource', subjectType: 'voucherOrder', subjectRef: 'o1', termsVersionId: v1.id, version: 1, acceptedAt: '2026-11-18T09:00:00.000Z', channel: 'site', // date-literal-ok: the suite runs on its own clock, never the real today
   });
   assert.equal(owed(undefined), null, 'already accepted for the current version');
   const v2 = model.publishVersion(version(2, { activity: 'resource' }));
@@ -211,7 +211,7 @@ test('ctx.terms: current, requireAccepted and accept, over the core model', () =
   const ctxSdk = ctx.terms;
   assert.equal(ctxSdk.current('probe'), null);
   const v = model.publishVersion(version(1, { activity: 'probe' }));
-  assert.deepEqual(ctxSdk.current('probe'), { id: v.id, version: 1, publishedAt: '2026-11-01T10:00:00.000Z' });
+  assert.deepEqual(ctxSdk.current('probe'), { id: v.id, version: 1, publishedAt: '2026-11-01T10:00:00.000Z' }); // date-literal-ok: the suite runs on its own clock, never the real today
   const subject = { activity: 'probe', subjectType: 'voucherOrder', subjectRef: 'z9' };
   assert.equal(ctxSdk.requireAccepted(subject), 'TERMS_NOT_ACCEPTED');
   assert.throws(() => ctxSdk.accept({ ...subject, versionId: v.id + 1, channel: 'site' }), (e) => e.code === 'TERMS_OUTDATED');
@@ -269,7 +269,7 @@ test('the fiche block lists the other activities\' acceptances of the reservatio
   const model = termsModelModule.create(db);
   const v = model.publishVersion(version(1, { activity: 'resource' }));
   model.insertAcceptance({
-    reservationId: 10, activity: 'resource', termsVersionId: v.id, version: 1, acceptedAt: '2026-11-18T09:00:00.000Z', channel: 'guest-app',
+    reservationId: 10, activity: 'resource', termsVersionId: v.id, version: 1, acceptedAt: '2026-11-18T09:00:00.000Z', channel: 'guest-app', // date-literal-ok: the suite runs on its own clock, never the real today
   });
   const block = termsController.buildFicheBlock({ id: 10, requestOrigin: 'back-office' }, { termsModel: model });
   assert.equal(block.termsAcceptanceState, 'not_applicable');

@@ -42,7 +42,7 @@ const VOUCHER = {
   recipientName: 'Léa',
   senderName: 'Paul',
   message: 'Joyeux anniversaire',
-  expiresOn: '2027-11-15',
+  expiresOn: '2027-11-15', // date-literal-ok: a payload the mocked server answers; the screen only shows it
   usedOn: null,
   addOns: [{ articleRef: 'option:7', label: 'Boisson', maxQty: 20 }],
   extraTime: { stepMinutes: 60 },
@@ -232,7 +232,7 @@ test('rule 29: a remainder due → the visitor leaves for the bank with the 15-m
   const payUrl = 'https://pay.example/use/1';
   const original = window.GFBooking.api;
   window.GFBooking.api = (method, p, body) => (p === '/gift-vouchers/use/confirm'
-    ? Promise.resolve({ status: 200, body: { data: { payUrl, heldUntil: '2026-11-18T10:15:00.000Z', dueCents: 1500 } } })
+    ? Promise.resolve({ status: 200, body: { data: { payUrl, heldUntil: '2026-11-18T10:15:00.000Z', dueCents: 1500 } } }) // date-literal-ok: a payload the mocked server answers; the screen only shows it
     : original(method, p, body));
   fireEvent.click(document.querySelector('.gf-use-go'));
   await waitFor(() => expect(GF.voucherGo).toHaveBeenCalledWith(payUrl));
@@ -275,7 +275,7 @@ test('rule 32: a slot taken meanwhile is the server’s sentence, and the slots 
 
 test('rule 32: a voucher already used says its date and offers no slot', async () => {
   openFragment(validCode());
-  setup({ voucher: { ...VOUCHER, usedOn: '2026-11-02' } });
+  setup({ voucher: { ...VOUCHER, usedOn: '2026-11-02' } }); // date-literal-ok: a payload the mocked server answers; the screen only shows it
   expect(await screen.findByText('Ce bon a déjà été utilisé le 2 novembre 2026.')).toBeTruthy();
   expect(document.querySelector('.gf-cal-box')).toBeNull();
 });

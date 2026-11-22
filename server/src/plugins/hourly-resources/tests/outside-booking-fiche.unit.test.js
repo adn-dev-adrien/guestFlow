@@ -82,7 +82,7 @@ test('a paid session is not moved by a stroke of the pen, an unpaid one is and s
   const refused = fx.bookings.update(booked.bookingId, { startTime: '19:00', endTime: '21:00' });
   assert.deepEqual([refused.status, refused.code], [409, 'BOOKING_PAID']);
   const made = fx.bookings.createBooking({
-    resourceId: bath, date: '2026-11-17', startTime: '10:00', endTime: '12:00', clientName: 'Passant',
+    resourceId: bath, date: '2026-11-17', startTime: '10:00', endTime: '12:00', clientName: 'Passant', // date-literal-ok: the suite runs on its own clock, never the real today
   });
   const fresh = fx.bookings.rawById(made.id);
   fx.visits.inTransaction((stop) => fx.visits.ensureDocument(fresh, { actor: 'admin@example.test', stop }));
@@ -101,7 +101,7 @@ test('an option not taken, the arrival and a no-show each write a line of the jo
   fx.visits.commit(row(), {}, { actor: 'admin@example.test' });
   assert.ok(textsOf(fx.fiche.ficheOf(row())).includes('Arrivée enregistrée'));
   assert.deepEqual(fx.fiche.ficheOf(row()).arrival.state, 'arrived');
-  const absent = fx.bookCovered({ resourceId: bath, date: '2026-11-17', start: '15:00', ref: 'BC-2026-0003' });
+  const absent = fx.bookCovered({ resourceId: bath, date: '2026-11-17', start: '15:00', ref: 'BC-2026-0003' }); // date-literal-ok: the suite runs on its own clock, never the real today
   const second = fx.bookings.rawById(absent.answer.bookingId);
   fx.visits.history(second, 'Client absent');
   assert.equal(textsOf(fx.fiche.ficheOf(second))[0], 'Client absent');
@@ -109,7 +109,7 @@ test('an option not taken, the arrival and a no-show each write a line of the jo
 
 test('a booking with no sale document still has a fiche, with its creation as the only line', () => {
   const plain = fx.bookings.createBooking({
-    resourceId: bath, date: '2026-11-18', startTime: '10:00', endTime: '11:00', clientName: 'Passant', clientPhone: '0600000000',
+    resourceId: bath, date: '2026-11-18', startTime: '10:00', endTime: '11:00', clientName: 'Passant', clientPhone: '0600000000', // date-literal-ok: the suite runs on its own clock, never the real today
   });
   const fiche = fx.fiche.ficheOf(fx.bookings.rawById(plain.id));
   assert.deepEqual([fiche.client.name, fiche.lines, fiche.history.map((h) => h.text)], ['Passant', [], ['Réservation créée']]);

@@ -13,7 +13,7 @@ const { withdrawHourlyResources, liveHourlyResources } = require('../../../tests
 
 const ids = fx.seedCatalogue();
 const archived = fx.option({ title: 'Ancienne option' });
-fx.db.prepare("UPDATE options SET archivedAt = '2026-01-01' WHERE id = ?").run(archived);
+fx.db.prepare("UPDATE options SET archivedAt = '2026-01-01' WHERE id = ?").run(archived); // date-literal-ok: the suite runs on its own clock, never the real today
 const insurance = fx.option({ title: 'Assurance annulation', isCancellationInsurance: 1 });
 const percent = fx.option({ title: 'Majoration', priceType: 'percent_of_stay' });
 const card = fx.option({ title: 'Massage', showsPlanningCard: 1, price: 40 });

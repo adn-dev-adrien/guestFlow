@@ -18,8 +18,8 @@ const { createLineMarksModel } = require('../lineMarksModel');
 const bookingsModel = require('../bookingsModel');
 const occupancyModel = require('../occupancyModel');
 
-const NOW = new Date('2026-11-15T10:00:00Z');
-const DAY = '2026-11-16';
+const NOW = new Date('2026-11-15T10:00:00Z'); // date-literal-ok: the suite runs on its own clock, never the real today
+const DAY = '2026-11-16'; // date-literal-ok: the suite runs on its own clock, never the real today
 const TIERS = [{ fromHour: 2, percent: 10 }, { fromHour: 3, percent: 20 }];
 
 applyPluginSchema(db, 'hourly-resources');

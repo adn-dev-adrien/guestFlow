@@ -46,7 +46,7 @@ function liveOwner(paid) {
   if (paid) createContext('gift-vouchers', {}).paymentBasket({ source: SOURCE, paid });
 }
 
-const clock = { at: new Date('2026-11-15T10:00:00Z') };
+const clock = { at: new Date('2026-11-15T10:00:00Z') }; // date-literal-ok: the suite runs on its own clock, never the real today
 const sent = [];
 const api = buildGiftVouchersApi({
   db,
@@ -80,7 +80,7 @@ const mint = (order, amountCents = 15000) => sdk.core.payments.saleLink(
   { source: SOURCE, ref: order.id, title: `Bon cadeau de ${amountCents / 100} €`, amountCents },
   { redirectUrl: `https://site.example.test/bon?gf_voucher=${order.id}` },
 );
-const pay = (linkId, at = '2026-11-15T10:05:00Z') => processPaidLink({
+const pay = (linkId, at = '2026-11-15T10:05:00Z') => processPaidLink({ // date-literal-ok: the suite runs on its own clock, never the real today
   database: db, devisModel: {}, paymentLinksModel, link: paymentLinksModel.findById(linkId), paidPayment: { paymentId: `pay-${linkId}`, paidAt: at },
 });
 const vouchers = () => db.prepare('SELECT * FROM gift_vouchers').all();
@@ -172,7 +172,7 @@ test('rule 17: the browser’s return reads the bank — an unpaid link issues n
   const before = vouchers().length;
   assert.equal(await sdk.core.payments.refreshBasketLink(link.linkId), 'open');
   assert.equal(vouchers().length, before, 'the visitor coming back proves nothing');
-  paidAt.set(`rem-${created.length}`, '2026-11-15T10:06:00Z');
+  paidAt.set(`rem-${created.length}`, '2026-11-15T10:06:00Z'); // date-literal-ok: the suite runs on its own clock, never the real today
   assert.equal(await sdk.core.payments.refreshBasketLink(link.linkId), 'paid');
   assert.equal(vouchers().length, before + 1);
   assert.equal(await sdk.core.payments.refreshBasketLink(link.linkId), 'paid');
@@ -187,11 +187,11 @@ test('rule 17: two links of one order both paid — the second money is flagged 
     reservationId: null, type: 'complement', amountCents: 15000, provider: 'qonto', providerLinkId: 'rem-twin', url: 'https://pay.example.test/twin', status: 'open',
     expiresAt: new Date(Date.now() + 3600000).toISOString(), basket: { source: SOURCE, ref: String(order.id) }, saleRef: `${SOURCE}:${order.id}`,
   });
-  paymentLinksModel.markPaid(first.linkId, { providerPaymentId: 'a', paidAt: '2026-11-15T10:05:00Z' });
+  paymentLinksModel.markPaid(first.linkId, { providerPaymentId: 'a', paidAt: '2026-11-15T10:05:00Z' }); // date-literal-ok: the suite runs on its own clock, never the real today
   const before = vouchers().length;
   const one = applyPaidEffect({ database: db, link: paymentLinksModel.findById(first.linkId) });
   assert.equal(one.effect, 'voucher-issued');
-  paymentLinksModel.markPaid(second.id, { providerPaymentId: 'b', paidAt: '2026-11-15T10:06:00Z' });
+  paymentLinksModel.markPaid(second.id, { providerPaymentId: 'b', paidAt: '2026-11-15T10:06:00Z' }); // date-literal-ok: the suite runs on its own clock, never the real today
   const two = applyPaidEffect({ database: db, link: paymentLinksModel.findById(second.id) });
   assert.deepEqual([two.effect, two.reservationId], ['basket-refund-owed', null]);
   assert.equal(vouchers().length, before + 1);
@@ -207,7 +207,7 @@ test('rule 17: with the plugin off, a paid link is money the admin sorts out —
   const before = vouchers().length;
   const notified = [];
   const effect = await processPaidLink({
-    database: db, devisModel: {}, paymentLinksModel, link: paymentLinksModel.findById(link.linkId), paidPayment: { paymentId: 'x', paidAt: '2026-11-15T10:05:00Z' },
+    database: db, devisModel: {}, paymentLinksModel, link: paymentLinksModel.findById(link.linkId), paidPayment: { paymentId: 'x', paidAt: '2026-11-15T10:05:00Z' }, // date-literal-ok: the suite runs on its own clock, never the real today
     notifyPaidAfterCancel: async (l) => { notified.push(l.id); },
   });
   assert.equal(effect.effect, 'basket-unallocated');
@@ -221,7 +221,7 @@ test('rule 17: a link withdrawn then paid anyway is still the plugin’s to sett
   const order = newOrder();
   const link = await mint(order);
   db.prepare("UPDATE payment_links SET status = 'cancelled', cancelReason = 'operator', remoteCancelPendingAt = ? WHERE id = ?").run(new Date().toISOString(), link.linkId);
-  paidAt.set(db.prepare('SELECT providerLinkId FROM payment_links WHERE id = ?').get(link.linkId).providerLinkId, '2026-11-15T10:07:00Z');
+  paidAt.set(db.prepare('SELECT providerLinkId FROM payment_links WHERE id = ?').get(link.linkId).providerLinkId, '2026-11-15T10:07:00Z'); // date-literal-ok: the suite runs on its own clock, never the real today
   const before = vouchers().length;
   const { results } = await retryPendingCancellations({
     database: db, devisModel: {}, paymentLinksModel, provider, notifyPaidAfterCancel: async () => {}, only: link.linkId,
@@ -289,7 +289,7 @@ test('rule 45: paid at 59 minutes, confirmed at 61 — the link was withdrawn me
   const order = newOrder();
   const link = await mintHour(order);
   lapse(link.linkId);
-  paidAt.set(providerIdOf(link.linkId), '2026-11-15T10:59:00Z');
+  paidAt.set(providerIdOf(link.linkId), '2026-11-15T10:59:00Z'); // date-literal-ok: the suite runs on its own clock, never the real today
   const before = vouchers().length;
   const { results } = await retryPendingCancellations({
     database: db, devisModel: {}, paymentLinksModel, provider, notifyPaidAfterCancel: async () => {}, only: link.linkId,

@@ -11,7 +11,7 @@ const NEEDS_PLAN = { skip: skipWithout(['accounting-export']) };
 
 const journal = () => create({ accountPlan: require('../plugins/accounting-export/accountPlan') });
 const sale = {
-  key: 'plugin:1', date: '2026-11-18', totalCents: 0, booksCents: 15000, cardCents: 0, label: 'Remboursement', client: { firstName: '', lastName: 'Paul' }, vatRate: 10, invoiceNumber: null,
+  key: 'plugin:1', date: '2026-11-18', totalCents: 0, booksCents: 15000, cardCents: 0, label: 'Remboursement', client: { firstName: '', lastName: 'Paul' }, vatRate: 10, invoiceNumber: null, // date-literal-ok: the suite runs on its own clock, never the real today
 };
 const shape = (lines) => lines.map((l) => [l.role, l.side, l.amountCents]);
 

@@ -12,7 +12,7 @@ const {
 } = require('../publicInputValidation');
 
 const TODAY = '2026-10-23';
-const HORIZON = '2027-10-23';
+const HORIZON = '2027-10-23'; // date-literal-ok: the suite runs on its own clock, never the real today
 const DAY = { todayIso: TODAY, horizonUntil: HORIZON };
 const stay = (startDate, endDate) => ({ propertyId: 1, startDate, endDate, adults: 2 });
 const fieldsOf = (result) => (result.errors || []).map((e) => `${e.field}: ${e.issue}`);
@@ -32,7 +32,7 @@ test('a stay starting yesterday is refused with the validation shape', () => {
 });
 
 test('endDate 9999-12-31 is refused without walking the stay', () => {
-  const r = validateStayInput(stay('2026-11-01', '9999-12-31'), DAY);
+  const r = validateStayInput(stay('2026-11-01', '9999-12-31'), DAY); // date-literal-ok: the suite runs on its own clock, never the real today
   assert.equal(r.ok, false);
   assert.deepEqual(fieldsOf(r), [
     `endDate: stay must not exceed ${MAX_STAY_NIGHTS} nights`,
@@ -51,8 +51,8 @@ test('the stay length is capped even when no day is injected', () => {
 });
 
 test('an end on the horizon is accepted, one day past it is refused', () => {
-  assert.equal(validateStayInput(stay('2027-10-16', '2027-10-23'), DAY).ok, true);
-  const r = validateStayInput(stay('2027-10-17', '2027-10-24'), DAY);
+  assert.equal(validateStayInput(stay('2027-10-16', '2027-10-23'), DAY).ok, true); // date-literal-ok: the suite runs on its own clock, never the real today
+  const r = validateStayInput(stay('2027-10-17', '2027-10-24'), DAY); // date-literal-ok: the suite runs on its own clock, never the real today
   assert.deepEqual(fieldsOf(r), ['endDate: must be within the booking horizon']);
   assert.equal(r.errors[0].reason, 'beyondHorizon');
   assert.equal(r.errors[0].horizonUntil, HORIZON);

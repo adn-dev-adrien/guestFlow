@@ -6,7 +6,7 @@ const {
 } = require('../publicInputValidation');
 
 const TODAY = '2026-06-08';
-const HORIZON = '2027-06-08';
+const HORIZON = '2027-06-08'; // date-literal-ok: the suite runs on its own clock, never the real today
 
 test('isValidIsoDate rejects malformed / impossible dates', () => {
   assert.equal(isValidIsoDate('2026-06-08'), true);
@@ -24,13 +24,13 @@ test('validateAvailabilityQuery defaults to today … the booking horizon', () =
 });
 
 test('validateAvailabilityQuery rejects inverted range', () => {
-  const r = validateAvailabilityQuery({ from: '2026-07-10', to: '2026-07-01', todayIso: TODAY, horizonUntil: HORIZON });
+  const r = validateAvailabilityQuery({ from: '2026-07-10', to: '2026-07-01', todayIso: TODAY, horizonUntil: HORIZON }); // date-literal-ok: the suite runs on its own clock, never the real today
   assert.equal(r.ok, false);
   assert.ok(r.errors.some((e) => e.field === 'to'));
 });
 
 test('validateAvailabilityQuery never reaches past the horizon: a later end is brought back to it', () => {
-  const r = validateAvailabilityQuery({ from: '2027-05-01', to: '2027-09-01', todayIso: TODAY, horizonUntil: HORIZON });
+  const r = validateAvailabilityQuery({ from: '2027-05-01', to: '2027-09-01', todayIso: TODAY, horizonUntil: HORIZON }); // date-literal-ok: the suite runs on its own clock, never the real today
   assert.equal(r.ok, true);
   assert.equal(r.value.to, HORIZON);
 });
@@ -42,7 +42,7 @@ test('validateAvailabilityQuery refuses a window opening at the horizon or after
 });
 
 test('validateAvailabilityQuery caps the span at the days between today and the horizon', () => {
-  const r = validateAvailabilityQuery({ from: '2025-01-01', to: '2027-06-01', todayIso: TODAY, horizonUntil: HORIZON });
+  const r = validateAvailabilityQuery({ from: '2025-01-01', to: '2027-06-01', todayIso: TODAY, horizonUntil: HORIZON }); // date-literal-ok: the suite runs on its own clock, never the real today
   assert.equal(r.ok, false);
   assert.match(r.errors[0].issue, /range must not exceed 365 days/);
 });

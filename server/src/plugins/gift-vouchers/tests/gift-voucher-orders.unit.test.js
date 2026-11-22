@@ -246,7 +246,7 @@ test('rule 17: a link the bank confirmed issues the voucher in one step — acti
 
   assert.deepEqual(paid(orderId, 41), { effect: 'voucher-issued' });
   const [voucher] = rows(db, 'gift_vouchers');
-  assert.deepEqual([voucher.number, voucher.amountCents, voucher.expiresOn], ['BC-2026-0001', 15000, '2028-05-15']);
+  assert.deepEqual([voucher.number, voucher.amountCents, voucher.expiresOn], ['BC-2026-0001', 15000, '2028-05-15']); // date-literal-ok: the suite runs on its own clock, never the real today
   const ledger = api.movements.list(voucher.id);
   assert.deepEqual(ledger.filter((m) => m.kind === 'issue').map((m) => [m.amountCents, m.actor, m.idempotencyKey]), [[15000, 'public', 'issue:link:41']]);
   assert.equal(db.prepare('SELECT state FROM gift_voucher_orders WHERE id = ?').get(orderId).state, 'issued');
@@ -289,7 +289,7 @@ test('rules 20, 21: once confirmed, the page shows the voucher — amount, names
   assert.deepEqual(
     { ...voucher, code: undefined },
     {
-      number: 'BC-2026-0001', brand: 'Domaine Solio', amountCents: 15000, balanceCents: 15000, expiresOn: '2028-05-15', recipientName: 'Marie', senderName: 'Paul', message: 'Joyeux anniversaire', code: undefined,
+      number: 'BC-2026-0001', brand: 'Domaine Solio', amountCents: 15000, balanceCents: 15000, expiresOn: '2028-05-15', recipientName: 'Marie', senderName: 'Paul', message: 'Joyeux anniversaire', code: undefined, // date-literal-ok: the suite runs on its own clock, never the real today
     },
   );
   assert.match(voucher.code, /^[0-9A-Z]{16}$/);
@@ -315,9 +315,9 @@ test('rule 20: a cancelled voucher shows its state and no code; an exhausted or 
 }) => {
   const { orderId, token } = await placed();
   paid(orderId, 41);
-  clock.at = new Date('2028-06-01T10:00:00Z');
+  clock.at = new Date('2028-06-01T10:00:00Z'); // date-literal-ok: the suite runs on its own clock, never the real today
   assert.equal((await view(orderId, token)).body.data.state, 'expired');
-  clock.at = new Date('2026-11-15T10:00:00Z');
+  clock.at = new Date('2026-11-15T10:00:00Z'); // date-literal-ok: the suite runs on its own clock, never the real today
   api.movements.append({
     voucherId: 1, kind: 'cancel', amountCents: -15000, actor: 'user:7', idempotencyKey: 'cancel:1',
   });
@@ -439,7 +439,7 @@ test('rule 23: the retry gives up three days after issuance, and never mails a v
   assert.equal(byHand.mailSentAt, null, 'the operator’s « Renvoyer » is the only mail of a voucher sold by hand');
 }));
 
-test('rules 23, 49: an installation with no website address cannot print the QR code — the voucher is flagged, not lost', () => withShop(async ({
+test('specs/gift-vouchers.md rule 23, specs/gift-voucher-campaigns.md rule 50: an installation with no website address cannot print the QR code — the voucher is flagged, not lost', () => withShop(async ({
   placed, paid, api, sent, server,
 }) => {
   const { orderId } = await placed();

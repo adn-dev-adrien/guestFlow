@@ -14,7 +14,7 @@ const bath = fx.newResource();
 const board = fx.newOption();
 const drink = fx.newOption({ title: 'Boisson', price: 6.5, vatClass: 'catering' });
 
-const eventOf = (id) => fx.bookings.listPlanningEvents('2026-11-01', '2026-12-31').find((e) => e.id === id);
+const eventOf = (id) => fx.bookings.listPlanningEvents('2026-11-01', '2026-12-31').find((e) => e.id === id); // date-literal-ok: the suite runs on its own clock, never the real today
 
 test('a booking paid by a prepaid tender shows its options and the badge of the tender\'s own label', () => {
   const { answer } = fx.bookCovered({ resourceId: bath, optionId: board });
@@ -50,15 +50,15 @@ test('every option of the sale is listed, whoever paid it: the one paid in advan
 
 test('a booking with no sale, and one paid by card alone, carry no badge', () => {
   const plain = fx.bookings.createBooking({
-    resourceId: bath, date: '2026-11-18', startTime: '10:00', endTime: '11:00', clientName: 'Passant',
+    resourceId: bath, date: '2026-11-18', startTime: '10:00', endTime: '11:00', clientName: 'Passant', // date-literal-ok: the suite runs on its own clock, never the real today
   });
   assert.deepEqual([eventOf(plain.id).options, eventOf(plain.id).badges], [[], []]);
   const quote = fx.offer.quote({
-    resourceId: bath, date: '2026-11-18', start: '14:00', coveredBand: 'day', coveredMinutes: 60,
+    resourceId: bath, date: '2026-11-18', start: '14:00', coveredBand: 'day', coveredMinutes: 60, // date-literal-ok: the suite runs on its own clock, never the real today
   });
   const card = fx.offer.bookOutside({
     resourceId: bath,
-    date: '2026-11-18',
+    date: '2026-11-18', // date-literal-ok: the suite runs on its own clock, never the real today
     start: '14:00',
     end: '15:00',
     customer: { name: 'Max', email: 'max@example.test', phone: '0600000001' },
@@ -71,7 +71,7 @@ test('a booking with no sale, and one paid by card alone, carry no badge', () =>
 });
 
 test('the reception reads the options and the badges of the card, and no amount', () => {
-  const { answer } = fx.bookCovered({ resourceId: bath, optionId: board, date: '2026-11-17', start: '16:00', ref: 'BC-2026-0009' });
+  const { answer } = fx.bookCovered({ resourceId: bath, optionId: board, date: '2026-11-17', start: '16:00', ref: 'BC-2026-0009' }); // date-literal-ok: the suite runs on its own clock, never the real today
   const view = toReceptionPlanningEvent(eventOf(answer.bookingId));
   assert.deepEqual([view.options, view.badges], [[{ label: 'Planche apéro', quantity: 1 }], [{ label: 'Bon cadeau' }]]);
   ['totalPrice', 'paid', 'clientPhone', 'visit'].forEach((leak) => assert.equal(leak in view, false));

@@ -18,6 +18,10 @@ const NOT_MONEY = {
   'plugins/linen/LaundryExtraTripDialog.jsx': 'previews laundry trip dates; no amount',
   'plugins/linen/LaundryScheduleSection.jsx': 'previews laundry dates; no amount',
 };
+// Files that preview a price through the shared hook but neither sell nor collect: their commit stores a configuration, never money.
+const PRICE_ONLY = {
+  'plugins/gift-vouchers/CampaignEditor.jsx': 'previews the price of a campaign being configured; « Enregistrer » stores the campaign, nothing is sold or collected',
+};
 const MEMBER = /\b(useLatestPreview|useVisitQuote|useResourceBookingPreview|useSasRecapPreview|useMoneyCommit)\(|<(TenderLines|BookingPaymentFields|BookingInvoiceBlock|StandaloneSaleDialog|StaySalesSection|SuggestedArticlesStep|SalePaymentLink)\b|\b(tendersForDue|paymentForDue)\(/;
 
 function filesOf(dir) {
@@ -51,6 +55,7 @@ const MEMBERS = {
   'plugins/online-payment/SplitSharesDialog.jsx': ['reconciliation'],
   'plugins/sas/ReservationSasDialog.jsx': ['sas'],
   'plugins/sas/useSasRecapPreview.js': ['sas'],
+  'plugins/gift-vouchers/NewVoucherPage.jsx': ['voucher'],
 };
 // The component each family renders (the host page of the counter is FinancePage: the family drives the dialog it opens).
 const RENDERS = {
@@ -63,6 +68,7 @@ const RENDERS = {
   reconciliation: ['SplitSharesDialog', 'LinkTransactionDialog'],
   fiche: ['FinanceSection'],
   product: ['AddProductDialog'],
+  voucher: ['NewVoucherPage'],
 };
 
 test('the money dialogs read from the code are exactly the members the harness drives', () => {
@@ -71,7 +77,7 @@ test('the money dialogs read from the code are exactly the members the harness d
     .filter((f) => !/\.test\.jsx?$/.test(f))
     .filter((f) => {
       const text = fs.readFileSync(path.join(SRC, f), 'utf8');
-      return MEMBER.test(text) || (ASKS.test(text) && !NOT_MONEY[f]);
+      return (MEMBER.test(text) && !PRICE_ONLY[f]) || (ASKS.test(text) && !NOT_MONEY[f]);
     })
     .filter((f) => fs.existsSync(path.join(SRC, f)))
     .sort();

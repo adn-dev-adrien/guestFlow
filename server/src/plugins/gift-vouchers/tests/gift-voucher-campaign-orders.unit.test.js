@@ -86,7 +86,7 @@ test('the bank’s confirmation issues the voucher with the contents, the VAT li
   assert.equal(priced, 9500 + 4000 + 1400 + 1300);
   assert.deepEqual(paid(orderId, 11, priced), { effect: 'voucher-issued' });
   const voucher = db.prepare('SELECT * FROM gift_vouchers WHERE orderId = ?').get(orderId);
-  assert.deepEqual([voucher.campaignId, voucher.amountCents, voucher.expiresOn, voucher.vatRatePercent], [bath.id, priced, '2027-11-15', 20]);
+  assert.deepEqual([voucher.campaignId, voucher.amountCents, voucher.expiresOn, voucher.vatRatePercent], [bath.id, priced, '2027-11-15', 20]); // date-literal-ok: the suite runs on its own clock, never the real today
   const contents = JSON.parse(voucher.contents);
   assert.deepEqual([contents.resource.minutes, contents.resource.extraMinutes, contents.addOns], [180, 60, [{ articleRef: `option:${ids.drink}`, label: 'Boisson', qty: 2 }]]);
   assert.equal(JSON.parse(voucher.vatLines).reduce((sum, l) => sum + l.htCents + l.vatCents, 0), priced);
@@ -143,7 +143,7 @@ test('the public price is the engine’s, for any request; an unknown offer is r
 test('« Offert » issues at no charge: no sale in the books, no VAT, the ledger reads « Offert par l’établissement » with the operator’s name', async () => {
   const server = await fx.serve(api);
   try {
-    const books = () => api.salesBetween({ from: '2026-11-01', to: '2026-11-30' });
+    const books = () => api.salesBetween({ from: '2026-11-01', to: '2026-11-30' }); // date-literal-ok: the suite runs on its own clock, never the real today
     const before = books().length;
     const given = await server.call('POST', '/api/gift-vouchers', { slug: bath.slug, outcome: 'offered', senderName: 'La maison', recipientName: 'Marie' });
     assert.equal(given.status, 201, JSON.stringify(given.body));
@@ -212,7 +212,7 @@ test('« Sur mesure » follows the same path: a one-shot campaign bound to its o
     const issued = await server.call('POST', '/api/gift-vouchers', request);
     assert.equal(issued.status, 201, JSON.stringify(issued.body));
     assert.equal(issued.body.amountCents, preview.body.totalCents, 'the price shown is the price sold');
-    assert.deepEqual([issued.body.oneShot, issued.body.contents.title, issued.body.expiresOn], [true, 'Bain pour Marie', '2027-05-15']);
+    assert.deepEqual([issued.body.oneShot, issued.body.contents.title, issued.body.expiresOn], [true, 'Bain pour Marie', '2027-05-15']); // date-literal-ok: the suite runs on its own clock, never the real today
     const one = db.prepare('SELECT * FROM gift_voucher_campaigns WHERE oneShot = 1').get();
     assert.deepEqual([one.slug, one.state, one.kind], [null, 'closed', 'resource']);
     assert.equal(count('gift_voucher_campaigns'), campaignsBefore + 1);

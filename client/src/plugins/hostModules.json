@@ -32,7 +32,11 @@
     "Link",
     "List",
     "ListItem",
+    "ListItemButton",
+    "ListItemText",
+    "ListSubheader",
     "MenuItem",
+    "Paper",
     "Radio",
     "RadioGroup",
     "Select",
@@ -71,6 +75,7 @@
     "Link",
     "useLocation",
     "useNavigate",
+    "useParams",
     "useSearchParams"
   ],
   "react/jsx-runtime": "*"

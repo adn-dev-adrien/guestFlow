@@ -83,7 +83,7 @@ test('saving sends the composition and shows the server refusal under the field 
 });
 
 test('a locked slug cannot be edited and says why', async () => {
-  giftVouchersApi.getCampaign.mockResolvedValue(campaign({ slugLockedAt: '2026-11-10T10:00:00.000Z' }));
+  giftVouchersApi.getCampaign.mockResolvedValue(campaign({ slugLockedAt: '2026-11-10T10:00:00.000Z' })); // date-literal-ok: a payload the mocked server answers; the screen only shows it
   open();
   expect(await screen.findByLabelText('Identifiant du lien')).toBeDisabled();
   expect(screen.getByText(/Verrouillé : une carte du commerçant/)).toBeInTheDocument();
@@ -183,4 +183,22 @@ describe('a lodging campaign — the fields moved from the settings', () => {
     expect(await screen.findByText('Montant minimal : au plus le montant maximal.')).toBeInTheDocument();
     expect(screen.getByText('Chaque idée désigne un logement.')).toBeInTheDocument();
   });
+});
+
+test('rule 61: « Réessayer » brings the price back and the focus stays in the preview, never on the page', async () => {
+  giftVouchersApi.previewPrice.mockRejectedValueOnce(Object.assign(new Error('Service indisponible'), { status: 503 }));
+  open();
+  const retry = await screen.findByRole('button', { name: 'Réessayer' });
+  retry.focus();
+  await userEvent.click(retry);
+  expect(await screen.findByTestId('price-recap')).toBeInTheDocument();
+  expect(screen.queryByRole('button', { name: 'Réessayer' })).not.toBeInTheDocument();
+  expect(document.activeElement).not.toBe(document.body);
+});
+
+test('rule 61: a refusal of the price shows its reason without « Réessayer »', async () => {
+  giftVouchersApi.previewPrice.mockRejectedValue(Object.assign(new Error('« Bain nordique » n’a pas de tarif extérieur pour la soirée.'), { status: 422, code: 'PRICE_UNAVAILABLE' }));
+  open();
+  expect(await screen.findByText('« Bain nordique » n’a pas de tarif extérieur pour la soirée.')).toBeInTheDocument();
+  expect(screen.queryByRole('button', { name: 'Réessayer' })).not.toBeInTheDocument();
 });

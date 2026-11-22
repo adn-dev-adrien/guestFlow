@@ -15,7 +15,7 @@ const { SOURCE, LABEL } = require('../redemption');
 applyPluginSchema(db, 'gift-vouchers');
 
 const PEPPER = 'test-pepper';
-const clock = { at: new Date('2026-11-15T10:00:00Z') };
+const clock = { at: new Date('2026-11-15T10:00:00Z') }; // date-literal-ok: the suite runs on its own clock, never the real today
 const created = [];
 const provider = {
   id: 'qonto',
@@ -87,7 +87,7 @@ function issueVoucher(amountCents) {
 let propertySeeded = false;
 /** A public quote (`devis`) of the given acompte and solde, in euros; `depositEnabled` makes it a `deposit`-mode property. */
 let seeded = 0;
-const dayAfter = (n) => new Date(Date.UTC(2027, 0, 1) + n * 24 * 3600 * 1000).toISOString().slice(0, 10);
+const dayAfter = (n) => new Date(Date.UTC(2027, 0, 1) + n * 24 * 3600 * 1000).toISOString().slice(0, 10); // date-literal-ok: the suite runs on its own clock, never the real today
 function seedQuote({
   deposit = 80.4, balance = 187.6, depositEnabled = 1, start = null, end = null,
 } = {}) {

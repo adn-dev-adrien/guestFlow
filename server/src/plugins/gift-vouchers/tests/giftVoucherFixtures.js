@@ -57,7 +57,7 @@ const visitorGuard = (req, res, next) => {
 
 /** The plugin's API on `db`, with a movable clock. `over` replaces any dependency. */
 function buildApi(db = freshDb(), over = {}) {
-  const clock = { at: new Date('2026-11-15T10:00:00Z') };
+  const clock = { at: new Date('2026-11-15T10:00:00Z') }; // date-literal-ok: the suite runs on its own clock, never the real today
   const sent = [];
   const trips = [];
   const settingsStore = memorySettings(over.settings);

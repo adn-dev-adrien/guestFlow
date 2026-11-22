@@ -56,6 +56,8 @@ const CONSUMERS = filesOf(SRC)
 // Screens whose commit label is not a decision read from an answer.
 const STATIC_LABELS = {
   PlatformPenaltyDialog: 'fixed « Enregistrer »',
+  CampaignEditor: 'its commit is the page bar’s « Enregistrer », whose label never changes; the price decides nothing it saves',
+  NewVoucherPage: 'fixed « Créer le bon » / « Envoyer le lien »: the label follows the outcome chosen, never the answer',
   AddProductDialog: 'fixed « Ajouter » (loop t26 verifier)',
   SplitSharesDialog: 'fixed « Répartir et confirmer »',
   LinkTransactionDialog: 'fixed « Rattacher »',

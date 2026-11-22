@@ -140,8 +140,8 @@ test('rule 43: the VAT is on the operator’s detail and the receipt, never on t
 test('rule 43: the migration adds the column and the vouchers sold before it are backfilled to 10 %', () => {
   const db = new Database(':memory:');
   MIGRATIONS[0].up(db);
-  db.prepare("INSERT INTO gift_voucher_orders (amountCents, source, createdAt) VALUES (5000, 'manual', '2026-11-01T10:00:00Z')").run();
-  db.prepare("INSERT INTO gift_vouchers (orderId, number, codeHash, codeEncrypted, amountCents, issuedAt, expiresOn) VALUES (1, 'BC-2026-0001', 'h', 'e', 5000, '2026-11-01T10:00:00Z', '2028-05-01')").run();
+  db.prepare("INSERT INTO gift_voucher_orders (amountCents, source, createdAt) VALUES (5000, 'manual', '2026-11-01T10:00:00Z')").run(); // date-literal-ok: the suite runs on its own clock, never the real today
+  db.prepare("INSERT INTO gift_vouchers (orderId, number, codeHash, codeEncrypted, amountCents, issuedAt, expiresOn) VALUES (1, 'BC-2026-0001', 'h', 'e', 5000, '2026-11-01T10:00:00Z', '2028-05-01')").run(); // date-literal-ok: the suite runs on its own clock, never the real today
   assert.equal(MIGRATIONS[1].name, 'gift_vouchers_vat_v1');
   MIGRATIONS[1].up(db);
   assert.equal(db.prepare('SELECT vatRatePercent FROM gift_vouchers').get().vatRatePercent, 10);
@@ -155,16 +155,16 @@ test('rule 44: each voucher is a sale of its collection day, at its frozen rate;
   fx.setLodging(api, { vatRatePercent: '5,5' });
   await fx.issueManual(server, { paymentMethod: 'transfer', amountCents: 5000, senderName: 'Paul' });
   const site = api.orders.create({ amountCents: 20000, email: 'x@example.test', source: 'site' });
-  clock.at = new Date('2026-11-16T23:30:00Z');
+  clock.at = new Date('2026-11-16T23:30:00Z'); // date-literal-ok: the suite runs on its own clock, never the real today
   api.orderPaid({ ref: String(site.id), linkId: 71, amountCents: 20000 });
-  const sales = api.salesBetween({ from: '2026-11-01', to: '2026-11-30' });
+  const sales = api.salesBetween({ from: '2026-11-01', to: '2026-11-30' }); // date-literal-ok: the suite runs on its own clock, never the real today
   assert.deepEqual(sales.map((s) => [s.date, s.totalCents, s.booksCents, s.cardCents, s.vatRate, s.label]), [
-    ['2026-11-15', 15000, 15000, 15000, 10, 'Bon cadeau BC-2026-0001'],
-    ['2026-11-15', 5000, 5000, 0, 5.5, 'Bon cadeau BC-2026-0002'],
-    ['2026-11-17', 20000, 20000, 0, 5.5, 'Bon cadeau BC-2026-0003'],
+    ['2026-11-15', 15000, 15000, 15000, 10, 'Bon cadeau BC-2026-0001'], // date-literal-ok: the suite runs on its own clock, never the real today
+    ['2026-11-15', 5000, 5000, 0, 5.5, 'Bon cadeau BC-2026-0002'], // date-literal-ok: the suite runs on its own clock, never the real today
+    ['2026-11-17', 20000, 20000, 0, 5.5, 'Bon cadeau BC-2026-0003'], // date-literal-ok: the suite runs on its own clock, never the real today
   ], 'a payment at 23:30 UTC is the next Paris day');
-  assert.deepEqual(api.salesBetween({ from: '2026-11-16', to: '2026-11-16' }), []);
-  assert.equal(api.salesBetween({ from: '2026-11-17', to: '2026-11-17' })[0].key, `giftVoucher:${sales[2].key.split(':')[1]}`);
+  assert.deepEqual(api.salesBetween({ from: '2026-11-16', to: '2026-11-16' }), []); // date-literal-ok: the suite runs on its own clock, never the real today
+  assert.equal(api.salesBetween({ from: '2026-11-17', to: '2026-11-17' })[0].key, `giftVoucher:${sales[2].key.split(':')[1]}`); // date-literal-ok: the suite runs on its own clock, never the real today
   await api.receipt.idle();
 }));
 
@@ -173,7 +173,7 @@ test('rule 44: the journal books a sale as HT + VAT — 150 € at 10 % debits 1
   const { buildStandaloneEntry } = require('../../../utils/accounting/accountingOutput');
   const { entryLines } = require('../../../utils/accounting/journalLines').create({ accountPlan });
   const sale = {
-    key: 'giftVoucher:1', date: '2026-11-15', totalCents: 15000, booksCents: 15000, cardCents: 0, label: 'Bon cadeau BC-2026-0001', client: { firstName: '', lastName: 'Paul' }, vatRate: 10, invoiceNumber: null,
+    key: 'giftVoucher:1', date: '2026-11-15', totalCents: 15000, booksCents: 15000, cardCents: 0, label: 'Bon cadeau BC-2026-0001', client: { firstName: '', lastName: 'Paul' }, vatRate: 10, invoiceNumber: null, // date-literal-ok: the suite runs on its own clock, never the real today
   };
   const lines = entryLines(buildStandaloneEntry(sale)).map((l) => [l.role.split(':')[0], l.side, l.amountCents ?? Math.round(l.amount * 100)]);
   assert.deepEqual(lines, [['customer', 'debit', 15000], ['revenue', 'credit', 13636], ['vat', 'credit', 1364]]);

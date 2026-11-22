@@ -8,7 +8,7 @@ const { renderVoucherPdf, redeemUrl, shortLink, fitLines } = require('../voucher
 const fx = require('./giftVoucherFixtures');
 
 const voucher = (over = {}) => ({
-  number: 'BC-2026-0007', amountCents: 15000, recipientName: 'Marie', senderName: 'Paul', message: 'Joyeux anniversaire', code: '7K2QHD9M4TXB3NPC', expiresOn: '2028-05-15', ...over,
+  number: 'BC-2026-0007', amountCents: 15000, recipientName: 'Marie', senderName: 'Paul', message: 'Joyeux anniversaire', code: '7K2QHD9M4TXB3NPC', expiresOn: '2028-05-15', ...over, // date-literal-ok: the suite runs on its own clock, never the real today
 });
 const company = { name: 'Domaine Solio', town: 'Saint-Cirq-Lapopie', website: 'https://site.example.test', logo: null };
 const render = (data, qr) => renderVoucherPdf({

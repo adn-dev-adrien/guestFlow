@@ -82,7 +82,7 @@ test('a click on a voucher opens its detail', async () => {
 test('the list reads the campaign, the contents and the day of use; a used voucher links to the fiche of the passage', async () => {
   giftVouchersApi.list.mockResolvedValue({
     items: [summary({
-      campaignName: 'Bain journée', kind: 'resource', contentsText: 'Bain nordique : 2 h en journée', usedOn: '2026-11-20', bookingId: 77,
+      campaignName: 'Bain journée', kind: 'resource', contentsText: 'Bain nordique : 2 h en journée', usedOn: '2026-11-20', bookingId: 77, // date-literal-ok: a payload the mocked server answers; the screen only shows it
     })],
     outstandingCents: 0,
     campaigns: [{ id: 5, name: 'Bain journée', kind: 'resource' }],

@@ -116,9 +116,9 @@ test('a prepaid line is not caisse-interne money: an internal payment on the sam
 
 test('the journal reads the prepaid allocations as off the books: the sale it came from declared that money', () => {
   const saleId = soldSale();
-  standaloneSale.takePrepaid(saleId, { tender: TENDER, covers: [{ articleRef: `option:${board}`, amountCents: 1400 }], paidAt: '2026-11-16' });
-  standaloneSale.receive(saleId, { method: 'card', amountCents: 1300, paidAt: '2026-11-16', source: 'basket:2' });
-  const [moved] = payments.documentsPaidBetween('2026-11-16', '2026-11-16').filter((d) => d.sale.id === saleId);
+  standaloneSale.takePrepaid(saleId, { tender: TENDER, covers: [{ articleRef: `option:${board}`, amountCents: 1400 }], paidAt: '2026-11-16' }); // date-literal-ok: the suite runs on its own clock, never the real today
+  standaloneSale.receive(saleId, { method: 'card', amountCents: 1300, paidAt: '2026-11-16', source: 'basket:2' }); // date-literal-ok: the suite runs on its own clock, never the real today
+  const [moved] = payments.documentsPaidBetween('2026-11-16', '2026-11-16').filter((d) => d.sale.id === saleId); // date-literal-ok: the suite runs on its own clock, never the real today
   const booked = moved.payments.flatMap((p) => p.allocations || []).filter((a) => Number(a.books) === 1).reduce((sum, a) => sum + a.amountCents, 0);
   assert.equal(booked, 1300, 'only what the card collected is booked');
 });

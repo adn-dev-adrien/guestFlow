@@ -43,7 +43,7 @@ test('the lines paid in advance are a section titled by their instrument, each m
 
 test('a visit with no prepaid tender has no such section', () => {
   const plain = fx.bookings.createBooking({
-    resourceId: bath, date: '2026-11-18', startTime: '10:00', endTime: '11:00', clientName: 'Passant',
+    resourceId: bath, date: '2026-11-18', startTime: '10:00', endTime: '11:00', clientName: 'Passant', // date-literal-ok: the suite runs on its own clock, never the real today
   });
   assert.deepEqual(fx.visits.view(fx.bookings.rawById(plain.id), { reception: false }).body.prepaidSections, []);
 });
@@ -71,7 +71,7 @@ test('« non pris » records the element and its value, journals it, and tells t
 });
 
 test('a line that no prepaid tender paid cannot be marked « non pris »', () => {
-  const plain = fx.bookCovered({ resourceId: bath, date: '2026-11-17', start: '12:00', ref: 'BC-2026-0004' });
+  const plain = fx.bookCovered({ resourceId: bath, date: '2026-11-17', start: '12:00', ref: 'BC-2026-0004' }); // date-literal-ok: the suite runs on its own clock, never the real today
   const second = fx.bookings.rawById(plain.answer.bookingId);
   const sold = fx.standaloneSale.sell({ saleId: fx.visits.saleIdOf(second), lines: [{ articleRef: `option:${board}`, quantity: 1 }] });
   assert.equal(sold.status, 200);

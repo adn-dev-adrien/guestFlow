@@ -12,6 +12,8 @@ const API_KEY = 'voucher-http-key';
 process.env.PUBLIC_API_KEY = API_KEY;
 const fx = require('./redemptionFixture');
 
+// The suite's today is 2027-01-01, for the helper and for every clock the quote, the deposit rule and the payment read.
+test.mock.timers.enable({ apis: ['Date'], now: new Date('2027-01-01T10:00:00Z').getTime() });
 require('../../../utils/reservationHelpers').getTodayIsoDate = () => '2027-01-01';
 require('../../website-booking/settings').termsSettings = () => ({ requireTermsAcceptance: false });
 require('../../../utils/notificationService').notifyNewSiteDevis = async () => {};

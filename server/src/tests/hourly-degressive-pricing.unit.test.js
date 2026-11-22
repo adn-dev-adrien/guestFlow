@@ -17,7 +17,7 @@ const TIERS = [{ fromHour: 2, percent: 10 }, { fromHour: 3, percent: 20 }];
 const OUTSIDE = {
   dayRate: 50, eveningRate: 70, eveningStart: '20:00', slotMinutes: 60,
 };
-const session = (start, end) => [{ date: '2030-01-01', start, end }];
+const session = (start, end) => [{ date: '2030-01-01', start, end }]; // date-literal-ok: the suite runs on its own clock, never the real today
 
 test('a wrong table is refused with the sentence of the faulty row', () => {
   assert.equal(degressiveTiersProblem([]), null);

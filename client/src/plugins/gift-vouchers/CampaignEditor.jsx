@@ -13,7 +13,7 @@ import {
 import ContentCopyOutlinedIcon from '@mui/icons-material/ContentCopyOutlined';
 import FileDownloadOutlinedIcon from '@mui/icons-material/FileDownloadOutlined';
 import {
-  ErrorAlert, LoadingState, PageActionBar, useLatestPreview, useToast,
+  ErrorAlert, FocusKeeper, LoadingState, PageActionBar, PreviewFailure, useLatestPreview, useToast,
 } from '../sdk';
 import giftVouchersApi from './giftVouchersApi';
 import AddOnsPicker from './AddOnsPicker';
@@ -205,14 +205,8 @@ export default function CampaignEditor() {
   let previewBody;
   if (draft.kind === 'lodging') previewBody = <Typography variant="body2" color="text.secondary">{T.previewLodging}</Typography>;
   else if (!previewable) previewBody = <Typography variant="body2" color="text.secondary">{T.previewIdle}</Typography>;
-  else if (preview.error) {
-    previewBody = (
-      <Stack spacing={1} role="alert">
-        <Typography variant="body2" color="error">{preview.error.message}</Typography>
-        <Box><Button size="small" onClick={preview.retry} sx={{ minHeight: 44 }}>{T.previewRetry}</Button></Box>
-      </Stack>
-    );
-  } else if (preview.data) previewBody = <PriceRecap price={preview.data} texts={T} />;
+  else if (preview.error) previewBody = <PreviewFailure error={preview.error} onRetry={preview.retry} fallback={T.previewFailed} />;
+  else if (preview.data) previewBody = <PriceRecap price={preview.data} texts={T} />;
   else previewBody = <LoadingState />;
 
   return (
@@ -308,7 +302,7 @@ export default function CampaignEditor() {
 
         <Box sx={{ position: { md: 'sticky' }, top: { md: 'calc(var(--gf-page-bar-bottom, 120px) + 16px)' } }}>
           <FormSection title={T.preview}>
-            <Box aria-live="polite">{previewBody}</Box>
+            <FocusKeeper aria-live="polite">{previewBody}</FocusKeeper>
           </FormSection>
         </Box>
       </Box>

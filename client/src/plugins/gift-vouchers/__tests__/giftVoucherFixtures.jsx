@@ -41,14 +41,14 @@ export const detail = (over = {}) => ({
   oneShot: false,
   contentLines: ['Un séjour dans nos logements, d’une valeur de 150 €'],
   refundCents: 15000,
-  withdrawal: { open: true, endsOn: '2026-11-24' },
+  withdrawal: { open: true, endsOn: '2026-11-24' }, // date-literal-ok: a payload the mocked server answers; the screen only shows it
   refunds: [],
   unusedCents: 0,
   unused: [],
   bath: null,
   movements: [
     {
-      id: 1, kind: 'issue', label: 'Émission', amountCents: 15000, date: '2026-11-10', actorName: 'Adrien', reservationId: null, note: null,
+      id: 1, kind: 'issue', label: 'Émission', amountCents: 15000, date: '2026-11-10', actorName: 'Adrien', reservationId: null, note: null, // date-literal-ok: a payload the mocked server answers; the screen only shows it
     },
   ],
   ...over,
@@ -59,6 +59,19 @@ export const PAYMENT_METHODS = [
 ];
 
 // `route` + `path`: the page is mounted on a route pattern (`/bons-cadeaux/campagnes/:id`) entered at `route`.
+/** The providers a gift-voucher page needs (theme, router at `route`, dialogs), around `ui` drawn at `path`. */
+export function Shell({ ui, route = '/', path = null }) {
+  return (
+    <ThemeProvider theme={theme}>
+      <MemoryRouter initialEntries={[route]}>
+        <DialogProvider>
+          {path ? <Routes><Route path={path} element={ui} /><Route path="*" element={<div data-testid="elsewhere" />} /></Routes> : ui}
+        </DialogProvider>
+      </MemoryRouter>
+    </ThemeProvider>
+  );
+}
+
 export function renderWithShell(ui, { route = '/', path = null } = {}) {
   return render(
     <ThemeProvider theme={theme}>
@@ -132,7 +145,7 @@ export const lodgingCampaign = (over = {}) => campaign({
 });
 
 export const visual = (over = {}) => ({
-  id: 3, name: 'Recto bain', use: 'both', createdAt: '2026-11-01T10:00:00.000Z', versionId: 31, versions: 1, width: 1240, height: 1748, campaigns: [{ id: 5, name: 'Bain journée', state: 'draft' }], validVouchers: 2, ...over,
+  id: 3, name: 'Recto bain', use: 'both', createdAt: '2026-11-01T10:00:00.000Z', versionId: 31, versions: 1, width: 1240, height: 1748, campaigns: [{ id: 5, name: 'Bain journée', state: 'draft' }], validVouchers: 2, ...over, // date-literal-ok: a payload the mocked server answers; the screen only shows it
 });
 
 export const PRICE = {

@@ -53,7 +53,7 @@ async function linkPaid(linkId) {
     devisModel: quotes,
     paymentLinksModel,
     link: paymentLinksModel.findById(linkId),
-    paidPayment: { paid: true, paymentId: `pay-${linkId}`, paidAt: '2026-11-15T10:30:00Z' },
+    paidPayment: { paid: true, paymentId: `pay-${linkId}`, paidAt: '2026-11-15T10:30:00Z' }, // date-literal-ok: the suite runs on its own clock, never the real today
     sendConfirmation: async (id) => confirmations.push(id),
     emitPluginEvent: () => {},
     notifyPaidAfterCancel: async () => {},
@@ -65,7 +65,7 @@ const settlementLines = (stayId, bucket) => settlementsModel.listForTarget(stayI
 
 test.beforeEach(() => {
   goLive();
-  setClock('2026-11-15T10:00:00Z');
+  setClock('2026-11-15T10:00:00Z'); // date-literal-ok: the suite runs on its own clock, never the real today
   confirmations.length = 0;
 });
 
@@ -109,10 +109,10 @@ test('rule 36 — a mistyped code is refused before any lookup and not counted; 
   const unknown = hold(quote.id, codes.generate(), 5000);
   assert.deepEqual([unknown.status, unknown.code], [404, 'VOUCHER_UNKNOWN']);
   assert.equal(api.checks.failedSince(60 * 60 * 1000, null), 1, 'a well-formed unknown code counts');
-  db.prepare('UPDATE gift_vouchers SET expiresOn = ? WHERE id = ?').run('2026-11-01', voucherId);
+  db.prepare('UPDATE gift_vouchers SET expiresOn = ? WHERE id = ?').run('2026-11-01', voucherId); // date-literal-ok: the suite runs on its own clock, never the real today
   const expired = hold(quote.id, code, 5000);
   assert.deepEqual([expired.status, expired.code], [409, 'VOUCHER_EXPIRED']);
-  db.prepare('UPDATE gift_vouchers SET expiresOn = ? WHERE id = ?').run('2028-11-01', voucherId);
+  db.prepare('UPDATE gift_vouchers SET expiresOn = ? WHERE id = ?').run('2028-11-01', voucherId); // date-literal-ok: the suite runs on its own clock, never the real today
   assert.equal(hold(quote.id, code, 5000).ok, true);
   const other = seedQuote();
   assert.equal(hold(other.id, code, 5000).code, 'VOUCHER_EXHAUSTED');
@@ -133,7 +133,7 @@ test('rule 38 — 50 € on an 80,40 € acompte: the card link is minted for 30
   assert.equal(out.effect, 'converted');
   assert.equal(out.amountMismatch, undefined, 'a link minted for the amount due minus the voucher never trips the amount guard');
   const stay = reservations(out.reservationId);
-  assert.deepEqual([stay.depositPaid, stay.depositPaidDate], [1, '2026-11-15']);
+  assert.deepEqual([stay.depositPaid, stay.depositPaidDate], [1, '2026-11-15']); // date-literal-ok: the suite runs on its own clock, never the real today
   assert.equal(Number(stay.balancePaid), 0, 'the solde is unchanged');
 
   assert.deepEqual(settlementLines(stay.id, 'deposit'), [['prepaid', 5000, 'Bon cadeau'], ['card', 3040, null]]);
@@ -154,11 +154,11 @@ test('rule 39 — « Bon cadeau » is its own line in the fiche’s payments, da
   hold(quote.id, code, 26800);
   await pay(quote);
   const out = await linkPaid(paymentLinksModel.findOpenForReservation(quote.id, 'deposit').id);
-  const ledger = buildLedger({ row: reservations(out.reservationId), links: [], today: '2026-11-15', settlements: settlementsModel.listFor(out.reservationId) });
+  const ledger = buildLedger({ row: reservations(out.reservationId), links: [], today: '2026-11-15', settlements: settlementsModel.listFor(out.reservationId) }); // date-literal-ok: the suite runs on its own clock, never the real today
   const deposit = ledger.rows.find((r) => r.key === 'deposit');
   assert.deepEqual(deposit.split.settlements[0].lines.map((l) => l.label.replace(/\s/g, ' ')), ['Bon cadeau 50,00 €', 'CB 30,40 €']);
   assert.equal(deposit.split.settlements[0].edit, null, 'the voucher is undone by the plugin, never by the split form');
-  assert.equal(deposit.split.settlements[0].paidDate, '2026-11-15');
+  assert.equal(deposit.split.settlements[0].paidDate, '2026-11-15'); // date-literal-ok: the suite runs on its own clock, never the real today
 });
 
 test('rule 38 — a full-mode property: the link asks the whole pre-arrival amount less the voucher, and both buckets get their line', async () => {
@@ -223,10 +223,10 @@ test('rule 37 — the hold goes back when the quote is deleted, purged, or lapse
 
   const lapsing = seedQuote();
   hold(lapsing.id, code, 5000);
-  setClock('2026-11-16T10:00:00Z');
+  setClock('2026-11-16T10:00:00Z'); // date-literal-ok: the suite runs on its own clock, never the real today
   api.releaseLapsedHolds();
   assert.equal(balanceOf(voucherId), 15000, 'a day is not enough: a link paid late still finds its hold');
-  setClock('2026-11-19T10:00:00Z');
+  setClock('2026-11-19T10:00:00Z'); // date-literal-ok: the suite runs on its own clock, never the real today
   api.releaseLapsedHolds();
   assert.equal(balanceOf(voucherId), 20000, 'lapsed unpaid: released');
   assert.deepEqual(movementsOf(voucherId).map(([kind]) => kind), ['issue', 'hold', 'release', 'hold', 'release', 'hold', 'release']);
@@ -234,7 +234,7 @@ test('rule 37 — the hold goes back when the quote is deleted, purged, or lapse
   const paid = seedQuote({ deposit: 50, balance: 0 });
   hold(paid.id, code, 5000);
   await pay(paid);
-  setClock('2026-11-30T10:00:00Z');
+  setClock('2026-11-30T10:00:00Z'); // date-literal-ok: the suite runs on its own clock, never the real today
   api.releaseLapsedHolds();
   assert.equal(balanceOf(voucherId), 15000, 'a quote that became a stay is never released');
 });
@@ -272,7 +272,7 @@ const call = (handler, params, body = {}) => {
   return res;
 };
 
-function openStay({ deposit = 50, balance = 200, start = '2027-07-10', end = '2027-07-14' } = {}) {
+function openStay({ deposit = 50, balance = 200, start = '2027-07-10', end = '2027-07-14' } = {}) { // date-literal-ok: the suite runs on its own clock, never the real today
   return Number(db.prepare(`INSERT INTO reservations (kind, propertyId, clientId, startDate, endDate, adults, finalPrice, depositAmount, balanceAmount)
     VALUES ('reservation', 1, 1, ?, ?, 2, ?, ?, ?)`).run(start, end, deposit + balance, deposit, balance).lastInsertRowid);
 }
@@ -310,14 +310,14 @@ test('rule 40 — a typed code is judged on the fiche like anywhere: mistyped, u
   assert.equal(call(api.stays.pay, { reservationId }, { code: codes.generate(), amountCents: 1000 }).body.error, 'VOUCHER_UNKNOWN');
   assert.equal(call(api.stays.pay, { reservationId }, { code, amountCents: 5001 }).body.error, 'AMOUNT_ABOVE_BALANCE');
   assert.equal(call(api.stays.pay, { reservationId }, { code, amountCents: 0 }).body.error, 'AMOUNT_INVALID');
-  db.prepare('UPDATE gift_vouchers SET expiresOn = ? WHERE id = ?').run('2026-11-01', voucherId);
+  db.prepare('UPDATE gift_vouchers SET expiresOn = ? WHERE id = ?').run('2026-11-01', voucherId); // date-literal-ok: the suite runs on its own clock, never the real today
   assert.equal(call(api.stays.pay, { reservationId }, { code, amountCents: 1000 }).body.error, 'VOUCHER_EXPIRED');
 });
 
 test('rule 40 — undoing a fiche payment writes a refund and removes the received amount', () => {
   const { voucherId, code } = issueVoucher(10000);
   seedQuote();
-  const stayId = openStay({ deposit: 0, balance: 100, start: '2027-08-10', end: '2027-08-14' });
+  const stayId = openStay({ deposit: 0, balance: 100, start: '2027-08-10', end: '2027-08-14' }); // date-literal-ok: the suite runs on its own clock, never the real today
   const paid = call(api.stays.pay, { reservationId: String(stayId) }, { code, amountCents: 4000 });
   assert.equal(paid.code, 200, JSON.stringify(paid.body));
   assert.equal(Number(reservations(stayId).balancePaid), 1);
@@ -364,10 +364,10 @@ test('rule 40 — an indemnity above the card payments is taken from the voucher
 test('rule 41 — expiry stops new uses only: a refund on an expired voucher re-credits it and extends it by 3 months from that day', () => {
   const { voucherId } = issueVoucher(10000);
   api.movements.append({ voucherId, kind: 'redeem', amountCents: -4000, actor: 'user:1', reservationId: 5, idempotencyKey: 'redeem:expiry' });
-  db.prepare('UPDATE gift_vouchers SET expiresOn = ? WHERE id = ?').run('2026-11-01', voucherId);
+  db.prepare('UPDATE gift_vouchers SET expiresOn = ? WHERE id = ?').run('2026-11-01', voucherId); // date-literal-ok: the suite runs on its own clock, never the real today
   api.redemption.refund({ voucherId, amountCents: 4000, actor: 'user:1', reservationId: 5, idempotencyKey: 'refund:expiry', note: null });
   assert.equal(balanceOf(voucherId), 10000, 'the redeemed amount came back');
-  assert.equal(api.vouchers.find(voucherId).expiresOn, '2027-02-15', '3 months from 15/11/2026');
+  assert.equal(api.vouchers.find(voucherId).expiresOn, '2027-02-15', '3 months from 15/11/2026'); // date-literal-ok: the suite runs on its own clock, never the real today
   assert.deepEqual(movementsOf(voucherId).map(([kind]) => kind), ['issue', 'redeem', 'refund', 'extend']);
 
   const { voucherId: valid } = issueVoucher(10000);
@@ -381,7 +381,7 @@ test('rule 41 — a voucher that expires while held is not taken back: the conve
   const { voucherId, code } = issueVoucher(5000);
   const quote = seedQuote({ deposit: 50, balance: 0 });
   hold(quote.id, code, 5000);
-  db.prepare('UPDATE gift_vouchers SET expiresOn = ? WHERE id = ?').run('2026-11-14', voucherId);
+  db.prepare('UPDATE gift_vouchers SET expiresOn = ? WHERE id = ?').run('2026-11-14', voucherId); // date-literal-ok: the suite runs on its own clock, never the real today
   const answered = await pay(quote);
   assert.equal(answered.body.data.confirmed, true);
   assert.equal(balanceOf(voucherId), 0);
@@ -407,7 +407,7 @@ test('rule 42 — the voucher’s money is counted once: never expected at the b
     links: paymentLinksModel.listForReservation(quote.id),
     settlements: settlementsModel.listFor(out.reservationId),
     settlementFigures,
-    today: '2026-11-15',
+    today: '2026-11-15', // date-literal-ok: the suite runs on its own clock, never the real today
   });
   assert.deepEqual(receipts.filter((r) => r.ledgerKey.startsWith('settlement-')).map((r) => r.expectedCents), [3040]);
 });

@@ -136,7 +136,7 @@ test('rule 34: a known code answers its balance and expiry; a cancelled one answ
   const typed = code.format(plain).toLowerCase();
   const ok = await check(typed);
   assert.equal(ok.status, 200);
-  assert.deepEqual(ok.body.data, { usable: true, kind: 'lodging', balanceCents: 20000, expiresOn: '2028-05-15' });
+  assert.deepEqual(ok.body.data, { usable: true, kind: 'lodging', balanceCents: 20000, expiresOn: '2028-05-15' }); // date-literal-ok: the suite runs on its own clock, never the real today
   assert.equal(ok.headers.get('cache-control'), 'no-store');
   await server.call('POST', `/api/gift-vouchers/${voucher.id}/cancel`, {});
   const gone = await check(plain);
@@ -156,8 +156,8 @@ test('rule 34: an expired voucher says « expiré le … », an exhausted one sa
     voucherId: b.id, kind: 'redeem', amountCents: -15000, actor: 'system', idempotencyKey: 'all',
   });
   assert.deepEqual((await check(codeB)).body.data, { usable: false, reason: 'exhausted' });
-  clock.at = new Date('2028-05-16T10:00:00Z');
-  assert.deepEqual((await check(codeA)).body.data, { usable: false, reason: 'expired', expiresOn: '2028-05-15' });
+  clock.at = new Date('2028-05-16T10:00:00Z'); // date-literal-ok: the suite runs on its own clock, never the real today
+  assert.deepEqual((await check(codeA)).body.data, { usable: false, reason: 'expired', expiresOn: '2028-05-15' }); // date-literal-ok: the suite runs on its own clock, never the real today
   assert.equal(failedRows(db), 0);
 }));
 

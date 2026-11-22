@@ -42,8 +42,8 @@ function oldDatabase() {
   db.exec('CREATE INDEX idx_payment_tenders_settlement ON payment_tenders(settlementId)');
   db.prepare("INSERT INTO properties (id, name) VALUES (1, 'Gite')").run();
   db.prepare("INSERT INTO clients (id, firstName, lastName, email) VALUES (1, 'Jean', 'Dupont', 'jean@x.fr')").run();
-  db.prepare("INSERT INTO reservations (id, kind, propertyId, clientId, startDate, endDate, adults, finalPrice, depositAmount, balanceAmount) VALUES (1, 'reservation', 1, 1, '2027-05-10', '2027-05-14', 2, 100, 0, 100)").run();
-  db.prepare("INSERT INTO payment_settlements (id, reservationId, targetKind, targetKey, paidDate, dueCents, parts) VALUES (1, 1, 'bucket', 'balance', '2027-01-02', 10000, '[]')").run();
+  db.prepare("INSERT INTO reservations (id, kind, propertyId, clientId, startDate, endDate, adults, finalPrice, depositAmount, balanceAmount) VALUES (1, 'reservation', 1, 1, '2027-05-10', '2027-05-14', 2, 100, 0, 100)").run(); // date-literal-ok: the suite runs on its own clock, never the real today
+  db.prepare("INSERT INTO payment_settlements (id, reservationId, targetKind, targetKey, paidDate, dueCents, parts) VALUES (1, 1, 'bucket', 'balance', '2027-01-02', 10000, '[]')").run(); // date-literal-ok: the suite runs on its own clock, never the real today
   db.prepare("INSERT INTO payment_tenders (settlementId, position, method, amountCents, internal) VALUES (1, 1, 'cash', 4000, 1), (1, 2, 'holidayVoucher', 6000, 0)").run();
   return db;
 }
@@ -168,7 +168,7 @@ function quoteDatabase({ deposit = 80.4, balance = 187.6 } = {}) {
   db.prepare("INSERT INTO properties (id, name) VALUES (1, 'Gite')").run();
   db.prepare("INSERT INTO clients (id, firstName, lastName, email) VALUES (1, 'Jean', 'Dupont', 'jean@x.fr')").run();
   const id = Number(db.prepare(`INSERT INTO reservations (kind, propertyId, clientId, startDate, endDate, adults, finalPrice, depositAmount, balanceAmount, devisStatus)
-    VALUES ('devis', 1, 1, '2027-05-10', '2027-05-14', 2, ?, ?, ?, 'draft')`).run(deposit + balance, deposit, balance).lastInsertRowid);
+    VALUES ('devis', 1, 1, '2027-05-10', '2027-05-14', 2, ?, ?, ?, 'draft')`).run(deposit + balance, deposit, balance).lastInsertRowid); // date-literal-ok: the suite runs on its own clock, never the real today
   return { db, id };
 }
 
@@ -228,10 +228,10 @@ test('conversion — the source redeems what the stay takes (the rest of the hol
   const { db, id } = quoteDatabase();
   const converted = devisModel.buildModel(db).convertToReservation(id, { allowConflict: true, paidLinkType: 'deposit' });
   const stayId = converted.data.reservationId;
-  db.prepare('UPDATE reservations SET depositPaid = 1, depositPaidDate = ?, balancePaid = 1, balancePaidDate = ? WHERE id = ?').run('2027-01-02', '2027-01-02', stayId);
+  db.prepare('UPDATE reservations SET depositPaid = 1, depositPaidDate = ?, balancePaid = 1, balancePaidDate = ? WHERE id = ?').run('2027-01-02', '2027-01-02', stayId); // date-literal-ok: the suite runs on its own clock, never the real today
   held.set(id, 9000);
   const settled = prepaidReceipts.settleAtConversion({
-    database: db, devisId: id, stayId, linkType: 'deposit', linkCents: 0, paidDate: '2027-01-02',
+    database: db, devisId: id, stayId, linkType: 'deposit', linkCents: 0, paidDate: '2027-01-02', // date-literal-ok: the suite runs on its own clock, never the real today
   });
   assert.equal(settled.usedCents, 9000);
   assert.deepEqual(calls.filter((c) => c[0] === 'settle'), [['settle', id, 9000]]);
@@ -248,7 +248,7 @@ test('the fiche — a prepaid line is recorded on the earliest open bucket, an a
   const converted = devisModel.buildModel(db).convertToReservation(id, { allowConflict: true });
   const stayId = converted.data.reservationId;
   const base = {
-    database: db, stayId, source: 'storedCredit', ref: 11, label: 'Crédit boutique', paidDate: '2027-01-02',
+    database: db, stayId, source: 'storedCredit', ref: 11, label: 'Crédit boutique', paidDate: '2027-01-02', // date-literal-ok: the suite runs on its own clock, never the real today
   };
   assert.equal(prepaidReceipts.owedCentsOn(db, stayId), 25000);
   const short = prepaidReceipts.recordOnStay({ ...base, amountCents: 3000 });
@@ -279,12 +279,12 @@ test('the fiche — a settlement shared with a card line is the booking’s own:
   liveSource();
   const { db, id } = quoteDatabase({ deposit: 50, balance: 0 });
   const stayId = devisModel.buildModel(db).convertToReservation(id, { allowConflict: true }).data.reservationId;
-  db.prepare('UPDATE reservations SET depositPaid = 1, depositPaidDate = ? WHERE id = ?').run('2027-01-02', stayId);
+  db.prepare('UPDATE reservations SET depositPaid = 1, depositPaidDate = ? WHERE id = ?').run('2027-01-02', stayId); // date-literal-ok: the suite runs on its own clock, never the real today
   settlementModelOf(db).insert({
     reservationId: stayId,
     targetKind: 'bucket',
     targetKey: 'deposit',
-    paidDate: '2027-01-02',
+    paidDate: '2027-01-02', // date-literal-ok: the suite runs on its own clock, never the real today
     dueCents: 5000,
     parts: [{ kind: 'deposit', key: 'deposit', amountCents: 5000 }],
     lines: [
@@ -321,10 +321,10 @@ test('refund register — a cancelled stay paid by a prepaid line and a card off
   db.prepare("INSERT INTO properties (id, name) VALUES (1, 'Gite')").run();
   db.prepare("INSERT INTO clients (id, firstName, lastName) VALUES (1, 'Jean', 'Dupont')").run();
   db.prepare(`INSERT INTO reservations (id, kind, propertyId, clientId, startDate, endDate, platform, finalPrice, totalPrice, depositAmount, depositPaid, depositPaidDate, balanceAmount, balancePaid, balancePaidDate)
-    VALUES (10, 'cancelled', 1, 1, '2027-05-10', '2027-05-14', 'direct', 268, 268, 100, 1, '2027-01-02', 168, 1, '2027-01-02')`).run();
+    VALUES (10, 'cancelled', 1, 1, '2027-05-10', '2027-05-14', 'direct', 268, 268, 100, 1, '2027-01-02', 168, 1, '2027-01-02')`).run(); // date-literal-ok: the suite runs on its own clock, never the real today
   const settlements = settlementModelOf(db);
   settlements.insert({
-    reservationId: 10, targetKind: 'bucket', targetKey: 'deposit', paidDate: '2027-01-02', dueCents: 10000, parts: [{ kind: 'deposit', amountCents: 10000 }],
+    reservationId: 10, targetKind: 'bucket', targetKey: 'deposit', paidDate: '2027-01-02', dueCents: 10000, parts: [{ kind: 'deposit', amountCents: 10000 }], // date-literal-ok: the suite runs on its own clock, never the real today
     lines: [{ method: 'prepaid', amountCents: 10000, source: 'storedCredit', ref: '1', label: 'Crédit' }],
   });
   const register = () => createRefundsController({

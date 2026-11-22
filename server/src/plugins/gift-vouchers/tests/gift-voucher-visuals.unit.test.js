@@ -145,7 +145,7 @@ test('rule 48: a version file is kept while a valid voucher carries it, and purg
   api.campaigns.update(lodging.id, { ...lodging, voucherVisualId: null });
   await server.call('DELETE', `${ROUTE}/${visual.id}`);
   assert.equal(api.purgeVisuals(), 0, 'the deleted visual’s file stays while a valid voucher could still carry it');
-  clock.at = new Date('2028-06-01T10:00:00Z');
+  clock.at = new Date('2028-06-01T10:00:00Z'); // date-literal-ok: the suite runs on its own clock, never the real today
   assert.equal(api.purgeVisuals(), 1, 'an expired voucher needs nothing either');
   assert.equal(onDisk(current), false);
   assert.ok(w.id);

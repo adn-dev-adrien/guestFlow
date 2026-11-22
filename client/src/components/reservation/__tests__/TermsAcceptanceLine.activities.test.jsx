@@ -21,7 +21,7 @@ const block = {
     label: 'Bain nordique et activités',
     channelLabel: 'appli séjour',
     version: 2,
-    acceptedAt: '2026-11-18T09:00:00.000Z',
+    acceptedAt: '2026-11-18T09:00:00.000Z', // date-literal-ok: a payload the mocked server answers; the screen only shows it
     acceptedAtLabel: '18/11/2026 à 10:00:00',
     versionPublishedAtLabel: '15/11/2026',
     shortHash: '0123456789ab',

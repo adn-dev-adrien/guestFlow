@@ -118,10 +118,10 @@ function legacyDb() {
   db.exec(`CREATE TABLE terms_acceptances (
     id INTEGER PRIMARY KEY AUTOINCREMENT, reservationId INTEGER, termsVersionId INTEGER NOT NULL, acceptedAt TEXT NOT NULL, ip TEXT, userAgent TEXT, pluginVersion TEXT,
     activity TEXT NOT NULL DEFAULT 'lodging', subjectType TEXT NOT NULL DEFAULT 'reservation', subjectRef TEXT, channel TEXT NOT NULL DEFAULT 'site')`);
-  const order = db.prepare("INSERT INTO gift_voucher_orders (amountCents, source, state, createdAt, termsVersionId, termsAcceptedAt) VALUES (5000, 'site', 'issued', '2026-11-01T10:00:00Z', ?, ?)");
-  order.run(3, '2026-11-01T10:00:00.000Z');
+  const order = db.prepare("INSERT INTO gift_voucher_orders (amountCents, source, state, createdAt, termsVersionId, termsAcceptedAt) VALUES (5000, 'site', 'issued', '2026-11-01T10:00:00Z', ?, ?)"); // date-literal-ok: the suite runs on its own clock, never the real today
+  order.run(3, '2026-11-01T10:00:00.000Z'); // date-literal-ok: the suite runs on its own clock, never the real today
   order.run(null, null);
-  order.run(4, '2026-11-02T10:00:00.000Z');
+  order.run(4, '2026-11-02T10:00:00.000Z'); // date-literal-ok: the suite runs on its own clock, never the real today
   return db;
 }
 
@@ -132,10 +132,10 @@ test('migration: the acceptances an order recorded move into the core’s record
   const moved = () => db.prepare('SELECT termsVersionId, acceptedAt, activity, subjectType, subjectRef, channel, reservationId FROM terms_acceptances ORDER BY id').all();
   assert.deepEqual(moved(), [
     {
-      termsVersionId: 3, acceptedAt: '2026-11-01T10:00:00.000Z', activity: 'lodging', subjectType: 'voucherOrder', subjectRef: '1', channel: 'site', reservationId: null,
+      termsVersionId: 3, acceptedAt: '2026-11-01T10:00:00.000Z', activity: 'lodging', subjectType: 'voucherOrder', subjectRef: '1', channel: 'site', reservationId: null, // date-literal-ok: the suite runs on its own clock, never the real today
     },
     {
-      termsVersionId: 4, acceptedAt: '2026-11-02T10:00:00.000Z', activity: 'lodging', subjectType: 'voucherOrder', subjectRef: '3', channel: 'site', reservationId: null,
+      termsVersionId: 4, acceptedAt: '2026-11-02T10:00:00.000Z', activity: 'lodging', subjectType: 'voucherOrder', subjectRef: '3', channel: 'site', reservationId: null, // date-literal-ok: the suite runs on its own clock, never the real today
     },
   ]);
   assert.equal(db.prepare('SELECT termsVersionId FROM gift_voucher_orders WHERE id = 1').get().termsVersionId, 3, 'the columns stay');
@@ -146,6 +146,6 @@ test('migration: the acceptances an order recorded move into the core’s record
 test('migration: a host with no record of acceptances has nothing to carry over', () => {
   const db = new Database(':memory:');
   MIGRATIONS.slice(0, 3).forEach((m) => m.up(db));
-  db.prepare("INSERT INTO gift_voucher_orders (amountCents, source, createdAt, termsVersionId, termsAcceptedAt) VALUES (5000, 'site', '2026-11-01T10:00:00Z', 3, '2026-11-01T10:00:00.000Z')").run();
+  db.prepare("INSERT INTO gift_voucher_orders (amountCents, source, createdAt, termsVersionId, termsAcceptedAt) VALUES (5000, 'site', '2026-11-01T10:00:00Z', 3, '2026-11-01T10:00:00.000Z')").run(); // date-literal-ok: the suite runs on its own clock, never the real today
   assert.doesNotThrow(() => MIGRATIONS.find((m) => m.name === 'gift_voucher_visuals_v1').up(db));
 });

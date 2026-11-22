@@ -305,7 +305,7 @@ test('rules 48, 49: « Télécharger » and « Renvoyer le mail » go to a vouch
     const cancelled = sell();
     await call('POST', `${cancelled.id}/cancel`, {});
     const expired = sell();
-    api.vouchers.setExpiry(expired.id, '2026-11-14');
+    api.vouchers.setExpiry(expired.id, '2026-11-14'); // date-literal-ok: the suite runs on its own clock, never the real today
     for (const [label, v] of [['used', used], ['cancelled', cancelled], ['expired', expired]]) {
       const pdf = await call('GET', `${v.id}/pdf`);
       const resend = await call('POST', `${v.id}/resend`, {});

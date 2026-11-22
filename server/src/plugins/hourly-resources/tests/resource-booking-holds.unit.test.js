@@ -26,11 +26,11 @@ test('the offer is reached through the core: the plugin declares it, the job tha
 
 test('free slots: a 2 h session from each hour of the opening window, the last one ending by closing time, past days and the horizon left out', () => {
   assert.deepEqual(slotsOf(), ['10:00', '11:00', '12:00', '13:00', '14:00', '15:00', '16:00', '17:00', '18:00', '19:00', '20:00']);
-  const answer = fx.offer.freeSlots({ resourceId: bath, from: '2026-11-10', to: '2026-11-17', minutes: 120, now: fx.NOW });
-  assert.deepEqual(answer.days.map((d) => d.date), ['2026-11-15', '2026-11-16', '2026-11-17'], 'nothing before today');
+  const answer = fx.offer.freeSlots({ resourceId: bath, from: '2026-11-10', to: '2026-11-17', minutes: 120, now: fx.NOW }); // date-literal-ok: the suite runs on its own clock, never the real today
+  assert.deepEqual(answer.days.map((d) => d.date), ['2026-11-15', '2026-11-16', '2026-11-17'], 'nothing before today'); // date-literal-ok: the suite runs on its own clock, never the real today
   assert.equal(answer.days[0].slots[0].start, '11:00', 'today: not before now (11:00 in Paris)');
-  assert.equal(answer.horizonUntil, '2027-02-15');
-  const beyond = fx.offer.freeSlots({ resourceId: bath, from: '2027-02-16', to: '2027-03-01', minutes: 120, now: fx.NOW });
+  assert.equal(answer.horizonUntil, '2027-02-15'); // date-literal-ok: the suite runs on its own clock, never the real today
+  const beyond = fx.offer.freeSlots({ resourceId: bath, from: '2027-02-16', to: '2027-03-01', minutes: 120, now: fx.NOW }); // date-literal-ok: the suite runs on its own clock, never the real today
   assert.deepEqual(beyond.days, []);
 });
 
@@ -116,7 +116,7 @@ test('a hold on a resource that is not sold by the hour, or on a past slot, is r
     resourceId: flat, date: fx.DAY, start: '10:00', end: '12:00', ref: 'flat:1', now: fx.NOW,
   }).code, 'RESOURCE_UNAVAILABLE');
   assert.equal(fx.offer.hold({
-    resourceId: bath, date: '2026-11-10', start: '10:00', end: '12:00', ref: 'past:1', now: fx.NOW,
+    resourceId: bath, date: '2026-11-10', start: '10:00', end: '12:00', ref: 'past:1', now: fx.NOW, // date-literal-ok: the suite runs on its own clock, never the real today
   }).ok, false);
 });
 

@@ -20,9 +20,9 @@ function legacy(settings = null) {
     Object.entries(settings).forEach(([key, value]) => db.prepare("INSERT INTO plugin_settings (plugin_id, key, value) VALUES ('gift-vouchers', ?, ?)").run(key, value));
     db.prepare("INSERT INTO plugin_settings (plugin_id, key, value) VALUES ('another-plugin', 'minAmountCents', '1')").run();
   }
-  db.prepare("INSERT INTO gift_voucher_orders (amountCents, source, state, createdAt) VALUES (5000, 'manual', 'issued', '2026-11-01T10:00:00Z')").run();
-  db.prepare("INSERT INTO gift_voucher_orders (amountCents, source, state, createdAt) VALUES (9000, 'site', 'pending', '2026-11-02T10:00:00Z')").run();
-  db.prepare("INSERT INTO gift_vouchers (orderId, number, codeHash, codeEncrypted, amountCents, issuedAt, expiresOn) VALUES (1, 'BC-2026-0001', 'h1', 'e1', 5000, '2026-11-01T10:00:00Z', '2028-05-01')").run();
+  db.prepare("INSERT INTO gift_voucher_orders (amountCents, source, state, createdAt) VALUES (5000, 'manual', 'issued', '2026-11-01T10:00:00Z')").run(); // date-literal-ok: the suite runs on its own clock, never the real today
+  db.prepare("INSERT INTO gift_voucher_orders (amountCents, source, state, createdAt) VALUES (9000, 'site', 'pending', '2026-11-02T10:00:00Z')").run(); // date-literal-ok: the suite runs on its own clock, never the real today
+  db.prepare("INSERT INTO gift_vouchers (orderId, number, codeHash, codeEncrypted, amountCents, issuedAt, expiresOn) VALUES (1, 'BC-2026-0001', 'h1', 'e1', 5000, '2026-11-01T10:00:00Z', '2028-05-01')").run(); // date-literal-ok: the suite runs on its own clock, never the real today
   return db;
 }
 
@@ -103,7 +103,7 @@ test('a voucher or an order written after the migration without a campaign reads
   const db = new Database(':memory:');
   MIGRATIONS.forEach((m) => m.up(db));
   assert.equal(createCampaignsModel(db).list().length, 1);
-  db.prepare("INSERT INTO gift_voucher_orders (amountCents, source, createdAt) VALUES (5000, 'manual', '2026-11-03T10:00:00Z')").run();
+  db.prepare("INSERT INTO gift_voucher_orders (amountCents, source, createdAt) VALUES (5000, 'manual', '2026-11-03T10:00:00Z')").run(); // date-literal-ok: the suite runs on its own clock, never the real today
   assert.equal(db.prepare('SELECT contents FROM gift_voucher_orders').get().contents, '{"kind":"lodging"}');
   assert.deepEqual(MIGRATIONS.slice(-3).map((m) => m.name), ['gift_voucher_campaigns_v1', 'gift_voucher_visuals_v1', 'gift_voucher_uses_v1']);
 });

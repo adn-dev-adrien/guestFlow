@@ -12,12 +12,12 @@ import {
 
 vi.mock('../giftVouchersApi', () => ({
   default: {
-    getOffer: vi.fn(), listVisuals: vi.fn(), catalogue: vi.fn(), offerPrice: vi.fn(), create: vi.fn(), visualImageUrl: vi.fn(() => '/img'),
+    getOffer: vi.fn(), listVisuals: vi.fn(), catalogue: vi.fn(), offerPrice: vi.fn(), previewPrice: vi.fn(), create: vi.fn(), visualImageUrl: vi.fn(() => '/img'),
   },
 }));
 vi.mock('../../../api', async (importOriginal) => {
   const mod = await importOriginal();
-  return { ...mod, default: { ...mod.default, getToday: vi.fn().mockResolvedValue({ today: '2026-11-15' }) } };
+  return { ...mod, default: { ...mod.default, getToday: vi.fn().mockResolvedValue({ today: '2026-11-15' }) } }; // date-literal-ok: a payload the mocked server answers; the screen only shows it
 });
 
 const open = () => renderWithShell(<NewVoucherPage />, { route: '/bons-cadeaux/nouveau', path: '/bons-cadeaux/nouveau' });
@@ -30,6 +30,7 @@ beforeEach(() => {
   giftVouchersApi.listVisuals.mockResolvedValue({ items: [visual()] });
   giftVouchersApi.catalogue.mockResolvedValue({ elements: CATALOGUE });
   giftVouchersApi.offerPrice.mockResolvedValue(PRICE);
+  giftVouchersApi.previewPrice.mockResolvedValue(PRICE);
   giftVouchersApi.create.mockResolvedValue({ id: 42 });
 });
 
@@ -157,9 +158,10 @@ describe('« Sur mesure »', () => {
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
   }
 
-  test('opens the composition editor inline; the recap is asked for the composition, and the voucher is created as a one-shot', async () => {
+  test('opens the composition editor inline; the recap is asked for the composition only, and the voucher is created as a one-shot', async () => {
     await composeCustom();
-    await waitFor(() => expect(lastPrice()).toMatchObject({ composition: { resourceId: 1, band: 'day', minutes: 60, options: [] }, validityMonths: '12' }));
+    // The price draft is the composition: the validity, the visual and the recipient's add-ons never ask the server again.
+    await waitFor(() => expect(giftVouchersApi.previewPrice).toHaveBeenLastCalledWith({ composition: { resourceId: 1, band: 'day', minutes: 60, options: [] } }, expect.anything()));
     await userEvent.click(screen.getByRole('button', { name: 'Créer le bon' }));
     await waitFor(() => expect(giftVouchersApi.create).toHaveBeenCalledWith(expect.objectContaining({
       composition: { resourceId: 1, band: 'day', minutes: 60, options: [] }, validityMonths: '12', outcome: 'paid', paymentMethod: 'card',
@@ -167,7 +169,7 @@ describe('« Sur mesure »', () => {
   });
 
   test('the server’s refusal of the composition is shown on its field', async () => {
-    giftVouchersApi.offerPrice.mockRejectedValue(refusal('Durée incluse : 30 min ne convient pas.', 'COMPOSITION_INVALID', { errors: [{ field: 'composition.minutes', message: 'Durée incluse : 30 min ne convient pas.' }] }));
+    giftVouchersApi.previewPrice.mockRejectedValue(refusal('Durée incluse : 30 min ne convient pas.', 'COMPOSITION_INVALID', { errors: [{ field: 'composition.minutes', message: 'Durée incluse : 30 min ne convient pas.' }] }));
     await composeCustom();
     expect(await screen.findByText('Durée incluse : 30 min ne convient pas.')).toBeInTheDocument();
   });

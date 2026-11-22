@@ -61,7 +61,7 @@ function seedCatalogue() {
 function openShop(over = {}) {
   liveHourlyResources();
   applyPluginSchema(db, 'gift-vouchers');
-  const clock = { at: new Date('2026-11-15T10:00:00Z') };
+  const clock = { at: new Date('2026-11-15T10:00:00Z') }; // date-literal-ok: the suite runs on its own clock, never the real today
   const sent = [];
   const links = [];
   const state = { providerDown: false };

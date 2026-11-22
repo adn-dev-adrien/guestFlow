@@ -14,7 +14,7 @@ vi.mock('../giftVouchersApi', () => ({
 }));
 vi.mock('../../../api', async (importOriginal) => {
   const mod = await importOriginal();
-  return { ...mod, default: { ...mod.default, getToday: vi.fn().mockResolvedValue({ today: '2026-11-15' }) } };
+  return { ...mod, default: { ...mod.default, getToday: vi.fn().mockResolvedValue({ today: '2026-11-15' }) } }; // date-literal-ok: a payload the mocked server answers; the screen only shows it
 });
 
 beforeEach(() => { vi.clearAllMocks(); });
@@ -107,10 +107,10 @@ test('the movements render the server label, day and author; a zero-amount movem
   const voucher = detail({
     movements: [
       {
-        id: 1, kind: 'issue', label: 'Émission', amountCents: 15000, date: '2026-11-10', actorName: 'Adrien', reservationId: null, note: null,
+        id: 1, kind: 'issue', label: 'Émission', amountCents: 15000, date: '2026-11-10', actorName: 'Adrien', reservationId: null, note: null, // date-literal-ok: a payload the mocked server answers; the screen only shows it
       },
       {
-        id: 2, kind: 'reveal', label: 'Code affiché', amountCents: 0, date: '2026-11-11', actorName: 'Site', reservationId: null, note: null,
+        id: 2, kind: 'reveal', label: 'Code affiché', amountCents: 0, date: '2026-11-11', actorName: 'Site', reservationId: null, note: null, // date-literal-ok: a payload the mocked server answers; the screen only shows it
       },
     ],
   });

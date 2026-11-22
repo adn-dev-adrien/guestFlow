@@ -25,18 +25,18 @@ test('rule 24: a voucher sold by hand is issued at once — amount, names, messa
   });
   assert.equal(created.status, 201);
   const v = created.body;
-  assert.deepEqual([v.number, v.state, v.amountCents, v.balanceCents, v.expiresOn, v.source, v.paymentMethod], ['BC-2026-0001', 'active', 15000, 15000, '2028-05-15', 'manual', 'cheque']);
+  assert.deepEqual([v.number, v.state, v.amountCents, v.balanceCents, v.expiresOn, v.source, v.paymentMethod], ['BC-2026-0001', 'active', 15000, 15000, '2028-05-15', 'manual', 'cheque']); // date-literal-ok: the suite runs on its own clock, never the real today
   assert.deepEqual([v.recipientName, v.senderName, v.message, v.buyerEmail], ['Marie', 'Paul', 'Joyeux anniversaire', 'paul@example.test']);
-  assert.deepEqual(v.movements.map((m) => [m.kind, m.label, m.amountCents, m.date, m.actorName]), [['issue', 'Émission', 15000, '2026-11-15', 'Adrien Test']]);
+  assert.deepEqual(v.movements.map((m) => [m.kind, m.label, m.amountCents, m.date, m.actorName]), [['issue', 'Émission', 15000, '2026-11-15', 'Adrien Test']]); // date-literal-ok: the suite runs on its own clock, never the real today
   assert.equal(Object.keys(v.movements[0]).sort().join(), 'actorName,amountCents,date,id,kind,label,note,reservationId');
 }));
 
 test('rule 24: the date of a sale outside the site sets the expiry; a date in the future is refused', () => withAdmin(async ({ server }) => {
-  const past = await server.call('POST', '/api/gift-vouchers', { amountCents: 5000, paymentMethod: 'cash', date: '2026-01-31' });
+  const past = await server.call('POST', '/api/gift-vouchers', { amountCents: 5000, paymentMethod: 'cash', date: '2026-01-31' }); // date-literal-ok: the suite runs on its own clock, never the real today
   assert.equal(past.status, 201);
-  assert.equal(past.body.expiresOn, '2027-07-31');
-  assert.equal(past.body.issuedAt.slice(0, 10), '2026-01-31');
-  const future = await server.call('POST', '/api/gift-vouchers', { amountCents: 5000, paymentMethod: 'cash', date: '2026-11-16' });
+  assert.equal(past.body.expiresOn, '2027-07-31'); // date-literal-ok: the suite runs on its own clock, never the real today
+  assert.equal(past.body.issuedAt.slice(0, 10), '2026-01-31'); // date-literal-ok: the suite runs on its own clock, never the real today
+  const future = await server.call('POST', '/api/gift-vouchers', { amountCents: 5000, paymentMethod: 'cash', date: '2026-11-16' }); // date-literal-ok: the suite runs on its own clock, never the real today
   assert.deepEqual([future.status, future.body.code], [400, 'DATE_IN_FUTURE']);
   assert.equal((await server.call('POST', '/api/gift-vouchers', { amountCents: 5000, paymentMethod: 'cash', date: '2026-02-30' })).body.code, 'DATE_INVALID');
 }));
@@ -128,17 +128,17 @@ test('rule 26: « Afficher le code » decrypts it, answers it grouped, and write
 
 test('rule 25: extend moves the expiry to a future date, writes a movement, and revives an expired voucher', () => withAdmin(async ({ server, clock, api }) => {
   const v = await fx.issueManual(server);
-  const refused = await server.call('POST', url(v.id, '/extend'), { expiresOn: '2026-11-15' });
+  const refused = await server.call('POST', url(v.id, '/extend'), { expiresOn: '2026-11-15' }); // date-literal-ok: the suite runs on its own clock, never the real today
   assert.deepEqual([refused.status, refused.body.code], [400, 'DATE_NOT_IN_FUTURE']);
   assert.equal((await server.call('POST', url(v.id, '/extend'), { expiresOn: 'demain' })).body.code, 'DATE_INVALID');
   assert.equal((await server.call('POST', url(v.id, '/extend'), {})).body.code, 'DATE_INVALID');
-  clock.at = new Date('2028-06-01T10:00:00Z');
+  clock.at = new Date('2028-06-01T10:00:00Z'); // date-literal-ok: the suite runs on its own clock, never the real today
   assert.equal((await server.call('GET', url(v.id))).body.state, 'expired');
-  const extended = await server.call('POST', url(v.id, '/extend'), { expiresOn: '2028-12-31' });
+  const extended = await server.call('POST', url(v.id, '/extend'), { expiresOn: '2028-12-31' }); // date-literal-ok: the suite runs on its own clock, never the real today
   assert.equal(extended.status, 200);
-  assert.deepEqual([extended.body.state, extended.body.expiresOn], ['active', '2028-12-31']);
+  assert.deepEqual([extended.body.state, extended.body.expiresOn], ['active', '2028-12-31']); // date-literal-ok: the suite runs on its own clock, never the real today
   const row = api.movements.list(v.id).find((m) => m.kind === 'extend');
-  assert.deepEqual([row.amountCents, row.actor, row.note], [0, 'user:7', '2028-05-15 → 2028-12-31']);
+  assert.deepEqual([row.amountCents, row.actor, row.note], [0, 'user:7', '2028-05-15 → 2028-12-31']); // date-literal-ok: the suite runs on its own clock, never the real today
 }));
 
 test('rule 27: cancel sets the state, writes a cancel movement of minus the balance, and cannot be done twice', () => withAdmin(async ({ server, api }) => {
@@ -187,12 +187,12 @@ test('rule 28: adjust needs a reason, writes a signed movement, and never takes 
 test('rule 25: nothing is done to a cancelled voucher', () => withAdmin(async ({ server }) => {
   const v = await fx.issueManual(server);
   await server.call('POST', url(v.id, '/cancel'), {});
-  for (const [action, body] of [['extend', { expiresOn: '2030-01-01' }], ['adjust', { amountCents: -1, reason: 'x' }], ['resend', {}]]) {
+  for (const [action, body] of [['extend', { expiresOn: '2030-01-01' }], ['adjust', { amountCents: -1, reason: 'x' }], ['resend', {}]]) { // date-literal-ok: the suite runs on its own clock, never the real today
     assert.equal((await server.call('POST', url(v.id, `/${action}`), body)).body.code, 'VOUCHER_CANCELLED', action);
   }
 }));
 
-test('rule 25, rules 20 and 49 of the campaigns spec: « Renvoyer le mail » sends the voucher with its code, the recap and the PDF attached, and records it', () => withAdmin(async ({ server, sent, api }) => {
+test('specs/gift-vouchers.md rule 25, specs/gift-voucher-campaigns.md rules 20 and 49: « Renvoyer le mail » sends the voucher with its code, the recap and the PDF attached, and records it', () => withAdmin(async ({ server, sent, api }) => {
   const v = await fx.issueManual(server, { amountCents: 15000, email: 'paul@example.test', senderName: 'Paul <b>' });
   const plain = await fx.revealedCode(server, v.id);
   const res = await server.call('POST', url(v.id, '/resend'), {});
@@ -297,8 +297,8 @@ test('rule 10: a voucher partly used reads « started » — in the list, its fi
 
 test('§4.3: the movements come shaped — French label, Paris day, author name, no raw actor', () => withAdmin(async ({ server, api, clock }) => {
   const v = await fx.issueManual(server, { amountCents: 10000 });
-  clock.at = new Date('2026-11-15T23:30:00Z');
-  await server.call('POST', url(v.id, '/extend'), { expiresOn: '2029-01-15' });
+  clock.at = new Date('2026-11-15T23:30:00Z'); // date-literal-ok: the suite runs on its own clock, never the real today
+  await server.call('POST', url(v.id, '/extend'), { expiresOn: '2029-01-15' }); // date-literal-ok: the suite runs on its own clock, never the real today
   await server.call('POST', url(v.id, '/reveal'), {});
   await server.call('POST', url(v.id, '/adjust'), { amountCents: -1000, reason: 'Erreur' });
   api.movements.append({
@@ -309,12 +309,12 @@ test('§4.3: the movements come shaped — French label, Paris day, author name,
   });
   const { movements } = (await server.call('GET', url(v.id))).body;
   assert.deepEqual(movements.map((m) => [m.label, m.actorName, m.date]), [
-    ['Émission', 'Adrien Test', '2026-11-15'],
-    ['Prolongé jusqu’au 15/01/2029', 'Adrien Test', '2026-11-16'],
-    ['Code affiché', 'Adrien Test', '2026-11-16'],
-    ['Solde corrigé : Erreur', 'Adrien Test', '2026-11-16'],
-    ['Utilisé sur une fiche', 'Automatique', '2026-11-16'],
-    ['Réservé sur une fiche', 'Site', '2026-11-16'],
+    ['Émission', 'Adrien Test', '2026-11-15'], // date-literal-ok: the suite runs on its own clock, never the real today
+    ['Prolongé jusqu’au 15/01/2029', 'Adrien Test', '2026-11-16'], // date-literal-ok: the suite runs on its own clock, never the real today
+    ['Code affiché', 'Adrien Test', '2026-11-16'], // date-literal-ok: the suite runs on its own clock, never the real today
+    ['Solde corrigé : Erreur', 'Adrien Test', '2026-11-16'], // date-literal-ok: the suite runs on its own clock, never the real today
+    ['Utilisé sur une fiche', 'Automatique', '2026-11-16'], // date-literal-ok: the suite runs on its own clock, never the real today
+    ['Réservé sur une fiche', 'Site', '2026-11-16'], // date-literal-ok: the suite runs on its own clock, never the real today
   ]);
   assert.equal(movements[4].reservationId, 12);
   assert.ok(movements.every((m) => !('actor' in m) && !('createdAt' in m)));

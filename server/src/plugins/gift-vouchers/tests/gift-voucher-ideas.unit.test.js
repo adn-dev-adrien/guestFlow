@@ -77,29 +77,29 @@ test('rule 14: one lowest amount per tariff season the stay falls in, from the q
 }, async ({ api }) => {
   const calls = [];
   const priced = await require('../ideas').priceIdea(stay, {
-    quote: seasonalQuote(calls), today: '2026-11-15', bounds: boundsOf(api),
+    quote: seasonalQuote(calls), today: '2026-11-15', bounds: boundsOf(api), // date-literal-ok: the suite runs on its own clock, never the real today
   });
   assert.deepEqual(priced, {
     label: 'Un week-end',
     amounts: [{ label: 'Basse', amountCents: 18000 }, { label: 'Haute', amountCents: 40000 }, { label: 'Fêtes', amountCents: 65000 }],
   });
-  assert.equal(calls[0].startDate, '2026-11-16');
-  assert.equal(calls[calls.length - 1].startDate, '2027-11-15');
+  assert.equal(calls[0].startDate, '2026-11-16'); // date-literal-ok: the suite runs on its own clock, never the real today
+  assert.equal(calls[calls.length - 1].startDate, '2027-11-15'); // date-literal-ok: the suite runs on its own clock, never the real today
   assert.ok(calls.every((c) => c.propertyId === 1 && Math.round((Date.parse(c.endDate) - Date.parse(c.startDate)) / 86400000) === 2));
 }));
 
 test('rule 14: a property with no named season gets a single « À partir de » amount', () => withIdeas({}, async ({ api }) => {
   const flat = () => ({ totalStayPrice: 220, nightlyBreakdown: [{ seasonLabel: 'Standard' }, { seasonLabel: 'Standard' }], unpricedNights: [] });
-  const priced = await require('../ideas').priceIdea(stay, { quote: flat, today: '2026-11-15', bounds: boundsOf(api) });
+  const priced = await require('../ideas').priceIdea(stay, { quote: flat, today: '2026-11-15', bounds: boundsOf(api) }); // date-literal-ok: the suite runs on its own clock, never the real today
   assert.deepEqual(priced, { label: 'Un week-end', amounts: [{ label: 'À partir de', amountCents: 22000 }] });
 }));
 
 test('rule 14: a stay that straddles two seasons, an unpriced night, a breached rule or a thrown quote prices nothing', () => withIdeas({}, async ({ api }) => {
   const { priceIdea } = require('../ideas');
-  const args = (quote) => ({ quote, today: '2026-11-15', bounds: boundsOf(api) });
+  const args = (quote) => ({ quote, today: '2026-11-15', bounds: boundsOf(api) }); // date-literal-ok: the suite runs on its own clock, never the real today
   const base = { totalStayPrice: 300, nightlyBreakdown: [{ seasonLabel: 'A' }], unpricedNights: [] };
   assert.equal(await priceIdea(stay, args(() => ({ ...base, nightlyBreakdown: [{ seasonLabel: 'A' }, { seasonLabel: 'B' }] }))), null);
-  assert.equal(await priceIdea(stay, args(() => ({ ...base, unpricedNights: ['2027-01-01'] }))), null);
+  assert.equal(await priceIdea(stay, args(() => ({ ...base, unpricedNights: ['2027-01-01'] }))), null); // date-literal-ok: the suite runs on its own clock, never the real today
   assert.equal(await priceIdea(stay, args(() => ({ ...base, minNightsBreached: true }))), null);
   assert.equal(await priceIdea(stay, args(() => ({ ...base, maxNightsBreached: true }))), null);
   assert.equal(await priceIdea(stay, args(() => ({ ...base, changeoverBreached: true }))), null);
@@ -112,8 +112,8 @@ test('rule 14: an amount the form could not accept (below the minimum, above the
   const { priceIdea } = require('../ideas');
   const cheap = () => ({ totalStayPrice: 15, nightlyBreakdown: [{ seasonLabel: 'Basse' }], unpricedNights: [] });
   const dear = () => ({ totalStayPrice: 2500, nightlyBreakdown: [{ seasonLabel: 'Haute' }], unpricedNights: [] });
-  assert.equal(await priceIdea(stay, { quote: cheap, today: '2026-11-15', bounds: boundsOf(api) }), null);
-  assert.equal(await priceIdea(stay, { quote: dear, today: '2026-11-15', bounds: boundsOf(api) }), null);
+  assert.equal(await priceIdea(stay, { quote: cheap, today: '2026-11-15', bounds: boundsOf(api) }), null); // date-literal-ok: the suite runs on its own clock, never the real today
+  assert.equal(await priceIdea(stay, { quote: dear, today: '2026-11-15', bounds: boundsOf(api) }), null); // date-literal-ok: the suite runs on its own clock, never the real today
 }));
 
 const IDEAS = [{

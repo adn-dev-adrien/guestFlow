@@ -15,7 +15,7 @@ vi.mock('../giftVouchersApi', () => ({
 }));
 
 const line = (over = {}) => ({
-  ref: '12', label: 'Bon cadeau BC-2026-0001', amountCents: 5000, paidDate: '2026-11-15', buckets: ['deposit'], undoable: true, ...over,
+  ref: '12', label: 'Bon cadeau BC-2026-0001', amountCents: 5000, paidDate: '2026-11-15', buckets: ['deposit'], undoable: true, ...over, // date-literal-ok: a payload the mocked server answers; the screen only shows it
 });
 const stay = (over = {}) => ({
   reservationId: 5, kind: 'reservation', canPay: true, owedCents: 25000, lines: [], ...over,

@@ -16,10 +16,10 @@ vi.mock('../giftVouchersApi', () => ({
 
 beforeEach(() => { vi.clearAllMocks(); });
 
-const LATE = { open: false, endsOn: '2026-10-30' };
+const LATE = { open: false, endsOn: '2026-10-30' }; // date-literal-ok: a payload the mocked server answers; the screen only shows it
 const cancelled = (over = {}) => detail({
   state: 'cancelled', canCancel: false, canDownload: false, balanceCents: 0, cancelReason: 'Geste', cancelForced: true, refunds: [{
-    id: 9, amountCents: 15000, openedOn: '2026-11-15', settledOn: null, settledBy: null,
+    id: 9, amountCents: 15000, openedOn: '2026-11-15', settledOn: null, settledBy: null, // date-literal-ok: a payload the mocked server answers; the screen only shows it
   }], ...over,
 });
 
@@ -79,7 +79,7 @@ test('a cancelled voucher given away says no refund is owed', () => {
 
 test('a cancelled voucher reads « Annulé » with its reason, « À rembourser x € » and « Marquer remboursé », which settles the refund on the server', async () => {
   giftVouchersApi.settleRefund.mockResolvedValue(cancelled({ refunds: [{
-    id: 9, amountCents: 15000, openedOn: '2026-11-15', settledOn: '2026-11-16', settledBy: 'Adrien',
+    id: 9, amountCents: 15000, openedOn: '2026-11-15', settledOn: '2026-11-16', settledBy: 'Adrien', // date-literal-ok: a payload the mocked server answers; the screen only shows it
   }] }));
   const onChange = vi.fn();
   renderWithShell(<GiftVoucherDetail voucher={cancelled()} onChange={onChange} />);
@@ -95,7 +95,7 @@ test('a cancelled voucher reads « Annulé » with its reason, « À rembourser 
 
 test('a settled refund shows the amount and the day, with no more button', () => {
   renderWithShell(<GiftVoucherDetail voucher={cancelled({ refunds: [{
-    id: 9, amountCents: 15000, openedOn: '2026-11-15', settledOn: '2026-11-16', settledBy: 'Adrien',
+    id: 9, amountCents: 15000, openedOn: '2026-11-15', settledOn: '2026-11-16', settledBy: 'Adrien', // date-literal-ok: a payload the mocked server answers; the screen only shows it
   }] })} onChange={vi.fn()} />);
   expect(screen.getByText(/150,00.€ remboursés le/)).toBeInTheDocument();
   expect(screen.queryByRole('button', { name: 'Marquer remboursé' })).not.toBeInTheDocument();
