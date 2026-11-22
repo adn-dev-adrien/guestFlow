@@ -573,6 +573,10 @@ signed-off releases over HTTPS, when the operator asks for it.
     step times add up to 1 030–1 310 s, and the first release after the integration had a real chance of being
     cancelled at its limit with nothing published. Same split as the PR workflow
     (specs/server-test-isolation.md rule 8). Test: `test-suite-calendar-and-ci-budget.unit.test.js`.
+    *Amended 2026-11-22:* `server-tests` is itself a matrix of two (`fail-fast: false`, 20-minute cap each), running
+    `node ../scripts/test-runner/run-test-shard.mjs N/2` like the PR workflow's `server` job
+    (specs/server-test-isolation.md rule 19). The first v4.2.0 run was cancelled at the 20-minute cap: the suite
+    (14 784 tests) takes ≈12 min per half on the runner, ≈24 min whole, so it published nothing.
 
 53. **A rollback never mails « Ce lien est valable jusqu'au . »** (added 2026-10-31, audit R9 database N1; same
     class as rule 43). A content migration stays in the database when the code rolls back (rule 31).
