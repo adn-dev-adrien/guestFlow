@@ -28,7 +28,7 @@ test('rule 39: the withdrawal period is the day of the payment and the 14 days a
   assert.equal(rules.withdrawalOf({ paidOn: '2026-12-25', today: '2027-01-08' }).endsOn, '2027-01-08', 'across a year'); // date-literal-ok: the suite runs on its own clock, never the real today
 });
 
-test('rule 54: within 14 days a cancellation needs nothing more — the voucher is cancelled, a refund line opens for the paid amount, the history names the operator', () => withAdmin(async ({ server, db }) => {
+test('rules 54, 58: within 14 days a cancellation needs nothing more — the voucher is cancelled, a refund line opens for the paid amount, the history names the operator', () => withAdmin(async ({ server, db }) => {
   const v = await fx.issueManual(server, { amountCents: 15000, date: '2026-11-01' }); // date-literal-ok: the suite runs on its own clock, never the real today
   assert.equal(v.withdrawal.open, true);
   const res = await cancel(server, v.id, { reason: 'Le client a changé d’avis' });

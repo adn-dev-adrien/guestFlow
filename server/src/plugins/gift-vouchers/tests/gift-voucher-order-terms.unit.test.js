@@ -84,7 +84,7 @@ test('a lodging campaign asks the lodging terms; with none published it asks not
   });
 });
 
-test('a bath cannot be sold before its terms are published: the order is refused with a sentence, the offer leaves the campaign out, the lodging campaign stays', () => withShop({ lodging: 4 }, async ({ place, db, server }) => {
+test('specs/gift-voucher-campaigns.md rule 60 — a bath cannot be sold before its terms are published: the order is refused with a sentence, the offer leaves the campaign out, the lodging campaign stays', () => withShop({ lodging: 4 }, async ({ place, db, server }) => {
   const res = await place({ termsVersionId: 9 });
   assert.deepEqual([res.status, res.body.error.code], [409, 'TERMS_UNPUBLISHED']);
   assert.equal(res.body.error.message, 'Ce bon ne peut pas encore être vendu : les conditions de l’activité ne sont pas encore publiées.');

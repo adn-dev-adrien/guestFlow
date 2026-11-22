@@ -216,7 +216,7 @@ test('rule 48: the front is the visual version frozen on the voucher, embedded a
   assert.ok((await api.documents.voucherPdf(newer)).includes(second), 'a voucher issued after takes the new version');
 });
 
-test('rule 20: the mail — greeting, title, parties, the code in large type, the printing sentence, the contents, the validity — and the PDF attached', async () => {
+test('rules 20, 57: the mail — greeting, title, parties, the code in large type, the printing sentence, the contents, the validity — and the PDF attached', async () => {
   const voucher = sell({ slug: bath.slug, addOns: [{ articleRef: `option:${ids.drink}`, qty: 1 }], extraMinutes: 60 });
   sent.length = 0;
   await api.receipt.deliver(voucher, { actor: 'system', idempotencyKey: `t-mail-${voucher.id}` });

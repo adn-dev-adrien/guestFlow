@@ -61,7 +61,7 @@ test('rule 3: nothing in the plugin names an establishment, a property or a plat
   [/solio/i, /estiva/i, /granja/i, /booking\.com/i, /airbnb/i, /lodgify/i].forEach((word) => assert.equal(word.test(text), false, String(word)));
 });
 
-test('rules 1, 4: it mounts one public tree and one admin tree, declares its settings, six jobs, a push channel, its payment basket, its prepaid source and the home item', () => {
+test('rules 1, 4, 12: it mounts one public tree and one admin tree, declares its settings, six jobs, a push channel, its payment basket, its prepaid source and the home item', () => {
   const calls = { mounts: [], settings: [], jobs: [], attention: [], channels: [], events: [], prepaid: [] };
   const noop = new Proxy(function noop() {}, { get: () => noop, apply: () => noop });
   const ctx = new Proxy({}, {

@@ -523,6 +523,7 @@ read the settlements themselves (`utils/paymentTenders.settlementFigures`).
 66. **To be confirmed by the accountant.** The treatment of rule 65 assumes the instrument's VAT is due at its sale (single-purpose voucher). If the
     accountant decides the VAT is due when the instrument is used, the sale lists no VAT (rate 0 in the plugin's setting) and the stay's
     export is the place to restore it: that decision is not taken here.
+    > **Sans test** — a decision the accountant has not taken: nothing to run until it is.
 **Edge cases:**
 - All lines `cash` + internal, no shortfall → same storage as « Caisse interne » + settlement (rule 11).
 - A single line equal to the amount due → accepted; it records the method (« Chèque 122,00 € »).

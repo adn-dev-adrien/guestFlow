@@ -43,7 +43,7 @@ async function withServer(fn) {
 const paid = (orderId, linkId, amountCents) => api.orderPaid({ ref: String(orderId), linkId, amountCents });
 const order = (id) => db.prepare('SELECT * FROM gift_voucher_orders WHERE id = ?').get(id);
 
-test('nothing exists before the bank confirms: the order, its price and its link create no voucher, no code, no movement, no sale and no booking', () => withServer(async ({ site, place }) => {
+test('specs/gift-vouchers.md rule 46 — nothing exists before the bank confirms: the order, its price and its link create no voucher, no code, no movement, no sale and no booking', () => withServer(async ({ site, place }) => {
   const before = existing();
   const placed = await place();
   assert.equal(placed.status, 201, JSON.stringify(placed.body));

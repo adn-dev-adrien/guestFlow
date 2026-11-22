@@ -177,7 +177,7 @@ test('an older GuestFlow with no campaign list keeps the one free-amount tunnel'
   expect(document.querySelector('.gf-gv-offer')).toBeNull();
 });
 
-test('rule 40: with the plugin off in GuestFlow the block renders nothing', async () => {
+test('rules 1, 40: with the plugin off in GuestFlow the block renders nothing', async () => {
   setup({ routes: () => ({ status: 404, body: { error: 'PLUGIN_INACTIVE', plugin: 'gift-vouchers' } }) });
   const container = document.querySelector('[data-gf-gift-voucher]');
   await waitFor(() => expect(container.hidden).toBe(true));

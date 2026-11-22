@@ -468,7 +468,7 @@ test('cancelling a voucher ends its pending use: the slot is free, the link with
   assert.ok(links.withdrawn.includes(use.linkId));
 });
 
-test('an evening voucher booked in the evening has nothing due; a day voucher run into the evening pays the supplement of rule 45, the added time continuing its ranks', async () => {
+test('specs/gift-voucher-campaigns.md rules 14, 45 — an evening voucher booked in the evening has nothing due; a day voucher run into the evening pays the supplement of rule 45, the added time continuing its ranks', async () => {
   const voucher = eveningVoucher();
   const quote = ask.quote(voucher, { start: `${day(16)}T19:00` });
   assert.deepEqual([quote.data.supplement, quote.data.dueCents], [null, 0]);
