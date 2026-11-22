@@ -152,69 +152,19 @@ For every spec retro-implementation:
 
 ### 5.5 Detecting whether a branch is already on `master` (squash-merge caveat)
 
-**The user always merges PRs with "Squash and merge" in the GitHub UI.** A squash collapses all of a branch's commits into **one brand-new commit on `master` with a different SHA**, then GitHub auto-deletes the head branch. Consequence: the branch's original commits are **never ancestors of `master`**, so the usual ancestry checks **lie**:
+**Squash merges give new SHAs: `git branch --merged` and ancestry checks lie, and a deleted remote branch proves nothing.** Before claiming a branch is merged, `git fetch origin` and check by **content** (`git grep` a distinctive snippet in `origin/master`, or find the squash commit by PR number). Content missing + branch gone = lost work: tell the user.
 
-- ❌ `git branch --merged master` — will NOT list a squash-merged branch.
-- ❌ `git merge-base --is-ancestor <branch> master` — returns "not an ancestor" even when the work *is* in master.
-- ❌ "the branch was deleted on GitHub, so it's merged" — **false**: a deleted branch can mean *merged* **or** *closed/abandoned*. Deletion alone proves nothing.
-
-**The only reliable check is by CONTENT, not by commit graph:**
-
-1. **Is the branch still open?** `git ls-remote --heads origin <branch>` — empty output means the remote branch is gone (merged *or* closed); a SHA means the PR is still open and unmerged.
-2. **Is the work actually in master?** Verify the branch's changes are present in `origin/master`:
-   - file existence: `git ls-tree -r origin/master --name-only <path>`
-   - or a distinctive string from the diff: `git grep "<unique snippet>" origin/master -- <pathspec>`
-3. **Find the squash commit** by feature name / PR number in the linear history: `git log origin/master --oneline | grep -i "<feature-or-#NN>"`.
-
-**Rule:** before claiming a branch is merged — or before deleting/recreating one — `git fetch origin` first, then confirm by **content (steps 2–3)**, never by ancestry. If the branch is gone from the remote **but** its content is absent from `master`, treat it as **lost work (closed-without-merge or accidental deletion)** and surface it to the user — do not silently assume it shipped.
-
----
+Full detail: [docs/agent/git-squash-merge-check.md](docs/agent/git-squash-merge-check.md).
 
 ### 5.6 Releases and production updates
 
-Production runs **published releases**, never a branch. The full model lives in
-`specs/self-update-and-releases.md`; the operating rules:
+- Production runs **published releases** (tag `vX.Y.Z` on `master`), cut with the **`/guestflow-release` skill** only; X is always the user's call.
+- Claude squash-merges **only** the release PR opened by the skill in the same run, **only** once every check is `pass` (re-read just before merging); never `--admin`.
+- Release notes are mandatory; the French `### Summary` digest (≤ 6 lines × 160 chars) is the one exception to §2.
+- **Publishing is not deploying**: never trigger an install, never SSH into production to finish a release.
+- **Never add `runs-on: self-hosted`** (security regression). The only allowed force-push is re-pointing a release **tag**.
 
-- **`X.Y.Z` has a defined meaning** (`specs/self-update-and-releases.md` §3.A rule 2), and the skill
-  derives the number from it: **X** = a structural change or a contract lost for a consumer outside
-  this repository (`/public/v1/**` for the WordPress plugin, the iCal export feeds) — never derived,
-  always the user's explicit call; **Y** = an improvement, the ordinary case; **Z** = bug fixes and
-  nothing else. A change to `/api/**` is not an X: client and server ship in one archive and install
-  together, so no consumer can lag behind them.
-- **Claude squash-merges the release PR, and only the release PR** (granted 2026-08-22). The
-  authorisation is narrow on purpose: it covers a `release: vX.Y.Z` PR that the release skill itself
-  opened in the current run, on a `release/vX.Y.Z` branch, containing nothing but the three version
-  bumps and the changelog fold. Every other PR in this repository stays the user's to merge. The
-  merge is **squash**, and it happens **only once every check reports `pass`** — re-read immediately
-  before merging, never trusted from an earlier look. `--admin` is forbidden: bypassing a pending or
-  failing check is exactly what this authorisation is not.
-- A release is cut with the **`/guestflow-release` skill**: pre-flight suites → fold `changelog.d/`
-  into a `CHANGELOG.md` section → write the operator digest → bump the three `package.json` files →
-  `release/vX.Y.Z` PR → the user squash-merges → Claude tags `vX.Y.Z` on `master` →
-  `.github/workflows/release.yml` publishes the archive, its `SHA256SUMS` and the WordPress plugin.
-  Since 2026-08-22 the skill merges that PR itself once the CI is green, so a release runs end to
-  end from a single request; never end a release turn asking to be told the PR was merged.
-- **The release notes are mandatory.** The GitHub release body IS the `CHANGELOG.md` section, and
-  that section is what the operator reads in the update dialog before clicking "Installer". The
-  `verify` job fails the release when it is missing, when the three versions disagree with the tag,
-  or when a `changelog.d/` fragment was left unfolded. Never bypass that job.
-- **Every section opens with its operator digest** — a `### Summary` block of at most 6 lines of at
-  most 160 characters, and it is the *only* thing the update dialog shows; the rest is folded behind
-  « Tout le changelog » (`specs/self-update-and-releases.md` rule 20c). It is written **in French**,
-  the single exception to §2 in this repository, because it exists to be read inside the application
-  by a French operator. `node scripts/build-changelog.mjs --check-digest X.Y.Z` judges it, and the
-  `verify` job runs that same command.
-- **Publishing is not deploying.** GuestFlow polls GitHub hourly and offers the version; the
-  operator installs it from Réglages → Système et mises à jour. Claude never triggers an install,
-  and never SSHes into production to "finish" a release.
-- **Never re-introduce a self-hosted CI runner.** The repository is public and the production host
-  holds the guest database, the encryption key and the session secret; a runner there is arbitrary
-  code execution from GitHub into the LAN. Production makes outbound calls only. Any PR adding
-  `runs-on: self-hosted` to this repository is a security regression, whatever it automates.
-- The only sanctioned force-push in this repository is `git push --force origin vX.Y.Z` to re-point
-  a **tag** after a failed `verify`. §5.2's ban on force-pushing branches stands.
-
----
+Full detail: [docs/agent/releases.md](docs/agent/releases.md).
 
 ## 6. Architecture
 
@@ -308,105 +258,15 @@ styles/         Theme overrides
 
 ### Component reuse — extract early, specialize through composition
 
-**Visual consistency across GuestFlow comes from a shared component library, not from copy-pasting MUI patterns.** Before writing any new UI block, ask:
+**Visual consistency comes from the shared library in `client/src/components/`, not from copy-pasted MUI.** If a UI block could appear on more than one page, extract it as a generic component named by *what it does* (`StatusBadge`, not `SettingsKeyField`), with a JSDoc header listing its props. Reuse the existing ones (`ConfirmDialog`, `FormDialog`, `TableCard`, `DataPageScaffold`, `PageActionBar`…) instead of rolling your own. Every spec says in « Architecture — Client » which components it consumes or creates.
 
-> "Could this pattern (visual or behavioral) appear on more than one page?"
-
-- **Yes / probably / unsure → extract as a generic component** in `client/src/components/`, named by *what it does* (`StatusBadge`, `MaskedTextField`) not by *who uses it* (`SettingsKeyField`).
-- **Clearly one-off** (tied to one feature's business logic, e.g. `ReservationPricingSummary`) → keep page-specific.
-
-**Default to extracting.** It is cheaper to inline a generic component than to back-extract one after three pages have diverged. A second use case justifies extraction; a strong hunch of a second use case justifies extraction too.
-
-**Cross-cutting components that should exist (extract on first use, reuse forever):**
-
-| Component | Purpose |
-|---|---|
-| `PageActionBar` | Sticky page-top action bar (see below). |
-| `StatusBadge` | Colored dot/chip + label for any status (configured/incomplete/error/locked/etc.). |
-| `StatusCard` | Card with a status badge + summary lines + footer actions — used by any "feature health" view. |
-| `SummaryItem` | A `label : value` line used inside status/info cards. Supports masked values. |
-| `MaskedTextField` | TextField that displays `••••••` + "Modifier" toggle for secrets (private keys, passwords, tokens). |
-| `HelpedTextField` | TextField + helper text + optional external help link, with consistent vertical rhythm. |
-| `EmptyState` | Icon + message + optional call-to-action for empty lists/views. |
-| `ErrorAlert` | Standardized error display with optional retry. |
-| `LoadingState` | Standardized spinner/skeleton. |
-| `ConfirmDialog` | _(already exists)_ confirmation dialogs. |
-| `FormDialog` | _(already exists)_ form dialogs — reuse instead of rolling your own `<Dialog>`. |
-| `TableCard` | _(already exists)_ table wrapper. |
-| `DataPageScaffold` | _(already exists)_ list/CRUD page scaffold. |
-
-**Rules of thumb:**
-- Each new spec must declare in its "Architecture — Client" section whether it consumes existing components or creates new generic ones. Creating a new component? Justify why it's generic (or admit it's specific).
-- A spec that creates a Settings-specific `SettingsCard` instead of a generic `StatusCard` should be challenged in review.
-- Generic components must have a JSDoc comment at the top of the file listing props + purpose.
-- One folder, flat: `client/src/components/<Component>.js`. No deep nesting. No barrel files unless one is already established.
+Full detail: [docs/agent/component-library.md](docs/agent/component-library.md).
 
 ### Page layout — sticky action bar (`PageActionBar`)
 
-**Every page in GuestFlow must use the shared `<PageActionBar>` component** at the top, immediately below the main app header. It is the single, consistent place for page-level actions.
+**Every page uses `<PageActionBar>`** (`client/src/components/PageActionBar.js`) at the top: sticky under the AppBar, icon-only buttons with French tooltips, touch targets ≥ 44 px, order `[Back] [Title] … [center] … [actionsBefore] [Save] [Cancel] [actionsAfter]`. Omit `onSave` / `onCancel` on read-only pages.
 
-The component bundles two canonical actions — **Save** and **Cancel** — that 90% of pages need, plus two slots for page-specific actions on either side.
-
-**Component contract (`client/src/components/PageActionBar.js`):**
-
-```jsx
-<PageActionBar
-  title="Paramètres"                   // string, shown left (hidden on xs by default)
-  backTo="/"                           // optional path; shows a back icon button on the left
-  subtitle={<Chip ... />}              // optional ReactNode beside the title (chip, caption, etc.)
-  center={<Box>…</Box>}                // optional ReactNode CENTERED in the bar (3-equal-cols layout); hidden on xs
-
-  // Canonical actions — both optional. Omit a prop to hide the button.
-  onSave={handleSave}                  // omit → no Save button
-  saveDisabled={!isDirty}              // optional, default false
-  saveTooltip="Enregistrer"            // optional, default "Enregistrer"
-  saveBusy={false}                     // optional; when true, shows a spinner inside the Save button
-  onCancel={handleCancel}              // omit → no Cancel button
-  cancelDisabled={!isDirty}
-  cancelTooltip="Annuler"
-
-  // Custom action slots
-  actionsBefore={[                     // inserted BEFORE Save — page-specific helpers
-    { icon: <SyncIcon />, tooltip: "Synchroniser Google", onClick: handleSync, color: 'info' },
-    { icon: <DescriptionIcon />, tooltip: "Télécharger PDF", onClick: handlePdf, color: 'info' },
-  ]}
-  actionsAfter={[                      // inserted AFTER Cancel — destructive zone
-    { icon: <DeleteIcon />, tooltip: "Supprimer", onClick: handleDelete, color: 'error', disabled },
-  ]}
-/>
-```
-
-Each action item:
-```ts
-{
-  icon: ReactNode,
-  tooltip: string,             // French, required
-  onClick: () => void,
-  color?: 'primary' | 'info' | 'success' | 'warning' | 'error' | 'default',  // controls border color
-  disabled?: boolean,
-  ariaLabel?: string,          // defaults to tooltip
-}
-```
-
-**Behavior rules:**
-- **Position:** sticky just below the main AppBar (`top: { xs: 56, sm: 64 }`). White background, thin border, small radius — matches the legacy bar style of `ReservationPage.js` post "Improve sticky banner" commit.
-- **Buttons are icon-only** (`<IconButton>` wrapped in `<Tooltip>`), each rendered with a **1px colored border** matching its `color` prop (`divider` for `default`, `<color>.main` for colored). Save uses a filled primary background; everything else is bordered.
-- **Tooltips in French**, MUI defaults for hover/long-press timing.
-- **Touch targets:** ≥44×44px (MUI's IconButton handles this; if not, force `sx={{ minWidth: 44, minHeight: 44 }}`).
-- **Layout order, left → right:** `[Back] [Title + Subtitle] … [center] … [actionsBefore[]] [Save] [Cancel] [actionsAfter[]]`. When `center` is set, the two side sections take an equal flex basis so the centered node is truly centered; `center` is hidden on `xs`.
-- **Responsive overflow:** on `xs`, if `actionsBefore + actionsAfter` has more than 2 items combined, the extras collapse into a "…" overflow menu before Save (the canonical Save/Cancel always stay visible).
-- **Save button visual:** filled `bgcolor: 'primary.main'`, white icon, hover darkens. When `saveBusy` is true → swap icon for `<CircularProgress size={18} color="inherit" />`.
-- **Cancel button visual:** bordered IconButton with divider border, default icon color.
-
-**When to skip Save/Cancel:**
-- Read-only pages (no save action) → omit `onSave` and `onCancel`. The bar still renders with title + any actions.
-- Pages with only a save flow and no revertable draft → omit `onCancel`.
-
-**Current state vs. target:**
-- `ReservationPage.js` already implements this pattern inline (lines ~1855–2051). It's the visual reference for `PageActionBar` and will be migrated to the shared component when the Bloc 3 Réservations spec lands.
-- `SettingsPage.js` has a simpler inline version (Save + Cancel only) — migrated to `PageActionBar` by the Settings spec.
-
-**When to skip the bar entirely:** pages with literally zero actions and no useful title. Rare; even then, prefer `<PageActionBar title="..." />`.
+Full detail: [docs/agent/page-action-bar.md](docs/agent/page-action-bar.md).
 
 ### Responsive design — non-negotiable
 
@@ -474,26 +334,9 @@ Any new or modified **server-side business logic** (calculations, rules, validat
 
 ### One test file per subject — never append to a shared suite
 
-**A feature's tests go in a file of their own, named after the feature. Never at the end of an
-existing suite.** This is a merge rule before it is a tidiness rule: when every feature appends its
-cases to the same file, two branches conflict on the last line even though their tests are
-unrelated, and the conflict has to be resolved by hand on code Git cannot reason about. It is the
-same reasoning that gave `changelog.d/` its one-file-per-change layout (§10).
+**A feature's tests go in their own file, never at the end of an existing suite** (avoids merge conflicts): server `server/src/tests/<feature>.unit.test.js`, client `__tests__/<Component>.<subject>.test.jsx`, shared fixtures in a sibling non-test module. Never resolve such conflicts with a `.gitattributes` union merge.
 
-- **Server** — already the convention: `server/src/tests/<feature>.unit.test.js`, one per spec
-  (`sas-option-sales`, `sas-stay-payment`, `sas-offer-complement-lines`…). Keep it that way.
-- **Client** — `src/**/__tests__/<Component>.<subject>.test.jsx`. A component with more than one
-  subject gets one file per subject (`ReservationSasDialog.catering.test.jsx`,
-  `ReservationSasDialog.stay-payment.test.jsx`, …), each opening with a comment naming the spec it
-  covers.
-- **Shared fixtures** go in a sibling non-test module (`__tests__/<component>Fixtures.jsx`) so a new
-  suite never has to import — and therefore re-run — another suite. A fixture used by one subject
-  stays in that subject's file. `vi.mock(...)` stays in each test file: Vitest hoists it per file.
-- **Touching an existing feature** still edits that feature's file — that is a real overlap, and a
-  conflict there is worth resolving.
-- Never resolve this class of conflict with a `.gitattributes` union merge: it concatenates both
-  sides silently, which on JavaScript means duplicate test names, broken syntax, or a suite that
-  passes by accident.
+Full detail: [docs/agent/testing.md](docs/agent/testing.md).
 
 ### UI verification — required for UI changes
 
