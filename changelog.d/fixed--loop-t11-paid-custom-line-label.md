@@ -1,1 +1,0 @@
-- **Reservation fiche — a free line already paid keeps its label** (`specs/pricing-components.md` rule 123, loop t11 S11-1): renaming it is refused (« Ligne déjà payée : son libellé ne change pas. ») and its description is greyed, so the arrival recap no longer lists it as still to pay.

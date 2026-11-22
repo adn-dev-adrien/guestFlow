@@ -1,1 +1,0 @@
-- **Reservation fiche — an option ticked while the logement is being switched is no longer lost** (`specs/per-property-default-options.md` rule 11 reading, loop t10 UI10-1): the fiche is read-only and inert from the switch until the new logement's options are applied.

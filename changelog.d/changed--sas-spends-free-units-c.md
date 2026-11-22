@@ -1,1 +1,0 @@
-- Arrival SAS: an extra sold in the SAS uses the offered units the stay has not consumed yet (« 2 offerts »), as on the fiche; the line keeps what it consumed, and a later sale on the fiche no longer calls it into question (specs/pricing-components.md, rules 26 and 41).

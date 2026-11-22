@@ -1,1 +1,0 @@
-- Payout split, « Modifier la répartition » and platform penalty: an amount typed with its decimal separator last (« 100, ») reads as the whole amount instead of flashing « Montant invalide » / « — » for one keystroke.

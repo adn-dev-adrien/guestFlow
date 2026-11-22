@@ -1,1 +1,0 @@
-- New empty tables, created on first start: `guest_home_blocks` (guest-app) and `home_catalog`, `home_readings`, `home_series`, `home_commands`, `home_connector_state` (gate-access). No existing row is touched.

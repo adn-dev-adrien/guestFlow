@@ -1,1 +1,0 @@
-- The sales detail lists as « à l'arrivée » lines the tourist-tax share collected with the complement, the added guests and the « Complément d'arrivée » beyond the lines; guest e-mails now detail the arrival complement from this detail (identical lines and amounts on every measured reservation) (specs/pricing-components.md, rule 91).

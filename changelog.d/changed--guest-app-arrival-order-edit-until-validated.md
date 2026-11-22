@@ -1,1 +1,0 @@
-- **Guest app — an order taken before the arrival stays editable at the arrival SAS until the arrival is validated**, whatever the hour: a guest who arrives after the check-in time has the order changed at the door, and what is kept stays in the arrival complement (never moved to the departure). Spec `guest-app.md` rule 110 a (owner decision of 2026-11-16).

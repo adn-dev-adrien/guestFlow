@@ -1,2 +1,0 @@
-- plugin:guest-app At the arrival SAS, removing one bath of an order with two baths removes that bath's evening supplement only (read by its `evening:resource:<id>` key); the other bath keeps its supplement, and a session can be taken off an unsupplemented bath (guest-app rule 112 a).
-- Guest app: a refunded card order of a cancelled stay keys its lines as the refund register does, so two orders of the same article are two lines and giving back one never reads the other « Remboursée » (guest-app rule 112 b).

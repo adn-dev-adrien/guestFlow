@@ -1,1 +1,0 @@
-- Installment plan: a hand-typed installment amount accepts cents (« 250,50 ») and the field opens the decimal keypad on iPhone, which has a comma; the server no longer refuses amounts that are not whole euros (`specs/direct-installments.md` rule 9a).

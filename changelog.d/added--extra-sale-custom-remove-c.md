@@ -1,1 +1,0 @@
-- Fiche: a free-text line (linen pieces, a surcharge) is sold through the same path as articles, and an unpaid line can be removed (a paid line is offered instead); two lines with the same label each keep their own when the first one is removed (specs/pricing-components.md, rules 25, 79 and 90).

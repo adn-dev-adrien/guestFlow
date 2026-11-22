@@ -1,2 +1,0 @@
-- A payment of an outside sale dated before an earlier payment day no longer re-cuts the VAT of a month already exported: the document journal cuts each VAT group in the order the money was recorded.
-- The Qonto invoice of an hourly booking states the VAT its journal declares (a session with free time at 10 % no longer drifts a cent), and a discounted basket that Qonto makes fold stays invoiceable with a rounding line.

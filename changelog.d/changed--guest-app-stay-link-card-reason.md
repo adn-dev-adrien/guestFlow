@@ -1,1 +1,0 @@
-- plugin:guest-app The reservation's « Lien Mon séjour » card no longer disappears silently when the stay has no link: it states why (cancelled stay, lodging outside the app, app address not set). A devis still shows no card. Spec rule 9bis (c). +2 client tests, 1 server assertion.

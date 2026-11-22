@@ -1,1 +1,0 @@
-- **Migration**: `resource_bookings.freeHourAtDayRate` (NULL = booking priced before the rule, 1 = single hourly grid), no existing price is changed.

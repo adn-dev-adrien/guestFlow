@@ -1,1 +1,0 @@
-- `resources.hourlyDegressiveTiers` (JSON, default `[]`) is added on startup. Existing resources stay linear and their prices are unchanged.

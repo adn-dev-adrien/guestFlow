@@ -1,1 +1,0 @@
-- **Migration — `gift_vouchers.vatRatePercent`.** The gift-vouchers plugin adds the column `vatRatePercent REAL NOT NULL DEFAULT 10` (migration `gift_vouchers_vat_v1`, run once). Every voucher sold before it is backfilled to 10 %, the rate the new setting defaults to; no row is lost or rewritten otherwise, and a rollback to the previous release ignores the column.

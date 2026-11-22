@@ -1,7 +1,0 @@
-- Sales: a line paid now (cash, card terminal) then offered or discounted keeps its money credited to the stay: it comes off the arrival complement still due (then the end-of-stay remainder, then an unpaid solde of a direct stay); what nothing can take is the trop-perçu confirmed as owed back, and on a platform stay the gesture is refused. Before, the SAS asked the guest again for the money already in the till (pricing-components rule 104).
-- Sales: unticking the arrival before the check-in hour keeps the start of a stay whose arrival complement was entered by hand, so its departure sales keep their money (rule 103 b).
-- Sales: a quote paid now announces the buckets the sale writes (no departure amount the note settles at once) (rule 30).
-- Sales: before the arrival, a plan line of a stay whose arrival complement was collected early is no longer offered or moved to the departure (rule 95).
-- Sales: a discount given back after the arrival is validated stays at the departure across later sales, and « Ventes du séjour — au départ » lists that part (rule 103 d).
-- Guest app: one judge decides whether an app order is still changed at the arrival SAS (`extraSale.arrivalOpenAt`, SDK 2.32); on a stay whose false start was kept the order shows read-only until the check-in hour and the refusal no longer claims the arrival was validated (guest-app rule 111 a).
-- Outside visits: a link surplus kept as a tip is booked on the Paris day of the application's clock when it is closed, never on SQLite's clock (outside-booking-sas rule 50).

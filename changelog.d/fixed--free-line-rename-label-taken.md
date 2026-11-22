@@ -1,1 +1,0 @@
-- A fiche save that renames a free line onto the label of another free line of the stay is now refused (409 `LINE_LABEL_TAKEN`, « Libellé déjà utilisé sur ce séjour. ») instead of leaving two lines under one key; a new line under an existing label is still numbered « (2) ».

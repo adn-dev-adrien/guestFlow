@@ -1,1 +1,0 @@
-- **Tourist tax page — a « nuitée » explains itself on hover** (1 person for 1 night: taxed = adults × nights, exempt = minors × nights) on the table headers, the property tile and the bottom banner; the banner gets more inner padding so « À reverser » no longer brushes its rounded corner.

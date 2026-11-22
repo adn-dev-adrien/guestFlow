@@ -1,1 +1,0 @@
-- **Faster fiche saves and sales** (spec `pricing-components.md` rule 48, reading of 2026-11-18). The server compiles each SQL statement once per database and reuses it, instead of compiling it again at every read: one fiche save used to compile the same stay read about 40 times. No figure changes.

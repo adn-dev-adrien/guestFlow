@@ -1,1 +1,0 @@
-- SAS: a reception account offering or removing a paid line is refused without the refund amount and cannot force it (`forceOverpayment` ignored); admin unchanged (specs/reception-role-checkin-only.md rule 18).
