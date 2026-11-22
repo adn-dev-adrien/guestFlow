@@ -1,1 +1,0 @@
-- plugin:guest-app **An app order is no longer editable at the arrival SAS after the stay's departure day**, even when the arrival was never validated: from the next day the step shows it read-only and the change is refused (409 `ORDER_NOT_EDITABLE`); it is changed on the fiche. Spec `guest-app.md` rule 111 a (owner decision of 2026-11-16).

@@ -1,1 +1,0 @@
-- Client tests: every mock goes back to its own default before each test (`mockReset`), so an answer one test set can no longer reach the next one's call — the source of intermittent CI failures. `npm run test:shuffle` runs the client suite in a random order to find what still depends on it (`specs/server-test-isolation.md` rule 21).

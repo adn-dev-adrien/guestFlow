@@ -1,1 +1,0 @@
-- An offered article ordered again in the app is billed as a line of its own. An offered drink is already in place at the arrival: every app order is billed from the first one, the offered unit is never consumed by an order (« offert déjà en place à l'arrivée » setting per article, on by default for the drinks class).

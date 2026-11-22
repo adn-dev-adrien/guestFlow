@@ -1,1 +1,0 @@
-- A reservation's fiche (`GET /api/reservations/:id`) carries the sales detail (`saleDetail`): no more second request to read the sold lines (specs/pricing-components.md, rule 31).

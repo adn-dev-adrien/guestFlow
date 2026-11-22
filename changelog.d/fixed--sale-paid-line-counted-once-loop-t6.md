@@ -1,4 +1,0 @@
-- Un-offering a paid line whose money had absorbed the whole arrival complement no longer asks that complement again at the arrival.
-- A paid line lowered after a refund on the trop-perçu no longer owes the already refunded money a second time.
-- The arrival SAS reopens an offered line of an article sold on several lines under its own line, so validating it keeps exactly that line offered.
-- The arrival and departure SAS judge a paid line they offer like the fiche: the trop-perçu is asked to confirm (« Offrir · X à rembourser ») and, confirmed, owed back.

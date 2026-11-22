@@ -1,1 +1,0 @@
-- **Plugin `online-payment` migration `reconciliation_v4`** — additive: the new table `mollie_settlement_statements` (the state, the attempts and the Qonto attachment of the statement of each Mollie credit). No existing row is touched; nothing is sent to Qonto until the operator sets a start date.

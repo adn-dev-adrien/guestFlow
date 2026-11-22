@@ -1,1 +1,0 @@
-- **The first free hour of an hourly rental is counted at the day rate (pricing refonte, PR B)**: on a new resource booking whose free hour falls in the evening band, the discount is worth the day rate, as on a stay. A booking already saved keeps its price and its breakdown as long as the operator does not move its slot or its lodging.

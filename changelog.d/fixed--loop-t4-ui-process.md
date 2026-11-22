@@ -1,2 +1,0 @@
-- After a re-read of the fiche that fails following a sale in « Ventes du séjour », the mini-planning strip is read-only too: a click on one of its days no longer moves the dates of the read-only fiche, which « Réessayer » then dropped (specs/pricing-components.md rule 101).
-- plugin:hourly-resources At « Payé maintenant », a refusal or a failure of the arrival's draft is shown once, no longer a second time for the payment typed with a second « Réessayer » (specs/outside-booking-sas.md rule 54).

@@ -1,1 +1,0 @@
-- A free line renamed in the fiche keeps its own line on a save that re-prices the stay: its number, moment, sale date and line discount stay its own (before, a discounted line renamed lost its discount and the total grew by it), and two lines swapping their labels no longer trade discounts (pricing-components rule 79, loop t13 S13-1).

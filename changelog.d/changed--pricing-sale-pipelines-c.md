@@ -1,1 +1,0 @@
-- **Pricing — one sale path per seller** (`specs/pricing-components.md` rule 54). The fiche, the SAS and the stay app's shop each sell through their named path (`ficheSale`, `sasSale`, `shopSale`), all three on the stored nights; a sale that names no known path is refused. No amount changes.

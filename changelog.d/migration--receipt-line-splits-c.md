@@ -1,1 +1,0 @@
-- New table `receipt_line_splits` (empty at migration): the sale lines a payment day of a stay booked once 4.2.0 is installed is cut over, frozen when the money is taken. Never written for a stay booked before; no amount moves; the previous version ignores it. Refund rows of a sale outside a stay are written in the existing `payment_allocations` (no new column).

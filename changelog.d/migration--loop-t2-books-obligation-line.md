@@ -1,1 +1,0 @@
-- `standalone_sale_obligations.lineRef` (nullable, NULL on every existing row): the line a `lineLowered` row was opened for (stabilisation loop t2, B2-1). A row the system cuts to nothing is closed `cancelled` by `system`. Ignored by the previous release; no amount moved.

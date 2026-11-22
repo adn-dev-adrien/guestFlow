@@ -1,1 +1,0 @@
-- Departure SAS charges (cleaning, missing linen, fire extinguisher): each becomes a line of the stay, written with the detail of the end-of-stay complement and outside the stay price; totals, accounting entries and e-mails unchanged (specs/pricing-components.md, rule 90.2).

@@ -1,1 +1,0 @@
-- **Mollie — a payment of a several-day invoice with no matching day stays unknown** (`specs/mollie-rolling-reserve-and-incoming-payments.md` rule 33 reading, loop t12 B12-1): when no free card day of the document has the payment's amount, the Mollie payment is left unknown instead of being bound to the invoice's first day; a single-day invoice keeps its fallback.

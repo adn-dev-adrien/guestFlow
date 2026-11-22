@@ -1,1 +1,0 @@
-- The last order module of the old shop is removed: every sale (fiche, SAS, shop) goes through the single sale service. Nothing changes for the team or for guests.

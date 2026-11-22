@@ -1,1 +1,0 @@
-- Fiche: a stay's sales detail uses the stored amounts (lines and accommodation), instead of a new calculation that could show a price other than the one sold, for example 0 € for a bath billed 50 € (specs/pricing-components.md, rules 31 and 74).

@@ -1,1 +1,0 @@
-- Evening surcharge of a bath whose sessions line is not the arrival complement's (already paid, offered or sold with the stay): it becomes a line of the resource without hours, collected at the arrival, which the next save of the fiche keeps (specs/pricing-components.md, rule 90.3).

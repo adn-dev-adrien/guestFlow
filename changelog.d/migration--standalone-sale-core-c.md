@@ -1,1 +1,0 @@
-- **Sale outside a stay — schema**: `vatClass` columns on `options` and `resources` (empty = the original class), `vat_external_rates` table (outside customer's rate per class), `clients.isPassage` column (shared « Passage » client, created at the first sale without a name). Additions only: no amount and no existing row changes.

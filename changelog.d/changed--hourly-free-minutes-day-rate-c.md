@@ -1,1 +1,0 @@
-- plugin:hourly-resources **Nordic bath — the free hour is worth the day rate** (`specs/hourly-resource-quantity-and-sas-scheduling.md` rules 37 and 38). On a line not yet sold, a free hour placed in the evening is counted at the day rate: its evening surcharge is billed separately, in the arrival SAS or through the app order, never twice. Stays already sold keep their price.

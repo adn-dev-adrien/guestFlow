@@ -1,1 +1,0 @@
-- **Échéancier** : a date or an amount being saved can no longer be posted a second time (Enter then leaving the field), and the field shows the saved value as soon as the answer arrives, so what is typed right after is never overwritten. This also ends the intermittent failures of the card's client tests on CI (`specs/direct-installments.md` rule 52).
