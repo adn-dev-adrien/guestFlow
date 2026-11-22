@@ -174,7 +174,7 @@ function buildGuestApi({
   });
   const controller = buildSessionController({
     lodgings, sessions, stays, stayLinks, orders, guestSession, soliomapUrl, soliomapFeed, now, appName, soliomapEmbed,
-    firstBathSlot: shop.firstBathSlotToday,
+    bathCards: shop.bathCards,
     homeReady: home.ready,
     ...(readGateUrl ? { readGateUrl } : {}),
   });

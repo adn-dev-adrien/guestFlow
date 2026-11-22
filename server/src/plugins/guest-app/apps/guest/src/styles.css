@@ -491,10 +491,47 @@ summary::-webkit-details-marker{display:none}
 .sheet .stock{display:flex;gap:6px;flex-wrap:wrap}
 .app.wide .main{max-width:none}
 .app.desk .scroll>.pad,.app.desk .scroll>.stickhead{max-width:1200px;margin-left:auto;margin-right:auto;width:100%}
+/* specs/guest-app-bath-home-scheduling.md §6 — the home's bath card: the night ground, its words over it, its buttons stacked at one height. */
+.bathcard{position:relative;margin:14px 16px 0;border-radius:4px;overflow:hidden;color:#F5F0E6;isolation:isolate}
+.bathcard .bg{position:absolute;inset:0;z-index:-1}
+.bathcard .in{display:grid;gap:6px;padding:18px 16px 16px}
+.bathcard em{font:700 11px var(--body);letter-spacing:.32em;text-transform:uppercase;color:#E8C286;font-style:normal}
+.bathcard b{font:400 23px/1.15 var(--display);letter-spacing:-.005em}
+.bathcard p{margin:0;font-size:14px;color:rgba(245,240,230,.84)}
+.bathcard ul{list-style:none;margin:2px 0 0;padding:0;font-variant-numeric:tabular-nums}
+.bathcard li{padding:8px 0;border-top:1px solid rgba(245,240,230,.16);font-size:14px}
+.bathcard li:first-child{border-top:0}
+.bathcard .acts{display:grid;gap:8px;margin-top:8px}
+.bathcard .btn{background:#E8C286;color:#161C16;min-height:48px}
+.bathcard .btn.light{background:transparent;color:#E8C286;border-color:#E8C286}
+.app.wide .bathcard{margin:14px 0 0}
+/* The scheduling screen: the owned chips, the mode switch, the counter and its refusal, the extra hours, the server's quote. */
+.bathplan .owned{display:flex;gap:6px;flex-wrap:wrap}
+.seg{position:relative;display:grid;grid-template-columns:repeat(var(--seg-n,2),minmax(0,1fr));background:var(--chip);border-radius:10px;padding:3px}
+.seg .thumb{position:absolute;top:3px;bottom:3px;left:3px;width:calc((100% - 6px) / var(--seg-n,2));background:var(--card);border-radius:8px;box-shadow:0 1px 3px rgba(0,0,0,.14);transition:transform .32s var(--ease-out)}
+.seg button{position:relative;z-index:1;border:0;background:transparent;min-height:44px;font:600 14px var(--body);color:var(--ink-soft)}
+.seg button[aria-pressed="true"]{color:var(--ink)}
+.seg-help{margin-top:6px}
+.day.has{position:relative}
+.day.has::after{content:"";position:absolute;left:50%;bottom:6px;width:5px;height:5px;margin-left:-2.5px;border-radius:50%;background:var(--ocre)}
+.slot.refused{animation:refuse .34s ease-in-out 2;border-color:var(--bad)}
+@keyframes refuse{0%,100%{transform:translateX(0)}25%{transform:translateX(-5px)}75%{transform:translateX(5px)}}
+.bathplan .counter{display:flex;justify-content:space-between;align-items:baseline;font-size:14px}
+.bathplan .counter b{font-variant-numeric:tabular-nums}
+.bathplan .refuse{margin:0;background:var(--bad-soft);color:var(--bad);border-radius:4px;padding:10px 12px;font-size:14px}
+.bathplan .refuse button{border:0;background:transparent;padding:0;color:var(--bad);font:700 14px var(--body);text-decoration:underline;min-height:0}
+.bathplan .extra{display:flex;justify-content:space-between;align-items:center;gap:12px;border-top:1px solid var(--line);border-bottom:1px solid var(--line);padding:10px 0}
+.bathplan .extra>div:first-child{display:grid;gap:2px}
+.bathplan .quote{display:grid;gap:2px;font-size:14px;font-variant-numeric:tabular-nums}
+.bathplan .quote>div{display:flex;justify-content:space-between;gap:12px;padding:4px 0}
+.bathplan .quote .tot{border-top:1px solid var(--line);margin-top:4px;padding-top:9px;font-weight:700;font-size:15px}
+.bathplan .pad{padding-bottom:150px}
+.app.wide .bathplan .slots{grid-template-columns:repeat(4,minmax(0,1fr))}
 @media (prefers-reduced-motion:reduce){
   .app *,.app *::before,.app *::after{animation-duration:.01ms!important;animation-delay:0s!important;transition-duration:.01ms!important}
   .done svg.chk circle,.done svg.chk path{stroke-dashoffset:0}
   .tile:active,.btn:active,.back:active{transform:none}
+  .slot.refused{animation:none}
 }
 @media (prefers-reduced-transparency:reduce){.pill{background:rgba(20,24,18,.82);backdrop-filter:none;-webkit-backdrop-filter:none}}
 .search input{-webkit-appearance:none;appearance:none}

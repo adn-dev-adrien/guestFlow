@@ -70,11 +70,9 @@ function openingLine(opening, lang = 'fr') {
 const welcomeLine = (name, lang = 'fr') => (lang === 'en' ? `Welcome to ${name}` : `Bienvenue à ${name}`);
 
 const DEPARTURE_PAGE = 'depart';
-const EVENING = '18:00';
 
-// Most urgent first. An order waiting on the terrace goes cold, and a guest on arrival day needs the gate.
-// The eve of departure comes before the bath: a slot is free on nearly every evening, so the other order
-// would never let the departure instructions show.
+// Most urgent first. An order waiting on the terrace goes cold, and a guest on arrival day needs the gate. The bath has no highlight of
+// its own: the home's bath card says it (specs/guest-app-bath-home-scheduling.md rule 6).
 const HIGHLIGHTS = Object.freeze([
   { key: 'order', module: 'orders', when: (f) => f.orderReady, text: { fr: 'Votre commande est prête', en: 'Your order is ready' } },
   { key: 'gate', module: 'gate', when: (f) => f.isArrivalDay && !f.gatePreparing, text: { fr: 'Le portail est actif', en: 'The gate is active' } },
@@ -87,50 +85,30 @@ const HIGHLIGHTS = Object.freeze([
     detail: { fr: 'La tuile Portail s’activera dès que votre accès sera prêt.', en: 'The Gate tile will light up as soon as your access is ready.' },
   },
   { key: 'departure', module: 'booklet', page: DEPARTURE_PAGE, when: (f) => f.isDepartureEve, text: { fr: 'Départ demain : les consignes', en: 'Leaving tomorrow: the instructions' } },
-  // « aujourd'hui » while the first bookable slot starts before the evening, « ce soir » from it; the hour follows.
-  {
-    key: 'bath',
-    module: 'bath',
-    when: (f) => f.bathFreeToday,
-    text: {
-      fr: (f) => (f.bathFirstSlot && f.bathFirstSlot < EVENING ? 'Un bain nordique aujourd’hui ?' : 'Un bain nordique ce soir ?'),
-      en: (f) => (f.bathFirstSlot && f.bathFirstSlot < EVENING ? 'A nordic bath today?' : 'A nordic bath tonight?'),
-    },
-    detail: {
-      fr: (f) => (f.bathFirstSlot ? `Premier créneau libre à ${clockLabel(f.bathFirstSlot, 'fr')}` : null),
-      en: (f) => (f.bathFirstSlot ? `First free slot at ${clockLabel(f.bathFirstSlot, 'en')}` : null),
-    },
-  },
 ]);
 
-const wordsOf = (words, lang, facts) => {
-  const found = words && (words[lang] || words.fr);
-  return typeof found === 'function' ? found(facts) : found;
-};
+const wordsOf = (words, lang) => words && (words[lang] || words.fr);
 
 /**
  * Rule 11 — at most one card, only among the lodging's shown modules. `shown`: the keys of the shown
- * modules. `orderReady` comes from the orders; `bathFirstSlot` (`HH:MM`, or null) is the first slot of a sold hourly
- * resource still bookable today, read from the planning.
+ * modules. `orderReady` comes from the orders.
  */
 function chooseHighlight({
-  stay, now, shown, orderReady = false, bathFirstSlot = null, gatePreparing = false, lang = 'fr',
+  stay, now, shown, orderReady = false, gatePreparing = false, lang = 'fr',
 }) {
   const today = parisDate(now);
   const facts = {
     orderReady,
     gatePreparing,
-    bathFreeToday: Boolean(bathFirstSlot),
-    bathFirstSlot,
     isArrivalDay: String(stay.startDate) === today,
     isDepartureEve: addDays(today, 1) === String(stay.endDate),
   };
   const found = HIGHLIGHTS.find((h) => shown.includes(h.module) && h.when(facts));
   if (!found) return null;
-  const detail = wordsOf(found.detail, lang, facts);
+  const detail = wordsOf(found.detail, lang);
   return {
     key: found.key,
-    text: wordsOf(found.text, lang, facts),
+    text: wordsOf(found.text, lang),
     ...(detail ? { detail } : {}),
     module: found.module,
     ...(found.page ? { page: found.page } : {}),

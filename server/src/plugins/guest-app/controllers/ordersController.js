@@ -30,6 +30,8 @@ const labels = require('../orderLabels');
 const { outOfStockOf } = require('../stock');
 
 const publicHttp = sdk.coreModule('publicHttp');
+const { hoursLabel: minutesLabel } = sdk.coreModule('publicCatalogProjection');
+const { roundMoney } = sdk.coreModule('money');
 const { isRealIsoDay } = sdk.coreModule('stayDates');
 const { toParisIso, wallClockToDate } = sdk.coreModule('stayWindow');
 const paymentProviders = sdk.coreModule('paymentProviders');
@@ -121,6 +123,7 @@ const minutesOf = (time) => {
   const [h, m] = String(time || '').split(':').map(Number);
   return h * 60 + m;
 };
+const clockOf = (minutes) => `${String(Math.floor(minutes / 60)).padStart(2, '0')}:${String(minutes % 60).padStart(2, '0')}`;
 const sessionsHours = (sessions) => sessions.reduce((sum, s) => sum + Math.max(0, minutesOf(s.end) - minutesOf(s.start)), 0) / 60;
 
 
@@ -252,7 +255,18 @@ function buildOrdersController({
     const rest = [];
     ordered.forEach((s) => {
       const hours = sessionsHours([s]);
-      if (hours <= room + 1e-9) { placed.push(s); room -= hours; } else rest.push(s);
+      if (hours <= room + 1e-9) { placed.push(s); room -= hours; return; }
+      // A session longer than the hours still held (one « à la suite » block): its first hours are placed on the stay's line, the rest is sold as a
+      // line of its own (pricing-components rules 13, 85). The two halves touch: one continuous bath, no turnover between them.
+      const heldMinutes = Math.floor(room) * 60;
+      if (heldMinutes > 0) {
+        const cut = clockOf(minutesOf(s.start) + heldMinutes);
+        placed.push({ ...s, end: cut });
+        rest.push({ ...s, start: cut });
+        room -= heldMinutes / 60;
+        return;
+      }
+      rest.push(s);
     });
     const out = [];
     if (placed.length) out.push({ articleRef: `resource:${line.id}`, quantity: sessionsHours(placed), sessions: placed, placeOnHeld: true });
@@ -327,6 +341,34 @@ function buildOrdersController({
     return { lines, byKey, total: priced.totalCents / 100 };
   }
 
+  const BREAKDOWN = Object.freeze({
+    fr: { held: 'Comprise dans le séjour', offered: 'Offerte', evening: 'Supplément soirée', extra: 'En plus' },
+    en: { held: 'Included in the stay', offered: 'Free', evening: 'Evening supplement', extra: 'Extra' },
+  });
+
+  /**
+   * specs/guest-app-bath-home-scheduling.md rule 15 — what a bath line's total is made of, read from what `price()` decided: the
+   * hours the stay holds and the offered minutes cost nothing, the evening supplement is its own amount, the rest is the hours added.
+   * Words only: the parts always add up to the line's total, never the other way round.
+   */
+  function breakdownOf(line, total, lang) {
+    if (line.kind !== 'resource' || !line.kept || !line.kept.length || !line.item || line.item.included) return null;
+    const W = BREAKDOWN[lang] || BREAKDOWN.fr;
+    const hours = sessionsHours(line.kept);
+    const held = Math.min(hours, Math.max(0, Number(line.heldHours || 0)));
+    const offered = Math.min(hours - held, Math.max(0, Number((line.item.freeMinutes || { left: 0 }).left || 0)) / 60);
+    const extra = Math.max(0, hours - held - offered);
+    const supplement = Math.min(total, Math.max(0, Number(line.supplement || 0)));
+    const extraAmount = roundMoney(total - supplement);
+    const hoursText = (h) => minutesLabel(Math.round(h * 60));
+    return [
+      held > 0 ? { key: 'held', hours: held, label: `${W.held} · ${hoursText(held)}`, amount: 0, amountLabel: labels.priceLabel(0, lang) } : null,
+      offered > 0 ? { key: 'offered', hours: offered, label: `${W.offered} · ${hoursText(offered)}`, amount: 0, amountLabel: labels.priceLabel(0, lang) } : null,
+      supplement > 0 ? { key: 'evening', label: W.evening, amount: supplement, amountLabel: labels.priceLabel(supplement, lang) } : null,
+      extra > 0 ? { key: 'extra', hours: extra, label: `${W.extra} · ${hoursText(extra)}`, amount: extraAmount, amountLabel: labels.priceLabel(extraAmount, lang) } : null,
+    ].filter(Boolean);
+  }
+
   /** Rule 32 — a priced line ready to render; the snapshot an order stores is the same object. */
   function lineView(line, byKey, lang) {
     const T = labels.textOf(lang);
@@ -345,6 +387,8 @@ function buildOrdersController({
       ...(line.unavailable ? { unavailable: true, unavailableReason: line.unavailableReason } : {}),
       ...(line.outOfStock ? { outOfStock: line.outOfStock } : {}),
     };
+    const breakdown = line.unavailable ? null : breakdownOf(line, total, lang);
+    if (breakdown) view.breakdown = breakdown;
     if (view.title) view.label = labels.lineLabel({ ...view, sessions: line.kept || line.sessions }, lang);
     return view;
   }
@@ -352,12 +396,16 @@ function buildOrdersController({
   /**
    * Rule 55 — a priced article the engine adds nothing for (no free unit or minute left to explain it: a line the
    * fiche offers, for one) would be delivered at 0 €: refused, never confirmed free. Rule 60 — the free units or
-   * minutes left explain only what they cover: the line's quantity, or its hours.
+   * minutes left explain only what they cover: the line's quantity, or its hours. Rule 82 (and
+   * specs/guest-app-bath-home-scheduling.md rule 17) — the hours the stay already holds explain a 0 € bath session too.
    */
   const freeCovers = (line) => {
     const { freeUnits, freeMinutes } = line.item;
     if (freeUnits) return Number(line.quantity) <= Number(freeUnits.left || 0);
-    if (freeMinutes) return sessionsHours(line.kept || []) * 60 <= Number(freeMinutes.left || 0);
+    if (line.kept) {
+      const covered = Number(line.heldHours || 0) * 60 + Number((freeMinutes && freeMinutes.left) || 0);
+      return sessionsHours(line.kept) * 60 <= covered + 1e-9;
+    }
     return false;
   };
   const billable = (line) => Boolean(line.item) && !line.item.included && Number(line.item.row.price || 0) > 0 && !freeCovers(line);
@@ -514,7 +562,7 @@ function buildOrdersController({
   // Rule 43 — a staff-prepared line says so in the order's own snapshot: the planning card lists those lines only.
   const snapshot = (judged, byKey, lang) => judged.lines.filter((l) => !l.unavailable).map((l) => {
     const view = lineView(l, byKey, lang);
-    const { unavailableMornings, label, ...kept } = view;
+    const { unavailableMornings, label, breakdown, ...kept } = view;
     kept.title = l.title;
     if (kept.sessions) kept.sessions = l.kept.map(({ date, start, end }) => ({ date, start, end }));
     if (l.item && isStaffItem(l.item)) kept.needsStaff = true;
