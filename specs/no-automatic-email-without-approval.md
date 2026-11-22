@@ -369,3 +369,9 @@ modèle » + « Historique »). No change to either bar.
     cron and only the cron: the « à valider » queue keeps proposing due `auto` templates (rule 3), a
     confirmed payment keeps queueing its confirmation (rule 4) and the Emails page keeps its banner
     (rule 8). Those propose — they never send, and they only ever run on a request the operator made.
+- Q: Is any guest e-mail exempt from the gate?
+  - A (2026-11-15, Adrien): **One, and only one:** the gift-voucher receipt (`specs/gift-vouchers.md` rule 23).
+    It is sent automatically when a voucher sold on the website is issued, because it is the receipt of a
+    payment the buyer has just made — it carries the amount, the expiry and the link to the voucher, never the
+    code, and it leaves through `ctx.mail.send`, outside the stay-bound queue. A failed send is retried by a job
+    and flagged « Mail non parti ». The booking confirmation stays gated (answer of 2026-08-20 above).

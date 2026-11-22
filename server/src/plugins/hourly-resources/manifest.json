@@ -1,7 +1,7 @@
 {
   "id": "hourly-resources",
   "name": "Ressources à l’heure",
-  "version": "1.8.0",
+  "version": "1.9.0",
   "description": "Louer un équipement par créneau : bain nordique, sauna.",
   "icon": "hot-tub",
   "surfaces": [
@@ -14,7 +14,7 @@
   ],
   "requires": [],
   "guestflow": ">=3.18.0",
-  "sdk": "^2.32.0",
+  "sdk": "^2.33.0",
   "changelog": {
     "1.0.0": [
       "Première version publiée en paquet."
@@ -198,6 +198,22 @@
       "Arrivée et réservation : les lignes de paiement saisies restent telles quelles quand le montant change ou après un calcul en échec ; la ligne CB proposée d’office suit le nouveau montant.",
       "Arrivée et réservation : le focus reste dans la fenêtre pendant l’enregistrement.",
       "Demande GuestFlow 4.2 (SDK 2.32)."
+    ],
+    "1.8.1": [
+      "Aucun changement visible : GuestFlow sait désormais qu'une part d'un paiement peut avoir été reçue d'avance (un bon cadeau), ce que ce module lit sans le compter à part.",
+      "Compatible avec GuestFlow 4 (SDK 2.33)."
+    ],
+    "1.9.0": [
+      "Une ressource peut dégresser selon le rang de l’heure : par exemple la 2ᵉ heure à −10 % et la 3ᵉ et suivantes à −20 %. Le tableau se règle sous les tarifs de la ressource, vide il laisse les prix inchangés.",
+      "Chaque créneau garde le tarif de sa tranche (jour ou soir), puis reçoit la remise de son heure.",
+      "Les conditions générales du bain nordique ont leur propre onglet sous Réglages › Conditions générales : un brouillon prérempli, à relire puis à publier.",
+      "Chaque ressource a son horizon « Réservable jusqu’à » (3 mois par défaut, 1 à 24), à côté de ses horaires d’ouverture : l’appli du séjour n’offre pas de créneau au-delà.",
+      "Le prix d’une séance sans date peut être demandé à GuestFlow pour un client sans séjour : une durée dans la journée ou la soirée, au tarif extérieur de la tranche, avec la remise de chaque heure.",
+      "Une autre extension peut réserver une séance hors séjour pour un client : les créneaux libres suivent les jours, les horaires, la grille, la capacité, les temps de remise en état et l’horizon de la ressource ; un créneau se retient 15 minutes le temps d’un paiement (il bloque le planning, l’appli du séjour et les réservations extérieures, puis se libère tout seul) ; la séance, sa vente et ses paiements s’écrivent ensemble ou pas du tout.",
+      "Le supplément de soirée d’une séance qui déborde sur la soirée et le temps ajouté après des minutes déjà couvertes sont chiffrés par GuestFlow : chaque tranche prend le tarif de sa tranche puis la remise de son heure, le rang des heures continuant.",
+      "La carte du planning d’une séance hors séjour liste toutes les options à préparer et un badge pour ce qui a été réglé d’avance ; l’arrivée montre ces lignes à part, marquées comme réglées d’avance et comptées comme payées, et une option que le client n’a pas prise se marque « non pris » (jamais remboursée).",
+      "Chaque séance hors séjour a sa fiche : le client, la séance, les lignes et ce qui a payé chacune, les paiements et remboursements, les conditions acceptées, l’arrivée ou l’absence, et l’historique de tout ce qui s’est passé, le plus récent en premier.",
+      "Compatible avec GuestFlow 4 (SDK 2.33)."
     ]
   }
 }

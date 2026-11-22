@@ -9,6 +9,10 @@
  *
  * Props:
  *   block: { termsAcceptanceState, termsAcceptance } | null
+ *
+ * `ActivityTermsAcceptanceLines` (named export) renders `block.activityAcceptances` — the acceptances of the
+ * other activities' terms recorded on the reservation (specs/gift-voucher-campaigns.md rule 37), one line each,
+ * with the activity label and the channel it was accepted on. They do not depend on the website plugin.
  */
 import React, { useState } from 'react';
 import {
@@ -20,29 +24,16 @@ import SummaryItem from '../SummaryItem';
 import ArchivedHtmlDialog from '../ArchivedHtmlDialog';
 import api from '../../api';
 
-export default function TermsAcceptanceLine({ block }) {
+function AcceptanceRow({ acceptance: a, label, title, activity }) {
   const theme = useTheme();
   const fullScreen = useMediaQuery(theme.breakpoints.down('sm'));
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [text, setText] = useState(null);
 
-  if (!block || block.termsAcceptanceState === 'not_applicable') return null;
-
-  if (block.termsAcceptanceState !== 'recorded') {
-    return (
-      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, color: 'warning.main' }}>
-        <GavelIcon sx={{ fontSize: 16 }} />
-        <Typography variant="body2">CGV : aucune acceptation enregistrée</Typography>
-      </Box>
-    );
-  }
-
-  const a = block.termsAcceptance;
-
   const openText = async () => {
     setText({ loading: true, documents: [], error: '' });
     try {
-      const v = await api.getTermsVersion(a.version);
+      const v = await api.getTermsVersion(a.version, activity);
       setText({
         loading: false,
         error: '',
@@ -61,7 +52,7 @@ export default function TermsAcceptanceLine({ block }) {
       <Box sx={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 0.75 }}>
         <GavelIcon sx={{ fontSize: 16, color: 'success.main' }} />
         <Typography variant="body2">
-          CGV v{a.version} acceptées le {a.acceptedAtLabel}
+          {label} v{a.version} acceptées le {a.acceptedAtLabel}{a.channelLabel ? ` (${a.channelLabel})` : ''}
         </Typography>
         <Button size="small" variant="text" onClick={() => setDetailsOpen(true)} sx={{ minHeight: 32, '@media (pointer: coarse)': { minHeight: 44 } }}>
           Détails
@@ -87,7 +78,7 @@ export default function TermsAcceptanceLine({ block }) {
       <ArchivedHtmlDialog
         open={Boolean(text)}
         onClose={() => setText(null)}
-        title={`Conditions générales — version ${a.version}`}
+        title={`${title} — version ${a.version}`}
         subtitle={`Texte accepté le ${a.acceptedAtLabel}, identique à ce que le client a vu`}
         documents={text?.documents || []}
         loading={Boolean(text?.loading)}
@@ -95,4 +86,26 @@ export default function TermsAcceptanceLine({ block }) {
       />
     </>
   );
+}
+
+export function ActivityTermsAcceptanceLines({ block }) {
+  const rows = (block && block.activityAcceptances) || [];
+  return rows.map((a) => (
+    <AcceptanceRow key={a.activity} acceptance={a} activity={a.activity} label={`CGV ${a.label}`} title={`Conditions générales — ${a.label}`} />
+  ));
+}
+
+export default function TermsAcceptanceLine({ block }) {
+  if (!block || block.termsAcceptanceState === 'not_applicable') return null;
+
+  if (block.termsAcceptanceState !== 'recorded') {
+    return (
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, color: 'warning.main' }}>
+        <GavelIcon sx={{ fontSize: 16 }} />
+        <Typography variant="body2">CGV : aucune acceptation enregistrée</Typography>
+      </Box>
+    );
+  }
+
+  return <AcceptanceRow acceptance={block.termsAcceptance} activity="lodging" label="CGV" title="Conditions générales" />;
 }

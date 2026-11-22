@@ -13,7 +13,8 @@ const quotePostProcessors = sdk.coreModule('quotePostProcessors');
 const resourcesModel = sdk.coreModule('resourcesModel');
 const { hideUnoffered } = sdk.coreModule('resourceOffer');
 const { computeBlockedDates, rangeHasBlockedNight } = sdk.coreModule('blockedDates');
-const { validateAvailabilityQuery } = require('../publicInputValidation');
+const bookingHorizon = sdk.coreModule('bookingHorizon');
+const { validateAvailabilityQuery, withHorizonMessages } = require('../publicInputValidation');
 const { findNextAvailableDate, stayRulesPredicate } = require('../nextAvailability');
 const { computeArrivalWindows, addDays } = require('../publicArrivalWindows');
 const { effectiveMinNightsForDate, getRuleNightBaseForDate } = sdk.coreModule('pricing');
@@ -99,8 +100,9 @@ function listResources(req, res) {
 function getAvailability(req, res) {
   const propertyId = Number(req.params.id);
   if (!propertyExists(propertyId)) return failT(res, req, 404, 'PROPERTY_NOT_FOUND', 'propertyNotFound');
-  const v = validateAvailabilityQuery({ from: req.query.from, to: req.query.to, todayIso: todayIso() });
-  if (!v.ok) return failT(res, req, 422, 'VALIDATION_FAILED', 'periodInvalid', v.errors);
+  const horizonUntil = bookingHorizon.lodgingHorizonUntil();
+  const v = validateAvailabilityQuery({ from: req.query.from, to: req.query.to, todayIso: todayIso(), horizonUntil });
+  if (!v.ok) return failT(res, req, 422, 'VALIDATION_FAILED', 'periodInvalid', withHorizonMessages(v.errors, langOf(req)));
   const { from, to } = v.value;
   // Blocked nights are read a month past `to`, so an arrival near the end of the window still gets
   // its true earliest departure (specs/booking-drawer-friction.md rule 10). Only [from, to) is returned.
@@ -112,6 +114,7 @@ function getAvailability(req, res) {
     from,
     to,
     todayIso: todayIso(),
+    horizonUntil,
     blockedDates,
     loadBlocked: (a, b) => computeBlockedDates(propertyId, a, b),
     // The seasons as the pricing engine reads them: a free night the quote would refuse (minimum
@@ -119,7 +122,7 @@ function getAvailability(req, res) {
     isStayAllowed: stayRulesPredicate(rules),
   });
   const { arrivals, nightPrices } = calendarHints(rules, from, to, new Set(lookahead), stayRulesPredicate(rules));
-  return ok(res, toPublicAvailability({ propertyId, from, to, blockedDates, nextAvailableDate, arrivals, nightPrices }));
+  return ok(res, toPublicAvailability({ propertyId, from, to, horizonUntil, blockedDates, nextAvailableDate, arrivals, nightPrices }));
 }
 
 const ARRIVAL_LOOKAHEAD_NIGHTS = 31;

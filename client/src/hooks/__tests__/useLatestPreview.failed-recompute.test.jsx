@@ -29,6 +29,12 @@ import {
   sasPayload, stayDue, renderDialog as renderSas, clickBtn, stayPageReady,
 } from '../../plugins/sas/__tests__/sasFixtures';
 import { recapFor, departurePreviewLikeTheServer } from '../../plugins/sas/__tests__/sasPreviewFake';
+import giftVouchersApi from '../../plugins/gift-vouchers/giftVouchersApi';
+import CampaignEditor from '../../plugins/gift-vouchers/CampaignEditor';
+import NewVoucherPage from '../../plugins/gift-vouchers/NewVoucherPage';
+import {
+  campaign as giftCampaign, CATALOGUE as GIFT_CATALOGUE, OFFER as GIFT_OFFER, PRICE as GIFT_PRICE, renderWithShell, visual as giftVisual,
+} from '../../plugins/gift-vouchers/__tests__/giftVoucherFixtures';
 
 vi.mock('../../api', () => ({
   __esModule: true,
@@ -61,6 +67,13 @@ vi.mock('../../api', () => ({
     previewMidStayNote: vi.fn(),
     quoteExtraSale: vi.fn(),
     sellExtra: vi.fn(),
+    getToday: vi.fn(() => Promise.resolve({ today: '2026-11-15' })), // date-literal-ok: the server's today the voucher page shows, never compared here
+  },
+}));
+vi.mock('../../plugins/gift-vouchers/giftVouchersApi', () => ({
+  default: {
+    getCampaign: vi.fn(), listVisuals: vi.fn(), catalogue: vi.fn(), previewPrice: vi.fn(), getOffer: vi.fn(), offerPrice: vi.fn(), create: vi.fn(),
+    updateCampaign: vi.fn(), createCampaign: vi.fn(), getProperties: vi.fn(() => Promise.resolve([])), visualImageUrl: vi.fn(() => '/img'),
   },
 }));
 vi.mock('../usePostalCodeCities', () => ({ default: () => [] }));
@@ -328,6 +341,42 @@ const ROWS = {
     check() { expect(screen.getByRole('button', { name: 'Rattacher' })).toBeDisabled(); },
     beforeRetry(state) { state.summary = '2 virements · 450,00 €'; },
     async recover() { await screen.findByText('2 virements · 450,00 €'); },
+  },
+  CampaignEditor: {
+    async answer(state) {
+      giftVouchersApi.getCampaign.mockResolvedValue(giftCampaign());
+      giftVouchersApi.listVisuals.mockResolvedValue({ items: [giftVisual()] });
+      giftVouchersApi.catalogue.mockResolvedValue({ elements: GIFT_CATALOGUE });
+      giftVouchersApi.previewPrice.mockImplementation(async () => { if (state.fail) throw offline(); return state.price || GIFT_PRICE; });
+      renderWithShell(<CampaignEditor />, { route: '/bons-cadeaux/campagnes/5', path: '/bons-cadeaux/campagnes/:id' });
+      await screen.findByText(/109,00/);
+    },
+    async fail(state) { state.fail = true; press(screen.getByRole('radio', { name: /soirée/ })); await screen.findByText(/Service indisponible/); },
+    stale: /109,00/,
+    drafts: () => screen.getAllByRole('radio'),
+    check() { expect(screen.queryByTestId('price-recap')).not.toBeInTheDocument(); },
+    beforeRetry(state) { state.price = { ...GIFT_PRICE, totalCents: 13300 }; },
+    async recover() { await screen.findByText(/133,00/); },
+  },
+  NewVoucherPage: {
+    async answer(state) {
+      giftVouchersApi.getOffer.mockResolvedValue(GIFT_OFFER);
+      giftVouchersApi.listVisuals.mockResolvedValue({ items: [giftVisual()] });
+      giftVouchersApi.catalogue.mockResolvedValue({ elements: GIFT_CATALOGUE });
+      giftVouchersApi.offerPrice.mockImplementation(async () => { if (state.fail) throw offline(); return state.price || GIFT_PRICE; });
+      renderWithShell(<NewVoucherPage />, { route: '/bons-cadeaux/nouveau', path: '/bons-cadeaux/nouveau' });
+      await screen.findByText(/109,00/);
+    },
+    async fail(state) { state.fail = true; press(screen.getAllByRole('button', { name: 'Augmenter' })[0]); await screen.findByText(/Service indisponible/); },
+    // The campaign's card keeps the offer's own figure (« dès 109,00 € »): the answer's figures are the recap's « dont TVA » lines.
+    stale: /dont TVA/,
+    drafts: () => [screen.getAllByRole('button', { name: 'Augmenter' })[0]],
+    check() {
+      expect(screen.queryByTestId('price-recap')).not.toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Créer le bon' })).toBeDisabled();
+    },
+    beforeRetry(state) { state.price = { ...GIFT_PRICE, totalCents: 13300 }; },
+    async recover() { await screen.findByText(/133,00/); },
   },
 };
 

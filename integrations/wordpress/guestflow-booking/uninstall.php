@@ -9,6 +9,7 @@ if (!defined('WP_UNINSTALL_PLUGIN')) {
 }
 
 delete_option('guestflow_booking_settings');
+delete_option('guestflow_booking_rewrite_base');
 
 // Remove all gf_cache_* transients (and their timeouts).
 global $wpdb;

@@ -24,11 +24,9 @@ const isValidPhone = (value) => {
 };
 // The length is checked before the shape (core `validateEmail`, linear): a 195 KB address once froze the instance for 35 s.
 const isValidGuestEmail = (value) => value !== '' && sdk.coreModule('settingsValidation').validateEmail(value) === null;
-const MAX_AVAILABILITY_DAYS = 365;
 // Bounds on a public stay (specs/public-api.md rule 8). The engine walks the stay night by night,
 // synchronously: an unbounded endDate (9999-12-31) is millions of iterations that block the server.
 const MAX_STAY_NIGHTS = 365;
-const MAX_BOOKING_HORIZON_DAYS = 730;
 // The most one option or resource line may ask for (fixed at the 2026-10-27 spec review: 1e9 was
 // accepted, priced and printed). One unit per guest per hour of the stay, counting the departure day:
 // above any real need — hours of a resource, portions, sessions — and still bounded by the party.
@@ -58,11 +56,13 @@ function daysBetween(fromIso, toIso) {
 }
 
 /**
- * Validate an availability query: optional `from`/`to`. Defaults to today … today+12 months
- * (the `today` ISO string is injected so the function stays pure/testable). Caps the window at
- * 365 days and rejects inverted ranges.
+ * Validate an availability query: optional `from`/`to`. Defaults to today … the booking horizon
+ * (`todayIso` and `horizonUntil`, the last day the public may book, are injected so the function
+ * stays pure/testable). The window never reaches past the horizon — `to` beyond it is brought back
+ * to it — and its span is capped at the days between today and the horizon. Inverted ranges and a
+ * window that opens at the horizon or after it are rejected.
  */
-function validateAvailabilityQuery({ from, to, todayIso }) {
+function validateAvailabilityQuery({ from, to, todayIso, horizonUntil }) {
   const errors = [];
   const start = from === undefined || from === '' ? todayIso : from;
   let end = to === undefined || to === '' ? null : to;
@@ -71,14 +71,12 @@ function validateAvailabilityQuery({ from, to, todayIso }) {
   if (end !== null && !isValidIsoDate(end)) errors.push({ field: 'to', issue: 'must be an ISO date (YYYY-MM-DD)' });
   if (errors.length) return { ok: false, errors };
 
-  if (end === null) {
-    const d = new Date(`${start}T00:00:00Z`);
-    d.setUTCFullYear(d.getUTCFullYear() + 1);
-    end = d.toISOString().slice(0, 10);
-  }
-  if (end <= start) errors.push({ field: 'to', issue: 'must be after from' });
-  else if (daysBetween(start, end) > MAX_AVAILABILITY_DAYS) {
-    errors.push({ field: 'to', issue: `range must not exceed ${MAX_AVAILABILITY_DAYS} days` });
+  if (end === null || end > horizonUntil) end = horizonUntil;
+  const maxDays = daysBetween(todayIso, horizonUntil);
+  if (start >= horizonUntil) errors.push({ field: 'from', issue: 'must be before the booking horizon', reason: 'beyondHorizon', horizonUntil });
+  else if (end <= start) errors.push({ field: 'to', issue: 'must be after from' });
+  else if (daysBetween(start, end) > maxDays) {
+    errors.push({ field: 'to', issue: `range must not exceed ${maxDays} days` });
   }
   if (errors.length) return { ok: false, errors };
   return { ok: true, value: { from: start, to: end } };
@@ -104,10 +102,11 @@ function pushDuplicates(errors, lines, field, key) {
  * (specs/public-api.md Q8). Returns a sanitized value with only the whitelisted fields.
  *
  * `todayIso` (the accommodations' day, injected to keep this pure) refuses a stay starting in the
- * past or ending beyond MAX_BOOKING_HORIZON_DAYS; the stay length is capped at MAX_STAY_NIGHTS
- * whatever the day. Both public controllers pass it.
+ * past; `horizonUntil` (the last day the public may book, specs/gift-voucher-campaigns.md rule 51) refuses
+ * a stay ending beyond it, with the `beyondHorizon` reason the controller turns into its sentence. The
+ * stay length is capped at MAX_STAY_NIGHTS whatever the day. Both public controllers pass both.
  */
-function validateStayInput(body = {}, { todayIso } = {}) {
+function validateStayInput(body = {}, { todayIso, horizonUntil } = {}) {
   const errors = [];
   const propertyId = toNonNegativeInt(body.propertyId, NaN);
   if (!Number.isFinite(propertyId) || propertyId <= 0) errors.push({ field: 'propertyId', issue: 'required positive integer' });
@@ -120,11 +119,9 @@ function validateStayInput(body = {}, { todayIso } = {}) {
     } else if (daysBetween(body.startDate, body.endDate) > MAX_STAY_NIGHTS) {
       errors.push({ field: 'endDate', issue: `stay must not exceed ${MAX_STAY_NIGHTS} nights` });
     }
-    if (isValidIsoDate(todayIso)) {
-      if (dayPassed(body.startDate, todayIso)) errors.push({ field: 'startDate', issue: 'must not be in the past' });
-      if (daysBetween(todayIso, body.endDate) > MAX_BOOKING_HORIZON_DAYS) {
-        errors.push({ field: 'endDate', issue: `must be within ${MAX_BOOKING_HORIZON_DAYS} days from today` });
-      }
+    if (isValidIsoDate(todayIso) && dayPassed(body.startDate, todayIso)) errors.push({ field: 'startDate', issue: 'must not be in the past' });
+    if (isValidIsoDate(horizonUntil) && body.endDate > horizonUntil) {
+      errors.push({ field: 'endDate', issue: 'must be within the booking horizon', reason: 'beyondHorizon', horizonUntil });
     }
   }
 
@@ -289,6 +286,16 @@ function withFieldMessages(errors, messages) {
   return (errors || []).map((e) => (e.reason && messages[e.reason] ? { ...e, message: messages[e.reason] } : e));
 }
 
+/**
+ * The refusals past the booking horizon carry their own sentence (« Réservable jusqu'au … »), in the
+ * visitor's language, next to the date the site can disable its calendar from.
+ */
+function withHorizonMessages(errors, lang) {
+  return (errors || []).map((e) => (e.reason === 'beyondHorizon'
+    ? { ...e, message: sdk.coreModule('bookingHorizon').refusalSentence(e.horizonUntil, lang) }
+    : e));
+}
+
 const ATTRIBUTION_MAX = 200;
 const ATTRIBUTION_TEXT_KEYS = ['utmSource', 'utmMedium', 'utmCampaign', 'utmContent', 'utmTerm'];
 const HOSTNAME = /^(?=.{3,253}$)([a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/;
@@ -318,9 +325,7 @@ function validateAttribution(raw) {
 
 module.exports = {
   maxLineQuantity,
-  MAX_AVAILABILITY_DAYS,
   MAX_STAY_NIGHTS,
-  MAX_BOOKING_HORIZON_DAYS,
   validateAttribution,
   isValidIsoDate,
   toNonNegativeInt,
@@ -330,4 +335,5 @@ module.exports = {
   validateGuest,
   cleanFreeText,
   withFieldMessages,
+  withHorizonMessages,
 };

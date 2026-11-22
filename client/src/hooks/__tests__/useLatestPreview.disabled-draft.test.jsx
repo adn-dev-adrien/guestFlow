@@ -199,6 +199,8 @@ const NOT_MEMBERS = {
   ResourceArrivalDialog: 'an undirtied draft is null and the stored visit is drawn; the invoice question reads only a fresh answer (pending block otherwise)',
   ResourceBookingDialog: 'the price is drawn only for a draft (`shownPrice = draft ? … : null`); the invoice question as in the arrival',
   ReservationSasDialog: 'a page without money disables the recap; the money pages draw `last` with « — » while failed',
+  CampaignEditor: 'a composition that cannot be asked (no resource) draws the idle sentence, never `data` (`!previewable` comes first)',
+  NewVoucherPage: 'an offer that cannot be priced draws « Compléter l’offre pour voir le prix. », never `data` (`!priceable` comes first)',
 };
 
 test('every screen that previews through the hook, read from the code, is a member with its row or says why not', () => {

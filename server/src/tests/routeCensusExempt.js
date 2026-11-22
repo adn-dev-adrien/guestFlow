@@ -182,6 +182,7 @@ const EXEMPT = {
     'DELETE /api/resource-bookings/:id/visit/payment-link/:linkId',
     'PATCH /api/resource-bookings/:id/visit/lines/:lineId',
     'POST /api/resource-bookings/:id/no-show',
+    'POST /api/resource-bookings/:id/visit/lines/:lineId/not-taken',
     'POST /api/resource-bookings/:id/visit',
     'POST /api/resource-bookings/:id/visit/payment',
     'POST /api/resource-bookings/:id/visit/payment-link',

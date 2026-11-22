@@ -6,7 +6,8 @@
  * which the books do not carry (`books = 0`, mixed-method-payments rule 14). The allocation itself — which line a cent covers — is SETTLEMENT's
  * (`allocateDocumentPayment`), never decided here.
  *
- *   record({ saleId, paidAt, tenders, receivedCents, shortfallCents, shortfallKind, source, createdBy, allocations })  → the payment id
+ *   record({ saleId, paidAt, tenders, receivedCents, shortfallCents, shortfallKind, source, createdBy, allocations })  → the payment id; an allocation is `internal` (caisse
+ *                                 interne) or `prepaid` (money a plugin's instrument already collected, SDK 2.33.0): both are off the books (`books = 0`), told apart by their ref suffix
  *   paymentsOf(saleId)            the rows with their tenders parsed
  *   allocationsOf(saleId)         the document's `payment_allocations` rows, oldest first
  *   recordRefund({ saleId, obligationId, at, rows })   the money a `lineLowered` row gave back, as refund allocations (negative, `kind = 'refund'`,
@@ -39,7 +40,8 @@ function record({
   const insert = db.prepare(`INSERT INTO payment_allocations (paymentRef, documentRef, lineRef, amountCents, kind, at, books, origin)
     VALUES (?, ?, ?, ?, 'payment', ?, ?, 'live')`);
   for (const row of allocations) {
-    insert.run(row.internal ? `${paymentRef(id)}:internal` : paymentRef(id), documentRef(saleId), row.lineRef || null, row.amountCents, paidAt, row.internal ? 0 : 1);
+    const off = row.prepaid ? ':prepaid' : (row.internal ? ':internal' : '');
+    insert.run(`${paymentRef(id)}${off}`, documentRef(saleId), row.lineRef || null, row.amountCents, paidAt, off ? 0 : 1);
   }
   return id;
 }

@@ -1,8 +1,8 @@
 /**
  * EstablishmentSettingsPage — Paramètres → Établissement (specs/settings-rationalization.md rule 2).
  *
- * Identity, logo, contact, bank details, gate code, and the devis settings (validity, FR / EN
- * footers). The contact email is also the source every sending address falls back to (rule 12).
+ * Identity, logo, contact, bank details, gate code, the devis settings (validity, FR / EN
+ * footers) and the online booking horizon. The contact email is also the source every sending address falls back to (rule 12).
  * The logo is written through its own endpoint, never through the page Save.
  */
 import React, { useState } from 'react';
@@ -13,10 +13,11 @@ import useSettingsForm from '../../hooks/useSettingsForm';
 import SettingsFormPage from '../../components/SettingsFormPage';
 import SettingsCompanySection from '../../components/SettingsCompanySection';
 import SettingsQuoteSection from '../../components/SettingsQuoteSection';
+import SettingsBookingSection from '../../components/SettingsBookingSection';
 
 export default function EstablishmentSettingsPage() {
   const navigate = useNavigate();
-  const form = useSettingsForm({ groups: ['company', 'quote'], navigate });
+  const form = useSettingsForm({ groups: ['company', 'quote', 'booking'], navigate });
   const disabled = form.loading || form.saving;
   // Rule 18 (R25-C4) — a new file of the same format keeps the same path: the preview asks for the new bytes.
   const [logoVersion, setLogoVersion] = useState('');
@@ -57,6 +58,12 @@ export default function EstablishmentSettingsPage() {
         values={form.draft.quote}
         errors={form.errors}
         onChange={(key, value) => form.setField('quote', key, value)}
+        disabled={disabled}
+      />
+      <SettingsBookingSection
+        values={form.draft.booking}
+        errors={form.errors}
+        onChange={(key, value) => form.setField('booking', key, value)}
         disabled={disabled}
       />
     </SettingsFormPage>

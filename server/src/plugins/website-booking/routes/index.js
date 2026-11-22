@@ -9,8 +9,6 @@
 
 const express = require('express');
 const sdk = require('../../sdk');
-const requirePublicApiKey = require('../requirePublicApiKey');
-const visitorContext = require('../visitorContext');
 
 const PUBLIC_MOUNTS = [
   ['/public/v1/properties', () => require('./properties')],
@@ -26,7 +24,7 @@ const PUBLIC_MOUNTS = [
 // matches one prefix only, so the shared limiter counts it once.
 function withPublicChain(subRouter) {
   const router = express.Router();
-  router.use(requirePublicApiKey, visitorContext, sdk.middleware.publicApiLimiter, subRouter);
+  router.use(...sdk.middleware.publicApi, subRouter);
   return router;
 }
 

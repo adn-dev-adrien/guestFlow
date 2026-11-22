@@ -7,6 +7,9 @@ const assert = require('node:assert/strict');
 const { findNextAvailableDate, stayRulesPredicate } = require('../nextAvailability');
 const { toPublicAvailability } = require('../publicProjections');
 
+// Twelve months ahead of today (the lodging's default setting, specs/gift-voucher-campaigns.md rule 51).
+const HORIZON = '2027-10-19'; // date-literal-ok: the suite runs on its own clock, never the real today
+
 function days(from, n) {
   const out = [];
   const d = new Date(`${from}T00:00:00Z`);
@@ -17,7 +20,7 @@ function days(from, n) {
 test('a free night inside the window is answered without looking further', () => {
   let loaded = false;
   const next = findNextAvailableDate({
-    from: '2026-10-01', to: '2026-12-01', todayIso: '2026-10-19',
+    from: '2026-10-01', to: '2026-12-01', todayIso: '2026-10-19', horizonUntil: HORIZON, // date-literal-ok: the suite runs on its own clock, never the real today
     blockedDates: days('2026-10-19', 5),
     loadBlocked: () => { loaded = true; return []; },
   });
@@ -27,7 +30,7 @@ test('a free night inside the window is answered without looking further', () =>
 
 test('past nights never count: the search starts today even when the window starts earlier', () => {
   const next = findNextAvailableDate({
-    from: '2026-10-01', to: '2026-12-01', todayIso: '2026-10-19', blockedDates: [], loadBlocked: () => [],
+    from: '2026-10-01', to: '2026-12-01', todayIso: '2026-10-19', horizonUntil: HORIZON, blockedDates: [], loadBlocked: () => [], // date-literal-ok: the suite runs on its own clock, never the real today
   });
   assert.equal(next, '2026-10-19');
 });
@@ -35,7 +38,7 @@ test('past nights never count: the search starts today even when the window star
 test('a closed season: the window is all blocked, the first free night is found beyond it', () => {
   const calls = [];
   const next = findNextAvailableDate({
-    from: '2026-10-19', to: '2026-12-01', todayIso: '2026-10-19',
+    from: '2026-10-19', to: '2026-12-01', todayIso: '2026-10-19', horizonUntil: HORIZON, // date-literal-ok: the suite runs on its own clock, never the real today
     blockedDates: days('2026-10-19', 43),
     loadBlocked: (a, b) => { calls.push([a, b]); return days('2026-12-01', 123); },
   });
@@ -44,9 +47,9 @@ test('a closed season: the window is all blocked, the first free night is found 
   assert.deepEqual(calls, [['2026-12-01', '2027-12-20']]);
 });
 
-test('nothing free within a year → null', () => {
+test('nothing free within the horizon → null', () => {
   const next = findNextAvailableDate({
-    from: '2026-10-19', to: '2026-11-19', todayIso: '2026-10-19',
+    from: '2026-10-19', to: '2026-11-19', todayIso: '2026-10-19', horizonUntil: HORIZON, // date-literal-ok: the suite runs on its own clock, never the real today
     blockedDates: days('2026-10-19', 31),
     loadBlocked: (a) => days(a, 400),
   });
@@ -55,7 +58,7 @@ test('nothing free within a year → null', () => {
 
 test('a window entirely in the past looks from today onwards', () => {
   const next = findNextAvailableDate({
-    from: '2026-01-01', to: '2026-02-01', todayIso: '2026-10-19',
+    from: '2026-01-01', to: '2026-02-01', todayIso: '2026-10-19', horizonUntil: HORIZON, // date-literal-ok: the suite runs on its own clock, never the real today
     blockedDates: [], loadBlocked: () => ['2026-10-19'],
   });
   assert.equal(next, '2026-10-20');
@@ -73,7 +76,7 @@ const MIN2 = [{ id: 1, label: 'Saison', pricePerNight: 100, minNights: 2, dateRa
 test('an isolated free night under a 2-night minimum is not an arrival', () => {
   // 19 free, 20 taken, 21-22 free: the 19th fits only one night.
   const next = findNextAvailableDate({
-    from: '2026-10-19', to: '2026-12-01', todayIso: '2026-10-19',
+    from: '2026-10-19', to: '2026-12-01', todayIso: '2026-10-19', horizonUntil: HORIZON, // date-literal-ok: the suite runs on its own clock, never the real today
     blockedDates: ['2026-10-20'], loadBlocked: () => [], isStayAllowed: stayRulesPredicate(MIN2),
   });
   assert.equal(next, '2026-10-21');
@@ -86,7 +89,7 @@ test('the minimum of the season covering the stay is the one that counts', () =>
     { id: 2, label: 'Basse', pricePerNight: 100, minNights: 1, dateRanges: '[]' },
   ];
   const next = findNextAvailableDate({
-    from: '2026-11-01', to: '2026-12-01', todayIso: '2026-10-19',
+    from: '2026-11-01', to: '2026-12-01', todayIso: '2026-10-19', horizonUntil: HORIZON, // date-literal-ok: the suite runs on its own clock, never the real today
     blockedDates: ['2026-11-03'], loadBlocked: () => [], isStayAllowed: stayRulesPredicate(rules),
   });
   assert.equal(next, '2026-11-04');
@@ -96,7 +99,7 @@ test('arrivals on Saturdays only: the first free Saturday, not the first free da
   // 2026-10-19 is a Monday; Saturday = 6.
   const rules = [{ id: 1, label: 'Été', pricePerNight: 100, minNights: 1, dateRanges: '[]', changeoverArrival: 6 }];
   const next = findNextAvailableDate({
-    from: '2026-10-19', to: '2026-12-01', todayIso: '2026-10-19',
+    from: '2026-10-19', to: '2026-12-01', todayIso: '2026-10-19', horizonUntil: HORIZON, // date-literal-ok: the suite runs on its own clock, never the real today
     blockedDates: ['2026-10-24'], loadBlocked: () => [], isStayAllowed: stayRulesPredicate(rules),
   });
   assert.equal(next, '2026-10-31');
@@ -106,8 +109,25 @@ test('a departure day rule is met by a longer stay, not refused', () => {
   // Departures on Saturdays only: a Monday arrival works with a 5-night stay.
   const rules = [{ id: 1, label: 'Été', pricePerNight: 100, minNights: 1, dateRanges: '[]', changeoverDeparture: 6 }];
   const next = findNextAvailableDate({
-    from: '2026-10-19', to: '2026-12-01', todayIso: '2026-10-19',
+    from: '2026-10-19', to: '2026-12-01', todayIso: '2026-10-19', horizonUntil: HORIZON, // date-literal-ok: the suite runs on its own clock, never the real today
     blockedDates: [], loadBlocked: () => [], isStayAllowed: stayRulesPredicate(rules),
   });
   assert.equal(next, '2026-10-19');
+});
+
+// Blocked through 8 January 2027: the first free night is the 9th.
+const search = (horizonUntil, isStayAllowed) => findNextAvailableDate({
+  from: '2026-10-19', to: '2026-11-19', todayIso: '2026-10-19', horizonUntil, isStayAllowed, // date-literal-ok: the suite runs on its own clock, never the real today
+  blockedDates: days('2026-10-19', 31), loadBlocked: (a) => days(a, 51), // date-literal-ok: the suite runs on its own clock, never the real today
+});
+
+test('an arrival on the horizon, or past it, is never answered', () => {
+  assert.equal(search('2027-01-09'), null); // date-literal-ok: the suite runs on its own clock, never the real today
+  assert.equal(search('2027-01-10'), '2027-01-09'); // date-literal-ok: the suite runs on its own clock, never the real today
+});
+
+test('a stay that would end after the horizon does not count, whatever its minimum', () => {
+  const threeNights = (start, end) => (new Date(end) - new Date(start)) / 86400000 >= 3;
+  assert.equal(search('2027-01-11', threeNights), null); // date-literal-ok: the suite runs on its own clock, never the real today
+  assert.equal(search('2027-01-12', threeNights), '2027-01-09'); // date-literal-ok: the suite runs on its own clock, never the real today
 });

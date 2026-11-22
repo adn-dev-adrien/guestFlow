@@ -25,7 +25,7 @@ const {
 const { comptaCollected, cashCollected } = require('../utils/reservationSettlement');
 const { bookedStayBuckets } = require('../utils/cancelReservation');
 const { taxRidesTheComplement } = require('../utils/touristTaxFreeze');
-const { bucketSharesOf } = require('../utils/paymentTenders');
+const { bucketSharesOf, prepaidCentsOf } = require('../utils/paymentTenders');
 const paymentSettlementsModel = require('../models/paymentSettlementsModel');
 const { frenchEuros } = require('../utils/pricing/money');
 
@@ -78,11 +78,14 @@ function createRefundsController(deps = {}) {
     const vatRate = vatRateOf(reservation);
     const refunds = refundsModel.listByReservation(reservationId);
     const refundTotals = refundsModel.totalsByReservation(reservationId);
-    const collectedTtc = comptaCollected({ ...reservation, refundsBookTtc: refundTotals.book });
+    const receivedTtc = comptaCollected({ ...reservation, refundsBookTtc: refundTotals.book });
+    // Mixed-method-payments rule 63 — a prepaid line is received money but never refundable in money.
+    const prepaidTtc = stayDatabase ? prepaidCentsOf(paymentSettlementsModel.buildModel(stayDatabase).listFor(reservationId)) / 100 : 0;
+    const collectedTtc = Math.max(0, round2(receivedTtc - prepaidTtc));
     // Rule 48 — a cancelled stay gives back only what it collected, the requalified part from the indemnity; the
     // caisse interne's money in the caisse interne only (reading of 2026-11-02, audit R15-L1).
     const cancelled = String(reservation.kind) === 'cancelled'
-      ? cancelledRefundBudget({ collectedTtc, cashCollectedTtc: cashCollected(reservation), refunds }) : null;
+      ? cancelledRefundBudget({ collectedTtc: receivedTtc, prepaidTtc, cashCollectedTtc: cashCollected(reservation), refunds }) : null;
     const booked = stayDatabase ? bookedStayBuckets({ database: stayDatabase, reservationsModel, installmentsModel }, reservation, vatRate) : null;
     const taxOnArrival = stayDatabase ? taxRidesTheComplement(stayDatabase, reservation) : true;
     // specs/mixed-method-payments.md rule 46 — the buckets paid with several methods, read for their share on each side.

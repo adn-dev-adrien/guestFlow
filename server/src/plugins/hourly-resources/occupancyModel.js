@@ -18,13 +18,19 @@
  * A third kind, `hold`, is a slot another plugin holds before it reaches the planning — a guest order
  * awaiting its card payment (specs/guest-app.md rule 35), read through `ctx.core.resourceHolds`. It blocks
  * the slot for every consumer, and no `excludeReservationId` lifts it: it is not the stay's sessions yet.
+ *
+ * The plugin's own holds (`resource_booking_holds`, specs/gift-voucher-campaigns.md rule 29) are read the same way, for every consumer. Only the owner of a
+ * hold lifts it from its own checks, with `excludeHoldRef` — the booking that consumes the hold must not be blocked by it.
  */
 
 const sdk = require('../sdk');
+const { createHoldsModel } = require('./holdsModel');
 
 const { formatTimeShort } = sdk.coreModule('dateFr');
 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
+// What the planning says of a slot held while its payment is on its way, in no word of the one who holds it.
+const OWN_HOLD_LABEL = 'Créneau retenu, paiement en cours';
 
 function addDays(date, n) {
   const d = new Date(`${date}T12:00:00Z`);
@@ -32,7 +38,8 @@ function addDays(date, n) {
   return d.toISOString().slice(0, 10);
 }
 
-function createModel(database) {
+function createModel(database, { now = () => new Date() } = {}) {
+  const ownHolds = createHoldsModel(database, { now });
   const hasColumn = (table, column) => {
     try { return database.prepare(`PRAGMA table_info(${table})`).all().some((c) => c.name === column); }
     catch { return false; }
@@ -54,10 +61,14 @@ function createModel(database) {
   }
 
   /** The slots the live plugins hold on `resourceId` between `from` and `to` (inclusive ISO dates). */
-  function listHolds({ resourceId, from, to }) {
+  function listHolds({ resourceId, from, to, excludeHoldRef = null }) {
     const rid = Number(resourceId);
     if (!rid || !ISO_DATE.test(String(from)) || !ISO_DATE.test(String(to))) return [];
-    return sdk.core.resourceHolds({ resourceId: rid, from, to })
+    const own = ownHolds.activeIn({ resourceId: rid, from, to, excludeRef: excludeHoldRef })
+      .map((h) => ({
+        date: h.date, start: formatTimeShort(h.startTime) || '', end: formatTimeShort(h.endTime) || '', reservationId: null, label: OWN_HOLD_LABEL,
+      }));
+    return [...sdk.core.resourceHolds({ resourceId: rid, from, to }), ...own]
       .map((h) => ({
         date: String(h?.date || '').slice(0, 10),
         start: formatTimeShort(h?.start) || '',
@@ -77,7 +88,7 @@ function createModel(database) {
    * `excludeReservationId` drops the booking being edited — its own hours must not block themselves,
    * exactly like `excludeBookingId` does for a standalone slot.
    */
-  function listRange({ resourceId, from, to, excludeBookingId = null, excludeReservationId = null }) {
+  function listRange({ resourceId, from, to, excludeBookingId = null, excludeReservationId = null, excludeHoldRef = null }) {
     const rid = Number(resourceId);
     if (!rid || !ISO_DATE.test(String(from)) || !ISO_DATE.test(String(to))) return [];
 
@@ -99,7 +110,7 @@ function createModel(database) {
       }))
       .filter((b) => b.start && b.end);
 
-    const holds = listHolds({ resourceId: rid, from, to });
+    const holds = listHolds({ resourceId: rid, from, to, excludeHoldRef });
     const byTime = (a, b) => a.date.localeCompare(b.date) || a.start.localeCompare(b.start);
     if (!HAS_SESSIONS) return [...bookings, ...holds].sort(byTime);
 
@@ -139,13 +150,14 @@ function createModel(database) {
    * use that ended late the previous evening and is still keeping the resource warm
    * (§3.3 rule 12, cross-midnight look-back).
    */
-  function listForStay({ resourceId, startDate, endDate, excludeReservationId = null }) {
+  function listForStay({ resourceId, startDate, endDate, excludeReservationId = null, excludeHoldRef = null }) {
     if (!ISO_DATE.test(String(startDate))) return [];
     return listRange({
       resourceId,
       from: addDays(startDate, -1),
       to: ISO_DATE.test(String(endDate)) ? endDate : startDate,
       excludeReservationId,
+      excludeHoldRef,
     });
   }
 
@@ -153,7 +165,7 @@ function createModel(database) {
    * Turnover-aware overlap count on one date — the check that decides whether a slot is bookable.
    * Same predicate as the SQL `countConflicts` has always used, now applied to bookings AND sessions.
    */
-  function countConflicts({ resourceId, date, startTime, endTime, turnover = 0, excludeBookingId = null, excludeReservationId = null }) {
+  function countConflicts({ resourceId, date, startTime, endTime, turnover = 0, excludeBookingId = null, excludeReservationId = null, excludeHoldRef = null }) {
     const buffer = Math.max(0, Number(turnover) || 0);
     const toMin = (t) => {
       const [h, m] = String(t || '').split(':').map(Number);
@@ -161,7 +173,7 @@ function createModel(database) {
     };
     const start = toMin(startTime);
     const end = toMin(endTime);
-    return listRange({ resourceId, from: date, to: date, excludeBookingId, excludeReservationId })
+    return listRange({ resourceId, from: date, to: date, excludeBookingId, excludeReservationId, excludeHoldRef })
       .filter((item) => toMin(item.start) < end + buffer && toMin(item.end) + buffer > start)
       .length;
   }

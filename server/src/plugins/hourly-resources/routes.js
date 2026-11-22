@@ -23,11 +23,13 @@ function buildRouter(controller, visitController = null) {
   // specs/outside-booking-sas.md §4.3 — the mini SAS of an outside visit.
   if (visitController) {
     router.get('/:id/visit', wrap((req, res) => visitController().getVisit(req, res)));
+    router.get('/:id/fiche', wrap((req, res) => visitController().getFiche(req, res)));
     router.get('/:id/visit/articles', wrap((req, res) => visitController().articles(req, res)));
     router.post('/:id/visit/quote', wrap((req, res) => visitController().quote(req, res)));
     router.post('/:id/visit', wrap((req, res) => visitController().commit(req, res)));
     router.post('/:id/visit/payment', wrap((req, res) => visitController().pay(req, res)));
     router.patch('/:id/visit/lines/:lineId', wrap((req, res) => visitController().patchLine(req, res)));
+    router.post('/:id/visit/lines/:lineId/not-taken', wrap((req, res) => visitController().notTaken(req, res)));
     router.post('/:id/visit/payment-link', wrap((req, res) => visitController().mintLink(req, res)));
     router.delete('/:id/visit/payment-link/:linkId', wrap((req, res) => visitController().withdrawLink(req, res)));
     router.post('/:id/visit/payment-link/:linkId/email', wrap((req, res) => visitController().emailLink(req, res)));

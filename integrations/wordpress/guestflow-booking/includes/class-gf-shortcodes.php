@@ -29,11 +29,52 @@ final class GF_Shortcodes
     public function boot(): void
     {
         add_shortcode('guestflow_cgv', [$this, 'render_cgv']);
+        add_shortcode('guestflow_gift_voucher', [$this, 'render_gift_voucher']);
+        add_shortcode('guestflow_gift_voucher_button', [$this, 'render_gift_voucher_button']);
+        add_shortcode('guestflow_gift_voucher_use', [$this, 'render_gift_voucher_use']);
+    }
+
+    /** [guestflow_gift_voucher_use] — « Utiliser un bon cadeau », the same block a page can hold (specs/gift-voucher-campaigns.md rule 23). */
+    public function render_gift_voucher_use(): string
+    {
+        return render_block(['blockName' => 'guestflow/gift-voucher-use', 'attrs' => [], 'innerBlocks' => [], 'innerHTML' => '', 'innerContent' => []]);
+    }
+
+    /** [guestflow_gift_voucher] — the purchase tunnel, the same block a page can hold (specs/gift-vouchers.md rule 12). */
+    public function render_gift_voucher(): string
+    {
+        return render_block(['blockName' => 'guestflow/gift-voucher', 'attrs' => [], 'innerBlocks' => [], 'innerHTML' => '', 'innerContent' => []]);
+    }
+
+    /**
+     * [guestflow_gift_voucher_button url="…" label="…"] — a link-button with a gift icon, to sit next to « Réserver ».
+     * `url` is the page holding the tunnel; without it the page holding the block is used, and with neither
+     * nothing is printed (a button to nowhere is worse than none).
+     *
+     * @param array|string $atts
+     */
+    public function render_gift_voucher_button($atts = []): string
+    {
+        $atts = shortcode_atts(['url' => '', 'label' => '', 'class' => ''], (array) $atts, 'guestflow_gift_voucher_button');
+        $url = $atts['url'] !== '' ? $atts['url'] : GF_Settings::instance()->get_gift_voucher_page_url();
+        if ($url === '') {
+            return '';
+        }
+        $label = $atts['label'] !== '' ? $atts['label'] : __('Bon cadeau', 'guestflow-booking');
+        wp_enqueue_style('guestflow-style');
+        $icon = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">'
+            . '<rect x="3.5" y="9" width="17" height="11.5" rx="1"/><path d="M2.5 9h19V6h-19zM12 6v14.5M12 6c-1.2-2.6-5-3-5-.6C7 6.6 9.6 6 12 6zm0 0c1.2-2.6 5-3 5-.6C17 6.6 14.4 6 12 6z"/></svg>';
+        return '<a class="gf-gv-button' . ($atts['class'] !== '' ? ' ' . esc_attr($atts['class']) : '') . '" href="' . esc_url($url) . '">'
+            . $icon . '<span>' . esc_html($label) . '</span></a>';
     }
 
     public function render_cgv(): string
     {
-        $current = $this->fetch('/terms', self::CURRENT_TTL);
+        // specs/gift-voucher-campaigns.md rule 37 — the terms are one document per activity: `?activity=resource` reads
+        // the bath's, and nothing (or anything unknown) reads the lodging's, as before.
+        $activity = isset($_GET['activity']) ? sanitize_key(wp_unslash($_GET['activity'])) : '';
+        $query = $activity !== '' && $activity !== 'lodging' ? ['activity' => $activity] : [];
+        $current = $this->fetch('/terms', self::CURRENT_TTL, $query);
         if ($current === null) {
             return '<p class="gf-cgv-indisponible">' . esc_html__('Les conditions générales sont momentanément indisponibles.', 'guestflow-booking') . '</p>';
         }
@@ -42,7 +83,7 @@ final class GF_Shortcodes
         $shown = $current;
         $notice = '';
         if ($asked > 0 && $asked !== (int) $current['version']) {
-            $older = $this->fetch("/terms/{$asked}", (int) GF_Settings::instance()->get('cache_ttl', 600));
+            $older = $this->fetch("/terms/{$asked}", (int) GF_Settings::instance()->get('cache_ttl', 600), $query);
             if ($older !== null) {
                 $shown = $older;
                 $notice = sprintf(
@@ -90,12 +131,12 @@ final class GF_Shortcodes
     }
 
     /** `data` of a successful public call, cached; null when GuestFlow has nothing to show. */
-    private function fetch(string $path, int $ttl): ?array
+    private function fetch(string $path, int $ttl, array $query = []): ?array
     {
-        $key = GF_Cache::key($path);
+        $key = GF_Cache::key($path, $query);
         $cached = GF_Cache::get($key);
         if ($cached === false) {
-            $res = GF_Api_Client::instance()->get($path);
+            $res = GF_Api_Client::instance()->get($path, $query);
             if ($res['status'] >= 200 && $res['status'] < 300) {
                 $cached = $res['body'];
                 GF_Cache::set($key, $cached, $ttl);

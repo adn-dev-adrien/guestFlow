@@ -52,6 +52,7 @@ export function CartProvider({ children }) {
   const [quote, setQuote] = useState(null);
   const [quoting, setQuoting] = useState(false);
   const [quoteError, setQuoteError] = useState(null);
+  const [quoteNonce, setQuoteNonce] = useState(0);
   const [delivery, setDelivery] = useState(null);
   const [stockNotes, setStockNotes] = useState({});
   const [deliveryNonce, setDeliveryNonce] = useState(0);
@@ -136,7 +137,7 @@ export function CartProvider({ children }) {
       }
     }, QUOTE_DELAY_MS);
     return () => clearTimeout(timer);
-  }, [body, canQuote, lang]);
+  }, [body, canQuote, lang, quoteNonce]);
 
   const remember = useCallback((key, info) => setMeta((m) => ({ ...m, [key]: { ...(m[key] || {}), ...info } })), []);
 
@@ -173,6 +174,8 @@ export function CartProvider({ children }) {
   }, []);
 
   /** A delivery time refused at order time (`DELIVERY_TIME_UNAVAILABLE`): ask the server for the times again. */
+  // Rule 37 — the terms changed under the cart: the quote is asked again and names the version now in force.
+  const refreshQuote = useCallback(() => setQuoteNonce((n) => n + 1), []);
   const refreshDelivery = useCallback(() => { setDeliverAt(null); setDeliveryNonce((n) => n + 1); }, []);
 
   /** Rule 37quater — `OUT_OF_STOCK { itemKey, left }`: the line comes down to what is left. */
@@ -208,8 +211,9 @@ export function CartProvider({ children }) {
     restore,
     remember,
     refreshDelivery,
+    refreshQuote,
     lowerTo,
-  }), [lines, meta, quote, quoting, quoteError, delivery, deliverAt, stockNotes, add, replace, setQuantity, remove, removeSession, clear, restore, remember, refreshDelivery, lowerTo]);
+  }), [lines, meta, quote, quoting, quoteError, delivery, deliverAt, stockNotes, add, replace, setQuantity, remove, removeSession, clear, restore, remember, refreshDelivery, refreshQuote, lowerTo]);
 
   return <CartContext.Provider value={value}>{children}</CartContext.Provider>;
 }

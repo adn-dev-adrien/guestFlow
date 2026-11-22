@@ -11,6 +11,10 @@
  *                         (`Idempotency-Key` header: a replay within the session answers the first order again)
  *   GET  /orders · /orders/:id · POST /orders/:id/abandon
  *
+ * Rules 37-38 of specs/gift-voucher-campaigns.md — a cart holding a bath owes the terms of the `resource` activity once per published version
+ * and per stay: the quote says which (`termsRequired`), the order carries `acceptedTerms: [{ activity, versionId }]` and is refused with
+ * `TERMS_NOT_ACCEPTED` / `TERMS_OUTDATED` without it; an activity with nothing published asks nothing.
+ *
  * `paid(event)` is the order's side of a paid card link (`ctx.paymentBasket`): its lines are sold, already paid, when its slots are
  * still free and its price has not risen, else `paid_conflict` and a refund obligation of origin `orderConflict` (rules 35-36, 85).
  */
@@ -30,6 +34,9 @@ const { isRealIsoDay } = sdk.coreModule('stayDates');
 const { toParisIso, wallClockToDate } = sdk.coreModule('stayWindow');
 const paymentProviders = sdk.coreModule('paymentProviders');
 const { notHonoured, partlyOwed } = sdk.coreModule('basketRefundOutcome');
+const termsModel = sdk.coreModule('termsModel');
+const termsActivities = sdk.coreModule('termsActivities');
+const { requireAccepted } = sdk.coreModule('termsAcceptance');
 
 const MAX_LINES = 20;
 const MAX_SESSIONS = 20;
@@ -48,6 +55,9 @@ const historyOf = (orderId, { paid = false } = {}) => ({
 });
 const KINDS = Object.freeze(['option', 'breakfast', 'resource']);
 const PAYMENTS = Object.freeze(['card', 'note', 'none']);
+// Rule 37 — the activity of the hourly resources (declared by hourly-resources): what an hourly line in the cart makes the guest accept.
+const HOURLY_ACTIVITY = 'resource';
+const MAX_ACCEPTED_TERMS = 5;
 const HHMM = /^([01]\d|2[0-3]):[0-5]\d$/;
 // Rules 30, 80 — a session the picker would not offer: `taken` is `SLOT_TAKEN`, every other reason `SLOT_UNAVAILABLE`.
 const SLOT_REASONS = new Set(['taken', 'past', 'outside', 'heating', 'staff', 'closed', 'duration']);
@@ -87,9 +97,12 @@ function lineError(line) {
   return null;
 }
 
+const acceptedTermsValid = (list) => Array.isArray(list) && list.length <= MAX_ACCEPTED_TERMS
+  && list.every((t) => isObject(t) && typeof t.activity === 'string' && positiveInt(t.versionId) && Object.keys(t).length === 2);
+
 /** The request's shape, judged before anything reads it: a refusal `{ status, code, key, params }` or null. */
 function orderInputError(body, { withPayment }) {
-  const allowed = withPayment ? ['lines', 'deliverAt', 'payment', 'returnPath'] : ['lines', 'deliverAt'];
+  const allowed = withPayment ? ['lines', 'deliverAt', 'payment', 'returnPath', 'acceptedTerms'] : ['lines', 'deliverAt'];
   if (!isObject(body) || Object.keys(body).some((k) => !allowed.includes(k))) return invalid('invalidRequest');
   if (!Array.isArray(body.lines) || !body.lines.length) return invalid('emptyCart');
   if (body.lines.length > MAX_LINES) return limit('maxLines', { max: MAX_LINES });
@@ -99,6 +112,7 @@ function orderInputError(body, { withPayment }) {
   if (body.deliverAt !== undefined && body.deliverAt !== null
     && (typeof body.deliverAt !== 'string' || body.deliverAt.length > 40 || !Number.isFinite(Date.parse(body.deliverAt)))) return invalid('invalidDeliverAt');
   if (withPayment && !PAYMENTS.includes(body.payment)) return invalid('invalidPayment');
+  if (withPayment && body.acceptedTerms !== undefined && !acceptedTermsValid(body.acceptedTerms)) return invalid('invalidRequest');
   if (withPayment && body.returnPath !== undefined && (typeof body.returnPath !== 'string' || body.returnPath.length > 200)) return invalid('invalidRequest');
   return null;
 }
@@ -350,6 +364,79 @@ function buildOrdersController({
   const unbilledLine = (judged, byKey) => judged.lines.find((l) => !l.unavailable && l.kind !== 'breakfast'
     && billable(l) && !(Number(byKey[keyOf(l)]) > 0));
 
+  const termsDate = new Intl.DateTimeFormat('fr-FR', {
+    timeZone: 'Europe/Paris', day: '2-digit', month: '2-digit', year: 'numeric',
+  });
+  const termsDateEn = new Intl.DateTimeFormat('en-GB', {
+    timeZone: 'Europe/Paris', day: '2-digit', month: '2-digit', year: 'numeric',
+  });
+
+  /**
+   * Rule 37 — the terms the cart owes: `required` (the published version this stay has not accepted yet, with the id the order must
+   * carry) and `accepted` (the version it already accepted, for the note under the cart). An activity whose plugin is off, or with
+   * nothing published, asks nothing.
+   */
+  function termsOf(stay, judged, lang) {
+    const out = { required: [], accepted: [], currents: new Map() };
+    if (!judged.lines.some((l) => l.item && l.item.hourly && !l.unavailable)) return out;
+    const activity = termsActivities.find(HOURLY_ACTIVITY);
+    const current = activity ? termsModel.getCurrent(HOURLY_ACTIVITY) : null;
+    if (!current) return out;
+    out.currents.set(HOURLY_ACTIVITY, current);
+    const previous = termsModel.findAcceptanceByReservation(stay.id, HOURLY_ACTIVITY);
+    if (previous && previous.termsVersionId === current.id) {
+      const format = lang === 'en' ? termsDateEn : termsDate;
+      out.accepted.push({
+        activity: HOURLY_ACTIVITY, label: activity.label, version: current.version, acceptedAtLabel: format.format(new Date(previous.acceptedAt)),
+      });
+    } else {
+      out.required.push({
+        activity: HOURLY_ACTIVITY, label: activity.label, version: current.version, versionId: current.id, url: `/terms/${HOURLY_ACTIVITY}`,
+      });
+    }
+    return out;
+  }
+
+  /**
+   * Rule 38 — the order's acceptance of what the cart owes: a refusal (`TERMS_NOT_ACCEPTED`, `TERMS_OUTDATED`) or null, and the acceptance
+   * recorded on the stay with the channel `guest-app`.
+   */
+  function acceptTerms(req, stay, terms, at) {
+    const sent = Array.isArray(req.body.acceptedTerms) ? req.body.acceptedTerms : [];
+    for (const owed of terms.required) {
+      const given = sent.find((t) => t.activity === owed.activity);
+      const code = requireAccepted({
+        activity: owed.activity, versionId: given ? given.versionId : null, subjectType: 'reservation', subjectRef: stay.id,
+      });
+      if (code === 'TERMS_NOT_ACCEPTED') return refusal(422, code, 'termsNotAccepted');
+      if (code) return refusal(409, code, 'termsOutdated');
+      termsModel.insertAcceptance({
+        activity: owed.activity,
+        subjectType: 'reservation',
+        reservationId: stay.id,
+        termsVersionId: owed.versionId,
+        version: owed.version,
+        acceptedAt: at.toISOString(),
+        ip: req.ip || null,
+        userAgent: String(req.get('user-agent') || '').slice(0, 300) || null,
+        channel: 'guest-app',
+        historyLabel: `Conditions générales — ${owed.label}`,
+      });
+    }
+    return null;
+  }
+
+  /** `GET /terms/:activity` — rule 37: the text of the current version of an activity's terms, in the request's language. */
+  function termsText(req, res) {
+    const activity = termsActivities.find(req.params.activity);
+    const current = activity ? termsModel.getCurrent(activity.key) : null;
+    if (!current) return fail(res, refusal(404, 'TERMS_NOT_FOUND', 'termsNotFound'));
+    const lang = languageOf(req, req.guest.stay);
+    return publicHttp.ok(res, {
+      activity: activity.key, label: activity.label, version: current.version, html: lang === 'en' ? current.htmlEn : current.htmlFr,
+    });
+  }
+
   function quoteOf(guest, body, at, lang, { early = null } = {}) {
     const judged = judge(guest, body, at, lang);
     // Rule 80 — a session the picker would not offer is refused before anything is priced.
@@ -360,11 +447,15 @@ function buildOrdersController({
     const unbilled = unbilledLine(judged, priced.byKey);
     if (unbilled) return { refusal: refusal(409, 'ITEM_UNAVAILABLE', 'itemNotBillable', { title: unbilled.shownTitle }) };
     const lines = judged.lines.map((l) => lineView(l, priced.byKey, lang));
+    const terms = termsOf(guest.stay, judged, lang);
     return {
       judged,
       priced,
+      terms,
       quote: {
         lines,
+        ...(terms.required.length ? { termsRequired: terms.required } : {}),
+        ...(terms.accepted.length ? { termsAccepted: terms.accepted } : {}),
         total: priced.total,
         totalLabel: labels.priceLabel(priced.total, lang),
         needsDelivery: judged.needsDelivery,
@@ -494,6 +585,8 @@ function buildOrdersController({
     const lines = snapshot(judged, priced.byKey, lang);
     const free = priced.total <= 0;
     if (!free && req.body.payment === 'none') return fail(res, invalid('choosePayment'));
+    const termsRefusal = acceptTerms(req, stay, out.terms, at);
+    if (termsRefusal) return fail(res, termsRefusal, { quote: answer });
     const mode = fulfilment();
     const delivery = { fulfilment: mode.mode, pickupPlace: mode.place };
 
@@ -787,7 +880,7 @@ function buildOrdersController({
   }
 
   return {
-    quote, create, list, read: guarded(read), abandon: guarded(abandon), paid, expireDue, orderView, orderSold,
+    quote, create, termsText: guarded(termsText), list, read: guarded(read), abandon: guarded(abandon), paid, expireDue, orderView, orderSold,
   };
 }
 

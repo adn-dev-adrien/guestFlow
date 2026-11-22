@@ -1,23 +1,24 @@
 require('./isolatedDb');
 // specs/public-api.md rule 8 — the public stay dates are bounded before any engine call: no start in
-// the past (the accommodations' day), at most MAX_STAY_NIGHTS nights, no end beyond
-// MAX_BOOKING_HORIZON_DAYS. An unbounded endDate (9999-12-31) used to walk millions of nights
+// the past (the accommodations' day), at most MAX_STAY_NIGHTS nights, no end beyond the booking
+// horizon (specs/gift-voucher-campaigns.md rule 51: a setting, 12 months by default). An unbounded endDate (9999-12-31) used to walk millions of nights
 // synchronously and block the server, on /quote and /booking-requests alike.
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const Module = require('module');
 
 const {
-  validateStayInput, MAX_STAY_NIGHTS, MAX_BOOKING_HORIZON_DAYS,
+  validateStayInput, MAX_STAY_NIGHTS,
 } = require('../publicInputValidation');
 
 const TODAY = '2026-10-23';
+const HORIZON = '2027-10-23'; // date-literal-ok: the suite runs on its own clock, never the real today
+const DAY = { todayIso: TODAY, horizonUntil: HORIZON };
 const stay = (startDate, endDate) => ({ propertyId: 1, startDate, endDate, adults: 2 });
 const fieldsOf = (result) => (result.errors || []).map((e) => `${e.field}: ${e.issue}`);
 
 test('the bounds are the documented ones', () => {
   assert.equal(MAX_STAY_NIGHTS, 365);
-  assert.equal(MAX_BOOKING_HORIZON_DAYS, 730);
 });
 
 test('a stay starting today is accepted', () => {
@@ -31,11 +32,11 @@ test('a stay starting yesterday is refused with the validation shape', () => {
 });
 
 test('endDate 9999-12-31 is refused without walking the stay', () => {
-  const r = validateStayInput(stay('2026-11-01', '9999-12-31'), { todayIso: TODAY });
+  const r = validateStayInput(stay('2026-11-01', '9999-12-31'), DAY); // date-literal-ok: the suite runs on its own clock, never the real today
   assert.equal(r.ok, false);
   assert.deepEqual(fieldsOf(r), [
     `endDate: stay must not exceed ${MAX_STAY_NIGHTS} nights`,
-    `endDate: must be within ${MAX_BOOKING_HORIZON_DAYS} days from today`,
+    'endDate: must be within the booking horizon',
   ]);
 });
 
@@ -50,9 +51,11 @@ test('the stay length is capped even when no day is injected', () => {
 });
 
 test('an end on the horizon is accepted, one day past it is refused', () => {
-  assert.equal(validateStayInput(stay('2028-10-15', '2028-10-22'), { todayIso: TODAY }).ok, true); // 730 days
-  const r = validateStayInput(stay('2028-10-16', '2028-10-23'), { todayIso: TODAY });
-  assert.deepEqual(fieldsOf(r), [`endDate: must be within ${MAX_BOOKING_HORIZON_DAYS} days from today`]);
+  assert.equal(validateStayInput(stay('2027-10-16', '2027-10-23'), DAY).ok, true); // date-literal-ok: the suite runs on its own clock, never the real today
+  const r = validateStayInput(stay('2027-10-17', '2027-10-24'), DAY); // date-literal-ok: the suite runs on its own clock, never the real today
+  assert.deepEqual(fieldsOf(r), ['endDate: must be within the booking horizon']);
+  assert.equal(r.errors[0].reason, 'beyondHorizon');
+  assert.equal(r.errors[0].horizonUntil, HORIZON);
 });
 
 // Both public controllers apply the bounds with the accommodations' day, before any engine call.

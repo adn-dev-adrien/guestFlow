@@ -1,7 +1,7 @@
 {
   "id": "sas",
   "name": "Arrivée et départ guidés",
-  "version": "1.11.0",
+  "version": "1.11.1",
   "description": "Le sas pas à pas de l’accueil et du départ.",
   "icon": "door",
   "surfaces": [
@@ -11,7 +11,7 @@
   ],
   "requires": [],
   "guestflow": ">=3.9.0",
-  "sdk": "^2.32.0",
+  "sdk": "^2.33.0",
   "changelog": {
     "1.0.0": [
       "Première version publiée en paquet."
@@ -213,6 +213,10 @@
       "« Plusieurs moyens » : « Encaisser » n’est jamais actif sur les montants d’un total qui vient de changer, même un instant ; rien n’est envoyé tant que les lignes n’ont pas répondu au nouveau total.",
       "Récapitulatifs d’arrivée et de départ : un clic sur « Encaisser » ou « Valider et terminer » garde le focus dans la fenêtre pendant l’enregistrement, même quand la page change.",
       "Demande GuestFlow 4.2 (SDK 2.32)."
+    ],
+    "1.11.1": [
+      "Aucun changement visible : GuestFlow sait désormais qu'une part d'un paiement peut avoir été reçue d'avance (un bon cadeau), ce que ce module lit sans le compter à part.",
+      "Compatible avec GuestFlow 4 (SDK 2.33)."
     ]
   }
 }

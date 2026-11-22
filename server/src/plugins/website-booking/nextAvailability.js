@@ -15,12 +15,12 @@
  * resolved by the pricing engine and `utils/changeover.js` (see `stayRulesPredicate`).
  *
  * Pure: the blocked nights of the requested window come in, and `loadBlocked(from, to)` is called
- * once, only when the search leaves that window. Past days never count.
+ * once, only when the search leaves that window. Past days never count, and neither does a stay that
+ * would end after the booking horizon (specs/gift-voucher-campaigns.md rule 51).
  */
 
 const sdk = require('../sdk');
 
-const DEFAULT_HORIZON_DAYS = 365;
 const DEFAULT_MAX_STAY_NIGHTS = 62;
 
 function addDays(iso, n) {
@@ -38,29 +38,29 @@ function addDays(iso, n) {
  * @param {(from: string, to: string) => string[]} p.loadBlocked - blocked nights of another window
  * @param {(start: string, end: string) => boolean|{ ok: boolean, stop?: boolean }} [p.isStayAllowed]
  *   the stay rules; `stop: true` says no longer stay from this arrival can pass. Default: any stay.
- * @param {number} [p.horizonDays=365] - how far past the start an arrival may be
+ * @param {string} p.horizonUntil - the last day the public may book (ISO): a stay ends on it at the latest
  * @param {number} [p.maxStayNights=62] - the longest stay tried from one arrival
  * @returns {string|null} the first bookable arrival on or after max(from, today), or null
  */
 function findNextAvailableDate({
   from, to, todayIso, blockedDates, loadBlocked, isStayAllowed = () => true,
-  horizonDays = DEFAULT_HORIZON_DAYS, maxStayNights = DEFAULT_MAX_STAY_NIGHTS,
+  horizonUntil, maxStayNights = DEFAULT_MAX_STAY_NIGHTS,
 }) {
   const start = from > todayIso ? from : todayIso;
-  const horizon = addDays(start, horizonDays);
   const blocked = new Set(blockedDates || []);
   let beyondLoaded = false;
   const isBlocked = (day) => {
     if (day >= to && !beyondLoaded) {
       beyondLoaded = true;
-      (loadBlocked(to, addDays(horizon, maxStayNights)) || []).forEach((d) => blocked.add(d));
+      (loadBlocked(to, addDays(horizonUntil, maxStayNights)) || []).forEach((d) => blocked.add(d));
     }
     return blocked.has(day);
   };
 
-  for (let arrival = start; arrival < horizon; arrival = addDays(arrival, 1)) {
+  for (let arrival = start; arrival < horizonUntil; arrival = addDays(arrival, 1)) {
     if (isBlocked(arrival)) continue;
     for (let nights = 1; nights <= maxStayNights; nights += 1) {
+      if (addDays(arrival, nights) > horizonUntil) break;
       if (nights > 1 && isBlocked(addDays(arrival, nights - 1))) break;
       const verdict = isStayAllowed(arrival, addDays(arrival, nights));
       if (verdict === true || (verdict && verdict.ok)) return arrival;
@@ -91,4 +91,4 @@ function stayRulesPredicate(rules) {
   };
 }
 
-module.exports = { findNextAvailableDate, stayRulesPredicate, DEFAULT_HORIZON_DAYS };
+module.exports = { findNextAvailableDate, stayRulesPredicate };

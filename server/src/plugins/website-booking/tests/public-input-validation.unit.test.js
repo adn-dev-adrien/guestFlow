@@ -6,6 +6,7 @@ const {
 } = require('../publicInputValidation');
 
 const TODAY = '2026-06-08';
+const HORIZON = '2027-06-08'; // date-literal-ok: the suite runs on its own clock, never the real today
 
 test('isValidIsoDate rejects malformed / impossible dates', () => {
   assert.equal(isValidIsoDate('2026-06-08'), true);
@@ -15,26 +16,39 @@ test('isValidIsoDate rejects malformed / impossible dates', () => {
   assert.equal(isValidIsoDate(''), false);
 });
 
-test('validateAvailabilityQuery defaults to today … today+12 months', () => {
-  const r = validateAvailabilityQuery({ todayIso: TODAY });
+test('validateAvailabilityQuery defaults to today … the booking horizon', () => {
+  const r = validateAvailabilityQuery({ todayIso: TODAY, horizonUntil: HORIZON });
   assert.equal(r.ok, true);
   assert.equal(r.value.from, TODAY);
-  assert.equal(r.value.to, '2027-06-08');
+  assert.equal(r.value.to, HORIZON);
 });
 
 test('validateAvailabilityQuery rejects inverted range', () => {
-  const r = validateAvailabilityQuery({ from: '2026-07-10', to: '2026-07-01', todayIso: TODAY });
+  const r = validateAvailabilityQuery({ from: '2026-07-10', to: '2026-07-01', todayIso: TODAY, horizonUntil: HORIZON }); // date-literal-ok: the suite runs on its own clock, never the real today
   assert.equal(r.ok, false);
   assert.ok(r.errors.some((e) => e.field === 'to'));
 });
 
-test('validateAvailabilityQuery rejects a window over 365 days', () => {
-  const r = validateAvailabilityQuery({ from: '2026-01-01', to: '2027-06-01', todayIso: TODAY });
+test('validateAvailabilityQuery never reaches past the horizon: a later end is brought back to it', () => {
+  const r = validateAvailabilityQuery({ from: '2027-05-01', to: '2027-09-01', todayIso: TODAY, horizonUntil: HORIZON }); // date-literal-ok: the suite runs on its own clock, never the real today
+  assert.equal(r.ok, true);
+  assert.equal(r.value.to, HORIZON);
+});
+
+test('validateAvailabilityQuery refuses a window opening at the horizon or after, with the beyondHorizon reason', () => {
+  const r = validateAvailabilityQuery({ from: HORIZON, todayIso: TODAY, horizonUntil: HORIZON });
   assert.equal(r.ok, false);
+  assert.deepEqual(r.errors, [{ field: 'from', issue: 'must be before the booking horizon', reason: 'beyondHorizon', horizonUntil: HORIZON }]);
+});
+
+test('validateAvailabilityQuery caps the span at the days between today and the horizon', () => {
+  const r = validateAvailabilityQuery({ from: '2025-01-01', to: '2027-06-01', todayIso: TODAY, horizonUntil: HORIZON }); // date-literal-ok: the suite runs on its own clock, never the real today
+  assert.equal(r.ok, false);
+  assert.match(r.errors[0].issue, /range must not exceed 365 days/);
 });
 
 test('validateAvailabilityQuery rejects a bad date format', () => {
-  const r = validateAvailabilityQuery({ from: 'nope', todayIso: TODAY });
+  const r = validateAvailabilityQuery({ from: 'nope', todayIso: TODAY, horizonUntil: HORIZON });
   assert.equal(r.ok, false);
   assert.ok(r.errors.some((e) => e.field === 'from'));
 });

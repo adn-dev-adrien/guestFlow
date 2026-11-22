@@ -30,7 +30,7 @@ function controller(requireTermsAcceptance) {
 
 test('rule 21: CGV required and none published → bookingClosed true', () => {
   const res = fakeRes();
-  controller(true).getCurrent({}, res);
+  controller(true).getCurrent({ query: {} }, res);
   assert.equal(res.statusCode, 503);
   assert.equal(res.body.error.code, 'TERMS_NOT_CONFIGURED');
   assert.deepEqual(res.body.error.details, [{ bookingClosed: true }]);
@@ -38,6 +38,6 @@ test('rule 21: CGV required and none published → bookingClosed true', () => {
 
 test('rule 21: requirement lifted → bookingClosed false, the site keeps its form', () => {
   const res = fakeRes();
-  controller(false).getCurrent({}, res);
+  controller(false).getCurrent({ query: {} }, res);
   assert.deepEqual(res.body.error.details, [{ bookingClosed: false }]);
 });

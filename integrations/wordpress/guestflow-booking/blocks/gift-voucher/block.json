@@ -1,0 +1,18 @@
+{
+  "$schema": "https://schemas.wp.org/trunk/block.json",
+  "apiVersion": 3,
+  "name": "guestflow/gift-voucher",
+  "version": "1.0.0",
+  "title": "GuestFlow — Bon cadeau",
+  "category": "widgets",
+  "icon": "tickets-alt",
+  "description": "Achat d’un bon cadeau en ligne : montant, message, paiement, puis le bon à imprimer ou télécharger.",
+  "textdomain": "guestflow-booking",
+  "attributes": {},
+  "supports": { "html": false, "align": ["wide"] },
+  "editorScript": "guestflow-gift-voucher-editor",
+  "viewScript": "guestflow-gift-voucher-view",
+  "style": "guestflow-style",
+  "editorStyle": "guestflow-style",
+  "render": "file:./render.php"
+}

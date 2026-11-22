@@ -327,6 +327,40 @@
           "catalogueGroups"
         ]
       }
+    },
+    {
+      "version": "2.33.0",
+      "modules": [
+        "bookingHorizon",
+        "pdfFonts",
+        "prepaidReceipts",
+        "prepaidSources",
+        "termsAcceptance",
+        "termsActivities"
+      ],
+      "names": {
+        "articles": [
+          "liveFamilies",
+          "makeArticle"
+        ],
+        "paymentTenders": [
+          "lineLabel",
+          "METHODS",
+          "PREPAID"
+        ],
+        "standaloneSale": [
+          "historyOf",
+          "paidByOf",
+          "recordHistory",
+          "takePrepaid"
+        ],
+        "termsModel": [
+          "LODGING",
+          "findAcceptanceBySubject",
+          "hasDraft",
+          "listOtherAcceptancesByReservation"
+        ]
+      }
     }
   ]
 }

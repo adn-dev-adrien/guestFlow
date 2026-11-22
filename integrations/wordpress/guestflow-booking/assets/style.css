@@ -86,6 +86,10 @@
 .gf-cal-nav { background: none; border: 1px solid var(--gfb-border); border-radius: 8px; padding: .25rem .6rem; cursor: pointer; min-width: 44px; min-height: 44px; font-size: 1.1rem; color: inherit; transition: transform .1s ease-out; }
 .gf-cal-nav:active:not(:disabled) { transform: scale(.96); }
 .gf-cal-nav:disabled { opacity: .35; cursor: default; }
+.gf-cal-chips { display: flex; gap: .4rem; overflow-x: auto; padding-bottom: .4rem; margin-bottom: .6rem; scroll-snap-type: x proximity; -webkit-overflow-scrolling: touch; }
+.gf-cal-chips:empty { display: none; }
+.gf-cal-chip { flex: 0 0 auto; scroll-snap-align: center; min-height: 44px; padding: .25rem .8rem; border: 1px solid var(--gfb-border); border-radius: 999px; background: none; color: inherit; font: inherit; font-size: .85rem; text-transform: capitalize; cursor: pointer; }
+.gf-cal-chip.gf-on { background: var(--gfb-fill); border-color: var(--gfb-fill); color: var(--gfb-on-accent); font-weight: 700; }
 .gf-cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 3px; }
 .gf-cal-dow { text-align: center; font-size: .72rem; color: var(--gfb-muted); padding: .25rem 0; text-transform: uppercase; }
 .gf-cal-day { aspect-ratio: 1 / 1; display: flex; align-items: center; justify-content: center; font-size: .9rem; border-radius: 8px; }
@@ -222,6 +226,16 @@ button.gf-cal-day.gf-shake { animation: gf-shake .32s cubic-bezier(.36, .07, .19
 .gf-summary-line { display: flex; justify-content: space-between; gap: .75rem; padding: .15rem 0; }
 .gf-summary-line > span:last-child { white-space: nowrap; }
 .gf-summary-total { font-weight: 700; border-top: 1px solid var(--gfb-border); margin-top: .35rem; padding-top: .35rem; }
+/* « Bon cadeau » on the booking engine (specs/gift-vouchers.md rules 36-38): one field, its button, the server's refusal under it. */
+.gf-voucher { margin: 1rem 0; }
+.gf-voucher[hidden] { display: none; }
+.gf-voucher-row { display: flex; gap: .5rem; align-items: stretch; flex-wrap: wrap; }
+.gf-voucher-row .gf-input { flex: 1 1 14rem; min-width: 0; font-variant-numeric: tabular-nums; letter-spacing: .04em; }
+.gf-voucher-row .gf-voucher-apply { min-height: 44px; }
+.gf-voucher-remove { background: none; border: 0; padding: .5rem; min-height: 44px; cursor: pointer; color: inherit; text-decoration: underline; }
+.gf-voucher-remove[hidden] { display: none; }
+.gf-summary-voucher span:last-child { color: var(--gfb-fill); }
+@media (max-width: 600px) { .gf-voucher-row .gf-voucher-apply { flex: 1 1 100%; } }
 .gf-inline-warn { color: var(--gfb-warn); background: var(--gfb-warn-soft); border: 1px solid var(--gfb-warn-soft); border-radius: 6px; padding: .5rem .75rem; margin: .5rem 0; }
 .gf-success { color: var(--gfb-ok); background: var(--gfb-ok-soft); border: 1px solid var(--gfb-ok-soft); border-radius: 8px; padding: 1rem; }
 /* The primary action. `.gf-btn` is never styled bare: the Solio site has its own `.gf-btn`
@@ -363,4 +377,137 @@ button.gf-cal-day.gf-shake { animation: gf-shake .32s cubic-bezier(.36, .07, .19
   /* The category header stays a single ≥44px tappable row; the label truncates rather than wrapping. */
   .gf-group-head { padding: .55rem .35rem; }
   .gf-group-title { font-size: .95rem; }
+}
+
+/* ── Gift voucher tunnel (specs/gift-vouchers.md §6) ─────────────────────────────────────────────
+   Same tokens as the booking engine. The block sizes against its own box, like the booking block:
+   one column below 640 px of block width (preview UNDER the form), two above (preview beside it). */
+.gf-gift-voucher-block { container: gf-gv / inline-size; }
+.gf-gv { color: var(--gfb-ink); }
+.gf-gv [hidden] { display: none; }
+.gf-gv-title { margin: 0 0 .25rem; font-size: 1.5rem; line-height: 1.2; }
+.gf-gv-intro { margin: 0 0 1.25rem; color: var(--gfb-muted); }
+.gf-gv-two { display: grid; grid-template-columns: minmax(0, 1fr); gap: 1.5rem; align-items: start; margin-top: 1rem; }
+.gf-gv-form { display: grid; gap: 1rem; min-width: 0; }
+.gf-gv-form > * { margin: 0; }
+.gf-gv-field { gap: .3rem; }
+.gf-gv-field label { font-size: .9rem; font-weight: 600; color: var(--gfb-ink); }
+.gf-gv-opt { font-weight: 400; color: var(--gfb-muted); }
+.gf-gv-field input, .gf-gv-field textarea { min-height: 48px; }
+.gf-gv-field textarea { min-height: 88px; resize: vertical; line-height: 1.4; }
+.gf-gv-hint { margin: 0; font-size: .85rem; color: var(--gfb-muted); }
+.gf-gv-counter { text-align: right; font-variant-numeric: tabular-nums; }
+.gf-gv-amt { position: relative; }
+.gf-gv-amt input.gf-gv-amount-input { font-size: max(16px, 1.75rem); font-weight: 600; min-height: 60px; padding-right: 2.75rem; font-variant-numeric: tabular-nums; }
+.gf-gv-amt span { position: absolute; right: .9rem; top: 50%; transform: translateY(-50%); font-size: 1.4rem; color: var(--gfb-muted); pointer-events: none; }
+.gf-gv-group-label { font-size: .9rem; font-weight: 600; margin-bottom: .35rem; }
+.gf-gv-ideas { display: grid; gap: .25rem; }
+.gf-gv-idea { display: grid; gap: .4rem; padding: .6rem 0; border-top: 1px solid var(--gfb-border); }
+.gf-gv-idea b { font-size: .95rem; overflow-wrap: anywhere; }
+.gf-gv-chips { display: flex; flex-wrap: wrap; gap: .5rem; }
+.gf-gv-chip { min-height: 44px; padding: 0 .9rem; border-radius: 999px; border: 1px solid var(--gfb-border); background: #fff; color: inherit; font: inherit; font-size: .9rem; font-weight: 600; font-variant-numeric: tabular-nums; cursor: pointer; text-align: left; transition: transform .1s ease-out, background-color .15s ease; -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
+.gf-gv-chip:active { transform: scale(.96); }
+.gf-gv-chip[aria-pressed="true"] { background: var(--gfb-fill); border-color: var(--gfb-fill); color: var(--gfb-on-accent); }
+.gf-gv-chip:focus-visible, .gf-block .gf-gv .gf-btn:focus-visible { outline: 2px solid var(--gfb-fill); outline-offset: 2px; }
+.gf-gv .gf-cgv-accept { margin: 0; }
+.gf-gv .gf-cgv-accept input { width: 24px; height: 24px; }
+.gf-gv-alert { padding: .7rem .9rem; border-radius: 8px; background: var(--gfb-error-soft); color: var(--gfb-error); font-size: .95rem; }
+.gf-block .gf-gv .gf-btn.gf-gv-pay { width: 100%; min-height: 52px; font-size: 1.05rem; font-variant-numeric: tabular-nums; }
+.gf-block .gf-gv a.gf-btn { display: inline-flex; align-items: center; justify-content: center; text-decoration: none; }
+.gf-gv-soon { margin: 0; }
+.gf-gv-actions { display: flex; flex-wrap: wrap; gap: .6rem; }
+.gf-block .gf-gv-actions .gf-btn, .gf-block .gf-gv-actions .gf-btn.gf-btn-alt { margin: 0; flex: 1 1 11rem; }
+.gf-gv-after p { line-height: 1.5; }
+.gf-gv-aside { min-width: 0; }
+.gf-gv-ticket { position: relative; container-type: inline-size; background: var(--gfb-surface); border: 1px solid var(--gfb-border); border-radius: 6px; padding: 1.5rem 1.4rem 1.2rem; box-shadow: 0 8px 22px color-mix(in srgb, var(--gfb-ink) 10%, transparent); }
+.gf-gv-ticket::before { content: ""; position: absolute; inset: 6px; border: 1px solid var(--gfb-border); border-radius: 3px; pointer-events: none; }
+.gf-gv-brand { font-size: .85rem; letter-spacing: .2em; text-transform: uppercase; color: var(--gfb-muted); overflow-wrap: anywhere; }
+.gf-gv-ticket-title { margin-top: .6rem; font-size: clamp(1.5rem, 9cqi, 2.3rem); line-height: 1.05; font-weight: 600; }
+.gf-gv-amount { margin: .5rem 0 .9rem; font-size: clamp(2.4rem, 15cqi, 4rem); line-height: 1; font-weight: 600; color: var(--gfb-fill-strong); font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.gf-gv-who { margin: 0; overflow-wrap: anywhere; }
+.gf-gv-who b { font-weight: 700; }
+.gf-gv-say { margin: .8rem 0 0; font-style: italic; line-height: 1.4; overflow-wrap: anywhere; white-space: pre-line; }
+.gf-gv-foot { margin-top: 1.1rem; padding-top: .9rem; border-top: 1px dashed var(--gfb-border); }
+.gf-gv-lbl { font-size: .72rem; letter-spacing: .1em; text-transform: uppercase; font-weight: 700; color: var(--gfb-muted); }
+.gf-gv-code { margin: .15rem 0 .6rem; font: 600 clamp(.95rem, 5.2cqi, 1.25rem) ui-monospace, "SF Mono", Menlo, Consolas, monospace; letter-spacing: .04em; overflow-wrap: anywhere; }
+.gf-gv-code.is-wait { font: inherit; font-size: .95rem; letter-spacing: 0; font-weight: 400; color: var(--gfb-muted); }
+.gf-gv-small { margin: 0; font-size: .8rem; line-height: 1.4; color: var(--gfb-muted); }
+@container gf-gv (min-width: 640px) {
+  .gf-gv-two { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 2.25rem; }
+  .gf-gv-aside { position: sticky; top: 1rem; }
+  .gf-block .gf-gv .gf-btn.gf-gv-pay { width: auto; min-width: 14rem; justify-self: start; }
+}
+@media (hover: hover) and (pointer: fine) {
+  .gf-gv-chip:hover { background: var(--gfb-tint); }
+  .gf-gv-chip[aria-pressed="true"]:hover { background: var(--gfb-fill-strong); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .gf-gv-chip { transition: background-color .15s ease; }
+  .gf-gv-chip:active { transform: none; }
+}
+/* « Bon cadeau » link-button of the shortcode, to sit next to « Réserver »: it borrows the site's colour
+   and type; the site restyles it through the class. */
+.gf-gv-button { display: inline-flex; align-items: center; gap: .5rem; box-sizing: border-box; min-height: 44px; padding: 0 1rem; border: 1px solid currentColor; border-radius: 2px; color: inherit; font: inherit; font-weight: 600; text-decoration: none; white-space: nowrap; -webkit-tap-highlight-color: transparent; touch-action: manipulation; transition: transform .1s ease-out; }
+.gf-gv-button:active { transform: scale(.97); }
+.gf-gv-button svg { flex: 0 0 auto; }
+.gf-gv-button:focus-visible { outline: 2px solid currentColor; outline-offset: 2px; }
+@media (prefers-reduced-motion: reduce) { .gf-gv-button { transition: none; } .gf-gv-button:active { transform: none; } }
+/* Composed vouchers (specs/gift-voucher-campaigns.md rules 16-19) and « Utiliser un bon cadeau » (rules 23-32). Same tokens;
+   44 px targets; one column, the bar of the total stuck to the bottom of the screen on a phone. */
+.gf-gv-kind { margin-top: 1rem; }
+.gf-gv-offers { display: grid; gap: .6rem; grid-template-columns: minmax(0, 1fr); }
+.gf-gv-offer { display: grid; gap: .15rem; min-height: 56px; padding: .8rem 1rem; text-align: left; border: 1px solid var(--gfb-border); border-radius: 10px; background: #fff; color: inherit; font: inherit; cursor: pointer; -webkit-tap-highlight-color: transparent; touch-action: manipulation; transition: transform .1s ease-out, background-color .15s ease; }
+.gf-gv-offer:active { transform: scale(.98); }
+.gf-gv-offer:focus-visible { outline: 2px solid var(--gfb-fill); outline-offset: 2px; }
+.gf-gv-offer b { font-size: 1.05rem; overflow-wrap: anywhere; }
+.gf-gv-offer-detail { color: var(--gfb-muted); font-size: .9rem; }
+.gf-gv-offer-price { font-weight: 600; color: var(--gfb-fill); font-variant-numeric: tabular-nums; }
+.gf-gv-back { justify-self: start; min-height: 44px; padding: 0; border: 0; background: none; color: var(--gfb-fill); font: inherit; text-decoration: underline; cursor: pointer; }
+.gf-gv-items { margin: 0 0 .6rem; padding-left: 1.1rem; display: grid; gap: .2rem; }
+.gf-gv-heading { font-size: clamp(1.5rem, 8cqi, 2.2rem); }
+.gf-gv-compose { display: grid; gap: .6rem; }
+.gf-gv-compose-row { display: flex; align-items: center; justify-content: space-between; gap: .75rem; padding: .35rem 0; border-top: 1px solid var(--gfb-border); }
+.gf-gv-compose-label { min-width: 0; overflow-wrap: anywhere; font-weight: 600; }
+.gf-gv-compose-label small { display: block; font-weight: 400; color: var(--gfb-muted); }
+.gf-gv-recap { display: grid; gap: .3rem; padding: .8rem 1rem; border-radius: 8px; background: var(--gfb-surface); font-variant-numeric: tabular-nums; }
+.gf-gv-recap:empty { display: none; }
+.gf-gv-recap-line { display: flex; justify-content: space-between; gap: 1rem; align-items: baseline; }
+.gf-gv-recap-line span { min-width: 0; overflow-wrap: anywhere; }
+.gf-gv-recap-line small { display: block; color: var(--gfb-muted); }
+.gf-gv-recap-total { margin-top: .3rem; padding-top: .4rem; border-top: 1px solid var(--gfb-border); font-size: 1.05rem; }
+.gf-gv-recap-vat { font-size: .85rem; color: var(--gfb-muted); }
+.gf-use-included { color: var(--gfb-ok); font-weight: 600; }
+.gf-gv-use .gf-cal-box { margin-bottom: 1rem; }
+.gf-use-days { margin-bottom: .6rem; }
+.gf-use-days button.gf-cal-day { min-height: 44px; }
+.gf-use-days button.gf-cal-day:disabled { cursor: default; }
+.gf-use-slots { display: grid; grid-template-columns: repeat(auto-fill, minmax(8.5rem, 1fr)); gap: .5rem; }
+.gf-use-slot { display: grid; gap: .1rem; justify-items: center; min-height: 56px; padding: .45rem .5rem; border: 1px solid var(--gfb-border); border-radius: 10px; background: #fff; color: inherit; font: inherit; cursor: pointer; font-variant-numeric: tabular-nums; -webkit-tap-highlight-color: transparent; touch-action: manipulation; transition: transform .1s ease-out, background-color .15s ease; }
+.gf-use-slot:active { transform: scale(.97); }
+.gf-use-slot:focus-visible { outline: 2px solid var(--gfb-fill); outline-offset: 2px; }
+.gf-use-slot.is-on { background: var(--gfb-fill); border-color: var(--gfb-fill); color: var(--gfb-on-accent); }
+.gf-use-tag { font-size: .78rem; color: var(--gfb-ok); }
+.gf-use-slot.is-supplement .gf-use-tag { color: var(--gfb-warn); }
+.gf-use-slot.is-on .gf-use-tag { color: inherit; }
+.gf-use-note:empty { display: none; }
+.gf-use-who { margin-top: 1rem; }
+.gf-use-bar { position: sticky; bottom: 0; z-index: 5; display: flex; align-items: center; justify-content: space-between; gap: .75rem; margin: 1rem -.25rem 0; padding: .7rem .9rem calc(.7rem + env(safe-area-inset-bottom, 0px)); background: #fff; border-top: 1px solid var(--gfb-border); box-shadow: 0 -6px 16px color-mix(in srgb, var(--gfb-ink) 8%, transparent); }
+.gf-use-bar .gf-bar-amt { display: block; }
+.gf-block .gf-use-bar .gf-btn { flex: 0 0 auto; min-width: 11rem; min-height: 48px; }
+.gf-block .gf-use-bar .gf-btn:disabled { opacity: .5; cursor: not-allowed; }
+@container gf-gv (min-width: 640px) {
+  .gf-gv-offers { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (hover: hover) and (pointer: fine) {
+  .gf-gv-offer:hover, .gf-use-slot:hover:not(.is-on) { background: var(--gfb-tint); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .gf-gv-offer, .gf-use-slot { transition: background-color .15s ease; }
+  .gf-gv-offer:active, .gf-use-slot:active { transform: none; }
+}
+/* Printing the voucher page prints the voucher, nothing else. */
+@media print {
+  body.gf-gv-printing * { visibility: hidden; }
+  body.gf-gv-printing .gf-gv-printzone, body.gf-gv-printing .gf-gv-printzone * { visibility: visible; }
+  body.gf-gv-printing .gf-gv-printzone { position: absolute; left: 0; top: 0; width: 100%; }
 }

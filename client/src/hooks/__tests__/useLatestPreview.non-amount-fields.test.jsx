@@ -165,6 +165,8 @@ const ROWS = {
 // Screens on which no field that decides no amount reaches the preview's draft or its `enabled`.
 const NO_SUCH_FIELD = {
   AddProductDialog: 'its draft is the product and the quantity: both decide the amount (loop t26 verifier)',
+  CampaignEditor: 'its preview draft is the composition only: name, title, validity, slug and visuals are never in it',
+  NewVoucherPage: 'its price draft is the offer and what changes its price (composition, extra time, add-ons, amount): names, message, e-mail, validity and visual are never in it',
   MidStayNoteDialog: 'its draft is the ticked keys, the opening and the live remainder: every input of the dialog changes the amount',
   ResourceArrivalDialog: 'the draft is the offered time and the extras (the invoice address, the notes are never in it — rule 9)',
   ResourceBookingDialog: 'resourceBookingDraft keeps the price-relevant fields only (checked below)',

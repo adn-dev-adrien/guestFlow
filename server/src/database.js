@@ -276,6 +276,9 @@ tryAddAppSettingsCol('vatRate', "ALTER TABLE app_settings ADD COLUMN vatRate REA
 // year, i.e. exactly the behaviour of every annual figure before this spec, so existing rows keep
 // reading the same way until the operator changes it.
 tryAddAppSettingsCol('fiscalYearEndMonth', "ALTER TABLE app_settings ADD COLUMN fiscalYearEndMonth INTEGER NOT NULL DEFAULT 12");
+// 2026-11-18 — how far ahead the public may book a lodging, in months (specs/gift-voucher-campaigns.md rule 51).
+// It replaces the 730 days the public API hard-coded: existing installs move to 12 months.
+tryAddAppSettingsCol('bookingHorizonMonths', "ALTER TABLE app_settings ADD COLUMN bookingHorizonMonths INTEGER NOT NULL DEFAULT 12");
 // Annual revenue goal per exercise, JSON `{ "<exercise key>": amount }` (specs/finance-dashboard-redesign.md
 // §5). NULL = no goal anywhere, which is what every existing install starts with.
 tryAddAppSettingsCol('revenueGoals', "ALTER TABLE app_settings ADD COLUMN revenueGoals TEXT");
@@ -638,6 +641,8 @@ if (process.env.SKIP_MIGRATIONS !== 'true') {
   if (!rcols.includes('hourlyEveningRate')) db.exec('ALTER TABLE resources ADD COLUMN hourlyEveningRate REAL NOT NULL DEFAULT 0');
   if (!rcols.includes('hourlyExternalDayRate')) db.exec('ALTER TABLE resources ADD COLUMN hourlyExternalDayRate REAL NOT NULL DEFAULT 0');
   if (!rcols.includes('hourlyExternalEveningRate')) db.exec('ALTER TABLE resources ADD COLUMN hourlyExternalEveningRate REAL NOT NULL DEFAULT 0');
+  if (!rcols.includes('hourlyDegressiveTiers')) db.exec("ALTER TABLE resources ADD COLUMN hourlyDegressiveTiers TEXT NOT NULL DEFAULT '[]'");
+  if (!rcols.includes('bookingHorizonMonths')) db.exec('ALTER TABLE resources ADD COLUMN bookingHorizonMonths INTEGER NOT NULL DEFAULT 3');
   const rrcols = db.prepare('PRAGMA table_info(reservation_resources)').all().map((c) => c.name);
   if (!rrcols.includes('sessions')) db.exec('ALTER TABLE reservation_resources ADD COLUMN sessions TEXT');
 }
@@ -2645,41 +2650,14 @@ try {
 // ---------- CGV (specs/terms-acceptance-record.md §5) ----------
 // The draft the operator edits, the published versions (insert-only: a version is never edited nor
 // deleted — it is what a guest accepted), and the acceptances recorded on public booking requests.
-db.exec(`
-  CREATE TABLE IF NOT EXISTS terms_draft (
-      id INTEGER PRIMARY KEY CHECK (id = 1),
-      markdownFr TEXT NOT NULL DEFAULT '',
-      markdownEn TEXT NOT NULL DEFAULT '',
-      updatedAt TEXT
-    );
-
-  CREATE TABLE IF NOT EXISTS terms_versions (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      version INTEGER NOT NULL UNIQUE,
-      markdownFr TEXT NOT NULL,
-      markdownEn TEXT NOT NULL,
-      htmlFr TEXT NOT NULL,
-      htmlEn TEXT NOT NULL,
-      variablesJson TEXT NOT NULL,
-      contentHash TEXT NOT NULL,
-      publishedAt TEXT NOT NULL,
-      publishedBy INTEGER REFERENCES users(id) ON DELETE SET NULL
-    );
-
-  CREATE TABLE IF NOT EXISTS terms_acceptances (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      reservationId INTEGER NOT NULL,
-      termsVersionId INTEGER NOT NULL,
-      acceptedAt TEXT NOT NULL,
-      ip TEXT,
-      userAgent TEXT,
-      pluginVersion TEXT,
-      FOREIGN KEY (reservationId) REFERENCES reservations(id) ON DELETE CASCADE,
-      FOREIGN KEY (termsVersionId) REFERENCES terms_versions(id)
-    );
-  CREATE INDEX IF NOT EXISTS idx_terms_acceptances_reservation ON terms_acceptances (reservationId);
-`);
-// Enforcement ON from the first start (rule 15, X release) — the emergency switch of rule 17.
+// specs/gift-voucher-campaigns.md rule 37 — one document per activity: a database from before it holds the
+// single-document tables, rebuilt here with every row kept as the `lodging` activity.
+{
+  const termsPerActivity = require('./utils/termsPerActivityMigration');
+  if (termsPerActivity.migrateTermsPerActivity(db)) console.log('[migration:terms-per-activity] CGV tables rebuilt, existing rows kept as the lodging activity');
+  // Not in schema.sql: on an older database the baseline runs before the rebuild adds these columns.
+  db.exec('CREATE INDEX IF NOT EXISTS idx_terms_acceptances_subject ON terms_acceptances (activity, subjectType, subjectRef)');
+}
 tryAddAppSettingsCol('requireTermsAcceptance', 'ALTER TABLE app_settings ADD COLUMN requireTermsAcceptance INTEGER NOT NULL DEFAULT 1');
 tryAddAppSettingsCol('lastSeenPluginVersion', "ALTER TABLE app_settings ADD COLUMN lastSeenPluginVersion TEXT DEFAULT ''");
 // One-shot: the confirmation email links to the CGV the guest accepted (rules 26-27).

@@ -634,6 +634,7 @@ export default function ResourcePlanningPage() {
           open={Boolean(arrivalId)}
           bookingId={arrivalId}
           onClose={closeArrival}
+          onOpenFiche={(id) => navigate(`/passages/${id}`)}
           onDone={() => { closeArrival(); loadBookings(); showSuccess('Arrivée enregistrée.'); }}
         />
       )}

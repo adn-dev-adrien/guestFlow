@@ -175,7 +175,7 @@ function buildController({ database, settingsModel }) {
   // A published CGV version and the public site's address make the link (specs/terms-acceptance-record.md rule 27).
   function cgvUrlKnown(settings) {
     let version = null;
-    try { version = (database.prepare('SELECT MAX(version) AS v FROM terms_versions').get() || {}).v; } catch { version = null; }
+    try { version = (database.prepare("SELECT MAX(version) AS v FROM terms_versions WHERE activity = 'lodging'").get() || {}).v; } catch { version = null; }
     return Boolean(buildCgvUrl(settings, version));
   }
 

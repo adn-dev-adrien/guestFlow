@@ -266,7 +266,8 @@ function createAccountingOutput({ accountPlan }) {
    */
   function bookedFigures(settlement, target) {
     const f = settlementFigures(settlement);
-    const booksCents = f.booksCents * target.receivedFactor;
+    // A prepaid line is not an encaissement of this stay: its own sale was (specs/gift-vouchers.md rule 42).
+    const booksCents = f.collectedCents * target.receivedFactor;
     const bookedWaivedCents = f.bookedWaivedCents * target.waivedFactor;
     const base = target.currentCents;
     return { booksCents, bookedWaivedCents, share: base > 0 ? (booksCents + bookedWaivedCents) / base : 0 };

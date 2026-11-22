@@ -217,6 +217,14 @@ function create({ accountPlan }) {
     const rate = entry.vatRatePercent === null || entry.vatRatePercent === undefined ? 0 : Number(entry.vatRatePercent);
     const ht = netOfTtc(ttc, rate);
     const vat = round2(ttc - ht);
+    // A refund of a sale booked at one rate (a plugin's avoir with no VAT groups) mirrors that sale's lines.
+    if (entry.standaloneRole === 'refund') {
+      return [
+        line('customer', 'credit', ttc),
+        line('revenue:activities', 'debit', ht, { vatRate: rate }),
+        ...(vat > 0 ? [vatOf({ rate, amount: vat }, 'debit')] : []),
+      ];
+    }
     return [
       line('customer', 'debit', ttc),
       line('revenue:activities', 'credit', ht, { vatRate: rate }),

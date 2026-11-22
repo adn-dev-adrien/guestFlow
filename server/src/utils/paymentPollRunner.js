@@ -44,13 +44,20 @@ const { withConvertedDevis } = require('./deletionGuard');
 const { LINK_REASONS } = require('../constants/paymentLinks');
 const { unavailableNights } = require('./closedStayDates');
 
+const STANDALONE_SALE_SOURCE = 'standalone-sale';
+
 // Apply the business consequence of a PAID link. A deposit OR a full payment on a devis converts it to a
 // reservation; a full payment marks it fully settled (deposit + balance). On conversion the dates are
 // re-checked (the devis never blocked them) — a conflict flags the reservation + surfaces `conflict:true`.
 // The bucket goes through the same recorder as a manual tick (rule 1).
 function applyPaidEffect({ database, devisModel, link, checkConflict, paidDate = null, paidAt = null, recordPayment = recordOn(database), settledAlready = false }) {
-  // the outside-visit spec rule 41 — a link that bills an outside sale settles that document, never a stay.
-  if (link.saleRef) return require('./standaloneSaleLinks').settlePaidLink({ link, paidDate, paidAt });
+  if (link.saleRef) {
+    // SDK 2.33.0 — a link with no stay that bills a plugin's own basket is settled by that plugin, like a stay's (below).
+    const basket = basketOfLink(database, link);
+    if (basket && basket.source !== STANDALONE_SALE_SOURCE) return settleBasket({ database, link, basket, paidDate, paidAt, stayExists: false });
+    // the outside-visit spec rule 41 — a link that bills an outside sale settles that document, never a stay.
+    return require('./standaloneSaleLinks').settlePaidLink({ link, paidDate, paidAt });
+  }
   const row = database.prepare('SELECT * FROM reservations WHERE id = ?').get(link.reservationId);
   // specs/guest-app.md rules 35-36 — a link that bills its own basket is settled by the plugin that owns the basket,
   // whatever became of the stay: a cancelled or deleted stay is the owner's to refuse (its order flagged, the money
@@ -119,12 +126,17 @@ function applyPaidEffect({ database, devisModel, link, checkConflict, paidDate =
     // An already converted devis is compared with the stay it became, which the fiche may have re-priced.
     const priced = effect === 'already-converted' && convertedRow && convertedRow.kind === 'reservation' ? convertedRow : row;
     const hasSplit = priced.depositAmount != null && priced.balanceAmount != null;
-    const expectedCents = hasSplit ? linkAmountCents(link.type, priced) : null;
+    // SDK 2.33.0 (specs/gift-vouchers.md rule 38) — a quote that holds prepaid money was charged what the mode asks LESS that money.
+    const prepaidReduction = hasSplit && effect === 'converted' ? prepaidReductionOf(link, priced) : 0;
+    const expectedCents = hasSplit ? linkAmountCents(link.type, priced) - prepaidReduction : null;
+    const settlePrepaid = () => settlePrepaidOf({ database, link, stayId: reservationId, paidDate });
     if (expectedCents != null && link.amountCents != null && Number(link.amountCents) !== expectedCents) {
       const booked = bookPaidAfterAmountChange({ database, recordPayment }, link, { paidDay: paidDate });
+      if (prepaidReduction > 0) settlePrepaid();
       return { effect: booked.effect, reservationId, conflict, closed, justConverted: effect === 'converted', amountMismatch: mismatchOf(link, priced, database, paidDate) };
     }
     recordPayment({ reservationId, bucket: isFull ? 'full' : 'deposit', paidDate });
+    if (prepaidReduction > 0) settlePrepaid();
     return { effect, reservationId, conflict, closed };
   }
 
@@ -165,6 +177,23 @@ function applyPaidEffect({ database, devisModel, link, checkConflict, paidDate =
   return { effect: 'noop' };
 }
 
+// What the prepaid money held for the link's quote takes off the link's own amount (`publicPaymentController.pay` minted it so).
+function prepaidReductionOf(link, stay) {
+  const held = require('./prepaidSources').heldCentsFor(link.reservationId);
+  return held > 0 ? Math.min(held, linkAmountCents(link.type, stay)) : 0;
+}
+
+// Redeems the held money and writes its settlements; the payment itself stays recorded whatever happens here.
+function settlePrepaidOf({ database, link, stayId, paidDate }) {
+  try {
+    require('./prepaidReceipts').settleAtConversion({
+      database, devisId: link.reservationId, stayId, linkType: link.type, linkCents: Number(link.amountCents), paidDate,
+    });
+  } catch (err) {
+    console.error('[payments] could not record the prepaid money of a paid link:', err && err.message); // eslint-disable-line no-console
+  }
+}
+
 function basketOfLink(database, link) {
   const hasColumn = database.prepare('PRAGMA table_info(payment_links)').all().some((c) => c.name === 'basketJson');
   if (!hasColumn) return null;
@@ -183,6 +212,7 @@ function basketOfLink(database, link) {
 // the gap between what was paid and what the basket finally cost. With no live owner the money is the admin's to sort out.
 function settleBasket({ database, link, basket, paidDate, paidAt, stayExists = true }) {
   const registry = require('../plugins/sdk/registry');
+  const stayId = link.reservationId == null ? null : Number(link.reservationId);
   const owner = registry.all().filter((r) => registry.isLive(r.id))
     .flatMap((r) => (r.paymentBaskets || []).map((b) => ({ id: r.id, ...b })))
     .find((b) => b.source === basket.source);
@@ -191,7 +221,7 @@ function settleBasket({ database, link, basket, paidDate, paidAt, stayExists = t
   let outcome;
   try {
     outcome = owner.paid({
-      reservationId: Number(link.reservationId),
+      reservationId: stayId,
       ref: basket.ref,
       linkId: Number(link.id),
       amountCents: Number(link.amountCents),
@@ -223,9 +253,9 @@ function settleBasket({ database, link, basket, paidDate, paidAt, stayExists = t
           field: 'refundOwed', label: 'Remboursement à faire', from: '', to: `${amount} payés (lien ${link.id}) : ${outcome.reason || 'achat non honoré'}, à rembourser depuis l’espace du prestataire`,
         }]));
     }
-    return { effect: 'basket-refund-owed', reservationId: Number(link.reservationId), ...(part ? { refundCents: part } : {}) };
+    return { effect: 'basket-refund-owed', reservationId: stayId, ...(part ? { refundCents: part } : {}) };
   }
-  return { effect: String(outcome.effect || 'basket-settled'), reservationId: Number(link.reservationId) };
+  return { effect: String(outcome.effect || 'basket-settled'), reservationId: stayId };
 }
 
 // A minimal schema (a unit suite's) without closures or logements has no closed nights.

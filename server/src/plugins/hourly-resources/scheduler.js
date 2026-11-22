@@ -25,6 +25,7 @@ const {
 const resourcesModel = sdk.coreModule('resourcesModel');
 const { roundMoney } = sdk.coreModule('money');
 const { toParisIso } = sdk.coreModule('stayWindow');
+const { horizonUntil } = require('./horizon');
 
 const HOURLY = 'per_hour';
 
@@ -33,14 +34,16 @@ const dateOfAbsolute = (minutes) => new Date(Math.floor(minutes / MINUTES_PER_DA
 /**
  * `notBefore` = max(now, check-in), `notAfter` = check-out, in absolute minutes of the Paris wall clock. `heatFrom`
  * (hourly-resource-quantity-and-sas-scheduling.md rule 36) is the moment the heating can begin, when the caller counts it
- * from somewhere other than `notBefore`: the guest app passes the present moment.
+ * from somewhere other than `notBefore`: the guest app passes the present moment. The resource's booking horizon ends
+ * the window early (specs/gift-voucher-campaigns.md rule 51): a slot past it reads `closed`.
  */
-function boundsOf(stay, now, heatFrom = null) {
+function boundsOf(stay, now, heatFrom = null, resource = null) {
   const paris = toParisIso(now) || '';
   const nowAbs = toAbsMinutes(paris.slice(0, 10), paris.slice(11, 16));
   const checkIn = toAbsMinutes(stay.startDate, stay.checkInTime || '15:00');
   const checkOut = toAbsMinutes(stay.endDate || stay.startDate, stay.checkOutTime || '10:00');
-  const bounds = { notBefore: Math.max(checkIn, nowAbs), notAfter: checkOut };
+  const horizonEnd = resource ? toAbsMinutes(horizonUntil(resource, now), '00:00') + MINUTES_PER_DAY : Infinity;
+  const bounds = { notBefore: Math.max(checkIn, nowAbs), notAfter: Math.min(checkOut, horizonEnd) };
   if (heatFrom) {
     const heat = toParisIso(heatFrom) || '';
     bounds.heatFrom = toAbsMinutes(heat.slice(0, 10), heat.slice(11, 16));
@@ -90,11 +93,12 @@ function createScheduler(database) {
       dayRate: resource.price,
       stayDates: eachDate(stay.startDate, stay.endDate),
       occupancy: occupancyOf(resource, stay),
-      ...boundsOf(stay, now, heatFrom),
+      ...boundsOf(stay, now, heatFrom, resource),
       canIgnite: igniterOf(canIgnite),
     });
     return {
       resourceId: Number(resource.id),
+      horizonUntil: horizonUntil(resource, now),
       // The resource's own opening, for the thin bar of the day (guest-app rule 78): closed hours are greyed by the app.
       opening: { from: resource.openTime || '00:00', to: resource.closeTime || '23:59' },
       days: days.map((day) => ({
@@ -126,7 +130,7 @@ function createScheduler(database) {
   }) {
     const resource = hourlyResource(resourceId, propertyId);
     if (!resource) return null;
-    const bounds = boundsOf(stay, now, heatFrom);
+    const bounds = boundsOf(stay, now, heatFrom, resource);
     const stored = occupancyOf(resource, stay);
     const ignite = igniterOf(canIgnite);
     const asked = (Array.isArray(sessions) ? sessions : []).map(asSession);
@@ -157,6 +161,7 @@ function createScheduler(database) {
       eveningRate: Number(resource.hourlyEveningRate) || 0,
       eveningStart: resource.hourlyEveningStart || null,
       slotMinutes: Number(resource.slotDuration || 60),
+      degressiveTiers: resource.hourlyDegressiveTiers,
     });
     const credit = Math.max(0, roundMoney((Number(lineGain.amount) || 0) - Number(resource.price || 0) * (Number(lineGain.hours) || 0)));
     return Math.max(0, roundMoney(difference - credit));

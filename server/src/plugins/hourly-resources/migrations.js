@@ -74,8 +74,8 @@ function tagEveningSupplements(db) {
 // One list for the reset and for the warning that announces it: nothing is erased unannounced.
 const HOURLY_COLUMN_RESETS = [
   ['isComplex', '0'], ['showsPlanningCard', '0'], ['hourlyEveningStart', 'NULL'], ['hourlyEveningRate', '0'],
-  ['hourlyExternalDayRate', '0'], ['hourlyExternalEveningRate', '0'], ['heatUpMinutes', '0'],
-  ['heatRetentionMinutes', '0'], ['turnoverMinutes', '0'],
+  ['hourlyExternalDayRate', '0'], ['hourlyExternalEveningRate', '0'], ['hourlyDegressiveTiers', "'[]'"], ['heatUpMinutes', '0'],
+  ['heatRetentionMinutes', '0'], ['turnoverMinutes', '0'], ['bookingHorizonMonths', '3'],
 ];
 
 function presentResets(db) {
@@ -199,6 +199,11 @@ function bookingsV6(db) {
   });
 }
 
+// specs/gift-voucher-campaigns.md rule 29 — the slot held while a remainder is being paid. Nothing to carry: the table starts empty.
+const createHoldsTable = (db) => db.exec(require('./holdsModel').CREATE_SQL);
+// Rule 36 — the elements a prepaid instrument paid that the client did not take.
+const createLineMarksTable = (db) => db.exec(require('./lineMarksModel').CREATE_SQL);
+
 /** @param {(db, row: { reservationId, date }) => number|null} rateOf the rate in force for a booking (rule 5) */
 // specs/plugin-removal-resilience.md rule 22 — after an erase and a reinstall the id counter restarts above the visits the sales still cite.
 function keepBookingIdsCited(db) {
@@ -216,6 +221,8 @@ function migrationsFor(rateOf) {
     { name: 'resource_bookings_v5', up: bookingsV5 },
     { name: 'resource_bookings_v6', up: bookingsV6 },
     { name: 'resource_bookings_counter_floor_v7', up: keepBookingIdsCited },
+    { name: 'resource_booking_holds_v8', up: createHoldsTable },
+    { name: 'resource_visit_line_marks_v9', up: createLineMarksTable },
   ];
 }
 

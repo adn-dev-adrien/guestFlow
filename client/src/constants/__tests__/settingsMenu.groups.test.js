@@ -17,7 +17,7 @@ test('rule 26: every entry, the plugins’ included, lands in a group, by the fa
   const byGroup = Object.fromEntries(groups.map((g) => [g.id, g.entries.map((e) => e.path)]));
   expect(byGroup.etablissement).toEqual(['/settings/etablissement', '/properties', '/settings/plateformes', '/parametres/conditions-generales']);
   expect(byGroup.sejours).toEqual(['/parametres/options-ressources', '/parametres/recettes', '/parametres/vacances-fermetures', '/parametres/stock-blanchisserie']);
-  expect(byGroup['paiements-emails']).toEqual(['/parametres/paiements', '/settings/tva-exercice', '/settings/emails']);
+  expect(byGroup['paiements-emails']).toEqual(['/parametres/paiements', '/settings/tva-exercice', '/settings/emails', '/parametres/bons-cadeaux']);
   expect(byGroup['compte-systeme']).toEqual(['/settings/utilisateurs', '/parametres/acces-support', '/settings/integrations', '/settings/systeme', '/parametres/plugins']);
   const listed = groups.flatMap((g) => g.entries.map((e) => e.path)).sort();
   expect(listed).toEqual(SETTINGS_MENU.filter(Boolean).map((e) => e.path).sort());

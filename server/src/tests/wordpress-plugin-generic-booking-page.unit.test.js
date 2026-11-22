@@ -29,6 +29,6 @@ test('rule 26: a booking block with its lodging fixed is never detected as the b
   const settings = read('includes/class-gf-settings.php');
   assert.match(settings, /'booking' => '"propertyId":'/);
   assert.match(settings, /post_content LIKE %s AND post_content NOT LIKE %s ORDER BY ID ASC LIMIT 1/);
-  // The cache of the previous detection, which could hold a lodging page, is not reused.
-  assert.match(settings, /DETECTED_TRANSIENT = 'gf_detected_pages_v2'/);
+  // The cache of the previous detection, which could hold a lodging page, is not reused — v3 since the « Utiliser un bon cadeau » page joined the detected pages.
+  assert.match(settings, /DETECTED_TRANSIENT = 'gf_detected_pages_v3'/);
 });

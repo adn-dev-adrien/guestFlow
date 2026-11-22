@@ -58,13 +58,19 @@ function emptyRecord(id) {
     // specs/guest-app.md rules 28-31, 35 (SDK 2.26.0) — the hourly slots of a stay, and the slots a plugin holds.
     resourceScheduler: null,
     resourceHolds: null,
+    // specs/gift-voucher-campaigns.md rule 37 (SDK 2.33.0) — [{ key, label, seed? }]: the activities whose core terms (CGV) a plugin declares.
+    termsActivities: [],
     // specs/pricing-components.md rules 48-49 (SDK 2.30.0) — the ids of the fulfilment adapters, and the slot availability provider.
     articleFulfilments: [],
     slotAvailability: null,
+    // Rules 25, 29, 53 of the campaigns spec (SDK 2.33.0) — the outside bookings another plugin may ask for: free slots, a hold, a booking.
+    resourceBookingOffer: null,
     // the outside-visit spec rule 37 (SDK 2.32.0) — [{ kind, label, list }]: the sale contexts a plugin offers to the « Proposés à l'arrivée » lists.
     suggestionContexts: [],
     // specs/guest-app.md rules 35-36 (SDK 2.26.0) — [{ source, paid }]: what a paid basket link does.
     paymentBaskets: [],
+    // specs/gift-vouchers.md rules 36-42 (SDK 2.33.0) — [{ source, label, apply, held, settle, release }]: the prepaid instruments a plugin keeps the balance of.
+    prepaidSources: [],
     // specs/plugins-phase-1-sdk.md rule 48, specs/guest-app.md rules 47, 52 (SDK 2.26.0) — [{ key, path, host, handler }]:
     // a web app the plugin serves itself, at a path of its own or on a host of its own.
     webApps: [],

@@ -21,9 +21,13 @@
  *   moneyOf(row)                         `{ totalCents, paidCents, remainingCents, payments }` of a booking whose money is on a document, else null
  *   draftMoneyOf(row, draft)             the same for the visit as a commit of `draft` would find it, nothing written (loop t2 B2-7)
  *   repriceSession(row)                  the session line of an unpaid visit follows its booking's new slot (a retired line and a new one, journaled)
+ *   notTaken(row, lineId, { actor })     an element a prepaid instrument paid that the client did not take (rules 15, 36 of the campaigns spec): marked, journaled,
+ *                                        and the instrument told through its generic `unused` call
+ *   history(row, text, actor)            one line of the visit's journal (rule 53), when the booking has a document
  */
 
 const sdk = require('../sdk');
+const { createLineMarksModel } = require('./lineMarksModel');
 
 const SALE_REF = /^standalone:([1-9]\d*)$/;
 const sessionRefOf = (bookingId) => `hourly-slot:${Number(bookingId)}`;
@@ -37,10 +41,13 @@ const paidOnBooking = (row) => Number(row && row.paid) === 1;
 
 const refuse = (status, code, error, extra = {}) => ({ status, code, error, ...extra });
 const core = () => sdk.coreModule('standaloneSale');
+const prepaid = () => sdk.coreModule('prepaidSources');
 const links = () => sdk.coreModule('standaloneSaleLinks');
 const { toCents } = sdk.coreModule('money');
 
-function createVisitModel({ db, bookings, now = () => new Date() }) {
+function createVisitModel({
+  db, bookings, marks = () => createLineMarksModel(db), now = () => new Date(),
+}) {
   const resourceName = (row) => (db.prepare('SELECT name FROM resources WHERE id = ?').get(row.resourceId) || {}).name || 'Ressource';
 
   // The parts of a session as the hourly pricing wrote them: « Jour · 18:00–19:00 » « 1 h × 50,00 € », the free minutes, the offered time.
@@ -147,6 +154,41 @@ function createVisitModel({ db, bookings, now = () => new Date() }) {
     return links().draftLinkOf({ remainingCents: document ? document.totals.remainingCents : 0, email });
   }
 
+  // Rule 36 — the lines a prepaid instrument paid, by line ref: the instrument's own words (never named here), what it paid and whether the element was not taken.
+  function prepaidByRef(saleId, row) {
+    const byRef = new Map();
+    if (!saleId) return byRef;
+    const marked = new Set(marks().marksOf(row.id).map((m) => m.lineRef));
+    core().paidByOf(saleId).filter((paid) => paid.kind === 'prepaid').forEach((paid) => {
+      const words = prepaid().wordingOf(paid.source, paid.label);
+      const known = byRef.get(paid.lineRef);
+      byRef.set(paid.lineRef, {
+        source: paid.source,
+        ref: paid.ref,
+        label: paid.label,
+        title: words.includedTitle,
+        mark: words.paidMark,
+        paidCents: (known ? known.paidCents : 0) + paid.amountCents,
+        notTaken: marked.has(paid.lineRef),
+      });
+    });
+    return byRef;
+  }
+
+  // The section a source's lines are shown in, titled by the source: `[{ source, title, mark, refs, paidCents }]`.
+  function prepaidSectionsOf(lines) {
+    const sections = new Map();
+    lines.filter((line) => line.prepaid).forEach((line) => {
+      const section = sections.get(line.prepaid.source) || {
+        source: line.prepaid.source, title: line.prepaid.title, mark: line.prepaid.mark, refs: [], paidCents: 0,
+      };
+      section.refs.push(line.ref);
+      section.paidCents += line.prepaid.paidCents;
+      sections.set(line.prepaid.source, section);
+    });
+    return [...sections.values()];
+  }
+
   /** The visit payload (§4.3). `draft` (the quote body) adds the extras and the session's offered time; nothing is written. */
   // The core's quote of the visit for `draft` (nothing written): the stored document, the session still to sell, the extras typed.
   function quoteOf(row, draft) {
@@ -170,6 +212,7 @@ function createVisitModel({ db, bookings, now = () => new Date() }) {
     const document = quoted.document;
     const sale = saleId ? document.document : null;
     const totals = { ...document.totals };
+    const prepaidLines = prepaidByRef(saleId, row);
     const lines = document.lines.map((line) => ({
       id: line.id,
       ref: line.ref,
@@ -188,6 +231,7 @@ function createVisitModel({ db, bookings, now = () => new Date() }) {
       vatRate: line.vatRate,
       legacy: line.source === 'paidElsewhere',
       draft: line.id == null && line.source !== 'paidElsewhere',
+      ...(prepaidLines.has(line.ref) ? { prepaid: prepaidLines.get(line.ref) } : {}),
     }));
     // Rule 7 — the reception sees the door money only: never a refund amount (reception-role-checkin-only rule 12bis).
     if (reception) { delete totals.refundOwedCents; delete totals.refundUnheldCents; delete totals.internalHeldCents; }
@@ -202,6 +246,7 @@ function createVisitModel({ db, bookings, now = () => new Date() }) {
       },
       lines,
       groups: document.groups,
+      prepaidSections: prepaidSectionsOf(lines),
       totals,
       vatByRate: document.vatByRate,
       suggestions: suggestionsOf(row),
@@ -313,6 +358,7 @@ function createVisitModel({ db, bookings, now = () => new Date() }) {
         if (!saleId) setSaleRef(row, sold.document.document.id);
       }
       db.prepare("UPDATE resource_bookings SET arrivedAt = COALESCE(arrivedAt, datetime('now')), updatedAt = datetime('now') WHERE id = ?").run(row.id);
+      if (!row.arrivedAt) history(row, 'Arrivée enregistrée', actor);
       return { ok: true };
     });
   }
@@ -341,6 +387,11 @@ function createVisitModel({ db, bookings, now = () => new Date() }) {
     const session = storedSession(documentOf(row), row);
     if (body.remove === true && session && Number(session.id) === Number(lineId)) {
       return refuse(409, 'SESSION_LINE', 'La séance se retire en supprimant la réservation.');
+    }
+    // A line a prepaid instrument paid is never given back in money (mixed-method-payments rule 64): the element not used is marked « non pris » instead.
+    const target = documentOf(row).lines.find((line) => Number(line.id) === Number(lineId));
+    if (target && core().paidByOf(saleId).some((paid) => paid.kind === 'prepaid' && paid.lineRef === target.ref)) {
+      return refuse(409, 'LINE_PREPAID', 'Ligne réglée d’avance : la marquer « non pris » plutôt que l’offrir ou la retirer.');
     }
     const options = { confirmRefund: body.confirmRefund === true, version: body.version };
     const result = body.remove === true
@@ -381,6 +432,7 @@ function createVisitModel({ db, bookings, now = () => new Date() }) {
         }
       }
       db.prepare("UPDATE resource_bookings SET noShowAt = ?, updatedAt = datetime('now') WHERE id = ?").run(now().toISOString(), row.id);
+      history(row, 'Client absent');
       return { ok: true };
     });
   }
@@ -417,6 +469,34 @@ function createVisitModel({ db, bookings, now = () => new Date() }) {
     };
   }
 
+  /** Rule 53 — one line of the visit's journal, when the booking has a document. */
+  function history(row, text, actor = null) {
+    const fresh = db.prepare('SELECT saleRef FROM resource_bookings WHERE id = ?').get(row.id);
+    const saleId = saleIdOf(fresh);
+    if (saleId) core().recordHistory(saleId, text, actor);
+  }
+
+  /**
+   * Rules 15, 36 — an element the client did not take, paid in advance by an instrument: marked on the visit, journaled, and the instrument told so it traces the
+   * unused value. Never a refund, and never the session itself.
+   */
+  function notTaken(row, lineId, { actor = null } = {}) {
+    const saleId = saleIdOf(row);
+    const line = saleId ? documentOf(row).lines.find((l) => Number(l.id) === Number(lineId)) : null;
+    if (!line) return refuse(404, 'LINE_NOT_FOUND', 'Ligne introuvable.');
+    if (line.fulfilmentRef) return refuse(409, 'SESSION_LINE', 'La séance ne se marque pas « non pris ».');
+    const paidIn = core().paidByOf(saleId).filter((paid) => paid.kind === 'prepaid' && paid.lineRef === line.ref);
+    if (!paidIn.length) return refuse(409, 'LINE_NOT_PREPAID', 'Seule une ligne réglée d’avance se marque « non pris ».');
+    const valueCents = paidIn.reduce((sum, paid) => sum + paid.amountCents, 0);
+    const marked = marks().mark({
+      bookingId: row.id, lineRef: line.ref, label: line.label, valueCents, source: paidIn[0].source, ref: paidIn[0].ref, by: actor,
+    });
+    if (!marked) return refuse(409, 'ALREADY_MARKED', 'Ligne déjà marquée « non pris ».');
+    core().recordHistory(saleId, `« ${line.label} » non pris (${sdk.coreModule('money').eurosWithSpaces(valueCents)} réglés d’avance)`, actor);
+    prepaid().unusedFor(paidIn[0].source, { ref: paidIn[0].ref, label: line.label, valueCents });
+    return { ok: true, valueCents };
+  }
+
   /**
    * Edge case of §3 — a booking moved after its session was sold is re-priced only while the session line is unpaid: the line is retired and the new
    * price appended, both journaled on the document (rule 23: explicit actions, never a rewrite). A paid session answers 409 `BOOKING_PAID`.
@@ -449,7 +529,7 @@ function createVisitModel({ db, bookings, now = () => new Date() }) {
   }
 
   return {
-    view, commit, pay, patchLine, linePaid, noShow, ensureDocument, documentOf, moneyOf, draftMoneyOf, repriceSession, cancelDocument, windowOf, inTransaction, saleIdOf, paidOnBooking,
+    view, commit, pay, patchLine, linePaid, noShow, notTaken, history, ensureDocument, documentOf, moneyOf, draftMoneyOf, repriceSession, cancelDocument, windowOf, inTransaction, saleIdOf, paidOnBooking,
   };
 }
 

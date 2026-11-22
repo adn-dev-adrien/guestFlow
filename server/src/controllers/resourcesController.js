@@ -16,6 +16,7 @@ const { numberRefused, nonNegative, wholeFrom } = require('../utils/lineInputBou
 const { buildResourceItems } = require('../utils/resourceCatalogueView');
 const { resourceCatalogueContributors } = require('../utils/resourceCatalogueContributors');
 const externalFields = require('../utils/externalArticleFields');
+const { degressiveTiersProblem } = require('../utils/degressiveTiers');
 
 const isBlank = (value) => value === undefined || value === null || (typeof value === 'string' && value.trim() === '');
 const HOURLY_RATES = ['hourlyEveningRate', 'hourlyExternalDayRate', 'hourlyExternalEveningRate'];
@@ -81,9 +82,14 @@ function validateResourcePayload(body, stored = null, knownPropertyIds = null) {
     }
   });
   Object.entries(payload.propertyPrices || {}).forEach(([pid, raw]) => priced(`propertyPrices.${pid}`, raw, stored?.propertyPrices?.[pid]));
+  const tiersMessage = degressiveTiersProblem(payload.hourlyDegressiveTiers);
+  if (tiersMessage) details.push({ field: 'hourlyDegressiveTiers', message: tiersMessage });
   RESOURCE_MINUTES.forEach((field) => {
     if (numberRefused(payload[field], nonNegative, stored?.[field])) details.push({ field, message: MESSAGES.notANumber });
   });
+  if (numberRefused(payload.bookingHorizonMonths, (n) => Number.isInteger(n) && n >= 1 && n <= 24, stored?.bookingHorizonMonths)) {
+    details.push({ field: 'bookingHorizonMonths', message: 'Nombre entier de mois entre 1 et 24' });
+  }
 
   const slotted = payload.priceType === 'per_hour' && (payload.isComplex === 1 || payload.isComplex === true || payload.isComplex === '1');
   if (slotted && typeof payload.openTime === 'string' && typeof payload.closeTime === 'string' && payload.openTime && payload.closeTime && payload.closeTime <= payload.openTime) {

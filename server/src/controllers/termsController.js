@@ -6,6 +6,7 @@
 
 const db = require('../database');
 const termsModel = require('../models/termsModel');
+const termsActivities = require('../utils/termsActivities');
 const settingsModel = require('../models/settingsModel');
 const { TERMS_VARIABLES, buildTermsVariables, renderVersion } = require('../utils/termsRenderer');
 
@@ -59,10 +60,10 @@ function shapeVersionSummary(v) {
   };
 }
 
-function buildOverview(deps = {}) {
+function buildOverview(deps = {}, activity = termsActivities.LODGING) {
   const model = deps.termsModel || termsModel;
-  const draft = model.getDraft();
-  const current = model.getCurrent();
+  const draft = model.getDraft(activity);
+  const current = model.getCurrent(activity);
   const vars = currentVariables(deps);
   const draftRender = renderVersion({ fr: draft.markdownFr, en: draft.markdownEn }, vars);
   const draftMatchesCurrent = Boolean(current)
@@ -75,6 +76,7 @@ function buildOverview(deps = {}) {
   else if (draftRender.unknown.length) publishBlockedReason = `Variable(s) inconnue(s) : ${draftRender.unknown.map((n) => `{{${n}}}`).join(', ')}`;
   else if (draftMatchesCurrent) publishBlockedReason = `Rien de nouveau depuis la version ${current.version}.`;
   return {
+    activity,
     draft: { fr: draft.markdownFr, en: draft.markdownEn, updatedAt: draft.updatedAt },
     current: current ? { version: current.version, publishedAt: current.publishedAt, publishedAtLabel: parisDateTimeLabel(current.publishedAt) } : null,
     nextVersion: current ? current.version + 1 : 1,
@@ -83,7 +85,7 @@ function buildOverview(deps = {}) {
     staleVariables: staleVariables(current, vars),
     unknownVariables: draftRender.unknown,
     variables: TERMS_VARIABLES,
-    versions: model.listVersionsWithCounts().map(shapeVersionSummary),
+    versions: model.listVersionsWithCounts(activity).map(shapeVersionSummary),
     // specs/plugins-phase-3a-online-payment.md rule 15 — edited here since the CGV link of the emails
     // is its core reader. The stored value only: an origin set in the environment stays there.
     publicSiteOrigin: String((deps.settingsModel || settingsModel).read().publicSiteOrigin || ''),
@@ -112,7 +114,7 @@ function updatePublicSiteOrigin(req, res) {
   const parsed = parsePublicSiteOrigin(req.body && req.body.publicSiteOrigin);
   if (parsed.error) return res.status(400).json({ error: parsed.error });
   settingsModel.storePublicSiteOrigin(parsed.value);
-  return res.json(buildOverview());
+  return res.json(buildOverview({}, termsActivities.LODGING));
 }
 
 function validateTexts(body) {
@@ -123,15 +125,38 @@ function validateTexts(body) {
   return null;
 }
 
+/** The activity a request names (`?activity=` or the body), `lodging` by default; null when it is unknown or its plugin is off. */
+function activityOf(req) {
+  const raw = (req.query && req.query.activity) != null ? req.query.activity : req.body && req.body.activity;
+  return termsActivities.resolve(raw);
+}
+
+const UNKNOWN_ACTIVITY = 'Activité inconnue.';
+
+function listActivities(req, res) {
+  termsActivities.seedDrafts(termsModel);
+  return res.json({
+    activities: termsActivities.list().map((a) => {
+      const current = termsModel.getCurrent(a.key);
+      return { key: a.key, label: a.label, currentVersion: current ? current.version : null };
+    }),
+  });
+}
+
 function getOverview(req, res) {
-  return res.json(buildOverview());
+  const activity = activityOf(req);
+  if (!activity) return res.status(404).json({ error: UNKNOWN_ACTIVITY });
+  termsActivities.seedDrafts(termsModel);
+  return res.json(buildOverview({}, activity));
 }
 
 function saveDraft(req, res) {
+  const activity = activityOf(req);
+  if (!activity) return res.status(404).json({ error: UNKNOWN_ACTIVITY });
   const err = validateTexts(req.body);
   if (err) return res.status(400).json({ error: err });
-  termsModel.saveDraft({ fr: req.body.fr, en: req.body.en });
-  return res.json(buildOverview());
+  termsModel.saveDraft({ fr: req.body.fr, en: req.body.en, activity });
+  return res.json(buildOverview({}, activity));
 }
 
 function preview(req, res) {
@@ -145,14 +170,15 @@ function preview(req, res) {
  * Publishes the SAVED draft (rule 3): what is frozen is what the operator saved, never an unsaved
  * editor state.
  */
-function publishDraft(deps = {}, { userId = null, now = new Date() } = {}) {
+function publishDraft(deps = {}, { userId = null, now = new Date(), activity = termsActivities.LODGING } = {}) {
   const model = deps.termsModel || termsModel;
-  const overview = buildOverview(deps);
+  const overview = buildOverview(deps, activity);
   if (!overview.canPublish) return { error: overview.publishBlockedReason, status: 422 };
-  const draft = model.getDraft();
+  const draft = model.getDraft(activity);
   const vars = currentVariables(deps);
   const r = renderVersion({ fr: draft.markdownFr, en: draft.markdownEn }, vars);
   const version = model.publishVersion({
+    activity,
     markdownFr: draft.markdownFr,
     markdownEn: draft.markdownEn,
     htmlFr: r.htmlFr,
@@ -166,13 +192,17 @@ function publishDraft(deps = {}, { userId = null, now = new Date() } = {}) {
 }
 
 function publish(req, res) {
-  const result = publishDraft({}, { userId: req.user?.id || null });
+  const activity = activityOf(req);
+  if (!activity) return res.status(404).json({ error: UNKNOWN_ACTIVITY });
+  const result = publishDraft({}, { userId: req.user?.id || null, activity });
   if (result.error) return res.status(result.status).json({ error: result.error });
-  return res.json(buildOverview());
+  return res.json(buildOverview({}, activity));
 }
 
 function getVersion(req, res) {
-  const v = termsModel.getByVersion(req.params.version);
+  const activity = activityOf(req);
+  if (!activity) return res.status(404).json({ error: UNKNOWN_ACTIVITY });
+  const v = termsModel.getByVersion(req.params.version, activity);
   if (!v) return res.status(404).json({ error: 'Version introuvable.' });
   return res.json({
     version: v.version,
@@ -183,33 +213,54 @@ function getVersion(req, res) {
   });
 }
 
+function shapeAcceptance(a) {
+  return {
+    version: a.version,
+    acceptedAt: a.acceptedAt,
+    acceptedAtLabel: parisDateTimeLabel(a.acceptedAt),
+    versionPublishedAtLabel: parisDateLabel(a.publishedAt),
+    shortHash: String(a.contentHash || '').slice(0, 12),
+    ip: a.ip || '',
+    userAgent: a.userAgent || '',
+    pluginVersion: a.pluginVersion || '',
+  };
+}
+
+const CHANNEL_LABELS = {
+  site: 'site', 'guest-app': 'appli séjour', 'payment-link': 'lien de paiement', 'mon-bain': 'Mon bain',
+};
+
+/** The other activities' acceptances recorded on the reservation (rule 37): one extra line each on the fiche. */
+function otherAcceptances(reservation, model) {
+  const rows = model.listOtherAcceptancesByReservation(reservation.id);
+  return {
+    activityAcceptances: rows.map((a) => ({
+      activity: a.activity,
+      label: (termsActivities.find(a.activity) || { label: a.activity }).label,
+      channelLabel: CHANNEL_LABELS[a.channel] || a.channel,
+      ...shapeAcceptance(a),
+    })),
+  };
+}
+
 /**
  * The fiche block (rules 21-22). `not_applicable` for a back-office devis; `missing` for a website
  * request without acceptance (before this feature, or while the emergency switch was off).
  */
 function buildFicheBlock(reservation, deps = {}) {
+  const model = deps.termsModel || termsModel;
+  const others = reservation ? otherAcceptances(reservation, model) : { activityAcceptances: [] };
   if (!reservation || reservation.requestOrigin !== 'public') {
-    return { termsAcceptanceState: 'not_applicable', termsAcceptance: null };
+    return { termsAcceptanceState: 'not_applicable', termsAcceptance: null, ...others };
   }
-  const a = (deps.termsModel || termsModel).findAcceptanceByReservation(reservation.id);
-  if (!a) return { termsAcceptanceState: 'missing', termsAcceptance: null };
-  return {
-    termsAcceptanceState: 'recorded',
-    termsAcceptance: {
-      version: a.version,
-      acceptedAt: a.acceptedAt,
-      acceptedAtLabel: parisDateTimeLabel(a.acceptedAt),
-      versionPublishedAtLabel: parisDateLabel(a.publishedAt),
-      shortHash: String(a.contentHash || '').slice(0, 12),
-      ip: a.ip || '',
-      userAgent: a.userAgent || '',
-      pluginVersion: a.pluginVersion || '',
-    },
-  };
+  const a = model.findAcceptanceByReservation(reservation.id);
+  if (!a) return { termsAcceptanceState: 'missing', termsAcceptance: null, ...others };
+  return { termsAcceptanceState: 'recorded', termsAcceptance: shapeAcceptance(a), ...others };
 }
 
 module.exports = {
   getOverview,
+  listActivities,
   updatePublicSiteOrigin,
   parsePublicSiteOrigin,
   saveDraft,

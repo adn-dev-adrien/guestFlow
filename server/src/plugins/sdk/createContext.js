@@ -19,6 +19,7 @@ const CONTRIBUTOR_MEMBERS = ['id', 'priceTypes', 'priceLine'];
 const SAS_COMMIT_MEMBERS = ['step', 'validate', 'complementItems', 'write'];
 const SCHEDULER_MEMBERS = ['slotsForStay', 'validateSessions'];
 const SLOT_AVAILABILITY_MEMBERS = ['slots', 'validate'];
+const RESOURCE_BOOKING_OFFER_MEMBERS = ['freeSlots', 'quote', 'hold', 'release', 'bookOutside'];
 const HOME_DATA_MEMBERS = ['channel', 'catalog', 'readings', 'series', 'queueCommand', 'command', 'confirmed'];
 const ISSUER_MEMBERS = ['id', 'isReady', 'issue', 'findCardBatch', 'attach', 'invoiceStatus'];
 const PUSH_CHANNEL_KEY = /^[a-z][a-z0-9-]{0,39}$/;
@@ -27,7 +28,9 @@ const PUSH_CHANNEL_KEY = /^[a-z][a-z0-9-]{0,39}$/;
 const WEB_APP_PATH = /^\/[a-z0-9][a-z0-9-]*$/;
 const RESERVED_WEB_PATHS = Object.freeze(['/api', '/public', '/uploads', '/plugin-assets', '/login', '/assets']);
 
-function createContext(id, { db, settingsModel, dataDir = null } = {}) {
+function createContext(id, {
+  db, settingsModel, dataDir = null, mailService = null,
+} = {}) {
   const record = registry.ensure(id);
   const prefix = `[plugin:${id}]`;
 
@@ -173,6 +176,20 @@ function createContext(id, { db, settingsModel, dataDir = null } = {}) {
       if (other) throw new Error(`${prefix} a slot availability provider is already declared by ${other.id}`);
       record.slotAvailability = provider;
     },
+    // SDK 2.33.0 (rules 25, 29, 53 of the campaigns spec) — what another plugin may ask of the plugin that owns the outside bookings of an hourly resource,
+    // handed out as `ctx.core.resourceBookingOffer()`; one per instance:
+    //   freeSlots({ resourceId, from, to, minutes, band? })  → `{ horizonUntil, days: [{ date, slots: [{ start, end }] }] }`, bounded by the resource's horizon;
+    //   quote({ resourceId, date, start, coveredBand, coveredMinutes, extraMinutes }) → the engine's priced breakdown of a session partly covered in advance;
+    //   hold({ resourceId, date, start, end, ref, minutes? }) / release(ref)  a slot held for a few minutes, blocking every availability read;
+    //   bookOutside({ ... }) → `{ ok: true, bookingId, saleId }` | `{ ok: false, code, message }`, in one transaction.
+    resourceBookingOffer(provider) {
+      RESOURCE_BOOKING_OFFER_MEMBERS.forEach((m) => {
+        if (provider == null || typeof provider[m] !== 'function') throw new Error(`${prefix} resource booking offer lacks "${m}"`);
+      });
+      const other = registry.all().find((r) => r.id !== id && r.resourceBookingOffer);
+      if (other) throw new Error(`${prefix} a resource booking offer is already declared by ${other.id}`);
+      record.resourceBookingOffer = provider;
+    },
     // SDK 2.26.0 (specs/guest-app.md rule 35) — ({ resourceId, from, to }) → [{ date, start, end, reservationId? }]:
     // slots a plugin holds on a resource before they reach the planning (an order awaiting payment). Read by
     // `ctx.core.resourceHolds(...)` as occupancy. Synchronous, one per plugin.
@@ -184,7 +201,8 @@ function createContext(id, { db, settingsModel, dataDir = null } = {}) {
     // SDK 2.26.0 (specs/guest-app.md rules 35-36) — the baskets a plugin bills through a `complement` link
     // (`ctx.core.payments.basketLink(...)`): `paid({ reservationId, ref, amountCents, paidDate, paidAt, providerPaymentId })`
     // runs, synchronously, when such a link is paid — on time or late — and answers `{ effect }`; `refundOwed: true`
-    // marks money the stay keeps nothing for. One plugin per `source`.
+    // marks money the stay keeps nothing for. One plugin per `source`. A link minted with `core.payments.saleLink(...)` has no stay:
+    // `reservationId` is then null and `ref` is the plugin's own.
     paymentBasket({ source, paid, labels } = {}) {
       if (!/^[a-z][a-zA-Z0-9-]{0,39}$/.test(String(source || ''))) throw new Error(`${prefix} a payment basket needs a source like "shopOrder"`);
       if (typeof paid !== 'function') throw new Error(`${prefix} payment basket "${source}" needs a paid function`);
@@ -197,6 +215,53 @@ function createContext(id, { db, settingsModel, dataDir = null } = {}) {
         throw new Error(`${prefix} payment basket "${source}" labels are { refundOne?, refundMany? } texts`);
       }
       record.paymentBaskets.push({ source, paid, labels: { ...(labels || {}) } });
+    },
+    // SDK 2.33.0 (specs/mixed-method-payments.md rules 60-63) — a prepaid instrument the plugin keeps the balance of: an amount a guest
+    // already paid elsewhere (a stored credit) and may use on a booking. `source` names it, and is the `kind` of the booking
+    // request's opaque `prepaid` field; `label` is what the stay's payments call it. The core asks the live plugin, never names it:
+    //   apply({ devisId, input, capCents, visitor, dryRun }) → { ok: true, heldCents, display } | { ok: false, status, code, message }
+    //     holds what `input` is worth on a new quote (never above `capCents`), in the caller's transaction; `dryRun` only prices it;
+    //   held(devisId) → { amountCents, display } | null;
+    //   settle({ devisId, reservationId, amountCents, paidDate }) → { ref } | null  the quote became a stay and uses `amountCents`;
+    //   release({ devisId, reason })  the quote was refused, deleted or lapsed unpaid.
+    // One plugin per `source`. What it received on a stay is written with the core module `prepaidReceipts`.
+    //   unused?({ ref, label, valueCents })  an element the source paid for was not taken (an option the operator marks « non pris »): the source traces it.
+    // Optional words for the lines it paid on an outside visit: `includedTitle` (« Compris dans … »), `paidMark` (« Réglé par … »).
+    prepaid({
+      source, label, apply, held, settle, release, unused, includedTitle, paidMark,
+    } = {}) {
+      if (!/^[a-z][a-zA-Z0-9-]{0,39}$/.test(String(source || ''))) throw new Error(`${prefix} a prepaid source needs a source like "storedCredit"`);
+      if (typeof label !== 'string' || !label.trim()) throw new Error(`${prefix} prepaid source "${source}" needs a label`);
+      if ([apply, held, settle, release].some((fn) => typeof fn !== 'function')) throw new Error(`${prefix} prepaid source "${source}" needs apply, held, settle and release`);
+      const other = registry.all().find((r) => (r.prepaidSources || []).some((b) => b.source === source));
+      if (other) throw new Error(`${prefix} the prepaid source "${source}" is already declared by ${other.id}`);
+      if (unused !== undefined && typeof unused !== 'function') throw new Error(`${prefix} prepaid source "${source}" unused must be a function`);
+      [includedTitle, paidMark].forEach((text) => {
+        if (text !== undefined && (typeof text !== 'string' || !text.trim())) throw new Error(`${prefix} prepaid source "${source}" wording must be texts`);
+      });
+      record.prepaidSources.push({
+        source,
+        label: label.trim(),
+        apply,
+        held,
+        settle,
+        release,
+        unused: unused || null,
+        includedTitle: includedTitle ? includedTitle.trim() : `Compris dans : ${label.trim()}`,
+        paidMark: paidMark ? paidMark.trim() : `Réglé par : ${label.trim()}`,
+      });
+    },
+    // `{ key, label, seed? }` — an activity whose core terms (CGV) the plugin declares (core terms per activity, rule 37 of the campaigns spec, SDK 2.33.0): one draft, one
+    // versioned publication and one tab of Réglages → Conditions générales, stored exactly like the lodging's. `seed: { fr, en }` is the first draft, written
+    // once while the activity has none and never published. While the plugin is off the tab and the public text go; the versions and acceptances stay.
+    termsActivity({ key, label, seed } = {}) {
+      if (!/^[a-z][a-z0-9-]{0,39}$/.test(String(key || ''))) throw new Error(`${prefix} a terms activity needs a key like "resource"`);
+      if (key === 'lodging') throw new Error(`${prefix} the "lodging" terms are the core's`);
+      if (typeof label !== 'string' || !label.trim()) throw new Error(`${prefix} terms activity "${key}" needs a label`);
+      if (seed !== undefined && (!seed || typeof seed.fr !== 'string' || typeof seed.en !== 'string')) throw new Error(`${prefix} terms activity "${key}": seed needs fr and en`);
+      const other = registry.all().find((r) => r.id !== id && (r.termsActivities || []).some((a) => a.key === key));
+      if (other) throw new Error(`${prefix} the terms activity "${key}" is already declared by ${other.id}`);
+      record.termsActivities.push({ key, label: label.trim(), seed: seed || null });
     },
     // (resource, { properties }) → { lines?: [{ label, value }], footer?: string } | null — what the plugin
     // adds to a resource's card on Options & ressources while it is live (specs/options-resources-ux.md
@@ -360,9 +425,42 @@ function createContext(id, { db, settingsModel, dataDir = null } = {}) {
     // install hooks). Events sent while it was off were dropped, so it recovers from its own data here
     // (specs/plugin-removal-resilience.md rule 17). Not awaited by the request that switched it on.
     onActivate(fn) { record.onActivate.push(fn); },
-    // { tables: [name], describe(db) → [{ label, count }], purge?(db) } (rule 12).
+    // { tables: [name], describe(db) → [{ label, count }], purge?(db), refuse?(db) } (rule 12). SDK 2.33.0 — `refuse(db)` → a
+    // French sentence when the erasure must not run now (money the plugin still holds), else null: the core answers 409 ERASE_REFUSED.
     data(declaration) { record.data = declaration; },
     isLive: () => registry.isLive(id),
+    // SDK 2.33.0 — one e-mail that belongs to no stay (a receipt, a ticket): `{ to, subject, text, html?, key, attachments? }` (`attachments`: `[{ filename, content (Buffer), contentType }]`), sent through
+    // the operator's own SMTP settings. `key` names the message in the log (never the address). The e-mail history is keyed by
+    // reservation, so the plugin records the send on its own rows. → `{ messageId }`; throws `EMAIL_NOT_CONFIGURED`.
+    mail: Object.freeze({
+      async send({
+        to, subject, text, html, key, attachments,
+      } = {}) {
+        if (typeof to !== 'string' || !to.trim() || typeof subject !== 'string' || !subject.trim() || typeof text !== 'string' || !text.trim()) {
+          throw new Error(`${prefix} mail.send needs to, subject and text`);
+        }
+        const service = mailService ? mailService() : require('../../utils/emailService').createEmailService(require('../../models/settingsModel').decryptedSmtpSettings());
+        const info = await service.send({
+          to, subject, text, ...(html ? { html } : {}), ...(Array.isArray(attachments) && attachments.length ? { attachments } : {}),
+        });
+        console.log(prefix, `mail sent${key ? ` (${key})` : ''}`); // eslint-disable-line no-console
+        return { messageId: (info && info.messageId) || null };
+      },
+    }),
+    // SDK 2.33.0 (core terms per activity, rules 37-38 of the campaigns spec) — the core terms of an activity a plugin declared with `termsActivity` (or `lodging`).
+    // `current(activity)` → `{ id, version, publishedAt }` | null (nothing published: nothing to ask). `requireAccepted({ activity, versionId, subjectType, subjectRef })`
+    // → `TERMS_NOT_ACCEPTED` | `TERMS_OUTDATED` | null (null also when the subject already accepted the current version). `accept({ activity, versionId, subjectType
+    // (reservation | outsideBooking | a plugin's own order), subjectRef, reservationId?, channel (site | guest-app | payment-link | mon-bain), ip, userAgent, pluginVersion?, onAccepted? })`
+    // records the acceptance (a reservation's history gets its line; `onAccepted(row)` is the owning plugin's hook for any other subject) and throws the refusal code
+    // when `versionId` is not the current version.
+    terms: Object.freeze({
+      current(activity) {
+        const v = require('../../models/termsModel').getCurrent(activity);
+        return v ? { id: v.id, version: v.version, publishedAt: v.publishedAt } : null;
+      },
+      requireAccepted: (input) => require('../../utils/termsAcceptance').requireAccepted(input),
+      accept: (input) => require('../../utils/termsAcceptance').accept({ ...input, pluginId: id }),
+    }),
     // specs/plugins-phase-4-registry.md rule 15 — the plugin's own directory, kept across updates,
     // removed only by « Effacer aussi ses données ». Created on first read.
     get dataDir() {

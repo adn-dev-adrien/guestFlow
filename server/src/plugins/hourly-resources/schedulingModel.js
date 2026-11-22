@@ -146,6 +146,7 @@ function createModel(database) {
       eveningRate: Number(entry.resource.hourlyEveningRate) || 0,
       eveningStart: entry.resource.hourlyEveningStart || null,
       slotMinutes: Number(entry.resource.slotDuration || 60),
+      degressiveTiers: entry.resource.hourlyDegressiveTiers,
     });
   }
 

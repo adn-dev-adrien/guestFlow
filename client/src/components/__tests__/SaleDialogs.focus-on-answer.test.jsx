@@ -369,6 +369,8 @@ const KEPT_ELSEWHERE = {
   'components/reservation/FinanceSection.jsx': HARNESS,
   'hooks/useMoneyCommit.jsx': HARNESS,
   'components/AddProductDialog.jsx': HARNESS,
+  'plugins/gift-vouchers/NewVoucherPage.jsx': HARNESS,
+  'plugins/gift-vouchers/CampaignEditor.jsx': 'plugins/gift-vouchers/__tests__/CampaignEditor.test.jsx',
 };
 
 test('every file that draws a FocusKeeper has its rows', () => {

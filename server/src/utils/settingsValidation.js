@@ -115,6 +115,15 @@ function validateQuoteValidityDays(value) {
   return null;
 }
 
+// How far ahead the public may book a lodging, in whole months (specs/gift-voucher-campaigns.md rule 51).
+// Empty/absent is accepted: the controller then leaves the stored value alone.
+const BOOKING_HORIZON_REFUSAL = 'Doit être un nombre entier de mois entre 1 et 36.';
+function validateBookingHorizonMonths(value) {
+  if (value == null || value === '') return null;
+  const n = typeof value === 'number' || typeof value === 'string' ? Number(value) : NaN;
+  return Number.isInteger(n) && n >= 1 && n <= 36 ? null : BOOKING_HORIZON_REFUSAL;
+}
+
 function validateVatRate(value) {
   if (value == null || value === '') return null;
   const n = require('./vatRegime').parseRate(value);
@@ -177,6 +186,7 @@ module.exports = {
   validateIban,
   validateBic,
   validateQuoteValidityDays,
+  validateBookingHorizonMonths,
   validateVatRate,
   validateFiscalYearEndMonth,
   smtpPortForSecure,

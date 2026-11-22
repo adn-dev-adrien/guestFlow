@@ -98,10 +98,11 @@ function createEmailService(settings, {
 
   // `html` is the optional HTML alternative of a guest email (utils/guestEmailHtml.js): given, the
   // message leaves as multipart/alternative with `text` unchanged; absent, as plain text as before.
-  async function send({ to, subject, text, html }) {
+  // `attachments` is `[{ filename, content (Buffer), contentType }]`, handed to nodemailer as is.
+  async function send({ to, subject, text, html, attachments }) {
     if (!to) throw new Error('EMAIL_RECIPIENT_REQUIRED');
     const tx = getTransport();
-    const alternative = html ? { html } : {};
+    const alternative = { ...(html ? { html } : {}), ...(Array.isArray(attachments) && attachments.length ? { attachments } : {}) };
     if (!platform) {
       return tx.sendMail({
         from: fromHeader(),

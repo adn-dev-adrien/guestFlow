@@ -43,11 +43,14 @@ const CORE_MODULES = Object.freeze({
   propertyDefaultOptions: '../../utils/propertyDefaultOptions', // the merge of those defaults
   clientsModel: '../../models/clientsModel', // find or create the guest of a booking request
   devisModel: '../../models/devisModel', // a booking request creates a draft devis
-  termsModel: '../../models/termsModel', // current CGV version, the acceptance record (rule 26)
+  termsModel: '../../models/termsModel', // current CGV version per activity, the acceptance record (rule 26; per activity since the campaigns spec rule 37)
+  termsActivities: '../../utils/termsActivities', // the activities whose terms exist: list / find / resolve (declared with `ctx.termsActivity`, SDK 2.33.0)
+  termsAcceptance: '../../utils/termsAcceptance', // `requireAccepted`: the refusal code owed for an activity's current terms (SDK 2.33.0)
   updateStateModel: '../../models/updateStateModel', // the WordPress plugin release the manifest serves
   pricing: '../../utils/pricing', // the quote engine
   directQuote: '../../utils/directQuote', // the website's quote (default options merged), also priced by google-vacation-rentals (SDK 2.4.0)
   reservationHelpers: '../../utils/reservationHelpers', // today's date, as the engine reads it
+  bookingHorizon: '../../utils/bookingHorizon', // how far ahead the public may book: the lodging's setting, the refusal sentence (SDK 2.33.0)
   capacity: '../../utils/capacity', // guest capacity of a property
   devisHelpers: '../../utils/devisHelpers', // the extra-guest row of a quote, read from its pricing
   blockedDates: '../../utils/blockedDates', // availability, shared with the public payment
@@ -149,6 +152,11 @@ const CORE_MODULES = Object.freeze({
   paymentTenders: '../../utils/paymentTenders',
   paymentSettlementsModel: '../../models/paymentSettlementsModel',
   paymentSettlementService: '../../utils/paymentSettlementService',
+  // a plugin drawing a document in the look of the devis uses the same embedded faces (SDK 2.33.0)
+  pdfFonts: '../../utils/pdfFonts',
+  // a plugin's prepaid instrument: what a quote holds of it, and the money a stay received from it (SDK 2.33.0)
+  prepaidSources: '../../utils/prepaidSources',
+  prepaidReceipts: '../../utils/prepaidReceipts',
   // hourly-resources, online-payment, accounting-export — the invoice issuer and the sales made outside any stay
   // (specs/resource-booking-pricing-and-invoicing.md rules 1, 14, 20-21, SDK 2.25.0)
   invoiceIssuers: '../../utils/invoiceIssuers',
@@ -182,10 +190,18 @@ module.exports = Object.freeze({
     tariffJournal: (db) => require('../../models/tariffChangeJournalModel').createTariffChangeJournalModel(db),
   }),
   roles: Object.freeze({ ADMIN: require('../../constants/roles').ADMIN }),
-  // The rate limit every /public/v1 tree carries.
+  // SDK 2.33.0 — what every /public/v1 tree carries: the key guard, the visitor the proxy relays, the per-visitor limiter.
+  // `publicApi` is the three in order, for `router.use(...sdk.middleware.publicApi)`.
   middleware: Object.freeze({
+    get requirePublicApiKey() { return require('../../middleware/requirePublicApiKey'); },
+    get visitorContext() { return require('../../middleware/visitorContext'); },
     get publicApiLimiter() { return require('../../middleware/rateLimiters').publicApiLimiter; },
+    get publicApi() {
+      return Object.freeze([this.requirePublicApiKey, this.visitorContext, this.publicApiLimiter]);
+    },
   }),
+  // SDK 2.33.0 — the signed proof-of-work of the public site (utils/proofOfWork.js): issue, verify, solve, the address key.
+  get proofOfWork() { return require('../../utils/proofOfWork'); },
   // Secrets the operator copies into another system live in server/.env.local, never in the database.
   secrets: Object.freeze({
     getOrCreate: (name, byteLength = 32, options) => require('../../utils/localEnv').getOrCreateSecret(name, byteLength, options),
