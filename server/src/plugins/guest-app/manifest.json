@@ -126,7 +126,7 @@
       "Mêmes marges de sécurité sur iPhone (encoche, barre d’accueil) que le reste de l’application (SDK 2.34.0)."
     ],
     "1.5.2": [
-      "Dépendances de l’application clients et du Studio mises à jour (bibliothèques de test, icônes, navigation) ; aucun changement visible."
+      "Dépendances de l’application clients et du Studio mises à jour (bibliothèques de test, icônes, navigation) ; aucun changement visible (SDK 2.34.0)."
     ]
   }
 }
