@@ -490,6 +490,10 @@ being on the preload's lists fails the run once the suite executes the read (rul
    file holds what runs well under the cap: the fuzz is split by route prefix (`tests/inputShapePerField.js`): the stays,
    their money and their logements in `input-shape-per-field`, every other route in `input-shape-per-field-others`, each
    row in exactly one file. No test sets a timeout above the cap.
+   *Amended 2026-11-23 (rule 24):* four files at a time, the stay file took 37 to 63 s on CI and was cut at 60 s twice
+   the day rule 24 landed. Most of it is one row, the whole reservation (`PUT /api/reservations/:id`, ≈2 050 of its
+   ≈2 770 requests): that row moves to `input-shape-per-field-reservation-a` and `-b`, which fuzz it with three and two
+   of the five values. Locally 8 s and 6 s, the rest of the stays 3 s, the other routes 3 s.
 
 16. **A client test that walks a dialog through several server answers sets its own timeout** (added 2026-11-10, audit
    R36-S3). Vitest's 5 s default is not a budget on a loaded runner: a ResourceBookingDialog test failed CI at 5 073 ms.
@@ -742,6 +746,9 @@ absence from CI.
   8 (129 s); serial it took 850-917 s. `public-request-challenge-cost` on a mocked clock: 6.6 s → 0.3 s, and with the
   clock not advanced 2 of its 4 tests fail, so the age check is still exercised. On CI (PR #1089) the two server shards took 6 min 0 s and
   4 min 8 s, against 11 min 46 s and 12 min 16 s serial on the release PR #1073.
+  Follow-up the same day: the per-field fuzz's stay file timed out at 60 s on CI under the load (master after #1089,
+  then #1090); the whole reservation row split into two files of its own (rule 15's amendment),
+  `test-timeout-under-file-cap` checks the four files and that each value is sent by exactly one of the two.
 
 ## 8. Out of scope
 

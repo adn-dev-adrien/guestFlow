@@ -1,6 +1,9 @@
 // The per-field fuzz of specs/hosting-h2-account-security.md rule 68, shared by the files that split the route set
 // (audit R36-S4): `npm test`'s --test-timeout also caps each file, so each file fuzzes a part of the rows and stays far
 // under it. `part(path)` keeps the rows of one file; every row lands in exactly one file (a filter and its complement).
+// Four files at a time (server-test-isolation rule 24) the stay half took 37 to 63 s on CI, most of it in one row: the
+// whole reservation (`PUT /api/reservations/:id`, ≈400 fields). That row has two files of its own, each fuzzing it with
+// a part of the values.
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { startApp } = require('./inputShapeApp');
@@ -14,8 +17,9 @@ const PLUGINS = ['hourly-resources', 'school-holidays', 'tariff-recipes', 'accou
 const STAY_PREFIXES = ['/api/reservations', '/api/devis', '/api/payments', '/api/resource-bookings', '/api/properties'];
 const routeOf = (row) => (typeof row[1] === 'string' ? row[1] : '');
 const isStayRow = (row) => !routeOf(row) || STAY_PREFIXES.some((p) => routeOf(row) === p || routeOf(row).startsWith(`${p}/`));
+const isWholeReservationRow = (row) => row[0] === 'PUT' && /^\/api\/reservations\/\d+$/.test(routeOf(row));
 
-function perFieldSuite({ part, minRequests }) {
+function perFieldSuite({ part, minRequests, values = VALUES }) {
   const state = {};
   test.before(async () => {
     state.app = await startApp();
@@ -35,7 +39,7 @@ function perFieldSuite({ part, minRequests }) {
     const dead = [];
     let requests = 0;
     for (const row of state.rows) {
-      const result = await fuzzRow(state.app, state.admin, state.scanner, row, VALUES);
+      const result = await fuzzRow(state.app, state.admin, state.scanner, row, values);
       requests += result.requests;
       failures.push(...result.failures);
       if (!result.reached) dead.push(`${row[0]} ${typeof row[1] === 'string' ? row[1] : row[3].name} → ${result.baseline} ${result.answer}`);
@@ -47,4 +51,4 @@ function perFieldSuite({ part, minRequests }) {
   return state;
 }
 
-module.exports = { perFieldSuite, isStayRow, STAY_PREFIXES };
+module.exports = { perFieldSuite, isStayRow, isWholeReservationRow, STAY_PREFIXES, VALUES };

@@ -1,0 +1,1 @@
+- **Server test suite — the per-field fuzz no longer times out four files at a time** (`specs/server-test-isolation.md` rule 15): the whole reservation row gets two files of its own. No application change.
