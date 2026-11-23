@@ -22,7 +22,9 @@ const evaluateAt = (tariff, nightCount) => (customPrice) => {
   const finalPrice = customPrice === '' ? tariff : Number(customPrice);
   return { finalPrice, touristTaxTotal: nightCount * 2 };
 };
+// date-literal-ok: the pure builder never compares a date with today
 const REF = placement('2026-12-15', '2026-12-18', 330, nights('Basse', 110, 110, 110));
+// date-literal-ok: the pure builder never compares a date with today
 const MOVED = placement('2026-12-17', '2026-12-22', 700, [...nights('Basse', 110, 110), ...nights('Fêtes', 160, 160, 160)]);
 
 test('rule 1 — no manual price, the same placement, or the same tariff: no review', () => {
@@ -30,6 +32,7 @@ test('rule 1 — no manual price, the same placement, or the same tariff: no rev
   assert.equal(buildManualPriceReview({ ...base, customPrice: '' }), null);
   assert.equal(buildManualPriceReview({ ...base, customPrice: null }), null);
   assert.equal(buildManualPriceReview({ ...base, customPrice: 300, placement: { ...REF } }), null);
+  // date-literal-ok: the pure builder never compares a date with today
   const sameTariff = placement('2026-11-02', '2026-11-05', 330, nights('Basse', 110, 110, 110));
   assert.equal(buildManualPriceReview({ ...base, customPrice: 300, placement: sameTariff }), null);
 });
@@ -61,6 +64,7 @@ test('rule 5 — a manual price above the tariff gives a positive gap, rounded t
 test('rule 10 — a gap of 0 leaves two choices; a gap larger than the new tariff is disabled', () => {
   const equal = buildManualPriceReview({ customPrice: 330, reference: REF, placement: MOVED, evaluate: evaluateAt(700, 5) });
   assert.deepEqual(equal.choices.map((c) => c.key), ['keep', 'engine']);
+  // date-literal-ok: the pure builder never compares a date with today
   const cheaper = placement('2026-11-02', '2026-11-03', 110, nights('Basse', 110));
   const big = buildManualPriceReview({ customPrice: 100, reference: REF, placement: cheaper, evaluate: evaluateAt(110, 1) });
   const keepGap = big.choices.find((c) => c.key === 'keepGap');
