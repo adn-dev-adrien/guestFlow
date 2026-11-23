@@ -740,7 +740,8 @@ absence from CI.
   once, the preload still forces `DB_PATH`, no test file listens on a literal port; `plugin-removal-workflow` reads four
   files at a time. The whole suite (14 805 tests) green three times in a row at 4 (232, 232, 231 s locally) and once at
   8 (129 s); serial it took 850-917 s. `public-request-challenge-cost` on a mocked clock: 6.6 s → 0.3 s, and with the
-  clock not advanced 2 of its 4 tests fail, so the age check is still exercised.
+  clock not advanced 2 of its 4 tests fail, so the age check is still exercised. On CI (PR #1089) the two server shards took 6 min 0 s and
+  4 min 8 s, against 11 min 46 s and 12 min 16 s serial on the release PR #1073.
 
 ## 8. Out of scope
 
