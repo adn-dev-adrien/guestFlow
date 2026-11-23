@@ -1,1 +1,0 @@
-- **`CLAUDE.md` is shorter** (internal): the detailed release, component-library, `PageActionBar`, squash-merge and test-layout rules moved to `docs/agent/`, leaving a short rule and a link in each numbered section, so every session loads about a third less context. No rule changed.

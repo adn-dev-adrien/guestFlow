@@ -1,2 +1,0 @@
-- **Finance — « Reste à encaisser » no longer lets you tick payments from the tile's table**: its lines open the fiche, where payments are recorded. The « Encaissable d'ici le » projection field is gone, replaced by the cash projection card.
-- **Home — « Vérifier » (bank proposal on a payment deadline) is replaced by the row's fiche link**; the « Voir la fiche » buttons of the iCal change and cancellation subjects are replaced by the identity link.

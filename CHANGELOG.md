@@ -4,14 +4,14 @@ All notable changes to GuestFlow are documented in this file. Format: [Keep a Ch
 
 ## [Unreleased]
 
-## [4.2.0] - 2026-11-22
+## [4.2.0] - 2026-11-23
 
 ### Summary
 - Bons cadeaux : campagnes, bons de bain composés, cartes A6 imprimables, vente sur le site et réservation du bain par le bénéficiaire.
-- Vente hors séjour : vente au comptoir et petite vente à l'arrivée d'un client sans séjour, avec lien de paiement pour le reste.
-- Chaque vente devient une ligne du séjour, sans recalculer son prix : aucun montant des séjours existants ne change.
+- Vente hors séjour au comptoir ou à l'arrivée ; chaque vente devient une ligne du séjour, sans changer aucun montant existant.
 - Mollie : un paiement CB arrive en deux virements (immédiat et retenue), rapprochés seuls et listés dans « Versements à venir ».
-- La fiche se verrouille à l'heure d'arrivée, plus à minuit, et l'appli « Mon séjour » s'ouvre dès J-7 avec une page Domotique.
+- La fiche se verrouille à l'heure d'arrivée ; « Mon séjour » s'ouvre dès J-7, avec Domotique et le bain à programmer depuis l'accueil.
+- Suivi financier : « Encaissé », « Reste à encaisser » et la trésorerie de l'exercice ; chaque sujet de l'accueil ouvre sa fiche.
 - Le site ne réserve plus qu'à 12 mois par défaut au lieu de 2 ans, réglable dans Paramètres › Établissement.
 
 ### Added
@@ -61,6 +61,9 @@ All notable changes to GuestFlow are documented in this file. Format: [Keep a Ch
 - **Articles suggested at the arrival** (`specs/outside-booking-sas.md` rules 35 to 38). A list of suggested articles per sales context (an hourly resource, a lodging), 12 at most, in the order the operator chooses and filtered by client (outside a stay: articles « vendables hors séjour » only). The options and resources catalogue gains the fields « Vendable hors séjour », VAT class and outside customer's rate, validated by the server. SDK 2.32.0: `ctx.suggestionContexts`.
 - **Core terms (CGV) per activity** (`specs/gift-voucher-campaigns.md` rules 37-38). The terms become one document per activity — `lodging` (existing) plus the ones a plugin declares with `ctx.termsActivity` (hourly-resources: « Bain nordique et activités », its first draft seeded from the retained text, never published). Each has its own draft, numbered versions and tab in Réglages → Conditions générales; `GET /public/v1/terms?activity=` reads one (default `lodging`). Every acceptance carries its activity, subject (`reservation` / `voucherOrder` / `outsideBooking`) and channel (`site` / `guest-app` / `payment-link` / `mon-bain`). The guest app asks the bath terms once per version and stay before « Commander ». SDK 2.33.0 gains `ctx.termsActivity`, `ctx.terms` and `attachments` on `ctx.mail.send`.
 - **Migration** — `terms_draft`, `terms_versions` and `terms_acceptances` are rebuilt with an `activity` column (versions numbered per activity) and a nullable `reservationId`; every existing row is kept as the `lodging` activity with its id, nothing is lost and the columns only grow.
+- **Guest app — schedule the nordic bath from the home** (`specs/guest-app-bath-home-scheduling.md`, guest-app 1.5.0): a home card shows the bath hours the stay owns and has not placed, the sessions to come or the first free slot, replacing « Un bain nordique ce soir ? ». A new screen places them in a row or spread over the stay, adds extra hours and shows the server's quote line by line (evening supplement included); 0 € confirms at once. An hour the stay already holds now places at 0 € instead of being refused.
+- **Finance — « Encaissé », « Reste à encaisser » and « Trésorerie de l'exercice »** (`specs/mobile-dashboard-exercise-cash.md`): « Déjà payé » becomes « Encaissé »; « Reste à encaisser » now counts the window's stays, past and future, so the two add up to the window's revenue to the cent. Both open a list grouped by month; « Reste à encaisser » lists each expected payment (acompte, solde, échéance, platform payout) in the order the money comes in, late ones first. A new card draws the exercise's cumulative cash, received then expected, with a date cursor. SDK 2.34.0.
+- **Home — every subject about a reservation opens its fiche**: the identity line of each row (payment deadlines, cancellation indemnities, iCal changes, new reservations, plugin subjects) is a link; « Mise à jour disponible » and « Indemnités d'annulation » gain « Ouvrir ».
 
 ### Changed
 - **Accounting — neutral journal lines** (`specs/pricing-components.md` rule 63). Each entry now reads as lines by role (client, product, VAT, tourist tax, commission), computed once; the CSV, the sales JSON and the summary only format them. No exported month changes by a single byte.
@@ -124,6 +127,9 @@ All notable changes to GuestFlow are documented in this file. Format: [Keep a Ch
 - **Tourist tax page — a « nuitée » explains itself on hover** (1 person for 1 night: taxed = adults × nights, exempt = minors × nights) on the table headers, the property tile and the bottom banner; the banner gets more inner padding so « À reverser » no longer brushes its rounded corner.
 - **VAT per rate**: the reservation card prints one VAT line per rate with its base, and the devis PDF gains a « Récapitulatif TVA » table (rate, net base, VAT, gross); a « Sans TVA » stay keeps its legal mention and prints no VAT line.
 - Client tests: every mock goes back to its own default before each test (`mockReset`), so an answer one test set can no longer reach the next one's call — the source of intermittent CI failures. `npm run test:shuffle` runs the client suite in a random order to find what still depends on it (`specs/server-test-isolation.md` rule 21).
+- **Finance — « Reste à encaisser » no longer ticks payments from the tile's table**: its lines open the fiche. The « Encaissable d'ici le » field gives way to the cash projection card. On the home, « Vérifier » and « Voir la fiche » give way to the row's fiche link.
+- **Plugin `guest-app` 1.5.2**: the guest app and the Studio take their pending dependency updates; nothing changes on screen.
+- **Internal**: the server test suite runs four files at a time (850 → 232 s locally, `specs/server-test-isolation.md` rules 15 and 24), and `CLAUDE.md` moved its detailed rules to `docs/agent/`. No application change.
 
 ### Fixed
 - **Plugin `hourly-resources`** — The arrival dialog no longer shows a second error after a failed draft is retried, spans its failed-quote alert across the grid, and says why « Marquer remboursé » waits for the draft to be saved — « Enregistrer d’abord les modifications. », whatever made the draft dirty (an added article, offered minutes or an offered session).
@@ -306,6 +312,7 @@ All notable changes to GuestFlow are documented in this file. Format: [Keep a Ch
 - **Outside visit — a payment link that no longer bills the remainder is withdrawn at once** (`specs/outside-booking-sas.md` rules 40, 41). Collecting the remainder at the counter, offering, removing or adding a line now withdraws the open link in the same step, so the guest can no longer pay it a second time. A link paid anyway is booked in full and its surplus is kept as a refund owed (one record per link, shown to the administrator on the visit).
 - Unlocked fiche: offering an option is no longer refused on the grounds that the final price must stay the same; the price is recalculated by deducting what is offered.
 - **Plugin `hourly-resources`** — Withdrawing or e-mailing a visit's payment link follows the rules of the other gestures: the reception on the day of the session only, nobody on a closed visit (no-show, invoiced); a payment that settles the remainder withdraws the open link (`specs/outside-booking-sas.md` rules 7, 39, 40).
+- **Phone — the fiche's total is no longer cut by the screen's rounded corners**: the page declares `viewport-fit=cover`, so the sticky total, the app bar, dialogs and the side padding keep clear of the notch and the home indicator.
 
 ### Removed
 - **Old arrival of a resource booking** (`POST /api/resource-bookings/:id/arrival`, « Ressources à l'heure » plugin 1.8.0). The arrival screen goes through the visit routes (`/visit`); the old route has no caller left and is removed along with its server function.
