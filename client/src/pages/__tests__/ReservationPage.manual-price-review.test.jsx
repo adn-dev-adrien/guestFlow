@@ -120,3 +120,18 @@ test('rule 13 — « Annuler le changement » puts the stored dates back and kee
   await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Tarif modifié' })).not.toBeInTheDocument());
   expect(api.calculatePrice.mock.calls.at(-1)[0].customPrice).toBe(270);
 });
+
+test('rule 16 — a save while the move is being quoted stores nothing; the review opens once the quote is back', async () => {
+  let release;
+  const answer = api.calculatePrice.getMockImplementation();
+  api.calculatePrice.mockImplementation((body) => (body.endDate === MOVED_DEPARTURE
+    ? new Promise((resolve) => { release = () => resolve(answer(body)); })
+    : answer(body)));
+  await openAndMove();
+  await waitFor(() => expect(release).toBeTypeOf('function'));
+  fireEvent.click(screen.getByRole('button', { name: 'Enregistrer' }));
+  expect(api.updateReservation).not.toHaveBeenCalled();
+  release();
+  expect(await screen.findByRole('dialog', { name: 'Tarif modifié' })).toBeInTheDocument();
+  expect(api.updateReservation).not.toHaveBeenCalled();
+});

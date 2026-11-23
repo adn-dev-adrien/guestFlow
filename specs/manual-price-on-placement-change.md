@@ -200,10 +200,10 @@ Dialog « Tarif modifié » (`ChoiceDialog`), opened over the fiche — see the 
 - [x] Controller-level (same file): `null` without `customPriceReference`; review on a stored stay extended by 2 nights;
   the stored placement replays the stored tariff (rule 4); a started stay gets none.
 
-### Client tests — 7 tests
+### Client tests — 8 tests
 - [x] `client/src/components/__tests__/ChoiceDialog.test.jsx` (4) — preselection and fallback, disabled choice, confirm, cancel + Escape.
-- [x] `client/src/pages/__tests__/ReservationPage.manual-price-review.test.jsx` (3) — reference sent with the move; « Garder
-  l'écart » preselected and applied; « Annuler le changement » restores the dates.
+- [x] `client/src/pages/__tests__/ReservationPage.manual-price-review.test.jsx` (4) — reference sent with the move; « Garder
+  l'écart » preselected and applied; « Annuler le changement » restores the dates; a save during the move's quote stores nothing (rule 16).
 - [x] `ReservationPage.fiche-busy-invariant.test.jsx` — the review's handlers classified (local draft edit).
 
 ### Manual UI verification (2026-11-23, headless Chromium on a copy of the dev DB)

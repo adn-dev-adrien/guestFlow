@@ -38,9 +38,10 @@ test('rule 3 — a platform sale or a started stay is excluded', () => {
   assert.equal(buildManualPriceReview({ customPrice: 300, reference: REF, placement: MOVED, excluded: true, evaluate: evaluateAt(700, 5) }), null);
 });
 
-test('rules 5, 6, 9 — gap, tariff delta and three choices priced by the engine', () => {
+test('rules 5, 6, 8, 9 — gap to the reference tariff, tariff delta, the current manual price and three choices priced by the engine', () => {
   const review = buildManualPriceReview({ customPrice: 300, reference: REF, placement: MOVED, evaluate: evaluateAt(700, 5) });
   assert.equal(review.gap, -30);
+  assert.equal(review.customPrice, 300);
   assert.equal(review.tariffDelta, 370);
   assert.equal(review.reference.nights, 3);
   assert.equal(review.placement.nights, 5);
