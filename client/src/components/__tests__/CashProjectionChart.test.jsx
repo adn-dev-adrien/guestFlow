@@ -1,4 +1,4 @@
-// specs/mobile-dashboard-exercise-cash.md rule 18 — the cash projection draws the server's series and answers the date cursor.
+// specs/mobile-dashboard-exercise-cash.md rules 18-19 — the cash projection draws the server's series and answers the date cursor.
 import React from 'react';
 import { render, screen, fireEvent, within } from '@testing-library/react';
 import { ThemeProvider } from '@mui/material/styles';
@@ -20,6 +20,7 @@ test('the default cursor is the end of the exercise and reads the server\'s last
 
 test('typing a date moves the cursor to the last point not after it', () => {
   renderChart();
+  // date-literal-ok: a server payload the component renders as given; nothing compares it with today
   fireEvent.change(screen.getByLabelText('Date'), { target: { value: '2026-06-20' } });
   const answer = screen.getByTestId('cash-answer');
   expect(answer).toHaveTextContent('20 juin 2026');
@@ -109,6 +110,7 @@ test('the lines are steps: horizontal then vertical, never a diagonal between tw
 });
 
 test('the dashed line starts where the solid one ends, then steps up at today', () => {
+  // date-literal-ok: a server payload the component renders as given; nothing compares it with today
   const projection = { ...CASH_PROJECTION, daily: CASH_PROJECTION.daily.map((d) => (d.date === '2026-06-15' ? { ...d, expected: 400, cumulative: 3400, expectedCumulative: 400, dashed: 3400 } : d)) };
   const { container } = renderChart(projection);
   const d = container.querySelector('path[stroke-dasharray]').getAttribute('d');

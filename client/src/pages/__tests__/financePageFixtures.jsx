@@ -12,17 +12,25 @@ export const MONTHS = [month('2026-06', 'juin 2026', 'J', 1200), month('2026-07'
 // The server's `cashProjection` (specs/mobile-dashboard-exercise-cash.md rule 18): two months, the first received, the second expected.
 const point = (date, label, x, over) => ({ date, label, x, received: 0, expected: 0, cumulative: 0, receivedCumulative: 0, expectedCumulative: 0, solid: null, dashed: null, ...over });
 export const CASH_PROJECTION = {
+  // date-literal-ok: a server payload the component renders as given; nothing compares it with today
   today: '2026-06-15', todayLabel: '15 juin 2026', todayMonth: '2026-06', todayX: 14, from: '2026-06-01', to: '2026-07-31', end: '2026-07-31', endLabel: '31 juillet 2026', endCaption: 'À la fin de l\'exercice',
   xMax: 61, total: 3600, empty: false, lateAmount: 0,
   months: [
+    // date-literal-ok: a server payload the component renders as given; nothing compares it with today
     { key: '2026-06', label: 'juin', title: 'juin 2026', x: 0, end: '2026-06-30', received: 3000, late: 0, upcoming: 0, expected: 0, inWindow: true, cumulative: 3000 },
+    // date-literal-ok: a server payload the component renders as given; nothing compares it with today
     { key: '2026-07', label: 'juil.', title: 'juillet 2026', x: 30, end: '2026-07-31', received: 0, late: 0, upcoming: 600, expected: 600, inWindow: true, cumulative: 3600 },
   ],
   daily: [
+    // date-literal-ok: a server payload the component renders as given; nothing compares it with today
     point('2026-06-01', '1 juin 2026', 0, { solid: 0, cumulative: 0 }),
+    // date-literal-ok: a server payload the component renders as given; nothing compares it with today
     point('2026-06-10', '10 juin 2026', 9, { received: 3000, cumulative: 3000, receivedCumulative: 3000, solid: 3000 }),
+    // date-literal-ok: a server payload the component renders as given; nothing compares it with today
     point('2026-06-15', '15 juin 2026', 14, { cumulative: 3000, receivedCumulative: 3000, solid: 3000, dashed: 3000 }),
+    // date-literal-ok: a server payload the component renders as given; nothing compares it with today
     point('2026-07-05', '5 juil. 2026', 34, { expected: 600, cumulative: 3600, receivedCumulative: 3000, expectedCumulative: 600, dashed: 3600 }),
+    // date-literal-ok: a server payload the component renders as given; nothing compares it with today
     point('2026-07-31', '31 juil. 2026', 60, { cumulative: 3600, receivedCumulative: 3000, expectedCumulative: 600, dashed: 3600 }),
   ],
 };
@@ -48,6 +56,7 @@ export const DASHBOARD = {
   totalOccupancy: 0.2,
   tiles: {
     collected: { amount: 3000, shareOfRevenue: 0.8333 },
+    // date-literal-ok: a server payload the component renders as given; nothing compares it with today
     toCollect: { amount: 300, payments: 2, nextDate: '2026-10-05', nextDateLabel: '5 oct. 2026', late: { amount: 0, payments: 0 } },
     late: { amount: 0, stays: 0 },
     stays: { count: 4, upcoming: 1 },
@@ -65,8 +74,10 @@ export const DASHBOARD = {
 export const TO_COLLECT = {
   groups: [{
     key: '2026-07', label: 'Juillet 2026', total: 300,
+    // date-literal-ok: a server payload the component renders as given; nothing compares it with today
     rows: [{ reservationId: 42, date: '2026-07-05', dateLabel: '5 juil. 2026', kind: 'balance', label: 'Solde', clientName: 'Marie Martin', propertyName: 'Tente', platform: 'direct', amount: 300, late: false }],
   }],
+  // date-literal-ok: a server payload the component renders as given; nothing compares it with today
   rows: [{ reservationId: 42, date: '2026-07-05', dateLabel: '5 juil. 2026', kind: 'balance', label: 'Solde', clientName: 'Marie Martin', propertyName: 'Tente', platform: 'direct', amount: 300, late: false }],
   totals: { amount: 300, payments: 1 },
 };

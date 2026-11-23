@@ -258,6 +258,8 @@ See the interactive mock-up. Mobile specifics:
 
 ### Client (vitest)
 - `components/__tests__/StickyTotalBar.safe-area.test.jsx` — padding uses the insets.
+- `components/__tests__/safeAreaInsets.audit.test.jsx` — `viewport-fit=cover`, the inset audit of rule 3 and the 0
+  fallbacks of rule 4.
 - `components/__tests__/ReservationLinkLine.test.jsx` — link target, `from`, accessible name.
 - `components/__tests__/PaymentDeadlinesAlert.fiche-link.test.jsx` — identity link, buttons don't
   navigate.

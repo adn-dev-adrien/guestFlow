@@ -6,6 +6,7 @@ import { ThemeProvider } from '@mui/material/styles';
 import theme from '../../theme';
 import FinanceDetailPanel from '../FinanceDetailPanel';
 
+// date-literal-ok: a server payload the component renders as given; nothing compares it with today
 const row = { reservationId: 1, kind: 'deposit', date: '2026-07-01', dateLabel: '1 juil. 2026', amount: 120, clientName: 'Camille', propertyName: 'Le Gîte', platform: 'Airbnb', label: 'Acompte' };
 
 function draw(tile, data) {

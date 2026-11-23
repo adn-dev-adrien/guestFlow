@@ -16,6 +16,7 @@ import api from '../../api';
 import Alert from '../CancellationCompensationsPendingAlert';
 
 const ATTENTION = { key: 'cancellation-compensations', severity: 'todo', count: 1, title: 'Indemnités à encaisser', detail: '1 indemnité' };
+// date-literal-ok: a server payload the component renders as given; nothing compares it with today
 const ROW = { id: 5, reservationId: 9, clientName: 'Claire Notin', propertyName: 'Le Lodge', expectedAmount: 100, status: 'pending', startDate: '2026-09-01', endDate: '2026-09-03' };
 
 const renderAlert = () => render(<MemoryRouter><DialogProvider><Alert attention={ATTENTION} /></DialogProvider></MemoryRouter>);

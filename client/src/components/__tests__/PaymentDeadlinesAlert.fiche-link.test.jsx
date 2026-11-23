@@ -24,6 +24,7 @@ import PaymentDeadlinesAlert from '../PaymentDeadlinesAlert';
 const ATTENTION = { key: 'payment-deadlines', severity: 'todo', count: 2, title: 'Échéances de paiement', detail: '2 en retard' };
 const ROW = {
   reservationId: 10, state: 'balance_overdue', clientName: 'Marie Dupont', propertyName: 'Le Lodge', platformLabel: 'Booking',
+  // date-literal-ok: a server payload the component renders as given; nothing compares it with today
   startDate: '2026-09-18', endDate: '2026-09-25', depositDue: 0, balanceDue: 640, totalDue: 640, dueDate: '2026-08-09', daysLate: 10,
   canCancel: false, retainedDepositAmount: 0, canRemind: true, remindType: 'balance', requestSent: true,
 };

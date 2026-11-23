@@ -1,6 +1,9 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
+// The functions take « today » as an argument; the clock is pinned on the same day so the file reads one calendar.
+test.mock.timers.enable({ apis: ['Date'], now: new Date('2026-06-15T12:00:00') });
+
 // specs/mobile-dashboard-exercise-cash.md rule 18 — the series behind « Trésorerie de l'exercice ».
 const { buildCashProjection } = require('../utils/cashProjection');
 

@@ -8,8 +8,11 @@ import theme from '../../theme';
 import FinanceDetailPanel from '../FinanceDetailPanel';
 
 const row = (over) => ({ reservationId: 1, kind: 'balance', label: 'Solde', clientName: 'Jean Dupont', propertyName: 'Gîte', platform: 'direct', amount: 100, late: false, ...over });
+// date-literal-ok: a server payload the component renders as given; nothing compares it with today
 const LATE = row({ reservationId: 7, date: '2026-09-15', dateLabel: '15 sept. 2026', label: 'Versement Airbnb', clientName: 'Sophie Bernard', amount: 425, late: true });
+// date-literal-ok: a server payload the component renders as given; nothing compares it with today
 const DEC = row({ reservationId: 8, date: '2026-12-02', dateLabel: '2 déc. 2026', label: 'Échéance 2/3', clientName: 'Luc Martin', amount: 150 });
+// date-literal-ok: a server payload the component renders as given; nothing compares it with today
 const DEC_2 = row({ reservationId: 9, date: '2026-12-20', dateLabel: '20 déc. 2026', label: 'Complément d\'arrivée', clientName: 'Éva Roy', amount: 20 });
 const TO_COLLECT = {
   groups: [
@@ -21,7 +24,9 @@ const TO_COLLECT = {
 };
 const COLLECTED = {
   groups: [
+    // date-literal-ok: a server payload the component renders as given; nothing compares it with today
     { key: '2026-11', label: 'Novembre 2026', total: 150, rows: [row({ reservationId: 3, date: '2026-11-01', dateLabel: '1 nov. 2026', clientName: 'Zoé', amount: 150 })] },
+    // date-literal-ok: a server payload the component renders as given; nothing compares it with today
     { key: '2026-09', label: 'Septembre 2026', total: 60, rows: [row({ reservationId: 4, date: '2026-09-02', dateLabel: '2 sept. 2026', clientName: 'Paul', label: 'Acompte', amount: 100 }), row({ reservationId: 4, date: '2026-09-03', dateLabel: '3 sept. 2026', clientName: 'Paul', label: 'Remboursement', amount: -40 })] },
   ],
   rows: [],
@@ -86,6 +91,7 @@ test('nothing left to collect says so', () => {
 });
 
 test('« À recevoir maintenant » sits after « En retard » and before the months, its lines not flagged late', () => {
+  // date-literal-ok: a server payload the component renders as given; nothing compares it with today
   const NOW = row({ reservationId: 5, date: '2026-05-01', dateLabel: '1 mai 2026', label: 'Acompte', clientName: 'Nina', amount: 90, dueNow: true });
   const data = { ...TO_COLLECT, groups: [TO_COLLECT.groups[0], { key: 'dueNow', label: 'À recevoir maintenant', total: 90, rows: [NOW] }, TO_COLLECT.groups[1]], rows: [LATE, NOW, DEC, DEC_2], totals: { amount: 685, payments: 4 } };
   renderPanel('toCollect', data);
