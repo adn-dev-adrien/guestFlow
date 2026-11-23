@@ -578,6 +578,23 @@ being on the preload's lists fails the run once the suite executes the read (rul
    passes under the cold harness, as do the related suites on three shuffled seeds. Tests `LazySaleComponents.late-chunks` (3: the setup is in
    place; a LATER test of the same file still waits for the delay; every waiting dialog has a suite).
 
+24. **The server suite runs four test files at a time** (added 2026-11-23, measurement of the 4.2.0 suite). `npm test`
+   passes `--test-concurrency=4` instead of `1`. *Why:* on 2026-11-22 the suite held 2 037 files and 14 784 tests and
+   took 850-917 s locally and ≈24 min on a GitHub runner, enough to cancel the first v4.2.0 release run at its 20-minute
+   cap. Measured file by file, the tests themselves account for 365 s; the other ≈550 s are the start of one process per
+   file and the app's boot in it (median file 0.38 s for tests mostly under 5 ms). The same suite at four files at a time
+   ran in 232 s with the same 14 784 results. Serial running dates from #152 (2026-07), when every file shared the
+   production database module; since rule 1 each process gets its own database, secrets file and uploads folder, and
+   the preload replaces a `DB_PATH` the caller set (`isolate({ force: true })`), so the plugin-removal cell's
+   `DB_PATH=suite.db` no longer makes its files share one file (plugin-removal-resilience rule 18, amended). *Why four
+   and not Node's default* (available cores − 1): a GitHub runner has 4 vCPU, and the developer's machine is shared with
+   other sessions and services, so the number of test processes stays bounded and the same everywhere. The shards of
+   rule 19 and of the release (self-update rule 52) keep running `npm test`, each four files at a time. What a test file
+   may not do, since another file runs beside it: listen on a fixed port, or write a fixed path outside its own temp
+   root (none did on 2026-11-23). Deleting the 491 files whose coverage another file already holds was measured and
+   refused: it saves 184 s and loses rule checks (`options-negative-price` is the only test that a negative price is
+   refused, although every line it runs is run elsewhere).
+
 **Edge cases:**
 - A targeted `node --test <file>` used to open and migrate `server/guestflow.db` for 389 test files (audit R2,
   2026-10-29); rule 4 closes that. Rule 3 stays as the explicit guard of the three first offenders.
@@ -631,6 +648,10 @@ being on the preload's lists fails the run once the suite executes the read (rul
 | `.github/workflows/` | `unit-tests.yml` | T | Rule 7: a `spec rules` step runs the check with `--strict`; rule 9: it fetches master and inte/plugins and passes them as `--known`. Rule 8: the `client` job is a 3-shard matrix; build and bundle budget in shard 1. |
 | `.github/workflows/` | `release.yml` | T | Rule 8 / self-update rule 52: `tests` split into `server-tests` and a 3-shard `client-tests`. |
 | `tests/` | `test-suite-calendar-and-ci-budget.unit.test.js` | C | Pins rules 6-9 and self-update rule 52. |
+| `package.json` (server) | `scripts.test` | T | Rule 24: `--test-concurrency=4` instead of `1`; every other flag unchanged. |
+| `tests/` | `server-suite-concurrency.unit.test.js` | C | Rule 24: pins the four files at a time, and that no test file listens on a fixed port. |
+| `tests/` | `plugin-removal-workflow.unit.test.js` | T | Rule 24: the removal cell's guard reads four files at a time and the preload's forced `DB_PATH`, no longer a serial suite. |
+| `plugins/website-booking/tests/` | `public-request-challenge-cost.unit.test.js` | T | Rule 24 (speed only): the two real 3.1 s waits become a mocked clock; same cases, same assertions. |
 
 ### 4.2 Client side
 
@@ -715,6 +736,11 @@ absence from CI.
   the four seeds then green.
 - [x] Rule 23 (loop t22 A22-1): `LazySaleComponents.late-chunks` (2); with the old `ResourceArrivalDialog.invoiceable` (click on the drawn button) the late chunks fail it 2 runs out of 2, the fixed test passes; the whole client suite runs green with the delay.
 - [x] Rule 23 reading (loop t23 UI23-1): `LazySaleComponents.late-chunks` (3, + a later test of the same file waits for the delay); every test of the 105 suites rendering a sale dialog (enumerated from the code: the consumers of the sale blocks and the components rendering them, plus `StandaloneSalesTodayCard`), run alone, first in its file (listed from `vitest list`, 361 runs, `test.each` templates as one run): 361/361 green after `ResourceArrivalDialog.paid-before` A2 waits for an enabled button; the whole client suite green under the cold harness (1 000 files, 4 463 tests, 303 s against 327 s before in one local process: no measurable cost) and the related suites on three shuffled seeds.
+- [x] Rule 24 (2026-11-23): `server-suite-concurrency.unit.test.js` (3 tests) — `npm test` runs `--test-concurrency=4`
+  once, the preload still forces `DB_PATH`, no test file listens on a literal port; `plugin-removal-workflow` reads four
+  files at a time. The whole suite (14 805 tests) green three times in a row at 4 (232, 232, 231 s locally) and once at
+  8 (129 s); serial it took 850-917 s. `public-request-challenge-cost` on a mocked clock: 6.6 s → 0.3 s, and with the
+  clock not advanced 2 of its 4 tests fail, so the age check is still exercised.
 
 ## 8. Out of scope
 

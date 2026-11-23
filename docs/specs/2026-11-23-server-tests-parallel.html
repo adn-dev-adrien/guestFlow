@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Suite serveur — quatre fichiers à la fois</title>
+<style>
+  :root { --ink:#1d1d1f; --mute:#6e6e73; --line:#e5e5ea; --bg:#fbfbfd; --acc:#1f5c45; --warn:#b25000; }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink); font: 16px/1.55 -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif; }
+  main { max-width: 760px; margin: 0 auto; padding: 48px 20px 80px; }
+  h1 { font-size: 30px; line-height:1.15; letter-spacing:-.02em; margin:0 0 6px; }
+  .sub { color:var(--mute); margin:0 0 36px; }
+  h2 { font-size: 13px; text-transform: uppercase; letter-spacing:.08em; color:var(--mute); margin:40px 0 12px; font-weight:600; }
+  p, li { margin: 0 0 10px; }
+  ul { padding-left: 20px; margin:0; }
+  .card { background:#fff; border:1px solid var(--line); border-radius:14px; padding:20px 22px; }
+  .bars { display:grid; gap:14px; }
+  .bar-row { display:grid; grid-template-columns: 170px 1fr 64px; gap:12px; align-items:center; font-size:14px; }
+  .track { height:14px; background:#f2f2f5; border-radius:7px; overflow:hidden; display:flex; }
+  .seg { height:100%; }
+  .boot { background:#c9c9ce; } .tests { background:var(--acc); }
+  .num { text-align:right; font-variant-numeric: tabular-nums; }
+  .legend { display:flex; gap:18px; font-size:13px; color:var(--mute); margin-top:14px; }
+  .dot { display:inline-block; width:10px; height:10px; border-radius:3px; margin-right:6px; vertical-align:-1px; }
+  table { width:100%; border-collapse:collapse; font-size:14px; }
+  td, th { text-align:left; padding:8px 6px; border-bottom:1px solid var(--line); vertical-align:top; }
+  th { color:var(--mute); font-weight:600; }
+  td.n { text-align:right; font-variant-numeric: tabular-nums; white-space:nowrap; }
+  .no { color:var(--warn); font-weight:600; }
+  code { font: 13px ui-monospace, SFMono-Regular, Menlo, monospace; background:#f2f2f5; padding:1px 5px; border-radius:5px; }
+  @media (max-width: 600px) { .bar-row { grid-template-columns: 1fr 56px; } .bar-row .lbl { grid-column: 1 / -1; } h1 { font-size:25px; } }
+</style>
+</head>
+<body>
+<main>
+  <h1>Suite serveur : quatre fichiers à la fois</h1>
+  <p class="sub">Amendement de <code>specs/server-test-isolation.md</code> (règle 24) · 23/11/2026 · à valider</p>
+
+  <h2>Constat</h2>
+  <div class="card">
+    <p>2 037 fichiers, 14 784 tests, mesurés un par un en local. Le temps part surtout à démarrer un processus et l'application pour chaque fichier, l'un après l'autre.</p>
+    <div class="bars" role="img" aria-label="Séquentiel 917 secondes dont 365 de tests ; quatre à la fois 232 secondes">
+      <div class="bar-row"><span class="lbl">Aujourd'hui (1 à la fois)</span>
+        <div class="track"><div class="seg tests" style="width:39.8%"></div><div class="seg boot" style="width:60.2%"></div></div>
+        <span class="num">917 s</span></div>
+      <div class="bar-row"><span class="lbl">Proposé (4 à la fois)</span>
+        <div class="track"><div class="seg tests" style="width:25.3%"></div></div>
+        <span class="num">232 s</span></div>
+    </div>
+    <div class="legend"><span><span class="dot tests"></span>tests</span><span><span class="dot boot"></span>démarrage des processus</span></div>
+    <p style="margin-top:14px">En CI, la suite entière prend ≈24 min sur un runner : elle a fait annuler le premier run de la release 4.2.0 au plafond de 20 min.</p>
+  </div>
+
+  <h2>Ce qu'on propose</h2>
+  <ul>
+    <li><code>npm test</code> passe de <code>--test-concurrency=1</code> à <code>4</code>. Rien d'autre ne change dans la commande ; les tranches CI et la release l'héritent.</li>
+    <li>Le séquentiel datait de #152 (base de prod partagée par tous les fichiers). Depuis, chaque processus a sa base, ses secrets et ses fichiers, même quand l'appelant impose un <code>DB_PATH</code> (cellule de retrait des plugins).</li>
+    <li>Quatre et non « tous les cœurs » : un runner GitHub a 4 vCPU, et le Mac est partagé avec les autres sessions.</li>
+    <li>Un test de garde fige le chiffre et interdit l'écoute sur un port fixe.</li>
+    <li><code>public-request-challenge-cost</code> : ses deux attentes réelles de 3,1 s deviennent une horloge simulée, mêmes cas et mêmes assertions.</li>
+  </ul>
+
+  <h2>Ce qu'on ne fait pas</h2>
+  <table>
+    <tr><th>Piste</th><th class="n">Gain</th><th>Pourquoi non</th></tr>
+    <tr><td>Supprimer les 491 fichiers dont la couverture est déjà tenue ailleurs</td><td class="n">184 s</td><td><span class="no">Perd des règles.</span> <code>options-negative-price</code> est le seul test qui vérifie le refus d'un prix négatif, alors que chaque ligne qu'il exécute l'est ailleurs.</td></tr>
+    <tr><td>Fusionner les 330 fichiers de 2 tests ou moins</td><td class="n">≈138 s</td><td>Contredit « un fichier par sujet » (conflits entre branches) ; le parallélisme absorbe déjà ce coût.</td></tr>
+    <tr><td>Abaisser le coût scrypt des codes de secours en test</td><td class="n">≈15 s</td><td>Toucherait le code de sécurité pour un gain marginal.</td></tr>
+  </table>
+
+  <h2>Risque</h2>
+  <p>Un test qui dépendait sans le dire de l'ordre ou de l'exclusivité de la machine. Parade : la suite complète trois fois de suite à 4 et une fois à 8 avant la PR (une passe complète à 4 est déjà verte, sauf un artefact local). Retour arrière : une seule valeur à remettre à 1.</p>
+
+  <h2>Arbitrages en attente</h2>
+  <p>Aucun. Les deux tranches serveur de la CI sont gardées telles quelles.</p>
+</main>
+</body>
+</html>
