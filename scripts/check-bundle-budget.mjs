@@ -25,7 +25,11 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
 // Measured 2026-10-28 after the lazy routes: 284 851 bytes gzip (before them: 637 kB). + 10 %.
 export const MEASURED_GZIP = 284851;
-export const BUDGET_GZIP = Math.ceil(MEASURED_GZIP * 1.1);
+// Raised deliberately, each time by the weight a PR adds on purpose, never to turn a red build green:
+//   + 1 000 bytes (2026-11-23, specs/mobile-dashboard-exercise-cash.md) — the SDK's ReservationLinkLine on the
+//     home's attention rows, the safe-area insets of the app bar and page bar, and the chunk split they moved.
+const DELIBERATE_RAISES = 1000;
+export const BUDGET_GZIP = Math.ceil(MEASURED_GZIP * 1.1) + DELIBERATE_RAISES;
 
 /**
  * @param {Record<string, {file: string, imports?: string[], dynamicImports?: string[], isEntry?: boolean}>} manifest

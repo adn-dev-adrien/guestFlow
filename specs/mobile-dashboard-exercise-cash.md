@@ -297,3 +297,8 @@ None open.
 - Review round (2026-11-23): rule 15 reworded (late = « En retard »), « À recevoir maintenant » group, past-exercise placement, step lines, axis, touch gestures, `--gf-page-bar-bottom` now published from the app bar's real bottom edge, full-screen dialog insets in `theme.js` only (top included; per-dialog duplicates removed), « Ouvrir » hidden for roles that cannot open its page, booking-intake link guarded.
 - Rule 9 (« Retour » goes home) is verified by hand: fiche opened from the home with `?from=%2F`, back returns to `/`.
 - Not done: a real-device check of the insets (checked only as CSS strings and the `viewport-fit=cover` meta in Chromium, where insets are 0).
+
+**Bundle budget (2026-11-23).** The initial JavaScript grew by ~0.8 kB gzip (the SDK's `ReservationLinkLine`
+on the home's attention rows, the app bar / page bar insets, and a shared chunk Vite split differently).
+Its chevron is an inline SVG rather than the icon package (−0.3 kB); the rest is accepted: the budget in
+`scripts/check-bundle-budget.mjs` is raised deliberately by 1 000 bytes, decided with Adrien.

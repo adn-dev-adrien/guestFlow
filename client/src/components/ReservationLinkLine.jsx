@@ -16,7 +16,6 @@
  */
 import React from 'react';
 import { Box } from '@mui/material';
-import ChevronRightIcon from '@mui/icons-material/ChevronRight';
 import { Link as RouterLink, useInRouterContext } from 'react-router';
 import { withFrom } from '../utils/navigation';
 
@@ -39,7 +38,10 @@ export default function ReservationLinkLine({ reservationId, clientName, childre
       }}
     >
       {body}
-      <ChevronRightIcon fontSize="small" color="action" aria-hidden sx={{ mt: '12px', flexShrink: 0 }} />
+      {/* An inline chevron rather than the icon package: this line ships in the SDK, on every first load. */}
+      <Box component="svg" viewBox="0 0 24 24" aria-hidden sx={{ width: 20, height: 20, mt: '12px', flexShrink: 0, fill: 'currentColor', color: 'action.active' }}>
+        <path d="M10 6 8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z" />
+      </Box>
     </Box>
   );
 }
