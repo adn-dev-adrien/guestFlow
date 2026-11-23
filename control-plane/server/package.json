@@ -10,13 +10,13 @@
     "test": "node --test --test-concurrency=1 --test-timeout=180000 --require ../../server/src/tests/setup/realQontoGuard.js --require ./src/tests/setup/fileTempRoot.js --require ../../scripts/test-runner/test-exit-watchdog.cjs --test-reporter=spec --test-reporter-destination=stdout --test-reporter=../../scripts/test-runner/test-completeness-reporter.mjs --test-reporter-destination=stderr \"src/tests/**/*.test.js\""
   },
   "dependencies": {
-    "better-sqlite3": "^13.1.1",
+    "better-sqlite3": "^13.2.0",
     "better-sqlite3-session-store": "^0.1.0",
     "express": "^5.3.0",
-    "express-rate-limit": "^8.7.4",
+    "express-rate-limit": "^8.7.5",
     "express-session": "^1.19.0",
     "helmet": "^8.3.0",
-    "nodemailer": "^10.5.0",
+    "nodemailer": "^10.6.0",
     "qrcode": "^1.5.4"
   }
 }
