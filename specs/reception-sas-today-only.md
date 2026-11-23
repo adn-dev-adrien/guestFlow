@@ -293,8 +293,19 @@ session — reception may not create anything.
 
 - [x] `reception/sas-day-window.spec.js` — browser: today's ✓ is live while a future one is disabled
       with « Check-in à venir — modifiable le jour de l'arrivée », its status checkbox is disabled,
-      clicking the locked ✓ opens no dialog, the deep-link lands on the locked panel (« Fermer », no
+      tapping the locked ✓ opens no dialog, the deep-link lands on the locked panel (« Fermer », no
       « Valider »), and today's deep-link still opens the wizard at « Commencer ».
+      Every locator is bound to the stays this test seeded (reading of 2026-11-23, after two CI
+      failures on unrelated PRs): the property names carry a run tag, a card is looked up by that name
+      inside the section of its own day, a dialog by the property name its header band shows. The
+      tap is an ordinary click on the `<span>` that holds the disabled button's tooltip — where a
+      finger lands, since a disabled button takes no pointer event — never a `force: true` click on
+      the button: that skips Playwright's hit-target check, and the planning keeps today pinned under
+      its bar until an operator gesture ([dashboard-planning-scroll.md](dashboard-planning-scroll.md)
+      rule 24), so a card that grew between the scroll and the click put today's ✓ under the
+      coordinates and opened today's wizard. The old version failed 1 run in 30 beside the reception
+      and planning specs on 4 workers; the new one passed 50 repetitions alone, 50 in that same mix,
+      and 50 copies spread through the whole suite in CI mode.
 - [x] `reception/sas-day-window.spec.js` — API as reception: a past SAS → 403 `SAS_LOCKED/past` on
       both commits, `STATUS_LOCKED/past` on the status write, while `GET …/sas` stays 200 and carries
       `receptionLock`. A past stay is seeded through the real API in the future then back-dated with
@@ -307,7 +318,9 @@ session — reception may not create anything.
       E2E cover (see its §7).
 - [x] **Mutation-checked**: removing the controller guard fails the two API tests; blanking
       `arrivalSasLock` in the reception view fails the browser test — each layer is guarded by its own
-      assertion, neither test is vacuous.
+      assertion, neither test is vacuous. Since 2026-11-23, wiring the SAS launcher onto the tooltip
+      `<span>` of the locked ✓ also fails the browser test: the tap reaches its target, and the
+      dialog it opens is the future stay's.
 
 ## 8. Out of scope
 
