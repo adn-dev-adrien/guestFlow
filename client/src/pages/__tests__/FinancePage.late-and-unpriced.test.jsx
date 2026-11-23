@@ -84,13 +84,3 @@ test('rule 36 — the channels tile reads « de commissions », without a minus 
   expect(within(tile).getByText('de commissions')).toBeInTheDocument();
   expect(tile.textContent).not.toMatch(/−/);
 });
-
-test('rule 36 — the projection field reads « Encaissable d\'ici le » and starts on the server\'s date', async () => {
-  api.getFinanceDashboardDetail.mockResolvedValue({ ...TO_COLLECT, projection: { ...TO_COLLECT.projection, until: '2026-11-18' } });
-  renderPage();
-  fireEvent.click(await screen.findByRole('button', { name: 'À encaisser : afficher le détail' }));
-  const panel = await screen.findByRole('region', { name: 'À encaisser' });
-  const field = await within(panel).findByLabelText("Encaissable d'ici le");
-  expect(field).toHaveValue('2026-11-18');
-  expect(api.getFinanceDashboardDetail).toHaveBeenCalledWith('toCollect', expect.not.objectContaining({ until: expect.anything() }));
-});

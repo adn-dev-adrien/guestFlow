@@ -11,6 +11,7 @@ vi.mock('../../sdk', async () => ({
   api,
   displayDate: (iso) => iso.split('-').reverse().join('/'),
   AttentionCard: (await vi.importActual('../../../components/AttentionCard')).default,
+  ReservationLinkLine: (await vi.importActual('../../../components/ReservationLinkLine')).default,
 }));
 
 import IntakeAlert from '../IntakeAlert';

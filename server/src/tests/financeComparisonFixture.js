@@ -32,7 +32,7 @@ function pinnedDashboard() {
 }
 
 // The fields this spec adds to GET /api/finance/dashboard (rules 1-3, 8, 12).
-const ADDED = { hero: ['revPar', 'openNights', 'occupiedNights'], data: ['occupancyAll', 'comparison'] };
+const ADDED = { hero: ['revPar', 'openNights', 'occupiedNights'], data: ['occupancyAll', 'comparison', 'cashProjection'] };
 
 // specs/finance-dashboard-redesign.md rule 53 (D-HC9, 2026-11-06) — revenue per night and RevPAR moved to the
 // revenue of the nights: those fields left the pin on purpose; finance-nights-revenue.unit.test.js pins them.
@@ -55,7 +55,18 @@ function withoutAdded(data) {
   delete copy.fiscalYears;
   // specs/mollie-rolling-reserve-and-incoming-payments.md rule 21 — the « Versements à venir » tile.
   if (copy.tiles) delete copy.tiles.incoming;
+  // specs/mobile-dashboard-exercise-cash.md rule 11 — « Reste à encaisser » moved from the finished stays of every
+  // exercise to the window's stays: its figures are pinned by finance-dashboard-exercise-cash.unit.test.js.
+  if (copy.tiles) delete copy.tiles.toCollect;
   return copy;
 }
 
-module.exports = { pinnedDashboard, withoutAdded, withoutSuperseded, ADDED, LONG_AGO };
+// specs/mobile-dashboard-exercise-cash.md rule 17 — the « Encaissé » detail gains its month groups and a date label per row.
+function withoutAddedDetail(data) {
+  const copy = JSON.parse(JSON.stringify(data));
+  delete copy.groups;
+  for (const r of copy.rows || []) delete r.dateLabel;
+  return copy;
+}
+
+module.exports = { pinnedDashboard, withoutAdded, withoutAddedDetail, withoutSuperseded, ADDED, LONG_AGO };

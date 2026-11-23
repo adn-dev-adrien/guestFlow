@@ -32,6 +32,8 @@ const CLIENT_EXPORTS = [
   { names: ['tendersForDue'], sdk: '2.32.0' },
   // Loop t26 (specs/plugins-phase-1-sdk.md rule 58) — the money-dialog contract, one module.
   { names: ['useMoneyCommit', 'PreviewFailure', 'MoneyActions', 'useTenderDraft', 'isRetryable'], sdk: '2.32.0' },
+  // specs/mobile-dashboard-exercise-cash.md rule 8 — the identity line of a home subject's row, linking to the fiche.
+  { names: ['ReservationLinkLine'], sdk: '2.34.0' },
 ];
 
 const floorOf = (text) => CLIENT_EXPORTS

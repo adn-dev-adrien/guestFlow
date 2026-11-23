@@ -24,7 +24,7 @@ export default function BackupCodesDialog({ open, codes = [], account = '', onCl
       <DialogContent>
         <BackupCodesPanel codes={codes} account={account} onSavedChange={setSaved} />
       </DialogContent>
-      <DialogActions sx={{ px: 3, pb: 'max(16px, env(safe-area-inset-bottom))' }}>
+      <DialogActions sx={{ px: 3, pb: 2 }}>
         <Button variant="contained" onClick={onClose} disabled={!saved} sx={{ minHeight: 44 }}>Terminé</Button>
       </DialogActions>
     </Dialog>

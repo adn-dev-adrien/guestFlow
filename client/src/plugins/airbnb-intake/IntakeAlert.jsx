@@ -5,12 +5,10 @@
  * Title and count are the server's (specs/shell-and-home-day-first.md rule 6).
  */
 import React, { useEffect, useState } from 'react';
-import { Stack, Typography, Link } from '@mui/material';
-import { useNavigate } from 'react-router';
-import { api, AttentionCard } from '../sdk';
+import { Stack, Typography } from '@mui/material';
+import { api, AttentionCard, ReservationLinkLine } from '../sdk';
 
 export default function IntakeAlert({ attention }) {
-  const navigate = useNavigate();
   const [items, setItems] = useState([]);
 
   useEffect(() => {
@@ -23,17 +21,11 @@ export default function IntakeAlert({ attention }) {
     <AttentionCard attention={attention}>
       <Stack spacing={0.5}>
         {items.map((item) => (
-          <Typography key={item.id} variant="body2">
-            {item.guest || item.code || 'Mail'} du {item.receivedLabel} — {item.text}
-            {item.reservationId && (
-              <>
-                {' · '}
-                <Link component="button" variant="body2" onClick={() => navigate(`/reservations/${item.reservationId}`)}>
-                  Ouvrir la fiche
-                </Link>
-              </>
-            )}
-          </Typography>
+          <ReservationLinkLine key={item.id} reservationId={item.reservationId} clientName={item.guest} disabled={!item.reservationId}>
+            <Typography variant="body2">
+              {item.guest || item.code || 'Mail'} du {item.receivedLabel} — {item.text}
+            </Typography>
+          </ReservationLinkLine>
         ))}
       </Stack>
     </AttentionCard>

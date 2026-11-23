@@ -738,7 +738,7 @@ function AppShell() {
 
   return (
     <Box sx={{ display: 'flex', minHeight: '100vh' }}>
-      <AppBar position="fixed" elevation={0} sx={{ zIndex: (t) => t.zIndex.drawer + 1, bgcolor: 'background.paper', color: 'text.primary', borderBottom: '1px solid', borderColor: 'divider' }}>
+      <AppBar position="fixed" elevation={0} sx={{ zIndex: (t) => t.zIndex.drawer + 1, bgcolor: 'background.paper', color: 'text.primary', borderBottom: '1px solid', borderColor: 'divider', pt: 'env(safe-area-inset-top, 0px)', pl: 'env(safe-area-inset-left, 0px)', pr: 'env(safe-area-inset-right, 0px)' }}>
         <Toolbar ref={toolbarRef} sx={{ gap: 1 }}>
           {isMobile && (
             <IconButton edge="start" aria-label="Ouvrir le menu" aria-expanded={mobileOpen} onClick={() => setMobileOpen(!mobileOpen)} sx={{ mr: 0.5 }}>
@@ -820,7 +820,7 @@ function AppShell() {
           },
         }}
       >
-        <Toolbar />
+        <Toolbar sx={{ mt: 'env(safe-area-inset-top, 0px)' }} />
         <NavContent onItemClick={handleNavItemClick} />
         <Box sx={{ mt: 'auto', borderTop: '1px solid', borderColor: 'divider' }}>
           <AppVersionFooter />
@@ -829,7 +829,7 @@ function AppShell() {
 
       {/* A support session's red bar (specs/hosting-h2-account-security.md rule 16). */}
       <SupportSessionBar />
-      <Box component="main" sx={{ flexGrow: 1, minWidth: 0, px: { xs: 1.5, sm: 2, md: 3 }, py: { xs: 2, md: 3 }, pb: user && user.supportSession ? `calc(${SUPPORT_BAR_HEIGHT + 24}px + env(safe-area-inset-bottom, 0px))` : undefined, mt: 8, bgcolor: 'background.default', minHeight: '100vh' }}>
+      <Box component="main" sx={{ flexGrow: 1, minWidth: 0, pl: { xs: 'max(12px, env(safe-area-inset-left, 0px))', sm: 'max(16px, env(safe-area-inset-left, 0px))', md: 'max(24px, env(safe-area-inset-left, 0px))' }, pr: { xs: 'max(12px, env(safe-area-inset-right, 0px))', sm: 'max(16px, env(safe-area-inset-right, 0px))', md: 'max(24px, env(safe-area-inset-right, 0px))' }, py: { xs: 2, md: 3 }, pb: user && user.supportSession ? `calc(${SUPPORT_BAR_HEIGHT + 24}px + env(safe-area-inset-bottom, 0px))` : undefined, mt: 'calc(64px + env(safe-area-inset-top, 0px))', bgcolor: 'background.default', minHeight: '100vh' }}>
         {/* Anti-lockout safety net — persistent until the operator has logged in once with the new
             address. See specs/admin-account-management.md follow-up #7 (2026-06-02). */}
         <EmailVerifyBanner />

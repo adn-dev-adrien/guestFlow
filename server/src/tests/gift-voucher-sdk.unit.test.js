@@ -10,11 +10,12 @@ const { createContext } = require('../plugins/sdk/createContext');
 const { SDK_VERSION } = require('../plugins/sdk/version');
 const HISTORY = require('../plugins/sdk/coreModuleHistory.json');
 const { skipWithout } = require('../plugins/sdk/testing');
+const { satisfies } = require('../utils/semverRange');
 
 const SRC = path.join(__dirname, '..');
 
 test('SDK 2.33.0: the version is bumped by a minor and the history records what it added', () => {
-  assert.equal(SDK_VERSION, '2.33.0');
+  assert.ok(satisfies(SDK_VERSION, '>=2.33.0'), 'the SDK only moves forward (2.34.0: ReservationLinkLine, a client export)');
   const entry = HISTORY.added.find((a) => a.version === '2.33.0');
   assert.deepEqual(entry, {
     version: '2.33.0',

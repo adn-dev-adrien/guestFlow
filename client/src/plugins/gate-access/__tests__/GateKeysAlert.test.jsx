@@ -1,17 +1,12 @@
 // server-test-isolation.md rule 11 — a « nothing shown » check first waits for the answer that could show it.
 import React from 'react';
-import { render, screen, fireEvent, act } from '@testing-library/react';
+import { render, screen, act } from '@testing-library/react';
 import { vi } from 'vitest';
 
 // specs/gate-access-sowel-connector.md §3.3 rules 13 + 17 — the dashboard alert of the Sowel
 // gate-keys connector: the keys Sowel could not make, and a Sowel that stopped reading the list.
 // Rule 16: it renders nothing when there is nothing to say.
 
-const navigate = vi.fn();
-vi.mock('react-router', async (importOriginal) => {
-  const actual = await importOriginal();
-  return { ...actual, useNavigate: () => navigate };
-});
 vi.mock('../../../api', () => ({
   __esModule: true,
   default: { getGateKeysAlerts: vi.fn() },
@@ -61,8 +56,7 @@ test('a failed key shows the number, the first name and the reason, and opens th
   expect(await screen.findByText('Clés portail')).toBeInTheDocument();
   expect(screen.getByText('R-2026-041 · Marie — Clé portail non créée')).toBeInTheDocument();
   expect(screen.getByText("le profil par défaut n'est pas accordé au plugin")).toBeInTheDocument();
-  fireEvent.click(screen.getByRole('button'));
-  expect(navigate).toHaveBeenCalledWith('/reservations/123');
+  expect(screen.getByRole('link', { name: 'Ouvrir la fiche de R-2026-041 · Marie' })).toHaveAttribute('href', '/reservations/123?from=%2F');
 });
 
 test('a failure on a deleted reservation is listed but opens nothing', async () => {
@@ -72,7 +66,7 @@ test('a failure on a deleted reservation is listed but opens nothing', async () 
   });
   render(<GateKeysAlert attention={ATTENTION} />);
   expect(await screen.findByText(/Clé portail non révoquée/)).toBeInTheDocument();
-  expect(screen.queryByRole('button')).toBeNull();
+  expect(screen.queryByRole('link')).toBeNull();
 });
 
 // specs/gate-access-sowel-connector.md §3.3 rule 17

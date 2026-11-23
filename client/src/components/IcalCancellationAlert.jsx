@@ -20,11 +20,10 @@ import {
   Box, Typography, Button, IconButton, Tooltip, Divider, Stack,
 } from '@mui/material';
 import CloseIcon from '@mui/icons-material/Close';
-import OpenInNewIcon from '@mui/icons-material/OpenInNew';
 import DeleteIcon from '@mui/icons-material/Delete';
-import { useNavigate } from 'react-router';
 import api from '../api';
 import AttentionCard from './AttentionCard';
+import ReservationLinkLine from './ReservationLinkLine';
 import CancellationCompensationDialog from './CancellationCompensationDialog';
 import { useToast } from './DialogProvider';
 import { displayDateShort } from '../utils/formatters';
@@ -47,7 +46,6 @@ function relativeFromNow(iso) {
 }
 
 export default function IcalCancellationAlert({ attention }) {
-  const navigate = useNavigate();
   const { showSuccess, showError } = useToast();
   const [alerts, setAlerts] = useState([]);
   const [busyId, setBusyId] = useState(null);
@@ -129,15 +127,17 @@ export default function IcalCancellationAlert({ attention }) {
                 </IconButton>
               </span>
             </Tooltip>
-            <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
-              {alert.clientName}
-              {alert.propertyName ? ` · ${alert.propertyName}` : ''}
-              {!alert.reservationExists && (
-                <Typography component="span" variant="caption" color="error" sx={{ ml: 1 }}>
-                  (réservation supprimée)
-                </Typography>
-              )}
-            </Typography>
+            <ReservationLinkLine reservationId={alert.reservationId} clientName={alert.clientName} disabled={!alert.reservationExists}>
+              <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
+                {alert.clientName}
+                {alert.propertyName ? ` · ${alert.propertyName}` : ''}
+                {!alert.reservationExists && (
+                  <Typography component="span" variant="caption" color="error" sx={{ ml: 1 }}>
+                    (réservation supprimée)
+                  </Typography>
+                )}
+              </Typography>
+            </ReservationLinkLine>
             <Typography variant="body2" color="text.secondary">
               Du <strong>{displayDateShort(alert.startDate)}</strong> au <strong>{displayDateShort(alert.endDate)}</strong>
               {alert.sourceName ? <> · Source : <strong>{alert.sourceName}</strong></> : null}
@@ -155,15 +155,6 @@ export default function IcalCancellationAlert({ attention }) {
                 disabled={busyId === alert.id || !alert.reservationExists}
               >
                 Supprimer
-              </Button>
-              <Button
-                size="small"
-                variant="outlined"
-                startIcon={<OpenInNewIcon />}
-                onClick={() => navigate(`/reservations/${alert.reservationId}`)}
-                disabled={!alert.reservationExists}
-              >
-                Voir la fiche
               </Button>
             </Box>
           </Box>

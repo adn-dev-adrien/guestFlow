@@ -10,12 +10,11 @@
  */
 import React, { useCallback, useEffect, useState } from 'react';
 import {
-  Box, Typography, Divider, Stack,
+  Typography, Divider, Stack,
 } from '@mui/material';
-import ChevronRightIcon from '@mui/icons-material/ChevronRight';
-import { useNavigate } from 'react-router';
 import api from '../api';
 import AttentionCard from './AttentionCard';
+import ReservationLinkLine from './ReservationLinkLine';
 import { displayDateShort } from '../utils/formatters';
 
 const REFRESH_MS = 5 * 60 * 1000;
@@ -37,7 +36,6 @@ function relativeFromNow(iso) {
 }
 
 export default function NewReservationsAlert({ attention }) {
-  const navigate = useNavigate();
   const [alerts, setAlerts] = useState([]);
 
   const refresh = useCallback(async () => {
@@ -57,40 +55,23 @@ export default function NewReservationsAlert({ attention }) {
 
   if (alerts.length === 0) return null;
 
-  const open = (reservationId) => navigate(`/reservations/${reservationId}`);
-
   return (
     <AttentionCard attention={attention}>
       <Stack divider={<Divider flexItem />} spacing={0.5}>
         {alerts.map((alert) => (
-          <Box
-            key={alert.reservationId}
-            role="button"
-            tabIndex={0}
-            onClick={() => open(alert.reservationId)}
-            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); open(alert.reservationId); } }}
-            sx={{
-              display: 'flex', alignItems: 'center', gap: 1,
-              cursor: 'pointer', borderRadius: 1, px: 1, py: 1, mx: -1,
-              minHeight: 44,
-              '&:hover': { bgcolor: 'action.hover' },
-            }}
-          >
-            <Box sx={{ flex: 1, minWidth: 0 }}>
-              <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
-                {alert.clientName}
-                {alert.propertyName ? ` · ${alert.propertyName}` : ''}
-              </Typography>
-              <Typography variant="body2" color="text.secondary">
-                Du <strong>{displayDateShort(alert.startDate)}</strong> au <strong>{displayDateShort(alert.endDate)}</strong>
-                {alert.platformLabel ? <> · Source : <strong>{alert.platformLabel}</strong></> : null}
-              </Typography>
-              <Typography variant="caption" color="text.secondary">
-                Arrivée {relativeFromNow(alert.createdAt)}
-              </Typography>
-            </Box>
-            <ChevronRightIcon fontSize="small" color="action" />
-          </Box>
+          <ReservationLinkLine key={alert.reservationId} reservationId={alert.reservationId} clientName={alert.clientName}>
+            <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
+              {alert.clientName}
+              {alert.propertyName ? ` · ${alert.propertyName}` : ''}
+            </Typography>
+            <Typography variant="body2" color="text.secondary">
+              Du <strong>{displayDateShort(alert.startDate)}</strong> au <strong>{displayDateShort(alert.endDate)}</strong>
+              {alert.platformLabel ? <> · Source : <strong>{alert.platformLabel}</strong></> : null}
+            </Typography>
+            <Typography variant="caption" color="text.secondary">
+              Arrivée {relativeFromNow(alert.createdAt)}
+            </Typography>
+          </ReservationLinkLine>
         ))}
       </Stack>
     </AttentionCard>

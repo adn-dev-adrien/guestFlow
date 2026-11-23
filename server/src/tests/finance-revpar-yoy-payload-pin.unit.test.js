@@ -10,7 +10,7 @@ const assert = require('node:assert/strict');
 // will pass), on the day these figures were written against.
 require('node:test').mock.timers.enable({ apis: ['Date'], now: Date.UTC(2026, 10, 5, 11) });
 const pin = require('./fixtures/finance-dashboard-payload-pin.json');
-const { pinnedDashboard, withoutAdded, withoutSuperseded, ADDED } = require('./financeComparisonFixture');
+const { pinnedDashboard, withoutAdded, withoutAddedDetail, withoutSuperseded, ADDED } = require('./financeComparisonFixture');
 
 for (const [name, expected] of Object.entries(pin)) {
   test(`rule 14 — « ${name} »: every existing field of the dashboard keeps its value`, () => {
@@ -22,7 +22,7 @@ for (const [name, expected] of Object.entries(pin)) {
   test(`rule 14 — « ${name} »: the detail tables are unchanged`, () => {
     const { dashboard } = pinnedDashboard();
     assert.deepEqual(withoutSuperseded(dashboard.getDashboardDetail('properties', expected.params).data), withoutSuperseded(expected.properties));
-    assert.deepEqual(dashboard.getDashboardDetail('collected', expected.params).data, expected.collected);
+    assert.deepEqual(withoutAddedDetail(dashboard.getDashboardDetail('collected', expected.params).data), expected.collected);
   });
 }
 

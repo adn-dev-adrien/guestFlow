@@ -10,6 +10,7 @@ vi.mock('../../sdk', async () => ({
   api,
   displayDate: (iso) => iso.split('-').reverse().join('/'),
   AttentionCard: (await vi.importActual('../../../components/AttentionCard')).default,
+  ReservationLinkLine: (await vi.importActual('../../../components/ReservationLinkLine')).default,
 }));
 
 import IntakeAlert from '../IntakeAlert';
@@ -25,5 +26,6 @@ test('rule 14: a rent to choose is listed with a link to the fiche', async () =>
   render(<MemoryRouter><IntakeAlert attention={ATTENTION} /></MemoryRouter>);
   expect(await screen.findByText(/Dossier 11773 du 14\/10\/2026 — loyer à choisir sur la fiche/)).toBeInTheDocument();
   expect(screen.getByText(/Mail du 13\/10\/2026 — aucune fiche sur ces dates/)).toBeInTheDocument();
-  expect(screen.getAllByRole('button', { name: 'Ouvrir la fiche' })).toHaveLength(1);
+  expect(screen.getAllByRole('link', { name: 'Ouvrir la fiche' })).toHaveLength(1);
+  expect(screen.getByRole('link', { name: 'Ouvrir la fiche' })).toHaveAttribute('href', '/reservations/22304?from=%2F');
 });

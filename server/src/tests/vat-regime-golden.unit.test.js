@@ -32,6 +32,9 @@
 // rule 21), nothing else moved (checked: the payload minus that key is the previous capture).
 // On 2026-11-17, merging #1067 into pricing-components C: re-captured on the branch, checked key by key — only those four
 // `finance/dashboard/*` moved against the branch's capture, by `data.tiles.incoming` alone, equal to master's value.
+// On 2026-11-23 for `finance/dashboard/*` and `finance/detail/*/collected|toCollect` (12 captures): « Reste à encaisser » counts the window's stays and
+// lists dated payments by month, `cashProjection` is added, `collected` gains its month `groups` (specs/mobile-dashboard-exercise-cash.md
+// rules 10-18; checked: every other key of those payloads, and every other capture, is unchanged).
 // `GOLDEN_UPDATE=1` rewrites the capture, which is only ever legitimate on that code (Lot 0).
 
 const test = require('node:test');

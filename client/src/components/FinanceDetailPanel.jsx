@@ -11,14 +11,15 @@
  *   loading, error:     request state; `onRetry` retries
  *   windowLabel:        string   « Exercice 2026 »…
  *   staysScope:         'window' | 'upcoming';  onStaysScopeChange(scope)
- *   until:              'YYYY-MM-DD';           onUntilChange(date)
  *   incomingRecent:     boolean;                onIncomingRecentChange(boolean) — « Versements à venir » (specs/mollie-rolling-reserve-and-incoming-payments.md rule 24)
- *   onClose, onOpenReservation(id), onTogglePayment(row, field), onSettleAll(row), onSettleOverdue(row) (ticks only the row's
- *   `overdueItems`), onSelectProperty(id)
+ *   onClose, onOpenReservation(id), onSettleOverdue(row) (ticks only the row's `overdueItems`), onSelectProperty(id)
+ *
+ * « Encaissé » and « Reste à encaisser » list one line per payment, grouped by month with the month's subtotal
+ * (specs/mobile-dashboard-exercise-cash.md rules 16-17); a line opens the fiche.
  */
 import React from 'react';
 import {
-  Box, Button, Card, CardContent, Chip, IconButton, Stack, TableCell, TableRow, TextField,
+  Box, Button, Card, CardContent, Chip, IconButton, Stack, TableCell, TableRow,
   ToggleButton, ToggleButtonGroup, Tooltip, Typography,
 } from '@mui/material';
 import CloseIcon from '@mui/icons-material/Close';
@@ -37,9 +38,9 @@ const pct = (x) => (x == null ? '—' : `${Math.round(x * 100)} %`);
 const money = (n) => (n == null ? '—' : formatCurrencyRounded(n));
 
 const TITLES = {
-  collected: ['Déjà payé', 'Chaque paiement reçu pour les séjours de la période, du plus récent au plus ancien'],
+  collected: ['Encaissé', 'Chaque paiement reçu pour les séjours de la période, par mois, du plus récent au plus ancien'],
   incoming: ['Versements à venir', 'Ce que la banque va recevoir, par client · sans rapport avec la période'],
-  toCollect: ['À encaisser', 'Séjours terminés pas encore soldés, tous exercices · cochez un paiement à sa réception'],
+  toCollect: ['Reste à encaisser', 'Ce que les séjours de la période doivent encore, paiement par paiement, dans l\'ordre où l\'argent arrive'],
   late: ['En retard', 'Échéances dépassées des réservations en direct et versements plateforme attendus, tous exercices'],
   stays: ['Réservations', 'Rattachées à la période par leur date comptable'],
   properties: ['Logements', 'Nuits, occupation, revenu moyen par nuit vendue, RevPAR (revenu des nuits ÷ nuits ouvertes)'],
@@ -63,42 +64,76 @@ function Line({ label, children }) {
   );
 }
 
+const LIST_COLUMNS = '110px minmax(0, 1.2fr) minmax(0, 1fr) 130px minmax(0, 1.1fr) 110px';
+
+// One line per payment under its month's header (date · amount, then client · logement · kind on a phone).
+function PaymentLine({ row, tone, onOpen }) {
+  const color = row.amount < 0 || row.late ? 'error.main' : (tone === 'received' ? 'success.main' : 'text.primary');
+  return (
+    <Box
+      component="button"
+      type="button"
+      onClick={() => onOpen(row.reservationId)}
+      aria-label={`${row.label} de ${row.clientName}, ${row.dateLabel}, ${formatCurrency(row.amount)}`}
+      sx={{
+        display: 'grid', width: '100%', textAlign: 'left', font: 'inherit', color: 'inherit', bgcolor: 'transparent', border: 0, borderTop: '1px solid', borderColor: 'divider',
+        cursor: 'pointer', minHeight: 44, px: 1, py: 0.75, alignItems: 'center', columnGap: 1.5,
+        gridTemplateColumns: { xs: '1fr auto', md: LIST_COLUMNS },
+        '&:hover': { bgcolor: 'action.hover' },
+        '&:focus-visible': { outline: '2px solid', outlineColor: 'primary.main', outlineOffset: -2 },
+      }}
+    >
+      <Typography variant="body2" sx={{ ...TAB, gridColumn: { xs: 1, md: 'auto' }, gridRow: { xs: 1, md: 'auto' } }}>{row.dateLabel}</Typography>
+      <Typography variant="body2" sx={{ fontWeight: 600, gridColumn: { xs: '1 / -1', md: 'auto' }, gridRow: { xs: 2, md: 'auto' }, display: { xs: 'none', md: 'block' } }}>{row.clientName}</Typography>
+      <Typography variant="body2" sx={{ display: { xs: 'none', md: 'block' } }}>{row.propertyName}</Typography>
+      <Box sx={{ display: { xs: 'none', md: 'block' } }}><PlatformChip platform={row.platform} /></Box>
+      <Box sx={{ display: { xs: 'none', md: 'flex' }, alignItems: 'center', gap: 1 }}>
+        <span>{row.label}</span>{row.late && <Chip size="small" color="error" variant="outlined" label="En retard" />}
+      </Box>
+      <Typography variant="body2" sx={{ ...TAB, fontWeight: 700, color, textAlign: 'right', gridColumn: { xs: 2, md: 'auto' }, gridRow: { xs: 1, md: 'auto' } }}>
+        {tone === 'received' && row.amount > 0 ? '+ ' : ''}{formatCurrency(row.amount)}
+      </Typography>
+      <Typography variant="caption" color="text.secondary" sx={{ display: { xs: 'block', md: 'none' }, gridColumn: '1 / -1', gridRow: 2 }}>
+        {row.clientName} · {row.propertyName} · {row.label}{row.late ? ' · en retard' : ''}
+      </Typography>
+    </Box>
+  );
+}
+
+function MonthGroups({ groups, tone, emptyText, onOpen }) {
+  if (groups.length === 0) return <Typography variant="body2" color="text.secondary" sx={{ textAlign: 'center', py: 3 }}>{emptyText}</Typography>;
+  return (
+    <Stack spacing={1.5}>
+      <Box role="row" sx={(t) => ({ display: 'grid', columnGap: 1.5, px: 1, gridTemplateColumns: LIST_COLUMNS, color: 'text.secondary', typography: 'caption', [t.breakpoints.down('md')]: { display: 'none' } })}>
+        {['Date', 'Client', 'Logement', 'Plateforme', 'Paiement'].map((h) => <span key={h} role="columnheader">{h}</span>)}
+        <span role="columnheader" style={{ textAlign: 'right' }}>Montant</span>
+      </Box>
+      {groups.map((g) => (
+        <Box key={g.key} component="section" aria-label={g.label}>
+          <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 2, px: 1, pb: 0.5, fontWeight: 700, color: g.key === 'late' ? 'error.main' : 'text.primary', ...TAB }}>
+            <span>{g.label}</span><span>{formatCurrency(g.total)}</span>
+          </Box>
+          {g.rows.map((r) => <PaymentLine key={`${r.reservationId}-${r.kind}-${r.label}-${r.date}-${r.amount}`} row={r} tone={tone} onOpen={onOpen} />)}
+        </Box>
+      ))}
+    </Stack>
+  );
+}
+
 function CollectedTable({ data, onOpenReservation }) {
   return (
     <>
-      <ResponsiveTable
-        items={data.rows}
-        getKey={(r) => `${r.reservationId}-${r.kind}-${r.label}-${r.date}-${r.amount}`}
-        emptyText="Aucun paiement reçu pour les séjours de la période."
-        minWidth={760}
-        onItemClick={(r) => onOpenReservation(r.reservationId)}
-        head={(
-          <TableRow>
-            <TableCell>Date</TableCell><TableCell>Client</TableCell><TableCell>Logement</TableCell>
-            <TableCell>Plateforme</TableCell><TableCell>Paiement</TableCell><TableCell align="right">Montant</TableCell>
-          </TableRow>
-        )}
-        renderRow={(r) => (
-          <TableRow key={`${r.reservationId}-${r.kind}-${r.label}-${r.date}-${r.amount}`} hover sx={{ cursor: 'pointer' }} onClick={() => onOpenReservation(r.reservationId)}>
-            <TableCell sx={TAB}>{displayDate(r.date)}</TableCell>
-            <TableCell>{r.clientName}</TableCell>
-            <TableCell>{r.propertyName}</TableCell>
-            <TableCell><PlatformChip platform={r.platform} /></TableCell>
-            <TableCell>{r.label}</TableCell>
-            <TableCell align="right" sx={{ ...TAB, fontWeight: 700, color: r.amount < 0 ? 'error.main' : 'success.main' }}>{r.amount > 0 ? '+ ' : ''}{formatCurrency(r.amount)}</TableCell>
-          </TableRow>
-        )}
-        renderMobileCard={(r) => (
-          <>
-            <Stack direction="row" sx={{ justifyContent: 'space-between', gap: 1 }}>
-              <Typography variant="body2" sx={{ fontWeight: 600 }}>{r.clientName}</Typography>
-              <Typography variant="body2" sx={{ ...TAB, fontWeight: 700, color: r.amount < 0 ? 'error.main' : 'success.main' }}>{formatCurrency(r.amount)}</Typography>
-            </Stack>
-            <Typography variant="caption" color="text.secondary">{displayDate(r.date)} · {r.label} · {r.propertyName}</Typography>
-          </>
-        )}
-      />
-      {data.rows.length > 0 && <Total label={`Total déjà payé · ${plural(data.totals.count, 'paiement')}`}>{formatCurrency(data.totals.amount)}</Total>}
+      <MonthGroups groups={data.groups} tone="received" emptyText="Aucun paiement reçu pour les séjours de la période." onOpen={onOpenReservation} />
+      {data.rows.length > 0 && <Total label={`Total encaissé · ${plural(data.totals.count, 'paiement')}`}>{formatCurrency(data.totals.amount)}</Total>}
+    </>
+  );
+}
+
+function ToCollectTable({ data, onOpenReservation }) {
+  return (
+    <>
+      <MonthGroups groups={data.groups} tone="expected" emptyText="Tout est encaissé pour les séjours de la période." onOpen={onOpenReservation} />
+      {data.rows.length > 0 && <Total label={`Total à encaisser · ${plural(data.totals.payments, 'paiement')}`}>{formatCurrency(data.totals.amount)}</Total>}
     </>
   );
 }
@@ -317,11 +352,11 @@ function ChannelsTable({ data }) {
 }
 
 export default function FinanceDetailPanel({
-  id, tile, data, loading, error, onRetry, windowLabel, staysScope, onStaysScopeChange, until, onUntilChange, incomingRecent = false, onIncomingRecentChange = () => {},
-  onClose, onOpenReservation, onTogglePayment, onSettleAll, onSettleOverdue, onSelectProperty,
+  id, tile, data, loading, error, onRetry, windowLabel, staysScope, onStaysScopeChange, incomingRecent = false, onIncomingRecentChange = () => {},
+  onClose, onOpenReservation, onSettleOverdue, onSelectProperty,
 }) {
   const [title, caption] = TITLES[tile];
-  const windowed = !['toCollect', 'late', 'incoming'].includes(tile) && !(tile === 'stays' && staysScope === 'upcoming');
+  const windowed = !['late', 'incoming'].includes(tile) && !(tile === 'stays' && staysScope === 'upcoming');
   const staysEmptyText = staysScope === 'unpriced' ? 'Aucun séjour sans montant sur la période.' : 'Aucune réservation sur la période.';
   let body = null;
   if (error) body = <ErrorAlert message="Impossible de charger ce tableau." onRetry={onRetry} />;
@@ -334,21 +369,7 @@ export default function FinanceDetailPanel({
   else if (tile === 'stays' && data.scope === 'upcoming') {
     body = <OperationalPaymentsTable rows={data.rows} totals={data.totals} onOpenReservation={onOpenReservation} minWidth={960} />;
   } else if (tile === 'stays') body = <StaysTable data={data} emptyText={staysEmptyText} onOpenReservation={onOpenReservation} />;
-  else if (tile === 'toCollect') {
-    body = (
-      <>
-        <Box sx={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: { xs: 1, sm: 2.5 }, bgcolor: 'rgba(60,54,36,0.04)', borderRadius: '10px', px: 1.5, py: 1.25, mb: 1.5 }}>
-          <TextField size="small" type="date" label="Encaissable d'ici le" value={until || data.projection.until} onChange={(e) => e.target.value && onUntilChange(e.target.value)} slotProps={{ inputLabel: { shrink: true } }} />
-          <Typography variant="body2" sx={TAB}>Total de séjour <b>{formatCurrencyRounded(data.projection.total)}</b></Typography>
-          <Typography variant="body2" sx={TAB}>Déjà payé <b>{formatCurrencyRounded(data.projection.collected)}</b></Typography>
-          <Typography variant="body2" sx={TAB}>Reste <b>{formatCurrencyRounded(data.projection.pending)}</b></Typography>
-        </Box>
-        {data.rows.length === 0
-          ? <Typography variant="body2" color="text.secondary" sx={{ textAlign: 'center', py: 3 }}>Aucun paiement en attente.</Typography>
-          : <OperationalPaymentsTable rows={data.rows} totals={data.totals} interactive showEndOfStayComplement onTogglePayment={onTogglePayment} onSettleAll={onSettleAll} onOpenReservation={onOpenReservation} minWidth={1180} />}
-      </>
-    );
-  }
+  else if (tile === 'toCollect') body = <ToCollectTable data={data} onOpenReservation={onOpenReservation} />;
 
   return (
     <Card id={id} role="region" aria-label={title} sx={{ my: 1.5, border: '1.5px solid', borderColor: 'primary.main' }}>

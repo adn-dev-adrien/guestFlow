@@ -58,17 +58,14 @@ test('rule 29 — the occupancy chart declares its values as rates, so its copy 
   expect(trendProps[trendProps.length - 1].ratio).toBe(true);
 });
 
-test('rule 30 — « payé » for the stays\' money: the « Déjà payé » total, the projection, the month chart\'s legend', () => {
-  const collected = { rows: [{ reservationId: 1, date: '2026-07-01', clientName: 'Jean Dupont', propertyName: 'Gîte', platform: 'direct', kind: 'balance', label: 'Solde', amount: 300 }, { reservationId: 2, date: '2026-07-02', clientName: 'Marie Martin', propertyName: 'Tente', platform: 'direct', kind: 'balance', label: 'Solde', amount: 200 }], totals: { amount: 500, count: 2 } }; // date-literal-ok: rows only rendered
-  const common = { id: 'd', loading: false, error: false, onRetry: () => {}, windowLabel: 'Exercice 2026', staysScope: 'window', onStaysScopeChange: () => {}, until: '', onUntilChange: () => {}, onClose: () => {}, onOpenReservation: () => {}, onTogglePayment: () => {}, onSettleAll: () => {}, onSettleOverdue: () => {}, onSelectProperty: () => {} };
+test('rule 30 — « payé » for the stays\' money: the « Encaissé » total, the month chart\'s legend', () => {
+  const rows = [{ reservationId: 1, date: '2026-07-01', dateLabel: '1 juil. 2026', clientName: 'Jean Dupont', propertyName: 'Gîte', platform: 'direct', kind: 'balance', label: 'Solde', amount: 300 }, { reservationId: 2, date: '2026-07-02', dateLabel: '2 juil. 2026', clientName: 'Marie Martin', propertyName: 'Tente', platform: 'direct', kind: 'balance', label: 'Solde', amount: 200 }]; // date-literal-ok: rows only rendered
+  const collected = { rows, groups: [{ key: '2026-07', label: 'Juillet 2026', total: 500, rows }], totals: { amount: 500, count: 2 } };
+  const common = { id: 'd', loading: false, error: false, onRetry: () => {}, windowLabel: 'Exercice 2026', staysScope: 'window', onStaysScopeChange: () => {}, onClose: () => {}, onOpenReservation: () => {}, onSettleOverdue: () => {}, onSelectProperty: () => {} };
   const { unmount } = render(<ThemeProvider theme={theme}><FinanceDetailPanel {...common} tile="collected" data={collected} /></ThemeProvider>);
-  expect(screen.getByText(/Total déjà payé · 2 paiements/)).toBeInTheDocument();
-  expect(screen.queryByText(/encaissé/i)).toBeNull();
+  expect(screen.getByText(/Total encaissé · 2 paiements/)).toBeInTheDocument();
+  expect(screen.queryByText(/Déjà payé/)).toBeNull();
   unmount();
-  const { unmount: u2 } = render(<ThemeProvider theme={theme}><FinanceDetailPanel {...common} tile="toCollect" data={{ ...TO_COLLECT, projection: { ...TO_COLLECT.projection, until: '2026-12-06' } }} /></ThemeProvider>); // date-literal-ok: echoed only
-  expect(screen.getByText(/Déjà payé/)).toBeInTheDocument();
-  expect(screen.queryByText(/Déjà encaissé/)).toBeNull();
-  u2();
   render(<ThemeProvider theme={theme}><MonthlyRevenueChart months={MONTHS} highlightWindow={false} previousYear="2025" formatAmount={String} /></ThemeProvider>);
   expect(screen.getByText('Payé ou passé')).toBeInTheDocument();
   expect(screen.queryByText('Encaissé ou passé')).toBeNull();

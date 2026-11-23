@@ -16,12 +16,17 @@ import {
 import CloseIcon from '@mui/icons-material/Close';
 import EditIcon from '@mui/icons-material/Edit';
 import PaymentsIcon from '@mui/icons-material/Payments';
+import { useNavigate } from 'react-router';
 import api from '../api';
 import AttentionCard from './AttentionCard';
 import StatusBadge from './StatusBadge';
+import ReservationLinkLine from './ReservationLinkLine';
 import CancellationCompensationDialog from './CancellationCompensationDialog';
 import { useAppDialogs, useToast } from './DialogProvider';
 import { displayDateShort, formatCurrency } from '../utils/formatters';
+import { COMPENSATIONS_PATH } from '../constants/financeMenu';
+import { useAuth } from '../hooks/useAuth';
+import { ACCOUNTANT, ADMIN, userHasRole } from '../constants/roles';
 
 // The list endpoint is month-scoped for the received compensations only; the pending ones it
 // returns are global, so any month works as the query parameter.
@@ -31,6 +36,9 @@ function currentMonthParams() {
 }
 
 export default function CancellationCompensationsPendingAlert({ attention }) {
+  const navigate = useNavigate();
+  const { user } = useAuth();
+  const canOpenPage = userHasRole(user, ADMIN) || userHasRole(user, ACCOUNTANT);
   const { confirm } = useAppDialogs();
   const { showSuccess, showError } = useToast();
   const [pending, setPending] = useState([]);
@@ -98,7 +106,7 @@ export default function CancellationCompensationsPendingAlert({ attention }) {
 
   return (
     <>
-      <AttentionCard attention={attention}>
+      <AttentionCard attention={attention} actions={canOpenPage ? [{ label: 'Ouvrir', onClick: () => navigate(COMPENSATIONS_PATH) }] : []}>
         <Stack divider={<Divider flexItem />} spacing={1.5}>
           {pending.map((compensation) => (
             <Box key={compensation.id} sx={{ position: 'relative', pr: 5 }}>
@@ -115,10 +123,12 @@ export default function CancellationCompensationsPendingAlert({ attention }) {
                   </IconButton>
                 </span>
               </Tooltip>
-              <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
-                {compensation.clientName || `Indemnité #${compensation.id}`}
-                {compensation.propertyName ? ` · ${compensation.propertyName}` : ''}
-              </Typography>
+              <ReservationLinkLine reservationId={compensation.reservationId} clientName={compensation.clientName} disabled={!compensation.reservationId}>
+                <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
+                  {compensation.clientName || `Indemnité #${compensation.id}`}
+                  {compensation.propertyName ? ` · ${compensation.propertyName}` : ''}
+                </Typography>
+              </ReservationLinkLine>
               <Typography variant="body2" color="text.secondary">
                 {compensation.startDate && compensation.endDate ? (
                   <>Séjour annulé du <strong>{displayDateShort(compensation.startDate)}</strong> au <strong>{displayDateShort(compensation.endDate)}</strong></>

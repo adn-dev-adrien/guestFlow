@@ -2207,7 +2207,7 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
       {/* Reading order on a phone: the primary action, rendered last, lands at the bottom under the
           thumb (specs/ui-review-2026-10-19-operations.md rule 1); on the right from sm. */}
       {/* specs/plugins-phase-1-sdk.md rule 58 (I4) — the commit goes busy on its click: the focus stays in the footer. */}
-      <MoneyActions ref={footerRef} sx={{ p: { xs: 2, sm: 2 }, pb: { xs: 'calc(16px + env(safe-area-inset-bottom, 0px))', sm: 2 }, gap: 1, flexDirection: { xs: 'column', sm: 'row' }, justifyContent: { sm: 'flex-end' }, '& > :not(style) ~ :not(style)': { ml: 0 }, '& .MuiButton-root': { width: { xs: '100%', sm: 'auto' }, py: 1.5, fontSize: '1rem', minHeight: 48 } }}>
+      <MoneyActions ref={footerRef} sx={{ p: { xs: 2, sm: 2 }, pb: 2, gap: 1, flexDirection: { xs: 'column', sm: 'row' }, justifyContent: { sm: 'flex-end' }, '& > :not(style) ~ :not(style)': { ml: 0 }, '& .MuiButton-root': { width: { xs: '100%', sm: 'auto' }, py: 1.5, fontSize: '1rem', minHeight: 48 } }}>
         {renderActions()}
       </MoneyActions>
     </Dialog>

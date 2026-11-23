@@ -10,6 +10,7 @@ import React from 'react';
 import { vi } from 'vitest';
 import { render, screen, waitFor, act } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { MemoryRouter, Routes, Route } from 'react-router';
 
 vi.mock('../../api', () => ({
   __esModule: true,
@@ -65,7 +66,7 @@ beforeEach(() => {
 
 test('announces the published version and the installed one', async () => {
   api.getSystemVersion.mockResolvedValue(versionInfo());
-  render(<UpdateAvailableAlert attention={ATTENTION} />);
+  render(<MemoryRouter><UpdateAvailableAlert attention={ATTENTION} /></MemoryRouter>);
   expect(screen.getByText('GuestFlow 1.1.0 disponible')).toBeInTheDocument();
   expect(screen.getByText('Version installée : 1.0.0')).toBeInTheDocument();
   await waitFor(() => expect(screen.getByRole('button', { name: 'Voir les nouveautés' })).toBeEnabled());
@@ -73,14 +74,14 @@ test('announces the published version and the installed one', async () => {
 
 test('stays silent without a subject (up to date, postponed or running — the server decides)', async () => {
   api.getSystemVersion.mockResolvedValue(versionInfo({ updateAvailable: false }));
-  const { container } = render(<UpdateAvailableAlert attention={null} />);
+  const { container } = render(<MemoryRouter><UpdateAvailableAlert attention={null} /></MemoryRouter>);
   await act(() => api.getSystemVersion.mock.results.at(-1).value);
   expect(container.firstChild).toBeNull();
 });
 
 test('a non-admin never even calls the admin endpoint', async () => {
   currentUser = { id: 2, roles: ['reception'] };
-  render(<UpdateAvailableAlert attention={null} />);
+  render(<MemoryRouter><UpdateAvailableAlert attention={null} /></MemoryRouter>);
   await new Promise((r) => setTimeout(r, 10));
   expect(api.getSystemVersion).not.toHaveBeenCalled();
 });
@@ -89,7 +90,7 @@ test('"Plus tard" postpones that exact version', async () => {
   const user = userEvent.setup();
   api.getSystemVersion.mockResolvedValue(versionInfo());
   api.dismissUpdate.mockResolvedValue({ dismissedVersion: '1.1.0' });
-  render(<UpdateAvailableAlert attention={ATTENTION} />);
+  render(<MemoryRouter><UpdateAvailableAlert attention={ATTENTION} /></MemoryRouter>);
 
   await user.click(await enabledButton('Plus tard'));
   expect(api.dismissUpdate).toHaveBeenCalledWith('1.1.0');
@@ -98,7 +99,7 @@ test('"Plus tard" postpones that exact version', async () => {
 test('nothing installs without reading the notes first: the button opens the dialog', async () => {
   const user = userEvent.setup();
   api.getSystemVersion.mockResolvedValue(versionInfo());
-  render(<UpdateAvailableAlert attention={ATTENTION} />);
+  render(<MemoryRouter><UpdateAvailableAlert attention={ATTENTION} /></MemoryRouter>);
 
   await user.click(await enabledButton('Voir les nouveautés'));
 
@@ -116,9 +117,32 @@ test('when the deployment cannot self-update, the dialog explains and blocks the
     selfUpdateSupported: false,
     selfUpdateReason: 'PM2 est introuvable : le redémarrage automatique est impossible.',
   }));
-  render(<UpdateAvailableAlert attention={ATTENTION} />);
+  render(<MemoryRouter><UpdateAvailableAlert attention={ATTENTION} /></MemoryRouter>);
 
   await user.click(await enabledButton('Voir les nouveautés'));
   expect(screen.getByText(/PM2 est introuvable/)).toBeInTheDocument();
   expect(screen.getByRole('button', { name: 'Installer maintenant' })).toBeDisabled();
+});
+
+// specs/mobile-dashboard-exercise-cash.md rule 7 — a subject that is not about one reservation offers « Ouvrir » to its page.
+test('« Ouvrir » goes to Réglages › Système et mises à jour', async () => {
+  api.getSystemVersion.mockResolvedValue(versionInfo());
+  render(
+    <MemoryRouter>
+      <Routes>
+        <Route path="/" element={<UpdateAvailableAlert attention={ATTENTION} />} />
+        <Route path="/settings/systeme" element={<p>page système</p>} />
+      </Routes>
+    </MemoryRouter>,
+  );
+  await userEvent.click(await screen.findByRole('button', { name: 'Ouvrir' }));
+  expect(screen.getByText('page système')).toBeInTheDocument();
+});
+
+test('« Ouvrir » is not offered to a role that cannot open the system page', async () => {
+  currentUser = { id: 2, roles: ['accountant'] };
+  api.getSystemVersion.mockResolvedValue(versionInfo());
+  render(<MemoryRouter><UpdateAvailableAlert attention={ATTENTION} /></MemoryRouter>);
+  await screen.findByRole('button', { name: 'Voir les nouveautés' });
+  expect(screen.queryByRole('button', { name: 'Ouvrir' })).toBeNull();
 });

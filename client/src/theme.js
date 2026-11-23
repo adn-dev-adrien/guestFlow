@@ -191,6 +191,13 @@ const theme = createTheme({
           '&.MuiDialog-paperFullScreen': {
             width: '100%',
             margin: 0,
+            // viewport-fit=cover: the one place where a full-screen dialog keeps its content out of the status bar,
+            // the notch (landscape) and the home indicator — dialogs add no inset padding of their own.
+            boxSizing: 'border-box',
+            paddingTop: 'env(safe-area-inset-top, 0px)',
+            paddingLeft: 'env(safe-area-inset-left, 0px)',
+            paddingRight: 'env(safe-area-inset-right, 0px)',
+            paddingBottom: 'env(safe-area-inset-bottom, 0px)',
           },
         },
       },

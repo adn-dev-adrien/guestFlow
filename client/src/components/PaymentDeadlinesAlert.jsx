@@ -12,6 +12,9 @@
  * platform booking whose amount was never entered carries no figure to print at all, only the row's
  * link to the fiche where the operator types it.
  *
+ * The identity line of every row is a link to the fiche (`ReservationLinkLine`, specs/mobile-dashboard-exercise-cash.md
+ * rule 5); the buttons below it never navigate.
+ *
  * Without online payment (specs/plugins-phase-3a-online-payment.md rule 25) the server marks the row
  * `remindByEmail` with the template to use: « Envoyer la demande » then opens that email in the send
  * dialog, for the operator to read before it leaves.
@@ -32,10 +35,10 @@ import { Box, Button, Divider, Stack, Typography } from '@mui/material';
 import EventBusyIcon from '@mui/icons-material/EventBusy';
 import SendIcon from '@mui/icons-material/Send';
 import SnoozeIcon from '@mui/icons-material/Snooze';
-import { Link as RouterLink, useInRouterContext } from 'react-router';
 import api from '../api';
 import AttentionCard from './AttentionCard';
 import StatusBadge from './StatusBadge';
+import ReservationLinkLine from './ReservationLinkLine';
 import ReservationCancelDialog from './ReservationCancelDialog';
 import EmailManualSendDialog from './EmailManualSendDialog';
 import { useToast } from './DialogProvider';
@@ -45,7 +48,6 @@ import { DEADLINE_STATE_LABELS, DEADLINE_STATE_BADGE, deadlineHeadline } from '.
 
 export default function PaymentDeadlinesAlert({ attention }) {
   const { showSuccess, showError } = useToast();
-  const inRouter = useInRouterContext();
   const [rows, setRows] = useState([]);
   const [busyId, setBusyId] = useState(null);
   const [cancelRow, setCancelRow] = useState(null);
@@ -148,14 +150,16 @@ export default function PaymentDeadlinesAlert({ attention }) {
         <Stack divider={<Divider flexItem />} spacing={1.5}>
           {rows.map((row) => (
             <Box key={row.reservationId}>
-              <Stack direction="row" spacing={1} sx={{ alignItems: 'center', flexWrap: 'wrap' }}>
-                <StatusBadge status={DEADLINE_STATE_BADGE[row.state]} label={DEADLINE_STATE_LABELS[row.state]} />
-                <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
-                  {row.clientName}
-                  {row.propertyName ? ` · ${row.propertyName}` : ''}
-                  {row.platformLabel ? ` · ${row.platformLabel}` : ''}
-                </Typography>
-              </Stack>
+              <ReservationLinkLine reservationId={row.reservationId} clientName={row.clientName}>
+                <Stack direction="row" spacing={1} sx={{ alignItems: 'center', flexWrap: 'wrap' }}>
+                  <StatusBadge status={DEADLINE_STATE_BADGE[row.state]} label={DEADLINE_STATE_LABELS[row.state]} />
+                  <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
+                    {row.clientName}
+                    {row.propertyName ? ` · ${row.propertyName}` : ''}
+                    {row.platformLabel ? ` · ${row.platformLabel}` : ''}
+                  </Typography>
+                </Stack>
+              </ReservationLinkLine>
               <Typography variant="body2" color="text.secondary">
                 Du {displayDateShort(row.startDate)} au {displayDateShort(row.endDate)}
                 {row.reservationNumber ? ` · n° ${row.reservationNumber}` : ''}
@@ -188,14 +192,6 @@ export default function PaymentDeadlinesAlert({ attention }) {
                       aria-label={`Confirmer le virement de ${formatCurrency(row.bank.amountCents / 100)} pour ${row.clientName}`}
                     >
                       Confirmer
-                    </Button>
-                  ) : null}
-                  {row.bank.state === 'proposed' && !row.bank.proposalId ? (
-                    <Button
-                      size="small" variant="text" sx={{ minHeight: 44 }} {...(inRouter ? { component: RouterLink, to: `/reservations/${row.reservationId}` } : { href: `/reservations/${row.reservationId}` })}
-                      aria-label={`Vérifier le virement pour ${row.clientName}`}
-                    >
-                      Vérifier
                     </Button>
                   ) : null}
                 </Stack>
