@@ -1,6 +1,6 @@
 // specs/server-test-isolation.md rule 15 (audit R36-S4) — `npm test` runs one process per file and its --test-timeout also
 // cuts the whole file: a test's own `{ timeout }` above it is dead. No server test asks for more than the cap, and the
-// per-field fuzz is split so that each half runs well under it.
+// per-field fuzz is split so that each part runs well under it.
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('fs');
@@ -39,11 +39,18 @@ test('rule 15 — the reader sees the forms it judges', () => {
   assert.deepEqual(read("spawnSync(node, args, { encoding: 'utf8', timeout: 120000 });"), [], 'a child process budget is not a test option');
 });
 
-test('rule 15 — the per-field fuzz is two files sharing one runner, every row in exactly one', () => {
-  const { isStayRow } = require('./inputShapePerField');
-  for (const name of ['input-shape-per-field.unit.test.js', 'input-shape-per-field-others.unit.test.js']) {
-    assert.match(fs.readFileSync(path.join(__dirname, name), 'utf8'), /perFieldSuite\(\{ part: /, name);
+test('rule 15 — the per-field fuzz is four files sharing one runner, every row in exactly one', () => {
+  const { isStayRow, isWholeReservationRow, VALUES } = require('./inputShapePerField');
+  const files = ['input-shape-per-field', 'input-shape-per-field-reservation-a', 'input-shape-per-field-reservation-b', 'input-shape-per-field-others'];
+  for (const name of files) {
+    assert.match(fs.readFileSync(path.join(__dirname, `${name}.unit.test.js`), 'utf8'), /perFieldSuite\(\{ part: /, name);
   }
-  const rows = [['PUT', '/api/reservations/1'], ['POST', '/api/devis'], ['POST', '/api/users'], ['POST', '/api/reservationsX'], ['POST', () => {}]];
-  assert.deepEqual(rows.map(isStayRow), [true, true, false, false, true]);
+  const rows = [['PUT', '/api/reservations/1'], ['POST', '/api/devis'], ['POST', '/api/users'], ['POST', '/api/reservationsX'], ['POST', () => {}], ['PUT', '/api/reservations/1/installments']];
+  assert.deepEqual(rows.map(isStayRow), [true, true, false, false, true, true]);
+  assert.deepEqual(rows.map(isWholeReservationRow), [true, false, false, false, false, false]);
+  // The whole reservation's two files share the values between them, each value in exactly one.
+  const read = (part) => fs.readFileSync(path.join(__dirname, `input-shape-per-field-reservation-${part}.unit.test.js`), 'utf8');
+  assert.match(read('a'), /values: VALUES\.slice\(0, 3\)/);
+  assert.match(read('b'), /values: VALUES\.slice\(3\)/);
+  assert.equal(VALUES.length, 5);
 });

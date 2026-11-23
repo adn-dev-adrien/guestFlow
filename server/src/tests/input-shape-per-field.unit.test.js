@@ -1,13 +1,14 @@
 // specs/hosting-h2-account-security.md rule 68, reading of 2026-11-05 (audit R23-A2, R23-A3, section 4 of the audit) — the whole
 // route set from a valid baseline, one field wrong at a time, through the real application: no 5xx, no `[unhandled]` line, no
 // wrong type stored as text. Each baseline must reach its fields: a row refused on its own would prove nothing. This file
-// holds the stays, their money and their logements; input-shape-per-field-others the rest (R36-S4, the per-file cap).
+// holds the stays, their money and their logements but the whole reservation, which input-shape-per-field-reservation-a
+// and -b fuzz; input-shape-per-field-others the rest (R36-S4, the per-file cap; server-test-isolation rule 24).
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { dayAt } = require('./inputShapeBaselines');
-const { perFieldSuite, isStayRow } = require('./inputShapePerField');
+const { perFieldSuite, isStayRow, isWholeReservationRow } = require('./inputShapePerField');
 
-const suite = perFieldSuite({ part: isStayRow, minRequests: 2000 });
+const suite = perFieldSuite({ part: (row) => isStayRow(row) && !isWholeReservationRow(row), minRequests: 1000 });
 
 test('rule 68 — what the fuzz found behind the baselines: each its own refusal', async () => {
   const { app, admin } = suite;
