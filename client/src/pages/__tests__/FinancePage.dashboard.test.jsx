@@ -1,7 +1,7 @@
 /**
  * FinancePage — the Suivi financier dashboard (specs/finance-dashboard-redesign.md rules 3-4, 12-16).
  * The page renders the server payload as is: the fixtures mirror `/finance/dashboard` and its detail
- * `toCollect` exactly.
+ * `toCollect` exactly (the month-grouped payments of specs/mobile-dashboard-exercise-cash.md).
  */
 
 import React from 'react';
@@ -29,7 +29,7 @@ function LocationProbe() { location = useLocation(); return null; }
 function renderPage(entry = '/finance') {
   return render(
     <MemoryRouter initialEntries={[entry]}>
-      <Routes><Route path="/finance" element={<><FinancePage /><LocationProbe /></>} /></Routes>
+      <Routes><Route path="/finance" element={<><FinancePage /><LocationProbe /></>} /><Route path="/reservations/:id" element={<LocationProbe />} /></Routes>
     </MemoryRouter>,
   );
 }
@@ -43,17 +43,17 @@ afterEach(() => { delete window.matchMedia; });
 
 test('rule 13 — no tile is open on arrival; a tile opens its table, a second click closes it', async () => {
   renderPage();
-  const tile = await screen.findByRole('button', { name: 'À encaisser : afficher le détail' });
-  expect(screen.queryByRole('region', { name: 'À encaisser' })).toBeNull();
+  const tile = await screen.findByRole('button', { name: 'Reste à encaisser : afficher le détail' });
+  expect(screen.queryByRole('region', { name: 'Reste à encaisser' })).toBeNull();
   expect(api.getFinanceDashboardDetail).not.toHaveBeenCalled();
 
   fireEvent.click(tile);
-  const panel = await screen.findByRole('region', { name: 'À encaisser' });
+  const panel = await screen.findByRole('region', { name: 'Reste à encaisser' });
   await within(panel).findByText('Marie Martin');
   expect(api.getFinanceDashboardDetail).toHaveBeenCalledWith('toCollect', expect.objectContaining({ period: 'fy' }));
 
-  fireEvent.click(screen.getByRole('button', { name: 'À encaisser : masquer le détail' }));
-  expect(screen.queryByRole('region', { name: 'À encaisser' })).toBeNull();
+  fireEvent.click(screen.getByRole('button', { name: 'Reste à encaisser : masquer le détail' }));
+  expect(screen.queryByRole('region', { name: 'Reste à encaisser' })).toBeNull();
 });
 
 test('rule 12 — the logement strip sits above the hero and filters the page through the URL (rule 4)', async () => {
@@ -74,38 +74,25 @@ test('rule 4 — the window is read back from the URL', async () => {
   expect(api.getFinanceDashboard).toHaveBeenCalledWith(expect.objectContaining({ fiscalYear: '2026', period: 'month', month: '2026-07' }));
 });
 
-test('rule 15 — ticking a payment PATCHes the reservation, then reloads the dashboard and the table', async () => {
+test('rule 16 of mobile-dashboard-exercise-cash — a line of « Reste à encaisser » opens the fiche and ticks nothing', async () => {
   renderPage();
-  fireEvent.click(await screen.findByRole('button', { name: 'À encaisser : afficher le détail' }));
-  const panel = await screen.findByRole('region', { name: 'À encaisser' });
-  await within(panel).findByText('Marie Martin');
-  fireEvent.click(within(panel).getAllByRole('checkbox')[0]);
-  await waitFor(() => expect(api.markPayment).toHaveBeenCalledWith(42, { depositPaid: true }));
-  await waitFor(() => expect(api.getFinanceDashboard).toHaveBeenCalledTimes(2));
-  expect(api.getFinanceDashboardDetail).toHaveBeenCalledTimes(2);
+  fireEvent.click(await screen.findByRole('button', { name: 'Reste à encaisser : afficher le détail' }));
+  const panel = await screen.findByRole('region', { name: 'Reste à encaisser' });
+  fireEvent.click(await within(panel).findByRole('button', { name: /Solde de Marie Martin/ }));
+  await waitFor(() => expect(location.pathname).toBe('/reservations/42'));
+  expect(api.markPayment).not.toHaveBeenCalled();
 });
 
-test('rule 15 — a refused payment shows the server message and reloads nothing', async () => {
-  api.markPayment.mockRejectedValue(new Error('Capture des contributions impossible'));
-  renderPage();
-  fireEvent.click(await screen.findByRole('button', { name: 'À encaisser : afficher le détail' }));
-  const panel = await screen.findByRole('region', { name: 'À encaisser' });
-  await within(panel).findByText('Marie Martin');
-  fireEvent.click(within(panel).getAllByRole('checkbox')[0]);
-  expect(await screen.findByText('Capture des contributions impossible')).toBeInTheDocument();
-  expect(api.getFinanceDashboard).toHaveBeenCalledTimes(1);
-});
-
-test('rule 16 — on xs the table becomes stacked cards, checkboxes included', async () => {
+test('rule 16 — on xs the lines are stacked cards: date and amount, then client · logement · kind', async () => {
   window.matchMedia = (query) => ({
     matches: /max-width/.test(query), media: query,
     addEventListener: () => {}, removeEventListener: () => {}, addListener: () => {}, removeListener: () => {},
     onchange: null, dispatchEvent: () => false,
   });
   renderPage();
-  fireEvent.click(await screen.findByRole('button', { name: 'À encaisser : afficher le détail' }));
-  const panel = await screen.findByRole('region', { name: 'À encaisser' });
+  fireEvent.click(await screen.findByRole('button', { name: 'Reste à encaisser : afficher le détail' }));
+  const panel = await screen.findByRole('region', { name: 'Reste à encaisser' });
   await within(panel).findByText('Marie Martin');
   expect(within(panel).queryByRole('table')).toBeNull();
-  expect(within(panel).getAllByRole('checkbox')).toHaveLength(2);
+  expect(within(panel).getByText('Marie Martin · Tente · Solde')).toBeInTheDocument();
 });

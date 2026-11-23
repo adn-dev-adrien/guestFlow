@@ -42,8 +42,9 @@ test('rule 41 — GdF 11 and Abracadaroom 22275: « En retard » shows the payou
   assert.deepEqual(byLabel, { 'Versement Gîtes de France': 1545, 'Versement Abracadaroom': 573.77 });
   assert.deepEqual(detail.totals.payouts, { count: 2, totalAmount: 2118.77 });
 
-  const toCollect = dashboard.getDashboardDetail('toCollect', {}).data;
-  const remaining = Object.fromEntries(toCollect.rows.map((r) => [r.platform, r.remainingToPay]));
+  const exercise = Number(daysAgo(57).slice(0, 4));
+  const toCollect = dashboard.getDashboardDetail('toCollect', { fiscalYear: exercise }).data;
+  const remaining = Object.fromEntries(toCollect.rows.map((r) => [r.platform, r.amount]));
   assert.equal(remaining.GitesDeFrance, 1545, 'the same figure on both tiles');
   assert.equal(remaining.Abracadaroom, 573.77);
 });

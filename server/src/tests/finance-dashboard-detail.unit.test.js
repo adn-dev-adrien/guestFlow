@@ -44,15 +44,17 @@ test('rule 13 — « Encaissé » lists each payment, dated, and adds up to the 
   ]);
 });
 
-test('rule 13 — « À encaisser » is today\'s pending list with the « Arrivées d\'ici le » projection', () => {
+test('rules 11 and 16 of mobile-dashboard-exercise-cash — « Reste à encaisser » lists each expected payment and adds up to the tile', () => {
   const { db, dashboard } = freshDb();
   seed(db);
   insert(db, { startDate: `${Y}-05-01`, endDate: `${Y}-05-03`, balanceAmount: 250 });
-  const d = dashboard.getDashboardDetail('toCollect', { fiscalYear: Y, until: `${Y}-12-31` }).data;
-  assert.ok(d.rows.some((r) => r.balanceAmount === 250));
-  assert.equal(d.totals.remainingToPay, dashboard.getDashboard({ fiscalYear: Y }).data.tiles.toCollect.amount);
-  assert.equal(d.projection.until, `${Y}-12-31`);
-  assert.equal(d.projection.pending, Math.round((d.projection.total - d.projection.collected) * 100) / 100);
+  const d = dashboard.getDashboardDetail('toCollect', { fiscalYear: Y }).data;
+  const tile = dashboard.getDashboard({ fiscalYear: Y }).data.tiles.toCollect;
+  assert.ok(d.rows.some((r) => r.amount === 250 && r.label === 'Solde'));
+  assert.equal(d.totals.amount, tile.amount);
+  assert.equal(d.totals.payments, tile.payments);
+  assert.equal(sum(d.rows, 'amount'), tile.amount);
+  assert.equal(sum(d.groups, 'total'), tile.amount);
 });
 
 test('rule 13 — « Réservations »: the window\'s stays, or every upcoming one', () => {

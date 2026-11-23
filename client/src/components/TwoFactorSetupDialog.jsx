@@ -355,7 +355,7 @@ export default function TwoFactorSetupDialog({
           </Stack>
         )}
       </DialogContent>
-      <DialogActions sx={{ px: 3, pb: 'max(16px, env(safe-area-inset-bottom))' }}>
+      <DialogActions sx={{ px: 3, pb: 2 }}>
         {step === 1 && (
           <>
             <Button onClick={leave} sx={{ minHeight: 44 }}>Annuler</Button>

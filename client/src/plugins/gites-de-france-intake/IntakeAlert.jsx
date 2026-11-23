@@ -6,9 +6,8 @@
  * server's (specs/shell-and-home-day-first.md rule 6).
  */
 import React, { useEffect, useState } from 'react';
-import { Stack, Typography, Link } from '@mui/material';
-import { useNavigate } from 'react-router';
-import { api, displayDate, AttentionCard } from '../sdk';
+import { Stack, Typography } from '@mui/material';
+import { api, displayDate, AttentionCard, ReservationLinkLine } from '../sdk';
 
 const STATUS_TEXT = {
   pending: 'aucune fiche sur ces dates',
@@ -17,7 +16,6 @@ const STATUS_TEXT = {
 };
 
 export default function IntakeAlert({ attention }) {
-  const navigate = useNavigate();
   const [items, setItems] = useState([]);
 
   useEffect(() => {
@@ -30,18 +28,12 @@ export default function IntakeAlert({ attention }) {
     <AttentionCard attention={attention}>
       <Stack spacing={0.5}>
         {items.map((item) => (
-          <Typography key={item.id} variant="body2">
-            {item.dossierNumber ? `Dossier ${item.dossierNumber}` : 'Mail'} du {displayDate(item.receivedAt.slice(0, 10))} —{' '}
-            {item.error || STATUS_TEXT[item.status]}
-            {item.reservationId && (
-              <>
-                {' · '}
-                <Link component="button" variant="body2" onClick={() => navigate(`/reservations/${item.reservationId}`)}>
-                  Ouvrir la fiche
-                </Link>
-              </>
-            )}
-          </Typography>
+          <ReservationLinkLine key={item.id} reservationId={item.reservationId} disabled={!item.reservationId}>
+            <Typography variant="body2">
+              {item.dossierNumber ? `Dossier ${item.dossierNumber}` : 'Mail'} du {displayDate(item.receivedAt.slice(0, 10))} —{' '}
+              {item.error || STATUS_TEXT[item.status]}
+            </Typography>
+          </ReservationLinkLine>
         ))}
       </Stack>
     </AttentionCard>

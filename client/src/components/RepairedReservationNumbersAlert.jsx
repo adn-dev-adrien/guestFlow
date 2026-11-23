@@ -12,14 +12,12 @@ import React, { useCallback, useEffect, useState } from 'react';
 import {
   Box, Button, Divider, Stack, Typography,
 } from '@mui/material';
-import ChevronRightIcon from '@mui/icons-material/ChevronRight';
-import { useNavigate } from 'react-router';
 import api from '../api';
 import AttentionCard from './AttentionCard';
+import ReservationLinkLine from './ReservationLinkLine';
 import { displayDateShort } from '../utils/formatters';
 
 export default function RepairedReservationNumbersAlert({ attention }) {
-  const navigate = useNavigate();
   const [alerts, setAlerts] = useState([]);
   const [busyId, setBusyId] = useState(null);
 
@@ -48,8 +46,6 @@ export default function RepairedReservationNumbersAlert({ attention }) {
 
   if (alerts.length === 0) return null;
 
-  const open = (reservationId) => navigate(`/reservations/${reservationId}`);
-
   return (
     <AttentionCard attention={attention}>
       <Stack divider={<Divider flexItem />} spacing={0.5}>
@@ -58,28 +54,15 @@ export default function RepairedReservationNumbersAlert({ attention }) {
             key={alert.reservationId}
             sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: { xs: 'wrap', sm: 'nowrap' } }}
           >
-            <Box
-              role="button"
-              tabIndex={0}
-              onClick={() => open(alert.reservationId)}
-              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); open(alert.reservationId); } }}
-              sx={{
-                display: 'flex', alignItems: 'center', gap: 1, flex: 1, minWidth: 0,
-                cursor: 'pointer', borderRadius: 1, px: 1, py: 1, mx: -1, minHeight: 44,
-                '&:hover': { bgcolor: 'action.hover' },
-              }}
-            >
-              <Box sx={{ flex: 1, minWidth: 0 }}>
-                <Typography variant="subtitle2" sx={{ fontWeight: 700, overflowWrap: 'anywhere' }}>
-                  N° {alert.reservationNumber} · {alert.clientName}
-                  {alert.propertyName ? ` · ${alert.propertyName}` : ''}
-                </Typography>
-                <Typography variant="body2" color="text.secondary">
-                  Du <strong>{displayDateShort(alert.startDate)}</strong> au <strong>{displayDateShort(alert.endDate)}</strong>
-                </Typography>
-              </Box>
-              <ChevronRightIcon fontSize="small" color="action" />
-            </Box>
+            <ReservationLinkLine reservationId={alert.reservationId} clientName={alert.clientName} sx={{ flex: 1, minWidth: 0 }}>
+              <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
+                N° {alert.reservationNumber} · {alert.clientName}
+                {alert.propertyName ? ` · ${alert.propertyName}` : ''}
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                Du <strong>{displayDateShort(alert.startDate)}</strong> au <strong>{displayDateShort(alert.endDate)}</strong>
+              </Typography>
+            </ReservationLinkLine>
             <Button
               size="small"
               variant="outlined"

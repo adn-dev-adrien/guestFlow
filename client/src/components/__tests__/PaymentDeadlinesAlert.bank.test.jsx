@@ -52,12 +52,13 @@ test('a row without a bank line is drawn as before', async () => {
   expect(screen.queryByRole('button', { name: /^Confirmer/ })).toBeNull();
 });
 
-test('rule 37 — a proposal that is not « sûr » is not one click: « Vérifier » leads to the fiche', async () => {
+test('rule 37 — a proposal that is not « sûr » is not one click: the row\'s identity link leads to the fiche (no « Vérifier » button)', async () => {
   api.getPaymentDeadlines.mockResolvedValue({ rows: [{ ...ROW, bank: { state: 'proposed', label: 'Virement trouvé : 596,58 € le 12/11', confidence: 'verifier', confidenceLabel: 'à vérifier', proposalId: null, amountCents: 59658 } }] });
   renderCard();
   expect(await screen.findByText(/à vérifier/)).toBeTruthy();
   expect(screen.queryByRole('button', { name: /^Confirmer/ })).toBeNull();
-  expect(screen.getByRole('link', { name: /^Vérifier le virement pour Marie Dupont/ }).getAttribute('href')).toBe('/reservations/10');
+  expect(screen.queryByRole('button', { name: /Vérifier/ })).toBeNull();
+  expect(screen.getByRole('link', { name: 'Ouvrir la fiche de Marie Dupont' }).getAttribute('href')).toBe('/reservations/10?from=%2F');
 });
 
 test('a refused confirmation shows the server\'s words and keeps the row', async () => {

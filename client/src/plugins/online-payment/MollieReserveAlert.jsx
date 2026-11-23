@@ -7,12 +7,11 @@
  * and its count can never disagree. Renders nothing on error: a home card never breaks the page.
  */
 import React, { useEffect, useState } from 'react';
-import { Box, Divider, Stack, Typography } from '@mui/material';
+import { Divider, Stack, Typography } from '@mui/material';
 import { useNavigate } from 'react-router';
-import { api, AttentionCard } from '../sdk';
+import { api, AttentionCard, ReservationLinkLine } from '../sdk';
 
 // A sale outside a stay (`reservationId` null, `saleKey` set) has no fiche: its line is read-only.
-const ficheOf = (item) => (item.reservationId == null ? null : `/reservations/${item.reservationId}`);
 const keyOf = (item) => (item.reservationId == null ? `sale:${item.saleKey}` : `r${item.reservationId}`);
 
 export default function MollieReserveAlert({ attention }) {
@@ -32,22 +31,11 @@ export default function MollieReserveAlert({ attention }) {
     <AttentionCard attention={attention} actions={[{ label: 'Ouvrir le rapprochement', onClick: () => navigate('/finance/rapprochement'), primary: true }]}>
       {items.length > 0 && (
         <Stack divider={<Divider flexItem />} spacing={0.5}>
-          {items.slice(0, 8).map((item) => {
-            const to = ficheOf(item);
-            return (
-              <Box
-                key={keyOf(item)}
-                {...(to ? {
-                  role: 'button', tabIndex: 0,
-                  onClick: () => navigate(to),
-                  onKeyDown: (e) => { if (e.key === 'Enter' || e.key === ' ') navigate(to); },
-                } : {})}
-                sx={{ py: 0.75, minHeight: 44, cursor: to ? 'pointer' : 'default' }}
-              >
-                <Typography variant="body2" sx={{ fontWeight: 600 }}>{item.line}</Typography>
-              </Box>
-            );
-          })}
+          {items.slice(0, 8).map((item) => (
+            <ReservationLinkLine key={keyOf(item)} reservationId={item.reservationId} clientName={item.clientName} disabled={item.reservationId == null}>
+              <Typography variant="body2" sx={{ fontWeight: 600 }}>{item.line}</Typography>
+            </ReservationLinkLine>
+          ))}
         </Stack>
       )}
     </AttentionCard>

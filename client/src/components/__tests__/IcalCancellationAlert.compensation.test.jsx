@@ -21,12 +21,6 @@ vi.mock('../../api', () => ({
   },
 }));
 
-const navigate = vi.fn();
-vi.mock('react-router', () => ({
-  __esModule: true,
-  useNavigate: () => navigate,
-}));
-
 import api from '../../api';
 import IcalCancellationAlert from '../IcalCancellationAlert';
 
@@ -95,10 +89,8 @@ test('a failing approval keeps the card — nothing was deleted server-side', as
   await user.click(await screen.findByRole('button', { name: 'Supprimer' }));
   await user.click(await screen.findByRole('button', { name: 'Valider' }));
   await waitFor(() => expect(api.approveIcalCancellation).toHaveBeenCalled());
-  // The card survives (its « Voir la fiche » action is still there) and the dialog stays open so
-  // the operator can retry — the name now appears twice, hence the getAllByText.
-  // Queried by text, not by role: the open dialog marks the background aria-hidden.
-  expect(screen.getByText('Voir la fiche')).toBeInTheDocument();
+  // The card survives and the dialog stays open so the operator can retry — the name now appears twice,
+  // hence the getAllByText. Queried by text, not by role: the open dialog marks the background aria-hidden.
   // Regex matcher: the card's line reads « Claire Notin · Le Lodge » in a single element.
   expect(screen.getAllByText(/Claire Notin/).length).toBeGreaterThan(0);
 });

@@ -11,11 +11,9 @@
  */
 import React, { useCallback, useEffect, useState } from 'react';
 import { Button, Stack, Typography } from '@mui/material';
-import { useNavigate } from 'react-router';
-import { api, displayDate, AttentionCard } from '../sdk';
+import { api, displayDate, AttentionCard, ReservationLinkLine } from '../sdk';
 
 export default function PendingAlert({ urgent = false, attention }) {
-  const navigate = useNavigate();
   const [items, setItems] = useState([]);
 
   const load = useCallback(() => {
@@ -35,16 +33,15 @@ export default function PendingAlert({ urgent = false, attention }) {
       <Stack spacing={1.5}>
         {shown.map((item) => (
           <Stack key={item.reservationId} spacing={1}>
-            <Typography variant="body2">
-              {item.propertyName} · {displayDate(item.startDate)} → {displayDate(item.endDate)}
-              {urgent ? ` · arrivée ${item.daysToArrival === 0 ? 'aujourd’hui' : `dans ${item.daysToArrival} jour${item.daysToArrival > 1 ? 's' : ''}`}` : ''}
-            </Typography>
+            <ReservationLinkLine reservationId={item.reservationId} disabled={!item.reservationId}>
+              <Typography variant="body2">
+                {item.propertyName} · {displayDate(item.startDate)} → {displayDate(item.endDate)}
+                {urgent ? ` · arrivée ${item.daysToArrival === 0 ? 'aujourd’hui' : `dans ${item.daysToArrival} jour${item.daysToArrival > 1 ? 's' : ''}`}` : ''}
+              </Typography>
+            </ReservationLinkLine>
             <Stack direction={{ xs: 'column', sm: 'row' }} gap={1}>
               <Button size="small" variant="outlined" component="a" href={item.extranetUrl} target="_blank" rel="noopener noreferrer" sx={{ minHeight: 44 }}>
                 Ouvrir dans Booking
-              </Button>
-              <Button size="small" variant="outlined" color="inherit" sx={{ minHeight: 44 }} onClick={() => navigate(`/reservations/${item.reservationId}`)}>
-                Ouvrir la fiche
               </Button>
               <Button size="small" color="inherit" sx={{ minHeight: 44 }} onClick={() => dismiss(item.reservationId)}>
                 Pas une réservation Booking

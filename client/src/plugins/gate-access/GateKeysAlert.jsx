@@ -15,9 +15,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import {
   Box, Divider, Stack, Typography,
 } from '@mui/material';
-import ChevronRightIcon from '@mui/icons-material/ChevronRight';
-import { useNavigate } from 'react-router';
-import { api, AttentionCard } from '../sdk';
+import { api, AttentionCard, ReservationLinkLine } from '../sdk';
 
 function formatDateTime(iso) {
   if (!iso) return '';
@@ -36,7 +34,6 @@ const rowSx = {
 };
 
 export default function GateKeysAlert({ attention }) {
-  const navigate = useNavigate();
   const [failures, setFailures] = useState([]);
   const [stale, setStale] = useState(null);
   // The list could not be read: the server says so in the pinned card (« Lecture des clés
@@ -61,8 +58,6 @@ export default function GateKeysAlert({ attention }) {
   if (unreadable) return <AttentionCard attention={attention} />;
   if (failures.length === 0 && !stale) return null;
 
-  const open = (failure) => navigate(`/reservations/${failure.reservationId}`);
-
   return (
     <AttentionCard attention={attention}>
       <Stack divider={<Divider flexItem />} spacing={0.5}>
@@ -80,28 +75,12 @@ export default function GateKeysAlert({ attention }) {
           </Box>
         ) : null}
         {failures.map((failure) => (
-          <Box
-            key={failure.reservationId}
-            role={failure.exists ? 'button' : undefined}
-            tabIndex={failure.exists ? 0 : undefined}
-            onClick={failure.exists ? () => open(failure) : undefined}
-            onKeyDown={failure.exists
-              ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); open(failure); } }
-              : undefined}
-            sx={{
-              ...rowSx,
-              cursor: failure.exists ? 'pointer' : 'default',
-              '&:hover': failure.exists ? { bgcolor: 'action.hover' } : undefined,
-            }}
-          >
-            <Box sx={{ flex: 1, minWidth: 0 }}>
-              <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
-                {failure.name} — {failure.title}
-              </Typography>
-              <Typography variant="body2" color="text.secondary">{failure.reason}</Typography>
-            </Box>
-            {failure.exists ? <ChevronRightIcon fontSize="small" color="action" /> : null}
-          </Box>
+          <ReservationLinkLine key={failure.reservationId} reservationId={failure.reservationId} clientName={failure.name} disabled={!failure.exists}>
+            <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
+              {failure.name} — {failure.title}
+            </Typography>
+            <Typography variant="body2" color="text.secondary">{failure.reason}</Typography>
+          </ReservationLinkLine>
         ))}
       </Stack>
     </AttentionCard>

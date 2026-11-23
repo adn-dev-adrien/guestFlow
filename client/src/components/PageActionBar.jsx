@@ -94,16 +94,22 @@ const APP_BAR_HEIGHT = { xs: 56, sm: 64 };
 function usePublishBarBottom(ref, isMobile, drawn) {
   useLayoutEffect(() => {
     const root = document.documentElement;
-    const base = isMobile ? APP_BAR_HEIGHT.xs : APP_BAR_HEIGHT.sm;
     const el = drawn ? ref.current : null;
-    const publish = () => root.style.setProperty('--gf-page-bar-bottom', `${base + (el ? el.offsetHeight : 0)}px`);
+    // The app bar's real bottom edge (it grows with the notch's inset), so the published value is the bar's true bottom.
+    const appBarBottom = () => {
+      const header = document.querySelector('header.MuiAppBar-root');
+      return header ? header.getBoundingClientRect().bottom : (isMobile ? APP_BAR_HEIGHT.xs : APP_BAR_HEIGHT.sm);
+    };
+    const publish = () => root.style.setProperty('--gf-page-bar-bottom', `${Math.round(appBarBottom() + (el ? el.offsetHeight : 0))}px`);
     publish();
     let observer = null;
     if (el && typeof ResizeObserver !== 'undefined') {
       observer = new ResizeObserver(publish);
       observer.observe(el);
     }
+    window.addEventListener('resize', publish);
     return () => {
+      window.removeEventListener('resize', publish);
       if (observer) observer.disconnect();
       root.style.removeProperty('--gf-page-bar-bottom');
     };
@@ -322,7 +328,7 @@ export default function PageActionBar({
       data-sticky-bar=""
       sx={{
         position: 'sticky',
-        top: { xs: 56, sm: 64 },
+        top: { xs: 'calc(56px + env(safe-area-inset-top, 0px))', sm: 'calc(64px + env(safe-area-inset-top, 0px))' },
         zIndex: (t) => t.zIndex.appBar - 1,
         bgcolor: 'background.paper',
         borderBottom: '1px solid',

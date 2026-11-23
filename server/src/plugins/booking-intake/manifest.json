@@ -1,7 +1,7 @@
 {
   "id": "booking-intake",
   "name": "Saisie Booking",
-  "version": "1.3.17",
+  "version": "1.3.18",
   "description": "Remplit les fiches Booking depuis la page de la réservation, ouverte dans l’extranet.",
   "icon": "bookmark",
   "surfaces": [
@@ -11,7 +11,7 @@
   ],
   "requires": [],
   "guestflow": ">=3.10.0",
-  "sdk": "^2.33.0",
+  "sdk": "^2.34.0",
   "changelog": {
     "1.0.0": [
       "Première version publiée en paquet : un script du navigateur envoie la page de la réservation ouverte dans l’extranet Booking, et la fiche iCal se remplit.",
@@ -104,6 +104,9 @@
     "1.3.17": [
       "Aucun changement visible : GuestFlow sait désormais qu'une part d'un paiement peut avoir été reçue d'avance (un bon cadeau), ce que ce module lit sans le compter à part.",
       "Compatible avec GuestFlow 4 (SDK 2.33)."
+    ],
+    "1.3.18": [
+      "Accueil : la ligne d’une réservation Booking à compléter ouvre sa fiche (le bouton « Ouvrir la fiche » est remplacé par le lien de la ligne) (SDK 2.34.0)."
     ]
   }
 }

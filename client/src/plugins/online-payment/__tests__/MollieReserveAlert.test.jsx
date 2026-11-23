@@ -35,7 +35,7 @@ test('one line per fiche, in the server\'s order, with the date it was expected;
   api.getMollieReserveAttention.mockResolvedValue({ count: 2, items: [OLDEST, NEWER] });
   renderAlert();
   expect(await screen.findByText('Retenue Mollie non reçue')).toBeInTheDocument();
-  const lines = screen.getAllByRole('button', { name: /€/ });
+  const lines = screen.getAllByRole('link', { name: /^Ouvrir la fiche de / });
   expect(lines).toHaveLength(2);
   expect(lines[0]).toHaveTextContent('Jean Dupont · 146,48 € · attendue le 08/11');
   expect(lines[1]).toHaveTextContent('Lucia Rossi');
@@ -47,5 +47,5 @@ test('a failed read draws the card without its list, never an error', async () =
   api.getMollieReserveAttention.mockRejectedValue(new Error('boom'));
   renderAlert();
   expect(await screen.findByText('Retenue Mollie non reçue')).toBeInTheDocument();
-  expect(screen.queryByRole('button', { name: /Lucia/ })).not.toBeInTheDocument();
+  expect(screen.queryByRole('link', { name: /Lucia/ })).not.toBeInTheDocument();
 });

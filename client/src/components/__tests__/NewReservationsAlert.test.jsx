@@ -1,7 +1,7 @@
 // server-test-isolation.md rule 11 — a « nothing shown » check first waits for the answer that could show it.
 /**
  * NewReservationsAlert — dashboard card listing every reservation created during the last 24 hours.
- * Renders nothing when empty; each row navigates to the reservation page on click; refetches every
+ * Renders nothing when empty; each row links to the reservation page; refetches every
  * 5 minutes. See specs/dashboard-ical-new-reservations.md (amended 2026-10-06).
  */
 
@@ -17,12 +17,6 @@ vi.mock('../../api', () => ({
   },
 }));
 
-const navigate = vi.fn();
-vi.mock('react-router', () => ({
-  __esModule: true,
-  useNavigate: () => navigate,
-}));
-
 import api from '../../api';
 import NewReservationsAlert from '../NewReservationsAlert';
 
@@ -31,7 +25,6 @@ const ATTENTION = { key: 'new-reservations', severity: 'info', count: 2, title: 
 
 beforeEach(() => {
   api.getNewReservations.mockReset();
-  navigate.mockReset();
 });
 
 const row = (over = {}) => ({
@@ -70,13 +63,12 @@ test('renders the card with the count + a row per reservation', async () => {
   expect(screen.getByText(/Marie Durand/)).toBeInTheDocument();
 });
 
-test('clicking a row navigates to the reservation page', async () => {
-  const user = userEvent.setup();
+test('each row is a link to its fiche, back to the home (specs/mobile-dashboard-exercise-cash.md rule 6)', async () => {
   api.getNewReservations.mockResolvedValue({ alerts: [row()] });
   render(<NewReservationsAlert attention={ATTENTION} />);
-  await screen.findByText(/Jean Dupont · Gite/);
-  await user.click(screen.getByText(/Jean Dupont · Gite/));
-  expect(navigate).toHaveBeenCalledWith('/reservations/12087');
+  const link = await screen.findByRole('link', { name: 'Ouvrir la fiche de Jean Dupont' });
+  expect(link).toHaveAttribute('href', '/reservations/12087?from=%2F');
+  expect(link).toHaveTextContent(/Jean Dupont · Gite/);
 });
 
 test('rule 10 — refetches every 5 minutes so the list follows the 24-hour window', async () => {

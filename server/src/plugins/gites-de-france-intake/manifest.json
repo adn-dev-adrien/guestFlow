@@ -1,7 +1,7 @@
 {
   "id": "gites-de-france-intake",
   "name": "Saisie Gîtes de France",
-  "version": "1.4.14",
+  "version": "1.4.15",
   "description": "Remplit les fiches Gîtes de France depuis le mail de réservation de la centrale.",
   "icon": "mail",
   "surfaces": [
@@ -11,7 +11,7 @@
   ],
   "requires": [],
   "guestflow": ">=3.18.0",
-  "sdk": "^2.33.0",
+  "sdk": "^2.34.0",
   "changelog": {
     "1.0.0": [
       "Première version publiée en paquet."
@@ -118,6 +118,9 @@
     "1.4.14": [
       "Aucun changement visible : GuestFlow sait désormais qu'une part d'un paiement peut avoir été reçue d'avance (un bon cadeau), ce que ce module lit sans le compter à part.",
       "Compatible avec GuestFlow 4 (SDK 2.33)."
+    ],
+    "1.4.15": [
+      "Accueil : la ligne d’un courriel Gîtes de France dont la fiche existe est un lien vers cette fiche (SDK 2.34.0)."
     ]
   }
 }

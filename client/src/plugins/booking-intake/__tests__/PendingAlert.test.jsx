@@ -12,9 +12,8 @@ vi.mock('../../sdk', async () => ({
   api,
   displayDate: (iso) => iso.split('-').reverse().join('/'),
   AttentionCard: (await vi.importActual('../../../components/AttentionCard')).default,
+  ReservationLinkLine: (await vi.importActual('../../../components/ReservationLinkLine')).default,
 }));
-const navigate = vi.hoisted(() => vi.fn());
-vi.mock('react-router', async (orig) => ({ ...(await orig()), useNavigate: () => navigate }));
 
 import PendingAlert from '../PendingAlert';
 import UrgentPendingAlert from '../UrgentPendingAlert';
@@ -25,15 +24,15 @@ const ATTENTION = { key: 'booking-intake', severity: 'todo', count: 1, title: 'R
 const renderIn = (ui) => render(<MemoryRouter>{ui}</MemoryRouter>);
 afterEach(() => vi.clearAllMocks());
 
-test('specs/booking-extranet-intake.md rule 22: one line per stay with the property and the dates, and the three actions', async () => {
+test('specs/booking-extranet-intake.md rule 22: one line per stay with the property and the dates (a link to the fiche), and the two actions', async () => {
   api.getBookingIntakePending.mockResolvedValue(PENDING);
   renderIn(<PendingAlert attention={ATTENTION} />);
   expect(await screen.findByText('La Granja · 01/12/2026 → 03/12/2026')).toBeInTheDocument();
   const link = screen.getByRole('link', { name: 'Ouvrir dans Booking' });
   expect(link).toHaveAttribute('href', PENDING[1].extranetUrl);
   expect(link).toHaveAttribute('target', '_blank');
-  await userEvent.click(screen.getByRole('button', { name: 'Ouvrir la fiche' }));
-  expect(navigate).toHaveBeenCalledWith('/reservations/22310');
+  expect(screen.getByRole('link', { name: 'Ouvrir la fiche' })).toHaveAttribute('href', '/reservations/22310?from=%2F');
+  expect(screen.queryByRole('button', { name: 'Ouvrir la fiche' })).toBeNull();
 });
 
 test('specs/booking-extranet-intake.md rule 23: « Pas une réservation Booking » dismisses the line and reloads the list', async () => {

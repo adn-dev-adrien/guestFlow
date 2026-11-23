@@ -19,6 +19,10 @@
  *   bleed?       { x, bottom }      theme spacing (responsive objects allowed) the bar extends past its
  *                                    container — the page padding — so it sits flush with the screen
  *                                    edges and the bottom, even scrolled to the end
+ *
+ * Safe areas (specs/mobile-dashboard-exercise-cash.md rules 1-2): the bar's figures stay 16 px (or the
+ * page padding when larger) from the sides and clear of the screen's rounded corners and the home
+ * indicator (`env(safe-area-inset-*)`, 0 where the device has none).
  */
 import React, { useEffect, useState } from 'react';
 import { Box, Typography, SwipeableDrawer, useMediaQuery } from '@mui/material';
@@ -50,6 +54,13 @@ const negate = (v) => (typeof v === 'object' && v !== null
   ? Object.fromEntries(Object.entries(v).map(([k, n]) => [k, -n]))
   : -(v || 0));
 
+const MIN_SIDE = 16;
+const inset = (edge) => `env(safe-area-inset-${edge}, 0px)`;
+// A theme-spacing value (or a responsive object of them) → the same shape, mapped through `fn(px)`.
+const spaced = (theme, v, fn) => (typeof v === 'object' && v !== null
+  ? Object.fromEntries(Object.entries(v).map(([k, n]) => [k, fn(parseFloat(theme.spacing(n)))]))
+  : fn(parseFloat(theme.spacing(v || 0))));
+
 export default function StickyTotalBar({ label, amount, secondary = null, sheetTitle, children, showBelow = 'lg', bleed = null }) {
   const theme = useTheme();
   const narrow = useMediaQuery(theme.breakpoints.down(showBelow));
@@ -74,13 +85,23 @@ export default function StickyTotalBar({ label, amount, secondary = null, sheetT
           zIndex: (t) => t.zIndex.appBar - 2,
           width: '100%',
           mt: 2,
-          // Content-box: 100 % of the page's width plus the bleed on each side, pulled back by the margins.
-          ...(bleed ? { boxSizing: 'content-box', mx: negate(bleed.x), mb: negate(bleed.bottom), px: bleed.x } : {}),
+          // The bar spans the page's width plus the page padding on each side (which grows with the insets,
+          // like the page's own padding), pulled back by the margins.
+          ...(bleed ? {
+            '--gf-bleed-l': spaced(theme, bleed.x, (px) => `max(${px}px, ${inset('left')})`),
+            '--gf-bleed-r': spaced(theme, bleed.x, (px) => `max(${px}px, ${inset('right')})`),
+            boxSizing: 'border-box',
+            width: 'calc(100% + var(--gf-bleed-l) + var(--gf-bleed-r))',
+            ml: 'calc(-1 * var(--gf-bleed-l))',
+            mr: 'calc(-1 * var(--gf-bleed-r))',
+            mb: negate(bleed.bottom),
+          } : {}),
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
           gap: 1.5,
-          ...(bleed ? {} : { px: 2 }),
+          pl: spaced(theme, bleed ? bleed.x : 2, (px) => `max(${Math.max(px, MIN_SIDE)}px, ${inset('left')})`),
+          pr: spaced(theme, bleed ? bleed.x : 2, (px) => `max(${Math.max(px, MIN_SIDE)}px, ${inset('right')})`),
           pt: 1.25,
           pb: 'calc(10px + env(safe-area-inset-bottom, 0px))',
           border: 0,

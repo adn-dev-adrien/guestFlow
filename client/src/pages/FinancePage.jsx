@@ -17,13 +17,15 @@ import SelectableTile from '../components/SelectableTile';
 import FinanceHero from '../components/FinanceHero';
 import VatFranchiseCard from '../components/VatFranchiseCard';
 import FinanceDetailPanel from '../components/FinanceDetailPanel';
+import CashProjectionChart from '../components/CashProjectionChart';
+import DefinitionButton from '../components/DefinitionButton';
 import MonthlyRevenueChart from '../components/MonthlyRevenueChart';
 import SmallMultiplesLineChart from '../components/SmallMultiplesLineChart';
 import BookingPaceCard from '../components/BookingPaceCard';
 import NoComparisonNotice from '../components/NoComparisonNotice';
 import TrendChart from '../components/TrendChart';
 import { comparisonPill, rateOneDecimal, perNightAmount } from '../utils/comparisonPill';
-import { TILE_DEFINITIONS, HERO_DEFINITIONS } from '../constants/financeDefinitions';
+import { TILE_DEFINITIONS, HERO_DEFINITIONS, CASH_PROJECTION_DEFINITION } from '../constants/financeDefinitions';
 import FinanceDataChecksCard from '../components/FinanceDataChecksCard';
 import StandaloneSaleDialog from '../components/StandaloneSaleDialog';
 import StandaloneSalesTodayCard from '../components/StandaloneSalesTodayCard';
@@ -44,10 +46,17 @@ const FORMAT = { amount: formatCurrencyRounded, perNight: perNightAmount, percen
 // The browser's own calendar day, never the UTC one (rule 37).
 const iso = (d) => localIsoToday(d);
 
+// « 23 paiements · prochain le 28 nov. 2026 », or « tout est encaissé » (specs/mobile-dashboard-exercise-cash.md rule 11).
+const toCollectCaption = (t) => {
+  if (!t.payments) return 'tout est encaissé';
+  const count = plural(t.payments, 'paiement');
+  return t.nextDateLabel ? `${count} · prochain le ${t.nextDateLabel}` : `${count} · tous en retard`;
+};
+
 // The tiles, in order, each with what its figure reads from `dashboard.tiles` (rule 13).
 const TILES = [
-  { key: 'collected', label: 'Déjà payé', dot: 'success.main', read: (t) => [formatCurrencyRounded(t.amount), t.shareOfRevenue == null ? '' : `${percent(t.shareOfRevenue)} du chiffre d'affaires`] },
-  { key: 'toCollect', label: 'À encaisser', dot: 'secondary.main', read: (t) => [formatCurrencyRounded(t.amount), `${plural(t.stays, 'séjour')} · tous exercices`] },
+  { key: 'collected', label: 'Encaissé', dot: 'success.main', read: (t) => [formatCurrencyRounded(t.amount), t.shareOfRevenue == null ? '' : `${percent(t.shareOfRevenue)} du chiffre d'affaires`] },
+  { key: 'toCollect', label: 'Reste à encaisser', dot: 'secondary.main', read: (t) => [formatCurrencyRounded(t.amount), toCollectCaption(t)] },
   { key: 'incoming', label: 'Versements à venir', dot: 'info.main', read: (t) => [formatCurrencyRounded(t.amount), t.clients ? `${plural(t.clients, 'client')}${t.nextDateLabel ? ` · prochain le ${t.nextDateLabel}` : ''}` : 'rien à recevoir'] },
   { key: 'late', label: 'En retard', dot: 'error.main', read: (t) => [formatCurrencyRounded(t.amount), t.stays ? `${plural(t.stays, 'séjour')} · tous exercices` : 'rien à relancer'], alert: (t) => t.stays > 0 },
   { key: 'stays', label: 'Réservations', dot: 'info.main', read: (t) => [plural(t.count, 'séjour'), `${t.upcoming} à venir`] },
@@ -100,8 +109,6 @@ export default function FinancePage() {
   const [staysScope, setStaysScope] = useState('window');
   // « Reçus ces 30 derniers jours » of « Versements à venir » (specs/mollie-rolling-reserve-and-incoming-payments.md rule 24).
   const [incomingRecent, setIncomingRecent] = useState(false);
-  // Empty until the operator picks a date: the server's default (today + 1 month) applies.
-  const [until, setUntil] = useState('');
 
   const beginDashboard = useLatestRequest();
   const beginDetail = useLatestRequest();
@@ -125,7 +132,7 @@ export default function FinancePage() {
     }
   }, [paramsKey, periodRefusal]);
 
-  const detailKey = `${tile}|${paramsKey}|${until}|${staysScope}|${incomingRecent}`;
+  const detailKey = `${tile}|${paramsKey}|${staysScope}|${incomingRecent}`;
   const loadDetail = useCallback(async () => {
     const current = beginDetail();
     if (!tile) return;
@@ -134,12 +141,12 @@ export default function FinancePage() {
       // « Versements à venir » ignores the window (rule 21): it has its own endpoint.
       const data = tile === 'incoming'
         ? await api.getIncomingPayments({ recent: incomingRecent })
-        : await api.getFinanceDashboardDetail(tile, { ...params, ...(until ? { until } : {}), scope: staysScope });
+        : await api.getFinanceDashboardDetail(tile, { ...params, scope: staysScope });
       if (current()) setDetail({ key: detailKey, data, loading: false, error: false });
     } catch {
       if (current()) setDetail({ key: detailKey, data: null, loading: false, error: true });
     }
-  }, [tile, paramsKey, until, staysScope, incomingRecent]);
+  }, [tile, paramsKey, staysScope, incomingRecent]);
 
   // specs/vat-optional-mode.md rule 35 — the franchise card, whatever the window; a failed read hides it.
   // `undefined` until the first read has settled: the page waits for it, so the card never pops in late.
@@ -167,26 +174,7 @@ export default function FinancePage() {
     setTile((current) => (current === key ? null : key));
   };
 
-  // Rule 15 — a payment ticked here is written through the reservation's payment endpoint, then every
-  // figure is reloaded together.
   const [paymentError, setPaymentError] = useState(null);
-  const markPayment = async (id, payload) => {
-    setPaymentError(null);
-    try {
-      await api.markPayment(id, payload);
-    } catch (e) {
-      setPaymentError(e.message || 'Le paiement n\'a pas pu être enregistré.');
-      return;
-    }
-    await refreshAll();
-  };
-  const handleTogglePayment = (reservation, field) => markPayment(reservation.id, { [field]: !reservation[field] });
-  // The flags « Tout solder » ticks come from the server (specs/reservation-payment-ledger.md rule 68, D20).
-  const handleSettleAll = async (r) => {
-    const payload = Object.fromEntries((r.settleAllFields || []).map((field) => [field, true]));
-    if (Object.keys(payload).length === 0) return;
-    await markPayment(r.id, payload);
-  };
   // Rule 38 — « Marquer payé » on a late row ticks exactly the elements its chips list.
   // A late installment has no payment flag: it is recorded through its own endpoint.
   const handleSettleOverdue = async (r) => {
@@ -370,14 +358,10 @@ export default function FinancePage() {
                 windowLabel={d.window.label}
                 staysScope={staysScope}
                 onStaysScopeChange={setStaysScope}
-                until={until}
-                onUntilChange={setUntil}
                 incomingRecent={incomingRecent}
                 onIncomingRecentChange={setIncomingRecent}
                 onClose={() => setTile(null)}
                 onOpenReservation={(id) => navigate(`/reservations/${id}`)}
-                onTogglePayment={handleTogglePayment}
-                onSettleAll={handleSettleAll}
                 onSettleOverdue={handleSettleOverdue}
                 onSelectProperty={(id) => setParams({ propertyId: id })}
               />
@@ -386,6 +370,20 @@ export default function FinancePage() {
                 Une tuile ouvre le tableau correspondant.
               </Typography>
             )}
+
+            {/* specs/mobile-dashboard-exercise-cash.md rule 18 — right under the tiles and their open table. */}
+            <Card sx={{ mt: 2 }} data-testid="cash-projection-card">
+              <CardContent>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                  <Typography variant="sectionHeader">Trésorerie de l'exercice</Typography>
+                  {metrics && <DefinitionButton label="Trésorerie de l'exercice" definition={CASH_PROJECTION_DEFINITION} />}
+                </Box>
+                <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1 }}>
+                  Argent reçu jusqu'à aujourd'hui, puis argent attendu à la date de chaque échéance · montants nets de commissions
+                </Typography>
+                <CashProjectionChart projection={d.cashProjection} formatAmount={formatCurrencyRounded} />
+              </CardContent>
+            </Card>
 
             {/* Rule 26 — each card at its own height: the shorter one leaves no blank inside. */}
             <Grid container spacing={2} sx={{ mt: 0.5, alignItems: 'flex-start' }}>

@@ -52,7 +52,7 @@ test('rule 7 — the goal shows only on the whole exercise, without a logement f
   assert.equal(dashboard.getDashboard({ fiscalYear: Y - 1 }).data.hero.goal, null);
 });
 
-test('rule 14 — « À encaisser » and « En retard » ignore the window but honour the logement', () => {
+test('rule 14 — « En retard » ignores the window but honours the logement; « Reste à encaisser » follows the window', () => {
   const { db, dashboard } = freshDb();
   seed(db, Y);
   // A finished direct stay from an older exercise, balance overdue and unpaid.
@@ -63,7 +63,9 @@ test('rule 14 — « À encaisser » and « En retard » ignore the window but h
   assert.equal(d.tiles.late.stays, 2);
   assert.equal(d.tiles.late.amount, 625);
   assert.equal(d.tiles.late.payouts, 1);
-  assert.ok(d.tiles.toCollect.stays >= 1);
+  assert.ok(d.tiles.toCollect.payments >= 1);
+  // The finished stay of an older exercise is late, but it is not a stay of this exercise's window.
+  assert.equal(dashboard.getDashboard({ fiscalYear: Y - 3 }).data.tiles.toCollect.amount, 200);
   assert.equal(dashboard.getDashboard({ fiscalYear: Y, propertyId: 1 }).data.tiles.late.stays, 1);
   assert.equal(dashboard.getDashboard({ fiscalYear: Y, propertyId: 3 }).data.tiles.late.stays, 0);
   assert.equal(d.insights.find((i) => i.key === 'late').tone, 'error');

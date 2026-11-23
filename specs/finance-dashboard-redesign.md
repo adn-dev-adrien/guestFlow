@@ -110,8 +110,9 @@ without losing anything today's page shows.
 | **Canaux** | « X € » · « de commissions » (rule 36; « − X € · commissions payées » until 2026-10-18) | Website grouped by source (stays, nights, net, **demandes · conversion**), then each platform and « Direct (saisie) »: stays, nights, gross, commission, net, share. Channels with no stay are hidden. *(« Canaux de réservation »)* |
 
 > 2026-11-06: the tile « Encaissé » is named « Déjà payé » (rule 54).
-14. « À encaisser » and « En retard » are operational: they ignore the window (labelled « tous
-    exercices ») but honour the logement filter. Every other tile follows the window.
+> 2026-11-23 (`mobile-dashboard-exercise-cash.md` rules 10-11, 16): the tile is « Encaissé » again; « À encaisser » is « Reste à encaisser » and counts the **window's** stays, past and future (no longer the finished stays of every exercise), listed one line per payment grouped by month — lines open the fiche, nothing is ticked there, and the « Encaissable d'ici le » field is gone (rule 15 and the projection of rule 36 now apply to « En retard » only).
+14. « En retard » is operational: it ignores the window (labelled « tous
+    exercices ») but honours the logement filter. *(« À encaisser » left this rule on 2026-11-23: « Reste à encaisser » follows the window.)* Every other tile follows the window.
 15. Checking a payment or « Tout solder » / « Marquer payé » PATCHes the reservation through the
     existing payment endpoint, then reloads the dashboard (all figures move together). A write the
     server refuses shows its message above the open table and reloads nothing.

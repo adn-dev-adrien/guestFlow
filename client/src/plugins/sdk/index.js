@@ -18,6 +18,8 @@ export { default as SummaryItem } from '../../components/SummaryItem';
 export { default as MaskedTextField } from '../../components/MaskedTextField';
 export { default as SecretRevealField } from '../../components/SecretRevealField';
 export { default as SasKeypadCode } from '../../components/sas/SasKeypadCode';
+// The identity line of a row about one reservation, linking to its fiche (specs/mobile-dashboard-exercise-cash.md rule 8) — SDK 2.34.0.
+export { default as ReservationLinkLine } from '../../components/ReservationLinkLine';
 // The banner every intake plugin shows on the fiche (specs/airbnb-mail-intake.md §4.1).
 export { default as IntakeBanner } from '../../components/IntakeBanner';
 export { displayDate } from '../../utils/formatters';

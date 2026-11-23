@@ -26,7 +26,7 @@ test('a late reserve of a sale outside a stay is listed by its label and is not 
   );
   expect(await screen.findByText(/Bain nordique du 05\/11/)).toBeInTheDocument();
   expect(screen.getByText(/attendue le 10\/11/)).toBeInTheDocument();
-  expect(screen.queryByRole('button', { name: /Bain nordique du 05\/11/ })).not.toBeInTheDocument();
+  expect(screen.queryByRole('link', { name: /Bain nordique du 05\/11/ })).not.toBeInTheDocument();
   await userEvent.click(screen.getByText(/Bain nordique du 05\/11/));
   expect(screen.queryByText('Fiche ouverte')).not.toBeInTheDocument();
 });

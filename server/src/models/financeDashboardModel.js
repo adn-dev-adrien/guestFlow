@@ -21,11 +21,13 @@ const { isDirectChannel } = require('../utils/platformNameFormat');
 const { round2 } = require('../utils/paymentStatus');
 const { parseNotes } = require('../utils/midStayExtras');
 const { parseGroup } = require('../utils/arrivalPaymentGroup');
-const { arrivalPaymentAdjustment, platformPenalty } = require('../utils/reservationSettlement');
+const { arrivalPaymentAdjustment, platformPenalty, remainingToPay } = require('../utils/reservationSettlement');
 const { paceStartOf, revenueOfNights } = require('../utils/bookingPace');
 const { withoutTouristTax } = require('../utils/stayProfile');
 const { comparisonWindow, compare } = require('../utils/financeComparison');
 const { settlementFigures } = require('../utils/paymentTenders');
+const { expectedPayments } = require('../utils/expectedPayments');
+const { buildCashProjection, dateLabel } = require('../utils/cashProjection');
 const incomingPaymentsModel = require('./incomingPaymentsModel');
 
 const H = financeModel.helpers;
@@ -72,17 +74,10 @@ function bestMonthOf(months, today) {
   return { month: leader.month, revenue: round2(leader.past + leader.upcoming), previous: null, kind: 'leading', timing: leader.month === today.slice(0, 7) ? 'current' : 'upcoming' };
 }
 
+const capitalised = (text) => text.charAt(0).toUpperCase() + text.slice(1);
 const ratio = (a, b) => (b > 0 ? Math.round((a / b) * 10000) / 10000 : null);
 const addDays = occupancy.addDays;
 const daysBetween = (from, to) => Math.round((Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / 86400000);
-// Same day next month, clamped to the month's end — the « Arrivées d'ici le » default (today + 1 month).
-function plusOneMonth(iso) {
-  const [y, m, d] = iso.split('-').map(Number);
-  const ny = m === 12 ? y + 1 : y;
-  const nm = m === 12 ? 1 : m + 1;
-  const max = new Date(Date.UTC(ny, nm, 0)).getUTCDate();
-  return `${ny}-${String(nm).padStart(2, '0')}-${String(Math.min(d, max)).padStart(2, '0')}`;
-}
 const lastDay = (ym) => `${ym}-${String(new Date(Date.UTC(Number(ym.slice(0, 4)), Number(ym.slice(5, 7)), 0)).getUTCDate()).padStart(2, '0')}`;
 
 // A platform stay pays a commission on the buckets it collected off the caisse interne — the same
@@ -101,6 +96,48 @@ function createDashboardModel(database, finance) {
     // One colour slot per logement, in id order, so a logement keeps its colour on every chart; the
     // colour itself is a theme token (rule 45).
     .map((p, i) => ({ id: p.id, name: p.name, colorIndex: i }));
+
+  // The delay a platform takes to pay out, read once per channel (specs/platform-payout-due-date.md).
+  const payoutDaysReader = () => {
+    const cache = new Map();
+    let platforms = null;
+    return (platform) => {
+      const key = String(platform || '').toLowerCase();
+      if (!cache.has(key)) {
+        try {
+          platforms = platforms || require('./platformsModel').create(database);
+          cache.set(key, platforms.getPayoutDueDays(platform));
+        } catch { cache.set(key, undefined); }
+      }
+      return cache.get(key);
+    };
+  };
+
+  // specs/mobile-dashboard-exercise-cash.md rules 14-16 — the money still to come on these stays, one line
+  // per payment, in the order it will arrive. Σ amount = Σ remainingToPay of the stays, to the cent.
+  function expectedOf(reservations, today) {
+    const planned = reservations.filter((r) => round2(r.installmentsUnpaidAmount) > 0 && r.kind !== 'cancelled').map((r) => r.id);
+    const unpaid = new Map();
+    if (planned.length && hasTable('reservation_installments')) {
+      const rows = database.prepare(`SELECT i.reservationId, i.number, i.dueDate, i.amountCents, i.paid,
+                                            (SELECT COUNT(*) FROM reservation_installments a WHERE a.reservationId = i.reservationId) AS count
+                                       FROM reservation_installments i
+                                      WHERE i.reservationId IN (${planned.map(() => '?').join(',')}) ORDER BY i.reservationId, i.number`).all(...planned);
+      for (const i of rows.filter((x) => !x.paid)) unpaid.set(i.reservationId, [...(unpaid.get(i.reservationId) || []), i]);
+    }
+    const payoutDays = payoutDaysReader();
+    const out = [];
+    for (const r of reservations) {
+      const clientName = `${r.firstName || ''} ${r.lastName || ''}`.trim();
+      for (const p of expectedPayments(r, { today, installments: unpaid.get(r.id) || [], payoutDueDays: isPlatformStay(r) ? payoutDays(r.platform) : undefined })) {
+        out.push({
+          reservationId: r.id, date: p.date, dateLabel: dateLabel(p.date), kind: p.kind, label: p.label,
+          clientName, propertyName: r.propertyName, platform: r.platform, amount: p.amount, late: p.late, dueNow: p.dueNow,
+        });
+      }
+    }
+    return out.sort((a, b) => a.date.localeCompare(b.date) || a.reservationId - b.reservationId);
+  }
 
   const closures = () => (hasTable('establishment_closures')
     ? database.prepare('SELECT propertyId, startDate, endDate FROM establishment_closures').all()
@@ -424,7 +461,7 @@ function createDashboardModel(database, finance) {
         totalOccupancy: windowOcc.rate,
         tiles: {
           collected: { amount: summary.totalCollected, shareOfRevenue: ratio(summary.totalCollected, revenue) },
-          toCollect: { amount: round2(operational.pending.totals.remainingToPay || 0), stays: operational.pending.reservations.length },
+          toCollect: toCollectTile(summary.reservations, today),
           late: { amount: operational.overdue.totalAmount, stays: operational.overdue.count, payouts: operational.overdue.payouts.count },
           stays: { count: summary.reservations.length, upcoming: operational.upcoming.reservations.length },
           properties: propertyId
@@ -437,9 +474,53 @@ function createDashboardModel(database, finance) {
         revenueMonths,
         occupancy: occupancySeries,
         occupancyAll,
+        cashProjection: cashProjectionOf(summary.reservations, { exercise, window: win, today }),
         comparison: { ...status, metrics },
       },
     };
+  }
+
+  // Rule 11 — « Reste à encaisser »: what the window's stays still owe, past and future.
+  function toCollectTile(reservations, today) {
+    const lines = expectedOf(reservations, today);
+    const late = lines.filter((l) => l.late);
+    const next = lines.find((l) => !l.late && !l.dueNow);
+    return {
+      amount: round2(reservations.reduce((n, r) => n + remainingToPay(r), 0)),
+      payments: lines.length,
+      nextDate: next ? next.date : null,
+      nextDateLabel: next ? next.dateLabel : null,
+      late: { amount: round2(late.reduce((n, l) => n + l.amount, 0)), payments: late.length },
+    };
+  }
+
+  // Rule 18 — « Trésorerie de l'exercice »: the window's stays, received and expected, on the exercise's months.
+  function cashProjectionOf(reservations, { exercise, window: win, today }) {
+    return buildCashProjection({
+      received: paymentsLedger(reservations),
+      expected: expectedOf(reservations, today),
+      exercise, window: win, today,
+    });
+  }
+
+  // Rules 16-17 — rows grouped by month with the month's subtotal, in the order the list is read.
+  function groupByMonth(rows, { descending = false, lateFirst = false } = {}) {
+    const groups = [];
+    const slot = (key, label) => {
+      let g = groups.find((x) => x.key === key);
+      if (!g) { g = { key, label, total: 0, rows: [] }; groups.push(g); }
+      return g;
+    };
+    for (const row of rows) {
+      const g = lateFirst && row.late ? slot('late', 'En retard')
+        : lateFirst && row.dueNow ? slot('dueNow', 'À recevoir maintenant')
+          : slot(row.date.slice(0, 7), capitalised(monthLabel(row.date.slice(0, 7))));
+      g.rows.push(row);
+      g.total = round2(g.total + row.amount);
+    }
+    const rank = (k) => (k === 'late' ? 0 : k === 'dueNow' ? 1 : 2);
+    groups.sort((a, b) => rank(a.key) - rank(b.key) || (descending ? b.key.localeCompare(a.key) : a.key.localeCompare(b.key)));
+    return groups;
   }
 
   // « Encaissé » (rule 13): every payment received for the window's stays, dated, so that the
@@ -535,20 +616,22 @@ function createDashboardModel(database, finance) {
     if (!ctx.ok) return ctx;
     const { window: win, exercise, propertyId, today, scopeProperties } = ctx;
 
-    if (tile === 'late' || tile === 'toCollect' || (tile === 'stays' && params.scope === 'upcoming')) {
+    if (tile === 'late' || (tile === 'stays' && params.scope === 'upcoming')) {
       const op = finance.getOperational({ propertyId });
       if (tile === 'late') return { ok: true, data: { rows: op.overdue.reservations, totals: { amount: op.overdue.totalAmount, count: op.overdue.count, payouts: op.overdue.payouts } } };
-      if (tile === 'stays') return { ok: true, data: { scope: 'upcoming', rows: op.upcoming.reservations, totals: op.upcoming.totals } };
-      const until = /^\d{4}-\d{2}-\d{2}$/.test(String(params.until || '')) ? params.until : plusOneMonth(today);
-      const projection = finance.getProjection({ date: until, propertyId });
-      return { ok: true, data: { rows: op.pending.reservations, totals: op.pending.totals, projection: { until, total: projection.total, collected: projection.collected, pending: projection.pending } } };
+      return { ok: true, data: { scope: 'upcoming', rows: op.upcoming.reservations, totals: op.upcoming.totals } };
     }
 
     const { summary, comparable, paceStays } = figures(ctx);
 
+    if (tile === 'toCollect') {
+      const rows = expectedOf(summary.reservations, today);
+      return { ok: true, data: { groups: groupByMonth(rows, { lateFirst: true }), rows, totals: { amount: round2(summary.reservations.reduce((n, r) => n + remainingToPay(r), 0)), payments: rows.length } } };
+    }
+
     if (tile === 'collected') {
-      const rows = paymentsLedger(summary.reservations);
-      return { ok: true, data: { rows, totals: { amount: summary.totalCollected, count: rows.length } } };
+      const rows = paymentsLedger(summary.reservations).map((row) => ({ ...row, dateLabel: dateLabel(row.date) }));
+      return { ok: true, data: { groups: groupByMonth(rows, { descending: true }), rows, totals: { amount: summary.totalCollected, count: rows.length } } };
     }
 
     if (tile === 'stays') {

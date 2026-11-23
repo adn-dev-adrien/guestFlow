@@ -12,8 +12,6 @@ const ATTENTION = { key: 'repaired-reservation-numbers', severity: 'todo', count
 // specs/reservation-number-and-search.md rule 15 — les séjours restés sans numéro, numérotés au
 // démarrage, restent sur le tableau de bord jusqu'à « Vu ».
 
-const mockNavigate = vi.fn();
-vi.mock('react-router', async (importOriginal) => ({ ...(await importOriginal()), useNavigate: () => mockNavigate }));
 vi.mock('../../api', () => ({
   __esModule: true,
   default: { getRepairedReservationNumbers: vi.fn(), acknowledgeRepairedReservationNumber: vi.fn() },
@@ -33,13 +31,12 @@ test('rien à vérifier : la carte ne s’affiche pas', async () => {
   expect(container).toBeEmptyDOMElement();
 });
 
-test('une réservation renumérotée s’affiche, s’ouvre, et « Vu » la retire', async () => {
+test('une réservation renumérotée s’affiche, se lie à sa fiche, et « Vu » la retire', async () => {
   api.getRepairedReservationNumbers.mockResolvedValue({ alerts: [ROW] });
   api.acknowledgeRepairedReservationNumber.mockResolvedValue({ ok: true });
   render(<RepairedReservationNumbersAlert attention={ATTENTION} />);
   expect(await screen.findByText('Réservations restées sans numéro')).toBeInTheDocument();
-  await userEvent.click(screen.getByText(/N° 202610007 · Jean Dupont · Gîte/));
-  expect(mockNavigate).toHaveBeenCalledWith('/reservations/42');
+  expect(screen.getByRole('link', { name: 'Ouvrir la fiche de Jean Dupont' })).toHaveAttribute('href', '/reservations/42?from=%2F');
   await userEvent.click(screen.getByRole('button', { name: 'Vu' }));
   expect(api.acknowledgeRepairedReservationNumber).toHaveBeenCalledWith(42);
   await waitFor(() => expect(screen.queryByText(/N° 202610007/)).not.toBeInTheDocument());
