@@ -1,1 +1,0 @@
-- **Plugin `guest-app` 1.5.2** — the guest app and the Studio take the pending dependency updates (`@testing-library/jest-dom` 8, `lucide-react`, `react-router`, `vitest`, `jsdom`, `axe-core`, `user-event`); nothing changes on screen.

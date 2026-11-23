@@ -1,1 +1,0 @@
-- **Phone — the fiche's total is no longer cut by the screen's rounded corners**: the page declares `viewport-fit=cover`, so the safe-area insets are real on iPhone, and the sticky total, the app bar, the page's side padding, the support-session bar and full-screen dialogs keep clear of the notch (landscape) and the home indicator.
