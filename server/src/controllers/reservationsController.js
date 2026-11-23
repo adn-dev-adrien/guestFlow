@@ -154,6 +154,7 @@ const TAX_IN_COMPLEMENT_LOCKED_MESSAGE = 'Taxe déjà encaissée : décocher le 
 const installments = require('./installmentsController');
 const { deactivateOpenLinksBeforeDelete } = require('../utils/paymentLinkDeactivation');
 const paymentLinksStore = require('../models/paymentLinksModel');
+const { buildManualPriceReview } = require('../utils/manualPriceReview');
 
 // specs/reservation-payment-ledger.md §3.1 — the payments ledger of a fiche, built by the server from
 // the stored row (paid states, dates, caution, single payment) and, while the fiche is edited, the live
@@ -1571,9 +1572,54 @@ async function calculatePrice(req, res) {
         }),
       });
     }
+    // specs/manual-price-on-placement-change.md — a manual price decided for another placement is put back to the operator.
+    quote.manualPriceReview = manualPriceReviewOf({ body: req.body, quote, engineInput, storedRow });
   }
 
   res.json(withTypedCustomTitles(withCustomLineKeys(quote), req.body.customOptions, previewLines.customOptions));
+}
+
+// specs/manual-price-on-placement-change.md rules 1-11 — the reference placement is priced here, never sent as an amount: its
+// stored placement replays the stored tariff snapshot, so its tariff is the stored `totalPrice`; any other is priced like the
+// fiche. Each choice is the fiche's own quote at that manual price.
+function manualPriceReviewOf({ body, quote, engineInput, storedRow }) {
+  const ref = body.customPriceReference;
+  if (!ref || typeof ref !== 'object') return null;
+  const reference = {
+    propertyId: Number(ref.propertyId),
+    startDate: String(ref.startDate || ''),
+    endDate: String(ref.endDate || ''),
+  };
+  if (!(reference.propertyId > 0) || !reference.startDate || !reference.endDate) return null;
+  const placement = { propertyId: Number(engineInput.propertyId), startDate: body.startDate, endDate: body.endDate };
+  const excluded = Boolean(quote.platformSale)
+    || Boolean(storedRow && storedRow.kind === 'reservation' && stayStartedNow(storedRow.id));
+  if (excluded || reference.propertyId === placement.propertyId && reference.startDate === placement.startDate
+    && reference.endDate === placement.endDate) return null;
+  const isStored = Boolean(storedRow) && Number(storedRow.propertyId) === reference.propertyId
+    && storedRow.startDate === reference.startDate && storedRow.endDate === reference.endDate;
+  const snapshot = isStored ? model.getPricingSnapshot(storedRow.id) || {} : null;
+  const referenceQuote = calculateReservationQuote({
+    ...engineInput,
+    ...reference,
+    ...(snapshot ? { lockedNightlyBreakdown: snapshot.lockedNightlyBreakdown, lockedTariff: snapshot.lockedTariff } : {}),
+  });
+  if (!referenceQuote || referenceQuote.error) return null;
+  const nameOf = (id) => (db.prepare('SELECT name FROM properties WHERE id = ?').get(id) || {}).name || '';
+  return buildManualPriceReview({
+    customPrice: body.customPrice,
+    reference: {
+      ...reference, propertyName: nameOf(reference.propertyId), quote: referenceQuote,
+      useBreakdown: !isStored || (Array.isArray(snapshot.lockedNightlyBreakdown) && snapshot.lockedNightlyBreakdown.length > 0),
+    },
+    placement: { ...placement, propertyName: nameOf(placement.propertyId), quote },
+    excluded,
+    evaluate: (customPrice) => quotePostProcessors.applySync({
+      engineInput: { ...engineInput, customPrice },
+      quote: calculateReservationQuote({ ...engineInput, customPrice }),
+      calculate: calculateReservationQuote,
+    }),
+  });
 }
 
 // The lines a preview prices, routed as the save will route them (S14-3): on a locked fiche whose window is open, each line keeps its stored

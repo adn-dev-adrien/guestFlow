@@ -1,0 +1,424 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Prix ajusté et déplacement d'une réservation</title>
+<style>
+:root{--primary:#2F5D46;--primary-dark:#244a37;--primary-soft:#E3ECE6;--honey:#C99038;--paper:#F8F5EF;--white:#fff;--ink:#27251F;--muted:#6E6A5E;--warn:#8F6A1D;--warn-soft:#F6EDD7;--err:#A33A2F;--err-soft:#F6E3E0;--divider:rgba(60,54,36,.12);--shadow:0 3px 16px rgba(60,54,36,.09);--serif:"Source Serif 4",Georgia,serif;--sans:Inter,system-ui,-apple-system,"Segoe UI",sans-serif}
+*{box-sizing:border-box}
+body{margin:0;background:var(--paper);color:var(--ink);font:15px/1.55 var(--sans)}
+main{max-width:1080px;margin:0 auto;padding:32px 20px 80px}
+h1{font:600 2rem/1.15 var(--serif);letter-spacing:-.01em;margin:0 0 6px}
+h2{font:600 1.3rem/1.2 var(--serif);margin:40px 0 10px}
+h3{font:600 1rem/1.3 var(--sans);margin:0 0 6px}
+.lead{color:var(--muted);margin:0 0 20px;max-width:70ch}
+.card{background:var(--white);border-radius:14px;box-shadow:var(--shadow);padding:16px 20px;margin:12px 0}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+@media(max-width:820px){.grid2{grid-template-columns:1fr}}
+ul{margin:6px 0;padding-left:20px}li{margin:4px 0}
+.small{font-size:.82rem;color:var(--muted)}
+.num{font-variant-numeric:tabular-nums}
+.tag{display:inline-block;font-size:.72rem;font-weight:600;letter-spacing:.03em;text-transform:uppercase;padding:2px 8px;border-radius:99px;background:var(--warn-soft);color:var(--warn)}
+.tag.ok{background:var(--primary-soft);color:var(--primary)}
+
+/* stage */
+.stage{background:#EDE8DE;border-radius:18px;padding:20px}
+.controls{display:flex;flex-wrap:wrap;gap:14px;align-items:flex-start;margin-bottom:16px}
+.controls label{display:grid;gap:4px;font-size:.8rem;font-weight:600;color:var(--muted)}
+.controls input,.controls select{font:15px var(--sans);padding:8px 10px;border:1.5px solid var(--divider);background:#fff;border-radius:8px;min-height:44px;color:var(--ink)}
+.controls input:focus-visible,.controls select:focus-visible{outline:2px solid var(--primary);outline-offset:1px;border-color:var(--primary)}
+.controls input[aria-invalid=true]{border-color:var(--err);background:var(--err-soft)}
+.err{color:var(--err);font-size:.78rem;min-height:1.2em;font-weight:500}
+.toggles{display:flex;flex-wrap:wrap;gap:18px;margin:-4px 0 14px;font-size:.85rem}
+.toggles fieldset{border:0;padding:0;margin:0;display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.toggles legend{float:left;font-weight:600;color:var(--muted);margin-right:6px}
+.seg{display:inline-flex;background:rgba(60,54,36,.08);border-radius:10px;padding:3px}
+.seg button{border:0;background:none;font:500 .82rem var(--sans);padding:0 12px;min-height:36px;border-radius:8px;cursor:pointer;color:var(--ink)}
+.seg button[aria-pressed=true]{background:#fff;box-shadow:0 1px 4px rgba(60,54,36,.15);font-weight:600}
+
+.frame{position:relative;margin:0 auto;max-width:760px;transition:max-width .3s}
+.frame.mobile{max-width:390px}
+.fiche{background:var(--white);border-radius:12px;box-shadow:0 10px 34px rgba(60,54,36,.18);overflow:hidden;min-height:430px;position:relative}
+.bar{display:flex;align-items:center;gap:10px;padding:10px 14px;border-bottom:1px solid var(--divider)}
+.bar .t{font-weight:600;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.chip{font-size:.75rem;padding:2px 8px;border-radius:99px;border:1px solid var(--honey);color:var(--warn);white-space:nowrap}
+.icon{width:44px;height:44px;border-radius:10px;border:1px solid var(--divider);display:grid;place-items:center;font-size:18px;background:#fff}
+.icon.save{background:var(--primary);color:#fff;border-color:var(--primary)}
+.icon.save[aria-disabled=true]{opacity:.45}
+.sect{padding:14px}
+.sect h4{margin:0 0 10px;font:600 .75rem var(--sans);text-transform:uppercase;letter-spacing:.05em;color:var(--muted)}
+.fin{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.frame.mobile .fin{grid-template-columns:1fr}
+.box{border:1px solid var(--divider);border-radius:10px;padding:12px}
+.box.on{border-color:#2196f3;background:rgba(33,150,243,.07)}
+.box .k{font-size:.72rem;text-transform:uppercase;letter-spacing:.04em;color:var(--muted)}
+.box .v{font-size:1.25rem;font-weight:700}
+.lines{display:grid;gap:4px;font-size:.9rem;margin-top:8px}
+.lines div{display:flex;justify-content:space-between;gap:8px}
+.lines .tot{border-top:1px solid var(--divider);padding-top:6px;margin-top:2px;font-weight:700}
+.loading{position:absolute;right:14px;top:62px;font-size:.78rem;color:var(--muted);opacity:0;transition:opacity .15s}
+.loading.on{opacity:1}
+
+/* dialog */
+.scrim{position:absolute;inset:0;background:rgba(39,37,31,.38);display:grid;place-items:center;padding:16px;opacity:0;pointer-events:none;transition:opacity .2s;border-radius:12px;z-index:5}
+.scrim.open{opacity:1;pointer-events:auto}
+.dlg{background:#fff;border-radius:14px;width:100%;max-width:540px;max-height:calc(100% - 8px);overflow:auto;box-shadow:0 18px 50px rgba(39,37,31,.3);transform:scale(.97) translateY(6px);transition:transform .25s cubic-bezier(.2,.9,.3,1)}
+.scrim.open .dlg{transform:none}
+.frame.mobile .scrim{padding:0;border-radius:12px}
+.frame.mobile .dlg{max-width:none;height:100%;max-height:none;border-radius:12px;display:flex;flex-direction:column}
+.dlg header{padding:18px 20px 4px}
+.dlg header h3{font:600 1.15rem/1.25 var(--serif)}
+.dlg .body{padding:8px 20px 4px;flex:1}
+.why{background:var(--paper);border-radius:10px;padding:12px 14px;display:grid;gap:8px}
+.why .delta{display:flex;justify-content:space-between;gap:10px;align-items:baseline;flex-wrap:wrap}
+.why .delta strong{font-size:1.05rem}
+.ba{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.frame.mobile .ba{grid-template-columns:1fr}
+.ba .col{background:#fff;border-radius:8px;padding:8px 10px;font-size:.85rem}
+.ba .col .h{font-size:.7rem;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);font-weight:600;margin-bottom:2px}
+.ba .col .r{display:flex;justify-content:space-between;gap:8px}
+.ba .col .s{color:var(--muted);font-size:.78rem}
+.cur{font-size:.88rem;color:var(--muted)}
+.cur b{color:var(--ink)}
+.choices{display:grid;gap:8px;margin:14px 0 6px}
+.choice{display:grid;grid-template-columns:22px 1fr auto;gap:4px 10px;align-items:start;border:1.5px solid var(--divider);border-radius:10px;padding:12px;cursor:pointer;background:#fff;text-align:left;font:inherit;color:inherit;width:100%;min-height:44px;transition:border-color .15s,background .15s}
+.choice:active{transform:scale(.995)}
+.choice[aria-checked=true]{border-color:var(--primary);background:rgba(47,93,70,.06)}
+.choice[aria-disabled=true]{cursor:not-allowed;opacity:.55}
+.choice:focus-visible{outline:2px solid var(--primary);outline-offset:2px}
+.dot{width:18px;height:18px;border-radius:50%;border:2px solid var(--muted);margin-top:2px;display:grid;place-items:center}
+.choice[aria-checked=true] .dot{border-color:var(--primary)}
+.choice[aria-checked=true] .dot::after{content:"";width:9px;height:9px;border-radius:50%;background:var(--primary)}
+.choice .l{font-weight:600}
+.choice .f{font-weight:700;font-size:1.05rem}
+.choice .c{grid-column:2/4;font-size:.8rem;color:var(--muted)}
+.choice .c.bad{color:var(--err)}
+.dlg footer{display:flex;justify-content:flex-end;gap:8px;padding:12px 20px 18px}
+.frame.mobile .dlg footer{flex-direction:column-reverse}
+.btn{font:600 .9rem var(--sans);min-height:44px;padding:0 16px;border-radius:10px;cursor:pointer;border:1px solid var(--divider);background:#fff;color:var(--ink)}
+.btn.primary{background:var(--primary);border-color:var(--primary);color:#fff}
+.btn.primary:hover{background:var(--primary-dark)}
+.btn:focus-visible{outline:2px solid var(--primary);outline-offset:2px}
+.log{margin-top:12px;font-size:.82rem;color:var(--muted);min-height:1.3em;text-align:center}
+@media (prefers-reduced-motion: reduce){.scrim,.dlg,.frame,.loading,.choice{transition:none!important}.dlg{transform:none!important}}
+table{border-collapse:collapse;width:100%;font-size:.9rem}
+td,th{padding:6px 8px;border-bottom:1px solid var(--divider);text-align:left;vertical-align:top}
+th{font-size:.75rem;text-transform:uppercase;letter-spacing:.04em;color:var(--muted)}
+</style>
+</head>
+<body>
+<main>
+<span class="tag ok">Spec validée · Approved</span>
+<h1>Prix ajusté et déplacement d'une réservation</h1>
+<p class="lead">Quand une réservation avec un « Prix ajusté » change de dates ou de logement et que le tarif change avec elle, la fiche montre ce qui a bougé et pourquoi, puis l'opérateur choisit le prix. Référence versionnée : <code>specs/manual-price-on-placement-change.md</code>.</p>
+
+<h2>Le constat</h2>
+<div class="card">
+  <p style="margin:0">Aujourd'hui, un déplacement recalcule le tarif mais <strong>garde le prix ajusté sans rien signaler</strong>. Un séjour de 3 nuits ajusté à 300 € et prolongé à 5 nuits reste à 300 €, alors que le tarif est passé à 700 €. L'enregistrement stocke ce prix sans que personne l'ait choisi.</p>
+</div>
+
+<h2>Ce qu'on propose</h2>
+<div class="grid2">
+  <div class="card">
+    <h3>Quand la fenêtre s'ouvre</h3>
+    <ul>
+      <li>Il y a un prix ajusté,</li>
+      <li>les dates ou le logement ont changé,</li>
+      <li>le tarif calculé n'est plus celui contre lequel le prix ajusté avait été décidé.</li>
+    </ul>
+    <p class="small">Elle s'ouvre dès que le nouveau tarif est calculé, jamais sur une sélection de dates incomplète. Elle ne s'ouvre pas pour une vente plateforme, ni pour un séjour commencé.</p>
+  </div>
+  <div class="card">
+    <h3>Ce qu'elle propose</h3>
+    <ul>
+      <li><b>Garder le prix ajusté</b> : rien ne change.</li>
+      <li><b>Garder l'écart</b> : nouveau tarif + le même écart en €.</li>
+      <li><b>Appliquer le tarif</b> : le prix ajusté est retiré.</li>
+    </ul>
+    <p class="small">Chaque choix affiche son prix et le total du séjour. « Annuler le changement » remet les dates d'avant. Tous les montants sont calculés par le serveur, rien n'est enregistré avant « Enregistrer ».</p>
+  </div>
+</div>
+
+<h2>La maquette — à manipuler</h2>
+<p class="lead">Changer l'arrivée, le départ ou le logement. Taper un prix ajusté. Les tarifs sont fictifs : 110 €/nuit en basse saison, 160 € pendant les fêtes (du 19/12 au 03/01), +30 % sur Granja. Une saisie invalide est refusée.</p>
+<div class="stage">
+  <div class="controls" id="controls">
+    <label>Logement
+      <select id="prop"><option value="estiva">Estiva</option><option value="granja">Granja</option></select>
+      <span class="err"></span>
+    </label>
+    <label>Arrivée
+      <input type="date" id="start" value="2026-12-15">
+      <span class="err" id="startErr"></span>
+    </label>
+    <label>Départ
+      <input type="date" id="end" value="2026-12-18">
+      <span class="err" id="endErr"></span>
+    </label>
+    <label>Prix ajusté (€)
+      <input type="text" id="custom" inputmode="decimal" value="300" style="width:120px">
+      <span class="err" id="customErr"></span>
+    </label>
+  </div>
+  <div class="toggles">
+    <fieldset><legend>Choix présélectionné</legend>
+      <span class="seg" id="segPre"><button aria-pressed="false" data-v="keep">Garder le prix</button><button aria-pressed="true" data-v="keepGap">Garder l'écart</button></span>
+    </fieldset>
+    <fieldset><legend>Échap / clic hors fenêtre</legend>
+      <span class="seg" id="segEsc"><button aria-pressed="true" data-v="cancel">Annule le changement</button><button aria-pressed="false" data-v="keep">Garde le prix</button></span>
+    </fieldset>
+    <fieldset><legend>Écran</legend>
+      <span class="seg" id="segView"><button aria-pressed="true" data-v="desk">Ordinateur</button><button aria-pressed="false" data-v="mobile">Mobile</button></span>
+    </fieldset>
+  </div>
+
+  <div class="frame" id="frame">
+    <div class="fiche">
+      <div class="bar">
+        <span class="icon" aria-hidden="true">←</span>
+        <span class="t">Réservation · Martin</span>
+        <span class="chip" id="dirty" hidden>Non enregistré</span>
+        <span class="icon save" id="saveBtn" aria-disabled="true" title="Enregistrer">✓</span>
+      </div>
+      <div class="loading" id="loading">Calcul du tarif…</div>
+      <div class="sect">
+        <h4>Séjour</h4>
+        <div class="num" id="stayLine"></div>
+      </div>
+      <div class="sect" style="padding-top:0">
+        <h4>Finance</h4>
+        <div class="fin">
+          <div class="box"><div class="k">Tarif hébergement</div><div class="v num" id="baseV"></div><div class="small">Tarif calculé</div></div>
+          <div class="box" id="customBox"><div class="k">Prix hébergement ajusté</div><div class="v num" id="customV"></div><div class="small" id="gapV"></div></div>
+        </div>
+        <div class="lines num" id="lines"></div>
+      </div>
+
+      <div class="scrim" id="scrim">
+        <div class="dlg" role="dialog" aria-modal="true" aria-labelledby="dlgTitle">
+          <header><h3 id="dlgTitle">Tarif modifié</h3></header>
+          <div class="body">
+            <div class="why" id="why"></div>
+            <div class="choices" role="radiogroup" aria-label="Prix de l'hébergement" id="choices"></div>
+          </div>
+          <footer>
+            <button class="btn" id="cancelBtn">Annuler le changement</button>
+            <button class="btn primary" id="applyBtn">Appliquer</button>
+          </footer>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="log" id="log" aria-live="polite"></div>
+</div>
+
+<h2>Ce qu'on ne fait pas</h2>
+<div class="card"><ul>
+  <li>Pas de fenêtre quand les occupants, les options ou la remise changent : ce sont des saisies explicites, déjà recalculées en direct.</li>
+  <li>Pas de fenêtre pour les ventes plateforme (le brut reste le seul levier de prix), ni pour un séjour commencé (prix figé).</li>
+  <li>Rien quand un devis expiré est rouvert à ses propres dates.</li>
+  <li>Pas de glisser-déposer sur le planning (il n'en existe pas ; il réutiliserait la même fenêtre).</li>
+</ul></div>
+
+<h2>Le risque</h2>
+<div class="card"><ul>
+  <li><b>Faible sur les données</b> : pas de migration, rien n'est enregistré par la fenêtre. Le choix passe par l'enregistrement habituel et ses garde-fous (trop-perçu, verrous).</li>
+  <li><b>À surveiller</b> : la sélection de dates sur la bande du mini-calendrier se fait en deux clics. La fenêtre ne doit s'ouvrir qu'une fois la plage complète, sinon elle interromprait la sélection.</li>
+  <li><b>Coût</b> : trois calculs du moteur de plus par déplacement concerné (un par choix). C'est négligeable.</li>
+</ul></div>
+
+<h2>Arbitrages tranchés le 23/11</h2>
+<div class="card">
+  <table>
+    <tr><th>Question</th><th>Retenu</th><th>Écarté</th></tr>
+    <tr><td>Choix présélectionné</td><td><b>Garder l'écart</b>, à défaut Garder le prix ajusté.</td><td>Garder le prix ajusté.</td></tr>
+    <tr><td>Échap / clic hors fenêtre</td><td><b>Annuler le changement</b>.</td><td>Garder le prix ajusté.</td></tr>
+  </table>
+  <p class="small" style="margin-bottom:0">Également tranchés : trois choix avec l'écart en €, ouverture dès le changement.</p>
+</div>
+</main>
+
+<script>
+(() => {
+  const $ = (id) => document.getElementById(id);
+  const fmt = (n) => n.toLocaleString('fr-FR', { style: 'currency', currency: 'EUR' });
+  const signed = (n) => (n > 0 ? '+' : n < 0 ? '−' : '') + fmt(Math.abs(n));
+  const r2 = (n) => Math.round(n * 100) / 100;
+  const PROPS = { estiva: { name: 'Estiva', factor: 1 }, granja: { name: 'Granja', factor: 1.3 } };
+  const LINEN = 45, TAX_PER_NIGHT = 2;
+  const DAY = 86400000;
+  const parse = (s) => new Date(s + 'T00:00:00Z');
+  const iso = (d) => d.toISOString().slice(0, 10);
+  const fr = (s) => parse(s).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', timeZone: 'UTC' });
+
+  function season(d) {
+    const m = d.getUTCMonth() + 1, day = d.getUTCDate();
+    if ((m === 12 && day >= 19) || (m === 1 && day <= 3)) return { label: 'Fêtes', price: 160 };
+    if (m === 7 || m === 8) return { label: 'Haute', price: 175 };
+    if ((m >= 4 && m <= 6) || m === 9 || m === 10) return { label: 'Moyenne', price: 130 };
+    return { label: 'Basse', price: 110 };
+  }
+  // Stands in for the server: the engine's nights total and its season grouping.
+  function quote(p) {
+    const groups = new Map(); let total = 0; let nights = 0;
+    for (let t = parse(p.start).getTime(); t < parse(p.end).getTime(); t += DAY) {
+      const s = season(new Date(t)); const price = r2(s.price * PROPS[p.prop].factor);
+      total += price; nights++;
+      const g = groups.get(s.label) || { label: s.label, nights: 0, amount: 0 };
+      g.nights++; g.amount = r2(g.amount + price); groups.set(s.label, g);
+    }
+    return { ...p, nights, totalPrice: r2(total), seasons: [...groups.values()] };
+  }
+  const totalStay = (price, nights) => r2(price + LINEN + nights * TAX_PER_NIGHT);
+
+  const pre = { v: 'keepGap' }, esc = { v: 'cancel' };
+  let form = { prop: 'estiva', start: '2026-12-15', end: '2026-12-18', custom: 300 };
+  let settled = { ...form };
+  let ref = quote(form);
+  let current = ref;
+  let review = null, selected = null, dirty = false, timer = null;
+
+  function buildReview(q) {
+    if (form.custom === '' || form.custom == null) return null;
+    const moved = q.prop !== ref.prop || q.start !== ref.start || q.end !== ref.end;
+    if (!moved || Math.abs(q.totalPrice - ref.totalPrice) < 0.01) return null;
+    const gap = r2(form.custom - ref.totalPrice);
+    const choices = [{ key: 'keep', label: 'Garder le prix ajusté', price: form.custom, caption: 'Total séjour ' + fmt(totalStay(form.custom, q.nights)) }];
+    if (gap !== 0) {
+      const p = r2(q.totalPrice + gap);
+      choices.push(p < 0
+        ? { key: 'keepGap', label: "Garder l'écart", price: p, disabled: 'Écart supérieur au nouveau tarif' }
+        : { key: 'keepGap', label: "Garder l'écart", price: p, caption: fmt(q.totalPrice) + ' ' + (gap < 0 ? '−' : '+') + ' ' + fmt(Math.abs(gap)) + ' · Total séjour ' + fmt(totalStay(p, q.nights)) });
+    }
+    choices.push({ key: 'engine', label: 'Appliquer le tarif', price: q.totalPrice, caption: 'Prix ajusté retiré · Total séjour ' + fmt(totalStay(q.totalPrice, q.nights)) });
+    return { reference: ref, placement: q, gap, choices };
+  }
+
+  function renderFiche() {
+    const q = current;
+    $('stayLine').textContent = `${PROPS[form.prop].name} · ${fr(form.start)} → ${fr(form.end)} · ${q.nights} nuit${q.nights > 1 ? 's' : ''} · 2 adultes`;
+    $('baseV').textContent = fmt(q.totalPrice);
+    const has = form.custom !== '';
+    $('customBox').classList.toggle('on', has);
+    $('customV').textContent = has ? fmt(form.custom) : '—';
+    $('gapV').textContent = has ? (form.custom < q.totalPrice ? 'Réduction : ' + fmt(q.totalPrice - form.custom) : form.custom > q.totalPrice ? 'Augmentation : ' + fmt(form.custom - q.totalPrice) : 'Aucun écart') : 'Aucun';
+    const acc = has ? form.custom : q.totalPrice;
+    $('lines').innerHTML = `<div><span>Hébergement</span><span>${fmt(acc)}</span></div><div><span>Linge de lit</span><span>${fmt(LINEN)}</span></div><div><span>Taxe de séjour</span><span>${fmt(q.nights * TAX_PER_NIGHT)}</span></div><div class="tot"><span>Total séjour</span><span>${fmt(totalStay(acc, q.nights))}</span></div>`;
+    $('dirty').hidden = !dirty; $('saveBtn').setAttribute('aria-disabled', String(!dirty));
+    $('custom').value = has ? String(form.custom).replace('.', ',') : '';
+  }
+
+  const seasonCol = (title, q) => `<div class="col"><div class="h">${title}</div><div class="r"><span>${fr(q.start)} → ${fr(q.end)} · ${q.nights} nuit${q.nights > 1 ? 's' : ''}</span><b>${fmt(q.totalPrice)}</b></div>${q.seasons.map((s) => `<div class="r s"><span>${s.label} · ${s.nights} nuit${s.nights > 1 ? 's' : ''}</span><span>${fmt(s.amount)}</span></div>`).join('')}${q.prop !== ref.prop || title === 'Avant' ? `<div class="s">${PROPS[q.prop].name}</div>` : ''}</div>`;
+
+  function renderDialog() {
+    const rv = review, d = r2(rv.placement.totalPrice - rv.reference.totalPrice);
+    $('why').innerHTML = `<div class="delta"><span>Tarif hébergement</span><strong class="num">${fmt(rv.reference.totalPrice)} → ${fmt(rv.placement.totalPrice)} <span class="small">(${signed(d)})</span></strong></div>
+      <div class="ba num">${seasonCol('Avant', rv.reference)}${seasonCol('Après', rv.placement)}</div>
+      <div class="cur num">Prix ajusté : <b>${fmt(form.custom)}</b> (${rv.gap === 0 ? 'égal au tarif' : signed(rv.gap) + ' sur le tarif'})</div>`;
+    $('choices').innerHTML = rv.choices.map((c) => `<button class="choice" role="radio" data-k="${c.key}" aria-checked="${c.key === selected}" ${c.disabled ? 'aria-disabled="true"' : ''} tabindex="${c.key === selected ? 0 : -1}"><span class="dot"></span><span class="l">${c.label}</span><span class="f num">${fmt(c.price)}</span><span class="c num ${c.disabled ? 'bad' : ''}">${c.disabled || c.caption}</span></button>`).join('');
+  }
+
+  function openReview(rv) {
+    review = rv;
+    const want = rv.choices.find((c) => c.key === pre.v && !c.disabled);
+    selected = (want || rv.choices[0]).key;
+    renderDialog();
+    $('scrim').classList.add('open');
+    setTimeout(() => $('choices').querySelector('[aria-checked=true]')?.focus(), 30);
+  }
+  function closeReview() { $('scrim').classList.remove('open'); review = null; }
+
+  function apply(key) {
+    const c = review.choices.find((x) => x.key === key);
+    form.custom = key === 'engine' ? '' : c.price;
+    ref = review.placement; settled = { ...form }; dirty = true;
+    $('log').textContent = `« ${c.label} » : hébergement à ${fmt(c.price)}. Rien n'est enregistré avant « Enregistrer ».`;
+    closeReview(); renderFiche();
+  }
+  function cancelMove() {
+    form = { ...form, prop: settled.prop, start: settled.start, end: settled.end };
+    $('prop').value = form.prop; $('start').value = form.start; $('end').value = form.end;
+    current = quote(form);
+    $('log').textContent = 'Changement annulé : dates et logement remis comme avant.';
+    closeReview(); renderFiche();
+  }
+
+  function validPlacement() {
+    const s = $('start').value, e = $('end').value; let ok = true;
+    $('startErr').textContent = ''; $('endErr').textContent = '';
+    $('start').removeAttribute('aria-invalid'); $('end').removeAttribute('aria-invalid');
+    if (!s) { $('startErr').textContent = 'Date requise.'; $('start').setAttribute('aria-invalid', 'true'); ok = false; }
+    if (!e) { $('endErr').textContent = 'Date requise.'; $('end').setAttribute('aria-invalid', 'true'); ok = false; }
+    if (ok && parse(e) <= parse(s)) { $('endErr').textContent = "Départ après l'arrivée."; $('end').setAttribute('aria-invalid', 'true'); ok = false; }
+    if (ok && (parse(e) - parse(s)) / DAY > 30) { $('endErr').textContent = '30 nuits maximum.'; $('end').setAttribute('aria-invalid', 'true'); ok = false; }
+    return ok;
+  }
+
+  function onPlacementChange() {
+    clearTimeout(timer);
+    if (!validPlacement()) return;
+    form = { ...form, prop: $('prop').value, start: $('start').value, end: $('end').value };
+    $('loading').classList.add('on');
+    timer = setTimeout(() => {
+      $('loading').classList.remove('on');
+      const q = quote(form);
+      const rv = buildReview(q);
+      current = q;
+      if (rv) { openReview(rv); renderFiche(); return; }
+      if (form.prop !== settled.prop || form.start !== settled.start || form.end !== settled.end) dirty = true;
+      settled = { ...form };
+      if (form.custom === '') ref = q;
+      $('log').textContent = form.custom === '' ? 'Pas de prix ajusté : le tarif suit les dates.' : 'Tarif inchangé : pas de fenêtre.';
+      renderFiche();
+    }, 280);
+  }
+
+  function onCustomCommit() {
+    const raw = $('custom').value.trim();
+    $('customErr').textContent = ''; $('custom').removeAttribute('aria-invalid');
+    if (raw === '') { form.custom = ''; ref = current; dirty = true; renderFiche(); $('log').textContent = 'Prix ajusté retiré.'; return; }
+    const n = Number(raw.replace(/\s/g, '').replace(',', '.'));
+    if (!Number.isFinite(n) || n < 0) { $('customErr').textContent = 'Montant invalide.'; $('custom').setAttribute('aria-invalid', 'true'); return; }
+    if (r2(n) === form.custom) return;
+    form.custom = r2(n); ref = current; dirty = true;
+    $('log').textContent = `Prix ajusté ${fmt(form.custom)}, décidé contre le tarif ${fmt(current.totalPrice)}.`;
+    renderFiche();
+  }
+
+  ['prop', 'start', 'end'].forEach((id) => $(id).addEventListener('change', onPlacementChange));
+  $('custom').addEventListener('blur', onCustomCommit);
+  $('custom').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); onCustomCommit(); } });
+
+  $('choices').addEventListener('click', (e) => {
+    const b = e.target.closest('.choice'); if (!b || b.getAttribute('aria-disabled') === 'true') return;
+    selected = b.dataset.k; renderDialog(); $('choices').querySelector(`[data-k="${selected}"]`).focus();
+  });
+  $('choices').addEventListener('keydown', (e) => {
+    if (!['ArrowDown', 'ArrowUp'].includes(e.key)) return;
+    e.preventDefault();
+    const enabled = review.choices.filter((c) => !c.disabled).map((c) => c.key);
+    const i = enabled.indexOf(selected);
+    selected = enabled[(i + (e.key === 'ArrowDown' ? 1 : enabled.length - 1)) % enabled.length];
+    renderDialog(); $('choices').querySelector(`[data-k="${selected}"]`).focus();
+  });
+  $('applyBtn').addEventListener('click', () => apply(selected));
+  $('cancelBtn').addEventListener('click', cancelMove);
+  const dismiss = () => { if (!review) return; esc.v === 'cancel' ? cancelMove() : apply('keep'); };
+  $('scrim').addEventListener('click', (e) => { if (e.target === $('scrim')) dismiss(); });
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') dismiss(); });
+
+  const seg = (id, state, cb) => $(id).addEventListener('click', (e) => {
+    const b = e.target.closest('button'); if (!b) return;
+    $(id).querySelectorAll('button').forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
+    state.v = b.dataset.v; cb && cb(state.v);
+  });
+  seg('segPre', pre); seg('segEsc', esc);
+  seg('segView', { v: 'desk' }, (v) => $('frame').classList.toggle('mobile', v === 'mobile'));
+
+  renderFiche();
+  $('log').textContent = 'Essayer : déplacer le départ au 20/12 (passage en période de fêtes).';
+})();
+</script>
+</body>
+</html>
