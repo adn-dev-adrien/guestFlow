@@ -22,15 +22,19 @@ function isoDay(offset) {
 }
 
 // One property per reservation: the planning refuses overlapping stays on the same property, and a
-// dedicated property also keeps each case visually isolated on the page.
+// dedicated property also keeps each case visually isolated on the page. Its name carries a run tag:
+// the suite shares one database, so other specs (and a --repeat-each) leave arrivals of their own on the
+// same days, and a locator that is not bound to THIS test's stay ends up on theirs.
 //
 // `POST /reservations` refuses a stay in the past (« Impossible de réserver dans le passé »), which is
 // exactly the state this spec needs — so a past stay is created in the future through the real API,
 // then back-dated with a direct SQLite write, the documented escape hatch for pre-existing state.
-async function seedStay({ label, startDate, endDate }) {
+async function seedStay({ label, startDate, endDate }, testInfo) {
   const past = startDate < isoDay(0);
-  const property = await createProperty({ name: `E2E accueil ${label}` });
-  const client = await createClient({ firstName: 'Accueil', lastName: label });
+  const tag = `${testInfo.repeatEachIndex}-${Date.now().toString(36)}`;
+  const propertyName = `E2E accueil ${label} ${tag}`;
+  const property = await createProperty({ name: propertyName });
+  const client = await createClient({ firstName: 'Accueil', lastName: `${label} ${tag}` });
   const reservation = await createReservation({
     propertyId: property.id,
     clientId: client.id,
@@ -39,49 +43,67 @@ async function seedStay({ label, startDate, endDate }) {
     adults: 2,
   });
   if (past) setReservationDates(reservation.id, startDate, endDate);
-  return { property, client, reservation };
+  return { propertyName, property, client, reservation };
 }
 
-test("today's SAS is live while past / future ones are inert for the reception role", async ({ page }) => {
-  const today = await seedStay({ label: 'Jour', startDate: isoDay(0), endDate: isoDay(2) });
-  const future = await seedStay({ label: 'Futur', startDate: isoDay(3), endDate: isoDay(5) });
+/** The arrival card of a seeded stay, inside the section of its own day. */
+function arrivalCard(page, { propertyName }, day) {
+  return page.locator(`[data-scroll-anchor="day-${day}"] .MuiCard-root`)
+    .filter({ has: page.getByRole('heading', { name: propertyName, exact: true }) });
+}
+
+/** The SAS dialog of a seeded stay: its header band names the client and the property. */
+function sasDialog(page, { propertyName }) {
+  return page.getByRole('dialog').filter({ hasText: propertyName });
+}
+
+test("today's SAS is live while past / future ones are inert for the reception role", async ({ page }, testInfo) => {
+  const today = await seedStay({ label: 'Jour', startDate: isoDay(0), endDate: isoDay(2) }, testInfo);
+  const future = await seedStay({ label: 'Futur', startDate: isoDay(3), endDate: isoDay(5) }, testInfo);
 
   await page.goto('/planning');
   await expect(page.getByRole('heading', { name: 'Planning' })).toBeVisible({ timeout: 15_000 });
-  // The seeded arrivals land on their own property cards; wait for the day's one to render.
-  await expect(page.getByText(`E2E accueil Jour`).first()).toBeVisible({ timeout: 15_000 });
+  const todayCard = arrivalCard(page, today, isoDay(0));
+  const futureCard = arrivalCard(page, future, isoDay(3));
+  await expect(todayCard).toBeVisible({ timeout: 15_000 });
 
   // Today → the SAS launcher is live.
-  const todaySas = page.getByRole('button', { name: 'Accueil', exact: true });
-  await expect(todaySas.first()).toBeEnabled();
+  await expect(todayCard.getByRole('button', { name: 'Accueil', exact: true })).toBeEnabled();
 
   // Future → locked with its own wording, and the « Prêt » checkbox is locked too.
-  const futureSas = page.getByRole('button', { name: /Check-in à venir — modifiable le jour de l'arrivée/ });
-  await expect(futureSas.first()).toBeVisible();
-  await expect(futureSas.first()).toBeDisabled();
-  await expect(page.getByRole('checkbox', { name: /Statut modifiable uniquement le jour/ }).first()).toBeDisabled();
+  const futureSas = futureCard.getByRole('button', { name: /Check-in à venir — modifiable le jour de l'arrivée/ });
+  await expect(futureSas).toBeVisible();
+  await expect(futureSas).toBeDisabled();
+  await expect(futureCard.getByRole('checkbox', { name: /Statut modifiable uniquement le jour/ })).toBeDisabled();
 
-  // Clicking the locked ✓ opens nothing (a disabled button swallows the tap).
-  await futureSas.first().click({ force: true }).catch(() => {});
-  await expect(page.locator('[role="dialog"]')).toHaveCount(0);
+  // Tapping the locked ✓ opens nothing. A disabled button takes no pointer event, so a finger lands on
+  // the <span> that carries its tooltip: that is the element tapped, by an ordinary click. A forced
+  // click on the button itself skips Playwright's hit-target check and fires at coordinates taken
+  // before the tap; the planning keeps today pinned under its bar until an operator gesture
+  // (specs/dashboard-planning-scroll.md rule 24), so a card that grew meanwhile scrolled today's ✓ under
+  // those coordinates and the tap opened today's wizard (CI, 2026-11-23).
+  await futureSas.locator('xpath=..').click();
+  await expect(sasDialog(page, future)).toHaveCount(0);
+  await expect(sasDialog(page, today)).toHaveCount(0);
+  await expect(page).toHaveURL(/\/planning$/);
 
   // The deep-link (reception Dashboard row / push notification) is the one way in — it must land on
   // the locked panel, not the wizard.
   await page.goto(`/planning?sas=arrival&reservationId=${future.reservation.id}`);
-  const dialog = page.locator('[role="dialog"]');
-  await expect(dialog).toContainText(`Ce check-in n'est possible que le`, { timeout: 15_000 });
-  await expect(dialog).toContainText('le jour de l\'arrivée.');
-  await expect(dialog.getByRole('button', { name: 'Fermer' })).toBeVisible();
-  await expect(dialog.getByRole('button', { name: 'Valider et terminer' })).toHaveCount(0);
+  const futureDialog = sasDialog(page, future);
+  await expect(futureDialog).toContainText(`Ce check-in n'est possible que le`, { timeout: 15_000 });
+  await expect(futureDialog).toContainText('le jour de l\'arrivée.');
+  await expect(futureDialog.getByRole('button', { name: 'Fermer' })).toBeVisible();
+  await expect(futureDialog.getByRole('button', { name: 'Valider et terminer' })).toHaveCount(0);
 
   // …while today's reservation opens the real wizard for the same account.
   await page.goto(`/planning?sas=arrival&reservationId=${today.reservation.id}`);
-  await expect(dialog.getByRole('button', { name: 'Commencer' })).toBeVisible({ timeout: 15_000 });
+  await expect(sasDialog(page, today).getByRole('button', { name: 'Commencer' })).toBeVisible({ timeout: 15_000 });
 });
 
-test('a past SAS is refused by the server, with the reason, and no status write goes through', async ({ request }) => {
+test('a past SAS is refused by the server, with the reason, and no status write goes through', async ({ request }, testInfo) => {
   // `request` inherits this file's storageState → the calls below are made AS the reception user.
-  const past = await seedStay({ label: 'Passe', startDate: isoDay(-5), endDate: isoDay(-3) });
+  const past = await seedStay({ label: 'Passe', startDate: isoDay(-5), endDate: isoDay(-3) }, testInfo);
   const id = past.reservation.id;
 
   const arrival = await request.post(`/api/reservations/${id}/sas/arrival`, { data: {} });
@@ -102,8 +124,8 @@ test('a past SAS is refused by the server, with the reason, and no status write 
   expect((await read.json()).receptionLock).toEqual({ arrival: 'past', departure: 'past' });
 });
 
-test("today's SAS commits, then locks itself as « done » while its status toggle stays open", async ({ request }) => {
-  const today = await seedStay({ label: 'Commit', startDate: isoDay(0), endDate: isoDay(2) });
+test("today's SAS commits, then locks itself as « done » while its status toggle stays open", async ({ request }, testInfo) => {
+  const today = await seedStay({ label: 'Commit', startDate: isoDay(0), endDate: isoDay(2) }, testInfo);
   const id = today.reservation.id;
 
   const commit = await request.post(`/api/reservations/${id}/sas/arrival`, { data: { cautionReceived: true } });
