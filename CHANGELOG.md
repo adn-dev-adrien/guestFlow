@@ -4,7 +4,7 @@ All notable changes to GuestFlow are documented in this file. Format: [Keep a Ch
 
 ## [Unreleased]
 
-## [4.2.0] - 2026-11-23
+## [4.2.1] - 2026-11-23
 
 ### Summary
 - Bons cadeaux : campagnes, bons de bain composés, cartes A6 imprimables, vente sur le site et réservation du bain par le bénéficiaire.
