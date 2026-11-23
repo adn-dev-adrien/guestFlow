@@ -33,10 +33,13 @@ test('rule 7: a failing night opens or comments on one issue, and only a schedul
   assert.match(code, /issues: write/);
 });
 
-test('review follow-up: GitHub-hosted runners only, eight cells at a time, and the server suite stays serial', () => {
+// The server suite used to stay serial here because the cell sets one `DB_PATH` for it; since
+// specs/server-test-isolation.md rule 24 the preload replaces it per process (`isolate({ force: true })`),
+// so the cell runs four files at a time like everywhere else.
+test('review follow-up: GitHub-hosted runners only, eight cells at a time, and the server suite four files at a time', () => {
   assert.doesNotMatch(code, /self-hosted/);
   assert.match(code, /max-parallel: 8/);
   assert.match(code, /runs-on: ubuntu-latest/);
   const pkg = JSON.parse(fs.readFileSync(path.join(ROOT, 'server', 'package.json'), 'utf8'));
-  assert.match(pkg.scripts.test, /--test-concurrency=1/);
+  assert.match(pkg.scripts.test, /--test-concurrency=4 /);
 });

@@ -41,29 +41,38 @@ function post(body, ip) {
 store.ensureTables();
 const reset = () => db.exec('DELETE FROM public_request_log; DELETE FROM public_request_challenges_used;');
 
+// The 3.1 s a challenge must age before it is answered, on a mocked clock instead of a real wait
+// (specs/server-test-isolation.md rule 24): the controller reads `Date.now()`.
+function clock(t) {
+  t.mock.timers.enable({ apis: ['Date'], now: Date.now() });
+  return (ms) => t.mock.timers.tick(ms);
+}
+
 test('rule 29: page views cost nothing — six challenges in a row from one address stay at the base', () => {
   reset();
   const difficulties = Array.from({ length: 6 }, () => issue('203.0.113.7').difficulty);
   assert.deepEqual(difficulties, [12, 12, 12, 12, 12, 12]);
 });
 
-test('rule 29: the requests an address made still raise its next challenge', async () => {
+test('rule 29: the requests an address made still raise its next challenge', (t) => {
+  const advance = clock(t);
   reset();
   const first = issue('203.0.113.9');
-  await new Promise((resolve) => { setTimeout(resolve, 3100); });
+  advance(3100);
   assert.equal(post({ challenge: first, nonce: challenge.solve(first) }, '203.0.113.9').passed, true);
   assert.equal(issue('203.0.113.9').difficulty, 14);
   assert.equal(issue('198.51.100.4').difficulty, 12, 'another address is not affected');
 });
 
-test('rule 29: challenges issued just before the hour crosses 20 are accepted when sent in parallel just after', async () => {
+test('rule 29: challenges issued just before the hour crosses 20 are accepted when sent in parallel just after', async (t) => {
+  const advance = clock(t);
   reset();
   for (let i = 0; i < 18; i += 1) store.logRequest(`10.0.0.${i}`);
   const senders = Array.from({ length: 7 }, (_, i) => `192.0.2.${i + 1}`);
   const issued = senders.map((ip) => ({ ip, c: issue(ip) }));
   issued.forEach(({ c }) => assert.equal(c.difficulty, 12, 'issued under the threshold'));
   const solved = issued.map(({ ip, c }) => ({ ip, c, nonce: challenge.solve(c) }));
-  await new Promise((resolve) => { setTimeout(resolve, 3100); });
+  advance(3100);
   const results = await Promise.all(solved.map(({ ip, c, nonce }) => Promise.resolve().then(() => post({ challenge: c, nonce }, ip))));
   assert.deepEqual(results.map((r) => r.passed), Array(7).fill(true), 'none refused tooEasy');
   assert.equal(store.countRecent({}), 25, 'the hour now counts 25 requests');
