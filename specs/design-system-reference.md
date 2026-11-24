@@ -5,6 +5,8 @@
 > [design-system.md](design-system.md) §3.8). The umbrella program spec is
 > [design-system.md](design-system.md). (Named `-reference` because macOS's case-insensitive filesystem
 > forbids `DESIGN-SYSTEM.md` next to `design-system.md`.) Last updated 2026-08-22.
+> Its agent-facing digest is the root [`DESIGN.md`](../DESIGN.md) (tokens, rules, interaction and pre-PR checklist,
+> 2026-11-23): a change to `theme.js` or to this contract updates it in the same PR.
 
 ---
 

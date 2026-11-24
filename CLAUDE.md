@@ -242,6 +242,15 @@ styles/         Theme overrides
 
 ## 7. Code conventions
 
+### Design reference — `DESIGN.md`
+
+**Before any UI work, read the root [`DESIGN.md`](DESIGN.md).** It is the self-sufficient design
+reference of GuestFlow: tokens, named rules, interaction and motion, the « Before the PR » checklist.
+It replaces the `apple-design` and `impeccable` skills on this repository — do not load them; run
+`DESIGN.md`'s checklist instead of `/impeccable audit` + `polish`. Token source of truth stays
+`client/src/theme.js`; a change there or to `specs/design-system-reference.md` updates `DESIGN.md`
+in the same PR.
+
 ### General
 
 - No dead code, no commented-out blocks, no "// removed for X" markers.
