@@ -50,6 +50,27 @@
     return GF.date(new Date(String(iso) + 'T00:00:00'));
   }
 
+  // Rule 62 — the front a campaign sells, read from GuestFlow at its versioned address. A picture that fails to load
+  // leaves no hole: the node goes, and `onGone` lets the caller undo the room it made for it.
+  function front(campaign, cls, lazy, onGone) {
+    var visual = campaign && campaign.visual;
+    if (!visual || !visual.versionId) return null;
+    var img = GF.el('img', {
+      class: cls,
+      src: GF.restUrl + '/gift-vouchers/campaigns/' + encodeURIComponent(campaign.slug) + '/visual?v=' + encodeURIComponent(visual.versionId),
+      alt: cls === 'gf-gv-front' ? campaign.title : '',
+      width: String(visual.width),
+      height: String(visual.height),
+      decoding: 'async',
+      loading: lazy ? 'lazy' : 'eager',
+    });
+    img.addEventListener('error', function () {
+      if (img.parentNode) img.parentNode.removeChild(img);
+      if (onGone) onGone();
+    });
+    return img;
+  }
+
   function init(container) {
     var id = parseInt(queryParam('gf_voucher'), 10) || 0;
     var token = queryParam('gf_token') || '';
@@ -96,10 +117,13 @@
         var list = GF.el('div', { class: 'gf-gv-offers' });
         mine.forEach(function (c) {
           var detail = c.kind === 'resource' && c.contents && c.contents[0] ? c.contents[0].detail : GF.t('gvFreeAmount');
-          var card = GF.el('button', { type: 'button', class: 'gf-gv-offer', 'data-slug': c.slug },
+          var card = GF.el('button', { type: 'button', class: 'gf-gv-offer', 'data-slug': c.slug });
+          var thumb = front(c, 'gf-gv-offer-thumb', true, function () { card.classList.remove('has-thumb'); });
+          if (thumb) { card.classList.add('has-thumb'); card.appendChild(thumb); }
+          card.appendChild(GF.el('span', { class: 'gf-gv-offer-text' },
             GF.el('b', {}, c.title),
             detail ? GF.el('span', { class: 'gf-gv-offer-detail' }, detail) : null,
-            c.kind === 'resource' && c.totalCents != null ? GF.el('span', { class: 'gf-gv-offer-price' }, money(c.totalCents)) : null);
+            c.kind === 'resource' && c.totalCents != null ? GF.el('span', { class: 'gf-gv-offer-price' }, money(c.totalCents)) : null));
           card.addEventListener('click', function () { open(c.slug, true); });
           list.appendChild(card);
         });
@@ -382,13 +406,20 @@
       back.addEventListener('click', onBack);
       root.appendChild(back);
     }
-    root.appendChild(GF.el('h3', { class: 'gf-gv-title' }, campaign ? campaign.title : GF.t('gvTitle')));
-    if (months) root.appendChild(GF.el('p', { class: 'gf-gv-intro' }, GF.t('gvIntro', months)));
-    root.appendChild(GF.el('div', { class: 'gf-gv-two' },
+    // Rule 62 — the card heads the form: above the title on a phone, a column beside it on a wide block.
+    var lead = GF.el('div', { class: 'gf-gv-lead' });
+    var card = front(campaign, 'gf-gv-front', false, function () { lead.classList.remove('has-front'); });
+    if (card) { lead.classList.add('has-front'); lead.appendChild(card); }
+    var main = GF.el('div', { class: 'gf-gv-main' });
+    main.appendChild(GF.el('h3', { class: 'gf-gv-title' }, campaign ? campaign.title : GF.t('gvTitle')));
+    if (months) main.appendChild(GF.el('p', { class: 'gf-gv-intro' }, GF.t(isResource ? 'gvIntroSession' : 'gvIntro', months)));
+    main.appendChild(GF.el('div', { class: 'gf-gv-two' },
       GF.el('div', { class: 'gf-gv-form' },
         isResource ? composeBlock : amountField, isResource ? null : ideasBlock, recipientField, senderField, messageField, emailField,
         termsLabel, termsErr, alertBox, payBtn, soon),
       aside));
+    lead.appendChild(main);
+    root.appendChild(lead);
 
     function showAlert(message) {
       alertBox.textContent = message || '';
@@ -413,7 +444,7 @@
         sender: senderInput.value.trim(),
         message: messageInput.value.trim(),
         code: null,
-        conditions: months ? GF.t('gvConditionsPreview', months) : '',
+        conditions: months ? GF.t(isResource ? 'gvConditionsPreviewSession' : 'gvConditionsPreview', months) : '',
       }));
     }
 
@@ -561,12 +592,14 @@
         GF.el('div', { class: 'gf-gv-two' },
           GF.el('div', { class: 'gf-gv-printzone' }, ticket({
             brand: v.brand || '',
-            amountCents: v.amountCents,
+            amountCents: v.kind === 'resource' ? null : v.amountCents,
+            heading: v.kind === 'resource' ? (v.title || GF.t('gvVoucher')) : null,
+            items: v.kind === 'resource' ? (v.contentLines || []).map(function (label) { return { label: label, qty: 1 }; }) : null,
             recipient: v.recipientName || '',
             sender: v.senderName || '',
             message: v.message || '',
             code: code,
-            conditions: GF.t('gvConditionsUntil', dateOf(v.expiresOn)),
+            conditions: GF.t(v.kind === 'resource' ? 'gvConditionsUntilSession' : 'gvConditionsUntil', dateOf(v.expiresOn)),
           })),
           GF.el('div', { class: 'gf-gv-form gf-gv-after' },
             GF.el('div', { class: 'gf-gv-actions' },

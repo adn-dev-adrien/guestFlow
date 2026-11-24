@@ -110,7 +110,7 @@ function quoteSession(config, session) {
   });
   if (!priced.validSessions.length) return refuse('SESSION_OFF_GRID', `« ${name} » : la tranche ne tombe pas sur la grille des créneaux (${mode.slotMinutes} min).`);
   const totalCents = toCents(priced.totalPrice);
-  const parts = priced.bands.map(bandLineOf).map((part) => ({
+  const parts = priced.bands.map((band) => bandLineOf(band, { clock: placed })).map((part) => ({
     key: part.key, label: part.label, detail: part.detail, amountCents: toCents(part.amount),
   }));
   return {

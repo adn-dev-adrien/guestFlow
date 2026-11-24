@@ -145,8 +145,12 @@ final class GF_Api_Client
         $status = (int) wp_remote_retrieve_response_code($response);
         $raw = wp_remote_retrieve_body($response);
         $type = strtolower((string) wp_remote_retrieve_header($response, 'content-type'));
-        if (!empty($opts['raw']) && $status >= 200 && $status < 300 && strpos($type, 'application/pdf') === 0) {
-            return ['status' => $status, 'body' => $raw, 'type' => 'application/pdf'];
+        if (!empty($opts['raw']) && $status >= 200 && $status < 300) {
+            foreach (['application/pdf', 'image/jpeg'] as $binary) {
+                if (strpos($type, $binary) === 0) {
+                    return ['status' => $status, 'body' => $raw, 'type' => $binary, 'cache' => (string) wp_remote_retrieve_header($response, 'cache-control')];
+                }
+            }
         }
         $body = json_decode($raw, true);
         if (!is_array($body)) {

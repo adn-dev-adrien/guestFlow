@@ -1,0 +1,1 @@
+- **Bons cadeaux (bain)** : la page d’achat d’un bon de séance ne parle plus de « montant au choix » ni d’« une ou plusieurs fois », et son récapitulatif n’affiche plus d’horaire fictif (« Jour · 11:00–12:00 » devient « Jour · 1 h × 50,00 € »). Après le paiement, le bon affiché montre son contenu au lieu de son montant. Plugin WordPress 1.20.1.

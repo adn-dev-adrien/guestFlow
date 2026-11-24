@@ -38,7 +38,7 @@ test('2 h in the day band is 50 + 45 = 95 €, 2 h in the evening band 70 + 63 =
   assert.deepEqual(day.refusals, []);
   assert.equal(day.document.totals.totalCents, 9500);
   assert.deepEqual(day.document.lines.map((l) => [l.label, l.totalCents, l.vatRate, l.vatCents]), [['Bain dateless', 9500, 20, 1583]]);
-  assert.deepEqual(day.document.lines[0].components.map((c) => [c.label, c.amountCents]), [['Jour · 10:00–11:00', 5000], ['Jour · 11:00–12:00', 4500]]);
+  assert.deepEqual(day.document.lines[0].components.map((c) => [c.label, c.amountCents]), [['Jour', 5000], ['Jour', 4500]]);
   const evening = quote(id, { band: 'evening', minutes: 120 });
   assert.equal(evening.document.totals.totalCents, 13300);
   assert.deepEqual(evening.document.vatByRate, [{ rate: 20, vatCents: 2217 }]);

@@ -1,7 +1,7 @@
 {
   "id": "hourly-resources",
   "name": "Ressources à l’heure",
-  "version": "1.10.0",
+  "version": "1.10.1",
   "description": "Louer un équipement par créneau : bain nordique, sauna.",
   "icon": "hot-tub",
   "surfaces": [
@@ -16,6 +16,10 @@
   "guestflow": ">=3.18.0",
   "sdk": "^2.33.0",
   "changelog": {
+    "1.10.1": [
+      "Le devis d’une séance sans date (bon cadeau) nomme la tranche sans horaire fictif : « Jour · 1 h × 50,00 € ».",
+      "Compatible avec GuestFlow 4 (SDK 2.33)."
+    ],
     "1.0.0": [
       "Première version publiée en paquet."
     ],

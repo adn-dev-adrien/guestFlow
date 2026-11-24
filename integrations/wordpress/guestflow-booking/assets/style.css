@@ -462,6 +462,22 @@ button.gf-cal-day.gf-shake { animation: gf-shake .32s cubic-bezier(.36, .07, .19
 .gf-gv-offer b { font-size: 1.05rem; overflow-wrap: anywhere; }
 .gf-gv-offer-detail { color: var(--gfb-muted); font-size: .9rem; }
 .gf-gv-offer-price { font-weight: 600; color: var(--gfb-fill); font-variant-numeric: tabular-nums; }
+/* The campaign's front, read from GuestFlow (specs/gift-voucher-campaigns.md rule 62): a small whole card on each offer, the
+   card at the head of the form — above the title in one column, a column beside the form from 600 px of block. Not sticky: a theme's fixed header would cover it. */
+.gf-gv-offer-text { display: grid; gap: .15rem; min-width: 0; }
+.gf-gv-offer.has-thumb { grid-template-columns: 60px minmax(0, 1fr); align-items: center; column-gap: .9rem; padding-left: .7rem; }
+.gf-gv-offer-thumb { display: block; width: 60px; height: auto; aspect-ratio: 105 / 148; object-fit: cover; border-radius: 5px; background: var(--gfb-border); box-shadow: 0 2px 6px color-mix(in srgb, var(--gfb-ink) 18%, transparent); }
+.gf-gv-lead { display: grid; grid-template-columns: minmax(0, 1fr); gap: 1.5rem; }
+.gf-gv-main { min-width: 0; }
+.gf-gv-front { display: block; justify-self: center; width: min(78%, 320px); height: auto; aspect-ratio: 105 / 148; object-fit: cover; border-radius: 10px; background: var(--gfb-border); box-shadow: 0 14px 34px color-mix(in srgb, var(--gfb-ink) 22%, transparent); transform: rotate(-1deg); animation: gf-gv-front-in .45s cubic-bezier(.2, .8, .2, 1); }
+@keyframes gf-gv-front-in { from { opacity: 0; transform: translateY(10px) rotate(-1deg); } }
+@container gf-gv (min-width: 600px) {
+  .gf-gv-lead.has-front { grid-template-columns: minmax(220px, 34%) minmax(0, 1fr); gap: 2.5rem; align-items: start; }
+  .gf-gv-lead.has-front .gf-gv-front { width: 100%; }
+  .gf-gv-lead.has-front .gf-gv-two { grid-template-columns: minmax(0, 1fr); }
+  .gf-gv-lead.has-front .gf-gv-aside { position: static; }
+}
+@media (prefers-reduced-motion: reduce) { .gf-gv-front { animation: none; } }
 .gf-gv-back { justify-self: start; min-height: 44px; padding: 0; border: 0; background: none; color: var(--gfb-fill); font: inherit; text-decoration: underline; cursor: pointer; }
 .gf-gv-items { margin: 0 0 .6rem; padding-left: 1.1rem; display: grid; gap: .2rem; }
 .gf-gv-heading { font-size: clamp(1.5rem, 8cqi, 2.2rem); }

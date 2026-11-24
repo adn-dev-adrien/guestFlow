@@ -27,10 +27,14 @@ function duration(minutes) {
 
 const BAND_LABELS = { day: 'Jour', evening: 'Soir' };
 
-/** One band of a priced session as the lines of a price breakdown print it: « Jour · 18:00–19:00 », « 1 h × 50,00 € ». */
-const bandLineOf = (b) => ({
+/**
+ * One band of a priced session as the lines of a price breakdown print it: « Jour · 18:00–19:00 », « 1 h × 50,00 € ».
+ * `clock: false` is a session with no time yet (a gift voucher's dateless quote): its label names the band only, never the
+ * placeholder hours it was priced on (specs/gift-voucher-campaigns.md rule 17).
+ */
+const bandLineOf = (b, { clock = true } = {}) => ({
   key: `band:${b.band}:${b.from}`,
-  label: `${BAND_LABELS[b.band] || b.band} · ${b.from}–${b.to}`,
+  label: clock ? `${BAND_LABELS[b.band] || b.band} · ${b.from}–${b.to}` : (BAND_LABELS[b.band] || b.band),
   detail: `${duration(b.minutes)} × ${eurosText(b.rate)}`,
   amount: b.amount,
 });
@@ -102,7 +106,7 @@ function priceBookingLines({ resource, startTime, endTime, override = null, exte
 
   const finish = (priced) => {
     const total = Math.max(0, round2(priced.grossTotal - priced.freeValue - priced.offeredValue));
-    const lines = priced.bands.map(bandLineOf);
+    const lines = priced.bands.map((band) => bandLineOf(band));
     if (priced.freeMinutesApplied > 0) {
       lines.push({ key: 'free', label: 'Offert par le logement', detail: duration(priced.freeMinutesApplied), amount: -priced.freeValue });
     }
