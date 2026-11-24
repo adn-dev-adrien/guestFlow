@@ -38,6 +38,8 @@ import DevisValidityChip from '../components/reservation/DevisValidityChip';
 import DevisExtensionSummary from '../components/reservation/DevisExtensionSummary';
 import ClientFormFields from '../components/ClientFormFields';
 import FormDialog from '../components/FormDialog';
+import ChoiceDialog from '../components/ChoiceDialog';
+import ManualPriceReviewContent, { manualPriceChoices, MANUAL_PRICE_REVIEW_TEXT } from '../components/reservation/ManualPriceReviewContent';
 import { ReservationFormProvider } from '../components/reservation/ReservationFormContext';
 import StaySection from '../components/reservation/StaySection';
 import GuestsBedsSection from '../components/reservation/GuestsBedsSection';
@@ -492,6 +494,13 @@ export default function ReservationPage() {
   const [loadedSnapshot, setLoadedSnapshot] = useState(null);
   const [miniCalendarStart, setMiniCalendarStart] = useState(formatDate(new Date().getFullYear(), new Date().getMonth(), new Date().getDate()));
   const [miniSelectionAnchor, setMiniSelectionAnchor] = useState('');
+  // specs/manual-price-on-placement-change.md — the review the live quote returns when a move changed the tariff behind a manual
+  // price; the placement that price was decided against (rule 4); the last placement no review questioned, and the fiche as it was
+  // there, which « Annuler le changement » puts back (rule 13).
+  const [manualPriceReview, setManualPriceReview] = useState(null);
+  const customPriceReferenceRef = useRef(null);
+  const settledPlacementRef = useRef(null);
+  const preMoveSnapshotRef = useRef(null);
   const [occupiedDates, setOccupiedDates] = useState([]);
   const [excludeReservationIdForDevis, setExcludeReservationIdForDevis] = useState(null);
   const miniCenteredOnceRef = useRef(false);
@@ -990,6 +999,10 @@ export default function ReservationPage() {
         if (!quiet) { setLoading(true); setStoredSaleDetail(null); }
         setRereadFailed(false);
         setHeldQuote(quiet ? pricingQuoteRef.current : null);
+        // A (re)load decides its manual price against what it loads (specs/manual-price-on-placement-change.md rule 4).
+        customPriceReferenceRef.current = null;
+        settledPlacementRef.current = null;
+        setManualPriceReview(null);
         // A (re)load takes its clean baseline again, from what it loads (see the baseline effect).
         setInitialSnapshot(null);
         setLoadedSnapshot(null);
@@ -1577,6 +1590,60 @@ export default function ReservationPage() {
     loadOccupiedDates();
   }, [selectedProp, form.startDate, form.endDate, editingReservationId, windowToday]);
 
+  // specs/manual-price-on-placement-change.md rule 4 — the placement a manual price was decided against: the one it was typed or
+  // reviewed on, else the stored placement. The server prices it; no amount is sent.
+  const manualPriceReferenceFor = (customPrice) => {
+    if (customPrice === '' || customPrice == null) return null;
+    const stored = initialPricingContextRef.current;
+    const reference = customPriceReferenceRef.current || (stored.startDate ? stored : null);
+    return reference && reference.propertyId
+      ? { propertyId: Number(reference.propertyId), startDate: reference.startDate, endDate: reference.endDate }
+      : null;
+  };
+  const currentPlacement = { propertyId: Number(selectedProp), startDate: form.startDate, endDate: form.endDate };
+  const isSamePlacement = (a, b) => Boolean(a && b) && Number(a.propertyId) === Number(b.propertyId)
+    && a.startDate === b.startDate && a.endDate === b.endDate;
+  // A manual price typed (or set by a review) is decided against the placement shown at that moment.
+  useEffect(() => {
+    if (form.customPrice === '' || form.customPrice == null || !selectedProp || !form.startDate || !form.endDate) return;
+    customPriceReferenceRef.current = { propertyId: Number(selectedProp), startDate: form.startDate, endDate: form.endDate };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [form.customPrice]);
+  // The fiche as it stands on its settled placement: frozen as soon as a move leaves it, put back by « Annuler le changement ».
+  useEffect(() => {
+    const settled = settledPlacementRef.current;
+    if (manualPriceReview || (settled && !isSamePlacement(settled, currentPlacement))) return;
+    preMoveSnapshotRef.current = { propertyId: selectedProp, form, offeredOptionIds };
+  });
+  // Rule 16 — a move whose review has not come back yet: the save waits for it.
+  const manualPriceReviewAwaited = quotePending && Boolean(manualPriceReferenceFor(form.customPrice))
+    && !isSamePlacement(manualPriceReferenceFor(form.customPrice), currentPlacement);
+
+  const handleManualPriceReviewConfirm = (key) => {
+    const choice = (manualPriceReview?.choices || []).find((c) => c.key === key);
+    if (!choice) return;
+    const placement = manualPriceReview.placement;
+    customPriceReferenceRef.current = { propertyId: placement.propertyId, startDate: placement.startDate, endDate: placement.endDate };
+    settledPlacementRef.current = customPriceReferenceRef.current;
+    if (key !== 'keep') updateForm({ customPrice: choice.customPrice });
+    setManualPriceReview(null);
+  };
+
+  const handleManualPriceReviewCancel = async () => {
+    const snapshot = preMoveSnapshotRef.current;
+    setManualPriceReview(null);
+    setMiniSelectionAnchor('');
+    if (!snapshot) return;
+    if (Number(snapshot.propertyId) !== Number(selectedProp)) {
+      await loadPropertyContext(snapshot.propertyId, properties);
+      api.getReservations({ propertyId: Number(snapshot.propertyId), view: 'occupancy' })
+        .then((list) => setReservations(list || []))
+        .catch(() => {});
+    }
+    setOfferedOptionIds(snapshot.offeredOptionIds);
+    setForm(snapshot.form);
+  };
+
   // Auto-refresh base price when reservation parameters change
   useEffect(() => {
     const retrying = quoteRetryRef.current !== quoteRetry;
@@ -1598,13 +1665,18 @@ export default function ReservationPage() {
 
     const refreshBasePrice = async () => {
       try {
-        const quoteBody = buildFicheQuoteBody();
+        const reference = manualPriceReferenceFor(form.customPrice);
+        const quoteBody = buildFicheQuoteBody(reference ? { customPriceReference: reference } : {});
         lastQuoteAskedLinesRef.current = quoteBody.selectedOptions;
         const calc = await api.calculatePrice(quoteBody);
 
         if (requestId !== pricingQuoteRequestRef.current) return;
         setQuotePending(false);
         setPricingQuote(calc);
+        setManualPriceReview(calc.manualPriceReview || null);
+        if (!calc.manualPriceReview) {
+          settledPlacementRef.current = { propertyId: Number(selectedProp), startDate: form.startDate, endDate: form.endDate };
+        }
         setNightlyBreakdown(calc.nightlyBreakdown || []);
         applyQuoteMinNights(calc);
 
@@ -3049,7 +3121,12 @@ export default function ReservationPage() {
   };
   const rereadFiche = () => { quietReloadRef.current = true; setRereading(true); setReloadToken((token) => token + 1); };
 
-  const handleSaveClick = () => handleSaveReservation();
+  const handleSaveClick = () => {
+    // specs/manual-price-on-placement-change.md rule 16 — a pending review is answered before any save.
+    if (manualPriceReviewAwaited) return;
+    if (manualPriceReview) { setMiniSelectionAnchor(''); return; }
+    handleSaveReservation();
+  };
 
   // specs/mid-stay-notes.md §4.2 — a note validated with a catalogue addition must go through the
   // STANDARD save (pricing engine, planning cards, laundry counts…) before it can be settled: the
@@ -4011,7 +4088,7 @@ export default function ReservationPage() {
         onSave={isClosedFiche ? undefined : handleSaveClick}
         saveTooltip={isDevisMode ? 'Enregistrer le devis' : 'Enregistrer'}
         saveDisabled={saving || saveBlocked || !(isDirty || touristTaxRefreshRequested)}
-        saveBusy={saving || rereading || switchingProperty || panelWriting}
+        saveBusy={saving || rereading || switchingProperty || panelWriting || manualPriceReviewAwaited}
         onCancel={goBackToOrigin}
         actionsAfter={actionBarAfter}
       />
@@ -4336,6 +4413,19 @@ export default function ReservationPage() {
           phoneError={newClientPhoneError}
         />
       </FormDialog>
+
+      <ChoiceDialog
+        open={Boolean(manualPriceReview) && !miniSelectionAnchor}
+        title={MANUAL_PRICE_REVIEW_TEXT.title}
+        ariaLabel={MANUAL_PRICE_REVIEW_TEXT.ariaLabel}
+        intro={<ManualPriceReviewContent review={manualPriceReview} />}
+        choices={manualPriceChoices(manualPriceReview)}
+        defaultValue="keepGap"
+        confirmLabel={MANUAL_PRICE_REVIEW_TEXT.confirm}
+        cancelLabel={MANUAL_PRICE_REVIEW_TEXT.cancel}
+        onConfirm={handleManualPriceReviewConfirm}
+        onCancel={handleManualPriceReviewCancel}
+      />
 
       <UnsavedChangesDialog
         open={unsavedDialogOpen}

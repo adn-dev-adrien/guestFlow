@@ -147,6 +147,8 @@ const OUTSIDE_POLICY = [
   [/onSaveAndQuit=/, 'held (saveDisabledReason while saveBlocked)'],
   [/onClose=\{\(\) => setEmailSendOpen|onMoneyChanged=/, 'email dialog (no stay write)'],
   [/onClose=\{\(\) => setCancelDialogOpen|onConfirm=\{handleCancelReservation\}/, 'cancel dialog (opener held)'],
+  // specs/manual-price-on-placement-change.md rules 12-13 — sets the draft's manual price or puts its placement back; no stay write.
+  [/onConfirm=\{handleManualPriceReviewConfirm\}|onCancel=\{handleManualPriceReviewCancel\}/, 'manual price review (local draft edit)'],
 ];
 const policyOf = (h) => (OUTSIDE_POLICY.find(([re]) => re.test(h.text)) || [null, null])[1];
 
