@@ -427,6 +427,9 @@ Rules are identities: a rule is never renumbered, new rules are appended
 
 ### 3.K Degressive hourly pricing in the engine (added 2026-11-18)
 
+> **Superseded** 2026-11-24 by `specs/hourly-extra-hour-rates.md`: the percent-per-rank table below is withdrawn
+> in favour of a price for the following hours, per audience and band. The rule numbers stay (they are identities).
+
 43. **A resource may carry a degressivity table by hour rank**: `[{ fromHour, percent }]`, for
     example `[{ fromHour: 2, percent: 10 }, { fromHour: 3, percent: 20 }]` — the 2nd hour at −10 %,
     the 3rd and the following at −20 %. Empty means linear, as today.
@@ -441,6 +444,10 @@ Rules are identities: a rule is never renumbered, new rules are appended
       offer one.
     - A price shown for one isolated slot (a slot grid's unit price) is the first hour's; the
       session's total, priced by the engine, carries the ranks.
+
+    > **Superseded** 2026-11-24 by specs/hourly-extra-hour-rates.md (rules 1, 5, 7).
+    >
+    > **Sans test** — the percent table is withdrawn; its replacement is covered by `specs/hourly-extra-hour-rates.md` rules 1, 5 and 7.
 44. **Each slice takes the rate of its own band, then the discount of its rank.**
     - The engine walks the session in steps of `slotDuration` (`priceMinutes`), as today. The rank
       of a slice is the hour of the session it falls in, counted from the session's start (or from
@@ -452,8 +459,15 @@ Rules are identities: a rule is never renumbered, new rules are appended
     - Free minutes (« 1 h offerte ») take the first ranks. Their value keeps today's rule (day rate).
     - Rounding: each slice to the cent, the line as the sum; the per-band breakdown of
       `roundedBands` keeps adding up to the gross.
+
+    > **Superseded** 2026-11-24 by specs/hourly-extra-hour-rates.md (rules 2, 3): the rank now picks a rate, not a percent.
+    >
+    > **Sans test** — replaced by `specs/hourly-extra-hour-rates.md` rules 2 and 3.
 45. The evening supplement of a day voucher (rule 14) is the engine's price of the covered evening
     slices minus their day price, both at their rank. No reverse case.
+
+    > **Superseded** 2026-11-24 by specs/hourly-extra-hour-rates.md (rule 4): the supplement is still the engine's evening price minus
+    > its day price, the ranks now pick the rate of each slice.
 
 ### 3.L One-shot vouchers (added 2026-11-18)
 

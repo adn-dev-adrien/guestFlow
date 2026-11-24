@@ -75,7 +75,7 @@ test('public and admin routes return the same payload and the same price for the
     const request = { slug: 'bain-jour', extraMinutes: 60, addOns: [{ articleRef: `option:${ids.drink}`, qty: 2 }] };
     const sitePrice = (await site('POST', '/offer/price', request)).body.data;
     const adminPrice = (await admin('POST', '/offer/price', request)).body;
-    assert.equal(sitePrice.totalCents, 9500 + 4000 + 1400 + 1300);
+    assert.equal(sitePrice.totalCents, 9500 + 4500 + 1400 + 1300);
     assert.deepEqual({ lines: adminPrice.lines, totalCents: adminPrice.totalCents, vat: adminPrice.vat }, sitePrice);
     assert.deepEqual(sitePrice, (({ lines, totalCents, vat }) => ({ lines, totalCents, vat }))(api.offerService.price(request)), 'and the service’s own answer');
     const lodging = { slug: 'sejour', amountCents: 15000 };

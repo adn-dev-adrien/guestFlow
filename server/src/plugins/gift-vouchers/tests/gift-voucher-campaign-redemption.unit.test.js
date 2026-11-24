@@ -221,14 +221,14 @@ test('the slots leave out the closed hours, the past and what is beyond the hori
   assert.equal(ask.slots(voucher, { from: 'demain', to: day(1) }).code, 'PERIOD_INVALID');
 });
 
-test('the recap of a day voucher run into the evening: the supplement is the engine\'s, the added time takes the ranks that follow (3rd hour −20 %), the added option is due', () => {
+test('the recap of a day voucher run into the evening: the supplement is the engine\'s, the added time takes the ranks that follow (3rd hour at the following-hours rate), the added option is due', () => {
   const voucher = dayVoucher();
   const { ok, data } = ask.quote(voucher, { start: `${day(2)}T18:00`, extraMinutes: 60, addOns: [{ articleRef: `option:${ids.drink}`, qty: 1 }] });
   assert.equal(ok, true, JSON.stringify(data));
   assert.deepEqual(data.included.map((l) => [l.label, l.valueCents]), [['Bain nordique · 2 h', 9500], ['Planche apéro', 1400]]);
   assert.deepEqual(data.supplement, { label: 'Supplément soirée', cents: 1800 });
-  assert.deepEqual(data.extras.map((e) => [e.label, e.cents]), [['Temps supplémentaire · 1 h', 5600], ['Boisson', 650]]);
-  assert.equal(data.dueCents, 1800 + 5600 + 650);
+  assert.deepEqual(data.extras.map((e) => [e.label, e.cents]), [['Temps supplémentaire · 1 h', 6300], ['Boisson', 650]]);
+  assert.equal(data.dueCents, 1800 + 6300 + 650);
   assert.equal(data.totalCents, 9500 + 1400 + data.dueCents);
   assert.deepEqual([data.date, data.start, data.end], [day(2), '18:00', '21:00']);
   assert.ok(data.vat.length > 0 && data.vat.every((row) => row.cents >= 0));

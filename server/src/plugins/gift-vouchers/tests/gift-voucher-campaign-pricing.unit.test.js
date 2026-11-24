@@ -1,5 +1,5 @@
 // specs/gift-voucher-campaigns.md rules 5, 6, 17, 27, 44 — the price of a composed voucher comes from the pricing engine only, for the outside customer: the band's
-// external rate, the resource's degressive tiers by hour rank (extra time continues the ranks of the included minutes), each option at its catalogue price, the
+// external rate, the resource's following-hours rate (extra time continues the ranks of the included minutes), each option at its catalogue price, the
 // outside VAT of each line's class. Nothing is stored by the campaign, nothing is written by a price, a campaign the engine cannot price is not offered.
 process.env.DB_PATH = ':memory:';
 process.env.TZ = 'Europe/Paris';
@@ -34,20 +34,20 @@ test('2 h of day + a board = 95 + 14 = 109 €, each line with its VAT rate and 
   assert.equal(answer.vatLines.reduce((sum, l) => sum + l.htCents + l.vatCents, 0), answer.totalCents);
 });
 
-test('extra time continues the ranks of the included minutes: the 3rd hour is at −20 %, and one line or two cost the same', () => {
+test('extra time continues the ranks of the included minutes: the 3rd hour is a following hour at 45 €, and one line or two cost the same', () => {
   const withExtra = price({ extraMinutes: 60 });
   assert.deepEqual(withExtra.lines.map((l) => [l.kind, l.label, l.totalCents]), [
     ['session', 'Bain nordique · journée', 9500],
-    ['extra', 'Temps supplémentaire · 1 h', 4000],
+    ['extra', 'Temps supplémentaire · 1 h', 4500],
     ['option', 'Planche apéro', 1400],
   ]);
-  assert.equal(withExtra.totalCents, 14900);
+  assert.equal(withExtra.totalCents, 15400);
   const twoHours = price({ extraMinutes: 120 });
-  assert.equal(twoHours.lines[1].totalCents, 8000, 'the 3rd and the 4th hour both at the last tier');
+  assert.equal(twoHours.lines[1].totalCents, 9000, 'the 3rd and the 4th hour both at the following-hours rate');
   const whole = fx.db.prepare('SELECT 1').get() && require('../../../utils/standaloneSale').quote({
     lines: [{ articleRef: `resource:${ids.bath}`, session: { band: 'day', minutes: 180 } }],
   });
-  assert.equal(whole.document.totals.totalCents, 9500 + 4000, 'priced as one 3 h session by the same engine');
+  assert.equal(whole.document.totals.totalCents, 9500 + 4500, 'priced as one 3 h session by the same engine');
 });
 
 test('an evening voucher is priced at the evening rate: 2 h = 70 + 63 = 133 €', () => {
@@ -70,9 +70,9 @@ test('add-ons are priced at their own class: a drink at 20 %, the board at 10 %;
 test('a price is read each time: a rate changed on the resource moves the price with no change to the campaign', () => {
   const before = price({}).totalCents;
   const updatedAt = api.campaigns.find(bath.id).updatedAt;
-  db.prepare('UPDATE resources SET hourlyExternalDayRate = 60 WHERE id = ?').run(ids.bath);
+  db.prepare('UPDATE resources SET hourlyExternalDayRate = 60, hourlyExternalNextDayRate = 54 WHERE id = ?').run(ids.bath);
   assert.equal(price({}).totalCents, 6000 + 5400 + 1400);
-  db.prepare('UPDATE resources SET hourlyExternalDayRate = 50 WHERE id = ?').run(ids.bath);
+  db.prepare('UPDATE resources SET hourlyExternalDayRate = 50, hourlyExternalNextDayRate = 45 WHERE id = ?').run(ids.bath);
   assert.equal(price({}).totalCents, before);
   assert.equal(api.campaigns.find(bath.id).updatedAt, updatedAt);
   assert.equal(Object.keys(db.prepare('SELECT * FROM gift_voucher_campaigns WHERE id = ?').get(bath.id)).some((c) => /price|cents$/i.test(c) && !/amount|extra/i.test(c)), false, 'no price column on a campaign');

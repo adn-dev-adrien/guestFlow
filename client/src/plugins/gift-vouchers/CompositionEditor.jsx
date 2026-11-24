@@ -1,7 +1,7 @@
 /**
  * CompositionEditor — what a voucher contains (specs/gift-voucher-campaigns.md rules 4, 46): one hourly resource with its tariff mode and included minutes, and any
  * options with a quantity, all picked in the server's catalogue. Used by the campaign editor and by « Sur mesure ». It holds no price and judges nothing: the modes, their
- * rates, hours and degressivity, the elements that cannot be sold and the refusal of a value all come from the server.
+ * rates, hours and following-hours rate, the elements that cannot be sold and the refusal of a value all come from the server.
  *
  * Props:
  *   value     { resourceId, band, minutes, options: [{ articleRef, qty }] } | null
@@ -92,7 +92,7 @@ function ModeChoice({ mode, selected, onSelect }) {
       <Box sx={{ minWidth: 0 }}>
         <Typography variant="body2" fontWeight={600}>{`${mode.label} · ${formatCents(mode.rateCents)} ${T.perHour}`}</Typography>
         <Typography variant="caption" color="text.secondary" component="div">{T.hours(mode.from, mode.to)}</Typography>
-        {mode.degressiveText ? <Typography variant="caption" color="text.secondary" component="div">{mode.degressiveText}</Typography> : null}
+        {mode.followingText ? <Typography variant="caption" color="text.secondary" component="div">{mode.followingText}</Typography> : null}
         {!mode.sellable && mode.reason ? <Typography variant="caption" color="error" component="div">{mode.reason}</Typography> : null}
       </Box>
     </Box>

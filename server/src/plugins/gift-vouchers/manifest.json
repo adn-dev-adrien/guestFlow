@@ -1,7 +1,7 @@
 {
   "id": "gift-vouchers",
   "name": "Bons cadeaux",
-  "version": "1.3.0",
+  "version": "1.4.0",
   "description": "Des bons cadeaux vendus en ligne, au téléphone ou par carte commerçant : un montant pour un séjour, ou un contenu composé (bain nordique et options) réservé en ligne par le bénéficiaire.",
   "icon": "gift",
   "surfaces": [
@@ -18,6 +18,10 @@
   "guestflow": ">=3.10.0",
   "sdk": "^2.33.0",
   "changelog": {
+    "1.4.0": [
+      "Le catalogue des tranches d’une ressource à l’heure dit « puis X €/h » quand les heures suivantes ne coûtent pas le prix de la 1re heure, à la place de la phrase de dégressivité en pourcentage.",
+      "Compatible avec GuestFlow 4 (SDK 2.33)."
+    ],
     "1.3.0": [
       "Les bons se vendent par campagne : un montant libre pour un séjour (les bornes, la validité, la TVA et les idées de prix des réglages deviennent la campagne « séjour »), ou un contenu composé à partir du catalogue — une séance de ressource à l’heure dans la journée ou la soirée, des options comprises, des options et du temps en plus au choix de l’acheteur.",
       "Chaque prix vient du moteur de prix de GuestFlow, au tarif extérieur de la tranche, avec la remise de chaque heure et la TVA de chaque ligne ; rien n’existe avant la confirmation de la banque que la commande, dont le prix est recalculé au moment du lien de paiement.",

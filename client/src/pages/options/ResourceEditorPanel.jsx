@@ -29,12 +29,12 @@ import { RESOURCE_PRICE_TYPES, TEXTS, UNIT_BY_PRICE_TYPE } from '../../constants
 import { Contribution } from '../../plugins/sdk/Slot';
 import usePluginFields from './usePluginFields';
 import {
-  emptyResource, formFromResource, toResourcePayload, validateResourceForm, withScope,
+  emptyResource, formFromResource, NEXT_RATE_FIELDS, toResourcePayload, validateResourceForm, withScope,
 } from './resourceForm';
 import { isBlank } from './optionForm';
 import { EXTERNAL_FIELDS } from './externalSaleForm';
 
-const HOURLY_FIELDS = ['closeTime', 'hourlyEveningRate', 'hourlyExternalDayRate', 'hourlyExternalEveningRate', 'hourlyDegressiveTiers', 'bookingHorizonMonths'];
+const HOURLY_FIELDS = ['closeTime', 'hourlyEveningRate', 'hourlyExternalDayRate', 'hourlyExternalEveningRate', ...NEXT_RATE_FIELDS.map(([field]) => field), 'bookingHorizonMonths'];
 const SECTION_OF = { name: 'general', quantity: 'general', price: 'prices' };
 const sectionOf = (field) => SECTION_OF[field] || (EXTERNAL_FIELDS.includes(field) ? 'external' : (HOURLY_FIELDS.includes(field) ? 'hours' : 'prices'));
 
@@ -171,7 +171,7 @@ export default function ResourceEditorPanel({ open, resourceId, properties, onCl
   const contributions = plugins.inline;
   const priceTypes = hourlyOn ? RESOURCE_PRICE_TYPES : RESOURCE_PRICE_TYPES.filter((t) => t.value !== 'per_hour');
   const hasError = (section) => errorFields.some((field) => sectionOf(field) === section);
-  const hourErrors = HOURLY_FIELDS.filter((field) => errors[field]);
+  const hourErrors = HOURLY_FIELDS.filter((field) => errors[field] && !NEXT_RATE_FIELDS.some(([next]) => next === field));
 
   const sections = form ? [
     { id: 'general', label: 'Général', hasError: hasError('general') },
@@ -272,7 +272,7 @@ export default function ResourceEditorPanel({ open, resourceId, properties, onCl
           <SidePanelSection id="hours" title="Horaires">
             {contributions.map(({ key, pluginId, Component }) => (
               <Contribution key={`${pluginId}:${key}`} pluginId={pluginId}>
-                <Component draft={form} onChange={(patch) => setForm({ ...form, ...patch })} />
+                <Component draft={form} onChange={(patch) => setForm({ ...form, ...patch })} errors={errors} />
               </Contribution>
             ))}
             {hourErrors.map((field) => (

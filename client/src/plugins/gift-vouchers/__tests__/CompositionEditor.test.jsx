@@ -44,7 +44,7 @@ test('choosing the hourly resource shows its modes from the server, selects the 
   expect(onChange).toHaveBeenLastCalledWith({ resourceId: 1, band: 'day', minutes: 60, options: [] });
   expect(screen.getByText(/Extérieur · journée · 50,00.€.\/ h/)).toBeInTheDocument();
   expect(screen.getByText('de 10:00 à 19:00')).toBeInTheDocument();
-  expect(screen.getByText('Dégressif : −10 % dès la 2e heure, −20 % dès la 3e')).toBeInTheDocument();
+  expect(screen.getByText('puis 45 €/h')).toBeInTheDocument();
   expect(screen.getByText('Par tranches de 60 min, 60 min au minimum.')).toBeInTheDocument();
   await userEvent.click(screen.getByRole('radio', { name: 'Extérieur · soirée' }));
   expect(onChange).toHaveBeenLastCalledWith(expect.objectContaining({ band: 'evening' }));

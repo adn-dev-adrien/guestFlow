@@ -1,5 +1,5 @@
 // Shared fixture of the outside-booking offer suites (specs/gift-voucher-campaigns.md rules 29, 35, 36, 53): the core database in memory with the plugin registered the way the host does
-// (so its offer is reached through `ctx.core.resourceBookingOffer()`, as another plugin reaches it), one bath with its degressive tiers and an evening band, one option sold outside a stay,
+// (so its offer is reached through `ctx.core.resourceBookingOffer()`, as another plugin reaches it), one bath with its following-hours rates and an evening band, one option sold outside a stay,
 // a clock on a Sunday so the slots begin on the Monday after. Not a test file. A suite sets `process.env.DB_PATH = ':memory:'` before requiring it.
 
 process.env.TZ = 'Europe/Paris';
@@ -20,7 +20,6 @@ const occupancyModel = require('../occupancyModel');
 
 const NOW = new Date('2026-11-15T10:00:00Z'); // date-literal-ok: the suite runs on its own clock, never the real today
 const DAY = '2026-11-16'; // date-literal-ok: the suite runs on its own clock, never the real today
-const TIERS = [{ fromHour: 2, percent: 10 }, { fromHour: 3, percent: 20 }];
 
 applyPluginSchema(db, 'hourly-resources');
 registry.reset();
@@ -37,7 +36,7 @@ const insert = (table, row) => {
 
 const newResource = (over = {}) => insert('resources', {
   name: 'Bain nordique', quantity: 1, price: 25, priceType: 'per_hour', showsPlanningCard: 1, slotDuration: 60, minimumUsageMinutes: 60, openTime: '10:00', closeTime: '22:00',
-  hourlyEveningStart: '19:00', hourlyEveningRate: 35, hourlyExternalDayRate: 50, hourlyExternalEveningRate: 70, hourlyDegressiveTiers: JSON.stringify(TIERS), sellableExternally: 1, ...over,
+  hourlyEveningStart: '19:00', hourlyEveningRate: 35, hourlyExternalDayRate: 50, hourlyExternalEveningRate: 70, hourlyExternalNextDayRate: 45, hourlyExternalNextEveningRate: 63, sellableExternally: 1, ...over,
 });
 const newOption = (over = {}) => insert('options', {
   title: 'Planche apéro', price: 14, priceType: 'per_stay', vatClass: 'catering', sellableExternally: 1, ...over,
@@ -93,5 +92,5 @@ function bookCovered({
 }
 
 module.exports = {
-  db, sdk, ctx, registry, offer, bookings, occupancy, marks, visits, fiche, sales, standaloneSale, NOW, DAY, TIERS, insert, newResource, newOption, holdRows, optionCents, bookCovered, publishTerms,
+  db, sdk, ctx, registry, offer, bookings, occupancy, marks, visits, fiche, sales, standaloneSale, NOW, DAY, insert, newResource, newOption, holdRows, optionCents, bookCovered, publishTerms,
 };

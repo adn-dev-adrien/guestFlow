@@ -19,6 +19,7 @@ const localIsoDate = (d) => `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2
 const resourceOccupancyModel = require('./occupancyModel');
 const { buildDays, validateBlock, toAbsMinutes } = require('./availability');
 const { eveningSupplement, toMinutes } = require('./hourlyPricing');
+const { rateGridOf } = require('./bookingPricing');
 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -142,11 +143,9 @@ function createModel(database) {
 
   function eveningOf(entry, blocks) {
     return eveningSupplement(blocks, {
-      dayRate: Number(entry.resource.price || 0),
-      eveningRate: Number(entry.resource.hourlyEveningRate) || 0,
+      ...rateGridOf(entry.resource, { external: false }),
       eveningStart: entry.resource.hourlyEveningStart || null,
       slotMinutes: Number(entry.resource.slotDuration || 60),
-      degressiveTiers: entry.resource.hourlyDegressiveTiers,
     });
   }
 

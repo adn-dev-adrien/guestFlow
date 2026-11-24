@@ -16,10 +16,21 @@ const { numberRefused, nonNegative, wholeFrom } = require('../utils/lineInputBou
 const { buildResourceItems } = require('../utils/resourceCatalogueView');
 const { resourceCatalogueContributors } = require('../utils/resourceCatalogueContributors');
 const externalFields = require('../utils/externalArticleFields');
-const { degressiveTiersProblem } = require('../utils/degressiveTiers');
 
 const isBlank = (value) => value === undefined || value === null || (typeof value === 'string' && value.trim() === '');
 const HOURLY_RATES = ['hourlyEveningRate', 'hourlyExternalDayRate', 'hourlyExternalEveningRate'];
+// specs/hourly-extra-hour-rates.md rule 5 — the rate of the following hours, empty or 0 to 10 000 with at most two decimals.
+const NEXT_RATES = [
+  ['hourlyNextDayRate', 'journée, hébergés'], ['hourlyNextEveningRate', 'soir, hébergés'],
+  ['hourlyExternalNextDayRate', 'journée, extérieurs'], ['hourlyExternalNextEveningRate', 'soir, extérieurs'],
+];
+const nextRateRefused = (raw, stored) => {
+  if (isBlank(raw)) return false;
+  const value = typeof raw === 'number' ? raw : (typeof raw === 'string' && /^\d+([.,]\d+)?$/.test(raw.trim()) ? Number(raw.trim().replace(',', '.')) : NaN);
+  if (!Number.isFinite(value)) return true;
+  if (stored !== undefined && stored !== null && Number(stored) === value) return false;
+  return value < 0 || value > 10000 || Math.abs(Math.round(value * 100) - value * 100) > 1e-6;
+};
 const RESOURCE_MINUTES = ['slotDuration', 'turnoverMinutes', 'minimumUsageMinutes', 'heatUpMinutes', 'heatRetentionMinutes'];
 const PRICE_TYPES = ['per_stay', 'per_person', 'per_night', 'per_person_per_night', 'per_hour', 'free'];
 const RESOURCE_TEXTS = ['note', 'emailBookedText', 'emailBookedTextEn'];
@@ -82,8 +93,9 @@ function validateResourcePayload(body, stored = null, knownPropertyIds = null) {
     }
   });
   Object.entries(payload.propertyPrices || {}).forEach(([pid, raw]) => priced(`propertyPrices.${pid}`, raw, stored?.propertyPrices?.[pid]));
-  const tiersMessage = degressiveTiersProblem(payload.hourlyDegressiveTiers);
-  if (tiersMessage) details.push({ field: 'hourlyDegressiveTiers', message: tiersMessage });
+  NEXT_RATES.forEach(([field, where]) => {
+    if (nextRateRefused(payload[field], stored?.[field])) details.push({ field, message: `Le tarif des heures suivantes (${where}) doit être un montant positif.` });
+  });
   RESOURCE_MINUTES.forEach((field) => {
     if (numberRefused(payload[field], nonNegative, stored?.[field])) details.push({ field, message: MESSAGES.notANumber });
   });

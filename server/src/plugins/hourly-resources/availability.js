@@ -20,6 +20,7 @@
  */
 
 const { toMinutes, eveningSupplement } = require('./hourlyPricing');
+const { rateGridOf } = require('./bookingPricing');
 
 const MINUTES_PER_DAY = 1440;
 
@@ -223,8 +224,7 @@ function buildDays({
   const ranges = toRanges([...occupancy, ...pending]);
   const visibleRanges = toRanges(occupancy);
   const supplementCfg = {
-    dayRate,
-    eveningRate: Number(resource?.hourlyEveningRate) || 0,
+    ...rateGridOf(resource || {}, { external: false, guestDayRate: dayRate }),
     eveningStart: resource?.hourlyEveningStart || null,
     slotMinutes: norm.slotMinutes,
   };
