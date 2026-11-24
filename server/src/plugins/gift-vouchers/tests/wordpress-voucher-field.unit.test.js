@@ -62,9 +62,8 @@ test('every sentence of the field is declared, in French, for the plugin’s tra
   assert.match(blocks, /'payToday'\s*=> __\('À payer aujourd’hui'/);
 });
 
-test('the 1.20.0 changelog says it, and the version is not bumped again', () => {
+test('the 1.20.0 changelog says it, once', () => {
   const readme = read('readme.txt');
-  assert.match(readme, /Stable tag: 1\.20\.0/);
   assert.match(readme, /Moteur de réservation : un champ « Bon cadeau »/);
   assert.equal((readme.match(/^= 1\.20\.0 =/gm) || []).length, 1);
 });

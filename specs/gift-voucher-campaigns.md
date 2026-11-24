@@ -214,6 +214,13 @@ Rules are identities: a rule is never renumbered, new rules are appended
     answers the lines, the total incl. VAT and the VAT per rate. Extra time is priced by the engine
     in continuation of the included minutes (its degressivity ranks follow on). The page shows the
     server's answer only.
+    - **A session line names its band, never hours** (fixed 2026-11-24): the voucher has no date, so
+      the server's line reads « Jour · 1 h × 50,00 € », not the placeholder « Jour · 11:00–12:00 »
+      it was priced on.
+    - **The wording follows the kind** (fixed 2026-11-24): a `resource` campaign's intro and preview
+      read « Valable N mois à compter du paiement, pour une séance à réserver en ligne. » — never the
+      lodging wording « Un montant au choix… en une ou plusieurs fois », which a voucher settled
+      whole in one session would contradict.
 18. The giver fills « Pour », « De la part de », a message, and an e-mail. They accept the terms of
     the voucher's activity (rule 37) and pay. There is no field for the merchant card number.
 19. **Nothing exists before the payment** (unchanged rule of `specs/gift-vouchers.md`).
@@ -250,6 +257,11 @@ Rules are identities: a rule is never renumbered, new rules are appended
       - the code;
       - « Valable jusqu'au … »;
       - the legal mention and the website (rule 50).
+
+    The page shown after the payment draws the same voucher (fixed 2026-11-24): for a `resource`
+    voucher, its title and the frozen contents read by the server (`kind`, `title`,
+    `contentLines` of the order status), never its amount, and « Valable jusqu'au …, pour une
+    séance à réserver en ligne. ».
 22. The QR code of the PDF points to the redemption page with the code in the URL fragment
     (`#bon=<code>`, never sent to a server). The printed link is `/<base>/utiliser` (rule 9).
 

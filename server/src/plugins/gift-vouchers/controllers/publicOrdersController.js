@@ -9,6 +9,7 @@
 const rules = require('../voucherRules');
 const { visitorHashOf } = require('../visitorHash');
 const { statusOf, activityOfCampaign } = require('../offerService');
+const { contentLines } = require('../contentsText');
 
 const MAX_RETURN_PATH = 200;
 const ORDERS_PER_HOUR = 5;
@@ -223,10 +224,15 @@ function buildPublicOrdersController({
     if (!voucher) return respond.ok(res, { state: DEAD_LINK.has(linkStatus) ? 'link-expired' : 'pending' });
     const state = rules.stateOf({ voucher, balanceCents: voucher.balanceCents, today: rules.parisDate(now()) });
     const plain = state === 'cancelled' ? null : readCode(voucher);
+    // specs/gift-voucher-campaigns.md rule 21 — a composed voucher is drawn by what it holds, never by its amount.
+    const campaign = voucher.campaignId && campaigns ? campaigns.find(voucher.campaignId) : null;
     return respond.ok(res, {
       state,
       voucher: {
         number: voucher.number,
+        kind: rules.contentsOf(voucher).kind,
+        title: campaign ? campaign.title : null,
+        contentLines: contentLines(voucher),
         brand: brand(),
         amountCents: voucher.amountCents,
         balanceCents: voucher.balanceCents,

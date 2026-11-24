@@ -289,7 +289,7 @@ test('rules 20, 21: once confirmed, the page shows the voucher — amount, names
   assert.deepEqual(
     { ...voucher, code: undefined },
     {
-      number: 'BC-2026-0001', brand: 'Domaine Solio', amountCents: 15000, balanceCents: 15000, expiresOn: '2028-05-15', recipientName: 'Marie', senderName: 'Paul', message: 'Joyeux anniversaire', code: undefined, // date-literal-ok: the suite runs on its own clock, never the real today
+      number: 'BC-2026-0001', kind: 'lodging', title: 'Bon cadeau', contentLines: ['Un séjour dans nos logements, d’une valeur de 150,00 €'], brand: 'Domaine Solio', amountCents: 15000, balanceCents: 15000, expiresOn: '2028-05-15', recipientName: 'Marie', senderName: 'Paul', message: 'Joyeux anniversaire', code: undefined, // date-literal-ok: the suite runs on its own clock, never the real today
     },
   );
   assert.match(voucher.code, /^[0-9A-Z]{16}$/);

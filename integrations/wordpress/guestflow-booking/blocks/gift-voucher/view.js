@@ -383,7 +383,7 @@
       root.appendChild(back);
     }
     root.appendChild(GF.el('h3', { class: 'gf-gv-title' }, campaign ? campaign.title : GF.t('gvTitle')));
-    if (months) root.appendChild(GF.el('p', { class: 'gf-gv-intro' }, GF.t('gvIntro', months)));
+    if (months) root.appendChild(GF.el('p', { class: 'gf-gv-intro' }, GF.t(isResource ? 'gvIntroSession' : 'gvIntro', months)));
     root.appendChild(GF.el('div', { class: 'gf-gv-two' },
       GF.el('div', { class: 'gf-gv-form' },
         isResource ? composeBlock : amountField, isResource ? null : ideasBlock, recipientField, senderField, messageField, emailField,
@@ -413,7 +413,7 @@
         sender: senderInput.value.trim(),
         message: messageInput.value.trim(),
         code: null,
-        conditions: months ? GF.t('gvConditionsPreview', months) : '',
+        conditions: months ? GF.t(isResource ? 'gvConditionsPreviewSession' : 'gvConditionsPreview', months) : '',
       }));
     }
 
@@ -561,12 +561,14 @@
         GF.el('div', { class: 'gf-gv-two' },
           GF.el('div', { class: 'gf-gv-printzone' }, ticket({
             brand: v.brand || '',
-            amountCents: v.amountCents,
+            amountCents: v.kind === 'resource' ? null : v.amountCents,
+            heading: v.kind === 'resource' ? (v.title || GF.t('gvVoucher')) : null,
+            items: v.kind === 'resource' ? (v.contentLines || []).map(function (label) { return { label: label, qty: 1 }; }) : null,
             recipient: v.recipientName || '',
             sender: v.senderName || '',
             message: v.message || '',
             code: code,
-            conditions: GF.t('gvConditionsUntil', dateOf(v.expiresOn)),
+            conditions: GF.t(v.kind === 'resource' ? 'gvConditionsUntilSession' : 'gvConditionsUntil', dateOf(v.expiresOn)),
           })),
           GF.el('div', { class: 'gf-gv-form gf-gv-after' },
             GF.el('div', { class: 'gf-gv-actions' },

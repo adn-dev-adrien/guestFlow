@@ -1073,3 +1073,12 @@ msgstr "Start of the gift voucher links"
 #: blocks/gift-voucher-use, includes/class-gf-blocks.php (specs/gift-voucher-campaigns.md)
 msgid "Les liens permanents imprimés sur les cartes : %1$s et %2$s. Identique au réglage de GuestFlow."
 msgstr "The permanent links printed on the cards: %1$s and %2$s. Same as the GuestFlow setting."
+
+msgid "Valable %d mois à compter du paiement, pour une séance à réserver en ligne."
+msgstr "Valid for %d months from payment, for a session to book online."
+
+msgid "Valable %d mois à compter du paiement, pour une séance à réserver en ligne. Ni repris ni échangé contre de l’argent."
+msgstr "Valid for %d months from payment, for a session to book online. Not refundable or exchangeable for cash."
+
+msgid "Valable jusqu’au %s, pour une séance à réserver en ligne. Ni repris ni échangé contre de l’argent."
+msgstr "Valid until %s, for a session to book online. Not refundable or exchangeable for cash."

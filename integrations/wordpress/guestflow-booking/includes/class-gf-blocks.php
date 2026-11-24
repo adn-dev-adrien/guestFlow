@@ -268,6 +268,7 @@ final class GF_Blocks
                 // Gift voucher tunnel (specs/gift-vouchers.md §6).
                 'gvTitle'         => __('Offrir un séjour', 'guestflow-booking'),
                 'gvIntro'         => __('Un montant au choix, valable %d mois, à utiliser en une ou plusieurs fois.', 'guestflow-booking'),
+                'gvIntroSession'  => __('Valable %d mois à compter du paiement, pour une séance à réserver en ligne.', 'guestflow-booking'),
                 'gvAmount'        => __('Montant', 'guestflow-booking'),
                 'gvAmountRange'   => __('De %s à %s.', 'guestflow-booking'),
                 'gvAmountEmpty'   => __('Indiquer un montant.', 'guestflow-booking'),
@@ -298,6 +299,8 @@ final class GF_Blocks
                 'gvCodeAfterPay'  => __('délivré après le paiement', 'guestflow-booking'),
                 'gvConditionsPreview' => __('Valable %d mois à compter du paiement, sur une réservation directe, en une ou plusieurs fois. Ni repris ni échangé contre de l’argent.', 'guestflow-booking'),
                 'gvConditionsUntil' => __('Valable jusqu’au %s sur une réservation directe, en une ou plusieurs fois. Ni repris ni échangé contre de l’argent.', 'guestflow-booking'),
+                'gvConditionsPreviewSession' => __('Valable %d mois à compter du paiement, pour une séance à réserver en ligne. Ni repris ni échangé contre de l’argent.', 'guestflow-booking'),
+                'gvConditionsUntilSession' => __('Valable jusqu’au %s, pour une séance à réserver en ligne. Ni repris ni échangé contre de l’argent.', 'guestflow-booking'),
                 'gvPaymentFailed' => __('Paiement non abouti. Aucun bon n’a été émis.', 'guestflow-booking'),
                 'gvLinkExpired'   => __('Le lien de paiement a expiré. Aucun paiement n’a été pris.', 'guestflow-booking'),
                 'gvRestart'       => __('Recommencer', 'guestflow-booking'),
