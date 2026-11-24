@@ -20,6 +20,7 @@ const REQUEST_KEYS = Object.freeze(['slug', 'amountCents', 'extraMinutes', 'addO
 const STATUS = Object.freeze({
   CHALLENGE_INVALID: 403,
   VOUCHER_ORDER_NOT_FOUND: 404,
+  VISUAL_NOT_FOUND: 404,
   TOO_MANY_ORDERS: 429,
   VOUCHER_ALREADY_ISSUED: 409,
   PAYMENT_LINK_EXPIRED: 409,
@@ -60,7 +61,7 @@ const isObject = (v) => v !== null && typeof v === 'object' && !Array.isArray(v)
 
 function buildPublicOrdersController({
   offerService, terms, available, brand, respond, orders, vouchers, proof, pepper, ipOf, payments, siteOrigin,
-  decrypt, documents, campaigns, pageUrl = () => '', now = () => new Date(),
+  decrypt, documents, campaigns, siteVisual = null, pageUrl = () => '', now = () => new Date(),
 }) {
   const langOf = (req) => {
     const stated = (req.body && req.body.language) || (req.query && req.query.lang);
@@ -111,19 +112,22 @@ function buildPublicOrdersController({
     return current;
   }
 
-  /** Each campaign carries the version of the terms its purchase accepts; one whose activity has none published is not offered (rule 37). */
+  /** Each campaign carries the version of the terms its purchase accepts; one whose activity has none published is not offered (rule 37) — and its front (rule 62). */
   async function read(req, res) {
     const offer = await offerService.offer();
-    const campaigns = offer.campaigns.map((c) => {
+    const offered = offer.campaigns.map((c) => {
       const current = currentTerms(activityOfCampaign(c));
-      return { ...c, termsVersionId: current ? current.id : null, termsVersion: current ? current.version : null };
+      const visual = siteVisual ? siteVisual.describe(campaigns.findBySlug(c.slug)) : null;
+      return {
+        ...c, termsVersionId: current ? current.id : null, termsVersion: current ? current.version : null, visual,
+      };
     }).filter((c) => c.kind === 'lodging' || c.termsVersionId !== null);
     const lodging = currentTerms('lodging');
     return respond.ok(res, {
       available: available(),
       brand: brand(),
       ...offer,
-      campaigns,
+      campaigns: offered,
       termsVersionId: lodging ? lodging.id : null,
       termsVersion: lodging ? lodging.version : null,
     });
@@ -138,6 +142,17 @@ function buildPublicOrdersController({
     const page = String(pageUrl() || '').replace(/#.*$/, '');
     if (!campaign || campaign.oneShot || campaign.state !== 'on_sale' || !page) return refuse(req, res, 'CAMPAIGN_UNKNOWN', {}, 'Offre inconnue.');
     return respond.ok(res, { target: `${page}#campagne=${encodeURIComponent(campaign.slug)}` });
+  }
+
+  /**
+   * Rule 62 — the front a campaign sells, for the site's page. The asked version is the address: the one on sale is kept for a year, an older one is answered with today's
+   * front and never kept, so a page read before the operator changed the picture still draws a card.
+   */
+  async function visual(req, res) {
+    const answered = siteVisual ? await siteVisual.image(req.params.slug, req.query.v) : null;
+    if (!answered) return refuse(req, res, 'VISUAL_NOT_FOUND', {}, 'Visuel introuvable.');
+    res.set({ 'Content-Type': 'image/jpeg', 'Cache-Control': answered.current ? 'public, max-age=31536000, immutable' : 'no-store' });
+    return res.send(answered.buffer);
   }
 
   /** Rule 17 — the price of what the giver composed: the engine's lines, the total incl. VAT and the VAT per rate. The page renders it and computes nothing. */
@@ -262,7 +277,7 @@ function buildPublicOrdersController({
   });
 
   return {
-    read, price, link, create, pay, status, pdf,
+    read, price, link, visual, create, pay, status, pdf,
   };
 }
 

@@ -20,6 +20,7 @@
   "changelog": {
     "1.4.1": [
       "Un bon de séance (bain nordique) se lit comme une séance : après le paiement, la page affiche son contenu au lieu de son montant.",
+      "La page d’achat du site montre la carte de chaque campagne, lue dans GuestFlow : changer le visuel d’une campagne change le site.",
       "Compatible avec GuestFlow 4 (SDK 2.33)."
     ],
     "1.4.0": [

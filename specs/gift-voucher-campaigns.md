@@ -639,6 +639,28 @@ Rules are identities: a rule is never renumbered, new rules are appended
     - « Nouveau bon » is a member of the generated money-dialog harness (`moneyDialogs.invariants.voucher`); the campaign
       editor previews a price but sells and collects nothing, and is listed as such.
 
+### 3.S The voucher front on the website (added 2026-11-24)
+
+62. **The site shows the front the campaign sells, read from GuestFlow** (owner request of 2026-11-24).
+    - Each campaign of `GET /offer` carries `visual: { versionId, width, height }` — the current version
+      of its voucher front (rule 7) — or `null` when it has none. Nothing about the picture is written
+      in WordPress: changing the campaign's front in GuestFlow changes the site at the next offer read,
+      for every campaign present and future.
+    - `GET /public/v1/gift-vouchers/campaigns/:slug/visual?v=<versionId>` answers that front as a web
+      JPEG (720 px wide, EXIF orientation applied), cached for a year as immutable: a new version is a
+      new address. Only the front of a campaign on sale, never a one-shot's nor a merchant card's;
+      anything else is 404 `VISUAL_NOT_FOUND`. The print file is never served.
+    - The WordPress plugin proxies it at `/wp-json/guestflow/v1/gift-vouchers/campaigns/<slug>/visual`,
+      keeping the cache headers, so the browser never talks to GuestFlow.
+    - The block draws **the whole front** (owner choice of 2026-11-24, after the mock-up offered the upper
+      part only): a small whole card on each campaign of the chooser (decorative: the title stands beside
+      it), and the full A6 card at the head of the form (above the title on a phone, a column beside the form once the block is 600 px
+      wide). The alternative text is the campaign's title. A picture that fails to load is removed, never
+      drawn broken; a campaign without a visual is drawn as before. Mock-up:
+      `specs/gift-voucher-site-visual.html`.
+    - The recap of a session campaign names the band and its duration, never a clock time: the session's
+      hour is chosen later by the recipient (rule 17, fixed 2026-11-24).
+
 ## 4. Architecture
 
 ### 4.1 Server side (`server/src/`)
@@ -667,6 +689,7 @@ Rules are identities: a rule is never renumbered, new rules are appended
 | plugin | `plugins/gift-vouchers/controllers/publicUseController.js` | C | « Mon bain »: contents, slots, recap, hold, confirmation |
 | plugin | `plugins/gift-vouchers/controllers/campaignsController.js`, `visualsController.js` | C | Admin campaigns, visuals, printer PDF |
 | plugin | `plugins/gift-vouchers/controllers/adminController.js`, `publicOrdersController.js` | T | Thin wrappers over `offerService`; « Offert », « Envoyer un lien », cancellation with refund line (rule 54) |
+| plugin | `plugins/gift-vouchers/siteVisual.js` (new), `publicOrdersController.js`, `routes/public.js` | C/T | The campaign's front for the website: `visual` on each `/offer` campaign, the web JPEG at `/campaigns/:slug/visual` (rule 62) |
 | plugin | `plugins/gift-vouchers/books.js` | T | Refund lines of cancelled vouchers in the journal contribution |
 | plugin | `plugins/gift-vouchers/receipt.js`, `mailTemplate.js` | T | Code + invoice recap + PDF attachment (rule 20); recipient confirmation (rule 31) |
 
@@ -697,10 +720,13 @@ Rules are identities: a rule is never renumbered, new rules are appended
 | File | New / Touched | Responsibility |
 |---|---|---|
 | `blocks/gift-voucher/view.js` | T | Campaign choice; resource campaigns render the server's lines; lodging keeps today's tunnel |
+| `blocks/gift-voucher/view.js`, `assets/style.css` | T | The campaign's front on each offer and at the head of the form (rule 62) |
+| `includes/class-gf-api-client.php` | T | `get_raw` also relays a JPEG, with its cache header (rule 62) |
 | `blocks/gift-voucher-use/` | C | « Utiliser un bon cadeau »: code, contents, month chips + slots, recap, terms, pay or confirm |
 | `blocks/booking/view.js` | T | Month chips; forward limit from the horizon the server returns |
 | `includes/class-gf-redirects.php` | C | Permanent paths (rule 9) |
 | `includes/class-gf-rest-proxy.php` | T | New routes; `PLUGIN_INACTIVE` → empty render (rule 40) |
+| `includes/class-gf-rest-proxy.php` | T | `/gift-vouchers/campaigns/<slug>/visual`: the front's bytes and cache header as they come (rule 62) |
 
 ### 4.4 API contract
 
@@ -716,6 +742,7 @@ Public (existing key guard, proof of work on writes):
 | POST | `/public/v1/gift-vouchers/use/quote` | `{ code, start: 'YYYY-MM-DDTHH:MM', extraMinutes, addOns }` | `{ included, extras, dueCents, vat }` |
 | POST | `/public/v1/gift-vouchers/use/confirm` | quote + `{ email, phone, termsVersionId }` | `{ booked }` or `{ payUrl, heldUntil }` |
 | GET | `/public/v1/gift-vouchers/links/:slug` | — | `{ target }` |
+| GET | `/public/v1/gift-vouchers/campaigns/:slug/visual` | `?v=<versionId>` | The campaign's voucher front, web JPEG, immutable (rule 62); each `/offer` campaign carries `visual: { versionId, width, height } \| null` |
 | GET | `/public/v1/terms` | `?activity=resource` | current version of the activity |
 
 Admin (session):
@@ -776,6 +803,8 @@ forcing dialog of rule 54 uses `ConfirmDialog` with a mandatory reason.
 ## 7. Test plan
 
 One file per subject:
+
+- `gift-voucher-site-visual.unit.test.js` (rule 62, 5 tests): the offer names each front's version and web size; the web JPEG and its year-long cache at the version on sale; a new front is a new address and an old one is never kept; draft, unknown, frontless → 404 and `null`; the WordPress proxy route and the block read the front from the offer.
 
 - `hourly-degressive-pricing.unit.test.js`: table validation; ranks and bands (18:00–21:00 =
   151 €); free minutes take the first ranks; rank offset for added time; guest and outside contexts;

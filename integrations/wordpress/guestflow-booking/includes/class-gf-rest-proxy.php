@@ -175,6 +175,12 @@ final class GF_Rest_Proxy
             'permission_callback' => [$this, 'verify_nonce'],
             'callback'            => [$this, 'post_voucher_pay'],
         ]);
+        // specs/gift-voucher-campaigns.md rule 62 — the front a campaign sells, read from GuestFlow at its versioned address.
+        register_rest_route(self::NS, '/gift-vouchers/campaigns/(?P<slug>[a-z0-9]+(?:-[a-z0-9]+)*)/visual', [
+            'methods'             => 'GET',
+            'permission_callback' => $public,
+            'callback'            => [$this, 'get_campaign_visual'],
+        ]);
         register_rest_route(self::NS, '/gift-vouchers/orders/(?P<id>\d+)/pdf', [
             'methods'             => 'GET',
             'permission_callback' => $public,
@@ -420,17 +426,42 @@ final class GF_Rest_Proxy
         return $response;
     }
 
-    /** Sends the PDF bytes as they are: the REST server would otherwise JSON-encode them. */
+    /**
+     * A campaign's front for the purchase page (rule 62): the bytes and GuestFlow's cache header as they come — a year
+     * at the version on sale, never kept for an older one. Only digits reach the version parameter.
+     */
+    public function get_campaign_visual(WP_REST_Request $request): WP_REST_Response
+    {
+        $slug = (string) $request['slug'];
+        $version = (string) $request->get_param('v');
+        $query = preg_match('/^\d{1,12}$/', $version) ? ['v' => $version] : [];
+        $res = GF_Api_Client::instance()->get_raw('/gift-vouchers/campaigns/' . rawurlencode($slug) . '/visual', $query);
+        if (($res['type'] ?? '') !== 'image/jpeg') {
+            $response = new WP_REST_Response(['error' => ['code' => 'VISUAL_NOT_FOUND']], 404);
+            $response->header('Cache-Control', 'no-store');
+            return $response;
+        }
+        $cache = (string) ($res['cache'] ?? '');
+        $response = new WP_REST_Response($res['body'], 200);
+        $response->header('Content-Type', 'image/jpeg');
+        $response->header('Cache-Control', strpos($cache, 'immutable') !== false ? 'public, max-age=31536000, immutable' : 'no-store');
+        $response->header('X-Content-Type-Options', 'nosniff');
+        return $response;
+    }
+
+    /** Sends the PDF and picture bytes as they are: the REST server would otherwise JSON-encode them. */
     public function serve_voucher_pdf($served, $result, $request)
     {
         if ($served || !($result instanceof WP_REST_Response) || !($request instanceof WP_REST_Request)) {
             return $served;
         }
         $headers = $result->get_headers();
-        if ($result->get_status() === 200 && is_string($result->get_data())
-            && ($headers['Content-Type'] ?? '') === 'application/pdf'
-            && strpos((string) $request->get_route(), '/' . self::NS . '/gift-vouchers/orders/') === 0) {
-            echo $result->get_data(); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- a PDF file, not markup
+        $route = (string) $request->get_route();
+        $type = $headers['Content-Type'] ?? '';
+        $binary = ($type === 'application/pdf' && strpos($route, '/' . self::NS . '/gift-vouchers/orders/') === 0)
+            || ($type === 'image/jpeg' && strpos($route, '/' . self::NS . '/gift-vouchers/campaigns/') === 0);
+        if ($result->get_status() === 200 && is_string($result->get_data()) && $binary) {
+            echo $result->get_data(); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- a PDF file or a JPEG, not markup
             return true;
         }
         return $served;
