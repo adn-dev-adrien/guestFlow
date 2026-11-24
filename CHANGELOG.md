@@ -4,6 +4,27 @@ All notable changes to GuestFlow are documented in this file. Format: [Keep a Ch
 
 ## [Unreleased]
 
+## [4.3.0] - 2026-11-24
+
+### Summary
+- Bain nordique : chaque ressource horaire a un tarif « 1re heure » et un tarif « heures suivantes », pour les hébergés et les extérieurs.
+- Sans réglage, les prix restent identiques ; une ancienne table de remises en % est convertie au démarrage.
+- Déplacer une résa à prix ajusté propose de garder le prix, garder l'écart au tarif ou appliquer le nouveau tarif.
+- Bons cadeaux sur le site : la carte de chaque campagne s'affiche, et les bons de bain ne montrent plus d'horaire fictif.
+- Plugin WordPress 1.20.1 à installer sur le site pour profiter des changements des bons cadeaux.
+
+### Added
+- **Gift vouchers on the website** — the purchase page shows each campaign's card, read from GuestFlow: small on each offer, full size at the top of the form. Changing a campaign's visual (Bons cadeaux → Campagnes) changes the site, and a new campaign gets its card straight away. WordPress plugin 1.20.1.
+- **Price of the following hours (hourly resources)** — a banded hourly resource (the nordic bath) carries, for hosted guests and for outside customers, in the day and in the evening, a first-hour rate and a following-hours rate (empty = same as the first hour, so an unedited resource prices exactly as before). Every price of the resource follows it: guest app, reservation fiche and SAS, evening supplement, session outside a stay, planning card, gift-voucher campaigns and the dateless session quote. A guest's free hour is not a rank: the first paid hour is at the first-hour rate. The resource form shows the rates as two grids « Clients hébergés » / « Clients extérieurs » (rows day / evening, columns « 1re heure » / « Heures suivantes »); the catalogue says « puis X €/h » where the following hours differ. It replaces the percent-per-hour-rank table of `specs/gift-voucher-campaigns.md` rules 43-45 (specs/hourly-extra-hour-rates.md).
+- **Prix ajusté et déplacement d'une réservation** — when a booking with a manual accommodation price (« Prix ajusté ») is moved to other dates or another logement and the tariff changes, the fiche opens « Tarif modifié »: tariff before → after with the nights by season, then keep the manual price, keep the same € gap to the new tariff (preselected), or apply the tariff — or cancel the move. Every figure comes from the live quote (`manualPriceReview`); nothing is saved before « Enregistrer » (specs/manual-price-on-placement-change.md).
+
+### Fixed
+- **Gift vouchers (bath)** — the purchase page of a session voucher no longer mentions « montant au choix » or « une ou plusieurs fois », and its summary no longer shows a made-up time slot (« Jour · 11:00–12:00 » becomes « Jour · 1 h × 50,00 € »). After payment, the voucher shown lists its content instead of its amount. WordPress plugin 1.20.1.
+- **E2E — `reception/sas-day-window.spec.js` no longer fails at random** (spec `reception-sas-today-only.md` §7, 2026-11-23). The tap on the locked ✓ was a forced click at coordinates taken before the planning re-pinned today under its bar, so it sometimes landed on today's ✓ and opened today's wizard; the locators also picked the first matching card of any spec sharing the database. Every locator now targets the cards and dialogs of the stays the test seeded, and the tap is an ordinary click on the tooltip `<span>` of the disabled button. Test-only change.
+
+### Migration
+- **Following-hours rates** — four nullable columns on `resources` (`hourlyNextDayRate`, `hourlyNextEveningRate`, `hourlyExternalNextDayRate`, `hourlyExternalNextEveningRate`; NULL = same as the first hour). A resource that still has a percent table (`hourlyDegressiveTiers`, never set in production) gets, for both audiences and both bands, a following-hours rate equal to its first-hour rate discounted by the percent of its 2nd hour, rounded to the cent; the later rows are dropped and the boot log says so. The `hourlyDegressiveTiers` column stays in the table but is no longer read or written.
+
 ## [4.2.1] - 2026-11-23
 
 ### Summary
