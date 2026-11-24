@@ -1,1 +1,0 @@
-- **Bons cadeaux sur le site** : la page d’achat montre la carte de chaque campagne, lue dans GuestFlow — en petit sur chaque offre, en entier en tête du formulaire. Changer le visuel d’une campagne (Bons cadeaux → Campagnes) change le site, et une nouvelle campagne a sa carte d’office. Plugin WordPress 1.20.1.
