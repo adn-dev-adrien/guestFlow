@@ -10,11 +10,22 @@ import { emptyExternalSale, externalSaleFromItem, externalSalePayload } from './
 const toText = (value) => (value === null || value === undefined ? '' : String(value).replace('.', ','));
 const ALL_DAYS = [0, 1, 2, 3, 4, 5, 6];
 
+// specs/hourly-extra-hour-rates.md rules 1, 5 — the price of the following hours, per audience and band: [field, « band, audience » of the refusal sentence].
+// Typed as text, empty meaning « same as the first hour ».
+export const NEXT_RATE_FIELDS = [
+  ['hourlyNextDayRate', 'journée, hébergés'], ['hourlyNextEveningRate', 'soir, hébergés'],
+  ['hourlyExternalNextDayRate', 'journée, extérieurs'], ['hourlyExternalNextEveningRate', 'soir, extérieurs'],
+];
+const NEXT_RATE_NAMES = NEXT_RATE_FIELDS.map(([field]) => field);
+const nextRatesEmpty = Object.fromEntries(NEXT_RATE_NAMES.map((field) => [field, '']));
+const nextRatesNull = Object.fromEntries(NEXT_RATE_NAMES.map((field) => [field, null]));
+const nextRateRefused = (text) => Boolean(amountProblem(text)) || parseAmount(text) > 10000;
+
 export const emptyResource = {
   name: '', quantity: '1', price: '0', priceType: 'per_stay', propertyIds: [], description: '',
   propertyPricing: {},
   isComplex: false, slotDuration: 5, minimumUsageMinutes: 0, openTime: '08:00', closeTime: '22:00', openDays: ALL_DAYS, turnoverMinutes: 0,
-  showsPlanningCard: false, hourlyEveningStart: '', hourlyEveningRate: 0, hourlyExternalDayRate: 0, hourlyExternalEveningRate: 0, hourlyDegressiveTiers: [],
+  showsPlanningCard: false, hourlyEveningStart: '', hourlyEveningRate: 0, hourlyExternalDayRate: 0, hourlyExternalEveningRate: 0, ...nextRatesEmpty,
   heatUpMinutes: 0, heatRetentionMinutes: 0, bookingHorizonMonths: 3,
   emailBookedText: '', emailBookedTextEn: '',
   ...emptyExternalSale,
@@ -23,7 +34,7 @@ export const emptyResource = {
 const DEFAULT_HOURLY_SETTINGS = {
   isComplex: 0, slotDuration: 5, minimumUsageMinutes: 0, openTime: '08:00', closeTime: '22:00',
   openDays: JSON.stringify(ALL_DAYS), turnoverMinutes: 0, showsPlanningCard: 0,
-  hourlyEveningStart: null, hourlyEveningRate: 0, hourlyExternalDayRate: 0, hourlyExternalEveningRate: 0, hourlyDegressiveTiers: [],
+  hourlyEveningStart: null, hourlyEveningRate: 0, hourlyExternalDayRate: 0, hourlyExternalEveningRate: 0, ...nextRatesNull,
   heatUpMinutes: 0, heatRetentionMinutes: 0, bookingHorizonMonths: 3,
 };
 
@@ -44,9 +55,7 @@ function hourlySettings(form) {
     hourlyEveningRate: card ? (Number(form.hourlyEveningRate) || 0) : 0,
     hourlyExternalDayRate: card ? (Number(form.hourlyExternalDayRate) || 0) : 0,
     hourlyExternalEveningRate: card ? (Number(form.hourlyExternalEveningRate) || 0) : 0,
-    hourlyDegressiveTiers: card && Array.isArray(form.hourlyDegressiveTiers)
-      ? form.hourlyDegressiveTiers.map((t) => ({ fromHour: Number(t.fromHour), percent: Number(t.percent) }))
-      : [],
+    ...Object.fromEntries(NEXT_RATE_NAMES.map((field) => [field, card && !isBlank(form[field]) ? parseAmount(form[field]) : null])),
     heatUpMinutes: Math.max(0, Number(form.heatUpMinutes) || 0),
     heatRetentionMinutes: Math.max(0, Number(form.heatRetentionMinutes) || 0),
     bookingHorizonMonths: slotted ? (Number(form.bookingHorizonMonths) || 3) : 3,
@@ -128,7 +137,7 @@ export function formFromResource(item) {
     hourlyEveningRate: Number(item.hourlyEveningRate || 0),
     hourlyExternalDayRate: Number(item.hourlyExternalDayRate || 0),
     hourlyExternalEveningRate: Number(item.hourlyExternalEveningRate || 0),
-    hourlyDegressiveTiers: Array.isArray(item.hourlyDegressiveTiers) ? item.hourlyDegressiveTiers : [],
+    ...Object.fromEntries(NEXT_RATE_NAMES.map((field) => [field, toText(item[field])])),
     slotDuration: item.slotDuration || 5,
     minimumUsageMinutes: Number(item.minimumUsageMinutes || 0),
     openTime: item.openTime || '08:00',
@@ -161,6 +170,11 @@ export function validateResourceForm(form) {
   });
   if (form.priceType === 'per_hour' && form.isComplex && form.openTime && form.closeTime && form.closeTime <= form.openTime) {
     errors.closeTime = FIELD.afterOpening;
+  }
+  if (form.priceType === 'per_hour' && form.showsPlanningCard) {
+    NEXT_RATE_FIELDS.forEach(([field, where]) => {
+      if (!isBlank(form[field]) && nextRateRefused(form[field])) errors[field] = `Le tarif des heures suivantes (${where}) doit être un montant positif.`;
+    });
   }
   if (form.priceType === 'per_hour' && form.isComplex && form.bookingHorizonMonths !== undefined) {
     const months = Number(form.bookingHorizonMonths);

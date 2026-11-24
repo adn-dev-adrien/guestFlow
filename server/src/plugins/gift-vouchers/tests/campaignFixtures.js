@@ -1,5 +1,5 @@
 // Shared fixture of the campaign suites (specs/gift-voucher-campaigns.md): the plugin on the real core database, where the pricing engine and the catalogue live —
-// a bath with its degressive tiers, a few options of each price type, the outside VAT rates — with a fake payment provider and a movable clock. Not a test file.
+// a bath with its following-hours rates, a few options of each price type, the outside VAT rates — with a fake payment provider and a movable clock. Not a test file.
 // A suite sets `process.env.DB_PATH = ':memory:'` before requiring it: every suite is a process of its own, so each one has a database of its own.
 
 process.env.GUESTFLOW_ENCRYPTION_KEY = process.env.GUESTFLOW_ENCRYPTION_KEY || Buffer.alloc(32, 7).toString('base64');
@@ -22,7 +22,6 @@ const encryption = sdk.coreModule('encryption');
 const FRONT_JPEG = Buffer.from('/9j/4AAQSkZJRgABAQEASABIAAD/2wBDAP//////////////////////////////////////////////////////////////////////////////////////wgALCAABAAEBAREA/8QAFBABAAAAAAAAAAAAAAAAAAAAAP/aAAgBAQABPxA=', 'base64');
 const FRONT_FILE = 'front-test.jpg';
 const front = { id: null };
-const TIERS = [{ fromHour: 2, percent: 10 }, { fromHour: 3, percent: 20 }];
 const METHODS = [{ value: 'card', label: 'CB' }, { value: 'cash', label: 'Espèces' }, { value: 'transfer', label: 'Virement' }];
 
 const insert = (table, row) => {
@@ -32,7 +31,7 @@ const insert = (table, row) => {
 
 const resource = (over = {}) => insert('resources', {
   name: 'Bain nordique', quantity: 1, price: 25, priceType: 'per_hour', showsPlanningCard: 1, slotDuration: 60, minimumUsageMinutes: 60, openTime: '10:00', closeTime: '22:00',
-  hourlyEveningStart: '19:00', hourlyEveningRate: 35, hourlyExternalDayRate: 50, hourlyExternalEveningRate: 70, hourlyDegressiveTiers: JSON.stringify(TIERS), sellableExternally: 1, ...over,
+  hourlyEveningStart: '19:00', hourlyEveningRate: 35, hourlyExternalDayRate: 50, hourlyExternalEveningRate: 70, hourlyExternalNextDayRate: 45, hourlyExternalNextEveningRate: 63, sellableExternally: 1, ...over,
 });
 
 const option = (over = {}) => insert('options', {
@@ -140,5 +139,5 @@ async function serve(api, { user = { id: 7, roles: ['admin'] } } = {}) {
 }
 
 module.exports = {
-  db, seedCatalogue, openShop, bathCampaign, rulesContext, serve, resource, option, SOURCE, TIERS,
+  db, seedCatalogue, openShop, bathCampaign, rulesContext, serve, resource, option, SOURCE,
 };

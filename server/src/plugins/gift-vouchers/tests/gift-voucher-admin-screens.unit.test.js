@@ -1,5 +1,5 @@
 // specs/gift-voucher-campaigns.md rules 4, 9, 41, 42, 54 — what the back-office screens read from the server: a campaign with its one-line contents and its two permanent paths,
-// the catalogue's degressive sentence, the offer with the means of payment, the voucher list with its contents, campaign, use and the filters by campaign and kind, the detail
+// the catalogue's following-hours sentence, the offer with the means of payment, the voucher list with its contents, campaign, use and the filters by campaign and kind, the detail
 // with its frozen contents lines and the amount a cancellation would refund.
 process.env.DB_PATH = ':memory:';
 process.env.TZ = 'Europe/Paris';
@@ -19,7 +19,7 @@ async function withServer(fn) {
   try { await fn(server); } finally { await server.close(); }
 }
 
-test('a campaign carries its contents in one line and its two permanent paths; the catalogue says each band’s degressivity', () => withServer(async (server) => {
+test('a campaign carries its contents in one line and its two permanent paths; the catalogue says each band’s following-hours rate', () => withServer(async (server) => {
   const created = await server.call('POST', '/api/gift-vouchers/campaigns', fx.bathCampaign(ids));
   assert.equal(created.status, 201, JSON.stringify(created.body));
   assert.equal(created.body.summary, 'Bain nordique : 2 h en journée · Planche apéro');
@@ -28,7 +28,7 @@ test('a campaign carries its contents in one line and its two permanent paths; t
   const lodging = list.find((c) => c.kind === 'lodging');
   assert.match(lodging.summary, /^Montant libre de .+ à .+$/);
   const bath = (await server.call('GET', '/api/gift-vouchers/catalogue')).body.elements.find((e) => e.id === ids.bath && e.kind === 'resource');
-  assert.deepEqual(bath.modes.map((m) => m.degressiveText), ['Dégressif : −10 % dès la 2e heure, −20 % dès la 3e', 'Dégressif : −10 % dès la 2e heure, −20 % dès la 3e']);
+  assert.deepEqual(bath.modes.map((m) => m.followingText), ['puis 45 €/h', 'puis 63 €/h']);
 }));
 
 test('the offer carries the means of payment of « Payé »', () => withServer(async (server) => {

@@ -1,5 +1,5 @@
 // specs/gift-voucher-campaigns.md rule 4 — the catalogue as a composition sees it: every resource and option of the database with its tariff modes and whether it can be sold
-// to a customer with no stay; when it cannot, the French reason. Built from the engine's articles: the hourly modes, rates and tiers are the family's reading of the resource.
+// to a customer with no stay; when it cannot, the French reason. Built from the engine's articles: the hourly modes, rates and following-hours rates are the family's reading of the resource.
 process.env.DB_PATH = ':memory:';
 process.env.TZ = 'Europe/Paris';
 const test = require('node:test');
@@ -35,15 +35,15 @@ test('the catalogue lists every resource and every option of the database, resou
   assert.equal(view.element('nonsense'), null);
 });
 
-test('an hourly resource with a planning card offers two outside modes — rate, band hours, tiers, slot, minimum — read from the engine’s family', () => {
+test('an hourly resource with a planning card offers two outside modes — rate, band hours, following-hours rate, slot, minimum — read from the engine’s family', () => {
   const bath = byRef(`resource:${ids.bath}`);
   assert.deepEqual([bath.hourly, bath.sellable, bath.reason, bath.priceType, bath.priceTypeLabel], [true, true, null, 'per_hour', 'À l’heure']);
   assert.deepEqual(bath.modes, [
     {
-      key: 'outside-day', band: 'day', label: 'Extérieur · journée', rateCents: 5000, from: '10:00', to: '19:00', lengthMinutes: 540, tiers: fx.TIERS, slotMinutes: 60, minimumMinutes: 60, sellable: true,
+      key: 'outside-day', band: 'day', label: 'Extérieur · journée', rateCents: 5000, from: '10:00', to: '19:00', lengthMinutes: 540, followingRateCents: 4500, followingText: 'puis 45 €/h', slotMinutes: 60, minimumMinutes: 60, sellable: true,
     },
     {
-      key: 'outside-evening', band: 'evening', label: 'Extérieur · soirée', rateCents: 7000, from: '19:00', to: '22:00', lengthMinutes: 180, tiers: fx.TIERS, slotMinutes: 60, minimumMinutes: 60, sellable: true,
+      key: 'outside-evening', band: 'evening', label: 'Extérieur · soirée', rateCents: 7000, from: '19:00', to: '22:00', lengthMinutes: 180, followingRateCents: 6300, followingText: 'puis 63 €/h', slotMinutes: 60, minimumMinutes: 60, sellable: true,
     },
   ]);
 });
@@ -109,10 +109,9 @@ test('the operator’s route serves the same view', async () => {
   try {
     const res = await server.call('GET', '/api/gift-vouchers/catalogue');
     assert.equal(res.status, 200);
-    const served = res.body.elements.map((e) => ({ ...e, modes: e.modes.map(({ degressiveText, ...mode }) => mode) }));
-    assert.deepEqual(served, JSON.parse(JSON.stringify(view.list())));
+    assert.deepEqual(res.body.elements, JSON.parse(JSON.stringify(view.list())));
     const bath = res.body.elements.find((e) => e.id === ids.bath && e.kind === 'resource');
-    assert.deepEqual(bath.modes.map((m) => m.degressiveText), ['Dégressif : −10 % dès la 2e heure, −20 % dès la 3e', 'Dégressif : −10 % dès la 2e heure, −20 % dès la 3e'], 'the operator’s sentence for the tiers');
+    assert.deepEqual(bath.modes.map((m) => m.followingText), ['puis 45 €/h', 'puis 63 €/h'], 'the operator’s sentence for the following hours');
   } finally {
     await server.close();
   }

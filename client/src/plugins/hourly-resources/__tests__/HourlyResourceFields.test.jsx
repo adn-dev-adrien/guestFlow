@@ -24,7 +24,9 @@ test('the slots appear once the resource is slotted, and every change is a patch
 test('the evening and external rates come with the planning card', () => {
   const onChange = vi.fn();
   render(<HourlyResourceFields draft={{ ...DRAFT, isComplex: true, showsPlanningCard: true }} onChange={onChange} />);
-  expect(screen.getByText('Tarif de jour : le prix général (30 €/h).')).toBeInTheDocument();
-  fireEvent.change(screen.getByLabelText('Tarif horaire soir (€/h)'), { target: { value: '50' } });
+  expect(screen.getByLabelText('Clients hébergés · Journée · 1re heure')).toHaveValue(30);
+  fireEvent.change(screen.getByLabelText('Clients hébergés · Soirée · 1re heure'), { target: { value: '50' } });
   expect(onChange).toHaveBeenLastCalledWith({ hourlyEveningRate: 50 });
+  fireEvent.change(screen.getByLabelText('Clients extérieurs · Journée · 1re heure'), { target: { value: '60' } });
+  expect(onChange).toHaveBeenLastCalledWith({ hourlyExternalDayRate: 60 });
 });

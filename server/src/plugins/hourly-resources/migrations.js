@@ -14,6 +14,8 @@ const hasTable = (db, name) => Boolean(db.prepare("SELECT 1 FROM sqlite_master W
 const hasColumn = (db, table, column) => hasTable(db, table)
   && db.prepare(`PRAGMA table_info(${table})`).all().some((c) => c.name === column);
 
+const { roundMoneyOrZero } = require('../sdk').coreModule('money');
+
 const SUPPLEMENT_SUFFIX = ' — supplément soirée';
 
 function createTables(db) {
@@ -74,7 +76,8 @@ function tagEveningSupplements(db) {
 // One list for the reset and for the warning that announces it: nothing is erased unannounced.
 const HOURLY_COLUMN_RESETS = [
   ['isComplex', '0'], ['showsPlanningCard', '0'], ['hourlyEveningStart', 'NULL'], ['hourlyEveningRate', '0'],
-  ['hourlyExternalDayRate', '0'], ['hourlyExternalEveningRate', '0'], ['hourlyDegressiveTiers', "'[]'"], ['heatUpMinutes', '0'],
+  ['hourlyExternalDayRate', '0'], ['hourlyExternalEveningRate', '0'], ['hourlyDegressiveTiers', "'[]'"],
+  ['hourlyNextDayRate', 'NULL'], ['hourlyNextEveningRate', 'NULL'], ['hourlyExternalNextDayRate', 'NULL'], ['hourlyExternalNextEveningRate', 'NULL'], ['heatUpMinutes', '0'],
   ['heatRetentionMinutes', '0'], ['turnoverMinutes', '0'], ['bookingHorizonMonths', '3'],
 ];
 
@@ -204,6 +207,52 @@ const createHoldsTable = (db) => db.exec(require('./holdsModel').CREATE_SQL);
 // Rule 36 — the elements a prepaid instrument paid that the client did not take.
 const createLineMarksTable = (db) => db.exec(require('./lineMarksModel').CREATE_SQL);
 
+// specs/hourly-extra-hour-rates.md rules 1, 7 — the price of the following hours, per audience and band (NULL = same as the first hour). The percent
+// table (`hourlyDegressiveTiers`) is withdrawn: a resource that had one gets the rate its 2nd hour was worth, rounded to the cent; the later
+// rows are dropped. The column stays in the table, unread.
+const NEXT_RATE_COLUMNS = ['hourlyNextDayRate', 'hourlyNextEveningRate', 'hourlyExternalNextDayRate', 'hourlyExternalNextEveningRate'];
+
+const secondHourPercent = (stored) => {
+  let tiers;
+  try { tiers = JSON.parse(stored); } catch { return null; }
+  if (!Array.isArray(tiers) || tiers.length === 0) return null;
+  const second = tiers.find((t) => Number(t && t.fromHour) === 2);
+  const percent = second ? Number(second.percent) : 0;
+  return Number.isFinite(percent) ? Math.min(100, Math.max(0, percent)) : 0;
+};
+
+function nextHourRates(db) {
+  if (!hasTable(db, 'resources')) return;
+  NEXT_RATE_COLUMNS.forEach((column) => {
+    if (!hasColumn(db, 'resources', column)) db.exec(`ALTER TABLE resources ADD COLUMN ${column} REAL`);
+  });
+  if (!hasColumn(db, 'resources', 'hourlyDegressiveTiers')) return;
+  const rows = db.prepare("SELECT * FROM resources WHERE hourlyDegressiveTiers IS NOT NULL AND hourlyDegressiveTiers NOT IN ('', '[]')").all();
+  const write = db.prepare(`UPDATE resources SET ${NEXT_RATE_COLUMNS.map((c) => `${c} = @${c}`).join(', ')} WHERE id = @id`);
+  let converted = 0;
+  rows.forEach((row) => {
+    const percent = secondHourPercent(row.hourlyDegressiveTiers);
+    if (percent === null) return;
+    const dayRate = Number(row.price) || 0;
+    const guestEvening = Number(row.hourlyEveningRate) || 0;
+    const guestEveningRate = guestEvening > 0 ? guestEvening : dayRate;
+    const externalDay = Number(row.hourlyExternalDayRate) > 0 ? Number(row.hourlyExternalDayRate) : dayRate;
+    const externalEvening = Number(row.hourlyExternalEveningRate) > 0 ? Number(row.hourlyExternalEveningRate) : (guestEvening > 0 ? guestEvening : externalDay);
+    const discounted = (rate) => roundMoneyOrZero((rate * (100 - percent)) / 100);
+    write.run({
+      id: row.id,
+      hourlyNextDayRate: discounted(dayRate),
+      hourlyNextEveningRate: discounted(guestEveningRate),
+      hourlyExternalNextDayRate: discounted(externalDay),
+      hourlyExternalNextEveningRate: discounted(externalEvening),
+    });
+    converted += 1;
+  });
+  if (converted > 0) {
+    console.log(`[hourly-resources] ${converted} resource(s): the percent table became following-hours rates (rate of the 2nd hour); rows from the 3rd hour on dropped.`);
+  }
+}
+
 /** @param {(db, row: { reservationId, date }) => number|null} rateOf the rate in force for a booking (rule 5) */
 // specs/plugin-removal-resilience.md rule 22 — after an erase and a reinstall the id counter restarts above the visits the sales still cite.
 function keepBookingIdsCited(db) {
@@ -223,9 +272,10 @@ function migrationsFor(rateOf) {
     { name: 'resource_bookings_counter_floor_v7', up: keepBookingIdsCited },
     { name: 'resource_booking_holds_v8', up: createHoldsTable },
     { name: 'resource_visit_line_marks_v9', up: createLineMarksTable },
+    { name: 'next_hour_rates_v10', up: nextHourRates },
   ];
 }
 
 module.exports = {
-  migrationsFor, BOOKING_COLUMNS_V2, BOOKING_COLUMNS_V3, BOOKING_COLUMNS_V4, BOOKING_COLUMNS_V5, BOOKING_COLUMNS_V6, bookingsV2, bookingsV3, bookingsV4, bookingsV5, bookingsV6, createTables, hasColumn, tagEveningSupplements, resetHourlyColumns, countHourlySettings, hasTable, SUPPLEMENT_SUFFIX,
+  migrationsFor, BOOKING_COLUMNS_V2, BOOKING_COLUMNS_V3, BOOKING_COLUMNS_V4, BOOKING_COLUMNS_V5, BOOKING_COLUMNS_V6, bookingsV2, bookingsV3, bookingsV4, bookingsV5, bookingsV6, createTables, hasColumn, nextHourRates, tagEveningSupplements, resetHourlyColumns, countHourlySettings, hasTable, SUPPLEMENT_SUFFIX,
 };

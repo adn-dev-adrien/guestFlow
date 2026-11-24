@@ -11,6 +11,7 @@
  */
 
 const { priceSessions, toMinutes } = require('./hourlyPricing');
+const { rateGridOf } = require('./bookingPricing');
 
 const schedulable = (resource) => Number(resource.showsPlanningCard || 0) === 1;
 const sdk = require('../sdk');
@@ -34,10 +35,8 @@ function createHourlyContributor() {
       const declared = Math.max(0, Number(selected && selected.quantity) || 0);
       const priced = sessions.length > 0
         ? priceSessions(sessions, {
-          dayRate: resource.price,
-          eveningRate: resource.hourlyEveningRate,
+          ...rateGridOf(resource, { external: false }),
           eveningStart: resource.hourlyEveningStart,
-          degressiveTiers: resource.hourlyDegressiveTiers,
           slotMinutes: resource.slotDuration,
           openTime: resource.openTime,
           closeTime: resource.closeTime,

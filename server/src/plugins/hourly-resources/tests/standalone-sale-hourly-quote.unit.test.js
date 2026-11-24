@@ -1,5 +1,5 @@
 // specs/gift-voucher-campaigns.md rules 4, 5, 43-44 (§4.1) — the dateless quote of an hourly resource, asked of the core's sale with `session: { band, minutes,
-// rankOffsetMinutes }`: the external rate of the band, the degressive tiers by hour rank, whole slots, the outside VAT of the resource's class. A quote only:
+// rankOffsetMinutes }`: the external rate of the band, the rate of the following hours, whole slots, the outside VAT of the resource's class. A quote only:
 // `sell` keeps refusing a session (it is booked from the planning). Generic: the code under test names no consumer.
 process.env.DB_PATH = ':memory:';
 process.env.TZ = 'Europe/Paris';
@@ -14,16 +14,15 @@ const standaloneSale = require('../../../utils/standaloneSale');
 const sales = require('../../../models/standaloneSalesModel');
 const { liveHourlyResources, withdrawHourlyResources } = require('../../../tests/hourlyResourcesFixture');
 
-const TIERS = [{ fromHour: 2, percent: 10 }, { fromHour: 3, percent: 20 }];
 const resource = (over = {}) => {
   const row = {
     name: 'Bain dateless', price: 25, priceType: 'per_hour', showsPlanningCard: 1, slotDuration: 60, minimumUsageMinutes: 60, openTime: '10:00', closeTime: '22:00',
-    hourlyEveningStart: '19:00', hourlyEveningRate: 35, hourlyExternalDayRate: 50, hourlyExternalEveningRate: 70, hourlyDegressiveTiers: JSON.stringify(TIERS), sellableExternally: 1, ...over,
+    hourlyEveningStart: '19:00', hourlyEveningRate: 35, hourlyExternalDayRate: 50, hourlyExternalEveningRate: 70, hourlyExternalNextDayRate: 45, hourlyExternalNextEveningRate: 63, sellableExternally: 1, ...over,
   };
   return Number(db.prepare(`INSERT INTO resources (name, price, priceType, showsPlanningCard, slotDuration, minimumUsageMinutes, openTime, closeTime, hourlyEveningStart, hourlyEveningRate,
-    hourlyExternalDayRate, hourlyExternalEveningRate, hourlyDegressiveTiers, sellableExternally)
+    hourlyExternalDayRate, hourlyExternalEveningRate, hourlyExternalNextDayRate, hourlyExternalNextEveningRate, sellableExternally)
     VALUES (@name, @price, @priceType, @showsPlanningCard, @slotDuration, @minimumUsageMinutes, @openTime, @closeTime, @hourlyEveningStart, @hourlyEveningRate,
-    @hourlyExternalDayRate, @hourlyExternalEveningRate, @hourlyDegressiveTiers, @sellableExternally)`).run(row).lastInsertRowid);
+    @hourlyExternalDayRate, @hourlyExternalEveningRate, @hourlyExternalNextDayRate, @hourlyExternalNextEveningRate, @sellableExternally)`).run(row).lastInsertRowid);
 };
 sales.setExternalRate('resources', 20);
 
@@ -56,19 +55,19 @@ test('a quote writes nothing, and a sale of the same session is still refused (a
   assert.equal(db.prepare('SELECT COUNT(*) AS n FROM standalone_sales').get().n, before);
 });
 
-test('the ranks continue after the time already covered: one more hour after 2 h is the 3rd hour at −20 %', () => {
+test('the ranks continue after the time already covered: one more hour after 2 h is a following hour at 45 €', () => {
   const id = resource();
-  assert.equal(quote(id, { band: 'day', minutes: 60, rankOffsetMinutes: 120 }).document.totals.totalCents, 4000);
+  assert.equal(quote(id, { band: 'day', minutes: 60, rankOffsetMinutes: 120 }).document.totals.totalCents, 4500);
   assert.equal(quote(id, { band: 'evening', minutes: 60, rankOffsetMinutes: 60 }).document.totals.totalCents, 6300);
   const whole = quote(id, { band: 'day', minutes: 180 }).document.totals.totalCents;
-  const parts = quote(id, { band: 'day', minutes: 120 }).document.totals.totalCents + 4000;
+  const parts = quote(id, { band: 'day', minutes: 120 }).document.totals.totalCents + 4500;
   assert.equal(whole, parts, 'priced in two lines or in one, the session costs the same');
 });
 
-test('half-hour slots, and a linear resource keeps its flat rate', () => {
+test('half-hour slots, and a resource without following-hours rates keeps its flat rate', () => {
   const half = resource({ name: 'Bain demi-heure', slotDuration: 30, minimumUsageMinutes: 60 });
   assert.equal(quote(half, { band: 'day', minutes: 90 }).document.totals.totalCents, 7250);
-  const linear = resource({ name: 'Bain linéaire', hourlyDegressiveTiers: '[]' });
+  const linear = resource({ name: 'Bain linéaire', hourlyExternalNextDayRate: null, hourlyExternalNextEveningRate: null });
   assert.equal(quote(linear, { band: 'day', minutes: 180 }).document.totals.totalCents, 15000);
 });
 

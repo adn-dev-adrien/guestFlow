@@ -53,14 +53,26 @@ function vatOf(total, vat) {
   return { rate, amount, net };
 }
 
-/** The day and evening rates a banded resource is sold at: the external pair for a customer with no stay (each falls back to the guest rate), the guest pair otherwise. */
+// A following-hours rate: a stored number (0 is free), `null` when it was left empty (same as the first hour — the engine's fallback).
+const nextRateField = (value) => (value === null || value === undefined || value === '' || !Number.isFinite(Number(value)) ? null : Number(value));
+
+/**
+ * The four rates a banded resource is sold at (specs/hourly-extra-hour-rates.md rules 1, 4): the day and evening first-hour rates, and the
+ * rates of the following hours of each band. The external set is for a customer with no stay (each first-hour rate falls back to the guest
+ * rate); the guest set otherwise. A `null` following-hours rate is « same as the first hour » of that band and audience.
+ */
 function rateGridOf(resource, { external, guestDayRate = Number(resource.price ?? 0) }) {
   const guestEveningRate = Number(resource.hourlyEveningRate) || 0;
   const dayRate = external && Number(resource.hourlyExternalDayRate) > 0 ? Number(resource.hourlyExternalDayRate) : guestDayRate;
   const eveningRate = external
     ? (Number(resource.hourlyExternalEveningRate) > 0 ? Number(resource.hourlyExternalEveningRate) : (guestEveningRate > 0 ? guestEveningRate : dayRate))
     : guestEveningRate;
-  return { dayRate, eveningRate };
+  return {
+    dayRate,
+    eveningRate,
+    dayNextRate: nextRateField(external ? resource.hourlyExternalNextDayRate : resource.hourlyNextDayRate),
+    eveningNextRate: nextRateField(external ? resource.hourlyExternalNextEveningRate : resource.hourlyNextEveningRate),
+  };
 }
 
 /**
@@ -110,11 +122,9 @@ function priceBookingLines({ resource, startTime, endTime, override = null, exte
 
   // Hourly-scheduled resource: time-banded grid (specs/resource-hourly-scheduling.md §3.5).
   if (Number(resource.showsPlanningCard || 0) === 1) {
-    const { dayRate, eveningRate } = rateGridOf(resource, { external, guestDayRate });
-    const cfg = {
-      dayRate, eveningRate, eveningStart: resource.hourlyEveningStart, slotMinutes: resource.slotDuration, degressiveTiers: resource.hourlyDegressiveTiers,
-    };
-    const priced = priceSessions([{ date: '2000-01-01', start: startTime, end: endTime }], cfg, 0);
+    const cfg = { ...rateGridOf(resource, { external, guestDayRate }), eveningStart: resource.hourlyEveningStart, slotMinutes: resource.slotDuration };
+    // The free minutes are not a rank (specs/hourly-extra-hour-rates.md rule 3): the gross counts the ranks from the first paid minute.
+    const priced = priceSessions([{ date: '2000-01-01', start: startTime, end: endTime }], cfg, freeApplied);
     if (priced.validSessions.length) {
       const { freeValue, offeredValue } = bookingDeductions({ start, freeApplied, offeredApplied, freeAtDayRate: freeHourAtDayRate }, cfg);
       return finish({

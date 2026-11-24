@@ -643,6 +643,9 @@ if (process.env.SKIP_MIGRATIONS !== 'true') {
   if (!rcols.includes('hourlyExternalEveningRate')) db.exec('ALTER TABLE resources ADD COLUMN hourlyExternalEveningRate REAL NOT NULL DEFAULT 0');
   if (!rcols.includes('hourlyDegressiveTiers')) db.exec("ALTER TABLE resources ADD COLUMN hourlyDegressiveTiers TEXT NOT NULL DEFAULT '[]'");
   if (!rcols.includes('bookingHorizonMonths')) db.exec('ALTER TABLE resources ADD COLUMN bookingHorizonMonths INTEGER NOT NULL DEFAULT 3');
+  ['hourlyNextDayRate', 'hourlyNextEveningRate', 'hourlyExternalNextDayRate', 'hourlyExternalNextEveningRate'].forEach((column) => {
+    if (!rcols.includes(column)) db.exec(`ALTER TABLE resources ADD COLUMN ${column} REAL`);
+  });
   const rrcols = db.prepare('PRAGMA table_info(reservation_resources)').all().map((c) => c.name);
   if (!rrcols.includes('sessions')) db.exec('ALTER TABLE reservation_resources ADD COLUMN sessions TEXT');
 }

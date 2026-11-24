@@ -26,6 +26,7 @@ const resourcesModel = sdk.coreModule('resourcesModel');
 const { roundMoney } = sdk.coreModule('money');
 const { toParisIso } = sdk.coreModule('stayWindow');
 const { horizonUntil } = require('./horizon');
+const { rateGridOf } = require('./bookingPricing');
 
 const HOURLY = 'per_hour';
 
@@ -56,8 +57,7 @@ const igniterOf = (canIgnite) => (typeof canIgnite === 'function'
   : null);
 
 const rateOf = (resource) => ({
-  dayRate: resource.price,
-  eveningRate: resource.hourlyEveningRate,
+  ...rateGridOf(resource, { external: false }),
   eveningStart: resource.hourlyEveningStart,
   slotMinutes: resource.slotDuration,
 });
@@ -157,11 +157,9 @@ function createScheduler(database) {
     const resource = hourlyResource(resourceId, propertyId);
     if (!resource) return 0;
     const difference = eveningSupplement((Array.isArray(sessions) ? sessions : []).map(asSession), {
-      dayRate: Number(resource.price || 0),
-      eveningRate: Number(resource.hourlyEveningRate) || 0,
+      ...rateGridOf(resource, { external: false }),
       eveningStart: resource.hourlyEveningStart || null,
       slotMinutes: Number(resource.slotDuration || 60),
-      degressiveTiers: resource.hourlyDegressiveTiers,
     });
     const credit = Math.max(0, roundMoney((Number(lineGain.amount) || 0) - Number(resource.price || 0) * (Number(lineGain.hours) || 0)));
     return Math.max(0, roundMoney(difference - credit));

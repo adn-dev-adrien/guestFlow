@@ -83,7 +83,7 @@ test('specs/gift-vouchers.md rule 46 — nothing exists before the bank confirms
 test('the bank’s confirmation issues the voucher with the contents, the VAT lines and the validity of its campaign frozen on it', () => withServer(async ({ place }) => {
   const { orderId } = (await place({ addOns: [{ articleRef: `option:${ids.drink}`, qty: 2 }], extraMinutes: 60 })).body.data;
   const priced = order(orderId).amountCents;
-  assert.equal(priced, 9500 + 4000 + 1400 + 1300);
+  assert.equal(priced, 9500 + 4500 + 1400 + 1300);
   assert.deepEqual(paid(orderId, 11, priced), { effect: 'voucher-issued' });
   const voucher = db.prepare('SELECT * FROM gift_vouchers WHERE orderId = ?').get(orderId);
   assert.deepEqual([voucher.campaignId, voucher.amountCents, voucher.expiresOn, voucher.vatRatePercent], [bath.id, priced, '2027-11-15', 20]); // date-literal-ok: the suite runs on its own clock, never the real today
@@ -98,7 +98,7 @@ test('the bank’s confirmation issues the voucher with the contents, the VAT li
 test('the order is priced again at the moment of the link: a rate that moved in between is the price asked, the contents stay as ordered, and the old amount is money to refund', () => withServer(async ({ site, place }) => {
   const { orderId, token } = (await place()).body.data;
   assert.equal(order(orderId).amountCents, 10900);
-  db.prepare('UPDATE resources SET hourlyExternalDayRate = 60 WHERE id = ?').run(ids.bath);
+  db.prepare('UPDATE resources SET hourlyExternalDayRate = 60, hourlyExternalNextDayRate = 54 WHERE id = ?').run(ids.bath);
   try {
     assert.equal((await site('POST', `/orders/${orderId}/pay`, { token })).status, 200);
     assert.equal(shop.links.at(-1).sale.amountCents, 6000 + 5400 + 1400);
@@ -108,7 +108,7 @@ test('the order is priced again at the moment of the link: a rate that moved in 
     assert.deepEqual(paid(orderId, 22, 12800), { effect: 'voucher-issued' });
     assert.equal(db.prepare('SELECT amountCents FROM gift_vouchers WHERE orderId = ?').get(orderId).amountCents, 12800);
   } finally {
-    db.prepare('UPDATE resources SET hourlyExternalDayRate = 50 WHERE id = ?').run(ids.bath);
+    db.prepare('UPDATE resources SET hourlyExternalDayRate = 50, hourlyExternalNextDayRate = 45 WHERE id = ?').run(ids.bath);
   }
 }));
 
@@ -132,7 +132,7 @@ test('a campaign closed since the order cannot be paid any more — no link; a p
 test('the public price is the engine’s, for any request; an unknown offer is refused; a one-shot composition is the operator’s alone and is ignored on the site', () => withServer(async ({ site }) => {
   const priced = await site('POST', '/offer/price', { slug: bath.slug, extraMinutes: 60, addOns: [{ articleRef: `option:${ids.drink}`, qty: 1 }] });
   assert.equal(priced.status, 200);
-  assert.equal(priced.body.data.totalCents, 9500 + 4000 + 1400 + 650);
+  assert.equal(priced.body.data.totalCents, 9500 + 4500 + 1400 + 650);
   assert.deepEqual(Object.keys(priced.body.data).sort(), ['lines', 'totalCents', 'vat']);
   assert.equal((await site('POST', '/offer/price', { slug: 'inconnu' })).body.error.code, 'CAMPAIGN_UNKNOWN');
   const composed = await site('POST', '/offer/price', { composition: { resourceId: ids.bath, band: 'day', minutes: 60, options: [] } });
@@ -175,9 +175,9 @@ test('« Envoyer un lien » creates the order a site order would be, mails the o
       slug: bath.slug, outcome: 'link', senderName: 'Paul', recipientName: 'Marie', email: 'paul@example.test', extraMinutes: 60,
     });
     assert.equal(sent.status, 201, JSON.stringify(sent.body));
-    assert.deepEqual([sent.body.outcome, sent.body.emailedTo, sent.body.totalCents], ['link', 'paul@example.test', 14900]);
+    assert.deepEqual([sent.body.outcome, sent.body.emailedTo, sent.body.totalCents], ['link', 'paul@example.test', 15400]);
     const row = order(sent.body.orderId);
-    assert.deepEqual([row.source, row.createdBy, row.state, row.amountCents, row.paymentMethod], ['site', 'user:7', 'pending', 14900, null]);
+    assert.deepEqual([row.source, row.createdBy, row.state, row.amountCents, row.paymentMethod], ['site', 'user:7', 'pending', 15400, null]);
     assert.equal(shop.links.at(-1).sale.validityMinutes, 60);
     assert.equal(shop.links.at(-1).options.redirectUrl, null);
     assert.equal(shop.sent.length, mails + 1);
@@ -188,7 +188,7 @@ test('« Envoyer un lien » creates the order a site order would be, mails the o
     assert.ok(mail.text.includes('Le paiement vaut acceptation de nos conditions générales de vente : https://site.example.test/cgv/?activity=resource&v=1'), mail.text);
     assert.ok(mail.html.includes('<a href="https://site.example.test/cgv/?activity=resource&amp;v=1">'), mail.html);
     assert.deepEqual(existing(), { ...before, gift_voucher_orders: before.gift_voucher_orders + 1 }, 'no voucher before the payment');
-    assert.deepEqual(paid(sent.body.orderId, 41, 14900), { effect: 'voucher-issued' });
+    assert.deepEqual(paid(sent.body.orderId, 41, 15400), { effect: 'voucher-issued' });
     await api.receipt.idle();
     assert.equal(db.prepare('SELECT COUNT(*) AS n FROM gift_vouchers WHERE orderId = ?').get(sent.body.orderId).n, 1);
     assert.equal(shop.sent.length, mails + 2, 'the receipt of a site order follows the payment');
@@ -206,7 +206,7 @@ test('« Sur mesure » follows the same path: a one-shot campaign bound to its o
     };
     const preview = await server.call('POST', '/api/gift-vouchers/campaigns/preview-price', request);
     assert.equal(preview.status, 200);
-    assert.equal(preview.body.totalCents, 7000 + 6300 + 5600 + 1300, 'evening: 70 + 63, then the 3rd hour at 56, two drinks');
+    assert.equal(preview.body.totalCents, 7000 + 6300 + 6300 + 1300, 'evening: 70 + 63, then the 3rd hour at the following-hours rate 63, two drinks');
     const campaignsBefore = count('gift_voucher_campaigns');
     assert.equal(count('gift_voucher_campaigns'), campaignsBefore, 'a preview stores nothing');
     const issued = await server.call('POST', '/api/gift-vouchers', request);

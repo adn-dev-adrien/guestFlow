@@ -18,11 +18,20 @@ const DEFAULT_RESOURCE_HORIZON_MONTHS = 3;
 function createModel(database) {
   // Hourly scheduling + time-banded grid (specs/resource-hourly-scheduling.md). Guarded so minimal
   // test schemas without these columns gracefully drop them from the write.
-  const HOURLY_COLUMNS = ['showsPlanningCard', 'hourlyEveningStart', 'hourlyEveningRate', 'hourlyExternalDayRate', 'hourlyExternalEveningRate', 'hourlyDegressiveTiers'];
+  const HOURLY_COLUMNS = ['showsPlanningCard', 'hourlyEveningStart', 'hourlyEveningRate', 'hourlyExternalDayRate', 'hourlyExternalEveningRate'];
   const HAS_HOURLY_COLUMNS = (() => {
     try {
       const cols = database.prepare('PRAGMA table_info(resources)').all().map((c) => c.name);
       return HOURLY_COLUMNS.every((c) => cols.includes(c));
+    } catch { return false; }
+  })();
+
+  // The price of the following hours (specs/hourly-extra-hour-rates.md rule 1). Its own group, guarded like the others.
+  const NEXT_RATE_COLUMNS = ['hourlyNextDayRate', 'hourlyNextEveningRate', 'hourlyExternalNextDayRate', 'hourlyExternalNextEveningRate'];
+  const HAS_NEXT_RATE_COLUMNS = (() => {
+    try {
+      const cols = database.prepare('PRAGMA table_info(resources)').all().map((c) => c.name);
+      return NEXT_RATE_COLUMNS.every((c) => cols.includes(c));
     } catch { return false; }
   })();
 
@@ -82,12 +91,12 @@ function createModel(database) {
     } catch { return null; }
   }
 
-  function tiersOf(stored) {
-    try {
-      const list = JSON.parse(stored);
-      return Array.isArray(list) ? list : [];
-    } catch { return []; }
-  }
+  // Empty = « same as the first hour » (specs/hourly-extra-hour-rates.md rule 1); 0 is a real, free rate.
+  const nextRateOf = (value) => {
+    if (value === null || value === undefined || (typeof value === 'string' && value.trim() === '')) return null;
+    const number = typeof value === 'string' ? Number(value.trim().replace(',', '.')) : Number(value);
+    return Number.isFinite(number) ? number : null;
+  };
 
   function parseResource(resource) {
     if (!resource) return resource;
@@ -118,7 +127,7 @@ function createModel(database) {
       turnoverMinutes: Number(resource.turnoverMinutes || 0),
       heatUpMinutes: Math.max(0, Number(resource.heatUpMinutes || 0)),
       heatRetentionMinutes: Math.max(0, Number(resource.heatRetentionMinutes || 0)),
-      ...(resource.hourlyDegressiveTiers === undefined ? {} : { hourlyDegressiveTiers: tiersOf(resource.hourlyDegressiveTiers) }),
+      ...Object.fromEntries(NEXT_RATE_COLUMNS.filter((c) => resource[c] !== undefined).map((c) => [c, nextRateOf(resource[c])])),
       ...(resource.bookingHorizonMonths === undefined ? {} : { bookingHorizonMonths: Number(resource.bookingHorizonMonths) || DEFAULT_RESOURCE_HORIZON_MONTHS }),
     };
   }
@@ -280,7 +289,7 @@ function createModel(database) {
       hourlyEveningRate: Number(payload.hourlyEveningRate) || 0,
       hourlyExternalDayRate: Number(payload.hourlyExternalDayRate) || 0,
       hourlyExternalEveningRate: Number(payload.hourlyExternalEveningRate) || 0,
-      hourlyDegressiveTiers: JSON.stringify(Array.isArray(payload.hourlyDegressiveTiers) ? payload.hourlyDegressiveTiers.map((t) => ({ fromHour: Number(t.fromHour), percent: Number(t.percent) })) : []),
+      ...Object.fromEntries(NEXT_RATE_COLUMNS.map((c) => [c, nextRateOf(payload[c])])),
       // Negatives would invert the slot algebra (a negative warm-up would open past slots), so clamp.
       heatUpMinutes: Math.max(0, Number(payload.heatUpMinutes) || 0),
       heatRetentionMinutes: Math.max(0, Number(payload.heatRetentionMinutes) || 0),
@@ -293,11 +302,13 @@ function createModel(database) {
   // Column/placeholder fragments shared by insert + update, appending each optional group when present.
   const optionalSet = (has, cols) => (has ? cols.map((c) => `${c}=@${c}`).join(', ') : '');
   const HOURLY_SET = optionalSet(HAS_HOURLY_COLUMNS, HOURLY_COLUMNS);
+  const NEXT_RATE_SET = optionalSet(HAS_NEXT_RATE_COLUMNS, NEXT_RATE_COLUMNS);
   const THERMAL_SET = optionalSet(HAS_THERMAL_COLUMNS, THERMAL_COLUMNS);
   const SENTENCE_SET = optionalSet(HAS_SENTENCE_COLUMNS, SENTENCE_COLUMNS);
   const HORIZON_SET = optionalSet(HAS_HORIZON_COLUMNS, HORIZON_COLUMNS);
   const OPTIONAL_COLUMNS = [
     ...(HAS_HOURLY_COLUMNS ? HOURLY_COLUMNS : []),
+    ...(HAS_NEXT_RATE_COLUMNS ? NEXT_RATE_COLUMNS : []),
     ...(HAS_THERMAL_COLUMNS ? THERMAL_COLUMNS : []),
     ...(HAS_SENTENCE_COLUMNS ? SENTENCE_COLUMNS : []),
     ...(HAS_HORIZON_COLUMNS ? HORIZON_COLUMNS : []),
@@ -330,7 +341,7 @@ function createModel(database) {
     const propertyIds = payload.propertyIds === undefined ? null : normalizePropertyIds(payload);
     const pricing = payload.propertyPricing === undefined && payload.propertyPrices === undefined ? null : normalizePricing(payload);
     const tx = database.transaction(() => {
-      const hourlySet = [HOURLY_SET, THERMAL_SET, SENTENCE_SET, HORIZON_SET].filter(Boolean).map((s) => `, ${s}`).join('');
+      const hourlySet = [HOURLY_SET, NEXT_RATE_SET, THERMAL_SET, SENTENCE_SET, HORIZON_SET].filter(Boolean).map((s) => `, ${s}`).join('');
       const updateSql = `UPDATE resources
            SET name=@name, quantity=@quantity, price=@price, priceType=@priceType, note=@note,
                isComplex=@isComplex, slotDuration=@slotDuration, minimumUsageMinutes=@minimumUsageMinutes,

@@ -1,7 +1,7 @@
 {
   "id": "hourly-resources",
   "name": "Ressources à l’heure",
-  "version": "1.9.0",
+  "version": "1.10.0",
   "description": "Louer un équipement par créneau : bain nordique, sauna.",
   "icon": "hot-tub",
   "surfaces": [
@@ -213,6 +213,14 @@
       "Le supplément de soirée d’une séance qui déborde sur la soirée et le temps ajouté après des minutes déjà couvertes sont chiffrés par GuestFlow : chaque tranche prend le tarif de sa tranche puis la remise de son heure, le rang des heures continuant.",
       "La carte du planning d’une séance hors séjour liste toutes les options à préparer et un badge pour ce qui a été réglé d’avance ; l’arrivée montre ces lignes à part, marquées comme réglées d’avance et comptées comme payées, et une option que le client n’a pas prise se marque « non pris » (jamais remboursée).",
       "Chaque séance hors séjour a sa fiche : le client, la séance, les lignes et ce qui a payé chacune, les paiements et remboursements, les conditions acceptées, l’arrivée ou l’absence, et l’historique de tout ce qui s’est passé, le plus récent en premier.",
+      "Compatible avec GuestFlow 4 (SDK 2.33)."
+    ],
+    "1.10.0": [
+      "Une ressource à l’heure a un prix pour les heures suivantes, réglé séparément pour les clients hébergés et pour les clients extérieurs, en journée et en soirée : par exemple la 1re heure à 70 €, puis 50 € l’heure.",
+      "Vide, le prix des heures suivantes reste celui de la 1re heure : une ressource que personne ne modifie garde exactement ses prix.",
+      "L’heure offerte par le logement ne compte pas comme une heure : la première heure payée d’un client hébergé est au prix de la 1re heure.",
+      "Le pourcentage de dégressivité par rang d’heure est remplacé par ces prix ; un tableau existant est converti en prix pour les heures suivantes au premier démarrage.",
+      "Les tarifs décrits en toutes lettres (catalogue des bons cadeaux, fiche de la ressource) ajoutent « puis X €/h » quand les heures suivantes coûtent autre chose.",
       "Compatible avec GuestFlow 4 (SDK 2.33)."
     ]
   }

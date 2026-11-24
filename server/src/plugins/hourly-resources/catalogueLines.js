@@ -1,6 +1,6 @@
 /**
  * What the hourly plugin adds to a resource's card on Options & ressources
- * (specs/options-resources-ux.md rule 19): the evening and external rates, the free first hour and a
+ * (specs/options-resources-ux.md rule 19): the evening, following-hours and external rates, the free first hour and a
  * footer that sums the schedule up. A resource not sold by the hour gets nothing. Pure.
  */
 
@@ -26,9 +26,30 @@ function eveningLine(resource) {
   return { label: 'Soir', value: `${hourly(resource.hourlyEveningRate)} après ${resource.hourlyEveningStart}` };
 }
 
+// specs/hourly-extra-hour-rates.md rule 6 — « puis X € / h » where the following hours cost something else than the first one. `null` stored = same as the first hour.
+const nextRate = (value) => (value === null || value === undefined || value === '' ? null : Number(value));
+const differs = (next, first) => next !== null && Number.isFinite(next) && Math.round(next * 100) !== Math.round(Number(first) * 100);
+const thenText = (next, first) => (differs(next, first) ? ` puis ${hourly(next)}` : '');
+
+function nextHoursLine(resource) {
+  const evening = resource.hourlyEveningStart && Number(resource.hourlyEveningRate) > 0;
+  const dayNext = nextRate(resource.hourlyNextDayRate);
+  const eveningNext = nextRate(resource.hourlyNextEveningRate);
+  const parts = [];
+  if (differs(dayNext, resource.price)) parts.push(`${evening ? 'jour ' : ''}${hourly(dayNext)}`);
+  if (evening && differs(eveningNext, resource.hourlyEveningRate)) parts.push(`soir ${hourly(eveningNext)}`);
+  return parts.length ? { label: 'Heures suivantes', value: parts.join(' · ') } : null;
+}
+
 function externalLine(resource) {
-  const day = Number(resource.hourlyExternalDayRate) > 0 ? hourly(resource.hourlyExternalDayRate) : '';
-  const evening = Number(resource.hourlyExternalEveningRate) > 0 ? `soir ${hourly(resource.hourlyExternalEveningRate)}` : '';
+  const dayFirst = Number(resource.hourlyExternalDayRate) > 0 ? Number(resource.hourlyExternalDayRate) : Number(resource.price || 0);
+  const guestEvening = Number(resource.hourlyEveningRate) || 0;
+  const eveningFirst = Number(resource.hourlyExternalEveningRate) > 0 ? Number(resource.hourlyExternalEveningRate) : (guestEvening > 0 ? guestEvening : dayFirst);
+  const dayNext = nextRate(resource.hourlyExternalNextDayRate);
+  const eveningNext = nextRate(resource.hourlyExternalNextEveningRate);
+  const day = Number(resource.hourlyExternalDayRate) > 0 || differs(dayNext, dayFirst) ? `${hourly(dayFirst)}${thenText(dayNext, dayFirst)}` : '';
+  const evening = Number(resource.hourlyExternalEveningRate) > 0 || differs(eveningNext, eveningFirst)
+    ? `soir ${hourly(eveningFirst)}${thenText(eveningNext, eveningFirst)}` : '';
   const value = [day, evening].filter(Boolean).join(' · ');
   return value ? { label: 'Extérieurs', value } : null;
 }
@@ -57,7 +78,7 @@ function footer(resource) {
 function buildCatalogueLines(resource, { properties = [] } = {}) {
   if (!resource || resource.priceType !== 'per_hour') return null;
   return {
-    lines: [eveningLine(resource), externalLine(resource), freeHourLine(resource, properties)].filter(Boolean),
+    lines: [eveningLine(resource), nextHoursLine(resource), externalLine(resource), freeHourLine(resource, properties)].filter(Boolean),
     footer: footer(resource),
   };
 }

@@ -84,17 +84,17 @@ export function renderWithShell(ui, { route = '/', path = null } = {}) {
   );
 }
 
-const TIERS_TEXT = 'Dégressif : −10 % dès la 2e heure, −20 % dès la 3e';
+const FOLLOWING_TEXT = 'puis 45 €/h';
 
 export const CATALOGUE = [
   {
     articleRef: 'resource:1', kind: 'resource', id: 1, label: 'Bain nordique', category: null, priceType: 'per_hour', priceTypeLabel: 'À l’heure', hourly: true, sellable: true, reason: null,
     modes: [
       {
-        key: 'outside-day', band: 'day', label: 'Extérieur · journée', rateCents: 5000, from: '10:00', to: '19:00', lengthMinutes: 540, tiers: [], slotMinutes: 60, minimumMinutes: 60, sellable: true, degressiveText: TIERS_TEXT,
+        key: 'outside-day', band: 'day', label: 'Extérieur · journée', rateCents: 5000, from: '10:00', to: '19:00', lengthMinutes: 540, followingRateCents: 4500, followingText: FOLLOWING_TEXT, slotMinutes: 60, minimumMinutes: 60, sellable: true,
       },
       {
-        key: 'outside-evening', band: 'evening', label: 'Extérieur · soirée', rateCents: 7000, from: '19:00', to: '22:00', lengthMinutes: 180, tiers: [], slotMinutes: 60, minimumMinutes: 60, sellable: true, degressiveText: null,
+        key: 'outside-evening', band: 'evening', label: 'Extérieur · soirée', rateCents: 7000, from: '19:00', to: '22:00', lengthMinutes: 180, followingRateCents: 7000, followingText: null, slotMinutes: 60, minimumMinutes: 60, sellable: true,
       },
     ],
   },

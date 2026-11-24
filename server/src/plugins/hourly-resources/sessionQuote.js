@@ -2,10 +2,10 @@
  * The price of a session with no date, for a customer with no stay (specs/gift-voucher-campaigns.md rules 4, 5, 43-44): « 2 h in the day band »,
  * « 1 h in the evening band, after 2 h already covered ». The band fixes the rate pair and the clock the slot walk starts from — the day band
  * opens at `openTime`, the evening band at `hourlyEveningStart` — so the answer is the one a booking of those hours would get from
- * `priceBookingLines`: the external rate of the band, the resource's degressive tiers by hour rank, whole slots. `rankOffsetMinutes` is the
+ * `priceBookingLines`: the external rate of the band, the rate of the following hours after the first one (specs/hourly-extra-hour-rates.md), whole slots. `rankOffsetMinutes` is the
  * time already covered before this slice: the ranks continue from it.
  *
- *   sessionModesOf(resource)           → [{ key, band, label, rateCents, from, to, lengthMinutes, tiers, slotMinutes, minimumMinutes, sellable, reason? }]
+ *   sessionModesOf(resource)           → [{ key, band, label, rateCents, from, to, lengthMinutes, followingRateCents, followingText, slotMinutes, minimumMinutes, sellable, reason? }]
  *   quoteSession(config, session)      → { line } (the shape of a fulfilled line of the core's sale document) | { refusal: { code, message } }
  *
  * Pure: no DB, no clock. A refusal is a French sentence that names the resource and the value.
@@ -24,6 +24,9 @@ const BANDS = Object.freeze({
 const PLACEHOLDER_DATE = '2000-01-01';
 const CLOCK_TIME = /^([01]\d|2[0-3]):[0-5]\d$/;
 
+/** « 40 € », « 37,50 € ». */
+const centsText = (cents) => `${(cents / 100).toLocaleString('fr-FR', { minimumFractionDigits: cents % 100 ? 2 : 0, maximumFractionDigits: 2 })} €`;
+
 const formatTime = (minutes) => `${String(Math.floor(minutes / 60)).padStart(2, '0')}:${String(minutes % 60).padStart(2, '0')}`;
 
 /** Whether the resource is the banded kind a session can be quoted on: an hourly resource shown on the planning. */
@@ -31,21 +34,21 @@ const isBanded = (resource) => resource && resource.priceType === 'per_hour' && 
 
 function sessionModesOf(resource) {
   if (!isBanded(resource)) return [];
-  const { dayRate, eveningRate } = rateGridOf(resource, { external: true });
+  const grid = rateGridOf(resource, { external: true });
   const open = toMinutes(resource.openTime || '00:00');
   const close = toMinutes(resource.closeTime || '23:59');
   const eveningStart = resource.hourlyEveningStart ? toMinutes(resource.hourlyEveningStart) : null;
   const hasEvening = eveningStart !== null && eveningStart > open && eveningStart < close;
-  const norm = normalizeConfig({ degressiveTiers: resource.hourlyDegressiveTiers, slotMinutes: resource.slotDuration });
+  const norm = normalizeConfig({ ...grid, eveningStart: hasEvening ? resource.hourlyEveningStart : null, slotMinutes: resource.slotDuration });
   const slotMinutes = norm.slotMinutes;
   const minimumMinutes = Math.max(slotMinutes, Number(resource.minimumUsageMinutes) || 0);
-  const tiers = norm.tiers.map((t) => ({ fromHour: t.fromHour, percent: t.percent }));
   const windows = [
-    { band: 'day', from: open, to: hasEvening ? eveningStart : close, rate: dayRate },
-    ...(hasEvening ? [{ band: 'evening', from: eveningStart, to: close, rate: eveningRate }] : []),
+    { band: 'day', from: open, to: hasEvening ? eveningStart : close, rate: grid.dayRate, next: norm.dayNextRate },
+    ...(hasEvening ? [{ band: 'evening', from: eveningStart, to: close, rate: grid.eveningRate, next: norm.eveningNextRate }] : []),
   ];
-  return windows.map(({ band, from, to, rate }) => {
+  return windows.map(({ band, from, to, rate, next }) => {
     const rateCents = toCents(rate);
+    const followingRateCents = toCents(next);
     return {
       key: `outside-${band}`,
       band,
@@ -54,7 +57,8 @@ function sessionModesOf(resource) {
       from: formatTime(from),
       to: formatTime(to),
       lengthMinutes: to - from,
-      tiers,
+      followingRateCents,
+      followingText: followingRateCents === rateCents ? null : `puis ${centsText(followingRateCents)}/h`,
       slotMinutes,
       minimumMinutes,
       sellable: rateCents > 0,
@@ -98,13 +102,10 @@ function quoteSession(config, session) {
     return refuse('SESSION_OUT_OF_BAND', `« ${name} » : ${duration(offset + minutes)} ne tiennent pas dans ${BANDS[session.band].word} (${mode.from}–${mode.to}).`);
   }
   const start = (placed ? toMinutes(session.start) : toMinutes(mode.from)) + offset;
-  const { dayRate, eveningRate } = rateGridOf(resource, { external: true });
   const priced = priceSessions([{ date: PLACEHOLDER_DATE, start: formatTime(start), end: formatTime(start + minutes) }], {
-    dayRate,
-    eveningRate,
+    ...rateGridOf(resource, { external: true }),
     eveningStart: resource.hourlyEveningStart,
     slotMinutes: mode.slotMinutes,
-    degressiveTiers: resource.hourlyDegressiveTiers,
     rankOffsetMinutes: offset,
   });
   if (!priced.validSessions.length) return refuse('SESSION_OFF_GRID', `« ${name} » : la tranche ne tombe pas sur la grille des créneaux (${mode.slotMinutes} min).`);

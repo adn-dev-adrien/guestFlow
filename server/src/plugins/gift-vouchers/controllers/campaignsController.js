@@ -26,11 +26,6 @@ function receiveRecipe(req, res, next) {
 const BAND_WORDS = Object.freeze({ day: 'en journée', evening: 'en soirée' });
 const countOf = (qty, label) => (qty > 1 ? `${qty} × ${label}` : label);
 
-/** « Dégressif : −10 % dès la 2e heure, −20 % dès la 3e » — the tiers of a band as the operator reads them; null when the band has none. */
-const degressiveText = (tiers) => (Array.isArray(tiers) && tiers.length
-  ? `Dégressif : ${tiers.map((t, i) => `−${t.percent} % dès la ${t.fromHour}e${i === 0 ? ' heure' : ''}`).join(', ')}`
-  : null);
-
 const isObject = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
 
 function buildCampaignsController({
@@ -59,11 +54,7 @@ function buildCampaignsController({
   /** Rule 9 — the two permanent paths of a campaign (the offer's only once it has a slug). */
   const linksOf = (campaign) => ({ offer: campaign.slug ? `/${linkBase()}/offrir/${campaign.slug}` : null, use: `/${linkBase()}/utiliser` });
 
-  const catalogueRead = (req, res) => res.json({
-    elements: catalogue.list().map((element) => ({
-      ...element, modes: element.modes.map((mode) => ({ ...mode, degressiveText: degressiveText(mode.tiers) })),
-    })),
-  });
+  const catalogueRead = (req, res) => res.json({ elements: catalogue.list() });
 
   const list = (req, res) => res.json({ items: campaigns.list().map(view) });
 
