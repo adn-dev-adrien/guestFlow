@@ -5,9 +5,10 @@
  *
  *   open({ code, visitor })                           → the contents, the names, the validity, the add-ons and extra time on offer, each step
  *                                                       priced like the offer prices it (rule 64), the horizon (rule 24)
- *   slots({ code, from, to, extraMinutes?, visitor }) → `{ days: [{ date, slots: [{ start, end, tag: 'in' | 'supplement', supplementCents }] }] }` (rules 25, 14)
+ *   slots({ code, from, to, extraMinutes?, visitor }) → `{ days: [{ date, slots: [{ start, end, tag: 'in' | 'supplement', supplementCents, dueCents, evening }] }] }` (rules 25, 14; `dueCents` is what the start costs above the voucher, extra time included, and `evening` whether
+ *                                                       part of it is in the evening band: specs/site-outside-resource-booking.md rule 10)
  *   quote({ code, start, extraMinutes?, addOns?, visitor }) → the recap: included, supplement, extras (and `extrasCents`, their sum, and `extraTimePrices`, the extra-time steps priced at that start, rule 64), what is still due, the VAT (rules 26-27)
- *   confirm({ code, start, extraMinutes?, addOns?, email, phone, name?, termsVersionId, visitor, returnUrl? }) → `{ booked: true }` | `{ payUrl, heldUntil }` (rules 28-29)
+ *   confirm({ code, start, extraMinutes?, addOns?, email, phone, firstName?, lastName?, name?, people?, termsVersionId, visitor, returnUrl? }) → `{ booked: true }` | `{ payUrl, heldUntil }` (rules 28-29)
  *   paid({ ref, linkId, amountCents })                the bank confirmed the remainder: book and settle in one transaction, or say the money is owed back (rule 29)
  *   lapseDue()                                        the job: 15 minutes ended unpaid, the slot and the voucher are free again
  *   lapseVoucher(voucherId)                           a voucher was cancelled: its pending uses end with it
@@ -22,11 +23,13 @@ const rules = require('./voucherRules');
 const campaignRules = require('./campaignRules');
 const { renderUseMail } = require('./useMail');
 const { createExtrasPricing } = require('./extrasPricing');
+const { refundNotice } = require('./voucherNotices');
 
 const HOLD_MINUTES = 15;
 const MAX_SPAN_DAYS = 62;
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 const PHONE = /^[0-9+().\s-]{6,30}$/;
+const MAX_PEOPLE = 100;
 const START = /^(\d{4}-\d{2}-\d{2})T(?:[01]\d|2[0-3]):[0-5]\d$/;
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 const BAND_WORDS = Object.freeze({ day: 'journée', evening: 'soirée' });
@@ -45,7 +48,7 @@ const clockOf = (start) => start.slice(11, 16);
 
 function createUseService({
   vouchers, campaigns, redemption, uses, unused, catalogue, engine, resources, terms, payments, sendMail, address, companyName, durationText,
-  basketSource, prepaidSource, prepaidLabel, now = () => new Date(), transaction,
+  basketSource, prepaidSource, prepaidLabel, notify = () => {}, now = () => new Date(), transaction,
 }) {
   const hook = () => resources();
   const extrasPricing = createExtrasPricing({ engine, catalogue });
@@ -206,20 +209,30 @@ function createUseService({
     if (from > free.horizonUntil) return refuse('BEYOND_HORIZON', `Réservable jusqu’au ${longDate(free.horizonUntil)}.`, 409, { horizonUntil: free.horizonUntil });
     const element = elementOf(contents);
     const evening = element ? element.modes.find((m) => m.band === 'evening') : null;
-    const supplements = new Map();
+    // What a start costs the recipient above the voucher: the evening supplement of the covered session and the extra time, each hour at the band it falls in (rules 9-10). The price of
+    // a start is the same on every date, so one quote per start.
+    const priced = new Map();
+    const priceOf = (date, start) => {
+      if (!priced.has(start)) {
+        const answer = hook().quote({
+          resourceId: resource.id, date, start, coveredBand: resource.band, coveredMinutes: resource.minutes, extraMinutes: extra,
+        });
+        const supplementCents = answer.ok ? answer.session.supplementCents : 0;
+        const extraCents = answer.ok && answer.extra ? answer.extra.totalCents : 0;
+        const extraInEvening = answer.ok && answer.extra ? answer.extra.line.components.some((part) => part.key.startsWith('band:evening')) : false;
+        priced.set(start, { supplementCents, dueCents: supplementCents + extraCents, evening: supplementCents > 0 || (extraCents > 0 && extraInEvening) });
+      }
+      return priced.get(start);
+    };
     const tagged = free.days.map((day) => ({
       date: day.date,
       slots: day.slots.map((slot) => {
         const crossesEvening = resource.band === 'day' && evening && slot.end > evening.from;
-        if (!crossesEvening) return { ...slot, tag: 'in', supplementCents: 0 };
-        if (!supplements.has(slot.start)) {
-          const priced = hook().quote({
-            resourceId: resource.id, date: day.date, start: slot.start, coveredBand: resource.band, coveredMinutes: resource.minutes, extraMinutes: 0,
-          });
-          supplements.set(slot.start, priced.ok ? priced.session.supplementCents : 0);
-        }
-        const supplementCents = supplements.get(slot.start);
-        return { ...slot, tag: supplementCents > 0 ? 'supplement' : 'in', supplementCents };
+        if (!crossesEvening && extra === 0) return { ...slot, tag: 'in', supplementCents: 0, dueCents: 0, evening: false };
+        const { supplementCents, dueCents, evening: inEvening } = priceOf(day.date, slot.start);
+        return {
+          ...slot, tag: supplementCents > 0 ? 'supplement' : 'in', supplementCents, dueCents, evening: inEvening,
+        };
       }),
     }));
     return { ok: true, data: { horizonUntil: free.horizonUntil, days: tagged } };
@@ -358,6 +371,7 @@ function createUseService({
       start: use.startTime,
       end: use.endTime,
       customer,
+      people: use.people,
       fulfilments: composed.fulfilments,
       lines: composed.lines,
       tenders: [
@@ -393,6 +407,7 @@ function createUseService({
       date: use.date,
       start: use.startTime,
       end: use.endTime,
+      people: use.people,
       included: composed.view.included,
       supplement: composed.view.supplement,
       extras: composed.view.extras,
@@ -466,7 +481,10 @@ function createUseService({
     const phone = typeof request.phone === 'string' ? request.phone.trim() : '';
     if (!EMAIL.test(email) || email.length > 254) return refuse('EMAIL_INVALID', 'Adresse e-mail invalide.');
     if (!PHONE.test(phone)) return refuse('PHONE_INVALID', 'Numéro de téléphone invalide.');
-    const given = typeof request.name === 'string' ? request.name.trim().slice(0, 80) : '';
+    const text = (value) => (typeof value === 'string' ? value.trim().slice(0, 80) : '');
+    const given = text(request.firstName) || text(request.lastName) ? `${text(request.firstName)} ${text(request.lastName)}`.trim() : text(request.name);
+    const people = request.people === undefined || request.people === null ? null : asInt(request.people);
+    if (people !== null && !(Number.isInteger(people) && people >= 1 && people <= MAX_PEOPLE)) return refuse('PEOPLE_INVALID', 'Nombre de personnes invalide.');
     const unpublished = terms.current('resource') === null;
     if (unpublished) return refuse('TERMS_UNPUBLISHED', 'Les conditions du bain ne sont pas encore publiées : la réservation n’est pas ouverte.', 409);
     const owed = terms.requireAccepted({ activity: 'resource', versionId: request.termsVersionId, subjectType: 'outsideBooking' });
@@ -484,6 +502,7 @@ function createUseService({
       extraMinutes: Number(asInt(request.extraMinutes)) || 0,
       addOns: composed.lines.slice(contents.options.length + contents.addOns.length).map((l) => ({ articleRef: l.articleRef, qty: l.quantity })),
       name: given || voucher.recipientName || '',
+      people,
       email,
       phone,
       termsVersionId: terms.current('resource').id,
@@ -505,6 +524,10 @@ function createUseService({
   };
   const unhonoured = (use, reason) => {
     uses.setState(use.id, 'refund_owed', reason);
+    const element = catalogue.element(`resource:${use.resourceId}`);
+    notify(refundNotice({
+      resourceName: (element && element.label) || 'Séance', date: use.date, start: use.startTime, end: use.endTime, name: use.name, amountCents: use.dueCents, reason,
+    }));
     return owedBack(reason);
   };
 

@@ -6,6 +6,7 @@
 
 const rules = require('./voucherRules');
 const { activityOfCampaign } = require('./offerService');
+const { soldNotice } = require('./voucherNotices');
 
 const SOURCE = 'giftVoucher';
 // The remainder of a session a recipient books with a voucher (specs/gift-voucher-campaigns.md rule 29): its own basket, its own paid effect.
@@ -19,7 +20,7 @@ function unhonoured(reason) {
 }
 
 function createOrderPaid({
-  orders, movements, issuance, receipt, terms,
+  orders, movements, issuance, receipt, terms, vouchers, campaigns, notify = () => {},
 }) {
   /**
    * Rule 37 — a payment link sent by the operator carries the terms in its mail and its page: paying accepts them, and the acceptance is recorded now, channel « lien de paiement ».
@@ -35,6 +36,14 @@ function createOrderPaid({
     });
   }
 
+  /** Rule 23 — a voucher a customer paid for, on the website or through a link the team sent: told to the operator. A voucher the team issues itself never comes through here. */
+  function announce(voucherId) {
+    const voucher = vouchers.find(voucherId);
+    if (!voucher) return;
+    const campaign = voucher.campaignId ? campaigns.find(voucher.campaignId) : null;
+    notify(soldNotice({ voucher, title: rules.contentsOf(voucher).title || (campaign && campaign.title) || 'Bon cadeau' }));
+  }
+
   /** `{ ref, linkId, amountCents }` → `{ effect }`, or `{ refundOwed, reason }`. */
   return function paid({ ref, linkId, amountCents }) {
     const order = orders.find(ref);
@@ -46,6 +55,7 @@ function createOrderPaid({
     const issued = issuance.issue({ orderId: order.id, actor: 'public', idempotencyKey });
     recordLinkAcceptance(order);
     receipt.deliverReceipt(issued.voucherId).catch(() => {});
+    announce(issued.voucherId);
     return { effect: 'voucher-issued' };
   };
 }

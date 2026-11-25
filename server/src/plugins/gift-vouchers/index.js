@@ -31,6 +31,7 @@ const { createDocuments } = require('./documents');
 const { createRecipe } = require('./recipe');
 const images = require('./visualImages');
 const { townOf, logoOf } = require('./companyProfile');
+const { CHANNEL: ONLINE_SALES_CHANNEL, CHANNEL_LABEL: ONLINE_SALES_LABEL } = require('./voucherNotices');
 const { createRedemption, SOURCE: PREPAID_SOURCE, LABEL: PREPAID_LABEL } = require('./redemption');
 const { buildStayController } = require('./controllers/stayController');
 const { buildAdminController } = require('./controllers/adminController');
@@ -110,7 +111,7 @@ function buildGiftVouchersApi({
   filesDir = () => { throw new Error('gift-vouchers: no folder for the visuals'); }, company = async () => ({ name: companyName(), town: '', website: siteOrigin(), logo: null }),
   linkBase = () => settingsStore().get('linkBase') || settings.DEFAULT_LINK_BASE,
   payments, siteOrigin = () => '', limiters = {}, isConverted = () => false, stayOf = () => null, collectedCents = () => 0, receipts = null,
-  randomBytes, onCheckLimitsTrip = () => {}, transaction = (fn) => db.transaction(fn)(),
+  randomBytes, onCheckLimitsTrip = () => {}, notify = () => {}, transaction = (fn) => db.transaction(fn)(),
   // The engine and the catalogue the campaigns are priced and picked from: the core's, unless a suite stands in.
   engine = { quote: (request) => sdk.coreModule('standaloneSale').quote(request) },
   catalogue = createCatalogueView({ db, articles: sdk.coreModule('articles') }),
@@ -164,7 +165,7 @@ function buildGiftVouchersApi({
     transaction,
   });
   const useService = createUseService({
-    vouchers, campaigns, redemption, uses, unused, catalogue, engine, resources, terms, payments, sendMail, address, companyName, durationText: offerService.durationText, basketSource: USE_SOURCE, prepaidSource: PREPAID_SOURCE, prepaidLabel: PREPAID_LABEL, now, transaction,
+    vouchers, campaigns, redemption, uses, unused, catalogue, engine, resources, terms, payments, sendMail, address, companyName, durationText: offerService.durationText, basketSource: USE_SOURCE, prepaidSource: PREPAID_SOURCE, prepaidLabel: PREPAID_LABEL, notify, now, transaction,
   });
   const use = buildPublicUseController({
     useService, proof, respond, siteOrigin,
@@ -205,7 +206,7 @@ function buildGiftVouchersApi({
     issuance,
     receipt,
     orderPaid: createOrderPaid({
-      orders, movements, issuance, receipt, terms,
+      orders, movements, issuance, receipt, terms, vouchers, campaigns, notify,
     }),
     checkLimits,
     salesBetween: (window) => books.salesBetween(window),
@@ -234,6 +235,7 @@ function register(ctx) {
   ctx.migrations([...MIGRATIONS]);
   ctx.settings.declare(settings.DECLARED);
   ctx.pushChannel({ key: PUSH_CHANNEL, label: 'Bons cadeaux : vérifications suspendues' });
+  ctx.pushChannel({ key: ONLINE_SALES_CHANNEL, label: ONLINE_SALES_LABEL, shared: true });
 
   const encryption = sdk.coreModule('encryption');
   const settingsModel = () => sdk.coreModule('settingsModel');
@@ -299,6 +301,10 @@ function register(ctx) {
     filesDir: () => ctx.dataDir,
     company: companyForPrint,
     linkBase: () => String(ctx.settings.get('linkBase') || '').trim() || settings.DEFAULT_LINK_BASE,
+    // Rule 23 — a voucher paid by a customer, a session booked with one, a payment to refund: told to the operator, best effort.
+    notify: (notice) => {
+      Promise.resolve().then(() => sdk.coreModule('notificationService').notifyOperator(notice)).catch(() => {});
+    },
     onCheckLimitsTrip: ({ failed }) => {
       ctx.log.warn(`public code checks paused: ${failed} failed checks in an hour`);
       Promise.resolve().then(() => sdk.coreModule('pushService').sendToPref(PUSH_CHANNEL, {
