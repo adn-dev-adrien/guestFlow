@@ -62,7 +62,7 @@ code{font-size:.88em;background:var(--surface);padding:.05em .35em;border-radius
 .act b{display:block}
 .act span{color:var(--muted);font-size:.88rem}
 .chips{display:flex;gap:.4rem;flex-wrap:wrap;margin-bottom:.6rem}
-.chip{border:1px solid var(--border);background:#fff;border-radius:999px;padding:.4rem .8rem;min-height:40px;font-size:.9rem}
+.chip{border:1px solid var(--border);background:#fff;border-radius:999px;padding:.5rem 1rem;min-height:40px;font-size:.9rem}
 .chip[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:var(--on-accent)}
 .cal{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:3px;text-align:center}
 .cal .dow{font-size:.72rem;color:var(--muted);padding:.2rem 0}
@@ -72,7 +72,7 @@ code{font-size:.88em;background:var(--surface);padding:.05em .35em;border-radius
 .day.off{color:var(--muted);cursor:default;background:repeating-linear-gradient(135deg,transparent 0 5px,var(--blocked) 5px 7px)}
 .day.on{background:var(--accent);color:var(--on-accent)}
 .slots{display:grid;grid-template-columns:repeat(auto-fill,minmax(7.4rem,1fr));gap:.45rem;margin-top:.8rem}
-.slot{border:1px solid var(--border);background:#fff;border-radius:8px;padding:.45rem .55rem;min-height:52px;text-align:left;display:grid;gap:.05rem;transition:border-color .12s ease,background-color .12s ease}
+.slot{border:1px solid var(--border);background:#fff;border-radius:8px;padding:.6rem .75rem;min-height:52px;text-align:left;display:grid;gap:.05rem;transition:border-color .12s ease,background-color .12s ease}
 .slot b{font-variant-numeric:tabular-nums;font-size:.95rem}
 .slot span{font-size:.78rem;color:var(--muted);font-variant-numeric:tabular-nums}
 .slot.ev span{color:var(--warn)}
@@ -120,7 +120,7 @@ code{font-size:.88em;background:var(--surface);padding:.05em .35em;border-radius
 /* Summary: aside on a wide block, folded into the bottom bar on a phone */
 .sum{display:none}
 @container site (min-width:900px){.sum{display:block;align-self:start;position:sticky;top:1rem;border:1px solid var(--border);border-radius:12px;padding:1rem;background:#fff}}
-.sum h4{font:400 1.15rem var(--serif);margin:0 0 .2rem}
+.sum h3{font:400 1.15rem var(--serif);margin:0 0 .2rem}
 .sum .when{color:var(--muted);font-size:.9rem;margin:0 0 .7rem}
 .lines{display:grid;gap:.3rem;font-size:.92rem}
 .line{display:flex;justify-content:space-between;gap:.8rem}
@@ -482,7 +482,7 @@ function render() {
         </div>
       </div>
       <aside class="sum" aria-label="Récapitulatif">
-        <h4>${RES.name}</h4><p class="when">${whenLabel()}${st.start !== null ? ` · ${st.persons} pers.` : ''}</p>
+        <h3>${RES.name}</h3><p class="when">${whenLabel()}${st.start !== null ? ` · ${st.persons} pers.` : ''}</p>
         <div class="lines">${sumLines}</div>
         <button type="button" class="btn fill go" ${cta.kind === 'slot' ? 'disabled' : ''}>${cta.label}</button>
         ${q && q.due > 0 ? '<p class="hold">Le créneau vous est réservé 15 minutes pendant le paiement.</p>' : ''}
