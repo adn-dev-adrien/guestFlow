@@ -13,7 +13,7 @@
   ],
   "requires": [],
   "guestflow": ">=3.10.0",
-  "sdk": "^2.33.0",
+  "sdk": "^2.35.0",
   "changelog": {
     "1.0.0": [
       "Première version publiée en paquet."
@@ -165,7 +165,7 @@
       "Demande le SDK 2.33 de GuestFlow."
     ],
     "1.9.1": [
-      "La preuve anti-robots d’une demande de réservation est vérifiée par le contrôle commun à tous les formulaires du site : une même preuve ne sert qu’une fois, quel que soit le formulaire."
+      "Demande GuestFlow avec le SDK 2.35.0 : la preuve anti-robots d’une demande de réservation est vérifiée par le contrôle commun à tous les formulaires du site, et une même preuve ne sert qu’une fois, quel que soit le formulaire."
     ]
   }
 }

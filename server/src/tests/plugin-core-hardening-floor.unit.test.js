@@ -73,6 +73,8 @@ const HARDENINGS = [
   // specs/gift-vouchers.md §4.1 — the public key guard, the signed proof of work and the e-mail outside a stay, shared by plugins.
   { feature: 'public API guard chain', sdk: '2.33.0', pattern: /\.middleware\.(?:publicApi|requirePublicApiKey|visitorContext)\b/ },
   { feature: 'shared proof of work', sdk: '2.33.0', pattern: /\.proofOfWork\b/ },
+  // specs/site-outside-resource-booking.md rule 8 — one proof-of-work guard and one spent store for every public form.
+  { feature: 'one proof-of-work guard for every public form', sdk: '2.35.0', pattern: /\.proofGuard\b/ },
   // specs/gift-vouchers.md rules 16-17 — a payment link with no stay, settled by the plugin that minted it.
   { feature: 'payment link with no stay', sdk: '2.33.0', pattern: /\bpayments\.saleLink\b/ },
   { feature: 'prepaid instruments', sdk: '2.33.0', pattern: /\bctx\.prepaid\(/ },
