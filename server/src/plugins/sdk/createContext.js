@@ -19,7 +19,7 @@ const CONTRIBUTOR_MEMBERS = ['id', 'priceTypes', 'priceLine'];
 const SAS_COMMIT_MEMBERS = ['step', 'validate', 'complementItems', 'write'];
 const SCHEDULER_MEMBERS = ['slotsForStay', 'validateSessions'];
 const SLOT_AVAILABILITY_MEMBERS = ['slots', 'validate'];
-const RESOURCE_BOOKING_OFFER_MEMBERS = ['freeSlots', 'quote', 'hold', 'release', 'bookOutside'];
+const RESOURCE_BOOKING_OFFER_MEMBERS = ['freeSlots', 'quote', 'hold', 'release', 'bookOutside', 'limits'];
 const HOME_DATA_MEMBERS = ['channel', 'catalog', 'readings', 'series', 'queueCommand', 'command', 'confirmed'];
 const ISSUER_MEMBERS = ['id', 'isReady', 'issue', 'findCardBatch', 'attach', 'invoiceStatus'];
 const PUSH_CHANNEL_KEY = /^[a-z][a-z0-9-]{0,39}$/;
@@ -181,7 +181,9 @@ function createContext(id, {
     //   freeSlots({ resourceId, from, to, minutes, band? })  → `{ horizonUntil, days: [{ date, slots: [{ start, end }] }] }`, bounded by the resource's horizon;
     //   quote({ resourceId, date, start, coveredBand, coveredMinutes, extraMinutes }) → the engine's priced breakdown of a session partly covered in advance;
     //   hold({ resourceId, date, start, end, ref, minutes? }) / release(ref)  a slot held for a few minutes, blocking every availability read;
-    //   bookOutside({ ... }) → `{ ok: true, bookingId, saleId }` | `{ ok: false, code, message }`, in one transaction.
+    //   bookOutside({ ... }) → `{ ok: true, bookingId, saleId, announce? }` | `{ ok: false, code, message }`, in one transaction; called inside the caller's own transaction it sends nothing
+    //   (the operator's notice would leave before the commit) and returns `announce()` for the caller to run once its outermost transaction has committed (SDK 2.35.0);
+    //   limits({ resourceId }) → `{ ok: true, stepMinutes, minMinutes, maxMinutes, maxPeople }` | `{ ok: false, code, message }`: what a session of the resource may ask (SDK 2.35.0).
     resourceBookingOffer(provider) {
       RESOURCE_BOOKING_OFFER_MEMBERS.forEach((m) => {
         if (provider == null || typeof provider[m] !== 'function') throw new Error(`${prefix} resource booking offer lacks "${m}"`);
