@@ -27,6 +27,12 @@ const { createSlotAvailability } = require('./slotAvailability');
 const { createBathFulfilment } = require('./bathFulfilment');
 const { createOutsideOffer } = require('./outsideOffer');
 const { createHoldsModel } = require('./holdsModel');
+const { createSessionOrdersModel } = require('./sessionOrdersModel');
+const { createPublicSessionService } = require('./publicSessionService');
+const { buildPublicSessionController } = require('./publicSessionController');
+const { buildPublicSessionRouter } = require('./publicSessionRoutes');
+const { createSessionProof } = require('./sessionProof');
+const { CHANNEL: ONLINE_SALES_CHANNEL, CHANNEL_LABEL: ONLINE_SALES_LABEL } = require('./sessionNotices');
 const { createLineMarksModel } = require('./lineMarksModel');
 const { createFicheModel } = require('./ficheModel');
 const occupancyModel = require('./occupancyModel');
@@ -35,6 +41,7 @@ const { SETTINGS, standaloneVatRateOf, outsideVatRateOf } = require('./settings'
 const termsSeed = require('./termsSeed');
 
 const id = 'hourly-resources';
+const SESSION_SOURCE = 'outsideSession';
 
 const plural = (n, one, many) => (n > 1 ? `${n} ${many}` : `1 ${one}`);
 const eurosText = (amount) => `${Number(amount).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`;
@@ -131,8 +138,12 @@ function register(ctx) {
   // specs/gift-voucher-campaigns.md rules 25, 29, 53 — what another plugin may ask of the outside bookings of an hourly resource: free slots, a 15-minute hold,
   // a booking with its priced lines and its tenders. No instrument of payment is named here; the holds lapse by themselves, the job below tidies them.
   const holds = lazy(() => createHoldsModel(ctx.db));
+  // Rule 23 — a session booked from the website is told to the operator: push on the shared channel and e-mail, best effort.
+  const notify = (notice) => {
+    Promise.resolve().then(() => sdk.coreModule('notificationService').notifyOperator(notice)).catch(() => {});
+  };
   const outsideOffer = lazy(() => createOutsideOffer({
-    db: ctx.db, bookings, occupancy: occupancyModel.create(ctx.db), holds: holds(), terms: ctx.terms,
+    db: ctx.db, bookings, occupancy: occupancyModel.create(ctx.db), holds: holds(), terms: ctx.terms, notify,
   }));
   ctx.resourceBookingOffer({
     freeSlots: (args) => outsideOffer().freeSlots(args),
@@ -142,6 +153,49 @@ function register(ctx) {
     bookOutside: (args) => outsideOffer().bookOutside(args),
   });
   ctx.jobs.every({ name: 'resource-holds-expire', intervalMs: 60 * 1000, bootDelayMs: 90 * 1000, run: () => holds().expire() });
+  ctx.pushChannel({ key: ONLINE_SALES_CHANNEL, label: ONLINE_SALES_LABEL, shared: true });
+
+  // specs/site-outside-resource-booking.md — the website's booking of a session, paid online in full: `/public/v1/sessions/**`, its paid callback and its lapse job.
+  const settingsModel = () => sdk.coreModule('settingsModel');
+  const sessionOrders = lazy(() => createSessionOrdersModel(ctx.db));
+  const publicSessions = lazy(() => createPublicSessionService({
+    db: ctx.db,
+    offer: outsideOffer(),
+    orders: sessionOrders(),
+    terms: ctx.terms,
+    payments: {
+      saleLink: (sale, options) => sdk.core.payments.saleLink(sale, options),
+      refreshLink: (linkId) => sdk.core.payments.refreshBasketLink(linkId),
+      withdrawLink: (linkId) => sdk.core.payments.withdrawBasketLink(linkId),
+    },
+    engine: { quote: (request) => sdk.coreModule('standaloneSale').quote(request) },
+    suggest: (resourceId) => sdk.coreModule('suggestedArticles').resolve({ context: { kind: 'resource', id: resourceId }, customerContext: 'external' }),
+    notify,
+    sendMail: (mail) => ctx.mail.send(mail),
+    address: () => sdk.core.settings.companyAddress(),
+    companyName: () => String(settingsModel().read().companyName || '').trim() || 'GuestFlow',
+    basketSource: SESSION_SOURCE,
+  }));
+  const sessionRouter = lazy(() => {
+    const limiters = sdk.coreModule('rateLimiters');
+    return buildPublicSessionRouter({
+      guard: sdk.middleware.publicApi,
+      sessions: buildPublicSessionController({
+        service: publicSessions(),
+        proof: createSessionProof({ pow: sdk.proofOfWork, secret: () => sdk.secrets.getOrCreate(sdk.proofOfWork.SECRET_NAME, 32) }),
+        respond: sdk.coreModule('publicHttp'),
+        siteOrigin: () => settingsModel().publicSiteOrigin(),
+      }),
+      limiters: { confirm: limiters.bookingRequestLimiter, status: limiters.paymentStatusLimiter },
+    });
+  });
+  ctx.mount('/public/v1/sessions', (req, res, next) => sessionRouter()(req, res, next), { public: true });
+  ctx.paymentBasket({
+    source: SESSION_SOURCE,
+    paid: (event) => publicSessions().paid(event),
+    labels: { refundOne: 'Séance en ligne à rembourser', refundMany: 'Séances en ligne à rembourser' },
+  });
+  ctx.jobs.every({ name: 'session-orders-lapse', intervalMs: 60 * 1000, bootDelayMs: 95 * 1000, run: async () => { publicSessions().lapseDue(); } });
 
   // Rule 12 — the « Planifier » step of the arrival SAS.
   const sasStep = createSasStep({ scheduling, reservations });
@@ -150,7 +204,7 @@ function register(ctx) {
 
   // Rule 17 (P16) — warn, then erase: the external bookings hold money, journaled or not.
   ctx.data({
-    tables: ['resource_bookings', 'resource_booking_holds', 'resource_visit_line_marks'],
+    tables: ['resource_bookings', 'resource_booking_holds', 'resource_visit_line_marks', 'resource_session_orders'],
     describe: (db) => {
       const lines = [];
       if (hasTable(db, 'resource_bookings')) {
@@ -217,6 +271,9 @@ function register(ctx) {
       visitController.reset();
       invoicing.reset();
       holds.reset();
+      sessionOrders.reset();
+      publicSessions.reset();
+      sessionRouter.reset();
       outsideOffer.reset();
       scheduling.reset();
       planningCards.reset();

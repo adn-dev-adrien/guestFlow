@@ -51,6 +51,11 @@ function positiveId(value) {
   return Number.isSafeInteger(n) && n > 0 ? n : null;
 }
 const refused = (message) => ({ error: message, status: 400 });
+// The people declared for a session (specs/site-outside-resource-booking.md rule 26): a whole number from 1 to 100, informational.
+const peopleOf = (value) => {
+  const n = typeof value === 'string' && /^\d+$/.test(value.trim()) ? Number(value) : value;
+  return Number.isInteger(n) && n >= 1 && n <= 100 ? n : null;
+};
 const STAY_LINK_MESSAGE = 'Séance hors séjour : aucune réservation à lier.';
 const HAS_STAY_MESSAGE = 'Cette séance appartient à un séjour : son paiement est celui du séjour.';
 
@@ -64,6 +69,7 @@ function shapeRefusal(payload, stored = null) {
     if (!isText(payload[field])) return refused('Texte attendu.');
   }
   if (payload.paid !== undefined && !isFlag(payload.paid)) return refused('Valeur invalide.');
+  if (!notSent(payload.people) && !peopleOf(payload.people)) return refused('Nombre de personnes invalide.');
   const total = payload.displayedTotal;
   if (!notSent(total) && (typeof total === 'object' || typeof total === 'boolean' || !Number.isFinite(Number(total)))) return refused('Valeur invalide.');
   return null;
@@ -531,6 +537,9 @@ function createModel(database, { standaloneVatRate = () => 20, now = () => new D
       if (payload.notes !== undefined) {
         database.prepare("UPDATE resource_bookings SET notes = ?, updatedAt = datetime('now') WHERE id = ?").run(payload.notes ?? '', id);
       }
+      if (payload.people !== undefined) {
+        database.prepare("UPDATE resource_bookings SET people = ?, updatedAt = datetime('now') WHERE id = ?").run(notSent(payload.people) ? null : peopleOf(payload.people), id);
+      }
       return { ok: true, totalPrice: existing.totalPrice, warning: null };
     }
 
@@ -580,7 +589,7 @@ function createModel(database, { standaloneVatRate = () => 20, now = () => new D
       database.prepare('UPDATE standalone_sales SET clientId = ?, version = version + 1 WHERE id = ? AND invoiceNumber IS NULL')
         .run(clientId || (passage ? passage.id : null), saleId);
     };
-    const write = () => { writeRow(); followClient(); };
+    const write = () => { writeRow(); writePeople(); followClient(); };
     const writeRow = () => database.prepare(
       "UPDATE resource_bookings SET reservationId=?,clientId=?,clientName=?,clientPhone=?,propertyId=?,date=?,startTime=?,endTime=?,notes=?,totalPrice=?,offeredMinutes=?,billingStreet=?,billingPostcode=?,billingCity=?,freeHourAtDayRate=?,updatedAt=datetime('now') WHERE id=?"
     ).run(
@@ -597,6 +606,10 @@ function createModel(database, { standaloneVatRate = () => 20, now = () => new D
       freeHourAtDayRate,
       id,
     );
+    const writePeople = () => {
+      if (payload.people === undefined) return;
+      database.prepare('UPDATE resource_bookings SET people = ? WHERE id = ?').run(notSent(payload.people) ? null : peopleOf(payload.people), id);
+    };
     const visit = visitsOf(existing);
     const slotMoved = existing.date !== newDate || existing.startTime !== newStart || existing.endTime !== newEnd;
     const writeMoved = () => {

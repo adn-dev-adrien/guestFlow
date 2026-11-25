@@ -11,8 +11,9 @@
  *       them, their ranks continuing; `session.supplementCents` is what the covered slices cost above their band's price (a covered day session run into the evening, rule 45)
  *   hold({ resourceId, date, start, end, ref, minutes?, now? }) → { ok: true, expiresAt } | { ok: false, code: 'SLOT_TAKEN', message }
  *   release(ref)
- *   bookOutside({ resourceId, date, start, end, customer, fulfilments, lines, tenders, holdRef?, channel, terms?, actor?, acceptedTotalCents?, now? })
- *       → { ok: true, bookingId, saleId } | { ok: false, code, message }   everything in one transaction, or nothing
+ *   bookOutside({ resourceId, date, start, end, customer, people?, fulfilments, lines, tenders, holdRef?, channel, terms?, actor?, acceptedTotalCents?, now? })
+ *       → { ok: true, bookingId, saleId } | { ok: false, code, message }   everything in one transaction, or nothing; `people` is the party declared, for information
+ *       (specs/site-outside-resource-booking.md rule 26); a booking of the channel `site` or `mon-bain` tells the operator once it is written (rule 23)
  *
  * Priced lines are the engine's: `fulfilments` are the lines `quote` answered (`role: 'session' | 'extra'`), `lines` are `{ articleRef, quantity }` options. `tenders` are
  * `{ method: 'prepaid', source, ref, label, covers: [{ role | articleRef, amountCents }] }` — which line each prepaid cent pays — and `{ method: 'card', amountCents, source }`,
@@ -28,12 +29,14 @@ const { toMinutes } = require('./hourlyPricing');
 const { quoteSession, isBanded } = require('./sessionQuote');
 const { horizonUntil } = require('./horizon');
 const { HOLD_MINUTES } = require('./holdsModel');
+const { bookedNotice } = require('./sessionNotices');
 
 const { toParisIso } = sdk.coreModule('stayWindow');
 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 const CLOCK = /^([01]\d|2[0-3]):[0-5]\d$/;
 const CHANNELS = Object.freeze({ 'mon-bain': 'Mon bain', site: 'site', 'guest-app': 'appli du séjour' });
+const ANNOUNCED_CHANNELS = Object.freeze(['site', 'mon-bain']);
 const SLOT_TAKEN = 'Ce créneau n’est plus libre.';
 
 const refuse = (code, message) => ({ ok: false, code, message });
@@ -46,7 +49,7 @@ const REASONS = Object.freeze({
 });
 
 function createOutsideOffer({
-  db, bookings, occupancy, holds, standaloneSale = () => sdk.coreModule('standaloneSale'), terms = null, now = () => new Date(),
+  db, bookings, occupancy, holds, standaloneSale = () => sdk.coreModule('standaloneSale'), terms = null, notify = () => {}, now = () => new Date(),
 }) {
   const resourceOf = (resourceId) => db.prepare('SELECT * FROM resources WHERE id = ?').get(Number(resourceId)) || null;
   const offerable = (resourceId) => {
@@ -211,7 +214,7 @@ function createOutsideOffer({
   }
 
   function bookOutside({
-    resourceId, date, start, end, customer = {}, fulfilments = [], lines = [], tenders = [], holdRef = null, channel = 'mon-bain', terms: termsRequest = null, actor = 'public',
+    resourceId, date, start, end, customer = {}, people = null, fulfilments = [], lines = [], tenders = [], holdRef = null, channel = 'mon-bain', terms: termsRequest = null, actor = 'public',
     acceptedTotalCents, now: at,
   }) {
     const resource = offerable(resourceId);
@@ -230,6 +233,7 @@ function createOutsideOffer({
         }, { excludeHoldRef: holdRef });
         if (created.error) stop(created.status === 409 ? refuse('SLOT_TAKEN', SLOT_TAKEN) : refuse('BOOKING_REFUSED', created.error));
         const bookingId = Number(created.id);
+        if (people) db.prepare('UPDATE resource_bookings SET people = ? WHERE id = ?').run(Number(people), bookingId);
         const core = standaloneSale();
         const sold = core.sell(saleRequestOf({
           bookingId, customer, fulfilments, lines, acceptedTotalCents,
@@ -251,6 +255,11 @@ function createOutsideOffer({
     } catch (err) {
       if (!err || !err.refusal) throw err;
       return err.refusal;
+    }
+    if (ANNOUNCED_CHANNELS.includes(channel)) {
+      notify(bookedNotice({
+        resourceName: resource.name, date, start, end, customer, people, tenders, bookingId: outcome.bookingId,
+      }));
     }
     return outcome;
   }
