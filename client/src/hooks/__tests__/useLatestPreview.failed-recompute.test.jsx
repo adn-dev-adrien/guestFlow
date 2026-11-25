@@ -366,7 +366,7 @@ const ROWS = {
       giftVouchersApi.offerPrice.mockImplementation(async () => { if (state.fail) throw offline(); return state.price || GIFT_PRICE; });
       renderWithShell(<NewVoucherPage />, { route: '/bons-cadeaux/nouveau', path: '/bons-cadeaux/nouveau' });
       await screen.findByText(/109,00/);
-      press(screen.getByRole('button', { name: /Ajouter au bon/ })); // rule 64: the extras sit in a fold, closed by default
+      press(screen.getByRole('button', { name: /Ajouter au bon/ })); // specs/gift-voucher-campaigns.md rule 64: the extras sit in a fold, closed by default
       await screen.findAllByRole('button', { name: 'Augmenter' });
     },
     async fail(state) { state.fail = true; press(screen.getAllByRole('button', { name: 'Augmenter' })[0]); await screen.findByText(/Service indisponible/); },
