@@ -255,6 +255,8 @@ function createSettingsModel(databaseInstance) {
         // Per-channel switch for the iCal/platform new-reservation email; default ON (only an explicit 0 disables).
         icalReservationEnabled: Number(row.notifyIcalReservationEnabled) !== 0,
         recipientEmail: identity.recipient,
+        // The address the operator typed for notifications, no fallback to the sender: what a notice that must not go to the sender's own inbox reads.
+        explicitRecipientEmail: String(row.notificationRecipientEmail || '').trim(),
         fromEmail: identity.fromEmail,
         publicUrl: effectivePublicUrl(row),
       };

@@ -23,7 +23,7 @@ console.log = silent;
 
 const settings = (over = {}) => ({
   notificationSettings: () => ({
-    enabled: true, recipientEmail: 'owner@example.com', fromEmail: 'noreply@example.com', publicUrl: 'https://app.example.com', ...over,
+    enabled: true, recipientEmail: 'owner@example.com', explicitRecipientEmail: 'owner@example.com', fromEmail: 'noreply@example.com', publicUrl: 'https://app.example.com', ...over,
   }),
   smtpConfigured: () => true,
   decryptedSmtpSettings: () => ({ host: 'smtp' }),
@@ -138,4 +138,17 @@ test('rule 23 — a voucher is announced when the bank confirms it, whoever star
   assert.equal(notices.length, 1);
   assert.equal(notices[0].title, 'Bon cadeau vendu · 50 €');
   assert.deepEqual(paid({ ref: '5', linkId: 3, amountCents: 5000 }), { effect: 'voucher-issued' }, 'a replay of the same link');
+});
+
+test('rule 23 — the e-mail goes to the address typed for notifications only: none typed, the sender’s own address is not used; the master switch of the e-mails is honoured, the push is not tied to it', async () => {
+  const none = operator({ explicitRecipientEmail: '', recipientEmail: 'noreply@example.com' });
+  const answer = await none.service.notifyOperator({
+    channel: 'online-sales', title: 't', body: 'b', subject: 's', lines: ['l'],
+  });
+  assert.deepEqual([answer.skipped, none.mails.length, none.pushes.length], ['no_recipient', 0, 1]);
+  const off = operator({ enabled: false });
+  const refused = await off.service.notifyOperator({
+    channel: 'online-sales', title: 't', body: 'b', subject: 's', lines: ['l'],
+  });
+  assert.deepEqual([refused.skipped, off.mails.length, off.pushes.length], ['disabled', 0, 1]);
 });
