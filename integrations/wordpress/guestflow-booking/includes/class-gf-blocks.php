@@ -266,7 +266,7 @@ final class GF_Blocks
                 'payToday'        => __('À payer aujourd’hui', 'guestflow-booking'),
                 'confirmBooking'  => __('Confirmer la réservation', 'guestflow-booking'),
                 // Gift voucher tunnel (specs/gift-vouchers.md §6).
-                'gvTitle'         => __('Offrir un séjour', 'guestflow-booking'),
+                'gvTitle'         => __('Choisir son cadeau', 'guestflow-booking'),
                 'gvIntro'         => __('Un montant au choix, valable %d mois, à utiliser en une ou plusieurs fois.', 'guestflow-booking'),
                 'gvIntroSession'  => __('Valable %d mois à compter du paiement, pour une séance à réserver en ligne.', 'guestflow-booking'),
                 'gvAmount'        => __('Montant', 'guestflow-booking'),

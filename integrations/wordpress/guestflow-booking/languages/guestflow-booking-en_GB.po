@@ -703,8 +703,8 @@ msgid "Prix de base pour %d voyageurs, supplément au-delà"
 msgstr "Base price for %d guests, supplement beyond"
 
 #: blocks/gift-voucher, includes/class-gf-blocks.php (specs/gift-vouchers.md)
-msgid "Offrir un séjour"
-msgstr "Give a stay"
+msgid "Choisir son cadeau"
+msgstr "Choose your gift"
 
 #: blocks/gift-voucher, includes/class-gf-blocks.php (specs/gift-vouchers.md)
 msgid "Un montant au choix, valable %d mois, à utiliser en une ou plusieurs fois."
