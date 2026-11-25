@@ -743,7 +743,30 @@ function buildNotificationService({
     }
   }
 
-  return { notifyNewSiteDevis, flushDueDigests, notifyNewIcalReservation, notifyBookingConflict, notifyPaidAfterCancel, notifyDeactivationStuck, notifyPaymentInFlight, __test: { buildDevisEmail, buildSiteDigestEmail, buildReservationEmail, buildConflictEmail, buildPaidAfterCancelEmail, buildOrphanPaidEmail, buildStandaloneRefundEmail, buildDeactivationStuckEmail, buildPaymentInFlightEmail } };
+  /**
+   * Tells the operator of something that happened outside a stay (specs/site-outside-resource-booking.md rule 23): one push on `channel` (the toggle governs
+   * the push only) and one e-mail to the notification recipient, with a link on `publicUrl` built from `url`. Every value is a single line, whoever typed it.
+   * `{ channel, title, body, url?, subject, lines }` → never throws.
+   */
+  async function notifyOperator({
+    channel, title, body, url = '', subject, lines = [],
+  }) {
+    try {
+      try {
+        await pushService.sendToPref(channel, { title: oneLine(title), body: oneLine(body), ...(url ? { url } : {}) });
+      } catch (err) { logger.warn('[notificationService.notifyOperator.push]', err && err.message ? err.message : err); }
+      const ctx = resolveContext();
+      if (ctx.skip) return { sent: false, skipped: ctx.skip };
+      const link = url ? joinUrl(ctx.publicUrl, url) : '';
+      const text = [...lines.map(oneLine), ...(link ? ['', `Ouvrir dans GuestFlow : ${link}`] : [])].join('\n');
+      return await deliver({ recipient: ctx.recipient, subject: oneLine(subject), text });
+    } catch (err) {
+      logger.warn('[notificationService.notifyOperator]', err && err.message ? err.message : err);
+      return { sent: false, skipped: 'error' };
+    }
+  }
+
+  return { notifyOperator, notifyNewSiteDevis, flushDueDigests, notifyNewIcalReservation, notifyBookingConflict, notifyPaidAfterCancel, notifyDeactivationStuck, notifyPaymentInFlight, __test: { buildDevisEmail, buildSiteDigestEmail, buildReservationEmail, buildConflictEmail, buildPaidAfterCancelEmail, buildOrphanPaidEmail, buildStandaloneRefundEmail, buildDeactivationStuckEmail, buildPaymentInFlightEmail } };
 }
 
 const defaultService = buildNotificationService();

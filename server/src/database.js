@@ -643,6 +643,7 @@ if (process.env.SKIP_MIGRATIONS !== 'true') {
   if (!rcols.includes('hourlyExternalEveningRate')) db.exec('ALTER TABLE resources ADD COLUMN hourlyExternalEveningRate REAL NOT NULL DEFAULT 0');
   if (!rcols.includes('hourlyDegressiveTiers')) db.exec("ALTER TABLE resources ADD COLUMN hourlyDegressiveTiers TEXT NOT NULL DEFAULT '[]'");
   if (!rcols.includes('bookingHorizonMonths')) db.exec('ALTER TABLE resources ADD COLUMN bookingHorizonMonths INTEGER NOT NULL DEFAULT 3');
+  if (!rcols.includes('sessionMaxPeople')) db.exec('ALTER TABLE resources ADD COLUMN sessionMaxPeople INTEGER');
   ['hourlyNextDayRate', 'hourlyNextEveningRate', 'hourlyExternalNextDayRate', 'hourlyExternalNextEveningRate'].forEach((column) => {
     if (!rcols.includes(column)) db.exec(`ALTER TABLE resources ADD COLUMN ${column} REAL`);
   });

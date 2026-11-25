@@ -361,6 +361,15 @@
           "listOtherAcceptancesByReservation"
         ]
       }
+    },
+    {
+      "version": "2.35.0",
+      "modules": [],
+      "names": {
+        "notificationService": [
+          "notifyOperator"
+        ]
+      }
     }
   ]
 }
