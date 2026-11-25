@@ -112,6 +112,8 @@ Rules are identities: a rule is never renumbered, new rules are appended
    - The composition also fixes the **add-ons offered** to the giver and to the recipient (options
      picked the same way) and the **extra time offered** (yes/no, a maximum, in steps of
      `slotDuration`).
+   - The add-ons list shows a **checkbox before each option** and **stays open after a pick**, so
+     several options are ticked in one pass (revised 2026-11-25).
 5. **Prices are read, never stored by the campaign** (revised 2026-11-18).
    - Every price shown — the campaign editor's preview, the giver's total, the recipient's remainder,
      the back-office total — is computed by the **pricing engine** at the time of the request, for
