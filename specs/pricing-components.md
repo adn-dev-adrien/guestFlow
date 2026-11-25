@@ -2753,6 +2753,34 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
     case- and space-insensitive key (`paidLineJudgment.labelTakenRefusal`): both lines would share one key, so the unpaid one read as paid and
     could be neither renamed back nor removed. A NEW line under an existing label keeps « (2) » (rule 94).
 
+124. **Which articles sell with no stay is the families' own answer** _(owner decision of 2026-11-25; completes rules 47, 53, 88;
+    `specs/gift-voucher-campaigns.md` rule 65; mock-up `specs/gift-voucher-outside-sellable.html`)_.
+    - **Each family declares it.** A family carries `readsStay` (true for `perPerson`, `perNight`, `perPersonPerNight`,
+      `percentOfStay`, `perParticipantProgressive`; false for `fixed`, `perUnit`), and `familyKit.refusalsOf` answers
+      `NEEDS_STAY` from that same flag. `articles.outsideSale(article)` is the one function that says whether an article can be
+      sold to a customer with no stay: `{ sellable, code, reason }`, `code` ∈ `null | 'NEEDS_STAY' | 'NEEDS_FULFILMENT' |
+      'INSURANCE'`. A family that reads the stay answers `NEEDS_STAY` with « Le prix « <label> » a besoin d’un séjour : il ne se
+      vend pas seul. »; the cancellation insurance answers `INSURANCE` (« L’assurance annulation ne se vend qu’avec un séjour. »);
+      a family the core does not own (today the hourly-resources plugin's `hourly`) is not read for a flag: it is sellable for the
+      catalogue fields but answers `NEEDS_FULFILMENT` at the counter (a session is booked from the planning). The French labels of the price types move from the gift-voucher plugin to the core
+      (`utils/pricing/articles/priceTypeLabels.js`) so the sentence is the same in every caller; they are the words of the fiches'
+      « Type de prix » menu (« Prix fixe », « Par jour », « Dégressif participants »…), so the reason names the type just picked.
+    - **The four copies go.** `externalArticleFields` (the fiche's « Vendable hors séjour », rule 88), `standaloneSale.requestsOf`
+      (the counter, the outside visit), `suggestedArticles` (« Autre article », outside-booking-sas rule 11) and the gift-voucher
+      `catalogueView` read `outsideSale`; none keeps a list of families. Their answers do not change, except the gift-voucher catalogue
+      (rule 65 there) and the cancellation insurance: the catalogue already refused it, and now the fiche, the counter and the suggestions
+      do too (an insurance priced « Prix fixe » used to read as `fixed` there). In production on 2026-11-25 (read-only check) the one
+      insurance option was priced per night and not marked « vendable hors séjour »: nothing it sold changes.
+    - **The fiche explains before the save** (owner choice, 2026-11-25). `GET /api/standalone-sales/sellability?kind=option|resource&
+      priceType=…&showsPlanningCard=0|1&isCancellationInsurance=0|1` answers `{ sellable, code, reason }` for the draft, built by
+      `makeArticle` from those fields and judged by `outsideSale` (admin; 400 on an unknown kind). The option and resource editors ask it
+      when the price type, the planning card or the insurance flag changes, and `ExternalSaleFields` takes the answer as a `sellability`
+      prop. Not sellable and unchecked → the switch is disabled (focusable, `aria-disabled`) and its helper reads the reason; not sellable
+      but already checked (a row saved before) → the switch stays active so it can be unchecked, the helper shows the reason in the error
+      colour followed by « Décocher pour enregistrer. », and the save stays refused **422 `NEEDS_STAY`** with that same reason until
+      it is unchecked (never unchecked by the server). While the answer is pending the switch keeps its last state for the same article; opening another article, or closing the panel,
+      drops the previous answer.
+
 ## 4. Architecture
 
 > **Fat backend, thin frontend.** Every amount, status, discount share and grouping in this spec is computed
@@ -2826,6 +2854,10 @@ All of it is plain CommonJS functions and objects (rule 56).
 | `plugins/sas/` | `controller.js`, `arrivalRecap.js`, `departureRecap.js` | T (PR B) | recap = `saleDetail` + SETTLEMENT |
 | `database.js` | `database.js` | T | idempotent migration of §5 |
 | `utils/` | `statementCache.js` | C | one compiled statement per SQL text and handle, emptied on a schema change, bounded (rule 48, reading of 2026-11-18); `database.js` installs it last |
+| `utils/pricing/articles/` | `index.js` (`outsideSale`), `familyKit.js` (`refusalsOf` reads `readsStay`), `families/*.js` (`readsStay`), `priceTypeLabels.js` (new) | C/T | rule 124: the one answer to « can this article sell with no stay »; the French price-type labels moved here from the gift-voucher plugin |
+| `utils/` | `externalArticleFields.js`, `standaloneSale.js` (`requestsOf`), `suggestedArticles.js` | T | rule 124: the three copies of the families list replaced by `outsideSale`; `requestsOf` loses its `families` option (no caller passed it) |
+| `controllers/`, `routes/` | `standaloneSalesController.js` (`sellability`), `standaloneSales.js` | T | rule 124: `GET /api/standalone-sales/sellability`, beside `vat-rates` |
+| `tests/` | `outside-sale-single-rule.unit.test.js` | C | rule 124: every price type × planning card × insurance, the four callers agree, the endpoint |
 | `scripts/` | `pricing-replay.mjs` | C | rule 34 |
 | `scripts/price-gate/` | `anonymise.js`, `figuresOf.js`, `recompute.js`, `buildFixture.mjs`, `moveProof.js`, `move-proof.mjs` | C (PR A) | rule 68 fixture builder and shared recompute; rule 73 move proof |
 | `tests/` | `price-gate.unit.test.js`, `helpers/priceGateCompare.js`, `fixtures/price-gate/{inputs,expected,allowlist}.json` | C (PR A) | rule 68 gate, cent-exact, owner-reviewed allowlist |
@@ -2864,6 +2896,12 @@ _Rewritten 2026-11-15 (stabilisation loop t1, UI-3) to the files PR B and PR C s
 
 **Delivered by PR B** (pass 4, skills `apple-design` and `impeccable` loaded): `components/SaleDetailList.jsx` (the payload as a list, a « moment » menu on an unpaid line, 44 px targets, stacked on `xs`), `components/AddProductDialog.jsx` (`FormDialog`: product, quantity, the server's price and moment, sells at the accepted price), `components/ExtraSalesPanel.jsx` (« Ventes du séjour » on a saved stay), and the « Réduction sur » selector (Nuits / Articles / Tout) of the finance card. The client computes nothing. Vitest: `SaleDetailList.moment`, `AddProductDialog.quote`; Playwright `e2e/specs/reservations/extra-sale.spec.js` at 390 and 1280 px.
 
+| `hooks/` | `useOutsideSellability.js` (new), `api.js` (`getOutsideSellability`) | C | rule 124: asks the sellability of the draft when the price type, the planning card or the insurance flag changes |
+| `components/` | `ExternalSaleFields.jsx` | T (generic) | rule 124: `sellability` prop, the switch inert-but-focusable or kept active with « Décocher pour enregistrer. » |
+| `pages/options/` | `OptionEditorPanel.jsx`, `ResourceEditorPanel.jsx` | T | rule 124: fetch the answer and pass it down |
+| `components/__tests__/` | `ExternalSaleFields.sellability.test.jsx` | C | rule 124 |
+| `hooks/__tests__/` | `useOutsideSellability.answer.test.jsx` | C | rule 124 (asks again on a changed draft, drops another article's answer) |
+
 ### 4.3 API contract
 
 | Method | Endpoint | Request | Response | Notes |
@@ -2876,6 +2914,7 @@ _Rewritten 2026-11-15 (stabilisation loop t1, UI-3) to the files PR B and PR C s
 | PUT | `/api/reservations/:id` (existing) | `discountTarget` added (`nights` default); `discountAmountCents` (positive integer, else none; absent keeps the stored one) | unchanged | rule 16 |
 | GET / PUT | `/api/reservations/:id` (existing) | — | GET adds `refundedLoweredLines: [{ key, table, lineId }]` | rule 108: PUT answers 409 `LINE_REFUNDED` on a line that list names; the SAS recap lines add `offerLocked`. Rule 113: PUT's 409 `OVERPAID` carries `overpaymentLines`, `overpaymentMethod` and `overpaymentCash` (the ledger row's `refundPrefill`), the paid-line judgment's too. Rule 114: the quote's and the stored summary's custom lines carry `key`. Rule 123: GET's `editLock` adds `paidCustomOptionIds: number[]`; PUT answers 409 `LINE_PAID_RENAMED` on a paid free line renamed |
 | guest-app | `/public/v1/stay/…/orders` (existing) | unchanged shape | unchanged shape | implementation moves to `extraSale` (PR C) |
+| GET | `/api/standalone-sales/sellability?kind=option\|resource&priceType=&showsPlanningCard=0\|1&isCancellationInsurance=0\|1` | — | `{ sellable, code, reason }` | rule 124; admin; 400 `INVALID_KIND` on an unknown kind |
 | POST | `/api/standalone-sales/quote` | `{ requests[], payment }` | `{ lines[], vatByRate[], totalCents, refusals[] }` | `externalSale` pipeline, no write (PR C) |
 | POST | `/api/standalone-sales` | same + `acceptedTotalCents`, `customer?:{name, email}` | `{ sale, paymentLink? }` | records `standalone_sales` (PR C) |
 
@@ -3188,6 +3227,7 @@ _Rewritten 2026-11-15 (stabilisation loop t1, UI-3) to what shipped._
 - [ ] Price gate (rule 68): `price-gate.unit.test.js` green on every commit of A, B and C, with the allowlist reviewed by the owner; `price-gate-anonymity`, `price-gate-anonymise`, `price-gate-figures`, `price-gate-compare`, `price-gate-move-proof` unit tests green
 - [ ] Review per rule 69 (held once after B + C + the outside-booking mini SAS, owner 2026-11-12): one integral review with the PROVEN / NOT PROVEN checklist, one grouped fix, one verification pass
 - [ ] Stabilisation per rule 69 after PR C: rounds of integral audit → grouped fix → verification until a round with zero findings; findings table per round separating old defects from regressions
+- [x] rule 124: `outside-sale-single-rule.unit.test.js` (every price type × planning card × insurance, the counter / suggestions / fiche agree with `outsideSale`, the sellability endpoint and its 400) `ExternalSaleFields.sellability.test.jsx` and `useOutsideSellability.answer.test.jsx`
 - [ ] the replay hashes every accounting export file (CSV per month, sales JSON, synthesis) besides the quotes (rule 64)
 - [x] `scripts/price-gate/move-proof.mjs` at every commit of PR A (rule 73): every unmatched removed line read and classified as rewiring or glue
 - [ ] `scripts/pricing-replay.mjs` before/after on a fresh prod copy at the three checkpoints of PR A (0 diff; rule 73 amends rule 35), at PR B's first commit (0 diff), at PR B and PR C heads (listed diffs only)

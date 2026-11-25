@@ -3,6 +3,7 @@
  *
  *   POST /api/standalone-sales/quote   { lines, customer?, saleId?, payment? }                      priced, nothing written
  *   GET  /api/standalone-sales/vat-rates                                                              { classes: [{ vatClass, label, externalRate | null }] }
+ *   GET  /api/standalone-sales/sellability?kind=option|resource&priceType=&showsPlanningCard=0|1&isCancellationInsurance=0|1   { sellable, code, reason } (rule 124: the draft of an article, judged by `outsideSale`)
  *   GET  /api/standalone-sales?day=    { day, sales: [{ id, ref, clientLabel, lines, totalCents, remainingCents, statusLabel, tone, refundObligations, soldDayLabel }], owed: [same], owedTitle }   « Ventes du jour »
  *                                      + the counter's documents with an open obligation, any day (`owed`, rule 41)
  *   PATCH /api/standalone-sales/:id/obligations/:oid  { status: 'settled' | 'cancelled' } → { document, sale, paymentLink }   (rule 41, « Marquer remboursé »)
@@ -16,6 +17,7 @@ const standaloneSale = require('../utils/standaloneSale');
 const standaloneSaleLinks = require('../utils/standaloneSaleLinks');
 const sales = require('../models/standaloneSalesModel');
 const { euros } = require('../utils/paymentTenders');
+const articles = require('../utils/pricing/articles');
 
 const answer = (res, result) => (result.status === 200 ? res.json((({ status, ...rest }) => rest)(result)) : res.status(result.status).json(result.body));
 const parisDay = (date) => new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Paris', year: 'numeric', month: '2-digit', day: '2-digit' }).format(date);
@@ -66,6 +68,17 @@ module.exports = {
         vatClass, label: VAT_CLASS_LABELS[vatClass] || vatClass, externalRate: Number.isFinite(rates[`vat.rate.${vatClass}.external`]) ? rates[`vat.rate.${vatClass}.external`] : null,
       })),
     });
+  },
+
+  // Rule 124 — can the article being edited be sold with no stay? The editors ask before the save; the answer is `outsideSale`'s, nothing is computed there.
+  sellability(req, res) {
+    const { kind, priceType, showsPlanningCard, isCancellationInsurance } = req.query;
+    if (kind !== 'option' && kind !== 'resource') return res.status(400).json({ error: 'Type d’article inconnu.', code: 'INVALID_KIND' });
+    const on = (value) => (value === '1' || value === 'true' ? 1 : 0);
+    const draft = {
+      priceType: typeof priceType === 'string' && priceType ? priceType : 'per_stay', showsPlanningCard: on(showsPlanningCard), isCancellationInsurance: on(isCancellationInsurance),
+    };
+    return res.json(articles.outsideSale(articles.makeArticle(draft, { kind })));
   },
 
   // « Ventes du jour » (owner M4): the counter's sales of a Paris day, newest first.

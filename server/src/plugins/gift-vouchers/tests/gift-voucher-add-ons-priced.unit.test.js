@@ -95,8 +95,10 @@ test('rule 64 — the unit label follows the price family, only a progressive pe
   assert.deepEqual(pricing.addOn('a', 5).prices, [{ qty: 1, cents: 100 }, { qty: 2, cents: 200 }, { qty: 3, cents: 300 }]);
 });
 
-test('rule 64 — an add-on the engine cannot sell outside a stay is not offered, as the price request would refuse it', async () => {
-  const view = await offered(insert({ name: 'Avec peignoir', slug: 'avec-peignoir', addOns: [`option:${ids.drink}`, `option:${ids.perPerson}`] }).slug);
+test('rule 64 — an add-on the engine cannot sell outside a stay is not offered, as the price request would refuse it (a campaign saved before rule 65, which the catalogue now refuses)', async () => {
+  const checked = campaignRules.validateCampaign(fx.bathCampaign(ids, { name: 'Avec peignoir', slug: 'avec-peignoir', addOns: [`option:${ids.drink}`] }), fx.rulesContext(api));
+  const saved = api.campaigns.find(api.campaigns.insert({ ...checked.value, addOns: [`option:${ids.drink}`, `option:${ids.perPerson}`] }));
+  const view = await offered(saved.slug);
   assert.deepEqual(view.addOns.map((a) => a.articleRef), [`option:${ids.drink}`]);
 });
 

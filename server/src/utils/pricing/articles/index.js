@@ -16,6 +16,8 @@
  *       `{ figures, offeredFigures }` or null. No free units are spent — a read quotes the line as the catalogue sells it — unless the caller
  *       names the stay's grant left for that article (`freeUnits`, rule 41): the line is then priced net of it, as the engine prices it.
  *   unitsPerQuantity(priceType, persons, nights)   how many billed units one quantity of this price type is on that stay
+ *   outsideSale(article)   `{ sellable, code, reason }`: can it be sold with no stay (rule 124); the families' own `readsStay` flag, one answer for every caller
+ *   PRICE_TYPE_LABELS   the French name of each price type (what `outsideSale` quotes, what the gift-voucher catalogue shows)
  *   makeArticle, registerFamily   the factory of rule 47 and the family registry's `register`
  *
  * A request is `{ article, quantity, locked, offered, ... }`; the modes below are chosen by its family:
@@ -44,6 +46,7 @@ const {
 const { resolveServedPersons } = require('./units');
 const kit = require('./familyKit');
 const { contributionOf } = require('./pluginFamily');
+const { PRICE_TYPE_LABELS } = require('./priceTypeLabels');
 const fixed = require('./families/fixed');
 const perUnit = require('./families/perUnit');
 const perNight = require('./families/perNight');
@@ -68,6 +71,20 @@ const registerCoreFamilies = () => CORE_FAMILIES.forEach((module_) => registry.r
 registerCoreFamilies();
 
 const refuse = (code, message, ref) => ({ code, message, ref });
+
+const INSURANCE_REASON = 'L’assurance annulation ne se vend qu’avec un séjour.';
+const FULFILMENT_REASON = 'Une séance se réserve au planning.';
+
+// Rule 124 — whether an article can be sold to a customer with no stay, and why not: the one answer of the families' own `readsStay` flag. `code` is null when it sells at a
+// counter, `NEEDS_FULFILMENT` for a family a plugin owns (a session is booked from the planning: sellable for the catalogue fields, not at the counter).
+function outsideSale(article) {
+  if (article.config.isCancellationInsurance) return { sellable: false, code: 'INSURANCE', reason: INSURANCE_REASON };
+  const family = CORE_BY_ID[article.family];
+  if (!family) return { sellable: true, code: 'NEEDS_FULFILMENT', reason: FULFILMENT_REASON };
+  if (!family.readsStay) return { sellable: true, code: null, reason: null };
+  const label = (PRICE_TYPE_LABELS[article.config.priceType] || article.config.priceType).toLowerCase();
+  return { sellable: false, code: 'NEEDS_STAY', reason: `Le prix « ${label} » a besoin d’un séjour : il ne se vend pas seul.` };
+}
 
 // The free units this line may still take: the article's grant minus what the lines priced before it took (rule 85).
 function grantedFor(allowance, config) {
@@ -467,6 +484,8 @@ module.exports = {
   release,
   describe,
   makeArticle,
+  outsideSale,
+  PRICE_TYPE_LABELS,
   registerFamily: registry.register,
   liveFamilies,
   registerCoreFamilies,

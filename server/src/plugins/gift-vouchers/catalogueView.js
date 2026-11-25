@@ -7,23 +7,9 @@
  *   element(articleRef)                      → one of those, or null
  *   sessionRefusal({ resourceId, band, minutes, rankOffsetMinutes }) → the engine's sentence for a session that cannot be sold, or null
  *
+ * Whether an option sells with no stay is `articles.outsideSale` (specs/pricing-components.md rule 124), never a list of families kept here.
  * A resource has `modes` only when it is an hourly resource shown on the planning (`outside-day`, `outside-evening`); an option has none.
  */
-
-const PRICE_TYPE_LABELS = Object.freeze({
-  per_stay: 'Forfait',
-  free: 'Gratuit',
-  per_person: 'Par personne',
-  per_night: 'Par nuit',
-  per_person_per_night: 'Par personne et par nuit',
-  percent_of_stay: 'Pourcentage du séjour',
-  per_participant_progressive: 'Progressif par participant',
-  per_hour: 'À l’heure',
-});
-
-// The families an option may be sold in with no stay: a count (fixed, per unit), per person (one person) or progressive per participant. The others read the nights or the stay.
-const OUTSIDE_FAMILIES = Object.freeze(['fixed', 'perUnit', 'perPerson', 'perParticipantProgressive']);
-
 const NOT_SELLABLE_OUTSIDE = 'Pas marqué « vendable hors séjour » dans le catalogue.';
 
 function createCatalogueView({ db, articles }) {
@@ -47,7 +33,7 @@ function createCatalogueView({ db, articles }) {
         label: config.label,
         category: String(row.category || '') || null,
         priceType: config.priceType,
-        priceTypeLabel: PRICE_TYPE_LABELS[config.priceType] || config.priceType,
+        priceTypeLabel: articles.PRICE_TYPE_LABELS[config.priceType] || config.priceType,
         hourly: false,
         modes: [],
         sellable: false,
@@ -62,11 +48,8 @@ function createCatalogueView({ db, articles }) {
     const { article, view } = baseOf(row, 'option');
     if (row.archivedAt) return withReason(view, 'Archivée : retirée du catalogue.');
     if (!article.config.sellableExternally) return withReason(view, NOT_SELLABLE_OUTSIDE);
-    if (article.config.isCancellationInsurance) return withReason(view, 'L’assurance annulation ne se vend qu’avec un séjour.');
-    if (!OUTSIDE_FAMILIES.includes(article.family)) {
-      return withReason(view, `Le prix « ${view.priceTypeLabel.toLowerCase()} » a besoin d’un séjour : il ne se vend pas seul.`);
-    }
-    return withReason(view, null);
+    const outside = articles.outsideSale(article);
+    return withReason(view, outside.sellable ? null : outside.reason);
   }
 
   function resourceView(row) {
@@ -112,4 +95,4 @@ function createCatalogueView({ db, articles }) {
   return { list, element, sessionRefusal };
 }
 
-module.exports = { createCatalogueView, PRICE_TYPE_LABELS };
+module.exports = { createCatalogueView };

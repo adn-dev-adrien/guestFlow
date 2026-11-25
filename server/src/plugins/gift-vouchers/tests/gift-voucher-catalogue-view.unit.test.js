@@ -37,7 +37,7 @@ test('the catalogue lists every resource and every option of the database, resou
 
 test('an hourly resource with a planning card offers two outside modes — rate, band hours, following-hours rate, slot, minimum — read from the engine’s family', () => {
   const bath = byRef(`resource:${ids.bath}`);
-  assert.deepEqual([bath.hourly, bath.sellable, bath.reason, bath.priceType, bath.priceTypeLabel], [true, true, null, 'per_hour', 'À l’heure']);
+  assert.deepEqual([bath.hourly, bath.sellable, bath.reason, bath.priceType, bath.priceTypeLabel], [true, true, null, 'per_hour', 'Par heure']);
   assert.deepEqual(bath.modes, [
     {
       key: 'outside-day', band: 'day', label: 'Extérieur · journée', rateCents: 5000, from: '10:00', to: '19:00', lengthMinutes: 540, followingRateCents: 4500, followingText: 'puis 45 €/h', slotMinutes: 60, minimumMinutes: 60, sellable: true,
@@ -65,8 +65,8 @@ test('the reasons an element is greyed, one by one: not sellable outside a stay,
   const reason = (ref) => { const e = byRef(ref); return [e.sellable, e.reason]; };
   assert.deepEqual(reason(`option:${ids.hidden}`), [false, 'Pas marqué « vendable hors séjour » dans le catalogue.']);
   assert.deepEqual(reason(`option:${archived}`), [false, 'Archivée : retirée du catalogue.']);
-  assert.deepEqual(reason(`option:${ids.perNight}`), [false, 'Le prix « par nuit » a besoin d’un séjour : il ne se vend pas seul.']);
-  assert.deepEqual(reason(`option:${percent}`), [false, 'Le prix « pourcentage du séjour » a besoin d’un séjour : il ne se vend pas seul.']);
+  assert.deepEqual(reason(`option:${ids.perNight}`), [false, 'Le prix « par jour » a besoin d’un séjour : il ne se vend pas seul.']);
+  assert.deepEqual(reason(`option:${percent}`), [false, 'Le prix « % du montant du séjour » a besoin d’un séjour : il ne se vend pas seul.']);
   assert.deepEqual(reason(`option:${insurance}`), [false, 'L’assurance annulation ne se vend qu’avec un séjour.']);
   assert.deepEqual(reason(`resource:${ids.sauna}`), [false, 'Ressource à l’heure sans carte de planning : une séance se réserve au planning.']);
   assert.deepEqual(reason(`resource:${ids.lodgingResource}`), [false, 'Seule une ressource à l’heure se compose dans un bon.']);
@@ -74,12 +74,12 @@ test('the reasons an element is greyed, one by one: not sellable outside a stay,
   assert.deepEqual(reason(`resource:${ids.sauna}`), [false, 'Pas marqué « vendable hors séjour » dans le catalogue.']);
 });
 
-test('the options sellable outside a stay keep their price type — a unit, a person, a planning card, progressive per participant', () => {
+test('the options sellable outside a stay keep their price type — a unit, a planning card (a per-person or progressive option reads the stay: rule 65)', () => {
   const ok = (ref) => { const e = byRef(ref); return [e.sellable, e.priceType, e.priceTypeLabel, e.hourly, e.modes]; };
-  assert.deepEqual(ok(`option:${ids.board}`), [true, 'per_stay', 'Forfait', false, []]);
-  assert.deepEqual(ok(`option:${ids.perPerson}`), [true, 'per_person', 'Par personne', false, []]);
-  assert.deepEqual(ok(`option:${card}`), [true, 'per_stay', 'Forfait', false, []]);
-  assert.deepEqual(ok(`option:${progressive}`), [true, 'per_participant_progressive', 'Progressif par participant', false, []]);
+  assert.deepEqual(ok(`option:${ids.board}`), [true, 'per_stay', 'Prix fixe', false, []]);
+  assert.deepEqual(ok(`option:${ids.perPerson}`), [false, 'per_person', 'Par personne', false, []]);
+  assert.deepEqual(ok(`option:${card}`), [true, 'per_stay', 'Prix fixe', false, []]);
+  assert.deepEqual(ok(`option:${progressive}`), [false, 'per_participant_progressive', 'Dégressif participants', false, []]);
 });
 
 test('the hourly family is the only source of the modes: with its plugin withdrawn the bath is greyed, and a session cannot be judged', () => {

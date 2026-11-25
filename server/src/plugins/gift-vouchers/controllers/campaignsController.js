@@ -38,8 +38,15 @@ function buildCampaignsController({
 
   /** Rule 6 — the campaign as the page reads it, with whether the engine can price it now and why not. */
   const view = (campaign) => ({
-    ...campaign, pricing: offerService.campaignStatus(campaign), summary: summaryOf(campaign), links: linksOf(campaign),
+    ...campaign, pricing: offerService.campaignStatus(campaign), summary: summaryOf(campaign), links: linksOf(campaign), withdrawn: withdrawnOf(campaign),
   });
+
+  /** Rule 65 — the options of the campaign (add-ons, then composition) that the catalogue no longer sells, reported and never removed: `[{ articleRef, label, reason }]`. */
+  function withdrawnOf(campaign) {
+    const refs = [...(campaign.addOns || []), ...((campaign.composition && campaign.composition.options) || []).map((o) => o.articleRef)];
+    return refs.map((articleRef) => catalogue.element(articleRef)).filter((element) => element && !element.sellable)
+      .map(({ articleRef, label, reason }) => ({ articleRef, label, reason }));
+  }
 
   /** The contents of a campaign in one line, for the list: what the giver buys, read from the catalogue's current names. */
   function summaryOf(campaign) {

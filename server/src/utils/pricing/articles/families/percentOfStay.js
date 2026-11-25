@@ -36,7 +36,7 @@ const configSchema = kit.configSchemaFor(PRICE_TYPES).map((entry) => (entry.key 
 // A percentage of the stay is bought once.
 const multiplier = () => 1;
 
-const validate = (config, request, ctx) => kit.refusalsOf(request, ctx, { stayBound: true });
+const validate = (config, request, ctx) => kit.refusalsOf(request, ctx, { readsStay: family.readsStay });
 
 function price(config, request, ctx) {
   const unitPrice = computePercentOfStayAmount(config.price, ctx.cancellationInsuranceBase);
@@ -50,7 +50,7 @@ function describe(config, line) {
 }
 
 const family = {
-  id: 'percentOfStay', priceTypes: PRICE_TYPES, multiplier, configSchema, validate, price, describe,
+  id: 'percentOfStay', readsStay: true, priceTypes: PRICE_TYPES, multiplier, configSchema, validate, price, describe,
 };
 
 module.exports = { family, PRICE_TYPES, computePercentOfStayAmount };

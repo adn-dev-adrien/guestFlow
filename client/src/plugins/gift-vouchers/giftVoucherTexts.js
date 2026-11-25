@@ -164,6 +164,7 @@ export const CAMPAIGN_TEXTS = Object.freeze({
     states: Object.freeze([{ value: 'draft', label: 'Brouillon' }, { value: 'on_sale', label: 'En vente' }, { value: 'closed', label: 'Fermée' }]),
     kinds: Object.freeze([{ value: 'resource', label: 'Composé (ressource et options)' }, { value: 'lodging', label: 'Montant libre (séjour)' }]),
     notPriceable: 'Cette campagne n’est pas proposée tant que le prix ne peut pas être calculé : ',
+    withdrawn: (items) => `${items.length > 1 ? 'Retirées' : 'Retirée'} de l’offre : ${items.map((w) => `« ${w.label} » — ${w.reason}`).join(' ; ')} ${items.length > 1 ? 'Les retirer' : 'La retirer'} de la campagne pour pouvoir l’enregistrer.`,
   },
 });
 

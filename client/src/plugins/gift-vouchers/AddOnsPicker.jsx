@@ -1,12 +1,12 @@
 /**
  * AddOnsPicker — the options a voucher offers on top of its contents (specs/gift-voucher-campaigns.md rule 4): picked in the server's catalogue, those that cannot be
- * sold outside a stay listed greyed with the server's reason. Each option carries a checkbox and the list stays open after a pick,
+ * sold outside a stay listed greyed with the server's reason (rule 65: one already picked, saved before, is drawn in the warning colour with that reason as its tooltip). Each option carries a checkbox and the list stays open after a pick,
  * so several options are ticked in one pass. Used by the campaign editor and by « Sur mesure ».
  *
  * Props: value (articleRef[]), onChange(articleRef[]), elements (the server's catalogue), errors? ([{ field, message }] — the refusals of `addOns[i]`), label
  */
 import React from 'react';
-import { Autocomplete, Checkbox, TextField, Typography } from '@mui/material';
+import { Autocomplete, Checkbox, Chip, TextField, Tooltip, Typography } from '@mui/material';
 import { COMPOSITION_TEXTS as T } from './giftVoucherTexts';
 
 export default function AddOnsPicker({
@@ -27,6 +27,11 @@ export default function AddOnsPicker({
         getOptionDisabled={(o) => !o.sellable}
         isOptionEqualToValue={(a, b) => a.articleRef === b.articleRef}
         onChange={(_, next) => onChange(next.map((o) => o.articleRef))}
+        renderValue={(chips, getItemProps) => chips.map((o, index) => {
+          const { key, ...itemProps } = getItemProps({ index });
+          const chip = <Chip key={key} {...itemProps} size="small" label={o.label} color={o.sellable ? 'default' : 'warning'} variant={o.sellable ? 'filled' : 'outlined'} />;
+          return o.sellable ? chip : <Tooltip key={key} title={o.reason}>{chip}</Tooltip>;
+        })}
         renderOption={(props, o, { selected: checked }) => (
           <li {...props} key={o.articleRef}>
             <Checkbox size="small" checked={checked} disabled={!o.sellable} tabIndex={-1} disableRipple sx={{ mr: 1, p: 0.5 }} inputProps={{ 'aria-hidden': true }} />

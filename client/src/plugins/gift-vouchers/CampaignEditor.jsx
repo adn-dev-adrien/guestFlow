@@ -215,6 +215,7 @@ export default function CampaignEditor() {
       <Box sx={{ p: { xs: 1.5, sm: 3 }, display: 'grid', gap: 2.5, gridTemplateColumns: { xs: 'minmax(0, 1fr)', md: 'minmax(0, 1fr) 340px' }, alignItems: 'start' }}>
         <Stack spacing={2.5} sx={{ minWidth: 0 }}>
           {campaign && campaign.pricing && !campaign.pricing.priceable ? <Alert severity="warning">{`${T.notPriceable}${campaign.pricing.reason}`}</Alert> : null}
+          {campaign && campaign.withdrawn && campaign.withdrawn.length ? <Alert severity="warning">{T.withdrawn(campaign.withdrawn)}</Alert> : null}
 
           <FormSection title={T.general}>
             <Box sx={{ display: 'grid', gap: 2, gridTemplateColumns: { xs: '1fr', sm: '2fr 1fr' } }}>

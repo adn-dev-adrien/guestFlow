@@ -88,7 +88,7 @@ const FOLLOWING_TEXT = 'puis 45 €/h';
 
 export const CATALOGUE = [
   {
-    articleRef: 'resource:1', kind: 'resource', id: 1, label: 'Bain nordique', category: null, priceType: 'per_hour', priceTypeLabel: 'À l’heure', hourly: true, sellable: true, reason: null,
+    articleRef: 'resource:1', kind: 'resource', id: 1, label: 'Bain nordique', category: null, priceType: 'per_hour', priceTypeLabel: 'Par heure', hourly: true, sellable: true, reason: null,
     modes: [
       {
         key: 'outside-day', band: 'day', label: 'Extérieur · journée', rateCents: 5000, from: '10:00', to: '19:00', lengthMinutes: 540, followingRateCents: 4500, followingText: FOLLOWING_TEXT, slotMinutes: 60, minimumMinutes: 60, sellable: true,
@@ -99,17 +99,17 @@ export const CATALOGUE = [
     ],
   },
   {
-    articleRef: 'resource:2', kind: 'resource', id: 2, label: 'Sauna sans carte', category: null, priceType: 'per_hour', priceTypeLabel: 'À l’heure', hourly: false, sellable: false, reason: 'Ressource à l’heure sans carte de planning : une séance se réserve au planning.', modes: [],
+    articleRef: 'resource:2', kind: 'resource', id: 2, label: 'Sauna sans carte', category: null, priceType: 'per_hour', priceTypeLabel: 'Par heure', hourly: false, sellable: false, reason: 'Ressource à l’heure sans carte de planning : une séance se réserve au planning.', modes: [],
   },
   {
-    articleRef: 'option:10', kind: 'option', id: 10, label: 'Planche apéro', category: 'Restauration', priceType: 'per_stay', priceTypeLabel: 'Forfait', hourly: false, sellable: true, reason: null, modes: [],
+    articleRef: 'option:10', kind: 'option', id: 10, label: 'Planche apéro', category: 'Restauration', priceType: 'per_stay', priceTypeLabel: 'Prix fixe', hourly: false, sellable: true, reason: null, modes: [],
   },
   {
-    articleRef: 'option:11', kind: 'option', id: 11, label: 'Boisson', category: 'Restauration', priceType: 'per_stay', priceTypeLabel: 'Forfait', hourly: false, sellable: true, reason: null, modes: [],
+    articleRef: 'option:11', kind: 'option', id: 11, label: 'Boisson', category: 'Restauration', priceType: 'per_stay', priceTypeLabel: 'Prix fixe', hourly: false, sellable: true, reason: null, modes: [],
   },
   {
-    articleRef: 'option:12', kind: 'option', id: 12, label: 'Petit-déjeuner', category: 'Restauration', priceType: 'per_night', priceTypeLabel: 'Par nuit', hourly: false, sellable: false,
-    reason: 'Le prix « par nuit » a besoin d’un séjour : il ne se vend pas seul.', modes: [],
+    articleRef: 'option:12', kind: 'option', id: 12, label: 'Petit-déjeuner', category: 'Restauration', priceType: 'per_night', priceTypeLabel: 'Par jour', hourly: false, sellable: false,
+    reason: 'Le prix « par jour » a besoin d’un séjour : il ne se vend pas seul.', modes: [],
   },
 ];
 

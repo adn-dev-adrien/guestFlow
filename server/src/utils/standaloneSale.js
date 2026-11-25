@@ -50,8 +50,6 @@ const database = () => require('../database');
 const events = () => require('../models/ports/eventPublisher');
 
 const MAX_QUANTITY = 99;
-// The families a counter sale may take (rule 53); the hourly one is a session booked from the planning, where conflicts are judged.
-const COUNTER_FAMILIES = Object.freeze(['fixed', 'perUnit']);
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 
 const refuse = (status, code, error, extra = {}) => ({ status, body: { error, code, ...extra } });
@@ -125,7 +123,7 @@ function resolveCustomer(customer, { write }) {
 }
 
 // The articles asked for, as instances of rule 47, or the refusals that say why one is not on offer (rule 11).
-function requestsOf(lines, { families = COUNTER_FAMILIES } = {}) {
+function requestsOf(lines) {
   const requests = [];
   const refusals = [];
   for (const raw of Array.isArray(lines) ? lines : []) {
@@ -136,9 +134,9 @@ function requestsOf(lines, { families = COUNTER_FAMILIES } = {}) {
     const article = articles.makeArticle(found.row, { kind: found.kind });
     const quantity = Number(raw.quantity);
     if (!article.config.sellableExternally) { refusals.push({ articleRef, code: 'NOT_SELLABLE', message: 'Article non vendable hors séjour.' }); continue; }
-    if (!families.includes(article.family)) {
-      const needsStay = !['hourly'].includes(article.family);
-      refusals.push({ articleRef, code: needsStay ? 'NEEDS_STAY' : 'NEEDS_FULFILMENT', message: needsStay ? 'Cet article ne se vend qu’avec un séjour.' : 'Une séance se réserve au planning.' });
+    const outside = articles.outsideSale(article);
+    if (outside.code !== null) {
+      refusals.push({ articleRef, code: outside.code === 'INSURANCE' ? 'NEEDS_STAY' : outside.code, message: outside.reason });
       continue;
     }
     if (!Number.isInteger(quantity) || quantity < 1 || quantity > MAX_QUANTITY) {
@@ -290,7 +288,7 @@ function quote(request = {}) {
   const customer = resolveCustomer(body.customer || (sale ? { clientId: sale.clientId } : null), { write: false });
   if (customer.error) return customer.error;
   const sessions = sessionQuotesOf(body.lines);
-  const { requests, refusals: own } = requestsOf((Array.isArray(body.lines) ? body.lines : []).filter((line) => !(line && line.session != null)), { families: body.families });
+  const { requests, refusals: own } = requestsOf((Array.isArray(body.lines) ? body.lines : []).filter((line) => !(line && line.session != null)));
   const refusals = [...sessions.refusals, ...own];
   // Loop t4 B4-6 (rule 56 d) — the preview is the plan the commit runs (rules 52-55), nothing written: the unallocated money and a lowered line's
   // money pay the new lines, and the open rows are shown at the amounts that plan leaves them.
@@ -472,7 +470,7 @@ function sell(request = {}, { actor = null, now = new Date() } = {}) {
       }
       const customer = resolveCustomer(body.customer || (existing ? { clientId: existing.clientId } : null), { write: true });
       if (customer.error) { outcome = customer.error; throw outcome; }
-      const { requests, refusals } = requestsOf(body.lines, { families: body.families });
+      const { requests, refusals } = requestsOf(body.lines);
       if (requests.length === 0 && !existing && !(body.fulfilments || []).length) refusals.push({ articleRef: null, code: 'NO_ARTICLE', message: 'Ajouter au moins un article.' });
       const ctx = price({
         requests, fulfilments: body.fulfilments, stored, allocations,

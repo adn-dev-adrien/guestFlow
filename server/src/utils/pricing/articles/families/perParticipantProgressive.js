@@ -78,7 +78,7 @@ const configSchema = [
   { key: 'progressiveTiers', type: 'array', default: [], scope: 'article', validate: (value) => (Array.isArray(value) || typeof value === 'string' || value == null ? null : 'Une liste de paliers est attendue.') },
 ];
 
-const validate = (config, request, ctx) => kit.refusalsOf(request, ctx, { stayBound: true });
+const validate = (config, request, ctx) => kit.refusalsOf(request, ctx, { readsStay: family.readsStay });
 
 function price(config, request) {
   const fallbackUnitPrice = Number(config.price || 0);
@@ -103,7 +103,7 @@ function describe(config, line) {
 }
 
 const family = {
-  id: 'perParticipantProgressive', priceTypes: PRICE_TYPES, configSchema, validate, price, describe,
+  id: 'perParticipantProgressive', readsStay: true, priceTypes: PRICE_TYPES, configSchema, validate, price, describe,
 };
 
 module.exports = {

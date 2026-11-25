@@ -724,11 +724,37 @@ Rules are identities: a rule is never renumbered, new rules are appended
       of the recap's extra line (an evening start differs from the offer's day rate), and the
       fold's extra-time row reads them, so it never disagrees with the recap; the head's amount is
       the quote's `extrasCents`. The price due stays the one `use/quote` answers.
-    - An add-on the engine cannot sell outside a stay (a per-person option today, `NEEDS_STAY`) is
-      left out of the offer and of « Utiliser un bon »: the price request would refuse it.
+    - An add-on the engine cannot sell outside a stay (`NEEDS_STAY`, rule 65) is
+      left out of the offer and of « Utiliser un bon »: the price request would refuse it. Since rule 65
+      the catalogue no longer lets one be picked, so this only covers a campaign saved before.
     - Motion: the fold opens on a height transition of about 240 ms `cubic-bezier(0.2,0,0,1)`,
       interruptible; under `prefers-reduced-motion` it opens without movement. The head is a button
       with `aria-expanded`, ≥ 44 px high; the closed body is `inert`.
+
+65. **The catalogue says what the engine sells** (owner decision of 2026-11-25; mock-up and the owner's
+    three choices: `specs/gift-voucher-outside-sellable.html`; completes rules 4 and 64,
+    `specs/pricing-components.md` rule 124).
+    - **One answer, the engine's.** An option of the catalogue (`catalogueView.js`) is `sellable` only
+      when `articles.outsideSale(article)` (pricing-components rule 124) says so: a per-person, per-night,
+      per-person-per-night, percentage or progressive-per-participant option with no planning card reads the
+      stay and is greyed in the picker with the reason « Le prix « par personne » a besoin d’un séjour : il
+      ne se vend pas seul. » (the price type's label in lower case). With a planning card the option is
+      counted in units and stays sellable. Before this rule the catalogue also called « par personne » and
+      « progressif par participant » sellable, while the engine refused them (`NEEDS_STAY`): the operator
+      could pick an option that rule 64 then left out of the offer without a word.
+    - **The same sentence everywhere** (owner choice 2): the picker, the campaign save refusal, the option
+      fiche and the counter all show the reason that `outsideSale` returns. No hint about the planning card is
+      added: switching the card on changes how the option is billed in a stay too.
+    - **A campaign that already carries one is reported, never repaired** (owner choice 3). The campaign
+      read (`GET /campaigns/:id`, and each item of the list) carries `withdrawn: [{ articleRef, label,
+      reason }]`, the options among `addOns` and `composition.options` that the catalogue no longer sells,
+      in the order of the campaign. The editor shows a warning `Alert` when it opens: « Retirée de l’offre : «
+      label » — reason ; … La retirer de la campagne pour pouvoir l’enregistrer. » (« Retirées … Les retirer … » past one), and the chip of each one is
+      drawn in the warning colour with the reason as its tooltip. The server neither removes it nor changes the
+      campaign; the save stays refused (rule 4) until the operator removes it. The public offer keeps leaving
+      it out (rule 64).
+    - In production on 2026-11-25 (read-only check) no option of these types was marked « vendable hors
+      séjour » and no campaign carried one: nothing changes for the campaigns on sale nor for past sales.
 
 ## 4. Architecture
 
@@ -750,7 +776,9 @@ Rules are identities: a rule is never renumbered, new rules are appended
 | plugin | `plugins/gift-vouchers/migrations.js` | T | `gift_voucher_campaigns`, `gift_voucher_visuals` + versions, `campaignId`, `contents`, `visualVersions` on vouchers and orders; settings → first `lodging` campaign; order terms → `terms_acceptances` |
 | plugin | `plugins/gift-vouchers/offerService.js` | C | The one path of rule 52: offer payload, pricing through the engine, order creation, issuance |
 | plugin | `plugins/gift-vouchers/extrasPricing.js` (new), `offerService.js`, `useService.js`, `controllers/publicOrdersController.js` | C/T | The price of each add-on quantity and extra-time step, asked of the engine for the outside customer (one quote per step, stopping at the first the engine refuses); `unitLabel`, `linear`, `prices` on `/offer` and `/use`; `extrasCents` on the price answer and on the use recap (rule 64) |
-| plugin | `plugins/gift-vouchers/catalogueView.js` | C | Every resource and option with its tariff modes and sellability reason, from the engine's articles (rule 4) |
+| plugin | `plugins/gift-vouchers/catalogueView.js` | C/T | Every resource and option with its tariff modes and sellability reason, from the engine's articles (rule 4); an option's sellability is `articles.outsideSale` (rule 65), the price-type labels come from the core `utils/pricing/articles/priceTypeLabels.js` |
+| plugin | `plugins/gift-vouchers/controllers/campaignsController.js` | T | `withdrawn: [{ articleRef, label, reason }]` on every campaign read (rule 65) |
+| plugin | `plugins/gift-vouchers/manifest.json` | T | version 1.5.1 and its French changelog lines |
 | plugin | `plugins/gift-vouchers/campaignRules.js` | C | Composition validation (one hourly resource, band, minutes, step, sellability); shared by the form, « Sur mesure » and the recipe import |
 | plugin | `plugins/gift-vouchers/models/campaignsModel.js`, `models/visualsModel.js` | C | Campaign CRUD, slug lock, duplicate, one-shot; visual library with versions and purge (rules 47–48) |
 | plugin | `plugins/gift-vouchers/recipe.js` | C | Export / import of a campaign (`.zip`), all-or-nothing |
@@ -769,6 +797,7 @@ Rules are identities: a rule is never renumbered, new rules are appended
 |---|---|---|---|
 | plugin | `plugins/gift-vouchers/CampaignsPage.jsx` | C | Campaign list (cards on xs), state, « Nouvelle campagne », « Importer une recette » |
 | plugin | `plugins/gift-vouchers/CampaignEditor.jsx` | C | `PageActionBar` + sections Général, Contenu (composition), Options proposées, Visuels, Liens, Téléchargements; server-rendered preview |
+| plugin | `plugins/gift-vouchers/CampaignEditor.jsx`, `AddOnsPicker.jsx`, `CompositionEditor.jsx`, `giftVoucherTexts.js` | T | rule 65: the warning `Alert` for `withdrawn`, the chip of a not-sellable option in the warning colour with the reason as tooltip |
 | plugin | `plugins/gift-vouchers/CompositionEditor.jsx` | C | Element picker over the server's catalogue view, tariff modes, minutes, quantities; used by the campaign editor and « Sur mesure » |
 | plugin | `plugins/gift-vouchers/NewVoucherPage.jsx` | C | Replaces the dialog: the site's steps (rule 41), « Sur mesure », the three outcomes |
 | plugin | `plugins/gift-vouchers/VisualsPage.jsx` | C | Visual library (rule 47) |
@@ -919,10 +948,11 @@ One file per subject:
 - `wordpress-gift-voucher-offer-switcher` (static checks on the plugin sources): switcher only for several campaigns,
   every card through `open(`, `aria-current`, back link and `gvOtherOffer` gone, `gvYourGift` in PHP / `.po` / `.mo`,
   reduced-motion rule, focus handed to the new current card, cards wrapping on a wide block (rule 63).
+- `catalogue-outside-sellable` (gift-vouchers, rule 65): per-person / progressive options greyed with the engine's reason, sellable with a planning card; `withdrawn` on the campaign read and list, nothing removed, the save refused until the option is taken off. Updated: `gift-voucher-catalogue-view` (per-person and progressive no longer sellable), `gift-voucher-add-ons-priced` (the campaign carrying a per-person add-on is now inserted past the rules, as a campaign saved before).
 - `gift-voucher-campaign-wordpress`: blocks render nothing with the plugin off; redirects; field
   hidden in the booking engine.
 
-Client (Vitest, one file per subject): `CompositionEditor`, `NewVoucherPage`, `VisualsPage`,
+Client (Vitest, one file per subject): `CampaignEditor.withdrawn` (rule 65), `CompositionEditor`, `NewVoucherPage`, `VisualsPage`,
 `GiftVouchersPage.cancel`, `OutsideBookingPage`, `MonthJumpCalendar`.
 
 E2E on the sandbox: buy a bath voucher on the site; redeem it with and without a remainder; the

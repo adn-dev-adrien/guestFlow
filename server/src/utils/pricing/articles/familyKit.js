@@ -21,9 +21,9 @@ function configSchemaFor(priceTypes) {
 
 // Out-of-bounds requests: a quantity that is not a count, or a stay context the family needs and does not have.
 // A family that reads the stay (persons, nights, the stay's price) cannot price a sale with no stay: `NEEDS_STAY` (rule 53).
-function refusalsOf(request, ctx, { needsPersons = false, needsNights = false, stayBound = false } = {}) {
+function refusalsOf(request, ctx, { needsPersons = false, needsNights = false, readsStay = false } = {}) {
   const refusals = [];
-  if (ctx && ctx.customerContext === 'external' && (needsPersons || needsNights || stayBound)) {
+  if (ctx && ctx.customerContext === 'external' && readsStay) {
     return [{ code: 'NEEDS_STAY', message: 'Cet article ne se vend qu’avec un séjour.' }];
   }
   const quantity = Number(request && request.quantity);

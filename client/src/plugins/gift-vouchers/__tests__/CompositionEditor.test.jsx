@@ -70,7 +70,7 @@ test('an option is added with a quantity of 1, shows its price type, takes a qua
   await userEvent.click(await screen.findByRole('button', { name: /Planche apéro/ }));
   await pickerClosed();
   expect(onChange).toHaveBeenLastCalledWith(expect.objectContaining({ options: [{ articleRef: 'option:10', qty: 1 }] }));
-  expect(screen.getAllByText('Forfait').length).toBeGreaterThan(0);
+  expect(screen.getAllByText('Prix fixe').length).toBeGreaterThan(0);
   await userEvent.click(screen.getAllByRole('button', { name: 'Augmenter' })[1]);
   expect(onChange).toHaveBeenLastCalledWith(expect.objectContaining({ options: [{ articleRef: 'option:10', qty: 2 }] }));
   await userEvent.click(screen.getByRole('button', { name: 'Retirer Planche apéro' }));

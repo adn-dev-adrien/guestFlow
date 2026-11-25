@@ -73,6 +73,7 @@ const INTERNAL = {
   'articles/makeArticle': 'article-family-contract',
   'articles/units': 'article-family-contract',
   'articles/familyKit': 'article-family-contract',
+  'articles/priceTypeLabels': 'outside-sale-single-rule',
   'articles/pluginFamily': 'articles-head-plugin-family',
   articleFulfilment: 'article-fulfilment-contract',
   'vat/index': 'vat-component',

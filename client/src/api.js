@@ -449,6 +449,7 @@ const api = {
   // « Vente hors séjour » (specs/pricing-components.md rules 53, 74): the counter's quote, sale, day list and link.
   getStandaloneSales: (day) => request(`/standalone-sales${day ? `?day=${day}` : ''}`),
   getStandaloneVatRates: () => request('/standalone-sales/vat-rates'),
+  getOutsideSellability: (params) => request(`/standalone-sales/sellability?${new URLSearchParams(params)}`),
   quoteStandaloneSale: (body, { signal } = {}) => request('/standalone-sales/quote', {
     method: 'POST', body, signal, readOnly: true,
   }),
