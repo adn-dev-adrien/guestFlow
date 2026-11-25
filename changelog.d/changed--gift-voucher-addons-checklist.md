@@ -1,1 +1,0 @@
-- **Bons cadeaux** : the « Options à proposer » list shows a checkbox before each option and stays open after a pick, so several options are ticked in one pass.

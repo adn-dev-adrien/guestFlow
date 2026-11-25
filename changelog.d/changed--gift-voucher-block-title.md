@@ -1,1 +1,0 @@
-- Gift vouchers: the site catalogue heading reads « Choisir son cadeau » (« Choose your gift ») instead of « Offrir un séjour », which no longer fitted once bath vouchers were sold.

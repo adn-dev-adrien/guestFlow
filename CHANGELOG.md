@@ -4,6 +4,27 @@ All notable changes to GuestFlow are documented in this file. Format: [Keep a Ch
 
 ## [Unreleased]
 
+## [4.4.0] - 2026-11-25
+
+### Summary
+- Bons cadeaux sur le site : un sélecteur « Votre cadeau » passe d'une campagne à l'autre, et le titre devient « Choisir son cadeau ».
+- Temps en plus et options d'un bon de bain sont regroupés dans « Ajouter au bon », chaque ligne avec son prix.
+- « Options à proposer » d'une campagne : des cases à cocher, la liste reste ouverte pour en choisir plusieurs d'un coup.
+- Une option impossible à vendre hors séjour est grisée dans le catalogue, avec la raison, au lieu de disparaître de l'offre.
+- Plugin WordPress 1.22.0 à installer sur le site pour profiter des changements des bons cadeaux.
+
+### Changed
+- Gift vouchers: the « Options à proposer » campaign list shows a checkbox before each option and stays open after a pick, so several options are ticked in one pass.
+- Gift vouchers: the site catalogue heading reads « Choisir son cadeau » (« Choose your gift ») instead of « Offrir un séjour », which no longer fitted once bath vouchers were sold.
+- Gift vouchers: the extra time and the add-ons of a bath voucher sit in one closed « Ajouter au bon » fold on the site's purchase block, on « Utiliser un bon cadeau » and on « Nouveau bon », each line showing the price GuestFlow gives for its quantity and the head showing what the choices add (WordPress plugin 1.22.0).
+- Gift vouchers: the offer, the price answer and the use recap now carry the price of every add-on quantity and extra-time step, the add-on unit label and `extrasCents`, all priced by the engine for the outside customer.
+- Gift vouchers (site, WordPress plugin 1.22.0): an open campaign is headed by an offer switcher « Votre cadeau » — one card per campaign with its visual, title and price — in place of the « Choisir une autre offre » link; a click opens the other campaign without leaving the page.
+- Release signing is mandatory (`specs/self-update-and-releases.md` rule 41): the release process no longer publishes a release without its signature, since an installation that checks signatures refuses an unsigned one.
+
+### Fixed
+- **Plugin `gift-vouchers`** — The campaign catalogue no longer offers an option the pricing engine cannot sell with no stay (per person, per night, percentage of the stay, progressive per participant, with no planning card): it is greyed with the engine's reason, and a campaign that already carries one is reported (`withdrawn`) in the editor instead of silently losing it from the offer.
+- Outside-stay sales: one function, `articles.outsideSale`, now says which articles sell with no stay; the counter, the « Autre article » suggestions, the fiche's « Vendable hors séjour » and the gift-voucher catalogue read it instead of four lists of families. The fiche explains before the save (new `GET /api/standalone-sales/sellability`) and the fiche, the counter and the suggestions now all refuse the cancellation insurance. The price-type names shown in the gift-voucher catalogue are now those of the fiche's « Type de prix » menu.
+
 ## [4.3.0] - 2026-11-24
 
 ### Summary
