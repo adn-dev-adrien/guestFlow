@@ -1,1 +1,0 @@
-- **Release signing is mandatory** (`specs/self-update-and-releases.md` rule 41). Production now refuses unsigned releases, so step 8b of the `/guestflow-release` skill no longer skips the signature when `GUESTFLOW_RELEASE_SIGNING_KEY` is unset: it stops and reports the release as published but not installable, and compares the signed archive hash with the CI log.
