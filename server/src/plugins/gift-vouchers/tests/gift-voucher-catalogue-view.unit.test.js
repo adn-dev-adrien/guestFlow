@@ -74,12 +74,12 @@ test('the reasons an element is greyed, one by one: not sellable outside a stay,
   assert.deepEqual(reason(`resource:${ids.sauna}`), [false, 'Pas marqué « vendable hors séjour » dans le catalogue.']);
 });
 
-test('the options sellable outside a stay keep their price type — a unit, a person, a planning card, progressive per participant', () => {
+test('the options sellable outside a stay keep their price type — a unit, a planning card (a per-person or progressive option reads the stay: rule 65)', () => {
   const ok = (ref) => { const e = byRef(ref); return [e.sellable, e.priceType, e.priceTypeLabel, e.hourly, e.modes]; };
   assert.deepEqual(ok(`option:${ids.board}`), [true, 'per_stay', 'Forfait', false, []]);
-  assert.deepEqual(ok(`option:${ids.perPerson}`), [true, 'per_person', 'Par personne', false, []]);
+  assert.deepEqual(ok(`option:${ids.perPerson}`), [false, 'per_person', 'Par personne', false, []]);
   assert.deepEqual(ok(`option:${card}`), [true, 'per_stay', 'Forfait', false, []]);
-  assert.deepEqual(ok(`option:${progressive}`), [true, 'per_participant_progressive', 'Progressif par participant', false, []]);
+  assert.deepEqual(ok(`option:${progressive}`), [false, 'per_participant_progressive', 'Progressif par participant', false, []]);
 });
 
 test('the hourly family is the only source of the modes: with its plugin withdrawn the bath is greyed, and a session cannot be judged', () => {

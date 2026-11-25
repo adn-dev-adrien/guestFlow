@@ -31,7 +31,7 @@ function resolveUnits({
   };
 }
 
-const validate = (config, request, ctx) => kit.refusalsOf(request, ctx, { needsPersons: true });
+const validate = (config, request, ctx) => kit.refusalsOf(request, ctx, { needsPersons: true, readsStay: family.readsStay });
 
 // `request.untyped` — the line has no typed count (a resource, an insurance): units follow the stay.
 function price(config, request, ctx) {
@@ -50,7 +50,7 @@ function price(config, request, ctx) {
 }
 
 const family = {
-  id: 'perPerson', priceTypes: PRICE_TYPES, multiplier, resolveUnits, configSchema, validate, price, describe: kit.describeLine,
+  id: 'perPerson', readsStay: true, priceTypes: PRICE_TYPES, multiplier, resolveUnits, configSchema, validate, price, describe: kit.describeLine,
 };
 
 module.exports = { family, PRICE_TYPES };

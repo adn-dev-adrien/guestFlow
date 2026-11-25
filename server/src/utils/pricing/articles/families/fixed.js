@@ -43,7 +43,7 @@ function price(config, request, ctx) {
 }
 
 const family = {
-  id: 'fixed', priceTypes: PRICE_TYPES, multiplier, resolveUnits, configSchema, validate, price, describe: kit.describeLine,
+  id: 'fixed', readsStay: false, priceTypes: PRICE_TYPES, multiplier, resolveUnits, configSchema, validate, price, describe: kit.describeLine,
 };
 
 module.exports = { family, PRICE_TYPES };

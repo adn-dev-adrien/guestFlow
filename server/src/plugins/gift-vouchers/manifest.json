@@ -1,7 +1,7 @@
 {
   "id": "gift-vouchers",
   "name": "Bons cadeaux",
-  "version": "1.5.0",
+  "version": "1.5.1",
   "description": "Des bons cadeaux vendus en ligne, au téléphone ou par carte commerçant : un montant pour un séjour, ou un contenu composé (bain nordique et options) réservé en ligne par le bénéficiaire.",
   "icon": "gift",
   "surfaces": [
@@ -18,6 +18,11 @@
   "guestflow": ">=3.10.0",
   "sdk": "^2.33.0",
   "changelog": {
+    "1.5.1": [
+      "Une option « par personne », « par nuit », « en pourcentage » ou « progressive par participant » sans carte de planning est grisée dans le catalogue avec la raison du moteur de prix : il ne la vend pas hors séjour.",
+      "Une campagne qui en porte déjà une le signale à l’ouverture de l’éditeur, sans rien retirer : la retirer permet de l’enregistrer.",
+      "Compatible avec GuestFlow 4 (SDK 2.33)."
+    ],
     "1.5.0": [
       "Le temps supplémentaire et les options d’un bon de séance se rangent dans un seul dépliant « Ajouter au bon », fermé par défaut, sur le site (achat et utilisation d’un bon) et sur « Nouveau bon ».",
       "Chaque ligne affiche le prix de GuestFlow pour sa quantité, au tarif extérieur, et l’en-tête dit ce que les ajouts coûtent une fois choisis.",

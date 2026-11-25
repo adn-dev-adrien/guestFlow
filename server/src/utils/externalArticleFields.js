@@ -3,7 +3,7 @@
  * (`vatClass`: `options`, `resources`, `drinks`, `catering`; empty = the class of its kind) and the external rate of that class (`externalVatRate`, in percent, the one rate of the whole class).
  * Authoritative validation (the only one that can reject a write) and the write, shared by the option and the resource forms.
  *
- *   validate(body, { kind, stored })   → [{ field, message, code? }] — `sellableExternally` needs a family that needs no stay (`NEEDS_STAY`) and, outside the franchise, an external rate for the
+ *   validate(body, { kind, stored })   → [{ field, message, code? }] — `sellableExternally` needs an article `outsideSale` says is sellable (`NEEDS_STAY`, rule 124) and, outside the franchise, an external rate for the
  *                                        class, sent or already set (`EXTERNAL_RATE_REQUIRED`)
  *   persist(kind, id, body)            writes what the payload carries (`sellableExternally`, `vatClass`, the class's external rate); a key the save does not send keeps the stored value
  */
@@ -15,7 +15,6 @@ const sales = require('../models/standaloneSalesModel');
 
 const database = () => require('../database');
 const TABLE = { option: 'options', resource: 'resources' };
-const COUNTER_FAMILIES = ['fixed', 'perUnit', 'hourly'];
 const sent = (value) => value !== undefined && value !== null && value !== '';
 const truthy = (value) => value === true || value === 1 || value === '1' || value === 'true';
 
@@ -42,8 +41,9 @@ function validate(body, { kind, stored = null } = {}) {
   if (!selling) return details;
   const row = { ...(stored || {}), ...payload, id: (stored && stored.id) || 0 };
   const article = articles.makeArticle(row, { kind });
-  if (!COUNTER_FAMILIES.includes(article.family)) {
-    details.push({ field: 'sellableExternally', message: 'Un article lié au séjour ne se vend pas hors séjour.', code: 'NEEDS_STAY' });
+  const outside = articles.outsideSale(article);
+  if (!outside.sellable) {
+    details.push({ field: 'sellableExternally', message: outside.reason, code: outside.code === 'INSURANCE' ? 'NEEDS_STAY' : outside.code });
     return details;
   }
   const db = database();

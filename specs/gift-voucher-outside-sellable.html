@@ -1,0 +1,355 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Vendable hors séjour : une seule règle, celle du moteur</title>
+<style>
+  :root {
+    --fir: #2F5D46; --fir-dark: #214131; --honey: #C99038;
+    --paper: #F8F5EF; --white: #FFF; --ink: #27251F; --muted: #6E6A5E; --divider: rgba(60,54,36,.1);
+    --success: #3E7D54; --success-soft: #E6F0E9; --warning: #8F6A1D; --warning-soft: #F6EEDC; --warning-text: #6B4F14;
+    --error: #A8433A; --error-soft: #F6E4E2; --info: #31556E; --info-soft: #E3ECF2;
+    --radius: 14px; --shadow-card: 0 3px 16px rgba(60,54,36,.09); --shadow-panel: 0 1px 2px rgba(39,37,31,.04);
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--paper); color: var(--ink); font: 1rem/1.5 -apple-system, "Inter", "Segoe UI", system-ui, sans-serif; }
+  main { max-width: 1240px; margin: 0 auto; padding: 24px 16px 64px; }
+  h1, h2 { font-family: "Source Serif 4", Georgia, serif; font-weight: 600; }
+  h1 { font-size: 1.35rem; margin: 0 0 4px; }
+  h2 { font-size: 1.05rem; margin: 32px 0 12px; }
+  h3 { font-size: .95rem; margin: 0 0 8px; }
+  p, li { max-width: 75ch; }
+  .muted { color: var(--muted); }
+  .small { font-size: .875rem; }
+  .caption { font-size: .75rem; color: var(--muted); }
+  .card { background: var(--white); border-radius: var(--radius); box-shadow: var(--shadow-card); padding: 16px; }
+  .panel { background: var(--white); border: 1px solid var(--divider); border-radius: var(--radius); box-shadow: var(--shadow-panel); padding: 16px; }
+  .panel-label { font-size: .74rem; font-weight: 600; letter-spacing: .09em; text-transform: uppercase; color: var(--muted); margin-bottom: 12px; }
+  .grid2 { display: grid; gap: 16px; grid-template-columns: 1fr; }
+  @media (min-width: 900px) { .grid2 { grid-template-columns: 1fr 1fr; } }
+  .summary { display: grid; gap: 12px; grid-template-columns: 1fr; }
+  @media (min-width: 900px) { .summary { grid-template-columns: repeat(4, 1fr); } }
+  .summary .panel h3 { font-size: .9rem; }
+  .summary ul { margin: 0; padding-left: 18px; font-size: .875rem; }
+  table { border-collapse: collapse; width: 100%; font-size: .875rem; }
+  th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--divider); vertical-align: top; }
+  th { font-weight: 600; color: var(--muted); }
+  .chip { display: inline-block; padding: 1px 8px; border-radius: 999px; font-size: .75rem; font-weight: 600; }
+  .chip.ok { background: var(--success-soft); color: var(--success); }
+  .chip.no { background: var(--error-soft); color: var(--error); }
+  .chip.diff { background: var(--warning-soft); color: var(--warning-text); }
+
+  /* Form controls, MUI-outlined look */
+  .field { position: relative; margin-top: 12px; }
+  .field label.float { position: absolute; top: -8px; left: 10px; background: var(--white); padding: 0 4px; font-size: .75rem; color: var(--muted); }
+  select, .input { width: 100%; min-height: 48px; padding: 10px 12px; border: 1px solid rgba(60,54,36,.28); border-radius: var(--radius); font: inherit; background: var(--white); color: var(--ink); }
+  select:focus-visible, button:focus-visible, .switch input:focus-visible + .track { outline: 2px solid var(--fir); outline-offset: 2px; }
+  .section { border-top: 1px solid var(--divider); padding-top: 12px; margin-top: 16px; }
+  .section-title { font-weight: 600; font-size: .9rem; margin-bottom: 4px; }
+  .switch-row { display: flex; align-items: center; gap: 10px; min-height: 44px; cursor: pointer; }
+  .switch { position: relative; width: 40px; height: 24px; flex: none; }
+  .switch input { position: absolute; opacity: 0; inset: 0; margin: 0; cursor: pointer; }
+  .track { position: absolute; inset: 3px 0; border-radius: 999px; background: rgba(39,37,31,.32); transition: background-color 150ms ease-out; }
+  .thumb { position: absolute; top: 2px; left: 0; width: 20px; height: 20px; border-radius: 50%; background: var(--white); box-shadow: 0 1px 3px rgba(39,37,31,.3); transition: transform 180ms cubic-bezier(0.2,0,0,1); }
+  .switch input:checked ~ .track { background: rgba(47,93,70,.5); }
+  .switch input:checked ~ .thumb { transform: translateX(20px); background: var(--fir); }
+  .switch.disabled { opacity: .45; }
+  .switch.disabled input { cursor: not-allowed; }
+  .helper { font-size: .75rem; color: var(--muted); margin: 2px 0 0 0; }
+  .helper.error { color: var(--error); }
+  .helper.reason { color: var(--ink); }
+  .bar { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }
+  .btn { min-height: 44px; padding: 8px 16px; border-radius: var(--radius); border: 1px solid var(--divider); background: var(--white); font: inherit; font-weight: 500; cursor: pointer; color: var(--ink); }
+  .btn.primary { background: var(--fir); color: var(--white); border-color: var(--fir); }
+  .btn.primary:hover { background: var(--fir-dark); }
+  .btn:active { transform: scale(.98); }
+  .toast { margin-top: 12px; padding: 10px 12px; border-radius: var(--radius); font-size: .875rem; }
+  .toast.ok { background: var(--success-soft); color: var(--success); }
+  .toast.err { background: var(--error-soft); color: var(--error); }
+  .alert { display: flex; gap: 10px; padding: 10px 12px; border-radius: var(--radius); background: var(--warning-soft); color: var(--warning-text); font-size: .875rem; margin-bottom: 12px; }
+  .alert b { font-weight: 600; }
+  .scenario { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
+  .scenario button { min-height: 36px; padding: 4px 12px; border-radius: 999px; border: 1px solid var(--divider); background: var(--white); font: inherit; font-size: .875rem; cursor: pointer; }
+  .scenario button[aria-pressed="true"] { border-color: var(--fir); background: rgba(47,93,70,.08); color: var(--fir); font-weight: 600; }
+
+  /* Add-ons picker */
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; min-height: 48px; padding: 8px; border: 1px solid rgba(60,54,36,.28); border-radius: var(--radius); align-items: center; }
+  .chips .c { display: inline-flex; align-items: center; gap: 6px; padding: 2px 4px 2px 10px; border-radius: 999px; background: rgba(39,37,31,.08); font-size: .8125rem; }
+  .chips .c.bad { background: var(--warning-soft); color: var(--warning-text); border: 1px solid var(--warning); }
+  .chips .c button { border: 0; background: transparent; cursor: pointer; font-size: 1rem; line-height: 1; min-width: 28px; min-height: 28px; color: inherit; }
+  .list { list-style: none; margin: 8px 0 0; padding: 4px 0; border: 1px solid var(--divider); border-radius: var(--radius); box-shadow: 0 2px 10px rgba(60,54,36,.07); }
+  .list li { display: flex; gap: 10px; padding: 8px 12px; align-items: flex-start; cursor: pointer; max-width: none; }
+  .list li[aria-disabled="true"] { cursor: default; opacity: .55; }
+  .list li:not([aria-disabled="true"]):hover { background: rgba(47,93,70,.06); }
+  .list input { margin-top: 4px; width: 18px; height: 18px; accent-color: var(--fir); }
+
+  /* Arbitrages */
+  fieldset { border: 1px solid var(--divider); border-radius: var(--radius); padding: 12px 16px; margin: 0 0 12px; background: var(--white); }
+  legend { font-weight: 600; padding: 0 4px; }
+  .opt { display: flex; gap: 10px; align-items: flex-start; padding: 6px 0; cursor: pointer; }
+  .opt input { margin-top: 5px; accent-color: var(--fir); width: 18px; height: 18px; flex: none; }
+  .rec { color: var(--fir); font-weight: 600; font-size: .8125rem; }
+  pre { white-space: pre-wrap; background: var(--white); border: 1px solid var(--divider); border-radius: var(--radius); padding: 12px; font-size: .8125rem; }
+  @media (prefers-reduced-motion: reduce) { .thumb, .track { transition: none; } .btn:active { transform: none; } }
+</style>
+</head>
+<body>
+<main>
+  <h1>Vendable hors séjour : une seule règle, celle du moteur</h1>
+  <p class="muted small">GuestFlow · bons cadeaux et fiche option · 25/11/2026 · sens retenu : A + case expliquée d’avance</p>
+
+  <h2>Résumé</h2>
+  <div class="summary">
+    <div class="panel"><h3>Constat</h3><ul>
+      <li>Le moteur refuse <code>NEEDS_STAY</code> pour « par personne » et « progressif par participant » sans carte de planning.</li>
+      <li>La fiche option, le comptoir et le sas sont d’accord avec lui. <b>Seul le catalogue des bons</b> les déclare vendables.</li>
+      <li>4 listes de familles recopiées à 4 endroits.</li>
+    </ul></div>
+    <div class="panel"><h3>Proposé</h3><ul>
+      <li>Chaque famille de prix dit elle-même si elle lit le séjour. Une seule fonction serveur répond « vendable sans séjour ? », avec sa raison.</li>
+      <li>Le catalogue des bons, la fiche, le comptoir et les suggestions la lisent.</li>
+      <li>La fiche montre la raison <b>avant</b> l’enregistrement.</li>
+      <li>Une campagne qui porte une option devenue invendable le signale.</li>
+    </ul></div>
+    <div class="panel"><h3>Pas fait</h3><ul>
+      <li>Vendre « par personne » sans séjour (sens B).</li>
+      <li>Aucune réparation silencieuse : ni la case, ni une campagne ne sont modifiées toutes seules.</li>
+      <li>Rien sur les ventes passées.</li>
+    </ul></div>
+    <div class="panel"><h3>Risque</h3><ul>
+      <li>Prod (lecture seule, 25/11) : aucune option « par personne » vendable hors séjour, aucune campagne concernée, 0 commande de bon.</li>
+      <li>Les 3 autres listes ne changent pas de résultat : c’est un regroupement, vérifié par test.</li>
+    </ul></div>
+  </div>
+
+  <h2>Ce que le moteur sait vendre sans séjour (option)</h2>
+  <div class="card">
+    <table aria-describedby="engine-caption">
+      <thead><tr><th>Type de prix</th><th>Sans carte de planning</th><th>Avec carte de planning</th><th>Catalogue des bons aujourd’hui</th></tr></thead>
+      <tbody id="engine-table"></tbody>
+    </table>
+    <p id="engine-caption" class="caption">Vérifié sur la pipeline <code>externalExtras</code> (quantité 2). Avec une carte de planning, une option se compte à l’unité (famille <code>perUnit</code>) et se vend seule. L’assurance annulation ne se vend jamais seule.</p>
+  </div>
+
+  <div class="grid2">
+    <section>
+      <h2>1. Fiche option — section « Vente hors séjour »</h2>
+      <div class="card">
+        <div class="scenario" role="group" aria-label="Situation de départ">
+          <button type="button" data-start="new" aria-pressed="true">Nouvelle option</button>
+          <button type="button" data-start="legacy" aria-pressed="false">Ancienne donnée : déjà cochée, « par personne »</button>
+        </div>
+        <div class="field">
+          <label class="float" for="pt">Type de prix</label>
+          <select id="pt"></select>
+        </div>
+        <div class="section">
+          <div class="section-title">Planning</div>
+          <label class="switch-row"><span class="switch"><input type="checkbox" id="card"><span class="track"></span><span class="thumb"></span></span>Carte de planning</label>
+        </div>
+        <div class="section">
+          <div class="section-title">Vente hors séjour</div>
+          <label class="switch-row" id="sell-row"><span class="switch" id="sell-switch"><input type="checkbox" id="sell" aria-describedby="sell-help"><span class="track"></span><span class="thumb"></span></span>Vendable hors séjour</label>
+          <p class="helper" id="sell-help"></p>
+        </div>
+        <div class="bar"><button class="btn" type="button" id="cancel">Annuler</button><button class="btn primary" type="button" id="save">Enregistrer</button></div>
+        <div id="save-out" role="status"></div>
+      </div>
+      <p class="caption">Aujourd’hui, la case est toujours cliquable et le refus n’arrive qu’à l’enregistrement. Le type de prix et la carte de planning envoient la réponse du serveur ; l’écran ne calcule rien.</p>
+    </section>
+
+    <section>
+      <h2>2. Éditeur de campagne — « Options proposées »</h2>
+      <div class="card">
+        <div class="scenario" role="group" aria-label="Campagne">
+          <button type="button" data-camp="clean" aria-pressed="true">Campagne saine</button>
+          <button type="button" data-camp="legacy" aria-pressed="false">Campagne qui porte déjà « Chasse aux œufs »</button>
+        </div>
+        <div id="camp-alert"></div>
+        <div class="panel-label">Options proposées</div>
+        <div class="chips" id="chips" aria-label="Options choisies"></div>
+        <ul class="list" id="catalogue" role="listbox" aria-multiselectable="true"></ul>
+        <div class="bar"><button class="btn primary" type="button" id="camp-save">Enregistrer</button></div>
+        <div id="camp-out" role="status"></div>
+      </div>
+      <p class="caption">Le grisé avec la raison existe déjà ; ce qui change, c’est que le serveur grise enfin « par personne » et « progressif ». Le bandeau et la puce marquée sont l’arbitrage 3.</p>
+    </section>
+  </div>
+
+  <h2>Arbitrages</h2>
+  <form id="choices">
+    <fieldset>
+      <legend>1. Option déjà cochée « vendable hors séjour » alors que son prix lit le séjour</legend>
+      <label class="opt"><input type="radio" name="q1" value="a" checked><span><span class="rec">Recommandé · </span>La case reste active <b>pour être décochée</b>, avec la raison en rouge sous le champ. L’enregistrement est refusé tant qu’elle est cochée.</span></label>
+      <label class="opt"><input type="radio" name="q1" value="b"><span>La case apparaît décochée, avec « Sera décochée à l’enregistrement » et la raison. L’enregistrement passe et décoche.</span></label>
+    </fieldset>
+    <fieldset>
+      <legend>2. Texte de la raison sous la case</legend>
+      <label class="opt"><input type="radio" name="q2" value="a" checked><span><span class="rec">Recommandé · </span>La même phrase partout (fiche, éditeur de campagne, comptoir) : « Le prix « par personne » a besoin d’un séjour : il ne se vend pas seul. »</span></label>
+      <label class="opt"><input type="radio" name="q2" value="b"><span>La même phrase, plus l’issue quand elle existe : « Avec une carte de planning, elle se compte à l’unité et se vend seule. »</span></label>
+    </fieldset>
+    <fieldset>
+      <legend>3. Campagne qui porte déjà une option devenue invendable</legend>
+      <label class="opt"><input type="radio" name="q3" value="a" checked><span><span class="rec">Recommandé · </span>Bandeau à l’ouverture de la campagne (« Retirée de l’offre : … ») et puce marquée avec la raison. L’opérateur la retire lui-même ; l’enregistrement est refusé tant qu’elle y est.</span></label>
+      <label class="opt"><input type="radio" name="q3" value="b"><span>Rien à l’ouverture : seul le refus à l’enregistrement le dit (comportement actuel du sélecteur).</span></label>
+    </fieldset>
+    <div class="bar" style="justify-content:flex-start"><button class="btn primary" type="button" id="copy">Copier</button></div>
+    <pre id="recap" aria-live="polite"></pre>
+  </form>
+</main>
+
+<script>
+(() => {
+  const LABELS = { per_stay: 'Forfait', free: 'Gratuit', per_person: 'Par personne', per_night: 'Par nuit', per_person_per_night: 'Par personne et par nuit', percent_of_stay: 'Pourcentage du séjour', per_participant_progressive: 'Progressif par participant' };
+  const OLD_CATALOGUE = ['per_stay', 'free', 'per_person', 'per_participant_progressive'];
+  // The server's answer, as the new endpoint would serve it: priceType × planning card → sellable, reason.
+  const answer = (priceType, card) => {
+    if (priceType === 'percent_of_stay') return { sellable: false };
+    if (card || priceType === 'per_stay' || priceType === 'free') return { sellable: true };
+    return { sellable: false };
+  };
+  const reasonOf = (priceType, card) => {
+    const base = `Le prix « ${LABELS[priceType].toLowerCase()} » a besoin d’un séjour : il ne se vend pas seul.`;
+    const choice = new FormData(document.getElementById('choices')).get('q2');
+    const exit = priceType !== 'percent_of_stay' && !card ? ' Avec une carte de planning, elle se compte à l’unité et se vend seule.' : '';
+    return choice === 'b' ? base + exit : base;
+  };
+
+  const tbody = document.getElementById('engine-table');
+  Object.keys(LABELS).forEach((pt) => {
+    const cell = (ok) => `<span class="chip ${ok ? 'ok' : 'no'}">${ok ? 'Vendable' : 'NEEDS_STAY'}</span>`;
+    const without = answer(pt, false).sellable;
+    const old = OLD_CATALOGUE.includes(pt);
+    const oldCell = old === without ? cell(old).replace('NEEDS_STAY', 'Refusé') : '<span class="chip diff">Dit « vendable » : faux</span>';
+    tbody.insertAdjacentHTML('beforeend', `<tr><td>${LABELS[pt]}</td><td>${cell(without)}</td><td>${cell(answer(pt, true).sellable)}</td><td>${oldCell}</td></tr>`);
+  });
+
+  // 1. Option form
+  const pt = document.getElementById('pt');
+  const card = document.getElementById('card');
+  const sell = document.getElementById('sell');
+  const sellSwitch = document.getElementById('sell-switch');
+  const help = document.getElementById('sell-help');
+  const out = document.getElementById('save-out');
+  Object.entries(LABELS).forEach(([v, l]) => pt.insertAdjacentHTML('beforeend', `<option value="${v}">${l}</option>`));
+  let pendingUncheck = false;
+
+  const drawForm = () => {
+    const a = answer(pt.value, card.checked);
+    const q1 = new FormData(document.getElementById('choices')).get('q1');
+    out.innerHTML = '';
+    pendingUncheck = false;
+    if (a.sellable) {
+      sell.disabled = false; sell.removeAttribute('aria-disabled'); sellSwitch.classList.remove('disabled');
+      help.className = 'helper'; help.textContent = 'Proposé au comptoir et à l’arrivée d’un client sans séjour.';
+      return;
+    }
+    const reason = reasonOf(pt.value, card.checked);
+    if (sell.checked && q1 === 'a') {
+      sell.disabled = false; sellSwitch.classList.remove('disabled');
+      help.className = 'helper error'; help.textContent = `${reason} Décocher pour enregistrer.`;
+      return;
+    }
+    if (sell.checked && q1 === 'b') {
+      pendingUncheck = true;
+    }
+    sell.setAttribute('aria-disabled', 'true'); sellSwitch.classList.add('disabled');
+    help.className = 'helper reason';
+    help.textContent = pendingUncheck ? `Sera décochée à l’enregistrement. ${reason}` : reason;
+  };
+  sell.addEventListener('click', (e) => { if (sell.getAttribute('aria-disabled') === 'true') e.preventDefault(); });
+  sell.addEventListener('change', drawForm);
+  pt.addEventListener('change', drawForm);
+  card.addEventListener('change', drawForm);
+  document.getElementById('save').addEventListener('click', () => {
+    const a = answer(pt.value, card.checked);
+    if (sell.checked && !a.sellable && !pendingUncheck) {
+      out.innerHTML = `<div class="toast err">Refusé (422 NEEDS_STAY) : ${reasonOf(pt.value, card.checked)}</div>`;
+      return;
+    }
+    if (pendingUncheck) { sell.checked = false; }
+    drawForm();
+    out.innerHTML = `<div class="toast ok">Enregistrée${sell.checked ? ' · vendable hors séjour' : ''}.</div>`;
+  });
+  const start = (mode) => {
+    document.querySelectorAll('[data-start]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.start === mode)));
+    pt.value = mode === 'legacy' ? 'per_person' : 'per_stay';
+    card.checked = false; sell.checked = mode === 'legacy';
+    drawForm();
+  };
+  document.querySelectorAll('[data-start]').forEach((b) => b.addEventListener('click', () => start(b.dataset.start)));
+  document.getElementById('cancel').addEventListener('click', () => start(document.querySelector('[data-start][aria-pressed="true"]').dataset.start));
+
+  // 2. Campaign editor
+  const CATALOGUE = [
+    { ref: 'o18', label: 'Bière blonde du Pilat 75 cl', pt: 'per_stay', card: false, marked: true },
+    { ref: 'o25', label: 'Champagne prestige — bouteille 75 cl', pt: 'per_stay', card: false, marked: true },
+    { ref: 'o13', label: 'Animation — chasse aux œufs', pt: 'per_person', card: false, marked: true },
+    { ref: 'o11', label: 'Animation — visite des animaux', pt: 'per_participant_progressive', card: false, marked: true },
+    { ref: 'o40', label: 'Planche apéro à partager', pt: 'per_person', card: true, marked: true },
+    { ref: 'o8', label: 'Linge de lit', pt: 'per_person', card: false, marked: false },
+  ].map((e) => {
+    const a = answer(e.pt, e.card);
+    const sellable = e.marked && a.sellable;
+    const reason = !e.marked ? 'Pas marqué « vendable hors séjour » dans le catalogue.' : (a.sellable ? null : `Le prix « ${LABELS[e.pt].toLowerCase()} » a besoin d’un séjour : il ne se vend pas seul.`);
+    return { ...e, sellable, reason, typeLabel: e.card ? `${LABELS[e.pt]} · carte de planning` : LABELS[e.pt] };
+  });
+  let picked = ['o18'];
+  let campMode = 'clean';
+  const campOut = document.getElementById('camp-out');
+  const byRef = (r) => CATALOGUE.find((e) => e.ref === r);
+  const drawCamp = () => {
+    const q3 = new FormData(document.getElementById('choices')).get('q3');
+    const bad = picked.map(byRef).filter((e) => !e.sellable);
+    document.getElementById('camp-alert').innerHTML = q3 === 'a' && bad.length
+      ? `<div class="alert" role="alert"><span><b>Retirée de l’offre :</b> ${bad.map((e) => `« ${e.label} » — ${e.reason}`).join(' ; ')} La retirer de la campagne pour pouvoir l’enregistrer.</span></div>` : '';
+    document.getElementById('chips').innerHTML = picked.map(byRef).map((e) => `<span class="c ${!e.sellable && q3 === 'a' ? 'bad' : ''}" title="${e.sellable ? '' : e.reason}">${e.label}<button type="button" aria-label="Retirer ${e.label}" data-rm="${e.ref}">×</button></span>`).join('') || '<span class="caption">Aucune option</span>';
+    document.getElementById('catalogue').innerHTML = CATALOGUE.map((e) => `<li role="option" data-ref="${e.ref}" aria-selected="${picked.includes(e.ref)}" aria-disabled="${!e.sellable}"><input type="checkbox" tabindex="-1" aria-hidden="true" ${picked.includes(e.ref) ? 'checked' : ''} ${e.sellable ? '' : 'disabled'}><span>${e.label}<span class="caption" style="display:block">${e.sellable ? e.typeLabel : `${e.typeLabel} · ${e.reason}`}</span></span></li>`).join('');
+  };
+  document.getElementById('chips').addEventListener('click', (ev) => { const r = ev.target.dataset.rm; if (r) { picked = picked.filter((x) => x !== r); campOut.innerHTML = ''; drawCamp(); } });
+  document.getElementById('catalogue').addEventListener('click', (ev) => {
+    const li = ev.target.closest('li'); if (!li || li.getAttribute('aria-disabled') === 'true') return;
+    const r = li.dataset.ref; picked = picked.includes(r) ? picked.filter((x) => x !== r) : [...picked, r]; campOut.innerHTML = ''; drawCamp();
+  });
+  document.getElementById('camp-save').addEventListener('click', () => {
+    const bad = picked.map(byRef).filter((e) => !e.sellable);
+    campOut.innerHTML = bad.length
+      ? `<div class="toast err">Options proposées : « ${bad[0].label} » ne peut pas être vendu : ${bad[0].reason}</div>`
+      : '<div class="toast ok">Campagne enregistrée.</div>';
+  });
+  document.querySelectorAll('[data-camp]').forEach((b) => b.addEventListener('click', () => {
+    campMode = b.dataset.camp;
+    document.querySelectorAll('[data-camp]').forEach((x) => x.setAttribute('aria-pressed', String(x.dataset.camp === campMode)));
+    picked = campMode === 'legacy' ? ['o18', 'o13'] : ['o18'];
+    campOut.innerHTML = ''; drawCamp();
+  }));
+
+  // Arbitrages
+  const TEXT = {
+    q1: { a: 'case active pour être décochée, raison en rouge, enregistrement refusé tant qu’elle est cochée', b: 'case décochée d’office à l’enregistrement, annoncé sous le champ' },
+    q2: { a: 'la même phrase partout', b: 'la phrase + l’issue « carte de planning » quand elle existe' },
+    q3: { a: 'bandeau à l’ouverture + puce marquée, l’opérateur retire lui-même', b: 'seulement le refus à l’enregistrement' },
+  };
+  const recap = () => {
+    const f = new FormData(document.getElementById('choices'));
+    document.getElementById('recap').textContent = [
+      'Vendable hors séjour — choix (A + case expliquée d’avance)',
+      `1. Option déjà cochée dont le prix lit le séjour : ${f.get('q1').toUpperCase()} — ${TEXT.q1[f.get('q1')]}`,
+      `2. Texte de la raison : ${f.get('q2').toUpperCase()} — ${TEXT.q2[f.get('q2')]}`,
+      `3. Campagne qui porte une option invendable : ${f.get('q3').toUpperCase()} — ${TEXT.q3[f.get('q3')]}`,
+    ].join('\n');
+  };
+  document.getElementById('choices').addEventListener('change', () => { recap(); drawForm(); drawCamp(); });
+  document.getElementById('copy').addEventListener('click', async () => {
+    const b = document.getElementById('copy');
+    try { await navigator.clipboard.writeText(document.getElementById('recap').textContent); b.textContent = 'Copié'; }
+    catch { const r = document.createRange(); r.selectNodeContents(document.getElementById('recap')); const s = getSelection(); s.removeAllRanges(); s.addRange(r); b.textContent = 'Sélectionné : Cmd+C'; }
+    setTimeout(() => { b.textContent = 'Copier'; }, 1800);
+  });
+
+  start('new'); drawCamp(); recap();
+})();
+</script>
+</body>
+</html>

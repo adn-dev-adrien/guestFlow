@@ -34,9 +34,9 @@ test('the rate shown is the class\'s own from the server\'s list, the phrase say
 });
 
 test('the server\'s refusals show under their field, and a disabled block changes nothing', () => {
-  const errors = { sellableExternally: 'Un article lié au séjour ne se vend pas hors séjour.', externalVatRate: 'Taux du client extérieur requis pour cette classe.' };
+  const errors = { sellableExternally: 'Le prix « par personne » a besoin d’un séjour : il ne se vend pas seul.', externalVatRate: 'Taux du client extérieur requis pour cette classe.' };
   render(<ExternalSaleFields value={{ ...base, sellableExternally: true }} onChange={() => {}} classes={CLASSES} errors={errors} disabled />);
-  expect(screen.getByText('Un article lié au séjour ne se vend pas hors séjour.')).toBeInTheDocument();
+  expect(screen.getByText('Le prix « par personne » a besoin d’un séjour : il ne se vend pas seul.')).toBeInTheDocument();
   expect(screen.getByText('Taux du client extérieur requis pour cette classe.')).toBeInTheDocument();
   expect(screen.getByRole('switch', { name: 'Vendable hors séjour' })).toBeDisabled();
 });

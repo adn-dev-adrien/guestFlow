@@ -39,7 +39,7 @@ function price(config, request, ctx) {
 }
 
 const family = {
-  id: 'perUnit', priceTypes: [], configSchema, validate, price, describe: kit.describeLine,
+  id: 'perUnit', readsStay: false, priceTypes: [], configSchema, validate, price, describe: kit.describeLine,
 };
 
 module.exports = { family };

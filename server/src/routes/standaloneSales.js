@@ -8,6 +8,7 @@ const controller = require('../controllers/standaloneSalesController');
 const router = express.Router();
 
 router.get('/vat-rates', controller.vatRates);
+router.get('/sellability', controller.sellability);
 router.get('/', controller.list);
 router.post('/quote', controller.quote);
 router.post('/', controller.sell);

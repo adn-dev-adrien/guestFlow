@@ -29,6 +29,7 @@ import ErrorAlert from '../../components/ErrorAlert';
 import OptionPropertyDefaultsMirror from '../../components/OptionPropertyDefaultsMirror';
 import ExternalSaleFields from '../../components/ExternalSaleFields';
 import useExternalVatRates from '../../hooks/useExternalVatRates';
+import useOutsideSellability from '../../hooks/useOutsideSellability';
 import { useToast } from '../../components/DialogProvider';
 import { Contribution } from '../../plugins/sdk/Slot';
 import { usePlugin } from '../../hooks/usePlugins';
@@ -86,6 +87,7 @@ export default function OptionEditorPanel({
   const clientErrors = useMemo(() => (form ? validateOptionForm(form) : {}), [form]);
   const plugins = usePluginFields('options.fields', form);
   const vatClasses = useExternalVatRates(open);
+  const sellability = useOutsideSellability(open && Boolean(form), 'option', form || {});
   const coreDirty = Boolean(form) && JSON.stringify(form) !== saved;
   const dirty = coreDirty || plugins.dirty;
   // A pristine form shows no error (a new option does not open on « Nom requis »): they appear once it is edited.
@@ -257,6 +259,7 @@ export default function OptionEditorPanel({
             classes={vatClasses}
             defaultClass="options"
             errors={errors}
+            sellability={sellability}
           />
         </SidePanelSection>
 

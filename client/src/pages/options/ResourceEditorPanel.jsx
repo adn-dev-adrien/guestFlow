@@ -21,6 +21,7 @@ import ErrorAlert from '../../components/ErrorAlert';
 import PropertiesMultiSelect from '../../components/PropertiesMultiSelect';
 import ExternalSaleFields from '../../components/ExternalSaleFields';
 import useExternalVatRates from '../../hooks/useExternalVatRates';
+import useOutsideSellability from '../../hooks/useOutsideSellability';
 import TokenTextField from '../../components/TokenTextField';
 import { useToast } from '../../components/DialogProvider';
 import { usePlugin } from '../../hooks/usePlugins';
@@ -132,6 +133,7 @@ export default function ResourceEditorPanel({ open, resourceId, properties, onCl
   };
   const clientErrors = useMemo(() => (form ? validateResourceForm(form) : {}), [form]);
   const vatClasses = useExternalVatRates(open);
+  const sellability = useOutsideSellability(open && Boolean(form), 'resource', form || {});
   const plugins = usePluginFields('resources.fields', form);
   const coreDirty = Boolean(form) && JSON.stringify(form) !== saved;
   const dirty = coreDirty || plugins.dirty;
@@ -265,6 +267,7 @@ export default function ResourceEditorPanel({ open, resourceId, properties, onCl
             classes={vatClasses}
             defaultClass="resources"
             errors={errors}
+            sellability={sellability}
           />
         </SidePanelSection>
 

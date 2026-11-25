@@ -169,7 +169,10 @@ export default function CompositionEditor({
               <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5} sx={{ alignItems: { sm: 'center' }, justifyContent: 'space-between' }}>
                 <Box sx={{ minWidth: 0 }}>
                   <Typography fontWeight={600} sx={{ overflowWrap: 'anywhere' }}>{element ? element.label : option.articleRef}</Typography>
-                  {element ? <Chip size="small" label={element.priceTypeLabel} sx={{ mt: 0.5 }} /> : null}
+                  {element && element.sellable === false ? (
+                    <Tooltip title={element.reason}><Chip size="small" color="warning" variant="outlined" label={element.priceTypeLabel} sx={{ mt: 0.5 }} /></Tooltip>
+                  ) : null}
+                  {element && element.sellable !== false ? <Chip size="small" label={element.priceTypeLabel} sx={{ mt: 0.5 }} /> : null}
                 </Box>
                 <Stack direction="row" spacing={1} sx={{ alignItems: 'flex-start' }}>
                   <QuantityField

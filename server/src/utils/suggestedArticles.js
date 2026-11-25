@@ -22,8 +22,8 @@ const model = require('../models/suggestedArticlesModel');
 
 const MAX_LISTED = 12;
 const MAX_QUANTITY = 99;
-// The families an external sale takes (rule 11): what needs a stay is never suggested for a customer with none.
-const EXTERNAL_FAMILIES = Object.freeze(['fixed', 'perUnit']);
+// What `outsideSale` does not sell at a counter (rule 11, pricing-components rule 124) is never suggested for a customer with none.
+const outsideOnly = (article) => !article.config.sellableExternally || articles.outsideSale(article).code !== null;
 const NO_FREE_UNITS = Object.freeze({ grantedFreeUnitsFor: () => 0, consumedFreeUnitsFor: () => 0 });
 
 const refuse = (status, code, error) => ({ status, body: { error, code } });
@@ -64,7 +64,7 @@ function resolve({ context, customerContext = 'hosted', stay = null } = {}) {
     const found = sales.catalogueRow(articleRef);
     if (!found || found.row.archivedAt) continue;
     const article = articles.makeArticle(found.row, { kind: found.kind });
-    if (customerContext === 'external' && (!article.config.sellableExternally || !EXTERNAL_FAMILIES.includes(article.family))) continue;
+    if (customerContext === 'external' && outsideOnly(article)) continue;
     const quoted = articles.quote({
       requests: [{ article, quantity: 1, portions: () => ({ quantity: 1, clampedFrom: null }) }],
       stayContext,
@@ -101,7 +101,7 @@ function catalogue({ customerContext = 'external', q = '' } = {}) {
     const found = sales.catalogueRow(articleRef);
     if (!found) continue;
     const article = articles.makeArticle(found.row, { kind: found.kind });
-    if (customerContext === 'external' && (!article.config.sellableExternally || !EXTERNAL_FAMILIES.includes(article.family))) continue;
+    if (customerContext === 'external' && outsideOnly(article)) continue;
     const quoted = articles.quote({
       requests: [{ article, quantity: 1, portions: () => ({ quantity: 1, clampedFrom: null }) }],
       stayContext: { persons: 1, nights: 1, maxGuests: 0, isDirectBooking: true },
