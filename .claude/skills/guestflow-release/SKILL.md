@@ -310,22 +310,27 @@ CLAUDE.md §5.2 ban on force-pushing branches still stands.
 
 ---
 
-## Step 8b — Sign the release (only when a signing key exists)
+## Step 8b — Sign the release (mandatory)
 
-Rule 41 of `specs/self-update-and-releases.md`. Skip silently unless `GUESTFLOW_RELEASE_SIGNING_KEY`
-(the path of the maintainer's private key, held off GitHub) is set in the environment. When it is:
+Rule 41 of `specs/self-update-and-releases.md`. Production verifies signatures (`GUESTFLOW_RELEASE_PUBLIC_KEY`
+set since 2026-11-25), so a published release without `SHA256SUMS.sig` is **refused at install**
+(`SIGNATURE_MISSING`). This step is never skipped.
+
+`GUESTFLOW_RELEASE_SIGNING_KEY` holds the path of the maintainer's private key, kept off GitHub. If it is
+unset or the file is not readable, **stop here**: do not guess another path and do not end the release as
+done. Report that vX.Y.Z is published but **not installable**, and give the user the command to run
+themselves once the key is available. When it is set:
 
 ```bash
 node scripts/sign-release.mjs sign "$GUESTFLOW_RELEASE_SIGNING_KEY" vX.Y.Z
 ```
 
 The script downloads `SHA256SUMS` and the archive, refuses to sign unless the sums list the archive's
-real hash, prints the sums, signs them and uploads `SHA256SUMS.sig`. Compare the printed sums with the
-`package` job's log. An installer that has `GUESTFLOW_RELEASE_PUBLIC_KEY` set refuses any release without
-this asset, so on a signed setup the release is **not installable until this step has run** — say so in
-the report.
+real hash, prints the sums, signs them and uploads `SHA256SUMS.sig`. Compare the printed hash of
+`guestflow-X.Y.Z.tar.gz` with the `package` job's log of the release run; if they differ, stop and tell
+the user — the archive on GitHub is not the one CI built.
 
-> **CHECK** (key present only): `gh release view vX.Y.Z` lists `SHA256SUMS.sig` on top of the assets
+> **CHECK**: `gh release view vX.Y.Z` lists `SHA256SUMS.sig` on top of the assets
 > of step 7 (archive, `SHA256SUMS`, WordPress zip, plugin `.tgz` packages), and `node scripts/sign-release.mjs`
 > printed the sums it signed.
 
