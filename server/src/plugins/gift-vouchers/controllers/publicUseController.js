@@ -19,6 +19,7 @@ function buildPublicUseController({
     if (result.ok) return respond.ok(res, result.data);
     if (result.retryAfterSeconds) res.set('Retry-After', String(result.retryAfterSeconds));
     const details = [
+      ...(result.field ? [{ field: result.field }] : []),
       ...(result.expiresOn ? [{ expiresOn: result.expiresOn }] : []),
       ...(result.triesLeft !== undefined ? [{ triesLeft: result.triesLeft }] : []),
       ...(result.horizonUntil ? [{ horizonUntil: result.horizonUntil }] : []),
