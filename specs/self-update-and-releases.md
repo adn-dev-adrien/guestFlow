@@ -420,8 +420,10 @@ signed-off releases over HTTPS, when the operator asks for it.
     `node scripts/sign-release.mjs sign <private-key-file> vX.Y.Z` signs the published `SHA256SUMS` and
     uploads `SHA256SUMS.sig` after checking that the sums list the downloaded archive's real hash and
     printing them for comparison with the CI log; `keygen <private-key-file>` creates the key pair and
-    prints the public key to configure. The `/guestflow-release` skill runs that signing (step 8b) when
-    `GUESTFLOW_RELEASE_SIGNING_KEY` is set. The key must be Ed25519 and the signature is checked over the
+    prints the public key to configure. The `/guestflow-release` skill runs that signing (step 8b) with the key at
+    `GUESTFLOW_RELEASE_SIGNING_KEY`. Since 2026-11-25 production has the public key configured, so step 8b is
+    mandatory: without a readable key the skill stops and reports the release as published but not
+    installable, instead of skipping the signature silently as it did before. The key must be Ed25519 and the signature is checked over the
     raw bytes of `SHA256SUMS`. The check sits in the only two install paths (`stageRelease` for a space,
     `releases.install` for the console); a version already installed is not re-verified. Once the key is
     configured a release is not installable until it has been signed.
