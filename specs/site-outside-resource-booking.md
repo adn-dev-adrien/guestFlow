@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| **Status** | Approved |
+| **Status** | Implemented |
 | **Branch** | `feature/outside-resource-booking-site` |
 | **Created** | 2026-11-25 |
 | **Author** | Adrien |
@@ -116,6 +116,7 @@ online in full or with a gift voucher code — with the operator told, by push a
     rise, none under `prefers-reduced-motion`.
 21. **Site navigation (Solio, deployment step, not code):** a header menu entry « Bain nordique » and a footer link to the page, next
     to « Bon cadeau ». The header and footer template parts are not versioned: back them up before editing (as on 2026-11-24).
+    > **Sans test** — a deployment step on the production site's template parts, not code.
 
 ### 3.E Operator notifications
 
@@ -134,7 +135,7 @@ online in full or with a gift voucher code — with the operator told, by push a
       <date>. »
     - session: « Séance réservée en ligne · <resource name> » / « <day> · <start> – <end> · <first name> <initial>., <n> pers. ·
       <settlement> » where settlement is « 90 € payés », « bon n° 0042 » or « bon n° 0042 + 40 € payés ».
-    - The push opens the outside-booking fiche (`/resource-planning?booking=…`) or the voucher (`/bons-cadeaux?voucher=…`); the e-mail
+    - The push opens the outside-booking fiche (`/passages/<booking id>`) or the voucher (`/bons-cadeaux?bon=<voucher id>`); the e-mail
       carries the same link built on `publicUrl`.
 24. **SDK: a shared push channel.** `ctx.pushChannel({ key, label, shared: true })` may be declared by several plugins when every
     declaration carries the same key and label and `shared: true`; the toggle is listed once while any declaring plugin is live. A
@@ -142,8 +143,9 @@ online in full or with a gift voucher code — with the operator told, by push a
 
 ### 3.F Data
 
-25. **`resources.sessionMaxPeople`** (INTEGER, NULL): the most people in one session, set on the resource fiche next to the external
-    sale fields. NULL → the stepper allows 1 to 20. To set to 8 for the bath in production.
+25. **`resources.sessionMaxPeople`** (INTEGER, NULL — a column of the core `resources` table, added in `database.js` and `schema.sql` like
+    `bookingHorizonMonths`): the most people in one session, set on the resource fiche in the « Vente hors séjour » section, under the external
+    sale fields, for a resource shown on the planning and sold outside a stay. NULL → the stepper allows 1 to 20. To set to 8 for the bath in production.
 26. **`resource_bookings.people`** (INTEGER, NULL): the people declared at booking. NULL for every existing row and for bookings made
     in GuestFlow (the operator may fill it on the fiche).
 27. **`resource_bookings` channel `site`** is used for the bookings of rule 12; voucher bookings keep `mon-bain`.
@@ -156,25 +158,28 @@ online in full or with a gift voucher code — with the operator told, by push a
 |---|---|---|---|
 | plugin | `plugins/hourly-resources/publicSessionService.js` | C | Rules 1-13, 16-17: resources on offer, slots, quote, confirm (hold + sale link), paid callback (`bookOutside` channel `site`), status for the return page, notifications |
 | plugin | `plugins/hourly-resources/controllers/publicSessionController.js` | C | Parses and guards `/public/v1/sessions/*`, proof of work, rate limits |
-| plugin | `plugins/hourly-resources/routes.js` | T | Mounts the public routes |
+| plugin | `plugins/hourly-resources/publicSessionRoutes.js` | C | Mounts `/public/v1/sessions/*` behind the public guard; the confirmation has the booking-request limiter, the status read the payment-status limiter |
+| plugin | `plugins/hourly-resources/sessionOrdersModel.js` / `sessionNotices.js` / `sessionMail.js` / `sessionProof.js` | C | The orders awaiting payment (`resource_session_orders`), the operator's push/e-mail texts, the visitor's confirmation mail, the proof-of-work check |
+| plugin | `plugins/hourly-resources/routes.js` / `controller.js` / `bookingsModel.js` | T | `PATCH /api/resource-bookings/:id/people` (rule 26), moving no price |
 | plugin | `plugins/hourly-resources/index.js` | T | `ctx.paymentBasket({ source: 'outsideSession' })`, shared push channel `online-sales`, lapse job |
 | plugin | `plugins/hourly-resources/outsideOffer.js` | T | `bookOutside` stores `people`; history line names the channel |
-| plugin | `plugins/hourly-resources/migrations.js` | T | Rules 25-26 columns |
 | plugin | `plugins/hourly-resources/visitModel.js` / `planningCardsModel.js` | T | `people` on the fiche payload and the card tooltip |
-| plugin | `plugins/gift-vouchers/useService.js` | T | `people`, first/last name; notification on booking (rule 23) |
-| plugin | `plugins/gift-vouchers/orderPaid.js` | T | Notification on a customer-paid voucher |
-| plugin | `plugins/gift-vouchers/index.js` | T | Declares `online-sales` shared; `use` page link for rule 19 |
-| sdk | `plugins/sdk/createContext.js` | T | `pushChannel({ shared })` (rule 24); SDK minor bump + `coreModuleHistory` if a core module is added |
+| plugin | `plugins/gift-vouchers/useService.js` | T | `people`, first/last name, `dueCents` and `evening` per slot (the session is announced by the plugin that books it); « Paiement à rembourser » on a remainder it cannot honour |
+| plugin | `plugins/gift-vouchers/voucherNotices.js` / `orderPaid.js` | C / T | The texts of a voucher sold; the notification on a customer-paid voucher |
+| plugin | `plugins/gift-vouchers/index.js` / `migrations.js` / `models/usesModel.js` | T | Declares `online-sales` shared and the notifier; `gift_voucher_uses.people` |
+| sdk | `plugins/sdk/createContext.js` | T | `pushChannel({ shared })` (rule 24); SDK 2.35.0 (`version.js`, `coreModules.json`, `coreModuleHistory.json`: `notificationService.notifyOperator`) |
 | utils | `utils/pushChannels.js` | T | Lists a shared channel once |
 | utils | `utils/notificationService.js` | T | `notifyOperator({ channel, title, body, url, subject, lines })`: push + e-mail, one-line sanitising as today |
-| `database.js` | — | — | (none — plugin migrations) |
+| `database.js` / `schema.sql` / `models/resourcesModel.js` / `controllers/resourcesController.js` | T | `resources.sessionMaxPeople` (rule 25), validated 1-100 on its own field |
+| plugin migrations | `hourly-resources/migrations.js` | T | `resource_bookings.people` (rule 26), `resource_session_orders` |
 
 ### 4.2 Client side (`client/src/`)
 
 | Layer | File | T/C | Responsibility in this change |
 |---|---|---|---|
-| plugin page | hourly-resources resource fiche (external sale fields) | T | « Personnes par séance au plus » (`sessionMaxPeople`) |
-| plugin page | outside-booking fiche (« Fiche passage ») | T | Shows and edits `people` |
+| page | `pages/options/ResourceEditorPanel.jsx` / `resourceForm.js` | T | « Personnes par séance au plus » (`sessionMaxPeople`) under the external-sale fields, for a resource shown on the planning and sold outside a stay |
+| plugin page | `hourly-resources/OutsideBookingPage.jsx` (« Passage ») | T | Shows `people` in the session block and corrects it in place |
+| plugin page | `hourly-resources/ResourcePlanningPage.jsx` | T | The booking tooltip names the people |
 
 Reused: `ExternalSaleFields`, existing fiche components. No new generic component.
 
@@ -183,8 +188,10 @@ Reused: `ExternalSaleFields`, existing fiche components. No new generic componen
 | File | T/C | Responsibility |
 |---|---|---|
 | `blocks/session-booking/{block.json,render.php,view.js}` | C | The tunnel of rules 1-17; reuses the calendar (`gf-cal-*`), summary (`gf-summary`), bar (`gf-bar`), fold (`GF.voucherExtrasFold`) and field styles |
-| `blocks/gift-voucher-use/*` | T | Alias rendering the session tunnel (rule 18) |
-| `blocks/gift-voucher/view.js` | T | « Vous avez reçu un bon cadeau ? » link (rule 19) |
+| `blocks/gift-voucher-use/*` | T | Alias rendering the session tunnel (rule 18); its own `view.js` is removed, the alias runs the session block's script |
+| `blocks/gift-voucher/view.js` | T | « Vous avez reçu un bon cadeau ? » link (rule 19), from the runtime's `sessionPageUrl` |
+| `assets/voucher-parts.js` | T | `voucherExtrasFold` takes a `title` and a `foot` |
+| `includes/class-gf-blocks.php` / `class-gf-settings.php` | T | The block, its French strings, `sessionPageUrl`; the page holding either block is « the use page » |
 | `assets/style.css` | T | No rotation on `.gf-gv-front` (rule 20); session tunnel styles on the existing tokens |
 | `includes/class-gf-rest-proxy.php` | T | Proxies `/sessions/*` |
 | `includes/class-gf-redirects.php` | T | `/utiliser` → page holding either block |
@@ -194,11 +201,12 @@ Reused: `ExternalSaleFields`, existing fiche components. No new generic componen
 
 All POST except where noted; refusals `{ code, message }` with French messages.
 
-- `GET /resources` → `[{ id, name, blurb, fromCents, minMinutes, stepMinutes, maxPeople, horizonUntil, termsVersionId }]`
-- `POST /slots { resourceId, from, to, minutes }` → `{ horizonUntil, days: [{ date, slots: [{ start, end, dueCents, evening }] }] }` (≤ 62 days)
+- `GET /resources` → `[{ id, name, blurb, fromCents, minMinutes, stepMinutes, maxMinutes, maxPeople, horizonUntil, termsVersionId, addOns: [{ articleRef, label, maxQty, unitLabel, linear, prices: [{ qty, cents }] }] }]`
+- `POST /slots { resourceId, from, to, minutes }` → `{ horizonUntil, days: [{ date, slots: [{ start, end, dueCents, evening } | { start, end, taken: true }] }] }` (≤ 62 days; only the days with a free start)
 - `POST /quote { resourceId, start: 'YYYY-MM-DDTHH:MM', minutes, addOns: [{ articleRef, qty }] }` → `{ date, start, end, parts: [{ label, band, cents }], extras[], dueCents, vat[] }`
 - `POST /confirm { resourceId, start, minutes, addOns, people, firstName, lastName, email, phone, termsVersionId, returnPath }` + proof → `{ payUrl, heldUntil, dueCents }`
-- `GET /status/:ref` → `{ state: 'held' | 'booked' | 'lapsed' | 'refundOwed', date, start, end, people, recap }`
+- `GET /status/:ref` → `{ state: 'held' | 'booked' | 'lapsed' | 'refundOwed', resourceName, date, start, end, people, recap }` (`ref` is the 32-hex token of the order, also the sale link's `ref`)
+- `PATCH /api/resource-bookings/:id/people { people }` (admin) → `{ ok, people }`
 - Gift-voucher `use/*` endpoints: `slots` gains `dueCents` and `evening` per slot, `confirm` gains `people`, `firstName`, `lastName`
   (`name` kept for older connectors).
 
@@ -207,10 +215,12 @@ Refusal codes: `RESOURCE_UNAVAILABLE`, `SLOT_TAKEN`, `BEYOND_HORIZON`, `SESSION_
 
 ## 5. Data model
 
-- `resources.sessionMaxPeople INTEGER NULL` — plugin migration, NULL for every existing row.
+- `resources.sessionMaxPeople INTEGER NULL` — core `database.js` migration and `schema.sql`, NULL for every existing row.
 - `resource_bookings.people INTEGER NULL` — plugin migration, NULL for every existing row.
-- Payment basket source `outsideSession` (sale link `ref` = hold ref).
-- No data rewritten. CHANGELOG `Migration` fragment for the two columns.
+- `resource_session_orders` — plugin migration, starts empty: the sessions ordered on the website and their 15 minutes (`held` / `booked` / `lapsed` / `refund_owed`), keyed by an unguessable `ref`.
+- `gift_voucher_uses.people INTEGER NULL` — plugin migration.
+- Payment basket source `outsideSession` (sale link `ref` = the order's `ref`; the slot hold is `site-session:<ref>`).
+- No data rewritten. CHANGELOG `Migration` fragment for the columns and the table.
 
 ## 6. UI / UX
 
@@ -219,6 +229,10 @@ x € », « Confirmer la séance »), 44 px targets, 16 px inputs, no horizonta
 sticky, in-flow button hidden. Texts French, short, impersonal.
 
 ## 7. Test plan
+
+**Implemented 2026-11-25** — server: the 4 suites below plus `resource-session-max-people.unit.test.js`; client: 7 new files
+(`wordpress-session-booking{,.voucher,.return,.site}.test.js`, `resourceForm.session-max-people.test.js`, `OutsideBookingPage.people.test.jsx`,
+`ResourcePlanningPage.people.test.jsx`); the two suites of the former use block were replaced by the first four.
 
 **Server unit tests** (one file per subject):
 - `hourly-resources/tests/public-session-booking.unit.test.js`: offerable resources; slots respect duration, horizon, holds; quote
@@ -254,9 +268,13 @@ at its band, the evening part due even with a day voucher.
 
 ## 10. Implementation progress
 
-- [ ] Server: shared push channel, `notifyOperator`, columns
-- [ ] Server: public session service + routes + paid basket
-- [ ] Server: voucher use additions + notifications
-- [ ] Client: `sessionMaxPeople`, `people` on the fiche
-- [ ] WordPress: session block, alias, purchase link, straight card, proxy, redirect
-- [ ] Tests, CHANGELOG fragments, plugin/connector versions
+- [x] Server: shared push channel, `notifyOperator`, columns
+- [x] Server: public session service + routes + paid basket
+- [x] Server: voucher use additions + notifications
+- [x] Client: `sessionMaxPeople`, `people` on the fiche
+- [x] WordPress: session block, alias, purchase link, straight card, proxy, redirect
+- [x] Tests, CHANGELOG fragments, plugin/connector versions
+
+Deviations from the first draft, all written above: the notification links open `/passages/<id>` and `/bons-cadeaux?bon=<id>` (the pages that exist);
+`sessionMaxPeople` is a core column; the people are corrected through their own `PATCH` so no price moves; a settled voucher is named from its tender's label
+(« bon cadeau n° BC-2026-0042 »).
