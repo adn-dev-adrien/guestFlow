@@ -4,9 +4,9 @@
  * remainder is paid.
  *
  *   open({ code, visitor })                           → the contents, the names, the validity, the add-ons and extra time on offer, each step
- *                                                       priced like the offer prices it (rule 63), the horizon (rule 24)
+ *                                                       priced like the offer prices it (rule 64), the horizon (rule 24)
  *   slots({ code, from, to, extraMinutes?, visitor }) → `{ days: [{ date, slots: [{ start, end, tag: 'in' | 'supplement', supplementCents }] }] }` (rules 25, 14)
- *   quote({ code, start, extraMinutes?, addOns?, visitor }) → the recap: included, supplement, extras (and `extrasCents`, their sum, and `extraTimePrices`, the extra-time steps priced at that start, rule 63), what is still due, the VAT (rules 26-27)
+ *   quote({ code, start, extraMinutes?, addOns?, visitor }) → the recap: included, supplement, extras (and `extrasCents`, their sum, and `extraTimePrices`, the extra-time steps priced at that start, rule 64), what is still due, the VAT (rules 26-27)
  *   confirm({ code, start, extraMinutes?, addOns?, email, phone, name?, termsVersionId, visitor, returnUrl? }) → `{ booked: true }` | `{ payUrl, heldUntil }` (rules 28-29)
  *   paid({ ref, linkId, amountCents })                the bank confirmed the remainder: book and settle in one transaction, or say the money is owed back (rule 29)
  *   lapseDue()                                        the job: 15 minutes ended unpaid, the slot and the voucher are free again
@@ -100,7 +100,7 @@ function createUseService({
     return (campaign ? campaign.addOns : []).filter((ref) => !held.has(ref));
   }
 
-  /** Rule 63 — what « Mon bain » shows under « Ajouter au bon »: the offered add-ons with their price tables, built on the opening call only. */
+  /** Rule 64 — what « Mon bain » shows under « Ajouter au bon »: the offered add-ons with their price tables, built on the opening call only. */
   const offeredAddOns = (voucher, contents) => extrasPricing.priced(offeredAddOnRefs(voucher, contents)
     .map((articleRef) => ({ articleRef, label: (catalogue.element(articleRef) || {}).label || articleRef, maxQty: campaignRules.MAX_QTY })));
 
@@ -130,7 +130,7 @@ function createUseService({
   }
 
   /**
-   * Rule 63 — the price of each extra-time step at the chosen start, through the very path the recap's extra line takes (the booking offer's quote, then the engine), so the figure
+   * Rule 64 — the price of each extra-time step at the chosen start, through the very path the recap's extra line takes (the booking offer's quote, then the engine), so the figure
    * of the fold equals the line of the recap for the same minutes. Steps run until the slot no longer holds the longer session (the close time, the next booking) or the engine
    * cannot price one.
    */

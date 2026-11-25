@@ -6,7 +6,7 @@
  *   GFBooking.voucherMoney(cents)        « 150 € », « 12,50 € » — a whole amount without its cents
  *   GFBooking.voucherDuration(minutes)   « 2 h », « 1 h 30 », « 45 min »
  *   GFBooking.voucherStepper(opts)       − n + counter, ≥ 44 px: { value, min, max, step, format(n), name, onChange(n) } → node (with .set(n)); `step` is the server's, never a rule of the page
- *   GFBooking.voucherExtrasFold(opts)    « Ajouter au bon » (specs/gift-voucher-campaigns.md rule 63): the extra time and the add-ons in one fold, closed by default, each line with the price
+ *   GFBooking.voucherExtrasFold(opts)    « Ajouter au bon » (specs/gift-voucher-campaigns.md rule 64): the extra time and the add-ons in one fold, closed by default, each line with the price
  *                                        GuestFlow gives for its quantity. { extraTime, addOns, onExtraTime(minutes), onAddOn(articleRef, qty) } → node with .update(extrasCents):
  *                                        a number shows « + Y € » once something is chosen, null shows « … » (the price is being asked), undefined shows nothing. Every amount is
  *                                        looked up in the server's `prices`; the page multiplies and adds nothing. `.updateExtraTimePrices(prices)` swaps the extra-time table for the

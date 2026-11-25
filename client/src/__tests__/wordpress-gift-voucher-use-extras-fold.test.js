@@ -1,4 +1,4 @@
-// specs/gift-voucher-campaigns.md rule 63 — « Utiliser un bon cadeau »: the same « Ajouter au bon » fold, whose extra-time row shows the offer's prices until a slot is chosen and then
+// specs/gift-voucher-campaigns.md rule 64 — « Utiliser un bon cadeau »: the same « Ajouter au bon » fold, whose extra-time row shows the offer's prices until a slot is chosen and then
 // the prices the server's quote answers for that start (`extraTimePrices`), so the row never disagrees with the recap; the head's amount is the quote's `extrasCents`.
 import fs from 'node:fs';
 import path from 'node:path';
@@ -104,7 +104,7 @@ async function chooseSlot(slot, { extra = false } = {}) {
 
 afterEach(() => { document.body.innerHTML = ''; delete window.GFBooking; window.location.hash = ''; window.history.replaceState(null, '', '/'); });
 
-test('rule 63: the fold is drawn on « Utiliser un bon », closed, with the offer’s extra-time price; the stepper reaches the last listed step, a step with no price says it depends on the slot', async () => {
+test('rule 64: the fold is drawn on « Utiliser un bon », closed, with the offer’s extra-time price; the stepper reaches the last listed step, a step with no price says it depends on the slot', async () => {
   window.location.hash = `#bon=${validCode()}`;
   setup();
   await screen.findByText('Votre bon comprend');
@@ -121,14 +121,14 @@ test('rule 63: the fold is drawn on « Utiliser un bon », closed, with the offe
   expect(extraRow().textContent).not.toContain('au maximum');
 });
 
-test('rule 63: once a slot is chosen the extra-time row reads the prices the quote answers for that start, and the head shows the quote’s extrasCents', async () => {
+test('rule 64: once a slot is chosen the extra-time row reads the prices the quote answers for that start, and the head shows the quote’s extrasCents', async () => {
   await chooseSlot('17:00', { extra: true });
   await waitFor(() => expect(flat(document.querySelector('.gf-use-recap').textContent)).toContain('63,00 €'));
   expect(flat(extraRow().textContent)).toContain('+1 h = 63 €');
   expect(flat(document.querySelector('.gf-fold-y').textContent)).toBe('+ 63 €');
 });
 
-test('rule 63: while the next quote is pending the extra-time row keeps the prices of the chosen start, and does not fall back to the offer’s', async () => {
+test('rule 64: while the next quote is pending the extra-time row keeps the prices of the chosen start, and does not fall back to the offer’s', async () => {
   await chooseSlot('17:00');
   await waitFor(() => expect(flat(extraRow().textContent)).toContain('63 € par tranche de 1 h'));
   fireEvent.click(screen.getByLabelText('Ajouter : Boisson'));

@@ -1,5 +1,5 @@
 /**
- * The price of each step of what can be added to a voucher (specs/gift-voucher-campaigns.md rule 63), asked of the pricing engine for the outside customer — the same
+ * The price of each step of what can be added to a voucher (specs/gift-voucher-campaigns.md rule 64), asked of the pricing engine for the outside customer — the same
  * way a price request prices the line, so a figure read here is the figure the request answers. The page reads these tables and adds nothing.
  *
  *   priced([{ articleRef, label, maxQty }]) → the same entries with `addOn`'s fields, those the engine cannot price at all left out

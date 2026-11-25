@@ -6,7 +6,7 @@
  *   offer({ withOmitted })              → { campaigns, … } the campaigns on sale, each with its contents, add-ons and extra time (a campaign the engine cannot price is left
  *                                         out, rule 6; `omitted` lists them with their reason for the operator). The lodging campaign's bounds and ideas also sit at the top
  *                                         level, where the site's block has always read them. Each add-on carries `unitLabel`, `linear` and `prices: [{ qty, cents }]`, the extra time
- *                                         `prices: [{ minutes, cents }]`, each priced by the engine like the price request would (rule 63); `extrasCents` of a price is the extra-time and add-on lines' sum.
+ *                                         `prices: [{ minutes, cents }]`, each priced by the engine like the price request would (rule 64); `extrasCents` of a price is the extra-time and add-on lines' sum.
  *   price(request)                      → { ok: true, kind, title, contents, lines, totalCents, extrasCents, vat } | { ok: false, code, message }
  *   createOrder({ request, parties, … }) → { ok: true, order: { id, token }, price } | refusal — priced by the engine now, contents frozen on the order
  *   startPayment(orderId, { returnUrl }) → { ok: true, url, totalCents, label } | refusal — the order priced again, then its one-hour payment link (rule 19)

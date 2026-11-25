@@ -108,6 +108,28 @@
     var stage = GF.el('div', { class: 'gf-gv-stage' });
     container.appendChild(stage);
 
+    // Rule 63 — the switcher heads an open campaign: one compact card per campaign on sale, in the chooser's order.
+    function switcher(current) {
+      var nav = GF.el('nav', { class: 'gf-gv-switch', 'aria-label': GF.t('gvYourGift') }, GF.el('p', { class: 'gf-gv-switch-label', 'aria-hidden': 'true' }, GF.t('gvYourGift')));
+      var row = GF.el('div', { class: 'gf-gv-switch-row' });
+      ['lodging', 'resource'].forEach(function (kind) {
+        campaigns.filter(function (c) { return c.kind === kind; }).forEach(function (c) {
+          var price = c.kind === 'resource' ? (c.totalCents != null ? money(c.totalCents) : '') : GF.t('gvFreeAmount');
+          var opt = GF.el('button', { type: 'button', class: 'gf-gv-switch-opt', 'data-slug': c.slug });
+          var thumb = front(c, 'gf-gv-switch-thumb', true, null);
+          if (thumb) opt.appendChild(thumb);
+          opt.appendChild(GF.el('span', { class: 'gf-gv-switch-text' },
+            GF.el('b', {}, c.title),
+            price ? GF.el('span', {}, price) : null));
+          if (c.slug === current.slug) opt.setAttribute('aria-current', 'true');
+          else opt.addEventListener('click', function () { open(c.slug, true, true); });
+          row.appendChild(opt);
+        });
+      });
+      nav.appendChild(row);
+      return nav;
+    }
+
     function chooser() {
       stage.innerHTML = '';
       var root = GF.el('div', { class: 'gf-gv' }, GF.el('h3', { class: 'gf-gv-title' }, GF.t('gvTitle')));
@@ -134,7 +156,7 @@
 
     // The one way into a campaign (rule 16): its address, the chooser and a single offer all land here.
     var opened = '';
-    function open(slug, remember) {
+    function open(slug, remember, fromSwitch) {
       var campaign = campaigns.filter(function (c) { return c.slug === slug; })[0];
       if (!campaign) { opened = ''; chooser(); return; }
       if (opened === slug && stage.firstChild) return; // the address changed to the campaign already open: keep what the visitor has composed
@@ -143,11 +165,12 @@
         window.history.replaceState(null, '', window.location.pathname + window.location.search + '#campagne=' + encodeURIComponent(slug));
       }
       stage.innerHTML = '';
-      buildForm(stage, offer, campaign, campaigns.length > 1 ? function () {
-        if (window.history && window.history.replaceState) window.history.replaceState(null, '', window.location.pathname + window.location.search);
-        opened = '';
-        chooser();
-      } : null);
+      buildForm(stage, offer, campaign, campaigns.length > 1 ? switcher(campaign) : null);
+      var here = stage.querySelector('.gf-gv-switch-opt[aria-current="true"]');
+      if (here) here.parentNode.scrollLeft = here.offsetLeft - 2; // the row only: the page must not move
+      // The card that had the focus was just rebuilt: hand it to the new current card, so a keyboard or
+      // screen-reader visitor stays in the switcher and hears the offer now open.
+      if (here && fromSwitch) here.focus({ preventScroll: true });
     }
 
     window.addEventListener('hashchange', function () { var slug = hashCampaign(); if (slug) open(slug, false); });
@@ -190,7 +213,7 @@
 
   // ── Purchase form ───────────────────────────────────────────────────────────────────────────
   // `campaign` is null for an older GuestFlow that lists no campaigns: the one free-amount tunnel it has always sold.
-  function buildForm(container, offer, campaign, onBack) {
+  function buildForm(container, offer, campaign, switchNode) {
     var isResource = !!campaign && campaign.kind === 'resource';
     var src = campaign && !isResource ? campaign : offer;
     var available = offer.available === true;
@@ -390,11 +413,7 @@
       priceTimer = setTimeout(askPrice, PRICE_DEBOUNCE_MS);
     }
 
-    if (onBack) {
-      var back = GF.el('button', { type: 'button', class: 'gf-link gf-gv-back' }, GF.t('gvOtherOffer'));
-      back.addEventListener('click', onBack);
-      root.appendChild(back);
-    }
+    if (switchNode) root.appendChild(switchNode);
     // Rule 62 — the card heads the form: above the title on a phone, a column beside it on a wide block.
     var lead = GF.el('div', { class: 'gf-gv-lead' });
     var card = front(campaign, 'gf-gv-front', false, function () { lead.classList.remove('has-front'); });

@@ -112,6 +112,8 @@ Rules are identities: a rule is never renumbered, new rules are appended
    - The composition also fixes the **add-ons offered** to the giver and to the recipient (options
      picked the same way) and the **extra time offered** (yes/no, a maximum, in steps of
      `slotDuration`).
+   - The add-ons list shows a **checkbox before each option** and **stays open after a pick**, so
+     several options are ticked in one pass (revised 2026-11-25).
 5. **Prices are read, never stored by the campaign** (revised 2026-11-18).
    - Every price shown — the campaign editor's preview, the giver's total, the recipient's remainder,
      the back-office total — is computed by the **pricing engine** at the time of the request, for
@@ -661,9 +663,31 @@ Rules are identities: a rule is never renumbered, new rules are appended
     - The recap of a session campaign names the band and its duration, never a clock time: the session's
       hour is chosen later by the recipient (rule 17, fixed 2026-11-24).
 
-### 3.T The extras, folded and priced (added 2026-11-25)
+### 3.T The offer switcher (added 2026-11-25)
 
-63. **What can be added to a voucher sits in one fold, closed by default, and each choice shows its
+63. **An open campaign is headed by an offer switcher, not by a « Choisir une autre offre » link** (owner
+    decision of 2026-11-25, variant « C » of the mock-up `specs/gift-voucher-offer-switcher.html`).
+    - Shown only when more than one campaign is on sale (the condition of the former back link): a `nav`
+      named « Votre cadeau » (EN « Your gift ») holding one button per campaign, in the chooser's order
+      (lodging first, then resource), each with the campaign's thumbnail (lazy, rule 62), its title and
+      its price (`money(totalCents)` for a resource campaign) or « Montant au choix » for lodging.
+    - The open campaign's card carries `aria-current="true"` (accent border, inset ring, dot, warmer
+      background) and does nothing on click; any other card opens its campaign in place through
+      `open(slug, true)`, the one entry point of rule 16. The chooser stays the landing view; the back link
+      and its string `gvOtherOffer` are gone. Browser history and `#campagne=` behave as before.
+    - On a block narrower than 520 px the row scrolls horizontally with scroll-snap, each card 72 % wide so
+      the next one peeks, and the open card is brought into view by setting the row's `scrollLeft` (the
+      page never scrolls). Targets are 44 px at least; focus ring, press feedback and
+      `prefers-reduced-motion` follow the block's other cards. Colours come from the plugin's theme
+      variables, not from the host's palette.
+    - On a wider block the cards wrap onto further lines instead of scrolling: a hidden scrollbar would
+      leave a mouse without a wheel no way to reach the cards past the edge.
+    - Opening a campaign from the switcher moves the focus to the new current card (without scrolling the
+      page), since rebuilding the form destroys the button that had it.
+
+### 3.U The extras, folded and priced (added 2026-11-25)
+
+64. **What can be added to a voucher sits in one fold, closed by default, and each choice shows its
     price read from GuestFlow** (owner request of 2026-11-25; mock-up and the owner's four choices:
     `specs/gift-voucher-add-ons-folded.html`).
     - **One fold holds the extra time and the add-ons together** (owner choice 1). It is closed on every
@@ -725,7 +749,7 @@ Rules are identities: a rule is never renumbered, new rules are appended
 | plugin | `plugins/guest-app/controllers/ordersController.js`, `routes/public.js` | T | Requires the activity's terms when the cart holds such a resource; records the acceptance on the reservation (rule 37) |
 | plugin | `plugins/gift-vouchers/migrations.js` | T | `gift_voucher_campaigns`, `gift_voucher_visuals` + versions, `campaignId`, `contents`, `visualVersions` on vouchers and orders; settings → first `lodging` campaign; order terms → `terms_acceptances` |
 | plugin | `plugins/gift-vouchers/offerService.js` | C | The one path of rule 52: offer payload, pricing through the engine, order creation, issuance |
-| plugin | `plugins/gift-vouchers/extrasPricing.js` (new), `offerService.js`, `useService.js`, `controllers/publicOrdersController.js` | C/T | The price of each add-on quantity and extra-time step, asked of the engine for the outside customer (one quote per step, stopping at the first the engine refuses); `unitLabel`, `linear`, `prices` on `/offer` and `/use`; `extrasCents` on the price answer and on the use recap (rule 63) |
+| plugin | `plugins/gift-vouchers/extrasPricing.js` (new), `offerService.js`, `useService.js`, `controllers/publicOrdersController.js` | C/T | The price of each add-on quantity and extra-time step, asked of the engine for the outside customer (one quote per step, stopping at the first the engine refuses); `unitLabel`, `linear`, `prices` on `/offer` and `/use`; `extrasCents` on the price answer and on the use recap (rule 64) |
 | plugin | `plugins/gift-vouchers/catalogueView.js` | C | Every resource and option with its tariff modes and sellability reason, from the engine's articles (rule 4) |
 | plugin | `plugins/gift-vouchers/campaignRules.js` | C | Composition validation (one hourly resource, band, minutes, step, sellability); shared by the form, « Sur mesure » and the recipe import |
 | plugin | `plugins/gift-vouchers/models/campaignsModel.js`, `models/visualsModel.js` | C | Campaign CRUD, slug lock, duplicate, one-shot; visual library with versions and purge (rules 47–48) |
@@ -754,7 +778,7 @@ Rules are identities: a rule is never renumbered, new rules are appended
 | plugin | hourly resource form | T | Degressivity table, booking horizon |
 | plugin | `plugins/guest-app/apps/guest/src/` (cart / order page) | T | Terms checkbox for an activity not yet accepted |
 | plugin | `plugins/gift-vouchers/CampaignsPage.jsx`, `GiftVoucherTabs.jsx` | C | Tabs « Bons / Campagnes / Visuels » in the page bar; routes `/bons-cadeaux/{nouveau,campagnes,campagnes/:id,visuels}` |
-| plugin | `plugins/gift-vouchers/ExtrasFold.jsx` (new), `NewVoucherPage.jsx`, `giftVoucherFormat.js` (`formatMinutes`), `giftVoucherTexts.js` | C/T | « Ajouter au bon » on « Nouveau bon » (rule 63): extra time and add-ons in one closed fold, each line with the server's price for its quantity, the head with `extrasCents`; no maths in the page |
+| plugin | `plugins/gift-vouchers/ExtrasFold.jsx` (new), `NewVoucherPage.jsx`, `giftVoucherFormat.js` (`formatMinutes`), `giftVoucherTexts.js` | C/T | « Ajouter au bon » on « Nouveau bon » (rule 64): extra time and add-ons in one closed fold, each line with the server's price for its quantity, the head with `extrasCents`; no maths in the page |
 | component | `components/CollapsibleSection.jsx` | T (generic) | New `subtitle` prop (secondary line under the title); chevron on the expand/collapse curve, reduced motion respected |
 | plugin | `plugins/gift-vouchers/AddOnsPicker.jsx`, `ExtraTimeField.jsx`, `IdeasEditor.jsx`, `VisualPicker.jsx`, `VisualFormDialog.jsx`, `PriceRecap.jsx`, `FormSection.jsx`, `useCatalogue.js` | C | Pieces shared by the editor, « Sur mesure » and the settings: add-ons, extra time, lodging ideas (moved from the settings), a front picked in the library with inline upload, the server's priced lines with « dont TVA » per rate |
 | plugin | `plugins/gift-vouchers/GiftVoucherSettings.jsx` | T | Only the declared keys: `pageUrl`, `linkBase` (rule 56); validity, amounts, VAT, ideas live in the lodging campaign |
@@ -769,8 +793,9 @@ Rules are identities: a rule is never renumbered, new rules are appended
 |---|---|---|
 | `blocks/gift-voucher/view.js` | T | Campaign choice; resource campaigns render the server's lines; lodging keeps today's tunnel |
 | `blocks/gift-voucher/view.js`, `assets/style.css` | T | The campaign's front on each offer and at the head of the form (rule 62) |
+| `blocks/gift-voucher/view.js`, `assets/style.css`, `includes/class-gf-blocks.php` | T | The offer switcher replaces the back link; string `gvYourGift` replaces `gvOtherOffer` (rule 63) |
 | `includes/class-gf-api-client.php` | T | `get_raw` also relays a JPEG, with its cache header (rule 62) |
-| `assets/voucher-parts.js` (`voucherExtrasFold`, `voucherMoney` keeps cents when not whole), `blocks/gift-voucher/view.js`, `blocks/gift-voucher-use/view.js`, `assets/style.css`, `includes/class-gf-blocks.php`, `languages/*en_GB.{po,mo}`, plugin 1.21.0 | T | « Ajouter au bon » fold shared by both blocks (rule 63): prices read from the server's `prices`, `extrasCents` in the head |
+| `assets/voucher-parts.js` (`voucherExtrasFold`, `voucherMoney` keeps cents when not whole), `blocks/gift-voucher/view.js`, `blocks/gift-voucher-use/view.js`, `assets/style.css`, `includes/class-gf-blocks.php`, `languages/*en_GB.{po,mo}`, plugin 1.21.0 | T | « Ajouter au bon » fold shared by both blocks (rule 64): prices read from the server's `prices`, `extrasCents` in the head |
 | `blocks/gift-voucher-use/` | C | « Utiliser un bon cadeau »: code, contents, month chips + slots, recap, terms, pay or confirm |
 | `blocks/booking/view.js` | T | Month chips; forward limit from the horizon the server returns |
 | `includes/class-gf-redirects.php` | C | Permanent paths (rule 9) |
@@ -783,12 +808,12 @@ Public (existing key guard, proof of work on writes):
 
 | Method | Path | Body / query | Answer |
 |---|---|---|---|
-| GET | `/public/v1/gift-vouchers/offer` | — | `{ campaigns: [{ slug, kind, title, contents, addOns:[{ articleRef, label, maxQty, unitLabel, linear, prices:[{ qty, cents }] }], extraTime:{ maxMinutes, stepMinutes, prices:[{ minutes, cents }] }, band:{ from, to } }] }` (prices: rule 63) |
-| POST | `/public/v1/gift-vouchers/offer/price` | `{ slug, extraMinutes, addOns:[{ articleRef, qty }] }` | `{ lines, totalCents, extrasCents, vat:[{ rate, cents }] }` (`extrasCents`: rule 63) |
+| GET | `/public/v1/gift-vouchers/offer` | — | `{ campaigns: [{ slug, kind, title, contents, addOns:[{ articleRef, label, maxQty, unitLabel, linear, prices:[{ qty, cents }] }], extraTime:{ maxMinutes, stepMinutes, prices:[{ minutes, cents }] }, band:{ from, to } }] }` (prices: rule 64) |
+| POST | `/public/v1/gift-vouchers/offer/price` | `{ slug, extraMinutes, addOns:[{ articleRef, qty }] }` | `{ lines, totalCents, extrasCents, vat:[{ rate, cents }] }` (`extrasCents`: rule 64) |
 | POST | `/public/v1/gift-vouchers/orders` | as today + `slug`, `extraMinutes`, `addOns`, `termsVersionId` | as today |
-| POST | `/public/v1/gift-vouchers/use` | `{ code }` | `{ kind, contents, names, expiresOn, addOns, extraTime, horizonUntil }` or a refusal — `addOns`/`extraTime` priced as in `/offer` (rule 63) |
+| POST | `/public/v1/gift-vouchers/use` | `{ code }` | `{ kind, contents, names, expiresOn, addOns, extraTime, horizonUntil }` or a refusal — `addOns`/`extraTime` priced as in `/offer` (rule 64) |
 | POST | `/public/v1/gift-vouchers/use/slots` | `{ code, from, to }` | `{ days:[{ date, slots:[{ start, end, tag, supplementCents }] }] }` |
-| POST | `/public/v1/gift-vouchers/use/quote` | `{ code, start: 'YYYY-MM-DDTHH:MM', extraMinutes, addOns }` | `{ included, extras, extrasCents, extraTimePrices:[{ minutes, cents }], dueCents, vat }` (`extrasCents`, `extraTimePrices`: rule 63) |
+| POST | `/public/v1/gift-vouchers/use/quote` | `{ code, start: 'YYYY-MM-DDTHH:MM', extraMinutes, addOns }` | `{ included, extras, extrasCents, extraTimePrices:[{ minutes, cents }], dueCents, vat }` (`extrasCents`, `extraTimePrices`: rule 64) |
 | POST | `/public/v1/gift-vouchers/use/confirm` | quote + `{ email, phone, termsVersionId }` | `{ booked }` or `{ payUrl, heldUntil }` |
 | GET | `/public/v1/gift-vouchers/links/:slug` | — | `{ target }` |
 | GET | `/public/v1/gift-vouchers/campaigns/:slug/visual` | `?v=<versionId>` | The campaign's voucher front, web JPEG, immutable (rule 62); each `/offer` campaign carries `visual: { versionId, width, height } \| null` |
@@ -853,7 +878,7 @@ forcing dialog of rule 54 uses `ConfirmDialog` with a mandatory reason.
 
 One file per subject:
 
-- `gift-voucher-add-ons-priced.unit.test.js` (rule 63, 9 tests): every add-on quantity and extra-time step priced exactly as the price request prices that choice; unit label and linearity by price family; steps the engine cannot price drop themselves and the following ones; an add-on the engine cannot sell outside a stay is not offered; `extrasCents` on the price answer and on the use recap; « Utiliser un bon » reads the offer's figures, keeps the extra time without a maximum up to closing time, `null`-priced past the band (one-shot and no-extra campaigns included), and answers `extraTimePrices` equal to the recap's extra line at the chosen start, an evening one included. Client: `wordpress-gift-voucher-use-extras-fold.test.js` (3 tests: the fold on « Utiliser un bon » with a step priced `null`, the extra-time row following `extraTimePrices`, no fall-back to the offer's prices while a quote is pending), `wordpress-gift-voucher-extras-fold.test.js` (8 tests: closed and inert by default, opens, prices looked up, « … » while pending, maximum, no fold when nothing is priced) and `NewVoucherPage.extras-fold.test.jsx` (5 tests, incl. extras forgotten on a campaign change and a refusal shown on the closed fold's head).
+- `gift-voucher-add-ons-priced.unit.test.js` (rule 64, 9 tests): every add-on quantity and extra-time step priced exactly as the price request prices that choice; unit label and linearity by price family; steps the engine cannot price drop themselves and the following ones; an add-on the engine cannot sell outside a stay is not offered; `extrasCents` on the price answer and on the use recap; « Utiliser un bon » reads the offer's figures, keeps the extra time without a maximum up to closing time, `null`-priced past the band (one-shot and no-extra campaigns included), and answers `extraTimePrices` equal to the recap's extra line at the chosen start, an evening one included. Client: `wordpress-gift-voucher-use-extras-fold.test.js` (3 tests: the fold on « Utiliser un bon » with a step priced `null`, the extra-time row following `extraTimePrices`, no fall-back to the offer's prices while a quote is pending), `wordpress-gift-voucher-extras-fold.test.js` (8 tests: closed and inert by default, opens, prices looked up, « … » while pending, maximum, no fold when nothing is priced) and `NewVoucherPage.extras-fold.test.jsx` (5 tests, incl. extras forgotten on a campaign change and a refusal shown on the closed fold's head).
 
 - `gift-voucher-site-visual.unit.test.js` (rule 62, 5 tests): the offer names each front's version and web size; the web JPEG and its year-long cache at the version on sale; a new front is a new address and an old one is never kept; draft, unknown, frontless → 404 and `null`; the WordPress proxy route and the block read the front from the offer.
 
@@ -891,6 +916,9 @@ One file per subject:
 - `resource-visit-prepaid-lines`: the SAS section, « non pris » and its generic callback, no refund of a prepaid line.
 - `resource-booking-offer-sdk` (core, generic): the offer's declaration, `unused` and the wording of a prepaid source,
   `takePrepaid` and `paidByOf`.
+- `wordpress-gift-voucher-offer-switcher` (static checks on the plugin sources): switcher only for several campaigns,
+  every card through `open(`, `aria-current`, back link and `gvOtherOffer` gone, `gvYourGift` in PHP / `.po` / `.mo`,
+  reduced-motion rule, focus handed to the new current card, cards wrapping on a wide block (rule 63).
 - `gift-voucher-campaign-wordpress`: blocks render nothing with the plugin off; redirects; field
   hidden in the booking engine.
 

@@ -321,7 +321,7 @@ final class GF_Blocks
                 'gvKindLodging'   => __('Séjours', 'guestflow-booking'),
                 'gvKindResource'  => __('Séances', 'guestflow-booking'),
                 'gvFreeAmount'    => __('Montant au choix', 'guestflow-booking'),
-                'gvOtherOffer'    => __('Choisir une autre offre', 'guestflow-booking'),
+                'gvYourGift'      => __('Votre cadeau', 'guestflow-booking'),
                 'gvIncludes'      => __('Le bon comprend', 'guestflow-booking'),
                 'gvBand'          => __('Séance en %s, de %s à %s.', 'guestflow-booking'),
                 'gvExtrasTitle'   => __('Ajouter au bon', 'guestflow-booking'),

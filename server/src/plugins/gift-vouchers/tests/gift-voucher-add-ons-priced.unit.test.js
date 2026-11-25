@@ -1,4 +1,4 @@
-// specs/gift-voucher-campaigns.md rule 63 — what can be added to a voucher is priced by the server: each add-on of the offer (and of « Utiliser un bon ») carries its unit label,
+// specs/gift-voucher-campaigns.md rule 64 — what can be added to a voucher is priced by the server: each add-on of the offer (and of « Utiliser un bon ») carries its unit label,
 // whether its price is linear and the price of every quantity; the extra time carries the price of every step; the price request answers `extrasCents`. Every figure is the
 // engine's, the one the price request answers for the same choice, so a page reads it and multiplies nothing.
 process.env.DB_PATH = ':memory:';
@@ -25,7 +25,7 @@ const insert = (over) => {
 const bath = insert({ addOns: [`option:${ids.drink}`] });
 const offered = async (slug) => (await api.offerService.offer()).campaigns.find((c) => c.slug === slug);
 
-test('rule 63 — every add-on carries its unit label, its linearity and one price per quantity, each the add-on line of the price request for that quantity', async () => {
+test('rule 64 — every add-on carries its unit label, its linearity and one price per quantity, each the add-on line of the price request for that quantity', async () => {
   const view = await offered(bath.slug);
   const drink = view.addOns.find((a) => a.articleRef === `option:${ids.drink}`);
   assert.deepEqual([view.addOns.length, drink.unitLabel, drink.linear], [1, 'l’unité', true]);
@@ -40,7 +40,7 @@ test('rule 63 — every add-on carries its unit label, its linearity and one pri
   assert.equal(drink.prices[0].cents, 650);
 });
 
-test('rule 63 — the extra time carries one price per step up to its maximum, each the extra line of the price request, the ranks continuing after the included minutes', async () => {
+test('rule 64 — the extra time carries one price per step up to its maximum, each the extra line of the price request, the ranks continuing after the included minutes', async () => {
   const { extraTime } = await offered(bath.slug);
   assert.deepEqual(extraTime.prices.map((p) => p.minutes), [60, 120]);
   extraTime.prices.forEach(({ minutes, cents }) => {
@@ -50,7 +50,7 @@ test('rule 63 — the extra time carries one price per step up to its maximum, e
   assert.deepEqual(extraTime.prices.map((p) => p.cents), [4500, 9000]);
 });
 
-test('rule 63 — the price request answers extrasCents: the extra time and the add-ons, nothing of the session or the included options', () => {
+test('rule 64 — the price request answers extrasCents: the extra time and the add-ons, nothing of the session or the included options', () => {
   const none = api.offerService.price({ slug: bath.slug });
   assert.equal(none.extrasCents, 0);
   const both = api.offerService.price({ slug: bath.slug, extraMinutes: 60, addOns: [{ articleRef: `option:${ids.drink}`, qty: 2 }] });
@@ -58,13 +58,13 @@ test('rule 63 — the price request answers extrasCents: the extra time and the 
   assert.equal(both.totalCents - none.totalCents, both.extrasCents);
 });
 
-test('rule 63 — a campaign with no extra time offers none and no price table for it', async () => {
+test('rule 64 — a campaign with no extra time offers none and no price table for it', async () => {
   const plain = insert({ name: 'Sans rallonge', slug: 'sans-rallonge', extraTimeMaxMinutes: 0, addOns: [] });
   const view = await offered(plain.slug);
   assert.deepEqual([view.extraTime, view.addOns], [null, []]);
 });
 
-test('rule 63 — « Utiliser un bon » reads the same figures: the add-ons not held yet and the extra-time steps, priced as the offer prices them', async () => {
+test('rule 64 — « Utiliser un bon » reads the same figures: the add-ons not held yet and the extra-time steps, priced as the offer prices them', async () => {
   const out = api.offerService.issueDirect({
     request: { slug: bath.slug },
     parties: { recipientName: '', senderName: 'Paul', message: '', email: '', language: 'fr' },
@@ -82,7 +82,7 @@ test('rule 63 — « Utiliser un bon » reads the same figures: the add-ons not 
   assert.equal(data.extraTime.stepMinutes, view.extraTime.stepMinutes);
 });
 
-test('rule 63 — the unit label follows the price family, only a progressive per participant is not linear, and a step the engine cannot price drops itself and the following ones', () => {
+test('rule 64 — the unit label follows the price family, only a progressive per participant is not linear, and a step the engine cannot price drops itself and the following ones', () => {
   const { createExtrasPricing } = require('../extrasPricing');
   const types = { a: 'per_person', b: 'per_participant_progressive', c: 'per_unit' };
   const engine = {
@@ -95,12 +95,12 @@ test('rule 63 — the unit label follows the price family, only a progressive pe
   assert.deepEqual(pricing.addOn('a', 5).prices, [{ qty: 1, cents: 100 }, { qty: 2, cents: 200 }, { qty: 3, cents: 300 }]);
 });
 
-test('rule 63 — an add-on the engine cannot sell outside a stay is not offered, as the price request would refuse it', async () => {
+test('rule 64 — an add-on the engine cannot sell outside a stay is not offered, as the price request would refuse it', async () => {
   const view = await offered(insert({ name: 'Avec peignoir', slug: 'avec-peignoir', addOns: [`option:${ids.drink}`, `option:${ids.perPerson}`] }).slug);
   assert.deepEqual(view.addOns.map((a) => a.articleRef), [`option:${ids.drink}`]);
 });
 
-// ── « Utiliser un bon »: the extra time keeps the slot duration's steps (rule 27), priced like the offer, then at the chosen start (rule 63) ──────────────────────────────────
+// ── « Utiliser un bon »: the extra time keeps the slot duration's steps (rule 27), priced like the offer, then at the chosen start (rule 64) ──────────────────────────────────
 
 const MONDAY = '2026-11-16'; // date-literal-ok: the suite runs on its own clock, never the real today
 const day = (n) => new Date(Date.parse(`${MONDAY}T12:00:00Z`) + n * 86400000).toISOString().slice(0, 10);
@@ -113,7 +113,7 @@ const issueAndCode = (request) => {
   return sdk.coreModule('encryption').safeDecrypt(api.vouchers.find(out.voucherId).codeEncrypted).value;
 };
 
-test('rule 63 — « Utiliser un bon » offers the extra time by the resource’s slot step, with no maximum, even for a one-shot voucher and a campaign that offers none', () => {
+test('rule 64 — « Utiliser un bon » offers the extra time by the resource’s slot step, with no maximum, even for a one-shot voucher and a campaign that offers none', () => {
   const oneShot = issueAndCode({ composition: { resourceId: ids.bath, band: 'day', minutes: 120, options: [] } });
   const none = insert({ name: 'Sans rallonge 2', slug: 'sans-rallonge-2', extraTimeMaxMinutes: 0, addOns: [] });
   const noExtra = issueAndCode({ slug: none.slug });
@@ -129,7 +129,7 @@ test('rule 63 — « Utiliser un bon » offers the extra time by the resource’
   });
 });
 
-test('rule 63 — the use recap answers the extra-time steps priced at the chosen start: each equals the recap’s extra line for that time, an evening start included', () => {
+test('rule 64 — the use recap answers the extra-time steps priced at the chosen start: each equals the recap’s extra line for that time, an evening start included', () => {
   const code = issueAndCode({ slug: bath.slug });
   [`${day(0)}T10:00`, `${day(0)}T18:00`].forEach((start) => {
     const base = api.useService.quote({ code, start, visitor: VISITOR });

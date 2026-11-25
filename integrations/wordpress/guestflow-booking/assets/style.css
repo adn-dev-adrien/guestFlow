@@ -478,14 +478,38 @@ button.gf-cal-day.gf-shake { animation: gf-shake .32s cubic-bezier(.36, .07, .19
   .gf-gv-lead.has-front .gf-gv-aside { position: static; }
 }
 @media (prefers-reduced-motion: reduce) { .gf-gv-front { animation: none; } }
-.gf-gv-back { justify-self: start; min-height: 44px; padding: 0; border: 0; background: none; color: var(--gfb-fill); font: inherit; text-decoration: underline; cursor: pointer; }
+/* Rule 63 — the offer switcher heading an open campaign (specs/gift-voucher-offer-switcher.html). */
+.gf-gv-switch { margin: 0 0 1.4rem; }
+.gf-gv-switch-label { margin: 0 0 .6rem; font-size: .7rem; font-weight: 700; letter-spacing: .3em; text-transform: uppercase; color: var(--gfb-fill-strong); }
+.gf-gv-switch-row { position: relative; display: flex; flex-wrap: wrap; gap: .6rem; padding: 2px 2px 8px; margin: 0 -2px; }
+.gf-gv-switch-opt { position: relative; flex: 1 1 0; min-width: 190px; min-height: 44px; scroll-snap-align: start; display: flex; align-items: center; gap: .75rem; padding: .5rem .9rem .5rem .5rem; text-align: left; border: 1px solid var(--gfb-border); border-radius: 6px; background: #fff; color: inherit; font: inherit; cursor: pointer; -webkit-tap-highlight-color: transparent; touch-action: manipulation; transition: border-color .2s ease, box-shadow .2s ease, transform .12s ease-out; }
+.gf-gv-switch-opt:active { transform: scale(.98); }
+.gf-gv-switch-opt:focus-visible { outline: 2px solid var(--gfb-fill); outline-offset: 2px; }
+.gf-gv-switch-opt[aria-current="true"] { border-color: var(--gfb-fill); box-shadow: 0 0 0 1px var(--gfb-fill) inset; background: color-mix(in srgb, var(--gfb-fill) 6%, #fff); cursor: default; }
+.gf-gv-switch-opt[aria-current="true"]::after { content: ""; position: absolute; top: 8px; right: 8px; width: 8px; height: 8px; border-radius: 50%; background: var(--gfb-fill); }
+.gf-gv-switch-thumb { flex: none; width: 38px; height: 53px; object-fit: cover; border-radius: 3px; background: var(--gfb-border); }
+.gf-gv-switch-text { display: grid; gap: .1rem; min-width: 0; }
+.gf-gv-switch-text b { font-size: .88rem; line-height: 1.25; overflow-wrap: anywhere; }
+.gf-gv-switch-text span { font-size: .8rem; color: var(--gfb-muted); font-variant-numeric: tabular-nums; }
+@container gf-gv (max-width: 520px) {
+  .gf-gv-switch-row { flex-wrap: nowrap; overflow-x: auto; scroll-snap-type: x mandatory; scrollbar-width: none; }
+  .gf-gv-switch-row::-webkit-scrollbar { display: none; }
+  .gf-gv-switch-opt { flex: 0 0 72%; min-width: 0; }
+}
+@media (hover: hover) and (pointer: fine) {
+  .gf-gv-switch-opt:not([aria-current="true"]):hover { border-color: var(--gfb-fill); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .gf-gv-switch-opt { transition: none; }
+  .gf-gv-switch-opt:active { transform: none; }
+}
 .gf-gv-items { margin: 0 0 .6rem; padding-left: 1.1rem; display: grid; gap: .2rem; }
 .gf-gv-heading { font-size: clamp(1.5rem, 8cqi, 2.2rem); }
 .gf-gv-compose { display: grid; gap: .6rem; }
 .gf-gv-compose-row { display: flex; align-items: center; justify-content: space-between; gap: .75rem; padding: .35rem 0; border-top: 1px solid var(--gfb-border); }
 .gf-gv-compose-label { min-width: 0; overflow-wrap: anywhere; font-weight: 600; }
 .gf-gv-compose-label small { display: block; font-weight: 400; color: var(--gfb-muted); }
-/* « Ajouter au bon » — the extra time and the add-ons in one fold, closed by default (specs/gift-voucher-campaigns.md rule 63) */
+/* « Ajouter au bon » — the extra time and the add-ons in one fold, closed by default (specs/gift-voucher-campaigns.md rule 64) */
 .gf-fold { margin: .3rem 0 .8rem; border: 1px solid var(--gfb-border); border-radius: 12px; background: #fff; overflow: hidden; transition: border-color .2s ease-out, box-shadow .2s ease-out; }
 .gf-fold.is-open { border-color: color-mix(in srgb, var(--gfb-accent) 35%, var(--gfb-border)); box-shadow: 0 6px 18px color-mix(in srgb, var(--gfb-ink) 7%, transparent); }
 .gf-fold-head { display: flex; align-items: center; gap: .75rem; width: 100%; min-height: 60px; padding: .7rem .95rem; border: 0; background: none; font: inherit; color: inherit; text-align: left; cursor: pointer; -webkit-tap-highlight-color: transparent; touch-action: manipulation; transition: background-color .15s ease-out; }

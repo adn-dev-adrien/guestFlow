@@ -1,4 +1,4 @@
-// specs/gift-voucher-campaigns.md rule 63 — « Nouveau bon »: the extra time and the add-ons of a campaign sit in one fold « Ajouter au bon », closed by default; its head counts
+// specs/gift-voucher-campaigns.md rule 64 — « Nouveau bon »: the extra time and the add-ons of a campaign sit in one fold « Ajouter au bon », closed by default; its head counts
 // what is inside, then names what is chosen with the price answer's `extrasCents`; each line shows the price the server gives for its quantity (looked up, never multiplied);
 // at the maximum the « + » is disabled and the line says so.
 import React from 'react';
@@ -37,7 +37,7 @@ beforeEach(() => {
   giftVouchersApi.previewPrice.mockResolvedValue(PRICE);
 });
 
-test('rule 63: the fold is closed by default; its head counts what is inside with the lowest first price, and the lines appear when it opens', async () => {
+test('rule 64: the fold is closed by default; its head counts what is inside with the lowest first price, and the lines appear when it opens', async () => {
   open();
   await screen.findByTestId('price-recap');
   expect(head()).toHaveAttribute('aria-expanded', 'false');
@@ -49,7 +49,7 @@ test('rule 63: the fold is closed by default; its head counts what is inside wit
   expect(screen.getByText('Prix TTC, ajoutés au montant du bon.')).toBeInTheDocument();
 });
 
-test('rule 63: each line shows the server’s price for one step, then for the quantity chosen, and the head shows the names and the server’s extrasCents', async () => {
+test('rule 64: each line shows the server’s price for one step, then for the quantity chosen, and the head shows the names and the server’s extrasCents', async () => {
   open();
   await screen.findByTestId('price-recap');
   await userEvent.click(head());
@@ -66,7 +66,7 @@ test('rule 63: each line shows the server’s price for one step, then for the q
   expect(head().textContent).toContain('2');
 });
 
-test('rule 63: at the maximum the « + » is disabled and the line says so', async () => {
+test('rule 64: at the maximum the « + » is disabled and the line says so', async () => {
   open();
   await screen.findByTestId('price-recap');
   await userEvent.click(head());
@@ -77,7 +77,7 @@ test('rule 63: at the maximum the « + » is disabled and the line says so', asy
   expect(norm(lineOf('Temps en plus').textContent)).toContain('2 h au maximum par bon');
 });
 
-test('rule 63: a campaign whose extras the server could not price draws no fold', async () => {
+test('rule 64: a campaign whose extras the server could not price draws no fold', async () => {
   const [bath, lodging] = OFFER.campaigns;
   giftVouchersApi.getOffer.mockResolvedValue({ ...OFFER, campaigns: [{ ...bath, addOns: [], extraTime: null }, lodging] });
   open();
@@ -85,7 +85,7 @@ test('rule 63: a campaign whose extras the server could not price draws no fold'
   expect(screen.queryByRole('button', { name: /Ajouter au bon/ })).not.toBeInTheDocument();
 });
 
-test('rule 63: changing the campaign forgets the extras chosen on the other, and a refusal for the extras shows in the closed fold’s head', async () => {
+test('rule 64: changing the campaign forgets the extras chosen on the other, and a refusal for the extras shows in the closed fold’s head', async () => {
   open();
   await screen.findByTestId('price-recap');
   await userEvent.click(head());

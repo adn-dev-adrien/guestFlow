@@ -159,7 +159,7 @@ test('« Mon bain » opens a voucher: its contents, the names, the validity, the
   assert.deepEqual(data.addOns.map(({ prices, ...rest }) => rest), [{
     articleRef: `option:${ids.drink}`, label: 'Boisson', maxQty: 20, unitLabel: 'l’unité', linear: true,
   }]);
-  assert.deepEqual(data.addOns[0].prices.slice(0, 2), [{ qty: 1, cents: 650 }, { qty: 2, cents: 1300 }], 'rule 63: the figures come from the server');
+  assert.deepEqual(data.addOns[0].prices.slice(0, 2), [{ qty: 1, cents: 650 }, { qty: 2, cents: 1300 }], 'rule 64: the figures come from the server');
   assert.deepEqual([data.extraTime.stepMinutes, 'maxMinutes' in data.extraTime, data.horizonUntil, data.usedOn], [60, false, '2027-02-15', null]); // date-literal-ok: the suite runs on its own clock, never the real today
   assert.equal(data.termsVersionId, 9, 'the version of the activity’s terms the confirmation will ask to have accepted');
   assert.equal(JSON.stringify(data).includes(voucher.code), false, 'the code is never echoed');
@@ -232,7 +232,7 @@ test('the recap of a day voucher run into the evening: the supplement is the eng
   assert.deepEqual(data.supplement, { label: 'Supplément soirée', cents: 1800 });
   assert.deepEqual(data.extras.map((e) => [e.label, e.cents]), [['Temps supplémentaire · 1 h', 6300], ['Boisson', 650]]);
   assert.equal(data.dueCents, 1800 + 6300 + 650);
-  assert.equal(data.extrasCents, 6300 + 650, 'rule 63: the sum the use screen shows next to « Ajouter au bon », read from the server');
+  assert.equal(data.extrasCents, 6300 + 650, 'rule 64: the sum the use screen shows next to « Ajouter au bon », read from the server');
   assert.equal(data.totalCents, 9500 + 1400 + data.dueCents);
   assert.deepEqual([data.date, data.start, data.end], [day(2), '18:00', '21:00']);
   assert.ok(data.vat.length > 0 && data.vat.every((row) => row.cents >= 0));

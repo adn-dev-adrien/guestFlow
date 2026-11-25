@@ -80,7 +80,7 @@ test('public and admin routes return the same payload and the same price for the
     const adminPrice = (await admin('POST', '/offer/price', request)).body;
     assert.equal(sitePrice.totalCents, 9500 + 4500 + 1400 + 1300);
     assert.deepEqual({ lines: adminPrice.lines, totalCents: adminPrice.totalCents, extrasCents: adminPrice.extrasCents, vat: adminPrice.vat }, sitePrice);
-    assert.equal(sitePrice.extrasCents, 4500 + 1300, 'rule 63: the extra time and the add-ons, summed by the server');
+    assert.equal(sitePrice.extrasCents, 4500 + 1300, 'rule 64: the extra time and the add-ons, summed by the server');
     assert.deepEqual(sitePrice, (({
       lines, totalCents, extrasCents, vat,
     }) => ({

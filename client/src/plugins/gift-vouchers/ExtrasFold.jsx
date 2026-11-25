@@ -1,5 +1,5 @@
 /**
- * ExtrasFold — « Ajouter au bon » on « Nouveau bon » (specs/gift-voucher-campaigns.md rule 63): the extra time and the add-ons of a campaign in one fold, closed by default, each
+ * ExtrasFold — « Ajouter au bon » on « Nouveau bon » (specs/gift-voucher-campaigns.md rule 64): the extra time and the add-ons of a campaign in one fold, closed by default, each
  * line with the price GuestFlow gives for its quantity. Every amount is looked up in the offer's `prices` arrays; nothing is multiplied or added here.
  *
  * Props:

@@ -24,6 +24,10 @@
       "Une option que le moteur de prix ne sait pas vendre hors séjour n’est plus proposée : sa demande de prix aurait été refusée.",
       "Compatible avec GuestFlow 4 (SDK 2.33)."
     ],
+    "1.4.2": [
+      "Les options à proposer se cochent dans une liste qui reste ouverte : plusieurs options se choisissent d’un coup.",
+      "Compatible avec GuestFlow 4 (SDK 2.33)."
+    ],
     "1.4.1": [
       "Un bon de séance (bain nordique) se lit comme une séance : après le paiement, la page affiche son contenu au lieu de son montant.",
       "La page d’achat du site montre la carte de chaque campagne, lue dans GuestFlow : changer le visuel d’une campagne change le site.",

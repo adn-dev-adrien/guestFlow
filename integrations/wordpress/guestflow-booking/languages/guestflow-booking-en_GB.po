@@ -919,8 +919,8 @@ msgid "Montant au choix"
 msgstr "Amount of your choice"
 
 #: blocks/gift-voucher-use, includes/class-gf-blocks.php (specs/gift-voucher-campaigns.md)
-msgid "Choisir une autre offre"
-msgstr "Choose another offer"
+msgid "Votre cadeau"
+msgstr "Your gift"
 
 #: blocks/gift-voucher-use, includes/class-gf-blocks.php (specs/gift-voucher-campaigns.md)
 msgid "Le bon comprend"
@@ -934,35 +934,35 @@ msgstr "Session in the %s, from %s to %s."
 msgid "Ajouter au bon"
 msgstr "Add to the voucher"
 
-#: blocks/gift-voucher, blocks/gift-voucher-use, includes/class-gf-blocks.php (specs/gift-voucher-campaigns.md rule 63)
+#: blocks/gift-voucher, blocks/gift-voucher-use, includes/class-gf-blocks.php (specs/gift-voucher-campaigns.md rule 64)
 msgid "%s disponibles"
 msgstr "%s available"
 
-#: blocks/gift-voucher, blocks/gift-voucher-use, includes/class-gf-blocks.php (specs/gift-voucher-campaigns.md rule 63)
+#: blocks/gift-voucher, blocks/gift-voucher-use, includes/class-gf-blocks.php (specs/gift-voucher-campaigns.md rule 64)
 msgid "%s disponible"
 msgstr "%s available"
 
-#: blocks/gift-voucher, blocks/gift-voucher-use, includes/class-gf-blocks.php (specs/gift-voucher-campaigns.md rule 63)
+#: blocks/gift-voucher, blocks/gift-voucher-use, includes/class-gf-blocks.php (specs/gift-voucher-campaigns.md rule 64)
 msgid "dès %s"
 msgstr "from %s"
 
-#: blocks/gift-voucher, blocks/gift-voucher-use, includes/class-gf-blocks.php (specs/gift-voucher-campaigns.md rule 63)
+#: blocks/gift-voucher, blocks/gift-voucher-use, includes/class-gf-blocks.php (specs/gift-voucher-campaigns.md rule 64)
 msgid "%s au maximum par bon"
 msgstr "%s at most per voucher"
 
-#: blocks/gift-voucher, blocks/gift-voucher-use, includes/class-gf-blocks.php (specs/gift-voucher-campaigns.md rule 63)
+#: blocks/gift-voucher, blocks/gift-voucher-use, includes/class-gf-blocks.php (specs/gift-voucher-campaigns.md rule 64)
 msgid "Prix TTC, ajoutés au montant du bon."
 msgstr "Prices include VAT and are added to the voucher amount."
 
-#: blocks/gift-voucher-use, includes/class-gf-blocks.php (specs/gift-voucher-campaigns.md rule 63)
+#: blocks/gift-voucher-use, includes/class-gf-blocks.php (specs/gift-voucher-campaigns.md rule 64)
 msgid "prix selon le créneau"
 msgstr "price depends on the slot"
 
-#: blocks/gift-voucher, blocks/gift-voucher-use, includes/class-gf-blocks.php (specs/gift-voucher-campaigns.md rule 63)
+#: blocks/gift-voucher, blocks/gift-voucher-use, includes/class-gf-blocks.php (specs/gift-voucher-campaigns.md rule 64)
 msgid "l’unité"
 msgstr "each"
 
-#: blocks/gift-voucher, blocks/gift-voucher-use, includes/class-gf-blocks.php (specs/gift-voucher-campaigns.md rule 63)
+#: blocks/gift-voucher, blocks/gift-voucher-use, includes/class-gf-blocks.php (specs/gift-voucher-campaigns.md rule 64)
 msgid "par personne"
 msgstr "per person"
 
