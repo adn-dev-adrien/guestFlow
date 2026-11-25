@@ -30,6 +30,8 @@ export const UNIT_BY_PRICE_TYPE = {
 };
 
 export const TEXTS = {
+  sessionMaxPeople: 'Personnes par séance au plus',
+  sessionMaxPeopleHelp: 'Pour la réservation sur le site. Vide : 20.',
   searchLabel: 'Rechercher une option',
   allCategories: 'Toutes',
   allProperties: 'Tous',
@@ -91,4 +93,5 @@ export const FIELD = {
   wholeNumber: 'Nombre entier attendu',
   afterOpening: 'Après l’ouverture',
   horizonMonths: 'Nombre entier de mois entre 1 et 24',
+  peopleRange: 'Nombre entier de personnes entre 1 et 100',
 };

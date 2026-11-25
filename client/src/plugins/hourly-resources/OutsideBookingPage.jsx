@@ -3,12 +3,12 @@
  *
  * It renders `GET /api/resource-bookings/:id/fiche` and computes nothing: the client, the session(s), the sale's lines with what paid each (the words their payer gave,
  * « Réglé par … »), the payments and the lines to refund, the terms accepted, the arrival or the absence, and the journal newest first. The page bar's « Arrivée »
- * opens the visit's mini SAS. From `md` the details sit left and the history right; on a phone one column, the history below.
+ * opens the visit's mini SAS; the party declared at booking shows in the session block and is corrected there (`PATCH …/people`, informational: it moves no price). From `md` the details sit left and the history right; on a phone one column, the history below.
  */
 import React, { useCallback, useEffect, useState } from 'react';
 import { useNavigate, useParams, Link as RouterLink } from 'react-router';
 import {
-  Alert, Box, Link, Paper, Typography,
+  Alert, Box, Link, Paper, TextField, Typography,
 } from '@mui/material';
 import LoginIcon from '@mui/icons-material/Login';
 import {
@@ -22,6 +22,8 @@ const TEXTS = Object.freeze({
   arrival: 'Arrivée',
   client: 'Client',
   sessions: 'Séance',
+  people: 'Personnes',
+  peopleFailed: 'Le nombre de personnes n’a pas pu être enregistré.',
   sales: 'Ventes',
   noSales: 'Aucune vente enregistrée.',
   paymentsTitle: 'Paiements',
@@ -59,6 +61,38 @@ function Block({ title, children }) {
       <Typography variant="subtitle2" component="h2">{title}</Typography>
       {children}
     </Paper>
+  );
+}
+
+function PeopleField({ bookingId, people, onSaved }) {
+  const stored = people ? String(people) : '';
+  const [value, setValue] = useState(stored);
+  const [error, setError] = useState('');
+  useEffect(() => { setValue(stored); }, [stored]);
+  const commit = async () => {
+    const next = value.trim();
+    if (next === stored) return;
+    try {
+      await api.setResourceBookingPeople(bookingId, next === '' ? null : next);
+      setError('');
+      onSaved();
+    } catch (e) {
+      setError((e && e.message) || TEXTS.peopleFailed);
+    }
+  };
+  return (
+    <TextField
+      label={TEXTS.people}
+      size="small"
+      value={value}
+      onChange={(e) => setValue(e.target.value)}
+      onBlur={commit}
+      onKeyDown={(e) => { if (e.key === 'Enter') e.target.blur(); }}
+      error={Boolean(error)}
+      helperText={error || undefined}
+      sx={{ maxWidth: 160 }}
+      slotProps={{ htmlInput: { inputMode: 'numeric', style: { fontSize: 16 } } }}
+    />
   );
 }
 
@@ -191,6 +225,7 @@ export default function OutsideBookingPage() {
                 {`${session.resourceName} · ${displayDate(session.date)} · ${session.start}–${session.end}`}
               </Typography>
             ))}
+            <PeopleField bookingId={booking.id} people={booking.people} onSaved={load} />
             {booking.notes && <Typography variant="caption" color="text.secondary" sx={{ overflowWrap: 'anywhere' }}>{booking.notes}</Typography>}
           </Block>
           <SalesBlock fiche={fiche} />

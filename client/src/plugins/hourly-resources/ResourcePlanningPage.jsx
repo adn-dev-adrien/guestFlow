@@ -533,7 +533,7 @@ export default function ResourcePlanningPage() {
                         return (
                           <Tooltip
                             key={b.id}
-                            title={`${b.kind === 'session' ? 'Réservation · ' : ''}${b.startTime}→${b.endTime} · ${b.displayName}${b.propertyName ? ` · ${b.propertyName}` : ''}${b.kind === 'booking' ? (b.paid ? ` · Payé ${b.payment ? b.payment.label : ''}${b.invoice && !b.invoice.cancelled ? ` · ${b.invoice.number}` : ''}` : ' · À encaisser') : ''}${b.turnoverMinutes ? ` · remise en état ${b.turnoverMinutes} min` : ''}${b.notes ? ` · ${b.notes}` : ''}`}
+                            title={`${b.kind === 'session' ? 'Réservation · ' : ''}${b.startTime}→${b.endTime} · ${b.displayName}${b.propertyName ? ` · ${b.propertyName}` : ''}${b.people ? ` · ${b.people} pers.` : ''}${b.kind === 'booking' ? (b.paid ? ` · Payé ${b.payment ? b.payment.label : ''}${b.invoice && !b.invoice.cancelled ? ` · ${b.invoice.number}` : ''}` : ' · À encaisser') : ''}${b.turnoverMinutes ? ` · remise en état ${b.turnoverMinutes} min` : ''}${b.notes ? ` · ${b.notes}` : ''}`}
                             arrow
                           >
                             <Box>
