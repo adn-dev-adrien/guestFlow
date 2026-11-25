@@ -97,6 +97,13 @@ function createController({ bookings: model, scheduling, planningCards, reservat
     return res.json({ ok: true, totalPrice: result.totalPrice, warning: result.warning });
   }
 
+  // Rule 26 — PATCH /:id/people `{ people }`: the party of a session, corrected on its fiche.
+  function setPeople(req, res) {
+    const result = model().setPeople(req.params.id, (req.body || {}).people);
+    if (result.error) return fail(res, result);
+    return res.json({ ok: true, people: result.people });
+  }
+
   function remove(req, res) {
     const result = model().remove(req.params.id);
     if (result.error) return fail(res, result);
@@ -210,7 +217,7 @@ function createController({ bookings: model, scheduling, planningCards, reservat
   }
 
   return {
-    planningEvents, occupiedSlots, list, getOne, create, preview, update, remove,
+    planningEvents, occupiedSlots, list, getOne, create, preview, update, setPeople, remove,
     recordPayment, clearPayment, issueInvoice, attachInvoice,
     freeSlots, resourceCards, setResourceCardDone,
     // The booking as every route answers it (`invoiceReady`, `actions`), for the visit routes that answer a booking too.

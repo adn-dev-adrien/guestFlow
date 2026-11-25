@@ -69,7 +69,6 @@ function shapeRefusal(payload, stored = null) {
     if (!isText(payload[field])) return refused('Texte attendu.');
   }
   if (payload.paid !== undefined && !isFlag(payload.paid)) return refused('Valeur invalide.');
-  if (!notSent(payload.people) && !peopleOf(payload.people)) return refused('Nombre de personnes invalide.');
   const total = payload.displayedTotal;
   if (!notSent(total) && (typeof total === 'object' || typeof total === 'boolean' || !Number.isFinite(Number(total)))) return refused('Valeur invalide.');
   return null;
@@ -537,9 +536,6 @@ function createModel(database, { standaloneVatRate = () => 20, now = () => new D
       if (payload.notes !== undefined) {
         database.prepare("UPDATE resource_bookings SET notes = ?, updatedAt = datetime('now') WHERE id = ?").run(payload.notes ?? '', id);
       }
-      if (payload.people !== undefined) {
-        database.prepare("UPDATE resource_bookings SET people = ?, updatedAt = datetime('now') WHERE id = ?").run(notSent(payload.people) ? null : peopleOf(payload.people), id);
-      }
       return { ok: true, totalPrice: existing.totalPrice, warning: null };
     }
 
@@ -589,7 +585,7 @@ function createModel(database, { standaloneVatRate = () => 20, now = () => new D
       database.prepare('UPDATE standalone_sales SET clientId = ?, version = version + 1 WHERE id = ? AND invoiceNumber IS NULL')
         .run(clientId || (passage ? passage.id : null), saleId);
     };
-    const write = () => { writeRow(); writePeople(); followClient(); };
+    const write = () => { writeRow(); followClient(); };
     const writeRow = () => database.prepare(
       "UPDATE resource_bookings SET reservationId=?,clientId=?,clientName=?,clientPhone=?,propertyId=?,date=?,startTime=?,endTime=?,notes=?,totalPrice=?,offeredMinutes=?,billingStreet=?,billingPostcode=?,billingCity=?,freeHourAtDayRate=?,updatedAt=datetime('now') WHERE id=?"
     ).run(
@@ -606,10 +602,7 @@ function createModel(database, { standaloneVatRate = () => 20, now = () => new D
       freeHourAtDayRate,
       id,
     );
-    const writePeople = () => {
-      if (payload.people === undefined) return;
-      database.prepare('UPDATE resource_bookings SET people = ? WHERE id = ?').run(notSent(payload.people) ? null : peopleOf(payload.people), id);
-    };
+
     const visit = visitsOf(existing);
     const slotMoved = existing.date !== newDate || existing.startTime !== newStart || existing.endTime !== newEnd;
     const writeMoved = () => {
@@ -631,6 +624,15 @@ function createModel(database, { standaloneVatRate = () => 20, now = () => new D
       }
     }
     return { ok: true, totalPrice, warning: totalWarning(payload.displayedTotal, totalPrice) };
+  }
+
+  /** Rule 26 — the people of a session, for information: a whole number from 1 to 100, or none. Moves no price and no invoice, so an invoiced booking takes it too. */
+  function setPeople(id, people) {
+    if (!database.prepare('SELECT 1 FROM resource_bookings WHERE id = ?').get(id)) return { error: 'Non trouvée', status: 404 };
+    const value = notSent(people) ? null : peopleOf(people);
+    if (value === null && !notSent(people)) return refused('Nombre de personnes invalide.');
+    database.prepare("UPDATE resource_bookings SET people = ?, updatedAt = datetime('now') WHERE id = ?").run(value, id);
+    return { ok: true, people: value };
   }
 
   function remove(id) {
@@ -835,6 +837,7 @@ function createModel(database, { standaloneVatRate = () => 20, now = () => new D
     listReservationSessions,
     findById,
     createBooking,
+    setPeople,
     update,
     remove,
   };

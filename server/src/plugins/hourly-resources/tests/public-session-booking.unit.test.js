@@ -232,18 +232,25 @@ test('rule 8 — the confirmation asks for the proof of work and answers its ref
   assert.deepEqual(calls, []);
 });
 
-test('rule 26 — the people of a session may be corrected on its fiche, as a whole number from 1 to 100', () => {
+test('rule 26 — the people of a session may be corrected on its fiche, as a whole number from 1 to 100, without touching its price', () => {
   const made = fx.bookings.createBooking({
     resourceId: bath, date: '2026-11-18', startTime: '10:00', endTime: '11:00', clientName: 'Passant', // date-literal-ok: the suite runs on its own clock, never the real today
   });
-  assert.equal(fx.bookings.update(made.id, { people: 5 }).ok, true);
+  const price = fx.bookings.rawById(made.id).totalPrice;
+  assert.deepEqual(fx.bookings.setPeople(made.id, 5), { ok: true, people: 5 });
   assert.equal(fx.bookings.rawById(made.id).people, 5);
-  assert.equal(fx.bookings.update(made.id, { people: 0 }).status, 400);
-  assert.equal(fx.bookings.update(made.id, { people: 'beaucoup' }).status, 400);
-  assert.equal(fx.bookings.update(made.id, { people: null }).ok, true);
+  assert.equal(fx.bookings.setPeople(made.id, '6').people, 6);
+  assert.equal(fx.bookings.setPeople(made.id, 0).status, 400);
+  assert.equal(fx.bookings.setPeople(made.id, 'beaucoup').status, 400);
+  assert.equal(fx.bookings.setPeople(made.id, 101).status, 400);
+  assert.equal(fx.bookings.setPeople(9999, 2).status, 404);
+  assert.deepEqual(fx.bookings.setPeople(made.id, null), { ok: true, people: null });
   assert.equal(fx.bookings.rawById(made.id).people, null);
+  assert.equal(fx.bookings.rawById(made.id).totalPrice, price);
   assert.equal(fx.bookings.update(made.id, { notes: 'Une note' }).ok, true);
-  assert.equal(fx.bookings.rawById(made.id).people, null, 'an update that does not name the people leaves them alone');
+  assert.equal(fx.bookings.setPeople(made.id, 3).ok, true);
+  assert.equal(fx.bookings.update(made.id, { notes: 'Autre' }).ok, true);
+  assert.equal(fx.bookings.rawById(made.id).people, 3, 'an update of the booking leaves the people alone');
 });
 
 test('rule 23 — bookOutside tells the operator of the sessions of the channels site and mon-bain once they are written, and of no other channel', () => {
