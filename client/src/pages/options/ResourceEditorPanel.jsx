@@ -133,7 +133,7 @@ export default function ResourceEditorPanel({ open, resourceId, properties, onCl
   };
   const clientErrors = useMemo(() => (form ? validateResourceForm(form) : {}), [form]);
   const vatClasses = useExternalVatRates(open);
-  const sellability = useOutsideSellability(open && Boolean(form), 'resource', form || {});
+  const sellability = useOutsideSellability(open && Boolean(form), 'resource', { ...(form || {}), id: resourceId });
   const plugins = usePluginFields('resources.fields', form);
   const coreDirty = Boolean(form) && JSON.stringify(form) !== saved;
   const dirty = coreDirty || plugins.dirty;

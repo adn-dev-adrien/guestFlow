@@ -16,7 +16,7 @@ vi.mock('../giftVouchersApi', () => ({
   },
 }));
 
-const REASON = 'Le prix « par nuit » a besoin d’un séjour : il ne se vend pas seul.';
+const REASON = 'Le prix « par jour » a besoin d’un séjour : il ne se vend pas seul.';
 const withdrawn = [{ articleRef: 'option:12', label: 'Petit-déjeuner', reason: REASON }];
 const open = () => renderWithShell(<CampaignEditor />, { route: '/bons-cadeaux/campagnes/5', path: '/bons-cadeaux/campagnes/:id' });
 
@@ -32,7 +32,7 @@ test('rule 65 — the editor opens on a warning that names each withdrawn option
   giftVouchersApi.getCampaign.mockResolvedValue(campaign({ addOns: ['option:11', 'option:12'], withdrawn }));
   open();
   const alert = await screen.findByText(/Retirée de l’offre/);
-  expect(alert).toHaveTextContent(`Retirée de l’offre : « Petit-déjeuner » — ${REASON}. La retirer de la campagne pour pouvoir l’enregistrer.`);
+  expect(alert).toHaveTextContent(`Retirée de l’offre : « Petit-déjeuner » — ${REASON} La retirer de la campagne pour pouvoir l’enregistrer.`);
   expect(alert.closest('[role="alert"]')).toBeInTheDocument();
   const chip = screen.getByText('Petit-déjeuner', { selector: '.MuiChip-label' });
   expect(chip.closest('.MuiChip-root')).toHaveClass('MuiChip-colorWarning');
@@ -47,14 +47,14 @@ test('rule 65 — several are listed in the campaign’s order, a composition op
     withdrawn: [...withdrawn, { articleRef: 'option:13', label: 'Atelier', reason: 'Archivée : retirée du catalogue.' }],
   }));
   const { unmount } = open();
-  const alert = await screen.findByText(/Retirée de l’offre/);
-  expect(alert).toHaveTextContent(`« Petit-déjeuner » — ${REASON} ; « Atelier » — Archivée : retirée du catalogue.`);
+  const alert = await screen.findByText(/Retirées de l’offre/);
+  expect(alert).toHaveTextContent(`Retirées de l’offre : « Petit-déjeuner » — ${REASON} ; « Atelier » — Archivée : retirée du catalogue. Les retirer de la campagne pour pouvoir l’enregistrer.`);
   const card = screen.getByText('Petit-déjeuner', { selector: 'p' }).closest('.MuiCard-root');
-  expect(within(card).getByText('Par nuit').closest('.MuiChip-root')).toHaveClass('MuiChip-colorWarning');
+  expect(within(card).getByText('Par jour').closest('.MuiChip-root')).toHaveClass('MuiChip-colorWarning');
   unmount();
 
   giftVouchersApi.getCampaign.mockResolvedValue(campaign({ withdrawn: [] }));
   open();
   expect(await screen.findByDisplayValue('Bain journée')).toBeInTheDocument();
-  expect(screen.queryByText(/Retirée de l’offre/)).not.toBeInTheDocument();
+  expect(screen.queryByText(/Retirées? de l’offre/)).not.toBeInTheDocument();
 });

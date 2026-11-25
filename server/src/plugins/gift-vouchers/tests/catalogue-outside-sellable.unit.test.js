@@ -21,7 +21,7 @@ const byRef = (ref) => api.catalogue.element(ref);
 
 test('rule 65 — a per-person or progressive option with no planning card is greyed with the engine’s reason; with a planning card it stays sellable', () => {
   assert.deepEqual([byRef(`option:${ids.perPerson}`).sellable, byRef(`option:${ids.perPerson}`).reason], [false, reasonOf('par personne')]);
-  assert.deepEqual([byRef(`option:${progressive}`).sellable, byRef(`option:${progressive}`).reason], [false, reasonOf('progressif par participant')]);
+  assert.deepEqual([byRef(`option:${progressive}`).sellable, byRef(`option:${progressive}`).reason], [false, reasonOf('dégressif participants')]);
   assert.deepEqual([byRef(`option:${perPersonCard}`).sellable, byRef(`option:${perPersonCard}`).reason], [true, null]);
   assert.equal(byRef(`option:${ids.drink}`).sellable, true);
 });
@@ -38,7 +38,7 @@ test('rule 65 — the campaign read reports the options the catalogue no longer 
   try {
     const expected = [
       { articleRef: `option:${ids.perPerson}`, label: 'Peignoir', reason: reasonOf('par personne') },
-      { articleRef: `option:${progressive}`, label: 'Atelier', reason: reasonOf('progressif par participant') },
+      { articleRef: `option:${progressive}`, label: 'Atelier', reason: reasonOf('dégressif participants') },
     ];
     const read = await server.call('GET', `/api/gift-vouchers/campaigns/${stored.id}`);
     assert.equal(read.status, 200);

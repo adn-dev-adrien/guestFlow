@@ -7,7 +7,7 @@ import AddOnsPicker from '../AddOnsPicker';
 const elements = [
   { kind: 'option', articleRef: 'option:1', label: 'Bouteille de cidre', priceTypeLabel: 'Par unité', sellable: true },
   { kind: 'option', articleRef: 'option:2', label: 'Planche apéritive', priceTypeLabel: 'Par personne', sellable: true },
-  { kind: 'option', articleRef: 'option:3', label: 'Ménage', priceTypeLabel: 'Par nuit', sellable: false, reason: 'Demande un séjour' },
+  { kind: 'option', articleRef: 'option:3', label: 'Ménage', priceTypeLabel: 'Par jour', sellable: false, reason: 'Demande un séjour' },
 ];
 
 function Harness() {

@@ -749,7 +749,7 @@ Rules are identities: a rule is never renumbered, new rules are appended
       read (`GET /campaigns/:id`, and each item of the list) carries `withdrawn: [{ articleRef, label,
       reason }]`, the options among `addOns` and `composition.options` that the catalogue no longer sells,
       in the order of the campaign. The editor shows a warning `Alert` when it opens: « Retirée de l’offre : «
-      label » — reason ; … La retirer de la campagne pour pouvoir l’enregistrer. », and the chip of each one is
+      label » — reason ; … La retirer de la campagne pour pouvoir l’enregistrer. » (« Retirées … Les retirer … » past one), and the chip of each one is
       drawn in the warning colour with the reason as its tooltip. The server neither removes it nor changes the
       campaign; the save stays refused (rule 4) until the operator removes it. The public offer keeps leaving
       it out (rule 64).

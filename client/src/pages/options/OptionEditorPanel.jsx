@@ -87,7 +87,7 @@ export default function OptionEditorPanel({
   const clientErrors = useMemo(() => (form ? validateOptionForm(form) : {}), [form]);
   const plugins = usePluginFields('options.fields', form);
   const vatClasses = useExternalVatRates(open);
-  const sellability = useOutsideSellability(open && Boolean(form), 'option', form || {});
+  const sellability = useOutsideSellability(open && Boolean(form), 'option', { ...(form || {}), id: optionId });
   const coreDirty = Boolean(form) && JSON.stringify(form) !== saved;
   const dirty = coreDirty || plugins.dirty;
   // A pristine form shows no error (a new option does not open on « Nom requis »): they appear once it is edited.

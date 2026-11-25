@@ -2756,18 +2756,21 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
 124. **Which articles sell with no stay is the families' own answer** _(owner decision of 2026-11-25; completes rules 47, 53, 88;
     `specs/gift-voucher-campaigns.md` rule 65; mock-up `specs/gift-voucher-outside-sellable.html`)_.
     - **Each family declares it.** A family carries `readsStay` (true for `perPerson`, `perNight`, `perPersonPerNight`,
-      `percentOfStay`, `perParticipantProgressive`; false for `fixed`, `perUnit`, `hourly`), and `familyKit.refusalsOf` answers
+      `percentOfStay`, `perParticipantProgressive`; false for `fixed`, `perUnit`), and `familyKit.refusalsOf` answers
       `NEEDS_STAY` from that same flag. `articles.outsideSale(article)` is the one function that says whether an article can be
       sold to a customer with no stay: `{ sellable, code, reason }`, `code` ∈ `null | 'NEEDS_STAY' | 'NEEDS_FULFILMENT' |
       'INSURANCE'`. A family that reads the stay answers `NEEDS_STAY` with « Le prix « <label> » a besoin d’un séjour : il ne se
       vend pas seul. »; the cancellation insurance answers `INSURANCE` (« L’assurance annulation ne se vend qu’avec un séjour. »);
-      an hourly resource is sellable for the catalogue fields but answers `NEEDS_FULFILMENT` at the counter (a session is booked
-      from the planning). The French labels of the price types move from the gift-voucher plugin to the core
-      (`utils/pricing/articles/priceTypeLabels.js`) so the sentence is the same in every caller.
+      a family the core does not own (today the hourly-resources plugin's `hourly`) is not read for a flag: it is sellable for the
+      catalogue fields but answers `NEEDS_FULFILMENT` at the counter (a session is booked from the planning). The French labels of the price types move from the gift-voucher plugin to the core
+      (`utils/pricing/articles/priceTypeLabels.js`) so the sentence is the same in every caller; they are the words of the fiches'
+      « Type de prix » menu (« Prix fixe », « Par jour », « Dégressif participants »…), so the reason names the type just picked.
     - **The four copies go.** `externalArticleFields` (the fiche's « Vendable hors séjour », rule 88), `standaloneSale.requestsOf`
       (the counter, the outside visit), `suggestedArticles` (« Autre article », outside-booking-sas rule 11) and the gift-voucher
       `catalogueView` read `outsideSale`; none keeps a list of families. Their answers do not change, except the gift-voucher catalogue
-      (rule 65 there) and the fiche, which now also refuses the cancellation insurance (it was already refused everywhere it could be sold).
+      (rule 65 there) and the cancellation insurance: the catalogue already refused it, and now the fiche, the counter and the suggestions
+      do too (an insurance priced « Prix fixe » used to read as `fixed` there). In production on 2026-11-25 (read-only check) the one
+      insurance option was priced per night and not marked « vendable hors séjour »: nothing it sold changes.
     - **The fiche explains before the save** (owner choice, 2026-11-25). `GET /api/standalone-sales/sellability?kind=option|resource&
       priceType=…&showsPlanningCard=0|1&isCancellationInsurance=0|1` answers `{ sellable, code, reason }` for the draft, built by
       `makeArticle` from those fields and judged by `outsideSale` (admin; 400 on an unknown kind). The option and resource editors ask it
@@ -2775,7 +2778,8 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
       prop. Not sellable and unchecked → the switch is disabled (focusable, `aria-disabled`) and its helper reads the reason; not sellable
       but already checked (a row saved before) → the switch stays active so it can be unchecked, the helper shows the reason in the error
       colour followed by « Décocher pour enregistrer. », and the save stays refused **422 `NEEDS_STAY`** with that same reason until
-      it is unchecked (never unchecked by the server). While the answer is pending the switch keeps its last state.
+      it is unchecked (never unchecked by the server). While the answer is pending the switch keeps its last state for the same article; opening another article, or closing the panel,
+      drops the previous answer.
 
 ## 4. Architecture
 
@@ -2896,6 +2900,7 @@ _Rewritten 2026-11-15 (stabilisation loop t1, UI-3) to the files PR B and PR C s
 | `components/` | `ExternalSaleFields.jsx` | T (generic) | rule 124: `sellability` prop, the switch inert-but-focusable or kept active with « Décocher pour enregistrer. » |
 | `pages/options/` | `OptionEditorPanel.jsx`, `ResourceEditorPanel.jsx` | T | rule 124: fetch the answer and pass it down |
 | `components/__tests__/` | `ExternalSaleFields.sellability.test.jsx` | C | rule 124 |
+| `hooks/__tests__/` | `useOutsideSellability.answer.test.jsx` | C | rule 124 (asks again on a changed draft, drops another article's answer) |
 
 ### 4.3 API contract
 
@@ -3222,7 +3227,7 @@ _Rewritten 2026-11-15 (stabilisation loop t1, UI-3) to what shipped._
 - [ ] Price gate (rule 68): `price-gate.unit.test.js` green on every commit of A, B and C, with the allowlist reviewed by the owner; `price-gate-anonymity`, `price-gate-anonymise`, `price-gate-figures`, `price-gate-compare`, `price-gate-move-proof` unit tests green
 - [ ] Review per rule 69 (held once after B + C + the outside-booking mini SAS, owner 2026-11-12): one integral review with the PROVEN / NOT PROVEN checklist, one grouped fix, one verification pass
 - [ ] Stabilisation per rule 69 after PR C: rounds of integral audit → grouped fix → verification until a round with zero findings; findings table per round separating old defects from regressions
-- [x] rule 124: `outside-sale-single-rule.unit.test.js` (every price type × planning card × insurance, the counter / suggestions / fiche agree with `outsideSale`, the sellability endpoint and its 400) and `ExternalSaleFields.sellability.test.jsx`
+- [x] rule 124: `outside-sale-single-rule.unit.test.js` (every price type × planning card × insurance, the counter / suggestions / fiche agree with `outsideSale`, the sellability endpoint and its 400) `ExternalSaleFields.sellability.test.jsx` and `useOutsideSellability.answer.test.jsx`
 - [ ] the replay hashes every accounting export file (CSV per month, sales JSON, synthesis) besides the quotes (rule 64)
 - [x] `scripts/price-gate/move-proof.mjs` at every commit of PR A (rule 73): every unmatched removed line read and classified as rewiring or glue
 - [ ] `scripts/pricing-replay.mjs` before/after on a fresh prod copy at the three checkpoints of PR A (0 diff; rule 73 amends rule 35), at PR B's first commit (0 diff), at PR B and PR C heads (listed diffs only)
