@@ -1,7 +1,7 @@
 {
   "id": "gift-vouchers",
   "name": "Bons cadeaux",
-  "version": "1.4.1",
+  "version": "1.4.2",
   "description": "Des bons cadeaux vendus en ligne, au téléphone ou par carte commerçant : un montant pour un séjour, ou un contenu composé (bain nordique et options) réservé en ligne par le bénéficiaire.",
   "icon": "gift",
   "surfaces": [
@@ -18,6 +18,10 @@
   "guestflow": ">=3.10.0",
   "sdk": "^2.33.0",
   "changelog": {
+    "1.4.2": [
+      "Les options à proposer se cochent dans une liste qui reste ouverte : plusieurs options se choisissent d’un coup.",
+      "Compatible avec GuestFlow 4 (SDK 2.33)."
+    ],
     "1.4.1": [
       "Un bon de séance (bain nordique) se lit comme une séance : après le paiement, la page affiche son contenu au lieu de son montant.",
       "La page d’achat du site montre la carte de chaque campagne, lue dans GuestFlow : changer le visuel d’une campagne change le site.",
