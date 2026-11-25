@@ -663,6 +663,28 @@ Rules are identities: a rule is never renumbered, new rules are appended
     - The recap of a session campaign names the band and its duration, never a clock time: the session's
       hour is chosen later by the recipient (rule 17, fixed 2026-11-24).
 
+### 3.T The offer switcher (added 2026-11-25)
+
+63. **An open campaign is headed by an offer switcher, not by a « Choisir une autre offre » link** (owner
+    decision of 2026-11-25, variant « C » of the mock-up `specs/gift-voucher-offer-switcher.html`).
+    - Shown only when more than one campaign is on sale (the condition of the former back link): a `nav`
+      named « Votre cadeau » (EN « Your gift ») holding one button per campaign, in the chooser's order
+      (lodging first, then resource), each with the campaign's thumbnail (lazy, rule 62), its title and
+      its price (`money(totalCents)` for a resource campaign) or « Montant au choix » for lodging.
+    - The open campaign's card carries `aria-current="true"` (accent border, inset ring, dot, warmer
+      background) and does nothing on click; any other card opens its campaign in place through
+      `open(slug, true)`, the one entry point of rule 16. The chooser stays the landing view; the back link
+      and its string `gvOtherOffer` are gone. Browser history and `#campagne=` behave as before.
+    - On a block narrower than 520 px the row scrolls horizontally with scroll-snap, each card 72 % wide so
+      the next one peeks, and the open card is brought into view by setting the row's `scrollLeft` (the
+      page never scrolls). Targets are 44 px at least; focus ring, press feedback and
+      `prefers-reduced-motion` follow the block's other cards. Colours come from the plugin's theme
+      variables, not from the host's palette.
+    - On a wider block the cards wrap onto further lines instead of scrolling: a hidden scrollbar would
+      leave a mouse without a wheel no way to reach the cards past the edge.
+    - Opening a campaign from the switcher moves the focus to the new current card (without scrolling the
+      page), since rebuilding the form destroys the button that had it.
+
 ## 4. Architecture
 
 ### 4.1 Server side (`server/src/`)
@@ -723,6 +745,7 @@ Rules are identities: a rule is never renumbered, new rules are appended
 |---|---|---|
 | `blocks/gift-voucher/view.js` | T | Campaign choice; resource campaigns render the server's lines; lodging keeps today's tunnel |
 | `blocks/gift-voucher/view.js`, `assets/style.css` | T | The campaign's front on each offer and at the head of the form (rule 62) |
+| `blocks/gift-voucher/view.js`, `assets/style.css`, `includes/class-gf-blocks.php` | T | The offer switcher replaces the back link; string `gvYourGift` replaces `gvOtherOffer` (rule 63) |
 | `includes/class-gf-api-client.php` | T | `get_raw` also relays a JPEG, with its cache header (rule 62) |
 | `blocks/gift-voucher-use/` | C | « Utiliser un bon cadeau »: code, contents, month chips + slots, recap, terms, pay or confirm |
 | `blocks/booking/view.js` | T | Month chips; forward limit from the horizon the server returns |
@@ -842,6 +865,9 @@ One file per subject:
 - `resource-visit-prepaid-lines`: the SAS section, « non pris » and its generic callback, no refund of a prepaid line.
 - `resource-booking-offer-sdk` (core, generic): the offer's declaration, `unused` and the wording of a prepaid source,
   `takePrepaid` and `paidByOf`.
+- `wordpress-gift-voucher-offer-switcher` (static checks on the plugin sources): switcher only for several campaigns,
+  every card through `open(`, `aria-current`, back link and `gvOtherOffer` gone, `gvYourGift` in PHP / `.po` / `.mo`,
+  reduced-motion rule, focus handed to the new current card, cards wrapping on a wide block (rule 63).
 - `gift-voucher-campaign-wordpress`: blocks render nothing with the plugin off; redirects; field
   hidden in the booking engine.
 

@@ -919,8 +919,8 @@ msgid "Montant au choix"
 msgstr "Amount of your choice"
 
 #: blocks/gift-voucher-use, includes/class-gf-blocks.php (specs/gift-voucher-campaigns.md)
-msgid "Choisir une autre offre"
-msgstr "Choose another offer"
+msgid "Votre cadeau"
+msgstr "Your gift"
 
 #: blocks/gift-voucher-use, includes/class-gf-blocks.php (specs/gift-voucher-campaigns.md)
 msgid "Le bon comprend"
