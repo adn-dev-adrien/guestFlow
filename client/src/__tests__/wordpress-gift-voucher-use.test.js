@@ -44,8 +44,10 @@ const VOUCHER = {
   message: 'Joyeux anniversaire',
   expiresOn: '2027-11-15', // date-literal-ok: a payload the mocked server answers; the screen only shows it
   usedOn: null,
-  addOns: [{ articleRef: 'option:7', label: 'Boisson', maxQty: 20 }],
-  extraTime: { stepMinutes: 60 },
+  addOns: [{
+    articleRef: 'option:7', label: 'Boisson', maxQty: 20, unitLabel: 'l’unité', linear: true, prices: Array.from({ length: 20 }, (_, i) => ({ qty: i + 1, cents: (i + 1) * 777 })),
+  }],
+  extraTime: { maxMinutes: 120, stepMinutes: 60, prices: [{ minutes: 60, cents: 4321 }, { minutes: 120, cents: 8642 }] },
   horizonUntil: monthsAhead(2),
   termsVersionId: 9,
 };
@@ -66,6 +68,7 @@ function quoted(body) {
     included: [{ label: 'Bain nordique · 2 h', detail: null, qty: 1, valueCents: 9500, vatRate: 20 }, { label: 'Planche apéro', detail: null, qty: 1, valueCents: 1400, vatRate: 10 }],
     supplement,
     extras,
+    extrasCents: extras.reduce((sum, e) => sum + e.cents, 0),
     dueCents: due,
     totalCents: 10900 + due,
     vat: [{ rate: 20, cents: 2 }],

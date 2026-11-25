@@ -37,8 +37,10 @@ test('the offer lists the campaigns on sale only, each with its title, its band 
       { kind: 'session', label: 'Bain nordique', detail: '2 h en journée · de 10:00 à 19:00', qty: 1 },
       { kind: 'option', label: 'Planche apéro', detail: null, qty: 1 },
     ],
-    addOns: [{ articleRef: `option:${ids.drink}`, label: 'Boisson', maxQty: 20 }],
-    extraTime: { maxMinutes: 120, stepMinutes: 60 },
+    addOns: [{
+      articleRef: `option:${ids.drink}`, label: 'Boisson', maxQty: 20, unitLabel: 'l’unité', linear: true, prices: Array.from({ length: 20 }, (_, i) => ({ qty: i + 1, cents: (i + 1) * 650 })),
+    }],
+    extraTime: { maxMinutes: 120, stepMinutes: 60, prices: [{ minutes: 60, cents: 4500 }, { minutes: 120, cents: 9000 }] },
     totalCents: 10900,
   });
   const night = campaigns.find((c) => c.slug === 'bain-soir');
@@ -77,12 +79,17 @@ test('public and admin routes return the same payload and the same price for the
     const sitePrice = (await site('POST', '/offer/price', request)).body.data;
     const adminPrice = (await admin('POST', '/offer/price', request)).body;
     assert.equal(sitePrice.totalCents, 9500 + 4500 + 1400 + 1300);
-    assert.deepEqual({ lines: adminPrice.lines, totalCents: adminPrice.totalCents, vat: adminPrice.vat }, sitePrice);
-    assert.deepEqual(sitePrice, (({ lines, totalCents, vat }) => ({ lines, totalCents, vat }))(api.offerService.price(request)), 'and the service’s own answer');
+    assert.deepEqual({ lines: adminPrice.lines, totalCents: adminPrice.totalCents, extrasCents: adminPrice.extrasCents, vat: adminPrice.vat }, sitePrice);
+    assert.equal(sitePrice.extrasCents, 4500 + 1300, 'rule 63: the extra time and the add-ons, summed by the server');
+    assert.deepEqual(sitePrice, (({
+      lines, totalCents, extrasCents, vat,
+    }) => ({
+      lines, totalCents, extrasCents, vat,
+    }))(api.offerService.price(request)), 'and the service’s own answer');
     const lodging = { slug: 'sejour', amountCents: 15000 };
     const siteLodging = (await site('POST', '/offer/price', lodging)).body.data;
     const adminLodging = (await admin('POST', '/offer/price', lodging)).body;
-    assert.deepEqual({ lines: adminLodging.lines, totalCents: adminLodging.totalCents, vat: adminLodging.vat }, siteLodging);
+    assert.deepEqual({ lines: adminLodging.lines, totalCents: adminLodging.totalCents, extrasCents: adminLodging.extrasCents, vat: adminLodging.vat }, siteLodging);
     assert.deepEqual([siteLodging.totalCents, siteLodging.vat], [15000, [{ rate: 10, cents: 1364 }]]);
   } finally {
     await server.close();

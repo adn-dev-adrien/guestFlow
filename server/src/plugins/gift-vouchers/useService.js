@@ -3,9 +3,10 @@
  * cost the recipient, the recap of a choice, and the confirmation — which books at once when nothing is due, and otherwise holds the slot and the voucher for 15 minutes while the
  * remainder is paid.
  *
- *   open({ code, visitor })                           → the contents, the names, the validity, the add-ons and extra time on offer, the horizon (rule 24)
+ *   open({ code, visitor })                           → the contents, the names, the validity, the add-ons and extra time on offer, each step
+ *                                                       priced like the offer prices it (rule 63), the horizon (rule 24)
  *   slots({ code, from, to, extraMinutes?, visitor }) → `{ days: [{ date, slots: [{ start, end, tag: 'in' | 'supplement', supplementCents }] }] }` (rules 25, 14)
- *   quote({ code, start, extraMinutes?, addOns?, visitor }) → the recap: included, supplement, extras, what is still due, the VAT (rules 26-27)
+ *   quote({ code, start, extraMinutes?, addOns?, visitor }) → the recap: included, supplement, extras (and `extrasCents`, their sum, and `extraTimePrices`, the extra-time steps priced at that start, rule 63), what is still due, the VAT (rules 26-27)
  *   confirm({ code, start, extraMinutes?, addOns?, email, phone, name?, termsVersionId, visitor, returnUrl? }) → `{ booked: true }` | `{ payUrl, heldUntil }` (rules 28-29)
  *   paid({ ref, linkId, amountCents })                the bank confirmed the remainder: book and settle in one transaction, or say the money is owed back (rule 29)
  *   lapseDue()                                        the job: 15 minutes ended unpaid, the slot and the voucher are free again
@@ -20,6 +21,7 @@
 const rules = require('./voucherRules');
 const campaignRules = require('./campaignRules');
 const { renderUseMail } = require('./useMail');
+const { createExtrasPricing } = require('./extrasPricing');
 
 const HOLD_MINUTES = 15;
 const MAX_SPAN_DAYS = 62;
@@ -46,6 +48,7 @@ function createUseService({
   basketSource, prepaidSource, prepaidLabel, now = () => new Date(), transaction,
 }) {
   const hook = () => resources();
+  const extrasPricing = createExtrasPricing({ engine, catalogue });
 
   // ── the voucher ───────────────────────────────────────────────────────────────────────────────────────────────────────
 
@@ -90,12 +93,64 @@ function createUseService({
     ];
   }
 
-  /** The add-ons of the campaign the recipient may still add: those the voucher does not hold already. */
-  function offeredAddOns(voucher, contents) {
+  /** The add-ons of the campaign the recipient may still add: those the voucher does not hold already — whatever the engine can price (a price change is judged by the quote itself). */
+  function offeredAddOnRefs(voucher, contents) {
     const campaign = voucher.campaignId ? campaigns.find(voucher.campaignId) : null;
     const held = new Set([...contents.options, ...contents.addOns].map((o) => o.articleRef));
-    return (campaign ? campaign.addOns : []).filter((ref) => !held.has(ref))
-      .map((articleRef) => ({ articleRef, label: (catalogue.element(articleRef) || {}).label || articleRef, maxQty: campaignRules.MAX_QTY }));
+    return (campaign ? campaign.addOns : []).filter((ref) => !held.has(ref));
+  }
+
+  /** Rule 63 — what « Mon bain » shows under « Ajouter au bon »: the offered add-ons with their price tables, built on the opening call only. */
+  const offeredAddOns = (voucher, contents) => extrasPricing.priced(offeredAddOnRefs(voucher, contents)
+    .map((articleRef) => ({ articleRef, label: (catalogue.element(articleRef) || {}).label || articleRef, maxQty: campaignRules.MAX_QTY })));
+
+  const minutesOfClock = (clock) => Number(clock.slice(0, 2)) * 60 + Number(clock.slice(3, 5));
+
+  /**
+   * Rules 27, 63 — the extra time a recipient may add (any step the resource's slot duration allows, whatever the campaign offered, and on a one-shot voucher too), each step priced
+   * like the offer prices it: the voucher's band, its ranks continuing after the minutes it covers. The steps run up to the longest the band could ever hold; the slot's close
+   * time is judged by the server at each slot, so no maximum is stated here. A step the dateless pricing cannot price (past the band's end) is listed with `cents: null`: the
+   * slot's own quote prices it (`extraTimePrices`).
+   */
+  function offeredExtraTime(contents, mode) {
+    if (!mode) return null;
+    const closes = Math.max(...elementOf(contents).modes.map((m) => minutesOfClock(m.to)));
+    const longest = closes - minutesOfClock(mode.from) - contents.resource.minutes;
+    return {
+      stepMinutes: mode.slotMinutes,
+      prices: extrasPricing.extraTime({
+        resourceId: contents.resource.id,
+        band: contents.resource.band,
+        rankOffsetMinutes: contents.resource.minutes,
+        stepMinutes: mode.slotMinutes,
+        maxMinutes: longest,
+        keepUnpriced: true,
+      }),
+    };
+  }
+
+  /**
+   * Rule 63 — the price of each extra-time step at the chosen start, through the very path the recap's extra line takes (the booking offer's quote, then the engine), so the figure
+   * of the fold equals the line of the recap for the same minutes. Steps run until the slot no longer holds the longer session (the close time, the next booking) or the engine
+   * cannot price one.
+   */
+  function extraTimePricesAt(contents, date, time, stepMinutes) {
+    const { resource } = contents;
+    const prices = [];
+    for (let minutes = stepMinutes; ; minutes += stepMinutes) {
+      const free = hook().freeSlots({
+        resourceId: resource.id, from: date, to: date, minutes: resource.minutes + minutes, band: resource.band, now: now(),
+      });
+      if (!free.days.some((day) => day.date === date && day.slots.some((slot) => slot.start === time))) break;
+      const priced = hook().quote({
+        resourceId: resource.id, date, start: time, coveredBand: resource.band, coveredMinutes: resource.minutes, extraMinutes: minutes,
+      });
+      if (!priced.ok || !priced.extra) break;
+      const answer = engine.quote({ lines: [], fulfilments: [{ ...priced.extra.line, fulfilmentRef: 'use:extra' }] });
+      if (answer.status !== 200 || answer.refusals.length || !answer.document.lines.length) break;
+      prices.push({ minutes, cents: answer.document.lines[0].totalCents });
+    }
+    return prices;
   }
 
   // ── what the page reads first ────────────────────────────────────────────────────────────────────────────────────────
@@ -124,7 +179,7 @@ function createUseService({
         expiresOn: voucher.expiresOn,
         usedOn: used ? rules.parisDate(new Date(used.settledAt)) : null,
         addOns: offeredAddOns(voucher, contents),
-        extraTime: mode ? { stepMinutes: mode.slotMinutes } : null,
+        extraTime: offeredExtraTime(contents, mode),
         horizonUntil: probe && probe.ok ? probe.horizonUntil : null,
         termsVersionId: (terms.current('resource') || {}).id || null,
         termsVersion: (terms.current('resource') || {}).version || null,
@@ -175,7 +230,7 @@ function createUseService({
   function addOnsOf(voucher, contents, asked) {
     if (asked === undefined || asked === null) return { value: [] };
     if (!Array.isArray(asked)) return { problem: refuse('ADDONS_INVALID', 'Options choisies : une liste est attendue.') };
-    const offered = new Map(offeredAddOns(voucher, contents).map((o) => [o.articleRef, o]));
+    const offered = new Set(offeredAddOnRefs(voucher, contents));
     const value = [];
     for (const entry of asked) {
       const articleRef = entry && entry.articleRef;
@@ -271,6 +326,7 @@ function createUseService({
           ...(extraRow ? [{ label: `Temps supplémentaire · ${durationText(extra)}`, detail: extraRow.detail || null, qty: 1, cents: extraRow.totalCents }] : []),
           ...boughtRows.map((row) => ({ label: row.label, detail: row.detail || null, qty: row.quantity, cents: row.totalCents })),
         ],
+        extrasCents: extrasRows.reduce((sum, row) => sum + row.totalCents, 0),
         dueCents,
         totalCents: answer.document.totals.totalCents,
         vat: answer.document.vatByRate.map((row) => ({ rate: row.rate, cents: row.vatCents })),
@@ -282,7 +338,10 @@ function createUseService({
     const found = voucherOf(request, request.visitor);
     if (!found.ok) return found;
     const composed = compose(found.voucher, found.contents, request);
-    return composed.ok ? { ok: true, data: composed.view } : composed;
+    if (!composed.ok) return composed;
+    const mode = modeOf(found.contents);
+    const extraTimePrices = mode ? extraTimePricesAt(found.contents, composed.date, composed.time, mode.slotMinutes) : [];
+    return { ok: true, data: { ...composed.view, extraTimePrices } };
   }
 
   // ── booking and holding ──────────────────────────────────────────────────────────────────────────────────────────────

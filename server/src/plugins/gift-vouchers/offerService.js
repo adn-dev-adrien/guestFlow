@@ -5,8 +5,9 @@
  *
  *   offer({ withOmitted })              → { campaigns, … } the campaigns on sale, each with its contents, add-ons and extra time (a campaign the engine cannot price is left
  *                                         out, rule 6; `omitted` lists them with their reason for the operator). The lodging campaign's bounds and ideas also sit at the top
- *                                         level, where the site's block has always read them.
- *   price(request)                      → { ok: true, kind, title, contents, lines, totalCents, vat } | { ok: false, code, message }
+ *                                         level, where the site's block has always read them. Each add-on carries `unitLabel`, `linear` and `prices: [{ qty, cents }]`, the extra time
+ *                                         `prices: [{ minutes, cents }]`, each priced by the engine like the price request would (rule 63); `extrasCents` of a price is the extra-time and add-on lines' sum.
+ *   price(request)                      → { ok: true, kind, title, contents, lines, totalCents, extrasCents, vat } | { ok: false, code, message }
  *   createOrder({ request, parties, … }) → { ok: true, order: { id, token }, price } | refusal — priced by the engine now, contents frozen on the order
  *   startPayment(orderId, { returnUrl }) → { ok: true, url, totalCents, label } | refusal — the order priced again, then its one-hour payment link (rule 19)
  *   issueDirect({ request, parties, … }) → { ok: true, voucherId } | refusal — « Payé » and « Offert » of the back-office: issued at once
@@ -19,6 +20,7 @@
 const rules = require('./voucherRules');
 const campaignRules = require('./campaignRules');
 const { createIdeas } = require('./ideas');
+const { createExtrasPricing } = require('./extrasPricing');
 const { OFFERED_NOTE } = require('./issuance');
 
 const MAX_NAME = 40;
@@ -54,6 +56,7 @@ function createOfferService({
   campaigns, orders, issuance, catalogue, engine, quoteStay, payments, transaction, visuals = null, now = () => new Date(),
 }) {
   const ideasByCampaign = new Map();
+  const extrasPricing = createExtrasPricing({ engine, catalogue });
 
   function ideasFor(campaign) {
     if (!ideasByCampaign.has(campaign.id)) {
@@ -129,6 +132,7 @@ function createOfferService({
       ok: true,
       lines: priced,
       totalCents: document.totals.totalCents,
+      extrasCents: priced.filter((line) => line.kind === 'extra' || line.kind === 'addOn').reduce((sum, line) => sum + line.totalCents, 0),
       vat: document.vatByRate.map((row) => ({ rate: row.rate, cents: row.vatCents })),
       vatLines: vatLinesOf(priced, document.vatByRate),
     };
@@ -145,6 +149,7 @@ function createOfferService({
         kind: 'amount', label: campaign.title, detail: null, qty: 1, unitCents: amount.cents, totalCents: amount.cents, vatRate: split.ratePercent,
       }],
       totalCents: amount.cents,
+      extrasCents: 0,
       vat: [{ rate: split.ratePercent, cents: split.vatCents }],
       vatLines: null,
     };
@@ -296,8 +301,18 @@ function createOfferService({
         validityMonths: campaign.validityMonths,
         band: mode ? { key: mode.band, label: BAND_WORDS[mode.band], from: mode.from, to: mode.to } : null,
         contents: contentLines(base.contents),
-        addOns: campaign.addOns.map((articleRef) => ({ articleRef, label: labelOf(articleRef), maxQty: campaignRules.MAX_QTY })),
-        extraTime: campaign.extraTimeMaxMinutes > 0 && step ? { maxMinutes: campaign.extraTimeMaxMinutes, stepMinutes: step } : null,
+        addOns: extrasPricing.priced(campaign.addOns.map((articleRef) => ({ articleRef, label: labelOf(articleRef), maxQty: campaignRules.MAX_QTY }))),
+        extraTime: campaign.extraTimeMaxMinutes > 0 && step ? {
+          maxMinutes: campaign.extraTimeMaxMinutes,
+          stepMinutes: step,
+          prices: extrasPricing.extraTime({
+            resourceId: campaign.composition.resourceId,
+            band: campaign.composition.band,
+            rankOffsetMinutes: campaign.composition.minutes,
+            stepMinutes: step,
+            maxMinutes: campaign.extraTimeMaxMinutes,
+          }),
+        } : null,
         totalCents: priced.totalCents,
       },
     };

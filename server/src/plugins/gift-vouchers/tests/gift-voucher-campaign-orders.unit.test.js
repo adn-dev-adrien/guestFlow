@@ -133,7 +133,7 @@ test('the public price is the engine’s, for any request; an unknown offer is r
   const priced = await site('POST', '/offer/price', { slug: bath.slug, extraMinutes: 60, addOns: [{ articleRef: `option:${ids.drink}`, qty: 1 }] });
   assert.equal(priced.status, 200);
   assert.equal(priced.body.data.totalCents, 9500 + 4500 + 1400 + 650);
-  assert.deepEqual(Object.keys(priced.body.data).sort(), ['lines', 'totalCents', 'vat']);
+  assert.deepEqual(Object.keys(priced.body.data).sort(), ['extrasCents', 'lines', 'totalCents', 'vat']);
   assert.equal((await site('POST', '/offer/price', { slug: 'inconnu' })).body.error.code, 'CAMPAIGN_UNKNOWN');
   const composed = await site('POST', '/offer/price', { composition: { resourceId: ids.bath, band: 'day', minutes: 60, options: [] } });
   assert.equal(composed.body.data, undefined, 'no price for a composition on the site');
