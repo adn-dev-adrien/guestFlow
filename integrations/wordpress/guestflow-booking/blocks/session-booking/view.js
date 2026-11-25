@@ -190,6 +190,8 @@
     var codeMsg = GF.el('div', { class: 'gf-sb-msg', 'aria-live': 'polite' });
     codeSection.appendChild(codeRow);
     codeSection.appendChild(codeMsg);
+    // The gift voucher plugin being off in GuestFlow is known before a field is offered: no code field then.
+    GF.api('GET', '/gift-vouchers/offer').then(function (res) { if (GF.voucherInactive(res)) codeSection.hidden = true; });
     codeInput.addEventListener('input', function () { codeInput.value = VC.format(VC.normalise(codeInput.value)); });
     codeInput.addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); applyCode(codeInput.value); } });
     applyBtn.addEventListener('click', function () { applyCode(codeInput.value); });

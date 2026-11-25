@@ -11,7 +11,10 @@ const rules = require('./voucherRules');
 const CHANNEL = 'online-sales';
 const CHANNEL_LABEL = 'Bons cadeaux et séances en ligne';
 
-const euros = (cents) => `${(cents / 100).toLocaleString('fr-FR', { minimumFractionDigits: cents % 100 ? 2 : 0, maximumFractionDigits: 2 })} €`;
+const amountText = (cents) => {
+  const whole = String(Math.trunc(cents / 100)).replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
+  return `${whole}${cents % 100 ? `,${String(cents % 100).padStart(2, '0')}` : ''} €`;
+};
 
 const dayOf = (iso) => new Intl.DateTimeFormat('fr-FR', {
   weekday: 'long', day: 'numeric', month: 'long', timeZone: 'UTC',
@@ -29,14 +32,14 @@ function soldNotice({ voucher, title }) {
   const sentence = `${title},${from}${to}. N° ${voucher.number}, valable jusqu’au ${rules.formatFrDate(voucher.expiresOn)}.`;
   return {
     channel: CHANNEL,
-    title: `Bon cadeau vendu · ${euros(voucher.amountCents)}`,
+    title: `Bon cadeau vendu · ${amountText(voucher.amountCents)}`,
     body: sentence,
     url: `/bons-cadeaux?bon=${Number(voucher.id)}`,
-    subject: `Bon cadeau vendu : ${euros(voucher.amountCents)}, n° ${voucher.number}`,
+    subject: `Bon cadeau vendu : ${amountText(voucher.amountCents)}, n° ${voucher.number}`,
     lines: [
       sentence,
       '',
-      `Montant : ${euros(voucher.amountCents)}`,
+      `Montant : ${amountText(voucher.amountCents)}`,
       ...(voucher.email ? [`E-mail de l’acheteur : ${voucher.email}`] : []),
     ],
   };
@@ -49,7 +52,7 @@ function refundNotice({
   return {
     channel: CHANNEL,
     title: `Paiement à rembourser · ${resourceName}`,
-    body: `${slot} · ${shortName(name)}, ${euros(amountCents)} payés : ${reason}.`,
+    body: `${slot} · ${shortName(name)}, ${amountText(amountCents)} payés : ${reason}.`,
     url: '',
     subject: `Paiement à rembourser : ${resourceName}, ${dayOf(date)}`,
     lines: [
@@ -59,7 +62,7 @@ function refundNotice({
       resourceName,
       slot,
       `Client : ${name || '—'}`,
-      `Montant payé : ${euros(amountCents)}`,
+      `Montant payé : ${amountText(amountCents)}`,
     ],
   };
 }

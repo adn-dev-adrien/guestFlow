@@ -9,6 +9,9 @@ process.env.DB_PATH = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'gf-online
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const { requirePlugins } = require('../plugins/sdk/testing');
+
+if (!requirePlugins(['hourly-resources', 'gift-vouchers'])) return;
 
 const silent = console.log;
 console.log = () => {};

@@ -238,3 +238,10 @@ test('rule 15 — the add-ons offered with a voucher are the voucher’s, not th
   expect(screen.getByLabelText('Ajouter : Peignoir')).toBeTruthy();
   expect(screen.queryByLabelText('Ajouter : Planche apéro')).toBeNull();
 });
+
+test('rule 15 — with the gift voucher plugin off in GuestFlow the code field is not offered, and the rest of the page works', async () => {
+  const { calls } = voucherSetup({ routes: (method, p) => (p === '/gift-vouchers/offer' ? { status: 404, body: { error: 'PLUGIN_INACTIVE', plugin: 'gift-vouchers' } } : null) });
+  await screen.findByText('Réserver une séance');
+  await waitFor(() => expect(document.querySelector('.gf-sb-code').closest('.gf-sb-sec').hidden).toBe(true));
+  expect(callsTo(calls, '/sessions/slots').length).toBeGreaterThan(0);
+});

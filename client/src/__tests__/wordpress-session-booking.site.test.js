@@ -82,10 +82,10 @@ test('rule 20 — the voucher card stands straight: no rotation in the rule or t
   expect(css).toMatch(/@media \(prefers-reduced-motion: reduce\) \{ \.gf-gv-front \{ animation: none; \} \}/);
 });
 
-test('rule 2 — the tunnel’s layout: two columns with a sticky recap from 900 px of block width, one column and a sticky bar below', () => {
+test('rule 2 — the tunnel’s layout: two columns with a sticky recap from 900 px of block width, one column and, on a phone, a sticky bar below', () => {
   const css = read('assets/style.css');
   expect(css).toMatch(/\.gf-booking-block, \.gf-session-block \{ container: gf-host \/ inline-size; \}/);
   expect(css).toMatch(/@container gf-host \(min-width: 900px\) \{\s*\.gf-sb \{ display: grid; grid-template-columns: minmax\(0, 1fr\) 340px;/);
   expect(css).toMatch(/\.gf-sb > \.gf-summary \{[^}]*position: sticky;/);
-  expect(css).toMatch(/@container gf-host \(max-width: 899\.98px\) \{\s*\.gf-sb > \.gf-bar \{[^}]*position: sticky; bottom: 0;/);
+  expect(css).toMatch(/@media \(pointer: coarse\), \(max-width: 600px\) \{\s*@container gf-host \(max-width: 899\.98px\) \{\s*\.gf-sb > \.gf-bar \{[^}]*position: sticky; bottom: 0;/);
 });

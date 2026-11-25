@@ -580,7 +580,7 @@ button.gf-cal-day.gf-shake { animation: gf-shake .32s cubic-bezier(.36, .07, .19
 .gf-sb-msg.is-ok { background: var(--gfb-ok-soft); color: var(--gfb-ok); }
 .gf-sb-msg.is-bad { background: var(--gfb-error-soft); color: var(--gfb-error); }
 .gf-sb-msg.is-warn { background: var(--gfb-warn-soft); color: var(--gfb-warn); }
-.gf-sb-msg .gf-btn { margin-left: .4rem; min-height: 36px; padding: .2rem .6rem; }
+.gf-block .gf-sb-msg .gf-btn { margin-left: .4rem; min-height: 36px; padding: .2rem .6rem; }
 .gf-sb-msg a { color: inherit; font-weight: 600; text-underline-offset: 3px; }
 .gf-sb-days { margin-bottom: .6rem; }
 .gf-sb-days button.gf-cal-day { min-height: 44px; }
@@ -613,14 +613,19 @@ button.gf-cal-day.gf-shake { animation: gf-shake .32s cubic-bezier(.36, .07, .19
 .gf-sb-done .gf-summary { max-width: 360px; margin: 1.2rem auto; text-align: left; }
 .gf-sb > .gf-summary { margin-top: 1.1rem; }
 .gf-sb > .gf-summary .gf-summary-head, .gf-sb > .gf-summary .gf-summary-dates { display: block; }
-@container gf-host (max-width: 899.98px) {
-  .gf-sb > .gf-bar {
-    display: flex; align-items: center; gap: .75rem;
-    position: sticky; bottom: 0; z-index: 3;
-    margin: 1rem 0 0; padding: .7rem .75rem calc(.7rem + env(safe-area-inset-bottom, 0px));
-    border-top: 1px solid var(--gfb-border);
-    background: rgba(255, 255, 255, .82);
-    -webkit-backdrop-filter: blur(16px) saturate(170%); backdrop-filter: blur(16px) saturate(170%);
+/* Only on a phone, as the lodging's bar: a coarse pointer or a narrow viewport, AND a block under 900 px. A narrow block on a desktop keeps its button in the recap. */
+.gf-sb > .gf-summary .gf-summary-cta { display: block; }
+@media (pointer: coarse), (max-width: 600px) {
+  @container gf-host (max-width: 899.98px) {
+    .gf-sb > .gf-bar {
+      display: flex; align-items: center; gap: .75rem;
+      position: sticky; bottom: 0; z-index: 3;
+      margin: 1rem 0 0; padding: .7rem .75rem calc(.7rem + env(safe-area-inset-bottom, 0px));
+      border-top: 1px solid var(--gfb-border);
+      background: rgba(255, 255, 255, .82);
+      -webkit-backdrop-filter: blur(16px) saturate(170%); backdrop-filter: blur(16px) saturate(170%);
+    }
+    .gf-sb > .gf-summary .gf-summary-cta { display: none; }
   }
 }
 @container gf-host (min-width: 900px) {
@@ -631,7 +636,6 @@ button.gf-cal-day.gf-shake { animation: gf-shake .32s cubic-bezier(.36, .07, .19
     position: sticky; top: var(--gf-sticky-top, 1rem);
     background: #fff; border: 1px solid var(--gfb-border); border-radius: 12px; padding: 1rem 1.1rem;
   }
-  .gf-sb > .gf-summary .gf-summary-cta { display: block; }
 }
 @media (prefers-reduced-transparency: reduce) {
   .gf-sb > .gf-bar { -webkit-backdrop-filter: none !important; backdrop-filter: none !important; background: #fff !important; }

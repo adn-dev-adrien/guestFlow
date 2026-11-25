@@ -46,7 +46,7 @@ final class GF_Settings
     ];
     /** The first segment of the permanent paths of the printed cards (specs/gift-voucher-campaigns.md rule 9). */
     public const DEFAULT_LINK_BASE = 'bon-cadeau';
-    private const DETECTED_TRANSIENT = 'gf_detected_pages_v3';
+    private const DETECTED_TRANSIENT = 'gf_detected_pages_v4';
     private const CREATE = '__create__';
 
     public function boot(): void

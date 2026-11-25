@@ -3,7 +3,7 @@
  * accepted and the address. It answers the visitor's own action, so it leaves by itself. French — the visitor's language is not known. → `{ subject, text, html }`.
  */
 
-const euros = (cents) => `${(cents / 100).toLocaleString('fr-FR', { minimumFractionDigits: cents % 100 ? 2 : 0, maximumFractionDigits: 2 })} €`;
+const { amountText } = require('./sessionNotices');
 
 const escapeHtml = (s) => String(s).replace(/[&<>"']/g, (c) => ({
   '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', '\'': '&#39;',
@@ -20,9 +20,9 @@ function renderSessionMail({
 }) {
   const when = `${longDate(date)}, de ${start} à ${end}`;
   const recap = [
-    ...parts.map((part) => `${part.label} : ${euros(part.cents)}`),
-    ...extras.map((extra) => `${extra.qty > 1 ? `${extra.qty} × ` : ''}${extra.label} : ${euros(extra.cents)}`),
-    `Payé en ligne : ${euros(dueCents)}.`,
+    ...parts.map((part) => `${part.label} : ${amountText(part.cents)}`),
+    ...extras.map((extra) => `${extra.qty > 1 ? `${extra.qty} × ` : ''}${extra.label} : ${amountText(extra.cents)}`),
+    `Payé en ligne : ${amountText(dueCents)}.`,
   ];
   const lines = [
     'Bonjour,',

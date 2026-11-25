@@ -9,7 +9,10 @@
 const CHANNEL = 'online-sales';
 const CHANNEL_LABEL = 'Bons cadeaux et séances en ligne';
 
-const euros = (cents) => `${(cents / 100).toLocaleString('fr-FR', { minimumFractionDigits: cents % 100 ? 2 : 0, maximumFractionDigits: 2 })} €`;
+const amountText = (cents) => {
+  const whole = String(Math.trunc(cents / 100)).replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
+  return `${whole}${cents % 100 ? `,${String(cents % 100).padStart(2, '0')}` : ''} €`;
+};
 
 const dayOf = (date) => new Intl.DateTimeFormat('fr-FR', {
   weekday: 'long', day: 'numeric', month: 'long', timeZone: 'UTC',
@@ -26,7 +29,7 @@ function shortName(name) {
 function settlementOf(tenders) {
   const prepaid = tenders.filter((t) => t.method === 'prepaid').map((t) => `${String(t.label || '').toLowerCase()} n° ${t.ref}`);
   const cardCents = tenders.filter((t) => t.method === 'card').reduce((sum, t) => sum + t.amountCents, 0);
-  return [...prepaid, ...(cardCents > 0 ? [`${euros(cardCents)} payés`] : [])].join(' + ');
+  return [...prepaid, ...(cardCents > 0 ? [`${amountText(cardCents)} payés`] : [])].join(' + ');
 }
 
 const slotOf = (date, start, end) => `${dayOf(date)} · ${start} – ${end}`;
@@ -60,7 +63,7 @@ function refundNotice({
   return {
     channel: CHANNEL,
     title: `Paiement à rembourser · ${resourceName}`,
-    body: `${slotOf(date, start, end)} · ${shortName(name)}, ${euros(amountCents)} payés : ${reason}.`,
+    body: `${slotOf(date, start, end)} · ${shortName(name)}, ${amountText(amountCents)} payés : ${reason}.`,
     url: '',
     subject: `Paiement à rembourser : ${resourceName}, ${dayOf(date)}`,
     lines: [
@@ -70,11 +73,11 @@ function refundNotice({
       resourceName,
       slotOf(date, start, end),
       `Client : ${name || '—'}`,
-      `Montant payé : ${euros(amountCents)}`,
+      `Montant payé : ${amountText(amountCents)}`,
     ],
   };
 }
 
 module.exports = {
-  CHANNEL, CHANNEL_LABEL, bookedNotice, refundNotice, euros, dayOf,
+  CHANNEL, CHANNEL_LABEL, bookedNotice, refundNotice, amountText, dayOf,
 };

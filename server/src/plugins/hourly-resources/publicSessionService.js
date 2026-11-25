@@ -13,6 +13,7 @@
  * Every price is the engine's (the booking offer's quote, then the core's sale quote): the visitor's browser computes nothing. The one place that books is `bookOutside`.
  */
 
+const sdk = require('../sdk');
 const { sessionModesOf, quoteSession, isBanded } = require('./sessionQuote');
 const { toMinutes } = require('./hourlyPricing');
 const { horizonUntil } = require('./horizon');
@@ -331,7 +332,7 @@ function createPublicSessionService({
     notify(refundNotice({
       resourceName: resource ? resource.name : 'Séance', date: order.date, start: order.startTime, end: order.endTime, name: nameOf(order), amountCents: order.dueCents, reason,
     }));
-    return { reason, refundOwed: true };
+    return sdk.coreModule('basketRefundOutcome').notHonoured(reason);
   }
 
   function sendConfirmation(order, view) {
@@ -356,7 +357,7 @@ function createPublicSessionService({
   /** The payment arrived — on time or late. Books the session in one transaction, or says the money is owed back (rule 13). */
   function paid({ ref, linkId, amountCents }) {
     const order = orders.find(ref);
-    if (!order) return { reason: 'séance introuvable', refundOwed: true };
+    if (!order) return sdk.coreModule('basketRefundOutcome').notHonoured('séance introuvable');
     if (order.state === 'booked') return { effect: 'session-already-booked' };
     if (Number(amountCents) !== order.dueCents) return unhonoured(order, 'montant payé différent du prix de la séance');
     const composed = compose({
