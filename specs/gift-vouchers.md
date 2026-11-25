@@ -451,6 +451,9 @@ rather than drawing a new one.
 
 Interactive mock-ups: `specs/gift-vouchers-resume.html`.
 
+- **Catalogue heading (site).** The block opens with « Choisir son cadeau » (EN « Choose your gift »), above the
+  « Séjours » and « Séances » groups. It read « Offrir un séjour » until 2026-11-25, which was wrong as soon
+  as bath vouchers sat under it (Adrien, 2026-11-25).
 - **Purchase (site).** One screen: amount (large field), ideas as chips grouped by label and closed by
   « Prix indicatifs, susceptibles d'évoluer. », the three
   optional texts, e-mail, terms, « Payer 150,00 € ». A live preview of the voucher sits beside the form
