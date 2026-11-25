@@ -40,6 +40,10 @@ const longDate = (iso) => new Intl.DateTimeFormat('fr-FR', {
   day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC',
 }).format(new Date(`${iso}T12:00:00Z`));
 
+const longDay = (iso) => new Intl.DateTimeFormat('fr-FR', {
+  weekday: 'long', day: 'numeric', month: 'long', timeZone: 'UTC',
+}).format(new Date(`${iso}T12:00:00Z`));
+
 const asInt = (v) => (typeof v === 'string' && /^\d+$/.test(v.trim()) ? Number(v) : v);
 
 function createPublicSessionService({
@@ -120,21 +124,27 @@ function createPublicSessionService({
     });
     if (!free.ok) return refuse(free.code, free.message, 409);
     if (from > free.horizonUntil) return refuse('BEYOND_HORIZON', `Réservable jusqu’au ${longDate(free.horizonUntil)}.`, 409, { horizonUntil: free.horizonUntil });
-    // A session costs the same on every date: one quote per start time.
+    // Quotes are kept per day and start, and only the ones that succeeded: a start whose quote failed is left out of that day alone.
     const priced = new Map();
     const priceOf = (start, date) => {
-      if (!priced.has(start)) {
+      const key = `${date}T${start}`;
+      if (!priced.has(key)) {
         const answer = offer.quote({
           resourceId: resource.id, date, start, coveredBand: bandAt(resource, start), coveredMinutes: found.minutes, extraMinutes: 0,
         });
-        priced.set(start, answer.ok ? { dueCents: answer.session.totalCents, evening: crossesEvening(answer.session.line) } : null);
+        if (!answer.ok) return null;
+        priced.set(key, { dueCents: answer.session.totalCents, evening: crossesEvening(answer.session.line) });
       }
-      return priced.get(start);
+      return priced.get(key);
     };
     const days = free.days.filter((day) => day.slots.some((slot) => !slot.taken)).map((day) => ({
       date: day.date,
-      slots: day.slots.map((slot) => (slot.taken ? slot : { ...slot, ...priceOf(slot.start, day.date) })).filter((slot) => slot.taken || slot.dueCents !== undefined),
-    }));
+      slots: day.slots.flatMap((slot) => {
+        if (slot.taken) return [slot];
+        const price = priceOf(slot.start, day.date);
+        return price ? [{ ...slot, ...price }] : [];
+      }),
+    })).filter((day) => day.slots.some((slot) => !slot.taken));
     return { ok: true, data: { horizonUntil: free.horizonUntil, days } };
   }
 
@@ -310,7 +320,7 @@ function createPublicSessionService({
     let link;
     try {
       link = await payments.saleLink({
-        source: basketSource, ref: created.ref, title: `${resource.name} · ${composed.view.date}`, amountCents: composed.dueCents, validityMinutes: HOLD_MINUTES,
+        source: basketSource, ref: created.ref, title: `${resource.name} · ${longDay(composed.view.date)}`, amountCents: composed.dueCents, validityMinutes: HOLD_MINUTES,
       }, { redirectUrl: request.returnUrl ? `${request.returnUrl}${request.returnUrl.includes('?') ? '&' : '?'}gf_session=${created.ref}` : null });
     } catch (error) {
       lapse(created, 'link-failed');
@@ -328,6 +338,7 @@ function createPublicSessionService({
   /** The money the plugin keeps nothing for: the core flags it « à rembourser » on its link, and the operator is told. */
   function unhonoured(order, reason) {
     orders.setState(order.ref, 'refund_owed', reason);
+    offer.release(holdRefOf(order));
     const resource = resourceOf(order.resourceId);
     notify(refundNotice({
       resourceName: resource ? resource.name : 'Séance', date: order.date, start: order.startTime, end: order.endTime, name: nameOf(order), amountCents: order.dueCents, reason,
@@ -366,27 +377,42 @@ function createPublicSessionService({
     if (!composed.ok) return unhonoured(order, composed.message);
     if (composed.dueCents !== order.dueCents) return unhonoured(order, 'prix modifié depuis la commande');
     const stillHeld = order.state === 'held';
-    const done = offer.bookOutside({
-      resourceId: order.resourceId,
-      date: order.date,
-      start: order.startTime,
-      end: order.endTime,
-      customer: {
-        name: nameOf(order), email: order.email, phone: order.phone,
-      },
-      people: order.people,
-      fulfilments: composed.fulfilments,
-      lines: composed.lines,
-      tenders: [{ method: 'card', amountCents: order.dueCents, source: `payment-link:${linkId}` }],
-      holdRef: stillHeld ? holdRefOf(order) : null,
-      channel: 'site',
-      terms: order.termsVersionId ? { versionId: order.termsVersionId, ip: order.ip, userAgent: order.userAgent } : null,
-      acceptedTotalCents: composed.totalCents,
-      actor: 'public',
-      now: now(),
-    });
-    if (!done.ok) return unhonoured(order, done.code === 'SLOT_TAKEN' ? 'créneau pris entre-temps' : done.message);
-    orders.setBooked(order.ref, { bookingId: done.bookingId, saleId: done.saleId });
+    let done;
+    try {
+      done = transaction(() => {
+        const booked = offer.bookOutside({
+          resourceId: order.resourceId,
+          date: order.date,
+          start: order.startTime,
+          end: order.endTime,
+          customer: {
+            name: nameOf(order), email: order.email, phone: order.phone,
+          },
+          people: order.people,
+          fulfilments: composed.fulfilments,
+          lines: composed.lines,
+          tenders: [{ method: 'card', amountCents: order.dueCents, source: `payment-link:${linkId}` }],
+          holdRef: stillHeld ? holdRefOf(order) : null,
+          channel: 'site',
+          terms: order.termsVersionId ? { versionId: order.termsVersionId, ip: order.ip, userAgent: order.userAgent } : null,
+          acceptedTotalCents: composed.totalCents,
+          actor: 'public',
+          now: now(),
+        });
+        if (!booked.ok) throw Object.assign(new Error(booked.code), { refusal: booked });
+        orders.setBooked(order.ref, { bookingId: booked.bookingId, saleId: booked.saleId });
+        return booked;
+      });
+    } catch (error) {
+      if (!error || !error.refusal) {
+        const failure = unhonoured(order, 'réservation impossible');
+        console.error('[hourly-resources] a paid session could not be booked:', error && error.message);
+        return failure;
+      }
+      return unhonoured(order, error.refusal.code === 'SLOT_TAKEN' ? 'créneau pris entre-temps' : error.refusal.message);
+    }
+    // The operator is told once the booking is committed, never from inside the transaction.
+    if (done.announce) done.announce();
     sendConfirmation(order, composed.view);
     return { effect: 'session-booked' };
   }

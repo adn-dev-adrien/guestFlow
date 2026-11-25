@@ -31,7 +31,6 @@ const { createSessionOrdersModel } = require('./sessionOrdersModel');
 const { createPublicSessionService } = require('./publicSessionService');
 const { buildPublicSessionController } = require('./publicSessionController');
 const { buildPublicSessionRouter } = require('./publicSessionRoutes');
-const { createSessionProof } = require('./sessionProof');
 const { CHANNEL: ONLINE_SALES_CHANNEL, CHANNEL_LABEL: ONLINE_SALES_LABEL } = require('./sessionNotices');
 const { createLineMarksModel } = require('./lineMarksModel');
 const { createFicheModel } = require('./ficheModel');
@@ -151,6 +150,7 @@ function register(ctx) {
     hold: (args) => outsideOffer().hold(args),
     release: (ref) => outsideOffer().release(ref),
     bookOutside: (args) => outsideOffer().bookOutside(args),
+    limits: (args) => outsideOffer().limits(args),
   });
   ctx.jobs.every({ name: 'resource-holds-expire', intervalMs: 60 * 1000, bootDelayMs: 90 * 1000, run: () => holds().expire() });
   ctx.pushChannel({ key: ONLINE_SALES_CHANNEL, label: ONLINE_SALES_LABEL, shared: true });
@@ -176,13 +176,14 @@ function register(ctx) {
     companyName: () => String(settingsModel().read().companyName || '').trim() || 'GuestFlow',
     basketSource: SESSION_SOURCE,
   }));
+  const proofGuard = sdk.proofGuard.createProofGuard({ secret: () => sdk.secrets.getOrCreate(sdk.proofOfWork.SECRET_NAME, 32) });
   const sessionRouter = lazy(() => {
     const limiters = sdk.coreModule('rateLimiters');
     return buildPublicSessionRouter({
       guard: sdk.middleware.publicApi,
       sessions: buildPublicSessionController({
         service: publicSessions(),
-        proof: createSessionProof({ pow: sdk.proofOfWork, secret: () => sdk.secrets.getOrCreate(sdk.proofOfWork.SECRET_NAME, 32) }),
+        proof: (req) => proofGuard.check({ body: req.body, ip: req.visitor && req.visitor.ip }),
         respond: sdk.coreModule('publicHttp'),
         siteOrigin: () => settingsModel().publicSiteOrigin(),
       }),

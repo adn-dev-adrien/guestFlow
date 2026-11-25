@@ -107,6 +107,12 @@ function createUseService({
   const offeredAddOns = (voucher, contents) => extrasPricing.priced(offeredAddOnRefs(voucher, contents)
     .map((articleRef) => ({ articleRef, label: (catalogue.element(articleRef) || {}).label || articleRef, maxQty: campaignRules.MAX_QTY })));
 
+  /** What a session of the resource may ask — the step, the longest, the party — as the booking offer says it; the page asks nothing of the resource beyond this and the voucher. */
+  function limitsOf(resourceId) {
+    const limits = hook() && hook().limits({ resourceId });
+    return limits && limits.ok ? { stepMinutes: limits.stepMinutes, maxMinutes: limits.maxMinutes, maxPeople: limits.maxPeople } : {};
+  }
+
   const minutesOfClock = (clock) => Number(clock.slice(0, 2)) * 60 + Number(clock.slice(3, 5));
 
   /**
@@ -174,7 +180,7 @@ function createUseService({
         kind: 'resource',
         title: contents.title,
         number: voucher.number,
-        resource: { id: contents.resource.id, name: contents.resource.name, band: contents.resource.band, minutes: contents.resource.minutes },
+        resource: { id: contents.resource.id, name: contents.resource.name, band: contents.resource.band, minutes: contents.resource.minutes, ...limitsOf(contents.resource.id) },
         contents: contentLines(contents),
         recipientName: voucher.recipientName || '',
         senderName: voucher.senderName || '',
@@ -432,6 +438,8 @@ function createUseService({
     });
     if (!booked.ok) return booked;
     sendConfirmation(booked.value.use, voucher, contents, composed);
+    // The operator is told once the booking is committed, never from inside the transaction.
+    if (booked.value.done.announce) booked.value.done.announce();
     return { ok: true, data: { booked: true, bookingId: booked.value.done.bookingId, date: composed.date, start: composed.time, end: composed.endTime } };
   }
 
@@ -453,7 +461,7 @@ function createUseService({
     try {
       link = await payments.saleLink({
         source: basketSource, ref: use.id, title: `${contents.title} · reste à payer`, amountCents: composed.dueCents, validityMinutes: HOLD_MINUTES,
-      }, { redirectUrl: returnUrl });
+      }, { redirectUrl: returnUrl ? `${returnUrl}${returnUrl.includes('?') ? '&' : '?'}gf_ref=${use.ref}` : null });
     } catch (error) {
       lapse(use, 'link-failed');
       if (error && error.error === 'NO_PAYMENT_PROVIDER') return refuse('ONLINE_SALE_UNAVAILABLE', 'Le paiement en ligne n’est pas disponible pour le moment.', 409);
@@ -484,7 +492,8 @@ function createUseService({
     const text = (value) => (typeof value === 'string' ? value.trim().slice(0, 80) : '');
     const given = text(request.firstName) || text(request.lastName) ? `${text(request.firstName)} ${text(request.lastName)}`.trim() : text(request.name);
     const people = request.people === undefined || request.people === null ? null : asInt(request.people);
-    if (people !== null && !(Number.isInteger(people) && people >= 1 && people <= MAX_PEOPLE)) return refuse('PEOPLE_INVALID', 'Nombre de personnes invalide.');
+    const maxPeople = limitsOf(contents.resource.id).maxPeople || MAX_PEOPLE;
+    if (people !== null && !(Number.isInteger(people) && people >= 1 && people <= maxPeople)) return refuse('PEOPLE_INVALID', `Nombre de personnes : de 1 à ${maxPeople}.`, 400, { field: 'people' });
     const unpublished = terms.current('resource') === null;
     if (unpublished) return refuse('TERMS_UNPUBLISHED', 'Les conditions du bain ne sont pas encore publiées : la réservation n’est pas ouverte.', 409);
     const owed = terms.requireAccepted({ activity: 'resource', versionId: request.termsVersionId, subjectType: 'outsideBooking' });
@@ -503,6 +512,7 @@ function createUseService({
       addOns: composed.lines.slice(contents.options.length + contents.addOns.length).map((l) => ({ articleRef: l.articleRef, qty: l.quantity })),
       name: given || voucher.recipientName || '',
       people,
+      recap: composed.view,
       email,
       phone,
       termsVersionId: terms.current('resource').id,
@@ -561,8 +571,33 @@ function createUseService({
       return done;
     });
     if (!booked.ok) return unhonoured(use, booked.message);
+    if (booked.value.announce) booked.value.announce();
     sendConfirmation(uses.find(use.id), voucher, contents, composed);
     return { effect: 'bath-booked' };
+  }
+
+  /** Rule 16 — what the return page of a remainder reads: by the use's unguessable ref, no name, no e-mail. */
+  async function status(ref) {
+    let use = typeof ref === 'string' && /^[0-9a-f]{32}$/.test(ref) ? uses.findByRef(ref) : null;
+    if (!use) return refuse('ORDER_NOT_FOUND', 'Réservation introuvable.', 404);
+    // The visitor waits on the return page: the open link is read now rather than at the next poll, and a paid one books the session on the spot.
+    if (use.state === 'held' && use.linkId && payments.refreshLink) {
+      await payments.refreshLink(use.linkId).catch(() => {});
+      use = uses.find(use.id);
+    }
+    const element = catalogue.element(`resource:${use.resourceId}`);
+    return {
+      ok: true,
+      data: {
+        state: { held: 'held', booked: 'booked', lapsed: 'lapsed', refund_owed: 'refundOwed' }[use.state],
+        resourceName: (element && element.label) || '',
+        date: use.date,
+        start: use.startTime,
+        end: use.endTime,
+        people: use.people,
+        recap: JSON.parse(use.recap || '{}'),
+      },
+    };
   }
 
   /** The job: every use whose 15 minutes ended unpaid gives its slot and its voucher back. → how many. */
@@ -585,7 +620,7 @@ function createUseService({
   }
 
   return {
-    open, slots, quote, confirm, paid, lapseDue, lapseVoucher, traceUnused,
+    open, slots, quote, confirm, paid, status, lapseDue, lapseVoucher, traceUnused,
   };
 }
 

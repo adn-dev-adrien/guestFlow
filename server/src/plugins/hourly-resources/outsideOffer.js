@@ -12,9 +12,11 @@
  *       them, their ranks continuing; `session.supplementCents` is what the covered slices cost above their band's price (a covered day session run into the evening, rule 45)
  *   hold({ resourceId, date, start, end, ref, minutes?, now? }) → { ok: true, expiresAt } | { ok: false, code: 'SLOT_TAKEN', message }
  *   release(ref)
+ *   limits({ resourceId }) → { ok: true, stepMinutes, minMinutes, maxMinutes, maxPeople } | { ok: false, code, message }   what a session of the resource may ask: the step and the shortest of its grid, the longest the opening hours hold, the party (20 when none is set)
  *   bookOutside({ resourceId, date, start, end, customer, people?, fulfilments, lines, tenders, holdRef?, channel, terms?, actor?, acceptedTotalCents?, now? })
  *       → { ok: true, bookingId, saleId } | { ok: false, code, message }   everything in one transaction, or nothing; `people` is the party declared, for information
- *       (specs/site-outside-resource-booking.md rule 26); a booking of the channel `site` or `mon-bain` tells the operator once it is written (rule 23)
+ *       (specs/site-outside-resource-booking.md rule 26); a booking of the channel `site` or `mon-bain` tells the operator once it is written (rule 23) — called
+ *       inside the caller's own transaction it tells nobody, and returns `announce()` for the caller to run after its outermost transaction has committed
  *
  * Priced lines are the engine's: `fulfilments` are the lines `quote` answered (`role: 'session' | 'extra'`), `lines` are `{ articleRef, quantity }` options. `tenders` are
  * `{ method: 'prepaid', source, ref, label, covers: [{ role | articleRef, amountCents }] }` — which line each prepaid cent pays — and `{ method: 'card', amountCents, source }`,
@@ -27,7 +29,7 @@ const {
   buildDays, validateBlock, toAbsMinutes, MINUTES_PER_DAY,
 } = require('./availability');
 const { toMinutes } = require('./hourlyPricing');
-const { quoteSession, isBanded } = require('./sessionQuote');
+const { quoteSession, sessionModesOf, isBanded } = require('./sessionQuote');
 const { horizonUntil } = require('./horizon');
 const { HOLD_MINUTES } = require('./holdsModel');
 const { bookedNotice } = require('./sessionNotices');
@@ -38,6 +40,7 @@ const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 const CLOCK = /^([01]\d|2[0-3]):[0-5]\d$/;
 const CHANNELS = Object.freeze({ 'mon-bain': 'Mon bain', site: 'site', 'guest-app': 'appli du séjour' });
 const ANNOUNCED_CHANNELS = Object.freeze(['site', 'mon-bain']);
+const DEFAULT_MAX_PEOPLE = 20;
 const SLOT_TAKEN = 'Ce créneau n’est plus libre.';
 
 const refuse = (code, message) => ({ ok: false, code, message });
@@ -105,6 +108,19 @@ function createOutsideOffer({
       if (slots.length) result.days.push({ date: day.date, slots });
     });
     return result;
+  }
+
+  function limits({ resourceId }) {
+    const resource = offerable(resourceId);
+    const modes = resource ? sessionModesOf(resource).filter((mode) => mode.sellable) : [];
+    if (!modes.length) return refuse('RESOURCE_UNAVAILABLE', 'Cette ressource ne se réserve pas à l’heure.');
+    return {
+      ok: true,
+      stepMinutes: modes[0].slotMinutes,
+      minMinutes: modes[0].minimumMinutes,
+      maxMinutes: toMinutes(resource.closeTime || '23:59') - toMinutes(resource.openTime || '00:00'),
+      maxPeople: Number(resource.sessionMaxPeople) > 0 ? Number(resource.sessionMaxPeople) : DEFAULT_MAX_PEOPLE,
+    };
   }
 
   function quote({
@@ -226,6 +242,7 @@ function createOutsideOffer({
     if (!resource) return refuse('RESOURCE_UNAVAILABLE', 'Cette ressource ne se réserve pas à l’heure.');
     const clock = clockOf(at);
     const day = todayOf(clock);
+    const nested = db.inTransaction;
     let outcome = null;
     const stop = (refusal) => { outcome = refusal; throw Object.assign(new Error(refusal.code), { refusal }); };
     try {
@@ -261,16 +278,17 @@ function createOutsideOffer({
       if (!err || !err.refusal) throw err;
       return err.refusal;
     }
-    if (ANNOUNCED_CHANNELS.includes(channel)) {
-      notify(bookedNotice({
-        resourceName: resource.name, date, start, end, customer, people, tenders, bookingId: outcome.bookingId,
-      }));
-    }
+    if (!ANNOUNCED_CHANNELS.includes(channel)) return outcome;
+    const notice = bookedNotice({
+      resourceName: resource.name, date, start, end, customer, people, tenders, bookingId: outcome.bookingId,
+    });
+    if (nested) return { ...outcome, announce: () => notify(notice) };
+    notify(notice);
     return outcome;
   }
 
   return {
-    freeSlots, quote, hold, release, bookOutside,
+    freeSlots, quote, hold, release, bookOutside, limits,
   };
 }
 

@@ -148,7 +148,7 @@ test('rule 12 — confirming holds the slot 15 minutes and mints the online paym
   const order = fx.db.prepare('SELECT * FROM resource_session_orders ORDER BY id DESC').get();
   assert.deepEqual([order.state, order.date, order.startTime, order.endTime, order.people, order.dueCents], ['held', fx.DAY, '19:00', '21:00', 3, 11300]);
   assert.deepEqual(minted[0].sale, {
-    source: 'outsideSession', ref: order.ref, title: `Bain nordique · ${fx.DAY}`, amountCents: 11300, validityMinutes: 15,
+    source: 'outsideSession', ref: order.ref, title: 'Bain nordique · lundi 16 novembre', amountCents: 11300, validityMinutes: 15,
   });
   assert.equal(minted[0].options.redirectUrl, `https://site.example.test/reserver/?gf_session=${order.ref}`);
   assert.equal(fx.holdRows(`site-session:${order.ref}`).length, 1);
@@ -232,7 +232,7 @@ test('rule 8 — the confirmation asks for the proof of work and answers its ref
   });
   const res = { set() {} };
   await controller.confirm({ body: { start: startOf(fx.DAY, '10:00') }, visitor }, res);
-  assert.deepEqual(sent, [['fail', 403, 'PROOF_INVALID']]);
+  assert.deepEqual(sent, [['fail', 422, 'PROOF_INVALID']], 'a proof refused gives its hit back to the booking-request budget, like any answer the visitor corrects');
   assert.deepEqual(calls, []);
 });
 
@@ -292,4 +292,118 @@ test('rule 23 — bookOutside tells the operator of the sessions of the channels
   });
   assert.equal(refused.ok, false);
   assert.equal(told.length, 2, 'a booking that fails tells nobody');
+});
+
+test('rule 12 — every refusal of the confirmation is a 422, the lodging tunnel’s answer, so it gives its hit back to the booking-request budget; a failure of ours keeps its status', async () => {
+  const sent = [];
+  const answerOf = (result, proofOk = true) => {
+    const controller = buildPublicSessionController({
+      service: { confirm: async () => result },
+      proof: () => ({ ok: proofOk }),
+      respond: { ok: () => sent.push(['ok']), fail: (res, status, code) => sent.push([status, code]) },
+      siteOrigin: () => 'https://site.example.test',
+    });
+    return controller.confirm({ body: { start: startOf(fx.DAY, '10:00') }, visitor }, { set() {} });
+  };
+  await answerOf({ ok: false, status: 409, code: 'SLOT_TAKEN', message: 'x' });
+  await answerOf({ ok: false, status: 400, code: 'EMAIL_INVALID', message: 'x' });
+  await answerOf({ ok: false, status: 409, code: 'BEYOND_HORIZON', message: 'x' });
+  await answerOf({ ok: false, status: 409, code: 'PRICE_UNAVAILABLE', message: 'x' });
+  await answerOf({ ok: false, status: 400, code: 'TERMS_NOT_ACCEPTED', message: 'x' });
+  await answerOf({ ok: false, status: 502, code: 'PAYMENT_PROVIDER_ERROR', message: 'x' });
+  await answerOf({ ok: true, data: {} }, false);
+  assert.deepEqual(sent, [[422, 'SLOT_TAKEN'], [422, 'EMAIL_INVALID'], [422, 'BEYOND_HORIZON'], [422, 'PRICE_UNAVAILABLE'], [422, 'TERMS_NOT_ACCEPTED'], [502, 'PAYMENT_PROVIDER_ERROR'], [422, 'PROOF_INVALID']]);
+});
+
+test('rule 13 — the paid callback books and marks the order in one transaction: a failure in between leaves no session, frees the hold and flags the money', async () => {
+  const flaky = {
+    ...orders,
+    setBooked: () => { throw new Error('disk full'); },
+  };
+  const failing = createPublicSessionService({
+    db: fx.db,
+    offer: fx.offer,
+    orders: flaky,
+    terms: fx.ctx.terms,
+    payments: { saleLink: async () => ({ linkId: 70, url: 'https://pay.example.test/70' }), refreshLink: async () => 'open', withdrawLink: async () => 'cancelled' },
+    engine: { quote: (request) => fx.standaloneSale.quote(request) },
+    suggest: () => [],
+    notify: (notice) => notices.push(notice),
+    sendMail: async (mail) => { mails.push(mail); },
+    address: () => '',
+    companyName: () => 'Solio',
+    basketSource: 'outsideSession',
+    now: () => fx.NOW,
+  });
+  const quiet = console.error;
+  console.error = () => {};
+  try {
+    const held = await failing.confirm({
+      resourceId: bath, start: startOf('2026-11-19', '17:00'), minutes: 60, ...contact, email: 'tx@example.test', // date-literal-ok: the suite runs on its own clock, never the real today
+    });
+    assert.equal(held.ok, true, JSON.stringify(held));
+    const ref = fx.db.prepare('SELECT ref FROM resource_session_orders ORDER BY id DESC').get().ref;
+    notices.length = 0;
+    const before = fx.db.prepare('SELECT COUNT(*) AS n FROM resource_bookings').get().n;
+    const outcome = failing.paid({ ref, linkId: 70, amountCents: held.data.dueCents });
+    assert.equal(outcome.refundOwed, true);
+    assert.equal(fx.db.prepare('SELECT COUNT(*) AS n FROM resource_bookings').get().n, before, 'the booking written before the failure is rolled back with the rest');
+    assert.equal(fx.db.prepare('SELECT state FROM resource_session_orders WHERE ref = ?').get(ref).state, 'refund_owed');
+    assert.equal(fx.holdRows(`site-session:${ref}`).every((h) => h.releasedAt), true, 'rule 12 — the held slot is given back with the refusal');
+    assert.equal(notices.filter((n) => n.title.startsWith('Séance réservée')).length, 0, 'a session that does not exist is not announced');
+    assert.equal(notices.filter((n) => n.title.startsWith('Paiement à rembourser')).length, 1);
+  } finally {
+    console.error = quiet;
+  }
+});
+
+test('rule 23 — nothing is announced from inside a transaction: an outer rollback sends nothing, the commit lets the caller send it once', () => {
+  const told = [];
+  const announcing = createOutsideOffer({
+    db: fx.db, bookings: () => fx.bookings, occupancy: fx.occupancy, holds: createHoldsModel(fx.db), terms: fx.ctx.terms, notify: (notice) => told.push(notice), now: () => fx.NOW,
+  });
+  const book = (start) => {
+    const quote = announcing.quote({
+      resourceId: bath, date: '2026-11-20', start, coveredBand: 'day', coveredMinutes: 60, extraMinutes: 0, // date-literal-ok: the suite runs on its own clock, never the real today
+    });
+    return announcing.bookOutside({
+      resourceId: bath,
+      date: '2026-11-20', // date-literal-ok: the suite runs on its own clock, never the real today
+      start,
+      end: quote.endTime,
+      customer: { name: 'Léa Martin' },
+      people: 2,
+      fulfilments: [{ role: 'session', ...quote.session.line }],
+      tenders: [{ method: 'card', amountCents: quote.session.totalCents, source: 'payment-link:9' }],
+      channel: 'site',
+      now: fx.NOW,
+    });
+  };
+  assert.throws(() => fx.db.transaction(() => {
+    const done = book('10:00');
+    assert.equal(done.ok, true);
+    assert.equal(typeof done.announce, 'function');
+    throw new Error('the caller rolls back');
+  })(), /the caller rolls back/);
+  assert.deepEqual(told, []);
+  let kept;
+  fx.db.transaction(() => { kept = book('12:00'); })();
+  assert.deepEqual(told, [], 'still nothing: the transaction was the caller’s');
+  kept.announce();
+  assert.equal(told.length, 1);
+  assert.equal(book('14:00').announce, undefined, 'outside a transaction the offer sends it itself');
+  assert.equal(told.length, 2);
+});
+
+test('rule 6 — a start whose quote fails is left out of its own day alone, never of every date', () => {
+  const failingOn = { ...fx.offer, quote: (args) => (args.date === fx.DAY && args.start === '12:00' ? { ok: false, code: 'SLOT_INVALID', message: 'x' } : fx.offer.quote(args)) };
+  const picky = createPublicSessionService({
+    db: fx.db, offer: failingOn, orders, terms: fx.ctx.terms, payments: {}, engine: { quote: (r) => fx.standaloneSale.quote(r) }, suggest: () => [], notify() {}, sendMail: async () => {}, address: () => '', companyName: () => 'Solio', basketSource: 'outsideSession', now: () => fx.NOW,
+  });
+  const days = picky.slots({
+    resourceId: bath, from: fx.DAY, to: '2026-11-17', minutes: 60, // date-literal-ok: the suite runs on its own clock, never the real today
+  }).data.days;
+  const startsOf = (date) => days.find((d) => d.date === date).slots.filter((s) => !s.taken).map((s) => s.start);
+  assert.equal(startsOf(fx.DAY).includes('12:00'), false);
+  assert.equal(startsOf('2026-11-17').includes('12:00'), true); // date-literal-ok: the suite runs on its own clock, never the real today
 });
