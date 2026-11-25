@@ -583,6 +583,8 @@ button.gf-cal-day.gf-shake { animation: gf-shake .32s cubic-bezier(.36, .07, .19
 .gf-block .gf-sb-msg .gf-btn { margin-left: .4rem; min-height: 36px; padding: .2rem .6rem; }
 .gf-sb-msg a { color: inherit; font-weight: 600; text-underline-offset: 3px; }
 .gf-sb-days { margin-bottom: .6rem; }
+/* A session day carries no price: a fixed row instead of the lodging calendar's square cells, which grow to ~90 px in a wide column. */
+.gf-sb-days .gf-cal-day { aspect-ratio: auto; height: 46px; }
 .gf-sb-days button.gf-cal-day { min-height: 44px; }
 .gf-sb-days button.gf-cal-day:disabled { cursor: default; }
 .gf-sb-slots { display: grid; grid-template-columns: repeat(auto-fill, minmax(7.6rem, 1fr)); gap: .45rem; margin-top: .8rem; }
