@@ -1,0 +1,1 @@
+- Gift vouchers (site, plugin 1.21.0): an open campaign is headed by an offer switcher « Votre cadeau » — one card per campaign with its visual, title and price — in place of the « Choisir une autre offre » link; a click opens the other campaign without leaving the page.
