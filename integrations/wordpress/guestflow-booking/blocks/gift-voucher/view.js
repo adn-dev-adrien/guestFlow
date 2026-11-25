@@ -122,7 +122,7 @@
             GF.el('b', {}, c.title),
             price ? GF.el('span', {}, price) : null));
           if (c.slug === current.slug) opt.setAttribute('aria-current', 'true');
-          else opt.addEventListener('click', function () { open(c.slug, true); });
+          else opt.addEventListener('click', function () { open(c.slug, true, true); });
           row.appendChild(opt);
         });
       });
@@ -156,7 +156,7 @@
 
     // The one way into a campaign (rule 16): its address, the chooser and a single offer all land here.
     var opened = '';
-    function open(slug, remember) {
+    function open(slug, remember, fromSwitch) {
       var campaign = campaigns.filter(function (c) { return c.slug === slug; })[0];
       if (!campaign) { opened = ''; chooser(); return; }
       if (opened === slug && stage.firstChild) return; // the address changed to the campaign already open: keep what the visitor has composed
@@ -168,6 +168,9 @@
       buildForm(stage, offer, campaign, campaigns.length > 1 ? switcher(campaign) : null);
       var here = stage.querySelector('.gf-gv-switch-opt[aria-current="true"]');
       if (here) here.parentNode.scrollLeft = here.offsetLeft - 2; // the row only: the page must not move
+      // The card that had the focus was just rebuilt: hand it to the new current card, so a keyboard or
+      // screen-reader visitor stays in the switcher and hears the offer now open.
+      if (here && fromSwitch) here.focus({ preventScroll: true });
     }
 
     window.addEventListener('hashchange', function () { var slug = hashCampaign(); if (slug) open(slug, false); });

@@ -678,6 +678,10 @@ Rules are identities: a rule is never renumbered, new rules are appended
       page never scrolls). Targets are 44 px at least; focus ring, press feedback and
       `prefers-reduced-motion` follow the block's other cards. Colours come from the plugin's theme
       variables, not from the host's palette.
+    - On a wider block the cards wrap onto further lines instead of scrolling: a hidden scrollbar would
+      leave a mouse without a wheel no way to reach the cards past the edge.
+    - Opening a campaign from the switcher moves the focus to the new current card (without scrolling the
+      page), since rebuilding the form destroys the button that had it.
 
 ## 4. Architecture
 
@@ -861,7 +865,7 @@ One file per subject:
   `takePrepaid` and `paidByOf`.
 - `wordpress-gift-voucher-offer-switcher` (static checks on the plugin sources): switcher only for several campaigns,
   every card through `open(`, `aria-current`, back link and `gvOtherOffer` gone, `gvYourGift` in PHP / `.po` / `.mo`,
-  reduced-motion rule (rule 63).
+  reduced-motion rule, focus handed to the new current card, cards wrapping on a wide block (rule 63).
 - `gift-voucher-campaign-wordpress`: blocks render nothing with the plugin off; redirects; field
   hidden in the booking engine.
 

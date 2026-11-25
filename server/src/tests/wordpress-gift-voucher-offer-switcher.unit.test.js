@@ -22,7 +22,7 @@ test('rule 63 — the switcher is built only when more than one campaign is on s
 
 test('rule 63 — every other card opens its campaign through the one open() entry point', () => {
   const body = /function switcher\(current\) \{[\s\S]*?\n    \}\n/.exec(view)[0];
-  assert.match(body, /open\(c\.slug, true\)/);
+  assert.match(body, /open\(c\.slug, true, true\)/);
   assert.match(body, /if \(c\.slug === current\.slug\) opt\.setAttribute\('aria-current', 'true'\)/);
   assert.match(body, /'aria-label': GF\.t\('gvYourGift'\)/);
 });
@@ -49,4 +49,15 @@ test('rule 63 — the switcher honours prefers-reduced-motion and keeps a visibl
   assert.match(css, /@media \(prefers-reduced-motion: reduce\) \{\s*\.gf-gv-switch-opt \{ transition: none; \}\s*\.gf-gv-switch-opt:active \{ transform: none; \}/);
   assert.match(css, /\.gf-gv-switch-opt:focus-visible/);
   assert.match(css, /\.gf-gv-switch-opt\[aria-current="true"\]/);
+});
+
+test('rule 63 — opening from the switcher hands the focus to the new current card, without scrolling the page', () => {
+  assert.match(view, /function open\(slug, remember, fromSwitch\)/);
+  assert.match(view, /if \(here && fromSwitch\) here\.focus\(\{ preventScroll: true \}\)/);
+});
+
+test('rule 63 — a wide block wraps the cards; only a narrow one scrolls with a hidden scrollbar', () => {
+  assert.match(css, /\.gf-gv-switch-row \{[^}]*flex-wrap: wrap;/);
+  assert.doesNotMatch(/\.gf-gv-switch-row \{[^}]*\}/.exec(css)[0], /overflow-x|scrollbar-width/);
+  assert.match(css, /@container gf-gv \(max-width: 520px\) \{\s*\.gf-gv-switch-row \{ flex-wrap: nowrap; overflow-x: auto;[^}]*scrollbar-width: none; \}/);
 });
