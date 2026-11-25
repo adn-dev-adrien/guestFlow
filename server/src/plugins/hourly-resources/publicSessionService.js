@@ -2,8 +2,8 @@
  * The website's booking of a session outside a stay (specs/site-outside-resource-booking.md rules 1-13, 16-17, §4.4): which resources are on offer, the free starts of a duration with what
  * each would cost, the recap of a choice, and the confirmation — which holds the slot for 15 minutes and sends the visitor to the bank. Nothing is booked before the bank confirms (`paid`).
  *
- *   resources()                                         → [{ id, name, blurb, fromCents, minMinutes, stepMinutes, maxMinutes, maxPeople, horizonUntil, termsVersionId, addOns }]
- *   slots({ resourceId, from, to, minutes })            → { horizonUntil, days: [{ date, slots: [{ start, end, dueCents, evening }] }] }
+ *   resources()                                         → [{ id, name, blurb, fromCents, minMinutes, stepMinutes, maxMinutes, maxPeople, horizonUntil, termsVersionId, addOns: [{ articleRef, label, maxQty, unitLabel, linear, prices }] }]
+ *   slots({ resourceId, from, to, minutes })            → { horizonUntil, days: [{ date, slots: [{ start, end, dueCents, evening } | { start, end, taken: true }] }] }, the days with a free start only (rules 5, 6)
  *   quote({ resourceId, start, minutes, addOns? })      → { date, start, end, parts, extras, dueCents, vat }
  *   confirm({ resourceId, start, minutes, addOns?, people, firstName, lastName, email, phone, termsVersionId, visitor, returnUrl? }) → { payUrl, heldUntil, dueCents }
  *   paid({ ref, linkId, amountCents })                  the bank confirmed: book the session, or flag the money « à rembourser » (rule 13)
@@ -22,7 +22,7 @@ const { renderSessionMail } = require('./sessionMail');
 
 const MAX_SPAN_DAYS = 62;
 const DEFAULT_MAX_PEOPLE = 20;
-const MAX_QTY = 20;
+const MAX_ADDON_QTY = 10;
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 const PHONE = /^[0-9+().\s-]{6,30}$/;
 const START = /^(\d{4}-\d{2}-\d{2})T((?:[01]\d|2[0-3]):[0-5]\d)$/;
@@ -52,6 +52,26 @@ function createPublicSessionService({
 
   // ── what the page reads first ────────────────────────────────────────────────────────────────────────────────────────
 
+  /** What the visitor may add to the session, each with the price the engine gives for 1 … n units (the page multiplies nothing); one the engine cannot price at all is left out. */
+  function addOnsOffered(resource) {
+    return suggest(resource.id).map((entry) => {
+      const prices = [];
+      for (let qty = 1; qty <= Math.min(entry.max || MAX_ADDON_QTY, MAX_ADDON_QTY); qty += 1) {
+        const answer = engine.quote({ lines: [{ articleRef: entry.articleRef, quantity: qty }] });
+        if (answer.status !== 200 || answer.refusals.length || answer.document.lines.length !== 1) break;
+        prices.push({ qty, cents: answer.document.lines[0].totalCents });
+      }
+      return {
+        articleRef: entry.articleRef,
+        label: entry.label,
+        maxQty: prices.length,
+        unitLabel: 'l’unité',
+        linear: prices.every((price) => price.cents === price.qty * prices[0].cents),
+        prices,
+      };
+    }).filter((entry) => entry.prices.length > 0);
+  }
+
   function resources() {
     const rows = db.prepare("SELECT * FROM resources WHERE priceType = 'per_hour' AND showsPlanningCard = 1 AND sellableExternally = 1 ORDER BY name, id").all().filter(isOffered);
     const version = terms.current('resource');
@@ -68,7 +88,7 @@ function createPublicSessionService({
         maxPeople: maxPeopleOf(resource),
         horizonUntil: horizonUntil(resource, now()),
         termsVersionId: version ? version.id : null,
-        addOns: suggest(resource.id),
+        addOns: addOnsOffered(resource),
       };
     });
   }
@@ -95,7 +115,7 @@ function createPublicSessionService({
     if (Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`) > (MAX_SPAN_DAYS - 1) * 86400000) return refuse('PERIOD_TOO_LONG', `Période trop longue : ${MAX_SPAN_DAYS} jours au plus.`);
     const { resource } = found;
     const free = offer.freeSlots({
-      resourceId: resource.id, from, to, minutes: found.minutes, now: now(),
+      resourceId: resource.id, from, to, minutes: found.minutes, includeTaken: true, now: now(),
     });
     if (!free.ok) return refuse(free.code, free.message, 409);
     if (from > free.horizonUntil) return refuse('BEYOND_HORIZON', `Réservable jusqu’au ${longDate(free.horizonUntil)}.`, 409, { horizonUntil: free.horizonUntil });
@@ -110,10 +130,10 @@ function createPublicSessionService({
       }
       return priced.get(start);
     };
-    const days = free.days.map((day) => ({
+    const days = free.days.filter((day) => day.slots.some((slot) => !slot.taken)).map((day) => ({
       date: day.date,
-      slots: day.slots.map((slot) => ({ ...slot, ...priceOf(slot.start, day.date) })).filter((slot) => slot.dueCents !== undefined),
-    })).filter((day) => day.slots.length);
+      slots: day.slots.map((slot) => (slot.taken ? slot : { ...slot, ...priceOf(slot.start, day.date) })).filter((slot) => slot.taken || slot.dueCents !== undefined),
+    }));
     return { ok: true, data: { horizonUntil: free.horizonUntil, days } };
   }
 
@@ -129,7 +149,7 @@ function createPublicSessionService({
       const qty = Number(asInt(entry && entry.qty === undefined ? 1 : entry && entry.qty));
       const known = offered.get(articleRef);
       if (!known) return { problem: refuse('ADDON_NOT_OFFERED', 'Une option choisie n’est pas proposée.') };
-      if (!Number.isInteger(qty) || qty < 1 || qty > Math.min(known.max || MAX_QTY, MAX_QTY)) return { problem: refuse('ADDON_QTY_INVALID', `Option choisie : la quantité de « ${known.label} » est invalide.`) };
+      if (!Number.isInteger(qty) || qty < 1 || qty > Math.min(known.max || MAX_ADDON_QTY, MAX_ADDON_QTY)) return { problem: refuse('ADDON_QTY_INVALID', `Option choisie : la quantité de « ${known.label} » est invalide.`) };
       if (value.some((v) => v.articleRef === articleRef)) return { problem: refuse('ADDON_DUPLICATE', `Option choisie : « ${known.label} » figure deux fois.`) };
       value.push({ articleRef, label: known.label, qty });
     }

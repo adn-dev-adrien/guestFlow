@@ -71,7 +71,9 @@ test('rule 1 — only a banded resource sold outside a stay is on offer, with wh
     [bath, 'Bain nordique', 'Au feu de bois', 5000, 60, 60, 720, 8, version.id],
   );
   assert.equal(offered.horizonUntil, '2027-02-15'); // date-literal-ok: the suite runs on its own clock, never the real today
-  assert.deepEqual(offered.addOns.map((a) => a.articleRef), [`option:${board}`]);
+  assert.deepEqual(offered.addOns.map((a) => [a.articleRef, a.label, a.unitLabel, a.linear]), [[`option:${board}`, 'Planche apéro', 'l’unité', true]]);
+  assert.deepEqual(offered.addOns[0].prices.slice(0, 2), [{ qty: 1, cents: fx.optionCents(board) }, { qty: 2, cents: fx.optionCents(board, 2) }], 'the table is the engine’s: the page multiplies nothing');
+  assert.equal(offered.addOns[0].maxQty, 4, 'the most the offer allows');
   const free = fx.newResource({ name: 'Bain libre' });
   assert.equal(service.resources().find((r) => r.id === free).maxPeople, 20);
 });
@@ -79,6 +81,7 @@ test('rule 1 — only a banded resource sold outside a stay is on offer, with wh
 test('rules 3, 6, 9 — the free starts of a duration, each with what the whole session costs from it and whether part of it is in the evening', () => {
   const slots = slotsOf(120);
   assert.deepEqual(slots.map((s) => s.start), ['10:00', '11:00', '12:00', '13:00', '14:00', '15:00', '16:00', '17:00', '18:00', '19:00', '20:00']);
+  assert.equal(slots.some((s) => s.taken), false, 'nothing is taken yet');
   const at = (start) => slots.find((s) => s.start === start);
   assert.deepEqual([at('10:00').end, at('10:00').dueCents, at('10:00').evening], ['12:00', 9500, false], 'two day hours: 50 + 45');
   assert.deepEqual([at('19:00').dueCents, at('19:00').evening], [11300, true], '19-20 day first hour 50, 20-21 evening following hour 63');
@@ -150,7 +153,8 @@ test('rule 12 — confirming holds the slot 15 minutes and mints the online paym
   assert.equal(minted[0].options.redirectUrl, `https://site.example.test/reserver/?gf_session=${order.ref}`);
   assert.equal(fx.holdRows(`site-session:${order.ref}`).length, 1);
   assert.equal(fx.db.prepare('SELECT COUNT(*) AS n FROM resource_bookings WHERE date = ? AND startTime = ?').get(fx.DAY, '19:00').n, 0, 'no session exists yet');
-  assert.ok(!slotsOf(120).some((s) => ['18:00', '19:00', '20:00'].includes(s.start)), 'the held slot is out of the free starts for everyone else');
+  assert.ok(!slotsOf(120).filter((s) => !s.taken).some((s) => ['18:00', '19:00', '20:00'].includes(s.start)), 'the held slot is out of the free starts for everyone else');
+  assert.deepEqual(slotsOf(120).filter((s) => s.taken).map((s) => [s.start, s.dueCents]), [['18:00', undefined], ['19:00', undefined], ['20:00', undefined]], 'rule 6: they are shown, taken, with no price');
   const taken = await confirm({ start: startOf(fx.DAY, '20:00'), email: 'autre@example.test' });
   assert.equal(taken.code, 'SLOT_TAKEN');
   assert.deepEqual((await service.status(order.ref)).data.state, 'held');

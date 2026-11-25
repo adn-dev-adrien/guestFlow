@@ -3,9 +3,10 @@
  * `ctx.resourceBookingOffer` and handed out as `ctx.core.resourceBookingOffer()`. It names no instrument of payment: a session is paid, in whole or in
  * part, by a prepaid tender some plugin holds, and what remains by a link.
  *
- *   freeSlots({ resourceId, from, to, minutes, band?, now? })  → { horizonUntil, days: [{ date, slots: [{ start, end }] }] }
+ *   freeSlots({ resourceId, from, to, minutes, band?, includeTaken?, now? })  → { horizonUntil, days: [{ date, slots: [{ start, end, taken? }] }] }
  *       the starts of a session of `minutes` the resource can take, inside its opening days and hours, on its grid, with its capacity, turnover, thermal readiness,
- *       existing bookings and active holds, never past the resource's booking horizon; `band` keeps the starts before (`day`) or from (`evening`) the evening switch
+ *       existing bookings and active holds, never past the resource's booking horizon; `band` keeps the starts before (`day`) or from (`evening`) the evening switch;
+ *       `includeTaken` also lists, marked `taken: true`, the starts that fit the opening hours but are taken by a booking or a hold (specs/site-outside-resource-booking.md rule 6)
  *   quote({ resourceId, date, start, coveredBand, coveredMinutes, extraMinutes, now? }) → { ok: true, endTime, session, extra } | { ok: false, code, message }
  *       the engine's price of a session placed at `start`: `coveredMinutes` first (already paid for in `coveredBand`, at the rank they take), then `extraMinutes` after
  *       them, their ranks continuing; `session.supplementCents` is what the covered slices cost above their band's price (a covered day session run into the evening, rule 45)
@@ -69,7 +70,7 @@ function createOutsideOffer({
   const eveningStartOf = (resource) => (resource.hourlyEveningStart ? toMinutes(resource.hourlyEveningStart) : null);
 
   function freeSlots({
-    resourceId, from, to, minutes, band = null, now: at,
+    resourceId, from, to, minutes, band = null, includeTaken = false, now: at,
   }) {
     const resource = offerable(resourceId);
     if (!resource) return refuse('RESOURCE_UNAVAILABLE', 'Cette ressource ne se réserve pas à l’heure.');
@@ -94,9 +95,13 @@ function createOutsideOffer({
           return band === 'evening' ? toMinutes(slot.start) >= evening : toMinutes(slot.start) < evening;
         })
         .map((slot) => ({ start: slot.start, end: timeOf(toMinutes(slot.start) + minutes) }))
-        .filter((slot) => validateBlock({
-          resource, block: { date: day.date, start: slot.start, end: slot.end }, occupancy: taken, ...bounds,
-        }).ok);
+        .flatMap((slot) => {
+          const verdict = validateBlock({
+            resource, block: { date: day.date, start: slot.start, end: slot.end }, occupancy: taken, ...bounds,
+          });
+          if (verdict.ok) return [slot];
+          return includeTaken && (verdict.reason === 'taken' || verdict.reason === 'staff') ? [{ ...slot, taken: true }] : [];
+        });
       if (slots.length) result.days.push({ date: day.date, slots });
     });
     return result;
