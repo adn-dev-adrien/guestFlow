@@ -2,6 +2,7 @@
 // (`NewVoucherPage`): the server's price of the campaign chosen, its extra time and add-ons, and « Créer le bon ». The driver and the invariants
 // are in `moneyDialogsHarness.jsx`.
 import React from 'react';
+import { fireEvent } from '@testing-library/react';
 import { vi } from 'vitest';
 import api from '../api';
 import NewVoucherPage from '../plugins/gift-vouchers/NewVoucherPage';
@@ -41,12 +42,18 @@ function priceOf(body) {
   const totalCents = lines.reduce((sum, l) => sum + l.totalCents, 0);
   return { lines, totalCents, vat: [{ rate: 20, cents: Math.round((9000 + extra + drinks) / 6) }, { rate: 10, cents: 173 }] };
 }
-const inputOf = (label) => [...document.querySelectorAll('input')].find((i) => i.labels && i.labels[0] && i.labels[0].textContent === label);
+// specs/gift-voucher-campaigns.md rule 64: the extras sit in a fold, closed by default; the page is « ready » once the fold has been opened.
+const foldOpened = () => {
+  const head = [...document.querySelectorAll('button[aria-expanded]')].find((b) => /Ajouter au bon/.test(b.getAttribute('aria-label') || ''));
+  if (head && head.getAttribute('aria-expanded') === 'false') fireEvent.click(head);
+  return Boolean(head);
+};
+const inputOf = (name) => [...document.querySelectorAll('input')].find((i) => i.getAttribute('aria-label') === name);
 const steppers = (name) => [...document.querySelectorAll('button')].filter((b) => b.getAttribute('aria-label') === name);
 // The extra time comes first on the page, the drink's quantity second: each stepper commits at once.
 const screenKey = () => {
   const extra = inputOf('Temps en plus');
-  const qty = inputOf('Quantité');
+  const qty = inputOf('Boisson');
   if (!extra || !qty) return null;
   const drinks = Number(qty.value) || 0;
   return JSON.stringify([BATH.slug, Number(extra.value) || 0, drinks > 0 ? [{ articleRef: DRINK.articleRef, qty: drinks }] : []]);
@@ -72,7 +79,7 @@ const adapter = {
     giftCreate: { kind: 'commit', answer: () => ({ id: 42 }) },
   }),
   render: () => <Shell ui={<NewVoucherPage />} route="/bons-cadeaux/nouveau" path="/bons-cadeaux/nouveau" />,
-  ready: () => Boolean(inputOf('Temps en plus')),
+  ready: () => foldOpened() && Boolean(inputOf('Temps en plus')),
   channels: [{ name: 'price', key: screenKey }],
   commitButton: submit,
   findTyped: () => [],
@@ -91,7 +98,7 @@ const adapter = {
     drinkDown: stepperOp('Diminuer', 1),
     retry: retryOp,
     commit: { weight: 2, commit: true, run: (ctx) => press(ctx, submit()) },
-    remount: remountOp(() => Boolean(inputOf('Temps en plus'))),
+    remount: remountOp(() => foldOpened() && Boolean(inputOf('Temps en plus'))),
   },
 };
 

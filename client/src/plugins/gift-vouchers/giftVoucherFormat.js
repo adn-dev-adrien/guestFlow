@@ -22,3 +22,10 @@ export function vatRateHint(text, T) {
 }
 
 export const centsToEuros = (cents) => String(Number(cents) / 100).replace('.', ',');
+
+// « 45 min », « 1 h », « 1 h 30 » — a duration the way the shop says it (the server's steps are minutes).
+export function formatMinutes(minutes) {
+  const m = Number(minutes);
+  if (m < 60) return `${m} min`;
+  return m % 60 === 0 ? `${m / 60} h` : `${Math.floor(m / 60)} h ${String(m % 60).padStart(2, '0')}`;
+}

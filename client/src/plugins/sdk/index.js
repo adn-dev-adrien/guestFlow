@@ -59,6 +59,7 @@ export { formatCurrencyRounded } from '../../utils/formatters';
 // linen (specs/plugins-phase-2-hosts.md §3.D)
 export { default as DateField } from '../../components/DateField';
 export { default as QuantityField } from '../../components/QuantityField';
+export { default as CollapsibleSection } from '../../components/CollapsibleSection';
 export { isReceptionOnly } from '../../constants/roles';
 // online-payment (specs/plugins-phase-3a-online-payment.md rule 17) — its pages import `./ui`.
 export { default as HelpedTextField } from '../../components/HelpedTextField';

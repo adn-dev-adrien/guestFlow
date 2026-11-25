@@ -1,0 +1,2 @@
+- Gift vouchers: the extra time and the add-ons of a bath voucher sit in one closed « Ajouter au bon » fold on the site's purchase block, on « Utiliser un bon cadeau » and on « Nouveau bon », each line showing the price GuestFlow gives for its quantity and the head showing what the choices add (WordPress plugin 1.21.0).
+- Gift vouchers: the offer, the price answer and the use recap now carry the price of every add-on quantity and extra-time step, the add-on unit label and `extrasCents`, all priced by the engine for the outside customer.

@@ -19,6 +19,11 @@ import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
  *                                           when collapsed. Omit to hide the affordance.
  *  - `collapseLabel`    (node)              Text of the same affordance when expanded.
  *                                           Default « Réduire ».
+ *  - `ariaLabel`        (string)            Accessible name of the header button. Default
+ *                                           « Catégorie <title>, n option(s) sélectionnée(s) ».
+ *  - `subtitle`         (node)              Secondary line under the title, visible in both states
+ *                                           (what is inside, what is chosen). It may ellipse; keep
+ *                                           anything that must stay readable in its own non-shrinking node.
  *  - `header`           (node)              Extra node rendered between the title and the chip.
  *  - `pinned`           (node)              Rendered BETWEEN the header and the collapse, so it
  *                                           stays visible in both states.
@@ -32,9 +37,11 @@ export default function CollapsibleSection({
   toggleLabel,
   collapseLabel = 'Réduire',
   header = null,
+  subtitle = null,
   pinned = null,
   children,
   disableDivider = false,
+  ariaLabel,
 }) {
   const [expanded, setExpanded] = useState(Boolean(defaultExpanded));
   const bodyId = useId();
@@ -48,7 +55,7 @@ export default function CollapsibleSection({
         onClick={toggle}
         aria-expanded={expanded}
         aria-controls={bodyId}
-        aria-label={`Catégorie ${title}${activeCount > 0 ? `, ${activeCount} option${activeCount > 1 ? 's' : ''} sélectionnée${activeCount > 1 ? 's' : ''}` : ''}`}
+        aria-label={ariaLabel || `Catégorie ${title}${activeCount > 0 ? `, ${activeCount} option${activeCount > 1 ? 's' : ''} sélectionnée${activeCount > 1 ? 's' : ''}` : ''}`}
         sx={{
           width: '100%',
           minHeight: 44,
@@ -61,13 +68,16 @@ export default function CollapsibleSection({
           '&:hover': { bgcolor: 'action.hover' },
         }}
       >
-        <Typography
-          variant="sectionHeader"
-          noWrap
-          sx={{ fontSize: '0.95rem', flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis' }}
-        >
-          {title}
-        </Typography>
+        <Box sx={{ flex: 1, minWidth: 0 }}>
+          <Typography
+            variant="sectionHeader"
+            noWrap
+            sx={{ fontSize: '0.95rem', display: 'block', overflow: 'hidden', textOverflow: 'ellipsis' }}
+          >
+            {title}
+          </Typography>
+          {subtitle}
+        </Box>
         <Stack direction="row" spacing={1} sx={{ alignItems: 'center', flexShrink: 0 }}>
           {header}
           {activeCount > 0 && (
@@ -87,7 +97,8 @@ export default function CollapsibleSection({
             sx={{
               color: 'text.secondary',
               transform: expanded ? 'rotate(180deg)' : 'none',
-              transition: 'transform 0.2s ease',
+              transition: 'transform 0.24s cubic-bezier(0.2, 0, 0, 1)',
+              '@media (prefers-reduced-motion: reduce)': { transition: 'none' },
             }}
           />
         </Stack>

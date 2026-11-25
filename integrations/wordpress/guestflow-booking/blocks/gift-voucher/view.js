@@ -340,6 +340,7 @@
 
     // ── A composed voucher (rule 17): the server's contents, extra time and add-ons, and the server's price ──
     var composeBlock = null;
+    var extrasFold = null;
     var recap = null;
     var extraMinutes = 0;
     var addOnQty = {};
@@ -351,30 +352,17 @@
       var includes = GF.el('ul', { class: 'gf-gv-items' }, (campaign.contents || []).map(function (line) {
         return GF.el('li', {}, (line.qty > 1 ? line.qty + ' × ' : '') + line.label, line.detail ? GF.el('span', { class: 'gf-gv-offer-detail' }, ' — ' + line.detail) : null);
       }));
-      var rows = [];
-      if (campaign.extraTime) {
-        rows.push(GF.el('div', { class: 'gf-gv-compose-row' },
-          GF.el('div', { class: 'gf-gv-compose-label' }, GF.t('gvExtraTime'), GF.el('small', {}, GF.t('gvExtraTimeUnit', GF.voucherDuration(campaign.extraTime.stepMinutes)))),
-          GF.voucherStepper({
-            value: 0, min: 0, max: campaign.extraTime.maxMinutes, step: campaign.extraTime.stepMinutes, name: GF.t('gvExtraTime'),
-            format: function (n) { return n ? '+' + GF.voucherDuration(n) : '0'; },
-            onChange: function (n) { extraMinutes = n; changed(); },
-          })));
-      }
-      (campaign.addOns || []).forEach(function (addOn) {
-        rows.push(GF.el('div', { class: 'gf-gv-compose-row' },
-          GF.el('div', { class: 'gf-gv-compose-label' }, addOn.label),
-          GF.voucherStepper({
-            value: 0, min: 0, max: addOn.maxQty, name: addOn.label,
-            onChange: function (n) { addOnQty[addOn.articleRef] = n; changed(); },
-          })));
+      extrasFold = GF.voucherExtrasFold({
+        extraTime: campaign.extraTime,
+        addOns: campaign.addOns,
+        onExtraTime: function (n) { extraMinutes = n; changed(); },
+        onAddOn: function (ref, n) { addOnQty[ref] = n; changed(); },
       });
       recap = GF.el('div', { class: 'gf-gv-recap', 'aria-live': 'polite' });
       composeBlock = GF.el('div', { class: 'gf-gv-compose' },
         GF.el('div', { class: 'gf-gv-group-label' }, GF.t('gvIncludes')), includes,
         campaign.band ? GF.el('p', { class: 'gf-gv-hint' }, GF.t('gvBand', campaign.band.label, campaign.band.from, campaign.band.to)) : null,
-        rows.length ? GF.el('div', { class: 'gf-gv-group-label' }, GF.t('gvAddToVoucher')) : null,
-        rows, recap);
+        extrasFold, recap);
     }
 
     function composeRequest() {
@@ -386,6 +374,7 @@
     function drawRecap() {
       if (!recap) return;
       recap.innerHTML = '';
+      if (extrasFold) extrasFold.update(priced ? priced.extrasCents : (pricedError ? undefined : null));
       if (pricedError) { recap.appendChild(GF.el('p', { class: 'gf-gv-alert', role: 'alert' }, pricedError)); return; }
       if (!priced) { recap.appendChild(GF.el('p', { class: 'gf-gv-hint' }, GF.t('loading'))); return; }
       recap.appendChild(GF.el('div', { class: 'gf-gv-group-label' }, GF.t('gvRecap')));

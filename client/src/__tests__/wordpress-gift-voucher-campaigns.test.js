@@ -20,8 +20,10 @@ const BATH = {
     { kind: 'session', label: 'Bain nordique', detail: '2 h en journée · de 10:00 à 19:00', qty: 1 },
     { kind: 'option', label: 'Planche apéro', detail: null, qty: 1 },
   ],
-  addOns: [{ articleRef: 'option:7', label: 'Boisson', maxQty: 20 }],
-  extraTime: { maxMinutes: 120, stepMinutes: 60 },
+  addOns: [{
+    articleRef: 'option:7', label: 'Boisson', maxQty: 20, unitLabel: 'l’unité', linear: true, prices: Array.from({ length: 20 }, (_, i) => ({ qty: i + 1, cents: (i + 1) * 777 })),
+  }],
+  extraTime: { maxMinutes: 120, stepMinutes: 60, prices: [{ minutes: 60, cents: 4321 }, { minutes: 120, cents: 8642 }] },
   totalCents: 10900,
   termsVersionId: 9,
 };
@@ -38,7 +40,7 @@ function priced(body) {
   const lines = [{ kind: 'session', label: 'Bain nordique · journée', detail: null, qty: 1, unitCents: 9500, totalCents: 9500, vatRate: 20 }];
   if (extra) lines.push({ kind: 'extra', label: 'Temps supplémentaire · 1 h', detail: null, qty: 1, unitCents: extra, totalCents: extra, vatRate: 20 });
   if (drinks) lines.push({ kind: 'addOn', label: 'Boisson', detail: null, qty: drinks, unitCents: PRICES.drink, totalCents: drinks * PRICES.drink, vatRate: 10 });
-  return { lines, totalCents: total, vat: [{ rate: 20, cents: 1817 }, { rate: 5.5, cents: 12 }] };
+  return { lines, totalCents: total, extrasCents: extra + drinks * PRICES.drink, vat: [{ rate: 20, cents: 1817 }, { rate: 5.5, cents: 12 }] };
 }
 
 function setup(over = {}) {

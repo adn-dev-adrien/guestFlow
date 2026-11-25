@@ -10,12 +10,13 @@ import {
   Box, Button, Chip, MenuItem, Stack, TextField, ToggleButton, ToggleButtonGroup, Typography,
 } from '@mui/material';
 import {
-  DateField, ErrorAlert, FocusKeeper, LoadingState, PageActionBar, PreviewFailure, QuantityField, useLatestPreview, useServerToday, useToast,
+  DateField, ErrorAlert, FocusKeeper, LoadingState, PageActionBar, PreviewFailure, useLatestPreview, useServerToday, useToast,
 } from '../sdk';
 import giftVouchersApi from './giftVouchersApi';
 import AddOnsPicker from './AddOnsPicker';
 import CompositionEditor from './CompositionEditor';
 import ExtraTimeField from './ExtraTimeField';
+import ExtrasFold from './ExtrasFold';
 import FormSection from './FormSection';
 import PriceRecap from './PriceRecap';
 import VisualPicker from './VisualPicker';
@@ -148,7 +149,7 @@ export default function NewVoucherPage() {
             <Stack spacing={1} role="group" aria-label={T.steps.offer}>
               {offer.campaigns.map((c) => (
                 <Button
-                  key={c.slug} variant={choice === c.slug ? 'contained' : 'outlined'} aria-pressed={choice === c.slug} onClick={() => { setChoice(c.slug); setErrors({}); setRefusals([]); }}
+                  key={c.slug} variant={choice === c.slug ? 'contained' : 'outlined'} aria-pressed={choice === c.slug} onClick={() => { setChoice(c.slug); setExtraMinutes(0); setAddOns({}); setErrors({}); setRefusals([]); }}
                   sx={{ minHeight: 44, justifyContent: 'space-between', textAlign: 'left' }}
                 >
                   <span>{c.title}</span>
@@ -156,7 +157,7 @@ export default function NewVoucherPage() {
                 </Button>
               ))}
               <Button
-                variant={isCustom ? 'contained' : 'outlined'} aria-pressed={isCustom} onClick={() => { setChoice(CUSTOM); setErrors({}); setRefusals([]); }} sx={{ minHeight: 44, justifyContent: 'flex-start' }}
+                variant={isCustom ? 'contained' : 'outlined'} aria-pressed={isCustom} onClick={() => { setChoice(CUSTOM); setExtraMinutes(0); setAddOns({}); setErrors({}); setRefusals([]); }} sx={{ minHeight: 44, justifyContent: 'flex-start' }}
               >
                 {T.custom}
               </Button>
@@ -173,28 +174,17 @@ export default function NewVoucherPage() {
                     <li key={i}><Typography variant="body2">{[line.qty > 1 ? `${line.qty} × ${line.label}` : line.label, line.detail].filter(Boolean).join(' — ')}</Typography></li>
                   ))}
                 </Box>
-                {campaign.extraTime ? (
-                  <QuantityField
-                    label={T.extraTime} value={extraMinutes} step={campaign.extraTime.stepMinutes} min={0} max={campaign.extraTime.maxMinutes} size="small"
-                    onCommit={(v) => { setExtraMinutes(v); clear('extraMinutes'); }} error={Boolean(fieldError('extraMinutes'))}
-                    helperText={fieldError('extraMinutes') || T.extraTimeHelp(`${campaign.extraTime.maxMinutes} min`)} sx={{ maxWidth: 260 }}
-                  />
-                ) : null}
-                {campaign.addOns.length ? (
-                  <Stack spacing={1}>
-                    <Typography variant="subtitle2">{T.addOns}</Typography>
-                    {campaign.addOns.map((a) => (
-                      <Stack key={a.articleRef} direction="row" spacing={1.5} sx={{ alignItems: 'center', justifyContent: 'space-between' }}>
-                        <Typography variant="body2" sx={{ overflowWrap: 'anywhere' }}>{a.label}</Typography>
-                        <QuantityField
-                          label={T.quantity} value={addOns[a.articleRef] || 0} min={0} max={a.maxQty} size="small" onCommit={(v) => { setAddOns((m) => ({ ...m, [a.articleRef]: v })); clear('addOns'); }}
-                          sx={{ maxWidth: 170 }}
-                        />
-                      </Stack>
-                    ))}
-                    {fieldError('addOns') ? <Typography variant="body2" color="error" role="alert">{fieldError('addOns')}</Typography> : null}
-                  </Stack>
-                ) : null}
+                <ExtrasFold
+                  key={campaign.slug}
+                  campaign={campaign}
+                  extraMinutes={extraMinutes}
+                  quantities={addOns}
+                  onExtraMinutes={(v) => { setExtraMinutes(v); clear('extraMinutes'); }}
+                  onQuantity={(articleRef, v) => { setAddOns((m) => ({ ...m, [articleRef]: v })); clear('addOns'); }}
+                  extrasCents={recap.error ? undefined : (recap.fresh && recap.data ? recap.data.extrasCents : null)}
+                  extraTimeError={fieldError('extraMinutes')}
+                  addOnsError={fieldError('addOns')}
+                />
               </Stack>
             ) : null}
 

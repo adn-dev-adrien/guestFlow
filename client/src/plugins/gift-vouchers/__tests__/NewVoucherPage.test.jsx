@@ -49,11 +49,11 @@ test('the first campaign on sale is chosen, its contents and the server recap wi
 test('the extra time steps by the server’s slot, within its maximum, and an add-on takes a quantity; the recap is asked again', async () => {
   open();
   await screen.findByTestId('price-recap');
-  await userEvent.click(screen.getAllByRole('button', { name: 'Augmenter' })[0]);
+  await userEvent.click(screen.getByRole('button', { name: /Ajouter au bon/ }));
+  await userEvent.click((await screen.findAllByRole('button', { name: 'Augmenter' }))[0]);
   await waitFor(() => expect(lastPrice()).toMatchObject({ slug: 'bain-jour', extraMinutes: 60 }));
   await userEvent.click(screen.getAllByRole('button', { name: 'Augmenter' })[1]);
   await waitFor(() => expect(lastPrice().addOns).toEqual([{ articleRef: 'option:11', qty: 1 }]));
-  expect(screen.getByText('120 min au plus')).toBeInTheDocument();
 });
 
 test('« Payé »: the means of payment are the server’s list, the voucher is created with the one picked and the list opens on it', async () => {

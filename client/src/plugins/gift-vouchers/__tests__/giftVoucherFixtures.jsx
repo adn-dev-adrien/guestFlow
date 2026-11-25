@@ -153,6 +153,7 @@ export const PRICE = {
   kind: 'resource',
   title: 'Un bain nordique',
   totalCents: 10900,
+  extrasCents: 0,
   lines: [
     { kind: 'session', label: 'Bain nordique · journée', qty: 1, unitCents: 9000, totalCents: 9000, vatRate: 20 },
     { kind: 'option', label: 'Planche apéro', qty: 1, unitCents: 1900, totalCents: 1900, vatRate: 10 },
@@ -166,7 +167,11 @@ export const OFFER = {
     {
       slug: 'bain-jour', kind: 'resource', title: 'Un bain nordique', validityMonths: 12, band: { key: 'day', label: 'journée', from: '10:00', to: '19:00' },
       contents: [{ kind: 'session', label: 'Bain nordique', detail: '2 h en journée · de 10:00 à 19:00', qty: 1 }, { kind: 'option', label: 'Planche apéro', detail: null, qty: 1 }],
-      addOns: [{ articleRef: 'option:11', label: 'Boisson', maxQty: 20 }], extraTime: { maxMinutes: 120, stepMinutes: 60 }, totalCents: 10900,
+      addOns: [{
+        articleRef: 'option:11', label: 'Boisson', maxQty: 20, unitLabel: 'l’unité', linear: true, prices: Array.from({ length: 20 }, (_, i) => ({ qty: i + 1, cents: (i + 1) * 650 - (i > 0 ? 50 : 0) })),
+      }],
+      extraTime: { maxMinutes: 120, stepMinutes: 60, prices: [{ minutes: 60, cents: 4500 }, { minutes: 120, cents: 8700 }] },
+      totalCents: 10900,
     },
     {
       slug: 'sejour', kind: 'lodging', title: 'Un séjour offert', validityMonths: 18, minAmountCents: 2000, maxAmountCents: 200000, ideas: [],

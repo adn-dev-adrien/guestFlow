@@ -160,7 +160,9 @@ function buildPublicOrdersController({
     if (!isObject(req.body)) throw new Refusal('BODY_INVALID');
     const answered = offerService.price(requestOf(req.body));
     if (!answered.ok) throw new Refusal(answered.code, answered.message);
-    return respond.ok(res, { lines: answered.lines, totalCents: answered.totalCents, vat: answered.vat });
+    return respond.ok(res, {
+      lines: answered.lines, totalCents: answered.totalCents, extrasCents: answered.extrasCents, vat: answered.vat,
+    });
   });
 
   const create = guarded((req, res) => {

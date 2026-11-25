@@ -149,27 +149,23 @@
     }
 
     // Extra time and add-ons the recipient may buy (rule 27): the server's step and list.
-    var composeRows = [];
-    if (voucher.extraTime) {
-      composeRows.push(GF.el('div', { class: 'gf-gv-compose-row' },
-        GF.el('div', { class: 'gf-gv-compose-label' }, GF.t('gvExtraTime'), GF.el('small', {}, GF.t('gvExtraTimeUnit', GF.voucherDuration(voucher.extraTime.stepMinutes)))),
-        GF.voucherStepper({
-          value: 0, min: 0, step: voucher.extraTime.stepMinutes, name: GF.t('gvExtraTime'),
-          format: function (n) { return n ? '+' + GF.voucherDuration(n) : '0'; },
-          onChange: function (n) { st.extra = n; st.slot = null; st.quote = null; loadSlots(); paintBar(); drawRecap(); },
-        })));
-    }
-    (voucher.addOns || []).forEach(function (addOn) {
-      composeRows.push(GF.el('div', { class: 'gf-gv-compose-row' },
-        GF.el('div', { class: 'gf-gv-compose-label' }, addOn.label),
-        GF.voucherStepper({
-          value: 0, min: 0, max: addOn.maxQty, name: addOn.label,
-          onChange: function (n) { st.qty[addOn.articleRef] = n; if (st.slot) requote(); },
-        })));
+    var extrasFold = GF.voucherExtrasFold({
+      extraTime: voucher.extraTime,
+      addOns: voucher.addOns,
+      onExtraTime: function (n) { st.extra = n; st.slot = null; st.quote = null; loadSlots(); paintBar(); drawRecap(); },
+      onAddOn: function (ref, n) { st.qty[ref] = n; if (st.slot) requote(); },
     });
-    if (composeRows.length) {
-      root.appendChild(GF.el('div', { class: 'gf-gv-group-label' }, GF.t('gvAddToVoucher')));
-      composeRows.forEach(function (row) { root.appendChild(row); });
+    if (extrasFold) root.appendChild(extrasFold);
+
+    // « Ajouter au bon » shows the extras the server's recap answers once a slot is chosen; before that, no figure.
+    function syncExtras(failed) {
+      if (!extrasFold) return;
+      extrasFold.update(!st.slot || failed ? undefined : (st.quote ? st.quote.extrasCents : null));
+      // The extra-time row keeps the last prices the quote gave for this start while the next quote is pending or failed; only a change of slot drops them.
+      var key = st.slot ? startOf() : null;
+      if (key !== st.extraKey) { st.extraKey = key; st.extraPrices = null; }
+      if (key && st.quote && st.quote.extraTimePrices) st.extraPrices = st.quote.extraTimePrices;
+      extrasFold.updateExtraTimePrices(st.extraPrices);
     }
 
     // ── Date: month chips bounded by the horizon, a day grid, then the slots (rule 25) ──────────
@@ -289,6 +285,7 @@
     root.appendChild(recap);
 
     function drawRecap(error) {
+      syncExtras(!!error);
       recap.innerHTML = '';
       if (error) { recap.appendChild(GF.el('p', { class: 'gf-gv-alert', role: 'alert' }, error)); return; }
       var q = st.quote;
@@ -328,6 +325,7 @@
       quoteSeq += 1;
       var mine = quoteSeq;
       st.quote = null;
+      syncExtras(false);
       paintBar();
       GF.api('POST', '/gift-vouchers/use/quote', { code: code, start: startOf(), extraMinutes: st.extra, addOns: addOnsRequest() }).then(function (res) {
         if (mine !== quoteSeq) return;
