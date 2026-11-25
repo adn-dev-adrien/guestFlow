@@ -1,7 +1,7 @@
 {
   "id": "website-booking",
   "name": "Réservation depuis le site",
-  "version": "1.9.0",
+  "version": "1.9.1",
   "description": "Le moteur de réservation du site WordPress.",
   "icon": "language",
   "surfaces": [
@@ -163,6 +163,9 @@
       "Les conditions générales publiques se lisent aussi par activité (?activity=) ; sans ce paramètre, ce sont celles de l’hébergement, comme avant.",
       "L’horizon de réservation en ligne devient un réglage (12 mois par défaut, Paramètres › Établissement), à la place des 2 ans fixes : une date au-delà est refusée avec « Réservable jusqu’au … », et le calendrier et la prochaine disponibilité s’arrêtent à cette date, qu’il annonce au site.",
       "Demande le SDK 2.33 de GuestFlow."
+    ],
+    "1.9.1": [
+      "La preuve anti-robots d’une demande de réservation est vérifiée par le contrôle commun à tous les formulaires du site : une même preuve ne sert qu’une fois, quel que soit le formulaire."
     ]
   }
 }
