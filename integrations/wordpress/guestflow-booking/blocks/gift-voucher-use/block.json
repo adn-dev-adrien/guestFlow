@@ -6,7 +6,7 @@
   "title": "GuestFlow — Utiliser un bon cadeau",
   "category": "widgets",
   "icon": "tickets-alt",
-  "description": "Le bénéficiaire d’un bon cadeau saisit son code (ou arrive par le QR code), choisit un créneau et confirme sa séance.",
+  "description": "Ancien nom de « Réserver une séance » : le même parcours, où le bénéficiaire d’un bon cadeau saisit son code (ou arrive par le QR code) et choisit son créneau.",
   "textdomain": "guestflow-booking",
   "attributes": {},
   "supports": { "html": false, "align": ["wide"] },

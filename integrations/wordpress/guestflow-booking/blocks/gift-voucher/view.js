@@ -426,6 +426,12 @@
         isResource ? composeBlock : amountField, isResource ? null : ideasBlock, recipientField, senderField, messageField, emailField,
         termsLabel, termsErr, alertBox, payBtn, soon),
       aside));
+    // Rule 19 — whoever has received a voucher is led to the page that books the session; no link when no page holds the block.
+    if (GF.sessionPageUrl) {
+      main.appendChild(GF.el('div', { class: 'gf-gv-uselink' },
+        GF.el('span', {}, GF.t('sbHaveVoucher')),
+        GF.el('a', { class: 'gf-link', href: GF.sessionPageUrl }, GF.t('sbBookSession'))));
+    }
     lead.appendChild(main);
     root.appendChild(lead);
 
