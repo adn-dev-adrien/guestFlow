@@ -12,7 +12,9 @@ const VOUCHER = {
   kind: 'resource',
   title: 'Une heure de bain nordique en journée',
   number: 'BC-2026-0042',
-  resource: { id: 3, name: 'Bain nordique', band: 'day', minutes: 60 },
+  resource: {
+    id: 3, name: 'Bain nordique', band: 'day', minutes: 60, stepMinutes: 60, maxMinutes: 720, maxPeople: 8,
+  },
   contents: [{ kind: 'session', label: 'Bain nordique', detail: '1 h en journée', qty: 1 }],
   recipientName: 'Julien',
   senderName: 'Claire',
@@ -147,18 +149,56 @@ test('rule 15 — a stay voucher says it settles a stay and links to the lodging
   expect(screen.getByText(/Ce bon se règle sur un séjour/)).toBeTruthy();
 });
 
-test('rule 15 — a voucher for another activity selects it; one for an activity not on this page is refused in a sentence', async () => {
+test('rule 15 — a voucher for another activity selects it', async () => {
   const sauna = { ...BATH, id: 4, name: 'Sauna' };
-  const { calls } = voucherSetup({ resources: [BATH, sauna], voucher: { ...VOUCHER, resource: { id: 4, name: 'Sauna', band: 'day', minutes: 60 } } });
+  const { calls } = voucherSetup({ resources: [BATH, sauna], voucher: { ...VOUCHER, resource: { ...VOUCHER.resource, id: 4, name: 'Sauna' } } });
   await screen.findByLabelText('Code bon cadeau');
   applyTyped(validCode());
   await waitFor(() => expect(document.querySelector('.gf-sb-act[data-resource="4"]').getAttribute('aria-pressed')).toBe('true'));
   await waitFor(() => expect(callsTo(calls, '/gift-vouchers/use/slots').length).toBeGreaterThan(0));
-  resetPage();
-  voucherSetup({ voucher: { ...VOUCHER, resource: { id: 99, name: 'Ailleurs', band: 'day', minutes: 60 } } });
-  await screen.findByLabelText('Code bon cadeau');
+});
+
+test('rule 14 — a voucher does not depend on its activity being sold online: with none on offer the code field stays, and the voucher brings its activity, its limits and its terms', async () => {
+  const bare = { ...VOUCHER, resource: { ...VOUCHER.resource, id: 55, name: 'Bain privé', stepMinutes: 30, maxMinutes: 240, maxPeople: 4 }, termsVersionId: 12 };
+  const { calls, voucherConfirmations } = voucherSetup({ resources: [], voucher: bare });
+  expect(await screen.findByText('Aucune activité à réserver en ce moment.')).toBeTruthy();
+  expect(screen.getByLabelText('Code bon cadeau')).toBeTruthy();
+  expect(document.querySelector('.gf-sb-who').closest('.gf-sb-sec').hidden).toBe(true);
+  expect(document.querySelector('.gf-summary').hidden).toBe(true);
+  expect(callsTo(calls, '/sessions/slots')).toHaveLength(0);
   applyTyped(validCode());
-  expect(await screen.findByText('Ce bon ne peut pas se régler ici.')).toBeTruthy();
+  await waitFor(() => expect(callsTo(calls, '/gift-vouchers/use/slots').length).toBeGreaterThan(0));
+  expect(screen.getByText('Aucune activité à réserver en ce moment.').hidden).toBe(true);
+  expect(document.querySelector('.gf-summary').hidden).toBe(false);
+  expect(document.querySelector('.gf-summary-head').textContent).toBe('Bain privé');
+  const durationPlus = document.querySelector('.gf-step[aria-label="Durée"] .gf-step-btn:last-child');
+  fireEvent.click(durationPlus);
+  await waitFor(() => expect(callsTo(calls, '/gift-vouchers/use/slots').at(-1).body.extraMinutes).toBe(30));
+  expect(document.body.textContent).toContain('4 au plus');
+  await pickSlot('10:00');
+  fillWho();
+  fireEvent.click(barButton());
+  await waitFor(() => expect(voucherConfirmations).toHaveLength(1));
+  expect(voucherConfirmations[0].termsVersionId).toBe(12);
+});
+
+test('rule 14 — removing a voucher whose activity is not sold online gives back the empty page, code field included', async () => {
+  const bare = { ...VOUCHER, resource: { ...VOUCHER.resource, id: 55, name: 'Bain privé' } };
+  voucherSetup({ resources: [], voucher: bare });
+  await screen.findByText('Aucune activité à réserver en ce moment.');
+  applyTyped(validCode());
+  await waitFor(() => expect(document.querySelector('.gf-summary').hidden).toBe(false));
+  fireEvent.click(screen.getByText('Retirer'));
+  await waitFor(() => expect(document.querySelector('.gf-summary').hidden).toBe(true));
+  expect(screen.getByText('Aucune activité à réserver en ce moment.').hidden).toBe(false);
+});
+
+test('rule 14 — the fragment of a QR code is handled with an empty list too', async () => {
+  window.location.hash = `#bon=${validCode()}`;
+  const { calls } = voucherSetup({ resources: [] });
+  await waitFor(() => expect(callsTo(calls, '/gift-vouchers/use')).toHaveLength(1));
+  await waitFor(() => expect(callsTo(calls, '/gift-vouchers/use/slots').length).toBeGreaterThan(0));
+  expect(document.querySelector('.gf-sb-msg').textContent).toContain('Bon n° BC-2026-0042');
 });
 
 test('rules 10, 14 — with a voucher the page asks the redemption: the covered time is the duration’s minimum, each slot says what is left, the recap says « Inclus » and nothing due books at once', async () => {

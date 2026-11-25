@@ -61,7 +61,9 @@
     }
     container.innerHTML = '';
     var ref = queryParam('gf_session');
-    if (ref && /^[0-9a-f]{32}$/.test(ref)) { showReturn(container, ref); return; }
+    if (ref && /^[0-9a-f]{32}$/.test(ref)) { showReturn(container, ref, '/sessions/status/'); return; }
+    var useRef = queryParam('gf_ref');
+    if (queryParam('gf_use') === 'paid' && useRef && /^[0-9a-f]{32}$/.test(useRef)) { showReturn(container, useRef, '/gift-vouchers/use/status/'); return; }
     if (queryParam('gf_use') === 'paid') {
       container.appendChild(GF.el('div', { class: 'gf-sb' }, GF.el('div', { class: 'gf-success', role: 'status' }, GF.t('guPaid'))));
       return;
@@ -72,13 +74,12 @@
       if (GF.voucherInactive(res)) { GF.voucherHide(container); return; }
       var list = ok(res);
       if (!list) { container.appendChild(GF.el('div', { class: 'gf-error' }, refusalText(res))); return; }
-      if (!list.length) { container.appendChild(GF.el('div', { class: 'gf-empty' }, GF.t('sbNone'))); return; }
       build(container, list);
     });
   }
 
   // ── The return page of a payment (rule 16) ─────────────────────────────────────────────────────
-  function showReturn(container, ref) {
+  function showReturn(container, ref, statusPath) {
     var box = GF.el('div', { class: 'gf-sb' });
     container.appendChild(box);
     var tries = 0;
@@ -86,7 +87,7 @@
     function again() { box.appendChild(GF.el('a', { class: 'gf-btn', href: window.location.pathname }, GF.t('sbAgain'))); }
     function poll() {
       tries += 1;
-      GF.api('GET', '/sessions/status/' + ref).then(function (res) {
+      GF.api('GET', statusPath + ref).then(function (res) {
         var data = ok(res);
         if (!data) { box.innerHTML = ''; box.appendChild(GF.el('div', { class: 'gf-error', role: 'alert' }, refusalText(res))); return; }
         if (data.state === 'booked') { paintBooked(box, data); box.appendChild(GF.el('a', { class: 'gf-btn', href: window.location.pathname }, GF.t('sbAgain'))); return; }
@@ -112,6 +113,17 @@
     return lines;
   }
 
+  // The recap of a session paid online (its parts), or of one a voucher covers (what the voucher includes, the evening supplement, the extras).
+  function recapOf(recap) {
+    if (recap.parts) return recapLines(recap.parts, recap.extras);
+    var lines = (recap.included || []).map(function (line) {
+      return GF.el('div', { class: 'gf-sb-summary-line is-included' },
+        GF.el('span', {}, (line.qty > 1 ? line.qty + ' × ' : '') + line.label, line.detail ? GF.el('small', {}, line.detail) : null), GF.el('span', {}, GF.t('sbIncludedShort')));
+    });
+    if (recap.supplement) lines.push(GF.el('div', { class: 'gf-sb-summary-line' }, GF.el('span', {}, recap.supplement.label), GF.el('span', {}, GF.euro(recap.supplement.cents / 100))));
+    return lines.concat(recapLines([], recap.extras));
+  }
+
   function vatLines(vat) {
     return (vat || []).map(function (row) {
       return GF.el('div', { class: 'gf-sb-summary-line is-vat' }, GF.el('span', {}, GF.t('gvVat', String(row.rate).replace('.', ','))), GF.el('span', {}, GF.euro(row.cents / 100)));
@@ -121,13 +133,13 @@
   // « Séance réservée », the day, the slot, the people and the paid recap — never a bare « Paiement reçu » (rule 16).
   function paintBooked(box, data) {
     box.innerHTML = '';
-    var recap = data.recap && data.recap.parts ? data.recap : null;
+    var recap = data.recap && (data.recap.parts || data.recap.included) ? data.recap : null;
     var done = GF.el('div', { class: 'gf-sb-done', role: 'status' },
       GF.el('h3', {}, GF.t('sbBooked')),
       GF.el('p', {}, GF.t('sbBookedLine', longDay(data.date), data.start, data.end) + (data.people ? ' · ' + GF.t('sbPeopleShort', data.people) : '')),
       GF.el('p', {}, GF.t('sbBookedMail')));
     if (recap) {
-      done.appendChild(GF.el('div', { class: 'gf-summary' }, recapLines(recap.parts, recap.extras).concat([
+      done.appendChild(GF.el('div', { class: 'gf-summary' }, recapOf(recap).concat([
         GF.el('div', { class: 'gf-summary-line gf-summary-total' }, GF.el('span', {}, GF.t('sbPaidLabel')), GF.el('span', {}, GF.euro((recap.dueCents || 0) / 100))),
       ], vatLines(recap.vat))));
     }
@@ -168,7 +180,11 @@
     var actBox = GF.el('div', { class: 'gf-sb-acts' });
     var actSection = section(GF.t('sbActivity'));
     actSection.appendChild(actBox);
-    if (resources.length === 1) actSection.hidden = true;
+    // One activity is not asked; none shows a short line (a gift voucher still brings its own, below).
+    actSection.hidden = resources.length < 2;
+    var emptyNote = GF.el('p', { class: 'gf-sb-note' }, GF.t('sbNone'));
+    emptyNote.hidden = resources.length > 0;
+    main.appendChild(emptyNote);
 
     function paintActivities() {
       actBox.innerHTML = '';
@@ -202,7 +218,16 @@
       if (node) codeMsg.appendChild(typeof node === 'string' ? document.createTextNode(node) : node);
     }
 
-    function applyCode(raw) {
+    // What the page needs of an activity a voucher names though it is not sold online by itself: the voucher's own answer.
+    function ofVoucher(data) {
+      var r = data.resource;
+      return {
+        id: r.id, name: r.name, blurb: '', fromCents: 0, minMinutes: r.minutes, stepMinutes: r.stepMinutes, maxMinutes: r.maxMinutes, maxPeople: r.maxPeople,
+        horizonUntil: data.horizonUntil, termsVersionId: data.termsVersionId, addOns: [], voucherOnly: true,
+      };
+    }
+
+    function applyCode(raw, retried) {
       var code = VC.normalise(raw);
       if (!code) { say('bad', GF.t('sbCodeEmpty')); codeInput.focus(); return; }
       if (code.length !== VC.CODE_LENGTH || !VC.hasValidCheck(code)) { say('bad', GF.t('sbCodeUnknown')); codeInput.focus(); return; }
@@ -213,12 +238,13 @@
       }).then(function (res) {
         proof.spend();
         applyBtn.disabled = false;
+        var refused = error(res);
+        if (!retried && refused && (refused.code === 'CHALLENGE_INVALID' || refused.code === 'PROOF_INVALID')) { applyCode(raw, true); return; }
         var data = ok(res);
         if (GF.voucherInactive(res)) { say('bad', GF.t('sbCodeUnknown')); return; }
         if (!data) { say('bad', error(res) && error(res).code === 'VOUCHER_UNKNOWN' ? GF.t('sbCodeUnknown') : refusalText(res)); return; }
         if (data.kind === 'lodging') { lodgingNotice(code); return; }
-        var target = resources.filter(function (r) { return r.id === data.resource.id; })[0];
-        if (!target) { say('warn', GF.t('sbCodeOtherPage')); return; }
+        var target = resources.filter(function (r) { return r.id === data.resource.id; })[0] || ofVoucher(data);
         st.voucher = data;
         st.code = code;
         codeInput.value = '';
@@ -238,7 +264,14 @@
       codeRow.hidden = !!v;
       if (!v) { say('', ''); return; }
       var drop = GF.el('button', { type: 'button', class: 'gf-btn gf-btn-line' }, GF.t('sbRemove'));
-      drop.addEventListener('click', function () { st.voucher = null; st.code = ''; reset(); paintVoucher(); });
+      drop.addEventListener('click', function () {
+        st.voucher = null; st.code = '';
+        if (st.res && st.res.voucherOnly) st.res = resources[0] || null;
+        if (st.res) reset();
+        paintVoucher();
+        paintActivities();
+        paintAll();
+      });
       var text = GF.t('sbVoucherOn', v.number, v.title)
         + (v.senderName ? GF.t('sbVoucherFrom', v.senderName) : '') + (v.recipientName ? GF.t('sbVoucherTo', v.recipientName) : '') + ' ';
       say('ok', GF.el('span', {}, text, drop));
@@ -555,8 +588,11 @@
     }
 
     function paintAll() {
-      paintSummary();
-      paintBar();
+      var shown = Boolean(st.res);
+      [sessionSection, dateSection, slotSection, addHost, whoSection, summary, bar].forEach(function (node) { node.hidden = !shown; });
+      if (shown && !fold) addHost.hidden = true;
+      emptyNote.hidden = shown || resources.length > 0;
+      if (shown) { paintSummary(); paintBar(); }
     }
 
     // ── Submit (rules 7, 8, 12, 14) ──
@@ -671,7 +707,7 @@
     proof.observe(root);
     paintActivities();
     paintVoucher();
-    choose(resources[0]);
+    if (resources.length) choose(resources[0]); else paintAll();
     var fromHash = codeFromHash();
     if (fromHash) { codeInput.value = VC.format(fromHash); applyCode(fromHash); }
   }

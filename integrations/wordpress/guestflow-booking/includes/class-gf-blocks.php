@@ -361,7 +361,6 @@ final class GF_Blocks
                 'sbCodeUnknown'   => __('Ce code n’est pas reconnu. Vérifiez les caractères au dos du bon (0 et O, 1 et I).', 'guestflow-booking'),
                 'sbCodeLodging'   => __('Ce bon se règle sur un séjour. Il est utilisable sur la page de réservation d’un hébergement, où le code sera rempli automatiquement.', 'guestflow-booking'),
                 'sbCodeLodgingGo' => __('Réserver un hébergement', 'guestflow-booking'),
-                'sbCodeOtherPage' => __('Ce bon ne peut pas se régler ici.', 'guestflow-booking'),
                 'sbVoucherOn'     => __('Bon n° %s · %s', 'guestflow-booking'),
                 'sbVoucherFrom'   => __(', offert par %s', 'guestflow-booking'),
                 'sbVoucherTo'     => __(' à %s', 'guestflow-booking'),

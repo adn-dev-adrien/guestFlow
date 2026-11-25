@@ -20,12 +20,12 @@ const BOOKED = {
   },
 };
 
-const returnTo = (answers) => {
-  window.history.replaceState(null, '', `/reserver/?gf_session=${REF}`);
+const returnTo = (answers, { query = `gf_session=${REF}`, statusPath = `/sessions/status/${REF}` } = {}) => {
+  window.history.replaceState(null, '', `/reserver/?${query}`);
   let n = 0;
   return setup({
     routes: (method, p) => {
-      if (p === `/sessions/status/${REF}`) { const answer = answers[Math.min(n, answers.length - 1)]; n += 1; return { status: 200, body: { data: answer } }; }
+      if (p === statusPath) { const answer = answers[Math.min(n, answers.length - 1)]; n += 1; return { status: 200, body: { data: answer } }; }
       return null;
     },
   });
@@ -71,6 +71,21 @@ test('rule 16 — a payment that did not come: the slot is freed and nothing is 
   resetPage();
   returnTo([{ state: 'refundOwed' }]);
   expect(await screen.findByText(/il sera remboursé, l’équipe vous écrit/)).toBeTruthy();
+});
+
+test('rule 16 — back from the bank with a voucher’s remainder: the use is read by its reference and shows « Séance réservée » with its recap, the included line and the evening supplement', async () => {
+  const voucher = {
+    ...BOOKED,
+    recap: { included: [{ label: 'Bain nordique · 1 h', detail: null, qty: 1, valueCents: 5000 }], supplement: { label: 'Supplément soirée', cents: 2000 }, extras: [], dueCents: 2000, vat: [] },
+  };
+  const { calls } = returnTo([voucher], { query: `gf_use=paid&gf_ref=${REF}`, statusPath: `/gift-vouchers/use/status/${REF}` });
+  expect(await screen.findByText('Séance réservée')).toBeTruthy();
+  const text = flat(document.querySelector('.gf-sb-done').textContent);
+  expect(text).toContain('19:00 – 21:00 · 3 pers.');
+  expect(text).toContain('Bain nordique · 1 hInclus');
+  expect(text).toContain('Supplément soirée');
+  expect(text).toContain('20,00 €');
+  expect(callsTo(calls, `/gift-vouchers/use/status/${REF}`)).toHaveLength(1);
 });
 
 test('rule 16 — a reference that is not a token is not asked of the server; back from the bank with a voucher’s remainder, the page says what it knows', async () => {

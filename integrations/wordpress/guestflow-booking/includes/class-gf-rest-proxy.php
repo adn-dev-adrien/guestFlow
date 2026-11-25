@@ -179,6 +179,12 @@ final class GF_Rest_Proxy
             'permission_callback' => $public,
             'callback'            => [$this, 'get_session_status'],
         ]);
+        // The return page of a voucher's remainder: by the use's own reference (32 hex characters), no code, no name.
+        register_rest_route(self::NS, '/gift-vouchers/use/status/(?P<ref>[0-9a-f]{32})', [
+            'methods'             => 'GET',
+            'permission_callback' => $public,
+            'callback'            => [$this, 'get_voucher_use_status'],
+        ]);
         register_rest_route(self::NS, '/gift-vouchers/check', [
             'methods'             => 'POST',
             'permission_callback' => [$this, 'verify_nonce'],
@@ -434,6 +440,14 @@ final class GF_Rest_Proxy
     {
         $ref = (string) $request['ref'];
         $response = $this->relay(GF_Api_Client::instance()->get('/sessions/status/' . $ref));
+        $response->header('Cache-Control', 'no-store');
+        return $response;
+    }
+
+    public function get_voucher_use_status(WP_REST_Request $request): WP_REST_Response
+    {
+        $ref = (string) $request['ref'];
+        $response = $this->relay(GF_Api_Client::instance()->get('/gift-vouchers/use/status/' . $ref));
         $response->header('Cache-Control', 'no-store');
         return $response;
     }

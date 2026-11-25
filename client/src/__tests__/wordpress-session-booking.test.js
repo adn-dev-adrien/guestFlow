@@ -19,7 +19,9 @@ test('rule 1 — one activity is shown selected and nothing is asked; none shows
   resetPage();
   setup({ resources: [] });
   expect(await screen.findByText('Aucune activité à réserver en ce moment.')).toBeTruthy();
-  expect(document.querySelector('.gf-sb')).toBeNull();
+  expect(document.querySelector('.gf-sb-note').hidden).toBe(false);
+  expect(screen.getByLabelText('Code bon cadeau')).toBeTruthy();
+  expect(document.querySelector('.gf-sb-who').closest('.gf-sb-sec').hidden).toBe(true);
 });
 
 test('rule 1 — several activities are asked first, each with its blurb and its price; choosing one resets the session', async () => {
