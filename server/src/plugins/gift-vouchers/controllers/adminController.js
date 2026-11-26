@@ -219,7 +219,7 @@ function buildAdminController({
       .filter(({ row, v }) => (!state || row.state === state)
         && (!kind || row.kind === kind)
         && (campaignId === null || row.campaignId === campaignId)
-        && (!q || [v.number, v.email, v.senderName, v.recipientFirstName, v.recipientLastName].some((field) => String(field || '').toLowerCase().includes(q))))
+        && (!q || [v.number, v.email, v.senderName, v.recipientFirstName, v.recipientLastName, row.recipientLabel].some((field) => String(field || '').toLowerCase().includes(q))))
       .map(({ row }) => row);
     return res.json({
       items, outstandingCents, paymentMethods: paymentMethods(), campaigns: campaigns.list().map((c) => ({ id: c.id, name: c.name, kind: c.kind })),

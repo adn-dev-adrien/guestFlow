@@ -108,3 +108,21 @@ test('rule 32 — « Nouveau bon » goes through the same refusals, each with it
   assert.deepEqual(await ids('q=zo%C3%A9'), ['Petit'], 'and the first name');
   assert.deepEqual(await ids('q=durand'), ['Durand']);
 }));
+
+test('rule 32 — a connector before 1.24.0 sends the single `recipientName`: taken as the first name, optional as before, on the public path only', () => {
+  const legacy = (body) => api.offerService.partiesOf(body, { emailRequired: false, legacyName: true });
+  const taken = legacy({ recipientName: ' Marie ' });
+  assert.deepEqual([taken.ok, taken.value.recipientFirstName, taken.value.recipientLastName], [true, 'Marie', '']);
+  assert.equal(legacy({ recipientName: '' }).ok, true);
+  assert.deepEqual(legacy({ recipientName: 'x'.repeat(41) }), { ok: false, code: 'FIELD_INVALID', field: 'recipientFirstName' });
+  assert.deepEqual(legacy({ recipientName: 12 }), { ok: false, code: 'FIELD_INVALID', field: 'recipientFirstName' });
+  assert.equal(legacy({}).code, 'RECIPIENT_FIRST_NAME_REQUIRED');
+  assert.equal(legacy({ recipientName: 'Marie', recipientFirstName: 'Marie' }).code, 'RECIPIENT_LAST_NAME_REQUIRED', 'the new fields present: both are required');
+  assert.equal(parties({ recipientName: 'Marie' }).code, 'RECIPIENT_FIRST_NAME_REQUIRED', 'not on the operator’s path');
+});
+
+test('rule 32 — the operator’s search also finds a voucher by the full « Prénom Nom »', () => withAdmin(async ({ server }) => {
+  await server.call('POST', '/api/gift-vouchers', { amountCents: 5000, paymentMethod: 'cash', recipientFirstName: 'Léa', recipientLastName: 'Martin' });
+  const found = (await server.call('GET', `/api/gift-vouchers?q=${encodeURIComponent('léa martin')}`)).body.items;
+  assert.deepEqual(found.map((i) => i.recipientLabel), ['Léa Martin']);
+}));

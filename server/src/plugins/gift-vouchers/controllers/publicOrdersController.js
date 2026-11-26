@@ -174,7 +174,7 @@ function buildPublicOrdersController({
     if (!proof(req).ok) throw new Refusal('CHALLENGE_INVALID');
     const visitorHash = visitorHashOf(pepper(), ipOf(req));
     if (orders.countSince(visitorHash, HOUR_MS) >= ORDERS_PER_HOUR) return refuse(req, res, 'TOO_MANY_ORDERS', { 'Retry-After': HOUR_MS / 1000 });
-    const parties = offerService.partiesOf(body, { emailRequired: true });
+    const parties = offerService.partiesOf(body, { emailRequired: true, legacyName: true });
     if (!parties.ok) throw new Refusal(parties.code, null, parties.field);
     const found = offerService.activityOf(requestOf(body));
     if (!found.ok) throw new Refusal(found.code, found.message);

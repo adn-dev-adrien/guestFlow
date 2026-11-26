@@ -190,7 +190,7 @@ nothing until a slot was chosen, and had to type again what the giver already ga
     40 characters each, refused by the server when empty (`RECIPIENT_FIRST_NAME_REQUIRED`, `RECIPIENT_LAST_NAME_REQUIRED`, with
     their `field`). They are stored separately on the order (`recipientFirstName`, `recipientLastName`). **The recipient's first
     name alone** is printed on the voucher PDF, in the e-mails and in the tunnel (« Pour Marie »); GuestFlow's voucher list and
-    detail show « Prénom Nom », and the list search covers both. Amends `specs/gift-voucher-campaigns.md` rules 18 and 41.
+    detail show « Prénom Nom », and the list search covers both. Amends `specs/gift-voucher-campaigns.md` rules 18 and 41. The public order path still accepts the legacy single `recipientName` (taken as the first name, last name empty, optional as before) from connectors before 1.24.0, so the release stays a minor under CLAUDE.md §5.6; « Nouveau bon » and any request carrying the new fields get the two-required rule. The operator's list search also matches the full « Prénom Nom ».
 33. **Data.** `gift_voucher_orders` gains `recipientFirstName` and `recipientLastName` (TEXT NOT NULL DEFAULT ''), added by a
     gift-vouchers plugin migration. Existing rows: `recipientFirstName` takes the old `recipientName`, `recipientLastName` stays
     empty — nothing lost, the printed name unchanged. `recipientName` stays readable as that first name for every reader that
@@ -265,7 +265,7 @@ All POST except where noted; refusals `{ code, message }` with French messages.
 - Gift-voucher `use/*` endpoints: `slots` gains `dueCents` and `evening` per slot, `confirm` gains `people`, `firstName`, `lastName`
   (`name` kept for older connectors).
 - §3.G: `POST /gift-vouchers/use` also answers `recipientFirstName` and `recipientLastName` (`recipientName` stays the first name);
-  `POST /gift-vouchers/orders` and `POST /api/gift-vouchers` take `recipientFirstName` and `recipientLastName` in place of `recipientName`, both required
+  `POST /gift-vouchers/orders` and `POST /api/gift-vouchers` take `recipientFirstName` and `recipientLastName` in place of `recipientName`, both required (the public orders endpoint still accepts the legacy `recipientName` alone, as the first name, from connectors ≤ 1.23.0)
   (`RECIPIENT_FIRST_NAME_REQUIRED`, `RECIPIENT_LAST_NAME_REQUIRED`, with `field` in the public `details` and in the admin body); the admin list items and the detail carry
   both names and `recipientLabel`.
 

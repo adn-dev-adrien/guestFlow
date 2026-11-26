@@ -364,10 +364,12 @@ function createOfferService({
   const textProblem = (value, max) => value !== undefined && value !== null && (typeof value !== 'string' || value.length > max);
 
   /**
-   * Rules 18, 41 and site-outside-resource-booking rule 32 — who the voucher is for (first and last name, both required) and from, the message and the e-mail. `emailRequired` for a site order and a payment link.
+   * Rules 18, 41 and site-outside-resource-booking rule 32 — who the voucher is for (first and last name, both required) and from, the message and the e-mail. `emailRequired` for a site order and a payment link; `legacyName` (public orders only) still takes the single `recipientName` of a connector before 1.24.0 as the first name, optional as it was.
    * → `{ ok, value }` | `{ ok: false, code, field? }`.
    */
-  function partiesOf(body, { emailRequired }) {
+  function partiesOf(rawBody, { emailRequired, legacyName = false }) {
+    const legacy = legacyName && rawBody.recipientFirstName === undefined && rawBody.recipientLastName === undefined && rawBody.recipientName !== undefined && rawBody.recipientName !== null;
+    const body = legacy ? { ...rawBody, recipientFirstName: rawBody.recipientName, recipientLastName: '' } : rawBody;
     const names = [['recipientFirstName', 'RECIPIENT_FIRST_NAME_REQUIRED'], ['recipientLastName', 'RECIPIENT_LAST_NAME_REQUIRED']];
     for (const [field] of names) {
       if (textProblem(body[field], MAX_NAME)) return { ok: false, code: 'FIELD_INVALID', field };
@@ -375,7 +377,7 @@ function createOfferService({
     if (textProblem(body.senderName, MAX_NAME) || textProblem(body.message, MAX_MESSAGE)) return { ok: false, code: 'FIELD_INVALID' };
     const clean = (value) => (typeof value === 'string' ? value.trim() : '');
     for (const [field, code] of names) {
-      if (!clean(body[field])) return { ok: false, code, field };
+      if (!legacy && !clean(body[field])) return { ok: false, code, field };
     }
     if (body.language !== undefined && body.language !== 'fr' && body.language !== 'en') return { ok: false, code: 'FIELD_INVALID' };
     if (body.email !== undefined && body.email !== null && typeof body.email !== 'string') return { ok: false, code: 'EMAIL_INVALID' };
