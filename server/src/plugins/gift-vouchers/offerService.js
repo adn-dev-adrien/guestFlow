@@ -270,6 +270,9 @@ function createOfferService({
     return priced.ok ? { ...priced, kind: found.campaign.kind, title: found.campaign.title } : priced;
   }
 
+  /** Rule 66 — what a campaign sells before the buyer adds time or options: the frozen contents the back of its voucher is read from. → `{ ok, contents }` | refusal. */
+  const baseContents = (campaign) => contentsFor(campaign, {});
+
   // ── the offer ─────────────────────────────────────────────────────────────────────────────────────────────────────
 
   /** The lines a buyer reads under « Votre bon comprend », in generic French: the session with its hours, then each option. */
@@ -484,7 +487,7 @@ function createOfferService({
   }
 
   return {
-    offer, price, campaignStatus, activityOf, createOrder, repriceOrder, startPayment, issueDirect, partiesOf, invalidateIdeas, durationText,
+    offer, baseContents, price, campaignStatus, activityOf, createOrder, repriceOrder, startPayment, issueDirect, partiesOf, invalidateIdeas, durationText,
   };
 }
 

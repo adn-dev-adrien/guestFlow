@@ -146,7 +146,7 @@ final class GF_Api_Client
         $raw = wp_remote_retrieve_body($response);
         $type = strtolower((string) wp_remote_retrieve_header($response, 'content-type'));
         if (!empty($opts['raw']) && $status >= 200 && $status < 300) {
-            foreach (['application/pdf', 'image/jpeg'] as $binary) {
+            foreach (['application/pdf', 'image/jpeg', 'image/png'] as $binary) {
                 if (strpos($type, $binary) === 0) {
                     return ['status' => $status, 'body' => $raw, 'type' => $binary, 'cache' => (string) wp_remote_retrieve_header($response, 'cache-control')];
                 }

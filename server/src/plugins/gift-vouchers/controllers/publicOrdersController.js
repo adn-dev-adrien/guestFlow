@@ -21,6 +21,7 @@ const STATUS = Object.freeze({
   CHALLENGE_INVALID: 403,
   VOUCHER_ORDER_NOT_FOUND: 404,
   VISUAL_NOT_FOUND: 404,
+  LOGO_NOT_FOUND: 404,
   TOO_MANY_ORDERS: 429,
   VOUCHER_ALREADY_ISSUED: 409,
   PAYMENT_LINK_EXPIRED: 409,
@@ -61,7 +62,7 @@ const isObject = (v) => v !== null && typeof v === 'object' && !Array.isArray(v)
 
 function buildPublicOrdersController({
   offerService, terms, available, brand, respond, orders, vouchers, proof, pepper, ipOf, payments, siteOrigin,
-  decrypt, documents, campaigns, siteVisual = null, pageUrl = () => '', now = () => new Date(),
+  decrypt, documents, campaigns, siteVisual = null, cardBack = null, pageUrl = () => '', now = () => new Date(),
 }) {
   const langOf = (req) => {
     const stated = (req.body && req.body.language) || (req.query && req.query.lang);
@@ -115,11 +116,17 @@ function buildPublicOrdersController({
   /** Each campaign carries the version of the terms its purchase accepts; one whose activity has none published is not offered (rule 37) — and its front (rule 62). */
   async function read(req, res) {
     const offer = await offerService.offer();
+    const back = cardBack ? await cardBack.offer() : null;
     const offered = offer.campaigns.map((c) => {
       const current = currentTerms(activityOfCampaign(c));
-      const visual = siteVisual ? siteVisual.describe(campaigns.findBySlug(c.slug)) : null;
+      const stored = campaigns.findBySlug(c.slug);
+      const visual = siteVisual ? siteVisual.describe(stored) : null;
       return {
-        ...c, termsVersionId: current ? current.id : null, termsVersion: current ? current.version : null, visual,
+        ...c,
+        termsVersionId: current ? current.id : null,
+        termsVersion: current ? current.version : null,
+        visual,
+        ...(back ? { back: cardBack.campaign(c, stored) } : {}),
       };
     }).filter((c) => c.kind === 'lodging' || c.termsVersionId !== null);
     const lodging = currentTerms('lodging');
@@ -128,6 +135,7 @@ function buildPublicOrdersController({
       brand: brand(),
       ...offer,
       campaigns: offered,
+      ...(back ? { back } : {}),
       termsVersionId: lodging ? lodging.id : null,
       termsVersion: lodging ? lodging.version : null,
     });
@@ -152,6 +160,17 @@ function buildPublicOrdersController({
     const answered = siteVisual ? await siteVisual.image(req.params.slug, req.query.v) : null;
     if (!answered) return refuse(req, res, 'VISUAL_NOT_FOUND', {}, 'Visuel introuvable.');
     res.set({ 'Content-Type': 'image/jpeg', 'Cache-Control': answered.current ? 'public, max-age=31536000, immutable' : 'no-store' });
+    return res.send(answered.buffer);
+  }
+
+  /**
+   * Rule 66 — the company's logo for the back drawn on the site, at an address that carries the hash of its bytes: the one asked for is kept for a year, a hash that is no longer
+   * the logo's is answered with today's logo and never kept.
+   */
+  async function logo(req, res) {
+    const answered = cardBack ? await cardBack.logo() : null;
+    if (!answered) return refuse(req, res, 'LOGO_NOT_FOUND', {}, 'Logo introuvable.');
+    res.set({ 'Content-Type': 'image/png', 'Cache-Control': String(req.query.v) === answered.hash ? 'public, max-age=31536000, immutable' : 'no-store' });
     return res.send(answered.buffer);
   }
 
@@ -229,6 +248,14 @@ function buildPublicOrdersController({
  * Rule 20 — the order's state and, once the bank confirmed, the voucher. Reading it asks the bank again while it is pending; a link that
  * lapsed unpaid (rule 16, one hour) answers `link-expired`, and a payment confirmed after that still issues the voucher (rule 45).
  */
+  /** Rule 66 — the back of an issued voucher, with its real QR code; nothing when the company has no website to link to. */
+  async function backOf(voucher, plain) {
+    const back = await cardBack.voucher({ ...voucher, code: plain }, plain);
+    if (!back) return {};
+    const stored = voucher.campaignId && campaigns ? campaigns.find(voucher.campaignId) : null;
+    return { back: { ...back, slug: stored ? stored.slug : null, visual: siteVisual && stored ? siteVisual.describe(stored) : null } };
+  }
+
   const status = guarded(async (req, res) => {
     let order = orderOf(req, req.query.token);
     let linkStatus = null;
@@ -258,6 +285,7 @@ function buildPublicOrdersController({
         senderName: voucher.senderName,
         message: voucher.message,
         code: plain,
+        ...(plain && cardBack ? await backOf(voucher, plain) : {}),
       },
     });
   });
@@ -279,7 +307,7 @@ function buildPublicOrdersController({
   });
 
   return {
-    read, price, link, visual, create, pay, status, pdf,
+    read, price, link, visual, logo, create, pay, status, pdf,
   };
 }
 

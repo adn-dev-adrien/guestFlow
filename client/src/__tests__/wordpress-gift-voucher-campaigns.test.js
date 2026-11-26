@@ -4,7 +4,7 @@
 import { fireEvent, screen, waitFor } from '@testing-library/react';
 import { loadBlock } from './wordpressBookingFixtures';
 
-const ASSETS = ['assets/voucher-code.js', 'assets/voucher-parts.js'];
+const ASSETS = ['assets/voucher-code.js', 'assets/voucher-parts.js', 'assets/voucher-card.js'];
 const VIEW = 'blocks/gift-voucher/view.js';
 
 const LODGING = {

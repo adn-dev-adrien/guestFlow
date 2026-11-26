@@ -8,12 +8,15 @@ const { durationText } = require('./offerService');
 
 const BAND_WORDS = Object.freeze({ day: 'en journée', evening: 'en soirée' });
 
+/** Rule 66 — the one line of a lodging voucher, with its amount left to fill: the site writes the amount the buyer types in `{amount}`. */
+const LODGING_LINE = 'Un séjour dans nos logements, d’une valeur de {amount}';
+
 const countOf = (qty, label) => (qty > 1 ? `${qty} × ${label}` : label);
 
 /** → the lines under « Votre bon comprend » : a lodging voucher says only its value, a composed one its session, its options and the extra time. */
 function contentLines(voucher) {
   const contents = rules.contentsOf(voucher);
-  if (contents.kind === 'lodging') return [`Un séjour dans nos logements, d’une valeur de ${rules.formatEuros(voucher.amountCents)}`];
+  if (contents.kind === 'lodging') return [LODGING_LINE.replace('{amount}', rules.formatEuros(voucher.amountCents))];
   const { resource } = contents;
   return [
     `${resource.name} : ${durationText(resource.includedMinutes)} ${BAND_WORDS[resource.band] || ''}`.trim(),
@@ -23,4 +26,4 @@ function contentLines(voucher) {
   ];
 }
 
-module.exports = { contentLines };
+module.exports = { contentLines, LODGING_LINE };

@@ -284,7 +284,8 @@ test('rules 20, 21: once confirmed, the page shows the voucher — amount, names
   const res = await view(orderId, token);
   assert.equal(res.status, 200);
   assert.equal(res.headers.get('cache-control'), 'no-store');
-  const { state, voucher } = res.body.data;
+  const { state, voucher: read } = res.body.data;
+  const { back: _back, ...voucher } = read; // the back of rule 66 has its own suite
   assert.equal(state, 'active');
   assert.deepEqual(
     { ...voucher, code: undefined },

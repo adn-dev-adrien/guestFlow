@@ -755,10 +755,6 @@ msgid "De la part de"
 msgstr "From"
 
 #: blocks/gift-voucher, includes/class-gf-blocks.php (specs/gift-vouchers.md)
-msgid "de la part de"
-msgstr "from"
-
-#: blocks/gift-voucher, includes/class-gf-blocks.php (specs/gift-vouchers.md)
 msgid "Un mot"
 msgstr "A message"
 
@@ -795,10 +791,6 @@ msgid "Vente en ligne bientôt disponible."
 msgstr "Online sales coming soon."
 
 #: blocks/gift-voucher, includes/class-gf-blocks.php (specs/gift-vouchers.md)
-msgid "Aperçu du bon"
-msgstr "Voucher preview"
-
-#: blocks/gift-voucher, includes/class-gf-blocks.php (specs/gift-vouchers.md)
 msgid "Bon cadeau"
 msgstr "Gift voucher"
 
@@ -809,14 +801,6 @@ msgstr "Code"
 #: blocks/gift-voucher, includes/class-gf-blocks.php (specs/gift-vouchers.md)
 msgid "délivré après le paiement"
 msgstr "issued after payment"
-
-#: blocks/gift-voucher, includes/class-gf-blocks.php (specs/gift-vouchers.md)
-msgid "Valable %d mois à compter du paiement, sur une réservation directe, en une ou plusieurs fois. Ni repris ni échangé contre de l’argent."
-msgstr "Valid for %d months from payment, on a direct booking, in one or several bookings. Not refundable or exchangeable for cash."
-
-#: blocks/gift-voucher, includes/class-gf-blocks.php (specs/gift-vouchers.md)
-msgid "Valable jusqu’au %s sur une réservation directe, en une ou plusieurs fois. Ni repris ni échangé contre de l’argent."
-msgstr "Valid until %s on a direct booking, in one or several bookings. Not refundable or exchangeable for cash."
 
 #: blocks/gift-voucher, includes/class-gf-blocks.php (specs/gift-vouchers.md)
 msgid "Paiement non abouti. Aucun bon n’a été émis."
@@ -1109,8 +1093,38 @@ msgstr "The permanent links printed on the cards: %1$s and %2$s. Same as the Gue
 msgid "Valable %d mois à compter du paiement, pour une séance à réserver en ligne."
 msgstr "Valid for %d months from payment, for a session to book online."
 
-msgid "Valable %d mois à compter du paiement, pour une séance à réserver en ligne. Ni repris ni échangé contre de l’argent."
-msgstr "Valid for %d months from payment, for a session to book online. Not refundable or exchangeable for cash."
+#: assets/voucher-card.js, includes/class-gf-blocks.php (specs/gift-voucher-campaigns.md rule 66)
+msgid "Recto"
+msgstr "Front"
 
-msgid "Valable jusqu’au %s, pour une séance à réserver en ligne. Ni repris ni échangé contre de l’argent."
-msgstr "Valid until %s, for a session to book online. Not refundable or exchangeable for cash."
+#: assets/voucher-card.js, includes/class-gf-blocks.php (specs/gift-voucher-campaigns.md rule 66)
+msgid "Verso"
+msgstr "Back"
+
+#: assets/voucher-card.js, includes/class-gf-blocks.php (specs/gift-voucher-campaigns.md rule 66)
+msgid "Face du bon"
+msgstr "Side of the voucher"
+
+#: assets/voucher-card.js, includes/class-gf-blocks.php (specs/gift-voucher-campaigns.md rule 66)
+msgid "Agrandir"
+msgstr "Enlarge"
+
+#: assets/voucher-card.js, includes/class-gf-blocks.php (specs/gift-voucher-campaigns.md rule 66)
+msgid "Fermer"
+msgstr "Close"
+
+#: assets/voucher-card.js, includes/class-gf-blocks.php (specs/gift-voucher-campaigns.md rule 66)
+msgid "Le bon en grand"
+msgstr "The voucher, enlarged"
+
+#: assets/voucher-card.js, includes/class-gf-blocks.php (specs/gift-voucher-campaigns.md rule 66)
+msgid "Retourner le bon"
+msgstr "Turn the voucher over"
+
+#: assets/voucher-card.js, includes/class-gf-blocks.php (specs/gift-voucher-campaigns.md rule 66)
+msgid "Aperçu"
+msgstr "Preview"
+
+#: assets/voucher-card.js, includes/class-gf-blocks.php (specs/gift-voucher-campaigns.md rule 66)
+msgid "Voir le verso du bon"
+msgstr "See the back of the voucher"

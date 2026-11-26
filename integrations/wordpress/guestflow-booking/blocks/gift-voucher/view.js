@@ -13,6 +13,9 @@
  * exactly like one chosen on the site. A `lodging` campaign keeps the free-amount tunnel; a `resource` campaign
  * draws the server's contents, its extra time and add-ons, and the server's price (`POST /offer/price`).
  *
+ * Rule 66 — the card at the head of the form is `GF.voucherCard` (assets/voucher-card.js): the campaign's front and the back GuestFlow sends, which turns by
+ * itself when the buyer types in « Pour », « De la part de » or « Un mot » or changes the extras. The same card, with the real code and QR code, is the page after payment.
+ *
  * No money logic lives here: the bounds, the priced ideas, the validity, the lines, the total, the VAT and the voucher
  * come from GuestFlow. The one rule the client repeats is the amount's shape, as a hint before a request is
  * spent — GuestFlow validates the order again and may refuse it.
@@ -27,6 +30,7 @@
   var POLL_MS = 3000;
   var POLL_TRIES = 20;
   var PRICE_DEBOUNCE_MS = 300;
+  var WIDE_BLOCK = 600;
   var EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 
   function queryParam(name) {
@@ -178,39 +182,6 @@
     open(asked || (campaigns.length === 1 ? campaigns[0].slug : ''), false);
   }
 
-  // ── The voucher itself: the live preview and the page shown after payment ────────────────────
-  // o: { brand, amountCents | heading + items, recipient, sender, message, code, conditions }
-  function ticket(o) {
-    var who = [];
-    if (o.recipient) who.push(GF.el('span', {}, GF.t('gvForLine') + ' ', GF.el('b', {}, o.recipient)));
-    if (o.sender) who.push(GF.el('span', {}, GF.t(o.recipient ? 'gvFromLine' : 'gvFromLineFirst') + ' ', GF.el('b', {}, o.sender)));
-    var whoNode = null;
-    if (who.length) {
-      whoNode = GF.el('p', { class: 'gf-gv-who' });
-      who.forEach(function (n, i) {
-        if (i) whoNode.appendChild(document.createTextNode(', '));
-        whoNode.appendChild(n);
-      });
-    }
-    return GF.el('div', { class: 'gf-gv-ticket' },
-      o.brand ? GF.el('div', { class: 'gf-gv-brand' }, o.brand) : null,
-      GF.el('div', { class: 'gf-gv-ticket-title' }, GF.t('gvVoucher')),
-      o.heading
-        ? GF.el('div', { class: 'gf-gv-amount gf-gv-heading' }, o.heading)
-        : GF.el('div', { class: 'gf-gv-amount' }, o.amountCents != null ? money(o.amountCents) : '—'),
-      o.items && o.items.length ? GF.el('ul', { class: 'gf-gv-items' }, o.items.map(function (line) {
-        return GF.el('li', {}, (line.qty > 1 ? line.qty + ' × ' : '') + line.label + (line.detail ? ' — ' + line.detail : ''));
-      })) : null,
-      whoNode,
-      o.message ? GF.el('p', { class: 'gf-gv-say' }, o.message) : null,
-      GF.el('div', { class: 'gf-gv-foot' },
-        GF.el('div', { class: 'gf-gv-lbl' }, GF.t('gvCode')),
-        GF.el('div', { class: 'gf-gv-code' + (o.code ? '' : ' is-wait') }, o.code || GF.t('gvCodeAfterPay')),
-        GF.el('p', { class: 'gf-gv-small' }, o.conditions)
-      )
-    );
-  }
-
   // ── Purchase form ───────────────────────────────────────────────────────────────────────────
   // `campaign` is null for an older GuestFlow that lists no campaigns: the one free-amount tunnel it has always sold.
   function buildForm(container, offer, campaign, switchNode) {
@@ -333,11 +304,6 @@
       soon = GF.el('p', { class: 'gf-inline-info gf-gv-soon', role: 'status' }, GF.t('gvSoon'));
     }
 
-    var aside = GF.el('div', { class: 'gf-gv-aside' },
-      GF.el('div', { class: 'gf-gv-group-label' }, GF.t('gvPreview')),
-      GF.el('div', { class: 'gf-gv-preview' }));
-    var preview = aside.querySelector('.gf-gv-preview');
-
     // ── A composed voucher (rule 17): the server's contents, extra time and add-ons, and the server's price ──
     var composeBlock = null;
     var extrasFold = null;
@@ -355,8 +321,8 @@
       extrasFold = GF.voucherExtrasFold({
         extraTime: campaign.extraTime,
         addOns: campaign.addOns,
-        onExtraTime: function (n) { extraMinutes = n; changed(); },
-        onAddOn: function (ref, n) { addOnQty[ref] = n; changed(); },
+        onExtraTime: function (n) { extraMinutes = n; turnToBack(); changed(); },
+        onAddOn: function (ref, n) { addOnQty[ref] = n; turnToBack(); changed(); },
       });
       recap = GF.el('div', { class: 'gf-gv-recap', 'aria-live': 'polite' });
       composeBlock = GF.el('div', { class: 'gf-gv-compose' },
@@ -413,19 +379,41 @@
       priceTimer = setTimeout(askPrice, PRICE_DEBOUNCE_MS);
     }
 
+    // On a narrow block (a phone) the card is above the form, out of sight while typing: it does not turn by itself there, a link under « Un mot » does.
+    function wide() {
+      var host = root.closest('[data-gf-gift-voucher]') || root;
+      return host.offsetWidth >= WIDE_BLOCK;
+    }
+    function turnToBack() { if (card && back && wide()) card.turn(true); }
     if (switchNode) root.appendChild(switchNode);
-    // Rule 62 — the card heads the form: above the title on a phone, a column beside it on a wide block.
+    // Rules 62, 66 — the card heads the form: above the title on a phone, a sticky column beside it on a wide block.
     var lead = GF.el('div', { class: 'gf-gv-lead' });
-    var card = front(campaign, 'gf-gv-front', false, function () { lead.classList.remove('has-front'); });
-    if (card) { lead.classList.add('has-front'); lead.appendChild(card); }
+    var back = offer.back && campaign && campaign.back ? offer.back : null;
+    var card = campaign ? GF.voucherCard({
+      title: campaign.title,
+      front: function () { return front(campaign, 'gf-card-front-img', false, null); },
+      back: back,
+      preview: true,
+    }) : null;
+    if (card) {
+      lead.classList.add('has-card');
+      lead.appendChild(GF.el('div', { class: 'gf-card-col' }, card.node));
+    }
+    var peek = null;
+    if (card && back) {
+      peek = GF.el('button', { type: 'button', class: 'gf-gv-peek' }, GF.t('gvSeeBack'));
+      peek.addEventListener('click', function () {
+        card.turn(true);
+        card.reveal();
+      });
+    }
     var main = GF.el('div', { class: 'gf-gv-main' });
     main.appendChild(GF.el('h3', { class: 'gf-gv-title' }, campaign ? campaign.title : GF.t('gvTitle')));
     if (months) main.appendChild(GF.el('p', { class: 'gf-gv-intro' }, GF.t(isResource ? 'gvIntroSession' : 'gvIntro', months)));
     main.appendChild(GF.el('div', { class: 'gf-gv-two' },
       GF.el('div', { class: 'gf-gv-form' },
-        isResource ? composeBlock : amountField, isResource ? null : ideasBlock, recipientField, senderField, messageField, emailField,
-        termsLabel, termsErr, alertBox, payBtn, soon),
-      aside));
+        isResource ? composeBlock : amountField, isResource ? null : ideasBlock, recipientField, senderField, messageField, peek, emailField,
+        termsLabel, termsErr, alertBox, payBtn, soon)));
     // Rule 19 — whoever has received a voucher is led to the page that books the session; no link when no page holds the block.
     if (GF.sessionPageUrl) {
       main.appendChild(GF.el('div', { class: 'gf-gv-uselink' },
@@ -440,6 +428,23 @@
       if (message) alertBox.removeAttribute('hidden'); else alertBox.setAttribute('hidden', 'hidden');
     }
 
+    var euros = new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR' });
+
+    // Rule 66 — the lines under « Votre bon comprend »: GuestFlow's own, to which the page adds only what the buyer chose (the amount, the extra time, the options).
+    function cardLines(cents) {
+      var b = campaign.back;
+      if (!isResource) {
+        return [String(b.lineTemplate || '').split('{amount}').join(cents != null ? euros.format(cents / 100) : '… €')];
+      }
+      var lines = (b.lines || []).slice();
+      if (extraMinutes > 0) lines.push(back.texts.extraTime.split('{duration}').join(GF.voucherDuration(extraMinutes)));
+      (campaign.addOns || []).forEach(function (a) {
+        var qty = addOnQty[a.articleRef] || 0;
+        if (qty > 0) lines.push((qty > 1 ? qty + ' × ' : '') + a.label);
+      });
+      return lines;
+    }
+
     function sync() {
       var a = isResource ? { cents: priced ? priced.totalCents : null } : parseAmount();
       var shown = touched && a.error ? a.error : '';
@@ -448,22 +453,20 @@
       chips.forEach(function (c) { c.node.setAttribute('aria-pressed', a.cents != null && c.cents === a.cents ? 'true' : 'false'); });
       counter.textContent = messageInput.value.length + ' / ' + MESSAGE_MAX;
       if (payBtn && !busy) payBtn.textContent = a.cents != null ? GF.t('gvPay', GF.euro(a.cents / 100)) : GF.t('gvPayBare');
-      preview.innerHTML = '';
-      preview.appendChild(ticket({
-        brand: offer.brand || '',
-        amountCents: isResource ? null : (a.cents != null ? a.cents : null),
-        heading: isResource ? campaign.title : null,
-        items: isResource ? campaign.contents : null,
-        recipient: recipientInput.value.trim(),
-        sender: senderInput.value.trim(),
-        message: messageInput.value.trim(),
-        code: null,
-        conditions: months ? GF.t(isResource ? 'gvConditionsPreviewSession' : 'gvConditionsPreview', months) : '',
-      }));
+      if (card && back) {
+        card.set({
+          recipient: recipientInput.value.trim(),
+          sender: senderInput.value.trim(),
+          message: messageInput.value.trim(),
+          lines: cardLines(a.cents),
+          validUntil: campaign.back.validUntil,
+        });
+      }
     }
 
     amountInput.addEventListener('input', function () { touched = true; });
     [amountInput, recipientInput, senderInput, messageInput].forEach(function (n) { n.addEventListener('input', sync); });
+    [recipientInput, senderInput, messageInput].forEach(function (n) { n.addEventListener('input', turnToBack); });
     emailInput.addEventListener('input', function () { setError('email', ''); });
     termsInput.addEventListener('change', function () { setError('terms', ''); });
     sync();
@@ -581,7 +584,7 @@
     function say(node) { box.innerHTML = ''; box.appendChild(node); }
     function waiting() { say(GF.el('div', { class: 'gf-loading', role: 'status' }, GF.t('gvConfirming'))); }
 
-    function voucherPage(order) {
+    function voucherPage(order, shared) {
       var v = order.voucher;
       var code = v.code ? VC.format(VC.normalise(v.code)) : null;
       var state = order.state;
@@ -600,28 +603,38 @@
         });
         window.print();
       });
-      var page = GF.el('div', {},
-        GF.el('h3', { class: 'gf-gv-title' }, GF.t('gvReady')),
-        notes,
-        GF.el('div', { class: 'gf-gv-two' },
-          GF.el('div', { class: 'gf-gv-printzone' }, ticket({
-            brand: v.brand || '',
-            amountCents: v.kind === 'resource' ? null : v.amountCents,
-            heading: v.kind === 'resource' ? (v.title || GF.t('gvVoucher')) : null,
-            items: v.kind === 'resource' ? (v.contentLines || []).map(function (label) { return { label: label, qty: 1 }; }) : null,
-            recipient: v.recipientName || '',
-            sender: v.senderName || '',
-            message: v.message || '',
-            code: code,
-            conditions: GF.t(v.kind === 'resource' ? 'gvConditionsUntilSession' : 'gvConditionsUntil', dateOf(v.expiresOn)),
-          })),
-          GF.el('div', { class: 'gf-gv-form gf-gv-after' },
-            GF.el('div', { class: 'gf-gv-actions' },
-              GF.el('a', { class: 'gf-btn', href: pdfUrl, target: '_blank', rel: 'noopener' }, GF.t('gvDownload')),
-              print),
-            GF.el('p', {}, GF.t('gvHowTo')),
-            GF.el('p', {}, GF.t('gvLinkStays')))));
-      say(page);
+      var after = GF.el('div', { class: 'gf-gv-form gf-gv-after' },
+        GF.el('div', { class: 'gf-gv-actions' },
+          GF.el('a', { class: 'gf-btn', href: pdfUrl, target: '_blank', rel: 'noopener' }, GF.t('gvDownload')),
+          print),
+        GF.el('p', {}, GF.t('gvHowTo')),
+        GF.el('p', {}, GF.t('gvLinkStays')));
+      var lead = GF.el('div', { class: 'gf-gv-lead' });
+      var voucherBack = v.back || null;
+      // Rule 66 — the card the PDF holds: its back first, with the real code and the real QR code; the offer carries what is common to every back (layout, words, logo).
+      var card = voucherBack && shared ? GF.voucherCard({
+        title: v.title || '',
+        front: voucherBack.visual && voucherBack.slug ? function () {
+          return front({ slug: voucherBack.slug, title: v.title, visual: voucherBack.visual }, 'gf-card-front-img', false, null);
+        } : null,
+        back: shared,
+        preview: false,
+        print: true,
+        startOnBack: true,
+      }) : null;
+      if (card) {
+        card.set({
+          recipient: v.recipientName || '', sender: v.senderName || '', message: v.message || '', lines: voucherBack.lines, validUntil: voucherBack.validUntil, code: code, qrSvg: voucherBack.qrSvg, link: voucherBack.link,
+        });
+        lead.classList.add('has-card');
+        lead.appendChild(GF.el('div', { class: 'gf-card-col' }, card.node));
+      } else if (code) {
+        // No back to draw (the company has no website): the code still has to be on the page.
+        lead.appendChild(GF.el('div', { class: 'gf-gv-codebox gf-gv-printzone' },
+          GF.el('div', { class: 'gf-gv-lbl' }, GF.t('gvCode')), GF.el('div', { class: 'gf-gv-code' }, code)));
+      }
+      lead.appendChild(GF.el('div', { class: 'gf-gv-main' }, after));
+      say(GF.el('div', {}, GF.el('h3', { class: 'gf-gv-title' }, GF.t('gvReady')), notes, lead));
     }
 
     function stop(className, key) { say(GF.el('div', { class: className, role: 'status' }, GF.t(key))); }
@@ -644,7 +657,14 @@
       GF.api('GET', '/gift-vouchers/orders/' + orderId + '?token=' + encodeURIComponent(token)).then(function (res) {
         if (res.status === 404) { stop('gf-inline-warn', 'gvNotFound'); return; }
         var order = (res.body && res.body.data) || {};
-        if (order.voucher) { voucherPage(order); return; }
+        if (order.voucher) {
+          if (!order.voucher.back) { voucherPage(order, null); return; }
+          GF.api('GET', '/gift-vouchers/offer').then(function (offerRes) {
+            var offer = offerRes.status >= 200 && offerRes.status < 300 && offerRes.body && offerRes.body.data;
+            voucherPage(order, offer && offer.back ? offer.back : null);
+          });
+          return;
+        }
         if (order.state === 'link-expired') { expired(); return; }
         if (order.state === 'cancelled' || order.state === 'expired' || order.state === 'failed') { stop('gf-inline-warn', 'gvPaymentFailed'); return; }
         waiting();

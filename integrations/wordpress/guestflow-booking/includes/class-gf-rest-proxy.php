@@ -206,6 +206,12 @@ final class GF_Rest_Proxy
             'permission_callback' => $public,
             'callback'            => [$this, 'get_campaign_visual'],
         ]);
+        // Rule 66 — the company's logo for the back of the voucher card, at the address GuestFlow hashes.
+        register_rest_route(self::NS, '/gift-vouchers/logo', [
+            'methods'             => 'GET',
+            'permission_callback' => $public,
+            'callback'            => [$this, 'get_voucher_logo'],
+        ]);
         register_rest_route(self::NS, '/gift-vouchers/orders/(?P<id>\d+)/pdf', [
             'methods'             => 'GET',
             'permission_callback' => $public,
@@ -522,6 +528,25 @@ final class GF_Rest_Proxy
         return $response;
     }
 
+    /** The company's logo for the voucher's back (rule 66): the PNG and GuestFlow's cache header as they come; only hex reaches the hash parameter. */
+    public function get_voucher_logo(WP_REST_Request $request): WP_REST_Response
+    {
+        $hash = (string) $request->get_param('v');
+        $query = preg_match('/^[0-9a-f]{8,64}$/', $hash) ? ['v' => $hash] : [];
+        $res = GF_Api_Client::instance()->get_raw('/gift-vouchers/logo', $query);
+        if (($res['type'] ?? '') !== 'image/png') {
+            $response = new WP_REST_Response(['error' => ['code' => 'LOGO_NOT_FOUND']], 404);
+            $response->header('Cache-Control', 'no-store');
+            return $response;
+        }
+        $cache = (string) ($res['cache'] ?? '');
+        $response = new WP_REST_Response($res['body'], 200);
+        $response->header('Content-Type', 'image/png');
+        $response->header('Cache-Control', strpos($cache, 'immutable') !== false ? 'public, max-age=31536000, immutable' : 'no-store');
+        $response->header('X-Content-Type-Options', 'nosniff');
+        return $response;
+    }
+
     /** Sends the PDF and picture bytes as they are: the REST server would otherwise JSON-encode them. */
     public function serve_voucher_pdf($served, $result, $request)
     {
@@ -532,7 +557,8 @@ final class GF_Rest_Proxy
         $route = (string) $request->get_route();
         $type = $headers['Content-Type'] ?? '';
         $binary = ($type === 'application/pdf' && strpos($route, '/' . self::NS . '/gift-vouchers/orders/') === 0)
-            || ($type === 'image/jpeg' && strpos($route, '/' . self::NS . '/gift-vouchers/campaigns/') === 0);
+            || ($type === 'image/jpeg' && strpos($route, '/' . self::NS . '/gift-vouchers/campaigns/') === 0)
+            || ($type === 'image/png' && $route === '/' . self::NS . '/gift-vouchers/logo');
         if ($result->get_status() === 200 && is_string($result->get_data()) && $binary) {
             echo $result->get_data(); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- a PDF file or a JPEG, not markup
             return true;

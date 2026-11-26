@@ -69,12 +69,12 @@ test('public and admin routes return the same payload and the same price for the
     const { omitted, paymentMethods, ...adminPayload } = adminOffer;
     assert.deepEqual(paymentMethods.map((m) => m.value), ['card', 'cash', 'transfer'], 'what only the operator needs: the means of « Payé »');
     const {
-      available, brand, termsVersionId, termsVersion, ...publicPayload
+      available, brand, termsVersionId, termsVersion, back: _back, ...publicPayload
     } = publicOffer;
     assert.deepEqual([available, brand, termsVersionId, termsVersion], [true, 'Domaine Solio', 4, 1], 'what only the site needs: the terms id it sends back and the number its link shows');
     assert.deepEqual(publicPayload.campaigns.map((c) => [c.slug, c.termsVersionId]), [['sejour', 4], ['bain-jour', 9], ['bain-soir', 9]], 'each campaign names the terms its purchase accepts (rule 37)');
     assert.deepEqual(publicPayload.campaigns.map((c) => [c.slug, c.visual ? c.visual.width : null]), [['sejour', null], ['bain-jour', 720], ['bain-soir', 720]], 'and the front the site shows, when the campaign has one (rule 62)');
-    assert.deepEqual({ ...publicPayload, campaigns: publicPayload.campaigns.map(({ termsVersionId: _terms, termsVersion: _number, visual: _front, ...rest }) => rest) }, adminPayload);
+    assert.deepEqual({ ...publicPayload, campaigns: publicPayload.campaigns.map(({ termsVersionId: _terms, termsVersion: _number, visual: _front, back: _cardBack, ...rest }) => rest) }, adminPayload);
     const request = { slug: 'bain-jour', extraMinutes: 60, addOns: [{ articleRef: `option:${ids.drink}`, qty: 2 }] };
     const sitePrice = (await site('POST', '/offer/price', request)).body.data;
     const adminPrice = (await admin('POST', '/offer/price', request)).body;
