@@ -51,13 +51,17 @@ land on states plainly what is offered, when, for how many and at what price.
 1. Every change is **additive or a replacement of a value named in this spec**. Blocks already on
    `/le-domaine/`, the home page, the lodging pages and `/reserver/` are not touched, except the
    `/le-domaine/` Google title and description (rule 20) and the home description (rule 21).
+> **Sans test** — procédure de déploiement sur le site WordPress, hors du code de ce dépôt ; vérifiée en ligne le 26/11/2026, §10.
 2. The GuestFlow blocks (`guestflow/session-booking`, `guestflow/gift-voucher`) stay where they are,
    unchanged. New content is placed **below** them, except the bath page H1 (rule 6).
+> **Sans test** — procédure de déploiement sur le site WordPress, hors du code de ce dépôt ; vérifiée en ligne le 26/11/2026, §10.
 3. Before any write to the WordPress database, the target `post_content` and post meta are saved to
    `/tmp/bak-page-<ID>-<timestamp>.txt` inside `wp_app`; before any mu-plugin is replaced, the online
    file is diffed both ways against `origin/main` (memory: the container is often behind or ahead).
+> **Sans test** — procédure de déploiement sur le site WordPress, hors du code de ce dépôt ; vérifiée en ligne le 26/11/2026, §10.
 4. A change is « done » only once measured on the public site (HTTP 200, words readable without
    JavaScript, `<title>`, JSON-LD parses), never at merge time.
+> **Sans test** — procédure de déploiement sur le site WordPress, hors du code de ce dépôt ; vérifiée en ligne le 26/11/2026, §10.
 
 ### 3.B Facts are read, never written
 
@@ -66,26 +70,32 @@ land on states plainly what is offered, when, for how many and at what price.
    `GF_Api_Client`, cached 1 h like `[solio_seance]`. When GuestFlow does not answer, the line or the
    FAQ answer that needs the value is **omitted**, never guessed. No price, hour or head count is
    written in PHP, in a page or in a test fixture used as content.
+> **Sans test** — le code vit dans le dépôt privé `adn-dev-adrien/solio-site` ; la règle y est tenue par `tests/seo-nordic-bath-gift-vouchers.test.js`, et mesurée en ligne, §10.
 
 ### 3.C The nordic bath page (`/bain-nordique/`, `/en/nordic-bath/`)
 
 6. H1: « Bain nordique en Ardèche verte » / « Nordic bath in the Ardèche verte ». The eyebrow
    (« Satillieu · Ardèche verte ») and the sentence under it stay.
+> **Sans test** — le code vit dans le dépôt privé `adn-dev-adrien/solio-site` ; la règle y est tenue par `tests/seo-nordic-bath-gift-vouchers.test.js`, et mesurée en ligne, §10.
 7. Below the booking block, in this order: « L'essentiel » (rule 8), « Le jour, le soir » (rule 9),
    « Pour qui » (rule 10), the FAQ (rules 11-13). All of it is server-rendered HTML.
+> **Sans test** — le code vit dans le dépôt privé `adn-dev-adrien/solio-site` ; la règle y est tenue par `tests/seo-nordic-bath-gift-vouchers.test.js`, et mesurée en ligne, §10.
 8. « L'essentiel » is a list: wood-fired bath, water around `bain_temperature` °C (`gf_seo_domaine()`);
    private, up to `maxPeople`; daytime band `from`–`to` at the day price per hour; evening band
    `from`–`to` at the evening price per hour; extra hour price; Satillieu, distance to Annonay
    (`gf_seo_distances()`). Bands and prices come from the bath campaigns of `/gift-vouchers/offer`
    (`band`, `totalCents`, `extraTime.prices[0]`), falling back to `/sessions/resources.fromCents` for
    the « from » price. The tub's material is **not** stated (Adrien, 2026-11-26).
+> **Sans test** — le code vit dans le dépôt privé `adn-dev-adrien/solio-site` ; la règle y est tenue par `tests/seo-nordic-bath-gift-vouchers.test.js`, et mesurée en ligne, §10.
 9. « Le jour, le soir »: two short evocative paragraphs, no practical modality
    (memory `site-texte-evocateur-sans-pratique`). FR: « L'eau fume, la vallée s'ouvre jusqu'aux
    crêtes. Le poêle crépite, le vent passe dans les prés. Rien entre vous et l'horizon. » /
    « Le poêle rougeoie, l'air fraîchit, les étoiles arrivent une à une. Aucune lumière de ville pour
    les cacher. » Both are always in the HTML (no toggle).
+> **Sans test** — le code vit dans le dépôt privé `adn-dev-adrien/solio-site` ; la règle y est tenue par `tests/seo-nordic-bath-gift-vouchers.test.js`, et mesurée en ligne, §10.
 10. « Pour qui »: three tiles — « À deux », « Entre amies », « Seul·e » — with the texts of the decision
     page. No « en famille » tile.
+> **Sans test** — le code vit dans le dépôt privé `adn-dev-adrien/solio-site` ; la règle y est tenue par `tests/seo-nordic-bath-gift-vouchers.test.js`, et mesurée en ligne, §10.
 11. FAQ, new key `bain-seance` in `gf_seo_faq()` (the existing `bain-nordique` key stays for
     `/le-domaine/`), questions in this order: what a nordic bath is (also called « bain norvégien »
     or hot tub, wood-fired, no material named); is a stay needed (no; guests get one hour free per
@@ -96,6 +106,7 @@ land on states plainly what is offered, when, for how many and at what price.
     grossesse et en cas de problème cardiaque sans l'avis d'un médecin. »); what to bring (rule 12);
     drinks (rule 13); how long from Annonay, Tournon, Saint-Étienne, Lyon, Valence (rule 14); can it
     be offered (link to the voucher page).
+> **Sans test** — le code vit dans le dépôt privé `adn-dev-adrien/solio-site` ; la règle y est tenue par `tests/seo-nordic-bath-gift-vouchers.test.js`, et mesurée en ligne, §10.
 12. « Que faut-il apporter ? » answers: a swimsuit; a shelter to change near the bath (confirmed by
     Adrien). « Serviettes en option » is added **only if** a bath add-on whose label contains
     « serviette » / « towel » is returned by GuestFlow. Created on 2026-11-26: option 35 « Serviette de
@@ -104,31 +115,38 @@ land on states plainly what is offered, when, for how many and at what price.
     itself could not be reused: it is priced per person and feeds the linen counts, and the engine
     refuses per-person options outside a stay. It shows on the site once added to the bath voucher
     campaigns (« Options proposées ») and, for direct bookings, to the bath's suggested articles.
+> **Sans test** — le code vit dans le dépôt privé `adn-dev-adrien/solio-site` ; la règle y est tenue par `tests/seo-nordic-bath-gift-vouchers.test.js`, et mesurée en ligne, §10.
 13. « Peut-on boire un verre ? » lists the add-on families GuestFlow returns for the bath campaigns
     (drinks, platters) without prices; omitted when there are none. On 2026-11-26 a direct session
     booking offers no add-on yet: that choice is being developed separately and ships in the same
     release, so the answer is kept as written (Adrien, 2026-11-26).
+> **Sans test** — le code vit dans le dépôt privé `adn-dev-adrien/solio-site` ; la règle y est tenue par `tests/seo-nordic-bath-gift-vouchers.test.js`, et mesurée en ligne, §10.
 14. Travel times (OSRM, measured 2026-11-26, rounded): Annonay 15 min, Saint-Vallier 25 min, Tournon
     40 min, Valence 1 h, Saint-Étienne 1 h 05, Lyon 1 h 20. They live in **one folded FAQ question**,
     visible to anyone who opens it. **Never hidden from visitors while shown to crawlers** (cloaking;
     Adrien asked for it, refused for this reason, folded question chosen instead). The figures join
     `gf_seo_distances()` so `llms.txt` and the page read the same source.
+> **Sans test** — le code vit dans le dépôt privé `adn-dev-adrien/solio-site` ; la règle y est tenue par `tests/seo-nordic-bath-gift-vouchers.test.js`, et mesurée en ligne, §10.
 15. JSON-LD on this page: a `Service` node (`serviceType` « Bain nordique privatif »,
     `provider` → `#domaine`, `areaServed` Ardèche verte, `offers`: one `Offer` per band with a
     `UnitPriceSpecification` per hour, EUR); `FAQPage` built from the same `bain-seance` array as the
     visible FAQ; `BreadcrumbList` Accueil → Bain nordique. No `AggregateRating` (self-serving reviews).
+> **Sans test** — le code vit dans le dépôt privé `adn-dev-adrien/solio-site` ; la règle y est tenue par `tests/seo-nordic-bath-gift-vouchers.test.js`, et mesurée en ligne, §10.
 
 ### 3.D The gift voucher page (`/offrir-un-bon-cadeau/`, `/en/gift-voucher/`)
 
 16. H1: « Offrir un bain nordique ou un séjour » / « Give a nordic bath or a stay ».
+> **Sans test** — le code vit dans le dépôt privé `adn-dev-adrien/solio-site` ; la règle y est tenue par `tests/seo-nordic-bath-gift-vouchers.test.js`, et mesurée en ligne, §10.
 17. Below the voucher block: a line of occasions (Noël, Saint-Valentin, Anniversaire, Fête des mères,
     Entre amies, Pour dire merci), each with its one-line evocative text from the decision page, all
     present in the HTML; then « Les bons »: one line per campaign on sale (title, band, price), the
     stay voucher as a range `minAmountCents`–`maxAmountCents`, the validity `validityMonths`, « reçu par
     e-mail avec la carte à imprimer »; then a FAQ, key `bons-cadeaux`: when it arrives, validity, how it
     is used, what can be added.
+> **Sans test** — le code vit dans le dépôt privé `adn-dev-adrien/solio-site` ; la règle y est tenue par `tests/seo-nordic-bath-gift-vouchers.test.js`, et mesurée en ligne, §10.
 18. JSON-LD: one `Product` per campaign on sale with an `Offer` (price, EUR, `availability` InStock);
     the stay voucher with an `AggregateOffer` (`lowPrice`/`highPrice`); `FAQPage` from `bons-cadeaux`.
+> **Sans test** — le code vit dans le dépôt privé `adn-dev-adrien/solio-site` ; la règle y est tenue par `tests/seo-nordic-bath-gift-vouchers.test.js`, et mesurée en ligne, §10.
 
 ### 3.E Titles and descriptions
 
@@ -143,13 +161,16 @@ land on states plainly what is offered, when, for how many and at what price.
     - `saint-valentin-en-ardeche` — rule 23.
     English pages get the same through their `_gf_seo_title` / `_gf_seo_description` meta (the table is
     keyed on French slugs).
+> **Sans test** — le code vit dans le dépôt privé `adn-dev-adrien/solio-site` ; la règle y est tenue par `tests/seo-nordic-bath-gift-vouchers.test.js`, et mesurée en ligne, §10.
 20. `/le-domaine/` (page 317): `_gf_seo_title` « Le Domaine Solio : 13 hectares de nature en Ardèche
     verte », `_gf_seo_description` « Prairie, forêt, ânes, chèvres et moutons, une boucle de 2 km et un
     bain nordique face à la vallée : 13 hectares rien que pour vous à Satillieu. » Its bath section gains
     one link to `/bain-nordique/`; nothing else on the page changes.
+> **Sans test** — le code vit dans le dépôt privé `adn-dev-adrien/solio-site` ; la règle y est tenue par `tests/seo-nordic-bath-gift-vouchers.test.js`, et mesurée en ligne, §10.
 21. Home description: « 13 ha rien que pour vous à Satillieu : gîte 3 étoiles pour 10, tente safari,
     bain nordique à l'heure face à la vallée, ânes et chèvres. Bons cadeaux. » Title: « Domaine Solio,
     Satillieu : gîte pour 10 et tente safari, Ardèche ».
+> **Sans test** — le code vit dans le dépôt privé `adn-dev-adrien/solio-site` ; la règle y est tenue par `tests/seo-nordic-bath-gift-vouchers.test.js`, et mesurée en ligne, §10.
 22. The voucher page title follows the calendar, computed from the date in PHP (Europe/Paris) — no
     manual edit:
     - 1 November → 25 December: « Bon cadeau bain nordique en Ardèche : Noël, Saint-Valentin »;
@@ -158,6 +179,7 @@ land on states plainly what is offered, when, for how many and at what price.
       Pentecost): « Bon cadeau fête des mères : bain nordique en Ardèche »;
     - otherwise: « Bon cadeau bain nordique en Ardèche, à offrir toute l'année ».
     Each title stays ≤ 60 characters.
+> **Sans test** — le code vit dans le dépôt privé `adn-dev-adrien/solio-site` ; la règle y est tenue par `tests/seo-nordic-bath-gift-vouchers.test.js`, et mesurée en ligne, §10.
 
 ### 3.F The Valentine's Day page (`/saint-valentin-en-ardeche/`)
 
@@ -167,6 +189,7 @@ land on states plainly what is offered, when, for how many and at what price.
     never suggests a February stay at L'Estiva). Links to `/bain-nordique/` and
     `/offrir-un-bon-cadeau/`. FAQ key `saint-valentin` (evening band and price read live, voucher
     arrives by e-mail, validity). No English twin (out of scope).
+> **Sans test** — le code vit dans le dépôt privé `adn-dev-adrien/solio-site` ; la règle y est tenue par `tests/seo-nordic-bath-gift-vouchers.test.js`, et mesurée en ligne, §10.
 
 ### 3.G AI readability
 
@@ -175,8 +198,10 @@ land on states plainly what is offered, when, for how many and at what price.
     two pages (and the Valentine page once published) in « Pages » with one-line summaries; the stale
     slugs of `$resumes` that no longer exist (`hebergements`, `privatiser-le-domaine`,
     `bain-nordique-ardeche`, `faq`, `acces`, `vos-hotes`) are removed. All figures from GuestFlow.
+> **Sans test** — le code vit dans le dépôt privé `adn-dev-adrien/solio-site` ; la règle y est tenue par `tests/seo-nordic-bath-gift-vouchers.test.js`, et mesurée en ligne, §10.
 25. After each deployment: IndexNow ping of the changed URLs (`gf_indexnow_signaler`), sitemap
     resubmitted in Search Console, URL inspection requested for `/bain-nordique/`.
+> **Sans test** — procédure après déploiement (IndexNow, sitemap Search Console), faite le 26/11/2026, §10.
 
 ### 3.H Off-site (Google Business Profile — Adrien's account)
 
@@ -185,6 +210,7 @@ land on states plainly what is offered, when, for how many and at what price.
     2027-01-10). Texts and images: `solio-site/rapports/2026-11-26-seo-bain-bons/fiche-google.md`.
     No second profile. No marketplace (Funbooker etc.: their calendar is not linked to GuestFlow). No
     press release (Adrien, 2026-11-26).
+> **Sans test** — action sur la fiche Google de l'établissement, hors de tout code.
 
 **Edge cases:**
 - GuestFlow down → « L'essentiel » keeps the non-priced lines; FAQ answers that need a figure are
