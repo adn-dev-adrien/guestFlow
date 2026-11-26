@@ -72,14 +72,14 @@ test('rule 19 — the purchase page links to the session page below the form, an
 
 test('rule 20 — the voucher card stands straight: no rotation in the rule or the keyframes, the entrance keeps its fade and rise, and none under reduced motion (the turn of specs/gift-vouchers/gift-voucher-campaigns.md rule 66 is the only rotation)', () => {
   const css = read('assets/style.css');
-  const rule = css.split('\n').find((line) => line.startsWith('.gf-card {'));
+  const rule = css.split('\n').find((line) => line.startsWith('.gf-vcard {'));
   expect(rule).toBeTruthy();
   expect(rule).not.toMatch(/rotate/);
   expect(rule).toContain('animation: gf-gv-front-in');
   const keyframes = css.split('\n').find((line) => line.startsWith('@keyframes gf-gv-front-in'));
   expect(keyframes).not.toMatch(/rotate/);
   expect(keyframes).toMatch(/opacity: 0; transform: translateY\(10px\)/);
-  expect(css).toMatch(/@media \(prefers-reduced-motion: reduce\) \{\s*\.gf-card \{ animation: none; \}/);
+  expect(css).toMatch(/@media \(prefers-reduced-motion: reduce\) \{\s*\.gf-vcard \{ animation: none; \}/);
 });
 
 test('rule 2 — the tunnel’s layout: two columns with a sticky recap from 900 px of block width, one column and, on a phone, a sticky bar below', () => {
