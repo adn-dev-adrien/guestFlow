@@ -109,8 +109,9 @@ land on states plainly what is offered, when, for how many and at what price.
 > **Sans test** — le code vit dans le dépôt privé `adn-dev-adrien/solio-site` ; la règle y est tenue par `tests/seo-nordic-bath-gift-vouchers.test.js`, et mesurée en ligne, §10.
 12. « Que faut-il apporter ? » answers: a swimsuit; a shelter to change near the bath (confirmed by
     Adrien). « Serviettes en option » is added **only if** a bath add-on whose label contains
-    « serviette » / « towel » is returned by GuestFlow. Created on 2026-11-26: option 35 « Serviette de
-    bain », 8 € per unit (the price of the lodgings' « Linge de toilette », Adrien's choice), sold
+    « serviette » / « towel » is returned by GuestFlow. Created on 2026-11-26: option 35 « Location de
+    serviette », 8 € per unit (renamed from « Serviette de bain » so it does not read as a towel for
+    sale, Adrien, 2026-11-26) (the price of the lodgings' « Linge de toilette », Adrien's choice), sold
     outside a stay, attached to no lodging so the lodging booking flow is unchanged. The lodging option
     itself could not be reused: it is priced per person and feeds the linen counts, and the engine
     refuses per-person options outside a stay. It shows on the site once added to the bath voucher
@@ -326,4 +327,4 @@ Decision page with interactive mock-ups: `solio-site/rapports/2026-11-26-seo-bai
 - [x] page content and new page (683, 689, 682, 688, 317 and 51 meta; Valentine's Day page id 722; backups `/tmp/bak-page-*-20261126-115243.txt`)
 - [x] online measurement (rule 4): readable words without JS — bath 25 → 528, bath EN 22 → 512, vouchers EN 48 → 287, Valentine 229; titles, descriptions and JSON-LD as specified; no raw shortcode; other pages unchanged (staged render diff before deployment); mobile 390 px without horizontal scroll; sitemap resubmitted to Search Console
 - [ ] Google Business Profile (rule 26) — posts and texts ready in `solio-site/rapports/2026-11-26-seo-bain-bons/fiche-google.md`, to publish with Adrien logged in
-- [ ] towel option 35 added to the two bath voucher campaigns (Adrien, campaign editor) and its English label « Bath towel » in the translation CSV
+- [ ] towel option 35 added to the two bath voucher campaigns (Adrien, campaign editor) and its English label « Towel hire » in the translation CSV
