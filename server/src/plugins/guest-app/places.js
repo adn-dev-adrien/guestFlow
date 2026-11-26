@@ -7,7 +7,7 @@ const sdk = require('../sdk');
 const { clockLabel } = require('./homeHighlight');
 const { CATEGORIES, CATEGORY_KEYS } = require('./placeCategories');
 
-const { toParisIso } = sdk.coreModule('stayWindow');
+const { toParisIso, wallClockToDate } = sdk.coreModule('stayWindow');
 
 const WASTE_KINDS = Object.freeze({
   point: { fr: 'Point de collecte', en: 'Collection point' },
@@ -133,26 +133,53 @@ function checkHours(input) {
 
 const hhmm = (minutes) => `${String(Math.floor(minutes / 60) % 24).padStart(2, '0')}:${String(minutes % 60).padStart(2, '0')}`;
 
-/** A minute of the day as written; midnight closes at « minuit ». */
+/** A minute of the day as written; midnight (0 or 1440) reads « minuit ». */
 function timeText(minutes, lang) {
-  if (minutes >= MINUTES_PER_DAY) return lang === 'en' ? 'midnight' : 'minuit';
+  if (minutes % MINUTES_PER_DAY === 0) return lang === 'en' ? 'midnight' : 'minuit';
   return clockLabel(hhmm(minutes), lang);
 }
 
-/** The Europe/Paris wall clock of an instant: its weekday (0 = Sunday) and minute of the day. */
+/** The Europe/Paris wall clock of an instant: its date, weekday (0 = Sunday) and minute of the day. */
 function parisClock(instant) {
   const iso = toParisIso(instant);
   const date = iso.slice(0, 10);
   return {
+    date,
     weekday: new Date(`${date}T00:00:00Z`).getUTCDay(),
     minutes: Number(iso.slice(11, 13)) * 60 + Number(iso.slice(14, 16)),
   };
+}
+
+/** The instant of `minutes` after Paris midnight of `date` (past 1440, the following days). */
+function instantAt(date, minutes) {
+  const day = new Date(`${date}T00:00:00Z`);
+  day.setUTCDate(day.getUTCDate() + Math.floor(minutes / MINUTES_PER_DAY));
+  return wallClockToDate(day.toISOString().slice(0, 10), hhmm(minutes % MINUTES_PER_DAY));
+}
+
+// A weekly pattern repeats: a stretch of opening still running after two weeks of it never ends.
+const HORIZON_DAYS = 15;
+
+/** The opening stretches from Paris midnight of today, in minutes, a day running into the next one (`0–1440` then `0–…`) kept as one. */
+function openSpans(hours, weekday) {
+  const spans = [];
+  for (let ahead = 0; ahead < HORIZON_DAYS; ahead += 1) {
+    hours[(weekday + ahead) % 7].forEach(([from, to]) => {
+      const last = spans[spans.length - 1];
+      if (last && last[1] >= ahead * MINUTES_PER_DAY + from) last[1] = ahead * MINUTES_PER_DAY + to;
+      else spans.push([ahead * MINUTES_PER_DAY + from, ahead * MINUTES_PER_DAY + to]);
+    });
+  }
+  return spans;
 }
 
 const LABELS = Object.freeze({
   fr: {
     unknown: 'Horaires non renseignés',
     open: (at) => `Ouvert · ferme à ${at}`,
+    openTomorrow: (at) => `Ouvert · ferme demain à ${at}`,
+    openOn: (day, at) => `Ouvert · ferme ${day} à ${at}`,
+    openAlways: 'Ouvert',
     opensToday: (at) => `Fermé · ouvre à ${at}`,
     opensTomorrow: (at) => `Fermé · ouvre demain à ${at}`,
     opensOn: (day, at) => `Fermé · ouvre ${day} à ${at}`,
@@ -161,6 +188,9 @@ const LABELS = Object.freeze({
   en: {
     unknown: 'Hours not provided',
     open: (at) => `Open · closes at ${at}`,
+    openTomorrow: (at) => `Open · closes tomorrow at ${at}`,
+    openOn: (day, at) => `Open · closes ${day} at ${at}`,
+    openAlways: 'Open',
     opensToday: (at) => `Closed · opens at ${at}`,
     opensTomorrow: (at) => `Closed · opens tomorrow at ${at}`,
     opensOn: (day, at) => `Closed · opens ${day} at ${at}`,
@@ -168,25 +198,40 @@ const LABELS = Object.freeze({
   },
 });
 
-/** Rule 13 — `{ state: 'open' | 'closed' | 'unknown', label }` at the Paris time of `now`. A place with no hours never claims to be open. */
+/**
+ * Rule 13 — `{ state: 'open' | 'closed' | 'unknown', label, until }` at the Paris time of `now`. A place with no hours never
+ * claims to be open. `until` is the instant (ISO) the label stops being true: the next opening or closing, or Paris midnight
+ * when that comes first (« demain » and the week's « today » turn then); null when the hours are unknown. A day open to
+ * midnight and the next one opening at midnight are one stretch of opening: the closing named is the real one.
+ */
 function openState(hours, now, lang = 'fr') {
   const text = LABELS[lang] || LABELS.fr;
-  if (!hours) return { state: 'unknown', label: text.unknown };
-  const { weekday, minutes } = parisClock(now);
-  const today = hours[weekday];
-  const current = today.find(([from, to]) => from <= minutes && minutes < to);
-  if (current) return { state: 'open', label: text.open(timeText(current[1], lang)) };
-  const later = today.find(([from]) => from > minutes);
-  if (later) return { state: 'closed', label: text.opensToday(timeText(later[0], lang)) };
-  for (let ahead = 1; ahead <= 7; ahead += 1) {
-    const day = (weekday + ahead) % 7;
-    if (hours[day].length) {
-      const at = timeText(hours[day][0][0], lang);
-      if (ahead === 1) return { state: 'closed', label: text.opensTomorrow(at) };
-      return { state: 'closed', label: text.opensOn((lang === 'en' ? DAYS_EN : DAYS_FR)[day], at) };
-    }
+  const unknown = { state: 'unknown', label: text.unknown, until: null };
+  if (!hours) return unknown;
+  const { date, weekday, minutes } = parisClock(now);
+  const spans = openSpans(hours, weekday);
+  if (!spans.length) return unknown;
+  const days = lang === 'en' ? DAYS_EN : DAYS_FR;
+  const midnight = instantAt(date, MINUTES_PER_DAY).getTime();
+  const until = (change) => new Date(change === null ? midnight : Math.min(change, midnight)).toISOString();
+  const current = spans.find(([from, to]) => from <= minutes && minutes < to);
+  if (current) {
+    const end = current[1];
+    if (end >= HORIZON_DAYS * MINUTES_PER_DAY) return { state: 'open', label: text.openAlways, until: until(null) };
+    const ahead = Math.ceil(end / MINUTES_PER_DAY) - 1;
+    const at = timeText(end - ahead * MINUTES_PER_DAY, lang);
+    let label = text.open(at);
+    if (ahead === 1) label = text.openTomorrow(at);
+    else if (ahead > 1) label = text.openOn(days[(weekday + ahead) % 7], at);
+    return { state: 'open', label, until: until(instantAt(date, end).getTime()) };
   }
-  return { state: 'unknown', label: text.unknown };
+  const next = spans.find(([from]) => from > minutes);
+  const ahead = Math.floor(next[0] / MINUTES_PER_DAY);
+  const at = timeText(next[0] - ahead * MINUTES_PER_DAY, lang);
+  let label = text.opensToday(at);
+  if (ahead === 1) label = text.opensTomorrow(at);
+  else if (ahead > 1) label = text.opensOn(days[(weekday + ahead) % 7], at);
+  return { state: 'closed', label, until: until(instantAt(date, next[0]).getTime()) };
 }
 
 /** Rule 6 — the week's table, Monday first: `[{ day, ranges, today }]`; null without hours. */
@@ -217,7 +262,8 @@ function gpsLinks({ lat, lng }) {
 
 /** French format, 10 digits (`04 75 12 34 56`, `+33 4 75 12 34 56`, `0475123456`) → the 10 digits, else null. */
 function normalizePhone(text) {
-  const digits = String(text).replace(/[\s.\-()]/g, '');
+  // « +33 (0)4 75 12 34 56 »: the trunk zero written in brackets after the country code is not a digit of the number.
+  const digits = String(text).replace(/^(\s*\+33\s*)\(0\)/, '$1').replace(/[\s.\-()]/g, '');
   const national = /^\+33[1-9]\d{8}$/.test(digits) ? `0${digits.slice(3)}` : digits;
   return /^0[1-9]\d{8}$/.test(national) ? national : null;
 }
@@ -248,7 +294,11 @@ function validatePlace(body, { estate = DEFAULT_ESTATE } = {}) {
       if (required) fields[key] = `${label} est obligatoire.`;
       return null;
     }
-    if (typeof value !== 'string' || value.trim().length > max) {
+    if (typeof value !== 'string') {
+      fields[key] = required ? `${label} est obligatoire.` : `${label} doit être un texte.`;
+      return null;
+    }
+    if (value.trim().length > max) {
       fields[key] = `${label} fait ${max} caractères au plus.`;
       return null;
     }
@@ -388,7 +438,15 @@ function isStale(verifiedOn, today) {
   return verifiedOn < limit.toISOString().slice(0, 10);
 }
 
-/** The stored shape the Studio reads and writes: the position as it is pasted, the review flag. */
+/** « vérifié le 26 nov. 2026 » for a verification date (`YYYY-MM-DD`, a calendar day). */
+const verifiedLabel = (ymd) => `vérifié le ${new Intl.DateTimeFormat('fr-FR', {
+  timeZone: 'UTC', day: 'numeric', month: 'short', year: 'numeric',
+}).format(new Date(`${ymd}T12:00:00Z`))}`;
+
+/** A closed set as the Studio's checkboxes and selects list it: `[{ key, label }]`, in the set's order, French. */
+const choicesOf = (table) => Object.entries(table).map(([key, names]) => ({ key, label: names.fr }));
+
+/** The stored shape the Studio reads and writes: the position as it is pasted, the labels it shows, the review flag. */
 function studioPlace(place, today) {
   return {
     id: place.id,
@@ -400,6 +458,7 @@ function studioPlace(place, today) {
     lat: place.lat,
     lng: place.lng,
     driveMinutes: place.driveMinutes,
+    driveLabel: driveLabel(place.driveMinutes, 'fr'),
     wasteKind: place.wasteKind,
     accepts: place.accepts,
     energies: place.energies,
@@ -409,6 +468,7 @@ function studioPlace(place, today) {
     hours: place.hours,
     published: place.published,
     verifiedOn: place.verifiedOn,
+    verifiedLabel: place.verifiedOn ? verifiedLabel(place.verifiedOn) : null,
     needsReview: isStale(place.verifiedOn, today),
   };
 }
@@ -436,11 +496,13 @@ module.exports = {
   MAX_KM,
   MESSAGES,
   WASTE_KINDS,
+  choicesOf,
   distanceKm,
   estateError,
   estateOf,
   gpsLinks,
   guestPayload,
+  hoursTable,
   isStale,
   normalizePhone,
   openState,

@@ -102,6 +102,11 @@ test(`${SPEC} rule 16: name, commune, phone and notes are judged by their limits
   assert.equal(places.validatePlace(bakery({ noteFr: 'x'.repeat(280), noteEn: 'Closed on Mondays' })).fields, undefined);
   assert.equal(places.validatePlace(bakery({ phone: '04 75 12 34 56' })).place.phone, '0475123456');
   assert.equal(places.validatePlace(bakery({ phone: '+33 4 75 12 34 56' })).place.phone, '0475123456');
+  assert.equal(places.validatePlace(bakery({ phone: '+33 (0)4 75 12 34 56' })).place.phone, '0475123456', 'the trunk zero in brackets after +33');
+  assert.equal(places.validatePlace(bakery({ phone: '(04) 75 12 34 56' })).place.phone, '0475123456');
+  assert.ok(places.validatePlace(bakery({ phone: '+33 (0)0 75 12 34 56' })).fields.phone);
+  assert.deepEqual(places.validatePlace(bakery({ nameFr: 42 })).fields.nameFr, 'Le nom est obligatoire.', 'a number is not a name: refused as a type, not as too long');
+  assert.equal(places.validatePlace(bakery({ noteFr: ['x'] })).fields.noteFr, 'La note doit être un texte.');
   assert.equal(places.validatePlace(bakery({ phone: '' })).place.phone, null);
   assert.ok(places.validatePlace(bakery({ phone: '04 75 12' })).fields.phone);
   assert.ok(places.validatePlace({ ...bakery(), colour: 'red' }).fields._);
@@ -120,13 +125,16 @@ test(`${SPEC} rule 16: the hours of a day are at most two ranges, each opening b
   assert.deepEqual(places.validatePlace(bakery({ hours: everyDay([[900, 1140], [420, 780]]) })).place.hours[0], MIDDAY_BREAK, 'ranges kept in time order');
 });
 
+// The state and its label; `until` has its own tests.
+const shown = (...args) => { const { until, ...rest } = places.openState(...args); return rest; };
+
 test(`${SPEC} rule 13: open now, closed over the midday break, closed until tomorrow — at Paris time`, () => {
   const hours = everyDay(MIDDAY_BREAK);
   // 2099-07-07 is a Tuesday.
-  assert.deepEqual(places.openState(hours, paris('2099-07-07', '12:00')), { state: 'open', label: 'Ouvert · ferme à 13 h' });
-  assert.deepEqual(places.openState(hours, paris('2099-07-07', '13:30')), { state: 'closed', label: 'Fermé · ouvre à 15 h' });
-  assert.deepEqual(places.openState(hours, paris('2099-07-07', '20:00')), { state: 'closed', label: 'Fermé · ouvre demain à 7 h' });
-  assert.deepEqual(places.openState(hours, paris('2099-07-07', '06:00')), { state: 'closed', label: 'Fermé · ouvre à 7 h' });
+  assert.deepEqual(shown(hours, paris('2099-07-07', '12:00')), { state: 'open', label: 'Ouvert · ferme à 13 h' });
+  assert.deepEqual(shown(hours, paris('2099-07-07', '13:30')), { state: 'closed', label: 'Fermé · ouvre à 15 h' });
+  assert.deepEqual(shown(hours, paris('2099-07-07', '20:00')), { state: 'closed', label: 'Fermé · ouvre demain à 7 h' });
+  assert.deepEqual(shown(hours, paris('2099-07-07', '06:00')), { state: 'closed', label: 'Fermé · ouvre à 7 h' });
   assert.equal(places.openState(hours, paris('2099-07-07', '13:00')).state, 'closed', 'the closing minute is closed');
   // 05:30 UTC is 07:30 in Paris in July: already open.
   assert.equal(places.openState(hours, new Date('2099-07-07T05:30:00Z')).state, 'open');
@@ -137,17 +145,42 @@ test(`${SPEC} rule 13: a closed Sunday opens on the next day with hours, in eith
   const hours = everyDay(MIDDAY_BREAK);
   hours[0] = [];
   // 2099-07-04 is a Saturday, 2099-07-05 a Sunday.
-  assert.deepEqual(places.openState(hours, paris('2099-07-04', '20:00')), { state: 'closed', label: 'Fermé · ouvre lundi à 7 h' });
-  assert.deepEqual(places.openState(hours, paris('2099-07-05', '10:00')), { state: 'closed', label: 'Fermé · ouvre demain à 7 h' });
-  assert.deepEqual(places.openState(hours, paris('2099-07-04', '20:00'), 'en'), { state: 'closed', label: 'Closed · opens Monday at 7 am' });
-  assert.deepEqual(places.openState(hours, paris('2099-07-07', '12:00'), 'en'), { state: 'open', label: 'Open · closes at 1 pm' });
+  assert.deepEqual(shown(hours, paris('2099-07-04', '20:00')), { state: 'closed', label: 'Fermé · ouvre lundi à 7 h' });
+  assert.deepEqual(shown(hours, paris('2099-07-05', '10:00')), { state: 'closed', label: 'Fermé · ouvre demain à 7 h' });
+  assert.deepEqual(shown(hours, paris('2099-07-04', '20:00'), 'en'), { state: 'closed', label: 'Closed · opens Monday at 7 am' });
+  assert.deepEqual(shown(hours, paris('2099-07-07', '12:00'), 'en'), { state: 'open', label: 'Open · closes at 1 pm' });
   const lateNight = everyDay([[600, 1440]]);
   assert.equal(places.openState(lateNight, paris('2099-07-07', '23:00')).label, 'Ouvert · ferme à minuit');
 });
 
 test(`${SPEC} rule 13: a place with no hours never claims to be open`, () => {
-  assert.deepEqual(places.openState(null, paris('2099-07-07', '12:00')), { state: 'unknown', label: 'Horaires non renseignés' });
-  assert.deepEqual(places.openState(null, paris('2099-07-07', '12:00'), 'en'), { state: 'unknown', label: 'Hours not provided' });
+  assert.deepEqual(shown(null, paris('2099-07-07', '12:00')), { state: 'unknown', label: 'Horaires non renseignés' });
+  assert.deepEqual(shown(null, paris('2099-07-07', '12:00'), 'en'), { state: 'unknown', label: 'Hours not provided' });
+});
+
+test(`${SPEC} rule 13: a day open to midnight and the next opening at midnight are one stretch, closing at its real end`, () => {
+  const hours = everyDay(MIDDAY_BREAK);
+  hours[2] = [[0, 1440]]; // Tuesday, all day
+  hours[3] = [[0, 120], [420, 780]]; // Wednesday, from midnight
+  // 2099-07-07 is a Tuesday.
+  assert.deepEqual(shown(hours, paris('2099-07-07', '12:00')), { state: 'open', label: 'Ouvert · ferme demain à 2 h' });
+  assert.deepEqual(shown(hours, paris('2099-07-07', '12:00'), 'en'), { state: 'open', label: 'Open · closes tomorrow at 2 am' });
+  assert.deepEqual(shown(hours, paris('2099-07-08', '00:30')), { state: 'open', label: 'Ouvert · ferme à 2 h' });
+  assert.equal(places.openState(hours, paris('2099-07-07', '12:00')).until, paris('2099-07-08', '00:00').toISOString(), 'Paris midnight turns « demain »');
+  assert.deepEqual(shown(hours, paris('2099-07-08', '03:00')), { state: 'closed', label: 'Fermé · ouvre à 7 h' });
+  const always = everyDay([[0, 1440]]);
+  assert.deepEqual(shown(always, paris('2099-07-07', '12:00')), { state: 'open', label: 'Ouvert' });
+  assert.equal(places.openState(everyDay([[600, 1440]]), paris('2099-07-07', '23:00')).label, 'Ouvert · ferme à minuit');
+  assert.equal(places.hoursTable(everyDay([[0, 420]]), paris('2099-07-07', '12:00'))[0].ranges, 'minuit – 7 h');
+});
+
+test(`${SPEC} rule 13: \`until\` is the instant the label stops being true — the next change, Paris midnight at the latest, null when unknown`, () => {
+  const hours = everyDay(MIDDAY_BREAK);
+  assert.equal(places.openState(hours, paris('2099-07-07', '12:00')).until, paris('2099-07-07', '13:00').toISOString(), 'open → its closing');
+  assert.equal(places.openState(hours, paris('2099-07-07', '13:30')).until, paris('2099-07-07', '15:00').toISOString(), 'closed → its opening');
+  assert.equal(places.openState(hours, paris('2099-07-07', '20:00')).until, paris('2099-07-08', '00:00').toISOString(), 'tomorrow\'s opening is announced as « demain »: the label turns at midnight');
+  assert.equal(places.openState(null, paris('2099-07-07', '12:00')).until, null);
+  assert.equal(places.guestPayload([{ id: 1, ...places.validatePlace(bakery({ hours })).place, verifiedOn: '2099-07-07' }], { estate: ESTATE, now: paris('2099-07-07', '12:00') }).places[0].open.until, paris('2099-07-07', '13:00').toISOString());
 });
 
 test(`${SPEC} rule 6: the week's hours read Monday first, today flagged, a day without range « Fermé »`, () => {
@@ -419,6 +452,20 @@ withPlaces(`${SPEC} rule 15: the Studio lists every category with its counts, th
   const pharmacy = list.groups.find((g) => g.key === 'pharmacie');
   assert.deepEqual([pharmacy.count, pharmacy.hiddenFromGuests], [0, true]);
   assert.equal(recent.needsReview, false);
+});
+
+withPlaces(`${SPEC} rule 15: the Studio's list carries the closed sets and the labels it shows — it computes none`, async ({ studio }) => {
+  const made = await studio.add(bakery({ driveMinutes: 7 }));
+  const list = await studio.list();
+  assert.deepEqual(list.wasteKinds, [{ key: 'point', label: 'Point de collecte' }, { key: 'decheterie', label: 'Déchèterie' }]);
+  assert.deepEqual(list.accepts.map((a) => a.key), ['om', 'emballages', 'verre', 'papier', 'textile', 'vegetaux', 'encombrants']);
+  assert.equal(list.accepts[0].label, 'Ordures ménagères');
+  assert.deepEqual(list.energies, [{ key: 'essence', label: 'Essence' }, { key: 'gazole', label: 'Gazole' }, { key: 'recharge', label: 'Recharge électrique' }]);
+  assert.equal(list.categories.length, CATEGORY_KEYS.length);
+  const row = list.groups.find((g) => g.key === 'boulangerie').places[0];
+  assert.equal(row.driveLabel, '7 min en voiture');
+  assert.equal(row.verifiedLabel, `vérifié le ${new Intl.DateTimeFormat('fr-FR', { timeZone: 'UTC', day: 'numeric', month: 'short', year: 'numeric' }).format(new Date(`${made.verifiedOn}T12:00:00Z`))}`);
+  assert.match(row.verifiedLabel, /^vérifié le \d{1,2} \S+ \d{4}$/);
 });
 
 withPlaces(`${SPEC} rule 15: a place is added, edited and deleted from the Studio`, async ({ studio, visitor }) => {

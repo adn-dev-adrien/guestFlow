@@ -30,6 +30,9 @@ function buildPlacesController({ placesModel, settingsStore, now }) {
   const view = () => ({
     estate: { ...estate(), position: places.positionText(estate()), communes: [...places.COMMUNES], maxKm: places.MAX_KM },
     categories: places.CATEGORIES.map((c) => ({ key: c.key, label: c.fr })),
+    wasteKinds: places.choicesOf(places.WASTE_KINDS),
+    accepts: places.choicesOf(places.ACCEPTS),
+    energies: places.choicesOf(places.ENERGIES),
     ...places.studioList(placesModel().all(), { today: today() }),
   });
 

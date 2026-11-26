@@ -96,7 +96,14 @@ Satillieu, Saint-Romain-d'Ay and Saint-Alban-d'Ay, filters them by kind, and ope
     marker and the 15 km check of rule 16.
 13. **Hours.** Optional weekly ranges per day (0–2 ranges a day). The server derives, at Paris
     time, `Ouvert · ferme à 13 h` / `Fermé · ouvre à 15 h` / `Fermé · ouvre demain à 7 h` / `Horaires non
-    renseignés`. A place with no hours never claims to be open.
+    renseignés`. A place with no hours never claims to be open. A day open to midnight followed by a day opening at
+    midnight is one stretch of opening: the closing named is the real one (`Ouvert · ferme demain à 2 h`; open every
+    day all day, just `Ouvert`); midnight reads « minuit » (0 and 1440 alike). **A state is never shown past its
+    `until`.** Each `open` carries `until`, the ISO instant at which its label stops being true — the next opening or
+    closing, or Paris midnight when that comes first (« demain » and the week's « today » turn then); null when the
+    hours are unknown. The page refetches when the `until` of a shown place passes (a timer) and when the app comes back to
+    the foreground; a payload served from the service worker's cache while offline, or one with an `until` already
+    past, shows no `open.label` (neither in the list nor in the sheet) and keeps the week's table.
 14. **Freshness.** Each place carries `verifiedOn` (set to today on every save in the Studio); the sheet shows it.
     The Studio lists places not verified for 12 months first, flagged « À revérifier ».
 
@@ -105,7 +112,7 @@ Satillieu, Saint-Romain-d'Ay and Saint-Alban-d'Ay, filters them by kind, and ope
 15. **Page « Pratique ».** List grouped by category with counts (a category at 0 says « masquée aux clients »),
     publish switch, order by category then name; add / edit / delete in a dialog.
 16. **Fields and refusals** (server-validated, the Studio only shows them):
-    - name FR required (≤ 80), EN optional (falls back to FR);
+    - name FR required (≤ 80; anything but text is refused as « Le nom est obligatoire. »), EN optional (falls back to FR);
     - category required, from rule 10;
     - commune from Satillieu, Saint-Romain-d'Ay, Saint-Alban-d'Ay, « Autre » + free text;
     - position required, pasted as `45.1502, 4.6151` or as a Google Maps link carrying coordinates (`@lat,lng`,
@@ -115,7 +122,7 @@ Satillieu, Saint-Romain-d'Ay and Saint-Alban-d'Ay, filters them by kind, and ope
     - drive time required, integer 1–60 → « Indiquez le temps en voiture depuis le domaine, en minutes (1 à 60). »;
     - `dechets` without anything in `accepts` → « Cochez au moins ce qu'on peut y déposer. »;
     - `carburant` without anything in `energies` → « Cochez au moins une énergie : essence, gazole ou recharge. »;
-    - phone optional, French format, 10 digits;
+    - phone optional, French format, 10 digits (`+33 (0)4 75 12 34 56` accepted);
     - note FR / EN optional (≤ 280);
     - hours: each range `open < close`, ranges of a day not overlapping.
 17. **Seed.** No automatic import. The OpenStreetMap extraction of 2026-11-26 (summary page, « Données de
@@ -144,7 +151,7 @@ Satillieu, Saint-Romain-d'Ay and Saint-Alban-d'Ay, filters them by kind, and ope
 |---|---|---|---|
 | plugin | `migrations.js` | T | Table `guest_app_places` (§5) |
 | plugin | `modules.js` | T | Module `places`, default on after `soliomap` (and for a stored list that lacks it: after the nearest preceding module it holds), prerequisite `publishedPlaces > 0`, every mode |
-| plugin | `places.js` | C | Pure: validation (rule 16), Google Maps link parsing, 15 km check, drive-time label, open state from weekly hours at Paris time, the three GPS links, server order, the guest payload and the Studio's grouped list |
+| plugin | `places.js` | C | Pure: validation (rule 16), Google Maps link parsing, 15 km check, drive-time label, open state and its `until` from weekly hours at Paris time (stretches across midnight merged), the Studio's labelled closed sets, the three GPS links, server order, the guest payload and the Studio's grouped list |
 | plugin | `placeCategories.js` | C | The closed set of rule 10 with its FR / EN labels, no dependency (the booklet's button target and `places.js` both read it) |
 | models | `placesModel.js` | C | Prepared statements: list (published / all), get, insert, update, delete, count published |
 | controllers | `placesController.js` | C | Guest payload (rules 4-7, 12-13) and Studio CRUD |
@@ -185,20 +192,22 @@ No GuestFlow admin client change.
   "categories": [ { "key": "boulangerie", "label": "Boulangeries", "count": 4 } ],
   "places": [ { "id": 3, "category": "boulangerie", "name": "Maison Roux", "commune": "Satillieu",
     "lat": 45.15123, "lng": 4.6163, "driveMinutes": 4, "driveLabel": "4 min en voiture",
-    "open": { "state": "open", "label": "Ouvert · ferme à 13 h" },
+    "open": { "state": "open", "label": "Ouvert · ferme à 13 h", "until": "2026-11-26T12:00:00.000Z" },
     "hours": [ { "day": "lundi", "ranges": "7 h – 13 h", "today": false } ],
     "accepts": null, "energies": null, "note": null, "phone": null, "telUrl": null, "verifiedOn": "2026-11-26",
     "links": { "apple": "…", "google": "…", "waze": "…" } } ] }
 ```
 Places in server order (category order of rule 10, then drive time, then name). As built, a place also carries
 `categoryLabel` (singular, for the sheet), `wasteKind` (`{ key, label }` or null), `accepts` and `energies` as lists of
-`{ key, label }` (or null), `phone` written in groups of two (`04 75 12 34 56`), `telUrl` (`tel:0475123456`); `hours` is the
+`{ key, label }` (or null), `phone` (« +33 (0)4 … » is accepted, the bracketed zero dropped) written in groups of two (`04 75 12 34 56`), `telUrl` (`tel:0475123456`); `hours` is the
 week Monday first and null when no hours are known; the language is `?lang=` / the stay's / the browser's, and a missing
 English name or note falls back to French. The route reads for a session or, in visitor mode, `?lodgingCode=` (the booklet's reader).
 
 Studio routes (`/api/guest-app/places`, admin only):
-- `GET` → `{ estate: { lat, lng, position, communes, maxKm }, categories, groups: [{ key, label, count, publishedCount, hiddenFromGuests, places }], reviewCount }`;
-  each place is `{ id, category, nameFr, nameEn, commune, position, lat, lng, driveMinutes, wasteKind, accepts, energies, phone, noteFr, noteEn, hours, published, verifiedOn, needsReview }`
+- `GET` → `{ estate: { lat, lng, position, communes, maxKm }, categories, wasteKinds, accepts, energies, groups: [{ key, label, count, publishedCount, hiddenFromGuests, places }], reviewCount }`;
+  `categories`, `wasteKinds`, `accepts` and `energies` are the closed sets of rule 10 as `[{ key, label }]` (French, in the set's order): the Studio
+  renders them and keeps no copy; each place is `{ id, category, nameFr, nameEn, commune, position, lat, lng, driveMinutes, driveLabel, wasteKind, accepts, energies, phone, noteFr, noteEn, hours, published, verifiedOn, verifiedLabel, needsReview }`
+  (`driveLabel` « 4 min en voiture », `verifiedLabel` « vérifié le 26 nov. 2026 » are the server's wording)
   (`hours` = 7 arrays, Sunday first, of `[openMin, closeMin]`; 1440 is midnight); in a group, places to re-verify come first, then by name.
 - `POST` and `PUT /:id` take that shape with `position` as the pasted text (coordinates or Google Maps link); the server parses it into `lat` / `lng`.
   A `PUT` whose body is `{ published }` alone only flips the switch and leaves `verifiedOn` alone; any other save sets `verifiedOn` to today (rule 14).
