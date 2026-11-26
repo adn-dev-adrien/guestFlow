@@ -123,7 +123,7 @@
       "Accueil : la ligne d’un courriel Gîtes de France dont la fiche existe est un lien vers cette fiche (SDK 2.34.0)."
     ],
     "1.4.16": [
-      "La fiche reçoit location et options du relevé ; l’import est refusé si les suppléments ne retombent pas sur le total des options."
+      "La fiche reçoit location et options du relevé ; l’import est refusé si les suppléments ne retombent pas sur le total des options (SDK 2.34.0)."
     ]
   }
 }

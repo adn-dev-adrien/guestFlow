@@ -8,6 +8,9 @@
  *   - 'default'      — the default commission account
  *   - 'compensation' — the cancellation-compensation account
  *   - 'vatCompensation' — the VAT rate (%) on cancellation compensations, shown right after it
+ *
+ * A plan field may carry a `kind`: `account` (the default: digits), `code` (a VAT code of the CSV's last column, capitals) or `switch`
+ * (a setting stored as '0' / '1').
  */
 
 // specs/plugins-phase-p-productisation.md rules 27–28 — the account plan, one field per role.
@@ -23,6 +26,18 @@ export const PLAN_LABELS = {
   tipAccount: 'Pourboires',
   platformPenaltyAccount: 'Pénalités plateformes',
   journalCode: 'Code journal des ventes',
+  // specs/platform-host-statement-and-commission-vat.md rules 14-16 — the account of each regime of a commission, the self-assessed VAT, the codes.
+  commissionFrAccount: 'Plateformes France — TVA 20 % déductible',
+  commissionEuAccount: 'Plateformes UE — autoliquidation',
+  commissionNoVatAccount: 'Plateformes sans TVA, frais de paiement',
+  reverseChargeDeductibleAccount: 'TVA déductible autoliquidée',
+  reverseChargeDueAccount: 'TVA due intracommunautaire',
+  reverseChargeLines: 'Écrire l’autoliquidation dans l’export',
+  vatCodeRate10: 'Ventes à 10 %',
+  vatCodeRate20: 'Ventes à 20 %',
+  vatCodeRate55: 'Ventes à 5,5 %',
+  vatCodeReverseCharge: 'Commission UE (autoliquidation)',
+  vatCodeDeductible20: 'Commission France (TVA déductible)',
 };
 
 export const ACCOUNT_GROUPS = [
@@ -44,6 +59,18 @@ export const ACCOUNT_GROUPS = [
       { key: 'vat10Account' },
       { key: 'touristTaxAccount' },
       { key: 'commissionVatAccount' },
+      { key: 'reverseChargeDeductibleAccount' },
+      { key: 'reverseChargeDueAccount' },
+      { key: 'reverseChargeLines', kind: 'switch', helper: 'Décocher si le code « autoliquidation » du logiciel du cabinet génère déjà ces deux lignes.' },
+    ],
+  },
+  {
+    key: 'regimes',
+    label: 'Comptes de commission par régime de TVA',
+    fields: [
+      { key: 'commissionFrAccount' },
+      { key: 'commissionEuAccount' },
+      { key: 'commissionNoVatAccount' },
     ],
   },
   {
@@ -62,6 +89,17 @@ export const ACCOUNT_GROUPS = [
     label: 'Journal',
     fields: [{ key: 'journalCode' }],
   },
+  {
+    key: 'vatCodes',
+    label: 'Codes TVA (dernière colonne du fichier)',
+    fields: [
+      { key: 'vatCodeRate10', kind: 'code' },
+      { key: 'vatCodeRate20', kind: 'code' },
+      { key: 'vatCodeRate55', kind: 'code' },
+      { key: 'vatCodeReverseCharge', kind: 'code' },
+      { key: 'vatCodeDeductible20', kind: 'code' },
+    ],
+  },
 ];
 
 /**
@@ -79,7 +117,7 @@ export function accountGroupsFor(planRows = []) {
         source: 'plan',
         label: PLAN_LABELS[f.key] || f.key,
         ...f,
-        ...(f.source ? {} : { helper: `Par défaut : ${rowByKey.get(f.key).default}` }),
+        ...(f.source || f.helper ? {} : { helper: `Par défaut : ${rowByKey.get(f.key).default || 'aucun'}` }),
       }));
     if (index === 0) {
       planRows.filter((r) => !known.has(r.key)).forEach((r) => {

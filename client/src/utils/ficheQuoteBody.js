@@ -94,8 +94,9 @@ export function ficheQuoteBody(input, overrides = {}) {
     customPrice: form.customPrice,
     platformCommissionAmount: form.platformCommissionAmount, // specs/platform-commission-line.md (solde commission)
     acompteCommissionAmount: form.acompteCommissionAmount, // specs/platform-per-echeance-commission.md (acompte commission)
-    platformGrossAmount: form.platformGrossAmount, // specs/platform-payment-entry.md (pins the total séjour)
-    platformTouristTaxAmount: form.platformTouristTaxAmount, // specs/platform-tourist-tax-out-of-the-commission.md (comes back out of the brut)
+    platformGrossAmount: form.platformGrossAmount, // specs/platform-payment-entry.md (pins the total séjour; since 2026-11-26 the host amount of the statement)
+    platformOptionsAmount: form.platformOptionsAmount, // specs/platform-host-statement-and-commission-vat.md rule 2 (the option lines follow it)
+    platformTouristTaxAmount: form.platformTouristTaxAmount, // the statement's tax box: kept by the platform, or paid with the transfer (rule 5)
     depositPaid: form.depositPaid,
     balancePaid: form.balancePaid,
     complementPaid: form.complementPaid,

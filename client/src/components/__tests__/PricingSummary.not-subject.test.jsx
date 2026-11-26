@@ -105,8 +105,10 @@ test('rule 12 (a): the price labels of the fiche follow the regime of the stay, 
     </ThemeProvider>,
   );
   const { unmount } = draw('not_subject');
+  // Amended 2026-11-26 (specs/platform-host-statement-and-commission-vat.md rule 1): the brut is the host amount, tax out of it — the editor no
+  // longer prints a « Montant hors taxe de séjour » base, in either regime.
   expect(screen.queryByText(/base TVA et base de commission/)).not.toBeInTheDocument();
   unmount();
   draw('subject');
-  expect(screen.getByText(/base TVA et base de commission/)).toBeInTheDocument();
+  expect(screen.queryByText(/base TVA et base de commission/)).not.toBeInTheDocument();
 });

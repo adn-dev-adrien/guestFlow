@@ -21,6 +21,12 @@
 > (`expectedNet` / `forMark` serve the ledger's « Marquer reçu », reservation-payment-ledger.md rule 26).
 > Rules 1–2 and 4–5 (one-shot, acompte commission untouched) still describe the behaviour.
 
+
+> **Amended 2026-11-26 by [platform-host-statement-and-commission-vat.md](platform-host-statement-and-commission-vat.md) rule 8.**
+> The formula is now `commission solde = max(0, host amount + tax paid with the transfer − transfer − acompte commission)`, the tax counting
+> only in mode `platform_reversed` (resolved by the server from the platform's mode; the request carries the platform). Fraisse
+> 805 + 24 − 704,22 = 124,78; Dausque 864 − 786 = 78,00.
+
 ---
 
 ## 1. Context

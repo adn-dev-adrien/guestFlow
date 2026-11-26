@@ -233,6 +233,11 @@ function VatPanel({ vatReturn, notSubject }) {
           {VAT_PANEL.deductible} : {formatCurrency(vatReturn.deductibleOnCommissions)}
         </Typography>
       )}
+      {vatReturn.selfAssessed && (vatReturn.selfAssessed.due > 0 || vatReturn.selfAssessed.deductible > 0) && (
+        <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1 }}>
+          {VAT_PANEL.selfAssessed} : {formatCurrency(vatReturn.selfAssessed.due)} {VAT_PANEL.selfAssessedDue}, {formatCurrency(vatReturn.selfAssessed.deductible)} {VAT_PANEL.selfAssessedDeductible}
+        </Typography>
+      )}
       <Source source={vatReturn.source} sx={{ mt: 1 }} />
     </Panel>
   );

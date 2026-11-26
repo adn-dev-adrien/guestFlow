@@ -7,6 +7,12 @@
 | **Created** | 2026-06-22 |
 | **Author** | Adrien |
 
+
+> **Amended 2026-11-26 by [platform-host-statement-and-commission-vat.md](platform-host-statement-and-commission-vat.md).**
+> The brut (`platformGrossAmount`) keeps pinning the platform-paid portion of the stay, but its meaning changes: it is the **host amount**
+> of the platform's statement — « Location (relevé) » + « Options (relevé) » — never the guest total with the tourist tax or the platform's
+> guest fees. The net perçu = brut + tax paid with the transfer − commission = the transfer.
+
 ---
 
 ## 1. Context

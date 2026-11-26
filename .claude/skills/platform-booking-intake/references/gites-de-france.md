@@ -44,22 +44,27 @@ collected **and remitted** by the centrale: it is never in the payout. « Frais 
 | 4318 | 1 791 | 80 | 1 692 | 179 |
 | 3084 | 3 582 | 80 | 3 304 | 358 |
 
-## Entry order in « Paiement plateforme »
+## Entry order in « Paiement plateforme » (specs/platform-host-statement-and-commission-vat.md rules 1, 2, 19, 22)
 
-1. **Montant total payé par le client** = Prix location + Options + Taxe de séjour
-   = « Prix total client » − « Frais de dossiers » − « Assurance annulation ». **Never** the raw
-   « Prix total client »: the commission would absorb the fees and the ✓ would still show.
-2. **Taxe de séjour retenue** = the contract's « Taxe de séjour ».
-3. **Virement reçu (contrôle)** = « Montant net propriétaire ».
-4. **Calculer la commission**.
+The block takes the host side of the « Relevé des réservations »: never the tourist tax, never the guest's
+fees. The centrale collects **and remits** the tax: the box is informational (mode « plateforme »), it enters
+nothing.
+
+1. **Location (relevé)** = « Montant location » = Prix location.
+2. **Options (relevé)** = « Options » = Total des options. The fiche's option lines follow it by themselves:
+   a ménage left « offert » that the centrale billed becomes paid (the block says « Ménage passé en payant »).
+3. **Taxe de séjour** = the contract's « Taxe de séjour » (informational).
+4. **Virement reçu (contrôle)** = « Montant net propriétaire ».
+5. **Calculer la commission** = Location + Options − virement.
 
 Options: tick each ITEA option on the fiche (Ménage 80 €, Linge de toilette…) and **untick « Forcer
 en complément »** — a platform fiche opens it ticked, which moves the option to « perçu sur place »
 and inflates the total séjour. Expected summary: Prix hébergement = Prix location, Total du séjour =
-the brut, Montant soumis à commission = brut − tax, Commission ≈ 10 % of the rent, Versement = net.
+Location + Options, Commission ≈ 10 % of the rent, Versement = net.
 
-Worked example, dossier 11773 (GuestFlow 22308, entered 2026-10-15): 504 + 80 + 19,20 = **603,20**
-/ 19,20 / 534 → commission 50,00, ✓. Prix total client 632,40 included 29,20 of frais de dossier.
+Worked example, dossier 13 « Dausque »: location 784 + options 80 = 864 / tax 36 (informational) / virement 786
+→ commission 78,00 (65 € HT + 13 € de TVA, compte 62260500). Dossier 11773 (GuestFlow 22308): 504 + 80 = 584 /
+19,20 / 534 → commission 50,00, ✓. Prix total client 632,40 included 29,20 of frais de dossier.
 
 Baby beds: entering « Lits bébé » adds the paid « Lit bébé » option in complément (10 €, collected on
 site) — kept on 22308 by the operator's choice.

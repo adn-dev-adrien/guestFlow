@@ -55,6 +55,10 @@ export const VAT_PANEL = {
   byAccount: 'Par compte',
   note: 'TVA exigible à l’encaissement : les sommes encaissées sur la période, pas les séjours facturés.',
   deductible: 'TVA déductible sur les commissions, non déduite ici',
+  // specs/platform-host-statement-and-commission-vat.md rule 15 — the VAT assessed by us on the EU platforms' commissions: due and deductible for the same amount.
+  selfAssessed: 'TVA autoliquidée sur les commissions des plateformes UE',
+  selfAssessedDue: 'due',
+  selfAssessedDeductible: 'déductible',
 };
 
 export const GRANULARITY = {

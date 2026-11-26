@@ -373,7 +373,7 @@ export default function AccountingPage() {
                       <TableCell>Plateforme</TableCell>
                       {/* Small badge column with no header label (the badges speak for themselves). */}
                       <TableCell sx={{ width: 32, p: 0.5 }} />
-                      <TableCell align="right">Revenu brut</TableCell>
+                      <TableCell align="right">Montant hôte</TableCell>
                       <TableCell align="right">Commission</TableCell>
                       <TableCell align="right" sx={{ fontWeight: 700, bgcolor: (t) => alpha(t.palette.success.main, 0.08) }}>Net perçu (versement)</TableCell>
                     </TableRow>
@@ -730,7 +730,7 @@ export function JournalEntryCard({ entry, canOpenReservation = false }) {
         <Box sx={{ px: { xs: 2, sm: 3 }, py: 1, bgcolor: (t) => alpha(t.palette.info.main, 0.04), borderBottom: '1px dashed', borderColor: 'divider' }}>
           <Stack direction="row" spacing={3} sx={{ alignItems: 'center', flexWrap: 'wrap' }}>
             <Typography variant="caption" color="text.secondary">
-              Revenu brut : <strong>{formatCurrency(entry.encaissementTtc)}</strong>
+              Montant hôte : <strong>{formatCurrency(entry.platform.gross ?? entry.encaissementTtc)}</strong>
             </Typography>
             <Typography variant="caption" color="text.secondary">
               Commission plateforme : <strong>− {formatCurrency(entry.platform.commission)}</strong>

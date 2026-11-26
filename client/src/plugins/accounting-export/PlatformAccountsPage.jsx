@@ -2,9 +2,10 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router';
 import {
   Box, Card, CardContent, Typography, Table, TableHead, TableRow,
-  TableCell, TableBody, TableContainer, Stack, Switch, TextField,
-  CircularProgress, Button, Tooltip,
+  TableCell, TableBody, TableContainer, Stack, Switch, TextField, MenuItem,
+  CircularProgress, Button, Tooltip, FormControlLabel, useMediaQuery,
 } from '@mui/material';
+import { useTheme } from '@mui/material/styles';
 import SaveIcon from '@mui/icons-material/Save';
 import CancelIcon from '@mui/icons-material/Cancel';
 import SyncIcon from '@mui/icons-material/Sync';
@@ -20,7 +21,8 @@ import MollieJournalCard from './MollieJournalCard';
  * Dedicated page where admin AND accountant configure the accounting accounts: one « Comptes » card
  * (grouped, see accountGroups.js) + per-platform commission overrides (bottom TableCard).
  *
- * The global VAT rate applied to commissions (when a platform's "TVA déductible" Switch is ON)
+ * The global VAT rate applied to commissions (of a platform whose regime is « France — TVA 20 % déductible », and to the VAT an EU platform's
+ * commission is self-assessed on)
  * is read-only here — it lives in Settings → Général → Taux de TVA. Admins see a link to
  * Settings; accountants see plain text (they can't reach Settings server-side either).
  *
@@ -29,6 +31,9 @@ import MollieJournalCard from './MollieJournalCard';
  *       cancellationCompensationAccount, vatRateCancellationCompensation, platforms }
  *   - PUT /api/accounting/platform-accounts → saves defaultAccount + the cancellation-compensation
  *       account + per-platform rows
+ *
+ * Each platform carries the VAT regime of its commission (« Régime de TVA », specs/platform-host-statement-and-commission-vat.md rules 13-14):
+ * choosing one proposes its account — when the platform has none, or still holds the previous regime's proposal; a typed account stays.
  *
  * Spec: accounting-platform-commission-and-no-deposit.md §3.7 + §6.
  */
@@ -42,6 +47,8 @@ function normalizeAccount(value) {
 
 export default function PlatformAccountsPage() {
   const navigate = useNavigate();
+  const theme = useTheme();
+  const compact = useMediaQuery(theme.breakpoints.down('md'));
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -65,6 +72,8 @@ export default function PlatformAccountsPage() {
   const [defaultAccount, setDefaultAccount] = useState('622600');
   const [platforms, setPlatforms] = useState([]);
   const [planRows, setPlanRows] = useState([]);
+  // The regimes the page offers and the account each proposes, from the server (the three plan roles).
+  const [regimes, setRegimes] = useState([]);
   const [plan, setPlan] = useState({});
   const [savedPlan, setSavedPlan] = useState({});
   // « Sans TVA » in force (specs/vat-optional-mode.md rule 12g): the two VAT rates cannot apply, so they are not asked.
@@ -92,6 +101,7 @@ export default function PlatformAccountsPage() {
         setSavedPlatforms(sortedPlatforms);
         setPlatforms(sortedPlatforms);
         setPlanRows(data.plan || []);
+        setRegimes(data.regimes || []);
         setPlan(planValues(data.plan));
         setSavedPlan(planValues(data.plan));
       } catch (err) {
@@ -111,7 +121,7 @@ export default function PlatformAccountsPage() {
     vatCommission,
     vatCompensation,
     accounts,
-    rows: (list || []).map((x) => ({ id: x.id, c: x.commissionAccountNumber || '', v: Boolean(x.hasVatOnCommission) })),
+    rows: (list || []).map((x) => ({ id: x.id, c: x.commissionAccountNumber || '', r: x.commissionVatRegime || '' })),
   });
   const { isDirty, guardDialogOpen, dismissGuard, confirmLeave } = useDirtyFormGuard({
     draft: dirtyProjection(defaultAccount, compensationAccount, platforms, vatRateCommission, vatRateCompensation, plan),
@@ -142,11 +152,21 @@ export default function PlatformAccountsPage() {
     };
   }
 
-  function updatePlanField(key, value) {
-    setPlan((prev) => ({ ...prev, [key]: key === 'journalCode' ? String(value).toUpperCase().trim() : normalizeAccount(value) }));
+  function updatePlanField(key, value, kind = 'account') {
+    const next = kind === 'code' || key === 'journalCode' ? String(value).toUpperCase().trim() : (kind === 'switch' ? String(value) : normalizeAccount(value));
+    setPlan((prev) => ({ ...prev, [key]: next }));
     if (errors[`plan-${key}`]) {
       setErrors((prev) => { const next = { ...prev }; delete next[`plan-${key}`]; return next; });
     }
+  }
+
+  // Rule 14 — the regime proposes its account when the platform has none or still holds the previous regime's proposal; a typed one stays.
+  const proposalOf = (regime) => (regimes.find((r) => r.key === regime) || {}).account || '';
+  function chooseRegime(platform, regime) {
+    const holdsProposal = !platform.commissionAccountNumber || platform.commissionAccountNumber === proposalOf(platform.commissionVatRegime);
+    setPlatforms((prev) => prev.map((p) => (p.id === platform.id
+      ? { ...p, commissionVatRegime: regime, commissionAccountNumber: holdsProposal ? proposalOf(regime) : p.commissionAccountNumber }
+      : p)));
   }
 
   function updatePlatformField(id, field, value) {
@@ -171,7 +191,7 @@ export default function PlatformAccountsPage() {
           .map((p) => ({
             id: p.id,
             account: normalizeAccount(p.commissionAccountNumber),
-            hasVat: Boolean(p.hasVatOnCommission),
+            regime: p.commissionVatRegime,
           })),
       };
       const result = await api.savePlatformAccounts(payload);
@@ -190,6 +210,7 @@ export default function PlatformAccountsPage() {
       setSavedPlatforms(sortedPlatforms);
       setPlatforms(sortedPlatforms);
       setPlanRows(result.plan || []);
+      setRegimes(result.regimes || []);
       setPlan(planValues(result.plan));
       setSavedPlan(planValues(result.plan));
       showSuccess('Configuration enregistrée.');
@@ -205,6 +226,7 @@ export default function PlatformAccountsPage() {
         if (Array.isArray(apiErrors.platforms)) {
           for (const row of apiErrors.platforms) {
             if (row.account) next[`platform-${row.id}-account`] = row.account;
+            if (row.regime) next[`platform-${row.id}-regime`] = row.regime;
           }
         }
         setErrors(next);
@@ -253,7 +275,15 @@ export default function PlatformAccountsPage() {
     }
   }
 
-  const accountInput = (field, value, onChange, errorKey) => (
+  const accountInput = (field, value, onChange, errorKey) => (field.kind === 'switch' ? (
+    <Box key={field.key}>
+      <FormControlLabel
+        control={<Switch checked={String(value) !== '0'} onChange={(e) => onChange(e.target.checked ? '1' : '0')} disabled={saving} />}
+        label={field.label}
+      />
+      <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>{errors[errorKey] || field.helper}</Typography>
+    </Box>
+  ) : (
     <TextField
       key={field.key}
       label={field.label}
@@ -261,10 +291,10 @@ export default function PlatformAccountsPage() {
       onChange={(e) => onChange(e.target.value)}
       error={Boolean(errors[errorKey])}
       helperText={errors[errorKey] || field.helper}
-      slotProps={{ htmlInput: field.key === 'journalCode' ? { maxLength: 4 } : { inputMode: 'numeric', pattern: '[0-9]*' } }}
+      slotProps={{ htmlInput: field.kind === 'code' ? { maxLength: 10 } : (field.key === 'journalCode' ? { maxLength: 4 } : { inputMode: 'numeric', pattern: '[0-9]*' }) }}
       disabled={saving}
     />
-  );
+  ));
   function accountField(field) {
     if (field.source === 'default') return accountInput(field, defaultAccount, handleDefaultAccountChange, 'defaultAccount');
     if (field.source === 'compensation') return accountInput(field, compensationAccount, handleCompensationAccountChange, 'compensationAccount');
@@ -283,8 +313,40 @@ export default function PlatformAccountsPage() {
         />
       );
     }
-    return accountInput(field, plan[field.key] ?? '', (value) => updatePlanField(field.key, value), `plan-${field.key}`);
+    return accountInput(field, plan[field.key] ?? '', (value) => updatePlanField(field.key, value, field.kind), `plan-${field.key}`);
   }
+
+  // The commission account and the regime of one platform: the same two controls in the table and in the phone's cards.
+  const platformAccountField = (p, sx) => (
+    <TextField
+      size="small"
+      label="Compte commission"
+      value={p.commissionAccountNumber}
+      onChange={(e) => updatePlatformField(p.id, 'commissionAccountNumber', normalizeAccount(e.target.value))}
+      placeholder={p.isDirect ? '—' : `${defaultAccount || '622600'} (défaut)`}
+      disabled={p.isDirect || saving}
+      error={Boolean(errors[`platform-${p.id}-account`])}
+      helperText={errors[`platform-${p.id}-account`]}
+      slotProps={{ htmlInput: { inputMode: 'numeric', pattern: '[0-9]*', 'aria-label': `Compte commission ${formatPlatformLabel(p.name)}` } }}
+      sx={sx}
+    />
+  );
+  const platformRegimeField = (p, sx) => (
+    <TextField
+      select
+      size="small"
+      label="Régime de TVA"
+      value={p.commissionVatRegime || 'no_vat'}
+      onChange={(e) => chooseRegime(p, e.target.value)}
+      disabled={p.isDirect || saving}
+      error={Boolean(errors[`platform-${p.id}-regime`])}
+      helperText={errors[`platform-${p.id}-regime`]}
+      slotProps={{ htmlInput: { 'aria-label': `Régime de TVA de la commission ${formatPlatformLabel(p.name)}` } }}
+      sx={sx}
+    >
+      {regimes.map((r) => <MenuItem key={r.key} value={r.key}>{r.label}</MenuItem>)}
+    </TextField>
+  );
 
   return (
     <Box sx={{ p: { xs: 1.5, sm: 3 }, maxWidth: 1100, mx: 'auto' }}>
@@ -345,16 +407,16 @@ export default function PlatformAccountsPage() {
                 <Box>
                   <Typography variant="sectionHeader">Par plateforme</Typography>
                   <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-                    {notSubject ? 'Compte commission, plateforme par plateforme.' : 'Compte commission et TVA déductible, plateforme par plateforme.'}
+                    {notSubject ? 'Compte commission, plateforme par plateforme.' : 'Compte commission et régime de TVA, plateforme par plateforme.'}
                   </Typography>
                 </Box>
                 {!notSubject && (
                   <TextField
-                    label="TVA déductible sur commissions (%)"
+                    label="TVA des commissions (%)"
                     value={vatRateCommission}
                     onChange={(e) => handleVatChange(setVatRateCommission, 'vatRateCommission')(e.target.value)}
                     error={Boolean(errors.vatRateCommission)}
-                    helperText={errors.vatRateCommission || 'Appliquée aux plateformes cochées « TVA déductible ».'}
+                    helperText={errors.vatRateCommission || 'Déduite des plateformes françaises, autoliquidée pour les plateformes UE.'}
                     size="small"
                     sx={{ width: { xs: '100%', sm: 260 } }}
                     slotProps={{ htmlInput: { inputMode: 'decimal' } }}
@@ -362,58 +424,54 @@ export default function PlatformAccountsPage() {
                   />
                 )}
               </Box>
-              {/* Scroll-contained (specs/ds-components.md §3.1) — this was the app's only raw, unwrapped <Table>. */}
+              {/* Scroll-contained (specs/ds-components.md §3.1) — this was the app's only raw, unwrapped <Table>. From md the table, on a phone one card per platform. */}
+              {!compact && (
               <TableContainer>
               <Table size="small" sx={{ minWidth: 720 }}>
                 <TableHead>
                   <TableRow>
                     <TableCell>Plateforme</TableCell>
                     <TableCell>Compte commission</TableCell>
-                    {!notSubject && <TableCell align="center">TVA déductible</TableCell>}
+                    {!notSubject && <TableCell>Régime de TVA</TableCell>}
                   </TableRow>
                 </TableHead>
                 <TableBody>
-                  {platforms.map((p) => {
-                    const accountErr = errors[`platform-${p.id}-account`];
-                    return (
-                      <TableRow key={p.id}>
-                        <TableCell sx={{ fontWeight: p.isDirect ? 600 : 500 }}>
-                          {formatPlatformLabel(p.name)}
-                          {p.isDirect && (
-                            <Typography variant="caption" sx={{ display: 'block', color: 'text.disabled', fontStyle: 'italic' }}>
-                              Pas de commission sur les réservations directes
-                            </Typography>
-                          )}
-                        </TableCell>
-                        <TableCell>
-                          <TextField
-                            size="small"
-                            value={p.commissionAccountNumber}
-                            onChange={(e) => updatePlatformField(p.id, 'commissionAccountNumber', normalizeAccount(e.target.value))}
-                            placeholder={p.isDirect ? '—' : `${defaultAccount || '622600'} (défaut)`}
-                            disabled={p.isDirect || saving}
-                            error={Boolean(accountErr)}
-                            helperText={accountErr}
-                            slotProps={{ htmlInput: { inputMode: 'numeric', pattern: '[0-9]*' } }}
-                            sx={{ width: { xs: '100%', sm: 180 } }}
-                          />
-                        </TableCell>
-                        {!notSubject && (
-                          <TableCell align="center">
-                            <Switch
-                              checked={Boolean(p.hasVatOnCommission)}
-                              onChange={(e) => updatePlatformField(p.id, 'hasVatOnCommission', e.target.checked)}
-                              disabled={p.isDirect || saving}
-                              slotProps={{ input: { 'aria-label': `TVA déductible commission ${formatPlatformLabel(p.name)}` } }}
-                            />
-                          </TableCell>
+                  {platforms.map((p) => (
+                    <TableRow key={p.id}>
+                      <TableCell sx={{ fontWeight: p.isDirect ? 600 : 500 }}>
+                        {formatPlatformLabel(p.name)}
+                        {p.isDirect && (
+                          <Typography variant="caption" sx={{ display: 'block', color: 'text.disabled', fontStyle: 'italic' }}>
+                            Pas de commission sur les réservations directes
+                          </Typography>
                         )}
-                      </TableRow>
-                    );
-                  })}
+                      </TableCell>
+                      <TableCell>{platformAccountField(p, { width: { xs: '100%', sm: 180 } })}</TableCell>
+                      {!notSubject && <TableCell>{platformRegimeField(p, { width: 260 })}</TableCell>}
+                    </TableRow>
+                  ))}
                 </TableBody>
               </Table>
               </TableContainer>
+              )}
+              {compact && (
+              <Stack spacing={1.5} sx={{ px: 1, pb: 1 }}>
+                {platforms.map((p) => (
+                  <Box key={p.id} sx={{ border: 1, borderColor: 'divider', borderRadius: 1, p: 1.5, display: 'grid', gap: 1.5 }}>
+                    <Typography variant="subtitle2">
+                      {formatPlatformLabel(p.name)}
+                      {p.isDirect && (
+                        <Typography component="span" variant="caption" sx={{ display: 'block', color: 'text.disabled', fontStyle: 'italic' }}>
+                          Pas de commission sur les réservations directes
+                        </Typography>
+                      )}
+                    </Typography>
+                    {platformAccountField(p, { width: '100%' })}
+                    {!notSubject && platformRegimeField(p, { width: '100%' })}
+                  </Box>
+                ))}
+              </Stack>
+              )}
             </CardContent>
           </Card>
         </Stack>

@@ -2,6 +2,7 @@ import { screen, fireEvent, waitFor, within } from '@testing-library/react';
 import { vi } from 'vitest';
 import { renderFinance as renderLedger, dueRow, naRow, editable, ledgerOf } from './ledgerFixtures';
 
+// Amended 2026-11-26 (specs/platform-host-statement-and-commission-vat.md rule 1): the brut is the host amount, typed as « Location (relevé) » + « Options (relevé) ».
 // specs/accounting-platform-commission-and-no-deposit.md §3.8 rule 25 + §7.3 — a platform without
 // acompte reads « Sans objet » on the acompte row (the server's words, specs/reservation-payment-ledger.md
 // rule 6); its statement fields (brut, per-échéance commissions — specs/platform-per-echeance-commission.md,
@@ -31,6 +32,7 @@ async function calculate(ctx) {
   openStatement();
   fireEvent.click(screen.getByRole('button', { name: /Calculer la commission/i }));
   await waitFor(() => expect(api.computePlatformCommission).toHaveBeenCalledWith({
+    platform: ctx.form.platform,
     gross: ctx.form.platformGrossAmount,
     payout: ctx.form.platformPayoutAmount,
     touristTax: ctx.form.platformTouristTaxAmount ?? '',
@@ -92,7 +94,7 @@ test('direct reservation: no statement fields, « Prix ajusté » is shown', () 
 test('platform: the brut is a statement field and « Prix ajusté » is hidden', () => {
   renderFinance({ form: { platform: 'GitesDeFrance' } });
   openStatement();
-  expect(screen.getByLabelText('Montant total payé par le client')).toBeInTheDocument();
+  expect(screen.getByLabelText('Location (relevé)')).toBeInTheDocument();
   expect(screen.queryByLabelText('Prix ajusté')).not.toBeInTheDocument();
 });
 
@@ -146,17 +148,10 @@ test('the Victor case: 733 facturé and 668 viré go to the server', async () =>
   await calculate(ctx);
 });
 
-// Rule 7 — which number to copy off the statement depends on the platform's tax mode.
-test('brut field: the platform collects + remits the tax → « Total séjour facturé », hors taxe', () => {
-  renderFinance({ form: { platform: 'GitesDeFrance' }, pricingQuote: { touristTaxOfferedByPlatform: true } });
+// Rule 5 of the host-statement spec — the box is named by the platform's mode, which the server serves with the quote.
+test('tax box: named by the platform\'s mode (kept → informational, reversed → paid with the transfer)', () => {
+  renderFinance({ form: { platform: 'GitesDeFrance' }, pricingQuote: { platformStatement: { box: { mode: 'platform', label: 'Taxe de séjour retenue par la plateforme', helper: 'Informatif.' } } } });
   openStatement();
-  expect(screen.getByLabelText('Total séjour facturé par la plateforme')).toBeInTheDocument();
-  expect(screen.getByText(/hors taxe de séjour et hors frais de dossier/i)).toBeInTheDocument();
-});
-
-test('brut field: the platform reverses the tax to us → « Montant total payé », taxe comprise', () => {
-  renderFinance({ form: { platform: 'Lodgify' }, pricingQuote: { touristTaxReversedByPlatform: true } });
-  openStatement();
-  expect(screen.getByLabelText('Montant total payé par le client')).toBeInTheDocument();
-  expect(screen.getByText(/la plateforme la reverse avec le virement/i)).toBeInTheDocument();
+  expect(screen.getByLabelText('Taxe de séjour retenue par la plateforme')).toBeInTheDocument();
+  expect(screen.getByText('Informatif.')).toBeInTheDocument();
 });

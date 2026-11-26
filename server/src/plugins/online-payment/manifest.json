@@ -204,7 +204,7 @@
       "Accueil : les lignes des écarts de règlement et de la retenue Mollie ouvrent la fiche du séjour (le retour ramène à l’accueil) (SDK 2.34.0)."
     ],
     "1.9.4": [
-      "Le calcul de la commission d’un virement suit le montant hôte du relevé."
+      "Le calcul de la commission d’un virement suit le montant hôte du relevé (SDK 2.34.0)."
     ]
   }
 }

@@ -295,7 +295,7 @@ export default function FinanceSection() {
     // specs/payment-link-lifecycle.md rule 56 (O2) — on a closed fiche, where « Marquer remboursé » is drawn instead.
     closedActionsHost = null,
     // specs/reservation-payment-ledger.md — the ledger and its three server round-trips.
-    ledger = null, checkLedgerEdit, applyLedgerPatch, markFromLedger, resendPaymentRequest, withdrawPaymentLink, settlePaymentLink,
+    ledger = null, checkLedgerEdit, applyLedgerPatch, markFromLedger, resendPaymentRequest, withdrawPaymentLink, settlePaymentLink, previewStatementDraft,
     // specs/direct-installments.md — the plan of a direct reservation and its setter.
     installmentPlan = null, setInstallmentPlan, fichePristine = true,
     // specs/disable-deposit-per-reservation.md rule 13 — why « Sans acompte » cannot be ticked, from the server.
@@ -936,6 +936,7 @@ export default function FinanceSection() {
           onCancel={close}
           formatAmountInput={formatAmountInput}
           checkPayout={(payout) => api.computePlatformCommission({
+            platform: form.platform,
             gross: form.platformGrossAmount,
             payout,
             touristTax: form.platformTouristTaxAmount,
@@ -960,7 +961,7 @@ export default function FinanceSection() {
           locked={writesNow ? !fichePristine : isReservationLocked}
           lockedReason={writesNow && !fichePristine ? STATEMENT_DIRTY_REASON : null}
           received={received}
-          preview={writesNow ? previewStatement : null}
+          preview={writesNow ? previewStatement : previewStatementDraft}
           computeCommission={api.computePlatformCommission}
           onError={showError}
           onApply={writesNow ? (patch) => writeStatement(patch) : (patch) => { updateForm(patch); close(); }}
