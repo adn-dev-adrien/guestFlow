@@ -154,7 +154,9 @@ The `places` tile makes a stay home show seven tiles by default (nine with `home
     repeats are hidden from screen readers and skipped by the keyboard, so each module is announced and reached
     once; a tile that takes the focus is scrolled into view. `prefers-reduced-motion` changes nothing (the motion
     is the guest's own finger).
-23. **From 900 px: one line.** All tiles on a single line, as many columns as tiles; no carousel.
+23. **From 900 px: no carousel.** From 900 px to 1 199 px (two-pane home, the tiles' column about 370 px wide):
+    the tiles on **two lines**, `ceil(n / 2)` columns (4 + 3 for seven). From 1 200 px: all tiles on one line, as
+    many columns as tiles. _(Amended 2026-11-26 by Adrien after review: one line at 900 px gave 33-45 px tiles.)_
 
 **Edge cases:**
 - No published place → no tile, no booklet button, `GET …/places` answers 404 `MODULE_OFF`.
