@@ -1,5 +1,5 @@
 /**
- * The studio's fixed words (specs/guest-app.md rules 11bis, 18, 40, 48). Labels the server does not send because
+ * The studio's fixed words (specs/guest-app/guest-app.md rules 11bis, 18, 40, 48). Labels the server does not send because
  * they never change: the module keys, the block types, the weekdays.
  */
 
@@ -61,7 +61,7 @@ export const GUESTFLOW_LINKS = Object.freeze({
 
 export const DEFAULT_HERO_LABEL = 'Vue aérienne du domaine (par défaut)';
 
-/** specs/guest-app-home-automation.md rules 12, 28, 29 — the « Domotique » blocks, as the studio names them. */
+/** specs/guest-app/guest-app-home-automation.md rules 12, 28, 29 — the « Domotique » blocks, as the studio names them. */
 export const HOME_BLOCKS = Object.freeze({
   outdoor: { title: 'Extérieur', description: 'Température, minimum et maximum du jour, humidité, vent.', picker: 'Station météo ou thermomètre' },
   rooms: { title: 'Pièces', description: 'Une température par pièce, avec son minimum et son maximum du jour.', picker: 'Thermomètre', add: 'Ajouter une pièce', max: 8 },

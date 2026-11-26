@@ -1,5 +1,5 @@
 /*
- * « Mon séjour » service worker (specs/guest-app.md rules 21, 52).
+ * « Mon séjour » service worker (specs/guest-app/guest-app.md rules 21, 52).
  *
  * - The shell (the page, its hashed assets, the fonts, the default photo) is served from the cache, refreshed
  *   in the background: the app opens without network.

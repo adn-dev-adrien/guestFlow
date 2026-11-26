@@ -1,5 +1,5 @@
 /**
- * The studio's one door to GuestFlow: `/api/guest-app/**` with the admin session cookie (specs/guest-app.md
+ * The studio's one door to GuestFlow: `/api/guest-app/**` with the admin session cookie (specs/guest-app/guest-app.md
  * rule 47, same origin as GuestFlow). A dead session sends the operator to GuestFlow's login, which brings them
  * back here; every other refusal surfaces the server's French message as it is.
  */
@@ -51,7 +51,7 @@ export const api = {
   lodging: (id) => request(`/lodgings/${enc(id)}`),
   saveLodging: (id, patch) => request(`/lodgings/${enc(id)}`, { method: 'PUT', body: patch }),
   regenerateQr: (id) => request(`/lodgings/${enc(id)}/regenerate-qr`, { method: 'POST' }),
-  // specs/guest-app-home-automation.md rules 12-16.
+  // specs/guest-app/guest-app-home-automation.md rules 12-16.
   home: (id) => request(`/lodgings/${enc(id)}/home`),
   saveHome: (id, blocks) => request(`/lodgings/${enc(id)}/home`, { method: 'PUT', body: { blocks } }),
   homePreview: (id, blocks, lang) => request(`/lodgings/${enc(id)}/home/preview?lang=${enc(lang)}`, { method: 'POST', body: { blocks } }),

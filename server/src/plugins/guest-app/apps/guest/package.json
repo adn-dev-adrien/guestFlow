@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "private": true,
   "type": "module",
-  "description": "« Mon séjour » — the guest app of the guest-app plugin (specs/guest-app.md §4.2, §6).",
+  "description": "« Mon séjour » — the guest app of the guest-app plugin (specs/guest-app/guest-app.md §4.2, §6).",
   "scripts": {
     "start": "vite",
     "build": "vite build",

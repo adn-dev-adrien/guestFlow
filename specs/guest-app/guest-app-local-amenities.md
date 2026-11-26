@@ -235,10 +235,10 @@ the pane. Touch targets ≥ 44 px (map controls included). `prefers-reduced-moti
 
 ## 7. Test plan
 
-- Server unit — `server/src/plugins/guest-app/tests/guest-app-local-amenities.unit.test.js` (32 tests): validation and refusals (rule 16),
+- Server unit — `server/src/plugins/guest-app/tests/guest-app-local-amenities.unit.test.js` (37 tests): validation and refusals (rule 16), phone with « +33 (0) »,
   link parsing (3 Google formats + plain coordinates), 15 km check, drive-time labels, `energies` / `accepts`
   required by category, open state across midday break, Sunday,
-  next-day opening, no hours (rule 13), GPS links (rule 7), module prerequisite (rule 1), button target hidden
+  next-day opening, stretches across midnight, `until` (rule 13), geolocation header (rule 8), modules missing from a stored list (rule 1), GPS links (rule 7), module prerequisite (rule 1), button target hidden
   when off (rule 18), visitor access.
 - Guest client — `apps/guest/src/__tests__/PlacesPage.filters.test.jsx` (12): chips, empty category hidden, deep-link category, list, offline list, home tile,
   button target; `PlaceSheet.gps.test.jsx` (9): the sheet's content and the remembered GPS choice; `PlacesPage.freshness.test.jsx` (5): a state is hidden past its `until` or without network (the week's table stays), refetched when an `until` passes and on return to the foreground; `PlacesMap.leaflet.test.jsx` (7, Leaflet replaced by a stand-in):
@@ -275,7 +275,10 @@ None open.
 ## 10. Implementation progress
 
 Done 2026-11-26 on `feature/guest-app-local-amenities-map`:
-- Server: table, module, `places.js`, model, controller, routes, button target, CSP, setting, plugin 1.6.0 — 32 tests.
-- Guest app: page, map (Leaflet, lazy chunk), sheet with GPS chooser, offline cache, tile, button target — 30 tests (+2 in `sw.offline.test.js`).
-- Studio: Réglages › Pratique, dialog, button editor target — 10 tests.
+- Server: table, module, `places.js`, model, controller, routes, button target, CSP, setting, plugin 1.6.0 — 37 tests.
+- Guest app: page, map (Leaflet, lazy chunk), sheet with GPS chooser, offline cache, tile, button target — 37 tests (+2 in `sw.offline.test.js`).
+- Studio: Réglages › Pratique, dialog, button editor target — 15 tests.
+Review fixes 2026-11-26: geolocation opened on the guest build's answers (rule 8), tile referrer (rule 2), module slotted after `soliomap`
+for existing lodgings (rule 1), `open.until` and stale-state handling (rule 13), closed sets and labels served to the Studio, hours at
+midnight, phone, name type, Monday copy.
 - Manual checks left to Adrien (§7): iPhone (Plans, Google Maps, Waze installed or not), Android, offline after a first load, night, the map in a real browser.

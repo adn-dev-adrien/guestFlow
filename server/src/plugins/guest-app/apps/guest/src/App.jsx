@@ -1,5 +1,5 @@
 /**
- * « Mon séjour » — the guest app (specs/guest-app.md). The `.app` root carries the register's tokens
+ * « Mon séjour » — the guest app (specs/guest-app/guest-app.md). The `.app` root carries the register's tokens
  * (`theme.js`) and the layout classes (rule 51); the routes are the screens of §6.6.
  */
 import { useEffect, useMemo } from 'react';

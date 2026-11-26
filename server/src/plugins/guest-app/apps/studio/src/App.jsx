@@ -1,5 +1,5 @@
 /**
- * The studio's screens (specs/guest-app.md rules 47-50, §4.2): lodging first — every screen of a lodging under
+ * The studio's screens (specs/guest-app/guest-app.md rules 47-50, §4.2): lodging first — every screen of a lodging under
  * `/:propertyId/…` — then the settings shared by every lodging under `/reglages/…`.
  */
 import { Navigate, Route, Routes, useParams } from 'react-router';

@@ -1,5 +1,5 @@
 /**
- * Icon — the app's one line set (specs/guest-app.md §6.3: Lucide, 1.75 px stroke, rounded caps), by name.
+ * Icon — the app's one line set (specs/guest-app/guest-app.md §6.3: Lucide, 1.75 px stroke, rounded caps), by name.
  *
  * Props: `name` (a key of ICONS), `className`. Always decorative (`aria-hidden`): the control around it
  * carries the label.
@@ -49,7 +49,7 @@ export const ICONS = Object.freeze({
   // specs/guest-app/guest-app-local-amenities.md — the « Pratique » map's controls and its « Itinéraire ».
   locate: LocateFixed,
   nav: Navigation,
-  // specs/guest-app-home-automation.md — the « Domotique » page.
+  // specs/guest-app/guest-app-home-automation.md — the « Domotique » page.
   smartHome: Thermometer,
   light: Lightbulb,
   rain: CloudRain,
