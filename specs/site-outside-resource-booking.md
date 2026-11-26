@@ -2,12 +2,12 @@
 
 | Field | Value |
 |---|---|
-| **Status** | Implemented |
+| **Status** | Implemented — amendment §3.G (2026-11-26) Approved |
 | **Branch** | `feature/outside-resource-booking-site` |
 | **Created** | 2026-11-25 |
 | **Author** | Adrien |
 | **Related PR** | (link once opened) |
-| **Mock-up** | [`site-outside-resource-booking.html`](site-outside-resource-booking.html) |
+| **Mock-up** | [`site-outside-resource-booking.html`](site-outside-resource-booking.html) · §3.G: [`docs/specs/2026-11-26-session-booking-voucher-prefill.html`](../docs/specs/2026-11-26-session-booking-voucher-prefill.html) |
 
 ---
 
@@ -162,6 +162,40 @@ online in full or with a gift voucher code — with the operator told, by push a
     in GuestFlow (the operator may fill it on the fiche).
 27. **`resource_bookings` channel `site`** is used for the bookings of rule 12; voucher bookings keep `mon-bain`.
 
+### 3.G The recap before a slot, and a voucher that fills the form (amendment 2026-11-26)
+
+Asked by Adrien on 2026-11-26 after the page went live: the visitor read a hold notice they cannot act on, a recap that said
+nothing until a slot was chosen, and had to type again what the giver already gave.
+
+28. **No hold notice.** The line « Le créneau vous est réservé 15 minutes pendant le paiement. » under the button is removed
+    (`sbHold`). The 15-minute hold of rules 12 and 14 is unchanged; only its notice goes.
+29. **« Choisissez un horaire ».** While no slot is chosen, the recap's date line — which said « Le récapitulatif apparaît dès
+    qu'un créneau est choisi. » (`sbSummaryEmpty`) — says « Choisissez un horaire », in the muted text colour. It turns red (the
+    connector's error colour) once the visitor presses the button (in-flow or sticky bar) without a slot, and back to muted when a
+    slot is chosen or the activity, duration or voucher changes. The red is announced (`role="status"` region already in place).
+30. **A voucher's contents at 0 €, at once.** As soon as a resource voucher is accepted, the recap lists, before any slot, every
+    line of the voucher's `contents` from `POST /gift-vouchers/use` (the session with its band, included minutes and any extra time
+    given; every option and every add-on of the voucher, with its quantity), each priced « 0 € » with « inclus dans le bon » under
+    it in the success colour. Once a slot is chosen, the quote's `included` lines are drawn the same way (« 0 € » + « inclus dans
+    le bon », replacing the bare « Inclus »); the supplement and the extras keep their amounts. The page builds no line of its own:
+    a held option or add-on missing from `contents` or from `included` is a server defect, and a server test asserts that every
+    option and add-on of a voucher appears in both, with its quantity.
+31. **The form filled from the voucher.** The duration and the activity follow the voucher (unchanged). The contact's first name
+    and last name are filled from the recipient's first and last names stored on the voucher (rule 32), only into empty fields,
+    never over what the visitor typed. Never the e-mail or the phone: the voucher holds the giver's e-mail, not the recipient's.
+    The voucher holds no party size: « Personnes » is not filled. « Retirer » the voucher clears a filled name only if the visitor
+    left it untouched. A voucher issued before rule 32 (no last name) fills nothing.
+32. **The recipient in two fields.** Where a voucher is ordered — the site's purchase block (`guestflow/gift-voucher`, every
+    campaign kind) and « Nouveau bon » in GuestFlow — « Pour » becomes « Prénom » and « Nom » of the recipient, **both required**,
+    40 characters each, refused by the server when empty (`RECIPIENT_FIRST_NAME_REQUIRED`, `RECIPIENT_LAST_NAME_REQUIRED`, with
+    their `field`). They are stored separately on the order (`recipientFirstName`, `recipientLastName`). **The recipient's first
+    name alone** is printed on the voucher PDF, in the e-mails and in the tunnel (« Pour Marie »); GuestFlow's voucher list and
+    detail show « Prénom Nom », and the list search covers both. Amends `specs/gift-voucher-campaigns.md` rules 18 and 41.
+33. **Data.** `gift_voucher_orders` gains `recipientFirstName` and `recipientLastName` (TEXT NOT NULL DEFAULT ''), added by a
+    gift-vouchers plugin migration. Existing rows: `recipientFirstName` takes the old `recipientName`, `recipientLastName` stays
+    empty — nothing lost, the printed name unchanged. `recipientName` stays readable as that first name for every reader that
+    prints it (PDF, mails, notices), so no reader changes meaning. No voucher had been sold in production on 2026-11-26.
+
 ## 4. Architecture
 
 ### 4.1 Server side (`server/src/`)
@@ -282,6 +316,10 @@ _Resolved 2026-11-25 (Adrien, mock-up §4 + chat):_ the e-mail is always sent wh
 in full online · one push line « Bons cadeaux et séances en ligne » covering vouchers sold and every site session · header « Bain
 nordique » + footer + purchase-page links · notify only customer-paid vouchers · push **and** e-mail · each hour of a session billed
 at its band, the evening part due even with a day voucher.
+
+_Resolved 2026-11-26 (Adrien, chat):_ « Choisissez un horaire » muted then red on a press without a slot · voucher lines « 0 € » +
+« inclus dans le bon » · recipient first and last names entered separately at purchase, both required, stored in GuestFlow,
+used to fill the booking · the printed voucher, e-mails and tunnel name the recipient by first name only.
 
 ## 10. Implementation progress
 

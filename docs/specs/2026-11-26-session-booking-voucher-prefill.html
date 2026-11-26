@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Bain nordique — récapitulatif et bon cadeau prérempli</title>
+<style>
+:root{--paper:#F4EFE3;--card:#FBF8F1;--ink:#27251F;--soft:#6b665b;--line:#E3DCCB;--ocre:#A8670F;--ocre-deep:#8a5409;--sapin:#2F3A26;--red:#B3261E;--ok:#2F6B3A}
+*{box-sizing:border-box}
+[hidden]{display:none !important}
+body{margin:0;background:var(--paper);color:var(--ink);font:16px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif}
+.wrap{max-width:1080px;margin:0 auto;padding:28px 20px 60px}
+h1{font-family:Georgia,serif;font-weight:400;font-size:1.7rem;margin:0 0 6px}
+.lead{color:var(--soft);max-width:72ch;margin:0 0 18px}
+.brief{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:12px;margin:0 0 26px}
+.brief div{background:#fff;border:1px solid var(--line);border-radius:6px;padding:12px 14px;font-size:.92rem}
+.brief b{display:block;font-size:.74rem;letter-spacing:.12em;text-transform:uppercase;color:var(--ocre-deep);margin-bottom:4px}
+.demo-bar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:0 0 14px;font-size:.9rem}
+.demo-bar button{font:inherit;padding:8px 12px;border:1px solid var(--line);background:#fff;border-radius:6px;cursor:pointer;min-height:40px}
+.demo-bar button:hover{border-color:var(--ocre)}
+.tunnel{display:grid;grid-template-columns:1fr 330px;gap:28px;align-items:start}
+@media (max-width:860px){.tunnel{grid-template-columns:1fr}}
+.sec{border-top:1px solid var(--line);padding:16px 0}
+.sec .sh{font-family:inherit;font-weight:700;margin:0 0 10px;font-size:1rem}
+.row{display:flex;gap:10px}
+input[type=text],input[type=email],input[type=tel]{font:inherit;font-size:16px;width:100%;padding:11px 12px;border:1px solid var(--line);border-radius:4px;background:#fff;min-height:46px}
+.btn-line{font:inherit;font-weight:700;letter-spacing:.14em;text-transform:uppercase;font-size:.8rem;padding:0 18px;border:1px solid var(--ocre);color:var(--ocre);background:#fff;border-radius:4px;cursor:pointer;min-height:46px}
+.msg{font-size:.9rem;margin:8px 0 0;min-height:1.2em}
+.msg.bad{color:var(--red)}.msg.ok{color:var(--ok)}
+.msg .btn-line{min-height:34px;padding:0 10px;margin-left:6px;font-size:.7rem}
+.step{display:flex;justify-content:space-between;align-items:center;padding:6px 0}
+.step small{display:block;color:var(--soft);font-size:.8rem}
+.stepper{display:inline-flex;align-items:center;border:1px solid var(--line);border-radius:6px;background:#f3f5ef}
+.stepper button{width:44px;height:44px;border:0;background:none;font-size:1.1rem;cursor:pointer;color:var(--sapin)}
+.stepper button:disabled{opacity:.3;cursor:not-allowed}
+.stepper span{min-width:44px;text-align:center;font-weight:700}
+.slots{display:flex;flex-wrap:wrap;gap:8px}
+.slot{font:inherit;border:1px solid var(--line);background:var(--card);border-radius:6px;padding:8px 12px;cursor:pointer;text-align:left;min-height:44px}
+.slot small{display:block;font-size:.78rem;color:var(--soft)}
+.slot.on{border-color:var(--ocre);box-shadow:inset 0 0 0 1px var(--ocre)}
+.slot .in{color:var(--ok)}
+.who{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+@media (max-width:520px){.who{grid-template-columns:1fr}}
+.who label{font-size:.85rem;font-weight:600;display:block;margin-bottom:4px}
+.filled{background:#FFF8EA !important;border-color:#E8C286 !important;transition:background .6s ease}
+.note{font-size:.8rem;color:var(--soft);margin:6px 0 0}
+aside.summary{position:sticky;top:16px;background:#fff;border:1px solid var(--line);border-radius:8px;padding:18px}
+.s-head{font-family:Georgia,serif;font-size:1.15rem;margin:0 0 4px}
+.s-when{font-size:.9rem;color:var(--soft);margin:0 0 10px}
+.s-when.red{color:var(--red);font-weight:600}
+.s-line{display:flex;justify-content:space-between;gap:10px;padding:6px 0;border-top:1px dashed var(--line);font-size:.92rem}
+.s-line small{display:block;color:var(--soft);font-size:.78rem}
+.s-line .amt{white-space:nowrap;text-align:right}
+.s-line .amt small{color:var(--ok)}
+.s-total{display:flex;justify-content:space-between;font-weight:700;border-top:1px solid var(--ink);margin-top:8px;padding-top:8px}
+.cta{display:block;width:100%;margin-top:14px;border:0;background:var(--ocre);color:#fff;font:inherit;font-weight:700;padding:13px;border-radius:6px;cursor:pointer;min-height:48px}
+.cta:disabled{opacity:.55;cursor:not-allowed}
+.under{font-size:.85rem;margin:8px 0 0;text-align:center;min-height:1.2em}
+.under.red{color:var(--red);font-weight:600}
+.under.neutral{color:var(--soft)}
+.under.gone{text-decoration:line-through;color:#aaa}
+.cmp{font-size:.78rem;color:var(--soft);margin-top:10px;border-top:1px solid var(--line);padding-top:8px}
+.cmp s{color:#999}
+fieldset{background:#fff;border:1px solid var(--line);border-radius:8px;padding:14px 18px;margin:0 0 14px}
+legend{font-weight:700;padding:0 6px}
+fieldset label{display:block;padding:5px 0;cursor:pointer}
+fieldset p{margin:4px 0 6px;color:var(--soft);font-size:.9rem}
+.out{display:flex;gap:10px;align-items:flex-start}
+textarea{flex:1;height:84px;font:13px/1.4 ui-monospace,Menlo,monospace;padding:8px;border:1px solid var(--line);border-radius:6px}
+.copy{font:inherit;background:var(--sapin);color:#fff;border:0;border-radius:6px;padding:10px 16px;cursor:pointer;min-height:44px}
+h2{font-family:Georgia,serif;font-weight:400;font-size:1.3rem;margin:34px 0 12px}
+.risk li{margin:4px 0}
+@media (prefers-reduced-motion:reduce){*{transition:none !important}}
+</style>
+</head>
+<body>
+<div class="wrap">
+<h1>Bain nordique : le récapitulatif et le bon cadeau prérempli</h1>
+<p class="lead">Deux écrans changent : le formulaire d'achat d'un bon cadeau (site et GuestFlow), qui demande le prénom et le nom du bénéficiaire, et le tunnel « Bain nordique », qui s'en sert. Tout se manipule : crée un bon, puis saisis son code dans le tunnel.</p>
+
+<div class="brief">
+  <div><b>Constat</b>Sous le bouton s'affichent « Le créneau vous est réservé 15 minutes… » et « Le récapitulatif apparaît dès qu'un créneau est choisi. ». Après un code de bon, le visiteur doit tout ressaisir, et les options du bon ne s'affichent qu'après le choix d'un horaire, marquées « Inclus » sans montant.</div>
+  <div><b>Ce qu'on propose</b>La phrase des 15 minutes disparaît. Tant qu'aucun horaire n'est choisi : « Choisissez un horaire ». Dès que le code est accepté, le récapitulatif liste tout ce que le bon comprend (séance, temps offert, chaque option avec sa quantité) à 0 €, et le prénom et le nom du bénéficiaire, saisis séparément à l'achat, sont préremplis.</div>
+  <div><b>Ce qu'on ne fait pas</b>Ni e-mail ni téléphone préremplis : le bon ne garde que l'e-mail de l'acheteur, pas celui du bénéficiaire. Le nombre de personnes non plus : le bon ne le contient pas. Le blocage du créneau pendant 15 minutes reste en place, on cesse seulement de l'afficher.</div>
+  <div><b>Risque</b>Faible : aucun montant n'est calculé sur la page, tout vient toujours du serveur. Les bons déjà émis n'ont qu'un champ « Pour » : il devient le prénom, le nom reste vide, et rien n'est prérempli pour eux. Aucun bon n'est encore vendu en prod.</div>
+</div>
+
+<h2>1. À l'achat du bon</h2>
+<div class="tunnel" style="margin-bottom:8px">
+  <div>
+    <div class="sec">
+      <h2 class="sh">Pour</h2>
+      <div class="who">
+        <div><label for="bFirst">Prénom</label><input type="text" id="bFirst" maxlength="40" autocomplete="off"><p class="msg bad" id="bFirstErr"></p></div>
+        <div><label for="bLast">Nom</label><input type="text" id="bLast" maxlength="40" autocomplete="off"><p class="msg bad" id="bLastErr"></p></div>
+      </div>
+      <h2 class="sh" style="margin-top:8px">De la part de</h2>
+      <input type="text" id="bFrom" maxlength="40" autocomplete="off" value="Paul">
+      <button type="button" class="cta" id="buy" style="max-width:280px">Créer le bon (démonstration)</button>
+      <p class="note">Les deux champs sont obligatoires, sur le site comme dans GuestFlow (« Nouveau bon »). Seul le prénom est imprimé sur le bon et dans les e-mails ; le nom sert à préremplir la réservation et à retrouver le bon dans GuestFlow.</p>
+    </div>
+  </div>
+  <aside class="summary"><p class="s-head">Le bon imprimé</p><p class="s-when" id="card">Pour … · de la part de Paul</p><p class="note" id="newCode"></p></aside>
+</div>
+
+<h2>2. Dans le tunnel « Bain nordique »</h2>
+<div class="demo-bar">
+  <span>Codes de démonstration :</span>
+  <button type="button" data-code="DEMO-JOUR">1 h en journée + 2 peignoirs + 1 planche apéro</button>
+  <button type="button" data-code="DEMO-SOIR">1 h en soirée + 30 min offertes + 4 serviettes</button>
+  <button type="button" data-code="DEMO-ANCIEN">Bon émis avant ce changement</button>
+  <button type="button" data-code="XXXX-0000">Code inconnu</button>
+</div>
+
+<div class="tunnel">
+  <div>
+    <div class="sec">
+      <h2 class="sh">Code bon cadeau <span style="font-weight:400;color:var(--soft);font-size:.85rem">· facultatif</span></h2>
+      <div class="row" id="codeRow"><input type="text" id="code" placeholder="XXXX-XXXX-XXXX-XXXX" autocomplete="off"><button type="button" class="btn-line" id="apply">Appliquer</button></div>
+      <p class="msg" id="codeMsg" role="status"></p>
+    </div>
+    <div class="sec">
+      <h2 class="sh">Séance</h2>
+      <div class="step"><div>Durée <small id="durHint"></small></div><div class="stepper"><button type="button" id="durMinus" aria-label="Moins">−</button><span id="dur">1 h</span><button type="button" id="durPlus" aria-label="Plus">+</button></div></div>
+      <div class="step"><div>Personnes <small>Pour préparer la séance · 8 au plus</small></div><div class="stepper"><button type="button" id="pMinus" aria-label="Moins">−</button><span id="people">2</span><button type="button" id="pPlus" aria-label="Plus">+</button></div></div>
+    </div>
+    <div class="sec">
+      <h2 class="sh">Horaire · samedi 5 décembre</h2>
+      <div class="slots" id="slots"></div>
+    </div>
+    <div class="sec">
+      <h2 class="sh">Vos coordonnées</h2>
+      <div class="who">
+        <div><label for="first">Prénom</label><input type="text" id="first" autocomplete="given-name"></div>
+        <div><label for="last">Nom</label><input type="text" id="last" autocomplete="family-name"></div>
+        <div><label for="mail">E-mail</label><input type="email" id="mail" autocomplete="email"></div>
+        <div><label for="tel">Téléphone</label><input type="tel" id="tel" autocomplete="tel"></div>
+      </div>
+      <p class="note" id="whoNote"></p>
+    </div>
+  </div>
+
+  <aside class="summary" aria-live="polite">
+    <p class="s-head">Bain nordique</p>
+    <p class="s-when" id="when"></p>
+    <div id="lines"></div>
+    <div class="s-total" id="total" hidden><span id="totLabel"></span><span id="totAmt"></span></div>
+    <button type="button" class="cta" id="cta">Choisir un horaire</button>
+    <div class="cmp" id="cmp"></div>
+  </aside>
+</div>
+
+<h2>Décisions du 26/11</h2>
+<p class="note" style="margin:-6px 0 12px">Tranchées dans le dialogue ; les deux premières restent modifiables ici pour comparer.</p>
+<fieldset><legend>1. « Choisissez un horaire » : quelle couleur ? — retenu : gris puis rouge</legend>
+  <p>Note : « horaire » est masculin, d'où « un horaire ». La phrase passe à l'impératif, comme les autres consignes du tunnel (« Choisissez votre créneau »).</p>
+  <label><input type="radio" name="q1" value="neutre-puis-rouge" checked> Neutre (gris) tant qu'on n'a rien tenté, rouge si on appuie sur le bouton sans horaire (Recommandé) : en rouge dès l'arrivée, la phrase ressemble à une erreur avant toute erreur</label>
+  <label><input type="radio" name="q1" value="rouge"> Rouge dès l'arrivée sur la page</label>
+  <label><input type="radio" name="q1" value="neutre"> Toujours neutre (gris)</label>
+</fieldset>
+<fieldset><legend>2. Comment afficher ce que le bon comprend ? — retenu : 0 € + « inclus dans le bon »</legend>
+  <label><input type="radio" name="q2" value="0€+inclus" checked> « 0 € » avec en dessous, en vert, « inclus dans le bon » (Recommandé) : le montant que tu demandes, et la raison pour laquelle il est à zéro</label>
+  <label><input type="radio" name="q2" value="0€"> « 0 € » seul</label>
+</fieldset>
+<ul class="risk"><li>3. Prénom et nom du bénéficiaire : saisis séparément à l'achat, <b>tous deux obligatoires</b>, enregistrés dans GuestFlow, préremplis dans le tunnel.</li><li>4. Bon imprimé, e-mails, tunnel : <b>prénom seul</b> (« Pour Marie »).</li></ul>
+
+<h2>Règles ajoutées à la spec</h2>
+<ol class="risk" start="28">
+  <li><b>Sous le bouton</b> : plus de phrase sur les 15 minutes (le blocage du créneau, règle 12, est inchangé). Sans horaire choisi, la ligne du récapitulatif qui disait « Le récapitulatif apparaît dès qu'un créneau est choisi. » dit « Choisissez un horaire » (couleur : arbitrage 1).</li>
+  <li><b>Le bon, tout de suite</b> : dès qu'un code est accepté, le récapitulatif liste, avant tout choix d'horaire, chaque ligne de « Votre bon comprend » renvoyée par le serveur (séance et temps offert, chaque option et chaque ajout avec sa quantité) à 0 €. Après le choix d'un horaire, les lignes incluses du devis s'affichent de la même façon. Aucune ligne n'est construite sur la page : un élément du bon absent de la réponse du serveur est une anomalie côté serveur, couverte par un test.</li>
+  <li><b>Ce qui est prérempli</b> : la durée et la séance du bon (déjà en place), et le prénom et le nom du bénéficiaire tels qu'ils ont été saisis à l'achat, sans jamais écraser ce que le visiteur a tapé. Jamais l'e-mail ni le téléphone, qui sont ceux de l'acheteur. Un bon émis avant ce changement ne préremplit rien. Retirer le bon vide seulement ce que le bon avait rempli et que le visiteur n'a pas modifié.</li>
+  <li><b>Le bénéficiaire en deux champs</b> : à l'achat (site et « Nouveau bon » dans GuestFlow), « Pour » devient « Prénom » et « Nom », tous deux obligatoires, 40 caractères chacun. Ils sont enregistrés séparément. Le bon imprimé, les e-mails et le tunnel montrent le prénom seul ; les écrans de GuestFlow montrent « Prénom Nom » et la recherche porte sur les deux. Les bons existants : l'ancien champ devient le prénom, le nom reste vide.</li>
+</ol>
+</div>
+
+<script>
+(function(){
+  var VOUCHERS={
+    'DEMO-JOUR':{title:'Bain nordique en journée',number:'BC-0012',sender:'Paul',first:'Marie',last:'Dupont',band:'day',minutes:60,
+      contents:[{label:'Bain nordique',detail:'1 h en journée · de 10:00 à 19:00',qty:1},{label:'Peignoir',qty:2},{label:'Planche apéro',qty:1}]},
+    'DEMO-SOIR':{title:'Bain nordique sous les étoiles',number:'BC-0013',sender:'Léa',first:'Jean-Marc',last:'Le Gall',band:'evening',minutes:90,
+      contents:[{label:'Bain nordique',detail:'1 h en soirée + 30 min de temps supplémentaire · de 19:00 à 23:00',qty:1},{label:'Serviette',qty:4}]},
+    'DEMO-ANCIEN':{title:'Bain nordique en journée',number:'BC-0009',sender:'Paul',first:'Marie Dupont',last:'',band:'day',minutes:60,
+      contents:[{label:'Bain nordique',detail:'1 h en journée · de 10:00 à 19:00',qty:1}]}
+  };
+  var SLOTS=[['10:00',0],['14:00',0],['17:00',0],['18:30',3500],['19:30',0],['21:00',0]];
+  var st={v:null,minutes:60,people:2,slot:null,tried:false,filled:{first:'',last:''}};
+  var $=function(id){return document.getElementById(id)};
+  function q(name){var e=document.querySelector('[name='+name+']:checked');return e?e.value:''}
+  function euro(c){return (c/100).toLocaleString('fr-FR',{minimumFractionDigits:c%100?2:0,maximumFractionDigits:2})+' €'}
+  function dur(m){var h=Math.floor(m/60),r=m%60;return (h?h+' h':'')+(r?(h?' ':'')+r+' min':'')}
+  function el(t,c,h){var e=document.createElement(t);if(c)e.className=c;if(h!==undefined)e.innerHTML=h;return e}
+
+  function priceOf(start){
+    var base=st.v?0:5000*(st.minutes/60);
+    var ev=start>='19:00'||(start==='18:30');
+    if(st.v){
+      if(st.v.band==='day'&&ev) return 3500;
+      return 0;
+    }
+    return base+(ev?1300:0);
+  }
+  function paintSlots(){
+    var box=$('slots');box.innerHTML='';
+    SLOTS.forEach(function(s){
+      var start=s[0];
+      if(st.v&&st.v.band==='evening'&&start<'19:00')return;
+      var b=el('button','slot'+(st.slot===start?' on':''));b.type='button';
+      var c=priceOf(start);
+      var end=(function(){var t=start.split(':');var m=+t[0]*60+ +t[1]+st.minutes;return String(Math.floor(m/60)).padStart(2,'0')+':'+String(m%60).padStart(2,'0')})();
+      b.innerHTML=start+' – '+end+'<small'+(st.v&&!c?' class="in"':'')+'>'+(st.v?(c?'+ '+euro(c)+' · soirée':'Inclus dans le bon'):euro(c))+'</small>';
+      b.onclick=function(){st.slot=start;st.tried=false;paint()};
+      box.appendChild(b);
+    });
+  }
+  function includedLine(l){
+    var d=el('div','s-line');
+    var left=el('span','',(l.qty>1?l.qty+' × ':'')+l.label+(l.detail?'<small>'+l.detail+'</small>':''));
+    var right=el('span','amt','0 €'+(q('q2')==='0€+inclus'?'<small>inclus dans le bon</small>':''));
+    d.appendChild(left);d.appendChild(right);return d;
+  }
+  function paintSummary(){
+    var lines=$('lines');lines.innerHTML='';
+    var when=$('when');
+    var mode=q('q1');
+    if(st.slot){when.textContent='samedi 5 décembre · '+st.slot+' · '+st.people+' pers.';when.className='s-when'}
+    else{when.textContent='Choisissez un horaire';when.className='s-when'+(mode==='rouge'||(mode==='neutre-puis-rouge'&&st.tried)?' red':'');}
+    var due=0;
+    if(st.v){
+      st.v.contents.forEach(function(l){lines.appendChild(includedLine(l))});
+      if(st.slot){var c=priceOf(st.slot);if(c){due+=c;var d=el('div','s-line');d.innerHTML='<span>Supplément soirée</span><span class="amt">'+euro(c)+'</span>';lines.appendChild(d)}}
+    }else if(st.slot){
+      var c2=priceOf(st.slot);due=c2;var d2=el('div','s-line');d2.innerHTML='<span>Bain nordique · '+dur(st.minutes)+'</span><span class="amt">'+euro(c2)+'</span>';lines.appendChild(d2);
+    }
+    var tot=$('total');tot.hidden=!(st.slot||st.v);
+    $('totLabel').textContent=due?'À payer':'Rien à payer';
+    $('totAmt').textContent=euro(due);
+    var cta=$('cta');
+    cta.textContent=!st.slot?'Choisir un horaire':(due?'Payer '+euro(due):'Confirmer la séance');
+    $('cmp').innerHTML='Avant, à cet endroit : <s>'+(st.slot?'Le créneau vous est réservé 15 minutes pendant le paiement.':'Le récapitulatif apparaît dès qu’un créneau est choisi.')+'</s>';
+  }
+  function paintSession(){
+    $('dur').textContent=dur(st.minutes);
+    $('durHint').textContent=st.v?'Le bon couvre '+dur(st.v.minutes):'';
+    $('durMinus').disabled=st.minutes<=(st.v?st.v.minutes:60);
+    $('people').textContent=st.people;
+    $('pMinus').disabled=st.people<=1;$('pPlus').disabled=st.people>=8;
+  }
+  function paint(){paintSession();paintSlots();paintSummary()}
+
+  function prefill(){
+    var note=$('whoNote');note.textContent='';
+    if(!st.v||!st.v.first||!st.v.last)return;
+    var p=[st.v.first,st.v.last];
+    [['first',p[0]],['last',p[1]]].forEach(function(f){
+      var input=$(f[0]);
+      if(input.value.trim()||!f[1])return;
+      input.value=f[1];st.filled[f[0]]=f[1];input.classList.add('filled');
+      setTimeout(function(){input.classList.remove('filled')},1600);
+    });
+    if(st.filled.first||st.filled.last)note.textContent='Prérempli avec le nom du bénéficiaire du bon. E-mail et téléphone restent à saisir.';
+  }
+  function unfill(){
+    ['first','last'].forEach(function(k){var i=$(k);if(st.filled[k]&&i.value===st.filled[k])i.value='';st.filled[k]=''});
+    $('whoNote').textContent='';
+  }
+  function apply(raw){
+    var code=(raw||$('code').value).trim().toUpperCase();
+    var msg=$('codeMsg');
+    if(!code){msg.className='msg bad';msg.textContent='Saisissez le code du bon.';$('code').focus();return}
+    var v=VOUCHERS[code];
+    if(!v){msg.className='msg bad';msg.textContent='Ce code n’est pas reconnu. Vérifiez les caractères au dos du bon (0 et O, 1 et I).';return}
+    st.v=v;st.minutes=v.minutes;st.slot=null;st.tried=false;
+    $('code').value='';$('codeRow').hidden=true;
+    msg.className='msg ok';
+    msg.innerHTML='Bon '+v.number+' · '+v.title+(v.sender?' · de '+v.sender:'')+(v.first?' pour '+v.first:'')+' ';
+    var drop=el('button','btn-line','Retirer');drop.type='button';
+    drop.onclick=function(){st.v=null;st.minutes=60;st.slot=null;unfill();$('codeRow').hidden=false;msg.textContent='';msg.className='msg';paint()};
+    msg.appendChild(drop);
+    prefill();paint();
+  }
+  $('apply').onclick=function(){apply()};
+  $('code').addEventListener('keydown',function(e){if(e.key==='Enter')apply()});
+  document.querySelectorAll('.demo-bar button').forEach(function(b){b.onclick=function(){if(st.v){st.v=null;unfill();$('codeRow').hidden=false}$('code').value=b.dataset.code;apply()}});
+  $('durPlus').onclick=function(){if(st.minutes<300){st.minutes+=30;st.slot=null;paint()}};
+  $('durMinus').onclick=function(){st.minutes-=30;st.slot=null;paint()};
+  $('pPlus').onclick=function(){st.people++;paint()};
+  $('pMinus').onclick=function(){st.people--;paint()};
+  $('cta').onclick=function(){if(!st.slot){st.tried=true;paintSummary();$('slots').scrollIntoView({behavior:matchMedia('(prefers-reduced-motion: reduce)').matches?'auto':'smooth',block:'center'})}else{alert('Démonstration : ici partirait la confirmation ou le paiement.')}};
+  ['first','last'].forEach(function(k){$(k).addEventListener('input',function(){st.filled[k]=''})});
+  document.querySelectorAll('fieldset input').forEach(function(i){i.addEventListener('change',function(){paint()})});
+  var n=0;
+  $('buy').onclick=function(){
+    var f=$('bFirst').value.trim(),l=$('bLast').value.trim();
+    $('bFirstErr').textContent=f?'':'Saisissez le prénom de la personne à qui le bon est offert.';
+    $('bLastErr').textContent=l?'':'Saisissez son nom.';
+    $('bFirst').setAttribute('aria-invalid',!f);$('bLast').setAttribute('aria-invalid',!l);
+    if(!f){$('bFirst').focus();return}if(!l){$('bLast').focus();return}
+    n++;var code='DEMO-ACHAT-'+n;
+    VOUCHERS[code]={title:'Bain nordique en journée',number:'BC-002'+n,sender:$('bFrom').value.trim(),first:f,last:l,band:'day',minutes:60,contents:[{label:'Bain nordique',detail:'1 h en journée · de 10:00 à 19:00',qty:1},{label:'Peignoir',qty:2}]};
+    $('card').textContent='Pour '+f+($('bFrom').value.trim()?' · de la part de '+$('bFrom').value.trim():'');
+    $('newCode').innerHTML='Bon créé. ';var b=el('button','btn-line','Utiliser ce bon dans le tunnel');b.type='button';
+    b.onclick=function(){if(st.v){st.v=null;unfill();$('codeRow').hidden=false}$('code').value=code;apply();$('code').closest('.sec').scrollIntoView({block:'center'})};
+    $('newCode').appendChild(b);
+  };
+  ['bFirst','bLast'].forEach(function(k){$(k).addEventListener('input',function(){$(k+'Err').textContent='';$(k).removeAttribute('aria-invalid')})});
+  paint();
+})();
+</script>
+</body>
+</html>
