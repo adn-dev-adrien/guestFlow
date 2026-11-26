@@ -4,6 +4,26 @@ All notable changes to GuestFlow are documented in this file. Format: [Keep a Ch
 
 ## [Unreleased]
 
+## [4.5.0] - 2026-11-26
+
+### Summary
+- Une séance (bain nordique…) se réserve sur le site : créneau, personnes, options, paiement en ligne ou par bon cadeau.
+- Chaque bon payé par un client et chaque séance réservée en ligne arrivent en notification et par e-mail.
+- Une séance payée mais impossible à placer est signalée « Paiement à rembourser ».
+- Le nombre de personnes d'une séance s'affiche et se corrige sur la fiche « Passage ».
+- À régler après l'installation : « Personnes par séance au plus » du bain nordique (8).
+
+### Added
+- **Push and e-mail for every voucher sold and every session booked online** (spec `site-outside-resource-booking.md` rules 22-24, 2026-11-25). One shared push line « Bons cadeaux et séances en ligne » (`online-sales`) and an e-mail to the notification address announce a voucher paid by a customer (website or a payment link the team sent; never a voucher the team issued), every session booked from the website with or without a voucher, and « Paiement à rembourser » for a paid session that could not be booked. The e-mail does not depend on the push toggle. SDK 2.35.0: `ctx.pushChannel({ shared: true })` lets several plugins declare one channel (listed once while any is live), and `notificationService.notifyOperator` sends the push and the e-mail.
+- **Book a session on the website, paid online or with a gift voucher** (spec `site-outside-resource-booking.md`, 2026-11-25). A new WordPress block « Réserver une séance » (shortcode `[guestflow_session_booking]`, connector 1.23.0) lets a visitor pick an activity sold outside a stay, its duration, the people, a date and a slot — each slot carries the amount of the whole session, every hour at the band it starts in — add extras, then pay online in full (the slot is held 15 minutes; the session exists only once the bank confirms, and a payment after the hold lapsed is booked if the slot is still free, else flagged « à rembourser »). The same page takes a gift voucher code: a resource voucher settles what it covers and only the rest is paid. `/<base>/utiliser` and `#bon=` lead to it, « Utiliser un bon cadeau » stays as an alias, the purchase page links to it. New public API `/public/v1/sessions/*`, `use/confirm` gains `people`, `firstName`, `lastName` and `use/slots` gains `dueCents` and `evening`. hourly-resources 1.11.0, gift-vouchers 1.6.0, SDK 2.35.0.
+- **People per session** — a session carries the people declared at booking (informational, 1 to the resource's « Personnes par séance au plus », 20 when unset); shown and corrected on the « Passage » fiche, named in the planning tooltip.
+
+### Fixed
+- **The voucher card stands straight on the purchase page** (spec `site-outside-resource-booking.md` rule 20, connector 1.23.0). The 1° tilt is gone; the entrance keeps its fade and rise, and none under reduced motion.
+
+### Migration
+- **Migration — session people and website orders.** `resources.sessionMaxPeople` (INTEGER, NULL) and `resource_bookings.people` (INTEGER, NULL) are added, `gift_voucher_uses.people` too, and the plugin table `resource_session_orders` is created empty; every existing row keeps NULL, nothing is rewritten. After installing, set the nordic bath's « Personnes par séance au plus » (`sessionMaxPeople`) to 8.
+
 ## [4.4.0] - 2026-11-25
 
 ### Summary
