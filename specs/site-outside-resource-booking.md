@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| **Status** | Implemented — amendment §3.G (2026-11-26) Approved |
+| **Status** | Implemented (§3.G, the recap and the voucher prefill, added and implemented 2026-11-26) |
 | **Branch** | `feature/outside-resource-booking-site` |
 | **Created** | 2026-11-25 |
 | **Author** | Adrien |
@@ -214,7 +214,11 @@ nothing until a slot was chosen, and had to type again what the giver already ga
 | plugin | `plugins/hourly-resources/outsideOffer.js` | T | `limits({ resourceId })`; `bookOutside` returns `announce()` when called inside a transaction (SDK 2.35.0) |
 | plugin | `plugins/gift-vouchers/useService.js` | T | `people`, first/last name, `dueCents` and `evening` per slot (the session is announced by the plugin that books it); « Paiement à rembourser » on a remainder it cannot honour |
 | plugin | `plugins/gift-vouchers/voucherNotices.js` / `orderPaid.js` | C / T | The texts of a voucher sold; the notification on a customer-paid voucher |
-| plugin | `plugins/gift-vouchers/index.js` / `migrations.js` / `models/usesModel.js` | T | Declares `online-sales` shared and the notifier; `gift_voucher_uses.people` |
+| plugin | `plugins/gift-vouchers/index.js` / `migrations.js` / `models/usesModel.js` | T | Declares `online-sales` shared and the notifier; `gift_voucher_uses.people`; migration `gift_voucher_recipient_names_v4` (rule 33) |
+| plugin | `plugins/gift-vouchers/offerService.js` | T | `partiesOf`: both recipient names required, 40 characters, `RECIPIENT_*_REQUIRED` with their `field`; stores `recipientFirstName`, `recipientLastName` and `recipientName` = first name (rules 32-33) |
+| plugin | `plugins/gift-vouchers/models/ordersModel.js` / `vouchersModel.js` | T | Write and read the two names |
+| plugin | `plugins/gift-vouchers/useService.js` | T | `open` answers `recipientFirstName`, `recipientLastName` (and `recipientName`, the first name); `contents` and the quote's `included` list every option and add-on held, with its quantity (rule 30) |
+| plugin | `plugins/gift-vouchers/controllers/adminController.js` / `publicOrdersController.js` | T | Refusals with their `field`; the list and detail carry both names and `recipientLabel` (« Prénom Nom »), the search reads both |
 | sdk | `plugins/sdk/createContext.js` | T | `pushChannel({ shared })` (rule 24); SDK 2.35.0 (`version.js`, `coreModules.json`, `coreModuleHistory.json`: `notificationService.notifyOperator`) |
 | utils | `utils/pushChannels.js` | T | Lists a shared channel once |
 | utils | `utils/notificationService.js` | T | `notifyOperator({ channel, title, body, url, subject, lines })`: push + e-mail, one-line sanitising as today |
@@ -228,6 +232,8 @@ nothing until a slot was chosen, and had to type again what the giver already ga
 | page | `pages/options/ResourceEditorPanel.jsx` / `resourceForm.js` | T | « Personnes par séance au plus » (`sessionMaxPeople`) under the external-sale fields, for a resource shown on the planning and sold outside a stay |
 | plugin page | `hourly-resources/OutsideBookingPage.jsx` (« Passage ») | T | Shows `people` in the session block and corrects it in place |
 | plugin page | `hourly-resources/ResourcePlanningPage.jsx` | T | The booking tooltip names the people |
+| plugin page | `gift-vouchers/NewVoucherPage.jsx`, `giftVoucherTexts.js` | T | « Pour » becomes « Prénom » and « Nom », required, each refusal on its field (rule 32) |
+| plugin page | `gift-vouchers/GiftVouchersPage.jsx`, `GiftVoucherDetail.jsx` | T | Show the server's `recipientLabel` |
 
 Reused: `ExternalSaleFields`, existing fiche components. No new generic component.
 
@@ -235,13 +241,13 @@ Reused: `ExternalSaleFields`, existing fiche components. No new generic componen
 
 | File | T/C | Responsibility |
 |---|---|---|
-| `blocks/session-booking/{block.json,render.php,view.js}` | C | The tunnel of rules 1-17; reuses the calendar (`gf-cal-*`), summary (`gf-summary`), bar (`gf-bar`), fold (`GF.voucherExtrasFold`) and field styles |
+| `blocks/session-booking/{block.json,render.php,view.js}` | C | The tunnel of rules 1-17; reuses the calendar (`gf-cal-*`), summary (`gf-summary`), bar (`gf-bar`), fold (`GF.voucherExtrasFold`) and field styles; rules 28-31: no hold notice, « Choisissez un horaire », the voucher's lines at « 0 € · inclus dans le bon », the names prefilled |
 | `blocks/gift-voucher-use/*` | T | Alias rendering the session tunnel (rule 18); its own `view.js` is removed, the alias runs the session block's script |
-| `blocks/gift-voucher/view.js` | T | « Vous avez reçu un bon cadeau ? » link (rule 19), from the runtime's `sessionPageUrl` |
+| `blocks/gift-voucher/view.js` | T | « Vous avez reçu un bon cadeau ? » link (rule 19), from the runtime's `sessionPageUrl`; « Prénom » / « Nom » of the recipient, both required, the card preview naming the first name only (rule 32) |
 | `assets/voucher-parts.js` | T | `voucherExtrasFold` takes a `title` and a `foot` |
-| `includes/class-gf-blocks.php` / `class-gf-settings.php` | T | The block, its French strings, `sessionPageUrl`; the page holding either block is « the use page » |
+| `includes/class-gf-blocks.php` / `class-gf-settings.php` | T | The block, its French strings, `sessionPageUrl`; the page holding either block is « the use page »; connector 1.24.0 (`sbHold` and `sbIncludedShort` removed, `sbIncludedIn`, `gvFirstName`, `gvLastName` added) |
 | `assets/style.css` | T | No rotation on `.gf-gv-front` (rule 20); session tunnel styles on the existing tokens |
-| `includes/class-gf-rest-proxy.php` | T | Proxies `/sessions/*` |
+| `includes/class-gf-rest-proxy.php` | T | Proxies `/sessions/*`; forwards `recipientFirstName` and `recipientLastName` of an order |
 | `includes/class-gf-redirects.php` | T | `/utiliser` → page holding either block |
 | `includes/class-gf-shortcodes.php` | T | `[guestflow_session_booking]` |
 
@@ -258,9 +264,13 @@ All POST except where noted; refusals `{ code, message }` with French messages.
 - `PATCH /api/resource-bookings/:id/people { people }` (admin) → `{ ok, people }`
 - Gift-voucher `use/*` endpoints: `slots` gains `dueCents` and `evening` per slot, `confirm` gains `people`, `firstName`, `lastName`
   (`name` kept for older connectors).
+- §3.G: `POST /gift-vouchers/use` also answers `recipientFirstName` and `recipientLastName` (`recipientName` stays the first name);
+  `POST /gift-vouchers/orders` and `POST /api/gift-vouchers` take `recipientFirstName` and `recipientLastName` in place of `recipientName`, both required
+  (`RECIPIENT_FIRST_NAME_REQUIRED`, `RECIPIENT_LAST_NAME_REQUIRED`, with `field` in the public `details` and in the admin body); the admin list items and the detail carry
+  both names and `recipientLabel`.
 
 Refusal codes: `RESOURCE_UNAVAILABLE`, `SLOT_TAKEN`, `BEYOND_HORIZON`, `SESSION_*` (from `quoteSession`), `PEOPLE_INVALID`,
-`EMAIL_INVALID`, `PHONE_INVALID`, `NAME_REQUIRED`, `TERMS_*`, `PROOF_INVALID`, `RATE_LIMITED`.
+`EMAIL_INVALID`, `PHONE_INVALID`, `NAME_REQUIRED`, `TERMS_*`, `PROOF_INVALID`, `RATE_LIMITED`; voucher orders: `RECIPIENT_FIRST_NAME_REQUIRED`, `RECIPIENT_LAST_NAME_REQUIRED`.
 
 ## 5. Data model
 
@@ -268,8 +278,9 @@ Refusal codes: `RESOURCE_UNAVAILABLE`, `SLOT_TAKEN`, `BEYOND_HORIZON`, `SESSION_
 - `resource_bookings.people INTEGER NULL` — plugin migration, NULL for every existing row.
 - `resource_session_orders` — plugin migration, starts empty: the sessions ordered on the website and their 15 minutes (`held` / `booked` / `lapsed` / `refund_owed`), keyed by an unguessable `ref`.
 - `gift_voucher_uses.people INTEGER NULL`, `.ref TEXT` (unique, random) and `.recap TEXT` — plugin migrations, NULL for every existing use.
+- `gift_voucher_orders.recipientFirstName`, `.recipientLastName` TEXT NOT NULL DEFAULT '' — plugin migration `gift_voucher_recipient_names_v4` (rule 33): each existing order takes its `recipientName` as first name, last name empty.
 - Payment basket source `outsideSession` (sale link `ref` = the order's `ref`; the slot hold is `site-session:<ref>`).
-- No data rewritten. CHANGELOG `Migration` fragment for the columns and the table.
+- No data rewritten except the first-name copy of rule 33. CHANGELOG `Migration` fragments for the columns and the table.
 
 ## 6. UI / UX
 
@@ -294,6 +305,13 @@ sticky, in-flow button hidden. Texts French, short, impersonal.
 - `tests/operator-notifications-online-sales.unit.test.js`: push on `online-sales` + e-mail for a paid voucher, none for an issued
   one, one for each site booking, texts without a literal activity.
 - `tests/shared-push-channel.unit.test.js`: shared declaration listed once; mismatched label refused; non-shared still unique.
+
+**§3.G, implemented 2026-11-26** — server: `gift-vouchers/tests/gift-voucher-recipient-names.unit.test.js` (6: both names required with their field, 40 characters,
+trimming, storage with `recipientName` = first name, `open` payload, the backfill migration and its idempotence, « Nouveau bon » refusals, list search and detail) and
+`gift-voucher-use-contents-complete.unit.test.js` (2: every option and add-on held, with its quantity, in `contents` and in the quote's `included`); the
+existing voucher suites were moved to the two-field body. Client: `wordpress-session-booking.voucher-prefill.test.js` (10: no hold notice, « Choisissez un horaire »
+muted / red / muted again, the voucher's lines at 0 € before and after a slot, the prefill rules), `wordpress-gift-voucher.recipient-names.test.js` (4),
+`NewVoucherPage.recipient-names.test.jsx` (3).
 
 **WordPress:** PHP lint; block JS checked in the browser on a dev site.
 
@@ -329,6 +347,7 @@ used to fill the booking · the printed voucher, e-mails and tunnel name the rec
 - [x] Client: `sessionMaxPeople`, `people` on the fiche
 - [x] WordPress: session block, alias, purchase link, straight card, proxy, redirect
 - [x] Tests, CHANGELOG fragments, plugin/connector versions
+- [x] §3.G (2026-11-26): recap before a slot, voucher lines at 0 €, names prefilled, recipient in two fields — connector 1.24.0, gift-vouchers 1.7.0
 
 Deviations from the first draft, all written above: the notification links open `/passages/<id>` and `/bons-cadeaux?bon=<id>` (the pages that exist);
 `sessionMaxPeople` is a core column; the people are corrected through their own `PATCH` so no price moves; a settled voucher is named from its tender's label

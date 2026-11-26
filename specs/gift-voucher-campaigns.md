@@ -226,7 +226,7 @@ Rules are identities: a rule is never renumbered, new rules are appended
       read « Valable N mois à compter du paiement, pour une séance à réserver en ligne. » — never the
       lodging wording « Un montant au choix… en une ou plusieurs fois », which a voucher settled
       whole in one session would contradict.
-18. The giver fills « Pour », « De la part de », a message, and an e-mail. They accept the terms of
+18. The giver fills « Prénom » and « Nom » of the recipient (both required, amended 2026-11-26 by `specs/site-outside-resource-booking.md` rule 32), « De la part de », a message, and an e-mail. They accept the terms of
     the voucher's activity (rule 37) and pay. There is no field for the merchant card number.
 19. **Nothing exists before the payment** (unchanged rule of `specs/gift-vouchers.md`).
     - The order is priced again by the engine at the moment of the payment link. The link lives one
@@ -427,7 +427,7 @@ Rules are identities: a rule is never renumbered, new rules are appended
 41. **« Nouveau bon » is a page as rich as the site** (revised 2026-11-18).
     - It offers the same choices as the giver's tunnel, in the same order and a close layout: a
       campaign on sale or « Sur mesure » (rule 46); the band and included time read from the
-      campaign; the extra time; the add-ons with quantities; « Pour », « De la part de », the
+      campaign; the extra time; the add-ons with quantities; « Prénom » and « Nom » of the recipient (both required, `specs/site-outside-resource-booking.md` rule 32), « De la part de », the
       message, the e-mail; the server's recap with the VAT per rate.
     - **It takes the same server path as the site** (rule 52): the same offer payload, the same
       pricing call, the same order and issuance code. Nothing is computed or re-described on the
@@ -848,7 +848,7 @@ Public (existing key guard, proof of work on writes):
 |---|---|---|---|
 | GET | `/public/v1/gift-vouchers/offer` | — | `{ campaigns: [{ slug, kind, title, contents, addOns:[{ articleRef, label, maxQty, unitLabel, linear, prices:[{ qty, cents }] }], extraTime:{ maxMinutes, stepMinutes, prices:[{ minutes, cents }] }, band:{ from, to } }] }` (prices: rule 64) |
 | POST | `/public/v1/gift-vouchers/offer/price` | `{ slug, extraMinutes, addOns:[{ articleRef, qty }] }` | `{ lines, totalCents, extrasCents, vat:[{ rate, cents }] }` (`extrasCents`: rule 64) |
-| POST | `/public/v1/gift-vouchers/orders` | as today + `slug`, `extraMinutes`, `addOns`, `termsVersionId` | as today |
+| POST | `/public/v1/gift-vouchers/orders` | as today + `slug`, `extraMinutes`, `addOns`, `termsVersionId`; `recipientFirstName`, `recipientLastName` replace `recipientName` (required; refusals `RECIPIENT_FIRST_NAME_REQUIRED`, `RECIPIENT_LAST_NAME_REQUIRED` with their `field`) | as today |
 | POST | `/public/v1/gift-vouchers/use` | `{ code }` | `{ kind, contents, names, expiresOn, addOns, extraTime, horizonUntil }` or a refusal — `addOns`/`extraTime` priced as in `/offer` (rule 64) |
 | POST | `/public/v1/gift-vouchers/use/slots` | `{ code, from, to }` | `{ days:[{ date, slots:[{ start, end, tag, supplementCents }] }] }` |
 | POST | `/public/v1/gift-vouchers/use/quote` | `{ code, start: 'YYYY-MM-DDTHH:MM', extraMinutes, addOns }` | `{ included, extras, extrasCents, extraTimePrices:[{ minutes, cents }], dueCents, vat }` (`extrasCents`, `extraTimePrices`: rule 64) |
