@@ -51,16 +51,16 @@ export default function PlatformAccountsPage() {
   const [refreshing, setRefreshing] = useState(false);
   const [errors, setErrors] = useState({});
   // Load failures stay persistent (ErrorAlert); action feedback goes through the shared toasts
-  // (specs/ds-components.md §3.2).
+  // (specs/design-system/ds-components.md §3.2).
   const [loadError, setLoadError] = useState(false);
   const { showSuccess, showError } = useToast();
   const [savedDefaultAccount, setSavedDefaultAccount] = useState('622600');
-  // The two accounting VAT rates are edited here since specs/settings-rationalization.md rule 14,
+  // The two accounting VAT rates are edited here since specs/settings/settings-rationalization.md rule 14,
   // next to the accounts that use them (the commission rate by the admin only). Kept as typed strings.
   const [savedVatRateCommission, setSavedVatRateCommission] = useState('20');
   const [vatRateCommission, setVatRateCommission] = useState('20');
   const [savedVatRateCompensation, setSavedVatRateCompensation] = useState('0');
-  // specs/cancellation-compensation.md §3.3 rule 19 — the produit account for a platform indemnity.
+  // specs/payments/cancellation-compensation.md §3.3 rule 19 — the produit account for a platform indemnity.
   const [savedCompensationAccount, setSavedCompensationAccount] = useState('75880000');
   const [compensationAccount, setCompensationAccount] = useState('75880000');
   const [vatRateCompensation, setVatRateCompensation] = useState('0');
@@ -70,7 +70,7 @@ export default function PlatformAccountsPage() {
   const [planRows, setPlanRows] = useState([]);
   const [plan, setPlan] = useState({});
   const [savedPlan, setSavedPlan] = useState({});
-  // « Sans TVA » in force (specs/vat-optional-mode.md rule 12g): the two VAT rates cannot apply, so they are not asked.
+  // « Sans TVA » in force (specs/accounting/vat-optional-mode.md rule 12g): the two VAT rates cannot apply, so they are not asked.
   const [notSubject, setNotSubject] = useState(false);
 
   useEffect(() => {
@@ -107,7 +107,7 @@ export default function PlatformAccountsPage() {
   }, []);
 
   // Same fields the old manual comparator watched — projected so the guard's deep-equal doesn't
-  // trip on unrelated platform metadata (specs/ds-sweep-settings.md §3.7).
+  // trip on unrelated platform metadata (specs/design-system/ds-sweep-settings.md §3.7).
   const dirtyProjection = (account, compensation, list, vatCommission, vatCompensation, accounts) => ({
     account,
     compensation,
@@ -339,7 +339,7 @@ export default function PlatformAccountsPage() {
             </CardContent>
           </Card>
 
-          {/* specs/mollie-rolling-reserve-and-incoming-payments.md rules 28-29 — its own settings, saved by its own button. */}
+          {/* specs/payments/mollie-rolling-reserve-and-incoming-payments.md rules 28-29 — its own settings, saved by its own button. */}
           <MollieJournalCard />
 
           <Card variant="outlined">
@@ -365,7 +365,7 @@ export default function PlatformAccountsPage() {
                   />
                 )}
               </Box>
-              {/* Scroll-contained (specs/ds-components.md §3.1) — this was the app's only raw, unwrapped <Table>. */}
+              {/* Scroll-contained (specs/design-system/ds-components.md §3.1) — this was the app's only raw, unwrapped <Table>. */}
               <TableContainer>
               <Table size="small" sx={{ minWidth: 720 }}>
                 <TableHead>

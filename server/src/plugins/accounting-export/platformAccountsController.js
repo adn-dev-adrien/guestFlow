@@ -13,7 +13,7 @@ const sdk = require('../sdk');
 const { ADMIN, userHasRole } = sdk.coreModule('roles');
 
 // `regimeInForce()` → { regime } — what the page needs to hide the VAT rates that cannot apply
-// (specs/vat-optional-mode.md rule 12g): the sales VAT regime in force today.
+// (specs/accounting/vat-optional-mode.md rule 12g): the sales VAT regime in force today.
 function createController(platformAccountsModel, { regimeInForce = () => ({ regime: 'subject' }) } = {}) {
   return {
     getAll(req, res) {
