@@ -1,6 +1,6 @@
 /**
  * `GET /public/v1/guest/booklet`, `/booklet/pages/:slug`, `/booklet/search` — the lodging's last published
- * booklet, for a session or, in visitor mode, for the printed code (specs/guest-app.md rules 5, 16-20). The
+ * booklet, for a session or, in visitor mode, for the printed code (specs/guest-app/guest-app.md rules 5, 16-20). The
  * language is applied per field, the lodging's facts fill the `wifi` and `contact` blocks, and a button the
  * session cannot follow is not sent (rule 18).
  *

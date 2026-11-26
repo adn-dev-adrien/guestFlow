@@ -1,4 +1,4 @@
-/** `/api/guest-app/**` — the operator's side (specs/guest-app.md §4.3). */
+/** `/api/guest-app/**` — the operator's side (specs/guest-app/guest-app.md §4.3). */
 
 const express = require('express');
 
@@ -9,7 +9,7 @@ function buildAdminRouter({
   router.get('/lodgings/:propertyId', lodgings.read);
   router.put('/lodgings/:propertyId', lodgings.write);
   router.post('/lodgings/:propertyId/regenerate-qr', lodgings.regenerateQr);
-  // specs/guest-app-home-automation.md rules 12-16.
+  // specs/guest-app/guest-app-home-automation.md rules 12-16.
   router.get('/lodgings/:propertyId/home', home.studioRead);
   router.put('/lodgings/:propertyId/home', home.studioWrite);
   router.post('/lodgings/:propertyId/home/preview', home.studioPreview);

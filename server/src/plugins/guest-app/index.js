@@ -1,5 +1,5 @@
 /**
- * Application clients « Mon séjour » (specs/guest-app.md). Owns `/public/v1/guest/**`, `/api/guest-app/**`, its
+ * Application clients « Mon séjour » (specs/guest-app/guest-app.md). Owns `/public/v1/guest/**`, `/api/guest-app/**`, its
  * tables and its settings. Nothing in the core behaves differently while it is absent (rule 22); the money and
  * the reservation write stay core.
  */
@@ -78,7 +78,7 @@ const coreScheduler = () => sdk.core.resourceScheduler();
 // The house's data comes from the Sowel connector's declaration, never from its tables (SDK 2.28.0).
 const coreHomeData = () => sdk.core.homeData();
 
-// The booklet photos sit under the instance's uploads, served by `/uploads` (specs/guest-app.md §5).
+// The booklet photos sit under the instance's uploads, served by `/uploads` (specs/guest-app/guest-app.md §5).
 const coreUploadsDir = () => sdk.coreModule('instancePaths').uploadsDir();
 
 // Rule 58 — GuestFlow's own public address, which the guest host may never be.
@@ -218,7 +218,7 @@ function buildGuestApi({
       orders: { ...buildOrdersAdminController({ orders, stays, lodgings, now }), amend: arrivalOrders.amend },
       home, places,
     }),
-    // specs/guest-app-home-automation.md rule 4 — what the house is asked to send.
+    // specs/guest-app/guest-app-home-automation.md rule 4 — what the house is asked to send.
     homeSelection: home.selection,
     sessions,
     // Rule 9bis — where the stay link is given: the SAS step and the reminder e-mails.

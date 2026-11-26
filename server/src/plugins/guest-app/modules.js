@@ -1,5 +1,5 @@
 /**
- * What a lodging shows its guests (specs/guest-app.md rules 10, 11bis). Pure: the stored configuration
+ * What a lodging shows its guests (specs/guest-app/guest-app.md rules 10, 11bis). Pure: the stored configuration
  * and the facts come in, the shown list goes out.
  */
 
@@ -17,7 +17,7 @@ const MODULES = Object.freeze([
   { key: 'booklet', on: true, label: { fr: 'Livret', en: 'Booklet' } },
   { key: 'orders', on: true, label: { fr: 'Mes commandes', en: 'My orders' } },
   { key: 'contacts', on: false, label: { fr: 'Urgences & contacts', en: 'Emergency & contacts' } },
-  // specs/guest-app-home-automation.md rule 17 — off until the operator configures it in Studio.
+  // specs/guest-app/guest-app-home-automation.md rule 17 — off until the operator configures it in Studio.
   { key: 'home', on: false, label: { fr: 'Domotique', en: 'Smart home' } },
 ]);
 

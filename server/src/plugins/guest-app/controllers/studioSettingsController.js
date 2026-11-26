@@ -1,5 +1,5 @@
 /**
- * The studio's lodging switcher and Réglages (specs/guest-app.md rules 41bis, 48). Admin only.
+ * The studio's lodging switcher and Réglages (specs/guest-app/guest-app.md rules 41bis, 48). Admin only.
  *
  *   GET  /api/guest-app/studio/lodgings        rule 48 — every GuestFlow property, its live name, in or out of the app
  *   GET  /api/guest-app/studio/settings        the app settings, with the Soliomap sync state

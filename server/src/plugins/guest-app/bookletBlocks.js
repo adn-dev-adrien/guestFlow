@@ -1,5 +1,5 @@
 /**
- * The booklet's blocks (specs/guest-app.md rule 18): the closed list of types, the shape of each one's data and
+ * The booklet's blocks (specs/guest-app/guest-app.md rule 18): the closed list of types, the shape of each one's data and
  * the server-side sanitising of rich text. Pure: a body comes in, a stored shape or a French message goes out.
  *
  * Every text a guest reads is bilingual, `{ fr, en? }` (rule 19). Rich text keeps only paragraphs, line

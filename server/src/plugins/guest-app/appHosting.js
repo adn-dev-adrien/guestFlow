@@ -1,5 +1,5 @@
 /**
- * Serving the two web apps of the plugin (specs/guest-app.md §4.1, plan step 50), through `ctx.webApp`:
+ * Serving the two web apps of the plugin (specs/guest-app/guest-app.md §4.1, plan step 50), through `ctx.webApp`:
  *   - the guest app « Mon séjour » (`apps/guest` in this folder) on the guest host, at every path but the core's trees — the stay link
  *     `/s/<token>`, the poster `/l/<code>`, `/retrouver`, the Qonto return `/commande/<id>`… all open the app;
  *   - the booklet studio (`apps/studio`) at `/studio` on the admin host, for an admin session only (rule 47).
