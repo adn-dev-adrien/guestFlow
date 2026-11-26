@@ -121,13 +121,15 @@ const PlacesMap = forwardRef(function PlacesMap({
     const map = L.map(box.current, {
       zoomControl: false, attributionControl: false, maxZoom: MAX_ZOOM, minZoom: 9, zoomAnimation: !reduced, fadeAnimation: !reduced, markerZoomAnimation: !reduced,
     });
-    L.tileLayer(TILES, { maxZoom: MAX_ZOOM, maxNativeZoom: 19 }).addTo(map);
+    // helmet sends `Referrer-Policy: no-referrer`; OpenStreetMap's tile servers refuse a tile request without a Referer.
+    L.tileLayer(TILES, { maxZoom: MAX_ZOOM, maxNativeZoom: 19, referrerPolicy: 'strict-origin-when-cross-origin' }).addTo(map);
     map.setView([estate.lat, estate.lng], 13);
     L.marker([estate.lat, estate.lng], {
       icon: estateIcon(), interactive: false, keyboard: false, zIndexOffset: -1000,
     }).addTo(map);
     inner.current = { map, layer: L.layerGroup().addTo(map), me: null, pins: new Map() };
-    map.on('zoomend moveend', draw);
+    // Grouping depends on the zoom only: a pan moves every marker alike, and redrawing would drop the keyboard focus.
+    map.on('zoomend', draw);
     const watcher = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(() => map.invalidateSize());
     if (watcher) watcher.observe(box.current);
     draw();

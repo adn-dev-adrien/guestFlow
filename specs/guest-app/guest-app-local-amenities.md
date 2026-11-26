@@ -44,10 +44,12 @@ Satillieu, Saint-Romain-d'Ay and Saint-Alban-d'Ay, filters them by kind, and ope
    private. An off module answers 404 `MODULE_OFF` like the others.
 2. **Map first.** The page opens on a map (OpenStreetMap tiles) centred to show the estate and every published
    place, the estate drawn with its own non-clickable marker. A « Carte · Liste » switch sits under the filters
-   (decided 2026-11-26: map first; offline, rule 9 shows the list whatever the choice).
+   (decided 2026-11-26: map first; offline, rule 9 shows the list whatever the choice). The tile layer is requested with
+   `referrerPolicy: 'strict-origin-when-cross-origin'`: the app answers with `Referrer-Policy: no-referrer` (helmet) and
+   OpenStreetMap's tile servers refuse a request without a Referer.
 3. **Markers.** One round marker per place: fill colour = category, white glyph = category (identity never by
    colour alone, same rule as Soliomap rule 5). Markers closer than 28 px group into a counted bubble ringed with
-   the colours it holds; a tap zooms to them. At maximum zoom, markers on the same spot fan out instead of grouping.
+   the colours it holds; a tap zooms to them; markers are redrawn on a zoom only (never on a pan, which would drop the keyboard focus). At maximum zoom, markers on the same spot fan out instead of grouping.
 4. **Filters.** A chip row « Tout » + one chip per category that holds at least one published place, with its
    count. Chips are additive (several at once); « Tout » clears them. A category with no published place shows no
    chip. A filter that hides the open place closes its sheet.
@@ -226,8 +228,8 @@ the pane. Touch targets ≥ 44 px (map controls included). `prefers-reduced-moti
   next-day opening, no hours (rule 13), GPS links (rule 7), module prerequisite (rule 1), button target hidden
   when off (rule 18), visitor access.
 - Guest client — `apps/guest/src/__tests__/PlacesPage.filters.test.jsx` (12): chips, empty category hidden, deep-link category, list, offline list, home tile,
-  button target; `PlaceSheet.gps.test.jsx` (9): the sheet's content and the remembered GPS choice; `PlacesMap.leaflet.test.jsx` (5, Leaflet replaced by a stand-in):
-  tiles, estate marker, grouping bubble, fan-out, « Me localiser »; `PlacesMap.grouping.test.js` (4): pure grouping and the palette's contrast;
+  button target; `PlaceSheet.gps.test.jsx` (9): the sheet's content and the remembered GPS choice; `PlacesMap.leaflet.test.jsx` (7, Leaflet replaced by a stand-in):
+  tiles and their referrer policy, redraw on zoom only, estate marker, grouping bubble, fan-out, « Me localiser »; `PlacesMap.grouping.test.js` (4): pure grouping and the palette's contrast;
   `sw.offline.test.js` (+2): `/places` cached like the booklet.
 - Studio client — `apps/studio/src/__tests__/PlacesPage.test.jsx` (10): the list, « À revérifier », the switch, delete, refusals shown under their field, the week sent as minutes, the estate position.
 - Manual: iPhone (Plans, Google Maps, Waze installed or not), Android, offline after a first load, night.

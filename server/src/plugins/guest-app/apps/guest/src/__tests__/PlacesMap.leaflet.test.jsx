@@ -64,6 +64,16 @@ beforeEach(() => { fake.markers = []; fake.tiles = []; fake.zoom = 13; });
 afterEach(() => { vi.unstubAllGlobals(); });
 
 describe('PlacesMap — the map (rules 2, 3)', () => {
+  it('asks for the tiles with a referrer: the app\'s own policy sends none and OpenStreetMap refuses a tile without one (rule 2)', () => {
+    renderMap([BAKERY]);
+    expect(fake.tiles[0].options.referrerPolicy).toBe('strict-origin-when-cross-origin');
+  });
+
+  it('redraws its markers on a zoom only, so a pan keeps the focus on a marker (rule 3)', () => {
+    renderMap([BAKERY]);
+    expect(Object.keys(fake.map.handlers)).toEqual(['zoomend']);
+  });
+
   it('draws OpenStreetMap tiles, the estate\'s own marker that cannot be clicked, and one marker per place', () => {
     const { onSelect } = renderMap([BINS, BAKERY, BAKERY_2]);
     expect(fake.tiles).toHaveLength(1);
