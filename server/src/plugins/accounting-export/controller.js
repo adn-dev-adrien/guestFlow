@@ -9,6 +9,7 @@ const { csvJournal, salesJson } = require('./accountingExport');
 const { drinksAccountRefusal } = require('./drinksGuard');
 const { roundMoneyStrict, fromCentsStrict } = sdk.coreModule('money');
 const { MOLLIE_DEFAULTS } = require('./settings');
+const accountPlan = require('./accountPlan');
 
 const { journalEntries } = sdk.coreModule('accountingOutput');
 
@@ -43,7 +44,8 @@ function mollieEntries(accountingModel, params, plan = {}) {
   const labels = {
     [String(accounts.mollieClearingAccount)]: 'Compte d\'attente Mollie',
     [String(accounts.mollieBankAccount)]: 'Banque',
-    [String(accounts.mollieFeeAccount)]: 'Frais Mollie',
+    // The fee account is a commission without VAT: the cabinet's label for the account when the plan names one (one source: accountPlan).
+    [String(accounts.mollieFeeAccount)]: accountPlan.COMMISSION_ACCOUNT_LABELS[String(accounts.mollieFeeAccount)] || 'Frais Mollie',
   };
   // The journal code and the three accounts ride on the entry: the core's journal lines book a Mollie entry on them, outside the
   // sales journal's plan.

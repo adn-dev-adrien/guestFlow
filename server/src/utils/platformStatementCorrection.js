@@ -76,13 +76,14 @@ function netReceived(stored, statement = {}) {
 }
 
 /** What the statement would move beyond itself (rule 7): the labels of the moved figures, empty when none. */
-function movedFigures(before, after) {
+function movedFigures(before, after, { optionLinesMayMove = false } = {}) {
   const moved = PROTECTED_FIGURES
+    .filter(([key]) => !(optionLinesMayMove && key === 'optionsTotal'))
     .filter(([key]) => Math.abs(round2(before[key]) - round2(after[key])) >= HALF_CENT)
     .map(([, label]) => label);
   const lines = (q) => JSON.stringify({ o: pricedProjection(q).optionLines, r: pricedProjection(q).resourceLines });
   const nights = (q) => JSON.stringify(pricedProjection(q).nights.map(([date]) => date));
-  if (!moved.includes('les options') && lines(before) !== lines(after)) moved.push('les lignes d’options');
+  if (!optionLinesMayMove && !moved.includes('les options') && lines(before) !== lines(after)) moved.push('les lignes d’options');
   if (nights(before) !== nights(after)) moved.push('les nuits');
   return moved;
 }

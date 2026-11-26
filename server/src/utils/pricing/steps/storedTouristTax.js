@@ -17,7 +17,8 @@ const step = {
   provides: touristTax.provides,
   apply(ctx) {
     const figures = matchingRecord(ctx.storedSaleFigures, 'touristTax', touristTaxBasis(ctx));
-    return figures ? { ...ctx, ...figures } : touristTax.apply(ctx);
+    // A record written before the tax gap existed (4.5.x) holds none: no gap, as when it was priced.
+    return figures ? { ...ctx, touristTaxGap: 0, ...figures } : touristTax.apply(ctx);
   },
 };
 

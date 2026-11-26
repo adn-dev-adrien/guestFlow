@@ -41,7 +41,8 @@ function postedEntryOf(lines, quoted) {
 
 function setCatalogueOffered(lines, quoted, offered) {
   const entry = postedEntryOf(lines, quoted);
-  if (entry && entry.lineId != null) entry.offered = offered;
+  // A line that names itself is offered or paid alone: the article-wide list would flip its sisters too.
+  if (entry && entry.lineId != null) { entry.offered = offered; return; }
   const id = Number(quoted.optionId);
   const siblings = lines.options.filter((other) => Number(other.optionId) === id && other !== entry);
   const stillOffered = siblings.some((other) => (other.lineId != null && other.offered !== undefined ? Boolean(Number(other.offered)) : lines.offeredOptionIds.includes(id)));
@@ -90,7 +91,8 @@ function adjustOptionLines({
       return { next, note: `« ${label} » ajouté (${formatEuros(delta)}) pour suivre le relevé.` };
     }
     const line = next.customOptions[index];
-    const amount = round2(Number(line.amount || 0) + delta);
+    // An offered line bills nothing: it carries exactly what is needed, not its offered amount plus the gap.
+    const amount = round2((line.offered ? 0 : Number(line.amount || 0)) + delta);
     if (amount <= 0) next.customOptions.splice(index, 1);
     else Object.assign(line, { amount, offered: false, inComplement: 0 });
     return { next, note: `« ${line.description || label} » ${delta > 0 ? 'porté' : 'ramené'} à ${formatEuros(Math.max(0, amount))} pour suivre le relevé.`, rest: amount < 0 ? round2(amount) : 0 };
@@ -140,8 +142,8 @@ function adjustOptionLines({
   if (paid) {
     const next = clone(working);
     setCatalogueOffered(next, paid, true);
-    notes.push(`${paid.title} passé en offert (${formatEuros(-remaining)}) pour suivre le relevé.`);
-    return { ok: true, lines: next, changed: true, notes };
+    const attempt = settled(next, [...notes, `${paid.title} passé en offert (${formatEuros(-remaining)}) pour suivre le relevé.`]);
+    if (attempt.ok) return { ok: true, lines: attempt.next, changed: true, notes: attempt.notes };
   }
   const paidCustom = (working.customOptions || []).find((line) => !isCustomOfKey(line) && !line.offered
     && !Number(line.inComplement || 0) && toCents(line.amount) === toCents(-remaining));

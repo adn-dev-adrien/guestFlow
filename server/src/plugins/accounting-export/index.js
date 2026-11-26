@@ -58,10 +58,12 @@ function copySettingsFromAppSettings(db) {
 // Rule 22 — the platform rows that carry a commission account or a « TVA déductible » box.
 function configuredPlatformCount(db) {
   if (!hasTable(db, 'platforms')) return 0;
+  // A regime other than the default (`no_vat`) is configuration too (specs/platform-host-statement-and-commission-vat.md rule 13).
+  const regime = tableColumns(db, 'platforms').has('commissionVatRegime') ? " OR commissionVatRegime != 'no_vat'" : '';
   return db.prepare(`
     SELECT COUNT(*) AS n FROM platforms
     WHERE LOWER(name) != 'direct'
-      AND ((commissionAccountNumber IS NOT NULL AND commissionAccountNumber != '') OR hasVatOnCommission = 1)
+      AND ((commissionAccountNumber IS NOT NULL AND commissionAccountNumber != '') OR hasVatOnCommission = 1${regime})
   `).get().n;
 }
 
@@ -150,6 +152,7 @@ function register(ctx) {
     // reruns at the next install, so it must not find the erased values there.
     purge: (db) => {
       db.prepare('UPDATE platforms SET commissionAccountNumber = NULL, hasVatOnCommission = 0').run();
+      if (tableColumns(db, 'platforms').has('commissionVatRegime')) db.prepare("UPDATE platforms SET commissionVatRegime = 'no_vat'").run();
       if (hasTable(db, 'app_settings')) {
         const cols = tableColumns(db, 'app_settings');
         const keys = KEYS.filter((key) => cols.has(key));

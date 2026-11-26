@@ -56,8 +56,8 @@ const SAMPLE_GET = {
   ],
   platforms: [
     { id: 1, name: 'direct',         commissionAccountNumber: null,        commissionVatRegime: 'no_vat', isDirect: true },
-    { id: 2, name: 'Airbnb',         commissionAccountNumber: null,        commissionVatRegime: 'no_vat', isDirect: false },
-    { id: 3, name: 'Gitedefrance',   commissionAccountNumber: '62260500',  commissionVatRegime: 'fr_vat', isDirect: false },
+    { id: 2, name: 'Airbnb',         commissionAccountNumber: null,        commissionVatRegime: 'no_vat', isDirect: false, regimeAccounts: { fr_vat: '62260500', eu_reverse_charge: '62260300', no_vat: null } },
+    { id: 3, name: 'Gitedefrance',   commissionAccountNumber: '62260500',  commissionVatRegime: 'fr_vat', isDirect: false, regimeAccounts: { fr_vat: '62260500', eu_reverse_charge: '62260300', no_vat: '62260600' } },
   ],
 };
 

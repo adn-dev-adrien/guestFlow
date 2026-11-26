@@ -118,7 +118,11 @@ const present = (v) => v !== '' && v != null && Number.isFinite(Number(v));
 const acompteNet = (row) => (Number(row.depositDisabled || 0) === 1 || !(Number(row.depositAmount || 0) > 0)
   ? 0 : Math.max(0, roundSafe(Number(row.depositAmount) - Number(row.acompteCommissionAmount || 0))));
 
-const grossOf = (row) => (present(row.platformGrossAmount) ? Number(row.platformGrossAmount) : roundSafe(Number(row.depositAmount || 0) + Number(row.balanceAmount || 0)));
+// `taxPaid` (`taxPaidWithPayout`) is the tax the platform pays WITH its transfer: the money it settles is the host amount plus it (rule 8 of
+// specs/platform-host-statement-and-commission-vat.md). The fallback (no host amount typed) is the stored schedule, which holds it already.
+const grossOf = (row, taxPaid = 0) => (present(row.platformGrossAmount)
+  ? roundSafe(Number(row.platformGrossAmount) + Math.max(0, Number(taxPaid) || 0))
+  : roundSafe(Number(row.depositAmount || 0) + Number(row.balanceAmount || 0)));
 
 /** What the platform's statement leaves unexplained once its payout and the acompte commission are out, the tax paid with the transfer counted in (negative when the figures disagree). */
 const statementRemainder = ({ gross, payout, tax = 0, acompteCommission = 0 }) => roundSafe(Number(gross) + Number(tax) - Number(payout) - Number(acompteCommission));

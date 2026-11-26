@@ -160,13 +160,13 @@ export default function PlatformAccountsPage() {
     }
   }
 
-  // Rule 14 — the regime proposes its account when the platform has none or still holds the previous regime's proposal; a typed one stays.
-  const proposalOf = (regime) => (regimes.find((r) => r.key === regime) || {}).account || '';
+  // Rule 14 — the server says which account the regime leaves the platform with (`regimeAccounts`); shown while the account is the saved one,
+  // a number typed since stays as typed. The save decides.
   function chooseRegime(platform, regime) {
-    const holdsProposal = !platform.commissionAccountNumber || platform.commissionAccountNumber === proposalOf(platform.commissionVatRegime);
-    setPlatforms((prev) => prev.map((p) => (p.id === platform.id
-      ? { ...p, commissionVatRegime: regime, commissionAccountNumber: holdsProposal ? proposalOf(regime) : p.commissionAccountNumber }
-      : p)));
+    const saved = (savedPlatforms.find((s) => s.id === platform.id) || {}).commissionAccountNumber || '';
+    const shown = platform.commissionAccountNumber === saved && platform.regimeAccounts && platform.regimeAccounts[regime] != null
+      ? platform.regimeAccounts[regime] : platform.commissionAccountNumber;
+    setPlatforms((prev) => prev.map((p) => (p.id === platform.id ? { ...p, commissionVatRegime: regime, commissionAccountNumber: shown } : p)));
   }
 
   function updatePlatformField(id, field, value) {

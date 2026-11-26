@@ -7,6 +7,7 @@ const { calculateReservationQuote } = require('./pricing').__test;
 const { getApplicableOptions } = require('../models/ports/catalogueProvider');
 const { adjustOptionLines } = require('./platformOptionsAdjustment');
 const { isNamedChannel } = require('./saleChannel');
+const { platformDisplayName } = require('./attributionChannel');
 
 const blank = (value) => value === '' || value == null || !Number.isFinite(Number(value));
 
@@ -37,7 +38,7 @@ function settleStatementOptions(engineInput, optionsAmount) {
     quote,
     lines,
     catalogue: getApplicableOptions(engineInput.db, engineInput.propertyId),
-    platformLabel: String(engineInput.platform),
+    platformLabel: platformDisplayName(engineInput.platform),
     requote: (next) => calculateReservationQuote({
       ...engineInput, selectedOptions: next.options, customOptions: next.customOptions, offeredOptionIds: next.offeredOptionIds,
     }),

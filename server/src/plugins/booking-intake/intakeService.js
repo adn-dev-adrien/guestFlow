@@ -60,7 +60,7 @@ function createIntakeService(deps) {
     const beds = core.suggestBeds(reservation.propertyId, { adults: booking.adults, children: booking.children, teens: booking.teens });
     const box = touristTaxBox(booking, reservation);
     const commission = core.platformCommission({
-      platform: 'Booking', gross: booking.subtotal, payout: booking.payout, touristTax: box || 0,
+      platform: reservation.platform || 'Booking', gross: booking.subtotal, payout: booking.payout, touristTax: box || 0,
     });
     const { guest } = booking;
     return {

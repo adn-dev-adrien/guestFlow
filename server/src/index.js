@@ -204,16 +204,21 @@ if (process.env.SKIP_MIGRATIONS !== 'true') {
   try {
     const name = 'platform_host_statement_brut_v1';
     if (!db.prepare('SELECT 1 FROM migrations WHERE name = ?').get(name)) {
-      const { runHostStatementBrutMigration, reversedTaxOfStoredStay } = require('./utils/hostStatementBrutMigration');
+      const { runHostStatementBrutMigration, reversedTaxOfStoredStay, frozenAtZeroOfStoredStay } = require('./utils/hostStatementBrutMigration');
       const migrated = db.transaction(() => {
-        const { migrated: ids } = runHostStatementBrutMigration(db, { reversedTaxOf: reversedTaxOfStoredStay(db) });
+        const { migrated: ids } = runHostStatementBrutMigration(db, { reversedTaxOf: reversedTaxOfStoredStay(db), frozenAtZero: frozenAtZeroOfStoredStay(db) });
         db.prepare('INSERT INTO migrations (name) VALUES (?)').run(name);
         return ids;
       })();
       console.log(`[migration:platform-host-statement] re-based the brut of ${migrated.length} platform stay(s) on the host amount`);
+      // Their stored sale figures were computed on the old brut: written again, so that a sale on them reads them as stored.
+      const { backfillSaleFigures } = require('./utils/pricingStoredFiguresMigration');
+      if (migrated.length > 0) backfillSaleFigures(db, { force: true, ids: migrated });
     }
   } catch (err) {
+    // The new semantics on old data would misprice every platform stay: the server does not start (the transaction rolled back).
     logErrorMarker(`Platform host statement brut migration failed: ${err.message}`);
+    throw err;
   }
 }
 

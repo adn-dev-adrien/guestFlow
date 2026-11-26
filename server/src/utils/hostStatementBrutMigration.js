@@ -7,6 +7,7 @@
  *   - mode `platform_reversed` → `brut := brut − T` and `box := T`, T the reversed tax the engine subtracted on that row
  *     (`reversedTaxOf(row)`: the engine's own figure, frozen stays included), so the tax gap is 0 and `finalPrice`, the schedule and
  *     the tax do not move;
+ *     (a stay whose tax is frozen at 0 is left untouched, its box too: the box of such a stay is data the reports read);
  *   - `platformOptionsAmount` stays NULL (no check on history).
  * Fees inside a historical brut stay: no retroactivity.
  */
@@ -14,7 +15,7 @@ const { isNamedChannel } = require('./saleChannel');
 const { roundMoney } = require('./pricing/money');
 const { touristTaxModeOf } = require('./platformTaxMode');
 
-function runHostStatementBrutMigration(db, { reversedTaxOf }) {
+function runHostStatementBrutMigration(db, { reversedTaxOf, frozenAtZero = () => false }) {
   const rows = db.prepare(`
     SELECT *
       FROM reservations
@@ -29,6 +30,8 @@ function runHostStatementBrutMigration(db, { reversedTaxOf }) {
     if (mode === 'platform' && box != null && box > 0) {
       brut = roundMoney(Math.max(0, brut - box));
     } else if (mode === 'platform_reversed') {
+      // A tax frozen at 0 was priced under another mode: the stay is left as it is, box included — the engine reads no gap on it (rule 9).
+      if (frozenAtZero(row)) continue;
       const tax = Math.max(0, roundMoney(Number(reversedTaxOf(row)) || 0));
       brut = roundMoney(Math.max(0, brut - tax));
       box = tax > 0 ? tax : null;
@@ -43,7 +46,14 @@ function runHostStatementBrutMigration(db, { reversedTaxOf }) {
 /** The engine's reversed tax of a stored stay: replays it through the tax slice, frozen tax included. Required lazily — the engine opens the database. */
 function reversedTaxOfStoredStay(db) {
   const { touristTaxFigureOfStoredReservation } = require('./storedReservationQuote');
-  return (row) => (touristTaxFigureOfStoredReservation(db, row) || {}).reversedTouristTaxInBrut || 0;
+  // The box is blanked: the old engine ignored it in reversed mode, and the tax base now reads it (a percentage tax would move).
+  return (row) => (touristTaxFigureOfStoredReservation(db, { ...row, platformTouristTaxAmount: null }) || {}).reversedTouristTaxInBrut || 0;
 }
 
-module.exports = { runHostStatementBrutMigration, reversedTaxOfStoredStay };
+/** A stay whose tax is frozen at 0 (priced while its platform kept the tax). Required lazily — it reads the schedule. */
+function frozenAtZeroOfStoredStay(db) {
+  const { isTouristTaxFrozen } = require('./touristTaxFreeze');
+  return (row) => isTouristTaxFrozen(db, row) && roundMoney(Number(row.touristTaxTotal || 0)) === 0;
+}
+
+module.exports = { runHostStatementBrutMigration, reversedTaxOfStoredStay, frozenAtZeroOfStoredStay };

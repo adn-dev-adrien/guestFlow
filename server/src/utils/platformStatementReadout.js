@@ -25,16 +25,19 @@ const percent = (value) => `${String(Number(value.toFixed(1))).replace('.', ',')
  * @param {number} p.commissionPercent  the platform's rate, 0 when unknown
  * @param {string[]} [p.adjustmentNotes]  the sentences of rule 2
  * @param {{ field: string, message: string } | null} [p.adjustmentRefusal]  rule 2's one refusal
+ * @param {boolean} [p.boxBooked]  false when the stay's tax was frozen at 0 under another mode: the box is not booked, so it is not counted
  * @param {string|null} [p.commissionBooking]  how the commission is booked (rule 10), when the accounting knows it
  */
 function statementReadout({
-  figures, mode, touristTaxGap = 0, platformLabel = '', commissionPercent = 0, adjustmentNotes = [], adjustmentRefusal = null, commissionBooking = null,
+  figures, mode, touristTaxGap = 0, boxBooked = true, platformLabel = '', commissionPercent = 0, adjustmentNotes = [], adjustmentRefusal = null, commissionBooking = null,
 }) {
   const lines = [];
   const refusals = {};
   const warnings = { commissionRate: null };
   const host = money(figures.platformGrossAmount);
-  const taxPaid = taxPaidWithPayout({ mode, box: figures.platformTouristTaxAmount });
+  // A tax frozen before the platform switched to « nous reverse » books nothing: its box is not counted, and the block says so.
+  const taxPaid = boxBooked ? taxPaidWithPayout({ mode, box: figures.platformTouristTaxAmount }) : 0;
+  const boxIgnored = !boxBooked && mode === 'platform_reversed' && !blank(figures.platformTouristTaxAmount);
   const commission = round2(money(figures.platformCommissionAmount) + money(figures.acompteCommissionAmount));
 
   if (adjustmentRefusal) refusals[adjustmentRefusal.field] = adjustmentRefusal.message;
@@ -54,6 +57,8 @@ function statementReadout({
       ? { tone: 'done', label: `${equation} — identique au virement ✓` }
       : { tone: 'warning', label: `${equation} — le virement est de ${formatEuros(payout)} (écart ${formatEuros(Math.abs(gap))}). Le relevé sera enregistré avec cet écart.` });
   }
+
+  if (boxIgnored) lines.push({ tone: 'info', label: 'Taxe figée avant le passage en « nous reverse » : non comptée.' });
 
   const gap = Number(touristTaxGap || 0);
   if (mode === 'platform_reversed' && !blank(figures.platformTouristTaxAmount) && Math.abs(gap) >= 0.005) {

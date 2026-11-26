@@ -59,6 +59,12 @@ function validatePlanValue(key, value) {
 // Rule 14 — the account a regime proposes, from the three plan roles.
 const proposalOf = (regime, stored) => String(stored[REGIME_ACCOUNT_ROLES[regime]] || PLAN_DEFAULTS[REGIME_ACCOUNT_ROLES[regime]]);
 
+// Rule 14, in one place: the GET shows it, the PUT applies it.
+function accountAfterRegime(platform, regime, stored, typed = platform.commissionAccountNumber || null) {
+  if (regime === platform.commissionVatRegime) return typed;
+  return (typed == null || typed === proposalOf(platform.commissionVatRegime, stored)) ? proposalOf(regime, stored) : typed;
+}
+
 function createPlatformAccountsModel(database, { platforms = sdk.coreModule('platformsModel'), settings = createAccountSettings(database) } = {}) {
   return {
     getAll() {
@@ -75,6 +81,9 @@ function createPlatformAccountsModel(database, { platforms = sdk.coreModule('pla
         commissionAccountNumber: p.commissionAccountNumber || null,
         hasVatOnCommission: Number(p.hasVatOnCommission) === 1,
         commissionVatRegime: p.commissionVatRegime,
+        // Rule 14 — the account each regime would leave this platform with: the proposal while it holds none or the previous regime's one,
+        // else the account typed. The page shows it as the regime is chosen; the save decides (`saveAll`, same function).
+        regimeAccounts: Object.fromEntries(COMMISSION_REGIMES.map((regime) => [regime, accountAfterRegime(p, regime, settings.read())])),
         isDirect: String(p.name).toLowerCase() === 'direct',
       }));
       const stored = settings.read();
@@ -161,13 +170,9 @@ function createPlatformAccountsModel(database, { platforms = sdk.coreModule('pla
         for (const p of platformList) {
           const current = before.get(Number(p.id));
           const typed = (p.account == null || p.account === '') ? null : String(p.account).trim();
-          let account = typed;
           // Rule 14 — choosing a regime proposes its account when the platform has none or still holds the previous regime's proposal;
           // a typed account is never overwritten.
-          if (current && COMMISSION_REGIMES.includes(p.regime) && p.regime !== current.commissionVatRegime
-            && (typed == null || typed === proposalOf(current.commissionVatRegime, stored))) {
-            account = proposalOf(p.regime, stored);
-          }
+          const account = current && COMMISSION_REGIMES.includes(p.regime) ? accountAfterRegime(current, p.regime, stored, typed) : typed;
           platforms.update({
             id: p.id,
             commissionAccountNumber: account,

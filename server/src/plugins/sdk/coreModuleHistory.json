@@ -370,6 +370,15 @@
           "notifyOperator"
         ]
       }
+    },
+    {
+      "version": "2.36.0",
+      "modules": [],
+      "names": {
+        "platformPayment": [
+          "taxPaidWithPayout"
+        ]
+      }
     }
   ]
 }

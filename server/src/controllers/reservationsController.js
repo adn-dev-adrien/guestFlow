@@ -39,12 +39,14 @@ const { computeNextIcalSyncLocked, getTodayIsoDate } = require('../utils/reserva
 const { buildAuditSnapshotFromPayload, computeAuditChanges } = require('../utils/reservationAudit');
 const { arrivalPaymentText, coveredText, historyMoney } = require('../utils/arrivalPaymentHistoryText');
 const { suggestBedDistribution } = require('../utils/bedDistribution');
-const { statementCommission } = require('../utils/platformCommission');
+const { statementCommission, taxPaidOf } = require('../utils/platformCommission');
 const { isNamedChannel } = require('../utils/saleChannel');
+const { platformDisplayName } = require('../utils/attributionChannel');
 const platformsModel = require('../models/platformsModel');
 const { settleStatementOptions, hasStatementOptions } = require('../utils/platformStatementOptions');
 const { statementReadout } = require('../utils/platformStatementReadout');
 const { touristTaxGapOf } = require('../utils/pricing/storedSaleFigures');
+const { commissionBookingSentence } = require('../utils/commissionBooking');
 const { unclaimedRise, unlockedPriceRefusal } = require('../utils/savePriceGuards');
 const paidLineJudgment = require('../utils/paidLineJudgment');
 const { readsSaleLines } = require('../utils/saleLinesReaders');
@@ -1306,7 +1308,11 @@ function platformStatementOf({ body, quote, statementOptions }) {
       figures,
       mode,
       touristTaxGap: touristTaxGapOf(quote),
-      platformLabel: row ? row.name : String(body.platform),
+      boxBooked: !(quote.touristTaxFrozen && Number(quote.touristTaxTotal || 0) === 0),
+      commissionBooking: commissionBookingSentence({
+        db, platformRow: row, commission: Number(body.platformCommissionAmount || 0) + Number(body.acompteCommissionAmount || 0),
+      }),
+      platformLabel: platformDisplayName(row ? row.name : body.platform),
       commissionPercent: row ? row.commissionPercent : 0,
       adjustmentNotes: statementOptions.notes,
       adjustmentRefusal: statementOptions.refusal,
@@ -3240,7 +3246,7 @@ function paymentMarkRefusal(row, body, today) {
       return { status: 400, body: { error: field === 'platformPayoutAmount' ? 'Virement reçu : montant requis.' : 'Commission invalide.', code: 'INVALID_AMOUNT', field } };
     }
     if (field === 'platformCommissionAmount') {
-      const gross = grossOf(row);
+      const gross = grossOf(row, taxPaidOf({ platform: row.platform, box: row.platformTouristTaxAmount }));
       if (n > round2(gross) + 0.004) {
         return { status: 400, body: { error: `La commission dépasse le montant facturé (${formatEurosFr(gross)}).`, code: 'INVALID_AMOUNT', field } };
       }

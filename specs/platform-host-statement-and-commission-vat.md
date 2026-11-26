@@ -292,12 +292,15 @@ Server: `platform-host-statement` 19, `platform-host-statement-migration` 4, `pl
 
 ### Implementation notes (2026-11-26)
 - Rule 4's one-pass marker is the `migrations` table (`platform_host_statement_brut_v1`), run at boot from `index.js` (it replays each reversed stay through the engine's tax slice, which cannot load while `database.js` is still loading), not `app_settings`. In mode `platform_reversed` the percentage tax base keeps reading the tax the platform paid (`brut + box`), so a percentage-mode property re-prices to the cent; a per-person tax ignores it.
+- Rule 4: a reversed stay whose tax is frozen at 0 is left untouched by the migration, box included (the reports read it); the stays it rewrites get their stored sale figures written again; a failing migration stops the server.
+- Rule 2 also applies to a statement typed after the payout (`PATCH/POST …/platform-statement[/preview]`): same adjustment and refusal, written with the correction; the lines join the stay's arrival baseline so none reads as a mid-stay extra.
+- Rule 8: on a reversed stay the tax-paid money counts in the expected transfer (`grossOf(row, taxPaid)`, shared with the payment mark); a box that is not booked (tax frozen at 0) is not counted in the closing line, and the block says so.
 - Rule 9: the tax gap is not applied to a stay whose tax is frozen at 0 (priced under another mode): the switch never moves it.
 - The sale-figures record (`storedTouristTax`) carries `touristTaxGap`; the quote's key set is unchanged (the price gate's key list), the readout reads the gap from that record.
-- Rule 10's commission-booking sentence (« 78,00 € TTC = 65,00 € HT + 13,00 € de TVA… · compte … ») is not served yet: the journal preview already shows the booked lines; the regime is on the platform row.
+- Rule 10's commission-booking sentence is served by the core (`utils/commissionBooking.js`): the platform row's regime and account, the accounting export's VAT rate, only while that plugin is live.
 - SDK 2.36.0: `ctx.core.reservations.touristTaxMode(propertyId, platformKey)`; `platformCommission(figures)` takes the platform's key with the figures.
 - Airbnb intake: in a mode other than `platform_reversed` the commission check folds the taxes handed to the host into the gross (Airbnb's own arithmetic), the fiche then shows the gap that asks for the switch.
-- Price gate: 232 allowlist entries (`class: host-statement`, echo of the brut and of the box, no price moved), 19 quote hashes and the intake replays re-captured; golden fixtures of the VAT regimes and of the accounting output re-captured (new CSV column, regime fields, `selfAssessed`).
+- Price gate: 144 allowlist entries, field-exact (`class: host-statement`: 136 on the production copy, 8 synthetic; echo of the brut and of the box, no price moved), 19 quote hashes and the intake replays re-captured; golden fixtures of the VAT regimes and of the accounting output re-captured (new CSV column, regime fields, `selfAssessed`).
 
 ## 8. Out of scope
 - Rewriting October or any filed month.

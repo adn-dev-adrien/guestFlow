@@ -1104,7 +1104,8 @@
   "platformPayment": [
     "acompteNet",
     "grossOf",
-    "payoutWithPenalty"
+    "payoutWithPenalty",
+    "taxPaidWithPayout"
   ],
   "basketRefundOutcome": [
     "notHonoured",

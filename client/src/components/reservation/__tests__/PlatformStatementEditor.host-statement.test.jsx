@@ -53,3 +53,9 @@ test('rule 16 of the readout — a refusal answered as an error carrying its fie
   render(<PlatformStatementEditor {...baseProps(vi.fn().mockRejectedValue(error))} />);
   await waitFor(() => expect(screen.getByLabelText('Options (relevé)')).toHaveAttribute('aria-invalid', 'true'));
 });
+
+test('item 11 — a refusal with no field is printed as a line, never swallowed', async () => {
+  render(<PlatformStatementEditor {...baseProps(vi.fn().mockRejectedValue(new Error('Ce relevé modifierait aussi la taxe de séjour.')))} />);
+  expect(await screen.findByText('Ce relevé modifierait aussi la taxe de séjour.')).toBeInTheDocument();
+  expect(screen.getByRole('button', { name: 'Valider' })).toBeDisabled();
+});

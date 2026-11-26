@@ -16,7 +16,8 @@ const {
 const { settlementLedgerRow } = require('./mollieCardSources');
 
 // Rule 46 — what a platform that took an acompte already paid out for it (PLATFORM PAYMENT's `acompteNet`).
-const { acompteNet: platformAcompteNet, grossOf } = sdk.coreModule('platformPayment');
+const { acompteNet: platformAcompteNet, grossOf, taxPaidWithPayout } = sdk.coreModule('platformPayment');
+const platformsModel = sdk.coreModule('platformsModel');
 
 // The ledger rows of the direct buckets, with the stored column of their cash flag and their date.
 const DIRECT_ROWS = {
@@ -116,7 +117,8 @@ function receiptsOfReservation(row, { buildLedger, parseGroup, links, installmen
     const balance = ledger.rows.find((r) => r.key === 'balance');
     if (!balance) return baskets;
     const paid = isPaid(balance);
-    const grossRaw = grossOf(row);
+    // Rule 8 — a platform that reverses the tax pays it with the transfer: the expected money is the host amount plus it.
+    const grossRaw = grossOf(row, taxPaidWithPayout({ mode: platformsModel.getTouristTaxCollection(platform), box: row.platformTouristTaxAmount }));
     const payout = row.platformPayoutAmount != null && row.platformPayoutAmount !== '' && Number(row.platformPayoutAmount) > 0
       ? Number(row.platformPayoutAmount) : null;
     if (!(grossRaw > 0) && payout == null) return baskets;
