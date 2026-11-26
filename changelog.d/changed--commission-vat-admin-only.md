@@ -1,0 +1,1 @@
+- Plan comptable: the VAT rate on commissions is now reserved to the administrator; the accountant reads it and keeps editing the account numbers (a changed rate sent by an accountant is refused 403).

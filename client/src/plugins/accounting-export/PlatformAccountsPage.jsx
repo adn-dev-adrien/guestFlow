@@ -9,7 +9,7 @@ import SaveIcon from '@mui/icons-material/Save';
 import CancelIcon from '@mui/icons-material/Cancel';
 import SyncIcon from '@mui/icons-material/Sync';
 import {
-  api, PageActionBar, ErrorAlert, LoadingState, ConfirmDialog, useDirtyFormGuard, useToast, formatPlatformLabel,
+  api, PageActionBar, ErrorAlert, LoadingState, ConfirmDialog, useDirtyFormGuard, useToast, formatPlatformLabel, useAuth, userHasRole, ADMIN,
 } from '../sdk';
 import { accountGroupsFor } from './accountGroups';
 import MollieJournalCard from './MollieJournalCard';
@@ -17,7 +17,7 @@ import MollieJournalCard from './MollieJournalCard';
 /**
  * PlatformAccountsPage — `/comptabilite/plateformes`.
  *
- * Dedicated page where admin AND accountant configure the accounting accounts: one « Comptes » card
+ * Dedicated page where admin AND accountant configure the accounting accounts (the commission VAT rate is read-only for the accountant): one « Comptes » card
  * (grouped, see accountGroups.js) + per-platform commission overrides (bottom TableCard).
  *
  * The global VAT rate applied to commissions (when a platform's "TVA déductible" Switch is ON)
@@ -42,6 +42,9 @@ function normalizeAccount(value) {
 
 export default function PlatformAccountsPage() {
   const navigate = useNavigate();
+  const { user } = useAuth();
+  // specs/settings/settings-rationalization.md rule 14 — the VAT rate on commissions is the admin's; the accountant reads it.
+  const canEditCommissionVat = userHasRole(user, ADMIN);
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -53,7 +56,7 @@ export default function PlatformAccountsPage() {
   const { showSuccess, showError } = useToast();
   const [savedDefaultAccount, setSavedDefaultAccount] = useState('622600');
   // The two accounting VAT rates are edited here since specs/settings-rationalization.md rule 14,
-  // next to the accounts that use them (admin and accountant alike). Kept as typed strings.
+  // next to the accounts that use them (the commission rate by the admin only). Kept as typed strings.
   const [savedVatRateCommission, setSavedVatRateCommission] = useState('20');
   const [vatRateCommission, setVatRateCommission] = useState('20');
   const [savedVatRateCompensation, setSavedVatRateCompensation] = useState('0');
@@ -163,7 +166,7 @@ export default function PlatformAccountsPage() {
       const payload = {
         defaultAccount,
         cancellationCompensationAccount: compensationAccount,
-        vatRateCommission,
+        ...(canEditCommissionVat ? { vatRateCommission } : {}),
         vatRateCancellationCompensation: vatRateCompensation,
         plan,
         platforms: platforms
@@ -354,10 +357,10 @@ export default function PlatformAccountsPage() {
                     value={vatRateCommission}
                     onChange={(e) => handleVatChange(setVatRateCommission, 'vatRateCommission')(e.target.value)}
                     error={Boolean(errors.vatRateCommission)}
-                    helperText={errors.vatRateCommission || 'Appliquée aux plateformes cochées « TVA déductible ».'}
+                    helperText={errors.vatRateCommission || (canEditCommissionVat ? 'Appliquée aux plateformes cochées « TVA déductible ».' : 'Réservé à l\'administrateur')}
                     size="small"
                     sx={{ width: { xs: '100%', sm: 260 } }}
-                    slotProps={{ htmlInput: { inputMode: 'decimal' } }}
+                    slotProps={{ htmlInput: { inputMode: 'decimal', readOnly: !canEditCommissionVat } }}
                     disabled={saving}
                   />
                 )}

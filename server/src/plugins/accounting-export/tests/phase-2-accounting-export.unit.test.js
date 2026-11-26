@@ -281,7 +281,7 @@ test('specs/plugins/plugins-phase-2-hosts.md rule 22 — describe lists the conf
 test('specs/plugins/plugins-phase-2-hosts.md rules 20 + 22 — the plugin writes the platform columns it owns; the purge resets the settings and those columns, keeps the money, and the journal is identical after a reinstall', async () => {
   const db = freshDb();
   bankCompensation(db);
-  const before = boot(db, { installed: true });
+  const before = boot(db, { installed: true, user: { roles: ['admin'] } });
   const journal = async (app) => {
     const res = await request(app, 'GET', '/api/accounting/sales?month=9&year=2026');
     assert.equal(res.status, 200, `journal answered ${res.status}: ${res.text}`);
