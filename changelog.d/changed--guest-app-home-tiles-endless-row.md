@@ -1,0 +1,1 @@
+- Guest app home: with more than six tiles, a phone (under 900 px) shows them as one endless row swiped with the finger (a part of the neighbouring tiles shows on both edges, repeats hidden from screen readers and the keyboard); from 900 px they sit on one line. Up to six tiles, the grid is unchanged. Spec: `specs/guest-app/guest-app-local-amenities.md` §3.E.

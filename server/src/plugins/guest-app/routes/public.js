@@ -1,5 +1,5 @@
 /**
- * `/public/v1/guest/**` (specs/guest-app.md §4.3). Thin: parse → controller → JSON. Same-origin with the guest
+ * `/public/v1/guest/**` (specs/guest-app/guest-app.md §4.3). Thin: parse → controller → JSON. Same-origin with the guest
  * app, cookie-authenticated, never the site's shared key. Nothing a session reads may be cached.
  */
 
@@ -9,7 +9,7 @@ const { requireModule } = require('../middleware/guestSession');
 const { webManifest } = require('../webManifest');
 
 function buildPublicRouter({
-  controller, shop, orders, booklet, guestSession, limiters, appName = () => null, home,
+  controller, shop, orders, booklet, guestSession, limiters, appName = () => null, home, places,
 }) {
   const router = express.Router();
   // Rule 52 — the install manifest: the same for every guest, readable before any session, revalidated on each read.
@@ -36,7 +36,7 @@ function buildPublicRouter({
   const stayShop = [...shopRoute, guestSession.requireStayGuest];
   router.post('/orders/quote', ...stayShop, orders.quote);
   router.post('/orders', ...stayShop, limiters.order, limiters.cardOrder, orders.create);
-  // specs/gift-voucher-campaigns.md rule 37 — the text of the terms the cart asks the guest to accept.
+  // specs/gift-vouchers/gift-voucher-campaigns.md rule 37 — the text of the terms the cart asks the guest to accept.
   router.get('/terms/:activity', ...stayShop, orders.termsText);
   router.get('/orders', limiters.read, guestSession.requireSession, requireModule('orders', controller.shownKeysOf), guestSession.requireStayGuest, orders.list);
   // §4.3 — the return page polls the order, and an unpaid one is read at the provider: the core's payment-status budget.
@@ -47,7 +47,9 @@ function buildPublicRouter({
   router.get('/booklet', ...bookletRoute, booklet.index);
   router.get('/booklet/search', ...bookletRoute, booklet.search);
   router.get('/booklet/pages/:slug', ...bookletRoute, booklet.page);
-  // specs/guest-app-home-automation.md rules 17-22 — the « Domotique » page, a stay session only.
+  // specs/guest-app/guest-app-local-amenities.md rules 1, 5 — the « Pratique » places: a session or, in visitor mode, the printed code.
+  router.get('/places', limiters.read, booklet.reader, requireModule('places', controller.shownKeysOf), places.guestRead);
+  // specs/guest-app/guest-app-home-automation.md rules 17-22 — the « Domotique » page, a stay session only.
   const homeRoute = [limiters.read, guestSession.requireSession, requireModule('home', controller.shownKeysOf), guestSession.requireStayGuest];
   router.get('/home', ...homeRoute, home.read);
   router.post('/home/lights/:lightId', ...homeRoute, limiters.homeCommand, home.switchLight);

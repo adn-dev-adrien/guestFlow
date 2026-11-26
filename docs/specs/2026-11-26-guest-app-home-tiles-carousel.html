@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mon séjour — tuiles d'accueil en carrousel — maquette</title>
+<style>
+:root{--paper:#F5F0E6;--card:#FDFAF3;--ink:#22271F;--ink-soft:#5C6153;--sapin:#2E3B2A;--lichen:#5A6B48;--ocre:#B87B2A;--ocre-ink:#8A5816;--line:#DCD4C2;--ctl:#857D6B;
+  --display:Georgia,'Times New Roman',serif;--body:'Helvetica Neue',Helvetica,Arial,sans-serif;--ease:cubic-bezier(.22,1,.36,1)}
+*{box-sizing:border-box}
+body{margin:0;background:#ECE6D8;color:var(--ink);font:15px/1.5 var(--body)}
+.doc{max-width:1180px;margin:0 auto;padding:32px 20px 80px}
+h1{font:400 32px/1.2 var(--display);margin:0 0 8px}
+h2{font:400 22px/1.25 var(--display);margin:36px 0 10px}
+.eb{font:700 11.5px/1.3 var(--body);text-transform:uppercase;letter-spacing:.32em;color:var(--ocre-ink);margin:0 0 8px}
+.lede{color:var(--ink-soft);max-width:760px;margin:0}
+.stage{display:grid;grid-template-columns:auto 1fr;gap:28px;align-items:start;margin-top:20px}
+@media (max-width:900px){.stage{grid-template-columns:1fr}}
+.ctl{display:grid;gap:12px;background:var(--card);border:1px solid var(--line);border-radius:4px;padding:16px}
+.ctl label{font-size:14px;display:flex;gap:8px;align-items:center}
+.ctl input[type=range]{width:180px}
+.note{font-size:13px;color:var(--ink-soft);margin:0}
+.device{background:#111;border-radius:36px;padding:12px;box-shadow:0 30px 60px rgba(0,0,0,.22);transition:width .3s var(--ease)}
+.device.phone{width:390px}
+.device.desk{width:min(980px,100%);border-radius:14px}
+.app{background:var(--paper);border-radius:26px;overflow:hidden;height:700px;display:flex;flex-direction:column}
+.desk .app{border-radius:6px;height:520px}
+.hero{height:190px;flex:none;background:linear-gradient(to top,rgba(10,14,10,.78),rgba(10,14,10,.12)),linear-gradient(135deg,#55704a,#2E3B2A 60%,#B87B2A);color:#fff;padding:18px;display:flex;flex-direction:column;justify-content:flex-end}
+.hero .eb{color:#E8C286;margin:0 0 4px}
+.hero b{font:400 26px/1.2 var(--display)}
+.stay{margin:14px 16px 0;background:var(--card);border:1px solid var(--line);border-radius:4px;padding:12px 14px;font-size:14px}
+.stay b{display:block;font-size:15px}
+/* tiles */
+.tiles{display:grid;gap:9px;padding:16px 16px 4px}
+.tile{position:relative;aspect-ratio:1;border:1px solid var(--line);border-radius:4px;background:var(--card);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:9px;font:600 13px/1.25 var(--body);color:var(--ink);padding:6px;text-align:center;cursor:pointer;transition:transform .14s var(--ease),border-color .14s;scroll-snap-align:start}
+.tile:active{transform:scale(.97);border-color:var(--sapin)}
+.tile:focus-visible{outline:2px solid var(--ocre);outline-offset:2px}
+.tile svg{width:27px;height:27px;color:var(--lichen)}
+.tile.new{border-color:var(--ocre)}
+.grid{grid-template-columns:repeat(3,minmax(0,1fr))}
+/* carousel A: two rows, swipe */
+.carA{grid-auto-flow:column;grid-template-rows:repeat(2,auto);grid-auto-columns:calc((100% - 2*9px) / 3.35);overflow-x:auto;scroll-snap-type:x mandatory;scroll-padding:0 16px;scrollbar-width:none;overscroll-behavior-x:contain}
+/* carousel B: one row */
+.carB{grid-auto-flow:column;grid-auto-columns:calc((100% - 2*9px) / 3.35);overflow-x:auto;scroll-snap-type:x mandatory;scroll-padding:0 16px;scrollbar-width:none;overscroll-behavior-x:contain}
+.carA::-webkit-scrollbar,.carB::-webkit-scrollbar{display:none}
+.loop{display:grid;grid-auto-flow:column;grid-auto-columns:calc((100% - 3*9px) / 3.6);gap:9px;padding:16px 0 4px;overflow-x:auto;scroll-snap-type:x mandatory;scrollbar-width:none;overscroll-behavior-x:contain}
+.loop::-webkit-scrollbar{display:none}
+.loop .tile{scroll-snap-align:center}
+.desk .tiles.row{grid-template-columns:repeat(var(--n),minmax(0,1fr))}
+.desk .tile{aspect-ratio:auto;min-height:118px}
+.dots{display:flex;justify-content:center;gap:4px;padding:4px 0 0}
+.dots button{width:24px;height:24px;border:0;background:none;padding:0;display:grid;place-items:center;cursor:pointer}
+.dots button::before{content:"";width:6px;height:6px;border-radius:50%;background:var(--line);transition:background .2s,width .2s}
+.dots button[aria-current="true"]::before{background:var(--sapin);width:16px;border-radius:3px}
+.below{padding:12px 16px;color:var(--ink-soft);font-size:13px}
+.q{background:var(--card);border:1px solid var(--line);border-radius:4px;padding:16px 18px;margin:0 0 12px}
+.q legend{font:700 15px var(--body);padding:0}
+.opt{display:flex;gap:10px;align-items:flex-start;padding:8px 10px;border-radius:4px;cursor:pointer;border:1px solid transparent}
+.opt:has(input:checked){border-color:var(--ocre);background:#FBF4E6}
+.opt input{margin-top:4px}
+.opt b{font-size:14.5px}
+.opt span span{display:block;font-size:13px;color:var(--ink-soft)}
+.rec{font:700 10.5px var(--body);color:#2F6A43;text-transform:uppercase;letter-spacing:.1em;margin-left:6px}
+textarea{width:100%;min-height:110px;font:13px/1.5 ui-monospace,Menlo,monospace;padding:12px;border:1px solid var(--line);border-radius:4px}
+.sbtn{min-height:40px;padding:0 16px;border-radius:2px;border:1px solid #9A6318;background:#9A6318;color:#fff;font:700 14px var(--body);cursor:pointer}
+.ok{color:#2F6A43;font-size:13.5px;font-weight:600}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;scroll-behavior:auto!important}}
+</style>
+</head>
+<body>
+<div class="doc">
+  <p class="eb">GuestFlow · Mon séjour · maquette · 26/11/2026</p>
+  <h1>Les tuiles d'accueil en carrousel</h1>
+  <p class="lede">Avec « Pratique », un séjour peut afficher 7 tuiles, et jusqu'à 9 avec Domotique et Contacts. La grille de 3 × 2 n'en tient que 6. Jusqu'à 6 tuiles, rien ne change. Au-delà, les tuiles défilent du doigt sur téléphone. Sur ordinateur, la place suffit : elles restent sur une ligne.</p>
+
+  <div class="stage">
+    <div class="device phone" id="device"><div class="app">
+      <div class="hero"><p class="eb">La Granja · Jour 2 sur 4</p><b>Bonjour Marie</b></div>
+      <div style="flex:1;overflow:auto">
+        <div class="stay"><b>Du 24 au 28 novembre</b>Départ samedi avant 10 h</div>
+        <div id="tilesHost"></div>
+        <p class="below">Sous les tuiles : la carte du moment et la suggestion d'activité, inchangées.</p>
+      </div>
+    </div></div>
+    <div class="ctl">
+      <label>Nombre de tuiles <input type="range" id="n" min="5" max="9" value="7"> <b id="nOut">7</b></label>
+      <label><input type="checkbox" id="desk"> Vue ordinateur</label>
+      <p class="note">Faites glisser les tuiles du doigt (ou avec la molette en maintenant Maj). À partir de 7 tuiles, un bout de tuile dépasse des deux côtés dès l'ouverture, et la rangée tourne sans fin. Avec la touche Tab, la tuile qui reçoit le focus défile jusqu'à être visible.</p>
+    </div>
+  </div>
+
+  <h2>Arbitrage</h2>
+  <form id="qs"></form>
+  <textarea id="summary" readonly aria-label="Résumé du choix"></textarea>
+  <p><button class="sbtn" type="button" id="copy">Copier</button> <span class="ok" id="copied" role="status"></span></p>
+</div>
+<script>
+(function(){
+'use strict';
+const P={gate:'<path d="M4 20V8M20 20V8M4 10h16M4 15h16M9 10v10M15 10v10"/>',wifi:'<path d="M2 8.5a15 15 0 0120 0M5.5 12a10 10 0 0113 0M9 15.5a5 5 0 016 0"/><circle cx="12" cy="19" r="1"/>',
+shop:'<path d="M5 8h14l-1 12H6z"/><path d="M9 8a3 3 0 016 0"/>',bath:'<path d="M4 12h16v3a5 5 0 01-5 5H9a5 5 0 01-5-5z"/><path d="M7 12V6a2 2 0 014 0"/>',
+pin:'<path d="M12 21s-7-6.2-7-12a7 7 0 0114 0c0 5.8-7 12-7 12z"/><circle cx="12" cy="9" r="2.5"/>',map:'<path d="M9 4L3 6v14l6-2 6 2 6-2V4l-6 2z"/><path d="M9 4v14M15 6v14"/>',
+book:'<path d="M4 4h7a3 3 0 013 3v13a2 2 0 00-2-2H4zM20 4h-7a3 3 0 00-3 3v13a2 2 0 012-2h8z"/>',home:'<path d="M3 11l9-7 9 7v9H3z"/><path d="M10 20v-5h4v5"/>',phone:'<path d="M5 4h4l2 5-2.5 1.5a11 11 0 005 5L15 13l5 2v4a2 2 0 01-2 2A16 16 0 013 6a2 2 0 012-2"/>'};
+const ALL=[['Portail','gate'],['Wifi','wifi'],['Boutique','shop'],['Bain nordique','bath'],['Activités','pin'],['Pratique','map',1],['Livret','book'],['Domotique','home'],['Urgences & contacts','phone']];
+const VARIANTS=[
+  ['B','Une seule rangée, sans fin','Choisie par Adrien le 26/11. À l\'ouverture, Portail est la première tuile entière, et un bout de la dernière tuile (à gauche) et de la suivante (à droite) dépasse. On fait glisser dans les deux sens sans jamais buter : après Livret revient Portail.'],
+  ['A','Deux rangées qui défilent','Variante écartée, gardée pour comparer.'],
+  ['C','Pages de 6 avec des points','Variante écartée, gardée pour comparer.']];
+let v='B';
+const $=s=>document.querySelector(s);
+const svg=p=>`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${p}</svg>`;
+function render(){
+  const n=+$('#n').value;$('#nOut').textContent=n;
+  const desk=$('#desk').checked;$('#device').className='device '+(desk?'desk':'phone');
+  // keep Pratique in the list; drop optional ones first
+  const order=[0,1,2,3,4,5,6,7,8];const drop=[8,7,3,1];let list=ALL.slice();
+  for(const i of drop){if(list.length<=n)break;list=list.filter(t=>t!==ALL[i])}
+  const tiles=list.map(([l,i,isNew])=>`<button class="tile ${isNew?'new':''}" type="button">${svg(P[i])}<span>${l}</span></button>`).join('');
+  let cls='tiles grid',dots='';
+  if(desk)cls='tiles row';
+  else if(n>6){
+    if(v==='A')cls='tiles carA';
+    else if(v==='B')cls='loop';
+    else{cls='tiles carC';}
+  }
+  if(!desk&&n>6&&v==='C'){
+    const pages=[];for(let i=0;i<list.length;i+=6)pages.push(list.slice(i,i+6));
+    $('#tilesHost').innerHTML=`<div class="tiles carB" id="pager" style="grid-auto-columns:100%;gap:16px" role="group" aria-label="Raccourcis">${pages.map(pg=>`<div class="tiles grid" style="padding:0;scroll-snap-align:start">${pg.map(([l,i,isNew])=>`<button class="tile ${isNew?'new':''}" type="button">${svg(P[i])}<span>${l}</span></button>`).join('')}</div>`).join('')}</div>
+      <div class="dots">${pages.map((_,k)=>`<button type="button" aria-label="Page ${k+1} sur ${pages.length}" aria-current="${k===0}" data-k="${k}"></button>`).join('')}</div>`;
+    const pager=$('#pager');
+    pager.addEventListener('scroll',()=>{const k=Math.round(pager.scrollLeft/pager.clientWidth);document.querySelectorAll('.dots button').forEach((b,i)=>b.setAttribute('aria-current',String(i===k)))});
+    document.querySelectorAll('.dots button').forEach(b=>b.onclick=()=>pager.scrollTo({left:+b.dataset.k*pager.clientWidth,behavior:matchMedia('(prefers-reduced-motion: reduce)').matches?'auto':'smooth'}));
+  }else if(cls==='loop'){
+    const one=(clone)=>list.map(([l,i,isNew])=>`<button class="tile ${isNew?'new':''}" type="button" ${clone?'aria-hidden="true" tabindex="-1"':''}>${svg(P[i])}<span>${l}</span></button>`).join('');
+    $('#tilesHost').innerHTML=`<div class="loop" id="loop" role="group" aria-label="Raccourcis">${one(true)}${one(false)}${one(true)}</div>`;
+    const el=$('#loop');const tilesEl=el.children;const len=list.length;
+    const setW=()=>tilesEl[len].offsetLeft-tilesEl[0].offsetLeft;
+    const centerOn=(k)=>{const t=tilesEl[k];el.scrollLeft=t.offsetLeft-el.offsetLeft-(el.clientWidth-t.offsetWidth)/2};
+    requestAnimationFrame(()=>centerOn(len+1));
+    let timer;const wrap=()=>{const w=setW();if(el.scrollLeft<w*0.5)el.scrollLeft+=w;else if(el.scrollLeft>w*1.5)el.scrollLeft-=w};
+    el.addEventListener('scroll',()=>{clearTimeout(timer);timer=setTimeout(wrap,120)});
+    el.addEventListener('focusin',e=>{const t=e.target.closest('.tile');if(t)t.scrollIntoView({inline:'nearest',block:'nearest'})});
+  }else{
+    $('#tilesHost').innerHTML=`<div class="${cls}" style="--n:${n}" role="group" aria-label="Raccourcis">${tiles}</div>`;
+  }
+  summary();
+}
+function summary(){const o=VARIANTS.find(x=>x[0]===v);$('#summary').value=`Tuiles d'accueil au-delà de 6 (maquette du 26/11/2026) : ${o[1]}${v==='B'?' — validé':''}. Jusqu'à 6 tuiles : grille inchangée. Ordinateur : une seule ligne.`}
+$('#qs').innerHTML=`<fieldset class="q"><legend>Sur téléphone, au-delà de 6 tuiles</legend>${VARIANTS.map(([k,l,d],i)=>`<label class="opt"><input type="radio" name="v" value="${k}" ${k===v?'checked':''}><span><b>${l}</b>${i===0?'<span class="rec" style="display:inline">choix d\'Adrien</span>':''}<span>${d}</span></span></label>`).join('')}</fieldset>`;
+$('#qs').addEventListener('change',e=>{v=e.target.value;render()});
+$('#n').addEventListener('input',render);$('#desk').addEventListener('change',render);
+$('#copy').addEventListener('click',async()=>{try{await navigator.clipboard.writeText($('#summary').value)}catch(_){$('#summary').select();document.execCommand('copy')}$('#copied').textContent='Copié : collez-le dans la conversation.'});
+render();
+})();
+</script>
+</body>
+</html>

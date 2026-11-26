@@ -68,7 +68,8 @@ test('rules 5, 6, 65: a visitor has no gate, shop, bath or orders; pre-arrival u
 
 test('rule 11bis: a stored list survives a module it does not know, and drops one that is gone', () => {
   const read = readModules([{ key: 'booklet', on: true, order: 0 }, { key: 'retired', on: true, order: 1 }]);
-  assert.equal(read[0].key, 'booklet');
+  assert.ok(!read.some((m) => m.key === 'retired'));
+  assert.ok(read.findIndex((m) => m.key === 'soliomap') < read.findIndex((m) => m.key === 'booklet'), 'the missing modules slot in before it, in the default order');
   assert.deepEqual([...read.map((m) => m.key)].sort(), [...MODULE_KEYS].sort());
   assert.deepEqual(read.map((m) => m.order), read.map((_, i) => i));
 });

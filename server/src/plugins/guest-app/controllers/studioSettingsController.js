@@ -1,5 +1,5 @@
 /**
- * The studio's lodging switcher and Réglages (specs/guest-app.md rules 41bis, 48). Admin only.
+ * The studio's lodging switcher and Réglages (specs/guest-app/guest-app.md rules 41bis, 48). Admin only.
  *
  *   GET  /api/guest-app/studio/lodgings        rule 48 — every GuestFlow property, its live name, in or out of the app
  *   GET  /api/guest-app/studio/settings        the app settings, with the Soliomap sync state
@@ -13,8 +13,9 @@
 const {
   DECLARED, MAX_PICKUP_PLACE, OWN_HOST_REFUSAL, ownHostsOf,
 } = require('../settings');
+const { estateOf, positionText } = require('../places');
 
-const KEYS = Object.freeze(['appName', 'guestHost', 'soliomapUrl', 'soliomapEmbed', 'maxOrderTotal', 'fulfilment', 'pickupPlace']);
+const KEYS = Object.freeze(['appName', 'guestHost', 'soliomapUrl', 'soliomapEmbed', 'maxOrderTotal', 'fulfilment', 'pickupPlace', 'estatePosition']);
 const OUT_OF_APP = 'Hors application';
 
 const truthy = (v) => v === true || v === 1 || v === '1' || v === 'true';
@@ -67,6 +68,7 @@ function buildStudioSettingsController({
       maxOrderTotal: Number(get('maxOrderTotal')) || 500,
       fulfilment: get('fulfilment') === 'pickup' ? 'pickup' : 'delivery',
       pickupPlace: get('pickupPlace') || '',
+      estatePosition: positionText(estateOf(get('estatePosition'))),
       soliomap: syncView(lastSync(), now()),
     };
   }

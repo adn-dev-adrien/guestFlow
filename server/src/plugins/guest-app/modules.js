@@ -1,5 +1,5 @@
 /**
- * What a lodging shows its guests (specs/guest-app.md rules 10, 11bis). Pure: the stored configuration
+ * What a lodging shows its guests (specs/guest-app/guest-app.md rules 10, 11bis). Pure: the stored configuration
  * and the facts come in, the shown list goes out.
  */
 
@@ -12,10 +12,12 @@ const MODULES = Object.freeze([
   { key: 'bath', on: true, label: { fr: 'Bain nordique', en: 'Nordic bath' } },
   // Rule 15 — the tile reads « Activités » (Adrien, 2026-11-06); the key stays `soliomap`.
   { key: 'soliomap', on: true, label: { fr: 'Activités', en: 'Activities' } },
+  // specs/guest-app/guest-app-local-amenities.md rule 1 — the shops, services and waste points around the estate, on a map.
+  { key: 'places', on: true, label: { fr: 'Pratique', en: 'Essentials' } },
   { key: 'booklet', on: true, label: { fr: 'Livret', en: 'Booklet' } },
   { key: 'orders', on: true, label: { fr: 'Mes commandes', en: 'My orders' } },
   { key: 'contacts', on: false, label: { fr: 'Urgences & contacts', en: 'Emergency & contacts' } },
-  // specs/guest-app-home-automation.md rule 17 — off until the operator configures it in Studio.
+  // specs/guest-app/guest-app-home-automation.md rule 17 — off until the operator configures it in Studio.
   { key: 'home', on: false, label: { fr: 'Domotique', en: 'Smart home' } },
 ]);
 
@@ -43,6 +45,7 @@ const PREREQUISITES = Object.freeze({
   shop: (facts) => Number(facts.soldItems) > 0,
   bath: (facts) => Number(facts.soldHourlyResources) > 0,
   soliomap: (facts) => Boolean(facts.soliomapUrl),
+  places: (facts) => Number(facts.publishedPlaces) > 0,
   contacts: (facts) => Number(facts.contactCount) > 0,
   home: (facts) => Boolean(facts.homeReady),
 });
@@ -50,17 +53,27 @@ const PREREQUISITES = Object.freeze({
 const defaultModules = () => MODULES.map(({ key, on }, order) => ({ key, on, order }));
 
 /**
- * The stored list, whole and in order. A key the stored list does not name (a module added by a later
- * version) comes last, with its default state; a key it names that no longer exists is dropped.
+ * The stored list, whole and in order. A key the stored list does not name (a module added by a later version) takes its
+ * default state and sits right after the nearest key before it in `MODULES` that the list holds (first when none does) —
+ * `places` lands after `soliomap` (specs/guest-app/guest-app-local-amenities.md rule 1); a key it names that no longer
+ * exists is dropped.
  */
 function readModules(stored) {
   if (!Array.isArray(stored)) return defaultModules();
-  const known = stored
+  const list = stored
     .filter((m) => m && MODULE_KEYS.includes(m.key))
     .sort((a, b) => Number(a.order) - Number(b.order))
     .map((m) => ({ key: m.key, on: Boolean(m.on) }));
-  const missing = MODULES.filter(({ key }) => !known.some((m) => m.key === key)).map(({ key, on }) => ({ key, on }));
-  return [...known, ...missing].map((m, order) => ({ ...m, order }));
+  MODULES.forEach(({ key, on }, index) => {
+    if (list.some((m) => m.key === key)) return;
+    let at = 0;
+    for (let before = index - 1; before >= 0; before -= 1) {
+      const found = list.findIndex((m) => m.key === MODULES[before].key);
+      if (found >= 0) { at = found + 1; break; }
+    }
+    list.splice(at, 0, { key, on });
+  });
+  return list.map((m, order) => ({ ...m, order }));
 }
 
 // Rule 11bis — a shortcut into another module's pages exists only while that module is shown: the bath's

@@ -1,5 +1,5 @@
 /**
- * Every table of the guest app (specs/guest-app.md §5), in one idempotent migration. No core column and
+ * Every table of the guest app (specs/guest-app/guest-app.md §5), in one idempotent migration. No core column and
  * no foreign key: an order or a session must outlive a deleted reservation, and a deactivated plugin
  * keeps its rows (rule 22).
  */
@@ -158,7 +158,7 @@ const TABLES_SQL = `
   CREATE INDEX IF NOT EXISTS idx_guest_orders_status ON guest_orders(status, deliverAt);
 `;
 
-// specs/guest-app-home-automation.md §5 — one row per lodging and block kind, in the order the guest sees them.
+// specs/guest-app/guest-app-home-automation.md §5 — one row per lodging and block kind, in the order the guest sees them.
 const HOME_BLOCKS_SQL = `
   CREATE TABLE IF NOT EXISTS guest_home_blocks (
     propertyId  INTEGER NOT NULL,
@@ -172,7 +172,7 @@ const HOME_BLOCKS_SQL = `
   );
 `;
 
-// specs/guest-app-home-automation.md rule 29 — the « Réseau » block: SQLite cannot widen a CHECK, so the table is
+// specs/guest-app/guest-app-home-automation.md rule 29 — the « Réseau » block: SQLite cannot widen a CHECK, so the table is
 // rebuilt with its rows (the runner wraps each migration in a transaction).
 const HOME_BLOCKS_GRID_SQL = `
   CREATE TABLE guest_home_blocks_grid (
@@ -191,10 +191,36 @@ const HOME_BLOCKS_GRID_SQL = `
   ALTER TABLE guest_home_blocks_grid RENAME TO guest_home_blocks;
 `;
 
+// specs/guest-app/guest-app-local-amenities.md §5 — the estate's shops, services and waste points; a new table, nothing existing is touched.
+const PLACES_SQL = `
+  CREATE TABLE IF NOT EXISTS guest_app_places (
+    id             INTEGER PRIMARY KEY AUTOINCREMENT,
+    category       TEXT NOT NULL,
+    name_fr        TEXT NOT NULL,
+    name_en        TEXT,
+    commune        TEXT NOT NULL,
+    lat            REAL NOT NULL,
+    lng            REAL NOT NULL,
+    drive_minutes  INTEGER NOT NULL,
+    waste_kind     TEXT,
+    accepts        TEXT,
+    energies       TEXT,
+    phone          TEXT,
+    note_fr        TEXT,
+    note_en        TEXT,
+    hours          TEXT,
+    published      INTEGER NOT NULL DEFAULT 1,
+    verified_on    TEXT NOT NULL,
+    created_at     TEXT NOT NULL,
+    updated_at     TEXT NOT NULL
+  );
+  CREATE INDEX IF NOT EXISTS idx_guest_app_places_published ON guest_app_places(published, category);
+`;
+
 const TABLES = Object.freeze([
   'guest_app_lodgings', 'guest_app_items', 'guest_app_stock_counts', 'guest_app_service_hours', 'guest_app_service_exceptions',
   'guest_sessions', 'guest_stay_links', 'guest_booklet_pages', 'guest_booklet_placements', 'guest_booklet_blocks',
-  'guest_booklet_versions', 'guest_media', 'guest_orders', 'guest_home_blocks',
+  'guest_booklet_versions', 'guest_media', 'guest_orders', 'guest_home_blocks', 'guest_app_places',
 ]);
 
 // Rule 66 — where an order is collected: the arrival complement (taken before the arrival is marked) or the departure
@@ -259,7 +285,7 @@ const addOfferedInPlace = (db) => {
   db.exec('ALTER TABLE guest_app_items ADD COLUMN offeredInPlace INTEGER CHECK (offeredInPlace IN (0, 1))');
 };
 
-// specs/plugin-removal-resilience.md rule 22 — after an erase and a reinstall the id counter restarts above the orders the stays' lines still cite,
+// specs/plugins/plugin-removal-resilience.md rule 22 — after an erase and a reinstall the id counter restarts above the orders the stays' lines still cite,
 // and above the orders a card payment link still names (an unpaid order is cited by its link only, rule 108; loop t2 D2-2).
 const keepOrderIdsCited = (db) => {
   const { highestCitedId, highestBasketRef, raiseCounter } = require('../sdk/citedIdCounterFloor');
@@ -274,6 +300,7 @@ const MIGRATIONS = Object.freeze([
   { name: 'guest_app_orders_status_v3', up: rebuildOrdersWithCancelled },
   { name: 'guest_app_items_offered_in_place_v4', up: addOfferedInPlace },
   { name: 'guest_orders_counter_floor_v5', up: keepOrderIdsCited },
+  { name: 'guest_app_places_v6', up: (db) => db.exec(PLACES_SQL) },
 ]);
 
 module.exports = { MIGRATIONS, TABLES };

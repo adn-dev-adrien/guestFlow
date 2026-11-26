@@ -1,10 +1,10 @@
 /*
- * « Mon séjour » service worker (specs/guest-app.md rules 21, 52).
+ * « Mon séjour » service worker (specs/guest-app/guest-app.md rules 21, 52).
  *
  * - The shell (the page, its hashed assets, the fonts, the default photo) is served from the cache, refreshed
  *   in the background: the app opens without network.
- * - The booklet and what a session reads to show it (`/me`, `/lodging`, `/booklet…`) are read from the
- *   network first and from the cache without it; the photos (`/uploads/…`) stale-while-revalidate: the
+ * - The booklet and what a session reads to show it (`/me`, `/lodging`, `/booklet…`), and the « Pratique » places
+ *   (`/places`, specs/guest-app/guest-app-local-amenities.md rule 9) are read from the network first and from the cache without it; the photos (`/uploads/…`) stale-while-revalidate: the
  *   booklet stays readable offline.
  * - Never cached: the shop, the slots, the quote, the orders, the gate, the sessions — they always need the
  *   network and the app says so (« Connexion nécessaire »).
@@ -15,7 +15,7 @@ const VERSION = 'mon-sejour-v1';
 const SHELL = `${VERSION}-shell`;
 const DATA = `${VERSION}-data`;
 const NEVER = /^\/public\/v1\/guest\/(shop|orders|gate|sessions)(\/|$|\?)/;
-const BOOKLET = /^\/public\/v1\/guest\/(me|lodging|booklet)(\/|$|\?)/;
+const BOOKLET = /^\/public\/v1\/guest\/(me|lodging|booklet|places)(\/|$|\?)/;
 const MAX_UPLOADS = 200;
 
 self.addEventListener('install', (event) => {

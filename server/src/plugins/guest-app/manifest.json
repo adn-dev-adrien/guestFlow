@@ -1,7 +1,7 @@
 {
   "id": "guest-app",
   "name": "Application clients",
-  "version": "1.5.2",
+  "version": "1.6.0",
   "description": "L’application « Mon séjour » des clients : livret d’accueil, portail, Soliomap et boutique du séjour.",
   "icon": "door",
   "surfaces": [
@@ -12,7 +12,8 @@
     "L’étape « Mon séjour » du sas d’arrivée",
     "L’étape « Commandes Mon séjour » du sas d’arrivée",
     "La variable d’e-mail « Lien Mon séjour »",
-    "Le Studio du livret (/studio)"
+    "Le Studio du livret (/studio)",
+    "La page « Pratique » de l’application clients et de son Studio"
   ],
   "requires": [],
   "guestflow": ">=3.10.0",
@@ -127,6 +128,13 @@
     ],
     "1.5.2": [
       "Dépendances de l’application clients et du Studio mises à jour (bibliothèques de test, icônes, navigation) ; aucun changement visible (SDK 2.34.0)."
+    ],
+    "1.6.0": [
+      "Nouvelle tuile « Pratique » (« Essentials » en anglais) : une carte des boulangeries, de la pharmacie, des boucheries, épiceries, du tabac-presse, de La Poste, du distributeur de billets, des stations et des points de déchets autour du domaine, avec filtres, liste, horaires du jour, temps en voiture et itinéraire vers Plans, Google Maps ou Waze. Elle apparaît dès qu’un lieu est publié.",
+      "Studio : page « Pratique » pour saisir les lieux (position collée en coordonnées ou en lien Google Maps, temps en voiture, horaires, ce qu’on peut déposer, énergies), les publier ou les masquer, et revérifier ceux qui ne l’ont pas été depuis un an ; position du domaine réglable.",
+      "Livret : un bouton peut ouvrir la page « Pratique », sur une catégorie choisie.",
+      "Hors connexion, la liste des lieux reste lisible ; seules les tuiles de la carte (OpenStreetMap) demandent le réseau.",
+      "Compatible avec GuestFlow 4 (SDK 2.34.0)."
     ]
   }
 }

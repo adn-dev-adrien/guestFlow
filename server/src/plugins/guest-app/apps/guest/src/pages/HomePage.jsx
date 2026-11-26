@@ -9,6 +9,7 @@ import { useNavigate } from 'react-router';
 import HeroHeader from '../components/HeroHeader';
 import StayCard from '../components/StayCard';
 import QuickTile from '../components/QuickTile';
+import TileCarousel from '../components/TileCarousel';
 import MomentCard from '../components/MomentCard';
 import BathPlanCard from '../components/BathPlanCard';
 import PhotoCard from '../components/PhotoCard';
@@ -28,9 +29,11 @@ import { useT } from '../i18n';
 import { copyText, stayDatesLabel } from '../utils/format';
 
 const TILE_ICON = {
-  gate: 'gate', wifi: 'wifi', shop: 'shop', bath: 'bath', soliomap: 'soliomap', booklet: 'booklet', contacts: 'contacts', home: 'smartHome',
+  gate: 'gate', wifi: 'wifi', shop: 'shop', bath: 'bath', soliomap: 'soliomap', places: 'places', booklet: 'booklet', contacts: 'contacts', home: 'smartHome',
 };
 const LIVE_ORDER = new Set(['confirmed', 'paid', 'awaiting_payment']);
+// specs/guest-app/guest-app-local-amenities.md rule 19: the grid of rule 10 holds six tiles.
+const MAX_GRID_TILES = 6;
 export const DEFAULT_HERO = '/img/hero-domaine.jpg';
 
 // A gate read without network is not « Accès en préparation »: the tile says the connection is needed.
@@ -67,6 +70,7 @@ export default function HomePage() {
     shop: () => navigate('/boutique'),
     bath: () => navigate('/boutique/bain'),
     soliomap: () => openSoliomap(),
+    places: () => navigate('/pratique'),
     booklet: () => navigate('/livret'),
     contacts: () => setSheet('contacts'),
     home: () => navigate('/domotique'),
@@ -101,23 +105,28 @@ export default function HomePage() {
     </div>
   );
 
-  const tilesBlock = tiles.length ? (
-    <div className={`tiles n${tiles.length}`}>
-      {tiles.map((tile) => (
-        <QuickTile
-          key={tile.key}
-          icon={TILE_ICON[tile.key] || 'info'}
-          label={tile.label}
-          external={tile.key === 'gate' || (tile.key === 'soliomap' && !soliomapEmbedded)}
-          disabled={tile.key === 'gate' && (!gateState || gateState === 'offline')}
-          disabledReason={tile.key !== 'gate' ? null
-            : gateState === 'offline' ? t('net.needed')
-              : gateState === 'preparing' ? ((gateInfo && gateInfo.stateLabel) || t('tile.preparing')) : null}
-          onClick={tileAction[tile.key]}
-        />
-      ))}
+  const renderTile = (tile, copyProps = {}) => (
+    <QuickTile
+      key={tile.key}
+      icon={TILE_ICON[tile.key] || 'info'}
+      label={tile.label}
+      external={tile.key === 'gate' || (tile.key === 'soliomap' && !soliomapEmbedded)}
+      disabled={tile.key === 'gate' && (!gateState || gateState === 'offline')}
+      disabledReason={tile.key !== 'gate' ? null
+        : gateState === 'offline' ? t('net.needed')
+          : gateState === 'preparing' ? ((gateInfo && gateInfo.stateLabel) || t('tile.preparing')) : null}
+      onClick={tileAction[tile.key]}
+      {...copyProps}
+    />
+  );
+  const manyTiles = tiles.length > MAX_GRID_TILES;
+  const tilesBlock = !tiles.length ? null : manyTiles && !layout.wide ? (
+    <TileCarousel items={tiles} renderItem={renderTile} />
+  ) : (
+    <div className={`tiles n${tiles.length}${manyTiles ? ' many' : ''}`} style={manyTiles ? { '--n': tiles.length, '--cols': Math.ceil(tiles.length / 2) } : undefined}>
+      {tiles.map((tile) => renderTile(tile))}
     </div>
-  ) : null;
+  );
 
   const highlight = hl ? (
     <MomentCard
@@ -166,7 +175,7 @@ export default function HomePage() {
     </>
   ) : null;
 
-  // specs/guest-app-bath-home-scheduling.md rules 4-6, Q2 — hours to schedule sit right under the stay card; once scheduled, or as an
+  // specs/guest-app/guest-app-bath-home-scheduling.md rules 4-6, Q2 — hours to schedule sit right under the stay card; once scheduled, or as an
   // offer, the card comes after the tiles.
   const bathAction = (key, bathCard) => {
     if (key === 'change') setSheet('contacts');

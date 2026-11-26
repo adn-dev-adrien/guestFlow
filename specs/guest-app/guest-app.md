@@ -136,6 +136,8 @@ is pushed every order.
     lodging's modules (rule 11bis), in the order configured for that lodging (default: Portail · Wifi ·
     Boutique · Bain nordique · Soliomap · Livret). A module that is off for the lodging is not rendered (no
     greyed tile).
+    _(Amended 2026-11-26 by specs/guest-app/guest-app-local-amenities.md rules 19-23: beyond six tiles, one endless
+    row swiped with the finger under 900 px, one line from 900 px.)_
 11. **Contextual highlight.** One card under the tiles, chosen by the server among: « Le portail est
     actif » (arrival day), « Votre commande est prête » (an order marked delivered in the last hour),
     « Départ demain : les consignes » (eve of departure → booklet page *Départ*). At most one highlight, plus at most one suggestion (rule 15bis), never a marketing carousel. A highlight is only chosen among the lodging's enabled modules. Priority: the order,
@@ -157,7 +159,9 @@ is pushed every order.
     never a tile, so the home keeps rule 10's six. Every endpoint of an
     **off** module answers 404 `MODULE_OFF` for that lodging's sessions — hiding is enforced server-side,
     not only in the UI. The app's tab bar / rail follows the same list (no « Boutique » tab in a lodging
-    without shop).
+    without shop). _(Amended 2026-11-26 by specs/guest-app/guest-app-local-amenities.md rule 1: a tenth module `places` — tile « Pratique », EN « Essentials » —
+    is **on** by default, right after `soliomap`, shown to every mode (visitor included) while at least one place is published; its endpoint answers 404 `MODULE_OFF` like the others.
+    A lodging whose stored list predates it gets it at the end of its list, on, until the operator moves it.)_
 11ter. **Lodging facts** live per lodging, not in the booklet text: **wifi** (« Wifi disponible » on/off,
     network name, password, optional « Wifi seulement dans la pièce principale » note — off → no wifi tile,
     no wifi block, and the booklet may show the lodging's « Pas de wifi » message, prefilled from the
@@ -227,9 +231,10 @@ is pushed every order.
     lists, links), `image`, `gallery`, `callout` (info / warning), `steps` (numbered how-to with optional
     photo per step), `wifi` (network + password + « Copier », QR to join), `contact` (name, role, phone →
     `tel:`, WhatsApp, email), `place` (address + « Itinéraire » → maps link), `faq` (accordion),
-    `button` (label + target `{ kind:'page', slug }` | `{ kind:'item', itemKind, itemId }` | `{ kind:'url', href }`), `hours` (opening times table). A `button`
+    `button` (label + target `{ kind:'page', slug }` | `{ kind:'item', itemKind, itemId }` | `{ kind:'places', category? }` | `{ kind:'url', href }`), `hours` (opening times table). A `button`
     whose target is not available to the session (module off, item not sold here, a shop or bath target for a
-    visitor or a pre-arrival session) is not rendered. Reading of 2026-11-10 (audit R36-INJ-L1): the wifi join QR
+    visitor or a pre-arrival session) is not rendered. _(Amended 2026-11-26 by specs/guest-app/guest-app-local-amenities.md rule 18: the `places` target opens the « Pratique » page,
+    on the chip of `category` when it names one; it is rendered for every mode while the `places` module is shown.)_ Reading of 2026-11-10 (audit R36-INJ-L1): the wifi join QR
     escapes every character the `WIFI:` scheme reserves — backslash, `;`, `,`, `:` and `"` — so a password with a
     backslash joins as typed. Reading of 2026-11-13: the join QR is scanned by **another** phone, and the 68 px
     thumbnail did not catch. The server draws it at 600 px with a one-module margin; the ticket shows it at
@@ -1569,7 +1574,7 @@ illustration-free icon + one sentence + one action, `ErrorAlert` with « Réessa
 
 ### 6.6 Screen by screen
 
-- **Home** — hero (46 %), `StayCard`, tiles grid (3 × 2 on phone, 6 in a row on desktop), `MomentCard`, the suggestion card (rule 15bis), « Commandes en cours » row if any, « Le livret » photo strip.
+- **Home** — hero (46 %), `StayCard`, tiles grid (3 × 2 on phone, 6 in a row on desktop; beyond six, the endless row of guest-app-local-amenities rules 19-23), `MomentCard`, the suggestion card (rule 15bis), « Commandes en cours » row if any, « Le livret » photo strip.
 - **Booklet index** — search field (sticky), then `PhotoCard`s in one column (phone) / 2 (tablet) / 3
   (desktop); a shared page is indistinguishable from a lodging one.
 - **Booklet page** — cover photo with title inside, then blocks with 24 px rhythm; « Page suivante » card at

@@ -1,5 +1,5 @@
 /**
- * Serving the two web apps of the plugin (specs/guest-app.md §4.1, plan step 50), through `ctx.webApp`:
+ * Serving the two web apps of the plugin (specs/guest-app/guest-app.md §4.1, plan step 50), through `ctx.webApp`:
  *   - the guest app « Mon séjour » (`apps/guest` in this folder) on the guest host, at every path but the core's trees — the stay link
  *     `/s/<token>`, the poster `/l/<code>`, `/retrouver`, the Qonto return `/commande/<id>`… all open the app;
  *   - the booklet studio (`apps/studio`) at `/studio` on the admin host, for an admin session only (rule 47).
@@ -36,7 +36,8 @@ function guestCsp({ frameOrigin = null } = {}) {
     "script-src 'self'",
     // MUI / emotion inject their styles at run time.
     "style-src 'self' 'unsafe-inline'",
-    "img-src 'self' data: blob:",
+    // specs/guest-app/guest-app-local-amenities.md rule 2 — the « Pratique » map's tiles; images only, no script, no connection.
+    "img-src 'self' data: blob: https://tile.openstreetmap.org",
     "font-src 'self'",
     "connect-src 'self'",
     "manifest-src 'self'",
@@ -71,13 +72,27 @@ function soliomapFrameOrigin({ soliomapUrl, soliomapEmbed }) {
 const page = (title, text) => `<!doctype html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${title}</title></head><body style="font-family:system-ui,sans-serif;margin:3rem auto;max-width:28rem;padding:0 1rem;color:#22271F;background:#F5F0E6"><h1 style="font-weight:400">${title}</h1><p>${text}</p></body></html>`;
 
 /**
+ * specs/guest-app/guest-app-local-amenities.md rule 2 — the guest app's « Me localiser » needs `geolocation`. The core
+ * sets its `Permissions-Policy` (every feature denied) on every response before a web app answers: this one answer
+ * re-sends that same value with only `geolocation` opened to the page's own origin, so the core's list stays the single
+ * source and the studio and the admin keep the denial.
+ */
+function allowGeolocation(res) {
+  const core = res.getHeader('Permissions-Policy');
+  if (typeof core === 'string' && core.includes('geolocation=()')) {
+    res.setHeader('Permissions-Policy', core.replace('geolocation=()', 'geolocation=(self)'));
+  }
+}
+
+/**
  * A handler serving one build. `dir()` → the build directory or null; `base` the path the app lives under ('' or
  * '/studio'); `csp()` the policy of every answer.
  */
-function staticApp({ dir, base = '', csp }) {
+function staticApp({ dir, base = '', csp, geolocation = false }) {
   return (req, res, next) => {
     if (req.method !== 'GET' && req.method !== 'HEAD') return next();
     res.set('Content-Security-Policy', csp());
+    if (geolocation) allowGeolocation(res);
     res.set('X-Content-Type-Options', 'nosniff');
     const root = dir();
     if (!root) {

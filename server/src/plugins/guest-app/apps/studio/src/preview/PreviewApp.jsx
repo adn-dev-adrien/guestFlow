@@ -4,7 +4,7 @@
  * components, so the preview cannot drift from what guests see. Nothing here fetches: the studio sends the data.
  *
  * Views: `home` (hero, stay card, tiles — Modules and Infos du logement), `page` (a booklet page — Livret),
- * `shop` (the catalogue — Boutique, Service), `smartHome` (the « Domotique » page — specs/guest-app-home-automation.md
+ * `shop` (the catalogue — Boutique, Service), `smartHome` (the « Domotique » page — specs/guest-app/guest-app-home-automation.md
  * rule 16: `data` is the server's preview payload, drawn by the guest page's own body).
  */
 import { useEffect, useMemo, useState } from 'react';
@@ -29,7 +29,7 @@ import defaultHero from '@guest-public/img/hero-domaine.jpg';
 export const MESSAGE_SOURCE = 'guestflow-studio';
 
 const TILE_ICON = {
-  gate: 'gate', wifi: 'wifi', shop: 'shop', bath: 'bath', soliomap: 'soliomap', booklet: 'booklet', contacts: 'contacts', home: 'smartHome',
+  gate: 'gate', wifi: 'wifi', shop: 'shop', bath: 'bath', soliomap: 'soliomap', places: 'places', booklet: 'booklet', contacts: 'contacts', home: 'smartHome',
 };
 const noop = () => {};
 

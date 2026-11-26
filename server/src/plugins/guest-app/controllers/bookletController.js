@@ -1,6 +1,6 @@
 /**
  * `GET /public/v1/guest/booklet`, `/booklet/pages/:slug`, `/booklet/search` — the lodging's last published
- * booklet, for a session or, in visitor mode, for the printed code (specs/guest-app.md rules 5, 16-20). The
+ * booklet, for a session or, in visitor mode, for the printed code (specs/guest-app/guest-app.md rules 5, 16-20). The
  * language is applied per field, the lodging's facts fill the `wifi` and `contact` blocks, and a button the
  * session cannot follow is not sent (rule 18).
  *
@@ -40,6 +40,11 @@ function buildBookletResolver({ booklet, media, soldKeysOf, shownKeys }) {
     let sold = null;
     return (target) => {
       if (target.kind === 'url') return true;
+      // Rule 18 (local amenities) — « Pratique » is open to every mode, while the lodging shows it.
+      if (target.kind === 'places') {
+        shown = shown || shownKeys(lodging, mode);
+        return shown.includes('places');
+      }
       if (target.kind !== 'item' || mode !== 'stay') return false;
       shown = shown || shownKeys(lodging, mode);
       if (!shown.includes('shop')) return false;

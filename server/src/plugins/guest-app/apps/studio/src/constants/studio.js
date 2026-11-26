@@ -1,5 +1,5 @@
 /**
- * The studio's fixed words (specs/guest-app.md rules 11bis, 18, 40, 48). Labels the server does not send because
+ * The studio's fixed words (specs/guest-app/guest-app.md rules 11bis, 18, 40, 48). Labels the server does not send because
  * they never change: the module keys, the block types, the weekdays.
  */
 
@@ -10,6 +10,7 @@ export const MODULES = Object.freeze({
   shop: { label: { fr: 'Boutique', en: 'Shop' }, icon: 'shop', hint: 'Les articles vendus dans ce logement (écran Boutique).' },
   bath: { label: { fr: 'Bain nordique', en: 'Nordic bath' }, icon: 'bath', hint: 'Un raccourci vers les créneaux, qui suivent le planning des ressources.' },
   soliomap: { label: { fr: 'Activités', en: 'Activities' }, icon: 'soliomap', hint: 'Soliomap, dans l’app ou dans un nouvel onglet (Réglages › Application).' },
+  places: { label: { fr: 'Pratique', en: 'Essentials' }, icon: 'places', hint: 'La carte des commerces, services et points de déchets autour du domaine, saisie dans Réglages › Pratique. Visible dès qu’un lieu est publié.' },
   booklet: { label: { fr: 'Livret', en: 'Guide' }, icon: 'booklet', hint: 'Les pages publiées du livret de ce logement.' },
   orders: { label: { fr: 'Mes commandes', en: 'My orders' }, icon: 'orders', hint: 'Un onglet « Commandes » et, sur l’accueil, les commandes en cours. Pas de tuile.' },
   contacts: { label: { fr: 'Urgences', en: 'Emergencies' }, icon: 'contacts', hint: 'Les contacts d’urgence des Infos du logement.' },
@@ -60,7 +61,7 @@ export const GUESTFLOW_LINKS = Object.freeze({
 
 export const DEFAULT_HERO_LABEL = 'Vue aérienne du domaine (par défaut)';
 
-/** specs/guest-app-home-automation.md rules 12, 28, 29 — the « Domotique » blocks, as the studio names them. */
+/** specs/guest-app/guest-app-home-automation.md rules 12, 28, 29 — the « Domotique » blocks, as the studio names them. */
 export const HOME_BLOCKS = Object.freeze({
   outdoor: { title: 'Extérieur', description: 'Température, minimum et maximum du jour, humidité, vent.', picker: 'Station météo ou thermomètre' },
   rooms: { title: 'Pièces', description: 'Une température par pièce, avec son minimum et son maximum du jour.', picker: 'Thermomètre', add: 'Ajouter une pièce', max: 8 },

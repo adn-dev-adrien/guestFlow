@@ -53,3 +53,11 @@ export async function copyText(text) {
     return ok;
   }
 }
+
+const CALENDAR_DAY = { fr: new Intl.DateTimeFormat('fr-FR', { timeZone: 'UTC', day: 'numeric', month: 'long', year: 'numeric' }), en: new Intl.DateTimeFormat('en-GB', { timeZone: 'UTC', day: 'numeric', month: 'long', year: 'numeric' }) };
+
+/** A calendar date the server sends as `YYYY-MM-DD` → « 26 novembre 2026 » / « 26 November 2026 ». */
+export function calendarDay(ymd, lang = 'fr') {
+  const ms = Date.parse(`${ymd}T00:00:00Z`);
+  return Number.isNaN(ms) ? '' : (CALENDAR_DAY[lang] || CALENDAR_DAY.fr).format(new Date(ms));
+}

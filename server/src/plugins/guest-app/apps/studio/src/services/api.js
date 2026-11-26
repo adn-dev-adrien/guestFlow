@@ -1,5 +1,5 @@
 /**
- * The studio's one door to GuestFlow: `/api/guest-app/**` with the admin session cookie (specs/guest-app.md
+ * The studio's one door to GuestFlow: `/api/guest-app/**` with the admin session cookie (specs/guest-app/guest-app.md
  * rule 47, same origin as GuestFlow). A dead session sends the operator to GuestFlow's login, which brings them
  * back here; every other refusal surfaces the server's French message as it is.
  */
@@ -18,6 +18,8 @@ const PLUGIN_INACTIVE = 'PLUGIN_INACTIVE';
 function toError(status, body) {
   if (body && body.error === PLUGIN_INACTIVE) return Object.assign(new Error('Module inactif.'), { status, code: PLUGIN_INACTIVE });
   const message = (body && (typeof body.error === 'string' ? body.error : body.message)) || 'Le serveur ne répond pas correctement.';
+  // specs/guest-app/guest-app-local-amenities.md rule 16 — a refused place carries one message per field.
+  if (body && body.error === 'INVALID_PLACE') return Object.assign(new Error('Corrigez les champs signalés.'), { status, code: 'INVALID_PLACE', fields: body.fields || {} });
   return Object.assign(new Error(message), { status, code: body && body.code, ...(body && body.errors ? { errors: body.errors } : {}) });
 }
 
@@ -49,7 +51,7 @@ export const api = {
   lodging: (id) => request(`/lodgings/${enc(id)}`),
   saveLodging: (id, patch) => request(`/lodgings/${enc(id)}`, { method: 'PUT', body: patch }),
   regenerateQr: (id) => request(`/lodgings/${enc(id)}/regenerate-qr`, { method: 'POST' }),
-  // specs/guest-app-home-automation.md rules 12-16.
+  // specs/guest-app/guest-app-home-automation.md rules 12-16.
   home: (id) => request(`/lodgings/${enc(id)}/home`),
   saveHome: (id, blocks) => request(`/lodgings/${enc(id)}/home`, { method: 'PUT', body: { blocks } }),
   homePreview: (id, blocks, lang) => request(`/lodgings/${enc(id)}/home/preview?lang=${enc(lang)}`, { method: 'POST', body: { blocks } }),
@@ -60,6 +62,12 @@ export const api = {
 
   serviceHours: (propertyId = null) => request(`/service-hours${propertyId ? `?propertyId=${enc(propertyId)}` : ''}`),
   saveServiceHours: (config, propertyId = null) => request(`/service-hours${propertyId ? `?propertyId=${enc(propertyId)}` : ''}`, { method: 'PUT', body: config }),
+
+  // specs/guest-app/guest-app-local-amenities.md rules 15-16 — « Pratique »: the places around the estate.
+  places: () => request('/places'),
+  createPlace: (place) => request('/places', { method: 'POST', body: place }),
+  savePlace: (id, place) => request(`/places/${enc(id)}`, { method: 'PUT', body: place }),
+  deletePlace: (id) => request(`/places/${enc(id)}`, { method: 'DELETE' }),
 
   settings: () => request('/studio/settings'),
   saveSettings: (patch) => request('/studio/settings', { method: 'PUT', body: patch }),

@@ -1,5 +1,5 @@
 /**
- * The studio's screens (specs/guest-app.md rules 47-50, §4.2): lodging first — every screen of a lodging under
+ * The studio's screens (specs/guest-app/guest-app.md rules 47-50, §4.2): lodging first — every screen of a lodging under
  * `/:propertyId/…` — then the settings shared by every lodging under `/reglages/…`.
  */
 import { Navigate, Route, Routes, useParams } from 'react-router';
@@ -18,6 +18,7 @@ import BookletPage from './pages/BookletPage';
 import ShopItemsPage from './pages/ShopItemsPage';
 import ServicePage from './pages/ServicePage';
 import SettingsPage from './pages/SettingsPage';
+import PlacesPage from './pages/PlacesPage';
 import MediaLibraryPage from './pages/MediaLibraryPage';
 
 /** The lodging the URL names, from the live list (rule 48). */
@@ -53,6 +54,7 @@ export default function App() {
         <Routes>
           <Route path="/" element={first ? <Navigate to={`/${first.propertyId}/modules`} replace /> : <EmptyState title="Aucun logement" message="Créer d’abord un logement dans GuestFlow." />} />
           <Route path="/reglages/service" element={<ServicePage lodgings={lodgings} />} />
+          <Route path="/reglages/pratique" element={<PlacesPage />} />
           <Route path="/reglages/application" element={<SettingsPage lodgings={lodgings} onLodgingChange={updateLodging} />} />
           <Route path="/reglages/photos" element={<MediaLibraryPage />} />
           <Route path="/:propertyId/modules" element={lodgingScreen(ModulesPage)} />

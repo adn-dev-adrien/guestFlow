@@ -1,5 +1,5 @@
 /**
- * The guest's way in and what a session reads (specs/guest-app.md rules 1-11quater): the stay link, the
+ * The guest's way in and what a session reads (specs/guest-app/guest-app.md rules 1-11quater): the stay link, the
  * lodging poster (visitor mode only), the fallback lookup, `/me` and `/lodging`. The stay link proves the
  * stay: no name is ever asked of a guest who holds it (rules 2, 33).
  */
@@ -51,7 +51,7 @@ const DEFAULT_APP_NAME = 'Domaine Solio';
 
 function buildSessionController({
   lodgings, sessions, stays, stayLinks, orders, guestSession, soliomapUrl, soliomapFeed, now, readGateUrl = gate.keyUrlOf,
-  appName = () => null, soliomapEmbed = () => false, bathCards = () => [], homeReady = () => false,
+  appName = () => null, soliomapEmbed = () => false, bathCards = () => [], homeReady = () => false, publishedPlaces = () => 0,
 }) {
   function factsOf(lodging) {
     return {
@@ -61,6 +61,7 @@ function buildSessionController({
       soliomapUrl: soliomapUrl(),
       contactCount: lodging.contacts.length,
       homeReady: homeReady(lodging.propertyId),
+      publishedPlaces: publishedPlaces(),
     };
   }
 
@@ -206,7 +207,7 @@ function buildSessionController({
     // Rule 3 — a visitor learns nothing of any stay, not even that one starts today.
     if (!stay) return publicHttp.ok(res, { ...base, welcome: welcomeLine(lodging.name, lang) });
     const opening = mode === 'preArrival' ? openingToday(stay, window, at) : null;
-    // specs/guest-app-bath-home-scheduling.md rules 4-6 — the bath cards, where the shop that books the bath is shown: the home's one
+    // specs/guest-app/guest-app-bath-home-scheduling.md rules 4-6 — the bath cards, where the shop that books the bath is shown: the home's one
     // word on the bath.
     const bath = shown.some((m) => m.key === 'bath') && shown.some((m) => m.key === 'shop') ? bathCards(req.guest, at, lang) : [];
     const highlight = mode === 'stay' ? chooseHighlight({
