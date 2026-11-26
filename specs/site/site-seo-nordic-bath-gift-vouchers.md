@@ -78,7 +78,8 @@ land on states plainly what is offered, when, for how many and at what price.
    (« Satillieu · Ardèche verte ») and the sentence under it stay.
 > **Sans test** — le code vit dans le dépôt privé `adn-dev-adrien/solio-site` ; la règle y est tenue par `tests/seo-nordic-bath-gift-vouchers.test.js`, et mesurée en ligne, §10.
 7. Below the booking block, in this order: « L'essentiel » (rule 8), « Le jour, le soir » (rule 9),
-   « Pour qui » (rule 10), the FAQ (rules 11-13). All of it is server-rendered HTML.
+   the FAQ (rules 11-13). All of it is server-rendered HTML. (« Pour qui », rule 10, was removed on
+   2026-11-26.)
 > **Sans test** — le code vit dans le dépôt privé `adn-dev-adrien/solio-site` ; la règle y est tenue par `tests/seo-nordic-bath-gift-vouchers.test.js`, et mesurée en ligne, §10.
 8. « L'essentiel » is a list: wood-fired bath, water around `bain_temperature` °C (`gf_seo_domaine()`);
    private, up to `maxPeople`; daytime band `from`–`to` at the day price per hour; evening band
@@ -87,14 +88,17 @@ land on states plainly what is offered, when, for how many and at what price.
    (`band`, `totalCents`, `extraTime.prices[0]`), falling back to `/sessions/resources.fromCents` for
    the « from » price. The tub's material is **not** stated (Adrien, 2026-11-26).
 > **Sans test** — le code vit dans le dépôt privé `adn-dev-adrien/solio-site` ; la règle y est tenue par `tests/seo-nordic-bath-gift-vouchers.test.js`, et mesurée en ligne, §10.
-9. « Le jour, le soir »: two short evocative paragraphs, no practical modality
+9. « Le jour, le soir »: two short evocative texts, no practical modality
    (memory `site-texte-evocateur-sans-pratique`). FR: « L'eau fume, la vallée s'ouvre jusqu'aux
    crêtes. Le poêle crépite, le vent passe dans les prés. Rien entre vous et l'horizon. » /
-   « Le poêle rougeoie, l'air fraîchit, les étoiles arrivent une à une. Aucune lumière de ville pour
-   les cacher. » Both are always in the HTML (no toggle).
+   « Dans la lueur du soir, les étoiles s'illuminent au doux chant des bruits sauvages. » (EN: « In the
+   evening glow, the stars light up to the soft song of the wild. »). The evening text was rewritten
+   by Adrien on 2026-11-26, replacing « Le poêle rougeoie… Aucune lumière de ville pour les cacher. »;
+   an empty paragraph label is not rendered. Both moments are always in the HTML (no toggle).
 > **Sans test** — le code vit dans le dépôt privé `adn-dev-adrien/solio-site` ; la règle y est tenue par `tests/seo-nordic-bath-gift-vouchers.test.js`, et mesurée en ligne, §10.
-10. « Pour qui »: three tiles — « À deux », « Entre amies », « Seul·e » — with the texts of the decision
-    page. No « en famille » tile.
+10. **Removed 2026-11-26** (Adrien: he did not like it). The bath page has no « Pour qui » block: no
+    « À deux » / « Entre amies » / « Seul·e » tiles, and no labels or styles for them. The number stays
+    retired, never reused.
 > **Sans test** — le code vit dans le dépôt privé `adn-dev-adrien/solio-site` ; la règle y est tenue par `tests/seo-nordic-bath-gift-vouchers.test.js`, et mesurée en ligne, §10.
 11. FAQ, new key `bain-seance` in `gf_seo_faq()` (the existing `bain-nordique` key stays for
     `/le-domaine/`), questions in this order: what a nordic bath is (also called « bain norvégien »
@@ -247,12 +251,12 @@ No GuestFlow server or client code changes: everything lives in the WordPress si
 | File | T/C | Responsibility |
 |---|---|---|
 | `gf-seo-facts.php` | T | FAQ keys `bain-seance`, `bons-cadeaux`, `saint-valentin` (FR + `_en`); travel times in `gf_seo_distances()`; a reader `gf_seo_offre_bain()` returning bands/prices/party size/add-on families from `/gift-vouchers/offer` + `/sessions/resources` (cached 1 h, null on failure). |
-| `gf-seo-blocks.php` | T | Shortcodes `[solio_bain]` (L'essentiel, le jour/le soir, pour qui) and `[solio_bons]` (occasions, les bons); token replacement for live figures in FAQ answers, dropping an answer whose token cannot be filled. |
+| `gf-seo-blocks.php` | T | Shortcodes `[solio_bain]` (L'essentiel, le jour/le soir) and `[solio_bons]` (occasions, les bons); token replacement for live figures in FAQ answers, dropping an answer whose token cannot be filled. |
 | `gf-seo-schema.php` | T | `Service` node on the bath page, `Product`/`AggregateOffer` nodes on the voucher page; `FAQPage` reuses the same token-filled arrays. |
 | `gf-seo-head.php` | T | `gf_seo_pages()` entries for the three pages, seasonal voucher title, home title/description, live figures in descriptions. |
 | `gf-seo-indexation.php` | T | `llms.txt` bath and voucher lines, page summaries, stale slugs removed. |
 | `gf-i18n.php` | T | Every new label in `fr` and `en`. |
-| `gf-site-style.php` | T | Styles for the new blocks, reusing the existing tokens (`.essentiel`-like list, tiles, occasions). |
+| `gf-site-style.php` | T | Styles for the new blocks, reusing the existing tokens (`.essentiel`-like list, moments, occasions). |
 | `tests/seo-nordic-bath-gift-vouchers.test.js` | C | Shape tests (rules 5, 8, 10-15, 17-19, 22, 24). |
 
 ### 4.4 Page content (WordPress database, not versioned)
@@ -281,8 +285,7 @@ None in GuestFlow. WordPress: post content and the `_gf_seo_*` meta of the pages
 Decision page with interactive mock-ups: `solio-site/rapports/2026-11-26-seo-bain-bons/index.html`.
 
 - Bath page: hero and booking block unchanged; under them « L'essentiel » (bordered list on the paper
-  background), the two moments side by side from 760 px and stacked below, three tiles (auto-fit,
-  min 190 px), the FAQ as native `<details>` (text in the source even when folded).
+  background), the two moments side by side from 760 px and stacked below, the FAQ as native `<details>` (text in the source even when folded).
 - Voucher page: occasions as a wrapping row of short lines (all visible, no toggle in production),
   « Les bons » list, FAQ.
 - Mobile (≤600 px): every block single column, padding reduced, no horizontal scroll, touch targets of
@@ -313,7 +316,7 @@ Decision page with interactive mock-ups: `solio-site/rapports/2026-11-26-seo-bai
 
 ## 9. Open questions
 
-- **Resolved 2026-11-26** (decision page): H1 with place; three « Pour qui » tiles; permanent Valentine
+- **Resolved 2026-11-26** (decision page): H1 with place; three « Pour qui » tiles (removed 2026-11-26, rule 10); permanent Valentine
   page before 5 January; no city pages; pregnancy line in the FAQ; no marketplace; service + products on
   the existing Google profile; no press release; English twins at the same time; tub material not
   stated; towels as a paid option; changing shelter exists; travel times measured by Claude; « spa de
