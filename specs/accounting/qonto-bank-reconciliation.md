@@ -227,8 +227,11 @@ a short list of the gaps to fix on the fiches.
     | Lodgify | counterparty `stripe` with reference exactly `stripe` (rule 30) |
 
 30. **Weekly card batch** (Lodgify via Stripe) — the credit is the week's card payments, each net of
-    Stripe's fee. It is proposed against the Lodgify rows paid (or due) in the 10 days before
-    `settled_at` by the smallest combination of up to 6 rows whose sum equals the credit, where a
+    Stripe's fee. It is proposed against the Lodgify rows **paid** from 10 days before to 3 days after
+    `settled_at`, or **not yet marked paid** and due from 10 days before `settled_at` up to 400 days after
+    it (a guest pays ahead of the due date, and Stripe's payout follows the payment, not the stay;
+    `MAX_EARLY_DAYS` in `reconciliation/matcher.js` — owner's call 2026-11-26: only a proposal, never a
+    write), by the smallest combination of up to 6 rows whose sum equals the credit, where a
     row counts for its recorded payout when the fiche has one and for its amount net of the card fee
     otherwise (setting, default 2,8 %), with 1 % of tolerance on the estimated part → **probable**;
     **sûr** when the combination is a single row with a recorded payout.
