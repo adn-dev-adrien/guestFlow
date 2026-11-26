@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| **Status** | Approved |
+| **Status** | Implemented |
 | **Branch** | `feature/guest-app-local-amenities-map` |
 | **Created** | 2026-11-26 |
 | **Author** | Adrien |
@@ -21,7 +21,7 @@ What the guest app offers today does not answer them:
 
 - **Soliomap** (tile « Activités », `guest-app.md` rule 15) maps *activities*. Its eight categories are a closed,
   colour-validated set that comes with a drive time, a time on site and free / paid (Soliomap
-  `specs/interactive-map.md` rule 4). A bakery or a glass bank has none of these, and fourteen categories would
+  the interactive-map spec of Soliomap's own repository, rule 4). A bakery or a glass bank has none of these, and fourteen categories would
   break the palette. Soliomap stays as it is.
 - The **booklet** has `place` blocks (`guest-app.md` rule 18): one address and « Itinéraire » each, no map, no
   filter, no opening hours.
@@ -137,15 +137,19 @@ Satillieu, Saint-Romain-d'Ay and Saint-Alban-d'Ay, filters them by kind, and ope
 |---|---|---|---|
 | plugin | `migrations.js` | T | Table `guest_app_places` (§5) |
 | plugin | `modules.js` | T | Module `places`, default on after `soliomap`, prerequisite `publishedPlaces > 0`, every mode |
-| plugin | `places.js` | C | Pure: validation (rule 16), Google Maps link parsing, 15 km check, drive-time label, open state from weekly hours at Paris time, the three GPS links, server order |
+| plugin | `places.js` | C | Pure: validation (rule 16), Google Maps link parsing, 15 km check, drive-time label, open state from weekly hours at Paris time, the three GPS links, server order, the guest payload and the Studio's grouped list |
+| plugin | `placeCategories.js` | C | The closed set of rule 10 with its FR / EN labels, no dependency (the booklet's button target and `places.js` both read it) |
 | models | `placesModel.js` | C | Prepared statements: list (published / all), get, insert, update, delete, count published |
 | controllers | `placesController.js` | C | Guest payload (rules 4-7, 12-13) and Studio CRUD |
 | routes | `public.js` | T | `GET /public/v1/guest/places` (session or visitor, module guard) |
 | routes | `admin.js` | T | `GET/POST /api/guest-app/places`, `PUT/DELETE /api/guest-app/places/:id` |
 | plugin | `bookletBlocks.js`, `booklet.js` | T | Button target `places` validated and resolved, hidden when the module is off |
-| plugin | `settings.js` | T | Setting `estatePosition` (lat, lng) |
+| plugin | `settings.js` | T | Setting `estatePosition` (`lat, lng`, default `45.16369, 4.63184`), judged by `places.js` |
+| controllers | `studioSettingsController.js` | T | `estatePosition` read and written with the Studio's other settings |
+| controllers | `bookletController.js` | T | The `places` button target follows the `places` module (every mode) |
 | plugin | `appHosting.js` | T | CSP: `img-src` adds `https://tile.openstreetmap.org` (tiles only; no script, no connect) |
-| plugin | `manifest.json` | T | Version bump |
+| plugin | `manifest.json` | T | Version 1.6.0 and its journal lines |
+| tests | `plugins/guest-app/tests/guest-app-local-amenities.unit.test.js` | C | §7 — the plugin's suites live in its own `tests/` folder, not `server/src/tests/` |
 
 ### 4.2 Client side
 
@@ -153,13 +157,16 @@ Satillieu, Saint-Romain-d'Ay and Saint-Alban-d'Ay, filters them by kind, and ope
 |---|---|---|---|
 | guest | `pages/PlacesPage.jsx` | C | Chips, map / list switch, offline banner, deep-link category |
 | guest | `components/PlacesMap.jsx` | C | Leaflet map: tiles, estate marker, category markers, grouping and fan-out, zoom, « Me localiser » |
-| guest | `components/PlaceSheet.jsx` | C | The sheet of rule 6 on the existing `BottomSheet`; the GPS chooser and its remembered choice |
+| guest | `components/PlaceSheet.jsx` | C | The sheet of rule 6 on the existing `BottomSheet`; the GPS chooser and its remembered choice (`device` store, key `gps`) |
+| guest | `constants/placeCategories.js` | C | The one palette of category colours and their Lucide glyphs (component for the page, drawing data for the markers) |
+| guest | `utils/clusterPoints.js`, `utils/glyphSvg.js` | C | Pure: pixel-distance grouping and fan-out of rule 3; a Lucide glyph as an SVG string for Leaflet's HTML markers |
 | guest | `components/blocks/ButtonBlock.jsx` | T | Target `places` → `/pratique?c=<category>` |
-| guest | `App.jsx`, `i18n/` | T | Route, tile icon, FR / EN strings |
+| guest | `App.jsx`, `pages/HomePage.jsx`, `components/Icon.jsx`, `hooks/useActions.js`, `services/api.js`, `i18n/`, `styles.css` | T | Route `/pratique` (module guard), tile icon and action, `api.places()`, the `places` button target, FR / EN strings, the page's styles |
 | guest | `public/sw.js` | T | Cache `/public/v1/guest/places` with the booklet reads |
-| guest | `package.json` | T | `leaflet` (no `react-leaflet`: one component, imperative API, smaller) |
-| studio | `pages/PlacesPage.jsx` | C | List, dialog, refusals shown inline, « À revérifier » |
-| studio | navigation | T | Entry « Pratique » |
+| guest | `package.json` | T | `leaflet` (no `react-leaflet`: one component, imperative API, smaller). The map is loaded lazily with the page (`React.lazy`): the home and the shop do not pay for it |
+| studio | `pages/PlacesPage.jsx` | C | Estate position field, list by category, publish switch, delete, « À revérifier » |
+| studio | `components/PlaceDialog.jsx` | C | Add / edit dialog; refusals shown under their field; hours with the existing `RangesEditor` |
+| studio | `StudioShell.jsx`, `App.jsx`, `services/api.js`, `constants/studio.js`, `components/ModuleIcon.jsx`, `preview/PreviewApp.jsx`, `components/blockEditors/ButtonEditor.jsx` | T | Entry « Pratique » under Réglages (`/reglages/pratique`), the module's label and icon, the `places` button target with its category |
 
 No GuestFlow admin client change.
 
@@ -176,8 +183,22 @@ No GuestFlow admin client change.
     "accepts": null, "energies": null, "note": null, "phone": null, "telUrl": null, "verifiedOn": "2026-11-26",
     "links": { "apple": "…", "google": "…", "waze": "…" } } ] }
 ```
-Places in server order (category order of rule 10, then drive time, then name). Studio routes take and return the stored
-shape of §5; refusals are `400 { error: 'INVALID_PLACE', fields: { position: '…' } }`.
+Places in server order (category order of rule 10, then drive time, then name). As built, a place also carries
+`categoryLabel` (singular, for the sheet), `wasteKind` (`{ key, label }` or null), `accepts` and `energies` as lists of
+`{ key, label }` (or null), `phone` written in groups of two (`04 75 12 34 56`), `telUrl` (`tel:0475123456`); `hours` is the
+week Monday first and null when no hours are known; the language is `?lang=` / the stay's / the browser's, and a missing
+English name or note falls back to French. The route reads for a session or, in visitor mode, `?lodgingCode=` (the booklet's reader).
+
+Studio routes (`/api/guest-app/places`, admin only):
+- `GET` → `{ estate: { lat, lng, position, communes, maxKm }, categories, groups: [{ key, label, count, publishedCount, hiddenFromGuests, places }], reviewCount }`;
+  each place is `{ id, category, nameFr, nameEn, commune, position, lat, lng, driveMinutes, wasteKind, accepts, energies, phone, noteFr, noteEn, hours, published, verifiedOn, needsReview }`
+  (`hours` = 7 arrays, Sunday first, of `[openMin, closeMin]`; 1440 is midnight); in a group, places to re-verify come first, then by name.
+- `POST` and `PUT /:id` take that shape with `position` as the pasted text (coordinates or Google Maps link); the server parses it into `lat` / `lng`.
+  A `PUT` whose body is `{ published }` alone only flips the switch and leaves `verifiedOn` alone; any other save sets `verifiedOn` to today (rule 14).
+- `DELETE /:id`; an unknown id answers 404 `PLACE_NOT_FOUND`.
+- Refusals are `400 { error: 'INVALID_PLACE', fields: { position: '…' } }`, one French message per field (`category`, `nameFr`, `nameEn`, `commune`, `position`,
+  `driveMinutes`, `wasteKind`, `accepts`, `energies`, `phone`, `noteFr`, `noteEn`, `hours`, `published`; `_` for a malformed request).
+- The estate position is read and written with the Studio's settings (`GET / PUT /api/guest-app/studio/settings`, key `estatePosition`, `45.16369, 4.63184`); an unparseable value is refused with rule 16's position message.
 
 ## 5. Data model
 
@@ -196,14 +217,16 @@ the pane. Touch targets ≥ 44 px (map controls included). `prefers-reduced-moti
 
 ## 7. Test plan
 
-- Server unit — `server/src/tests/guest-app-local-amenities.unit.test.js`: validation and refusals (rule 16),
+- Server unit — `server/src/plugins/guest-app/tests/guest-app-local-amenities.unit.test.js` (32 tests): validation and refusals (rule 16),
   link parsing (3 Google formats + plain coordinates), 15 km check, drive-time labels, `energies` / `accepts`
   required by category, open state across midday break, Sunday,
   next-day opening, no hours (rule 13), GPS links (rule 7), module prerequisite (rule 1), button target hidden
   when off (rule 18), visitor access.
-- Guest client — `apps/guest/src/__tests__/PlacesPage.filters.test.jsx`, `PlaceSheet.gps.test.jsx`: chips,
-  empty category hidden, deep-link category, remembered GPS choice, offline list.
-- Studio client — `apps/studio/src/__tests__/PlacesPage.test.jsx`: refusals shown inline.
+- Guest client — `apps/guest/src/__tests__/PlacesPage.filters.test.jsx` (12): chips, empty category hidden, deep-link category, list, offline list, home tile,
+  button target; `PlaceSheet.gps.test.jsx` (9): the sheet's content and the remembered GPS choice; `PlacesMap.leaflet.test.jsx` (5, Leaflet replaced by a stand-in):
+  tiles, estate marker, grouping bubble, fan-out, « Me localiser »; `PlacesMap.grouping.test.js` (4): pure grouping and the palette's contrast;
+  `sw.offline.test.js` (+2): `/places` cached like the booklet.
+- Studio client — `apps/studio/src/__tests__/PlacesPage.test.jsx` (10): the list, « À revérifier », the switch, delete, refusals shown under their field, the week sent as minutes, the estate position.
 - Manual: iPhone (Plans, Google Maps, Waze installed or not), Android, offline after a first load, night.
 
 ## 8. Out of scope
@@ -228,8 +251,13 @@ None open.
 - Q5 Distance: drive minutes entered per place in the Studio, not a computed distance (rule 12).
 - Q6 Opening view: the map (rule 2).
 - Q7 « Me localiser »: yes, on demand, position kept on the phone (rule 8).
+- Built (2026-11-26): the places live in `guest_app_places` with no seed (rule 17); the existing lodgings get the module at the end of their stored list, on.
 - Q8 Extra categories: La Poste, Distributeur de billets, Carburant et recharge (rule 10). Doctor: no.
 
 ## 10. Implementation progress
 
-Not started.
+Done 2026-11-26 on `feature/guest-app-local-amenities-map`:
+- Server: table, module, `places.js`, model, controller, routes, button target, CSP, setting, plugin 1.6.0 — 32 tests.
+- Guest app: page, map (Leaflet, lazy chunk), sheet with GPS chooser, offline cache, tile, button target — 30 tests (+2 in `sw.offline.test.js`).
+- Studio: Réglages › Pratique, dialog, button editor target — 10 tests.
+- Manual checks left to Adrien (§7): iPhone (Plans, Google Maps, Waze installed or not), Android, offline after a first load, night, the map in a real browser.
