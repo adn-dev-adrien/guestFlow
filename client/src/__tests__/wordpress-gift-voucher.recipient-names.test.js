@@ -80,7 +80,7 @@ test('the order carries both names, trimmed, and the preview card names the firs
   typeAmount();
   fireEvent.input(fields().first, { target: { value: ' Marie ' } });
   fireEvent.input(fields().last, { target: { value: 'Durand' } });
-  const card = document.querySelector('.gf-card');
+  const card = document.querySelector('.gf-vcard');
   expect(card.textContent).toContain('Marie');
   expect(card.textContent).not.toContain('Durand');
   fillRest();

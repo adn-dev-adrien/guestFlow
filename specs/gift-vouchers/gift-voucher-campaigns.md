@@ -809,6 +809,14 @@ Rules are identities: a rule is never renumbered, new rules are appended
       campaign is chosen. The control stays usable at any time. On a narrow block (< 600 px, a phone) the
       card is above the form, out of sight while typing: it does not turn by itself there; a « Voir le verso
       du bon » link under « Un mot » turns it and scrolls back to it.
+    - **On a narrow block the card is as wide as the form** (decided 2026-11-26, mock-up
+      `docs/specs/2026-11-26-gift-voucher-mobile-card-width.html`). Below 600 px of block, the card column
+      takes the full width of the form's column. It is capped at 420 px, so the whole card stays on screen
+      on a portrait tablet; a phone held sideways still scrolls past it. On a 390 px phone with the site's margins, the card is 286 px
+      wide, up from 180 px. It does not go past the page's margins. The card's root class is `gf-vcard`, not
+      `gf-card`: the site's old booking module (`gf-booking.php`, not versioned) styles every `.gf-card` with
+      a white frame, padding and shadow. That frame shrank the card on a phone and left a 96 px gap under it
+      on every screen size.
     - **Wide block, sticky card** (choices 3, 4). The block needs about 1 100 px of room on the « Offrir un
       bon cadeau » page. The block's own « Large » setting (`align: wide`) is not enough on that page: it
       sits in a theme group, and the group's `gf-section-narrow` class caps it at 820 px. So both pages,
@@ -816,7 +824,10 @@ Rules are identities: a rule is never renumbered, new rules are appended
       content; the change was made on 2026-11-26 and checked on the live site. From 900 px of block the card column is 400 px, so
       the back's body text reads at about 11 px; between 600 and 900 px it is 34 % of the block as before.
       From 600 px the card column is sticky, under the theme's fixed header
-      (`top: var(--gf-sticky-top, 96px)`; supersedes rule 62's « not sticky »). « Agrandir » opens the card
+      (`top: var(--gf-sticky-top, 96px)`; supersedes rule 62's « not sticky »). The site sets
+      `--gf-sticky-top` to its header's height plus 16 px. Solio's header is 65 px up to 1 080 px and
+      110 px above that, when the menu wraps. Without the variable, the card's top edge slides 14 px
+      under that header. « Agrandir » opens the card
       in a dialog (≈ 460 px wide, Escape and « Fermer » close it, focus returns to the button), where a click
       turns it.
     - **After payment, the same card with the real code and the real QR code** (choice 6). The order status

@@ -3,7 +3,7 @@ Contributors: adrien
 Tags: booking, availability, quote, gutenberg
 Requires at least: 6.4
 Requires PHP: 8.0
-Stable tag: 1.26.0
+Stable tag: 1.26.1
 License: GPLv2 or later
 
 Affiche les disponibilités, calcule des devis et envoie des demandes de réservation vers GuestFlow via son API publique.
@@ -36,6 +36,9 @@ Non. Elle est lue uniquement côté serveur (constante `wp-config` ou option mas
 Non. Elle crée un devis « brouillon » côté GuestFlow, que l'administrateur revoit puis convertit éventuellement en réservation.
 
 == Changelog ==
+
+= 1.26.1 =
+* Bon cadeau : sur téléphone, la carte prend la largeur du formulaire (420 px au plus) et ne reprend plus le cadre `.gf-card` d'un thème.
 
 = 1.26.0 =
 * Réserver une séance : « Ajouter à la séance » propose les options choisies dans GuestFlow, chacune avec son unité et le prix de chaque quantité, comme pour un bon cadeau ; la limite s’écrit « N au maximum par séance ».
