@@ -226,7 +226,7 @@ Rules are identities: a rule is never renumbered, new rules are appended
       read « Valable N mois à compter du paiement, pour une séance à réserver en ligne. » — never the
       lodging wording « Un montant au choix… en une ou plusieurs fois », which a voucher settled
       whole in one session would contradict.
-18. The giver fills « Pour », « De la part de », a message, and an e-mail. They accept the terms of
+18. The giver fills « Prénom » and « Nom » of the recipient (both required, amended 2026-11-26 by `specs/site-outside-resource-booking.md` rule 32), « De la part de », a message, and an e-mail. They accept the terms of
     the voucher's activity (rule 37) and pay. There is no field for the merchant card number.
 19. **Nothing exists before the payment** (unchanged rule of `specs/gift-vouchers.md`).
     - The order is priced again by the engine at the moment of the payment link. The link lives one
@@ -427,7 +427,7 @@ Rules are identities: a rule is never renumbered, new rules are appended
 41. **« Nouveau bon » is a page as rich as the site** (revised 2026-11-18).
     - It offers the same choices as the giver's tunnel, in the same order and a close layout: a
       campaign on sale or « Sur mesure » (rule 46); the band and included time read from the
-      campaign; the extra time; the add-ons with quantities; « Pour », « De la part de », the
+      campaign; the extra time; the add-ons with quantities; « Prénom » and « Nom » of the recipient (both required, `specs/site-outside-resource-booking.md` rule 32), « De la part de », the
       message, the e-mail; the server's recap with the VAT per rate.
     - **It takes the same server path as the site** (rule 52): the same offer payload, the same
       pricing call, the same order and issuance code. Nothing is computed or re-described on the
@@ -780,7 +780,7 @@ Rules are identities: a rule is never renumbered, new rules are appended
       the back is drawn in HTML, millimetre for millimetre, as `voucherPdf.js` draws the voucher's back
       (rule 21): logo, « BON CADEAU », the rule, « Pour l’utiliser », QR code + « Scannez pour réserver
       votre cadeau ou suivez ce lien : » + the printed link, « Votre bon comprend : » and its lines (at most
-      7, each at most 2 lines), « Pour X de la part de Y » (2 lines), the message in italics (4 lines),
+      7, each at most 2 lines), « Pour X de la part de Y » (2 lines; X is the recipient's first name only, as the PDF prints it — the last name is never drawn), the message in italics (4 lines),
       « Votre code », the code, « Valable jusqu’au … », the footer (name · town, website) and the vertical
       legal mention. Same fonts as the PDF (Source Serif 4 Semibold, Source Sans 3 Regular / Semibold /
       Italic), shipped by the WordPress plugin as Latin subsets. A text too long is cut with an ellipsis, as
@@ -798,8 +798,8 @@ Rules are identities: a rule is never renumbered, new rules are appended
       encodes the site's home page (the company website), and a small « Aperçu » pill sits in the corner of
       the back. The code reads « XXXX-XXXX-XXXX-XXXX » in grey with « délivré après le paiement » under it
       (choice 5).
-    - **The card turns by itself** (choice 2) to its back when the buyer types in « Pour », « De la part
-      de » or « Un mot », or changes the extra time or an add-on; it comes back to its front when another
+    - **The card turns by itself** (choice 2) to its back when the buyer types in « Prénom » or « Nom » of
+      the recipient, « De la part de » or « Un mot », or changes the extra time or an add-on; it comes back to its front when another
       campaign is chosen. The control stays usable at any time. On a narrow block (< 600 px, a phone) the
       card is above the form, out of sight while typing: it does not turn by itself there; a « Voir le verso
       du bon » link under « Un mot » turns it and scrolls back to it.
@@ -827,7 +827,7 @@ Rules are identities: a rule is never renumbered, new rules are appended
       The wide / narrow switch (auto-turn) measures the block's content box, as the stylesheet's container query does. In the zoom,
       Tab and Shift+Tab cycle between the card and « Fermer ». A test holds the layout and the stylesheet together: every custom
       property the page derives from `layout` is read by `style.css` and every one `style.css` reads is produced. The company read
-      (logo included) is kept 60 s server-side. Gift-vouchers plugin 1.7.0, WordPress plugin 1.24.0.
+      (logo included) is kept 60 s server-side. Gift-vouchers plugin 1.8.0, WordPress plugin 1.25.0.
     - **Motion:** the turn is a 3D rotation of 0.6 s (`cubic-bezier(.2, .8, .2, 1)`), interruptible (a CSS
       transition); under `prefers-reduced-motion` it is a cross-fade with no rotation.
     - **A logo** is served at `/public/v1/gift-vouchers/logo?v=<hash>` (PNG, the PDF's own `logoOf`, cached
@@ -909,7 +909,7 @@ Rules are identities: a rule is never renumbered, new rules are appended
 | `includes/class-gf-redirects.php` | C | Permanent paths (rule 9) |
 | `includes/class-gf-rest-proxy.php` | T | New routes; `PLUGIN_INACTIVE` → empty render (rule 40) |
 | `includes/class-gf-rest-proxy.php` | T | `/gift-vouchers/campaigns/<slug>/visual`: the front's bytes and cache header as they come (rule 62) |
-| `assets/voucher-card.js` (new), `assets/fonts/` (new, Latin subsets + OFL), `blocks/gift-voucher/view.js`, `assets/style.css`, `includes/class-gf-blocks.php`, `includes/class-gf-rest-proxy.php`, `languages/*en_GB.{po,mo}`, plugin 1.24.0 | C/T | The card that turns, front and back, before and after payment; the grey ticket removed; `/gift-vouchers/logo` and `/gift-vouchers/orders/:id/front` proxied (rule 66) |
+| `assets/voucher-card.js` (new), `assets/fonts/` (new, Latin subsets + OFL), `blocks/gift-voucher/view.js`, `assets/style.css`, `includes/class-gf-blocks.php`, `includes/class-gf-rest-proxy.php`, `languages/*en_GB.{po,mo}`, plugin 1.25.0 | C/T | The card that turns, front and back, before and after payment; the grey ticket removed; `/gift-vouchers/logo` and `/gift-vouchers/orders/:id/front` proxied (rule 66) |
 
 ### 4.4 API contract
 
@@ -922,7 +922,7 @@ Public (existing key guard, proof of work on writes):
 | GET | `/public/v1/gift-vouchers/orders/:id/front?token=` | — | The voucher's frozen front as the 720 px web JPEG (`private, no-store`), 404 when none (rule 66) |
 | GET | `/public/v1/gift-vouchers/logo?v=<hash>` | — | The company logo as PNG (immutable), 404 when none (rule 66) |
 | POST | `/public/v1/gift-vouchers/offer/price` | `{ slug, extraMinutes, addOns:[{ articleRef, qty }] }` | `{ lines, totalCents, extrasCents, vat:[{ rate, cents }] }` (`extrasCents`: rule 64) |
-| POST | `/public/v1/gift-vouchers/orders` | as today + `slug`, `extraMinutes`, `addOns`, `termsVersionId` | as today |
+| POST | `/public/v1/gift-vouchers/orders` | as today + `slug`, `extraMinutes`, `addOns`, `termsVersionId`; `recipientFirstName`, `recipientLastName` replace `recipientName` (required; refusals `RECIPIENT_FIRST_NAME_REQUIRED`, `RECIPIENT_LAST_NAME_REQUIRED` with their `field`) | as today |
 | POST | `/public/v1/gift-vouchers/use` | `{ code }` | `{ kind, contents, names, expiresOn, addOns, extraTime, horizonUntil }` or a refusal — `addOns`/`extraTime` priced as in `/offer` (rule 64) |
 | POST | `/public/v1/gift-vouchers/use/slots` | `{ code, from, to }` | `{ days:[{ date, slots:[{ start, end, tag, supplementCents }] }] }` |
 | POST | `/public/v1/gift-vouchers/use/quote` | `{ code, start: 'YYYY-MM-DDTHH:MM', extraMinutes, addOns }` | `{ included, extras, extrasCents, extraTimePrices:[{ minutes, cents }], dueCents, vat }` (`extrasCents`, `extraTimePrices`: rule 64) |

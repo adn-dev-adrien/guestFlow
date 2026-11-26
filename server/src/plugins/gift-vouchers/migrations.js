@@ -273,6 +273,13 @@ const usesRef = (db) => {
   db.exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_gift_voucher_uses_ref ON gift_voucher_uses(ref)');
 };
 
+// specs/site-outside-resource-booking.md rules 32-33 — the recipient in two fields. `recipientName` stays, as the first name, for every reader that prints it; an order made before keeps its name as the first name and has no last name.
+const recipientNames = (db) => {
+  addColumn(db, 'gift_voucher_orders', 'recipientFirstName', "TEXT NOT NULL DEFAULT ''");
+  addColumn(db, 'gift_voucher_orders', 'recipientLastName', "TEXT NOT NULL DEFAULT ''");
+  db.exec("UPDATE gift_voucher_orders SET recipientFirstName = recipientName WHERE recipientFirstName = '' AND recipientName != ''");
+};
+
 const MIGRATIONS = Object.freeze([
   { name: 'gift_vouchers_tables_v1', up: (db) => db.exec(TABLES_SQL) },
   { name: 'gift_vouchers_vat_v1', up: (db) => db.exec(VAT_SQL) },
@@ -281,6 +288,7 @@ const MIGRATIONS = Object.freeze([
   { name: 'gift_voucher_uses_v1', up: (db) => db.exec(USES_SQL) },
   { name: 'gift_voucher_uses_people_v2', up: usesPeople },
   { name: 'gift_voucher_uses_ref_v3', up: usesRef },
+  { name: 'gift_voucher_recipient_names_v4', up: recipientNames },
 ]);
 
 module.exports = { MIGRATIONS, TABLES: Object.freeze([...TABLES, 'gift_voucher_campaigns', 'gift_voucher_visuals', 'gift_voucher_visual_versions', 'gift_voucher_refunds', 'gift_voucher_uses', 'gift_voucher_unused']) };

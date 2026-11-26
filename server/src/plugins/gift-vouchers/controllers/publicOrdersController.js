@@ -35,6 +35,8 @@ const MESSAGES = Object.freeze({
   AMOUNT_INVALID: { fr: 'Montant invalide.', en: 'Invalid amount.' },
   VOUCHER_AMOUNT_OUT_OF_BOUNDS: { fr: 'Montant hors des bornes.', en: 'The amount is out of bounds.' },
   EMAIL_INVALID: { fr: 'Adresse e-mail invalide.', en: 'Invalid e-mail address.' },
+  RECIPIENT_FIRST_NAME_REQUIRED: { fr: 'Le prénom du destinataire est demandé.', en: 'The recipient’s first name is required.' },
+  RECIPIENT_LAST_NAME_REQUIRED: { fr: 'Le nom du destinataire est demandé.', en: 'The recipient’s last name is required.' },
   TERMS_NOT_ACCEPTED: { fr: 'Les conditions doivent être acceptées.', en: 'The terms must be accepted.' },
   TERMS_OUTDATED: { fr: 'Les conditions ont changé : relire et accepter la dernière version.', en: 'The terms have changed: please read and accept the latest version.' },
   TERMS_UNPUBLISHED: {
@@ -51,10 +53,11 @@ const MESSAGES = Object.freeze({
 });
 
 class Refusal extends Error {
-  constructor(refusalCode, message = null) {
+  constructor(refusalCode, message = null, field = null) {
     super(refusalCode);
     this.code = refusalCode;
     this.detail = message;
+    this.field = field;
   }
 }
 
@@ -69,17 +72,17 @@ function buildPublicOrdersController({
     return stated === 'en' ? 'en' : 'fr';
   };
   // A refusal of this controller has its sentence in both languages; one of the sale service (an offer closed, a price the engine refuses) carries its own, in French.
-  const refuse = (req, res, refusalCode, headers = {}, detail = null) => {
+  const refuse = (req, res, refusalCode, headers = {}, detail = null, field = null) => {
     Object.entries(headers).forEach(([k, v]) => res.set(k, String(v)));
     const words = MESSAGES[refusalCode];
-    return respond.fail(res, STATUS[refusalCode] || statusOf(refusalCode), refusalCode, words ? words[langOf(req)] : detail);
+    return respond.fail(res, STATUS[refusalCode] || statusOf(refusalCode), refusalCode, words ? words[langOf(req)] : detail, field ? [{ field }] : undefined);
   };
   const guarded = (handler) => async (req, res) => {
     try {
       return await handler(req, res);
     } catch (error) {
       if (!(error instanceof Refusal)) throw error;
-      return refuse(req, res, error.code, {}, error.detail);
+      return refuse(req, res, error.code, {}, error.detail, error.field);
     }
   };
   const requestOf = (body) => Object.fromEntries(REQUEST_KEYS.filter((k) => body[k] !== undefined).map((k) => [k, body[k]]));
@@ -190,8 +193,8 @@ function buildPublicOrdersController({
     if (!proof(req).ok) throw new Refusal('CHALLENGE_INVALID');
     const visitorHash = visitorHashOf(pepper(), ipOf(req));
     if (orders.countSince(visitorHash, HOUR_MS) >= ORDERS_PER_HOUR) return refuse(req, res, 'TOO_MANY_ORDERS', { 'Retry-After': HOUR_MS / 1000 });
-    const parties = offerService.partiesOf(body, { emailRequired: true });
-    if (!parties.ok) throw new Refusal(parties.code);
+    const parties = offerService.partiesOf(body, { emailRequired: true, legacyName: true });
+    if (!parties.ok) throw new Refusal(parties.code, null, parties.field);
     const found = offerService.activityOf(requestOf(body));
     if (!found.ok) throw new Refusal(found.code, found.message);
     const current = requireTerms(found.activity, body.termsVersionId);

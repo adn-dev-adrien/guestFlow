@@ -67,7 +67,7 @@ test('rule 64 — a campaign with no extra time offers none and no price table f
 test('rule 64 — « Utiliser un bon » reads the same figures: the add-ons not held yet and the extra-time steps, priced as the offer prices them', async () => {
   const out = api.offerService.issueDirect({
     request: { slug: bath.slug },
-    parties: { recipientName: '', senderName: 'Paul', message: '', email: '', language: 'fr' },
+    parties: { recipientFirstName: '', recipientLastName: '', senderName: 'Paul', message: '', email: '', language: 'fr' },
     outcome: 'paid',
     paymentMethod: 'cash',
     actor: 'user:7',
@@ -109,7 +109,7 @@ const day = (n) => new Date(Date.parse(`${MONDAY}T12:00:00Z`) + n * 86400000).to
 const VISITOR = { ip: '10.0.0.9' };
 const issueAndCode = (request) => {
   const out = api.offerService.issueDirect({
-    request, parties: { recipientName: '', senderName: 'Paul', message: '', email: '', language: 'fr' }, outcome: 'paid', paymentMethod: 'cash', actor: 'user:7',
+    request, parties: { recipientFirstName: '', recipientLastName: '', senderName: 'Paul', message: '', email: '', language: 'fr' }, outcome: 'paid', paymentMethod: 'cash', actor: 'user:7',
   });
   assert.equal(out.ok, true, JSON.stringify(out));
   return sdk.coreModule('encryption').safeDecrypt(api.vouchers.find(out.voucherId).codeEncrypted).value;

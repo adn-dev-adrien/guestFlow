@@ -1128,3 +1128,22 @@ msgstr "Preview"
 #: assets/voucher-card.js, includes/class-gf-blocks.php (specs/gift-voucher-campaigns.md rule 66)
 msgid "Voir le verso du bon"
 msgstr "See the back of the voucher"
+
+msgid "Valable jusqu’au %s, pour une séance à réserver en ligne. Ni repris ni échangé contre de l’argent."
+msgstr "Valid until %s, for a session to book online. Not refundable or exchangeable for cash."
+
+#: blocks/gift-voucher, includes/class-gf-blocks.php (specs/site-outside-resource-booking.md rule 32)
+msgid "Saisissez le prénom de la personne à qui le bon est offert."
+msgstr "Enter the first name of the person the voucher is for."
+
+#: blocks/gift-voucher, includes/class-gf-blocks.php (specs/site-outside-resource-booking.md rule 32)
+msgid "Saisissez son nom."
+msgstr "Enter their last name."
+
+#: blocks/session-booking, includes/class-gf-blocks.php (specs/site-outside-resource-booking.md rule 29)
+msgid "Choisissez un horaire"
+msgstr "Choose a time"
+
+#: blocks/session-booking, includes/class-gf-blocks.php (specs/site-outside-resource-booking.md rule 30)
+msgid "inclus dans le bon"
+msgstr "included in the voucher"

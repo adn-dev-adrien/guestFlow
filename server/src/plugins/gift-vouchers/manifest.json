@@ -1,7 +1,7 @@
 {
   "id": "gift-vouchers",
   "name": "Bons cadeaux",
-  "version": "1.7.0",
+  "version": "1.8.0",
   "description": "Des bons cadeaux vendus en ligne, au téléphone ou par carte commerçant : un montant pour un séjour, ou un contenu composé (bain nordique et options) réservé en ligne par le bénéficiaire.",
   "icon": "gift",
   "surfaces": [
@@ -19,10 +19,16 @@
   "guestflow": ">=3.10.0",
   "sdk": "^2.35.0",
   "changelog": {
-    "1.7.0": [
+    "1.8.0": [
       "Le site montre le bon tel que le client le recevra : la carte se retourne et son verso est dessiné comme celui du PDF (logo, QR code, contenu, nom, mot, code, validité).",
       "L’offre publique envoie ce verso (dimensions du PDF, textes fixes, lignes de chaque campagne, validité d’un achat du jour) et le logo de l’établissement ; la page après paiement reçoit le verso avec le vrai QR code du bon.",
       "Sans site web renseigné, l’offre n’envoie pas de verso et le site n’affiche que le recto.",
+      "Demande le SDK 2.35 de GuestFlow."
+    ],
+    "1.7.0": [
+      "Le bénéficiaire d’un bon se renseigne en deux champs obligatoires, « Prénom » et « Nom », à l’achat sur le site comme dans « Nouveau bon » ; la liste des bons les affiche et les cherche tous les deux.",
+      "Le bon imprimé, les mails et le parcours n’annoncent que le prénom du bénéficiaire, comme avant ; un bon vendu avant garde son nom comme prénom.",
+      "À l’ouverture d’un bon de séance, le site reçoit le prénom et le nom du bénéficiaire pour préremplir sa réservation.",
       "Demande le SDK 2.35 de GuestFlow."
     ],
     "1.6.0": [

@@ -113,13 +113,17 @@
     return lines;
   }
 
+  // A line a voucher holds, as the server lists it (`contents` once the code is accepted, `included` once a slot is quoted): « 0 € » and why it is nothing.
+  function includedLine(line) {
+    return GF.el('div', { class: 'gf-sb-summary-line is-included' },
+      GF.el('span', {}, (line.qty > 1 ? line.qty + ' × ' : '') + line.label, line.detail ? GF.el('small', {}, line.detail) : null),
+      GF.el('span', {}, money(0), GF.el('small', {}, GF.t('sbIncludedIn'))));
+  }
+
   // The recap of a session paid online (its parts), or of one a voucher covers (what the voucher includes, the evening supplement, the extras).
   function recapOf(recap) {
     if (recap.parts) return recapLines(recap.parts, recap.extras);
-    var lines = (recap.included || []).map(function (line) {
-      return GF.el('div', { class: 'gf-sb-summary-line is-included' },
-        GF.el('span', {}, (line.qty > 1 ? line.qty + ' × ' : '') + line.label, line.detail ? GF.el('small', {}, line.detail) : null), GF.el('span', {}, GF.t('sbIncludedShort')));
-    });
+    var lines = (recap.included || []).map(includedLine);
     if (recap.supplement) lines.push(GF.el('div', { class: 'gf-sb-summary-line' }, GF.el('span', {}, recap.supplement.label), GF.el('span', {}, GF.euro(recap.supplement.cents / 100))));
     return lines.concat(recapLines([], recap.extras));
   }
@@ -151,7 +155,7 @@
     var proof = GF.voucherProof();
     var st = {
       resources: resources, res: null, minutes: 0, people: 2, month: '', days: {}, day: '', slot: null, qty: {}, quote: null,
-      voucher: null, code: '', horizonUntil: null, busy: false, tried: false,
+      voucher: null, code: '', horizonUntil: null, busy: false, tried: false, missing: false, filled: { firstName: '', lastName: '' },
     };
     var slotsSeq = 0;
     var quoteSeq = 0;
@@ -250,6 +254,7 @@
         codeInput.value = '';
         if (!st.res || st.res.id !== target.id) choose(target); else reset();
         paintVoucher();
+        prefill(data);
       });
     }
 
@@ -266,6 +271,7 @@
       var drop = GF.el('button', { type: 'button', class: 'gf-btn gf-btn-line' }, GF.t('sbRemove'));
       drop.addEventListener('click', function () {
         st.voucher = null; st.code = '';
+        unfill();
         if (st.res && st.res.voucherOnly) st.res = resources[0] || null;
         if (st.res) reset();
         paintVoucher();
@@ -295,7 +301,7 @@
       durationBox.appendChild(GF.el('div', { class: 'gf-sb-lbl' }, GF.el('b', {}, GF.t('sbDuration')), durationHint));
       durationBox.appendChild(GF.voucherStepper({
         value: st.minutes, min: min, max: r.maxMinutes, step: r.stepMinutes, name: GF.t('sbDuration'), format: GF.voucherDuration,
-        onChange: function (n) { st.minutes = n; st.slot = null; st.quote = null; loadSlots(); paintAll(); },
+        onChange: function (n) { st.minutes = n; st.slot = null; st.quote = null; st.missing = false; loadSlots(); paintAll(); },
       }));
       peopleBox.appendChild(GF.el('div', { class: 'gf-sb-lbl' }, GF.el('b', {}, GF.t('sbPeople')), GF.el('span', {}, GF.t('sbPeopleHint', String(r.maxPeople)))));
       peopleBox.appendChild(GF.voucherStepper({
@@ -398,7 +404,7 @@
           type: 'button', class: 'gf-sb-slot' + tag.cls, 'data-start': slot.start, 'aria-pressed': st.slot === slot.start ? 'true' : 'false',
         }, GF.el('b', {}, slot.start + ' – ' + slot.end), GF.el('span', {}, tag.text));
         if (slot.taken) btn.disabled = true;
-        else btn.addEventListener('click', function () { st.slot = slot.start; paintSlots(); requote(); });
+        else btn.addEventListener('click', function () { st.slot = slot.start; st.missing = false; paintSlots(); requote(); });
         slotsBox.appendChild(btn);
       });
     }
@@ -523,6 +529,26 @@
     whoSection.appendChild(termsErr);
     whoSection.appendChild(alertBox);
 
+    // The voucher's recipient fills the contact's names, only into empty fields and only when the voucher holds both (rule 31); never the e-mail, the phone or the people.
+    function prefill(data) {
+      var names = { firstName: data.recipientFirstName, lastName: data.recipientLastName };
+      if (!names.firstName || !names.lastName) return;
+      [['firstName', firstInput], ['lastName', lastInput]].forEach(function (pair) {
+        if (pair[1].value.trim()) return;
+        pair[1].value = names[pair[0]];
+        st.filled[pair[0]] = names[pair[0]];
+        setError(pair[0], '');
+      });
+    }
+    function unfill() {
+      [['firstName', firstInput], ['lastName', lastInput]].forEach(function (pair) {
+        if (st.filled[pair[0]] && pair[1].value === st.filled[pair[0]]) pair[1].value = '';
+        st.filled[pair[0]] = '';
+      });
+    }
+    firstInput.addEventListener('input', function () { st.filled.firstName = ''; });
+    lastInput.addEventListener('input', function () { st.filled.lastName = ''; });
+
     function paintTerms() {
       var text = termsLabel.querySelector('.gf-sb-terms-text');
       text.innerHTML = '';
@@ -544,13 +570,12 @@
       var q = st.quote;
       summary.appendChild(GF.el('div', { class: 'gf-summary-head' }, st.res ? st.res.name : ''));
       var when = st.day && st.slot && q ? longDay(q.date) + ' · ' + q.start + ' – ' + q.end + ' · ' + GF.t('sbPeopleShort', st.people) : GF.t('sbSummaryEmpty');
-      summary.appendChild(GF.el('div', { class: 'gf-summary-dates' }, failure || when));
+      var missing = !failure && !(st.day && st.slot && q) && st.missing;
+      summary.appendChild(GF.el('div', { class: 'gf-summary-dates' + (missing ? ' is-missing' : ''), role: 'status' }, failure || when));
+      if (!q && st.voucher) (st.voucher.contents || []).forEach(function (line) { summary.appendChild(includedLine(line)); });
       if (q) {
         if (st.voucher) {
-          (q.included || []).forEach(function (line) {
-            summary.appendChild(GF.el('div', { class: 'gf-sb-summary-line is-included' },
-              GF.el('span', {}, (line.qty > 1 ? line.qty + ' × ' : '') + line.label, line.detail ? GF.el('small', {}, line.detail) : null), GF.el('span', {}, GF.t('sbIncludedShort'))));
-          });
+          (q.included || []).forEach(function (line) { summary.appendChild(includedLine(line)); });
           if (q.supplement) summary.appendChild(GF.el('div', { class: 'gf-sb-summary-line' }, GF.el('span', {}, q.supplement.label), GF.el('span', {}, GF.euro(q.supplement.cents / 100))));
           (q.extras || []).forEach(function (e) {
             summary.appendChild(GF.el('div', { class: 'gf-sb-summary-line' },
@@ -566,7 +591,6 @@
       paintButton(go);
       go.addEventListener('click', onGo);
       summary.appendChild(go);
-      summary.appendChild(GF.el('p', { class: 'gf-sb-hold' }, q && dueOf(q) > 0 ? GF.t('sbHold') : ''));
     }
 
     function labelOf() {
@@ -673,7 +697,11 @@
 
     function onGo() {
       if (st.busy) return;
-      if (!st.slot || !st.quote) { scrollTo(dateSection); return; }
+      if (!st.slot || !st.quote) {
+        if (!st.slot) { st.missing = true; paintSummary(); }
+        scrollTo(dateSection);
+        return;
+      }
       showAlert('');
       st.tried = true;
       if (!validate()) return;
@@ -684,6 +712,7 @@
     // ── Choosing the activity resets the session; removing the voucher too ──
     function reset() {
       var r = st.res;
+      st.missing = false;
       st.minutes = st.voucher ? st.voucher.resource.minutes : r.minMinutes;
       st.people = Math.min(Math.max(1, st.people), r.maxPeople);
       st.slot = null; st.quote = null; st.day = '';
@@ -697,7 +726,7 @@
     }
 
     function choose(r) {
-      if (st.voucher && st.voucher.resource.id !== r.id) { st.voucher = null; st.code = ''; paintVoucher(); }
+      if (st.voucher && st.voucher.resource.id !== r.id) { st.voucher = null; st.code = ''; unfill(); paintVoucher(); }
       st.res = r;
       st.people = Math.min(st.people, r.maxPeople);
       paintActivities();

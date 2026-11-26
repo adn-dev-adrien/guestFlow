@@ -152,7 +152,7 @@ test('rule 66: on a wide block the card turns to its back as the buyer types in 
   setup({ width: 1000 });
   await screen.findByText('Le bon comprend');
   expect(face()).toBe('front');
-  type(/^Pour/, 'Marie');
+  type(/^Prénom/, 'Marie');
   expect(face()).toBe('back');
   type(/^De la part de/, 'Paul');
   type(/^Un mot/, 'Joyeux anniversaire');
@@ -161,10 +161,21 @@ test('rule 66: on a wide block the card turns to its back as the buyer types in 
   expect(texts('.gf-card-flip .gf-v-item')).toEqual(['• Bain nordique : 2 h en journée', '• Planche apéro']);
 });
 
-test('rule 66: each of the three fields turns the card by itself, and the control still turns it back', async () => {
+test('rule 66: the recipient\'s last name turns the card too, and the back prints the first name only, as the PDF does', async () => {
   setup();
   await screen.findByText('Le bon comprend');
-  ['Un mot', 'De la part de'].forEach((label) => {
+  type(/^Nom/, 'Durand');
+  expect(face()).toBe('back');
+  expect(document.querySelector('.gf-card-flip .gf-v-parties').hidden).toBe(true);
+  type(/^Prénom/, 'Marie');
+  expect(texts('.gf-card-flip .gf-v-parties')).toEqual(['Pour Marie']);
+  expect(document.querySelector('.gf-card-flip').textContent).not.toContain('Durand');
+});
+
+test('rule 66: each of the other fields turns the card by itself, and the control still turns it back', async () => {
+  setup();
+  await screen.findByText('Le bon comprend');
+  ['Un mot', 'De la part de', 'Nom'].forEach((label) => {
     fireEvent.click(screen.getByRole('button', { name: 'Recto' }));
     expect(face()).toBe('front');
     type(new RegExp(`^${label}`), 'x');
@@ -178,7 +189,7 @@ test('rule 66: each of the three fields turns the card by itself, and the contro
 test('rule 66: on a narrow block the card does not turn by itself; « Voir le verso du bon » turns it', async () => {
   setup({ width: 420 });
   await screen.findByText('Le bon comprend');
-  type(/^Pour/, 'Marie');
+  type(/^Prénom/, 'Marie');
   type(/^Un mot/, 'Bravo');
   expect(face()).toBe('front');
   expect(texts('.gf-card-flip .gf-v-parties')).toEqual(['Pour Marie']);
@@ -246,7 +257,7 @@ test('rule 66: « Agrandir » opens the card in a dialog; a click turns it, Esca
 test('rule 66: « Fermer » closes the dialog too, and the dialog follows what the buyer typed', async () => {
   setup();
   await screen.findByText('Le bon comprend');
-  type(/^Pour/, 'Marie');
+  type(/^Prénom/, 'Marie');
   fireEvent.click(screen.getByRole('button', { name: 'Agrandir' }));
   expect(texts('.gf-card-zoom .gf-v-parties')).toEqual(['Pour Marie']);
   fireEvent.click(screen.getByRole('button', { name: 'Fermer' }));
@@ -258,7 +269,7 @@ test('rule 66: choosing another campaign draws a new card on its front', async (
   await screen.findByText('Séjours');
   fireEvent.click(document.querySelector('.gf-gv-offer[data-slug="bain-jour"]'));
   await screen.findByText('Le bon comprend');
-  type(/^Pour/, 'Marie');
+  type(/^Prénom/, 'Marie');
   expect(face()).toBe('back');
   fireEvent.click(document.querySelector('.gf-gv-switch-opt[data-slug="sejour"]'));
   await screen.findByLabelText(/Montant/);
@@ -279,7 +290,7 @@ test('rule 66: an offer with no back (the company has no website) draws the fron
   expect(document.querySelector('.gf-verso')).toBeNull();
   expect(document.querySelector('.gf-card-bar')).toBeNull();
   expect(document.querySelector('.gf-gv-peek')).toBeNull();
-  type(/^Pour/, 'Marie');
+  type(/^Prénom/, 'Marie');
   expect(face()).toBe('front');
 });
 
@@ -299,12 +310,12 @@ test('rule 66: the wide / narrow switch measures the block\'s content box, like 
   // 640 px wide with 20 px of padding each side is 600 px of content: wide. 639 px is 599: narrow.
   setup({ width: 640, padding: 20 });
   await screen.findByText('Le bon comprend');
-  type(/^Pour/, 'Marie');
+  type(/^Prénom/, 'Marie');
   expect(face()).toBe('back');
   document.body.innerHTML = '';
   setup({ width: 639, padding: 20 });
   await screen.findByText('Le bon comprend');
-  type(/^Pour/, 'Marie');
+  type(/^Prénom/, 'Marie');
   expect(face()).toBe('front');
 });
 
@@ -361,7 +372,7 @@ test('rule 66: nothing can drift — every custom property the card code derives
 test('rule 66: a template is filled once, with the value taken literally', async () => {
   setup();
   await screen.findByText('Le bon comprend');
-  type(/^Pour/, 'Marie $& {name}');
+  type(/^Prénom/, 'Marie $& {name}');
   expect(texts('.gf-card-flip .gf-v-parties')).toEqual(['Pour Marie $& {name}']);
 });
 

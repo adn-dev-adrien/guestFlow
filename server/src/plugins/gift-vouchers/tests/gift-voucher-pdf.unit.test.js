@@ -77,7 +77,7 @@ test('rule 22: the PDF of a voucher sold by hand is drawn from the stored vouche
   const fixture = fx.buildApi();
   const server = await fx.start(fixture);
   try {
-    const v = await fx.issueManual(server, { recipientName: 'W'.repeat(40), message: 'x'.repeat(200) });
+    const v = await fx.issueManual(server, { recipientFirstName: 'W'.repeat(40), recipientLastName: 'W'.repeat(40), message: 'x'.repeat(200) });
     const res = await server.call('GET', `/api/gift-vouchers/${v.id}/pdf`);
     assert.equal(res.status, 200);
     assert.equal(pages(res.body), 2);
