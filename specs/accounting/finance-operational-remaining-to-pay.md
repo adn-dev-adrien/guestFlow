@@ -10,6 +10,8 @@
 
 > **Reviewed 2026-11-26 (spec reorganization).** The « Paiements en attente » tab is gone; its table is `client/src/components/OperationalPaymentsTable.jsx`, opened by the tiles of `specs/accounting/finance-dashboard-redesign.md`. The money rules (3, 7) are live in `utils/reservationSettlement.js`.
 
+> **Reviewed 2026-11-26 (rule-by-rule money audit).** Rules 2-3 rewritten to the current `remainingToPay` (caisse-interne acompte/solde, commission net, installments, split shortfall).
+
 ---
 
 ## 1. Context
@@ -44,16 +46,20 @@ fiche.
 1. The pending table shows, per reservation, four bucket cells in this order: **Acompte**,
    **Solde**, **Complément**, **Complément de fin de séjour**.
 2. **Per-bucket colour:**
-   - Settled → green. A bucket is settled when: deposit is paid OR disabled OR amount 0; balance
-     is paid OR amount 0; a complement is paid OR caisse-interne OR amount 0.
+   - Settled → green. A bucket is settled when: deposit is paid OR caisse-interne OR disabled OR amount 0;
+     balance is paid OR caisse-interne OR amount 0; a complement is paid OR caisse-interne OR amount 0
+     (acompte/solde caisse-interne: `specs/sas/collect-stay-payment-at-check-in.md` §3.4 rule 17).
    - Still owed (amount > 0 and not settled) → red.
    - Amount 0 / not applicable → a muted « — » (nothing to collect), not a red/green chip.
    - The deposit keeps its existing « Désactivé » caption when `depositDisabled`.
-3. **« Reste à payer » per reservation** = sum of the still-owed buckets only:
-   `(!depositDisabled && !depositPaid ? depositAmount : 0) + (!balancePaid ? balanceAmount : 0) +
-   (!complementPaid && !complementPaidCash ? complementAmount : 0) + (!endOfStayComplementPaid &&
-   !endOfStayComplementPaidCash ? endOfStayComplementAmount : 0)`. Computed **server-side**
-   (`remainingToPay`). Equals `0` exactly when the reservation `isSettled`.
+3. **« Reste à payer » per reservation** = sum of the still-owed buckets only, **net of the platform commission
+   of each unpaid échéance**: deposit (unless `depositDisabled`, `depositPaid` or `depositPaidCash`), balance
+   (unless `balancePaid` / `balancePaidCash`; net of `platformCommissionAmount` and `platformPenalty`), complément
+   and complément de fin de séjour (unless paid or `*PaidCash`), plus the unpaid installments of a plan
+   (`specs/payments/direct-installments.md` rule 5; 0 on a cancelled fiche) and the `splitShortfallDue` « reste à
+   percevoir » of a split payment (`specs/payments/mixed-method-payments.md` rule 16).
+   Computed **server-side** (`remainingToPay`, `utils/reservationSettlement.js`). Equals `0` exactly when the
+   reservation `isSettled`.
 4. **Footer + header totals** sum, across the pending list: deposit (non-disabled), balance,
    complément, complément de fin de séjour, **reste à payer** (Σ `remainingToPay`), total de séjour.
    The header chip « En attente de paiement » uses Σ `remainingToPay`.

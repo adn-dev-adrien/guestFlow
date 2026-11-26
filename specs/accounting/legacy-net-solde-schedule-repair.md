@@ -8,6 +8,8 @@
 | **Author** | Adrien |
 | **Related PR** | (link once opened) |
 
+> **Reviewed 2026-11-26 (rule-by-rule money audit).** Rule 2: the export's shape test now lives in `utils/accounting/legacyBucketSplit.js`, no longer in `accountingModel.buildEntry`; rules 1-6 otherwise match `utils/legacyNetSoldeRepair.js`.
+
 ---
 
 ## 1. Context
@@ -64,7 +66,7 @@ reads it.
      `finalPrice + taxe de séjour` by more than 0,02 €,
    - adding the total commission closes that gap to within 0,02 €.
 
-   This is `accountingModel.buildEntry`'s own test, character for character. The repair must never
+   This is the export's own test, character for character (`isLegacyNetSchedule` in `server/src/utils/accounting/legacyBucketSplit.js`, which moved there from `accountingModel.buildEntry`). The repair must never
    key on anything the export does not.
 3. **Each commission goes back into its own bucket**: the acompte commission into the acompte, the
    solde commission into the solde. The schedule then sums to `finalPrice + taxe de séjour`.

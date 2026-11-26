@@ -32,7 +32,7 @@ arrival/departure dialog, planning. Plugins are managed from a dedicated page, a
 | D1 | Plugin distribution | **Downloadable, as in Sowel**: a registry, one package per plugin, SHA-256 pinned, installed from the Plugins page. |
 | D2 | Tourist tax | **Stays in the core.** Not a plugin. |
 | D3 | Hosting | **One GuestFlow process per customer**, behind a control plane owned by the publisher (§9). |
-| D4 | Licence | **Proprietary licence and private repository** from the next version on; the WordPress plugin stays GPLv2+ in its own public repository (§10). |
+| D4 | Licence | _(Status 2026-11-26: the proprietary licence ships with PR #1112; the repository stays **public for now**, simpler for the CI; going private is still planned.)_ **Proprietary licence and private repository** from the next version on; the WordPress plugin stays GPLv2+ in its own public repository (§10). |
 | D5 | Solio's own instance | **Solio becomes customer #1** of the hosted platform, migrated from its current VM when the platform is ready. |
 | D6 | Core vs plugins | **12 plugins, everything else core** — see §5.3. Overrides the 18-candidate table of §5.2 where they differ. |
 | D7 | Target market | **France only**: admin UI in French, EUR only (§7). |

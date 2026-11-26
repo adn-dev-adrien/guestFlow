@@ -9,6 +9,9 @@
 | **Related PR** | #341 |
 
 > **Reviewed 2026-11-26 (spec reorganization).** The chart and its tabs are gone (replaced by the Suivi financier dashboard, `specs/accounting/finance-dashboard-redesign.md`); only the server aggregates `revenueByProperty` / `yearToDateByProperty` of `financeModel.getSummary` (rules 5-7, 9) are live.
+
+> **Reviewed 2026-11-26 (rule-by-rule money audit).** Rules 5-7 verified; the year-boundary edge case now says attribution date and exercise start, not `endDate` / January 1.
+
 ---
 
 ## 1. Context
@@ -55,8 +58,8 @@ du/au period and the year-to-date — with amounts explicitly TTC and their HT s
 - No properties in DB → both tabs show their empty state.
 - Caisse-interne complements and platform commissions → handled exactly like the global cards
   (inherited from `totalSejour`).
-- Year boundary: « Depuis le début de l'année » counts stays with `endDate ≤ today` only (a stay
-  ending later this year appears once it has ended).
+- Year boundary: `yearToDateByProperty` runs from the exercise start to today and counts the stays whose
+  attribution date is `≤ today` (`specs/accounting/fiscal-year-and-nights-sold.md` §3.2), not their `endDate`.
 
 ---
 

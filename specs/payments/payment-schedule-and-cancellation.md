@@ -9,6 +9,9 @@
 | **Related PR** | #451 |
 | **Amended** | 2026-08-20 — §3.7 rewritten (no automatic payment email); amendment status `Implemented` |
 
+> **Reviewed 2026-11-26 (rule-by-rule money audit).** Rule 15 now names the seventh row state (`installment_overdue`) and rule 44 the
+> full `PAYMENT_STABLE_KEYS` list; every other rule matches the code.
+
 ---
 
 ## 1. Context
@@ -165,7 +168,9 @@ acompte is kept as an indemnity, and the books say so correctly.
     days late, whether the guest was already asked, available actions); the client only renders it.
     Since the 2026-08-20 amendment it is also the **to-do list** that guarantees no request is
     forgotten — nothing else will send one.
-15. Six **guest-money** row states, most severe first. (The card also carries the two platform states
+15. Six **guest-money** row states, most severe first (a seventh, `installment_overdue`, belongs to a plan of
+    installments, rank between `balance_overdue` and `deposit_to_request`: [direct-installments.md](direct-installments.md)
+    rule 22, `paymentDeadlines.js`). (The card also carries the two platform states
     `platform_payout_overdue` and `platform_amount_missing` shipped by
     [platform-payout-due-date.md](../platforms/platform-payout-due-date.md); they describe money owed *by* an OTA,
     rank below every state here, and this amendment does not touch them.) A `*_to_request` state means
@@ -344,10 +349,12 @@ acompte is kept as an indemnity, and the books say so correctly.
     > n'emploie. La relance de solde dit la **date** à laquelle le solde était attendu, ce qui est
     > plus clair pour le client qu'un nombre de jours, et ne demande aucun calcul à l'email.
     > `daysLate` existe bien, mais sur la LIGNE du tableau de bord (règle 15), pas dans un email.
-44. **No scheduled task may send a money email — enforced, not just intended.** The four request /
+44. **No scheduled task may send a money email — enforced, not just intended.** The request /
     reminder stable keys are exported as `PAYMENT_STABLE_KEYS` from
-    `defaultEmailTemplatesRegistry.js`, and a unit test asserts that none of them ships with
-    `sendMode: 'auto'`. A future template that chases money joins that list. `cancellation_notice`
+    `defaultEmailTemplatesRegistry.js` (the four of this spec, joined since by `full_request`,
+    `installment_request` and `visit_payment_request`), and a unit test asserts that none of them ships with
+    `sendMode: 'auto'`; `autoSendPolicy` and the template editor enforce it at run time
+    ([direct-installments.md](direct-installments.md) rule 43). A future template that chases money joins that list. `cancellation_notice`
     stays outside the queue and the cron: it is emitted by the cancellation the operator confirmed.
 45. **Migration — the already-seeded rows must be flipped.** Templates are seeded once, so changing
     the registry does not touch a production database: `deposit_reminder` and `balance_reminder`

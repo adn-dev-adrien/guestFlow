@@ -9,7 +9,7 @@
 | **Related PR** | (link once opened) |
 | **Decision page** | `avant-apres.html` (folded into this spec, deleted 2026-11-26) — interactive before/after, the page Adrien opens to decide |
 | **Amended** | 2026-10-19 — summary page, four groups, search, sending server from the address (rules 24–28; UI/UX review 2026-10-18, proposal 20, decisions 12 and 14) — [summary and mock](../../docs/specs/2026-10-19-settings-summary-shortcut-menu.html) |
-| **Supersedes (UI layout only)** | [settings-submenu-reorg.md](settings-submenu-reorg.md) §5, [ds-sweep-settings.md](../design-system/ds-sweep-settings.md) §3.2 |
+| **Supersedes (UI layout only)** | the former `settings-submenu-reorg` spec (its live rules are rules 36-38 here), [ds-sweep-settings.md](../design-system/ds-sweep-settings.md) §3.2 |
 
 ---
 
@@ -391,6 +391,18 @@ one place.
 - A production row whose `smtpUsername` differs from `smtpFromEmail` → the migration keeps it as an
   explicit override; equal values become « derived » (stored `''`).
 - A legacy SMTP server on a non-standard port → no longer supported; the production value is 587.
+
+36. **« Jour de blanchisserie » lives on the « Blanchisserie » page** (`/parametres/stock-blanchisserie`), next to
+    the linen stock it relates to, not in Paramètres → Générale; one save bar covers the day and the stock.
+    _(Carried over 2026-11-26 from the deleted `settings-submenu-reorg` spec, rule 2.)_
+    > **Sans test** — carried over from `settings-submenu-reorg`, where no test cited it either.
+37. **« Vacances scolaires » and « Fermetures » are one menu entry, « Vacances & fermetures »**
+    (`/parametres/vacances-fermetures`), a tabbed page over the two views; `/school-holidays` and
+    `/establishment-closures` stay reachable directly but leave the menu. _(Carried over 2026-11-26 from
+    `settings-submenu-reorg` rule 3.)_
+38. **« Options » and « Ressources » are one menu entry, « Options & ressources »** (`/parametres/options-ressources`),
+    a tabbed page over the two views; `/options` and `/resources` stay reachable directly but leave the menu.
+    _(Carried over 2026-11-26 from `settings-submenu-reorg` rule 4.)_
 
 ## 4. Architecture
 

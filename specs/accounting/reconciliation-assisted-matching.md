@@ -10,6 +10,8 @@
 | **Extends** | [qonto-bank-reconciliation.md](qonto-bank-reconciliation.md) (v1, Implemented) — its rules 1–46 stand unless a rule below names one it revises |
 | **Summary page** | [docs/specs/2026-10-28-reconciliation-assisted-matching.html](../../docs/specs/2026-10-28-reconciliation-assisted-matching.html) — interactive mock-ups, 1280 and 390 px |
 
+> **Reviewed 2026-11-26 (rule-by-rule money audit).** Rule 17: the grouped-payout window now cites rule 42's stay-based window instead of the first version's « 3 days after ».
+
 **Why a new spec rather than more rules in v1.** v1 is Implemented, 46 rules long and its architecture
 table describes shipped files. This change adds three new surfaces (the fiche's linking dialog, bulk
 confirmation, platform penalties), two new endpoints families and a core data model (penalties). Appending
@@ -182,9 +184,10 @@ on the right account, on the fiche, in the finance pages and in the accounting e
     exact row, the combination search (v1 rule 14) runs over the platform's open payout rows whose recorded
     payout is known **and** those whose payout is not recorded yet, counted at `gross × (1 − commission
     rate of the platform)`, with a tolerance of 1 % of each estimated row. Constraints: at least 2 and at most
-    6 rows (a single estimated row is v1 rule 32); every row's expected date between 3 days after and 30 days
-    before `settled_at` (400 days before for a platform that pays at booking time — Abracadaroom — as v1
-    rule 14); all rows' expected dates within **14 days** of each other (one payout run). The smallest
+    6 rows (a single estimated row is v1 rule 32); every row's credit inside the platform's payout window of rule 42
+    (a platform that pays after the stay: from check-in on, never before, up to 30 days after the expected date; 400 days
+    before for a platform that pays at booking time — Abracadaroom, Lodgify, Stripe — as v1 rule 14; this replaced the first
+    version's « 3 days after » bound, rule 32); all rows' expected dates within **14 days** of each other (one payout run). The smallest
     combination wins; ties → the one whose expected dates are the closest together. It runs only when no
     exact single row and no combination of recorded rows matches the credit.
 18. **Confidence of a group.** All rows recorded and exact → « probable » (v1). Any group that contains an

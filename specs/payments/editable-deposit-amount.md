@@ -8,6 +8,8 @@
 | **Author** | Adrien |
 | **Related PR** | (link once opened) |
 
+> **Reviewed 2026-11-26 (rule-by-rule money audit).** Rule 1 and the platform edge case rewritten: the override is also honoured on a platform that takes an acompte, outranked by the property switch OFF; editing moved to the ledger editor.
+
 ---
 
 ## 1. Context
@@ -31,9 +33,13 @@ the automatic calculation.
 
 ## 3. Functional rules
 
-1. The deposit amount field is **editable** only for **direct** reservations whose deposit is **not
-   disabled** (`depositDisabled = 0`). Platform reservations have no deposit (unchanged) and the
-   `depositDisabled` opt-out keeps showing "Acompte désactivé — ajouté au solde" (unchanged).
+1. The deposit amount is **editable** (today through the ledger's amount editor, not the former
+   « Montant acompte » field of the Finance section — [reservation-payment-ledger.md](reservation-payment-ledger.md)
+   rule 16) on a reservation whose deposit is **not disabled** (`depositDisabled = 0`), whose property has the
+   deposit switch ON, and which is **direct** or on a platform that takes an acompte. *(Amended: a platform
+   with « Acompte = Oui » honours the override — `pricing/schedule.js`, [platform-deposit-toggle.md](../platforms/platform-deposit-toggle.md);
+   the property switch OFF outranks the override — [property-deposit-switch.md](property-deposit-switch.md) rule 5.)*
+   Platforms without an acompte keep no deposit and `depositDisabled` keeps « Acompte désactivé — ajouté au solde ».
 2. **Empty field = automatic.** When no override is set (`depositAmountOverride = NULL`), the engine
    keeps the historic behaviour: `acompte = preArrival × depositPercent%`, `solde = preArrival − acompte`.
 3. **A manual value freezes the deposit.** When `depositAmountOverride` is set, the engine uses it as
@@ -63,8 +69,9 @@ the automatic calculation.
    un nombre. », « Pourcentage invalide : entre 0 et 100. ».
 
 **Edge cases:**
-- Override set, then platform changed to non-direct → engine ignores the override (platform branch
-  forces deposit = 0); the stored value is harmless and is re-applied only if the platform reverts to direct.
+- Override set, then platform changed to a non-direct platform **without** acompte → engine ignores the
+  override (deposit = 0); the stored value is harmless and is re-applied if the platform takes an acompte
+  again or reverts to direct. On a platform that takes an acompte the override is honoured.
 - Override set, then `depositDisabled` toggled ON → deposit = 0, balance absorbs all (disabled branch
   wins); override ignored while disabled.
 - Override > preArrival → deposit clamped to preArrival, balance = 0.

@@ -8,6 +8,8 @@
 | **Author** | Adrien |
 | **Related PR** | (link once opened) |
 
+> **Reviewed 2026-11-26 (rule-by-rule money audit).** Rule 7 now states the stored group shape as the code writes it (`total`, four possible buckets).
+
 ---
 
 ## 1. Context
@@ -90,7 +92,9 @@ commission) stays exactly as correct as it is today.
    construction.
 7. **The group is recorded, not guessed.** A new nullable column
    `arrivalPaymentGroup` on `reservations` holds the JSON of the single payment:
-   `{ "at": "2026-08-30", "cash": 0, "buckets": ["balance", "complement"] }`. It is written by the SAS
+   `{ "at": "2026-08-30", "cash": 0, "total": 530, "buckets": ["balance", "complement"] }`
+   (`total`, the sum actually handed over, was added with rule 12; `buckets` may also name `deposit` and
+   `endOfStayComplement`, `utils/arrivalPaymentGroup.js`, single-payment-from-the-fiche rule 2bis). It is written by the SAS
    commit when — and only when — the operator used the unified settlement.
    **Deriving the group instead (« same date + same cash flag ») is refused**: a complement genuinely
    collected by a second, separate card payment on the same day would be merged into the first, and

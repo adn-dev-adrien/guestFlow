@@ -9,6 +9,8 @@
 | **Related PR** | PR6: [#912](https://github.com/adn-dev-adrien/guestFlow/pull/912) |
 | **Summary to validate** | [docs/specs/2026-10-30-payment-link-lifecycle.html](../../docs/specs/2026-10-30-payment-link-lifecycle.html) |
 
+> **Reviewed 2026-11-26 (rule-by-rule money audit).** Rule 31 (money predicate also counts settled mid-stay notes) and rule 6 (scope: basket links live 30 min) corrected. Rules 38-42, 46-54, 64-66 checked by identifier/route presence only.
+
 ---
 
 ## 1. Context
@@ -148,7 +150,9 @@ Rules are numbered for identity; new ones are appended at the end, never inserte
 6. **Every link minted from this version on is valid 36 hours from its creation.** `mintPaymentLink` and
    `mintInstallmentLink` store `expiresAt = createdAt + 36 h` (ISO, UTC), whatever the provider
    answers (Qonto's zero-time sentinel is ignored as today). The duration is one constant,
-   `PAYMENT_LINK_VALIDITY_HOURS = 36` in `server/src/constants/paymentLinks.js`. The 36 h count from the
+   `PAYMENT_LINK_VALIDITY_HOURS = 36` in `server/src/constants/paymentLinks.js`. *(Scope: the stay's own
+   links. A guest-order basket link (`mintBasketLink`, `mintSaleLink` without `validityMinutes`) lives 30
+   minutes — guest-app.md rules 35-36; a plugin may pass its own `validityMinutes`, 1 to 1440.)* The 36 h count from the
    creation, never from a send: a send never pushes `expiresAt` back (decided 2026-10-30, §9 Q1); rule 8
    is what keeps a sent link usable. Links already open at the upgrade: rule 34.
 7. **A link past its `expiresAt` lapses.** The lifecycle pass (rule 16) moves it `open → expired` with
@@ -401,7 +405,8 @@ Rules are numbered for identity; new ones are appended at the end, never inserte
 31. **« Unpaid » (rule 10).** A row is unpaid when no money of the stay is recorded on it nor on the devis
     it came from: `depositPaid`, `balancePaid`, `complementPaid`, `endOfStayComplementPaid` and their
     `…PaidCash` twins all 0, no `reservation_installments` row `paid = 1`, no `payment_links` row `paid`
-    (or carrying a `paidAt`). This is the `CARRIES_MONEY` predicate of `supersededDuplicates.js`, moved
+    (or carrying a `paidAt`), and no settled mid-stay note (`midStaySettledNotes` non-empty — audit R36-DB-M2,
+    `utils/stayMoney.js`: a platform stay's only money while its payout is not ticked). This is the `CARRIES_MONEY` predicate of `supersededDuplicates.js`, moved
     to `utils/stayMoney.js` and shared. A row with an acompte paid and its solde link still open is
     therefore **not** unpaid: it keeps its solde / installment links, and its dates are held (rule 37);
     an iCal booking that lands on them is an over-booking (rule 39) (decided 2026-10-30, §9 Q9).

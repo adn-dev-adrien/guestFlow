@@ -543,8 +543,13 @@ The mock-ups that validated these screens are retired; what they decided is stat
 
 ## 9. Open questions
 
-- **Q4 — Withdrawal right.** Does the 14-day right apply to an unused voucher bought online? The terms
-  of sale must say so; rule 27 already lets the operator cancel and refund an unused voucher.
+None open.
+
+**Resolved (2026-11-26, spec reorganization):**
+
+- **Q4 — Withdrawal right.** Settled by `specs/gift-vouchers/gift-voucher-campaigns.md` rule 39: a voucher
+  bought online with no date is withdrawable for 14 days while unused (art. L221-18), and the terms say so;
+  once a slot is booked, the exception of L221-28 12° applies.
 
 **Resolved (Adrien, 2026-11-16):**
 

@@ -8,7 +8,9 @@
 | **Author** | Adrien |
 | **Related PR** | (link once opened) |
 
-> **Reviewed 2026-11-26 (spec reorganization).** Status updated; rules 12, 13, 15, 16, 17 retired (automatic abandonment/dunning replaced by the operator-driven schedule of `payment-schedule-and-cancellation.md`; `cancelledUnpaidAt`, `paymentTimings` and `UnpaidReservationsPage` no longer exist in the code). The configurable reminder/abandonment offsets of rule 1 do not exist either.
+> **Reviewed 2026-11-26 (spec reorganization).** Status updated; rules 12, 13, 15, 16, 17 retired (automatic abandonment/dunning replaced by the operator-driven schedule of `payment-schedule-and-cancellation.md`; `cancelledUnpaidAt`, `paymentTimings` and `UnpaidReservationsPage` no longer exist in the code). The configurable reminder/abandonment offsets of rule 1 were dropped (settings-rationalization rule 9).
+
+> **Reviewed 2026-11-26 (rule-by-rule money audit).** Rules 1, 3-6, 9, 11, 19, 20 aligned with the code (no timings settings, 36 h validity, 3 polls a day, gated confirmation, manual reminders). Rules 9 (manual conversion confirmation, host notification) and 14 (dashboard/host/guest notifications on balance paid) describe behaviour not found in the code — see the audit report.
 
 ---
 
@@ -35,11 +37,10 @@ GuestFlow's existing scheduler (no public inbound webhook endpoint to expose on 
 
 ## 2. Goal
 
-A guest who pre-reserves on the site receives a branded email with a **secure Qonto payment link** to
-pay the **deposit**; paying it confirms the stay (devis → reservation, dates blocked). Ten days before
-the balance due date the guest is emailed a link for the **balance**, with reminders, and an unpaid
-balance past the deadline surfaces on the dashboard for the host to release the dates. Every paid /
-overdue event notifies the host (dashboard + email) and the guest (confirmation email).
+A guest who pre-reserves on the site receives an email with a **secure Qonto payment link** to
+pay the **deposit**; paying it confirms the stay (devis → reservation, dates blocked). The balance link
+is sent by the operator when due; reminders and cancellation of an unpaid stay are operator-driven
+(payment-schedule-and-cancellation.md). The guest gets a confirmation email once the stay is confirmed.
 
 ## 3. Functional rules
 
@@ -50,45 +51,40 @@ overdue event notifies the host (dashboard + email) and the guest (confirmation 
      "payment-links provider" connection (`POST /v2/payment_links/connections`). Credentials/tokens are
      stored **encrypted** (same column-encryption as SMTP/Google). A read-only **status** line shows
      whether Qonto is connected, via the existing `StatusCard`. No secret is ever returned in clear.
-   - **Every duration is configurable here — nothing is hard-coded.** The values below are only the
-     defaults Adrien gave:
-     - **Deposit:** reminder offsets before its due date (default **J-5, J-day**), abandonment offset
-       after the due date (default **J+1**), link expiry (default **due date + 1 day**).
-     - **Balance:** reminder offsets (default **J-10, J-5, J-day**), abandonment offset after its due
-       date (default **J+1**), link expiry (default **due date + 1 day**).
-     - **No last-minute settings here (2026-06-11).** The last-minute case is **not configured on this
-       page** — its threshold *and* its full-payment due date both come from the property's existing
-       **« solde »** setting (`balanceDaysBefore`) in *Paramètres → logement → Acompte & solde* (§3.7).
-       The full-payment reminders/abandonment reuse the balance offsets above.
-   - The deposit/balance **due dates** themselves come from the property's existing
-     `depositDaysBefore` / `balanceDaysBefore` settings (already per-property configurable) — this page
-     configures the reminder/expiry durations *relative to* those dates.
-   - The payment **email templates'** content stays editable in the existing Emails page; this page
-     owns the *schedule* (offsets/deadlines), decoupled from the *content* (templates).
+   - **No duration is configurable here any more.** The « Délais & relances » card (reminder offsets,
+     abandonment offset, link expiry) never drove anything: the six columns were dropped and the card
+     removed (specs/settings/settings-rationalization.md rule 9). Link validity is fixed at 36 hours
+     from creation (payment-link-lifecycle.md rule 6); reminders are manual and anchored on the
+     due dates (payment-schedule-and-cancellation.md rules 37, 39); nothing is abandoned automatically.
+   - The deposit/balance **due dates** come from the property's `depositDaysBefore` /
+     `balanceDaysBefore` settings. The last-minute threshold and its single full-payment due date also
+     come from `balanceDaysBefore` (§3.7); there is no last-minute setting on this page.
+   - The payment **email templates'** content stays editable in the existing Emails page.
 2. The setup procedure (§ deliverable 4) documents the Qonto OAuth app registration + provider
    connection so Adrien can redo it.
 
 ### 3.2 Payment links (Qonto Business API)
 
 3. A payment link is created via `POST /v2/payment_links` with: **amount** (the deposit / balance /
-   complement amount, in cents), a **reference** carrying the reservation/devis id (for
-   reconciliation), **single-use**, payment methods = card + Apple Pay (+ bank transfer for large
+   complement amount; stored in cents), item title/description carrying the property, reservation
+   number and guest name (qonto-payment-link-reference.md; the reservation id lives on the
+   `payment_links` row, no Qonto reference field is sent), **single-use** (`reusable: false`), payment methods = card + Apple Pay (+ bank transfer for large
    amounts — open Q). Each created link is persisted in a new `payment_links` table (§5) with its
    Qonto id, URL, type, amount and status.
 4. **Deposit link** is created when the host triggers the deposit email from a devis. **Balance link**
-   is created when the balance email goes out (J-10). **Complement** can reuse the same link mechanism
+   is created when the operator sends the balance request (manual — payment-schedule-and-cancellation.md rule 38; no J-10 pass). **Complement** can reuse the same link mechanism
    on demand (a button on the reservation) — modeled now, but Tap-to-Pay collection is the deferred
    path.
-5. **Link expiry:** the deposit link expires at the **deposit due date + 1 day** (configurable in the
-   Paiements settings); an expired/unpaid link can be regenerated + re-sent. The balance link expires
-   at the balance due date (+ the configured grace).
+5. **Link expiry:** every stay link minted (deposit, balance, full, installment) is valid **36 hours from its creation**
+   (payment-link-lifecycle.md rule 6; guest-order basket links live 30 min; the due-date-based expiry and its settings were never built); an
+   expired/unpaid link can be regenerated + re-sent.
 
 ### 3.3 Payment detection (polling)
 
 6. A scheduled pass (extends `scheduledTasks.js`) lists **open** `payment_links` and calls the Qonto
    API (`GET /v2/payment_links/{id}/payments`) to detect a **succeeded** payment. On success it marks
    the link `paid` (+ `paidAt`, Qonto payment id) and triggers the business flow (§3.4 / §3.5 / §3.7).
-   Polling cadence: **twice a day**. Idempotent: a link already `paid` is skipped.
+   Polling cadence: **three passes a day** (every 8 h, `PAYMENT_POLL_TICK_MINUTES` overrides — payment-polling-fair-use.md rule 11; webhook and the guest's success page confirm in real time). Idempotent: a link already `paid` is skipped.
 7. **Manual fallback always available.** The host can mark the deposit/balance received by hand on the
    reservation (existing paid-flags) — and convert the devis manually — independent of polling.
 
@@ -112,10 +108,11 @@ overdue event notifies the host (dashboard + email) and the guest (confirmation 
      (rule 12); **branded HTML** layout (current emails are plain-text, consistent with the rest of the
      email system). Totals breakdown (tourist tax line) and the balance-due block stay deferred too.
 9. **On deposit paid:**
-   - **Auto (polling):** the devis is **converted to a reservation**, `depositPaid=true` with
-     `depositPaidDate = today`, a **dashboard message** is posted, and a **notification email** is sent
-     to the host (GuestFlow user). A **confirmation email** is sent to the **guest** ("acompte reçu,
-     séjour confirmé") with the stay recap.
+   - **Auto (polling / webhook):** the devis is **converted to a reservation** and the bucket is
+     recorded as paid (`depositPaid=true`, `depositPaidDate` = the payment day). A **confirmation email**
+     for the **guest** follows (below). *(The « dashboard message + host notification email » on every
+     paid link was never built; only conflict / paid-after-cancel / stuck-deactivation alerts exist —
+     `notificationService`.)*
    - **Manual:** the host converts the devis → on conversion, the guest gets the same confirmation
      email.
    - **Confirmation email — implemented.** The guest confirmation is the default template
@@ -125,14 +122,17 @@ overdue event notifies the host (dashboard + email) and the guest (confirmation 
      paid link confirms the stay — deposit, use case 1; or full payment, use case 2), never
      date-scheduled: it is excluded from the manual pending queue (`emailLogModel.listPending`) and from
      the `auto` cron. The send is **best-effort** — an SMTP error is logged in `email_log` as `failed`
-     and never breaks the payment flow. A **balance** payment is a later top-up and does **not** retrigger
+     and never breaks the payment flow — and **gated by the template's own mode** (settings-rationalization.md
+     rule 17b): sent at once while `reservation_confirmation` is `auto`, otherwise queued for the operator
+     (`buildGatedConfirmationSender`). A **balance** payment is a later top-up and does **not** retrigger
      this confirmation. The template is editable like any other on the Emails page.
 10. Conversion reuses `devisModel.convertToReservation`; the deposit-paid date is the conversion day.
-11. **Deposit reminder — manual, anchored on the devis validity date (implemented 2026-06-29).** While
-    a devis is still open (not converted) and its deposit is unpaid, a **`deposit_reminder`** email
-    surfaces in the **manual pending queue** (the existing dashboard/EmailPendingDialog flow) — the host
-    sends it **by hand**, it is **not** auto-sent. Its scheduling **anchor is the devis `validUntil`
-    date** (not the arrival date): it appears `dayOffset` days around `validUntil` (default **J-3**,
+11. **Deposit reminder — manual (implemented 2026-06-29; re-anchored since).** A **`deposit_reminder`**
+    email surfaces in the **manual pending queue** — the host sends it **by hand**, it is **not**
+    auto-sent. *Amended by payment-schedule-and-cancellation.md rule 37: the template is now anchored on
+    `depositDueDate` with offset 0 (the registry default), no longer on the devis `validUntil` at J-3;
+    the `'validUntil'` anchor remains supported by `listPending` (rule 20).* The original text follows.
+    It appears `dayOffset` days around `validUntil` (original default **J-3**,
     editable on the Emails page). The email reminds the guest the quote expires on `{{validUntil}}`,
     recaps the stay + `{{depositAmount}}`, and re-offers the **existing open deposit payment link**
     (`{{paymentLink}}`, injected read-only at send time; if no open link exists the body falls back to a
@@ -172,9 +172,9 @@ overdue event notifies the host (dashboard + email) and the guest (confirmation 
     payment) and the **reservation fiche shows no deposit** — exactly the existing iCal no-deposit
     handling (`depositDisabled`). All amounts always come from the engine.
 19. **Single full-payment link + flow.** The deposit step is **skipped**: the host sends a single email
-    asking for the **full stay total** (one Qonto link), due at the balance date. Reminders / overdue /
-    abandonment reuse the **balance** schedule. On paid → devis → reservation, confirmed; on overdue →
-    devis abandoned (rule 12 path). No separate balance step.
+    asking for the **full stay total** (one Qonto link, `full_request` template), due at the balance date.
+    Reminders are the manual balance ones; there is no automatic abandonment (rule 12 retired). On paid →
+    devis → reservation, confirmed. No separate balance step.
 
 ### 3.8 Email scheduling anchor
 
@@ -184,7 +184,8 @@ overdue event notifies the host (dashboard + email) and the guest (confirmation 
     (`'start'` default | `'validUntil'`); a `'validUntil'`-anchored template is surfaced by
     `emailLogModel.listPending` against **open, deposit-unpaid devis** (computed `sendDate =
     validUntil + dayOffset`), so the existing manual queue drives *when to propose it* and the host
-    decides *when to send*. Future `depositDueDate` / `balanceDueDate` anchors slot into the same column.
+    decides *when to send*. The `depositDueDate` / `balanceDueDate` anchors now exist in the same column
+    (payment-schedule-and-cancellation.md rule 41) and are what the payment reminder templates use.
 
 **Edge cases:**
 - Deposit/balance paid twice / link reused → idempotent (single-use links; a `paid` link is never re-processed).

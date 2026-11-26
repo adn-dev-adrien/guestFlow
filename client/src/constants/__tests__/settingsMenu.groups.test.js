@@ -1,3 +1,5 @@
+// specs/settings/settings-rationalization.md rules 37 and 38 — « Vacances & fermetures » and « Options & ressources »
+// are single menu entries.
 // specs/settings/settings-rationalization.md rule 26 (UI/UX review 2026-10-18, decision 12) — the submenu
 // becomes four groups, the families of SETTINGS_MENU; every entry (plugins' included) belongs to one;
 // the group of the open page is the one the sidebar unfolds.

@@ -39,7 +39,7 @@ guest-billable amounts live in one place.
 ### 3.1 « Tarifs facturables »
 
 > **Déplacé 2026-06-16** — désormais une page dédiée `/parametres/tarifs` avec sa propre entrée de menu,
-> au lieu d'une section de Paramètres → Générale (voir `settings-submenu-reorg.md`). Contenu inchangé.
+> au lieu d'une section de Paramètres → Générale (voir `specs/settings/settings-rationalization.md` rule 36). Contenu inchangé.
 
 1. **New « Tarifs facturables » section** groups everything the operator can bill a guest during the SAS,
    in **two sub-lists**: **« Prix du linge »** (the existing priced-linen items, **moved here** from the

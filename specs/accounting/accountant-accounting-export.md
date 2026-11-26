@@ -8,6 +8,8 @@
 | **Author** | Adrien |
 | **Related PR** | (link once opened) |
 
+> **Reviewed 2026-11-26 (rule-by-rule money audit).** Rules 7, 8, 12 (pro-rata clause), 13 (`Pièce`), 29 and 30 rewritten to the current engine: operator-entered commission, per-destination pro-rata (`accounting-books-the-money-collected.md`), pure-tax entries kept. Rules 1-4 were already retired.
+
 ---
 
 ## 1. Context
@@ -100,11 +102,19 @@ standard).
 
 ### 3.3 Platform gross/commission
 
-7. Reservations gain a **"prix payé par le client"** field (gross). It is **only shown/asked for
-   platform-sourced** reservations (a platform is selected / `sourceType='ical'` / `platform != 'direct'`).
-   For direct bookings the field is hidden and irrelevant.
-8. `finalPrice` remains **the net the owner receives** (unchanged semantics). The **commission is computed
-   automatically** = gross − net (never below 0; gross must be ≥ net or it's a validation error).
+7. *(Retired 2026-11-26 — the « prix payé par le client » input was removed on 2026-06-21: the platform commission is now typed by the operator; see
+   `specs/platforms/platform-commission-line.md` revision 2026-06-21 and `platform-per-echeance-commission.md`.)* `reservations.platformGrossAmount` /
+   `clientGrossAmount` remain only as the platform's recorded gross (the journal's « Prix payé client » column).
+
+> **Sans test** — retired rule
+
+8. *(Rewritten.)* `finalPrice` is the **total séjour** the guest is billed (the engine no longer stores the net in the
+   solde: `platform-per-echeance-commission.md` rule 2). The commission is **operator-entered** per échéance
+   (`acompteCommissionAmount`, `platformCommissionAmount`), never derived as gross − net, and the old « gross < net → 400 » validation
+   no longer exists (`accounting-platform-commission-and-no-deposit.md` rule 11).
+
+> **Sans test** — retired rule
+
 9. Platform gross/commission/platform-label/client-name appear in the export (see §3.4 rule 14).
 
 ### 3.4 Monthly accounting CSV
@@ -119,8 +129,8 @@ standard).
       accommodation → `70600000`; options + custom options → `70600010`; resources → `70601000`.
     - **M credit lines** on the **VAT accounts** for the encaissement's VAT, by rate:
       10% → `44571100`; 20% → `44571200`.
-    - Bucket/VAT amounts are **pro-rated** by the encaissement fraction (`payment / total TTC`); rounding
-      residue is absorbed so **Σ credits == debit** to the cent.
+    - Bucket/VAT amounts are pro-rated **within the destination the encaissement collects** (`accounting-books-the-money-collected.md`
+      rules 5-7), not by `payment / total TTC` of the whole stay; rounding residue is absorbed so **Σ credits == debit** to the cent.
 13. **Columns** (pinned 2026-06-01 from Adrien's accountant `Exemple export ventes SOLIO.csv`):
     9 mandatory columns matching the example byte-for-byte, then 3 GuestFlow-specific
     info columns the accountant can ignore.
@@ -133,7 +143,8 @@ standard).
 
     - `Journal` is constant `VT` (Ventes).
     - `Pièce` is **empty** for now — left blank until Adrien settles a numbering scheme with the
-      accountant (see §9 / §10). The column stays in the header so the structure is stable.
+      accountant (see §9 / §10), except for a sale made outside any stay, which carries its invoice number
+      (`resource-booking-pricing-and-invoicing.md` rule 22). The column stays in the header so the structure is stable.
     - `Libellé de l'écriture` = "FIRSTNAME LASTNAME" uppercased (matches the example style:
       `CLAIRE NOTIN`, `RELAIS PETITE ENFANCE TOURNON`). Falls back to `RÉSERVATION #ID` if names are empty.
     - `Débit` / `Crédit`: counter-side cells render as literal `0` (not empty) — accountant's
@@ -228,30 +239,19 @@ standard).
     - **In the right-side `PricingSummary` panel**: a dedicated line between **Solde** and
       **Caution**, label in red while unpaid, with a "Complément payé" chip below it once paid
       (same visual as Solde payé).
-29. **Pro-rata base = totalStayPrice (= finalPrice + tourist tax)** — the accounting export now
-    pro-rates every encaissement against the **total stay TTC** including the tourist tax, not just
-    `finalPrice`. This was a quiet inaccuracy on prior runs (the deposit/balance percentages drifted
-    by the tourist-tax ratio); with this change Deposit + Balance + Complement = 100 % of
-    `totalStayPrice` exactly, and the per-bucket lines balance to the cent.
-30. **Per-platform tourist tax — accountant journal carve-out (added 2026-05-30).** When the pricing
-    engine resolves the booking as **owner-collect non-direct** (`touristTaxCollectedOnArrival =
-    true`, i.e. a non-direct iCal source whose `collectsTouristTax = 0` flag means Adrien collects
-    the tax himself at check-in — see `per-platform-tourist-tax-collection.md`), the export bends
-    rule 29 in two ways:
-    - **Deposit + Balance pro-rate against `finalPrice`**, not `totalStayTtc`. The deposit + balance
-      amounts already exclude the tourist tax (engine schedules it in the complement instead), so
-      using `totalStayTtc` as the denominator would under-count HT/VAT in every line and dump the
-      mismatch into the rounding residue (= an inflated last VAT line, wrong by the tourist-tax
-      ratio).
-    - **The complement entry has its tourist-tax portion carved out** (`encaissementTtc -=
-      touristTaxTotal`). If the residual is `0` (= the complement is pure tax), the entry is
-      **dropped entirely** — consistent with the long-standing rule "tourist tax is excluded from
-      the revenue accounts; it's reported via Suivi taxe de séjour". If extras were added after the
-      balance was paid (complement = tax + extras), only the extras portion is emitted, pro-rated
-      against `finalPrice`.
-    Direct + platform-collect cases are NOT changed — rule 29 still applies (tax silently absorbed
-    via residue, or no tax at all when the platform collects). Covered by
-    `accounting-model-tourist-tax.unit.test.js` (7 cases).
+29. *(Rewritten 2026-11-26.)* **Pro-rata base.** The original rule (every encaissement pro-rated against
+    `totalStayPrice`, tourist tax included) is superseded: the tourist tax is carved out of each entry as its own
+    46710000 credit (`tourist-tax-on-solde.md`), and the rest is pro-rated within the destination the entry collects
+    (`accounting-books-the-money-collected.md` rules 5-7). The entries still sum back to the money that moved.
+
+> **Sans test** — retired rule
+
+30. *(Rewritten 2026-11-26.)* **Owner-collect non-direct stays.** The carve-out of 2026-05-30 (complement stripped of its
+    tourist tax, a pure-tax complement **dropped**) is superseded by rule 15b: the tax is booked on 46710000 and a
+    pure-tax complement is **kept** as one debit / one credit entry (`accounting-model-tourist-tax.unit.test.js`).
+    The tax rides on the complement for those stays (`taxRoutedToComplement`), and deposit + balance carry none.
+
+> **Sans test** — retired rule (the surviving behaviour is pinned by `accounting-model-tourist-tax.unit.test.js`)
 
 **Edge cases:**
 - Encaissement marked paid but no real date yet (legacy rows) → backfilled to the **due date** on

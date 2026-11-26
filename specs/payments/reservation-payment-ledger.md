@@ -10,6 +10,8 @@
 | **Amendment 2026-10-28** | Branch `feature/clients-directory-and-fiche-tariff` · summary [docs/specs/2026-10-28-clients-directory-and-fiche-tariff.html](../../docs/specs/2026-10-28-clients-directory-and-fiche-tariff.html) |
 | **Summary page** | [docs/specs/2026-10-19-reservation-payment-ledger.html](../../docs/specs/2026-10-19-reservation-payment-ledger.html) — interactive mocks at 390 and 1280 px |
 
+> **Reviewed 2026-11-26 (rule-by-rule money audit).** Rules 5, 13, 26, 28, 45, 57, 62, 72 rewritten to the current code (paymentStatus now reads remainingToPay, platform-payout single PATCH, stored summary via PricingSummary, notices, cautionWaived). One divergence reported on rule 38 (not edited).
+
 ---
 
 ## 1. Context
@@ -110,9 +112,10 @@ next to the field.
    as settled), **net of the commission of each unsettled platform échéance**, so a Booking stay
    shows what will reach the bank. One « reste dû » in the whole application: the ledger adds no
    arithmetic of its own. It reads « Tout est perçu » at zero and never repeats the « Net perçu » or
-   « Total du séjour » of the pricing summary. (`paymentStatus.computePaymentStatus` — `finalPrice`
-   minus paid acompte and solde, gross, no complements — is referenced by its unit test only; the
-   ledger does not use it.)
+   « Total du séjour » of the pricing summary. (`paymentStatus.computePaymentStatus`, read by the
+   finance and reservation lists, takes its `remainingDue` from this same `remainingToPay` since the
+   audit of 2026-10-27, commit 9adab08ae — it was `finalPrice` minus the paid buckets before; the
+   ledger does not call it.)
 6. **Rows that do not apply** say why, in one muted line, with no input and no action:
    - acompte on a platform without acompte — « Sans objet · Booking.com encaisse en une fois »;
    - acompte disabled on the reservation — « Sans objet · acompte désactivé »;
@@ -174,9 +177,10 @@ next to the field.
     [single-payment-from-the-fiche.md](single-payment-from-the-fiche.md) (the paid flags of acompte,
     solde and complement are re-read from the database by `PUT /api/reservations/:id`, never taken
     from the browser) is extended to the four caution columns `cautionReceived`,
-    `cautionReceivedDate`, `cautionReturned`, `cautionReturnedDate`: `reservationsModel.
-    updateReservation` writes the stored values back, and the past-locked whitelist of
-    `reservationsController.update` drops them. The PATCH of rules 9-12 is the only way to change
+    `cautionReceivedDate`, `cautionReturned`, `cautionReturnedDate` — and `cautionAmount` too
+    ([caution-live-from-property.md](caution-live-from-property.md) rule 9, commit 8690fb56b):
+    `reservationsController.update` overwrites them in the body with the stored values before the
+    write, and its past-locked whitelist drops them. The PATCH of rules 9-12 is the only way to change
     them, so its guards cannot be bypassed by a save.
 14. **Undoing a mark** is the row's action once it is done (« Annuler »). It asks for confirmation
     (« Annuler la perception de l'acompte du 12/08 ? L'écriture comptable correspondante disparaît. »,
@@ -281,13 +285,15 @@ decimals is rounded and shown rounded.
     [platform-statement-after-payout.md](../platforms/platform-statement-after-payout.md): the statement stays open once the payout
     is received and on a locked fiche, and is then written by its own PATCH (a re-split of the payout, never a re-price).
 26. **« Marquer reçu » asks for the transfer.** Its form holds the date and « Virement reçu »,
-    prefilled with the expected net. When the typed transfer differs from the net, the form shows the
-    gap (« Écart : 12,03 € avec le net attendu ») and one button, « Commission solde → 170,00 € »,
-    which is today's « Calculer la commission » (`POST /api/reservations/platform-commission`, server
-    computed). « Valider » writes « Virement reçu » (`platformPayoutAmount`) and, if taken, the
-    commission into the form, runs `saveThenRun` (they are fiche fields saved by the PUT, as today),
-    then PATCHes `balancePaid` / `balancePaidDate`. The PATCH contract is not widened. The
-    reconciliation chip (« ✓ cohérent avec le virement » / « écart : … ») moves onto the row.
+    prefilled with the expected net when the commission is known (otherwise typed, rule 34). When the
+    typed transfer differs from the net, the form shows the gap (« Écart : 12,03 € avec le net attendu »)
+    and one button, « Commission solde → 170,00 € », which is today's « Calculer la commission »
+    (`POST /api/reservations/platform-commission` with `forMark`, server computed and worded).
+    « Valider » sends « Virement reçu » (`platformPayoutAmount`) and, if taken, the commission
+    (`platformCommissionAmount`) **with** `balancePaid` / `balancePaidDate` in the one payment PATCH —
+    no `saveThenRun`, no full save of the fiche (rule 34, review of #727, which widened the PATCH
+    contract; audit 2026-11-26). The reconciliation chip (« ✓ cohérent avec le virement » / « écart : … »)
+    moves onto the row.
     **Reading of 2026-11-11 (shadow trial of 4.0.0):** the chip is the intended behaviour, new in 4.0.0 (3.21.0 had no
     ledger): it compares the net the stored price expects (`platformNetReceivedAmount`, else pre-arrival minus the
     commissions) with the stored « Virement reçu », and warns from half a cent. On the copy it fired on three stays — 9
@@ -307,7 +313,12 @@ decimals is rounded and shown rounded.
     (rule 29) or « Lien retiré · perçu autrement » (settled another way,
     [plugins-phase-3a-online-payment.md](../plugins/plugins-phase-3a-online-payment.md) rule 23). Sending a
     request stays where it is today (page actions); « Renvoyer la demande » is offered on the row
-    **only while the row is still due** — never on a perceived one.
+    **only while the row is still due** — never on a perceived one — and only once the previous
+    `deposit` / `balance` / `full` link is gone (not `open`, not `paid`, not withdrawn for taken dates,
+    not a payment awaiting settlement): an open link is still the request
+    (`reservationLedger.js` `linkDetail`; test « rule 28 — … only while due and once the link is gone »;
+    later withdrawal and expiry labels come from
+    [payment-link-lifecycle.md](payment-link-lifecycle.md)). Audit 2026-11-26.
 29. **Changing an amount retires its open link.** At save, for every open link whose type maps to a
     row (rule 28) and whose `amountCents` differs from the row's new amount in cents, the server checks
     the link was not paid meanwhile (`assertNotPaid`), cancels it with `cancelReason =
@@ -444,10 +455,11 @@ decimals is rounded and shown rounded.
 45. **Never live lines next to stored totals.** `calculate-price` answers `storedDrift` when today's
     quote differs from the stored row (price, tourist tax, échéances or their due dates). While the
     fiche shows the stored ledger and the quote has drifted, the « Résumé tarifaire » (desktop panel and
-    phone sheet) is the stored one, whole (`StoredPricingSummary`): stored figures and dates only, no
-    per-night or per-option detail (the quote's lines no longer add up to the stored total), and the
-    sentence « Montants enregistrés. Le calcul actuel du séjour diffère : il s'affiche dès que la fiche
-    est modifiée. » Without drift the live summary already says the same and stays. Final review of
+    phone sheet) is the stored one, whole (`storedSummary`): stored figures and dates only, never the
+    quote's lines next to stored totals. Since the amendment of 2026-10-28 it renders through the same
+    `PricingSummary` as the live quote, with the stored lines the server shapes, read-only and with no
+    drift sentence (rules 50-52, 57; `StoredPricingSummary` deleted; `storedDrift` is no longer shown,
+    it only picks the source). Without drift the live summary already says the same and stays. Final review of
     #727 (fiche 11: Total HT 1 822,66 + TVA 182,26 = 2 004,92 and « À payer avant 03/09 » next to a
     stored 1 954,52 and « En retard depuis le 10/08 »).
 
@@ -619,7 +631,10 @@ tariff would fire on every platform stay (the brut is grossed up by the commissi
     removed; rule 45's switch itself is unchanged — `storedDrift` still decides which source the card
     reads, server-side, and is no longer shown. A tariff change alone (season price, option price,
     recipe re-applied) still leaves `storedDrift` false, the snapshot being replayed (rule 12bis of the
-    tariff recipes). Where rule 56 says « notice included », read the alert of rule 62.
+    tariff recipes). Where rule 56 says « notice included », read the alert of rule 62. _(Since commit
+    2399da5b4, `reservations/reservation-save-keeps-pricing.md` rules 5-6: the server's `quote.notices` — a
+    commission far above the platform's rate, a stale tourist tax — render above « Prix hébergement » through
+    `PricingNotices`, in both modes; they name one figure each, never the stored-vs-today drift of rule 45.)_
 58. **The platform price check compares two amounts of the same channel.** On a commissioned
     platform stay (`!isDirectChannel(platform)`, `platformGrossAmount` entered) the server compares:
     - **paid** — the part of the brut that pays the stay: `platformGrossAmount` minus the tourist tax
@@ -689,7 +704,7 @@ tariff would fire on every platform stay (the brut is grossed up by the commissi
     plateformes » section: the link carries `#prix-plateformes`, the grid page scrolls to it, and a
     `from` parameter brings the operator back to the fiche). The link goes through the page's unsaved-changes
     guard like a sidebar link. Nothing else: no explanation of the mechanism, no « tarif » / « ancien »,
-    no dismiss button (Q-F). It follows the live quote: entering the brut in « Paiement plateforme »
+    no dismiss button (Q-F); the notices of rule 57's note sit just above it (`topNotice`). It follows the live quote: entering the brut in « Paiement plateforme »
     shows or clears it on the next preview, so a mistyped brut is caught at intake too.
 63. **The server decides, the client renders.** `calculate-price` returns `platformPriceCheck`
     (`null`, or `{ platformLabel, paid, expected, gap, gapPercent, direction: 'below'|'above',
@@ -866,7 +881,8 @@ tariff would fire on every platform stay (the brut is grossed up by the commissi
     received, so a re-opened SAS never sends it. Tests: `plugins/sas/tests/sas-caution-receipt-frozen.unit.test.js`.
 72. **A SAS tick is the PATCH's tick** (audit R39-M-L2). Rule 66 reads a payment flag as `true`, `false`, `1` or `0`;
     the two SAS read theirs with `Boolean()`, so `stayPaid: "false"` booked the solde and `cautionReturned: "false"`
-    returned the caution. Every tick of the arrival SAS (`cautionReceived`, `stayPaid`, `stayPaidCash`,
+    returned the caution. Every tick of the arrival SAS (`cautionReceived`, `cautionWaived` — the caution page's « Non »,
+    arrival-departure-sas rule 31, commit fa138cb4a —, `stayPaid`, `stayPaidCash`,
     `complementSettled`, `complementPaidCash`, `arrivalPaymentSplit`, `cleaningAdded`, `bathLinenAdded`,
     `extinguisherSealOkAtArrival`, the `offered` of `linenItems` /
     `keptLines`) and of the departure SAS (`cautionReturned`, `complementsSettled`, `complementsPaidCash`,

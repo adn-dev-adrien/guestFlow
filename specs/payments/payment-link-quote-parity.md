@@ -10,6 +10,8 @@
 | **Amends** | [devis-pdf-total-parity.md](../devis/devis-pdf-total-parity.md) §3.1 rule 1 (the replay has one more consumer), [online-payments-qonto.md](online-payments-qonto.md) §9 (« all amounts from the engine » — spelled out), [tourist-tax-on-solde.md](../tourist-tax/tourist-tax-on-solde.md) rule 1 (a devis now obeys it too) |
 | **Related PR** | _(opened at the end of implementation)_ |
 
+> **Reviewed 2026-11-26 (rule-by-rule money audit).** Rule 7 annotated with the later single-payment / deposit-switch overrides; the « not decided » full-link note marked resolved (2026-10-27). Rules 1-8 match the code.
+
 ---
 
 ## 1. Context
@@ -93,7 +95,10 @@ and on the payment page.
    rule 5), solde stay-relative and clamped to the issue date — and the displayed `totalStayPrice`,
    which stays **tax-inclusive** (it is the total of the stay, not an échéance).
 7. **A stored `0` is authoritative**: a last-minute devis with no acompte keeps 0 and is never
-   re-derived to a percentage.
+   re-derived to a percentage. *(Amended by deposit-blocks-the-dates.md rule 19 and
+   property-deposit-switch.md rule 8: a devis whose solde falls on or before its validity date, or whose
+   logement has the acompte switch OFF, reads as a single payment — acompte 0, solde = stored acompte +
+   stored solde — and its due date is the validity date.)*
 8. **A legacy row with no stored split at all** (`depositAmount` / `balanceAmount` NULL — never 0)
    falls back to the historic derivation rather than displaying nothing.
 
@@ -109,10 +114,9 @@ and on the payment page.
 - Tourist tax collected on arrival / routed to the complement → untouched: the tax is already out of
   the acompte/solde split, on both paths.
 
-**Explicitly not decided here:** the admin `full` link charges `finalPrice` (tax-EXCLUSIVE) while the
-public `full` link charges the tax-inclusive total. That inconsistency is pre-existing and was already
-parked as « separate decision needed » in [payment-links-vat.md](payment-links-vat.md) §8; this spec
-does not move it, it only makes both sides read the same quote.
+**Explicitly not decided here:** the admin `full` link charged `finalPrice` (tax-EXCLUSIVE) while the
+public `full` link charged the tax-inclusive total. *Resolved 2026-10-27 (payment-links-vat.md §9 Q3): every
+`full` link charges acompte + solde, tax included, complement excluded; both sides read the same quote.*
 
 ---
 

@@ -8,6 +8,8 @@
 | **Author** | Adrien |
 | **Related PR** | (link once opened) |
 
+> **Reviewed 2026-11-26 (rule-by-rule money audit).** Rule 7 amended (added guests' supplement books as accommodation on the complement). Rules 1-6, 8-17 match `utils/accounting/` and carry citing tests.
+
 ---
 
 ## 1. Context
@@ -116,7 +118,9 @@ options and resources appear once, at their real amount, only when they were rea
    options − toutes les ressources`. On Marchand every extra is in the complement, so the solde credits
    pure accommodation — 655,29 € HT + 65,53 € de TVA, and nothing else.
 7. **The arrival complement** credits `[options complément, ressources complément]` plus the tourist tax
-   on 46710000. No accommodation, ever. When the operator adjusted the complement, the fiche's stored
+   on 46710000. No accommodation — except the added guests' supplement (`extraGuestComplementSurcharge`), which is stay
+   revenue from its first entry (`specs/platforms/platform-extra-guest-complement.md` rule 10, reading of 2026-11-05;
+   `utils/accounting/accountingOutput.js` stored-money path). When the operator adjusted the complement, the fiche's stored
    ventilation keeps winning (`specs/sas/adjustable-complement-amounts.md` §3.6) — unchanged.
 8. **The complément de fin de séjour is ventilated by line**, from its stored detail: a line keyed
    `res:*` credits the resources account (70601000), everything else — SAS lines (ménage, linge

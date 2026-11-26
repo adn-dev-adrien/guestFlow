@@ -8,6 +8,8 @@
 | **Author** | Adrien |
 | **Related PR** | (link once opened) |
 
+> **Reviewed 2026-11-26 (rule-by-rule money audit).** Rules 1, 2 and 10 annotated: a stay carrying money is kept as cancelled, not deleted (payment-schedule-and-cancellation rule 52); `origin` field (rule 33).
+
 ---
 
 ## 1. Context
@@ -63,8 +65,18 @@ quoi elle apparaît dans l'aperçu du journal et dans le CSV des ventes du **moi
    pris avant la suppression : logement, plateforme, prénom/nom du client, dates du séjour annulé,
    montant net du séjour perdu (`finalPrice`), plus l'`id` historique de la réservation et l'`id` de
    l'alerte d'annulation.
+   *(Amendé — [payment-schedule-and-cancellation.md](payment-schedule-and-cancellation.md) règle 52 : la
+   suppression de la réservation ne vaut que pour un séjour qui ne porte aucun argent ; s'il porte un
+   remboursement, une pénalité, un lien payé ou une caution, il est **conservé annulé**
+   (`markCancelled`, issue `approved_kept`) et la fiche d'indemnité est créée de la même façon, avec son
+   `reservationId`. Un séjour déjà annulé dans GuestFlow n'est pas touché et ne crée pas d'indemnité
+   (issue `already_cancelled`, [ical-cancellation-approval.md](../platforms/ical-cancellation-approval.md)
+   règle 13).)*
 2. Deux états seulement : **`pending`** (indemnité annoncée / attendue) et **`received`** (versement
    encaissé). Pas de troisième état : une indemnité qui n'arrivera jamais est **supprimée**.
+   *(Complété — payment-schedule-and-cancellation règle 33 : un champ `origin` distingue `platform` de
+   `retained_deposit`, un acompte conservé après une annulation pour non-paiement, qui naît directement
+   `received` à la date d'annulation.)*
 3. **`pending`** porte un **montant attendu** (`expectedAmount`, ≥ 0, peut être 0 si le montant n'est
    pas encore connu) et une **date de versement prévue** facultative (`expectedDate`).
 4. **Tant que la fiche est `pending`, tous ses champs sont modifiables** (montant attendu, date
@@ -95,6 +107,7 @@ quoi elle apparaît dans l'aperçu du journal et dans le CSV des ventes du **moi
 10. La suppression de la réservation et la création de l'indemnité sont **une seule transaction**
     serveur : si l'insertion de l'indemnité échoue, la réservation n'est pas supprimée et l'alerte
     reste en attente. L'instantané est lu **avant** le `DELETE`.
+    *(Amendé : « DELETE » seulement quand rien n'est dû ni payé sur le séjour — règle 1.)*
 11. Si l'alerte concerne une réservation **déjà supprimée** (`reservationExists = false`), l'étape
     indemnité **n'est pas proposée** (aucun instantané disponible) — le bouton reste désactivé comme
     aujourd'hui. L'indemnité reste créable à la main depuis Comptabilité.

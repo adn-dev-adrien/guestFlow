@@ -8,6 +8,8 @@
 | **Author** | Adrien |
 | **Related PR** | (link once opened) |
 
+> **Reviewed 2026-11-26 (rule-by-rule money audit).** Rule 10 annotated with the refusals and the adjustment clean-up the undo gained since.
+
 ---
 
 ## 1. Context
@@ -124,6 +126,10 @@ buckets, same date, same accounting, the same group read by the fiche and the Co
     ce paiement »**. It un-settles **exactly the buckets the group named** — `*Paid`, `*PaidDate`,
     `*PaidCash` cleared, `clearContribsOnUnflip` called — and dissolves the group. A bucket paid
     outside the group is never touched.
+    *(Amended — the undo is refused when a refund already rests on a bucket of the group
+    ([reservation-refunds.md](reservation-refunds.md) rule 52) or when the split payment was matched at the bank
+    ([mixed-method-payments.md](mixed-method-payments.md) rule 43), and it also clears the group's réduction /
+    pourboire ([arrival-payment-detail-and-adjustment.md](../sas/arrival-payment-detail-and-adjustment.md)).)*
 11. Un-ticking a single bucket by its own button keeps its existing behaviour and **dissolves the
     group** as well (already true since v2.9.0: the group dies with any bucket it names). The fiche
     then stops announcing a payment that is no longer true.

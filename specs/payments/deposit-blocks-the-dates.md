@@ -9,6 +9,8 @@
 | **Related PR** | (link once opened) |
 | **Related** | [online-payments-qonto.md](online-payments-qonto.md) §3.7 (the last-minute rule, specified 2026-06-11 and still unimplemented), [payment-schedule-and-cancellation.md](payment-schedule-and-cancellation.md) (acompte/solde deadlines), [public-online-deposit.md](../site/public-online-deposit.md) (the deposit/full mode the website reads), [devis-english-language.md](../devis/devis-english-language.md) (the FR/EN label maps) |
 
+> **Reviewed 2026-11-26 (rule-by-rule money audit).** Rule 6 annotated: the engine's precedence chain gained branches since (property switch above the override, stored schedule, devis window).
+
 ---
 
 ## 1. Context
@@ -77,6 +79,13 @@ booking is settled by the platform and carries no such promise.
    4. `depositAmountOverride` → **the operator's manual acompte wins**, even last-minute;
    5. **new:** last-minute → deposit 0, everything on the single payment;
    6. otherwise → the usual `depositPercent` split.
+
+   *(Amended — the chain now also holds, in the engine's order: a devis whose solde falls on or before its
+   validity date first of all (rule 19); a stored own-channel schedule kept as sold
+   ([plugins-phase-p-productisation.md](../plugins/plugins-phase-p-productisation.md) rule 45); a solde
+   collected with no acompte; and the property's « Acompte » switch OFF, which sits **above** the manual
+   override ([property-deposit-switch.md](property-deposit-switch.md)). The last-minute switch stays last
+   but for `keepsDevisPromise` (rule 22), and still loses to a manual acompte when the switch is ON.)*
 7. **Deadline of the single payment.** A **devis** owes it on its **validity date** (`validUntil`) —
    the day up to which the quote promises the dates, exactly as the acompte does today
    ([paymentSchedule.js](../../server/src/utils/paymentSchedule.js) rule 5. Printing the quote's issue day

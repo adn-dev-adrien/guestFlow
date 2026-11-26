@@ -10,6 +10,8 @@
 | **Summary page** | `docs/specs/2026-11-16-mollie-rolling-reserve.html` |
 | **Extends** | [qonto-bank-reconciliation.md](../accounting/qonto-bank-reconciliation.md) (rule 15 replaced), [reconciliation-assisted-matching.md](../accounting/reconciliation-assisted-matching.md), [reservation-payment-ledger.md](reservation-payment-ledger.md), [direct-installments.md](direct-installments.md), [finance-dashboard-redesign.md](../accounting/finance-dashboard-redesign.md), [accountant-accounting-export.md](../accounting/accountant-accounting-export.md) |
 
+> **Reviewed 2026-11-26 (rule-by-rule money audit).** Rule 17 corrected: a network-level failure ends the pass without a 24 h cooldown (test `mollie-final-connection-and-rotation`).
+
 ---
 
 ## 1. Context
@@ -256,9 +258,11 @@ brought it; and the accountant receives entries that explain every Mollie credit
     (rule 4). With an organisation-level token the payments are listed with the profile id (setting, filled by « Tester »
     from `profiles.read`).
 17. A Mollie failure never blocks the reconciliation: the last read stays, the error is shown in words
-    on the card, rule 9 applies. **One reference failing never stops the others** (not a settlement: 404, a body that does not parse, a
-    transient refusal): it is kept in `mollie_settlement_failures` with a 24-hour delay before it is asked again, the loop goes on, and
-    `lastError` says how many settlements could not be read (only a refused token, 401, ends the pass). A stored settlement holding a
+    on the card, rule 9 applies. **One reference failing never stops the others** (not a settlement: 404, a body that does not parse): it is
+    kept in `mollie_settlement_failures` with a 24-hour delay before it is asked again, the loop goes on, and
+    `lastError` says how many settlements could not be read (a refused token, 401, ends the pass; so does a network-level failure — no
+    answer, a timeout, 429, 5xx — which is not about the reference, so no reference is put into the 24-hour delay; test
+    `mollie-final-connection-and-rotation`). A stored settlement holding a
     payment GuestFlow could not name — or composed from the payments list only — is read again (at most 5 per pass, at least an hour after
     the previous read), so a sale typed afterwards gets paired; the refunds of the payments whose reserve is still held are refreshed
     (at most 10 per pass). Costs are summed as Mollie writes them and rounded once. The token goes only to Mollie's own origin: a

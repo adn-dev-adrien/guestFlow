@@ -10,6 +10,8 @@
 
 > **Reviewed 2026-11-26 (spec reorganization).** Rules 15-22 retired (cards, chart and breakdown dialog replaced by the Suivi financier dashboard); `getBreakdown` no longer exists. Exercise definition (1-5), attribution date (6-10, via `attributionDate` in `utils/reservationSettlement.js`), nights (11-14) and the selector (23-24, URL param `exercice`) are live.
 
+> **Reviewed 2026-11-26 (rule-by-rule money audit).** Rule 6 gains the installment-plan attribution (direct-installments rule 37); rule 8 drops `getBreakdown`. Rules 1-5, 7, 9-14, 23-25 match the code.
+
 ---
 
 ## 1. Context
@@ -69,14 +71,17 @@ The operator can declare their **accounting closing month** once in the settings
    comptable** (`attributionDate`), defined per reservation as:
    - the **date the solde was collected** (`balancePaidDate`) when the solde is marked paid
      (`balancePaid = 1`) and that date is non-empty;
-   - otherwise the **departure date** (`endDate`).
+   - otherwise the **departure date** (`endDate`);
+   - **except** a stay paid through an installment plan whose every installment is collected: it attaches to the
+     day of the last one (`installmentsLastPaidDate`), which wins over the two cases above
+     (`specs/payments/direct-installments.md` rule 37; `reservationSettlement.attributionDate` and its SQL twin).
 7. Rule 6 applies to **every stay**, whether or not it straddles a boundary — there is one attribution
    date per reservation and it never splits a reservation across two windows. The acompte, the
    compléments and the notes en séjour of a stay follow its solde, they are never attributed
    separately.
 8. The attribution date replaces `endDate` in **all** the money windows of the page:
-   `getSummary()` period + annual windows, `getBreakdown()` for the three window kinds, and
-   `getProjection()`. Consequence, to be stated in the PR: **the amounts displayed today will move**
+   `getSummary()` period + annual windows and `getProjection()` (`getBreakdown()` no longer exists, see
+   `specs/accounting/finance-pending-global-remaining.md` rule 4). Consequence, to be stated in the PR: **the amounts displayed today will move**
    — a July stay settled in May now counts in May.
 9. The « Suivi opérationnel » section (`getOperational()`: retards, paiements en attente,
    réservations à venir) keeps working on the **real dates of the stay and of the échéances**.

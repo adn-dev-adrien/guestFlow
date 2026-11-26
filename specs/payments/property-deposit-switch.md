@@ -9,6 +9,8 @@
 | **Related PR** | (link once opened) |
 | **Related** | [public-online-deposit.md](../site/public-online-deposit.md) (creates the toggle — this spec widens it), [disable-deposit-per-reservation.md](disable-deposit-per-reservation.md) (the per-reservation opt-out this reuses), [platform-deposit-toggle.md](../platforms/platform-deposit-toggle.md) (the per-platform flag), [payment-schedule-and-cancellation.md](payment-schedule-and-cancellation.md) (the due dates), [editable-deposit-amount.md](editable-deposit-amount.md) (the manual override) |
 
+> **Reviewed 2026-11-26 (rule-by-rule money audit).** Rule 5 annotated with the branches the engine gained above the property gate.
+
 > **Updated 2026-10-27 (spec review — copy drift, no behaviour change).** The property page has since
 > become tabbed ([settings-rationalization.md](../settings/settings-rationalization.md) rule 21): both cards live in
 > the « Paiement & caution » tab (`client/src/components/property/PropertyPaymentTab.jsx`). The shipped
@@ -75,6 +77,12 @@ website — and the property page stops asking for acompte settings that mean no
    → the last-minute rule → the automatic `depositPercent` split. The gate sits above the manual
    override on purpose: with the switch OFF the property page offers no acompte setting at all, so a
    frozen override would be an amount nobody can see or explain.
+   *(Amended — the engine's direct chain has since gained branches **above** the gate, none of which moves
+   an acompte: a devis whose solde falls on or before its validity date
+   ([deposit-blocks-the-dates.md](deposit-blocks-the-dates.md) rule 19), a stored own-channel schedule kept
+   as sold, and a stay whose single payment is already in
+   ([plugins-phase-p-productisation.md](../plugins/plugins-phase-p-productisation.md) rule 45). Within the
+   order above, `depositEnabled = 0` is still above the override and the last-minute rule.)*
 6. Same in the platform branch: `!platformTakesDeposit || depositDisabled` still wins, then a paid
    acompte, then `depositEnabled = 0`, then the existing override / automatic split.
 7. The public payment mode ([publicPaymentMode.js](../../server/src/utils/publicPaymentMode.js)) keeps

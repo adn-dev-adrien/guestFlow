@@ -8,7 +8,7 @@
 | **Author** | Adrien |
 | **Related PR** | #561 |
 | **Decision record** | `docs/specs/2026-09-18-guest-email-sequence.html` — the interactive review (rendered mails on real cases, the decisions below) |
-| **Related** | `specs/emails/email-automation.md`, `specs/emails/no-automatic-email-without-approval.md`, `specs/emails/email-history-rolling-window.md`, `guest-gate-access` (PR #547, not merged) (PR #547, see rule 34) |
+| **Related** | `specs/emails/email-automation.md`, `specs/emails/no-automatic-email-without-approval.md`, `specs/emails/email-history-rolling-window.md`, `guest-gate-access` (PR #547, closed unmerged; the shipped gate is `specs/guest-app/gate-access-sowel-connector.md`) (PR #547, see rule 34) |
 
 > **Reviewed 2026-11-26 (spec reorganization).** Rules 15, 16, 18, 19 and the Goal described the removed `emailAutoSendEnabled` master switch; they now state the per-template mode (`specs/settings/settings-rationalization.md` rule 17b; `server/src/utils/autoSendPolicy.js`, `emailTemplatesController.js:113`).
 
@@ -207,7 +207,7 @@ The former J+7 satisfaction survey and the « season reminder, 8 weeks before th
     reservation, and a guest who forgot something writes anyway. The field, its endpoint, its column
     and the J+1 sentence (both the filled variant and the « Un objet oublié ? » fallback) are gone;
     the stored templates lose their `{{lostItemsParagraph}}` line at boot (§5).
-34. **Gate access** — when PR #547 (`guest-gate-access` (PR #547, not merged) rule 23) lands, the J-2 « Pour
+34. **Gate access** — when PR #547 (`guest-gate-access` (PR #547, closed unmerged; the shipped gate is `specs/guest-app/gate-access-sowel-connector.md`) rule 23) lands, the J-2 « Pour
     venir » block carries the gate code and link. Whichever branch merges second wires it.
     > **Sans test** — nothing to test here yet: the rule commits the branch that merges second to
     > wire the two together, and the test lands with that wiring, in the J-2 render suite.

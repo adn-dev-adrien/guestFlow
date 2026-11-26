@@ -10,6 +10,7 @@
 | **Touches** | `models/financeModel.js`, `controllers/*finance*`, `pages/FinancePage.js`, `api.js` |
 
 > **Reviewed 2026-11-26 (spec reorganization).** Live: §3.1 (« total de séjour »), §3.3 (settled) and §3.7 (element-by-element HT), all in `financeModel`. The cards, graphs, upcoming list and operational tabs of §3.2, §3.4-3.6 were replaced by the dashboard of `specs/accounting/finance-dashboard-redesign.md`, and every « by `endDate` » window is now the attribution date (`specs/accounting/fiscal-year-and-nights-sold.md` rule 8).
+> **Reviewed 2026-11-26 (rule-by-rule money audit).** §3.1 rewritten to the code's actual « total de séjour » (net of commission, every bucket off-books in caisse interne, installments, refunds); §3.7 notes the sale-lines HT path. §3.3 matches `reservationSettlement.isSettled`.
 
 ---
 
@@ -38,9 +39,7 @@ Clicking any row anywhere opens the reservation fiche.
 ## 3. Functional rules
 
 ### 3.1 The « total de séjour » of a reservation (the revenue unit)
-`totalSejour(r) = depositAmount + balanceAmount + (complementAmount unless complementPaidCash = 1) + (endOfStayComplementAmount unless endOfStayComplementPaidCash = 1)`.
-Both complements are excluded when settled via caisse interne (off-books) — decision 2026-06-16.
-Rounded to cents. This is the per-reservation value summed everywhere below.
+`financeModel.totalSejour(r)` = what the operator earns on the stay, rounded to cents: acompte + solde + complément d'arrivée + complément de fin de séjour, **net of the platform commission** of each bucket (and of the platform penalty on the solde), **every bucket left out when settled via caisse interne** (off-books), plus the installment plan's collected and still-due totals, the settled mid-stay notes and the arrival tip, minus book refunds, the arrival reduction, and the off-book and waived lines of a split payment. Direct stays carry no commission. *(Amended since the original rule, which listed only the four buckets with the two complements excluded in caisse interne — decision 2026-06-16: `specs/platforms/fiche-total-sejour-net-of-commission.md`, `specs/sas/collect-stay-payment-at-check-in.md` rule 18, `specs/payments/direct-installments.md` rule 45, `specs/payments/mixed-method-payments.md` rule 27, `specs/sas/arrival-payment-detail-and-adjustment.md` rule 21, `specs/accounting/reconciliation-assisted-matching.md` rules 23-31.)* This is the per-reservation value summed everywhere below; `comptaCollected(r) + remainingToPay(r) === totalSejour(r)`.
 
 ### 3.2 Top cards (left → right)
 1. **Revenus depuis le début de l'année** *(new)* — Σ totalSejour of reservations whose `endDate` is in
@@ -116,6 +115,7 @@ HT is computed **on the server, element by element**: the VAT-able revenue of a 
 (`touristTaxTotal`) bears **no VAT** and is **not** revenue HT. The HT fraction of the full TTC is therefore
 `(finalPrice ÷ (1 + vatRate/100)) ÷ (finalPrice + touristTaxTotal)`, applied to whatever TTC portion is being
 summed (total de séjour, encaissé, …) so each card's HT stays consistent with the TTC figure shown above it.
+*(Amended 2026-11-15, `pricing-components` rules 31, 67: a stay whose sale lines the readers serve shows the HT its sale lines give — `utils/financeSaleLines.js`; every other stay keeps the fraction above, `htAmount`. The earnings stay `totalSejour` for every stay.)*
 
 ## 4. Architecture
 

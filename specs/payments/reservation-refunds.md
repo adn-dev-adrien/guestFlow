@@ -8,6 +8,8 @@
 | **Author** | Adrien |
 | **Related PR** | (link once opened) |
 
+> **Reviewed 2026-11-26 (rule-by-rule money audit).** Rules 1, 4, 6, 7, 10, 11, 14, 19, 20, 22, 34, 35, 37, 38, 48 amended to the current code (card means, caps on cancelled stays, overpayment formula, VAT period rate, save disabled on book means). Divergence reported on rules 30-31 (not edited).
+
 ---
 
 ## 1. Context
@@ -61,6 +63,10 @@ and the monthly accounting export carries a **reversed journal entry (avoir)** d
    `finalPrice`, the option/custom/resource lines, `touristTaxTotal`, the échéance amounts
    (`depositAmount` / `balanceAmount` / `complementAmount` / `endOfStayComplementAmount`), the paid
    flags and their payment dates are all left untouched.
+   _(Reviewed 2026-11-26: one exception, on deletion. Deleting a refund that settled a `lineLowered` obligation
+   turns that money back into credit, and the stay's open buckets absorb it first: the arrival complement, the
+   end-of-stay remainder, the solde, an unpaid acompte (`paidLineJudgment.reopenedCredit` in
+   `refundsController.remove`, [pricing-components.md](../pricing/pricing-components.md) rule 119).)_
 2. Refunds live in their own tables (§5), one **header** (date, means, total, reason) + N **lines**
    (what is being given back). A reservation carries 0..N refunds.
 3. The header's `refundDate` is the **real money-out date** — the date the transfer/cash actually
@@ -70,6 +76,11 @@ and the monthly accounting export carries a **reversed journal entry (avoir)** d
    books**, following the exact convention the cash complements already use
    ([cash-complement-and-endofstay-finance.md](../sas/cash-complement-and-endofstay-finance.md),
    [mid-stay-notes.md](../sas/mid-stay-notes.md) rule 15).
+   _(Reviewed 2026-11-26: the operator can pick a fourth means, **`card`** (carte). It is book money like a
+   transfer: the card is refunded by hand from the provider's space, GuestFlow calls no refund API, and the
+   provider's reference is kept in `providerRefundRef` ([pricing-components.md](../pricing/pricing-components.md)
+   rule 72, owner O-3; `SELECTABLE_REFUND_METHODS` in `utils/pricing/refunds/register.js`). `retained` is the
+   cancellation's requalification avoir. Only the cancellation writes it; the operator can never select it.)_
 5. `totalTtc` is **server-computed** as Σ line amounts — a client-sent total is never trusted
    ([mid-stay-notes.md](../sas/mid-stay-notes.md) rule 7, same philosophy).
 6. A refund is **immutable** once created. A correction is a **delete + recreate**, mirroring the
@@ -122,6 +133,12 @@ and the monthly accounting export carries a **reversed journal entry (avoir)** d
    >   before it is judged by that set alone: one outside it is deleted. With no avoir, the bullet above stands
    >   unchanged. A stay that cannot be read back gets no set: every book refund before the avoir is then refused as
    >   netted, by id order.
+   >
+   > **Reviewed 2026-11-26.** This amends the « caisse-interne refund made before the cancellation » bullet above. Such a
+   > refund is refused when the sum kept read it, i.e. when deleting it would raise the sum kept
+   > (`judge.caisseKeptMoves`): 409 `REFUND_NETTED_BY_CANCELLATION` « Remboursement déduit de la somme conservée. »
+   > ([payment-schedule-and-cancellation.md](payment-schedule-and-cancellation.md) rule 62, reading of 2026-11-10,
+   > verification R44b N1).
 
 ### 3.2 What can be refunded
 
@@ -133,6 +150,11 @@ and the monthly accounting export carries a **reversed journal entry (avoir)** d
      (`extraLineKey`) so the two features never disagree on identity;
    - **`touristTax`** when `touristTaxTotal > 0`.
 
+   _(Reviewed 2026-11-26: when a line was sold later, on its own, its key is its stored `lineKey`
+   `line:<table>:<lineId>`, which `extraLineKey` returns first ([pricing-components.md](../pricing/pricing-components.md)
+   rule 85). The accommodation derivation now lives in the core `storedMoneySplit.buildPerLineData`, which the
+   accounting model reads.)_
+
    Each entry carries `key`, `label`, `bucket`, `quantity`, `unitPrice`, `billedTtc`,
    `refundedTtc` (Σ of the refund lines already recorded on that key), `refundableTtc =
    max(0, billedTtc − refundedTtc)` and `vatRate`.
@@ -143,8 +165,14 @@ and the monthly accounting export carries a **reversed journal entry (avoir)** d
    commercial-gesture escape hatch.
 10. **Per-key cap**: for every keyed line, Σ refunded on that key across all refunds must stay
     ≤ `billedTtc`. Violation → **409 `REFUND_EXCEEDS_LINE`** (the payload names the key).
+    _(Reviewed 2026-11-26: the check compares the amount asked with the line's `refundableTtc`. On a cancelled
+    stay, a line's ceiling is `max(billed, collected)`, and what the avoir requalified is deducted from it
+    (rules 46 and 49, reading of 2026-11-05, audit R22-4).)_
 11. **Global cap**: Σ of every refund of the reservation (all means, free lines included) must stay
     ≤ `finalPrice + touristTaxTotal`. Violation → **409 `REFUND_EXCEEDS_STAY`**.
+    _(Reviewed 2026-11-26: only on a live stay. The `retained` avoir counts for nothing here, since it gave nothing
+    back. On a cancelled stay this cap is skipped, and `REFUND_EXCEEDS_COLLECTED` caps the refund instead (rule 49,
+    reading of 2026-11-05, audit R22-4).)_
 12. Every line amount must be **> 0**, and the refund total must be > 0 → **400
     `REFUND_INVALID_AMOUNT`** otherwise.
 13. `refundDate` must be a valid `YYYY-MM-DD` and **not in the future** (the money has to have moved)
@@ -152,8 +180,9 @@ and the monthly accounting export carries a **reversed journal entry (avoir)** d
     *Reading of 2026-11-02 — the date window.* `refundDate` is a real calendar day (`2026-02-30` used to pass the
     regex) and not before today − 5 years, « Date trop ancienne : 5 ans au plus. » (`specs/tech/reservations-backend-mvc.md` rule 13, second reading).
 14. **VAT is stored at creation and re-rated with the stay's period.** Each line stores the `vatRate` that applied
-    when it was recorded: the app's single global `vatRate` ([single-vat-rate.md](../accounting/single-vat-rate.md)) for the
-    three revenue buckets, **0** for the `touristTax` bucket (a pass-through bears no VAT). A later settings
+    when it was recorded: the rate of the stay's VAT period (`vatRegimeModel.rateForRow`, 0 under `not_subject`;
+    [vat-optional-mode.md](../accounting/vat-optional-mode.md), which superseded the single global `vatRate` of
+    [single-vat-rate.md](../accounting/single-vat-rate.md); reviewed 2026-11-26) for the three revenue buckets, **0** for the `touristTax` bucket (a pass-through bears no VAT). A later settings
     change never re-prices an avoir already issued — same principle as the stored-money accounting path. A VAT
     regime switch and its undo ([vat-optional-mode.md](../accounting/vat-optional-mode.md) rules 16 and 26) re-rate the refund
     lines of the stays they move with the stay's period, as the code does (`vatRegimeSwitchModel`).
@@ -188,10 +217,17 @@ and the monthly accounting export carries a **reversed journal entry (avoir)** d
     from the book aggregates (totalSejour, encaissé, CA, export). An `internal` refund is off the
     books: it is excluded from those, and only counted in the « avec caisse » readings — exactly what
     `complementPaidCash` does at each aggregate, site by site.
+    _(Reviewed 2026-11-26: `card` is book money like `transfer` and `cash`. Every reader picks refunds through one
+    declared scope (`register.totals` / `scopeSql`, [pricing-components.md](../pricing/pricing-components.md) rule 72).
+    The fiche, the caps and `comptaCollected` on the fiche read `given`, where the `retained` avoir counts for
+    nothing. The finance views (`financeModel`) read `turnover`, where the avoir counts as book money because it
+    reverses revenue.)_
 20. A refund is attached to a reservation's **period** for the finance windows (it rides
     `totalSejour`, whose window is the reservation's, not the refund's date). The accounting export is
     the only surface that uses `refundDate` as its own timeline — same asymmetry as today between the
     finance overview (by reservation window) and the journal (by payment date).
+    _(Reviewed 2026-11-26: a second surface also reads `refundDate`. The VAT-franchise turnover subtracts
+    non-`internal` refunds on their own date ([vat-optional-mode.md](../accounting/vat-optional-mode.md) rule 37 c).)_
 
 ### 3.4 Accounting — the avoir
 
@@ -209,6 +245,12 @@ and the monthly accounting export carries a **reversed journal entry (avoir)** d
 
     Σ débits = Σ crédits = refund TTC, the rounding residue absorbed on the **last debit** line (the
     encaissement path absorbs it on the last credit).
+    _(Reviewed 2026-11-26: three later rules depart from the line-by-line mirror. (1) A refund that gives back the
+    last of a stay's book money debits what is left on each sale account instead of its own lines
+    (`closeStayBooks`, [mixed-method-payments.md](mixed-method-payments.md) rules 56 and 58). (2) Lines taken from a
+    cancellation indemnity debit the indemnity account (rule 48). (3) On a stay whose sale lines are read, the avoir
+    is cut by `vatOf` ([pricing-components.md](../pricing/pricing-components.md) rule 61). The account numbers and
+    the `VT` journal of rules 22 and 24 are the account plan's defaults, which the operator can rename.)_
 23. **No commission line, ever** — the owner refunds the guest directly, out of their own bank
     account, whatever the platform of the original sale.
 24. Journal `VT`, `Pièce` empty, libellé = the same uppercased « PRÉNOM NOM » as the sale's entries
@@ -233,7 +275,9 @@ and the monthly accounting export carries a **reversed journal entry (avoir)** d
   key.
 - **Tourist-tax refund**: single debit on `46710000`, no VAT, no revenue account touched.
 - **Reservation deleted**: refunds cascade away (`ON DELETE CASCADE`).
-- **Devis (`kind='devis'`)**: no refunds — the endpoints reject with 400, like every other money flow.
+- **Devis (`kind='devis'`)**: no refunds. The endpoints answer 404 « Réservation non trouvée », because
+  `getByIdWithDetails` reads no devis, as every stay write does for a devis id
+  ([reservations-backend-mvc.md](../tech/reservations-backend-mvc.md) rule 25; reviewed 2026-11-26, it used to say 400).
 
 ### 3.5 Taxe de séjour — remboursement et déclaration
 
@@ -270,13 +314,15 @@ and the monthly accounting export carries a **reversed journal entry (avoir)** d
 > online and a solde lowered to 665 € by a later save, with nothing on the fiche to say so. The money
 > received and the sale diverged silently.
 
-34. **A trop-perçu is computed by the server and offered as a refund.** It is what the acompte and the
-    solde actually collected, minus every refund already given back, minus the schedule the stay now
-    has (`acompte + solde`), floored at 0 (`utils/overpayment.js`). A paid bucket's collected amount is the
-    sum of the contribs captured when it was ticked, which survives a later save that lowers it; without
-    a capture it is the stored amount. A caisse-interne bucket counts as collected. A paid acompte or
-    solde whose amount the engine keeps frozen above what the reduced stay now owes counts too: the
-    engine reports that excess as `overCollectedTtc`, and the trop-perçu is the larger of the two.
+34. **A trop-perçu is computed by the server and offered as a refund.** It is the Σ of the stay's payment
+    allocations, minus its line totals (stored `finalPrice` + tourist tax), minus the free refund lines of
+    origin `overpayment` already given back, floored at 0 — one formula for every stay
+    (`overpayment()` in `utils/pricing/refunds/overpayment.js`, loaded by `models/refundInputModel.js`). A paid
+    bucket lowered after it was paid keeps the contribs it captured as its allocation, so the excess survives
+    the save that lowered it; a caisse-interne payment counts as collected; an adjusted paid complement is left
+    out of both sides. The live figure is the stored one plus the drift the edit adds. *Amended 2026-11-12 by
+    pricing-components.md rules 74 and 76 (PR B): before, it was « acompte + solde collected − every refund −
+    the schedule », with the engine's `overCollectedTtc` as a second reading.*
     - **On save:** a save that adds to the trop-perçu is refused with 409 `OVERPAID`, carrying
       `overpaymentTtc`, and nothing is written. The fiche asks « Trop-perçu » with two answers:
       « Enregistrer et rembourser » (the same save, sent again with `forceOverpayment`; the fiche stays
@@ -290,11 +336,16 @@ and the monthly accounting export carries a **reversed journal entry (avoir)** d
       can change both. *Amended 2026-10-18 by rule 35: one line per poste, no longer always Hébergement.*
 35. **The trop-perçu is split by poste (2026-10-18).** The server also returns `overpaymentLines`
     (`[{ bucket, label, amountTtc, collectedTtc, dueTtc }]`), on the 409 `OVERPAID` and on the live quote,
-    built by `overpaymentLinesOf` (`utils/overpayment.js`): for each poste (Hébergement, Prestations
-    complémentaires, Activités, Taxe de séjour) what the paid acompte and solde captured on it, what the
-    stay now costs on it as the save would price it, and the excess. The trop-perçu is spread over the
-    postes in proportion to their excess, the rounding cents going to the largest; without a capture to
-    read, or no poste in excess, it stays whole on Hébergement.
+    built by `overpaymentLinesOf` (`utils/pricing/refunds/overpayment.js`): for each poste (Hébergement, Prestations
+    complémentaires, Activités, Taxe de séjour) what the paid acompte and solde (and a direct stay's collected
+    arrival complement) captured on it, what the stay now costs on it as the save would price it, and the
+    excess. The trop-perçu is spread over the postes in proportion to their excess, the rounding cents going
+    to the largest. Without a capture to read, or no poste in excess, it is split by what left the stay since
+    it was collected — the tourist tax, then the options, then the resources — and only the unexplained rest
+    lands on Hébergement, each such line reading « X € encaissés en trop »; an excess a collected complement
+    holds goes to the postes it carried, options first. *Amended by reservation-save-keeps-pricing.md rules 4,
+    14-15 (commit a03b18846) and pricing-components.md rule 74: before, the fallback was « whole on
+    Hébergement ».*
     - **Refund dialog:** opened from « Rembourser » or after « Enregistrer et rembourser », it carries one
       free line « Trop-perçu » per poste of `overpaymentLines`, each on its bucket and amount.
     - **Fiche:** under « Trop-perçu : X € », one caption per poste that collected something:
@@ -328,7 +379,8 @@ and the monthly accounting export carries a **reversed journal entry (avoir)** d
     server still derives the quantity from the amount, rule 28). The line's ceiling shows under its
     amount from the start (« Max 28,00 € »). The refusal sits on one line right above the save button:
     « <ligne> : dépasse le remboursable de X € » or « Montant illisible. » (save disabled),
-    « Dépasse l'encaissé de X € » (warning, save still allowed). The server stays the authority on
+    « Dépasse l'encaissé de X € » (save disabled on a book means, a warning only in caisse interne —
+    *amended 2026-11-05 by rule 50*; it used to be a warning on every means). The server stays the authority on
     every ceiling. *Why: the final review of 2026-10-18 (UI #1) typed 45 on « Linge de lit » 28 € and
     the stepper read « 6.43 », the refusal sat in body text far from a greyed button, and a French
     « 12,5 » typed on desktop was silently dropped by the `type="number"` field.*
@@ -339,6 +391,11 @@ and the monthly accounting export carries a **reversed journal entry (avoir)** d
     *Why: the second pass of the final review (minor 1) corrected an Abracadaroom stay from 600 € to
     450 € after ticking « payé »: the solde stayed at 600 € with a 150 € trop-perçu nobody can give
     back.*
+    *Amended 2026-11-16 by pricing-components.md rules 104-105 and 113:* the trop-perçu formula still reads 0
+    on a platform stay, but money a **note** collected on a line since offered, discounted or lowered is
+    judged by `utils/paidLineJudgment`: the save is then refused with 409 `OVERPAID` (body built by
+    `judgedOverpaymentOf`) and the fiche shows that trop-perçu (the open `lineLowered` obligation) until it
+    is refunded.
 39. **Money kept on a direct stay stays in the sale (2026-10-19).** The trop-perçu is not a state to
     dismiss: it says the stay, as now sold, costs less than what was received. When the operator keeps
     part of it — a night the CGV make non-refundable, say — that money is still a sale, so it is
@@ -433,8 +490,9 @@ and the monthly accounting export carries a **reversed journal entry (avoir)** d
       by default; 0 % on a stay sold « Sans TVA »), never 706 nor 4457. Client account, 706, 4457 and 4671 are
       then exact; the indemnity is reduced by what went back.
     - **Refusals (409):** a keyed line beyond its share → `REFUND_EXCEEDS_LINE` (the per-line cap of rule 10), or,
-      when the line's share is used up by an earlier line of the same refund, « <ligne> : dépasse l'encaissé (X €). »;
-      a free line beyond what is left → `REFUND_EXCEEDS_COLLECTED` « Dépasse l'encaissé (X €). »; an indemnity share in caisse interne
+      when the line's share is used up by an earlier line of the same refund, « « <ligne> » : dépasse l'encaissé restant (X €). »;
+      a refund beyond what is left → `REFUND_EXCEEDS_COLLECTED` « Dépasse l'encaissé (X €). », and a free line that runs out
+      after earlier lines « Dépasse l'encaissé restant (X €). » (wording since rule 49, 2026-11-02); an indemnity share in caisse interne
       (`internal`, off the books, so it could not reduce the indemnity) → `REFUND_INDEMNITY_OFF_BOOKS`
       « Pris sur l'indemnité : virement ou espèces seulement. »
     A stay that is not cancelled is unchanged. *Why:* on stay #22326 (2 060 € collected by two installments, all

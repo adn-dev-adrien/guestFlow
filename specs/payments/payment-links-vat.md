@@ -9,6 +9,8 @@
 | **Related PR** | (link once opened) |
 | **Related** | [online-payments-qonto.md](online-payments-qonto.md) (link creation), [public-online-payment.md](../site/public-online-payment.md) (UC2 amounts), [single-vat-rate.md](../accounting/single-vat-rate.md) (the one global `vatRate`), [public-online-deposit.md](../site/public-online-deposit.md) (deposit/balance links get the same treatment) |
 
+> **Reviewed 2026-11-26 (rule-by-rule money audit).** Rules 5-6 reworded to the code: an API rejection of the basket is an error, not a fallback; a mismatch does not deactivate the stray Qonto link.
+
 ---
 
 ## 1. Context
@@ -73,9 +75,10 @@ the cent. If Qonto's API cannot represent that exactly, fall back to the current
    mismatch, **throw** (the pay flow fails safe — the guest never receives a wrong-amount link) and
    log the built items + the Qonto amount for diagnosis. Because the builder computes the residual
    with Qonto's exact rule, a mismatch means Qonto changed behavior — surface it loudly rather than
-   silently overcharge. (There is no link-cancel API; failing the request is the safe action.)
-6. **Fallback (user decision):** when the exact representation is impossible (API rejection, rounding
-   not compensable, semantics unclear), keep the single-item `vat_rate:"0"` payload — total-only,
+   silently overcharge. (Failing the request is the safe action: the mismatched link's id is never returned to the caller, so no URL is stored or sent. Qonto's deactivate endpoint exists since payment-link-lifecycle.md §1.2, but this path does not call it, so the stray link stays active at Qonto.)
+6. **Fallback (user decision):** when the exact representation is impossible (rounding not compensable:
+   the basket does not sum to the charge, or a stored tax exceeds the solde), keep the single-item
+   `vat_rate:"0"` payload — total-only,
    no VAT detail — rather than risk a wrong charge or a wrong VAT display.
 7. Applies to **all** link-creation flows (UC1 deposit email, admin payment-links, public UC2
    full/deposit/balance) — the items builder is shared, callers only pass the amounts they already

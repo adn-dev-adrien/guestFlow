@@ -11,6 +11,8 @@
 
 > **Reviewed 2026-11-26 (spec reorganization).** The card, its breakdown dialog and the pie are gone: the Suivi financier dashboard has no « En attente de règlement » card, and « Reste à encaisser » now counts the window's stays (`specs/planning/mobile-dashboard-exercise-cash.md` rule 11). Rules 1-3 and 7-8 (global scope, `remainingToPay` amount in `getSummary().totalPending` and `getOperational().pending`) are live in the model.
 
+> **Reviewed 2026-11-26 (rule-by-rule money audit).** Rules 1-3, 7-8 verified against `getSummary` / `getOperational`; nothing to correct. `getSummary().totalPending` (rules 1-3, 7) has no client reader left.
+
 ---
 
 ## 1. Context

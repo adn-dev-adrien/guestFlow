@@ -8,6 +8,8 @@
 | **Author** | Adrien |
 | **Related PR** | (link once opened) |
 
+> **Reviewed 2026-11-26 (rule-by-rule money audit).** Rules 4 and 15 annotated with the Neat-derived price override (neat-cancellation-insurance-subscription rule 13); rules 14-16 and 18-19 annotated: offered only while a live insurance plugin prices it (decision P13, plugins-phase-3b-neat).
+
 ---
 
 ## 1. Context
@@ -99,6 +101,8 @@ site the visitor must say **oui** or **non** before paying: the choice can no lo
    `unitPrice` with `quantity = 1` and `billedUnits = 1`. This path wins over the planning-card one:
    an option that is *also* flagged « carte planning » is still priced from the stay, never from its
    occurrences — otherwise its percentage would be read as a euro unit price.
+   *(Amended — Neat rule 13: with the Neat integration live, the engine receives a pre-resolved unit-price
+   override for the insurance line, `stayWideAmount`; the quantity clamp and the price lock are unchanged.)*
 5. **Quantity is always 1.** A `percent_of_stay` option is a yes/no product: the engine clamps any
    quantity ≥ 1 to 1 and treats 0 as « not taken » (no line). The admin stepper and the site are
    capped at 1 accordingly.
@@ -164,9 +168,20 @@ site the visitor must say **oui** or **non** before paying: the choice can no lo
     `≤ 0`, the insurance is **not** returned by the public API and its block is **not** rendered on
     the site, so no choice is required. It stays visible in the admin catalogue so Adrien can price
     it.
+    *(Amended — [neat-cancellation-insurance-subscription.md](../plugins/neat-cancellation-insurance-subscription.md)
+    rule 13: when the Neat-derived price is live (`dynamicPrice`), a static tariff of 0 no longer hides the
+    block, the price being Neat's premium plus margin; the label then reads « Tarif calculé pour vos dates
+    de séjour ». `toPublicCancellationInsurance`.)*
 16. **Admin side it is an option like any other**: it can be added to a reservation or a devis from
     the fiche, it prints on the devis PDF, it feeds the accounting exactly like the other extras. Its
     amount follows §3.1.
+    *(Amended — decision P13, [plugins-phase-3b-neat.md](../plugins/plugins-phase-3b-neat.md) rules 5, 6, 21-23,
+    `utils/insuranceOffer.js`: rules 14-16 and 18-19 hold only **while a live plugin prices the insurance**
+    (`quotePostProcessors.insuranceOffered()`, today Neat). Without one the option row stays seeded but is hidden
+    from `GET /api/options` (its `GET`/`PUT` answer 404, setting the flag answers 400), from the property's options,
+    from the public catalogue and the quote (`cancellationInsurance: null`); no new devis, reservation or line can
+    add it (422 `INSURANCE_NOT_OFFERED`); a line a stay already carries is kept as stored, read-only, under
+    `frozenOptions`.)*
 17. **Never sold once the stay has started.** There is nothing left to cancel, so the insurance is
     excluded from **both** in-stay selling surfaces (the SAS write path too since 2026-11-03,
     [sas-breakfast-and-catering-upsell.md](../sas/sas-breakfast-and-catering-upsell.md) rule 15):

@@ -8,6 +8,8 @@
 | **Author** | Adrien |
 | **Related PR** | (link once opened) |
 
+> **Reviewed 2026-11-26 (rule-by-rule money audit).** Rules 1-21 and 35-39 checked against the exporter, controller and model; only the §4.1 `synthesis.js` row corrected (engine now in the core).
+
 Decisions this spec carries out (finance reporting inspired by HIPPOCAMP, 2026-11-05): **D-HC2** the synthesis is
 the first tab of « Comptabilité » (accounting-export plugin), the per-entry view becomes the « Écritures » tab;
 **D-HC3** VAT to declare is computed on the money collected, by rate, from the same entries the CSV export writes;
@@ -298,7 +300,7 @@ add up — before the CSV goes to the accountant.
 | `plugins/accounting-export/` | `index.js` | T | Route `GET /api/accounting/synthesis`, accountant `GET` entry, stamps the CSV download |
 | `plugins/accounting-export/` | `synthesisController.js` | C | Orchestrates period → reads → shaping; the payload, each panel's source, the not-subject marker, the N-1 pills and reason |
 | `plugins/accounting-export/` | `synthesisModel.js` | C | Reads: the window's entries from the export's month stream, payment means (links, channel), stays' summary, tourist-tax extraction sum, the dashboard's last-year range, last export, regime in force |
-| `plugins/accounting-export/` | `synthesis.js` | C | Pure engine: ventilation items, VAT return by rate and account, balanced and VAT-coherent checks, payments, means and types with shares, series |
+| `plugins/accounting-export/` | `synthesis.js` | C | Binds the plan to the pure engine, now `utils/accounting/exporters/synthesis.js` in the core (`specs/pricing/pricing-components.md` §3 rule 63): ventilation items, VAT return by rate and account, balanced and VAT-coherent checks, payments, means and types with shares, series |
 | `plugins/accounting-export/` | `synthesisPeriod.js` | C | Pure: the four periods, their refusals, granularity and buckets |
 | `plugins/accounting-export/` | `accountingExport.js` | T | Each row tagged with its role and rate beside the cells; `entryVentilation` — CSV unchanged |
 | `plugins/accounting-export/` | `controller.js` | T | `onCsvExported(month)` after a built CSV; exports `monthEntries` |

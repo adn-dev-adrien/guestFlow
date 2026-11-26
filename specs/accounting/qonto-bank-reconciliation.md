@@ -7,8 +7,10 @@
 | **Created** | 2026-10-22 |
 | **Author** | Adrien |
 | **Related PR** | (link once opened) |
-| **Summary page** | `docs/specs/2026-10-22-qonto-bank-reconciliation.html` |
+| **Summary page** | none in the repository (the 2026-10-22 summary was never committed) |
 | **Extended by** | [reconciliation-assisted-matching.md](reconciliation-assisted-matching.md) (Implemented 2026-10-28) — fiche linking dialog, bulk confirmation, split and grouped payments, automatic confirmation, platform penalties |
+
+> **Reviewed 2026-11-26 (rule-by-rule money audit).** Rule 14: early payout window now the stay's check-in (assisted-matching rules 32, 42). Rule 30's 10-day window differs from the code (reported, not edited).
 
 ---
 
@@ -122,7 +124,9 @@ a short list of the gaps to fix on the fiches.
     (setting, one list of text patterns per platform, defaults in rule 29) is proposed against that
     platform's unreconciled payout rows whose `settled_at` falls between 400 days before and 30 days
     after the row's expected date (Abracadaroom pays at booking time, Booking a week after departure
-    — §1). No floor on the reservation's creation date: the fiches are often typed after the money
+    — §1). *(Revised 2026-10-28: the early bound is the stay — a platform that pays after the stay is never
+    credited before check-in; only Abracadaroom, Lodgify and Stripe keep the 400-day early window —
+    reconciliation-assisted-matching.md rules 32, 42; `matcher.inPayoutWindow`.)* No floor on the reservation's creation date: the fiches are often typed after the money
     moved, which the real export showed:
     - one row with the exact amount → **sûr** if it is the only one, **à vérifier** if several are;
     - else the smallest combination of up to 6 rows whose sum is exact → **probable**.

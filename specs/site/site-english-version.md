@@ -167,7 +167,7 @@ build against.)_
 
 14. The guest's language is part of the stay, not of the website. Any GuestFlow surface a guest
     reaches during their stay must be able to read it, and the gate is the first one coming:
-    `guest-gate-access` (PR #547, not merged) ships a guest-facing page (`/gate/v1/session`) plus a Sowel-facing
+    `guest-gate-access` (PR #547, closed unmerged; the shipped gate is `specs/guest-app/gate-access-sowel-connector.md`) ships a guest-facing page (`/gate/v1/session`) plus a Sowel-facing
     poller tree (`/public/v1/gate/*`, that spec's §4.3). Today both are French-only, and the guest
     page is the **first guest-facing UI this app has ever had** — it must not become the one place
     where an English guest hits French.
@@ -183,7 +183,7 @@ build against.)_
     today. The gate's own security model is untouched — language is a display attribute, never a
     capability, and it must never widen what a token can do.
     > **Sans test** — contrat écrit d'avance pour l'app portail ; aucune ligne de code ne l'implémente ici (§8)
-17. Whoever implements this amends `guest-gate-access` (PR #547, not merged) §4.3 in the same commit. That spec
+17. Whoever implements this amends `guest-gate-access` (PR #547, closed unmerged; the shipped gate is `specs/guest-app/gate-access-sowel-connector.md`) §4.3 in the same commit. That spec
     owns the gate contract; this one only records what the contract must eventually say.
     > **Sans test** — consigne de tenue de spec, pas un comportement du logiciel
 
@@ -787,7 +787,7 @@ must still pass.
 - **Region-specific variants.** `en-US` and `en-GB` both resolve to `en`; the site has one English.
 - **The gate app, and every line of code behind rules 14-17.** Those rules are a contract written
   in advance, at Adrien's request (2026-09-24), so the language does not have to be retrofitted the
-  day `guest-gate-access` (PR #547, not merged)'s guest page and Sowel plugin are built. **Nothing in this
+  day `guest-gate-access` (PR #547, closed unmerged; the shipped gate is `specs/guest-app/gate-access-sowel-connector.md`)'s guest page and Sowel plugin are built. **Nothing in this
   implementation touches `/gate/v1/*` or `/public/v1/gate/*`.**
 - **The 19 `activite` drafts and the 4 page drafts.** They are not published in French; translating
   unpublished content is premature.
@@ -842,7 +842,7 @@ _(filled during implementation)_
 - [ ] Back-office: request language on the fiche, quote-language toggle outside devis mode, language
       in the send dialog, `EMPTY_CLIENT` / `clientsModel` overwrite guard
 - [ ] `specs/site/public-api.md` + `specs/site/wordpress-plugin.md:289` amended
-- [ ] _(not in this branch — rules 14-17)_ `guest-gate-access` (PR #547, not merged) §4.3 amended when the gate
+- [ ] _(not in this branch — rules 14-17)_ `guest-gate-access` (PR #547, closed unmerged; the shipped gate is `specs/guest-app/gate-access-sowel-connector.md`) §4.3 amended when the gate
       app is built
 
 - **2026-10-28 — Status Implemented for the code.** The public API, the plugin (1.12.0) and the back office

@@ -8,6 +8,8 @@
 | **Author** | Adrien |
 | **Related PR** | [#334](https://github.com/adn-dev-adrien/guestFlow/pull/334) |
 
+> **Reviewed 2026-11-26 (rule-by-rule money audit).** Rules 6-8, 10 and 12 and the pure-tax edge case rewritten: the bucket split is now per destination (`accounting-books-the-money-collected.md` rules 5-8, 11-12, 15), not a share of the whole stay, and a pure-tax complement is kept (`accountant-accounting-export.md` rule 15b).
+
 > **Reviewed 2026-11-26 (spec reorganization).** Rule 1 (gross-up ratio) rewritten to match `specs/accounting/accounting-books-the-money-collected.md` rule 1; the effective percent, the net and the credit lines (rules 2-11) are unchanged.
 
 ---
@@ -87,37 +89,44 @@ Decisions taken with Adrien on 2026-07-15 (AskUserQuestion):
 5. **Tourist tax per échéance** — unchanged (`computeTaxTtcForKind`): 0 on deposit; full tax
    (clamped to the CA) on balance; complement carries it only when routed there. The balance card
    keeps its 46710000 pass-through line.
-6. **Revenue buckets from stored money** (legacy/no-contribs path). Bucket TTCs are derived from
-   the row, never from a recomputed quote:
-   - `optionsTtc` = Σ `reservation_options.totalPrice` + Σ `reservation_custom_options` amounts
-     (offered lines count 0 — same shape as `buildPerLineData`),
-   - `resourcesTtc` = Σ `reservation_resources.totalPrice`,
-   - `accommodationTtc` = `finalPrice − optionsTtc − resourcesTtc` (clamped ≥ 0).
-7. **Effective percent per échéance**: `pct = (CA − tax_échéance) / finalPrice`.
-   Bravo: deposit 67,13/131,28 = 51,14 %, balance (67,13 − 2,98)/131,28 = 48,86 %.
-8. **Credit lines**: each bucket credits `HT × pct` where `HT = bucketTtc / (1 + vatRate/100)`;
-   the VAT credit = Σ over buckets of `bucketTtc × pct × vatRate/(100 + vatRate)`, grouped by rate.
-   `vatRate` is the single global rate (`app_settings.vatRate`, `specs/accounting/single-vat-rate.md`) — there
-   is no per-property VAT. Bravo deposit → gîte **40,11**, options **20,92**, TVA **6,10**;
-   balance → 38,33 / 19,99 / 5,83 + taxe 2,98.
+6. **Revenue buckets from stored money** (legacy/no-contribs path). *(Rewritten by `specs/accounting/accounting-books-the-money-collected.md` rules 5-7.)*
+   Bucket TTCs are derived from the row, never from a recomputed quote: `accommodationTtc` =
+   `finalPrice − Σ options − Σ resources` (clamped ≥ 0; offered lines count 0), and each billed
+   option / custom option / resource belongs to ONE destination (pre-arrival, arrival complement, or the
+   part sold mid-stay). An acompte or a solde collects `[accommodation, pre-arrival options, pre-arrival
+   resources]`; an arrival complement collects `[complement options, complement resources]` and never
+   accommodation (`storedMoneyCollected`, `utils/storedMoneySplit.js`).
+7. **Effective percent per échéance.** *(Rewritten by `accounting-books-the-money-collected.md` rule 6.)*
+   Within its destination: `fraction = (CA − tax_échéance) / Σ collected buckets of that destination`.
+   The share of the WHOLE stay, `(CA − tax) / finalPrice`, survives only as the `stayShare` caption
+   (rule 11): Bravo deposit 67,13 / 131,28 = 51,14 %.
+8. **Credit lines**: each bucket of the destination credits `bucketTtc × fraction`, split at the rate of the
+   reservation's VAT period (`specs/accounting/single-vat-rate.md` rule 14; no per-property VAT); the VAT
+   credit = Σ over buckets, grouped by rate. The Bravo figures of the original design (gîte 40,11, options
+   20,92, TVA 6,10) predate the per-destination split: a deposit now credits only the postes collected
+   before arrival.
 9. **Balance guarantee**: Σ credits = CA = Σ debits (CCLIENT net + commission lines); the ≤ 2-cent
    rounding residue is still absorbed by the last credit line (existing `entryToRows` mechanism).
 10. **Contrib-driven path** (`force-item-to-complement` snapshots): bucket TTCs stay the captured
-    contribs but are **no longer multiplied by `grossRatio`**; CA = stored amount × ratio (= stored,
-    contrib rows are all current-model), net = CA − commission. Zero cross-kind contamination
-    guarantees unchanged.
+    contribs and are **never multiplied by `grossRatio`**; CA = stored amount × ratio, net = CA − commission.
+    *(Narrowed by `accounting-books-the-money-collected.md` rules 12 and 15.)* Contribs drive an entry only
+    when the ratio is 1, they do not overflow the entry, and they add up to it within 0,02 € in both
+    directions; otherwise the entry is booked on the stored-money path (rules 6-8).
 11. **« N % du séjour » caption**: the structured payload exposes a dedicated `stayShare`
     field (= `(CA − tax) / finalPrice`, rule 7) consumed by the card caption; `fraction` stays
     the export-side bucket multiplier (1 on the contrib path). Deposit card shows
     « 51 % du séjour ».
 12. Scope: applies to every entry of `encaissementsByMonth` — platform and direct, deposit/balance/
-    complement/endOfStay (endOfStay entries are already flat TTC and unchanged). CSV, journal
+    complement/endOfStay (endOfStay entries are flat TTC, ventilated by line from their stored detail:
+    `accounting-books-the-money-collected.md` rule 8). CSV, journal
     cards and « Encaissements du mois » table all read the same engine output, so all three
     surfaces correct together.
 
 **Edge cases:**
 - Stored schedule sums to 0 with a paid flag set → entry still dropped (existing rule 12bis guard).
-- Pure-tax complement (tax-on-arrival platforms, e.g. #22209) → entry still dropped.
+- Pure-tax complement (tax-on-arrival platforms, e.g. #22209) → entry **kept** as one debit / one 46710000
+  credit (policy of 2026-06-01, `accountant-accounting-export.md` rule 15b; test
+  `accounting-model-tourist-tax.unit.test.js`).
 - « solde = net » era rows (#7) → ratio > 1 restores the guest-paid gross; net stays the stored
   bank movement (994 CA / 91 commission / 903 net).
 - `clientGrossAmount` era rows (#1–#6, #8, #13, #22211…) → behavior unchanged.

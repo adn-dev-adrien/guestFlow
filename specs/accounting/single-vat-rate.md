@@ -8,6 +8,8 @@
 | **Author** | Adrien |
 | **Related PR** | (link once opened) |
 
+> **Reviewed 2026-11-26 (rule-by-rule money audit).** Rules 4, 5, 8 and 9 rewritten: `getGlobalVatRate`, the finance `accommodationVatRate` payload column and the PDF / summary « single VAT line » were replaced by the VAT component and the regime of the reservation's period (`pricing-components.md` rules 15, 51-52, 65; `vat-optional-mode.md`).
+
 ---
 
 ## 1. Context
@@ -60,18 +62,15 @@ pricing engine from current settings).
    The form state collapses from `vat: { accommodationRate, standardRate }` to
    `vat: { rate }`. Validation: integer or decimal between 0 and 100 (existing
    `validateVatRate` reused).
-4. **Pricing engine** (`server/src/utils/pricing.js`):
-   - `getGlobalVatRates(db)` is renamed `getGlobalVatRate(db)` and returns a single number.
-   - `calculateReservationQuote` writes the same rate to `vatPercentageAccommodation`,
-     `vatPercentageOptions`, `vatPercentageResources` in the returned quote. The three
-     field names stay in the quote payload so that downstream readers
-     (accounting model, devis PDF, PricingSummary) keep working without a wider sweep —
-     they all just receive the same value across the three keys.
-   - The per-bucket VAT extraction (`TTC × rate / (100 + rate)`) is unchanged structurally;
-     it just uses one rate for every bucket now.
-5. **Finance reporting** (`financeModel`): the `accommodationVatRate` column in row
-   payloads now reads `COALESCE((SELECT vatRate FROM app_settings WHERE id = 1), 10)`. The
-   key name stays so the client doesn't need a wider rename.
+4. **Pricing engine** *(rewritten: `getGlobalVatRate` no longer exists)*. The `vat` pipeline step
+   (`server/src/utils/pricing/steps/vat.js`) cuts the VAT through the VAT component
+   (`utils/pricing/vat/index.js`, `specs/pricing/pricing-components.md` rules 51-52): the rate is the one
+   of the reservation's VAT period (rule 14), the same for accommodation, options and resources, and the
+   quote still writes it to `vatPercentageAccommodation`, `vatPercentageOptions`, `vatPercentageResources`
+   so downstream readers keep working. The per-bucket extraction (`TTC × rate / (100 + rate)`) is unchanged.
+5. **Finance reporting** *(rewritten)*. `financeModel` no longer exposes an `accommodationVatRate`
+   column: it reads the rate of each reservation's own period (`vatRegimeModel.forRow(...).rate`, rule 14)
+   and derives the HT figures from it.
 6. **Accounting model** (`accountingModel.js`):
    - `bucketFromTtc('accommodation', …, rate)` + `bucketFromTtc('options', …, rate)` keep
      producing two TYPED buckets (so the audit / journal text still differentiates an
@@ -80,24 +79,19 @@ pricing engine from current settings).
    - The buckets aggregate into ONE VAT line per encaissement because `vatByRate` keys on
      the rate value (rule 7).
 7. **Accounting export** (`accountingExport.js`):
-   - `vatByRate` keys on `rate.toFixed(2)`. With both buckets carrying the same rate, the
+   - `vatByRate` keys on the rate value. With both buckets carrying the same rate, the
      map collapses to a single key → one VAT GL line per encaissement, on account
      `44571100` (REDUCED_10).
-   - `vatAccountForRate(rate)` is kept (one-line function) — it still resolves any future
-     rate cleanly. The legacy `STANDARD_20` constant and `'TVA 20 %'` label stay defined
-     but become unused; we keep them so an export of an arbitrary rate (e.g. 20 % rate is
-     ever set in Settings via the editable field) still maps correctly. **No business
-     logic depends on the 20 % rate any more.**
-8. **Devis PDF** (`devisPdf.js`):
-   - `vatAccommodation`, `vatOptions`, `vatResources` collapse to one `vatRate` constant
-     read from settings. Every `drawRow(...)` call uses `vatRate`. The "TVA %" column
-     header + the totals "TOTAL TVA … %" footer show the single rate.
-9. **PricingSummary** (`PricingSummary.js`):
-   - The three "Hébergement (HT + TVA X %)", "Options (HT + TVA Y %)", "Ressources (HT +
-     TVA Z %)" lines collapse to a single "TVA {rate} %" line summing the three bucket
-     HT/VAT amounts. The HT-by-bucket breakdown is dropped — the comptable doesn't need
-     it any more since the rate is the same everywhere. (The PricingSummary already shows
-     the HT per category in the body; the VAT footer just aggregates one line now.)
+   - `vatAccountForRate(rate)` (`plugins/accounting-export/accountPlan.js`) maps 10 % to `44571100`
+     and every other rate to `44571200` (STANDARD_20, `'TVA 20 %'`), so an arbitrary rate still maps
+     correctly. **No business logic depends on the 20 % rate any more.**
+8. **Devis PDF** *(rewritten)*. `devisPdf.js` reads one `vatRate` from the reservation's VAT regime
+   (`full.vatRegime.rate`) and every `drawRow(...)` uses it. The footer is the « Récapitulatif TVA »,
+   one line per rate with its base (`pricing-components.md` rule 65); a « Sans TVA » stay prints its
+   legal mention instead (`vat-optional-mode.md` rule 12b).
+9. **PricingSummary** *(rewritten)*. The three per-bucket VAT lines collapsed first into one « TVA {rate} % »
+   line; they are now « Total HT » followed by one line per rate with its base, no « Total TVA » line
+   (`pricing-components.md` rule 15), or the legal mention under « Sans TVA » (`vat-optional-mode.md` rule 12a).
 10. **Tourist tax** stays at 0 % VAT (it is not VAT-able under French tourism law). No
     change to the tourist-tax bucket here.
 11. **Idempotent migration** — re-running the migration on a DB that already has `vatRate`

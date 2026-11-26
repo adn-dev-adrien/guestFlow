@@ -8,6 +8,8 @@
 | **Author** | Adrien |
 | **Related PR** | (link once opened) |
 
+> **Reviewed 2026-11-26 (rule-by-rule money audit).** Rules 3, 4, 11-13, 17, 17b, 19, 21 and 25 amended to the current model: settings live in `plugin_settings`, the commission is operator-entered per échéance (no `clientGrossAmount − finalPrice`), pro-rata is per destination, accounts are 3 to 12 digits, the commission VAT rate is edited on the Plan comptable page. Rule 7 reported (UNVERIFIABLE).
+
 > **Reviewed 2026-11-26 (spec reorganization).** « No deposit on platform reservations » (rules 5-10) now holds only for platforms whose `platformTakesDeposit` is off (the default), per `specs/platforms/platform-deposit-toggle.md`; the commission lines, the per-platform accounts page and the `6226xx` config are as specified (`server/src/plugins/accounting-export/platformAccountsModel.js`).
 
 ---
@@ -152,13 +154,12 @@ Make every monthly CSV match the écriture model the accountant validated:
    - Never deletes — a platform that no longer has any iCal source or
      reservation stays visible (operator can manually delete from the new
      page if they want).
-3. **Add two columns** to `app_settings`:
+3. *(Amended: since `specs/plugins/plugins-phase-2-hosts.md` rule 19 these two values are settings of the `accounting-export` plugin, stored in `plugin_settings` with the defaults below; the `app_settings` columns remain only as the copy source of migration `settings_from_app_settings_v1`.)* **Two settings**:
    - `defaultCommissionAccountNumber TEXT NOT NULL DEFAULT '622600'` — fallback
      when a platform has `commissionAccountNumber = NULL`.
    - `vatRateCommission REAL NOT NULL DEFAULT 20` — **the** global VAT rate
      applied to platform commissions (single rate across all platforms; lives
-     in Settings → Général → Taux de TVA alongside `vatRateAccommodation` 10
-     and `vatRateStandard` 20). When fiscal rates change, the operator updates
+     on the Plan comptable page, `settings-rationalization.md` rule 14). When fiscal rates change, the operator updates
      this one value.
 4. **Resolution at export time** for a reservation entry:
    - Look up the reservation's `platform` string → find `platforms.name` match.
@@ -175,10 +176,13 @@ Make every monthly CSV match the écriture model the accountant validated:
      `commissionHt = commissionTtc`; no VAT line. The full commission TTC
      hits the 6226xx charge account as HT (consistent with the comptable's
      instruction for non-EU operators).
-   - The actual commission TTC is derived from `clientGrossAmount - finalPrice`
-     (the operator-typed truth) — there is no per-platform commission rate
-     stored on the table (the column was added in an early draft, judged
-     useless on 2026-06-04 and removed).
+   - The actual commission TTC is the **operator-entered** per-échéance amount
+     (`acompteCommissionAmount` on the acompte, `platformCommissionAmount` on the solde;
+     `specs/platforms/platform-commission-line.md` revision 2026-06-21, `platform-per-echeance-commission.md`), no longer
+     `clientGrossAmount − finalPrice`. The table's `commissionPercent` column (a later, functional addition:
+     `platform-price-from-commission.md`) is not read by the journal.
+   - Under « Sans TVA » `hasVat` is forced off: the commission is booked TTC on its account with no 44566 line
+     (`vat-optional-mode.md` rule 12g).
    - `'direct'` matches `platforms.name = 'direct'` whose fields are never
      written — commission = 0 always.
 
@@ -240,12 +244,10 @@ Make every monthly CSV match the écriture model the accountant validated:
 ### 3.5 Accounting engine — write the new balanced entry
 
 11. **Commission resolution** for an encaissement:
-    - `gross` = the entry's portion of `clientGrossAmount` (= entry portion of
-      `finalPrice` for directs, since `clientGrossAmount = finalPrice`).
-    - `commissionTtc` = the entry's portion of `clientGrossAmount - finalPrice`,
-      where the entry's portion = full commission on the **balance** entry, 0
-      on the deposit (= no deposit on platforms anyway), 0 on the **complement**
-      entry (on-site extras have no commission).
+    - *(Amended.)* `commissionTtc` of an entry = the operator-entered commission of its échéance: the acompte
+      commission on the **deposit** entry, `commissionTtcTotal − acompte commission` (= the solde commission) on the **balance**
+      entry, 0 on the **complement** entry (on-site extras have no commission). The legacy `clientGrossAmount` model
+      (no entered commission, stored gross > finalPrice) derives it as `clientGrossAmount − finalPrice`, all on the balance.
     - For directs: `commissionTtc = 0` for every entry → no commission line.
 12. **Balanced double-entry per encaissement**:
     - **Debit `C<NAME>`** for the **NET** the owner actually banked:
@@ -258,24 +260,19 @@ Make every monthly CSV match the écriture model the accountant validated:
     - **Debit commission VAT** on `44566000` for `commissionVat = commissionTtc
       - commissionHt`, **only when `hasVat = true`**.
     - **Credit 70xxxx** revenue lines per bucket (accommodation / options /
-      resources / custom options) for `bucketHt × (encaissementGrossTtc /
-      totalStayGrossTtc)` — note: pro-rata denominator switches from
-      `totalStayPrice` (= finalPrice + tourist tax, today's rule 29) to
-      `totalStayGrossTtc` (= `clientGrossAmount` + tourist tax). For directs,
-      gross = net so the denominator is unchanged; only platforms see the new
-      denominator.
+      resources / custom options) pro-rated within the destination the entry
+      collects (*amended:* `accounting-books-the-money-collected.md` rules 5-7 and
+      `accounting-encaissement-effective-percent.md` rule 1 replace the `totalStayGrossTtc` denominator; stored échéances are the money
+      that moved, so ratio 1 on every current-engine row).
     - **Credit 44571x** VAT lines per rate (10 % / 20 %) following the same
       pro-rata.
     - **Credit 46710000** tourist-tax pass-through unchanged.
     - Sum check: `Σ debits == Σ credits == encaissementGrossTtc` (the brut).
     - Rounding: residue absorbed in the **last credit line**, same as today, so
       the entry balances to the cent.
-13. **Tourist tax interaction unchanged**: when `quote.touristTaxCollectedOnArrival
-    = true` (owner-collect non-direct), the deposit + balance entries still
-    pro-rate against `finalPrice` (not gross) and the complement carve-out
-    rule from the original spec §3.4 rule 30 still applies. The new commission
-    lines are computed on the **finalPrice-aligned** gross in this case
-    (= clientGrossAmount without the tax portion).
+13. **Tourist tax interaction.** *(Amended 2026-11-26.)* When the tax is collected on arrival (owner-collect non-direct,
+    `taxRoutedToComplement`) it rides on the complement, which carries no commission; the deposit and balance carry none of it. The carve-out
+    of `accountant-accounting-export.md` rule 30 is itself superseded (pure-tax complement kept, rule 15b).
 
 ### 3.6 CSV columns
 
@@ -302,10 +299,9 @@ Make every monthly CSV match the écriture model the accountant validated:
     Save / Cancel canonical actions:
     - **Top card "Compte par défaut"**: a single number input "Compte
       commission par défaut" (8 chiffres, default `622600`). Persists to
-      `app_settings.defaultCommissionAccountNumber`. Helper text: *"Utilisé
+      the plugin's `defaultCommissionAccountNumber` setting (rule 3). Helper text: *"Utilisé
       pour les plateformes qui n'ont pas leur propre compte commission
-      renseigné."* The TVA rate is not on this page — it lives in Settings →
-      Général → Taux de TVA (rule 17b).
+      renseigné."* *(Amended: the commission VAT rate is edited on this page since `settings-rationalization.md` rule 14, rule 17b.)*
     - **Bottom card "Par plateforme"**: a `TableCard` listing every row of the
       `platforms` table (auto-deduped — see §3.1 rule 2). Columns:
       - *Plateforme* (read-only label, e.g. "Airbnb", "Gîtes de France",
@@ -318,17 +314,12 @@ Make every monthly CSV match the écriture model the accountant validated:
         `settings.vatRateCommission` at export time — not editable here.
     - The page does NOT store a per-platform commission rate (column was
       dropped on 2026-06-04 as useless — the actual commission TTC is derived
-      from `clientGrossAmount - finalPrice` on each reservation).
-17b. **Settings → Général → Taux de TVA** — the existing card grows by **one
-    field**: "TVA déductible commissions" (number input, %, default 20). It
-    sits alongside the existing "TVA hébergement" (10 %) and "TVA standard"
-    (20 %) fields. Same `HelpedTextField` shape; helper text: *"Taux appliqué
-    aux commissions plateforme qui sont marquées 'TVA déductible' dans le Plan
-    comptable plateformes."* No new endpoint — the existing `PUT /api/settings`
-    accepts the new field.
-    **Amended 2026-10-28** (specs/settings/settings-input-guards.md rules 32-34): « Compte par défaut » and
-    « Indemnités d'annulation » now sit inside the « Comptes » card, group « Commissions et produits
-    divers »; their own cards are gone, storage and endpoint unchanged.
+      from the operator-entered commission of each reservation, rule 4).
+17b. *(Moved 2026-10-28, `specs/settings/settings-rationalization.md` rule 14.)* The commission VAT rate (« TVA déductible commissions », default 20 %)
+    is no longer a field of Settings → Général: it is edited on the Plan comptable page, next to the accounts, and saved with
+    `PUT /api/accounting/platform-accounts` (`vatRateCommission`, required 0-100). **Amended 2026-10-28** (`specs/settings/settings-input-guards.md`
+    rules 32-34): « Compte par défaut » and « Indemnités d'annulation » sit inside the « Comptes » card, group « Commissions et produits divers ».
+
 18. **`Direct` row is always present + always disabled**:
     - Auto-inserted into `platforms` at boot if absent (rule 2).
     - Every input on the Direct row is rendered disabled with a muted
@@ -347,8 +338,8 @@ Make every monthly CSV match the écriture model the accountant validated:
     - `POST /api/accounting/platform-accounts/refresh` — admin **or**
       accountant. No body. Returns `{ defaultAccount, vatRateCommission,
       platforms, newCount }`. Triggers the union rescan (rule 2).
-    - Other `/api/ical-sources/*` routes and the `vatRateCommission` write
-      (`PUT /api/settings`) stay **admin-only**.
+    - Other `/api/ical-sources/*` routes stay **admin-only**. *(Amended: the `vatRateCommission` write goes through the same
+      `PUT /api/accounting/platform-accounts`, so the accountant can edit it — rule 17b.)*
 20. **Sidebar wiring**:
     - **Admin**: new sub-item *"Plan comptable"* under the
       existing **Suivi financier** group (next to *Comptabilité*).
@@ -357,13 +348,11 @@ Make every monthly CSV match the écriture model the accountant validated:
       client-side redirect rule is widened by one path
       (`/comptabilite/plateformes`).
 21. **Validation**:
-    - `defaultCommissionAccountNumber`: required, 6–8 digits, digits-only.
-    - Per-platform `commissionAccountNumber`: optional. If provided, 6–8
+    - `defaultCommissionAccountNumber`: required, 3–12 digits, digits-only (*amended:* `plugins-phase-p-productisation.md` rule 28).
+    - Per-platform `commissionAccountNumber`: optional. If provided, 3–12
       digits, digits-only. Empty = uses the default.
     - Per-platform `hasVatOnCommission`: boolean (Switch).
-    - **Global** `vatRateCommission` (managed in Settings, not on this page):
-      required ≥ 0, ≤ 100, default 20. Validated by the existing
-      `settingsController` alongside the other VAT rates.
+    - `vatRateCommission` (edited on this page, rule 17b): required, 0–100, decimal comma accepted, default 20.
     - The Direct row's fields are server-side ignored (rule 18).
 
 ### 3.8 Reservation form UI
@@ -375,8 +364,8 @@ Make every monthly CSV match the écriture model the accountant validated:
     - The Solde block becomes the only encaissement (plus the optional
       Complément). Its title can stay "Solde" or shift to "Encaissement" — see
       Q1.
-    - The "Prix payé par le client" gross field stays visible (already
-      platform-only per the original spec rule 7).
+    - *(Amended: the « Prix payé par le client » field was retired on 2026-06-21; the operator types the commission instead,
+      `platform-commission-line.md`.)*
     - A small computed caption beneath the gross field shows the **commission
       that will be journalised**: "Commission plateforme: 61,00 € TTC (50,83 €
       HT + 10,17 € TVA) sur le compte 62260500" — reading from the resolved

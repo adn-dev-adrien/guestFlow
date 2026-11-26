@@ -8,6 +8,8 @@
 | **Author** | Adrien |
 | **Related PR** | (link once opened) |
 
+> **Reviewed 2026-11-26 (rule-by-rule money audit).** Rule 41 now names the platform penalty in the payout net (`reconciliation-assisted-matching.md` rules 23-31); the other rules match `financeModel` / `financeDashboardModel`.
+
 Validation summary with the interactive mock-up: `docs/specs/2026-09-29-finance-page-redesign-v2.html`
 (version 3). The earlier three-direction exploration is in
 `docs/specs/2026-09-29-finance-page-redesign-proposals.html`. The visual finish after the first
@@ -280,7 +282,7 @@ without losing anything today's page shows.
 41. **A late payout is counted at what the platform owes.** The « Versement <plateforme> » element of
     `overdueItems`, the row's `overdueAmount`, the « En retard » tile and the home dashboard's
     « Versement plateforme en retard » card all carry the solde **net of the platform's commission**
-    (`balanceAmount − platformCommissionAmount`, floored at 0) — the **solde part** of what « À
+    (`balanceAmount − platformCommissionAmount − platformPenalty`, floored at 0 — the platform penalty joined the netting with `reconciliation-assisted-matching.md` lots 2-3, commit `402786961`; the guest's `remainingToPay` nets it the same way) — the **solde part** of what « À
     encaisser » counts (`remainingToPay` adds the unpaid compléments on top: 735,77 € for 22275, of
     which the payout is 573,77 €). Without a commission the payout is the solde. *(Wording corrected
     2026-10-19, second pass minor 2: it used to say « the figure À encaisser counts ».)* *Why:* the final review of
