@@ -37,6 +37,7 @@ export function useActions() {
     if (!target) return;
     if (target.kind === 'page') navigate(`/livret/${encodeURIComponent(target.slug)}`);
     else if (target.kind === 'item') navigate(`/boutique?article=${encodeURIComponent(`${target.itemKind}:${target.itemId}`)}`);
+    else if (target.kind === 'places') navigate(target.category ? `/pratique?c=${encodeURIComponent(target.category)}` : '/pratique');
     else if (target.kind === 'url') window.open(target.href, '_blank', 'noopener');
   }, [navigate]);
 

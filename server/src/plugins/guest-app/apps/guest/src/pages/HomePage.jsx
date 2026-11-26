@@ -28,7 +28,7 @@ import { useT } from '../i18n';
 import { copyText, stayDatesLabel } from '../utils/format';
 
 const TILE_ICON = {
-  gate: 'gate', wifi: 'wifi', shop: 'shop', bath: 'bath', soliomap: 'soliomap', booklet: 'booklet', contacts: 'contacts', home: 'smartHome',
+  gate: 'gate', wifi: 'wifi', shop: 'shop', bath: 'bath', soliomap: 'soliomap', places: 'places', booklet: 'booklet', contacts: 'contacts', home: 'smartHome',
 };
 const LIVE_ORDER = new Set(['confirmed', 'paid', 'awaiting_payment']);
 export const DEFAULT_HERO = '/img/hero-domaine.jpg';
@@ -67,6 +67,7 @@ export default function HomePage() {
     shop: () => navigate('/boutique'),
     bath: () => navigate('/boutique/bain'),
     soliomap: () => openSoliomap(),
+    places: () => navigate('/pratique'),
     booklet: () => navigate('/livret'),
     contacts: () => setSheet('contacts'),
     home: () => navigate('/domotique'),

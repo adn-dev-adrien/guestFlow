@@ -108,6 +108,8 @@ export const api = {
   orders: () => request('GET', '/orders'),
   orderById: (id) => request('GET', `/orders/${encodeURIComponent(id)}`),
   abandon: (id) => request('POST', `/orders/${encodeURIComponent(id)}/abandon`),
+  // specs/guest-app/guest-app-local-amenities.md §4.3 — the « Pratique » places, cached by the service worker.
+  places: () => request('GET', '/places'),
   // specs/guest-app-home-automation.md §4.3 — the « Domotique » page, a light tap, and that tap's state.
   home: () => request('GET', '/home'),
   switchLight: (lightId, on) => request('POST', `/home/lights/${encodeURIComponent(lightId)}`, { body: { on } }),

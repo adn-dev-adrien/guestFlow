@@ -6,8 +6,8 @@
  */
 import {
   ArrowDown, ArrowLeft, ArrowUp, ArrowUpRight, Bath, BookOpen, Check, ChevronRight, Clock, CloudOff, CloudRain, Copy,
-  CreditCard, Droplet, Fence, Gift, House, Info, Lightbulb, Mail, MapPin, MessageCircle, Minus, Moon, Phone, Plus, QrCode,
-  ReceiptText, Search, Share, ShoppingBag, Sun, Thermometer, Trash2, TriangleAlert, Wifi, WifiOff, Wind, X, Zap,
+  CreditCard, Droplet, Fence, Gift, House, Info, Lightbulb, LocateFixed, Mail, MapPin, MessageCircle, Minus, Moon, Navigation, Phone, Plus, QrCode,
+  ReceiptText, Search, Share, ShoppingBag, Store, Sun, Thermometer, Trash2, TriangleAlert, Wifi, WifiOff, Wind, X, Zap,
 } from 'lucide-react';
 
 export const ICONS = Object.freeze({
@@ -20,6 +20,7 @@ export const ICONS = Object.freeze({
   wifiOff: WifiOff,
   bath: Bath,
   soliomap: MapPin,
+  places: Store,
   contacts: Phone,
   ext: ArrowUpRight,
   sun: Sun,
@@ -45,6 +46,9 @@ export const ICONS = Object.freeze({
   pin: MapPin,
   share: Share,
   qr: QrCode,
+  // specs/guest-app/guest-app-local-amenities.md — the « Pratique » map's controls and its « Itinéraire ».
+  locate: LocateFixed,
+  nav: Navigation,
   // specs/guest-app-home-automation.md — the « Domotique » page.
   smartHome: Thermometer,
   light: Lightbulb,

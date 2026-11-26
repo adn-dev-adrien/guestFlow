@@ -129,3 +129,28 @@ describe('service worker — offline booklet (rule 21)', () => {
     expect(await sw.dispatch('/public/v1/guest/booklet', { method: 'POST' })).toBeNull();
   });
 });
+
+// specs/guest-app/guest-app-local-amenities.md rule 9 — the « Pratique » places are cached like the booklet: the list, the sheets and the GPS
+// links work without network (the map's tiles are another origin, which the worker never answers).
+describe('service worker — offline « Pratique » (local amenities rule 9)', () => {
+  it('reads /places from the network first, then from the cache without network, in each language', async () => {
+    const sw = boot();
+    for (const p of ['/public/v1/guest/places', '/public/v1/guest/places?lang=en']) {
+      const online = await sw.dispatch(p);
+      expect(await online.json()).toMatchObject({ from: 'network' });
+    }
+    sw.net.online = false;
+    for (const p of ['/public/v1/guest/places', '/public/v1/guest/places?lang=en']) {
+      const offline = await sw.dispatch(p);
+      expect(await (await offline).json()).toMatchObject({ from: 'network', url: expect.stringContaining('/places') });
+    }
+  });
+
+  it('is emptied with the rest of the data cache on `purge`: nothing is left to read offline', async () => {
+    const sw = boot();
+    await sw.dispatch('/public/v1/guest/places');
+    await sw.post({ type: 'purge' });
+    sw.net.online = false;
+    expect(await sw.dispatch('/public/v1/guest/places')).toBeUndefined();
+  });
+});
