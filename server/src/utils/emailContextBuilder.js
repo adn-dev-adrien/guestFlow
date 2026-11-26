@@ -307,6 +307,7 @@ function buildContext({ reservation, client, property, options = [], resources =
     if (l.kind === 'tax' && l.addedGuests) return addedGuestsTaxLabel;
     if (l.kind === 'tax') return isEn ? 'Tourist tax' : 'Taxe de séjour';
     if (l.kind === 'remainder') return isEn ? 'Arrival balance' : "Complément d'arrivée";
+    if (l.kind === 'installmentRest') return isEn ? 'Rest of the payment schedule' : l.label;
     if (l.kind === 'credit' && isEn) return `Already paid${l.paidLabels && l.paidLabels.length ? ` (${l.paidLabels.join(', ')})` : ''}`;
     return l.label;
   };

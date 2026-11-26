@@ -246,6 +246,9 @@ function retainedLabel(refund, r, planRows) {
   if (lines.length > 0 && lines.every((l) => l.lineKey === COMMISSION_KEY)) return 'Commission retenue';
   const acompteCommission = Number(r.depositPaid) === 1 && !Number(r.depositPaidCash || 0) ? round2(r.acompteCommissionAmount) : 0;
   const withSolde = commission > acompteCommission;
+  // Rule 60 — an acompte collected beside the plan is kept with it.
+  const withAcompte = (Number(r.depositPaid) === 1 || Number(r.depositPaidCash) === 1) && Number(r.depositAmount) > 0;
+  if ((planRows || Number(r.installmentsPaidAmount) > 0) && withAcompte) return withSolde ? 'Acompte, échéances et commission conservés' : 'Acompte et échéances conservés';
   if (planRows || Number(r.installmentsPaidAmount) > 0) return withSolde ? 'Échéances et commission conservées' : 'Échéances conservées';
   return withSolde ? 'Acompte et commission conservés' : 'Acompte conservé';
 }
@@ -411,7 +414,8 @@ function buildLedger({
   }
 
   // ── Acompte (rules 4, 6, 15-17, 20) ───────────────────────────────────────
-  if (!planRows) {
+  // Direct-installments rule 60 — an acompte collected before the plan keeps its paid row beside the installments.
+  if (!planRows || paid.deposit) {
     let notApplicable = null;
     if (ota && !platformTakesDeposit) notApplicable = `Sans objet · ${platformName} encaisse en une fois`;
     else if (depositDisabled) notApplicable = 'Sans objet · acompte désactivé';
@@ -439,7 +443,7 @@ function buildLedger({
           state: inGroup('deposit') ? 'paid-group' : 'paid',
           tone: 'done',
           stateLabel: cancelled ? 'Conservé · indemnité d\'annulation' : paidLabel(verb, r.depositPaidDate, origin),
-          action: undo(`Annuler la perception de l'acompte du ${shortDate(r.depositPaidDate, stayYear)} ? L'écriture comptable correspondante disparaît.${groupNote('deposit')}`),
+          action: planRows ? null : undo(`Annuler la perception de l'acompte du ${shortDate(r.depositPaidDate, stayYear)} ? L'écriture comptable correspondante disparaît.${groupNote('deposit')}`),
           amountEdit: {
             editable: false, mode: 'paid', min: null, max: null,
             reason: `Acompte perçu le ${shortDate(r.depositPaidDate, stayYear)} : annuler la perception pour corriger le montant.`,
@@ -479,6 +483,7 @@ function buildLedger({
         }
       }
       rows.push({ key: 'deposit', label: 'Acompte', amount: depositAmount, ...base, detail: tidyDetail(detail) });
+      if (planRows) rows.unshift(rows.pop());
     }
   }
 

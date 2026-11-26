@@ -22,6 +22,9 @@ const { ADDED_GUESTS_TAX_LABEL } = require('../platformPaidGuests');
 const { roundMoney } = require('./money');
 const { extraLineKey, parseNotes, settledByKey, parseDetail } = require('./storedLines');
 
+// specs/payments/direct-installments.md rule 58 — the arrival complement's line for what a closed installment plan does not cover.
+const INSTALLMENT_REST_LABEL = 'Reste de l’échéancier';
+
 /**
  * Prestations vendues EN COURS DE SÉJOUR — specs/sas/mid-stay-extras-to-end-of-stay-complement.md.
  *
@@ -525,7 +528,7 @@ function planSettlement({
   },
   stayLevel: {
     resolvedComplementAmount, taxInComplement, isTouristTaxCollectedOnArrival, isTouristTaxForcedToComplement,
-    midStaySettledAll, endOfStayComplementTotal,
+    midStaySettledAll, endOfStayComplementTotal, installmentRest = 0,
   },
   receipts: { complementPaid, complementCollected, complementDeferredToCheckout },
 }) {
@@ -576,6 +579,12 @@ function planSettlement({
         amount: roundMoney(taxInComplement),
         ...(isAddition ? { addedGuests: true } : {}),
       });
+    }
+    // specs/payments/direct-installments.md rule 58 — what the installment plan leaves to the arrival has a line of its own.
+    const listedBefore = roundMoney(complementDetailLines.reduce((sum, l) => sum + l.amount, 0));
+    const planRest = roundMoney(Math.min(Number(installmentRest) || 0, resolvedComplementAmount - listedBefore));
+    if (planRest > 0.01) {
+      complementDetailLines.push({ kind: 'installmentRest', label: INSTALLMENT_REST_LABEL, qty: 1, unitPrice: planRest, amount: planRest });
     }
     const listed = roundMoney(complementDetailLines.reduce((sum, l) => sum + l.amount, 0));
     const rem = roundMoney(resolvedComplementAmount - listed);
@@ -746,6 +755,7 @@ function settleDocument({ lines, allocations = [] }) {
 }
 
 module.exports = {
+  INSTALLMENT_REST_LABEL,
   arrivalBaselineOf,
   allocateDocumentPayment,
   refileDocumentExcess,
