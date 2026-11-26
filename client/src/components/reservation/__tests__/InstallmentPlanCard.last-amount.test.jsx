@@ -18,6 +18,7 @@ function Harness({ initial }) {
   const [plan, setPlan] = React.useState(initial);
   return (
     <DialogProvider>
+      {/* date-literal-ok: the `today` prop is injected, the card reads no clock */}
       <InstallmentPlanCard reservationId={7} plan={plan} today="2026-10-27" onPlanChange={setPlan} onMoneyChanged={vi.fn()} />
     </DialogProvider>
   );
@@ -77,7 +78,7 @@ test('rule 55 — a refused amount shows the server\'s sentence under the field 
 });
 
 test('rule 60 — the acompte collected before the plan is a read-only paid row, the total is the plan\'s own', () => {
-  render(<Harness initial={closedPlan({ deposit: { amount: 300, paidDate: '2026-10-20', method: null }, total: 701.5 })} />);
+  render(<Harness initial={closedPlan({ deposit: { amount: 300, paidDate: '2026-10-20', method: null }, total: 701.5 })} />); // date-literal-ok: a paid date the card only prints
   const deposit = screen.getByTestId('installment-deposit');
   expect(deposit).toHaveTextContent('Acompte');
   expect(deposit).toHaveTextContent('300');

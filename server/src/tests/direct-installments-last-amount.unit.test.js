@@ -15,7 +15,7 @@ const financeModel = require('../models/financeModel');
 const { readInstallmentSummary } = require('../utils/installmentSummary');
 
 const NB = ' ';
-const row = (number, amountCents, extra = {}) => ({ number, amountCents, paid: 0, amountEdited: 0, dueDate: '2027-01-01', ...extra });
+const row = (number, amountCents, extra = {}) => ({ number, amountCents, paid: 0, amountEdited: 0, dueDate: '2027-01-01', ...extra }); // date-literal-ok: pure rule input, nothing compares it with today
 const amountsOf = (result) => [...result.amounts.values()];
 
 const put = (h, body) => call(h.controller.put, { params: { id: h.reservationId }, body });
@@ -218,9 +218,9 @@ function engineDb(rows) {
 }
 
 const STAY = {
-  propertyId: 1, startDate: '2027-07-10', endDate: '2027-07-13', checkInTime: '15:00', checkOutTime: '10:00',
+  propertyId: 1, startDate: '2027-07-10', endDate: '2027-07-13', checkInTime: '15:00', checkOutTime: '10:00', // date-literal-ok: engine input: the quote takes its dates as arguments
   adults: 2, children: 0, teens: 0, selectedOptions: [], customOptions: [], selectedResources: [],
-  depositPaid: false, balancePaid: false, discountPercent: 0, customPrice: '', bookingDate: '2026-10-01', bookingId: 42,
+  depositPaid: false, balancePaid: false, discountPercent: 0, customPrice: '', bookingDate: '2026-10-01', bookingId: 42, // date-literal-ok: engine input: bookingDate is injected
 };
 
 test('rule 54 — a closed plan: the shortfall is on the arrival complement at once, before any payment, as « Reste de l’échéancier »', () => {
@@ -240,7 +240,7 @@ test('rule 54 — a plan that still adjusts keeps the complement at 0 (nothing c
 
 test('rules 54, 56 — a closed plan after a payment: the rise rides the complement, the paid installment stays counted', () => {
   const db = engineDb([[8000, true, true], [8000, false, true], [8000, false, true]]);
-  const quote = calculateReservationQuote({ ...STAY, db, endDate: '2027-07-14' });
+  const quote = calculateReservationQuote({ ...STAY, db, endDate: '2027-07-14' }); // date-literal-ok: engine input
   assert.equal(quote.preArrivalAmount, 400);
   assert.equal(quote.complementAmount, 160);
   assert.equal(quote.sejourNetTotal, 400);
@@ -248,9 +248,9 @@ test('rules 54, 56 — a closed plan after a payment: the rise rides the complem
 
 test('rule 56 — a drop within the shortfall lowers the complement; a plan above the stay shows none', () => {
   const db = engineDb([[8000, false, true], [8000, false, true], [8000, false, true]]);
-  assert.equal(calculateReservationQuote({ ...STAY, db, endDate: '2027-07-12' }).complementAmount, 0, '200 < 240: above the stay, no complement');
+  assert.equal(calculateReservationQuote({ ...STAY, db, endDate: '2027-07-12' }).complementAmount, 0, '200 < 240: above the stay, no complement'); // date-literal-ok: engine input
   const within = engineDb([[5000, false, true], [5000, false, true], [5000, false, true]]);
-  assert.equal(calculateReservationQuote({ ...STAY, db: within, endDate: '2027-07-12' }).complementAmount, 50, '200 − 150');
+  assert.equal(calculateReservationQuote({ ...STAY, db: within, endDate: '2027-07-12' }).complementAmount, 50, '200 − 150'); // date-literal-ok: engine input
 });
 
 test('rule 58 — the complement\'s detail names the rest and the lines still sum to the complement', () => {
@@ -292,7 +292,7 @@ test('rule 59 — the rest books on the accommodation poste, like the auto-gap, 
 
 // ── Rule 60 — a plan beside an acompte already collected ───────────────────────────────────────────
 const withAcompte = (h, extra = {}) => h.db.prepare(
-  "UPDATE reservations SET depositAmount = 300, depositPaid = 1, depositPaidDate = '2026-10-20', balanceAmount = 701.5 WHERE id = ?",
+  "UPDATE reservations SET depositAmount = 300, depositPaid = 1, depositPaidDate = '2026-10-20', balanceAmount = 701.5 WHERE id = ?", // date-literal-ok: a paid date nothing compares with today
 ).run(h.reservationId) && Object.assign(h.state.quote, { depositAmount: 300, ...extra });
 
 test('rule 60 — an acompte collected does not forbid the plan: it splits what is left, the acompte untouched', async () => {
@@ -304,10 +304,10 @@ test('rule 60 — an acompte collected does not forbid the plan: it splits what 
   assert.equal(created.status, 200);
   assert.deepEqual(rowsOf(h).map((r) => r.amountCents), [23400, 23400, 23350], '1 001,50 − 300 = 701,50 in 3');
   const stay = h.db.prepare('SELECT * FROM reservations WHERE id = ?').get(h.reservationId);
-  assert.deepEqual([stay.depositAmount, stay.depositPaid, stay.depositPaidDate], [300, 1, '2026-10-20'], 'the acompte keeps its amount, its flag, its date');
+  assert.deepEqual([stay.depositAmount, stay.depositPaid, stay.depositPaidDate], [300, 1, '2026-10-20'], 'the acompte keeps its amount, its flag, its date'); // date-literal-ok: the same stored paid date
   assert.equal(stay.installmentsTarget, 701.5);
   assert.equal(created.body.installmentPlan.total, 701.5);
-  assert.deepEqual(created.body.installmentPlan.deposit, { amount: 300, paidDate: '2026-10-20', method: null });
+  assert.deepEqual(created.body.installmentPlan.deposit, { amount: 300, paidDate: '2026-10-20', method: null }); // date-literal-ok: the same stored paid date
 });
 
 test('rule 60 — cash variant: an acompte collected in the caisse interne counts the same', async () => {
@@ -344,7 +344,7 @@ test('rule 60 — removing the plan gives the solde back, the acompte untouched'
   const h = createHarness();
   withAcompte(h);
   await put(h, { count: 3 });
-  h.state.quote = { preArrivalAmount: 1001.5, depositAmount: 300, balanceAmount: 701.5, depositDueDate: null, balanceDueDate: '2027-05-15' };
+  h.state.quote = { preArrivalAmount: 1001.5, depositAmount: 300, balanceAmount: 701.5, depositDueDate: null, balanceDueDate: '2027-05-15' }; // date-literal-ok: a stored due date the fake quote hands back, not compared with today
   const removal = await call(h.controller.remove, { params: { id: h.reservationId } });
   assert.equal(removal.status, 200);
   const stay = h.db.prepare('SELECT * FROM reservations WHERE id = ?').get(h.reservationId);
@@ -427,7 +427,7 @@ test('rule 58 — the e-mail path (sale detail) turns its adjustment line into �
   const alone = withInstallmentRest([{ kind: 'remainder', label: 'Complément d’arrivée', qty: 1, unitPrice: 50, amount: 50 }], row);
   assert.deepEqual(alone.map((l) => l.kind), ['installmentRest']);
   const input = (detail, lang) => ({
-    reservation: { startDate: '2026-07-10', endDate: '2026-07-13', checkInTime: '15:00', checkOutTime: '10:00', adults: 2, complementAmount: 50, complementPaid: 0, finalPrice: 380, language: lang },
+    reservation: { startDate: '2026-07-10', endDate: '2026-07-13', checkInTime: '15:00', checkOutTime: '10:00', adults: 2, complementAmount: 50, complementPaid: 0, finalPrice: 380, language: lang }, // date-literal-ok: e-mail context input, the notice reads no clock
     client: { firstName: 'Jean', lastName: 'Dupont', email: 'j@d.fr' }, property: { name: 'Villa' }, options: [], resources: [], customOptions: [],
     settings: { companyName: 'X' }, arrivalComplementDetail: { amount: 50, paid: 0, detail },
   });
@@ -442,8 +442,8 @@ test('rule 60 — the ledger keeps the collected acompte as a paid row beside th
   };
   const ledger = buildLedger({
     row: {
-      id: 9, kind: 'reservation', platform: 'direct', startDate: '2027-06-14', endDate: '2027-06-17', finalPrice: 1001.5,
-      depositAmount: 300, depositPaid: 1, depositPaidDate: '2026-10-20', balanceAmount: 0,
+      id: 9, kind: 'reservation', platform: 'direct', startDate: '2027-06-14', endDate: '2027-06-17', finalPrice: 1001.5, // date-literal-ok: ledger input with an injected today
+      depositAmount: 300, depositPaid: 1, depositPaidDate: '2026-10-20', balanceAmount: 0, // date-literal-ok: ledger input with an injected today
     },
     installmentPlan, today: TODAY,
   });
@@ -510,7 +510,7 @@ test('rule 54, 28 — a link paid at another amount with every other installment
   const h = createHarness();
   h.state.quote = { preArrivalAmount: 1001.5, depositAmount: 0, balanceAmount: 0, depositDueDate: null, balanceDueDate: null };
   const [a, b, c] = h.installmentsModel.replacePlan(h.reservationId, [
-    { number: 1, dueDate: '2026-11-10', amountCents: 30000 }, { number: 2, dueDate: '2026-12-10', amountCents: 30000 }, { number: 3, dueDate: '2027-01-10', amountCents: 30000 },
+    { number: 1, dueDate: '2026-11-10', amountCents: 30000 }, { number: 2, dueDate: '2026-12-10', amountCents: 30000 }, { number: 3, dueDate: '2027-01-10', amountCents: 30000 }, // date-literal-ok: plan rows written straight to the table; the harness clock is injected
   ], 100150);
   h.db.prepare('UPDATE reservation_installments SET amountEdited = 1 WHERE reservationId = ? AND number IN (2, 3)').run(h.reservationId);
   h.db.prepare('UPDATE reservations SET complementAmount = 101.5 WHERE id = ?').run(h.reservationId);

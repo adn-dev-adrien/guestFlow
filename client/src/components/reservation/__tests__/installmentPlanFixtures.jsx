@@ -10,7 +10,7 @@ const installment = (number, extra = {}) => ({
 // 3 × 300 € pinned on a stay of 1 001,50 €: closed, 101,50 € left for the arrival.
 export const closedPlan = (overrides = {}) => ({
   eligible: true, canCreate: false, reason: null, countLocked: false, frozen: false,
-  total: 1001.5, paid: 0, remaining: 900, gap: 0, minCount: 2, maxCount: 12, count: 3, canRequest: true, arrivalDate: '2027-06-14',
+  total: 1001.5, paid: 0, remaining: 900, gap: 0, minCount: 2, maxCount: 12, count: 3, canRequest: true, arrivalDate: '2027-06-14', // date-literal-ok: a payload field the card only compares through the server
   closed: true, arrivalRest: 101.5, deposit: null,
   installments: [installment(1), installment(2), installment(3, { canRelease: true })],
   ...overrides,
