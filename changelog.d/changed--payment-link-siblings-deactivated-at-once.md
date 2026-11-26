@@ -1,1 +1,0 @@
-- Online payment: when a payment settles a bucket, the other open links of that bucket are deactivated at Qonto in the same pass instead of the next one (the next pass stays the fallback).

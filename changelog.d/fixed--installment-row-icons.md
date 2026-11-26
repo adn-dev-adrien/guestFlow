@@ -1,1 +1,0 @@
-- Installment plan on the fiche: the « fixé » mark no longer pushes the amount off the date's line, and an installment's actions are now icon buttons with a tooltip (« Envoyer la demande », « Copier le lien », « Marquer payée »); the row no longer overflows on a phone.
