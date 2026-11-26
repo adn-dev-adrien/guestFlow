@@ -1,0 +1,18 @@
+{
+  "$schema": "https://schemas.wp.org/trunk/block.json",
+  "apiVersion": 3,
+  "name": "guestflow/session-booking",
+  "version": "1.0.0",
+  "title": "GuestFlow — Réserver une séance",
+  "category": "widgets",
+  "icon": "calendar-alt",
+  "description": "Le visiteur choisit une activité, sa durée, un créneau, puis paie en ligne ou saisit le code de son bon cadeau.",
+  "textdomain": "guestflow-booking",
+  "attributes": {},
+  "supports": { "html": false, "align": ["wide"] },
+  "editorScript": "guestflow-session-booking-editor",
+  "viewScript": "guestflow-session-booking-view",
+  "style": "guestflow-style",
+  "editorStyle": "guestflow-style",
+  "render": "file:./render.php"
+}

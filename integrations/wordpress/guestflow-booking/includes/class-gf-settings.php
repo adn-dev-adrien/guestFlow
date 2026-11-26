@@ -32,7 +32,8 @@ final class GF_Settings
         'booking' => '<!-- wp:guestflow/booking',
         'cgv'     => '[guestflow_cgv]',
         'gift_voucher' => '<!-- wp:guestflow/gift-voucher',
-        'gift_voucher_use' => '<!-- wp:guestflow/gift-voucher-use',
+        // « Réserver une séance », or its alias « Utiliser un bon cadeau » (specs/site-outside-resource-booking.md rule 18): either block makes the page `/<base>/utiliser` leads to.
+        'gift_voucher_use' => ['<!-- wp:guestflow/session-booking', '[guestflow_session_booking]', '<!-- wp:guestflow/gift-voucher-use'],
     ];
     /**
      * A page whose content holds one of these is not the generic page of `$kind`: a booking block
@@ -45,7 +46,7 @@ final class GF_Settings
     ];
     /** The first segment of the permanent paths of the printed cards (specs/gift-voucher-campaigns.md rule 9). */
     public const DEFAULT_LINK_BASE = 'bon-cadeau';
-    private const DETECTED_TRANSIENT = 'gf_detected_pages_v3';
+    private const DETECTED_TRANSIENT = 'gf_detected_pages_v4';
     private const CREATE = '__create__';
 
     public function boot(): void
@@ -122,8 +123,8 @@ final class GF_Settings
     }
 
     /**
-     * The page holding « Utiliser un bon cadeau »: the one picked in the settings, else the published page holding the
-     * block; '' when there is none (rule 9 — `/<base>/utiliser` then leads to the home page).
+     * The page holding « Réserver une séance » (or its alias « Utiliser un bon cadeau »): the one picked in the settings, else the
+     * published page holding either block; '' when there is none (`/<base>/utiliser` then leads to the home page).
      */
     public function get_gift_voucher_use_page_url(): string
     {
@@ -161,17 +162,20 @@ final class GF_Settings
         $cache = is_array($cache) ? $cache : [];
         if (!array_key_exists($kind, $cache)) {
             global $wpdb;
-            $like = '%' . $wpdb->esc_like(self::PAGE_MARKERS[$kind]) . '%';
+            $markers = (array) self::PAGE_MARKERS[$kind];
+            $likes = array_map(static function (string $marker) use ($wpdb): string {
+                return '%' . $wpdb->esc_like($marker) . '%';
+            }, $markers);
+            $any = '(' . implode(' OR ', array_fill(0, count($likes), 'post_content LIKE %s')) . ')';
             $unlike = isset(self::PAGE_EXCLUSIONS[$kind]) ? '%' . $wpdb->esc_like(self::PAGE_EXCLUSIONS[$kind]) . '%' : '';
             $cache[$kind] = (int) ($unlike === ''
                 ? $wpdb->get_var($wpdb->prepare(
-                    "SELECT ID FROM {$wpdb->posts} WHERE post_type = 'page' AND post_status = 'publish' AND post_content LIKE %s ORDER BY ID ASC LIMIT 1",
-                    $like
+                    "SELECT ID FROM {$wpdb->posts} WHERE post_type = 'page' AND post_status = 'publish' AND {$any} ORDER BY ID ASC LIMIT 1",
+                    ...$likes
                 ))
                 : $wpdb->get_var($wpdb->prepare(
-                    "SELECT ID FROM {$wpdb->posts} WHERE post_type = 'page' AND post_status = 'publish' AND post_content LIKE %s AND post_content NOT LIKE %s ORDER BY ID ASC LIMIT 1",
-                    $like,
-                    $unlike
+                    "SELECT ID FROM {$wpdb->posts} WHERE post_type = 'page' AND post_status = 'publish' AND {$any} AND post_content NOT LIKE %s ORDER BY ID ASC LIMIT 1",
+                    ...array_merge($likes, [$unlike])
                 )));
             set_transient(self::DETECTED_TRANSIENT, $cache, DAY_IN_SECONDS);
         }
@@ -342,8 +346,8 @@ final class GF_Settings
             $page = ['post_title' => __('Conditions générales', 'guestflow-booking'), 'post_name' => 'cgv',
                      'post_content' => "<!-- wp:shortcode -->\n[guestflow_cgv]\n<!-- /wp:shortcode -->"];
         } elseif ($kind === 'gift_voucher_use') {
-            $page = ['post_title' => __('Utiliser un bon cadeau', 'guestflow-booking'), 'post_name' => 'utiliser-un-bon-cadeau',
-                     'post_content' => '<!-- wp:guestflow/gift-voucher-use /-->'];
+            $page = ['post_title' => __('Réserver une séance', 'guestflow-booking'), 'post_name' => 'reserver-une-seance',
+                     'post_content' => '<!-- wp:guestflow/session-booking /-->'];
         } else {
             $page = ['post_title' => __('Réserver', 'guestflow-booking'), 'post_name' => 'reserver',
                      'post_content' => '<!-- wp:guestflow/booking /-->'];
@@ -502,12 +506,12 @@ final class GF_Settings
                         </td>
                     </tr>
                     <tr>
-                        <th scope="row"><label for="gf_gv_use_page"><?php echo esc_html__('Page « Utiliser un bon cadeau »', 'guestflow-booking'); ?></label></th>
+                        <th scope="row"><label for="gf_gv_use_page"><?php echo esc_html__('Page « Réserver une séance »', 'guestflow-booking'); ?></label></th>
                         <td>
                             <?php $this->render_page_select('gift_voucher_use', 'gf_gv_use_page', GF_BOOKING_OPTION . '[gift_voucher_use_page_url]', (string) $o['gift_voucher_use_page_url']); ?>
-                            <p class="description"><?php echo esc_html__("Le lien /…/utiliser des cartes et du QR code mène ici. Automatique : la page qui contient le bloc « Utiliser un bon cadeau ».", 'guestflow-booking'); ?></p>
+                            <p class="description"><?php echo esc_html__("Le lien /…/utiliser des cartes et du QR code mène ici, et la page d’achat d’un bon y renvoie. Automatique : la page qui contient le bloc « Réserver une séance » (ou « Utiliser un bon cadeau »).", 'guestflow-booking'); ?></p>
                             <?php if ($vouchers_off) : ?>
-                                <p class="description"><strong><?php echo esc_html__('Bons cadeaux inactifs dans GuestFlow', 'guestflow-booking'); ?></strong> — <?php echo esc_html__('les blocs « Bon cadeau » et « Utiliser un bon cadeau » n’affichent rien ; les autres blocs fonctionnent normalement.', 'guestflow-booking'); ?></p>
+                                <p class="description"><strong><?php echo esc_html__('Bons cadeaux inactifs dans GuestFlow', 'guestflow-booking'); ?></strong> — <?php echo esc_html__('le bloc « Bon cadeau » n’affiche rien et le champ du code disparaît de « Réserver une séance » ; les autres blocs fonctionnent normalement.', 'guestflow-booking'); ?></p>
                             <?php endif; ?>
                         </td>
                     </tr>

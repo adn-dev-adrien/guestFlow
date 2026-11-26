@@ -569,6 +569,7 @@
     "notifyBookingConflict",
     "notifyNewIcalReservation",
     "notifyNewSiteDevis",
+    "notifyOperator",
     "notifyPaidAfterCancel"
   ],
   "publicHttp": [

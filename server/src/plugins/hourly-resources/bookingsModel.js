@@ -51,6 +51,11 @@ function positiveId(value) {
   return Number.isSafeInteger(n) && n > 0 ? n : null;
 }
 const refused = (message) => ({ error: message, status: 400 });
+// The people declared for a session (specs/site-outside-resource-booking.md rule 26): a whole number from 1 to 100, informational.
+const peopleOf = (value) => {
+  const n = typeof value === 'string' && /^\d+$/.test(value.trim()) ? Number(value) : value;
+  return Number.isInteger(n) && n >= 1 && n <= 100 ? n : null;
+};
 const STAY_LINK_MESSAGE = 'Séance hors séjour : aucune réservation à lier.';
 const HAS_STAY_MESSAGE = 'Cette séance appartient à un séjour : son paiement est celui du séjour.';
 
@@ -597,6 +602,7 @@ function createModel(database, { standaloneVatRate = () => 20, now = () => new D
       freeHourAtDayRate,
       id,
     );
+
     const visit = visitsOf(existing);
     const slotMoved = existing.date !== newDate || existing.startTime !== newStart || existing.endTime !== newEnd;
     const writeMoved = () => {
@@ -618,6 +624,15 @@ function createModel(database, { standaloneVatRate = () => 20, now = () => new D
       }
     }
     return { ok: true, totalPrice, warning: totalWarning(payload.displayedTotal, totalPrice) };
+  }
+
+  /** Rule 26 — the people of a session, for information: a whole number from 1 to 100, or none. Moves no price and no invoice, so an invoiced booking takes it too. */
+  function setPeople(id, people) {
+    if (!database.prepare('SELECT 1 FROM resource_bookings WHERE id = ?').get(id)) return { error: 'Non trouvée', status: 404 };
+    const value = notSent(people) ? null : peopleOf(people);
+    if (value === null && !notSent(people)) return refused('Nombre de personnes invalide.');
+    database.prepare("UPDATE resource_bookings SET people = ?, updatedAt = datetime('now') WHERE id = ?").run(value, id);
+    return { ok: true, people: value };
   }
 
   function remove(id) {
@@ -822,6 +837,7 @@ function createModel(database, { standaloneVatRate = () => 20, now = () => new D
     listReservationSessions,
     findById,
     createBooking,
+    setPeople,
     update,
     remove,
   };

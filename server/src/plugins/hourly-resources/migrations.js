@@ -36,6 +36,7 @@ function createTables(db) {
       paid INTEGER DEFAULT 0,
       createdAt TEXT DEFAULT (datetime('now')),
       updatedAt TEXT DEFAULT (datetime('now')),
+      people INTEGER,
       FOREIGN KEY (resourceId) REFERENCES resources(id) ON DELETE CASCADE,
       FOREIGN KEY (reservationId) REFERENCES reservations(id) ON DELETE SET NULL,
       FOREIGN KEY (clientId) REFERENCES clients(id) ON DELETE SET NULL,
@@ -202,6 +203,15 @@ function bookingsV6(db) {
   });
 }
 
+// specs/site-outside-resource-booking.md rule 26 — the people declared at booking, for information. NULL for every existing row.
+function bookingsV7(db) {
+  if (!hasTable(db, 'resource_bookings')) return;
+  if (!hasColumn(db, 'resource_bookings', 'people')) db.exec('ALTER TABLE resource_bookings ADD COLUMN people INTEGER');
+}
+
+// specs/site-outside-resource-booking.md rule 12 — a session ordered on the website, held while it is paid. Nothing to carry: the table starts empty.
+const createSessionOrdersTable = (db) => db.exec(require('./sessionOrdersModel').CREATE_SQL);
+
 // specs/gift-voucher-campaigns.md rule 29 — the slot held while a remainder is being paid. Nothing to carry: the table starts empty.
 const createHoldsTable = (db) => db.exec(require('./holdsModel').CREATE_SQL);
 // Rule 36 — the elements a prepaid instrument paid that the client did not take.
@@ -273,9 +283,11 @@ function migrationsFor(rateOf) {
     { name: 'resource_booking_holds_v8', up: createHoldsTable },
     { name: 'resource_visit_line_marks_v9', up: createLineMarksTable },
     { name: 'next_hour_rates_v10', up: nextHourRates },
+    { name: 'resource_bookings_people_v11', up: bookingsV7 },
+    { name: 'resource_session_orders_v12', up: createSessionOrdersTable },
   ];
 }
 
 module.exports = {
-  migrationsFor, BOOKING_COLUMNS_V2, BOOKING_COLUMNS_V3, BOOKING_COLUMNS_V4, BOOKING_COLUMNS_V5, BOOKING_COLUMNS_V6, bookingsV2, bookingsV3, bookingsV4, bookingsV5, bookingsV6, createTables, hasColumn, nextHourRates, tagEveningSupplements, resetHourlyColumns, countHourlySettings, hasTable, SUPPLEMENT_SUFFIX,
+  migrationsFor, BOOKING_COLUMNS_V2, BOOKING_COLUMNS_V3, BOOKING_COLUMNS_V4, BOOKING_COLUMNS_V5, BOOKING_COLUMNS_V6, bookingsV2, bookingsV3, bookingsV4, bookingsV5, bookingsV6, bookingsV7, createTables, hasColumn, nextHourRates, tagEveningSupplements, resetHourlyColumns, countHourlySettings, hasTable, SUPPLEMENT_SUFFIX,
 };

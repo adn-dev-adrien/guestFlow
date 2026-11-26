@@ -19,7 +19,7 @@ const holdSlot = (ref, start = '10:00', end = '12:00') => fx.offer.hold({
 const lapse = (ref) => fx.db.prepare("UPDATE resource_booking_holds SET expiresAt = '2000-01-01T00:00:00.000Z' WHERE ref = ?").run(ref);
 
 test('the offer is reached through the core: the plugin declares it, the job that tidies the holds runs every minute', () => {
-  assert.deepEqual(Object.keys(fx.offer).sort(), ['bookOutside', 'freeSlots', 'hold', 'quote', 'release']);
+  assert.deepEqual(Object.keys(fx.offer).sort(), ['bookOutside', 'freeSlots', 'hold', 'limits', 'quote', 'release']);
   const record = fx.registry.get('hourly-resources');
   assert.deepEqual(record.jobs.filter((j) => j.name === 'resource-holds-expire').map((j) => j.intervalMs), [60 * 1000]);
 });

@@ -28,7 +28,7 @@ test('rule 25: the return address keeps the lodging', () => {
 test('rule 26: a booking block with its lodging fixed is never detected as the booking page', () => {
   const settings = read('includes/class-gf-settings.php');
   assert.match(settings, /'booking' => '"propertyId":'/);
-  assert.match(settings, /post_content LIKE %s AND post_content NOT LIKE %s ORDER BY ID ASC LIMIT 1/);
-  // The cache of the previous detection, which could hold a lodging page, is not reused — v3 since the « Utiliser un bon cadeau » page joined the detected pages.
-  assert.match(settings, /DETECTED_TRANSIENT = 'gf_detected_pages_v3'/);
+  assert.match(settings, /\{\$any\} AND post_content NOT LIKE %s ORDER BY ID ASC LIMIT 1/);
+  // The cache of the previous detection, which could hold a lodging page, is not reused — v4 since the « Réserver une séance » block joined the markers of the use page.
+  assert.match(settings, /DETECTED_TRANSIENT = 'gf_detected_pages_v4'/);
 });

@@ -3,11 +3,12 @@
  * The two permanent links printed on the gift voucher cards (specs/gift-voucher-campaigns.md rule 9):
  *
  *   /<base>/offrir/<slug>   → the purchase page of the campaign, as GuestFlow says it today
- *   /<base>/utiliser        → the page holding « Utiliser un bon cadeau »
+ *   /<base>/utiliser        → the page holding « Réserver une séance » (or its alias « Utiliser un bon cadeau »), where the fragment `#bon=<code>` fills the code field
  *
  * Both are redirections, so a page moved on the site never breaks a printed card. `<base>` is the connector's
- * setting (default `bon-cadeau`). With the plugin off in GuestFlow, or GuestFlow unreachable, they lead to the
- * home page; a campaign GuestFlow does not know (unknown, one-shot, closed) leads to the purchase page itself.
+ * setting (default `bon-cadeau`). With the plugin off in GuestFlow, or GuestFlow unreachable, `offrir` leads to the
+ * home page; a campaign GuestFlow does not know (unknown, one-shot, closed) leads to the purchase page itself;
+ * `utiliser` leads to the session page whatever the vouchers do, since that page also sells sessions on its own.
  * The fragment of the address — `#bon=<code>` of a QR code — is never read here: a browser keeps it across the 302.
  */
 
@@ -133,27 +134,14 @@ final class GF_Redirects
         return $purchase !== '' ? $purchase : $home;
     }
 
-    /** Where `/utiliser` leads: the page holding the use block, unless GuestFlow has the vouchers off or cannot be reached. */
+    /** Where `/utiliser` leads: the page holding the session tunnel (specs/site-outside-resource-booking.md rule 18), the home page when the connector is not set up or no page holds it. */
     private function use_target(): string
     {
-        $home = home_url('/');
         $settings = GF_Settings::instance();
         if (!$settings->is_configured()) {
-            return $home;
+            return home_url('/');
         }
         $page = $settings->get_gift_voucher_use_page_url();
-        if ($page === '') {
-            return $home;
-        }
-        $key = GF_Cache::key('/gift-vouchers/offer');
-        if (GF_Cache::get($key) === false) {
-            $res = GF_Api_Client::instance()->get('/gift-vouchers/offer');
-            $status = (int) $res['status'];
-            if ($status < 200 || $status >= 300) {
-                return (GF_Settings::vouchers_off($res) || GF_Cache::get_stale($key) === false) ? $home : $page;
-            }
-            GF_Cache::set($key, $res['body'], self::TARGET_TTL);
-        }
-        return $page;
+        return $page !== '' ? $page : home_url('/');
     }
 }

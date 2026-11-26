@@ -1,5 +1,5 @@
 /**
- * `POST /public/v1/gift-vouchers/use`, `/use/slots`, `/use/quote`, `/use/confirm` (specs/gift-voucher-campaigns.md rules 23-32, §4.4): « Mon bain », where the recipient of a composed
+ * `POST /public/v1/gift-vouchers/use`, `/use/slots`, `/use/quote`, `/use/confirm` and `GET /use/status/:ref` (the return page of a remainder, specs/site-outside-resource-booking.md rule 16) (specs/gift-voucher-campaigns.md rules 23-32, §4.4): « Mon bain », where the recipient of a composed
  * voucher chooses a slot. Behind the public key and the visitor context (the router). The code is always in the body, never in a URL, so no log keeps it; a wrong code counts against the
  * same per-visitor limits as the public check, and the two calls that open or write — the first read of a code and the confirmation — ask for the signed proof of work. Thin: parse,
  * guard, call `useService`, answer. Every rule, price and sentence is the service's.
@@ -19,6 +19,7 @@ function buildPublicUseController({
     if (result.ok) return respond.ok(res, result.data);
     if (result.retryAfterSeconds) res.set('Retry-After', String(result.retryAfterSeconds));
     const details = [
+      ...(result.field ? [{ field: result.field }] : []),
       ...(result.expiresOn ? [{ expiresOn: result.expiresOn }] : []),
       ...(result.triesLeft !== undefined ? [{ triesLeft: result.triesLeft }] : []),
       ...(result.horizonUntil ? [{ horizonUntil: result.horizonUntil }] : []),
@@ -73,6 +74,9 @@ function buildPublicUseController({
       email: body.email,
       phone: body.phone,
       name: body.name,
+      firstName: body.firstName,
+      lastName: body.lastName,
+      people: body.people,
       termsVersionId: body.termsVersionId,
       returnUrl: returnUrlOf(body.returnPath),
       visitor: req.visitor || {},
@@ -80,8 +84,10 @@ function buildPublicUseController({
     return answer(res, result);
   };
 
+  const status = async (req, res) => answer(res, await useService.status(String(req.params.ref)));
+
   return {
-    open, slots, quote, confirm,
+    open, slots, quote, confirm, status,
   };
 }
 

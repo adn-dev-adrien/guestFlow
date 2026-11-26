@@ -37,7 +37,7 @@ import { EXTERNAL_FIELDS } from './externalSaleForm';
 
 const HOURLY_FIELDS = ['closeTime', 'hourlyEveningRate', 'hourlyExternalDayRate', 'hourlyExternalEveningRate', ...NEXT_RATE_FIELDS.map(([field]) => field), 'bookingHorizonMonths'];
 const SECTION_OF = { name: 'general', quantity: 'general', price: 'prices' };
-const sectionOf = (field) => SECTION_OF[field] || (EXTERNAL_FIELDS.includes(field) ? 'external' : (HOURLY_FIELDS.includes(field) ? 'hours' : 'prices'));
+const sectionOf = (field) => SECTION_OF[field] || (EXTERNAL_FIELDS.includes(field) || field === 'sessionMaxPeople' ? 'external' : (HOURLY_FIELDS.includes(field) ? 'hours' : 'prices'));
 
 function PropertyPriceLines({ form, setForm, properties, errors }) {
   const hourly = form.priceType === 'per_hour';
@@ -269,6 +269,19 @@ export default function ResourceEditorPanel({ open, resourceId, properties, onCl
             errors={errors}
             sellability={sellability}
           />
+          {hourlyOn && form.priceType === 'per_hour' && form.showsPlanningCard && form.sellableExternally && (
+            <TextField
+              label={TEXTS.sessionMaxPeople}
+              value={form.sessionMaxPeople ?? ''}
+              onChange={(e) => setForm({ ...form, sessionMaxPeople: e.target.value })}
+              error={Boolean(errors.sessionMaxPeople)}
+              helperText={errors.sessionMaxPeople || TEXTS.sessionMaxPeopleHelp}
+              size="small"
+              fullWidth
+              sx={{ mt: 2 }}
+              slotProps={{ htmlInput: { inputMode: 'numeric', min: 1, max: 100, style: { fontSize: 16 } } }}
+            />
+          )}
         </SidePanelSection>
 
         {contributions.length > 0 && (

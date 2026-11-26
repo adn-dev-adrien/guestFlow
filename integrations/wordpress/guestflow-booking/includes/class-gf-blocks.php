@@ -13,7 +13,9 @@ if (!defined('ABSPATH')) {
 final class GF_Blocks
 {
     private static ?GF_Blocks $instance = null;
-    private const BLOCKS = ['calendar', 'booking', 'properties', 'gift-voucher', 'gift-voucher-use'];
+    private const BLOCKS = ['calendar', 'booking', 'properties', 'gift-voucher', 'gift-voucher-use', 'session-booking'];
+    /** « Utiliser un bon cadeau » is an alias of the session tunnel (specs/site-outside-resource-booking.md rule 18): it runs that block's script. */
+    private const VIEW_OF = ['gift-voucher-use' => 'session-booking'];
 
     public static function instance(): GF_Blocks
     {
@@ -64,6 +66,7 @@ final class GF_Blocks
         wp_register_script('gf-voucher-parts', GF_BOOKING_URL . 'assets/voucher-parts.js', ['gf-runtime'], $this->asset_ver('assets/voucher-parts.js'), true);
 
         foreach (self::BLOCKS as $name) {
+            $view = self::VIEW_OF[$name] ?? $name;
             wp_register_script(
                 "guestflow-{$name}-editor",
                 GF_BOOKING_URL . "blocks/{$name}/editor.js",
@@ -73,9 +76,9 @@ final class GF_Blocks
             );
             wp_register_script(
                 "guestflow-{$name}-view",
-                GF_BOOKING_URL . "blocks/{$name}/view.js",
-                $name === 'booking' ? ['gf-runtime', 'gf-voucher-code', 'gf-pow'] : (strpos($name, 'gift-voucher') === 0 ? ['gf-runtime', 'gf-voucher-code', 'gf-voucher-parts', 'gf-pow'] : ['gf-runtime']),
-                $this->asset_ver("blocks/{$name}/view.js"),
+                GF_BOOKING_URL . "blocks/{$view}/view.js",
+                $name === 'booking' ? ['gf-runtime', 'gf-voucher-code', 'gf-pow'] : (strpos($name, 'gift-voucher') === 0 || $view === 'session-booking' ? ['gf-runtime', 'gf-voucher-code', 'gf-voucher-parts', 'gf-pow'] : ['gf-runtime']),
+                $this->asset_ver("blocks/{$view}/view.js"),
                 true
             );
             register_block_type(GF_BOOKING_DIR . "blocks/{$name}");
@@ -107,6 +110,8 @@ final class GF_Blocks
             // both languages, because the quote PDF attached to the confirmation already writes it
             // that way to English guests (specs/site-english-version.md rules 10 + 24).
             'giftVoucherPageUrl' => esc_url_raw($s->get_gift_voucher_page_url()),
+            // Rule 19 — the page holding « Réserver une séance », which the purchase page links to; '' when none does.
+            'sessionPageUrl'    => esc_url_raw($s->get_gift_voucher_use_page_url()),
             'lang'              => GF_Language::current(),
             'locale'            => GF_Language::locale(),
             'i18n'              => [
@@ -341,28 +346,65 @@ final class GF_Blocks
                 'gvHourShort'     => __('h', 'guestflow-booking'),
                 'gvMinShort'      => __('min', 'guestflow-booking'),
                 // « Utiliser un bon cadeau » (rules 23-32).
-                'guTitle'         => __('Utiliser un bon cadeau', 'guestflow-booking'),
-                'guIntro'         => __('Saisir le code du bon pour réserver la séance.', 'guestflow-booking'),
-                'guCodeLabel'     => __('Code du bon', 'guestflow-booking'),
-                'guContinue'      => __('Continuer', 'guestflow-booking'),
-                'guLodging'       => __('Ce bon est valable pour un séjour : redirection vers la réservation…', 'guestflow-booking'),
-                'guLodgingNoPage' => __('Ce bon est valable pour un séjour : le code se saisit au moment de réserver les dates.', 'guestflow-booking'),
-                'guIncludes'      => __('Votre bon comprend', 'guestflow-booking'),
-                'guValidUntil'    => __('Valable jusqu’au %s.', 'guestflow-booking'),
-                'guUsedOn'        => __('Ce bon a déjà été utilisé le %s.', 'guestflow-booking'),
-                'guChooseDate'    => __('Choisir une date', 'guestflow-booking'),
-                'guSlotIncluded'  => __('Inclus', 'guestflow-booking'),
-                'guSlotSupplement' => __('+ %s soirée', 'guestflow-booking'),
-                'guDue'           => __('Reste à payer', 'guestflow-booking'),
-                'guNothingDue'    => __('Rien à payer', 'guestflow-booking'),
-                'guHold'          => __('Le créneau est gardé 15 minutes le temps du paiement.', 'guestflow-booking'),
-                'guHoldPay'       => __('Le créneau est gardé 15 minutes : terminer le paiement dans ce délai.', 'guestflow-booking'),
-                'guTermsAfter'    => __(' de la séance.', 'guestflow-booking'),
-                'guPickSlot'      => __('Choisir un créneau', 'guestflow-booking'),
-                'guBooked'        => __('Séance réservée !', 'guestflow-booking'),
-                'guBookedAt'      => __('Le %s, de %s à %s.', 'guestflow-booking'),
-                'guBookedMail'    => __('Un e-mail de confirmation vous est envoyé.', 'guestflow-booking'),
                 'guPaid'          => __('Paiement reçu : la confirmation arrive par mail dès que la banque l’a validé.', 'guestflow-booking'),
+                // « Réserver une séance » (specs/site-outside-resource-booking.md): the tunnel that books a session, paid online or with a voucher code.
+                'sbTitle'         => __('Réserver une séance', 'guestflow-booking'),
+                'sbIntro'         => __('Choisissez votre créneau, puis payez en ligne ou saisissez le code de votre bon cadeau.', 'guestflow-booking'),
+                'sbNone'          => __('Aucune activité à réserver en ce moment.', 'guestflow-booking'),
+                'sbActivity'      => __('Activité', 'guestflow-booking'),
+                'sbFrom'          => __('dès %s l’heure', 'guestflow-booking'),
+                'sbCode'          => __('Code bon cadeau', 'guestflow-booking'),
+                'sbOptional'      => __('facultatif', 'guestflow-booking'),
+                'sbApply'         => __('Appliquer', 'guestflow-booking'),
+                'sbRemove'        => __('Retirer', 'guestflow-booking'),
+                'sbCodeEmpty'     => __('Saisissez le code imprimé au dos du bon.', 'guestflow-booking'),
+                'sbCodeUnknown'   => __('Ce code n’est pas reconnu. Vérifiez les caractères au dos du bon (0 et O, 1 et I).', 'guestflow-booking'),
+                'sbCodeLodging'   => __('Ce bon se règle sur un séjour. Il est utilisable sur la page de réservation d’un hébergement, où le code sera rempli automatiquement.', 'guestflow-booking'),
+                'sbCodeLodgingGo' => __('Réserver un hébergement', 'guestflow-booking'),
+                'sbVoucherOn'     => __('Bon n° %s · %s', 'guestflow-booking'),
+                'sbVoucherFrom'   => __(', offert par %s', 'guestflow-booking'),
+                'sbVoucherTo'     => __(' à %s', 'guestflow-booking'),
+                'sbSession'       => __('Séance', 'guestflow-booking'),
+                'sbDuration'      => __('Durée', 'guestflow-booking'),
+                'sbDurationVoucher' => __('%s comprise dans le bon', 'guestflow-booking'),
+                'sbPeople'        => __('Personnes', 'guestflow-booking'),
+                'sbPeopleHint'    => __('Pour préparer la séance · %s au plus', 'guestflow-booking'),
+                'sbPeopleShort'   => __('%s pers.', 'guestflow-booking'),
+                'sbDate'          => __('Date', 'guestflow-booking'),
+                'sbDateUntil'     => __('jusqu’au %s', 'guestflow-booking'),
+                'sbSlot'          => __('Créneau', 'guestflow-booking'),
+                'sbPickDate'      => __('Choisissez d’abord une date.', 'guestflow-booking'),
+                'sbNoSlot'        => __('Aucun créneau de %s ce jour-là. Réduisez la durée ou choisissez un autre jour.', 'guestflow-booking'),
+                'sbTaken'         => __('Pris', 'guestflow-booking'),
+                'sbIncluded'      => __('Inclus dans le bon', 'guestflow-booking'),
+                'sbIncludedShort' => __('Inclus', 'guestflow-booking'),
+                'sbWithEvening'   => __(' · dont soirée', 'guestflow-booking'),
+                'sbEvening'       => __(' · soirée', 'guestflow-booking'),
+                'sbAddTitle'      => __('Ajouter à la séance', 'guestflow-booking'),
+                'sbAddFoot'       => __('Prix TTC, ajoutés au montant de la séance.', 'guestflow-booking'),
+                'sbContact'       => __('Vos coordonnées', 'guestflow-booking'),
+                'sbTermsBefore'   => __('J’accepte les ', 'guestflow-booking'),
+                'sbTermsLink'     => __('conditions de la séance', 'guestflow-booking'),
+                'sbTermsAfter'    => __('.', 'guestflow-booking'),
+                'sbTermsRequired' => __('Les conditions de la séance doivent être acceptées.', 'guestflow-booking'),
+                'sbFix'           => __('Certains champs sont à corriger avant de continuer.', 'guestflow-booking'),
+                'sbSummary'       => __('Récapitulatif', 'guestflow-booking'),
+                'sbSummaryEmpty'  => __('Le récapitulatif apparaît dès qu’un créneau est choisi.', 'guestflow-booking'),
+                'sbToPay'         => __('À payer', 'guestflow-booking'),
+                'sbNothing'       => __('Rien à payer', 'guestflow-booking'),
+                'sbPickSlot'      => __('Choisir un créneau', 'guestflow-booking'),
+                'sbPickSlotBar'   => __('Choisissez un créneau', 'guestflow-booking'),
+                'sbHold'          => __('Le créneau vous est réservé 15 minutes pendant le paiement.', 'guestflow-booking'),
+                'sbBooked'        => __('Séance réservée', 'guestflow-booking'),
+                'sbBookedLine'    => __('%s · %s – %s', 'guestflow-booking'),
+                'sbBookedMail'    => __('Un e-mail de confirmation vous est envoyé, avec les conditions et l’accès.', 'guestflow-booking'),
+                'sbPaidLabel'     => __('Payé', 'guestflow-booking'),
+                'sbWaiting'       => __('Confirmation du paiement en cours…', 'guestflow-booking'),
+                'sbLapsed'        => __('Le paiement n’a pas abouti : le créneau a été libéré et aucune séance n’est réservée.', 'guestflow-booking'),
+                'sbRefund'        => __('Le paiement est arrivé après la fin du délai et le créneau est pris : il sera remboursé, l’équipe vous écrit.', 'guestflow-booking'),
+                'sbAgain'         => __('Réserver une autre séance', 'guestflow-booking'),
+                'sbHaveVoucher'   => __('Vous avez reçu un bon cadeau ?', 'guestflow-booking'),
+                'sbBookSession'   => __('Réserver votre séance', 'guestflow-booking'),
             ],
         ];
     }

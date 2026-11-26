@@ -1,7 +1,7 @@
 {
   "id": "hourly-resources",
   "name": "Ressources à l’heure",
-  "version": "1.10.1",
+  "version": "1.11.0",
   "description": "Louer un équipement par créneau : bain nordique, sauna.",
   "icon": "hot-tub",
   "surfaces": [
@@ -10,12 +10,21 @@
     "Le sélecteur de séances de la fiche",
     "L’allumage et les séances du planning",
     "L’étape « créneaux » du sas",
-    "Le type de prix « à l’heure »"
+    "Le type de prix « à l’heure »",
+    "L’API publique de réservation d’une séance : les activités proposées, les créneaux, le prix, la confirmation et le suivi du paiement",
+    "La notification push « Bons cadeaux et séances en ligne »"
   ],
   "requires": [],
   "guestflow": ">=3.18.0",
-  "sdk": "^2.33.0",
+  "sdk": "^2.35.0",
   "changelog": {
+    "1.11.0": [
+      "Une activité vendable hors séjour se réserve et se paie depuis le site : l’API publique propose ses créneaux, chacun avec le prix de la séance entière (chaque heure à la tranche où elle tombe, la soirée comprise), puis retient le créneau 15 minutes pendant le paiement en ligne.",
+      "La séance n’existe qu’une fois le paiement confirmé par la banque ; payée après le délai, elle est réservée si le créneau est encore libre, sinon le paiement est signalé « à rembourser » et l’équipe est prévenue.",
+      "Le nombre de personnes d’une séance est demandé pour information : il se règle à la fiche de la ressource (« Personnes par séance au plus »), s’affiche et se corrige sur la fiche du passage et apparaît dans le détail de la carte du planning.",
+      "Chaque séance réservée depuis le site, avec ou sans bon, envoie une notification push et un e-mail à l’adresse des notifications, sur la ligne « Bons cadeaux et séances en ligne ».",
+      "Demande le SDK 2.35 de GuestFlow."
+    ],
     "1.10.1": [
       "Le devis d’une séance sans date (bon cadeau) nomme la tranche sans horaire fictif : « Jour · 1 h × 50,00 € ».",
       "Compatible avec GuestFlow 4 (SDK 2.33)."

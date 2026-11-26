@@ -68,7 +68,7 @@
 .gf-booking { container-type: inline-size; }
 /* The block's wrapper is the container the sticky bar and the two-column layout read
    (specs/wp-booking-widget-redesign.md rules 32-33): a container query cannot style its own box. */
-.gf-booking-block { container: gf-host / inline-size; }
+.gf-booking-block, .gf-session-block { container: gf-host / inline-size; }
 .gf-loading, .gf-error, .gf-empty { padding: 1rem; color: var(--gfb-muted); font-style: italic; }
 .gf-error { color: var(--gfb-error); font-style: normal; }
 
@@ -469,8 +469,10 @@ button.gf-cal-day.gf-shake { animation: gf-shake .32s cubic-bezier(.36, .07, .19
 .gf-gv-offer-thumb { display: block; width: 60px; height: auto; aspect-ratio: 105 / 148; object-fit: cover; border-radius: 5px; background: var(--gfb-border); box-shadow: 0 2px 6px color-mix(in srgb, var(--gfb-ink) 18%, transparent); }
 .gf-gv-lead { display: grid; grid-template-columns: minmax(0, 1fr); gap: 1.5rem; }
 .gf-gv-main { min-width: 0; }
-.gf-gv-front { display: block; justify-self: center; width: min(78%, 320px); height: auto; aspect-ratio: 105 / 148; object-fit: cover; border-radius: 10px; background: var(--gfb-border); box-shadow: 0 14px 34px color-mix(in srgb, var(--gfb-ink) 22%, transparent); transform: rotate(-1deg); animation: gf-gv-front-in .45s cubic-bezier(.2, .8, .2, 1); }
-@keyframes gf-gv-front-in { from { opacity: 0; transform: translateY(10px) rotate(-1deg); } }
+.gf-gv-uselink { display: flex; flex-wrap: wrap; gap: .4rem .8rem; align-items: center; justify-content: space-between; margin-top: 1rem; padding: .75rem .9rem; border: 1px solid var(--gfb-border); border-radius: 10px; background: var(--gfb-surface); }
+.gf-gv-uselink a { min-height: 44px; display: inline-flex; align-items: center; color: var(--gfb-fill); font-weight: 600; text-underline-offset: 3px; }
+.gf-gv-front { display: block; justify-self: center; width: min(78%, 320px); height: auto; aspect-ratio: 105 / 148; object-fit: cover; border-radius: 10px; background: var(--gfb-border); box-shadow: 0 14px 34px color-mix(in srgb, var(--gfb-ink) 22%, transparent); animation: gf-gv-front-in .45s cubic-bezier(.2, .8, .2, 1); }
+@keyframes gf-gv-front-in { from { opacity: 0; transform: translateY(10px); } }
 @container gf-gv (min-width: 600px) {
   .gf-gv-lead.has-front { grid-template-columns: minmax(220px, 34%) minmax(0, 1fr); gap: 2.5rem; align-items: start; }
   .gf-gv-lead.has-front .gf-gv-front { width: 100%; }
@@ -549,34 +551,106 @@ button.gf-cal-day.gf-shake { animation: gf-shake .32s cubic-bezier(.36, .07, .19
 .gf-gv-recap-line small { display: block; color: var(--gfb-muted); }
 .gf-gv-recap-total { margin-top: .3rem; padding-top: .4rem; border-top: 1px solid var(--gfb-border); font-size: 1.05rem; }
 .gf-gv-recap-vat { font-size: .85rem; color: var(--gfb-muted); }
-.gf-use-included { color: var(--gfb-ok); font-weight: 600; }
-.gf-gv-use .gf-cal-box { margin-bottom: 1rem; }
-.gf-use-days { margin-bottom: .6rem; }
-.gf-use-days button.gf-cal-day { min-height: 44px; }
-.gf-use-days button.gf-cal-day:disabled { cursor: default; }
-.gf-use-slots { display: grid; grid-template-columns: repeat(auto-fill, minmax(8.5rem, 1fr)); gap: .5rem; }
-.gf-use-slot { display: grid; gap: .1rem; justify-items: center; min-height: 56px; padding: .45rem .5rem; border: 1px solid var(--gfb-border); border-radius: 10px; background: #fff; color: inherit; font: inherit; cursor: pointer; font-variant-numeric: tabular-nums; -webkit-tap-highlight-color: transparent; touch-action: manipulation; transition: transform .1s ease-out, background-color .15s ease; }
-.gf-use-slot:active { transform: scale(.97); }
-.gf-use-slot:focus-visible { outline: 2px solid var(--gfb-fill); outline-offset: 2px; }
-.gf-use-slot.is-on { background: var(--gfb-fill); border-color: var(--gfb-fill); color: var(--gfb-on-accent); }
-.gf-use-tag { font-size: .78rem; color: var(--gfb-ok); }
-.gf-use-slot.is-supplement .gf-use-tag { color: var(--gfb-warn); }
-.gf-use-slot.is-on .gf-use-tag { color: inherit; }
-.gf-use-note:empty { display: none; }
-.gf-use-who { margin-top: 1rem; }
-.gf-use-bar { position: sticky; bottom: 0; z-index: 5; display: flex; align-items: center; justify-content: space-between; gap: .75rem; margin: 1rem -.25rem 0; padding: .7rem .9rem calc(.7rem + env(safe-area-inset-bottom, 0px)); background: #fff; border-top: 1px solid var(--gfb-border); box-shadow: 0 -6px 16px color-mix(in srgb, var(--gfb-ink) 8%, transparent); }
-.gf-use-bar .gf-bar-amt { display: block; }
-.gf-block .gf-use-bar .gf-btn { flex: 0 0 auto; min-width: 11rem; min-height: 48px; }
-.gf-block .gf-use-bar .gf-btn:disabled { opacity: .5; cursor: not-allowed; }
+/* « Réserver une séance » (specs/site-outside-resource-booking.md rules 1-9): the tokens of the booking engine; the recap follows the scroll in a right-hand column from
+   900 px of block width, a bar sticks to the bottom of the screen below it. */
+.gf-sb-title { margin: 0 0 .25rem; font-size: 1.5rem; line-height: 1.2; }
+.gf-sb-intro { margin: 0 0 1.25rem; color: var(--gfb-muted); }
+.gf-sb { color: var(--gfb-ink); }
+.gf-sb [hidden] { display: none; }
+.gf-sb-main { min-width: 0; }
+.gf-sb-sec { border-top: 1px solid var(--gfb-border); margin-top: 1.1rem; padding-top: 1.1rem; }
+.gf-sb-sec:first-child { border-top: 0; margin-top: 0; padding-top: 0; }
+.gf-sb-sec-t { display: flex; justify-content: space-between; align-items: baseline; gap: .5rem; margin: 0 0 .65rem; font-weight: 700; }
+.gf-sb-sec-t small { font-weight: 400; color: var(--gfb-muted); }
+.gf-sb-acts { display: grid; gap: .55rem; }
+.gf-sb-act { display: grid; gap: .1rem; min-height: 56px; padding: .6rem .85rem; text-align: left; border: 1px solid var(--gfb-border); border-radius: 10px; background: #fff; color: inherit; font: inherit; cursor: pointer; -webkit-tap-highlight-color: transparent; touch-action: manipulation; transition: background-color .15s ease, border-color .15s ease; }
+.gf-sb-act[aria-pressed="true"] { border-color: var(--gfb-accent); background: var(--gfb-tint); }
+.gf-sb-act:focus-visible { outline: 2px solid var(--gfb-fill); outline-offset: 2px; }
+.gf-sb-act span { color: var(--gfb-muted); font-size: .88rem; }
+.gf-sb-row { display: flex; justify-content: space-between; align-items: center; gap: 1rem; min-height: 48px; padding: .35rem 0; }
+.gf-sb-lbl { min-width: 0; }
+.gf-sb-lbl b { display: block; }
+.gf-sb-lbl span { font-size: .86rem; color: var(--gfb-muted); }
+.gf-sb-code { display: flex; gap: .5rem; }
+.gf-sb-code input { flex: 1; min-width: 0; padding: .65rem .75rem; min-height: 46px; border: 1px solid var(--gfb-border); border-radius: 8px; font: inherit; font-size: max(16px, 1em); text-transform: uppercase; letter-spacing: .06em; background: #fff; color: inherit; }
+.gf-sb-code input:focus { outline: 2px solid transparent; border-color: var(--gfb-accent); box-shadow: 0 0 0 3px var(--gfb-focus); }
+.gf-block .gf-btn.gf-btn-line { background: #fff; color: var(--gfb-fill); border: 1px solid var(--gfb-fill); }
+.gf-sb-msg { margin-top: .5rem; padding: .55rem .7rem; border-radius: 8px; font-size: .88rem; }
+.gf-sb-msg:empty { display: none; }
+.gf-sb-msg.is-ok { background: var(--gfb-ok-soft); color: var(--gfb-ok); }
+.gf-sb-msg.is-bad { background: var(--gfb-error-soft); color: var(--gfb-error); }
+.gf-sb-msg.is-warn { background: var(--gfb-warn-soft); color: var(--gfb-warn); }
+.gf-block .gf-sb-msg .gf-btn { margin-left: .4rem; min-height: 36px; padding: .2rem .6rem; }
+.gf-sb-msg a { color: inherit; font-weight: 600; text-underline-offset: 3px; }
+.gf-sb-days { margin-bottom: .6rem; }
+/* A session day carries no price: a fixed row instead of the lodging calendar's square cells, which grow to ~90 px in a wide column. */
+.gf-sb-days .gf-cal-day { aspect-ratio: auto; height: 46px; }
+.gf-sb-days button.gf-cal-day { min-height: 44px; }
+.gf-sb-days button.gf-cal-day:disabled { cursor: default; }
+.gf-sb-slots { display: grid; grid-template-columns: repeat(auto-fill, minmax(7.6rem, 1fr)); gap: .45rem; margin-top: .8rem; }
+.gf-sb-slot { display: grid; gap: .05rem; min-height: 52px; padding: .6rem .75rem; text-align: left; border: 1px solid var(--gfb-border); border-radius: 8px; background: #fff; color: inherit; font: inherit; font-variant-numeric: tabular-nums; cursor: pointer; -webkit-tap-highlight-color: transparent; touch-action: manipulation; transition: transform .1s ease-out, background-color .15s ease, border-color .15s ease; }
+.gf-sb-slot:active:not(:disabled) { transform: scale(.97); }
+.gf-sb-slot:focus-visible { outline: 2px solid var(--gfb-fill); outline-offset: 2px; }
+.gf-sb-slot b { font-size: .95rem; }
+.gf-sb-slot span { font-size: .78rem; color: var(--gfb-muted); }
+.gf-sb-slot.is-in span { color: var(--gfb-ok); }
+.gf-sb-slot.is-evening span { color: var(--gfb-warn); }
+.gf-sb-slot[aria-pressed="true"] { border-color: var(--gfb-accent); background: var(--gfb-tint); box-shadow: inset 0 0 0 1px var(--gfb-accent); }
+.gf-sb-slot:disabled { background: var(--gfb-blocked); color: var(--gfb-muted); cursor: not-allowed; }
+.gf-sb-note { margin: .6rem 0 0; color: var(--gfb-muted); font-size: .92rem; }
+.gf-sb-note:empty { display: none; }
+.gf-sb-who { display: grid; grid-template-columns: minmax(0, 1fr); gap: 0 .8rem; }
+@container gf-host (min-width: 560px) { .gf-sb-who { grid-template-columns: 1fr 1fr; } }
+.gf-sb .gf-field { flex: 0 0 auto; margin-bottom: .75rem; }
+.gf-sb-summary-line { display: flex; justify-content: space-between; gap: .8rem; font-size: .92rem; padding: .15rem 0; }
+.gf-sb-summary-line span:last-child { white-space: nowrap; }
+.gf-sb-summary-line.is-included span:last-child { color: var(--gfb-ok); }
+.gf-sb-summary-line small { display: block; color: var(--gfb-muted); }
+.gf-sb-summary-line.is-vat { color: var(--gfb-muted); font-size: .82rem; }
+.gf-sb-hold { margin: .5rem 0 0; font-size: .8rem; color: var(--gfb-muted); }
+.gf-sb-hold:empty { display: none; }
+.gf-sb-done { padding: 2rem 1rem 2.5rem; text-align: center; }
+.gf-sb-done h3 { margin: 0 0 .4rem; font-size: 1.5rem; }
+.gf-sb-done p { margin: .2rem 0; color: var(--gfb-muted); }
+.gf-sb-done .gf-summary { max-width: 360px; margin: 1.2rem auto; text-align: left; }
+.gf-sb > .gf-summary { margin-top: 1.1rem; }
+.gf-sb > .gf-summary .gf-summary-head, .gf-sb > .gf-summary .gf-summary-dates { display: block; }
+/* Only on a phone, as the lodging's bar: a coarse pointer or a narrow viewport, AND a block under 900 px. A narrow block on a desktop keeps its button in the recap. */
+.gf-sb > .gf-summary .gf-summary-cta { display: block; }
+@media (pointer: coarse), (max-width: 600px) {
+  @container gf-host (max-width: 899.98px) {
+    .gf-sb > .gf-bar {
+      display: flex; align-items: center; gap: .75rem;
+      position: sticky; bottom: 0; z-index: 3;
+      margin: 1rem 0 0; padding: .7rem .75rem calc(.7rem + env(safe-area-inset-bottom, 0px));
+      border-top: 1px solid var(--gfb-border);
+      background: rgba(255, 255, 255, .82);
+      -webkit-backdrop-filter: blur(16px) saturate(170%); backdrop-filter: blur(16px) saturate(170%);
+    }
+    .gf-sb > .gf-summary .gf-summary-cta { display: none; }
+  }
+}
+@container gf-host (min-width: 900px) {
+  .gf-sb { display: grid; grid-template-columns: minmax(0, 1fr) 340px; column-gap: 2rem; align-items: start; }
+  .gf-sb > .gf-sb-main { grid-column: 1; }
+  .gf-sb > .gf-summary {
+    grid-column: 2; grid-row: 1; align-self: start; margin-top: 0;
+    position: sticky; top: var(--gf-sticky-top, 1rem);
+    background: #fff; border: 1px solid var(--gfb-border); border-radius: 12px; padding: 1rem 1.1rem;
+  }
+}
+@media (prefers-reduced-transparency: reduce) {
+  .gf-sb > .gf-bar { -webkit-backdrop-filter: none !important; backdrop-filter: none !important; background: #fff !important; }
+}
 @container gf-gv (min-width: 640px) {
   .gf-gv-offers { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 @media (hover: hover) and (pointer: fine) {
-  .gf-gv-offer:hover, .gf-use-slot:hover:not(.is-on) { background: var(--gfb-tint); }
+  .gf-gv-offer:hover, .gf-sb-slot:hover:not(:disabled):not([aria-pressed="true"]) { background: var(--gfb-tint); }
 }
 @media (prefers-reduced-motion: reduce) {
-  .gf-gv-offer, .gf-use-slot { transition: background-color .15s ease; }
-  .gf-gv-offer:active, .gf-use-slot:active { transform: none; }
+  .gf-gv-offer, .gf-sb-slot { transition: background-color .15s ease; }
+  .gf-gv-offer:active, .gf-sb-slot:active { transform: none; }
 }
 /* Printing the voucher page prints the voucher, nothing else. */
 @media print {

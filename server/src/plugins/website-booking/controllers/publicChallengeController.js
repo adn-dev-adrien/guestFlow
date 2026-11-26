@@ -42,6 +42,7 @@ function proofEnforced() {
 }
 
 const secret = () => sdk.secrets.getOrCreate(challenge.SECRET_NAME, 32);
+const guard = sdk.proofGuard.createProofGuard({ secret });
 
 function rememberPluginVersion(req) {
   const version = req.visitor && req.visitor.pluginVersion;
@@ -76,27 +77,10 @@ function requireProof(req, res, next) {
     store.logRequest(ipKey);
     return next();
   }
-  const now = Date.now();
-  const result = challenge.verify({ secret: secret(), challenge: body.challenge, nonce: body.nonce, ipKey, now });
-  if (!result.ok) {
-    return failT(res, req, 403, 'CHALLENGE_INVALID', 'challengeInvalid', [{ field: 'challenge', issue: result.reason }]);
-  }
-  if (!store.spendChallenge(result.challengeId, result.expiresAt, { now })) {
-    return failT(res, req, 403, 'CHALLENGE_INVALID', 'challengeInvalid', [{ field: 'challenge', issue: 'used' }]);
-  }
-  // Rules 29 + 32 — a challenge is judged at the difficulty signed into it (the HMAC vouches for the
-  // number), which must still cover what this address owes now: its own sends of the hour (excluding
-  // this one) in full, the flood surcharge with a one-step grace. One fetched ahead of the address's
-  // previous sends is refused `tooEasy` (and stays spent); the drawer fetches a fresh one and retries
-  // once. Another address's flood never refuses a challenge issued just before it.
-  const required = challenge.requiredDifficulty({
-    addressRequestsLastHour: store.countRecent({ ipKey, windowMs: HOUR_MS, now }),
-    requestsLastHour: store.countRecent({ windowMs: HOUR_MS, now }),
-  });
-  if (Number(body.challenge.difficulty) < required) {
-    return failT(res, req, 403, 'CHALLENGE_INVALID', 'challengeInvalid', [{ field: 'challenge', issue: 'tooEasy' }]);
-  }
-  store.logRequest(ipKey, { now });
+  // One judgment for every form of the site (SDK `proofGuard`): signed for this address, solved, spent once across them all, difficulty still covering what the address owes, then logged.
+  // An old challenge fetched ahead is refused `tooEasy` (and stays spent): the drawer fetches a fresh one and retries once.
+  const verdict = guard.check({ body, ip: req.visitor && req.visitor.ip });
+  if (!verdict.ok) return failT(res, req, 403, 'CHALLENGE_INVALID', 'challengeInvalid', [{ field: 'challenge', issue: verdict.issue }]);
   return next();
 }
 

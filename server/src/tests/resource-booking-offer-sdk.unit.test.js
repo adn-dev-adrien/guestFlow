@@ -18,7 +18,7 @@ const reset = () => {
   registry.reset();
   registry.configure({ isActive: () => true, allows: () => true });
 };
-const OFFER = { freeSlots() {}, quote() {}, hold() {}, release() {}, bookOutside() {} };
+const OFFER = { freeSlots() {}, quote() {}, hold() {}, release() {}, bookOutside() {}, limits() {} };
 const SOURCE = {
   source: 'storedCredit', label: 'Crédit', apply: () => ({}), held: () => null, settle: () => null, release: () => {},
 };
@@ -27,7 +27,7 @@ test('a plugin declares the booking offer, one per instance, with its five calls
   reset();
   assert.equal(coreServices.resourceBookingOffer(), null);
   const ctx = createContext('desk', {});
-  ['freeSlots', 'quote', 'hold', 'release', 'bookOutside'].forEach((member) => {
+  ['freeSlots', 'quote', 'hold', 'release', 'bookOutside', 'limits'].forEach((member) => {
     assert.throws(() => ctx.resourceBookingOffer({ ...OFFER, [member]: undefined }), new RegExp(`lacks "${member}"`));
   });
   ctx.resourceBookingOffer(OFFER);

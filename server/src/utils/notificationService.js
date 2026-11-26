@@ -743,7 +743,34 @@ function buildNotificationService({
     }
   }
 
-  return { notifyNewSiteDevis, flushDueDigests, notifyNewIcalReservation, notifyBookingConflict, notifyPaidAfterCancel, notifyDeactivationStuck, notifyPaymentInFlight, __test: { buildDevisEmail, buildSiteDigestEmail, buildReservationEmail, buildConflictEmail, buildPaidAfterCancelEmail, buildOrphanPaidEmail, buildStandaloneRefundEmail, buildDeactivationStuckEmail, buildPaymentInFlightEmail } };
+  /**
+   * Tells the operator of something that happened outside a stay (specs/site-outside-resource-booking.md rule 23): one push on `channel` (the toggle governs
+   * the push only) and one e-mail to the notification address typed by the operator (none typed: no e-mail; « notifications par email » off: none either), with a link on `publicUrl` built from `url`. Every value is a single line, whoever typed it.
+   * `{ channel, title, body, url?, subject, lines }` → never throws.
+   */
+  async function notifyOperator({
+    channel, title, body, url = '', subject, lines = [],
+  }) {
+    try {
+      try {
+        await pushService.sendToPref(channel, { title: oneLine(title), body: oneLine(body), ...(url ? { url } : {}) });
+      } catch (err) { logger.warn('[notificationService.notifyOperator.push]', err && err.message ? err.message : err); }
+      // The e-mail goes to the notification address when the operator typed one — never to the sender's own address — and does not depend on the push toggle;
+      // « Activer les notifications par email » is the operator's master switch for every e-mail of this kind.
+      const notif = settingsModel.notificationSettings();
+      if (!notif.enabled) return { sent: false, skipped: 'disabled' };
+      if (!settingsModel.smtpConfigured()) return { sent: false, skipped: 'smtp_not_configured' };
+      if (!notif.explicitRecipientEmail) return { sent: false, skipped: 'no_recipient' };
+      const link = url ? joinUrl(notif.publicUrl, url) : '';
+      const text = [...lines.map(oneLine), ...(link ? ['', `Ouvrir dans GuestFlow : ${link}`] : [])].join('\n');
+      return await deliver({ recipient: notif.explicitRecipientEmail, subject: oneLine(subject), text });
+    } catch (err) {
+      logger.warn('[notificationService.notifyOperator]', err && err.message ? err.message : err);
+      return { sent: false, skipped: 'error' };
+    }
+  }
+
+  return { notifyOperator, notifyNewSiteDevis, flushDueDigests, notifyNewIcalReservation, notifyBookingConflict, notifyPaidAfterCancel, notifyDeactivationStuck, notifyPaymentInFlight, __test: { buildDevisEmail, buildSiteDigestEmail, buildReservationEmail, buildConflictEmail, buildPaidAfterCancelEmail, buildOrphanPaidEmail, buildStandaloneRefundEmail, buildDeactivationStuckEmail, buildPaymentInFlightEmail } };
 }
 
 const defaultService = buildNotificationService();

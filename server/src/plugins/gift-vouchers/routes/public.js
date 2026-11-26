@@ -27,6 +27,7 @@ function buildPublicRouter({
   router.post('/use/slots', use.slots);
   router.post('/use/quote', use.quote);
   router.post('/use/confirm', (req, res, next) => Promise.resolve(use.confirm(req, res)).catch(next));
+  router.get('/use/status/:ref', status, (req, res, next) => Promise.resolve(use.status(req, res)).catch(next));
   router.post('/orders', offer.create);
   router.post('/orders/:id/pay', payStart, offer.pay);
   router.get('/orders/:id/pdf', status, offer.pdf);

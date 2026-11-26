@@ -7,7 +7,7 @@
  *   GFBooking.voucherDuration(minutes)   « 2 h », « 1 h 30 », « 45 min »
  *   GFBooking.voucherStepper(opts)       − n + counter, ≥ 44 px: { value, min, max, step, format(n), name, onChange(n) } → node (with .set(n)); `step` is the server's, never a rule of the page
  *   GFBooking.voucherExtrasFold(opts)    « Ajouter au bon » (specs/gift-voucher-campaigns.md rule 64): the extra time and the add-ons in one fold, closed by default, each line with the price
- *                                        GuestFlow gives for its quantity. { extraTime, addOns, onExtraTime(minutes), onAddOn(articleRef, qty) } → node with .update(extrasCents):
+ *                                        GuestFlow gives for its quantity. { extraTime, addOns, onExtraTime(minutes), onAddOn(articleRef, qty), title?, foot? } → node with .update(extrasCents):
  *                                        a number shows « + Y € » once something is chosen, null shows « … » (the price is being asked), undefined shows nothing. Every amount is
  *                                        looked up in the server's `prices`; the page multiplies and adds nothing. `.updateExtraTimePrices(prices)` swaps the extra-time table for the
  *                                        one the server priced at a chosen start (`null` brings the offer's back); a step with `cents: null` has no price before a slot is chosen.
@@ -129,7 +129,7 @@
     var badge = GF.el('span', { class: 'gf-fold-count', hidden: 'hidden' });
     var head = GF.el('button', { type: 'button', class: 'gf-fold-head', 'aria-expanded': 'false', 'aria-controls': bodyId },
       GF.el('span', { class: 'gf-fold-icon', 'aria-hidden': 'true', html: PLUS }),
-      GF.el('span', { class: 'gf-fold-text' }, GF.el('span', { class: 'gf-fold-title' }, GF.t('gvExtrasTitle')), sub),
+      GF.el('span', { class: 'gf-fold-text' }, GF.el('span', { class: 'gf-fold-title' }, o.title || GF.t('gvExtrasTitle')), sub),
       badge,
       GF.el('span', { class: 'gf-fold-chev-wrap', 'aria-hidden': 'true', html: CHEVRON }));
     var pad = GF.el('div', { class: 'gf-fold-pad' });
@@ -198,7 +198,7 @@
       aView.row.replaceChild(aStep, aView.row.lastChild);
       lines.push(aLine);
     });
-    pad.appendChild(GF.el('p', { class: 'gf-fold-foot' }, GF.t('gvExtrasFoot')));
+    pad.appendChild(GF.el('p', { class: 'gf-fold-foot' }, o.foot || GF.t('gvExtrasFoot')));
 
     function paintLine(l) {
       l.small.textContent = l.text();

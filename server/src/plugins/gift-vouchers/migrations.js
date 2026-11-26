@@ -260,12 +260,27 @@ const USES_SQL = `
   CREATE INDEX IF NOT EXISTS idx_gift_voucher_unused_voucher ON gift_voucher_unused(voucherId);
 `;
 
+// specs/site-outside-resource-booking.md rule 26 — the people declared with a session booked with a voucher. NULL for every existing use.
+const usesPeople = (db) => {
+  if (!db.prepare('PRAGMA table_info(gift_voucher_uses)').all().some((c) => c.name === 'people')) db.exec('ALTER TABLE gift_voucher_uses ADD COLUMN people INTEGER');
+};
+
+// specs/site-outside-resource-booking.md rule 16 — the return page of a voucher's remainder reads its use by an unguessable ref and shows the recap chosen. NULL for every existing use.
+const usesRef = (db) => {
+  const cols = db.prepare('PRAGMA table_info(gift_voucher_uses)').all().map((c) => c.name);
+  if (!cols.includes('ref')) db.exec('ALTER TABLE gift_voucher_uses ADD COLUMN ref TEXT');
+  if (!cols.includes('recap')) db.exec('ALTER TABLE gift_voucher_uses ADD COLUMN recap TEXT');
+  db.exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_gift_voucher_uses_ref ON gift_voucher_uses(ref)');
+};
+
 const MIGRATIONS = Object.freeze([
   { name: 'gift_vouchers_tables_v1', up: (db) => db.exec(TABLES_SQL) },
   { name: 'gift_vouchers_vat_v1', up: (db) => db.exec(VAT_SQL) },
   { name: 'gift_voucher_campaigns_v1', up: campaignsMigration },
   { name: 'gift_voucher_visuals_v1', up: visualsMigration },
   { name: 'gift_voucher_uses_v1', up: (db) => db.exec(USES_SQL) },
+  { name: 'gift_voucher_uses_people_v2', up: usesPeople },
+  { name: 'gift_voucher_uses_ref_v3', up: usesRef },
 ]);
 
 module.exports = { MIGRATIONS, TABLES: Object.freeze([...TABLES, 'gift_voucher_campaigns', 'gift_voucher_visuals', 'gift_voucher_visual_versions', 'gift_voucher_refunds', 'gift_voucher_uses', 'gift_voucher_unused']) };

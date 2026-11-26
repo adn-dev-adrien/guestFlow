@@ -19,6 +19,7 @@ final class GF_Rest_Proxy
     // The public offer carries `available`, which flips when a payment provider is connected: a short
     // copy, like the terms.
     private const VOUCHER_OFFER_TTL = 60;
+    private const SESSION_RESOURCES_TTL = 60;
     private static ?GF_Rest_Proxy $instance = null;
 
     public static function instance(): GF_Rest_Proxy
@@ -160,6 +161,30 @@ final class GF_Rest_Proxy
                 'callback'            => [$this, $callback],
             ]);
         }
+        // « Réserver une séance » (specs/site-outside-resource-booking.md §4.4): a fixed list of upstream paths; the reference of a payment is a 32-character hex token.
+        register_rest_route(self::NS, '/sessions/resources', [
+            'methods'             => 'GET',
+            'permission_callback' => $public,
+            'callback'            => [$this, 'get_session_resources'],
+        ]);
+        foreach (['slots' => 'post_session_slots', 'quote' => 'post_session_quote', 'confirm' => 'post_session_confirm'] as $path => $callback) {
+            register_rest_route(self::NS, '/sessions/' . $path, [
+                'methods'             => 'POST',
+                'permission_callback' => [$this, 'verify_nonce'],
+                'callback'            => [$this, $callback],
+            ]);
+        }
+        register_rest_route(self::NS, '/sessions/status/(?P<ref>[0-9a-f]{32})', [
+            'methods'             => 'GET',
+            'permission_callback' => $public,
+            'callback'            => [$this, 'get_session_status'],
+        ]);
+        // The return page of a voucher's remainder: by the use's own reference (32 hex characters), no code, no name.
+        register_rest_route(self::NS, '/gift-vouchers/use/status/(?P<ref>[0-9a-f]{32})', [
+            'methods'             => 'GET',
+            'permission_callback' => $public,
+            'callback'            => [$this, 'get_voucher_use_status'],
+        ]);
         register_rest_route(self::NS, '/gift-vouchers/check', [
             'methods'             => 'POST',
             'permission_callback' => [$this, 'verify_nonce'],
@@ -375,8 +400,56 @@ final class GF_Rest_Proxy
         $body = (array) $request->get_json_params();
         return $this->relay(GF_Api_Client::instance()->post('/gift-vouchers/use/confirm', $this->voucher_fields($body, [
             'code' => 'string', 'start' => 'string', 'extraMinutes' => 'int', 'addOns' => 'addons', 'email' => 'string', 'phone' => 'string',
-            'name' => 'string', 'termsVersionId' => 'int', 'returnPath' => 'path',
+            'name' => 'string', 'firstName' => 'string', 'lastName' => 'string', 'people' => 'int', 'termsVersionId' => 'int', 'returnPath' => 'path',
         ])));
+    }
+
+    // ----- sessions (specs/site-outside-resource-booking.md §4.4) -----
+
+    public function get_session_resources(WP_REST_Request $request): WP_REST_Response
+    {
+        return $this->proxy_get('/sessions/resources', [], self::SESSION_RESOURCES_TTL);
+    }
+
+    public function post_session_slots(WP_REST_Request $request): WP_REST_Response
+    {
+        $body = (array) $request->get_json_params();
+        return $this->relay(GF_Api_Client::instance()->post('/sessions/slots', $this->voucher_fields($body, [
+            'resourceId' => 'int', 'from' => 'string', 'to' => 'string', 'minutes' => 'int',
+        ])));
+    }
+
+    public function post_session_quote(WP_REST_Request $request): WP_REST_Response
+    {
+        $body = (array) $request->get_json_params();
+        return $this->relay(GF_Api_Client::instance()->post('/sessions/quote', $this->voucher_fields($body, [
+            'resourceId' => 'int', 'start' => 'string', 'minutes' => 'int', 'addOns' => 'addons',
+        ])));
+    }
+
+    public function post_session_confirm(WP_REST_Request $request): WP_REST_Response
+    {
+        $body = (array) $request->get_json_params();
+        return $this->relay(GF_Api_Client::instance()->post('/sessions/confirm', $this->voucher_fields($body, [
+            'resourceId' => 'int', 'start' => 'string', 'minutes' => 'int', 'addOns' => 'addons', 'people' => 'int',
+            'firstName' => 'string', 'lastName' => 'string', 'email' => 'string', 'phone' => 'string', 'termsVersionId' => 'int', 'returnPath' => 'path',
+        ])));
+    }
+
+    public function get_session_status(WP_REST_Request $request): WP_REST_Response
+    {
+        $ref = (string) $request['ref'];
+        $response = $this->relay(GF_Api_Client::instance()->get('/sessions/status/' . $ref));
+        $response->header('Cache-Control', 'no-store');
+        return $response;
+    }
+
+    public function get_voucher_use_status(WP_REST_Request $request): WP_REST_Response
+    {
+        $ref = (string) $request['ref'];
+        $response = $this->relay(GF_Api_Client::instance()->get('/gift-vouchers/use/status/' . $ref));
+        $response->header('Cache-Control', 'no-store');
+        return $response;
     }
 
     public function post_voucher_pay(WP_REST_Request $request): WP_REST_Response

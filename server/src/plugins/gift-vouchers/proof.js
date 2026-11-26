@@ -1,30 +1,17 @@
 /**
- * The proof-of-work in front of the public code check (specs/gift-vouchers.md rule 33). It is the website's own
- * challenge (`sdk.proofOfWork`, served by `GET /public/v1/booking-requests/challenge`, signed with the shared secret and
- * bound to the visitor's address): verified here, spent once. A challenge solved below the base difficulty — one fetched
- * for no work at all — is refused.
+ * The proof-of-work in front of the public voucher calls (specs/gift-vouchers.md rule 33): the website's own challenge, judged by the SDK's one guard (`sdk.proofGuard`) — the same
+ * verdict as the lodging request and the session confirmation: signed for the visitor's address, solved at the difficulty the address owes now, spent once across every form.
  */
 
-/** → `proof(req) → { ok }`. `spent` remembers a solved challenge until it would have expired anyway. */
-function createProof({ pow, secret, now = () => Date.now() }) {
-  const spent = new Map();
+const sdk = require('../sdk');
 
-  function forget(at) {
-    spent.forEach((expiresAt, id) => { if (expiresAt < at) spent.delete(id); });
-  }
-
+/** → `proof(req) → { ok }`. `pow` and `secret` are injected by a suite. */
+function createProof({
+  pow, secret, now = () => Date.now(), guard = sdk.proofGuard.createProofGuard({ pow, secret, now }),
+}) {
   return function proof(req) {
-    const body = req.body && typeof req.body === 'object' ? req.body : {};
-    const at = now();
-    const ipKey = pow.ipKeyOf(req.visitor && req.visitor.ip);
-    const result = pow.verify({
-      secret: secret(), challenge: body.challenge, nonce: body.nonce, ipKey, now: at,
-    });
-    if (!result.ok || Number(body.challenge.difficulty) < pow.BASE_BITS) return { ok: false };
-    forget(at);
-    if (spent.has(result.challengeId)) return { ok: false };
-    spent.set(result.challengeId, Date.parse(result.expiresAt));
-    return { ok: true };
+    const verdict = guard.check({ body: req.body, ip: req.visitor && req.visitor.ip });
+    return { ok: verdict.ok };
   };
 }
 

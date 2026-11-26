@@ -15,11 +15,16 @@ const CORE_PUSH_CHANNELS = Object.freeze([
   { key: 'breakfast', label: 'Petit déjeuner' },
 ]);
 
-/** The channels of the live plugins. A plugin that goes inactive takes its toggle with it. */
+/**
+ * The channels of the live plugins. A plugin that goes inactive takes its toggle with it; a `shared` channel (several plugins declare the same
+ * key and label, specs/site-outside-resource-booking.md rule 24) is listed once, while any of its declaring plugins is live.
+ */
 function pluginPushChannels() {
-  return registry.all()
+  const listed = new Map();
+  registry.all()
     .filter((r) => (r.pushChannels || []).length > 0 && registry.isLive(r.id))
-    .flatMap((r) => r.pushChannels.map((c) => ({ key: c.key, label: c.label })));
+    .forEach((r) => r.pushChannels.forEach((c) => { if (!listed.has(c.key)) listed.set(c.key, { key: c.key, label: c.label }); }));
+  return [...listed.values()];
 }
 
 /** Declared by a plugin, live or not: a send names a channel someone can switch off. */

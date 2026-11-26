@@ -202,6 +202,8 @@ module.exports = Object.freeze({
   }),
   // SDK 2.33.0 — the signed proof-of-work of the public site (utils/proofOfWork.js): issue, verify, solve, the address key.
   get proofOfWork() { return require('../../utils/proofOfWork'); },
+  // SDK 2.35.0 — the one judgment of that proof for every public form (signed for the address, solved, spent once across all forms, difficulty up to date): `createProofGuard({ secret }).check({ body, ip })`.
+  get proofGuard() { return require('../../utils/proofOfWorkGuard'); },
   // Secrets the operator copies into another system live in server/.env.local, never in the database.
   secrets: Object.freeze({
     getOrCreate: (name, byteLength = 32, options) => require('../../utils/localEnv').getOrCreateSecret(name, byteLength, options),

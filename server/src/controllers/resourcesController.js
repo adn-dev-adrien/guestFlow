@@ -102,6 +102,9 @@ function validateResourcePayload(body, stored = null, knownPropertyIds = null) {
   if (numberRefused(payload.bookingHorizonMonths, (n) => Number.isInteger(n) && n >= 1 && n <= 24, stored?.bookingHorizonMonths)) {
     details.push({ field: 'bookingHorizonMonths', message: 'Nombre entier de mois entre 1 et 24' });
   }
+  if (numberRefused(payload.sessionMaxPeople, (n) => Number.isInteger(n) && n >= 1 && n <= 100, stored?.sessionMaxPeople)) {
+    details.push({ field: 'sessionMaxPeople', message: 'Nombre entier de personnes entre 1 et 100' });
+  }
 
   const slotted = payload.priceType === 'per_hour' && (payload.isComplex === 1 || payload.isComplex === true || payload.isComplex === '1');
   if (slotted && typeof payload.openTime === 'string' && typeof payload.closeTime === 'string' && payload.openTime && payload.closeTime && payload.closeTime <= payload.openTime) {

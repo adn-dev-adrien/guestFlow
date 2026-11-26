@@ -3,7 +3,7 @@ Contributors: adrien
 Tags: booking, availability, quote, gutenberg
 Requires at least: 6.4
 Requires PHP: 8.0
-Stable tag: 1.22.0
+Stable tag: 1.23.0
 License: GPLv2 or later
 
 Affiche les disponibilités, calcule des devis et envoie des demandes de réservation vers GuestFlow via son API publique.
@@ -36,6 +36,13 @@ Non. Elle est lue uniquement côté serveur (constante `wp-config` ou option mas
 Non. Elle crée un devis « brouillon » côté GuestFlow, que l'administrateur revoit puis convertit éventuellement en réservation.
 
 == Changelog ==
+
+= 1.23.0 =
+* Nouveau bloc « GuestFlow — Réserver une séance » (et le shortcode `[guestflow_session_booking]`) : le visiteur choisit une activité vendable hors séjour, sa durée, le nombre de personnes, une date puis un créneau — chaque créneau affiche ce que coûte la séance entière, chaque heure à la tranche où elle tombe —, ajoute des options, saisit ses coordonnées et paie en ligne en totalité ; le créneau est gardé 15 minutes. Un récapitulatif suit le défilement sur grand écran, une barre collée en bas sur téléphone. Au retour de la banque, la page affiche « Séance réservée » avec le détail.
+* Le champ « Code bon cadeau » du même parcours règle la séance avec un bon : la page applique le bon, indique ce qu’il reste à payer à chaque créneau (« Inclus dans le bon » ou « + x € ») et ne demande un paiement que pour le reste. Un bon de séjour renvoie à la page de réservation d’un hébergement, `#bon=` rempli.
+* Le lien `/<base>/utiliser` des cartes et du QR code mène à la page qui contient ce bloc, le code déjà rempli. Le bloc « Utiliser un bon cadeau » reste : il affiche le même parcours.
+* La page d’achat d’un bon propose « Vous avez reçu un bon cadeau ? Réserver votre séance » vers cette page.
+* La carte du bon sur la page d’achat n’est plus inclinée.
 
 = 1.22.0 =
 * Bons cadeaux : l’achat et « Utiliser un bon cadeau » rangent le temps supplémentaire et les options dans un seul dépliant « Ajouter au bon », fermé par défaut. Chaque ligne affiche son prix TTC lu dans GuestFlow, et l’en-tête dit combien les ajouts coûtent une fois choisis.

@@ -1,7 +1,7 @@
 {
   "id": "gift-vouchers",
   "name": "Bons cadeaux",
-  "version": "1.5.1",
+  "version": "1.6.0",
   "description": "Des bons cadeaux vendus en ligne, au téléphone ou par carte commerçant : un montant pour un séjour, ou un contenu composé (bain nordique et options) réservé en ligne par le bénéficiaire.",
   "icon": "gift",
   "surfaces": [
@@ -12,12 +12,20 @@
     "Le PDF du bon cadeau (carte A6 recto verso) et la carte du commerçant pour l’imprimeur",
     "La bibliothèque de visuels des bons et des cartes",
     "L’alerte « Vérification des bons cadeaux suspendue »",
-    "La notification push « Bons cadeaux : vérifications suspendues »"
+    "La notification push « Bons cadeaux : vérifications suspendues »",
+    "La notification push « Bons cadeaux et séances en ligne »"
   ],
   "requires": [],
   "guestflow": ">=3.10.0",
-  "sdk": "^2.33.0",
+  "sdk": "^2.35.0",
   "changelog": {
+    "1.6.0": [
+      "Le bénéficiaire d’un bon réserve sa séance sur la page « Réserver une séance » du site, avec son code : prénom, nom et nombre de personnes sont demandés, et chaque créneau affiche ce qu’il reste à payer, la soirée distinguée.",
+      "Un bon d’une heure en journée placé à cheval sur la soirée laisse à payer les heures du soir au tarif de la soirée.",
+      "Un bon vendu à un client (sur le site ou par un lien de paiement envoyé par l’équipe) envoie une notification push et un e-mail ; un bon créé par l’équipe n’en envoie aucun.",
+      "Le nouveau réglage « Bons cadeaux et séances en ligne » regroupe ces notifications avec celles des séances réservées sur le site.",
+      "Demande le SDK 2.35 de GuestFlow."
+    ],
     "1.5.1": [
       "Une option « par personne », « par nuit », « en pourcentage » ou « progressive par participant » sans carte de planning est grisée dans le catalogue avec la raison du moteur de prix : il ne la vend pas hors séjour.",
       "Une campagne qui en porte déjà une le signale à l’ouverture de l’éditeur, sans rien retirer : la retirer permet de l’enregistrer.",

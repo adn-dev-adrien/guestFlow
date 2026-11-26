@@ -32,9 +32,16 @@ final class GF_Shortcodes
         add_shortcode('guestflow_gift_voucher', [$this, 'render_gift_voucher']);
         add_shortcode('guestflow_gift_voucher_button', [$this, 'render_gift_voucher_button']);
         add_shortcode('guestflow_gift_voucher_use', [$this, 'render_gift_voucher_use']);
+        add_shortcode('guestflow_session_booking', [$this, 'render_session_booking']);
     }
 
-    /** [guestflow_gift_voucher_use] — « Utiliser un bon cadeau », the same block a page can hold (specs/gift-voucher-campaigns.md rule 23). */
+    /** [guestflow_session_booking] — « Réserver une séance », the same block a page can hold (specs/site-outside-resource-booking.md rule 1). */
+    public function render_session_booking(): string
+    {
+        return render_block(['blockName' => 'guestflow/session-booking', 'attrs' => [], 'innerBlocks' => [], 'innerHTML' => '', 'innerContent' => []]);
+    }
+
+    /** [guestflow_gift_voucher_use] — « Utiliser un bon cadeau », the alias of the session tunnel (specs/site-outside-resource-booking.md rule 18). */
     public function render_gift_voucher_use(): string
     {
         return render_block(['blockName' => 'guestflow/gift-voucher-use', 'attrs' => [], 'innerBlocks' => [], 'innerHTML' => '', 'innerContent' => []]);

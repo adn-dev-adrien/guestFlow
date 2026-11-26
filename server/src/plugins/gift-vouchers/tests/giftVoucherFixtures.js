@@ -128,10 +128,14 @@ async function revealedCode(server, id) {
 }
 
 /** A solved proof-of-work, as the site's drawer sends it: fetched 5 s ago, base difficulty. */
+// A proof at the base difficulty. The guard raises the difficulty with the requests an address already made in the hour, which these suites make by the hundred: the log is emptied
+// first, so every proof stays cheap; `voucher-proof-guard.unit.test.js` judges the raised difficulty itself.
 function solvedProof({ difficulty = 12, ip = '' } = {}) {
   const pow = sdk.proofOfWork;
+  sdk.proofGuard.store.ensureTables().exec('DELETE FROM public_request_log');
+  const ipKey = pow.ipKeyOf(ip);
   const challenge = pow.issue({
-    secret: POW_SECRET, ipKey: pow.ipKeyOf(ip), difficulty, now: Date.now() - 5000,
+    secret: POW_SECRET, ipKey, difficulty, now: Date.now() - 5000,
   });
   return { challenge, nonce: pow.solve(challenge) };
 }

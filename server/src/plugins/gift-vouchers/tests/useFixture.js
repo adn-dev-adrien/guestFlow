@@ -13,7 +13,7 @@ const hourly = {
 };
 
 /** The plugin's offer over the core database: `{ offer, bookings, occupancy, accepted }` where `accepted` collects the terms the offer recorded on a booking. */
-function bookingOffer() {
+function bookingOffer({ notify } = {}) {
   applyPluginSchema(db, 'hourly-resources');
   const accepted = [];
   const terms = {
@@ -23,7 +23,7 @@ function bookingOffer() {
   const bookings = hourly.bookings.create(db, { standaloneVatRate: () => 20 });
   const occupancy = hourly.occupancy.create(db);
   const offer = hourly.outside.createOutsideOffer({
-    db, bookings: () => bookings, occupancy, holds: hourly.holds.createHoldsModel(db), terms,
+    db, bookings: () => bookings, occupancy, holds: hourly.holds.createHoldsModel(db), terms, ...(notify ? { notify } : {}),
   });
   return {
     offer, bookings, occupancy, accepted,

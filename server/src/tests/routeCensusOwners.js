@@ -83,6 +83,7 @@ const PLUGIN_ROUTES = {
     'DELETE /api/resource-bookings/:id',
     'DELETE /api/resource-bookings/:id/payment',
     'DELETE /api/resource-bookings/:id/visit/payment-link/:linkId',
+    'PATCH /api/resource-bookings/:id/people',
     'PATCH /api/resource-bookings/:id/visit/lines/:lineId',
     'POST /api/planning/resource-cards/done',
     'POST /api/resource-bookings',

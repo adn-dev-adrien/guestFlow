@@ -138,6 +138,9 @@ Rules are identities: a rule is never renumbered, new rules are appended
    - The website serves two permanent paths: **`/<base>/offrir/<slug>`** leads to the campaign's
      purchase page; **`/<base>/utiliser`** leads to the redemption page of the voucher's kind,
      chosen from the code.
+     > **Amended 2026-11-25 by `specs/site-outside-resource-booking.md` rule 18**: `/<base>/utiliser` now leads to the page
+     > holding « Réserver une séance » (or its alias « Utiliser un bon cadeau »), the fragment `#bon=<code>` filling its code field;
+     > the kind is told by the page itself (a stay voucher links to the lodging booking page).
    - `<base>` is set once in the WordPress connector (default `bon-cadeau`).
    - Both are redirections the WordPress connector resolves by asking GuestFlow for the current
      target page, so a page moved on the site never breaks a printed card.
@@ -271,6 +274,10 @@ Rules are identities: a rule is never renumbered, new rules are appended
 
 23. A new WordPress block « Utiliser un bon cadeau » (shortcode `[guestflow_gift_voucher_use]`)
     serves the redemption.
+    > **Amended 2026-11-25 by `specs/site-outside-resource-booking.md` rules 1, 2 and 18**: the redemption is a code field of the
+    > « Réserver une séance » tunnel (`guestflow/session-booking`); « Utiliser un bon cadeau » remains as an alias drawing that
+    > tunnel. The server calls below are unchanged, and gain `people`, `firstName`, `lastName` on `use/confirm` and `dueCents`,
+    > `evening` per slot on `use/slots`.
     - Opened from the QR code, it reads the code from the fragment and asks the server at once.
     - Opened from the typed link, it shows one field « Code du bon » with the existing pre-check
       (`assets/voucher-code.js`), then the same request.
@@ -654,6 +661,8 @@ Rules are identities: a rule is never renumbered, new rules are appended
       anything else is 404 `VISUAL_NOT_FOUND`. The print file is never served.
     - The WordPress plugin proxies it at `/wp-json/guestflow/v1/gift-vouchers/campaigns/<slug>/visual`,
       keeping the cache headers, so the browser never talks to GuestFlow.
+    - > **Amended 2026-11-25 by `specs/site-outside-resource-booking.md` rule 20**: the card stands straight (no `rotate(-1deg)`);
+      > its entrance keeps the fade and the rise, and none under `prefers-reduced-motion`.
     - The block draws **the whole front** (owner choice of 2026-11-24, after the mock-up offered the upper
       part only): a small whole card on each campaign of the chooser (decorative: the title stands beside
       it), and the full A6 card at the head of the form (above the title on a phone, a column beside the form once the block is 600 px

@@ -442,6 +442,7 @@ const api = {
   patchResourceVisitLine: (id, lineId, body) => request(`/resource-bookings/${id}/visit/lines/${lineId}`, { method: 'PATCH', body }),
   markResourceVisitLineNotTaken: (id, lineId) => request(`/resource-bookings/${id}/visit/lines/${lineId}/not-taken`, { method: 'POST' }),
   getResourceBookingFiche: (id) => request(`/resource-bookings/${id}/fiche`),
+  setResourceBookingPeople: (id, people) => request(`/resource-bookings/${id}/people`, { method: 'PATCH', body: { people } }),
   markResourceNoShow: (id) => request(`/resource-bookings/${id}/no-show`, { method: 'POST' }),
   mintVisitPaymentLink: (id, body = {}) => request(`/resource-bookings/${id}/visit/payment-link`, { method: 'POST', body }),
   withdrawVisitPaymentLink: (id, linkId) => request(`/resource-bookings/${id}/visit/payment-link/${linkId}`, { method: 'DELETE' }),

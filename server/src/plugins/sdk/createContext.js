@@ -19,7 +19,7 @@ const CONTRIBUTOR_MEMBERS = ['id', 'priceTypes', 'priceLine'];
 const SAS_COMMIT_MEMBERS = ['step', 'validate', 'complementItems', 'write'];
 const SCHEDULER_MEMBERS = ['slotsForStay', 'validateSessions'];
 const SLOT_AVAILABILITY_MEMBERS = ['slots', 'validate'];
-const RESOURCE_BOOKING_OFFER_MEMBERS = ['freeSlots', 'quote', 'hold', 'release', 'bookOutside'];
+const RESOURCE_BOOKING_OFFER_MEMBERS = ['freeSlots', 'quote', 'hold', 'release', 'bookOutside', 'limits'];
 const HOME_DATA_MEMBERS = ['channel', 'catalog', 'readings', 'series', 'queueCommand', 'command', 'confirmed'];
 const ISSUER_MEMBERS = ['id', 'isReady', 'issue', 'findCardBatch', 'attach', 'invoiceStatus'];
 const PUSH_CHANNEL_KEY = /^[a-z][a-z0-9-]{0,39}$/;
@@ -181,7 +181,9 @@ function createContext(id, {
     //   freeSlots({ resourceId, from, to, minutes, band? })  → `{ horizonUntil, days: [{ date, slots: [{ start, end }] }] }`, bounded by the resource's horizon;
     //   quote({ resourceId, date, start, coveredBand, coveredMinutes, extraMinutes }) → the engine's priced breakdown of a session partly covered in advance;
     //   hold({ resourceId, date, start, end, ref, minutes? }) / release(ref)  a slot held for a few minutes, blocking every availability read;
-    //   bookOutside({ ... }) → `{ ok: true, bookingId, saleId }` | `{ ok: false, code, message }`, in one transaction.
+    //   bookOutside({ ... }) → `{ ok: true, bookingId, saleId, announce? }` | `{ ok: false, code, message }`, in one transaction; called inside the caller's own transaction it sends nothing
+    //   (the operator's notice would leave before the commit) and returns `announce()` for the caller to run once its outermost transaction has committed (SDK 2.35.0);
+    //   limits({ resourceId }) → `{ ok: true, stepMinutes, minMinutes, maxMinutes, maxPeople }` | `{ ok: false, code, message }`: what a session of the resource may ask (SDK 2.35.0).
     resourceBookingOffer(provider) {
       RESOURCE_BOOKING_OFFER_MEMBERS.forEach((m) => {
         if (provider == null || typeof provider[m] !== 'function') throw new Error(`${prefix} resource booking offer lacks "${m}"`);
@@ -376,15 +378,18 @@ function createContext(id, {
     },
     // A push notification toggle of « Notifications push » (specs/platform-settings-relay-and-review.md
     // rule 8, SDK 2.6.0): offered while the plugin is live, sent with `pushService.sendToPref(key, …)`.
-    // `label` is French, as the toggle reads.
-    pushChannel({ key, label } = {}) {
+    // `label` is French, as the toggle reads. SDK 2.35.0 (specs/site-outside-resource-booking.md rule 24): several plugins may
+    // declare the same key when every declaration says `shared: true` with the same label; the toggle is then listed once, while any of them is live.
+    pushChannel({ key, label, shared = false } = {}) {
       if (!PUSH_CHANNEL_KEY.test(String(key || ''))) throw new Error(`${prefix} a push channel needs a key like "my-channel"`);
       if (!label || typeof label !== 'string') throw new Error(`${prefix} push channel "${key}" needs a label`);
       const { CORE_PUSH_CHANNELS } = require('../../utils/pushChannels');
-      const taken = CORE_PUSH_CHANNELS.some((c) => c.key === key)
-        || registry.all().some((r) => (r.pushChannels || []).some((c) => c.key === key));
-      if (taken) throw new Error(`${prefix} the push channel "${key}" is already declared`);
-      record.pushChannels.push({ key, label });
+      if (CORE_PUSH_CHANNELS.some((c) => c.key === key)) throw new Error(`${prefix} the push channel "${key}" is already declared`);
+      const declared = registry.all().flatMap((r) => (r.pushChannels || []).filter((c) => c.key === key));
+      if (declared.length && !(shared === true && declared.every((c) => c.shared === true && c.label === label))) {
+        throw new Error(`${prefix} the push channel "${key}" is already declared${shared === true ? ' with another label or not shared' : ''}`);
+      }
+      record.pushChannels.push({ key, label, shared: shared === true });
     },
     // (rows) → rows: decorates the rows of the home's « Échéances » card while the plugin is live — a row may
     // gain a `bank` line or be dropped (specs/reconciliation-assisted-matching.md rule 22). At most one per plugin.

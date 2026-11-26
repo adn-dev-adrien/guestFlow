@@ -77,7 +77,7 @@ function createFicheModel({ db, visits, marks }) {
     const marked = new Set(marks().marksOf(row.id).map((m) => m.lineRef));
     return {
       booking: {
-        id: row.id, resourceId: row.resourceId, resourceName: resourceNameOf(row), date: row.date, startTime: row.startTime, endTime: row.endTime, notes: row.notes || '', saleRef: row.saleRef || null,
+        id: row.id, resourceId: row.resourceId, resourceName: resourceNameOf(row), date: row.date, startTime: row.startTime, endTime: row.endTime, people: row.people || null, notes: row.notes || '', saleRef: row.saleRef || null,
       },
       client: clientOf(row, document),
       sessions: [{ date: row.date, start: row.startTime, end: row.endTime, resourceName: resourceNameOf(row) }],

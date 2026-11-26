@@ -26,7 +26,7 @@ export const emptyResource = {
   propertyPricing: {},
   isComplex: false, slotDuration: 5, minimumUsageMinutes: 0, openTime: '08:00', closeTime: '22:00', openDays: ALL_DAYS, turnoverMinutes: 0,
   showsPlanningCard: false, hourlyEveningStart: '', hourlyEveningRate: 0, hourlyExternalDayRate: 0, hourlyExternalEveningRate: 0, ...nextRatesEmpty,
-  heatUpMinutes: 0, heatRetentionMinutes: 0, bookingHorizonMonths: 3,
+  heatUpMinutes: 0, heatRetentionMinutes: 0, bookingHorizonMonths: 3, sessionMaxPeople: '',
   emailBookedText: '', emailBookedTextEn: '',
   ...emptyExternalSale,
 };
@@ -35,7 +35,7 @@ const DEFAULT_HOURLY_SETTINGS = {
   isComplex: 0, slotDuration: 5, minimumUsageMinutes: 0, openTime: '08:00', closeTime: '22:00',
   openDays: JSON.stringify(ALL_DAYS), turnoverMinutes: 0, showsPlanningCard: 0,
   hourlyEveningStart: null, hourlyEveningRate: 0, hourlyExternalDayRate: 0, hourlyExternalEveningRate: 0, ...nextRatesNull,
-  heatUpMinutes: 0, heatRetentionMinutes: 0, bookingHorizonMonths: 3,
+  heatUpMinutes: 0, heatRetentionMinutes: 0, bookingHorizonMonths: 3, sessionMaxPeople: null,
 };
 
 function hourlySettings(form) {
@@ -59,6 +59,7 @@ function hourlySettings(form) {
     heatUpMinutes: Math.max(0, Number(form.heatUpMinutes) || 0),
     heatRetentionMinutes: Math.max(0, Number(form.heatRetentionMinutes) || 0),
     bookingHorizonMonths: slotted ? (Number(form.bookingHorizonMonths) || 3) : 3,
+    sessionMaxPeople: card && !isBlank(form.sessionMaxPeople) ? Number(form.sessionMaxPeople) : null,
   };
 }
 
@@ -147,6 +148,7 @@ export function formFromResource(item) {
     heatUpMinutes: Number(item.heatUpMinutes || 0),
     heatRetentionMinutes: Number(item.heatRetentionMinutes || 0),
     bookingHorizonMonths: Number(item.bookingHorizonMonths || 3),
+    sessionMaxPeople: toText(item.sessionMaxPeople),
     emailBookedText: item.emailBookedText || '',
     emailBookedTextEn: item.emailBookedTextEn || '',
     ...externalSaleFromItem(item),
@@ -179,6 +181,10 @@ export function validateResourceForm(form) {
   if (form.priceType === 'per_hour' && form.isComplex && form.bookingHorizonMonths !== undefined) {
     const months = Number(form.bookingHorizonMonths);
     if (!Number.isInteger(months) || months < 1 || months > 24) errors.bookingHorizonMonths = FIELD.horizonMonths;
+  }
+  if (form.priceType === 'per_hour' && form.showsPlanningCard && !isBlank(form.sessionMaxPeople)) {
+    const people = Number(form.sessionMaxPeople);
+    if (!Number.isInteger(people) || people < 1 || people > 100) errors.sessionMaxPeople = FIELD.peopleRange;
   }
   return errors;
 }

@@ -35,6 +35,7 @@ function buildRouter(controller, visitController = null) {
     router.post('/:id/visit/payment-link/:linkId/email', wrap((req, res) => visitController().emailLink(req, res)));
     router.post('/:id/no-show', wrap((req, res) => visitController().noShow(req, res)));
   }
+  router.patch('/:id/people', (req, res) => controller().setPeople(req, res));
   router.put('/:id', (req, res) => controller().update(req, res));
   router.delete('/:id', (req, res) => controller().remove(req, res));
   return router;

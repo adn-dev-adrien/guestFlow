@@ -4,19 +4,22 @@
  * `lapsed` when the 15 minutes ended unpaid (slot and voucher free again), `refund_owed` when money came after the lapse and the booking could not be made.
  */
 
+const crypto = require('crypto');
+
 const iso = (date) => (date instanceof Date ? date.toISOString() : date);
 
 function createUsesModel(db, { now = () => new Date() } = {}) {
   const find = (id) => db.prepare('SELECT * FROM gift_voucher_uses WHERE id = ?').get(Number(id)) || null;
+  const findByRef = (ref) => db.prepare('SELECT * FROM gift_voucher_uses WHERE ref = ?').get(String(ref)) || null;
 
   function insert({
-    voucherId, resourceId, date, startTime, endTime, extraMinutes, addOns, name, email, phone, termsVersionId, userAgent, ip, dueCents, heldUntil,
+    voucherId, resourceId, date, startTime, endTime, extraMinutes, addOns, name, people, recap, email, phone, termsVersionId, userAgent, ip, dueCents, heldUntil,
   }) {
-    const id = Number(db.prepare(`INSERT INTO gift_voucher_uses (voucherId, state, resourceId, date, startTime, endTime, extraMinutes, addOns, name, email, phone, termsVersionId,
-      userAgent, ip, holdRef, dueCents, heldUntil, createdAt) VALUES (?, 'held', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '', ?, ?, ?)`)
-      .run(Number(voucherId), Number(resourceId), date, startTime, endTime, extraMinutes, JSON.stringify(addOns || []), name || '', email, phone || '', termsVersionId || null,
+    const id = Number(db.prepare(`INSERT INTO gift_voucher_uses (voucherId, state, resourceId, date, startTime, endTime, extraMinutes, addOns, name, people, email, phone, termsVersionId,
+      userAgent, ip, holdRef, dueCents, heldUntil, createdAt) VALUES (?, 'held', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '', ?, ?, ?)`)
+      .run(Number(voucherId), Number(resourceId), date, startTime, endTime, extraMinutes, JSON.stringify(addOns || []), name || '', people || null, email, phone || '', termsVersionId || null,
         userAgent || null, ip || null, dueCents, iso(heldUntil), iso(now())).lastInsertRowid);
-    db.prepare('UPDATE gift_voucher_uses SET holdRef = ? WHERE id = ?').run(`voucher-use:${id}`, id);
+    db.prepare('UPDATE gift_voucher_uses SET holdRef = ?, ref = ?, recap = ? WHERE id = ?').run(`voucher-use:${id}`, crypto.randomBytes(16).toString('hex'), JSON.stringify(recap || {}), id);
     return find(id);
   }
 
@@ -35,7 +38,7 @@ function createUsesModel(db, { now = () => new Date() } = {}) {
   const bookedOf = (voucherId) => db.prepare("SELECT * FROM gift_voucher_uses WHERE voucherId = ? AND state = 'booked' ORDER BY id DESC").get(Number(voucherId)) || null;
 
   return {
-    find, insert, setLink, setBooked, setState, heldOf, dueLapsed, listByVoucher, bookedOf,
+    find, findByRef, insert, setLink, setBooked, setState, heldOf, dueLapsed, listByVoucher, bookedOf,
   };
 }
 

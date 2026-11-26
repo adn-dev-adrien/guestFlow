@@ -18,18 +18,9 @@
 
 const sdk = require('../sdk');
 
-const TABLES_SQL = `
-  CREATE TABLE IF NOT EXISTS public_request_challenges_used (
-    challengeId TEXT PRIMARY KEY,
-    expiresAt   TEXT NOT NULL
-  );
-  CREATE TABLE IF NOT EXISTS public_request_log (
-    id    INTEGER PRIMARY KEY AUTOINCREMENT,
-    at    TEXT NOT NULL,
-    ipKey TEXT NOT NULL
-  );
-  CREATE INDEX IF NOT EXISTS idx_public_request_log_at ON public_request_log (at);
-  CREATE INDEX IF NOT EXISTS idx_public_request_log_ip ON public_request_log (ipKey, at);
+const proofStore = sdk.proofGuard.store;
+
+const TABLES_SQL = `${proofStore.TABLES_SQL}
   CREATE TABLE IF NOT EXISTS public_request_stays (
     reservationId   INTEGER PRIMARY KEY,
     fingerprint     TEXT NOT NULL,
@@ -63,7 +54,6 @@ function migrateV3(db) {
 }
 
 const TABLES = ['public_request_challenges_used', 'public_request_log', 'public_request_stays'];
-const LOG_KEPT_MS = 24 * 60 * 60 * 1000;
 
 const ready = new WeakSet();
 function database(db) {
@@ -75,33 +65,6 @@ function database(db) {
     ready.add(handle);
   }
   return handle;
-}
-
-const iso = (ms) => new Date(ms).toISOString();
-
-/** True the first time `challengeId` is spent, false when it already was (rule 3). */
-function spendChallenge(challengeId, expiresAt, { db, now = Date.now() } = {}) {
-  const d = database(db);
-  d.prepare('DELETE FROM public_request_challenges_used WHERE expiresAt < ?').run(iso(now));
-  const info = d.prepare('INSERT OR IGNORE INTO public_request_challenges_used (challengeId, expiresAt) VALUES (?, ?)')
-    .run(String(challengeId), String(expiresAt));
-  return info.changes === 1;
-}
-
-function logRequest(ipKey, { db, now = Date.now() } = {}) {
-  const d = database(db);
-  d.prepare('DELETE FROM public_request_log WHERE at < ?').run(iso(now - LOG_KEPT_MS));
-  d.prepare('INSERT INTO public_request_log (at, ipKey) VALUES (?, ?)').run(iso(now), String(ipKey || ''));
-}
-
-/** Requests of the last `windowMs`, all addresses or one. */
-function countRecent({ ipKey = null, windowMs = 60 * 60 * 1000, db, now = Date.now() } = {}) {
-  const d = database(db);
-  const since = iso(now - windowMs);
-  const row = ipKey === null
-    ? d.prepare('SELECT COUNT(*) AS n FROM public_request_log WHERE at >= ?').get(since)
-    : d.prepare('SELECT COUNT(*) AS n FROM public_request_log WHERE ipKey = ? AND at >= ?').get(String(ipKey), since);
-  return Number(row.n || 0);
 }
 
 function getStay(reservationId, { db } = {}) {
@@ -123,5 +86,5 @@ function recordStay(reservationId, fingerprint, { createdClientId = null, append
 
 module.exports = {
   TABLES_SQL, TABLES, migrateV2, migrateV3, ensureTables: (db) => database(db),
-  spendChallenge, logRequest, countRecent, getStay, recordStay,
+  spendChallenge: proofStore.spendChallenge, logRequest: proofStore.logRequest, countRecent: proofStore.countRecent, getStay, recordStay,
 };

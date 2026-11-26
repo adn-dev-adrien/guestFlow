@@ -14,7 +14,7 @@ const longDate = (iso) => new Intl.DateTimeFormat('fr-FR', {
 }).format(new Date(`${iso}T12:00:00Z`));
 
 function renderUseMail({
-  companyName, address, title, resourceName, date, start, end, included, supplement, extras, dueCents, number,
+  companyName, address, title, resourceName, date, start, end, people, included, supplement, extras, dueCents, number,
 }) {
   const when = `${longDate(date)}, de ${start} à ${end}`;
   const includedLines = included.map((line) => (line.qty > 1 ? `${line.qty} × ${line.label}` : line.label));
@@ -28,7 +28,7 @@ function renderUseMail({
     'Bonjour,',
     '',
     `Votre séance est réservée : ${resourceName} (${title}).`,
-    `Le ${when}.`,
+    `Le ${when}${people ? `, pour ${people} personne${people > 1 ? 's' : ''}` : ''}.`,
     ...(address ? ['', `Adresse : ${address.replace(/\s*\n\s*/g, ', ')}`] : []),
     '',
     'Votre séance comprend :',
@@ -42,7 +42,7 @@ function renderUseMail({
   const html = [
     p('Bonjour,'),
     p(`Votre séance est réservée : <strong>${escapeHtml(resourceName)}</strong> (${escapeHtml(title)}).`),
-    p(`<strong>${escapeHtml(`Le ${when}.`)}</strong>`),
+    p(`<strong>${escapeHtml(`Le ${when}${people ? `, pour ${people} personne${people > 1 ? 's' : ''}` : ''}.`)}</strong>`),
     ...(address ? [p(`Adresse : ${escapeHtml(address.replace(/\s*\n\s*/g, ', '))}`)] : []),
     '<p style="margin:16px 0 4px"><strong>Votre séance comprend :</strong></p>',
     `<ul style="margin:0 0 12px;padding-left:20px">${includedLines.map((line) => `<li>${escapeHtml(line)}</li>`).join('')}</ul>`,

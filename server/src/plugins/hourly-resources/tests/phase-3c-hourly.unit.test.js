@@ -44,7 +44,7 @@ function registered(db = freshDb()) {
 test('rules 9–12: the module declares its pricing, URLs, reception entries and SAS step', () => {
   const record = registered();
   assert.deepEqual(record.priceLineContributor.priceTypes, ['per_hour']);
-  assert.deepEqual(record.mounts.map((m) => m.path), ['/api/resource-bookings']);
+  assert.deepEqual(record.mounts.map((m) => m.path), ['/api/resource-bookings', '/public/v1/sessions']);
   assert.deepEqual(record.routes.map((r) => `${r.method} ${r.path}`), [
     'get /api/resources/:id/free-slots',
     'get /api/planning/resource-cards',
@@ -96,7 +96,7 @@ test('rule 17 (P16): the erasure warns about the paid external bookings, then li
     { label: '1 réservation hors séjour', count: 1 },
     { label: 'les réglages horaires des ressources (créneaux, chauffe, maintien en température, soirée, tarifs extérieurs)', count: 1 },
   ]);
-  assert.deepEqual(registry.get(plugin.id).data.tables, ['resource_bookings', 'resource_booking_holds', 'resource_visit_line_marks']);
+  assert.deepEqual(registry.get(plugin.id).data.tables, ['resource_bookings', 'resource_booking_holds', 'resource_visit_line_marks', 'resource_session_orders']);
 });
 
 test('rule 17: the erasure empties the slot settings; prices and free minutes stay', () => {

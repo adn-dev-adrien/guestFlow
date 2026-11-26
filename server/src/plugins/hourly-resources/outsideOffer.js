@@ -3,16 +3,20 @@
  * `ctx.resourceBookingOffer` and handed out as `ctx.core.resourceBookingOffer()`. It names no instrument of payment: a session is paid, in whole or in
  * part, by a prepaid tender some plugin holds, and what remains by a link.
  *
- *   freeSlots({ resourceId, from, to, minutes, band?, now? })  → { horizonUntil, days: [{ date, slots: [{ start, end }] }] }
+ *   freeSlots({ resourceId, from, to, minutes, band?, includeTaken?, now? })  → { horizonUntil, days: [{ date, slots: [{ start, end, taken? }] }] }
  *       the starts of a session of `minutes` the resource can take, inside its opening days and hours, on its grid, with its capacity, turnover, thermal readiness,
- *       existing bookings and active holds, never past the resource's booking horizon; `band` keeps the starts before (`day`) or from (`evening`) the evening switch
+ *       existing bookings and active holds, never past the resource's booking horizon; `band` keeps the starts before (`day`) or from (`evening`) the evening switch;
+ *       `includeTaken` also lists, marked `taken: true`, the starts that fit the opening hours but are taken by a booking or a hold (specs/site-outside-resource-booking.md rule 6)
  *   quote({ resourceId, date, start, coveredBand, coveredMinutes, extraMinutes, now? }) → { ok: true, endTime, session, extra } | { ok: false, code, message }
  *       the engine's price of a session placed at `start`: `coveredMinutes` first (already paid for in `coveredBand`, at the rank they take), then `extraMinutes` after
  *       them, their ranks continuing; `session.supplementCents` is what the covered slices cost above their band's price (a covered day session run into the evening, rule 45)
  *   hold({ resourceId, date, start, end, ref, minutes?, now? }) → { ok: true, expiresAt } | { ok: false, code: 'SLOT_TAKEN', message }
  *   release(ref)
- *   bookOutside({ resourceId, date, start, end, customer, fulfilments, lines, tenders, holdRef?, channel, terms?, actor?, acceptedTotalCents?, now? })
- *       → { ok: true, bookingId, saleId } | { ok: false, code, message }   everything in one transaction, or nothing
+ *   limits({ resourceId }) → { ok: true, stepMinutes, minMinutes, maxMinutes, maxPeople } | { ok: false, code, message }   what a session of the resource may ask: the step and the shortest of its grid, the longest the opening hours hold, the party (20 when none is set)
+ *   bookOutside({ resourceId, date, start, end, customer, people?, fulfilments, lines, tenders, holdRef?, channel, terms?, actor?, acceptedTotalCents?, now? })
+ *       → { ok: true, bookingId, saleId } | { ok: false, code, message }   everything in one transaction, or nothing; `people` is the party declared, for information
+ *       (specs/site-outside-resource-booking.md rule 26); a booking of the channel `site` or `mon-bain` tells the operator once it is written (rule 23) — called
+ *       inside the caller's own transaction it tells nobody, and returns `announce()` for the caller to run after its outermost transaction has committed
  *
  * Priced lines are the engine's: `fulfilments` are the lines `quote` answered (`role: 'session' | 'extra'`), `lines` are `{ articleRef, quantity }` options. `tenders` are
  * `{ method: 'prepaid', source, ref, label, covers: [{ role | articleRef, amountCents }] }` — which line each prepaid cent pays — and `{ method: 'card', amountCents, source }`,
@@ -25,15 +29,18 @@ const {
   buildDays, validateBlock, toAbsMinutes, MINUTES_PER_DAY,
 } = require('./availability');
 const { toMinutes } = require('./hourlyPricing');
-const { quoteSession, isBanded } = require('./sessionQuote');
+const { quoteSession, sessionModesOf, isBanded } = require('./sessionQuote');
 const { horizonUntil } = require('./horizon');
 const { HOLD_MINUTES } = require('./holdsModel');
+const { bookedNotice } = require('./sessionNotices');
 
 const { toParisIso } = sdk.coreModule('stayWindow');
 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 const CLOCK = /^([01]\d|2[0-3]):[0-5]\d$/;
 const CHANNELS = Object.freeze({ 'mon-bain': 'Mon bain', site: 'site', 'guest-app': 'appli du séjour' });
+const ANNOUNCED_CHANNELS = Object.freeze(['site', 'mon-bain']);
+const DEFAULT_MAX_PEOPLE = 20;
 const SLOT_TAKEN = 'Ce créneau n’est plus libre.';
 
 const refuse = (code, message) => ({ ok: false, code, message });
@@ -46,7 +53,7 @@ const REASONS = Object.freeze({
 });
 
 function createOutsideOffer({
-  db, bookings, occupancy, holds, standaloneSale = () => sdk.coreModule('standaloneSale'), terms = null, now = () => new Date(),
+  db, bookings, occupancy, holds, standaloneSale = () => sdk.coreModule('standaloneSale'), terms = null, notify = () => {}, now = () => new Date(),
 }) {
   const resourceOf = (resourceId) => db.prepare('SELECT * FROM resources WHERE id = ?').get(Number(resourceId)) || null;
   const offerable = (resourceId) => {
@@ -66,7 +73,7 @@ function createOutsideOffer({
   const eveningStartOf = (resource) => (resource.hourlyEveningStart ? toMinutes(resource.hourlyEveningStart) : null);
 
   function freeSlots({
-    resourceId, from, to, minutes, band = null, now: at,
+    resourceId, from, to, minutes, band = null, includeTaken = false, now: at,
   }) {
     const resource = offerable(resourceId);
     if (!resource) return refuse('RESOURCE_UNAVAILABLE', 'Cette ressource ne se réserve pas à l’heure.');
@@ -91,12 +98,29 @@ function createOutsideOffer({
           return band === 'evening' ? toMinutes(slot.start) >= evening : toMinutes(slot.start) < evening;
         })
         .map((slot) => ({ start: slot.start, end: timeOf(toMinutes(slot.start) + minutes) }))
-        .filter((slot) => validateBlock({
-          resource, block: { date: day.date, start: slot.start, end: slot.end }, occupancy: taken, ...bounds,
-        }).ok);
+        .flatMap((slot) => {
+          const verdict = validateBlock({
+            resource, block: { date: day.date, start: slot.start, end: slot.end }, occupancy: taken, ...bounds,
+          });
+          if (verdict.ok) return [slot];
+          return includeTaken && (verdict.reason === 'taken' || verdict.reason === 'staff') ? [{ ...slot, taken: true }] : [];
+        });
       if (slots.length) result.days.push({ date: day.date, slots });
     });
     return result;
+  }
+
+  function limits({ resourceId }) {
+    const resource = offerable(resourceId);
+    const modes = resource ? sessionModesOf(resource).filter((mode) => mode.sellable) : [];
+    if (!modes.length) return refuse('RESOURCE_UNAVAILABLE', 'Cette ressource ne se réserve pas à l’heure.');
+    return {
+      ok: true,
+      stepMinutes: modes[0].slotMinutes,
+      minMinutes: modes[0].minimumMinutes,
+      maxMinutes: toMinutes(resource.closeTime || '23:59') - toMinutes(resource.openTime || '00:00'),
+      maxPeople: Number(resource.sessionMaxPeople) > 0 ? Number(resource.sessionMaxPeople) : DEFAULT_MAX_PEOPLE,
+    };
   }
 
   function quote({
@@ -211,13 +235,14 @@ function createOutsideOffer({
   }
 
   function bookOutside({
-    resourceId, date, start, end, customer = {}, fulfilments = [], lines = [], tenders = [], holdRef = null, channel = 'mon-bain', terms: termsRequest = null, actor = 'public',
+    resourceId, date, start, end, customer = {}, people = null, fulfilments = [], lines = [], tenders = [], holdRef = null, channel = 'mon-bain', terms: termsRequest = null, actor = 'public',
     acceptedTotalCents, now: at,
   }) {
     const resource = offerable(resourceId);
     if (!resource) return refuse('RESOURCE_UNAVAILABLE', 'Cette ressource ne se réserve pas à l’heure.');
     const clock = clockOf(at);
     const day = todayOf(clock);
+    const nested = db.inTransaction;
     let outcome = null;
     const stop = (refusal) => { outcome = refusal; throw Object.assign(new Error(refusal.code), { refusal }); };
     try {
@@ -230,6 +255,7 @@ function createOutsideOffer({
         }, { excludeHoldRef: holdRef });
         if (created.error) stop(created.status === 409 ? refuse('SLOT_TAKEN', SLOT_TAKEN) : refuse('BOOKING_REFUSED', created.error));
         const bookingId = Number(created.id);
+        if (people) db.prepare('UPDATE resource_bookings SET people = ? WHERE id = ?').run(Number(people), bookingId);
         const core = standaloneSale();
         const sold = core.sell(saleRequestOf({
           bookingId, customer, fulfilments, lines, acceptedTotalCents,
@@ -252,11 +278,17 @@ function createOutsideOffer({
       if (!err || !err.refusal) throw err;
       return err.refusal;
     }
+    if (!ANNOUNCED_CHANNELS.includes(channel)) return outcome;
+    const notice = bookedNotice({
+      resourceName: resource.name, date, start, end, customer, people, tenders, bookingId: outcome.bookingId,
+    });
+    if (nested) return { ...outcome, announce: () => notify(notice) };
+    notify(notice);
     return outcome;
   }
 
   return {
-    freeSlots, quote, hold, release, bookOutside,
+    freeSlots, quote, hold, release, bookOutside, limits,
   };
 }
 

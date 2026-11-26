@@ -56,6 +56,15 @@ function createModel(database) {
     } catch { return false; }
   })();
 
+  // The most people in one session booked from the website (specs/site-outside-resource-booking.md rule 25); NULL = no limit set. Its own group, guarded like the others.
+  const PEOPLE_COLUMNS = ['sessionMaxPeople'];
+  const HAS_PEOPLE_COLUMNS = (() => {
+    try {
+      const cols = database.prepare('PRAGMA table_info(resources)').all().map((c) => c.name);
+      return PEOPLE_COLUMNS.every((c) => cols.includes(c));
+    } catch { return false; }
+  })();
+
   // The sentence a booked resource carries into the guest emails (specs/plugins-phase-p-productisation.md
   // rule 11). Its own group, guarded like the two above.
   const SENTENCE_COLUMNS = ['emailBookedText', 'emailBookedTextEn'];
@@ -129,6 +138,7 @@ function createModel(database) {
       heatRetentionMinutes: Math.max(0, Number(resource.heatRetentionMinutes || 0)),
       ...Object.fromEntries(NEXT_RATE_COLUMNS.filter((c) => resource[c] !== undefined).map((c) => [c, nextRateOf(resource[c])])),
       ...(resource.bookingHorizonMonths === undefined ? {} : { bookingHorizonMonths: Number(resource.bookingHorizonMonths) || DEFAULT_RESOURCE_HORIZON_MONTHS }),
+      ...(resource.sessionMaxPeople === undefined ? {} : { sessionMaxPeople: Number(resource.sessionMaxPeople) > 0 ? Number(resource.sessionMaxPeople) : null }),
     };
   }
 
@@ -294,6 +304,7 @@ function createModel(database) {
       heatUpMinutes: Math.max(0, Number(payload.heatUpMinutes) || 0),
       heatRetentionMinutes: Math.max(0, Number(payload.heatRetentionMinutes) || 0),
       bookingHorizonMonths: Number(payload.bookingHorizonMonths) || DEFAULT_RESOURCE_HORIZON_MONTHS,
+      sessionMaxPeople: Number(payload.sessionMaxPeople) > 0 ? Math.trunc(Number(payload.sessionMaxPeople)) : null,
       emailBookedText: String(payload.emailBookedText || '').trim(),
       emailBookedTextEn: String(payload.emailBookedTextEn || '').trim(),
     };
@@ -306,12 +317,14 @@ function createModel(database) {
   const THERMAL_SET = optionalSet(HAS_THERMAL_COLUMNS, THERMAL_COLUMNS);
   const SENTENCE_SET = optionalSet(HAS_SENTENCE_COLUMNS, SENTENCE_COLUMNS);
   const HORIZON_SET = optionalSet(HAS_HORIZON_COLUMNS, HORIZON_COLUMNS);
+  const PEOPLE_SET = optionalSet(HAS_PEOPLE_COLUMNS, PEOPLE_COLUMNS);
   const OPTIONAL_COLUMNS = [
     ...(HAS_HOURLY_COLUMNS ? HOURLY_COLUMNS : []),
     ...(HAS_NEXT_RATE_COLUMNS ? NEXT_RATE_COLUMNS : []),
     ...(HAS_THERMAL_COLUMNS ? THERMAL_COLUMNS : []),
     ...(HAS_SENTENCE_COLUMNS ? SENTENCE_COLUMNS : []),
     ...(HAS_HORIZON_COLUMNS ? HORIZON_COLUMNS : []),
+    ...(HAS_PEOPLE_COLUMNS ? PEOPLE_COLUMNS : []),
   ];
   const HOURLY_INSERT_COLS = OPTIONAL_COLUMNS.length ? `, ${OPTIONAL_COLUMNS.join(', ')}` : '';
   const HOURLY_INSERT_VALS = OPTIONAL_COLUMNS.length ? `, ${OPTIONAL_COLUMNS.map((c) => `@${c}`).join(', ')}` : '';
@@ -341,7 +354,7 @@ function createModel(database) {
     const propertyIds = payload.propertyIds === undefined ? null : normalizePropertyIds(payload);
     const pricing = payload.propertyPricing === undefined && payload.propertyPrices === undefined ? null : normalizePricing(payload);
     const tx = database.transaction(() => {
-      const hourlySet = [HOURLY_SET, NEXT_RATE_SET, THERMAL_SET, SENTENCE_SET, HORIZON_SET].filter(Boolean).map((s) => `, ${s}`).join('');
+      const hourlySet = [HOURLY_SET, NEXT_RATE_SET, THERMAL_SET, SENTENCE_SET, HORIZON_SET, PEOPLE_SET].filter(Boolean).map((s) => `, ${s}`).join('');
       const updateSql = `UPDATE resources
            SET name=@name, quantity=@quantity, price=@price, priceType=@priceType, note=@note,
                isComplex=@isComplex, slotDuration=@slotDuration, minimumUsageMinutes=@minimumUsageMinutes,

@@ -50,7 +50,7 @@ test('rule 1: the plugin is in the catalogue, its manifest is valid and names no
   const manifest = readSourceManifest('gift-vouchers');
   assert.equal(findPlugin('gift-vouchers').name, 'Bons cadeaux');
   assert.deepEqual(manifest.requires, []);
-  assert.equal(manifest.sdk, '^2.33.0');
+  assert.equal(manifest.sdk, '^2.35.0');
   assert.ok(require('../..').some((m) => m.id === 'gift-vouchers'));
 });
 
@@ -61,7 +61,7 @@ test('rule 3: nothing in the plugin names an establishment, a property or a plat
   [/solio/i, /estiva/i, /granja/i, /booking\.com/i, /airbnb/i, /lodgify/i].forEach((word) => assert.equal(word.test(text), false, String(word)));
 });
 
-test('rules 1, 4, 12: it mounts one public tree and one admin tree, declares its settings, six jobs, a push channel, its payment basket, its prepaid source and the home item', () => {
+test('rules 1, 4, 12: it mounts one public tree and one admin tree, declares its settings, six jobs, its push channels, its payment basket, its prepaid source and the home item', () => {
   const calls = { mounts: [], settings: [], jobs: [], attention: [], channels: [], events: [], prepaid: [] };
   const noop = new Proxy(function noop() {}, { get: () => noop, apply: () => noop });
   const ctx = new Proxy({}, {
@@ -85,7 +85,7 @@ test('rules 1, 4, 12: it mounts one public tree and one admin tree, declares its
   assert.deepEqual(calls.jobs, ['pending-orders-purge', 'receipts-retry', 'holds-release', 'uses-lapse', 'visuals-purge', 'checks-purge']);
   assert.deepEqual(calls.prepaid, [['giftVoucher', 'Bon cadeau']]);
   assert.deepEqual(calls.attention, ['gift-voucher-checks']);
-  assert.deepEqual(calls.channels, ['gift-voucher-checks']);
+  assert.deepEqual(calls.channels, ['gift-voucher-checks', 'online-sales'], 'the second is the channel shared with the sessions booked online (specs/site-outside-resource-booking.md rule 22)');
   assert.deepEqual(calls.events, ['pricing.changed']);
 });
 
