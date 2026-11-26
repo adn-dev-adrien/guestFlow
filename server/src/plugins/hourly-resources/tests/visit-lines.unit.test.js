@@ -24,10 +24,11 @@ test('rule 10 — the session line comes first, priced by the hourly family, wit
   assert.equal(f.row(id).saleRef, `standalone:${f.db.prepare('SELECT id FROM standalone_sales ORDER BY id DESC').get().id}`);
 });
 
-test('rule 11 — the suggestions are the resource\'s list, filtered for an outside client: an article that needs a stay is never listed', async () => {
+test('rule 11 — the suggestions are the resource\'s list, filtered for an outside client: an article that needs a stay is refused at save, so never listed', async () => {
   const id = f.book();
   const { resourceId } = f.row(id);
-  suggestedArticles.save('resource', String(resourceId), [`option:${f.breakfast}`, `option:${f.beer}`, `option:${f.lemonade}`]);
+  assert.equal(suggestedArticles.save('resource', String(resourceId), [`option:${f.breakfast}`, `option:${f.beer}`]).body.code, 'ARTICLE_NEEDS_STAY');
+  suggestedArticles.save('resource', String(resourceId), [`option:${f.beer}`, `option:${f.lemonade}`]);
   const view = (await f.call('getVisit', { id })).body;
   assert.deepEqual(view.suggestions.map((s) => [s.label, s.unitCents]), [['Bière locale', 650], ['Limonade', 400]]);
   const refused = (await f.call('quote', { id, body: { extras: [f.extra(f.breakfast, 1)] } })).body;

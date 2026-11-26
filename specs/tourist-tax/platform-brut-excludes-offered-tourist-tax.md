@@ -8,6 +8,14 @@
 | **Author** | Adrien |
 | **Related PR** | (link once opened) |
 
+
+> **Amended 2026-11-26 by [platform-host-statement-and-commission-vat.md](platform-host-statement-and-commission-vat.md).**
+> Rules 1 and 4 are superseded: the brut of every non-direct stay is now the **host amount** of the platform's statement (location +
+> options), the tourist tax **never** inside it, whatever the platform's tax mode — the « reversed » case no longer reads the brut
+> tax-inclusive either (rule 4 there). The stored brut of existing stays was re-based by a one-pass migration (rule 4 of the new spec).
+> Rules 2, 3 (the engine and « Calculer la commission » no longer subtract the offered tax; the commission formula is now
+> `host amount + tax paid with the transfer − transfer − acompte commission`), 5-10 keep their meaning or are carried by the new spec.
+
 ---
 
 ## 1. Context

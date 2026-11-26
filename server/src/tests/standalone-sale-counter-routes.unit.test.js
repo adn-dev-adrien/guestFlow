@@ -44,7 +44,7 @@ test('rule 37 — the settings view names each listed article beside its referen
   createContext('hourly-resources', {}).suggestionContexts({ kind: 'resource', label: 'Ressources à l’heure', list: () => [{ id: bath, label: 'Bain' }] });
   suggested.save('resource', bath, [`option:${beer}`, `option:${lemonade}`]);
   const context = suggested.settingsView().kinds.find((k) => k.kind === 'resource').contexts[0];
-  assert.deepEqual(context.articles, [{ articleRef: `option:${beer}`, label: 'Bière locale' }, { articleRef: `option:${lemonade}`, label: 'Limonade' }]);
+  assert.deepEqual(context.articles, [{ articleRef: `option:${beer}`, label: 'Bière locale', unitCents: 650, unitLabel: 'l’unité', reason: null }, { articleRef: `option:${lemonade}`, label: 'Limonade', unitCents: 400, unitLabel: 'l’unité', reason: null }]);
 });
 
 test('rule 39 — a quote answers the link block of the draft: no provider, no link; the sale then comes back with its own block', () => {

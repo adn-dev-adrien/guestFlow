@@ -1030,6 +1030,13 @@ db.exec(`
   if (!platformCols.includes('payoutDueDays')) {
     db.exec('ALTER TABLE platforms ADD COLUMN payoutDueDays INTEGER NOT NULL DEFAULT 10');
   }
+  // specs/platforms/platform-host-statement-and-commission-vat.md rule 13 — the VAT regime of the platform's commission
+  // (`fr_vat` | `eu_reverse_charge` | `no_vat`). It replaces the « TVA déductible » box: a box ticked becomes
+  // `fr_vat`, any other platform `no_vat`, so every export stays byte-identical until the operator sets the regimes.
+  if (!platformCols.includes('commissionVatRegime')) {
+    db.exec("ALTER TABLE platforms ADD COLUMN commissionVatRegime TEXT NOT NULL DEFAULT 'no_vat'");
+    db.exec("UPDATE platforms SET commissionVatRegime = CASE WHEN hasVatOnCommission = 1 THEN 'fr_vat' ELSE 'no_vat' END");
+  }
 }
 // specs/platforms/platforms-and-ical-rework.md §3 rule 10 — per (property, platform) "hidden from this
 // property's reservation views" flag. Independent of `isActive` (sync inclusion); a disabled
@@ -2261,6 +2268,9 @@ db.prepare("UPDATE repair_amounts SET label = 'Plomb manquant' WHERE repairKey =
   // row, no backfill) means the brut was typed tax-excluded — the convention of
   // platform-brut-excludes-offered-tourist-tax.md, which must keep computing to the cent.
   if (!rcols.includes('platformTouristTaxAmount')) db.exec('ALTER TABLE reservations ADD COLUMN platformTouristTaxAmount REAL');
+  // specs/platforms/platform-host-statement-and-commission-vat.md rule 1 — the options of the platform's statement (€): the fiche's
+  // option lines follow it on save (rule 2). NULL: statement not typed (every row before it, no check on history).
+  if (!rcols.includes('platformOptionsAmount')) db.exec('ALTER TABLE reservations ADD COLUMN platformOptionsAmount REAL');
   // specs/accounting/reconciliation-assisted-matching.md rules 23-31 — what a platform keeps on a stay's payout for a
   // reason other than its commission or the tourist tax. `platformPenaltyAmount` is the sum of the lines
   // (€), kept in step by platformPenaltiesModel, so every reader of the stay's money already has it.

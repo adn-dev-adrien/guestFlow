@@ -12,6 +12,8 @@
 
 > **Reviewed 2026-11-26 (rule-by-rule money audit).** Rules 5, 13, 26, 28, 45, 57, 62, 72 rewritten to the current code (paymentStatus now reads remainingToPay, platform-payout single PATCH, stored summary via PricingSummary, notices, cautionWaived). One divergence reported on rule 38 (not edited).
 
+> **Reviewed 2026-11-26 (money audit follow-up).** Rule 38 now holds for the caisse-interne flag too: sent on a complement already perceived with another day than the one it stores, it is refused 409 `ALREADY_PAID` (the move to the caisse interne on the stored day stays allowed). Test: `ledger-perceived-complement-cash-guard.unit.test.js`.
+
 ---
 
 ## 1. Context
@@ -420,7 +422,9 @@ decimals is rounded and shown rounded.
 38. **A bucket already perceived is never marked again.** Marking an acompte, a solde, a complement or
     a caution step that is already recorded is refused (409 `ALREADY_PAID`, « Le solde est déjà perçu.
     Relire la fiche. »): a second tab or a replayed request can neither re-date it — which would move
-    its accounting entry to another month — nor rewrite its transfer or commission. Changing the date
+    its accounting entry to another month — nor rewrite its transfer or commission. The same goes for
+    the caisse-interne flag of a complement (`complementPaidCash`, `endOfStayComplementPaidCash`) sent
+    with a day other than the one already stored. Changing the date
     of a recorded payment is an undo then a redo (rules 14, 41).
 39. **The sticky total bar follows the ledger.** `GET /api/reservations/:id` carries `storedHeadline`,
     built from the stored row (« Vous percevez » = Finance's net: what was collected plus what remains,

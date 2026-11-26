@@ -1,5 +1,5 @@
 /**
- * Everything GuestFlow sells, as a voucher composition sees it (specs/gift-voucher-campaigns.md rule 4): every resource and option of the catalogue with its tariff
+ * Everything GuestFlow sells, as a voucher composition sees it (specs/gift-vouchers/gift-voucher-campaigns.md rule 4): every resource and option of the catalogue with its tariff
  * modes and whether it can be sold to a customer with no stay — and, when not, the French reason. Built from the pricing engine's articles (`makeArticle`) and the
  * family that owns each article: the hourly modes, their rates and their tiers are the family's own reading of the resource, never recomputed here.
  *
@@ -7,10 +7,9 @@
  *   element(articleRef)                      → one of those, or null
  *   sessionRefusal({ resourceId, band, minutes, rankOffsetMinutes }) → the engine's sentence for a session that cannot be sold, or null
  *
- * Whether an option sells with no stay is `articles.outsideSale` (specs/pricing-components.md rule 124), never a list of families kept here.
+ * Whether an option sells with no stay is `articles.outsideSale` (specs/pricing/pricing-components.md rule 124), never a list of families kept here.
  * A resource has `modes` only when it is an hourly resource shown on the planning (`outside-day`, `outside-evening`); an option has none.
  */
-const NOT_SELLABLE_OUTSIDE = 'Pas marqué « vendable hors séjour » dans le catalogue.';
 
 function createCatalogueView({ db, articles }) {
   const rowsOf = (table) => {
@@ -47,7 +46,7 @@ function createCatalogueView({ db, articles }) {
   function optionView(row) {
     const { article, view } = baseOf(row, 'option');
     if (row.archivedAt) return withReason(view, 'Archivée : retirée du catalogue.');
-    if (!article.config.sellableExternally) return withReason(view, NOT_SELLABLE_OUTSIDE);
+    if (!article.config.sellableExternally) return withReason(view, articles.NOT_SELLABLE_OUTSIDE);
     const outside = articles.outsideSale(article);
     return withReason(view, outside.sellable ? null : outside.reason);
   }
@@ -55,7 +54,7 @@ function createCatalogueView({ db, articles }) {
   function resourceView(row) {
     const { article, view } = baseOf(row, 'resource');
     if (row.archivedAt) return withReason(view, 'Archivée : retirée du catalogue.');
-    if (!article.config.sellableExternally) return withReason(view, NOT_SELLABLE_OUTSIDE);
+    if (!article.config.sellableExternally) return withReason(view, articles.NOT_SELLABLE_OUTSIDE);
     if (article.family !== 'hourly') return withReason(view, 'Seule une ressource à l’heure se compose dans un bon.');
     if (!article.config.fulfilment) return withReason(view, 'Ressource à l’heure sans carte de planning : une séance se réserve au planning.');
     const family = articles.liveFamilies().hourly;

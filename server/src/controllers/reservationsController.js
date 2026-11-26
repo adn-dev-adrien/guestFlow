@@ -39,7 +39,14 @@ const { computeNextIcalSyncLocked, getTodayIsoDate } = require('../utils/reserva
 const { buildAuditSnapshotFromPayload, computeAuditChanges } = require('../utils/reservationAudit');
 const { arrivalPaymentText, coveredText, historyMoney } = require('../utils/arrivalPaymentHistoryText');
 const { suggestBedDistribution } = require('../utils/bedDistribution');
-const { computePlatformCommission } = require('../utils/platformCommission');
+const { statementCommission, taxPaidOf } = require('../utils/platformCommission');
+const { isNamedChannel } = require('../utils/saleChannel');
+const { platformDisplayName } = require('../utils/attributionChannel');
+const platformsModel = require('../models/platformsModel');
+const { settleStatementOptions, hasStatementOptions } = require('../utils/platformStatementOptions');
+const { statementReadout } = require('../utils/platformStatementReadout');
+const { touristTaxGapOf } = require('../utils/pricing/storedSaleFigures');
+const { commissionBookingSentence } = require('../utils/commissionBooking');
 const { unclaimedRise, unlockedPriceRefusal } = require('../utils/savePriceGuards');
 const paidLineJudgment = require('../utils/paidLineJudgment');
 const { readsSaleLines } = require('../utils/saleLinesReaders');
@@ -749,8 +756,8 @@ function previewMidStayNote(req, res) {
 }
 
 function platformCommission(req, res) {
-  const { gross, payout, touristTax, acompteCommission, expectedNet } = req.body || {};
-  const commission = computePlatformCommission({ gross, payout, touristTax, acompteCommission });
+  const { platform, gross, payout, touristTax, acompteCommission, expectedNet } = req.body || {};
+  const commission = statementCommission({ platform, gross, payout, touristTax, acompteCommission });
   // specs/payments/reservation-payment-ledger.md rule 26 — « Marquer reçu » asks for the transfer: the gap with
   // the expected net and the commission it implies are worded here, the form only prints them.
   const hasExpected = expectedNet !== undefined && expectedNet !== null && expectedNet !== '';
@@ -1269,6 +1276,51 @@ function pricingNoticesOf({ quote, body, storedRow }) {
 
 // specs/payments/reservation-payment-ledger.md rules 58-63 — whether a platform stay was sold far from the
 // « Prix plateformes » grid of its channel. `null` for everything the check does not judge.
+// specs/platforms/platform-host-statement-and-commission-vat.md rule 5 — the box of the statement, named by the platform's mode; none where we collect the tax.
+const STATEMENT_BOX = {
+  platform: {
+    label: 'Taxe de séjour retenue par la plateforme',
+    helper: 'Informatif : la plateforme la reverse à la commune, elle n’entre dans aucun prix.',
+  },
+  platform_reversed: {
+    label: 'Taxe de séjour versée avec le virement',
+    helper: 'Celle de GuestFlow reste la taxe déclarée ; l’écart avec ce montant va dans le logement.',
+  },
+};
+
+// Rules 7, 10-12 — what the « Paiement plateforme » block says about the statement typed on the fiche, worded by the server; `null` for a direct stay.
+function platformStatementOf({ body, quote, statementOptions }) {
+  if (!isNamedChannel(body.platform)) return null;
+  const figures = {
+    platformGrossAmount: body.platformGrossAmount,
+    platformOptionsAmount: body.platformOptionsAmount,
+    platformTouristTaxAmount: body.platformTouristTaxAmount,
+    platformPayoutAmount: body.platformPayoutAmount,
+    platformCommissionAmount: body.platformCommissionAmount,
+    acompteCommissionAmount: body.acompteCommissionAmount,
+  };
+  const row = platformsModel.findForStay(body.platform);
+  const mode = platformsModel.getTouristTaxCollection(body.platform);
+  return {
+    mode,
+    box: STATEMENT_BOX[mode] ? { mode, ...STATEMENT_BOX[mode] } : null,
+    ...statementReadout({
+      figures,
+      mode,
+      touristTaxGap: touristTaxGapOf(quote),
+      boxBooked: !(quote.touristTaxFrozen && Number(quote.touristTaxTotal || 0) === 0),
+      commissionBooking: commissionBookingSentence({
+        db, platformRow: row, commission: Number(body.platformCommissionAmount || 0) + Number(body.acompteCommissionAmount || 0),
+      }),
+      platformLabel: platformDisplayName(row ? row.name : body.platform),
+      commissionPercent: row ? row.commissionPercent : 0,
+      adjustmentNotes: statementOptions.notes,
+      adjustmentRefusal: statementOptions.refusal,
+    }),
+    optionAdjustment: statementOptions.applied ? { sentence: statementOptions.notes.join(' ') } : null,
+  };
+}
+
 function platformPriceCheckOf({ quote, body, propertyId, storedRow, devisId, nightsReplayed, bookingDate }) {
   return platformPriceCheck({
     quote,
@@ -1473,6 +1525,8 @@ async function calculatePrice(req, res) {
     if (stored && Number(stored.balancePaid || 0) === 1 && engineInput.balancePaid) engineInput.balanceAmount = stored.balanceAmount;
     if (stored && Number(stored.complementPaid || 0) === 1) Object.assign(engineInput, { complementPaid: true, complementAmount: stored.complementAmount });
   }
+  // specs/platforms/platform-host-statement-and-commission-vat.md rule 2 — the lines the statement's options imply, shown before they are saved.
+  const statementOptions = settleStatementOptions(engineInput, req.body.platformOptionsAmount);
   if (!gateInsurance(res, engineInput, reservationId > 0 ? reservationId : devisId)) return;
   let quote = calculateReservationQuote(engineInput);
   // The insurance price a plugin sets (specs/plugins/plugins-phase-3b-neat.md rule 2): the live preview may
@@ -1534,6 +1588,7 @@ async function calculatePrice(req, res) {
     quote.notices = pricingNoticesOf({ quote, body: req.body, storedRow });
     quote.depositDisabledLockedReason = depositDisabledLockedReasonOf(reservationId);
     quote.touristTaxInComplementLockedReason = taxInComplementLockedReason(db, storedRow);
+    quote.platformStatement = platformStatementOf({ body: req.body, quote, statementOptions });
     quote.platformPriceCheck = platformPriceCheckOf({
       quote,
       body: req.body,
@@ -1724,6 +1779,8 @@ function createStay(req, res) {
   // Rule 94 (loop t14 S14-2) — two free lines of one label are numbered at creation too: each keeps its own discount and payment.
   numberRepeatedCustomLabels(0, req.body);
 
+  // Rule 2 of specs/platforms/platform-host-statement-and-commission-vat.md may add a free line: it needs an array to land in.
+  if (hasStatementOptions(req.body) && !Array.isArray(req.body.customOptions)) req.body.customOptions = [];
   const {
     propertyId, clientId, startDate, endDate, adults, children, teens, babies,
     singleBeds, doubleBeds, babyBeds, checkInTime, checkOutTime,
@@ -1826,6 +1883,8 @@ function createStay(req, res) {
     // `depositDueDays` from now, the solde 30 days before arrival at the earliest.
     ...scheduleQuoteInputs(db, 0),
   };
+  const statementOptions = settleStatementOptions(engineInput, req.body.platformOptionsAmount);
+  if (statementOptions.refusal) return res.status(400).json({ error: statementOptions.refusal.message, field: statementOptions.refusal.field, code: 'PLATFORM_OPTIONS_UNSETTLED' });
   if (!gateInsurance(res, engineInput, 0)) return;
   if (!refuseSessionConflict(res, engineInput.selectedResources)) return;
   let quote = calculateReservationQuote(engineInput);
@@ -1887,6 +1946,7 @@ function createStay(req, res) {
   // behind to block the dates and leak into the iCal export.
   const creation = db.transaction(() => {
     const id = model.insertReservation(req.body, quote, nightBlocks);
+    model.storePlatformOptionsAmount(id, req.body.platformOptionsAmount);
     model.addHistoryEntry(id, 'create', [
       { field: 'sourceType', label: 'Origine', from: null, to: 'Création manuelle' },
     ]);
@@ -2433,6 +2493,8 @@ function applyUpdate(req, res, pastUnlocked, {
   // The window pins the baseline at the write: every pricing of this save reads the one that write will store.
   const windowEngineInputs = midStayWindow ? { arrivalExtrasBaseline: midStayWindow.engineBaseline } : {};
 
+  // Rule 2 of specs/platforms/platform-host-statement-and-commission-vat.md may add a free line: it needs an array to land in.
+  if (hasStatementOptions(req.body) && !Array.isArray(req.body.customOptions)) req.body.customOptions = [];
   const {
     propertyId, clientId, startDate, endDate, adults, children, teens, babies,
     singleBeds, doubleBeds, babyBeds, checkInTime, checkOutTime,
@@ -2604,6 +2666,8 @@ function applyUpdate(req, res, pastUnlocked, {
     // specs/pricing/pricing-components.md §3 rules 8, 54 — a sale reads the stored nights, extra guests and tax, through its seller's sale pipeline.
     ...(sale ? { storedStaySale: sale, storedSaleFigures: storedSaleFiguresOfRow(storedPaymentForQuote) } : {}),
   };
+  const statementOptions = settleStatementOptions(engineInput, req.body.platformOptionsAmount);
+  if (statementOptions.refusal) return res.status(400).json({ error: statementOptions.refusal.message, field: statementOptions.refusal.field, code: 'PLATFORM_OPTIONS_UNSETTLED' });
   if (!gateInsurance(res, engineInput, Number(id))) return;
   if (!refuseSessionConflict(res, engineInput.selectedResources, Number(id))) return;
   req.body.options = engineInput.selectedOptions;
@@ -2910,6 +2974,7 @@ function applyUpdate(req, res, pastUnlocked, {
     if (midStayWindow && midStayWindow.started) model.captureArrivalExtrasBaseline(id);
     else model.captureArrivalExtrasBaselineIfDue(id);
     model.updateReservation(id, modelPayload, quote, nightBlocks, nextIcalSyncLocked, { keepPricing, stayPinned });
+    model.storePlatformOptionsAmount(id, req.body.platformOptionsAmount);
     if (!keepPricing) writePricedLines();
     // Rule 102 — the open arrival complement's keys hold, in the baseline, what its arrival lines hold once written.
     if (!keepPricing && midStayWindow && midStayWindow.rebaseKeys.length) model.rebaseArrivalExtrasKeys(id, midStayWindow.rebaseKeys);
@@ -2927,7 +2992,14 @@ function applyUpdate(req, res, pastUnlocked, {
   const writePricedLines = () => {
     // specs/payments/direct-installments.md rules 7, 8, 13 — the plan follows the new total. A line gesture that leaves the plan where it stands
     // writes no instalment row (pricing-components rule 93).
-    const planCents = () => db.prepare('SELECT COALESCE(SUM(amountCents), 0) AS cents FROM reservation_installments WHERE reservationId = ?').get(id).cents;
+    // Rule 60 — beside a collected acompte the plan plus the acompte make the pre-arrival amount; rule 54 — a closed plan holds its
+    // own installments and leaves the rest to the arrival complement: what it stands for is the target it was last made for.
+    const planCents = () => {
+      const scheduled = db.prepare('SELECT COALESCE(SUM(amountCents), 0) AS cents FROM reservation_installments WHERE reservationId = ?').get(id).cents;
+      const stay = db.prepare('SELECT depositPaid, depositPaidCash, depositAmount, installmentsTarget FROM reservations WHERE id = ?').get(id) || {};
+      return Math.max(scheduled, Math.round(Number(stay.installmentsTarget || 0) * 100))
+        + require('../utils/installmentPlan').collectedDepositCents(stay);
+    };
     if (!(saleBase && Math.round(Number(quote.preArrivalAmount || 0) * 100) === planCents())) installments.syncAfterSave(id, quote);
 
     // Nights are never rewritten on a locked fiche, but its extras are while the window is open.
@@ -3159,6 +3231,17 @@ function paymentMarkRefusal(row, body, today) {
       return { status: 409, body: { error: `${ALREADY_LABELS[field]} Relire la fiche.`, code: 'ALREADY_PAID', field } };
     }
   }
+  // Rule 38 — the caisse-interne flag marks a complement too: sent on one already perceived with another day, it would
+  // re-date it (moving its accounting entry to another month), so it meets the same refusal as the flag itself.
+  // Sent with the day it already stores (or none) it is the move to the caisse interne, which stays allowed.
+  for (const [flagField, dateField] of PAID_DATE_FIELDS) {
+    const cashField = PAID_CASH_FIELDS[flagField];
+    if (!cashField || !(body[cashField] === true || body[cashField] === 1) || Number(alreadyOf[flagField] || 0) !== 1) continue;
+    if (body[dateField] !== undefined && body[dateField] !== null && body[dateField] !== ''
+      && String(body[dateField]).slice(0, 10) !== String(row[dateField] || '').slice(0, 10)) {
+      return { status: 409, body: { error: `${ALREADY_LABELS[flagField]} Relire la fiche.`, code: 'ALREADY_PAID', field: cashField } };
+    }
+  }
   // Rule 68 (D20) — the end-of-stay complement is collected after the check-out, by every path that marks it.
   {
     const refusal = endOfStayMarkRefusal(row, body, today);
@@ -3181,7 +3264,7 @@ function paymentMarkRefusal(row, body, today) {
       return { status: 400, body: { error: field === 'platformPayoutAmount' ? 'Virement reçu : montant requis.' : 'Commission invalide.', code: 'INVALID_AMOUNT', field } };
     }
     if (field === 'platformCommissionAmount') {
-      const gross = grossOf(row);
+      const gross = grossOf(row, taxPaidOf({ platform: row.platform, box: row.platformTouristTaxAmount }));
       if (n > round2(gross) + 0.004) {
         return { status: 400, body: { error: `La commission dépasse le montant facturé (${formatEurosFr(gross)}).`, code: 'INVALID_AMOUNT', field } };
       }

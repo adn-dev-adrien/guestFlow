@@ -4,10 +4,12 @@ const model = require('../models/platformStatementModel');
 
 function respond(res, result) {
   if (!result.ok) {
-    const { status, error, code, moved } = result;
-    return res.status(status || 400).json({ error, ...(code ? { code } : {}), ...(moved ? { moved } : {}) });
+    const { status, error, code, moved, field } = result;
+    return res.status(status || 400).json({ error, ...(code ? { code } : {}), ...(moved ? { moved } : {}), ...(field ? { field } : {}) });
   }
-  return res.json({ netGap: result.netGap, netLabel: result.netLabel, changed: result.changed });
+  return res.json({
+    netGap: result.netGap, netLabel: result.netLabel, lines: result.lines, warnings: result.warnings, changed: result.changed,
+  });
 }
 
 const update = (req, res) => respond(res, model.correct(req.params.id, req.body || {}));

@@ -9,6 +9,7 @@ const { csvJournal, salesJson } = require('./accountingExport');
 const { drinksAccountRefusal } = require('./drinksGuard');
 const { roundMoneyStrict, fromCentsStrict } = sdk.coreModule('money');
 const { MOLLIE_DEFAULTS } = require('./settings');
+const accountPlan = require('./accountPlan');
 
 const { journalEntries } = sdk.coreModule('accountingOutput');
 
@@ -21,7 +22,7 @@ function parseMonthYear(query) {
 }
 
 // Sales + refunds + cancellation compensations of the month (the core's `journalEntries`), and the entries a live plugin books
-// in its own journal (the Mollie journal, specs/mollie-rolling-reserve-and-incoming-payments.md rules 28-31), in one
+// in its own journal (the Mollie journal, specs/payments/mollie-rolling-reserve-and-incoming-payments.md rules 28-31), in one
 // chronological stream: the CSV, the JSON preview and the synthesis can never drift apart.
 function monthEntries(accountingModel, params, plan = {}, mollie = null) {
   return [...journalEntries(params, accountingModel), ...(mollie || mollieEntries(accountingModel, params, plan)).entries]
@@ -31,7 +32,7 @@ function monthEntries(accountingModel, params, plan = {}, mollie = null) {
 const MOLLIE_KINDS = new Set(['link', 'credit', 'cost']);
 
 /**
- * specs/mollie-rolling-reserve-and-incoming-payments.md rules 28-31 — the Mollie facts of the month as journal entries
+ * specs/payments/mollie-rolling-reserve-and-incoming-payments.md rules 28-31 — the Mollie facts of the month as journal entries
  * (their accounts are the plan's), and what the export page shows beside them: the clearing account's balance at month
  * end (rule 30) and the credits no payment explains yet, which book nothing (rule 31). The bank lines are left out when
  * the accountant books the bank himself (rule 29).
@@ -43,7 +44,8 @@ function mollieEntries(accountingModel, params, plan = {}) {
   const labels = {
     [String(accounts.mollieClearingAccount)]: 'Compte d\'attente Mollie',
     [String(accounts.mollieBankAccount)]: 'Banque',
-    [String(accounts.mollieFeeAccount)]: 'Frais Mollie',
+    // The fee account is a commission without VAT: the cabinet's label for the account when the plan names one (one source: accountPlan).
+    [String(accounts.mollieFeeAccount)]: accountPlan.COMMISSION_ACCOUNT_LABELS[String(accounts.mollieFeeAccount)] || 'Frais Mollie',
   };
   // The journal code and the three accounts ride on the entry: the core's journal lines book a Mollie entry on them, outside the
   // sales journal's plan.
@@ -68,9 +70,9 @@ function mollieEntries(accountingModel, params, plan = {}) {
 }
 
 
-// `plan()` — the account plan of the export (specs/plugins-phase-p-productisation.md rule 27); none
+// `plan()` — the account plan of the export (specs/plugins/plugins-phase-p-productisation.md rule 27); none
 // means the defaults.
-// `onCsvExported(month, req)` — specs/accounting-synthesis.md rules 16 and 40: the download is stamped once its file is built.
+// `onCsvExported(month, req)` — specs/accounting/accounting-synthesis.md rules 16 and 40: the download is stamped once its file is built.
 function createAccountingController(accountingModel, { plan = () => undefined, onCsvExported = () => {} } = {}) {
   return {
     salesCsv(req, res) {
@@ -129,11 +131,11 @@ function createAccountingController(accountingModel, { plan = () => undefined, o
           // so the operator can reconcile against the platform's bank transfer (2026-06-22).
           encaissement: Number(e.encaissementTtc),
           net: Number(e.encaissementNetTtc),
-          // specs/platform-commission-line.md — the commission is the engine-computed line
+          // specs/platforms/platform-commission-line.md — the commission is the engine-computed line
           // (operator-entered `platformCommissionAmount`, or the legacy gross−net fallback inside
           // buildEntry). Read it off the entry instead of re-deriving from the gross here.
           commission: e.commission ? roundMoneyStrict(e.commission.ttc) : null,
-          // specs/single-payment-at-check-in.md §3.3 rule 13 — la collecte à laquelle cette écriture
+          // specs/payments/single-payment-at-check-in.md §3.3 rule 13 — la collecte à laquelle cette écriture
           // appartient. Le tableau replie les écritures d'un même paiement en UNE ligne : sans ça il
           // affichait deux encaissements pour un seul mouvement bancaire, à rebours de la carte de
           // journal juste au-dessus qui, elle, les regroupe déjà (constaté en production 2026-09-01).

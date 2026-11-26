@@ -1,7 +1,7 @@
 {
   "id": "online-payment",
   "name": "Paiement en ligne (Qonto)",
-  "version": "1.9.3",
+  "version": "1.10.1",
   "description": "Liens de paiement envoyés aux voyageurs, et rapprochement des virements du compte Qonto avec les fiches, retenue Mollie comprise.",
   "icon": "payments",
   "surfaces": [
@@ -12,11 +12,12 @@
     "Suivi financier › Versements à venir",
     "Paramètres › Paiements en ligne › Compte Mollie et retenue",
     "Paramètres › Paiements en ligne › Compte Mollie › Relevés dans Qonto",
-    "Suivi financier › Rapprochement bancaire › Relevé d'un versement Mollie"
+    "Suivi financier › Rapprochement bancaire › Relevé d'un versement Mollie",
+    "Réglages › Notifications push › Paiements en ligne reçus"
   ],
   "requires": [],
   "guestflow": ">=3.18.0",
-  "sdk": "^2.34.0",
+  "sdk": "^2.37.0",
   "changelog": {
     "1.0.0": [
       "Première version publiée en paquet."
@@ -202,6 +203,17 @@
     ],
     "1.9.3": [
       "Accueil : les lignes des écarts de règlement et de la retenue Mollie ouvrent la fiche du séjour (le retour ramène à l’accueil) (SDK 2.34.0)."
+    ],
+    "1.9.4": [
+      "Un lien payé désactive aussitôt chez Qonto les autres liens du même règlement, au lieu d’attendre le passage suivant (SDK 2.34.0)."
+    ],
+    "1.10.0": [
+      "Un paiement en ligne reçu sur un séjour (acompte, solde, paiement total, échéance) prévient l’exploitant : notification « Paiements en ligne reçus » (réglable dans les notifications push), e-mail et ligne « Paiements reçus » sur l’accueil.",
+      "Le solde payé en ligne envoie au voyageur un e-mail « Solde reçu ».",
+      "Demande GuestFlow 4 (SDK 2.34.0)."
+    ],
+    "1.10.1": [
+      "Le calcul de la commission d’un virement suit le montant hôte du relevé, et le virement attendu compte la taxe versée avec lui (SDK 2.37.0)."
     ]
   }
 }

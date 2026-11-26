@@ -20,4 +20,5 @@ export const EMAIL_DISPLAY_NAMES = Object.freeze({
   season_new_year: 'Vœux et dates',
   cancellation_notice: 'Avis d’annulation',
   dates_unavailable_notice: 'Dates plus disponibles',
+  balance_received: 'Solde reçu',
 });

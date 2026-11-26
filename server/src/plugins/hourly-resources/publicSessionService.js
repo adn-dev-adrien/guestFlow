@@ -1,5 +1,5 @@
 /**
- * The website's booking of a session outside a stay (specs/site-outside-resource-booking.md rules 1-13, 16-17, §4.4): which resources are on offer, the free starts of a duration with what
+ * The website's booking of a session outside a stay (specs/site/site-outside-resource-booking.md rules 1-13, 16-17, §4.4): which resources are on offer, the free starts of a duration with what
  * each would cost, the recap of a choice, and the confirmation — which holds the slot for 15 minutes and sends the visitor to the bank. Nothing is booked before the bank confirms (`paid`).
  *
  *   resources()                                         → [{ id, name, blurb, fromCents, minMinutes, stepMinutes, maxMinutes, maxPeople, horizonUntil, termsVersionId, addOns: [{ articleRef, label, maxQty, unitLabel, linear, prices }] }]
@@ -14,7 +14,7 @@
  */
 
 const sdk = require('../sdk');
-const { sessionModesOf, quoteSession, isBanded } = require('./sessionQuote');
+const { sessionModesOf, quoteSession, isOfferedOnline } = require('./sessionQuote');
 const { toMinutes } = require('./hourlyPricing');
 const { horizonUntil } = require('./horizon');
 const { HOLD_MINUTES } = require('./holdsModel');
@@ -49,36 +49,21 @@ const asInt = (v) => (typeof v === 'string' && /^\d+$/.test(v.trim()) ? Number(v
 function createPublicSessionService({
   db, offer, orders, terms, payments, engine, suggest, notify, sendMail, address, companyName, basketSource, now = () => new Date(), transaction = (fn) => db.transaction(fn)(),
 }) {
+  const addOnPricing = sdk.coreModule('addOnPricing').createAddOnPricing({ engine });
   const resourceOf = (id) => db.prepare('SELECT * FROM resources WHERE id = ?').get(Number(id)) || null;
-  const isOffered = (resource) => Boolean(resource) && Number(resource.sellableExternally) === 1 && isBanded(resource) && sessionModesOf(resource).some((mode) => mode.sellable);
   const maxPeopleOf = (resource) => (Number(resource.sessionMaxPeople) > 0 ? Number(resource.sessionMaxPeople) : DEFAULT_MAX_PEOPLE);
   const configOf = (resource) => ({ id: resource.id, label: resource.name, resource });
   const bandAt = (resource, clock) => (sessionModesOf(resource).some((m) => m.band === 'evening') && toMinutes(clock) >= toMinutes(resource.hourlyEveningStart) ? 'evening' : 'day');
 
   // ── what the page reads first ────────────────────────────────────────────────────────────────────────────────────────
 
-  /** What the visitor may add to the session, each with the price the engine gives for 1 … n units (the page multiplies nothing); one the engine cannot price at all is left out. */
-  function addOnsOffered(resource) {
-    return suggest(resource.id).map((entry) => {
-      const prices = [];
-      for (let qty = 1; qty <= Math.min(entry.max || MAX_ADDON_QTY, MAX_ADDON_QTY); qty += 1) {
-        const answer = engine.quote({ lines: [{ articleRef: entry.articleRef, quantity: qty }] });
-        if (answer.status !== 200 || answer.refusals.length || answer.document.lines.length !== 1) break;
-        prices.push({ qty, cents: answer.document.lines[0].totalCents });
-      }
-      return {
-        articleRef: entry.articleRef,
-        label: entry.label,
-        maxQty: prices.length,
-        unitLabel: 'l’unité',
-        linear: prices.every((price) => price.cents === price.qty * prices[0].cents),
-        prices,
-      };
-    }).filter((entry) => entry.prices.length > 0);
-  }
+  /** What the visitor may add to the session, each with the price the engine gives for 1 … n units (the page multiplies nothing), by the function a campaign's add-ons use; one the engine cannot price at all is left out. */
+  const addOnsOffered = (resource) => addOnPricing.priced(suggest(resource.id).map((entry) => ({
+    articleRef: entry.articleRef, label: entry.label, maxQty: Math.min(entry.max || MAX_ADDON_QTY, MAX_ADDON_QTY),
+  }))).map((entry) => ({ ...entry, maxQty: entry.prices.length }));
 
   function resources() {
-    const rows = db.prepare("SELECT * FROM resources WHERE priceType = 'per_hour' AND showsPlanningCard = 1 AND sellableExternally = 1 ORDER BY name, id").all().filter(isOffered);
+    const rows = db.prepare("SELECT * FROM resources WHERE priceType = 'per_hour' AND showsPlanningCard = 1 AND sellableExternally = 1 ORDER BY name, id").all().filter(isOfferedOnline);
     const version = terms.current('resource');
     return rows.map((resource) => {
       const modes = sessionModesOf(resource).filter((mode) => mode.sellable);
@@ -101,7 +86,7 @@ function createPublicSessionService({
   /** The resource a request names, or the refusal; and the duration judged by the session rules (step, minimum, close). */
   function sessionOf(resourceId, minutes) {
     const resource = resourceOf(resourceId);
-    if (!isOffered(resource)) return refuse('RESOURCE_UNAVAILABLE', UNAVAILABLE, 409);
+    if (!isOfferedOnline(resource)) return refuse('RESOURCE_UNAVAILABLE', UNAVAILABLE, 409);
     const length = asInt(minutes);
     if (!Number.isInteger(length) || length <= 0) return refuse('SESSION_MINUTES_INVALID', 'Durée invalide.');
     const checked = quoteSession(configOf(resource), { band: bandAt(resource, resource.openTime || '00:00'), start: resource.openTime || '00:00', minutes: length });
@@ -274,7 +259,7 @@ function createPublicSessionService({
 
   async function confirm(request) {
     const resource = resourceOf(request.resourceId);
-    if (!isOffered(resource)) return refuse('RESOURCE_UNAVAILABLE', UNAVAILABLE, 409);
+    if (!isOfferedOnline(resource)) return refuse('RESOURCE_UNAVAILABLE', UNAVAILABLE, 409);
     const who = judged(request);
     if (!who.ok) return who;
     if (!Number.isInteger(who.people) || who.people < 1 || who.people > maxPeopleOf(resource)) {

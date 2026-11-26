@@ -1,5 +1,5 @@
 /**
- * What a plugin file may `require` from the core (specs/plugins-phase-1-sdk.md rules 3 and 11).
+ * What a plugin file may `require` from the core (specs/plugins/plugins-phase-1-sdk.md rules 3 and 11).
  *
  *   core    — the services of the running app (the same object as `ctx.core`).
  *   models  — core models bound to a GIVEN database, for plugin models that run on `ctx.db` in
@@ -9,7 +9,7 @@
  * Everything is resolved lazily: plugins load while the core is still booting.
  */
 
-// specs/plugins-phase-2-hosts.md rule 2 — the core modules the plugins moved in phase 2 still call:
+// specs/plugins/plugins-phase-2-hosts.md rule 2 — the core modules the plugins moved in phase 2 still call:
 // the money they read or write stays in the core (the SAS commit, the journal's inputs, pricing), the
 // plugin only calls it. One reviewed list, one line per module, each with the plugin that needs it.
 // `coreModule(name)` refuses anything else, so a plugin cannot reach the core by a side door.
@@ -122,32 +122,32 @@ const CORE_MODULES = Object.freeze({
   // linen, school-holidays, hourly-resources — the date window of every entered date (reservations-backend-mvc rule 13)
   stayDates: '../../utils/stayDates',
   // gate-access, guest-app, hourly-resources — one stay window for the gate keys, the guest sessions and the guest's
-  // hourly slots, all on the Paris wall clock (specs/guest-app.md rules 2, 28, SDK 2.26.0)
+  // hourly slots, all on the Paris wall clock (specs/guest-app/guest-app.md rules 2, 28, SDK 2.26.0)
   stayWindow: '../../utils/stayWindow',
-  // guest-app — the wifi password of a lodging, encrypted at rest like the other stored secrets (specs/guest-app.md §5)
+  // guest-app — the wifi password of a lodging, encrypted at rest like the other stored secrets (specs/guest-app/guest-app.md §5)
   encryption: '../../utils/encryption',
-  // website-booking, guest-app — one projection of an option and a resource for every surface that sells them (specs/guest-app.md rule 24)
+  // website-booking, guest-app — one projection of an option and a resource for every surface that sells them (specs/guest-app/guest-app.md rule 24)
   publicCatalogProjection: '../../utils/publicCatalogProjection',
-  // guest-app — the shop is open exactly when the fiche takes mid-stay extras (specs/guest-app.md rule 27)
+  // guest-app — the shop is open exactly when the fiche takes mid-stay extras (specs/guest-app/guest-app.md rule 27)
   midStayExtrasWindow: '../../utils/midStayExtrasWindow',
-  // guest-app — Soliomap's feed, read like an iCal feed: public addresses only, bounded body (specs/guest-app.md rule 15bis)
+  // guest-app — Soliomap's feed, read like an iCal feed: public addresses only, bounded body (specs/guest-app/guest-app.md rule 15bis)
   safeFeedFetch: '../../utils/safeFeedFetch',
-  // guest-app — the booklet photos live under the instance's uploads, served by `/uploads` (specs/guest-app.md §5)
+  // guest-app — the booklet photos live under the instance's uploads, served by `/uploads` (specs/guest-app/guest-app.md §5)
   instancePaths: '../../utils/instancePaths',
-  // guest-app — a plugin's order written on the fiche as mid-stay extras, priced by its engine (specs/plugins-phase-1-sdk.md rule 47)
+  // guest-app — a plugin's order written on the fiche as mid-stay extras, priced by its engine (specs/plugins/plugins-phase-1-sdk.md rule 47)
   midStayOrderCommit: './midStayOrderCommit', // kept thin over `extraSale` (SDK 2.26.0 names, pricing-components D24)
-  // guest-app — its own session cookie is Secure exactly when the core's is (`HTTPS_ENABLED`, specs/guest-app.md rule 4)
+  // guest-app — its own session cookie is Secure exactly when the core's is (`HTTPS_ENABLED`, specs/guest-app/guest-app.md rule 4)
   securityConfig: '../../utils/securityConfig',
-  // guest-app — the studio re-reads its admin like every `/api` route does (specs/guest-app.md rule 47)
+  // guest-app — the studio re-reads its admin like every `/api` route does (specs/guest-app/guest-app.md rule 47)
   requireAuth: '../../middleware/requireAuth',
   // accounting-export — the accounting synthesis reads the core's own finance figures, never a second
-  // derivation (specs/accounting-synthesis.md rules 7-10, SDK 2.23.0)
+  // derivation (specs/accounting/accounting-synthesis.md rules 7-10, SDK 2.23.0)
   financeModel: '../../models/financeModel', // the stays' revenue of a window and the tourist-tax extraction
   financeDashboardModel: '../../models/financeDashboardModel', // the one « comparable with last year » reading
   financeWindow: '../../utils/financeWindow', // the custom window's refusals, shared with the Suivi financier
   fiscalYear: '../../utils/fiscalYear', // the exercise bounds of the app's closing month
   yearOverYear: '../../utils/yearOverYear', // one year earlier, and the change in percent
-  // accounting-export, online-payment, sas — one payment split over several methods (specs/mixed-method-payments.md,
+  // accounting-export, online-payment, sas — one payment split over several methods (specs/payments/mixed-method-payments.md,
   // SDK 2.24.0): its rules, its settlements, and the one writer the SAS records them through
   paymentTenders: '../../utils/paymentTenders',
   paymentSettlementsModel: '../../models/paymentSettlementsModel',
@@ -158,20 +158,22 @@ const CORE_MODULES = Object.freeze({
   prepaidSources: '../../utils/prepaidSources',
   prepaidReceipts: '../../utils/prepaidReceipts',
   // hourly-resources, online-payment, accounting-export — the invoice issuer and the sales made outside any stay
-  // (specs/resource-booking-pricing-and-invoicing.md rules 1, 14, 20-21, SDK 2.25.0)
+  // (specs/resources/resource-booking-pricing-and-invoicing.md rules 1, 14, 20-21, SDK 2.25.0)
   invoiceIssuers: '../../utils/invoiceIssuers',
   standaloneSales: '../../utils/standaloneSales',
-  // accounting-export — the entries a plugin books in its own journal (specs/mollie-rolling-reserve-and-incoming-payments.md
+  // accounting-export — the entries a plugin books in its own journal (specs/payments/mollie-rolling-reserve-and-incoming-payments.md
   // rules 28-31, SDK 2.29.0)
   journalEntries: '../../utils/pluginJournalEntries',
   // accounting-export — the journal is the core's AccountingOutput; the plugin keeps its routes, account plan and settings
-  // (specs/pricing-components.md rule 63, SDK 2.30.0 — plugins-phase-1-sdk rule 54)
+  // (specs/pricing/pricing-components.md rule 63, SDK 2.30.0 — plugins-phase-1-sdk rule 54)
   accountingOutput: '../../utils/accounting/accountingOutput', // the journal entries of a period, built from the read models (pricing-components rule 63, SDK 2.30.0)
   legacyBucketSplit: '../../utils/accounting/legacyBucketSplit', // the legacy derivation of the buckets an entry books from stored money (rule 63)
   refundJournal: '../../utils/pricing/refunds/journal', // the avoir, requalification and closing entries of a refund (rules 63-64)
   csvJournal: '../../utils/accounting/exporters/csvJournal', // the CSV journal exporter (rule 63)
   salesJson: '../../utils/accounting/exporters/salesJson', // the sales JSON exporter (rule 63)
   synthesisExporter: '../../utils/accounting/exporters/synthesis', // the synthesis exporter: VAT return, checks, collections (rule 63)
+  // the price table of an add-on sold outside a stay, one function for every plugin that offers one (site-outside-resource-booking rule 37, SDK 2.36.0)
+  addOnPricing: '../../utils/addOnPricing',
 });
 
 function coreModule(name) {
@@ -207,7 +209,7 @@ module.exports = Object.freeze({
   // Secrets the operator copies into another system live in server/.env.local, never in the database.
   secrets: Object.freeze({
     getOrCreate: (name, byteLength = 32, options) => require('../../utils/localEnv').getOrCreateSecret(name, byteLength, options),
-    // A new value for a secret another system holds a copy of (specs/plugins-phase-2-hosts.md rule 31).
+    // A new value for a secret another system holds a copy of (specs/plugins/plugins-phase-2-hosts.md rule 31).
     // Read it with getOrCreate(name, n, { rotatable: true }) so the file wins over a stale inherited copy.
     rotate: (name, byteLength = 32) => require('../../utils/localEnv').rotateSecret(name, byteLength),
   }),
@@ -229,7 +231,7 @@ module.exports = Object.freeze({
     }
     return manifestVersions.get(dir);
   },
-  // Read-only IMAP for the plugins that read booking mails (specs/airbnb-mail-intake.md rule 4).
+  // Read-only IMAP for the plugins that read booking mails (specs/platforms/airbnb-mail-intake.md rule 4).
   mailbox: Object.freeze({
     readMailsFrom: (...args) => require('./mailboxReader').readMailsFrom(...args),
     testConnection: (...args) => require('./mailboxReader').testConnection(...args),

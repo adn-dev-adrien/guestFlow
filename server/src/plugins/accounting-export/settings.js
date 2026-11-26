@@ -1,6 +1,6 @@
 /**
  * The four account and VAT settings of the export, stored in plugin_settings
- * (specs/plugins-phase-2-hosts.md rule 19, P7). Bound to a GIVEN database so the journal and the
+ * (specs/plugins/plugins-phase-2-hosts.md rule 19, P7). Bound to a GIVEN database so the journal and the
  * Plan comptable page read the same store in production and on an in-memory test database. A store
  * that is missing or empty reads the shipped defaults — the values erasure goes back to (rule 22).
  */
@@ -12,13 +12,14 @@ const { TTC_SPLIT_FALLBACK } = sdk.coreModule('legacyBucketSplit');
 
 const PLUGIN_ID = 'accounting-export';
 
-// specs/mollie-rolling-reserve-and-incoming-payments.md rules 28-29 — the Mollie journal: its code, the clearing account
+// specs/payments/mollie-rolling-reserve-and-incoming-payments.md rules 28-29 — the Mollie journal: its code, the clearing account
 // (« compte d'attente »: the money Mollie still holds), the bank and the fee accounts, and whether the bank lines are exported.
 const MOLLIE_DEFAULTS = Object.freeze({
   mollieJournalCode: 'MO',
   mollieClearingAccount: '46720000',
   mollieBankAccount: '51200000',
-  mollieFeeAccount: '62780000',
+  // Rule 17 — a payment provider's fees are a commission without VAT: the account of that regime (`commissionNoVatAccount`).
+  mollieFeeAccount: '62260600',
   mollieExportBank: '1',
 });
 
@@ -27,7 +28,7 @@ const DEFAULTS = Object.freeze({
   vatRateCommission: 20,
   cancellationCompensationAccount: DEFAULT_CANCELLATION_COMPENSATION_ACCOUNT,
   vatRateCancellationCompensation: 0,
-  // The account plan (specs/plugins-phase-p-productisation.md rule 27).
+  // The account plan (specs/plugins/plugins-phase-p-productisation.md rule 27).
   ...PLAN_DEFAULTS,
   ...MOLLIE_DEFAULTS,
 });
@@ -65,9 +66,18 @@ function validateSwitch(value) {
   return ['0', '1'].includes(String(value).trim()) ? null : 'Doit être 0 ou 1.';
 }
 
+// Rule 16 — a VAT code of the cabinet's software: up to 10 capitals or digits, empty for « no code ».
+const VAT_CODE_KEYS = new Set(['vatCodeRate10', 'vatCodeRate20', 'vatCodeRate55', 'vatCodeReverseCharge', 'vatCodeDeductible20']);
+function validateVatCode(value) {
+  if (value != null && !isScalar(value)) return 'De 1 à 10 majuscules ou chiffres.';
+  if (value == null || String(value).trim() === '') return null;
+  return /^[A-Z0-9]{1,10}$/.test(String(value).trim()) ? null : 'De 1 à 10 majuscules ou chiffres.';
+}
+
 const validatorOf = (key) => {
   if (RATE_KEYS.has(key)) return validateRate;
-  if (key === 'mollieExportBank') return validateSwitch;
+  if (key === 'mollieExportBank' || key === 'reverseChargeLines') return validateSwitch;
+  if (VAT_CODE_KEYS.has(key)) return validateVatCode;
   return key === 'journalCode' || key === 'mollieJournalCode' ? validateJournalCode : validateAccount;
 };
 
@@ -118,7 +128,7 @@ function createAccountSettings(database) {
   };
 }
 
-// specs/accountant-accounting-export.md rule 35 — the first payment day the TTC-share split (rule 32)
+// specs/accounting/accountant-accounting-export.md rule 35 — the first payment day the TTC-share split (rule 32)
 // applies to. Not an operator setting: written once by the migration, on the first start of the version
 // that brought the split. Without it (an erased store), the first month no release before could have
 // exported.
@@ -145,7 +155,7 @@ function storeTtcSplitFrom(database, now = new Date()) {
     .run(PLUGIN_ID, TTC_SPLIT_KEY, firstOfNextMonth(now));
 }
 
-// specs/mixed-method-payments.md rule 58 (verification R35b, finding 2) — the first refund day a stay paid with ONE method
+// specs/payments/mixed-method-payments.md rule 58 (verification R35b, finding 2) — the first refund day a stay paid with ONE method
 // closes its books like a split stay (rule 56): stored once by the migration, the first day of the month after this
 // version was installed, so a month the accountant may already hold keeps its cents (accountant-accounting-export rules
 // 33, 35). Without it (an erased store), the first month no release before could have exported.
@@ -166,7 +176,7 @@ function storeStayClosingFrom(database, now = new Date()) {
     .run(PLUGIN_ID, STAY_CLOSING_KEY, firstOfNextMonth(now));
 }
 
-// specs/accounting-synthesis.md rule 16 — the last CSV download: when, and which month. Not an operator
+// specs/accounting/accounting-synthesis.md rule 16 — the last CSV download: when, and which month. Not an operator
 // setting (never declared, so the generic settings page neither shows nor writes it); one row, rewritten at
 // each download, erased with the plugin's configuration.
 const LAST_CSV_EXPORT_KEY = 'lastCsvExport';
@@ -200,7 +210,7 @@ function storeLastCsvExport(database, month, now = new Date()) {
 }
 
 module.exports = {
-  PLUGIN_ID, DEFAULTS, MOLLIE_DEFAULTS, KEYS, DECLARED, createAccountSettings, validateAccount, validateJournalCode,
+  PLUGIN_ID, DEFAULTS, MOLLIE_DEFAULTS, KEYS, DECLARED, createAccountSettings, validateAccount, validateJournalCode, validateVatCode, VAT_CODE_KEYS,
   TTC_SPLIT_KEY, TTC_SPLIT_FALLBACK, firstOfNextMonth, readTtcSplitFrom, storeTtcSplitFrom,
   STAY_CLOSING_KEY, STAY_CLOSING_FALLBACK, readStayClosingFrom, storeStayClosingFrom,
   LAST_CSV_EXPORT_KEY, readLastCsvExport, storeLastCsvExport,

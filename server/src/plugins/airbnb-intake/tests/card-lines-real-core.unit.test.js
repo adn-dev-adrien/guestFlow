@@ -65,7 +65,7 @@ function serviceFor() {
       updateBody: core.reservations.updateBody,
       suggestBeds: core.reservations.suggestBeds,
       platformCommission: core.reservations.platformCommission,
-      withholdsTouristTax: () => true,
+      touristTaxMode: core.reservations.touristTaxMode,
     },
   });
   return { service, intakes: idb };

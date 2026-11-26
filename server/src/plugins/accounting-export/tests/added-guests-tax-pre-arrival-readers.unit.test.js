@@ -1,6 +1,8 @@
 // specs/tourist-tax/platform-added-guests-tourist-tax.md rule 27 (audit R22-8, 2026-11-05) — the tax the pre-arrival money holds is
 // touristTaxTotal − touristTaxAddedGuestsAmount; the addition rides the complement. On a plan, a link, the avoir and the
 // acompte's ceiling. Replay of the auditor's p5 probe.
+// Amended 2026-11-26 (specs/platforms/platform-host-statement-and-commission-vat.md rules 1, 4): the brut is the host amount — the 600,00 guest total
+// with its 7,20 of reversed tax inside is a brut of 592,80 and a box of 7,20; the stay, its buckets and its entries are the same.
 process.env.DB_PATH = ':memory:';
 
 const test = require('node:test');
@@ -35,7 +37,7 @@ const taxOnJournal = (id) => entriesOf(id).flatMap((e) => e.lines).filter((l) =>
   .reduce((sum, l) => sum + Number(l.credit || 0) - Number(l.debit || 0), 0);
 
 test('a plan on an own channel with a guest added: 46710000 holds 7,20 €, never 9,60 €', async () => {
-  const stay = fiche(NO_ACOMPTE, PLATFORM.ownReversed, { platformGrossAmount: 600 });
+  const stay = fiche(NO_ACOMPTE, PLATFORM.ownReversed, { platformGrossAmount: 592.8, platformTouristTaxAmount: 7.2 });
   await put(stay, { adults: 3 });
   assert.equal(rowOf(stay.id).touristTaxTotal, 7.2);
   const plan = await planOfTwo(stay);
@@ -47,7 +49,7 @@ test('a plan on an own channel with a guest added: 46710000 holds 7,20 €, neve
 });
 
 test('the link basket of the plan names the tax the money holds', async () => {
-  const stay = fiche(NO_ACOMPTE, PLATFORM.ownReversed, { platformGrossAmount: 600 });
+  const stay = fiche(NO_ACOMPTE, PLATFORM.ownReversed, { platformGrossAmount: 592.8, platformTouristTaxAmount: 7.2 });
   await put(stay, { adults: 3 });
   const plan = await planOfTwo(stay);
   const components = paymentsController.__test.resolveInstallmentComponents(stay.id, plan[0], plan, db).components;
@@ -56,7 +58,7 @@ test('the link basket of the plan names the tax the money holds', async () => {
 });
 
 test('a plan cancelled: the avoir reverses the tax the plan collected, everything given back nets to 0', async () => {
-  const stay = fiche(NO_ACOMPTE, PLATFORM.ownReversed, { platformGrossAmount: 600 });
+  const stay = fiche(NO_ACOMPTE, PLATFORM.ownReversed, { platformGrossAmount: 592.8, platformTouristTaxAmount: 7.2 });
   await put(stay, { adults: 3 });
   const plan = await planOfTwo(stay);
   await payInstallment(stay, plan[0]);
@@ -78,7 +80,7 @@ test('no added tax: the link is unchanged', () => {
 });
 
 test('L1 — plan of 2 paid, an added guest, its complement paid, cancelled: everything given back nets every account to 0', async () => {
-  const stay = fiche(NO_ACOMPTE, PLATFORM.ownReversed, { platformGrossAmount: 600 });
+  const stay = fiche(NO_ACOMPTE, PLATFORM.ownReversed, { platformGrossAmount: 592.8, platformTouristTaxAmount: 7.2 });
   await put(stay, { adults: 3 });
   const plan = await planOfTwo(stay);
   for (const installment of plan) await payInstallment(stay, installment);
@@ -91,7 +93,7 @@ test('L1 — plan of 2 paid, an added guest, its complement paid, cancelled: eve
 });
 
 test('L1 — the same with one installment paid: the plan\'s share of what it collected, no more', async () => {
-  const stay = fiche(NO_ACOMPTE, PLATFORM.ownReversed, { platformGrossAmount: 600 });
+  const stay = fiche(NO_ACOMPTE, PLATFORM.ownReversed, { platformGrossAmount: 592.8, platformTouristTaxAmount: 7.2 });
   await put(stay, { adults: 3 });
   const plan = await planOfTwo(stay);
   await payInstallment(stay, plan[0]);
@@ -127,7 +129,7 @@ test('L1 — the tax on the complement: the plan holds none, the complement all 
 });
 
 test('L1 — the caisse interne\'s reading holds no installment: a complement paid there offers its own money only in cash', async () => {
-  const stay = fiche(NO_ACOMPTE, PLATFORM.ownReversed, { platformGrossAmount: 600 });
+  const stay = fiche(NO_ACOMPTE, PLATFORM.ownReversed, { platformGrossAmount: 592.8, platformTouristTaxAmount: 7.2 });
   await put(stay, { adults: 3 });
   const plan = await planOfTwo(stay);
   for (const installment of plan) await payInstallment(stay, installment);
@@ -145,7 +147,7 @@ test('L1 — the caisse interne\'s reading holds no installment: a complement pa
 });
 
 test('R22-8 readers — the export\'s own shares, on an installment with no frozen split: 4,80 € of tax, never 7,20 €', async () => {
-  const stay = fiche(NO_ACOMPTE, PLATFORM.ownReversed, { platformGrossAmount: 600 });
+  const stay = fiche(NO_ACOMPTE, PLATFORM.ownReversed, { platformGrossAmount: 592.8, platformTouristTaxAmount: 7.2 });
   await put(stay, { adults: 3 });
   const plan = await planOfTwo(stay);
   for (const installment of plan) await payInstallment(stay, installment);
@@ -154,7 +156,7 @@ test('R22-8 readers — the export\'s own shares, on an installment with no froz
 });
 
 test('R22-8 readers — the avoir\'s own shares, when no split is at hand: the tax of the installment paid, without the addition', async () => {
-  const stay = fiche(NO_ACOMPTE, PLATFORM.ownReversed, { platformGrossAmount: 600 });
+  const stay = fiche(NO_ACOMPTE, PLATFORM.ownReversed, { platformGrossAmount: 592.8, platformTouristTaxAmount: 7.2 });
   await put(stay, { adults: 3 });
   const plan = await planOfTwo(stay);
   await payInstallment(stay, plan[0]);
@@ -166,7 +168,7 @@ test('R22-8 readers — the avoir\'s own shares, when no split is at hand: the t
 });
 
 test('R22-8 readers — the acompte\'s ceiling on the stored ledger leaves the addition out', async () => {
-  const stay = fiche(WITH_ACOMPTE, PLATFORM.ownReversed, { platformGrossAmount: 600 });
+  const stay = fiche(WITH_ACOMPTE, PLATFORM.ownReversed, { platformGrossAmount: 592.8, platformTouristTaxAmount: 7.2 });
   await put(stay, { adults: 3 });
   const deposit = ficheView(stay.id).ledger.rows.find((row) => row.key === 'deposit');
   assert.equal(deposit.amountEdit.max, 595.2);

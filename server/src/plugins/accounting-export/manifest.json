@@ -1,7 +1,7 @@
 {
   "id": "accounting-export",
   "name": "Export comptable",
-  "version": "1.4.1",
+  "version": "1.4.2",
   "description": "Écritures, plan comptable et export pour le cabinet comptable.",
   "icon": "book",
   "surfaces": [
@@ -190,6 +190,10 @@
     "1.4.1": [
       "Un montant reçu d'avance (un bon cadeau) n'est plus compté comme un encaissement : l'écriture d'un séjour payé en partie par bon ne prend que la part réellement encaissée.",
       "Compatible avec GuestFlow 4 (SDK 2.33)."
+    ],
+    "1.4.2": [
+      "Chaque plateforme a un régime de TVA sur sa commission (France, UE, sans TVA) qui propose son compte ; l’autoliquidation d’une commission UE s’écrit dans l’export.",
+      "Une colonne « Code TVA » termine le fichier CSV ; « Revenu brut » devient « Montant hôte » (SDK 2.33.0)."
     ]
   }
 }

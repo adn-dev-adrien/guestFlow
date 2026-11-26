@@ -31,7 +31,7 @@ const TOURIST_TAX_KEYS = Object.freeze([
   'isTouristTaxCollectedOnArrival', 'isTouristTaxOfferedByPlatform', 'isTouristTaxRemittedByOwnerFlag',
   'resolvedPlatformPaidOccupants', 'reversedTouristTaxInBrut', 'taxAccommodationPaid', 'taxBaseAccommodation',
   'taxBaseBeforeDeduction', 'touristTaxAddedGuestsAdults', 'touristTaxAddedGuestsAmount', 'touristTaxBreakdown',
-  'touristTaxBrutInconsistent', 'touristTaxIncludedInRateDeduction', 'touristTaxReversedByPlatform',
+  'touristTaxBrutInconsistent', 'touristTaxGap', 'touristTaxIncludedInRateDeduction', 'touristTaxReversedByPlatform',
   'touristTaxTotal', 'withheldTouristTaxEntered', 'withheldTouristTaxInBrut',
 ]);
 
@@ -87,6 +87,17 @@ function saleFiguresOfContext(ctx) {
 /** The records a quote was priced with (`compose` attaches them), or null. */
 const saleFiguresOf = (quote) => (quote && quote[SALE_FIGURES]) || null;
 
+/**
+ * The tourist-tax gap of a quote (specs/platforms/platform-host-statement-and-commission-vat.md rule 7): what the platform paid for the tax beyond
+ * GuestFlow's own, signed, already inside the accommodation. Read from the tax record, not a key of the quote: the quote's key set is the one
+ * every caller and the price gate know.
+ */
+const touristTaxGapOf = (quote) => {
+  const record = saleFiguresOf(quote);
+  const gap = record && record.touristTax && record.touristTax.figures ? Number(record.touristTax.figures.touristTaxGap) : 0;
+  return Number.isFinite(gap) ? gap : 0;
+};
+
 const parse = (raw) => {
   if (!raw) return null;
   try {
@@ -111,6 +122,6 @@ function matchingRecord(stored, unit, basis) {
 }
 
 module.exports = {
-  SALE_FIGURES, EXTRA_GUESTS_KEYS, TOURIST_TAX_KEYS, extraGuestsBasis, touristTaxBasis, saleFiguresOfContext, saleFiguresOf,
+  SALE_FIGURES, EXTRA_GUESTS_KEYS, TOURIST_TAX_KEYS, extraGuestsBasis, touristTaxBasis, saleFiguresOfContext, saleFiguresOf, touristTaxGapOf,
   storedSaleFiguresOfRow, matchingRecord,
 };

@@ -53,7 +53,7 @@ function renderFinance({ row = RECEIVED, ...overrides } = {}) {
 }
 
 const typeGross = (value) => {
-  const field = screen.getByLabelText('Montant total payé par le client');
+  const field = screen.getByLabelText('Location (relevé)');
   field.focus();
   fireEvent.change(field, { target: { value } });
   fireEvent.blur(field);
@@ -71,7 +71,7 @@ test('rules 1, 2, 3, 8 — a received payout on a locked fiche opens the stateme
   expect(screen.getByRole('button', { name: /Calculer la commission/i })).toBeInTheDocument();
   expect(screen.getByLabelText('Virement reçu le 05/06 (€)')).toHaveValue('171,14');
   expect(screen.getByLabelText('Virement reçu le 05/06 (€)')).not.toBeDisabled();
-  expect(screen.getByLabelText('Montant total payé par le client')).not.toBeDisabled();
+  expect(screen.getByLabelText('Location (relevé)')).not.toBeDisabled();
   expect(screen.queryByText(/déverrouiller la fiche/)).not.toBeInTheDocument();
 });
 
@@ -130,7 +130,7 @@ test('rule 11 — an unreceived payout on an unlocked fiche keeps the draft save
 
 test('a modified locked fiche must be saved or reverted before the statement is written', () => {
   renderFinance({ fichePristine: false });
-  expect(screen.getByLabelText('Montant total payé par le client')).toBeDisabled();
+  expect(screen.getByLabelText('Location (relevé)')).toBeDisabled();
   expect(screen.getByText(/Fiche modifiée : enregistrer ou annuler/)).toBeInTheDocument();
 });
 
@@ -148,7 +148,7 @@ test('review H1 — a received solde of a direct-sale channel (not correctable) 
     </DialogProvider>,
   );
   fireEvent.click(screen.getByRole('button', { name: /Montant figé/ }));
-  expect(screen.queryByLabelText('Montant total payé par le client')).not.toBeInTheDocument();
+  expect(screen.queryByLabelText('Location (relevé)')).not.toBeInTheDocument();
   expect(api.previewPlatformStatement).not.toHaveBeenCalled();
 });
 

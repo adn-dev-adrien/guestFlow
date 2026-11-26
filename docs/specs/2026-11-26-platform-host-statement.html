@@ -1,0 +1,395 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Retour de la comptable — séjours plateforme et commissions</title>
+<style>
+:root{--primary:#2F5D46;--primary-dark:#214131;--primary-soft:#E3ECE6;--honey:#C99038;--paper:#F8F5EF;--white:#fff;--ink:#27251F;--muted:#6E6A5E;--ok:#3E7D54;--ok-soft:#E2EFE6;--warn:#8F6A1D;--warn-soft:#F6EDD7;--err:#A8433A;--err-soft:#F6E3E0;--info:#31556E;--info-soft:#E1EAF0;--divider:rgba(60,54,36,.12);--shadow:0 3px 16px rgba(60,54,36,.09);--serif:"Source Serif 4",Georgia,serif;--sans:Inter,system-ui,-apple-system,"Segoe UI",sans-serif}
+*{box-sizing:border-box}
+body{margin:0;background:var(--paper);color:var(--ink);font:15px/1.55 var(--sans)}
+main{max-width:1100px;margin:0 auto;padding:32px 20px 80px}
+h1{font:600 2rem/1.15 var(--serif);margin:0 0 6px}
+h2{font:600 1.3rem/1.2 var(--serif);margin:44px 0 10px}
+h3{font:600 1rem/1.3 var(--sans);margin:0 0 8px}
+p{max-width:75ch}
+.lead{color:var(--muted);margin:0 0 20px}
+.card{background:var(--white);border-radius:14px;box-shadow:var(--shadow);padding:16px 20px;margin:12px 0}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+@media(max-width:860px){.grid2{grid-template-columns:1fr}}
+ul{margin:6px 0;padding-left:20px}li{margin:4px 0}
+.small{font-size:.82rem;color:var(--muted)}
+.num{font-variant-numeric:tabular-nums;white-space:nowrap}
+table{border-collapse:collapse;width:100%;font-size:.88rem}
+th,td{padding:7px 8px;border-bottom:1px solid var(--divider);text-align:left;vertical-align:top}
+th{font-weight:600;color:var(--muted);font-size:.78rem}
+td.r,th.r{text-align:right}
+.scroll{overflow-x:auto}
+.chip{display:inline-block;font-size:.75rem;font-weight:600;padding:2px 9px;border-radius:99px;background:var(--primary-soft);color:var(--primary)}
+.chip.warn{background:var(--warn-soft);color:var(--warn)}
+.chip.err{background:var(--err-soft);color:var(--err)}
+.chip.info{background:var(--info-soft);color:var(--info)}
+.stage{background:#EDE8DE;border-radius:18px;padding:18px}
+.seg{display:inline-flex;flex-wrap:wrap;background:rgba(60,54,36,.08);border-radius:10px;padding:3px;gap:2px}
+.seg button{border:0;background:none;font:500 .85rem var(--sans);padding:0 12px;min-height:40px;border-radius:8px;cursor:pointer;color:var(--ink)}
+.seg button[aria-pressed=true]{background:#fff;box-shadow:0 1px 4px rgba(60,54,36,.15);font-weight:600}
+.seg button:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid var(--primary);outline-offset:2px}
+.row{display:flex;flex-wrap:wrap;gap:12px;align-items:center;margin-bottom:12px}
+.fiche{background:#fff;border-radius:14px;box-shadow:var(--shadow);padding:16px}
+.fiche-head{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px}
+.block{background:var(--paper);border-radius:14px;padding:12px;container-type:inline-size}
+.fields{display:grid;gap:12px;grid-template-columns:1fr}
+@container (min-width:560px){.fields{grid-template-columns:1fr 1fr}}
+.f{display:grid;gap:3px}
+.f label{font-size:.78rem;font-weight:600;color:var(--muted)}
+.f input{font:15px var(--sans);padding:9px 11px;border:1px solid rgba(60,54,36,.28);border-radius:8px;min-height:44px;background:#fff;color:var(--ink);font-variant-numeric:tabular-nums;width:100%}
+.f input[aria-invalid=true]{border-color:var(--err);background:var(--err-soft)}
+.f .help{font-size:.76rem;color:var(--muted)}
+.f .help.err{color:var(--err);font-weight:500}
+.f .help.warn{color:var(--warn);font-weight:500}
+.f.hidden{display:none}
+.calc{display:flex;gap:8px;align-items:flex-end}
+.calc .f{flex:1}
+.btn{font:500 .88rem var(--sans);min-height:44px;padding:0 14px;border-radius:10px;border:1px solid var(--primary);background:#fff;color:var(--primary);cursor:pointer;white-space:nowrap}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.btn.filled{background:var(--primary);color:#fff}
+.lines{margin-top:12px;display:grid;gap:6px}
+.line{font-size:.85rem;padding:7px 10px;border-radius:10px;background:#fff;border:1px solid var(--divider)}
+.line.ok{background:var(--ok-soft);border-color:transparent;color:#245536}
+.line.warn{background:var(--warn-soft);border-color:transparent;color:#6b4f12}
+.line.err{background:var(--err-soft);border-color:transparent;color:#7d2f28}
+.entry{background:#fff;border-radius:14px;box-shadow:var(--shadow);overflow:hidden}
+.entry table td,.entry table th{padding:6px 10px}
+.entry .t{display:inline-block;font-size:.7rem;font-weight:600;padding:1px 8px;border-radius:99px;color:#fff}
+.t.client{background:#8a6a1f}.t.com{background:#9a958a}.t.prod{background:#3E7D54}.t.tva{background:#31556E}.t.tax{background:#6E6A5E}
+.entry-head{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:10px 12px;border-bottom:1px solid var(--divider);flex-wrap:wrap}
+.mono{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:.82rem}
+.diff{background:var(--err-soft)}
+.toggle{display:flex;gap:8px;align-items:center;font-size:.85rem;min-height:44px}
+.toggle input{width:20px;height:20px;accent-color:var(--primary)}
+select{font:14px var(--sans);min-height:40px;border-radius:8px;border:1px solid rgba(60,54,36,.28);padding:0 8px;background:#fff;color:var(--ink)}
+.q{background:#fff;border-radius:14px;box-shadow:var(--shadow);padding:14px 18px;margin:12px 0}
+.q h3{margin-bottom:4px}
+.q .ctx{font-size:.85rem;color:var(--muted);margin:0 0 8px}
+.opt{display:flex;gap:10px;align-items:flex-start;padding:8px 10px;border-radius:10px;cursor:pointer;border:1px solid transparent}
+.opt:hover{background:var(--paper)}
+.opt input{margin-top:4px;width:18px;height:18px;accent-color:var(--primary);flex:none}
+.opt:has(input:checked){border-color:var(--primary);background:var(--primary-soft)}
+.opt b{font-weight:600}
+.opt span.d{display:block;font-size:.83rem;color:var(--muted)}
+textarea{width:100%;min-height:170px;font:13px/1.5 ui-monospace,Menlo,monospace;border-radius:10px;border:1px solid var(--divider);padding:10px;background:#fff}
+.copied{color:var(--ok);font-weight:600;font-size:.85rem;margin-left:10px}
+@media (prefers-reduced-motion:no-preference){.seg button,.btn,.opt{transition:background-color .15s ease-out,border-color .15s ease-out}}
+</style>
+</head>
+<body>
+<main>
+<h1>Retour de la comptable : séjours plateforme et commissions</h1>
+<p class="lead">Mail du cabinet ANC2 du 26/11/2026 sur l’export d’octobre, vérifié sur la prod : elle a raison sur tous les points. Deuxième tour, avec tes décisions intégrées. Spec : <span class="mono">specs/platforms/platform-host-statement-and-commission-vat.md</span>.</p>
+
+<h2>Le constat (vérifié en prod)</h2>
+<div class="grid2">
+  <div class="card">
+    <h3>Le montant saisi n'est pas celui de l'hôte</h3>
+    <p class="small" style="margin-top:0">La fiche demande le « Montant total payé par le client ». Ce montant contient les frais que la plateforme facture au voyageur, ou la taxe de séjour, ce qui gonfle le CA, la TVA et la commission.</p>
+    <table>
+      <tr><th></th><th class="r">Relevé hôte</th><th class="r">Fiche</th></tr>
+      <tr><td>Dausque (GdF), CA</td><td class="r num">864,00</td><td class="r num">907,20</td></tr>
+      <tr><td>Fraisse (Airbnb), commission</td><td class="r num">124,78</td><td class="r num">140,65</td></tr>
+      <tr><td>Toussaint (Airbnb, import auto), CA</td><td class="r num">1 154,60</td><td class="r num">1 207,40</td></tr>
+    </table>
+  </div>
+  <div class="card">
+    <h3>Tes décisions du 26/11</h3>
+    <ul class="small">
+      <li>Le montant saisi est le montant hôte, hors taxe (Q1).</li>
+      <li>Un régime de TVA par plateforme (Q2), un <b>code TVA</b> dans le CSV (Q3) et l'<b>autoliquidation</b> écrite dans l'export.</li>
+      <li>La 4671 et la déclaration à l'office reçoivent <b>notre calcul</b> de taxe. L'écart avec la taxe versée par la plateforme va dans le prix du logement (Q4).</li>
+      <li>Les options sont corrigées à la racine, dans la fiche et dans l'import GdF (Q5).</li>
+      <li>Alerte au-delà d'1 point d'écart avec le taux de la plateforme ; je mets à jour les taux après la release (Q6).</li>
+      <li>Les frais Stripe et Mollie passent en commission sans TVA.</li>
+      <li>Je vérifie moi-même sur une copie de la prod en rejouant octobre, puis je règle tous les paramètres de prod après la release (Q7).</li>
+    </ul>
+  </div>
+</div>
+
+<h2>Le bloc « Paiement plateforme » proposé</h2>
+<p>Choisis un séjour et modifie les chiffres : l'écriture se recalcule à droite. Pour Fraisse et Dausque, elle est comparée à celle de la comptable (codes TVA compris). Les deux lignes d'autoliquidation sont nouvelles : elles s'ajoutent à son écriture.</p>
+<div class="stage">
+  <div class="row">
+    <div class="seg" role="group" aria-label="Séjour" id="presets">
+      <button type="button" data-p="fraisse" aria-pressed="true">Fraisse — Airbnb</button>
+      <button type="button" data-p="dausque" aria-pressed="false">Dausque — Gîtes de France</button>
+      <button type="button" data-p="toussaint" aria-pressed="false">Toussaint — Airbnb (import)</button>
+    </div>
+  </div>
+  <div class="grid2">
+    <div class="fiche">
+      <div class="fiche-head">
+        <h3 style="margin:0">Paiement plateforme</h3>
+        <span class="chip info" id="modeChip"></span>
+      </div>
+      <div class="small" id="ficheLines" style="margin-bottom:8px"></div>
+      <div class="block">
+        <div class="fields">
+          <div class="f"><label for="vir">Virement reçu (€)</label><input id="vir" inputmode="decimal"><span class="help" id="h-vir">Total versé par la plateforme pour ce séjour.</span></div>
+          <div class="f"><label for="loc">Location (relevé)</label><input id="loc" inputmode="decimal"><span class="help" id="h-loc">Hors taxe de séjour et hors frais payés par le voyageur.</span></div>
+          <div class="f"><label for="opts">Options (relevé)</label><input id="opts" inputmode="decimal"><span class="help" id="h-opts">Options facturées par la plateforme pour l’hôte (ménage, linge…).</span><span id="fixSlot"></span></div>
+          <div class="f" id="f-tax"><label for="tax" id="l-tax"></label><input id="tax" inputmode="decimal"><span class="help" id="h-tax"></span></div>
+          <div class="calc" style="grid-column:1/-1">
+            <div class="f"><label for="com">Commission solde (€)</label><input id="com" inputmode="decimal"><span class="help" id="h-com"></span></div>
+            <button type="button" class="btn" id="calcBtn">Calculer</button>
+          </div>
+        </div>
+        <div class="lines" id="lines" aria-live="polite"></div>
+        <div class="row" style="margin:12px 0 0;justify-content:flex-end"><button type="button" class="btn filled" id="saveBtn">Enregistrer</button></div>
+        <div class="small" id="saveMsg" aria-live="polite"></div>
+      </div>
+    </div>
+    <div>
+      <div class="entry">
+        <div class="entry-head"><b id="entryTitle"></b><span id="match"></span></div>
+        <div class="scroll"><table id="entryTable"></table></div>
+      </div>
+      <p class="small" id="entryNote"></p>
+      <details class="small"><summary>Écriture de la comptable</summary><div class="scroll"><table id="refTable"></table></div><p id="refNote"></p></details>
+    </div>
+  </div>
+</div>
+
+<h2>Comptabilité › Plateformes : le régime de TVA remplace la case</h2>
+<p>Le régime choisi propose le compte du cabinet ; un compte que tu as tapé n'est jamais écrasé. Les frais Mollie passent sur le compte « sans TVA ».</p>
+<div class="card scroll">
+  <table id="platTable"></table>
+  <p class="small">Plan comptable, réglable : autoliquidation 44566200 (déductible) / 44520000 (due), codes TVA TI (10 %), TN (20 %), TR (5,5 %), INTRACOM (commission UE). Les valeurs autres que TI et INTRACOM, qu'on voit dans ses écritures, sont à confirmer par le cabinet.</p>
+</div>
+
+<h2>Ce qu'on fait, ce qu'on ne fait pas</h2>
+<div class="grid2">
+  <div class="card"><h3>On fait</h3><ul>
+    <li>Une saisie en deux montants, location et options, lus sur le relevé hôte. La fiche refuse l'enregistrement si ses options ne font pas le total du relevé, et propose le correctif.</li>
+    <li>Les imports GdF, Airbnb et Booking écrivent ces chiffres depuis la source. L'import GdF refuse s'il ne retrouve pas les options sur la fiche.</li>
+    <li>Notre calcul de taxe en 4671 et sur la page Taxes de séjour ; l'écart avec la plateforme va au logement, et la fiche l'affiche.</li>
+    <li>Le régime de TVA par plateforme, l'autoliquidation dans l'export, la colonne « Code TVA » en fin de fichier et les frais Mollie en commission.</li>
+    <li>Une migration qui ne change aucun prix existant.</li>
+    <li>La vérification d'octobre sur une copie de la prod, puis, après la release, le réglage de la prod et la reprise de novembre et des séjours à venir.</li>
+  </ul></div>
+  <div class="card"><h3>On ne fait pas</h3><ul>
+    <li>Reprendre octobre ou un mois déjà déposé : le cabinet l'a déjà corrigé.</li>
+    <li>Une ligne de TVA par ligne de produit : GuestFlow totalise par taux, ce que le cabinet accepte.</li>
+  </ul>
+  <h3 style="margin-top:14px">Risques</h3>
+  <ul class="small">
+    <li>Si son code INTRACOM génère déjà l'autoliquidation dans son logiciel, nos deux lignes la doubleraient. Un réglage permet de les couper ; c'est à lui demander.</li>
+    <li>Ajouter une colonne au CSV peut gêner son import : je la mets en dernière position pour qu'aucune colonne existante ne bouge.</li>
+  </ul></div>
+</div>
+
+<h2>Arbitrages restants</h2>
+<p>Coche, puis « Copier » et colle le résumé dans le dialogue. L'option recommandée est en premier.</p>
+<div id="questions"></div>
+<div class="card">
+  <div class="row" style="margin:0"><h3 style="margin:0">Résumé des choix</h3><button type="button" class="btn filled" id="copyBtn">Copier</button><span class="copied" id="copied" hidden>Copié</span></div>
+  <textarea id="summary" readonly aria-label="Résumé des choix"></textarea>
+</div>
+<div class="card">
+  <h3>À demander au cabinet (je te prépare le message)</h3>
+  <ul class="small">
+    <li>Le régime de Campspace.</li>
+    <li>Ses codes TVA pour les ventes à 20 % et à 5,5 % et pour une commission française déductible, et si une colonne « Code TVA » en fin de fichier convient à son import.</li>
+    <li>Les comptes d'autoliquidation (44566200 / 44520000 ?) et si son code INTRACOM les génère déjà.</li>
+  </ul>
+</div>
+</main>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const r2 = (n) => Math.round((n + Number.EPSILON) * 100) / 100;
+const fmt = (n) => n.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €';
+const fmtIn = (n) => n.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const parse = (s) => { const t = String(s).trim().replace(/\s/g, '').replace(',', '.'); if (t === '') return null; return /^-?\d+(\.\d+)?$/.test(t) ? Number(t) : NaN; };
+
+const REGIME_ACCOUNT = { fr: '62260500', eu: '62260300', no: '62260600' };
+const REGIME_LABEL = { fr: 'France — TVA 20 % déductible', eu: 'UE — autoliquidation', no: 'Sans TVA' };
+const MODE_CHIP = { platform: 'Taxe reversée par la plateforme', reversed: 'Taxe versée avec le virement' };
+const ACC_LABEL = { '70600000': 'Location gîte', '70600010': 'Prestation complémentaire', '44571100': 'TVA 10 %', '46710000': 'Taxe de séjour', '44566000': 'TVA déductible commission', '44566200': 'TVA déductible autoliquidée', '44520000': 'TVA due intracommunautaire', '62260300': 'Commissions plateformes UE', '62260500': 'Commissions plateformes France', '62260600': 'Commissions et frais sans TVA' };
+
+const PRESETS = {
+  fraisse: { pf: 'Airbnb', rate: 15.5, regime: 'eu', mode: 'reversed', client: 'CFRAISS', name: 'NICOLAS FRAISSE', engineTax: 24,
+    fiche: { vir: '704,22', loc: '725,00', opts: '80,00', tax: '24,00', com: '' },
+    lines: [{ label: 'Ménage', price: 80, paid: true }, { label: 'Linge de lit', price: 0, paid: false }],
+    ref: [['client','CFRAISS',704.22,0,''],['com','62260300',124.78,0,'INTRACOM'],['prod','70600000',0,659.09,'TI'],['prod','70600010',0,72.73,'TI'],['tva','44571100',0,73.18,''],['tax','46710000',0,24.00,'']],
+    refNote: 'Taxe GuestFlow pour les 10 adultes payés via Airbnb : 24,00 € ; les 3 adultes ajoutés (7,20 €) sont perçus à l’arrivée.' },
+  dausque: { pf: 'Gîtes de France', rate: 0, regime: 'fr', mode: 'platform', client: 'CDAUSQU', name: 'FRANCOISE DAUSQUE', engineTax: 0,
+    fiche: { vir: '786,00', loc: '784,00', opts: '80,00', tax: '36,00', com: '' },
+    lines: [{ label: 'Ménage', price: 80, paid: false }, { label: 'Linge de lit', price: 0, paid: false }],
+    ref: [['client','CDAUSQU',786.00,0,''],['com','62260500',65.00,0,''],['tva','44566000',13.00,0,''],['prod','70600000',0,712.73,'TI'],['prod','70600010',0,72.73,'TI'],['tva','44571100',0,78.54,'']],
+    refNote: 'Elle passe la TVA en deux lignes (71,27 + 7,27) ; GuestFlow totalise par taux (78,54). Sa capture montre 62260000, mais son mail range GdF en 62260500.' },
+  toussaint: { pf: 'Airbnb', rate: 15.5, regime: 'eu', mode: 'reversed', client: 'CTOUSSA', name: 'LOUIS TOUSSAINT', engineTax: 24,
+    fiche: { vir: '1028,44', loc: '1154,60', opts: '0,00', tax: '52,80', com: '' },
+    lines: [{ label: 'Linge de lit', price: 0, paid: false }],
+    ref: null, refNote: 'Import du mail Airbnb : frais de chambre 1 598,00 − ajustement 443,40 = 1 154,60 ; Airbnb verse 52,80 € de taxes (il en garde 28,86) ; GuestFlow calcule 24,00 € pour 5 adultes × 4 nuits.' },
+};
+const TAG = { client: 'Client', com: 'Commission', prod: 'Produit', tva: 'TVA', tax: 'Taxe' };
+let state = { preset: 'fraisse', lines: [] };
+
+function load() {
+  const p = PRESETS[state.preset];
+  for (const k of ['vir', 'loc', 'opts', 'tax', 'com']) $(k).value = p.fiche[k];
+  state.lines = p.lines.map((l) => ({ ...l }));
+  $('saveMsg').textContent = '';
+  render();
+}
+const ficheOptions = () => r2(state.lines.filter((l) => l.paid).reduce((s, l) => s + l.price, 0));
+function help(id, msg, tone) { const h = $('h-' + id); h.textContent = msg; h.className = 'help' + (tone ? ' ' + tone : ''); $(id).setAttribute('aria-invalid', tone === 'err' ? 'true' : 'false'); }
+
+function compute() {
+  const p = PRESETS[state.preset];
+  const v = {}; const errs = {};
+  for (const k of ['vir', 'loc', 'opts', 'tax', 'com']) { v[k] = parse($(k).value); if (Number.isNaN(v[k]) || (v[k] != null && v[k] < 0)) errs[k] = 'Montant invalide : un nombre positif, ex. 725,00.'; }
+  const ok = (k) => v[k] != null && !errs[k];
+  const host = ok('loc') ? r2(v.loc + (ok('opts') ? v.opts : 0)) : null;
+  const taxPaid = p.mode === 'reversed' && ok('tax') ? v.tax : 0;
+  const gap = p.mode === 'reversed' && ok('tax') ? r2(v.tax - p.engineTax) : 0;
+  if (ok('com') && host != null && v.com > r2(host + taxPaid)) errs.com = 'La commission dépasse le montant hôte' + (taxPaid ? ' et la taxe versée.' : '.');
+  let optRefusal = null;
+  if (ok('opts') && Math.abs(v.opts - ficheOptions()) > 0.005) {
+    const diff = r2(v.opts - ficheOptions());
+    const fix = state.lines.find((l) => !l.paid && Math.abs(l.price - diff) < 0.005);
+    optRefusal = { msg: `Le relevé compte ${fmt(v.opts)} d’options, la fiche ${fmt(ficheOptions())}.`, fix };
+  }
+  return { p, v, errs, ok, host, taxPaid, gap, optRefusal };
+}
+
+function render() {
+  const { p, v, errs, ok, host, taxPaid, gap, optRefusal } = compute();
+  document.querySelectorAll('#presets button').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.p === state.preset)));
+  $('modeChip').textContent = MODE_CHIP[p.mode];
+  $('ficheLines').innerHTML = 'Options de la fiche : ' + state.lines.map((l) => `${l.label} ${l.paid ? fmt(l.price) : '<span class="chip warn">offert</span>'}`).join(' · ');
+  $('l-tax').textContent = p.mode === 'reversed' ? 'Taxe de séjour versée avec le virement (€)' : 'Taxe de séjour retenue par la plateforme (€)';
+  help('vir', errs.vir || 'Total versé par la plateforme pour ce séjour.', errs.vir ? 'err' : '');
+  help('loc', errs.loc || 'Hors taxe de séjour et hors frais payés par le voyageur.', errs.loc ? 'err' : '');
+  help('tax', errs.tax || (p.mode === 'reversed' ? `Chiffre du relevé. GuestFlow déclare ${fmt(p.engineTax)} (son calcul) ; l’écart va au logement.` : 'Reversée à la commune par la plateforme — hors comptes de l’établissement.'), errs.tax ? 'err' : '');
+  help('com', errs.com || 'Frais retenus sur le solde.', errs.com ? 'err' : '');
+  if (errs.opts) help('opts', errs.opts, 'err');
+  else if (optRefusal) help('opts', optRefusal.msg, 'err');
+  else help('opts', 'Options facturées par la plateforme pour l’hôte (ménage, linge…).', '');
+  $('fixSlot').innerHTML = optRefusal && optRefusal.fix ? `<button type="button" class="btn" id="fixBtn" style="min-height:40px;margin-top:4px">Passer « ${optRefusal.fix.label} » en payant (${fmt(optRefusal.fix.price)})</button>` : '';
+  if ($('fixBtn')) $('fixBtn').onclick = () => { optRefusal.fix.paid = true; render(); };
+
+  if (ok('com') && host && p.rate > 0) {
+    const rate = r2(ok('com') ? v.com / host * 100 : 0);
+    if (Math.abs(rate - p.rate) > 1) help('com', `Commission à ${rate.toLocaleString('fr-FR')} % du montant hôte, ${p.pf} est à ${p.rate.toLocaleString('fr-FR')} % : ${rate > p.rate ? 'le montant hôte contient-il les frais payés par le voyageur ?' : 'vérifier le virement.'}`, 'warn');
+  }
+  const canCalc = host != null && ok('vir') && !errs.tax;
+  $('calcBtn').disabled = !canCalc;
+  $('calcBtn').title = canCalc ? 'Commission = location + options + taxe versée − virement' : 'Renseigner la location et le virement';
+
+  const L = [];
+  if (ok('com') && !errs.com && host != null) {
+    const net = r2(host + taxPaid - v.com);
+    if (ok('vir')) { const g = r2(net - v.vir); L.push(Math.abs(g) < 0.005 ? ['ok', `${fmt(host)}${taxPaid ? ' + ' + fmt(taxPaid) : ''} − ${fmt(v.com)} = ${fmt(net)} ✓ virement`] : ['err', `${fmt(host)}${taxPaid ? ' + ' + fmt(taxPaid) : ''} − ${fmt(v.com)} = ${fmt(net)} · écart de ${fmt(Math.abs(g))} avec le virement`]); }
+    if (p.regime === 'fr') { const ht = r2(v.com / 1.2); L.push(['', `Commission ${fmt(v.com)} TTC = ${fmt(ht)} HT + ${fmt(r2(v.com - ht))} de TVA déductible · compte ${REGIME_ACCOUNT.fr}`]); }
+    else if (p.regime === 'eu') L.push(['', `Commission ${fmt(v.com)} · UE, TVA autoliquidée ${fmt(r2(v.com * 0.2))} · compte ${REGIME_ACCOUNT.eu}`]);
+  }
+  if (gap) L.push(['warn', `Écart de taxe de séjour : ${gap > 0 ? '+' : '−'}${fmt(Math.abs(gap))} (${p.pf} ${fmt(v.tax)}, GuestFlow ${fmt(p.engineTax)}) ajouté au logement.`]);
+  $('lines').innerHTML = L.map(([t, l]) => `<div class="line ${t}">${l}</div>`).join('');
+  entry({ p, v, errs, ok, host, taxPaid, gap, optRefusal });
+}
+
+function entry({ p, v, errs, ok, host, taxPaid, gap, optRefusal }) {
+  $('entryTitle').textContent = `Écriture proposée · ${p.name}`;
+  if (host == null || !ok('com') || errs.com || errs.tax || optRefusal) {
+    $('entryTable').innerHTML = `<tr><td class="small">${optRefusal ? 'Enregistrement refusé tant que les options de la fiche ne correspondent pas au relevé.' : 'Renseigner la location et la commission pour voir l’écriture.'}</td></tr>`;
+    $('match').innerHTML = ''; $('entryNote').textContent = ''; drawRef(p); return;
+  }
+  const opt = ok('opts') ? v.opts : 0;
+  const accTtc = r2(Math.max(0, v.loc + gap));
+  const accHt = r2(accTtc / 1.1), optHt = r2(opt / 1.1);
+  const vat = r2(accTtc + opt - accHt - optHt);
+  const tax = p.mode === 'reversed' ? p.engineTax : 0;
+  const rows = [['client', p.client, r2(accTtc + opt + tax - v.com), 0, '']];
+  if (p.regime === 'fr') { const ht = r2(v.com / 1.2); rows.push(['com', REGIME_ACCOUNT.fr, ht, 0, '']); rows.push(['tva', '44566000', r2(v.com - ht), 0, '']); }
+  else rows.push(['com', REGIME_ACCOUNT[p.regime], v.com, 0, p.regime === 'eu' ? 'INTRACOM' : '']);
+  if (p.regime === 'eu') { const a = r2(v.com * 0.2); rows.push(['tva', '44566200', a, 0, '', 'auto']); rows.push(['tva', '44520000', 0, a, '', 'auto']); }
+  if (accHt) rows.push(['prod', '70600000', 0, accHt, 'TI']);
+  if (optHt) rows.push(['prod', '70600010', 0, optHt, 'TI']);
+  rows.push(['tva', '44571100', 0, vat, '']);
+  if (tax) rows.push(['tax', '46710000', 0, tax, '']);
+  const ref = p.ref ? new Map(p.ref.map((l) => [l[1], l])) : null;
+  let same = !!ref;
+  const html = rows.map((l) => {
+    const rl = ref && ref.get(l[1]);
+    const added = l[5] === 'auto';
+    const diff = ref && !added && (!rl || Math.abs(rl[2] - l[2]) > 0.005 || Math.abs(rl[3] - l[3]) > 0.005 || rl[4] !== l[4]);
+    if (diff) same = false;
+    return `<tr class="${diff ? 'diff' : ''}"><td><span class="t ${l[0]}">${TAG[l[0]]}</span></td><td class="mono">${l[1]}<div class="small">${ACC_LABEL[l[1]] || 'Compte client'}${added ? ' · <b>nouveau</b>' : ''}</div></td><td class="mono small">${l[4] || ''}</td><td class="r num mono">${l[2] ? fmt(l[2]) : '—'}</td><td class="r num mono">${l[3] ? fmt(l[3]) : '—'}</td></tr>`;
+  }).join('');
+  if (ref) for (const k of ref.keys()) if (!rows.find((r) => r[1] === k)) same = false;
+  const d = rows.reduce((s, l) => s + l[2], 0), c = rows.reduce((s, l) => s + l[3], 0);
+  $('entryTable').innerHTML = `<tr><th>Type</th><th>Compte</th><th>Code TVA</th><th class="r">Débit</th><th class="r">Crédit</th></tr>${html}<tr><th>Σ</th><th></th><th></th><th class="r num mono">${fmt(r2(d))}</th><th class="r num mono">${fmt(r2(c))}</th></tr>`;
+  $('match').innerHTML = !ref ? '' : same ? '<span class="chip">= écriture de la comptable (+ autoliquidation)</span>' : '<span class="chip err">≠ écriture de la comptable</span>';
+  $('entryNote').textContent = p.mode === 'platform' && ok('tax') && v.tax ? `La taxe retenue (${fmt(v.tax)}) n’entre dans aucune ligne : la plateforme la reverse à la commune.` : '';
+  drawRef(p);
+}
+function drawRef(p) {
+  $('refTable').innerHTML = p.ref ? '<tr><th>Compte</th><th>Code</th><th class="r">Débit</th><th class="r">Crédit</th></tr>' + p.ref.map((l) => `<tr><td class="mono">${l[1]}</td><td class="mono small">${l[4]}</td><td class="r num mono">${l[2] ? fmt(l[2]) : '—'}</td><td class="r num mono">${l[3] ? fmt(l[3]) : '—'}</td></tr>`).join('') : '';
+  $('refNote').textContent = p.ref ? p.refNote : 'Pas d’écriture de la comptable pour ce séjour (décembre). ' + p.refNote;
+}
+
+$('presets').addEventListener('click', (e) => { const b = e.target.closest('button'); if (!b) return; state.preset = b.dataset.p; load(); });
+['vir', 'loc', 'opts', 'tax', 'com'].forEach((k) => $(k).addEventListener('input', () => { $('saveMsg').textContent = ''; render(); }));
+$('calcBtn').addEventListener('click', () => { const { v, host, taxPaid } = compute(); $('com').value = fmtIn(Math.max(0, r2(host + taxPaid - v.vir))); render(); });
+$('saveBtn').addEventListener('click', () => {
+  const { errs, optRefusal } = compute();
+  const bad = Object.keys(errs).length || optRefusal;
+  $('saveMsg').textContent = bad ? 'Enregistrement refusé : corriger les champs en rouge.' : 'Enregistré.';
+  $('saveMsg').style.color = bad ? 'var(--err)' : 'var(--ok)';
+});
+
+const PLAT_ROWS = [
+  ['Airbnb', 'eu', '', '62260300 · sans TVA'], ['Booking', 'eu', '', 'aucun compte'], ['Abritel', 'eu', '', 'aucun compte'],
+  ['Gîtes de France', 'fr', '', 'aucun compte · sans TVA'], ['Abracadaroom', 'fr', '', 'aucun compte'], ['Greengo', 'fr', '', '62260600 · TVA déductible'],
+  ['Lodgify (frais Stripe)', 'no', '', 'aucun compte'], ['Frais Mollie', 'no', '', '62780000'], ['Campspace', 'eu', '62260700', '62260700 · à confirmer'],
+];
+function drawPlat() {
+  const t = $('platTable');
+  t.innerHTML = '<tr><th>Plateforme</th><th>Régime de TVA</th><th>Compte</th><th>Aujourd’hui en prod</th></tr>' + PLAT_ROWS.map((r, i) => {
+    const acc = r[2] || REGIME_ACCOUNT[r[1]];
+    return `<tr><td>${r[0]}</td><td><select data-i="${i}" aria-label="Régime de TVA de ${r[0]}">${Object.keys(REGIME_LABEL).map((k) => `<option value="${k}" ${k === r[1] ? 'selected' : ''}>${REGIME_LABEL[k]}</option>`).join('')}</select></td><td class="mono">${acc} ${r[2] ? '<span class="chip warn">saisi</span>' : '<span class="chip">proposé</span>'}</td><td class="small">${r[3]}</td></tr>`;
+  }).join('');
+  t.querySelectorAll('select').forEach((s) => s.addEventListener('change', (e) => { PLAT_ROWS[e.target.dataset.i][1] = e.target.value; drawPlat(); }));
+}
+
+const QUESTIONS = [
+  { id: 'Q5', title: 'Options : comment la fiche reste juste', ctx: 'Dausque : GdF a facturé 80 € d’options, alors que la fiche avait le ménage offert.', opts: [
+    ['A', 'Refuser l’enregistrement et proposer le correctif en un clic (Recommandé)', 'On ne peut plus enregistrer une fiche dont les options ne font pas le total du relevé. Le bouton « Passer « Ménage » en payant » corrige en un geste. Essaie-le sur Dausque.'],
+    ['B', 'Ajuster les lignes d’options sans rien demander', 'Plus rapide, mais une option peut changer de prix ou d’état sans que tu le voies.'] ] },
+  { id: 'Q8', title: 'Place de la colonne « Code TVA »', ctx: 'Son import lit les colonnes à leur position.', opts: [
+    ['A', 'En dernière colonne (Recommandé)', 'Aucune colonne existante ne bouge ; son import continue de marcher, et elle mappe la nouvelle.'],
+    ['B', 'Juste après « Compte »', 'Plus lisible, mais toutes les colonnes suivantes se décalent : son import est à refaire.'] ] },
+  { id: 'Q9', title: 'Lignes d’autoliquidation dans l’export', ctx: 'Son code INTRACOM les génère peut-être déjà dans son logiciel.', opts: [
+    ['A', 'Les écrire, avec un réglage pour les couper si elle les génère déjà (Recommandé)', 'Ce que tu as demandé. Le réglage évite les doublons sans toucher au code.'],
+    ['B', 'Ne les écrire qu’après sa réponse', 'Pas de risque de doublon, mais la fonction attend son retour.'] ] },
+  { id: 'GO', title: 'Feu vert pour coder', ctx: 'La spec est à jour avec toutes tes réponses.', opts: [
+    ['A', 'Oui, on code (Recommandé)', 'Code avec Sonnet, relecture Opus neuve, rejeu d’octobre sur une copie de la prod, PR, CI.'],
+    ['B', 'Pas encore', 'Dis-moi ce qui manque.'] ] },
+];
+function drawQuestions() {
+  $('questions').innerHTML = QUESTIONS.map((q) => `<fieldset class="q" style="border:0"><legend><h3>${q.id} · ${q.title}</h3></legend><p class="ctx">${q.ctx}</p>${q.opts.map((o, i) => `<label class="opt"><input type="radio" name="${q.id}" value="${o[0]}" ${i === 0 ? 'checked' : ''}><span><b>${o[1]}</b>${o[2] ? `<span class="d">${o[2]}</span>` : ''}</span></label>`).join('')}</fieldset>`).join('');
+  $('questions').addEventListener('change', summary);
+  summary();
+}
+function summary() {
+  const lines = ['Arbitrages (2e tour) — specs/platforms/platform-host-statement-and-commission-vat.md'];
+  for (const q of QUESTIONS) { const v = document.querySelector(`input[name=${q.id}]:checked`).value; const o = q.opts.find((x) => x[0] === v); lines.push(`${q.id} ${q.title} : ${v} — ${o[1].replace(' (Recommandé)', '')}`); }
+  $('summary').value = lines.join('\n');
+}
+$('copyBtn').addEventListener('click', async () => {
+  try { await navigator.clipboard.writeText($('summary').value); } catch { $('summary').select(); document.execCommand('copy'); }
+  $('copied').hidden = false; setTimeout(() => { $('copied').hidden = true; }, 2500);
+});
+load(); drawPlat(); drawQuestions();
+</script>
+</body>
+</html>

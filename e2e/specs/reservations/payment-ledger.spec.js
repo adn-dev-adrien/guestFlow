@@ -144,7 +144,8 @@ test('past platform stay: « Marquer reçu » records the transfer without savin
   // statement, with the transfer it stands for; nothing is written until « Valider ».
   await payout.getByRole('button', { name: /Modifier le montant/ }).click();
   await expect(payout.getByLabel(/^Virement reçu le .* \(€\)$/)).toHaveValue('250,00');
-  await expect(payout.getByLabel(/^(Montant total payé par le client|Total séjour facturé par la plateforme)$/)).toBeEnabled();
+  // specs/platforms/platform-host-statement-and-commission-vat.md rule 1 — the statement is typed as the host's « Location (relevé) ».
+  await expect(payout.getByLabel('Location (relevé)')).toBeEnabled();
   await payout.getByRole('button', { name: 'Annuler' }).click();
   expect(puts).toEqual([]);
 });

@@ -51,52 +51,54 @@ function csvBytes(entries, plan) {
 const sha = (buffer) => crypto.createHash('sha256').update(buffer).digest('hex');
 
 const GOLDEN_DEFAULT = [
-  "Jour;Mois ;Année;Journal;Pièce;Libellé de l'écriture;Compte;Débit;Crédit;Plateforme;Prix payé client;Commission",
-  '3;12;2026;VT;;ANNA LIMA;CLIMA;550;0;CanalRev;640;90',
-  '3;12;2026;VT;;ANNA LIMA;62260300;75;0;;;',
-  '3;12;2026;VT;;ANNA LIMA;44566000;15;0;;;',
-  '3;12;2026;VT;;ANNA LIMA;70600000;0;500;;;',
-  '3;12;2026;VT;;ANNA LIMA;70600010;0;45,45;;;',
-  '3;12;2026;VT;;ANNA LIMA;44571100;0;54,55;;;',
-  '3;12;2026;VT;;ANNA LIMA;46710000;0;40;;;',
-  '4;12;2026;VT;;ZOÉ OEUVRE;CUVRE;129;0;;;',
-  '4;12;2026;VT;;ZOÉ OEUVRE;70600000;0;117,27;;;',
-  '4;12;2026;VT;;ZOÉ OEUVRE;44571100;0;11,73;;;',
-  '4;10;2026;VT;;ZOÉ OEUVRE;CUVRE;129;0;;;',
-  '4;10;2026;VT;;ZOÉ OEUVRE;70600000;0;117,28;;;',
-  '4;10;2026;VT;;ZOÉ OEUVRE;44571100;0;11,72;;;',
-  '5;12;2026;VT;;PAUL RETOUR;CRETOUR;0;115;;;',
-  '5;12;2026;VT;;PAUL RETOUR;70600000;90,91;0;;;',
-  '5;12;2026;VT;;PAUL RETOUR;75880000;8,33;0;;;',
-  '5;12;2026;VT;;PAUL RETOUR;44571100;9,09;0;;;',
-  '5;12;2026;VT;;PAUL RETOUR;44571200;1,67;0;;;',
-  '5;12;2026;VT;;PAUL RETOUR;46710000;5;0;;;',
-  '6;12;2026;VT;;INDEMNITÉ ANNULATION #7;CXXXXX;120;0;CanalPlat;;',
-  '6;12;2026;VT;;INDEMNITÉ ANNULATION #7;75880000;0;100;;;',
-  '6;12;2026;VT;;INDEMNITÉ ANNULATION #7;44571200;0;20;;;',
-  '7;12;2026;VT;;LÉA PORTE;70900000;20;0;;;',
-  '7;12;2026;VT;;LÉA PORTE;44571100;2;0;;;',
-  '7;12;2026;VT;;LÉA PORTE;CPORTE;0;22;;;',
-  '7;12;2026;VT;;LÉA PORTE;CPORTE;10;0;;;',
-  '7;12;2026;VT;;LÉA PORTE;75880000;0;10;;;',
-  '8;12;2026;VT;;ANNA LIMA;658000;12,50;0;;;',
-  '8;12;2026;VT;;ANNA LIMA;CLIMA;0;12,50;;;',
-  '9;12;2026;VT;;ANA FIN;CFIN;66;0;;;',
-  '9;12;2026;VT;;ANA FIN;70600010;0;45,45;;;',
-  '9;12;2026;VT;;ANA FIN;70601000;0;13,33;;;',
-  '9;12;2026;VT;;ANA FIN;44571100;0;4,55;;;',
-  '9;12;2026;VT;;ANA FIN;44571200;0;2,67;;;',
+  "Jour;Mois ;Année;Journal;Pièce;Libellé de l'écriture;Compte;Débit;Crédit;Plateforme;Prix payé client;Commission;Code TVA",
+  '3;12;2026;VT;;ANNA LIMA;CLIMA;550;0;CanalRev;640;90;',
+  '3;12;2026;VT;;ANNA LIMA;62260300;75;0;;;;',
+  '3;12;2026;VT;;ANNA LIMA;44566000;15;0;;;;',
+  '3;12;2026;VT;;ANNA LIMA;70600000;0;500;;;;TI',
+  '3;12;2026;VT;;ANNA LIMA;70600010;0;45,45;;;;TI',
+  '3;12;2026;VT;;ANNA LIMA;44571100;0;54,55;;;;',
+  '3;12;2026;VT;;ANNA LIMA;46710000;0;40;;;;',
+  '4;12;2026;VT;;ZOÉ OEUVRE;CUVRE;129;0;;;;',
+  '4;12;2026;VT;;ZOÉ OEUVRE;70600000;0;117,27;;;;TI',
+  '4;12;2026;VT;;ZOÉ OEUVRE;44571100;0;11,73;;;;',
+  '4;10;2026;VT;;ZOÉ OEUVRE;CUVRE;129;0;;;;',
+  '4;10;2026;VT;;ZOÉ OEUVRE;70600000;0;117,28;;;;TI',
+  '4;10;2026;VT;;ZOÉ OEUVRE;44571100;0;11,72;;;;',
+  '5;12;2026;VT;;PAUL RETOUR;CRETOUR;0;115;;;;',
+  '5;12;2026;VT;;PAUL RETOUR;70600000;90,91;0;;;;TI',
+  '5;12;2026;VT;;PAUL RETOUR;75880000;8,33;0;;;;TN',
+  '5;12;2026;VT;;PAUL RETOUR;44571100;9,09;0;;;;',
+  '5;12;2026;VT;;PAUL RETOUR;44571200;1,67;0;;;;',
+  '5;12;2026;VT;;PAUL RETOUR;46710000;5;0;;;;',
+  '6;12;2026;VT;;INDEMNITÉ ANNULATION #7;CXXXXX;120;0;CanalPlat;;;',
+  '6;12;2026;VT;;INDEMNITÉ ANNULATION #7;75880000;0;100;;;;TN',
+  '6;12;2026;VT;;INDEMNITÉ ANNULATION #7;44571200;0;20;;;;',
+  '7;12;2026;VT;;LÉA PORTE;70900000;20;0;;;;TI',
+  '7;12;2026;VT;;LÉA PORTE;44571100;2;0;;;;',
+  '7;12;2026;VT;;LÉA PORTE;CPORTE;0;22;;;;',
+  '7;12;2026;VT;;LÉA PORTE;CPORTE;10;0;;;;',
+  '7;12;2026;VT;;LÉA PORTE;75880000;0;10;;;;',
+  '8;12;2026;VT;;ANNA LIMA;658000;12,50;0;;;;',
+  '8;12;2026;VT;;ANNA LIMA;CLIMA;0;12,50;;;;',
+  '9;12;2026;VT;;ANA FIN;CFIN;66;0;;;;',
+  '9;12;2026;VT;;ANA FIN;70600010;0;45,45;;;;TI',
+  '9;12;2026;VT;;ANA FIN;70601000;0;13,33;;;;TN',
+  '9;12;2026;VT;;ANA FIN;44571100;0;4,55;;;;',
+  '9;12;2026;VT;;ANA FIN;44571200;0;2,67;;;;',
   '',
 ].join('\r\n');
 
-test('rule 3 — the CSV is byte-identical to the export before the refactor, default plan and renamed plan', () => {
+// Amended 2026-11-26 (specs/platforms/platform-host-statement-and-commission-vat.md rule 16): the export before the refactor, plus the « Code TVA » column
+// appended last — every row of the old golden is the same bytes up to that last cell.
+test('rule 3 — the CSV is byte-identical to the export before the refactor, default plan and renamed plan, but for the trailing VAT code', () => {
   const bytes = csvBytes(ENTRIES);
   assert.equal(bytes.toString('latin1'), GOLDEN_DEFAULT);
-  assert.equal(sha(bytes), 'd359bec6001cacfb46f814301a8b988de963f57ef2fe732f85dd59feb5944258');
-  assert.equal(sha(csvBytes(ENTRIES, RENAMED_PLAN)), '8c3089656823caccedc9d00d0d23ba34cfbe333f728c7d55621b1ba2b5edd3f5');
+  assert.equal(sha(bytes), 'cfabe0c5c0b4689b5b06eec4e4e163809aa3b3f53cd3a731a03ceaa82373e110');
+  assert.equal(sha(csvBytes(ENTRIES, RENAMED_PLAN)), '32aa3505ea583fc1de38dde47bbe8fdefa78834a954206921e21252f1db116d0');
 });
 
-test('rule 3 — the role of a row rides beside it, never in it: the cells are the twelve columns', () => {
+test('rule 3 — the role of a row rides beside it, never in it: the cells are the thirteen columns', () => {
   for (const row of buildRows(ENTRIES, RENAMED_PLAN)) {
     assert.equal(row.length, CSV_HEADERS.length);
     assert.deepEqual(Object.keys(row), Object.keys([...row]));

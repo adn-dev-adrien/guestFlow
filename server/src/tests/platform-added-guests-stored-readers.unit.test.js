@@ -19,7 +19,7 @@ function addedGuestStay() {
     VALUES (3, 'Gîte', 8, 'per_day_per_person', 1.2, 2, 20, 'per_night', 0)`).run();
   db.prepare("INSERT INTO pricing_rules (propertyId, label, pricePerNight) VALUES (3, 'Standard', 300)").run();
   db.prepare("INSERT INTO platforms (name, collectsTouristTax, touristTaxRemittedByPlatform) VALUES ('Canal', 1, 0)").run();
-  const stay = { propertyId: 3, platform: 'Canal', startDate: inDays(100), endDate: inDays(102), platformGrossAmount: 600 };
+  const stay = { propertyId: 3, platform: 'Canal', startDate: inDays(100), endDate: inDays(102), platformGrossAmount: 595.2, platformTouristTaxAmount: 4.8 };
   const customOptions = [{ description: 'Ligne', amount: 60, inComplement: 0 }];
   const id = createStay({ ...stay, customOptions });
   const res = save(id, { ...stay, adults: 3, customOptions });

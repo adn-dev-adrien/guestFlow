@@ -1,5 +1,5 @@
 /**
- * Saisie Airbnb (specs/airbnb-mail-intake.md). Reads Airbnb's « Réservation confirmée » mails in the
+ * Saisie Airbnb (specs/platforms/airbnb-mail-intake.md). Reads Airbnb's « Réservation confirmée » mails in the
  * mailbox GuestFlow sends from, and fills the matching iCal fiche — guest, party, confirmation code,
  * message and « Paiement plateforme » — through the fiche's own save path.
  */
@@ -35,7 +35,7 @@ function register(ctx) {
     { name: 'intakes_parser_version_v3', up: addParserVersionColumn },
   ]);
 
-  // specs/airbnb-mail-intake.md rule 37 (audit R42-EXT-L2 class) — a key names a logement of the core, or one already stored (a deleted
+  // specs/platforms/airbnb-mail-intake.md rule 37 (audit R42-EXT-L2 class) — a key names a logement of the core, or one already stored (a deleted
   // logement's line never blocks a save). A phantom key bypassed the « nothing tied yet » skip and tied a logement
   // created later to a listing nobody chose.
   const unknownLogementKey = (raw) => {
@@ -99,8 +99,8 @@ function register(ctx) {
       updateBody: ctx.core.reservations.updateBody,
       suggestBeds: ctx.core.reservations.suggestBeds,
       platformCommission: ctx.core.reservations.platformCommission,
-      // Rule 20 — the mode of the fiche's own platform row (« Airbnb », or a renamed / second Airbnb channel).
-      withholdsTouristTax: (propertyId, platform) => ctx.core.reservations.platformWithholdsTouristTax(propertyId, platform),
+      // Rules 5 and 20 — the mode of the fiche's own platform row (« Airbnb », or a renamed / second Airbnb channel): what its tax box means.
+      touristTaxMode: (propertyId, platform) => ctx.core.reservations.touristTaxMode(propertyId, platform),
     },
   });
 

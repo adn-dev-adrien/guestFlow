@@ -1,6 +1,6 @@
 /**
- * Qonto payment webhook (specs/public-online-payment.md §3bis), declared through `ctx.webhook`
- * (specs/plugins-phase-3a-online-payment.md rule 12): no session reaches it, so it authenticates
+ * Qonto payment webhook (specs/site/public-online-payment.md §3bis), declared through `ctx.webhook`
+ * (specs/plugins/plugins-phase-3a-online-payment.md rule 12): no session reaches it, so it authenticates
  * Qonto itself with an **HMAC-SHA256 signature** over the raw body and the shared webhook secret. On a
  * verified delivery it re-reads the link's authoritative paid state at Qonto, then runs the core's
  * idempotent `processPaidLink` — a forged-but-unsigned call can never confirm a booking.
@@ -47,10 +47,10 @@ function createWebhookController({ provider, settings, paymentLinksModel, proces
       const remoteId = extractPaymentLinkId(req.body);
       const link = remoteId ? links().findByProviderLinkId(provider.id, remoteId) : null;
       // `expired` stays processable: the poll retires links on our own clock, and a payment confirmed
-      // after that must still land (specs/payment-polling-fair-use.md rule 2).
+      // after that must still land (specs/payments/payment-polling-fair-use.md rule 2).
       if (link && (link.status === 'open' || link.status === 'expired') && link.providerLinkId) {
         const pay = await provider.getPayment(link.providerLinkId, { origin: 'webhook' });
-        if (pay.paid) await process({ ...deps(), link, paidPayment: pay });
+        if (pay.paid) await process({ ...deps(), link, paidPayment: pay, provider });
       } else if (link && link.status === 'cancelled' && link.remoteCancelPendingAt && link.providerLinkId) {
         // Retired by GuestFlow, deactivation still owed: if the guest paid it anyway, settle it now.
         await retryOne({ ...deps(), provider, only: link.id });

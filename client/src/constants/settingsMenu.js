@@ -124,7 +124,7 @@ export const SETTINGS_KEYWORDS = Object.freeze({
   [PROPERTIES_PATH]: ['Wi-Fi', 'Adresse du logement', 'Code de la boîte à clés', 'Accès', 'Caution', 'Ménage', 'Linge de lit', 'Serviettes', 'Tarifs', 'Saisons', 'Taxe de séjour', 'Acompte', 'Calendrier iCal', 'Photos', 'Lits'],
   '/settings/plateformes': ['Airbnb', 'Booking', 'Abritel', 'Gîtes de France', 'Commission', 'iCal'],
   '/parametres/conditions-generales': ['CGV', 'CGL', 'Conditions de vente', 'Annulation'],
-  '/parametres/options-ressources': ['Options', 'Repas', 'Petit-déjeuner', 'Ressources', 'Traductions'],
+  '/parametres/options-ressources': ['Options', 'Repas', 'Petit-déjeuner', 'Ressources', 'Traductions', 'Options proposées', 'Proposés à l’arrivée', 'Ajouter à la séance'],
   '/parametres/vacances-fermetures': ['Vacances scolaires', 'Zone A', 'Zone B', 'Zone C', 'Fermeture', 'Congés'],
   '/settings/tva-exercice': ['TVA', 'Taux', 'Exercice comptable', 'Clôture', 'Objectif de chiffre d’affaires', 'Seuil de franchise', 'Franchise en base'],
   '/settings/emails': ['SMTP', 'Serveur d’envoi', 'Mot de passe d’application', 'Gmail', 'Expéditeur', 'Adresse d’envoi', 'Notifications', 'Push', 'Mail de test'],

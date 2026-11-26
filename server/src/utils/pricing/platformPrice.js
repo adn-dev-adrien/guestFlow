@@ -1,11 +1,12 @@
 /**
  * PLATFORM PRICE — the accommodation a platform stay is priced at (specs/pricing/pricing-components.md §3 rules 17, 50, 70).
  *
- * Contract: `resolvePlatformPrice({ gross, extraGuestsInBrut, platformLines, withheldTax })` →
- * `{ accommodation, commission, payout }`. `accommodation` is the engine's gross pin: the platform's gross less the
- * extra guests billed inside it, less the lines sold through the platform (`inComplement = 0` today), less the tourist
- * tax the platform withheld or reverses, floored at 0 and rounded to the cent; `null` without a gross. `platformLines`
- * is a total or a list of line totals; `withheldTax` is a total or the list `[reversed, withheld]`. `commission` and
+ * Contract: `resolvePlatformPrice({ gross, extraGuestsInBrut, platformLines, taxGap })` →
+ * `{ accommodation, commission, payout }`. `accommodation` is the engine's gross pin: the host amount of the platform's
+ * statement less the extra guests billed inside it and the lines sold through the platform (`inComplement = 0` today),
+ * plus the tourist-tax gap (what the platform paid for the tax beyond GuestFlow's own, signed; specs/platform-host-
+ * statement-and-commission-vat.md rules 3, 7), floored at 0 and rounded to the cent; `null` without a gross.
+ * `platformLines` is a total or a list of line totals. `commission` and
  * `payout` are always `null`: the engine never computes a commission from a rate (rule 70), it is a stored figure read
  * by PLATFORM PAYMENT.
  * `platformLinesTotal(lines)` is that total from the quote's lines (`platformPriceCheck` reads it, not a sum of its own).
@@ -48,19 +49,15 @@ function platformLinesTotal(lines) {
 }
 
 function resolvePlatformPrice({
-  gross = null, extraGuestsInBrut = 0, platformLines = 0, withheldTax = 0,
+  gross = null, extraGuestsInBrut = 0, platformLines = 0, taxGap = 0,
 } = {}) {
   const platformGrossPin = gross == null || gross === '' ? null : roundMoney(Number(gross));
   const extraGuestInBrutSurcharge = Number(extraGuestsInBrut || 0);
   const preArrivalOptionsResources = sumOf(platformLines);
-  const withheldTerms = Array.isArray(withheldTax) ? withheldTax : [withheldTax];
-  const reversedTouristTaxInBrut = Number(withheldTerms[0] || 0);
-  const withheldTouristTaxInBrut = Number(withheldTerms[1] || 0);
   const pinnedAccommodation = platformGrossPin != null
     ? roundMoney(Math.max(
       0,
-      platformGrossPin - extraGuestInBrutSurcharge - preArrivalOptionsResources
-        - reversedTouristTaxInBrut - withheldTouristTaxInBrut,
+      platformGrossPin - extraGuestInBrutSurcharge - preArrivalOptionsResources + Number(taxGap || 0),
     ))
     : null;
   return { accommodation: pinnedAccommodation, commission: null, payout: null };

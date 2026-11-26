@@ -1076,7 +1076,8 @@
     "liveFamilies",
     "makeArticle",
     "read",
-    "unitsPerQuantity"
+    "unitsPerQuantity",
+    "NOT_SELLABLE_OUTSIDE"
   ],
   "stayClock": [
     "phaseForReservation",
@@ -1104,7 +1105,8 @@
   "platformPayment": [
     "acompteNet",
     "grossOf",
-    "payoutWithPenalty"
+    "payoutWithPenalty",
+    "taxPaidWithPayout"
   ],
   "basketRefundOutcome": [
     "notHonoured",
@@ -1143,5 +1145,8 @@
     "recordOnStay",
     "settleAtConversion",
     "undoOnStay"
+  ],
+  "addOnPricing": [
+    "createAddOnPricing"
   ]
 }

@@ -41,6 +41,7 @@ const {
 const { CATERING_CATEGORY } = require('../utils/optionCategoriesMigration');
 const { syncDepartureChargeLines, notDepartureCharge } = require('../utils/departureChargeLines');
 const { numberedLabel } = require('../utils/pricing/storedLines');
+const { INSTALLMENT_REST_LABEL } = require('../utils/pricing/settlement');
 const { typedCountOf, displayCountOf } = require('../utils/typedCounts');
 const { stampComplementPaidSplit, readComplementPaidSplit } = require('../utils/complementPaidSplit');
 const { parseRemovedLineContribs } = require('../utils/removedLineContribs');
@@ -273,6 +274,8 @@ function complementTaxIsAddition(r, tax) {
   return added > 0 && round2(tax) === added;
 }
 
+const installmentRestOf = (r, room) => require('../utils/installmentPlan').restOfPlan(r, room);
+
 function arrivalComplementDetailFromReservation(r, { includeOffered = false, withLineIds = false } = {}) {
   if (!r) return { amount: 0, paid: 0, detail: [] };
   const lines = [];
@@ -365,7 +368,13 @@ function arrivalComplementDetailFromReservation(r, { includeOffered = false, wit
   }
   const amount = round2(r.complementAmount || 0);
   const listed = round2(lines.reduce((s, l) => s + l.amount, 0));
-  const remainder = round2(amount - listed);
+  let remainder = round2(amount - listed);
+  // Rule 58 — that rest rides this complement on a line of its own; the lines still sum to the complement.
+  const planRest = installmentRestOf(r, remainder);
+  if (planRest > 0) {
+    lines.push({ kind: 'installmentRest', label: INSTALLMENT_REST_LABEL, qty: 1, unitPrice: planRest, amount: planRest });
+    remainder = round2(remainder - planRest);
+  }
   if (remainder > 0.01) lines.push({ kind: 'remainder', label: "Complément d'arrivée", qty: 1, unitPrice: remainder, amount: remainder });
   return { amount, paid: Number(r.complementPaid || 0) === 1 ? 1 : 0, detail: lines };
 }
@@ -1656,6 +1665,8 @@ function createReservationsModel(database, { arrivalComplementEngine = null } = 
       // specs/tourist-tax/platform-tourist-tax-out-of-the-commission.md rule 2 — '' is not 0 here: it is what says
       // the brut was typed tourist-tax-excluded, and the fiche must be able to tell the two apart.
       reservation.platformTouristTaxAmount = reservation.platformTouristTaxAmount == null ? '' : Number(reservation.platformTouristTaxAmount);
+      // specs/platforms/platform-host-statement-and-commission-vat.md rule 1 — '' is a statement not typed: no check on the lines.
+      reservation.platformOptionsAmount = reservation.platformOptionsAmount == null ? '' : Number(reservation.platformOptionsAmount);
       reservation.complementAmount = Number(reservation.complementAmount || 0);
       reservation.complementPaid = Number(reservation.complementPaid || 0);
       reservation.complementPaidDate = reservation.complementPaidDate || null;
@@ -2570,6 +2581,16 @@ function createReservationsModel(database, { arrivalComplementEngine = null } = 
       return run();
     },
 
+    // specs/platforms/platform-host-statement-and-commission-vat.md rule 1 — the options of the platform's statement, NULL when not typed
+    // and on a direct stay. Written by the save right after the row, in the same transaction.
+    storePlatformOptionsAmount(reservationId, amount) {
+      const row = database.prepare('SELECT platform FROM reservations WHERE id = ?').get(reservationId);
+      const platformIsNonDirect = row && String(formatPlatformName(row.platform) || 'direct').toLowerCase() !== 'direct';
+      const value = platformIsNonDirect && amount != null && amount !== '' && Number.isFinite(Number(amount))
+        ? Math.max(0, roundMoneyStrict(Number(amount))) : null;
+      database.prepare('UPDATE reservations SET platformOptionsAmount = ? WHERE id = ?').run(value, reservationId);
+    },
+
     updateReservation(reservationId, payload, quote, nightBlocks, nextIcalSyncLocked, { keepPricing = false, stayPinned = false } = {}) {
       const { propertyId, clientId, startDate, endDate, adults, children, teens, babies,
         singleBeds, doubleBeds, babyBeds, checkInTime, checkOutTime, platform, customPrice,
@@ -3269,6 +3290,15 @@ function createReservationsModel(database, { arrivalComplementEngine = null } = 
         lines.push({
           key: null, group: 'existing', label: complementTaxIsAddition(r, taxAmount) ? ADDED_GUESTS_TAX_LABEL : 'Taxe de séjour', qty: 1, unitPrice: taxAmount,
           real: taxAmount, billed: taxAmount, offerable: false, offered: false,
+        });
+      }
+
+      // Rule 58 — and what a closed installment plan leaves to the arrival, on the line the complement's detail names.
+      const planRestLine = withExistingLines ? arrivalComplementDetailFromReservation(r).detail.find((l) => l.kind === 'installmentRest') : null;
+      if (planRestLine) {
+        lines.push({
+          key: null, group: 'existing', label: planRestLine.label, qty: 1, unitPrice: planRestLine.amount,
+          real: planRestLine.amount, billed: planRestLine.amount, offerable: false, offered: false,
         });
       }
 

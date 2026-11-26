@@ -22,9 +22,9 @@ const stub = (found, extra = {}) => ({
 });
 const cols = (rows) => rows.map((r) => [r[3], r[5], r[6], r[7], r[8]]);
 
-test('rule 28 — settings: the journal MO, the clearing account 46720000, the bank 51200000, the fees 62780000, the bank lines on', () => {
+test('rule 28 — settings: the journal MO, the clearing account 46720000, the bank 51200000, the fees 62260600 (a commission without VAT, rule 17 of the host statement spec), the bank lines on', () => {
   assert.deepEqual([DEFAULTS.mollieJournalCode, DEFAULTS.mollieClearingAccount, DEFAULTS.mollieBankAccount, DEFAULTS.mollieFeeAccount, DEFAULTS.mollieExportBank],
-    ['MO', '46720000', '51200000', '62780000', '1']);
+    ['MO', '46720000', '51200000', '62260600', '1']);
   const validate = (key, value) => DECLARED.find((d) => d.key === key).validate(value);
   assert.equal(validate('mollieJournalCode', 'MO'), null);
   assert.ok(validate('mollieJournalCode', 'mollie-long'));
@@ -55,7 +55,7 @@ test('rule 28 — a reconciled credit: D bank / C clearing account, the libellé
 test('rule 28 — a settlement cost: D fees / C clearing account', () => {
   const [entry] = mollieEntries(stub({ entries: [cost()] }), { month: 12, year: Y }, PLAN).entries;
   const rows = entryToRows(entry, PLAN);
-  assert.deepEqual(rows.map((r) => [r[6], r[7], r[8]]), [['62780000', 0.45, 0], ['46720000', 0, 0.45]]);
+  assert.deepEqual(rows.map((r) => [r[6], r[7], r[8]]), [['62260600', 0.45, 0], ['46720000', 0, 0.45]]);
 });
 
 test('rule 28 — every entry balances to the cent, in the CSV and in the preview; the accounts follow the plan', () => {

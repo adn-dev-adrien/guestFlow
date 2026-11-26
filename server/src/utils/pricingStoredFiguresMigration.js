@@ -38,14 +38,16 @@ function runPricingStoredFiguresMigration(db) {
 
 /**
  * B1 — the records of every live stay, as a sale on it computes them now. Returns `{ written, refused }` (stay ids).
- * `force` re-runs it on stays that already hold records.
+ * `force` re-runs it on stays that already hold records; `ids` limits it to those stays (the ones a migration rewrote).
  */
-function backfillSaleFigures(db, { force = false } = {}) {
+function backfillSaleFigures(db, { force = false, ids: only = null } = {}) {
   if (!COLUMNS.every(([table, name]) => hasTable(db, table) && hasColumn(db, table, name))) return { written: [], refused: [] };
   const { storedBody } = require('./stayOrderLines');
   const { performUpdate } = require('../controllers/reservationsController');
   const where = force ? '' : ' AND storedExtraGuests IS NULL AND storedTouristTax IS NULL';
-  const ids = db.prepare(`SELECT id FROM reservations WHERE kind = 'reservation'${where} ORDER BY id`).all().map((row) => row.id);
+  const wanted = only ? new Set(only.map(Number)) : null;
+  const ids = db.prepare(`SELECT id FROM reservations WHERE kind = 'reservation'${where} ORDER BY id`).all().map((row) => row.id)
+    .filter((id) => !wanted || wanted.has(id));
   const write = db.prepare('UPDATE reservations SET storedExtraGuests = ?, storedTouristTax = ? WHERE id = ?');
   const written = [];
   const refused = [];

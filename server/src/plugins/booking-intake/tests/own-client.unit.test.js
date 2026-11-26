@@ -65,8 +65,8 @@ function setup() {
       },
       updateClient: (id, p) => db.prepare('UPDATE clients SET firstName = ?, lastName = ?, email = ? WHERE id = ?').run(p.firstName, p.lastName, p.email, id),
       suggestBeds: () => ({ singleBeds: 6, doubleBeds: 4 }),
-      platformCommission: (f) => Math.round((f.gross - f.payout - f.touristTax) * 100) / 100,
-      withholdsTouristTax: () => true,
+      platformCommission: (f) => Math.round((f.gross - f.payout) * 100) / 100,
+      touristTaxMode: () => 'platform',
     },
   });
   const guestOf = (id) => db.prepare('SELECT c.id, c.firstName, c.lastName, c.email FROM reservations r JOIN clients c ON c.id = r.clientId WHERE r.id = ?').get(id);

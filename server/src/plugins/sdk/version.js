@@ -1,5 +1,5 @@
 /**
- * The SDK's own version (specs/plugins-phase-4-registry.md rule 3). A plugin manifest names the SDK
+ * The SDK's own version (specs/plugins/plugins-phase-4-registry.md rule 3). A plugin manifest names the SDK
  * range it was built against (`sdk`), and the core refuses to load a package whose range this does
  * not satisfy (rule 12).
  *
@@ -7,6 +7,6 @@
  * MAJOR bump; adding one is a MINOR bump; a fix that changes no entry point is a PATCH.
  */
 
-const SDK_VERSION = '2.35.0';
+const SDK_VERSION = '2.37.0';
 
 module.exports = { SDK_VERSION };

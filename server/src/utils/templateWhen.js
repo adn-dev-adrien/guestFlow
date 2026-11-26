@@ -28,6 +28,7 @@ const FIXED = Object.freeze({
   full_request: 'à la demande',
   installment_request: 'à chaque échéance, à la demande',
   dates_unavailable_notice: 'quand les dates sont prises',
+  balance_received: 'quand le solde est payé en ligne',
 });
 
 // The words of each anchor, after « avant » / « après », and for the day itself.
