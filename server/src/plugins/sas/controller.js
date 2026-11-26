@@ -218,7 +218,7 @@ function buildStayPayment(reservation, { isDeparture, receptionOnly }) {
   });
   const deposit = withCollectible('deposit');
   const balance = withCollectible('balance');
-  // specs/payments/direct-installments.md rule 36 — what a plan still owes is due at the door: the SAS settles it
+  // specs/direct-installments.md rule 36 — what a plan still owes is due at the door: the SAS settles it
   // by marking the remaining installments paid (cash), never by ticking acompte / solde.
   const installments = due.installments;
   const settledHere = own.filter((b) => Number(b.atArrival || 0) === 1);

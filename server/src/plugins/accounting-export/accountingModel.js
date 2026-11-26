@@ -121,7 +121,7 @@ function createAccountingModel(database, { settings = createAccountSettings(data
   const hasNotesColumn = hasReservationColumn('midStaySettledNotes');
   const midStayNotesClause = hasNotesColumn ? 'OR (r.midStaySettledNotes LIKE ?)' : '';
   const midStayNotesParams = (from) => (hasNotesColumn ? [`%"paidDate":"${String(from).slice(0, 8)}%`] : []);
-  // specs/payments/direct-installments.md — an installment is an encaissement of its own, at its paid date. A schema
+  // specs/direct-installments.md — an installment is an encaissement of its own, at its paid date. A schema
   // without the table (a minimal test one) simply has none.
   const hasInstallments = hasTable(database, 'reservation_installments');
   const installmentClause = hasInstallments

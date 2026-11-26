@@ -95,7 +95,7 @@ function basketReceipts(row, links, brief, platform, splitFor) {
  * @param {Function} deps.buildLedger  the core's ledger
  * @param {Function} deps.parseGroup   the core's single-payment parser
  * @param {object[]} deps.links        the reservation's payment links
- * @param {object[]} [deps.installments] the reservation's installments (specs/payments/direct-installments.md rule 38)
+ * @param {object[]} [deps.installments] the reservation's installments (specs/direct-installments.md rule 38)
  * @param {object[]} [deps.settlements] the reservation's split payments (specs/mixed-method-payments.md rule 28)
  * @param {Function} [deps.settlementFigures] the core's reading of one settlement
  * @param {Function} [deps.splitFor] `(link) → stored Mollie split | null` (specs/mollie-rolling-reserve-and-incoming-payments.md rule 8)
