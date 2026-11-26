@@ -1,1 +1,0 @@
-- Tourist tax declaration: a night leaves the declaration only once it is wholly refunded; half a night refunded no longer removes the whole night.
