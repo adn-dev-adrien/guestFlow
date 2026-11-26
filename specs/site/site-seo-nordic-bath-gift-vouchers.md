@@ -2,11 +2,11 @@
 
 | Field | Value |
 |---|---|
-| **Status** | Approved |
+| **Status** | Implemented |
 | **Branch** | `feature/site-seo-nordic-bath-gift-vouchers` (spec, guestFlow) · `feature/seo-nordic-bath-gift-vouchers` (code, solio-site) |
 | **Created** | 2026-11-26 |
 | **Author** | Adrien |
-| **Related PR** | (link once opened) |
+| **Related PR** | guestFlow #1117 (spec) · solio-site #6 (code) |
 | **Decision page** | `solio-site/rapports/2026-11-26-seo-bain-bons/index.html` |
 
 ---
@@ -98,10 +98,16 @@ land on states plainly what is offered, when, for how many and at what price.
     be offered (link to the voucher page).
 12. « Que faut-il apporter ? » answers: a swimsuit; a shelter to change near the bath (confirmed by
     Adrien). « Serviettes en option » is added **only if** a bath add-on whose label contains
-    « serviette » / « towel » is returned by GuestFlow — none exists on 2026-11-26; Adrien will create
-    it (decision 2026-11-26).
+    « serviette » / « towel » is returned by GuestFlow. Created on 2026-11-26: option 35 « Serviette de
+    bain », 8 € per unit (the price of the lodgings' « Linge de toilette », Adrien's choice), sold
+    outside a stay, attached to no lodging so the lodging booking flow is unchanged. The lodging option
+    itself could not be reused: it is priced per person and feeds the linen counts, and the engine
+    refuses per-person options outside a stay. It shows on the site once added to the bath voucher
+    campaigns (« Options proposées ») and, for direct bookings, to the bath's suggested articles.
 13. « Peut-on boire un verre ? » lists the add-on families GuestFlow returns for the bath campaigns
-    (drinks, platters) without prices; omitted when there are none.
+    (drinks, platters) without prices; omitted when there are none. On 2026-11-26 a direct session
+    booking offers no add-on yet: that choice is being developed separately and ships in the same
+    release, so the answer is kept as written (Adrien, 2026-11-26).
 14. Travel times (OSRM, measured 2026-11-26, rounded): Annonay 15 min, Saint-Vallier 25 min, Tournon
     40 min, Valence 1 h, Saint-Étienne 1 h 05, Lyon 1 h 20. They live in **one folded FAQ question**,
     visible to anyone who opens it. **Never hidden from visitors while shown to crawlers** (cloaking;
@@ -290,7 +296,8 @@ Decision page with interactive mock-ups: `solio-site/rapports/2026-11-26-seo-bai
 
 ## 10. Implementation progress
 
-- [ ] mu-plugins (solio-site PR)
-- [ ] page content and new page
-- [ ] online measurement (rule 4)
-- [ ] Google Business Profile (rule 26)
+- [x] mu-plugins (solio-site #6, deployed 2026-11-26, backups `/tmp/bak-mu-plugins-20261126-115242.tgz` in `wp_app`)
+- [x] page content and new page (683, 689, 682, 688, 317 and 51 meta; Valentine's Day page id 722; backups `/tmp/bak-page-*-20261126-115243.txt`)
+- [x] online measurement (rule 4): readable words without JS — bath 25 → 528, bath EN 22 → 512, vouchers EN 48 → 287, Valentine 229; titles, descriptions and JSON-LD as specified; no raw shortcode; other pages unchanged (staged render diff before deployment); mobile 390 px without horizontal scroll; sitemap resubmitted to Search Console
+- [ ] Google Business Profile (rule 26) — posts and texts ready in `solio-site/rapports/2026-11-26-seo-bain-bons/fiche-google.md`, to publish with Adrien logged in
+- [ ] towel option 35 added to the two bath voucher campaigns (Adrien, campaign editor) and its English label « Bath towel » in the translation CSV
