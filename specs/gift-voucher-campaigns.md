@@ -770,7 +770,7 @@ Rules are identities: a rule is never renumbered, new rules are appended
 ### 3.V The whole card on the website, front and back (added 2026-11-26)
 
 66. **The site shows the card the buyer will receive: its front and its back, as the PDF draws them**
-    (owner request of 2026-11-26; mock-up and the owner's six choices: `specs/gift-voucher-site-card-back.html`;
+    (owner request of 2026-11-26; mock-up and the owner's six choices: `docs/specs/2026-11-26-gift-voucher-site-card-back.html`;
     amends rule 62).
     - **Before:** the front stood beside the form, and an « Aperçu du bon » — a grey ticket with no logo, no
       QR code and no A6 layout — sat *under* the « Payer » button. It did not look like the voucher received.
