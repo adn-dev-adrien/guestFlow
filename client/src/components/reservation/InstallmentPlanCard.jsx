@@ -19,15 +19,20 @@
  * Props:
  *   reservationId:  number
  *   plan:           the `installmentPlan` payload ({ eligible, canCreate, reason, countLocked, frozen, total,
- *                   paid, remaining, gap, minCount, maxCount, count, canRequest, arrivalDate, installments[] })
+ *                   paid, remaining, gap, minCount, maxCount, count, canRequest, arrivalDate, closed, arrivalRest,
+ *                   deposit, installments[] }) — `closed` (rule 53): no installment adjusts, `arrivalRest` what the
+ *                   arrival complement carries then (rule 54), `deposit` the acompte collected before the plan (rule 60)
  *   today:          `YYYY-MM-DD` — the day the mark form proposes
  *   disabled:       the fiche is dirty: nothing here may be changed until it is saved
  *   onPlanChange:   (plan) → void — the server's answer, to keep
  *   onMoneyChanged: () → void — the plan moved the stay's money: re-read the ledger
  */
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Alert, Box, Button, IconButton, InputAdornment, Stack, TextField, Typography } from '@mui/material';
+import { Alert, Box, Button, IconButton, InputAdornment, Stack, TextField, Tooltip, Typography } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
+import CheckIcon from '@mui/icons-material/Check';
+import ContentCopyIcon from '@mui/icons-material/ContentCopy';
+import SendIcon from '@mui/icons-material/SendOutlined';
 import RemoveIcon from '@mui/icons-material/Remove';
 import api from '../../api';
 import DateField from '../DateField';
@@ -43,21 +48,52 @@ const DEFAULT_COUNT = 3;
 const ISO_DAY = /^\d{4}-\d{2}-\d{2}$/;
 const BADGE = { paid: 'success', late: 'error', requested: 'info', toRequest: 'warning', upcoming: 'neutral' };
 
+// Icon-only row action: the tooltip carries the words, the aria-label names the button. The span keeps the
+// tooltip alive on a disabled button.
+function RowAction({ label, icon, onClick, disabled, filled }) {
+  return (
+    <Tooltip title={label} enterDelay={300} enterNextDelay={300}>
+      <span>
+        <IconButton
+          aria-label={label}
+          disabled={disabled}
+          onClick={onClick}
+          sx={{
+            width: 44,
+            height: 44,
+            border: '1px solid',
+            borderColor: filled ? 'primary.main' : 'divider',
+            touchAction: 'manipulation',
+            ...(filled ? { bgcolor: 'primary.main', color: 'primary.contrastText', '&:hover': { bgcolor: 'primary.dark' } } : {}),
+            '&.Mui-disabled': filled ? { bgcolor: 'action.disabledBackground', borderColor: 'transparent' } : {},
+          }}
+        >
+          {icon}
+        </IconButton>
+      </span>
+    </Tooltip>
+  );
+}
+
 // The fiche column can be narrow even on a wide screen: the layout follows the width of the card, not the
 // window's. Narrow = a two-line card (number + status, then date + amount, then the actions); wide = one line.
 const WIDE = '@container (min-width: 720px)';
 const HEADER_WIDE = '@container (min-width: 560px)';
 
-// The grid only names the areas the row really fills, so an empty zone never adds a row gap.
-function rowLayout({ hasActions, hasError }) {
-  const narrow = ['"n badge"', '"date amt"', hasActions && '"acts acts"', hasError && '"err err"'].filter(Boolean).join(' ');
-  const wideMain = hasActions ? '"n date amt badge acts"' : '"n date amt badge"';
-  const wide = hasError ? `${wideMain} ". err err err${hasActions ? ' err' : ''}"` : wideMain;
+// The grid only names the areas the row really fills, so an empty zone never adds a row gap. The marks under a
+// typed amount (« fixé », « Ajuster automatiquement », « +X € ajoutés ») have their own area: left of the amount
+// on a wide card, a full-width line under date + amount on a narrow one — never inside the amount's cell, where
+// they would push the amount off the date's line.
+function rowLayout({ hasActions, hasError, hasMarks }) {
+  const narrow = ['"n badge"', '"date amt"', hasMarks && '"mark mark"', hasActions && '"acts acts"', hasError && '"err err"'].filter(Boolean).join(' ');
+  const wideAreas = ['n', 'date', hasMarks ? 'mark' : '.', 'amt', 'badge', hasActions && 'acts'].filter(Boolean);
+  const wideMain = `"${wideAreas.join(' ')}"`;
+  const wide = hasError ? `${wideMain} ". ${wideAreas.slice(1).map(() => 'err').join(' ')}"` : wideMain;
   return {
     gridTemplateColumns: '1fr auto',
     gridTemplateAreas: narrow,
     [WIDE]: {
-      gridTemplateColumns: hasActions ? '34px 170px 1fr auto auto' : '34px 170px 1fr auto',
+      gridTemplateColumns: hasActions ? '34px 170px 1fr auto auto auto' : '34px 170px 1fr auto auto',
       gridTemplateAreas: wide,
     },
   };
@@ -67,7 +103,24 @@ function rowLayout({ hasActions, hasError }) {
 const amountText = (amount) => (Number.isInteger(Number(amount)) ? String(amount) : formatAmountInput(amount));
 const sameCents = (a, b) => Math.round(Number(a) * 100) === Math.round(Number(b) * 100);
 
-function InstallmentRow({ installment, arrivalDate, dateError, amountError, busy, locked, canRequest, onDate, onAmount, onSend, onCopy, onPay }) {
+// Rule 60 — the acompte collected before the plan: a paid row, read-only, which the plan neither moves nor counts.
+function DepositRow({ deposit }) {
+  return (
+    <Box
+      data-testid="installment-deposit"
+      sx={{
+        display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: '4px 12px', p: 1.25,
+        border: '1px solid', borderColor: 'success.light', borderRadius: 2, bgcolor: 'success.soft', [WIDE]: { p: 1.5 },
+      }}
+    >
+      <Typography sx={{ fontWeight: 600, color: 'text.secondary' }}>{t.DEPOSIT_NAME}</Typography>
+      <Typography sx={{ fontWeight: 600, fontVariantNumeric: 'tabular-nums', ml: 'auto' }}>{formatCurrency(deposit.amount)}</Typography>
+      <StatusBadge status="success" label={t.DEPOSIT_PAID(deposit.paidDate ? displayDate(deposit.paidDate) : '—')} />
+    </Box>
+  );
+}
+
+function InstallmentRow({ installment, arrivalDate, dateError, amountError, busy, locked, canRequest, onDate, onAmount, onSend, onCopy, onPay, onRelease }) {
   const paid = installment.status === 'paid';
   const [dateDraft, setDateDraft] = useState(installment.dueDate);
   const [amountDraft, setAmountDraft] = useState(amountText(installment.amount));
@@ -104,6 +157,7 @@ function InstallmentRow({ installment, arrivalDate, dateError, amountError, busy
   const showAmountInput = installment.amountEditable;
   const hasActions = !paid;
   const error = dateError || amountError;
+  const hasMarks = Boolean(installment.amountEdited || installment.canRelease || installment.added > 0);
   return (
     <Box
       data-testid={`installment-${installment.number}`}
@@ -118,7 +172,7 @@ function InstallmentRow({ installment, arrivalDate, dateError, amountError, busy
         borderRadius: 2,
         ...(paid ? { bgcolor: 'success.soft' } : {}),
         [WIDE]: { p: 1.5 },
-        ...rowLayout({ hasActions, hasError: Boolean(error) }),
+        ...rowLayout({ hasActions, hasError: Boolean(error), hasMarks }),
         transition: 'background-color 250ms ease',
         '@media (prefers-reduced-motion: reduce)': { transition: 'none' },
       }}
@@ -146,7 +200,23 @@ function InstallmentRow({ installment, arrivalDate, dateError, amountError, busy
         )}
       </Box>
 
-      <Box sx={{ gridArea: 'amt', justifySelf: 'end', textAlign: 'right' }}>
+      {hasMarks && (
+        <Box sx={{ gridArea: 'mark', justifySelf: 'end', display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'flex-end', columnGap: 1.5, lineHeight: 1.2, [WIDE]: { flexDirection: 'column', alignItems: 'flex-end' } }}>
+          {installment.amountEdited && (
+            <Typography variant="caption" color="info.text" sx={{ display: 'block' }}>{t.PINNED_MARK}</Typography>
+          )}
+          {installment.canRelease && (
+            <Button size="small" disabled={busy || locked} onClick={() => onRelease(installment)} sx={{ minHeight: 44, px: 0, textTransform: 'none', textDecoration: 'underline' }}>
+              {t.ACTION_RELEASE}
+            </Button>
+          )}
+          {installment.added > 0 && (
+            <Typography variant="caption" color="warning.text" sx={{ display: 'block' }}>{t.ADDED_MARK(formatCurrency(installment.added))}</Typography>
+          )}
+        </Box>
+      )}
+
+      <Box sx={{ gridArea: 'amt', justifySelf: 'end' }}>
         {showAmountInput ? (
           <TextField
             size="small"
@@ -160,16 +230,10 @@ function InstallmentRow({ installment, arrivalDate, dateError, amountError, busy
               input: { endAdornment: <InputAdornment position="end">€</InputAdornment> },
               htmlInput: { inputMode: 'decimal', 'aria-label': t.AMOUNT_LABEL(installment.number), 'aria-invalid': amountError ? 'true' : undefined },
             }}
-            sx={{ width: 120, '& input': { textAlign: 'right', fontWeight: 600, fontSize: 16, fontVariantNumeric: 'tabular-nums' } }}
+            sx={{ width: 104, [WIDE]: { width: 120 }, '& input': { textAlign: 'right', fontWeight: 600, fontSize: 16, fontVariantNumeric: 'tabular-nums' } }}
           />
         ) : (
-          <Typography sx={{ fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>{formatCurrency(installment.amount)}</Typography>
-        )}
-        {installment.amountEdited && (
-          <Typography variant="caption" color="info.text" sx={{ display: 'block' }}>{t.PINNED_MARK}</Typography>
-        )}
-        {installment.added > 0 && (
-          <Typography variant="caption" color="warning.text" sx={{ display: 'block' }}>{t.ADDED_MARK(formatCurrency(installment.added))}</Typography>
+          <Typography sx={{ fontWeight: 600, fontVariantNumeric: 'tabular-nums', minHeight: 40, display: 'flex', alignItems: 'center' }}>{formatCurrency(installment.amount)}</Typography>
         )}
       </Box>
 
@@ -178,14 +242,14 @@ function InstallmentRow({ installment, arrivalDate, dateError, amountError, busy
       </Box>
 
       {hasActions && (
-        <Stack direction="row" spacing={0.75} sx={{ gridArea: 'acts', '& > button': { flex: 1 }, [WIDE]: { justifyContent: 'flex-end', '& > button': { flex: 'none' } } }}>
+        <Stack direction="row" spacing={0.75} sx={{ gridArea: 'acts', justifyContent: 'flex-end' }}>
           {installment.linkUrl && installment.requestedAt && (
-            <Button variant="outlined" onClick={() => onCopy(installment)} sx={{ minHeight: 44, textTransform: 'none' }}>{t.ACTION_COPY}</Button>
+            <RowAction label={t.ACTION_COPY} icon={<ContentCopyIcon fontSize="small" />} onClick={() => onCopy(installment)} />
           )}
           {!installment.requestedAt && canRequest && (
-            <Button variant="outlined" disabled={busy || locked} onClick={() => onSend(installment)} sx={{ minHeight: 44, textTransform: 'none' }}>{t.ACTION_SEND}</Button>
+            <RowAction label={t.ACTION_SEND} icon={<SendIcon fontSize="small" />} disabled={busy || locked} onClick={() => onSend(installment)} />
           )}
-          <Button variant="contained" disabled={busy || locked} onClick={() => onPay(installment)} sx={{ minHeight: 44, textTransform: 'none' }}>{t.ACTION_PAY}</Button>
+          <RowAction label={t.ACTION_PAY} icon={<CheckIcon fontSize="small" />} disabled={busy || locked} onClick={() => onPay(installment)} filled />
         </Stack>
       )}
 
@@ -327,6 +391,17 @@ export default function InstallmentPlanCard({ reservationId, plan, today, disabl
     } finally { setBusy(false); }
   };
 
+  // Rule 57 — the last unpaid installment takes the shortfall back.
+  const onRelease = async (installment) => {
+    setBusy(true);
+    try {
+      accept(await api.putInstallments(reservationId, { installmentId: installment.id, releaseAmount: true }));
+      clearError(installment.id, 'amount');
+    } catch (error) {
+      setError(installment.id, 'amount', { message: error.message, value: null });
+    } finally { setBusy(false); }
+  };
+
   const onSend = async (installment) => {
     setBusy(true);
     try {
@@ -433,6 +508,7 @@ export default function InstallmentPlanCard({ reservationId, plan, today, disabl
       )}
 
       <Stack spacing={1}>
+        {plan.deposit && <DepositRow deposit={plan.deposit} />}
         {plan.installments.map((installment) => (
           <React.Fragment key={installment.id}>
             <InstallmentRow
@@ -448,6 +524,7 @@ export default function InstallmentPlanCard({ reservationId, plan, today, disabl
               onSend={onSend}
               onCopy={onCopy}
               onPay={(i) => setMarkingId(i.id)}
+              onRelease={onRelease}
             />
             {marking && marking.id === installment.id && (
               <PaymentMarkForm
@@ -471,10 +548,15 @@ export default function InstallmentPlanCard({ reservationId, plan, today, disabl
       )}
 
       <Box sx={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'flex-end', gap: '4px 20px', borderTop: '1px solid', borderColor: 'divider', mt: 1.5, pt: 1.5, color: 'text.secondary' }}>
-        <Typography variant="body2">{t.FOOTER_TOTAL} <strong>{formatCurrency(plan.total)}</strong></Typography>
+        <Typography variant="body2">{plan.deposit ? t.FOOTER_TOTAL_PLAN : t.FOOTER_TOTAL} <strong>{formatCurrency(plan.total)}</strong></Typography>
         <Typography variant="body2">{t.FOOTER_PAID} <strong>{formatCurrency(plan.paid)}</strong></Typography>
         <Typography variant="body2">{t.FOOTER_REMAINING} <strong>{formatCurrency(plan.remaining)}</strong></Typography>
       </Box>
+      {plan.arrivalRest > 0 && (
+        <Typography variant="body2" sx={{ mt: 0.5, textAlign: 'right', fontWeight: 600 }}>
+          {t.FOOTER_ARRIVAL_REST} <strong>{formatCurrency(plan.arrivalRest)}</strong>
+        </Typography>
+      )}
     </Box>
   );
 }

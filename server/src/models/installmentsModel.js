@@ -13,7 +13,7 @@
  *   replacePlan(reservationId, rows, targetCents) → creates the plan { number, dueDate, amountCents }[]
  *   deletePlan(reservationId)
  *   updateRow(id, { dueDate?, dateEdited?, amountCents?, amountEdited? })
- *   applyAmounts(reservationId, amounts, { clearPins, added }) → amounts: Map number → cents
+ *   applyAmounts(reservationId, amounts, { clearPins, unpin, added }) → amounts: Map number → cents; `unpin`: numbers whose pin goes
  *   markPaid(id, { paidDate, method })            → flips unpaid→paid (idempotent), returns { flipped, row }
  *   markUnpaid(id)                                → takes a payment back (the bank reconciliation's « Défaire »), returns { flipped, row }
  *   markRequested(id, at)
@@ -100,7 +100,7 @@ function buildModel(database) {
 
   // `added`: number → the part a rise just brought to that unpaid installment (rule 8), shown beside its
   // amount until the next recalculation; every other write resets it.
-  function applyAmounts(reservationId, amounts, { clearPins = false, added = new Map() } = {}) {
+  function applyAmounts(reservationId, amounts, { clearPins = false, unpin = [], added = new Map() } = {}) {
     database.transaction(() => {
       const update = database.prepare(
         'UPDATE reservation_installments SET amountCents = ?, addedCents = ? WHERE reservationId = ? AND number = ? AND paid = 0',
@@ -108,6 +108,10 @@ function buildModel(database) {
       for (const [number, cents] of amounts) update.run(cents, added.get(number) || 0, Number(reservationId), number);
       if (clearPins) {
         database.prepare('UPDATE reservation_installments SET amountEdited = 0 WHERE reservationId = ?').run(Number(reservationId));
+      }
+      // Rule 56 — the last pin of a closed plan the stay fell below.
+      for (const number of unpin) {
+        database.prepare('UPDATE reservation_installments SET amountEdited = 0 WHERE reservationId = ? AND number = ?').run(Number(reservationId), number);
       }
       refreshAggregates(reservationId);
     }).immediate();

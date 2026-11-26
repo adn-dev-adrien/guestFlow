@@ -41,6 +41,7 @@ const {
 const { CATERING_CATEGORY } = require('../utils/optionCategoriesMigration');
 const { syncDepartureChargeLines, notDepartureCharge } = require('../utils/departureChargeLines');
 const { numberedLabel } = require('../utils/pricing/storedLines');
+const { INSTALLMENT_REST_LABEL } = require('../utils/pricing/settlement');
 const { typedCountOf, displayCountOf } = require('../utils/typedCounts');
 const { stampComplementPaidSplit, readComplementPaidSplit } = require('../utils/complementPaidSplit');
 const { parseRemovedLineContribs } = require('../utils/removedLineContribs');
@@ -273,6 +274,8 @@ function complementTaxIsAddition(r, tax) {
   return added > 0 && round2(tax) === added;
 }
 
+const installmentRestOf = (r, room) => require('../utils/installmentPlan').restOfPlan(r, room);
+
 function arrivalComplementDetailFromReservation(r, { includeOffered = false, withLineIds = false } = {}) {
   if (!r) return { amount: 0, paid: 0, detail: [] };
   const lines = [];
@@ -365,7 +368,13 @@ function arrivalComplementDetailFromReservation(r, { includeOffered = false, wit
   }
   const amount = round2(r.complementAmount || 0);
   const listed = round2(lines.reduce((s, l) => s + l.amount, 0));
-  const remainder = round2(amount - listed);
+  let remainder = round2(amount - listed);
+  // Rule 58 — that rest rides this complement on a line of its own; the lines still sum to the complement.
+  const planRest = installmentRestOf(r, remainder);
+  if (planRest > 0) {
+    lines.push({ kind: 'installmentRest', label: INSTALLMENT_REST_LABEL, qty: 1, unitPrice: planRest, amount: planRest });
+    remainder = round2(remainder - planRest);
+  }
   if (remainder > 0.01) lines.push({ kind: 'remainder', label: "Complément d'arrivée", qty: 1, unitPrice: remainder, amount: remainder });
   return { amount, paid: Number(r.complementPaid || 0) === 1 ? 1 : 0, detail: lines };
 }
@@ -3281,6 +3290,15 @@ function createReservationsModel(database, { arrivalComplementEngine = null } = 
         lines.push({
           key: null, group: 'existing', label: complementTaxIsAddition(r, taxAmount) ? ADDED_GUESTS_TAX_LABEL : 'Taxe de séjour', qty: 1, unitPrice: taxAmount,
           real: taxAmount, billed: taxAmount, offerable: false, offered: false,
+        });
+      }
+
+      // Rule 58 — and what a closed installment plan leaves to the arrival, on the line the complement's detail names.
+      const planRestLine = withExistingLines ? arrivalComplementDetailFromReservation(r).detail.find((l) => l.kind === 'installmentRest') : null;
+      if (planRestLine) {
+        lines.push({
+          key: null, group: 'existing', label: planRestLine.label, qty: 1, unitPrice: planRestLine.amount,
+          real: planRestLine.amount, billed: planRestLine.amount, offerable: false, offered: false,
         });
       }
 

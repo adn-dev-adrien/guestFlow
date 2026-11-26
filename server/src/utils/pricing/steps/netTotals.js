@@ -41,8 +41,11 @@ const step = {
     // A plan above the stay after a drop (rule 8: nothing is lowered) counts for the stay, never for
     // installments the guest does not owe; what it already collected stays counted
     // (specs/payments/reservation-payment-ledger.md rule 48 — same figure as the stored headline).
+    // Rules 54, 60 — the plan carries what is left of the pre-arrival amount once a collected acompte is out (it is
+    // already in `resolvedDepositAmount`); a closed plan carries what it schedules, the rest riding the arrival complement.
+    const planStay = Math.max(roundMoney(preArrivalAmount - resolvedDepositAmount), Number(installmentPlan && installmentPlan.paid || 0));
     const planCarries = installmentPlan
-      ? (installmentPlan.allPaid ? planScheduled : Math.max(preArrivalAmount, Number(installmentPlan.paid || 0)))
+      ? (installmentPlan.allPaid ? planScheduled : (installmentPlan.closed ? Math.min(planScheduled, planStay) : planStay))
       : 0;
     const netReceivedForTotal = roundMoney(
       resolvedDepositAmount + resolvedBalanceAmount + planCarries - totalPlatformCommission,

@@ -13,6 +13,8 @@
 
 > **Reviewed 2026-11-26 (rule-by-rule money audit).** Rules 1-3, 7-8 verified against `getSummary` / `getOperational`; nothing to correct. `getSummary().totalPending` (rules 1-3, 7) has no client reader left.
 
+> **Reviewed 2026-11-26 (money audit follow-up).** `getSummary().totalPending` / `totalPendingHt` are removed (computed, read by no client); rules 1-3 are retired and rule 7 now speaks of the summary's two other figures. Only the operational tab (rule 8, `getOperational().pending`) carries the figure.
+
 ---
 
 ## 1. Context
@@ -47,21 +49,21 @@ operational tab to the euro.
 Decision (AskUserQuestion, 2026-07-17): amount = **restant dû** (`remainingToPay`), not the whole
 `totalSejour` — no double counting with « Encaissé », and the card equals the operational chip.
 
-1. **Scope becomes global**: `totalPending` = over ALL reservations (`kind='reservation'`) with
-   `endDate < today` AND not `isSettled` — **no `from`/`to` bound**. Same predicate as
-   `getOperational().pending`.
-2. **Amount becomes the outstanding part**: Σ `remainingToPay(r)` (still-owed buckets only, net of
-   the unpaid échéances' commissions). Invariant: card value === Σ of the operational tab's
-   « En attente de paiement » chip (`pending.totals.remainingToPay`).
-3. **HT counterpart** follows: `totalPendingHt` = Σ `htAmount(r, remainingToPay(r), vatRate)`.
+1. *(Retired 2026-11-26 — `getSummary().totalPending` is removed; the global scope lives on in `getOperational().pending`, rule 8.)*
+   > **Sans test** — retired rule
+2. *(Retired 2026-11-26 — same: the amount is `getOperational().pending.totals.remainingToPay` = Σ `remainingToPay` (still-owed buckets, net of the unpaid échéances' commissions).)*
+   > **Sans test** — retired rule
+3. *(Retired 2026-11-26 — `totalPendingHt` is removed with `totalPending`.)*
+   > **Sans test** — retired rule
 4. *(Retired 2026-11-26 — `getBreakdown` and its dialog are gone.)*
    > **Sans test** — retired rule
 5. *(Retired 2026-11-26 — the card is gone; the dashboard tile « Reste à encaisser » follows the exercise window, specs/planning/mobile-dashboard-exercise-cash.md rule 11.)*
    > **Sans test** — retired rule
 6. *(Retired 2026-11-26 — the « Répartition » pie is gone.)*
    > **Sans test** — retired rule
-7. **« Revenu total » and « Encaissé » unchanged** (they already match the requested rules); pinned
-   by existing tests.
+7. **« Revenu total » and « Encaissé » of `getSummary()` unchanged** (they already match the requested rules); pinned
+   by existing tests. Together with the operational pending amount they still reconstruct the stay total
+   (`finance-model.unit.test.js`).
 8. **Operational « Paiements en attente » tab unchanged** (already global + correct); its
    completeness gets pinned by a test (endDate-passed unpaid reservation OUTSIDE any typical
    period still listed).

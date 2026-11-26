@@ -81,7 +81,9 @@ function storedPlanCarries(row = {}) {
   const unpaid = Number(row.installmentsUnpaidAmount || 0);
   const target = Number(row.installmentsTarget || 0);
   if (!(unpaid > 0)) return paid;
-  return target > 0 ? Math.max(target, paid) : paid + unpaid;
+  // A closed plan (direct-installments rule 54) schedules less than the stay: the rest rides the stored complement, so it
+  // counts for what it schedules, never for the whole target.
+  return target > 0 ? Math.min(paid + unpaid, Math.max(target, paid)) : paid + unpaid;
 }
 
 /**

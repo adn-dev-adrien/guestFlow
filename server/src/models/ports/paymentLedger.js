@@ -2,7 +2,7 @@
  * PaymentLedger — what a stay has been paid, as the pricing reads it (specs/pricing/pricing-components.md §3 rule 48).
  *
  * Contract (plain functions over today's reads; `create(db)` binds them to a database):
- *   installments(id)   the installment plan summary `{ count, scheduled, paid, allPaid }`, null without a plan
+ *   installments(id)   the installment plan summary `{ count, scheduled, paid, allPaid, closed }`, null without a plan
  *   splitReceived(id)  what each bucket paid with several methods actually received, null without a split (`receipts(id).splitReceived`)
  *   refunds(id)        `{ book, withCash }` — book-money refunds vs everything including the caisse interne
  *   allocations(id)    the stay's `payment_allocations` rows, signed cents (rule 74); a stay a statement changed behind the

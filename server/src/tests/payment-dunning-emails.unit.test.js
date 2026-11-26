@@ -96,9 +96,9 @@ const emailServiceFactory = (sent) => () => ({
 });
 
 const settingsModel = {
-  // The cron only runs when the operator authorised automatic sending
-  // (specs/emails/no-automatic-email-without-approval.md §3 rule 2) — these tests are about what it does
-  // once allowed, so the switch is explicitly ON here.
+  // The cron only sends from a template in « auto » mode
+  // (specs/emails/no-automatic-email-without-approval.md §3 rule 11) — these tests are about what it does
+  // once allowed.
   read: () => ({ companyName: 'Solio', companyPhone: '01', companyEmail: 'x@y' }),
   decryptedSmtpSettings: () => ({ host: 'smtp', port: 587, secure: false, user: 'u', password: 'p', fromEmail: 'f@x', fromName: 'Solio' }),
 };

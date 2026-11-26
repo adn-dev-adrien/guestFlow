@@ -2992,7 +2992,14 @@ function applyUpdate(req, res, pastUnlocked, {
   const writePricedLines = () => {
     // specs/payments/direct-installments.md rules 7, 8, 13 — the plan follows the new total. A line gesture that leaves the plan where it stands
     // writes no instalment row (pricing-components rule 93).
-    const planCents = () => db.prepare('SELECT COALESCE(SUM(amountCents), 0) AS cents FROM reservation_installments WHERE reservationId = ?').get(id).cents;
+    // Rule 60 — beside a collected acompte the plan plus the acompte make the pre-arrival amount; rule 54 — a closed plan holds its
+    // own installments and leaves the rest to the arrival complement: what it stands for is the target it was last made for.
+    const planCents = () => {
+      const scheduled = db.prepare('SELECT COALESCE(SUM(amountCents), 0) AS cents FROM reservation_installments WHERE reservationId = ?').get(id).cents;
+      const stay = db.prepare('SELECT depositPaid, depositPaidCash, depositAmount, installmentsTarget FROM reservations WHERE id = ?').get(id) || {};
+      return Math.max(scheduled, Math.round(Number(stay.installmentsTarget || 0) * 100))
+        + require('../utils/installmentPlan').collectedDepositCents(stay);
+    };
     if (!(saleBase && Math.round(Number(quote.preArrivalAmount || 0) * 100) === planCents())) installments.syncAfterSave(id, quote);
 
     // Nights are never rewritten on a locked fiche, but its extras are while the window is open.
@@ -3222,6 +3229,17 @@ function paymentMarkRefusal(row, body, today) {
   for (const [field, already] of Object.entries(alreadyOf)) {
     if ((body[field] === true || body[field] === 1) && Number(already || 0) === 1) {
       return { status: 409, body: { error: `${ALREADY_LABELS[field]} Relire la fiche.`, code: 'ALREADY_PAID', field } };
+    }
+  }
+  // Rule 38 — the caisse-interne flag marks a complement too: sent on one already perceived with another day, it would
+  // re-date it (moving its accounting entry to another month), so it meets the same refusal as the flag itself.
+  // Sent with the day it already stores (or none) it is the move to the caisse interne, which stays allowed.
+  for (const [flagField, dateField] of PAID_DATE_FIELDS) {
+    const cashField = PAID_CASH_FIELDS[flagField];
+    if (!cashField || !(body[cashField] === true || body[cashField] === 1) || Number(alreadyOf[flagField] || 0) !== 1) continue;
+    if (body[dateField] !== undefined && body[dateField] !== null && body[dateField] !== ''
+      && String(body[dateField]).slice(0, 10) !== String(row[dateField] || '').slice(0, 10)) {
+      return { status: 409, body: { error: `${ALREADY_LABELS[flagField]} Relire la fiche.`, code: 'ALREADY_PAID', field: cashField } };
     }
   }
   // Rule 68 (D20) — the end-of-stay complement is collected after the check-out, by every path that marks it.

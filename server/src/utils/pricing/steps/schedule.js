@@ -24,7 +24,7 @@ const step = {
   provides: [
     'accommodationPreArrival', 'autoComplementAmount', 'autoDepositAmount', 'balanceDueDate',
     'complementCollectedExcess', 'depositDueDate', 'endOfStayComplementAutoTotal', 'endOfStayComplementTotal',
-    'installmentPlan', 'isTouristTaxForcedToComplement', 'midStayLinesWithExcess', 'midStayRemainingDue',
+    'installmentPlan', 'installmentRest', 'isTouristTaxForcedToComplement', 'midStayLinesWithExcess', 'midStayRemainingDue',
     'midStaySettledAll', 'noteCreditCuts', 'overCollectedTtc', 'planScheduled', 'platformIsNonDirect', 'preArrivalAmount',
     'rawComplement', 'resolvedBalanceAmount', 'resolvedComplementAmount', 'resolvedDepositAmount',
     'taxInComplement',
@@ -45,10 +45,10 @@ const step = {
 
     // The two readings of money received go through the PaymentLedger port here, under the conditions the plan has always
     // read them: a collected bucket has a split to carve out, read from the stay's receipts (rule 48: the one read of what was
-    // received); a direct stay with nothing collected may have an installment plan (rule 35 of specs/payments/direct-installments.md: a
-    // bucket already collected is never zeroed). The unit gets values.
+    // received); a direct stay whose solde is not collected may have an installment plan (rules 35 and 60 of
+    // specs/payments/direct-installments.md: a bucket already collected is never zeroed, the acompte stays beside the plan). The unit gets values.
     const splitReceived = (depositPaid || balancePaid || complementPaid) ? paymentLedger.receipts(bookingId).splitReceived : null;
-    const installmentPlanRead = isDirectChannel(platform) && !depositPaid && !balancePaid ? paymentLedger.installments(bookingId) : null;
+    const installmentPlanRead = isDirectChannel(platform) && !balancePaid ? paymentLedger.installments(bookingId) : null;
 
     // The two due dates are resolved AFTER the amounts (further down), because whether an échéance
     // exists at all depends on them — see the `resolveDepositDueDate` / `resolveBalanceDueDate` call
@@ -56,7 +56,7 @@ const step = {
 
     const {
       accommodationPreArrival, autoComplementAmount, autoDepositAmount, balanceDueDate, complementCollectedExcess,
-      depositDueDate, endOfStayComplementAutoTotal, endOfStayComplementTotal, installmentPlan,
+      depositDueDate, endOfStayComplementAutoTotal, endOfStayComplementTotal, installmentPlan, installmentRest,
       isTouristTaxForcedToComplement, midStayLinesWithExcess, midStayRemainingDue, midStaySettledAll, noteCreditCuts, overCollectedTtc,
       planScheduled, platformIsNonDirect, preArrivalAmount, rawComplement, resolvedBalanceAmount,
       resolvedComplementAmount, resolvedDepositAmount, taxInComplement,
@@ -85,7 +85,7 @@ const step = {
       ...ctx,
       accommodationPreArrival, autoComplementAmount, autoDepositAmount, balanceDueDate,
       complementCollectedExcess, depositDueDate, endOfStayComplementAutoTotal, endOfStayComplementTotal,
-      installmentPlan, isTouristTaxForcedToComplement, midStayLinesWithExcess, midStayRemainingDue,
+      installmentPlan, installmentRest, isTouristTaxForcedToComplement, midStayLinesWithExcess, midStayRemainingDue,
       midStaySettledAll, noteCreditCuts, overCollectedTtc, planScheduled, platformIsNonDirect, preArrivalAmount,
       rawComplement, resolvedBalanceAmount, resolvedComplementAmount, resolvedDepositAmount,
       taxInComplement,

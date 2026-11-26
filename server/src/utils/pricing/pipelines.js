@@ -92,7 +92,7 @@ const externalPayment = require('./steps/externalPayment');
  * inComplement: complementForcedItemsTotal, forcedItemsTotal
  * schedule: accommodationPreArrival, autoComplementAmount, autoDepositAmount, balanceDueDate,
  *     complementCollectedExcess, depositDueDate, endOfStayComplementAutoTotal, endOfStayComplementTotal,
- *     installmentPlan, isTouristTaxForcedToComplement, midStayLinesWithExcess, midStayRemainingDue,
+ *     installmentPlan, installmentRest, isTouristTaxForcedToComplement, midStayLinesWithExcess, midStayRemainingDue,
  *     midStaySettledAll, noteCreditCuts, overCollectedTtc, planScheduled, platformIsNonDirect, preArrivalAmount, rawComplement,
  *     resolvedBalanceAmount, resolvedComplementAmount, resolvedDepositAmount, taxInComplement
  * platformPayment: acompteCommissionAmount, platformCommissionAmount, platformNetReceivedAmount,
