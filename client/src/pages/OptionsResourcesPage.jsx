@@ -3,7 +3,7 @@
  *
  * Groups the « Options » and « Ressources » catalogs under one menu entry, plus the tabs plugins
  * contribute through the `optionsResources.tabs` slot (`{ key, value, label, order, Component }`) —
- * the core « Proposés à l'arrivée » (specs/sas/outside-booking-sas.md rule 37), the SAS plugin's « Facturables au SAS » (specs/settings/settings-rationalization.md rule 2,
+ * the core « Options proposées » (specs/sas/outside-booking-sas.md rule 37, specs/site/site-outside-resource-booking.md rule 34), the SAS plugin's « Facturables au SAS » (specs/settings/settings-rationalization.md rule 2,
  * specs/plugins/plugins-phase-2-hosts.md rule 8). The tabs are handed to the active child, which passes them
  * to its `PageActionBar`: centred in the bar on sm+, second row of the same sticky block on xs
  * (specs/design-system/ds-tabs.md rule 2). The tab lives in `?tab=` so the old `/parametres/tarifs` link lands on
@@ -26,7 +26,7 @@ import { Contribution } from '../plugins/sdk/Slot';
 const CORE_ITEMS = [
   { value: 'options', label: 'Options' },
   { value: 'resources', label: 'Ressources' },
-  { value: 'suggested', label: 'Proposés à l’arrivée' },
+  { value: 'suggested', label: 'Options proposées' },
 ];
 
 export default function OptionsResourcesPage() {

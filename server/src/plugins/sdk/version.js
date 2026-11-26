@@ -7,6 +7,6 @@
  * MAJOR bump; adding one is a MINOR bump; a fix that changes no entry point is a PATCH.
  */
 
-const SDK_VERSION = '2.36.0';
+const SDK_VERSION = '2.37.0';
 
 module.exports = { SDK_VERSION };

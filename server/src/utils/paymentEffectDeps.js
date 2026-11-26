@@ -13,7 +13,7 @@ const emailTemplatesModel = require('../models/emailTemplatesModel');
 const emailLogModel = require('../models/emailLogModel');
 const settingsModel = require('../models/settingsModel');
 const { createEmailService } = require('./emailService');
-const { buildGatedConfirmationSender } = require('./reservationEmailSender');
+const { buildGatedConfirmationSender, buildGatedStayMailSender } = require('./reservationEmailSender');
 const emailManualQueueModel = require('../models/emailManualQueueModel');
 const notificationService = require('./notificationService');
 
@@ -26,6 +26,21 @@ const sendConfirmation = buildGatedConfirmationSender({
   queueModel: emailManualQueueModel,
   onQueueError: (err) => console.error('[payments] could not queue the confirmation email:', err && err.message ? err.message : err),
 });
+
+// specs/payments/online-payment-notices.md rule 7 — the receipt of an online balance, gated by its own template's mode.
+const sendBalanceReceived = buildGatedStayMailSender({
+  database, templatesModel: emailTemplatesModel, logModel: emailLogModel,
+  settingsModel, emailServiceFactory: createEmailService,
+  queueModel: emailManualQueueModel,
+  stableKey: 'balance_received',
+  onQueueError: (err) => console.error('[payments] could not send or queue the balance receipt:', err && err.message ? err.message : err),
+});
+
+// specs/payments/online-payment-notices.md rules 1-3 — the operator learns an online payment without opening the fiche.
+const notifyPaymentReceived = async (link) => {
+  const found = require('./paymentsReceived').noticeOf(database, link);
+  if (found) await notificationService.notifyOperator(found.notice);
+};
 
 // Dates no longer free for a just-confirmed reservation? Re-uses the authoritative availability check,
 // excluding the reservation itself; `allowPastDates` so only the OVERLAP rule (not the past guard) flags.
@@ -50,6 +65,8 @@ function buildPaymentEffectDeps() {
     sendConfirmation,
     checkConflict,
     notifyConflict: (reservationId) => notificationService.notifyBookingConflict(reservationId),
+    notifyPaymentReceived,
+    sendBalanceReceived,
     notifyPaidAfterCancel: (link, options) => notificationService.notifyPaidAfterCancel(link, options),
     notifyDeactivationStuck: (link, options) => notificationService.notifyDeactivationStuck(link, options),
     notifyPaymentInFlight: (link) => notificationService.notifyPaymentInFlight(link),

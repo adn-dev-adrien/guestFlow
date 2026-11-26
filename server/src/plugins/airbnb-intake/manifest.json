@@ -11,7 +11,7 @@
   ],
   "requires": [],
   "guestflow": ">=3.18.0",
-  "sdk": "^2.36.0",
+  "sdk": "^2.37.0",
   "changelog": {
     "1.0.0": [
       "Première version publiée en paquet, pour le SDK 2 de GuestFlow : le mail « Réservation confirmée » d’Airbnb remplit la fiche iCal (voyageur, groupe, code de confirmation, message et « Paiement plateforme »).",
@@ -92,7 +92,7 @@
       "Accueil : la ligne d’un courriel Airbnb dont la fiche existe est un lien vers cette fiche (le retour ramène à l’accueil) (SDK 2.34.0)."
     ],
     "1.1.14": [
-      "La fiche reçoit le relevé côté hôte : location, ménage, taxe de séjour selon le mode de la plateforme (SDK 2.36.0)."
+      "La fiche reçoit le relevé côté hôte : location, ménage, taxe de séjour selon le mode de la plateforme (SDK 2.37.0)."
     ]
   }
 }

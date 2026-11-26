@@ -1,5 +1,5 @@
 /**
- * `ctx` — everything a plugin may ask of the core (specs/plugins-phase-1-sdk.md §3.B). `register(ctx)`
+ * `ctx` — everything a plugin may ask of the core (specs/plugins/plugins-phase-1-sdk.md §3.B). `register(ctx)`
  * only DECLARES: nothing it declares runs before the loader mounts, migrates and schedules it, and
  * nothing runs while the plugin is not live.
  */
@@ -39,7 +39,7 @@ function createContext(id, {
     // to a support session like a secret (rule 18) — the keys `GET/PUT /api/plugins/:id/settings`
     // accept (rule 7); `validate(value)` returns a French message to refuse a write, or null;
     // `internal`: the plugin's own bookkeeping, refused by the PUT and left out of the GET (SDK 2.17.0);
-    // `afterSave(value)` runs once the value is stored (specs/plugins-phase-p-productisation.md rule 16).
+    // `afterSave(value)` runs once the value is stored (specs/plugins/plugins-phase-p-productisation.md rule 16).
     declare(keys) { record.settings.push(...keys); },
     get(key) {
       const decl = record.settings.find((k) => k.key === key);
@@ -63,7 +63,7 @@ function createContext(id, {
       if (!isPublic && !path.startsWith('/api/')) throw new Error(`${prefix} mounts must live under /api/`);
       record.mounts.push({ path, router, public: isPublic });
     },
-    // SDK 2.26.0 (specs/plugins-phase-1-sdk.md rule 48) — a web app the plugin serves itself: under `path` (one
+    // SDK 2.26.0 (specs/plugins/plugins-phase-1-sdk.md rule 48) — a web app the plugin serves itself: under `path` (one
     // segment of its own, e.g. '/studio') on every host, or on its own `host()` (a hostname, read on each request;
     // null = none yet) at every path. Never under /api, /public, /uploads or /plugin-assets: those stay the core's,
     // on every host. Reached only while the plugin is live.
@@ -84,7 +84,7 @@ function createContext(id, {
       record.routes.push({ method, path, handlers });
     },
     // Allowlist entries for a restricted role, matched like enforceRoleAccess's own ({ method, re }
-    // on the path below /api) — specs/plugins-phase-2-hosts.md rule 3. `reception(entries)` is its
+    // on the path below /api) — specs/plugins/plugins-phase-2-hosts.md rule 3. `reception(entries)` is its
     // shorthand from phase 1.
     roleAccess(role, entries) {
       if (!Object.prototype.hasOwnProperty.call(record.roleAccess, role)) throw new Error(`${prefix} unknown role ${role}`);
@@ -93,7 +93,7 @@ function createContext(id, {
     reception(entries) { record.roleAccess.reception.push(...entries); },
     // Routes that hand out, create or rotate a secret ({ method: 'GET' | … | '*', re } on the lower-case
     // path below /api, like roleAccess). A support session is refused them
-    // (specs/hosting-h2-account-security.md rule 23).
+    // (specs/hosting/hosting-h2-account-security.md rule 23).
     secretRoutes(entries) {
       (entries || []).forEach((e) => {
         if (!e || !(e.re instanceof RegExp) || typeof e.method !== 'string') throw new Error(`${prefix} a secret route needs { method, re }`);
@@ -101,7 +101,7 @@ function createContext(id, {
       record.secretRoutes.push(...entries);
     },
     // A POST under /api/ that no session reaches — a provider calling back. It bypasses the session,
-    // role and read-only guards, so the plugin authenticates it itself (specs/plugins-phase-3a-online-payment.md rule 12).
+    // role and read-only guards, so the plugin authenticates it itself (specs/plugins/plugins-phase-3a-online-payment.md rule 12).
     webhook(path, handler) {
       if (!path.startsWith('/api/')) throw new Error(`${prefix} webhooks must live under /api/`);
       record.webhooks.push({ path, handler });
@@ -115,7 +115,7 @@ function createContext(id, {
       if (other) throw new Error(`${prefix} a payment provider is already declared by ${other.id}`);
       record.paymentProvider = provider;
     },
-    // The quote post-processor (specs/plugins-phase-3b-neat.md rule 1): its single output is the
+    // The quote post-processor (specs/plugins/plugins-phase-3b-neat.md rule 1): its single output is the
     // cancellation insurance unit price, so at most one per instance.
     quotePostProcessor(processor) {
       PROCESSOR_MEMBERS.forEach((m) => {
@@ -125,7 +125,7 @@ function createContext(id, {
       if (other) throw new Error(`${prefix} the cancellation insurance price is already declared by ${other.id}`);
       record.quotePostProcessor = processor;
     },
-    // The price-line contributor (specs/plugins-phase-3c-hourly-resources.md rule 1): it prices the
+    // The price-line contributor (specs/plugins/plugins-phase-3c-hourly-resources.md rule 1): it prices the
     // resource lines of its price types, inside the engine's loop. At most one per price type.
     priceLineContributor(contributor) {
       CONTRIBUTOR_MEMBERS.forEach((m) => {
@@ -138,7 +138,7 @@ function createContext(id, {
       });
       record.priceLineContributor = contributor;
     },
-    // SDK 2.30.0 (specs/pricing-components.md rules 5, 47; plugins-phase-1-sdk rule 54) — a pricing family for the Articles head:
+    // SDK 2.30.0 (specs/pricing/pricing-components.md rules 5, 47; plugins-phase-1-sdk rule 54) — a pricing family for the Articles head:
     // `{ id, configSchema, validate(config, request, ctx), price(config, request, ctx), describe(config, line) }`.
     // `ctx.priceLineContributor` stays as the alias of the hourly one. A family id is declared once
     // (DUPLICATE_FAMILY); it prices only while this plugin is live (FAMILY_UNAVAILABLE otherwise).
@@ -146,7 +146,7 @@ function createContext(id, {
       articles.registerFamily(familyId, family, { owner: id, isLive: () => registry.isLive(id) });
       record.articleFamilies.push(familyId);
     },
-    // SDK 2.26.0 (specs/guest-app.md rules 28-31) — the slots of an hourly resource for a stay, read from the
+    // SDK 2.26.0 (specs/guest-app/guest-app.md rules 28-31) — the slots of an hourly resource for a stay, read from the
     // resource planning by the plugin that owns it: `slotsForStay(args)` → `{ days }` | null and
     // `validateSessions(args)` → `{ results }` | null, and optionally `orderSupplement(args)` → the evening supplement of sessions an order
     // places on hours the stay already holds (guest-app rule 82). One per instance; the core hands it out as
@@ -159,14 +159,14 @@ function createContext(id, {
       if (other) throw new Error(`${prefix} a resource scheduler is already declared by ${other.id}`);
       record.resourceScheduler = provider;
     },
-    // SDK 2.30.0 (specs/pricing-components.md rule 49) — the downstream booking an article names (`fulfilment: 'hourly-slot'`):
+    // SDK 2.30.0 (specs/pricing/pricing-components.md rule 49) — the downstream booking an article names (`fulfilment: 'hourly-slot'`):
     // `{ reserve(draft, ctx), confirm(hold, line, tx), release(hold, reason) }`. A fulfilment id is declared once (DUPLICATE_FULFILMENT);
     // it is asked only while this plugin is live.
     articleFulfilment(fulfilmentId, adapter) {
       articleFulfilment.register(fulfilmentId, adapter, { owner: id, isLive: () => registry.isLive(id) });
       record.articleFulfilments.push(fulfilmentId);
     },
-    // SDK 2.30.0 (specs/pricing-components.md rule 48) — the SlotAvailabilityProvider: `slots(resourceId, range)` and
+    // SDK 2.30.0 (specs/pricing/pricing-components.md rule 48) — the SlotAvailabilityProvider: `slots(resourceId, range)` and
     // `validate(sessions)`, one per instance, handed out as `ctx.core.slotAvailability()`.
     slotAvailability(provider) {
       SLOT_AVAILABILITY_MEMBERS.forEach((m) => {
@@ -192,7 +192,7 @@ function createContext(id, {
       if (other) throw new Error(`${prefix} a resource booking offer is already declared by ${other.id}`);
       record.resourceBookingOffer = provider;
     },
-    // SDK 2.26.0 (specs/guest-app.md rule 35) — ({ resourceId, from, to }) → [{ date, start, end, reservationId? }]:
+    // SDK 2.26.0 (specs/guest-app/guest-app.md rule 35) — ({ resourceId, from, to }) → [{ date, start, end, reservationId? }]:
     // slots a plugin holds on a resource before they reach the planning (an order awaiting payment). Read by
     // `ctx.core.resourceHolds(...)` as occupancy. Synchronous, one per plugin.
     resourceHolds(source) {
@@ -200,7 +200,7 @@ function createContext(id, {
       if (record.resourceHolds) throw new Error(`${prefix} resourceHolds is already declared`);
       record.resourceHolds = source;
     },
-    // SDK 2.26.0 (specs/guest-app.md rules 35-36) — the baskets a plugin bills through a `complement` link
+    // SDK 2.26.0 (specs/guest-app/guest-app.md rules 35-36) — the baskets a plugin bills through a `complement` link
     // (`ctx.core.payments.basketLink(...)`): `paid({ reservationId, ref, amountCents, paidDate, paidAt, providerPaymentId })`
     // runs, synchronously, when such a link is paid — on time or late — and answers `{ effect }`; `refundOwed: true`
     // marks money the stay keeps nothing for. One plugin per `source`. A link minted with `core.payments.saleLink(...)` has no stay:
@@ -218,7 +218,7 @@ function createContext(id, {
       }
       record.paymentBaskets.push({ source, paid, labels: { ...(labels || {}) } });
     },
-    // SDK 2.33.0 (specs/mixed-method-payments.md rules 60-63) — a prepaid instrument the plugin keeps the balance of: an amount a guest
+    // SDK 2.33.0 (specs/payments/mixed-method-payments.md rules 60-63) — a prepaid instrument the plugin keeps the balance of: an amount a guest
     // already paid elsewhere (a stored credit) and may use on a booking. `source` names it, and is the `kind` of the booking
     // request's opaque `prepaid` field; `label` is what the stay's payments call it. The core asks the live plugin, never names it:
     //   apply({ devisId, input, capCents, visitor, dryRun }) → { ok: true, heldCents, display } | { ok: false, status, code, message }
@@ -266,14 +266,14 @@ function createContext(id, {
       record.termsActivities.push({ key, label: label.trim(), seed: seed || null });
     },
     // (resource, { properties }) → { lines?: [{ label, value }], footer?: string } | null — what the plugin
-    // adds to a resource's card on Options & ressources while it is live (specs/options-resources-ux.md
+    // adds to a resource's card on Options & ressources while it is live (specs/options/options-resources-ux.md
     // rule 19). Synchronous, no I/O; a plugin declares one.
     resourceCatalogueLines(build) {
       if (typeof build !== 'function') throw new Error(`${prefix} resourceCatalogueLines needs a function`);
       if (record.resourceCatalogueLines) throw new Error(`${prefix} resourceCatalogueLines is already declared`);
       record.resourceCatalogueLines = build;
     },
-    // The invoice issuer (specs/resource-booking-pricing-and-invoicing.md rule 14): numbers and keeps the invoices a
+    // The invoice issuer (specs/resources/resource-booking-pricing-and-invoicing.md rule 14): numbers and keeps the invoices a
     // plugin asks for, and joins their PDF to a bank transaction. One per instance, like the payment provider.
     invoiceIssuer(issuer) {
       ISSUER_MEMBERS.forEach((m) => {
@@ -283,26 +283,28 @@ function createContext(id, {
       if (other) throw new Error(`${prefix} an invoice issuer is already declared by ${other.id}`);
       record.invoiceIssuer = issuer;
     },
-    // `{ kind, label, list }` — a kind of sale context the generic « Proposés à l'arrivée » lists are kept for (the outside-visit spec rule 37, SDK 2.32.0): `kind` names it
-    // (`resource`), `label` heads it in Réglages → Articles, `list() → [{ id, label }]` says which contexts of that kind exist now. `property` is the core's own kind. While the
+    // `{ kind, label, list, shownOnSite }` — a kind of sale context the generic « Options proposées » lists are kept for (the outside-visit spec rule 37, SDK 2.32.0): `kind` names it
+    // (`resource`), `label` heads it in Réglages → Options et ressources, `list() → [{ id, label }]` says which contexts of that kind exist now. `shownOnSite(id) → boolean` (optional, SDK 2.36.0,
+    // site-outside-resource-booking rule 35) says whether the website shows that context's list; absent, the list is shown at the arrival only. `property` is the core's own kind. While the
     // plugin is off its kind disappears from the settings page and from `suggestedArticles.resolve`; the stored lists stay.
-    suggestionContexts({ kind, label, list } = {}) {
+    suggestionContexts({ kind, label, list, shownOnSite } = {}) {
       if (!/^[a-z][a-zA-Z0-9-]{0,39}$/.test(String(kind || ''))) throw new Error(`${prefix} a suggestion context needs a kind like "resource"`);
       if (kind === 'property') throw new Error(`${prefix} the "property" suggestion context is the core's`);
       if (typeof label !== 'string' || !label.trim()) throw new Error(`${prefix} suggestion context "${kind}" needs a label`);
       if (typeof list !== 'function') throw new Error(`${prefix} suggestion context "${kind}" needs a list function`);
+      if (shownOnSite !== undefined && typeof shownOnSite !== 'function') throw new Error(`${prefix} suggestion context "${kind}" shownOnSite must be a function`);
       const other = registry.all().find((r) => r.id !== id && (r.suggestionContexts || []).some((c) => c.kind === kind));
       if (other) throw new Error(`${prefix} the suggestion context "${kind}" is already declared by ${other.id}`);
-      record.suggestionContexts.push({ kind, label, list });
+      record.suggestionContexts.push({ kind, label, list, shownOnSite });
     },
     // ({ from, to }) → [sale] — what the plugin sold outside any stay, for the journal and the card batch
-    // (specs/resource-booking-pricing-and-invoicing.md rules 20-21). Synchronous, reads the plugin's own tables.
+    // (specs/resources/resource-booking-pricing-and-invoicing.md rules 20-21). Synchronous, reads the plugin's own tables.
     standaloneSales(list) {
       if (typeof list !== 'function') throw new Error(`${prefix} standaloneSales needs a function`);
       if (record.standaloneSales) throw new Error(`${prefix} standaloneSales is already declared`);
       record.standaloneSales = list;
     },
-    // SDK 2.28.0 (specs/guest-app-home-automation.md §4.1) — the house's data as the Sowel connector stores it, and the
+    // SDK 2.28.0 (specs/guest-app/guest-app-home-automation.md §4.1) — the house's data as the Sowel connector stores it, and the
     // light commands it relays. One per instance; read as `ctx.core.homeData()`.
     homeData(provider) {
       HOME_DATA_MEMBERS.forEach((m) => {
@@ -312,7 +314,7 @@ function createContext(id, {
       if (other) throw new Error(`${prefix} a home data provider is already declared by ${other.id}`);
       record.homeData = provider;
     },
-    // SDK 2.28.0 (specs/guest-app-home-automation.md rule 4) — () → [{ equipmentId, alias }]: the readings the lodgings
+    // SDK 2.28.0 (specs/guest-app/guest-app-home-automation.md rule 4) — () → [{ equipmentId, alias }]: the readings the lodgings
     // show, the only ones the house is asked to send. One per instance; read as `ctx.core.homeSelection()`.
     homeSelection(list) {
       if (typeof list !== 'function') throw new Error(`${prefix} homeSelection needs a function`);
@@ -320,7 +322,7 @@ function createContext(id, {
       if (other) throw new Error(`${prefix} a home selection is already declared by ${other.id}`);
       record.homeSelection = list;
     },
-    // SDK 2.29.0 (specs/mollie-rolling-reserve-and-incoming-payments.md rule 18) — ({ reservationId }) →
+    // SDK 2.29.0 (specs/payments/mollie-rolling-reserve-and-incoming-payments.md rule 18) — ({ reservationId }) →
     // { rows: { [ledgerKey]: [tranche] }, schedule: object | null } | null: the dated bank tranches of a paid row of the
     // payments ledger, and the one-line schedule of the money summary. Synchronous, reads the plugin's own tables.
     ledgerBankTranches(provider) {
@@ -356,7 +358,7 @@ function createContext(id, {
       if (key !== id) throw new Error(`${prefix} a reservation block is keyed by the plugin id ("${id}"), not "${key}"`);
       record.reservationBlocks.push({ key, build });
     },
-    // A subject of the home's « À traiter » (specs/shell-and-home-day-first.md rule 9): `handler` is the
+    // A subject of the home's « À traiter » (specs/planning/shell-and-home-day-first.md rule 9): `handler` is the
     // plugin's own handler of the card's list, `summarize(payload)` → { count, title, detail, severity }
     // or null. The key is the one of its client contribution to `dashboard.alerts(.urgent)`.
     attention({ key, rank, handler, summarize } = {}) {
@@ -370,15 +372,15 @@ function createContext(id, {
     },
     // () → null when the plugin has what it needs, else a short French label of what it lacks
     // (« à connecter », « identifiants manquants »). The Plugins page prints « Actif · <label> » and
-    // offers « Configurer » (specs/plugins-phase-0-foundation.md rule 25). Read on every list: keep it
+    // offers « Configurer » (specs/plugins/plugins-phase-0-foundation.md rule 25). Read on every list: keep it
     // a cheap, synchronous look at the plugin's own settings — never a call to a remote service.
     setupStatus(check) {
       if (typeof check !== 'function') throw new Error(`${prefix} setupStatus needs a function`);
       record.setupStatus = check;
     },
-    // A push notification toggle of « Notifications push » (specs/platform-settings-relay-and-review.md
+    // A push notification toggle of « Notifications push » (specs/platforms/platform-settings-relay-and-review.md
     // rule 8, SDK 2.6.0): offered while the plugin is live, sent with `pushService.sendToPref(key, …)`.
-    // `label` is French, as the toggle reads. SDK 2.35.0 (specs/site-outside-resource-booking.md rule 24): several plugins may
+    // `label` is French, as the toggle reads. SDK 2.35.0 (specs/site/site-outside-resource-booking.md rule 24): several plugins may
     // declare the same key when every declaration says `shared: true` with the same label; the toggle is then listed once, while any of them is live.
     pushChannel({ key, label, shared = false } = {}) {
       if (!PUSH_CHANNEL_KEY.test(String(key || ''))) throw new Error(`${prefix} a push channel needs a key like "my-channel"`);
@@ -392,7 +394,7 @@ function createContext(id, {
       record.pushChannels.push({ key, label, shared: shared === true });
     },
     // (rows) → rows: decorates the rows of the home's « Échéances » card while the plugin is live — a row may
-    // gain a `bank` line or be dropped (specs/reconciliation-assisted-matching.md rule 22). At most one per plugin.
+    // gain a `bank` line or be dropped (specs/accounting/reconciliation-assisted-matching.md rule 22). At most one per plugin.
     paymentDeadlineDecorator(decorate) {
       if (typeof decorate !== 'function') throw new Error(`${prefix} the payment-deadline decorator must be a function`);
       if (record.paymentDeadlineDecorator) throw new Error(`${prefix} the payment-deadline decorator is already declared`);
@@ -428,7 +430,7 @@ function createContext(id, {
     onBoot(fn) { record.onBoot.push(fn); },
     // SDK 2.11.0 — runs each time the plugin goes from off to live: activated, or installed (after its
     // install hooks). Events sent while it was off were dropped, so it recovers from its own data here
-    // (specs/plugin-removal-resilience.md rule 17). Not awaited by the request that switched it on.
+    // (specs/plugins/plugin-removal-resilience.md rule 17). Not awaited by the request that switched it on.
     onActivate(fn) { record.onActivate.push(fn); },
     // { tables: [name], describe(db) → [{ label, count }], purge?(db), refuse?(db) } (rule 12). SDK 2.33.0 — `refuse(db)` → a
     // French sentence when the erasure must not run now (money the plugin still holds), else null: the core answers 409 ERASE_REFUSED.
@@ -466,7 +468,7 @@ function createContext(id, {
       requireAccepted: (input) => require('../../utils/termsAcceptance').requireAccepted(input),
       accept: (input) => require('../../utils/termsAcceptance').accept({ ...input, pluginId: id }),
     }),
-    // specs/plugins-phase-4-registry.md rule 15 — the plugin's own directory, kept across updates,
+    // specs/plugins/plugins-phase-4-registry.md rule 15 — the plugin's own directory, kept across updates,
     // removed only by « Effacer aussi ses données ». Created on first read.
     get dataDir() {
       if (!dataDir) return null;

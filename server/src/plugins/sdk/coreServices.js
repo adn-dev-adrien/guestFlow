@@ -185,7 +185,7 @@ module.exports = Object.freeze({
     platformCommission: (figures) => (figures && figures.basis === 'rentOnly' ? platformCommission().commissionOf(figures) : platformCommission().statementCommission(figures)),
     // specs/tourist-tax/per-platform-tourist-tax-three-way.md — true in the `platform` mode only: the platform charges
     // the tax and remits it to the commune itself, so its payout leaves it out.
-    // SDK 2.36.0 (specs/platforms/platform-host-statement-and-commission-vat.md rules 5, 8) — the platform's tourist-tax mode, `'platform'` (the platform kept it,
+    // SDK 2.37.0 (specs/platforms/platform-host-statement-and-commission-vat.md rules 5, 8) — the platform's tourist-tax mode, `'platform'` (the platform kept it,
     // out of the books) | `'platform_reversed'` (paid with the transfer) | `'owner'` (collected on arrival): what the box of its statement means.
     // `platformCommission(figures)` takes the platform's key with the figures and adds the box to the host amount only in the middle mode.
     touristTaxMode: (propertyId, platformKey) => platformTaxMode().touristTaxModeOf(database(), platformKey),

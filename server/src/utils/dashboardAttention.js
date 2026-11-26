@@ -122,6 +122,11 @@ const CORE_SUMMARIES = {
     const n = listOf(payload, 'alerts').length;
     return n ? { count: n, title: 'Nouvelles réservations', detail: 'Sur les dernières 24 h', severity: 'info' } : null;
   },
+  // specs/payments/online-payment-notices.md rule 5 — information only, never pinned.
+  'payments-received': (payload) => {
+    const n = listOf(payload, 'alerts').length;
+    return n ? { count: n, title: 'Paiements reçus', detail: 'Sur les dernières 24 h', severity: 'info' } : null;
+  },
   'email-pending': (payload) => {
     const rows = Array.isArray(payload) ? payload : [];
     if (!rows.length) return null;

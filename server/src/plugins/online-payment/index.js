@@ -1,5 +1,5 @@
 /**
- * Paiement en ligne (Qonto) — module per specs/plugins-phase-3a-online-payment.md §3.C.
+ * Paiement en ligne (Qonto) — module per specs/plugins/plugins-phase-3a-online-payment.md §3.C.
  *
  * Qonto is the payment provider of the core's money path (rule 4): this module declares it, owns its
  * settings page endpoints, its OAuth flow, its webhook and the poll job. What a payment means — the link
@@ -16,7 +16,7 @@ const { createWebhookController } = require('./webhookController');
 const { resolvePaymentPollTickMs } = require('./paymentPollSchedule');
 const { createPaymentJobs } = require('./paymentJobs');
 
-// The Qonto library is core code (specs/plugins-phase-3a-online-payment.md rule 22), shared with the
+// The Qonto library is core code (specs/plugins/plugins-phase-3a-online-payment.md rule 22), shared with the
 // control plane: the plugin wires it to the instance's settings and routes.
 const { createQontoSettingsController, mountQontoSettingsRoutes } = sdk.coreModule('qonto').qontoSettingsController;
 const { ensureWebhookSubscription } = sdk.coreModule('qonto').qontoWebhookRegistrar;
@@ -54,6 +54,8 @@ function resetLegacyColumns(db) {
 }
 
 function register(ctx) {
+  // specs/payments/online-payment-notices.md rule 2 — the push toggle of « Paiement reçu en ligne ».
+  ctx.pushChannel({ key: 'stay-payments', label: 'Paiements en ligne reçus' });
   ctx.settings.declare(DECLARED);
   ctx.settings.declare(reconciliationDeclared(ctx.settings));
   ctx.settings.declare(mollieDeclared());
@@ -69,10 +71,10 @@ function register(ctx) {
   bind(store);
   const provider = createQontoProvider({ settings: store });
   ctx.paymentProvider(provider);
-  // specs/resource-booking-pricing-and-invoicing.md rule 14 — Qonto numbers and keeps the invoices a plugin asks for.
+  // specs/resources/resource-booking-pricing-and-invoicing.md rule 14 — Qonto numbers and keeps the invoices a plugin asks for.
   const invoiceIssuer = createQontoInvoiceIssuer({ store: () => store, iban: () => String(coreSettings().read().companyIban || '') });
   ctx.invoiceIssuer(invoiceIssuer);
-  // specs/plugins-phase-0-foundation.md rule 25 — the Plugins card says the connection is missing.
+  // specs/plugins/plugins-phase-0-foundation.md rule 25 — the Plugins card says the connection is missing.
   ctx.setupStatus(() => (store.qontoConnected() ? null : 'à connecter'));
 
   // Rule 11 — the settings page endpoints, at the URLs the Paiements page and Qonto (OAuth redirect)
@@ -87,14 +89,14 @@ function register(ctx) {
   ctx.webhook('/api/payments/qonto/webhook', webhook.handleWebhook);
 
   // Rule 14 — the reconciliation pass, behind the webhook and the guest's own success page; and the
-  // lifecycle pass every 15 minutes (specs/payment-link-lifecycle.md rule 16), never at the same time.
+  // lifecycle pass every 15 minutes (specs/payments/payment-link-lifecycle.md rule 16), never at the same time.
   const effectDeps = () => ({ ...sdk.coreModule('paymentEffectDeps').buildPaymentEffectDeps(), provider });
   createPaymentJobs({
     isConnected: () => store.qontoConnected(),
     pollIntervalMs: resolvePaymentPollTickMs(),
     log: ctx.log,
     runPoll: async () => {
-      // The subscription is part of the safety net (specs/settings-one-save-and-automatic-webhook.md
+      // The subscription is part of the safety net (specs/settings/settings-one-save-and-automatic-webhook.md
       // rule 11): free once recorded, and it never throws.
       await ensureWebhookSubscription({ settings: store });
       return sdk.coreModule('paymentPollRunner').runPaymentPoll(effectDeps());
@@ -102,14 +104,14 @@ function register(ctx) {
     runLifecycle: () => sdk.coreModule('paymentPollRunner').runLinkLifecycle(effectDeps()),
   }).forEach((job) => ctx.jobs.every(job));
 
-  // specs/qonto-bank-reconciliation.md — the credits read from the account, the operator's decisions.
+  // specs/accounting/qonto-bank-reconciliation.md — the credits read from the account, the operator's decisions.
   const reconciliation = mountReconciliation(ctx, {
     store, attachPdf: invoiceIssuer.attachPdf, companyName: () => String(coreSettings().read().companyName || ''),
   });
 
   // Rule 16 — the connection and the reconciliation's own tables are plugin data. Payment links, paid
   // buckets and the request emails are the stays' records: they stay (so do the fiches the reconciliation
-  // marked — specs/qonto-bank-reconciliation.md rule 24).
+  // marked — specs/accounting/qonto-bank-reconciliation.md rule 24).
   ctx.data({
     tables: reconciliation.tables,
     describe: () => [

@@ -46,7 +46,7 @@ const {
 const { resolveServedPersons } = require('./units');
 const kit = require('./familyKit');
 const { contributionOf } = require('./pluginFamily');
-const { PRICE_TYPE_LABELS } = require('./priceTypeLabels');
+const { PRICE_TYPE_LABELS, NOT_SELLABLE_OUTSIDE } = require('./priceTypeLabels');
 const fixed = require('./families/fixed');
 const perUnit = require('./families/perUnit');
 const perNight = require('./families/perNight');
@@ -486,6 +486,7 @@ module.exports = {
   makeArticle,
   outsideSale,
   PRICE_TYPE_LABELS,
+  NOT_SELLABLE_OUTSIDE,
   registerFamily: registry.register,
   liveFamilies,
   registerCoreFamilies,

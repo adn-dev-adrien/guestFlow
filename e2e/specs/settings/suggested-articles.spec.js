@@ -1,5 +1,5 @@
 // @ts-check
-// specs/sas/outside-booking-sas.md rule 37 — Options & ressources › « Proposés à l'arrivée » at 1280 and 390 px: one card per resource sold by the hour, an article added from the catalogue,
+// specs/sas/outside-booking-sas.md rule 37 — Options & ressources › « Options proposées » (formerly « Proposés à l'arrivée ») at 1280 and 390 px: one card per resource sold by the hour, an article added from the catalogue,
 // reordered with ↑ / ↓, saved with the bar's « Enregistrer »; the server holds the list in that order; no sideways scroll.
 // Reading 2026-11-16 (loop t4 UI4-1, smoke rule 19): a disabled « Enregistrer » is not a save signal (it flips with `saving`, before the PUT
 // is answered) — the test waits for the PUT's answer, then reads the server back with its own API budget, polling.
@@ -12,7 +12,7 @@ test.describe.configure({ mode: 'serial' });
 const TAG = Date.now().toString(36);
 
 for (const [label, viewport] of [['desktop', { width: 1280, height: 900 }], ['phone', { width: 390, height: 844 }]]) {
-  test.describe(`proposés à l'arrivée · ${label}`, () => {
+  test.describe(`options proposées · ${label}`, () => {
     test.use({ viewport });
 
     test('add two articles, reorder them, save: the server keeps the order', async ({ page, request }) => {
@@ -26,11 +26,13 @@ for (const [label, viewport] of [['desktop', { width: 1280, height: 900 }], ['ph
       await expect(card.getByText('Aucun article proposé.')).toBeVisible();
       await expect(page.getByRole('button', { name: 'Enregistrer' })).toBeDisabled();
 
+      // specs/site/site-outside-resource-booking.md rule 36 — the checklist stays open: both articles are ticked in one pass.
+      await card.getByRole('button', { name: 'Ajouter des articles' }).click();
       for (const article of [first, second]) {
-        await card.getByRole('button', { name: 'Ajouter un article' }).click();
         await card.getByRole('textbox', { name: 'Chercher un article' }).fill(article.title);
-        await card.getByRole('button', { name: article.title }).click();
+        await card.getByRole('checkbox', { name: new RegExp(article.title) }).check();
       }
+      await card.getByRole('button', { name: 'Fermer' }).click();
       await card.getByRole('button', { name: `Monter ${second.title}` }).click();
       await expect(card.getByRole('listitem').first()).toContainText(second.title);
       if (label === 'phone') expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);

@@ -17,13 +17,17 @@
  * Fails closed on purpose. A missing template, a partially-migrated row, a read that throws — all
  * resolve to `false`. The safe default is « ask me », never « mail the guest ».
  *
- * One exception, granted by Adrien on 2026-10-30 (specs/payments/payment-link-lifecycle.md rule 44): the guest whose
+ * Three named exceptions, all granted by Adrien (specs/emails/no-automatic-email-without-approval.md rule 11): the gift-voucher
+ * receipt, `dates_unavailable_notice` (below) and `balance_received` (specs/payments/online-payment-notices.md rule 7) — the
+ * last is a real `auto` mode, event-triggered, sent by `buildGatedStayMailSender`, never by the daily pass.
+ *
+ * The exception of 2026-10-30 (specs/payments/payment-link-lifecycle.md rule 44): the guest whose
  * payment request lost its dates to another stay is told at once, without validation. It is not a mode:
  * the template stays `manual` in the database, this policy still answers `false` for it, and its only sender
  * is `utils/datesTakenNotice.js`, the one module that reads `AUTO_SEND_EXCEPTIONS` (a test pins it).
  */
 
-const { PAYMENT_STABLE_KEYS } = require('./defaultEmailTemplatesRegistry');
+const { PAYMENT_STABLE_KEYS, EVENT_TRIGGERED_STABLE_KEYS } = require('./defaultEmailTemplatesRegistry');
 
 const AUTO_SEND_EXCEPTIONS = Object.freeze(['dates_unavailable_notice']);
 
@@ -53,7 +57,8 @@ function stableKeyAutoSends(templatesModel, stableKey) {
 /** True when at least one enabled template is in « auto » mode — the daily pass has work to do. */
 function anyTemplateAutoSends(templatesModel) {
   try {
-    return templatesModel.listEnabled().some(templateAutoSends);
+    // An event-triggered template leaves from its own sender, never from the daily pass: it does not arm it.
+    return templatesModel.listEnabled().some((t) => templateAutoSends(t) && !EVENT_TRIGGERED_STABLE_KEYS.includes(t.stableKey));
   } catch {
     return false;
   }

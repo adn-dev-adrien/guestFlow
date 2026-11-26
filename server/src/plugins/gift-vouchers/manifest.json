@@ -1,7 +1,7 @@
 {
   "id": "gift-vouchers",
   "name": "Bons cadeaux",
-  "version": "1.8.0",
+  "version": "1.9.0",
   "description": "Des bons cadeaux vendus en ligne, au téléphone ou par carte commerçant : un montant pour un séjour, ou un contenu composé (bain nordique et options) réservé en ligne par le bénéficiaire.",
   "icon": "gift",
   "surfaces": [
@@ -17,8 +17,12 @@
   ],
   "requires": [],
   "guestflow": ">=3.10.0",
-  "sdk": "^2.35.0",
+  "sdk": "^2.36.0",
   "changelog": {
+    "1.9.0": [
+      "Le tableau de prix d’une option ajoutée à un bon vient de la fonction du cœur qu’utilise aussi la page des séances du site ; rien ne change pour le client.",
+      "Demande le SDK 2.36 de GuestFlow."
+    ],
     "1.8.0": [
       "Le site montre le bon tel que le client le recevra : la carte se retourne et son verso est dessiné comme celui du PDF (logo, QR code, contenu, nom, mot, code, validité).",
       "L’offre publique envoie ce verso (dimensions du PDF, textes fixes, lignes de chaque campagne, validité d’un achat du jour) et le logo de l’établissement ; la page après paiement reçoit le verso avec le vrai QR code du bon.",

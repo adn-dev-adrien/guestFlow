@@ -16,6 +16,7 @@ const sales = require('../models/standaloneSalesModel');
 const option = (title, price, { priceType = 'per_stay', sellable = 1, vatClass = 'drinks' } = {}) => Number(db.prepare('INSERT INTO options (title, price, priceType, sellableExternally, vatClass) VALUES (?, ?, ?, ?, ?)').run(title, price, priceType, sellable, vatClass).lastInsertRowid);
 const beer = option('Bière locale', 6.5);
 const lemonade = option('Limonade', 4);
+const syrup = option('Sirop', 3);
 const honey = option('Miel', 9, { sellable: 0 });
 const breakfast = option('Petit-déjeuner', 12, { priceType: 'per_person_per_night' });
 sales.setExternalRate('drinks', 20);
@@ -39,8 +40,8 @@ test('rule 37 — a plugin declares the contexts of its kind; the core declares 
 });
 
 test('rule 37 — a list is written whole, in the operator\'s order, 12 articles at most, each known to the catalogue', () => {
-  const saved = suggested.save('resource', bath, [ref(lemonade), ref(beer), ref(honey)]);
-  assert.deepEqual([saved.status, saved.articleRefs], [200, [ref(lemonade), ref(beer), ref(honey)]]);
+  const saved = suggested.save('resource', bath, [ref(lemonade), ref(beer), ref(syrup)]);
+  assert.deepEqual([saved.status, saved.articleRefs], [200, [ref(lemonade), ref(beer), ref(syrup)]]);
   assert.deepEqual(suggested.save('resource', bath, [ref(beer), ref(lemonade)]).articleRefs, [ref(beer), ref(lemonade)], 'replaced, reordered');
   assert.deepEqual(suggested.save('resource', bath, [ref(9999)]).body.code, 'ARTICLE_UNKNOWN');
   assert.equal(suggested.save('resource', bath, [ref(beer), ref(beer)]).body.code, 'ARTICLE_DUPLICATE');
@@ -105,7 +106,10 @@ test('rule 37 — a provider that throws is skipped, never failing the page', ()
 test('rule 37 — the settings payload lists every live kind with its contexts and their lists; the controllers answer as the API contract says', () => {
   suggested.save('resource', bath, [ref(beer)]);
   const view = suggested.settingsView();
-  assert.deepEqual(view.kinds.find((k) => k.kind === 'resource'), { kind: 'resource', label: 'Ressources à l’heure', contexts: [{ id: String(bath), label: 'Bain', articleRefs: [ref(beer)], articles: [{ articleRef: ref(beer), label: 'Bière locale' }] }] });
+  assert.deepEqual(view.kinds.find((k) => k.kind === 'resource'), { kind: 'resource', label: 'Ressources à l’heure', contexts: [{
+    id: String(bath), label: 'Bain', shownOn: ['arrival'], articleRefs: [ref(beer)], articles: [{ articleRef: ref(beer), label: 'Bière locale', unitCents: 650, unitLabel: 'l’unité', reason: null }],
+  }],
+  });
   const get = res();
   controller.resolved({ query: { kind: 'resource', id: String(bath), customerContext: 'external' } }, get);
   assert.deepEqual(get.body, { suggestions: [{ articleRef: ref(beer), label: 'Bière locale', unitCents: 650, max: 99 }] });
@@ -113,8 +117,8 @@ test('rule 37 — the settings payload lists every live kind with its contexts a
   controller.resolved({ query: {} }, bad);
   assert.equal(bad.statusCode, 400);
   const put = res();
-  controller.save({ params: { kind: 'resource', id: String(bath) }, body: { articleRefs: [ref(honey), ref(beer)] } }, put);
-  assert.deepEqual(put.body, { context: { kind: 'resource', id: String(bath), articleRefs: [ref(honey), ref(beer)] } });
+  controller.save({ params: { kind: 'resource', id: String(bath) }, body: { articleRefs: [ref(syrup), ref(beer)] } }, put);
+  assert.deepEqual(put.body, { context: { kind: 'resource', id: String(bath), articleRefs: [ref(syrup), ref(beer)] } });
   const missing = res();
   controller.save({ params: { kind: 'resource', id: String(bath) }, body: { articleRefs: ['option:0'] } }, missing);
   assert.deepEqual([missing.statusCode, missing.body.code], [400, 'ARTICLE_UNKNOWN']);

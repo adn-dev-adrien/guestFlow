@@ -188,4 +188,42 @@ function buildGatedConfirmationSender({
   };
 }
 
-module.exports = { sendReservationTemplateEmail, buildConfirmationSender, buildGatedConfirmationSender };
+/**
+ * The gated sender of a stay's event e-mail that is not part of the guest sequence — « Solde reçu » after an online
+ * balance (specs/payments/online-payment-notices.md rule 7), the confirmation of a devis converted by hand (rule 8
+ * goes through `buildGatedConfirmationSender` instead). Same gate as the confirmation: sent at once when the template
+ * is `auto`, otherwise proposed in « Emails à envoyer » (idempotent). Never throws.
+ */
+function buildGatedStayMailSender({
+  database, templatesModel, logModel, settingsModel, emailServiceFactory, queueModel, stableKey, onQueueError,
+}) {
+  // One receipt per stay: two payments settling it at once (a webhook and a poll) must not both mail the guest.
+  const inFlight = new Set();
+  return async (reservationId) => {
+    const key = Number(reservationId);
+    try {
+      if (stableKeyAutoSends(templatesModel, stableKey)) {
+        const template = templatesModel.findByStableKey(stableKey);
+        if (inFlight.has(key)) return { sent: false, reason: 'already-sending' };
+        if (logModel.existsFor && logModel.existsFor(template.id, key, ['sent'])) return { sent: false, reason: 'already-sent' };
+        inFlight.add(key);
+        try {
+          return await sendReservationTemplateEmail({
+            database, templatesModel, logModel, settingsModel, emailServiceFactory, reservationId, stableKey,
+          });
+        } finally {
+          inFlight.delete(key);
+        }
+      }
+      const template = templatesModel.findByStableKey(stableKey);
+      if (!template || !template.enabled) return { sent: false, reason: 'no-template' };
+      queueModel.add(template.id, key);
+      return { sent: false, reason: 'template-manual', queued: true };
+    } catch (err) {
+      if (onQueueError) onQueueError(err);
+      return { sent: false, reason: 'send-failed' };
+    }
+  };
+}
+
+module.exports = { sendReservationTemplateEmail, buildConfirmationSender, buildGatedConfirmationSender, buildGatedStayMailSender };

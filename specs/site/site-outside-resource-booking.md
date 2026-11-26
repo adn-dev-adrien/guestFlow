@@ -2,12 +2,12 @@
 
 | Field | Value |
 |---|---|
-| **Status** | Implemented (§3.G, the recap and the voucher prefill, added and implemented 2026-11-26) |
+| **Status** | Implemented (§3.G and §3.H implemented 2026-11-26) |
 | **Branch** | `feature/outside-resource-booking-site` |
 | **Created** | 2026-11-25 |
 | **Author** | Adrien |
 | **Related PR** | (link once opened) |
-| **Mock-up** | `site-outside-resource-booking.html` (folded into this spec, deleted 2026-11-26) · §3.G: [`docs/specs/2026-11-26-session-booking-voucher-prefill.html`](../../docs/specs/2026-11-26-session-booking-voucher-prefill.html) |
+| **Mock-up** | `site-outside-resource-booking.html` (folded into this spec, deleted 2026-11-26) · §3.G: [`docs/specs/2026-11-26-session-booking-voucher-prefill.html`](../../docs/specs/2026-11-26-session-booking-voucher-prefill.html) · §3.H: [`docs/specs/2026-11-26-session-online-add-ons.html`](../../docs/specs/2026-11-26-session-online-add-ons.html) |
 
 ---
 
@@ -196,6 +196,44 @@ nothing until a slot was chosen, and had to type again what the giver already ga
     empty — nothing lost, the printed name unchanged. `recipientName` stays readable as that first name for every reader that
     prints it (PDF, mails, notices), so no reader changes meaning. No voucher had been sold in production on 2026-11-26.
 
+### 3.H The site's options, chosen in GuestFlow on one page (amendment 2026-11-26)
+
+Owner request of 2026-11-26: choose in GuestFlow, on one page and never option by option, which options the « Bain nordique » page
+sells, and show them on the site the way the gift vouchers show theirs. Measured before: the page already offered the resource's
+« Proposés à l'arrivée » list (`suggested_articles`, `specs/sas/outside-booking-sas.md` rules 36-37), but no screen said so; the
+settings picker added one article at a time and closed; an article the engine refuses outside a stay could be listed and then
+vanished from the site without a word; the site called every price « l'unité » and its limit « N au maximum par bon ». Owner
+choices (chat + mock-up): **one list, the existing one** — no second list, no migration — centralised and made easier to use;
+its order (↑ ↓) is the site's order; the tab is renamed « Options proposées ».
+
+34. **One list.** « Ajouter à la séance » offers the resource's suggested-articles list (kind `resource`, the resource's id), in the
+    operator's order, as resolved for the outside customer — the list the arrival dialog shows. No other list is created and no data
+    moves. The tab of Options et ressources « Proposés à l'arrivée » is renamed **« Options proposées »**; its intro reads « Articles
+    proposés à l'arrivée et, pour une activité vendue en ligne, sur sa page du site, dans l'ordre choisi. ». The settings keyword
+    search finds it under both names.
+35. **Each list says where it shows.** A context of the settings page carries `shownOn` from the server, read from its kind's provider
+    (`ctx.suggestionContexts({ …, shownOnSite(id) })`, optional, false by default): `hourly-resources` answers true for a resource
+    the site offers (rule 1, `isOfferedOnline`). The card then shows a `StatusBadge` « Sur le site » (success) and the caption « À
+    l'arrivée et dans « Ajouter à la séance » de la page du site. »; otherwise « À l'arrivée seulement » (neutral). The core `property`
+    kind declares nothing and shows « À l'arrivée seulement ».
+36. **The picker works like a campaign's.** « Ajouter des articles » (text button) opens a search field and the catalogue grouped by
+    category, each article with a checkbox and its unit price (« 6 € l'unité »); the list **stays open after a pick** so several
+    articles are ticked in one pass, a tick adds at the end, an untick removes; « Fermer » closes it. 12 at most stays the server's
+    guard (`TOO_MANY`); the page says « 12 articles au plus. » and refuses the 13th tick. For a context whose customer is external
+    (kind `resource`), an article `articles.outsideSale` refuses or that is not `sellableExternally` is **listed greyed, not
+    tickable**, with the reason of `specs/gift-vouchers/gift-voucher-campaigns.md` rule 65 (« Le prix « par personne » a besoin d’un
+    séjour : il ne se vend pas seul. ») or « Pas marqué « vendable hors séjour » dans le catalogue. » (the one constant `articles.NOT_SELLABLE_OUTSIDE`, also the gift-voucher catalogue's); the settings catalogue read answers every article with
+    `sellable` and `reason` for that purpose (`GET /api/suggested-articles/catalogue?context=<kind>:<id>&all=1`). An article already
+    in such a list and now refused is drawn in the warning colour with its reason followed by « Retirer pour enregistrer. », and the
+    save of that list is refused (400 `ARTICLE_NEEDS_STAY`, the same sentence) — the screen never hides it. Rows keep ↑ / ↓ / ✕
+    (44 px) and show their unit price under the name.
+37. **The site reads the voucher fold's figures.** Each entry of `GET /resources` `addOns` carries `unitLabel`, `linear` and
+    `prices: [{ qty, cents }]` computed by the **same function** as a campaign's add-ons (`extrasPricing.addOn`, moved to the core
+    `utils/addOnPricing.js` and used by both plugins), for 1 … `min(max, 10)`; an article the engine cannot price for one unit is left
+    out, as before. The block passes the fold a session limit text: « N au maximum par séance » (new string `sbAddMax`), never « par
+    bon ». The fold itself (`GF.voucherExtrasFold`, campaigns rule 64) is unchanged. A session booked with a voucher keeps its
+    campaign's add-ons (rule 14, unchanged).
+
 ## 4. Architecture
 
 ### 4.1 Server side (`server/src/`)
@@ -224,12 +262,22 @@ nothing until a slot was chosen, and had to type again what the giver already ga
 | utils | `utils/notificationService.js` | T | `notifyOperator({ channel, title, body, url, subject, lines })`: push + e-mail, one-line sanitising as today |
 | `database.js` / `schema.sql` / `models/resourcesModel.js` / `controllers/resourcesController.js` | T | `resources.sessionMaxPeople` (rule 25), validated 1-100 on its own field |
 | plugin migrations | `hourly-resources/migrations.js` | T | `resource_bookings.people` (rule 26), `resource_session_orders` |
+| utils | `utils/addOnPricing.js` | C | §3.H rule 37: `createAddOnPricing({ engine, priceTypeOf })` → `addOn(articleRef, maxQty)` / `priced(list)` → `unitLabel`, `linear`, `prices`, moved from `plugins/gift-vouchers/extrasPricing.js` (which keeps `extraTime` and builds on it); `priceTypeOf` defaults to the catalogue's own row. Exposed to plugins as the core module `addOnPricing` (SDK 2.36.0) |
+| plugin | `plugins/hourly-resources/publicSessionService.js` | T | §3.H rule 37: `addOnsOffered` builds each entry through `addOnPricing` |
+| plugin | `plugins/hourly-resources/index.js` / `sessionQuote.js` | T | §3.H rule 35: `shownOnSite(id)` on the `resource` suggestion context = `isOfferedOnline(resource)`, the one test `publicSessionService` also applies (rule 1) |
+| sdk | `plugins/sdk/createContext.js` / `index.js` / `version.js` / `coreModules.json` / `coreModuleHistory.json` | T | §3.H rule 35: `suggestionContexts` accepts the optional `shownOnSite` (a function, or refused); the `addOnPricing` core module; SDK 2.36.0 (manifests of `hourly-resources` 1.12.0 and `gift-vouchers` 1.9.0 ask `^2.36.0`) |
+| utils | `utils/suggestedArticles.js` | T | §3.H rules 35-36: `kinds()` contexts carry `shownOn`; `catalogue({ customerContext, q, all })` lists refused articles with `sellable: false` and `reason`; `save` refuses `ARTICLE_NEEDS_STAY` for an external-customer kind |
+| controller | `controllers/suggestedArticlesController.js` | T | §3.H: `context` and `all` on the catalogue read; the new refusal |
 
 ### 4.2 Client side (`client/src/`)
 
 | Layer | File | T/C | Responsibility in this change |
 |---|---|---|---|
 | page | `pages/options/ResourceEditorPanel.jsx` / `resourceForm.js` | T | « Personnes par séance au plus » (`sessionMaxPeople`) under the external-sale fields, for a resource shown on the planning and sold outside a stay |
+| page | `pages/OptionsResourcesPage.jsx` | T | §3.H rule 34: tab label « Options proposées » (value `suggested` kept, so old links still open it) |
+| page | `pages/settings/SettingsSuggestedArticlesSection.jsx` | T | §3.H rules 34-36: intro, `StatusBadge` per context from `shownOn`, unit price per row, the warning row and the refused save, the picker below |
+| component | `components/ArticleChecklistPicker.jsx` | C | §3.H rule 36: generic search + grouped checklist that stays open, greyed rows with their reason, a limit; consumes the server's catalogue (`StatusBadge`, existing fields) — generic because the campaign add-ons and any future list can use it |
+| constants | `constants/settingsMenu.js` (`SETTINGS_KEYWORDS`) | T | « Options proposées », « Proposés à l’arrivée » and « Ajouter à la séance » find Options et ressources |
 | plugin page | `hourly-resources/OutsideBookingPage.jsx` (« Passage ») | T | Shows `people` in the session block and corrects it in place |
 | plugin page | `hourly-resources/ResourcePlanningPage.jsx` | T | The booking tooltip names the people |
 | plugin page | `gift-vouchers/NewVoucherPage.jsx`, `giftVoucherTexts.js` | T | « Pour » becomes « Prénom » and « Nom », required, each refusal on its field (rule 32) |
@@ -244,7 +292,8 @@ Reused: `ExternalSaleFields`, existing fiche components. No new generic componen
 | `blocks/session-booking/{block.json,render.php,view.js}` | C | The tunnel of rules 1-17; reuses the calendar (`gf-cal-*`), summary (`gf-summary`), bar (`gf-bar`), fold (`GF.voucherExtrasFold`) and field styles; rules 28-31: no hold notice, « Choisissez un horaire », the voucher's lines at « 0 € · inclus dans le bon », the names prefilled |
 | `blocks/gift-voucher-use/*` | T | Alias rendering the session tunnel (rule 18); its own `view.js` is removed, the alias runs the session block's script |
 | `blocks/gift-voucher/view.js` | T | « Vous avez reçu un bon cadeau ? » link (rule 19), from the runtime's `sessionPageUrl`; « Prénom » / « Nom » of the recipient, both required, the card preview naming the first name only (rule 32) |
-| `assets/voucher-parts.js` | T | `voucherExtrasFold` takes a `title` and a `foot` |
+| `assets/voucher-parts.js` | T | `voucherExtrasFold` takes a `title` and a `foot`; §3.H rule 37: and a `maxKey` for the limit text |
+| `blocks/session-booking/view.js` / `includes/class-gf-blocks.php` / `languages/*en_GB.{po,mo}` | T | §3.H rule 37: passes `maxKey: 'sbAddMax'`; new string « %s au maximum par séance » (EN « %s at most per session »); connector 1.26.0 |
 | `includes/class-gf-blocks.php` / `class-gf-settings.php` | T | The block, its French strings, `sessionPageUrl`; the page holding either block is « the use page »; connector 1.24.0 (`sbHold` and `sbIncludedShort` removed, `sbIncludedIn`, `gvFirstName`, `gvLastName` added) |
 | `assets/style.css` | T | No rotation on `.gf-gv-front` (rule 20); session tunnel styles on the existing tokens |
 | `includes/class-gf-rest-proxy.php` | T | Proxies `/sessions/*`; forwards `recipientFirstName` and `recipientLastName` of an order |
@@ -313,6 +362,27 @@ existing voucher suites were moved to the two-field body. Client: `wordpress-ses
 muted / red / muted again, the voucher's lines at 0 € before and after a slot, the prefill rules), `wordpress-gift-voucher.recipient-names.test.js` (4),
 `NewVoucherPage.recipient-names.test.jsx` (3).
 
+**§3.H** — server: `tests/suggested-articles-site-list.unit.test.js` (`shownOn` true only for a resource on offer and false for `property`; `catalogue all` lists a per-person
+article greyed with the rule-65 sentence; `save` refuses `ARTICLE_NEEDS_STAY` on a `resource` list and accepts it on a `property` list), `tests/add-on-pricing.unit.test.js`
+(`unitLabel`, `linear`, `prices`, a step the engine refuses ends the table) and `hourly-resources/tests/public-session-add-ons.unit.test.js` (`GET /resources` addOns = the
+list, in its order, with the shared function's fields; an edit of the list changes the site's offer). Client: `ArticleChecklistPicker.test.jsx` (stays open, several ticks,
+greyed row not tickable with its reason, 13th tick refused), `SettingsSuggestedArticlesSection.site-list.test.jsx` (badges, prices, warning row, save refused),
+`wordpress-session-booking.add-ons.test.js` (« au maximum par séance », the voucher's own limit unchanged). Manual: tick 3 articles on « Options proposées », save, see them
+on the session block in that order; reorder; a per-person article greyed; phone 390 px.
+
+**§3.H as built, 2026-11-26** — server: `suggested-articles-site-list.unit.test.js` (6), `add-on-pricing.unit.test.js` (3), `hourly-resources/tests/public-session-add-ons.unit.test.js` (4); `suggested-articles.unit.test.js` kept
+(its resource lists now hold sellable articles, its settings payload carries `shownOn`, `unitCents` and `reason`). Client: `ArticleChecklistPicker.test.jsx` (4), `SettingsSuggestedArticlesSection.site-list.test.jsx` (4),
+`wordpress-session-booking.add-ons.test.js` (2); `SettingsSuggestedArticlesSection.test.jsx` kept in step with the new rows and picker.
+
+**§3.H deviations, written down:**
+- The shared function is the factory `createAddOnPricing({ engine, priceTypeOf })` of the core module `addOnPricing` (SDK 2.36.0), not two bare functions: the engine is the caller's (the standalone sale quote). `priceTypeOf` defaults to the catalogue's own row of the reference; gift-vouchers passes its catalogue view's.
+- `maxQty` of a site add-on stays the length of its price table (as before the move), bounded by `min(entry.max, 10)`.
+- The settings payload (`GET /api/settings/suggested-articles`) gives each listed article `unitCents`, `unitLabel` (what a unit is counted in, from `addOnPricing.unitLabelOf`: the page words nothing) and `reason` (null when it sells; « Prix introuvable : l’article n’est pas proposé. » when the engine cannot price it now, which `resolve` drops silently), so the page draws the warning row and the price without a second read; the page computes nothing.
+- `ARTICLE_NEEDS_STAY` answers `{ error, code, articleRef }`, the error being the rule-65 sentence (or « Pas marqué « vendable hors séjour » dans le catalogue. ») followed by « Retirer pour enregistrer. ».
+- The page does not disable « Enregistrer » for a list holding a refused article: the server is the judge, its sentence is drawn on that card and by the toast, the other lists still save.
+- « Ajouter des articles » stays enabled at 12 (to untick); « 12 articles au plus. » appears when a 13th tick is attempted. A card for a context shown at the arrival only says « Proposés à l’arrivée uniquement. ».
+
+
 **WordPress:** PHP lint; block JS checked in the browser on a dev site.
 
 **Manual (browser, dev copy):** book a 2-hour session 19:00–21:00 and check the recap parts; pay through the Qonto sandbox and land on
@@ -327,6 +397,7 @@ sticky bar; the purchase page card straight with its link; push + e-mail receive
   cancellation (the team cancels, campaigns rule 54).
 - Turning the e-mail off separately from the push toggle.
 - Selling options alone (without a session) on this page.
+- §3.H: a second list for the site; a per-person option sold with a session (the engine refuses it without a stay); a setting on each option's fiche.
 
 ## 9. Open questions
 
@@ -339,6 +410,9 @@ _Resolved 2026-11-26 (Adrien, chat):_ « Choisissez un horaire » muted then red
 « inclus dans le bon » · recipient first and last names entered separately at purchase, both required, stored in GuestFlow,
 used to fill the booking · the printed voucher, e-mails and tunnel name the recipient by first name only.
 
+_Resolved 2026-11-26 (Adrien, chat + mock-up §3.H):_ the GuestFlow page is a tab of Options et ressources · one list for the arrival and the site, the
+existing one, nothing migrated · its ↑ ↓ order is the site's · the tab is renamed « Options proposées ».
+
 ## 10. Implementation progress
 
 - [x] Server: shared push channel, `notifyOperator`, columns
@@ -348,6 +422,7 @@ used to fill the booking · the printed voucher, e-mails and tunnel name the rec
 - [x] WordPress: session block, alias, purchase link, straight card, proxy, redirect
 - [x] Tests, CHANGELOG fragments, plugin/connector versions
 - [x] §3.G (2026-11-26): recap before a slot, voucher lines at 0 €, names prefilled, recipient in two fields — connector 1.24.0, gift-vouchers 1.7.0
+- [x] §3.H (2026-11-26): one list for arrival and site, « Options proposées », checklist picker, shared add-on pricing, « par séance » — connector 1.26.0, SDK 2.36.0, hourly-resources 1.12.0, gift-vouchers 1.9.0
 
 Deviations from the first draft, all written above: the notification links open `/passages/<id>` and `/bons-cadeaux?bon=<id>` (the pages that exist);
 `sessionMaxPeople` is a core column; the people are corrected through their own `PATCH` so no price moves; a settled voucher is named from its tender's label

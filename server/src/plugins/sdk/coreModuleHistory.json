@@ -373,6 +373,17 @@
     },
     {
       "version": "2.36.0",
+      "modules": [
+        "addOnPricing"
+      ],
+      "names": {
+        "articles": [
+          "NOT_SELLABLE_OUTSIDE"
+        ]
+      }
+    },
+    {
+      "version": "2.37.0",
       "modules": [],
       "names": {
         "platformPayment": [

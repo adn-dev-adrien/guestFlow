@@ -22,7 +22,7 @@ const HARDENED_AT = '2.15.0';
 
 const HARDENINGS = [
   // specs/platforms/platform-host-statement-and-commission-vat.md rules 5, 20-21 — the platform's tourist-tax mode, which names what the box of a statement means.
-  { feature: 'the tourist-tax mode of a platform', sdk: '2.36.0', pattern: /\breservations\.touristTaxMode\b/ },
+  { feature: 'the tourist-tax mode of a platform', sdk: '2.37.0', pattern: /\breservations\.touristTaxMode\b/ },
   { feature: 'linear e-mail check', sdk: HARDENED_AT, pattern: /validateEmail\(/ },
   { feature: 'mailbox reader caps and parser version', sdk: HARDENED_AT, pattern: /\breadMailsFrom\b|\bmanifestVersion\(/ },
   { feature: 'scoped cancellation retry', sdk: HARDENED_AT, pattern: /retryPendingCancellations/ },

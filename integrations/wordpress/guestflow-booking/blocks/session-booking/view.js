@@ -1,5 +1,5 @@
 /**
- * « Réserver une séance » frontend (build-free, plain ES) — specs/site-outside-resource-booking.md rules 1-19.
+ * « Réserver une séance » frontend (build-free, plain ES) — specs/site/site-outside-resource-booking.md rules 1-19.
  *
  *   ?gf_session=<ref>                  → the return page of a payment: polls GuestFlow until « Séance réservée »
  *   ?gf_use=paid                       → back from the bank after a voucher's remainder was paid
@@ -452,7 +452,7 @@
       addHost.innerHTML = '';
       st.qty = {};
       fold = GF.voucherExtrasFold({
-        extraTime: null, addOns: addOnsOffered(), title: GF.t('sbAddTitle'), foot: GF.t('sbAddFoot'),
+        extraTime: null, addOns: addOnsOffered(), title: GF.t('sbAddTitle'), foot: GF.t('sbAddFoot'), maxKey: 'sbAddMax',
         onAddOn: function (ref, n) { st.qty[ref] = n; if (st.slot) requote(); },
       });
       addHost.hidden = !fold;

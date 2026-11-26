@@ -8,6 +8,7 @@ import RepairedReservationNumbersAlert from './RepairedReservationNumbersAlert';
 import DatesTakenAlert from './DatesTakenAlert';
 import EmailReadinessAlert from './EmailReadinessAlert';
 import NewReservationsAlert from './NewReservationsAlert';
+import PaymentsReceivedAlert from './PaymentsReceivedAlert';
 import EmailPendingAlert from './EmailPendingAlert';
 import UpdateAvailableAlert from './UpdateAvailableAlert';
 import VatFranchiseAlert from './VatFranchiseAlert';
@@ -24,6 +25,7 @@ export const CORE_ATTENTION_SUBJECTS = Object.freeze({
   'dates-taken': DatesTakenAlert,
   'email-readiness': EmailReadinessAlert,
   'new-reservations': NewReservationsAlert,
+  'payments-received': PaymentsReceivedAlert,
   'email-pending': EmailPendingAlert,
   'update-available': UpdateAvailableAlert,
   'vat-franchise': VatFranchiseAlert,
