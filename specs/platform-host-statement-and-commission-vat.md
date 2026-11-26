@@ -282,6 +282,9 @@ Plateformes*: « Régime de TVA » select replaces the box; cards on phone.
 - Regime proposal, typed account kept, « Sans TVA » sales regime (13–14); Mollie fee account (17).
 - GdF / Airbnb / Booking intakes from their recorded fixtures (19–21).
 
+### Counts (2026-11-26)
+Server: `platform-host-statement` 19, `platform-host-statement-migration` 4, `platform-host-statement-preview` 5, `commission-vat-regime` 10 (plugin), intakes amended in their own suites; full suite 14 992 tests. Client: `PlatformStatementEditor.host-statement` 4; full suite 4 930 tests. Build green.
+
 ### Manual UI verification
 - Fiche Airbnb and GdF at ≤600, ~900, ≥1200: typing, refusal + fix, « Calculer », save.
 - *Comptabilité › Plateformes*, journal preview, CSV opened; *Taxes de séjour*.
