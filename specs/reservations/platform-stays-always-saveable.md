@@ -77,6 +77,8 @@ say. A rule it breaks is shown on the fiche as information, so the platform's se
 
 9. The website's public path still refuses every breach (`site/public-api.md` rule 12).
 10. iCal imports and platform intakes stay unblocked (`tariff-recipes.md` rule 24).
+
+    > **Sans test** — unchanged behaviour: iCal imports never went through the fiche's guards, and this change touches neither (covered by the iCal suites).
 11. A stay switched from a platform to `direct` falls under rule 7 again at its next save.
 
 **Edge cases:**
@@ -93,7 +95,7 @@ say. A rule it breaks is shown on the fiche as information, so the platform's se
 
 | Layer | File | T/C | Responsibility in this change |
 |---|---|---|---|
-| `utils/` | `stayRuleJudgement.js` | C | Pure: given the quote's breaches, the channel and whether the dates and party moved, says which breaches still block and words the notes (rules 2, 3, 5, 8) |
+| `utils/` | `stayRuleJudgement.js` | C | Pure: `stayMovement(stored, posted)` says what a save moves against the STORED row (dates, property, party); `judgeStayRules` says, from the quote's breaches, the channel and that movement, which breaches still block and words the notes (rules 2, 3, 5, 8); `quoteWithJudgement` reports a non-blocking breach as none |
 | `controllers/` | `reservationsController.js` | T | `calculatePrice`, `create`, `update` and `checkCapacity` read the judgement instead of the raw breaches; the quote carries `capacityJudged` and `stayRuleNotes` |
 | `models/` | — | — | (none) |
 | `database.js` | — | — | (none: no schema change) |
@@ -111,6 +113,11 @@ already uses for its server lines. No new generic component.
 ### 4.3 API
 
 - `POST /api/reservations/calculate-price` → adds `capacityJudged: boolean` and `stayRuleNotes: string[]`.
+  "Moved" (rule 8) is read server-side against the stored row named by `reservationId` (a creation or a
+  devis moves everything): the client never says whether it moved. Capacity is re-judged when the
+  property or the party moved; the minimum, maximum and changeover when the dates, the property or the
+  party moved. For a platform stay `stayRuleNotes` is filled whether or not anything moved; for a direct
+  stay it is always empty.
 - `POST /api/reservations`, `PUT /api/reservations/:id` → no longer return `409 MIN_NIGHTS`,
   `MAX_NIGHTS`, `CHANGEOVER` or the capacity refusal for a platform stay, nor for a save that moves
   neither the dates nor the party (rule 8). The `force*` flags still exist for direct stays.

@@ -126,6 +126,7 @@ test('increasing occupancy beyond capacity IS still rejected', () => {
     captures,
   });
   const res = fakeRes();
-  controller.update({ params: { id: '7' }, body: body({ babies: 1 }) }, res); // babies 0 → 1, over capacity
+  // A direct stay: the capacity of a platform stay is never judged (specs/reservations/platform-stays-always-saveable.md rule 3).
+  controller.update({ params: { id: '7' }, body: body({ babies: 1, platform: 'direct' }) }, res); // babies 0 → 1, over capacity
   assert.equal(res.statusCode, 400, 'the capacity excess introduced by the edit is rejected');
 });

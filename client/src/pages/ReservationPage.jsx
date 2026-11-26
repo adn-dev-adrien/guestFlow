@@ -2560,12 +2560,6 @@ export default function ReservationPage() {
     const loadedForm = loadedSnapshot && loadedSnapshot.form;
     const placementUnchanged = Boolean(reservationId && loadedForm
       && isPlacementUnchanged({ loadedProp: loadedSnapshot.selectedProp, loadedForm, selectedProp, form }));
-    const occupancyUnchanged = Boolean(reservationId && loadedForm
-      && Number(loadedSnapshot.selectedProp) === Number(selectedProp)
-      && Number(loadedForm.adults || 0) === Number(form.adults || 0)
-      && Number(loadedForm.children || 0) === Number(form.children || 0)
-      && Number(loadedForm.teens || 0) === Number(form.teens || 0)
-      && Number(loadedForm.babies || 0) === Number(form.babies || 0));
 
     // specs/payments/payment-link-lifecycle.md rule 46 — a devis blocks nothing and is refused only on nights a stay holds,
     // which the server judges (409 DATES_HELD with the stays): the fiche's occupancy check is for reservations.
@@ -2581,23 +2575,6 @@ export default function ReservationPage() {
         await alert({ title: 'Conflit de réservation', message: timeConflictState.message });
         return false;
       }
-    }
-
-    if (exceedsGuestCapacity && !forceCapacity && !occupancyUnchanged) {
-      const capacityParts = [];
-      if (exceedsGuestsCapacity) capacityParts.push(`voyageurs: ${guestsCount}/${maxGuestsAllowed}`);
-      if (exceedsBabiesCapacity) capacityParts.push(`bébés: ${babiesCount}/${maxBabiesAllowed}`);
-      const proceed = await confirm({
-        title: 'Capacité du logement dépassée',
-        message: `Le nombre de personnes dépasse la capacité configurée (${capacityParts.join(' • ')}). Forcer l'enregistrement ?`,
-        confirmLabel: 'Forcer l\'enregistrement',
-        cancelLabel: 'Annuler',
-        confirmColor: 'warning',
-      });
-      if (proceed) {
-        return await saveReservationOnce(safeAfterSaveAction, forceMinNights, true, forceChangeover, forceMaxNights, forceOverpayment, forceTypedCounts);
-      }
-      return false;
     }
 
     if (exceedsSingleBedsLimit || exceedsDoubleBedsLimit) {
@@ -2621,6 +2598,24 @@ export default function ReservationPage() {
       setPricingQuote(quote);
       applyQuoteMinNights(quote);
 
+      // specs/reservations/platform-stays-always-saveable.md rule 3 — the SERVER says whether this save judges the
+      // capacity (never for a platform stay, nor when neither the party nor the property moved).
+      if (exceedsGuestCapacity && !forceCapacity && quote.capacityJudged !== false) {
+        const capacityParts = [];
+        if (exceedsGuestsCapacity) capacityParts.push(`voyageurs: ${guestsCount}/${maxGuestsAllowed}`);
+        if (exceedsBabiesCapacity) capacityParts.push(`bébés: ${babiesCount}/${maxBabiesAllowed}`);
+        const proceed = await confirm({
+          title: 'Capacité du logement dépassée',
+          message: `Le nombre de personnes dépasse la capacité configurée (${capacityParts.join(' • ')}). Forcer l'enregistrement ?`,
+          confirmLabel: 'Forcer l\'enregistrement',
+          cancelLabel: 'Annuler',
+          confirmColor: 'warning',
+        });
+        if (proceed) {
+          return await saveReservationOnce(safeAfterSaveAction, forceMinNights, true, forceChangeover, forceMaxNights, forceOverpayment, forceTypedCounts);
+        }
+        return false;
+      }
       if (quote.minNightsBreached && !forceMinNights) {
         const proceed = await confirm({
           title: 'Durée minimale non respectée',
@@ -3928,6 +3923,7 @@ export default function ReservationPage() {
     editingReservationId, handleMiniDateClick, centerMiniCalendarOnRange,
     arrivalMin, arrivalMax, departureMin, departureMax, handleManualDateInputChange,
     datesUnavailableForProperty, datesUnavailableMessage, stayDatesHint, minNightsState, minNightsWarning,
+    stayRuleNotes: pricingQuote?.stayRuleNotes || [],
     liveTimeConflictState, liveTimeConflictMessage, defaultCheckInTime, defaultCheckOutTime,
     isReservationLocked, formReadOnly, extrasWindowOpen, arrivalLines, frozenCustomOptionIds, paidCustomOptionIds,
     refundHost: isCancelledReservation ? refundHost : null,

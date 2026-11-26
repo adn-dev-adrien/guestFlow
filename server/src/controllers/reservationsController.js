@@ -52,6 +52,7 @@ const paidLineJudgment = require('../utils/paidLineJudgment');
 const { readsSaleLines } = require('../utils/saleLinesReaders');
 const { cashNoteExcessCents } = require('../utils/cashNoteExcess');
 const { checkGuestCapacity } = require('../utils/capacity');
+const { judgeStayRules, quoteWithJudgement, stayMovement } = require('../utils/stayRuleJudgement');
 const { partyOf, nightsOf, typedCountAlerts, typedCountsErrorPayload } = require('../utils/typedCounts');
 const { clearContribsOnUnflip } = require('../utils/forceItemContribsCapture');
 const { recordStayPayment, defaultDeps: stayPaymentDeps } = require('../utils/stayPaymentRecorder');
@@ -422,6 +423,11 @@ function checkCapacity({ propertyId, adults, children, teens, babies, singleBeds
     return `Le nombre de lits doubles (${doubleBeds}) dépasse la capacité du logement (${property.doubleBeds || 0}).`;
   }
   return null;
+}
+
+function guestCapacityBreachOf(propertyId, { adults, children, teens, babies }) {
+  const property = model.getPropertyCapacity(propertyId);
+  return property ? checkGuestCapacity(property, { adults, children, teens, babies }) : null;
 }
 
 // Baby-bed count + availability check. Returns an error string or null.
@@ -1631,6 +1637,13 @@ async function calculatePrice(req, res) {
     quote.manualPriceReview = manualPriceReviewOf({ body: req.body, quote, engineInput, storedRow });
   }
 
+  quote = quoteWithJudgement(quote, judgeStayRules({
+    quote,
+    platform: req.body.platform,
+    // specs/reservations/platform-stays-always-saveable.md rule 8 — judged against the STORED stay, never a client claim.
+    movement: stayMovement(quotedStored && quotedStored.kind === 'reservation' ? quotedStored : null, req.body),
+    capacityBreach: guestCapacityBreachOf(propertyId, req.body),
+  }));
   res.json(withTypedCustomTitles(withCustomLineKeys(quote), req.body.customOptions, previewLines.customOptions));
 }
 
@@ -1892,16 +1905,18 @@ function createStay(req, res) {
   // preview warmed it, so the save bills what the preview announced.
   quote = quotePostProcessors.applySync({ engineInput, quote, calculate: calculateReservationQuote });
   if (quote.error) return res.status(quote.status || 400).json({ error: quote.error });
-  if (quote.minNightsBreached && !forceMinNights) {
+  // specs/reservations/platform-stays-always-saveable.md rules 2, 3 — a platform stay is recorded whatever its stay rules say.
+  const judgement = judgeStayRules({ quote, platform: req.body.platform, movement: stayMovement(null, req.body) });
+  if (judgement.blocks.minNights && !forceMinNights) {
     return res.status(409).json({
       error: `Cette réservation comporte ${quote.nights} nuit(s), inférieur au minimum requis (${quote.requiredMinNights}).`,
       code: 'MIN_NIGHTS', requiredMinNights: quote.requiredMinNights, nights: quote.nights, minNightsRules: quote.minNightsRules,
     });
   }
-  if (quote.maxNightsBreached && !forceMaxNights) {
+  if (judgement.blocks.maxNights && !forceMaxNights) {
     return res.status(409).json(maxNightsErrorPayload(quote));
   }
-  if (quote.changeoverBreached && !forceChangeover) {
+  if (judgement.blocks.changeover && !forceChangeover) {
     return res.status(409).json(changeoverErrorPayload(quote));
   }
   if (!forceTypedCounts) {
@@ -1934,7 +1949,7 @@ function createStay(req, res) {
   const capacityError = checkCapacity({
     propertyId, adults, children, teens, babies,
     singleBeds: effectiveSingleBeds, doubleBeds: effectiveDoubleBeds,
-    forceCapacity,
+    forceCapacity: forceCapacity || !judgement.capacityJudged,
   });
   if (capacityError) return res.status(400).json({ error: capacityError });
 
@@ -2844,17 +2859,24 @@ function applyUpdate(req, res, pastUnlocked, {
     }
   }
 
+  // specs/reservations/platform-stays-always-saveable.md rules 2, 3, 8 — a platform stay, and a save that moves neither the
+  // dates, the property nor the party, never re-judge the stay's shape or the capacity (moved is read against the STORED row).
+  const judgement = judgeStayRules({
+    quote,
+    platform: req.body.platform != null ? req.body.platform : (existingReservation || {}).platform,
+    movement: stayMovement(existingReservation, { ...req.body, propertyId, startDate, endDate, adults, children, teens, babies }),
+  });
   // Rule 9 of specs/pricing/pricing-components.md — a sale never re-judges the stay's shape (`staySale` reports no breach either).
-  if (quote.minNightsBreached && !forceMinNights && !pastReservationLocked && !sale) {
+  if (judgement.blocks.minNights && !forceMinNights && !pastReservationLocked && !sale) {
     return res.status(409).json({
       error: `Cette réservation comporte ${quote.nights} nuit(s), inférieur au minimum requis (${quote.requiredMinNights}).`,
       code: 'MIN_NIGHTS', requiredMinNights: quote.requiredMinNights, nights: quote.nights, minNightsRules: quote.minNightsRules,
     });
   }
-  if (quote.maxNightsBreached && !forceMaxNights && !pastReservationLocked && !sale) {
+  if (judgement.blocks.maxNights && !forceMaxNights && !pastReservationLocked && !sale) {
     return res.status(409).json(maxNightsErrorPayload(quote));
   }
-  if (quote.changeoverBreached && !forceChangeover && !pastReservationLocked && !sale) {
+  if (judgement.blocks.changeover && !forceChangeover && !pastReservationLocked && !sale) {
     return res.status(409).json(changeoverErrorPayload(quote));
   }
   // Rule 23 (owner O-10) — a paid line lowered is refused until the operator confirms; the confirmed excess is then owed back.
@@ -2917,7 +2939,7 @@ function applyUpdate(req, res, pastUnlocked, {
       const capacityError = checkCapacity({
         propertyId, adults, children, teens, babies,
         singleBeds: effectiveSingleBeds, doubleBeds: effectiveDoubleBeds,
-        forceCapacity,
+        forceCapacity: forceCapacity || !judgement.capacityJudged,
       });
       if (capacityError) return res.status(400).json({ error: capacityError });
     }
