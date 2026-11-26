@@ -11,7 +11,7 @@ const { MAX_PAYOUT_DUE_DAYS } = require('./platformPayout');
 const PROPERTY_LIMITS = {
   depositDueDays: { min: 0, max: 30, integer: true, unit: 'jours' },
   balanceDaysBefore: { min: 0, max: 60, integer: true, unit: 'jours' },
-  cancelAfterBalanceDueDays: { min: 0, max: 60, integer: true, unit: 'jours' },
+  cancelAfterBalanceDueDays: { min: 1, max: 60, integer: true, unit: 'jours' },
   depositPercent: {
     min: 1,
     max: 99,

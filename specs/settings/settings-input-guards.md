@@ -153,9 +153,13 @@ plan reads as one list of accounts.
 
 9. **`depositDueDays` is a whole number from 0 to 30** (« Entre 0 et 30 jours. »). Checked when the
    acompte is on (`depositEnabled`), like `depositPercent`.
-10. **`balanceDaysBefore` and `cancelAfterBalanceDueDays` are whole numbers from 0 to 60**
-    (« Entre 0 et 60 jours. »), whatever the acompte switch (they apply to the single payment too —
-    `property-deposit-switch.md` rule 11).
+10. **`balanceDaysBefore` is a whole number from 0 to 60** (« Entre 0 et 60 jours. ») **and
+    `cancelAfterBalanceDueDays` from 1 to 60** (« Entre 1 et 60 jours. »), whatever the acompte switch
+    (they apply to the single payment too — `property-deposit-switch.md` rule 11).
+    **Amended 2026-11-26** (Adrien): the cancellation delay starts at **one day** — a stay is never proposed
+    for cancellation on the very day its solde falls due, the guest keeps that day to pay. The schedule
+    settings (`utils/pricing/schedule.js`) refuse 0 too. A stored 0 stays savable until touched (rule 11);
+    none existed in production.
 11. **A stored out-of-range value stays savable until touched.** The three checks run only when the
     field is present **and differs from the stored value** (or on creation) — the pattern of the
     capacity check (`settings-rationalization.md` rule 23a). An instance sold with `balanceDaysBefore =
@@ -167,8 +171,8 @@ plan reads as one list of accounts.
     tout encaisser à la réservation, désactivez l'acompte. »). Its server rule is unchanged.
 14. **Helpers.** `depositDueDays`: « 0 : à régler à la réservation. » `balanceDaysBefore`: unchanged
     (« Échéance du solde — ou du paiement unique quand l'acompte est désactivé. »). The value 0 of
-    `balanceDaysBefore` means « due on the arrival day », 0 of `cancelAfterBalanceDueDays` « cancellable
-    from the solde deadline » — no special copy.
+    `balanceDaysBefore` means « due on the arrival day » — no special copy. (`cancelAfterBalanceDueDays`
+    cannot be 0 since 2026-11-26, rule 10.)
 
 ### 3.3 An acompte due at booking (`depositDueDays = 0`)
 
