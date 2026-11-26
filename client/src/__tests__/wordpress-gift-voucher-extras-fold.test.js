@@ -4,7 +4,7 @@
 import { fireEvent, screen, waitFor } from '@testing-library/react';
 import { loadBlock } from './wordpressBookingFixtures';
 
-const ASSETS = ['assets/voucher-code.js', 'assets/voucher-parts.js'];
+const ASSETS = ['assets/voucher-code.js', 'assets/voucher-parts.js', 'assets/voucher-card.js'];
 
 // Deliberately not multiples of the unit: a page that multiplied would show another figure.
 const DRINK_PRICES = [650, 1280, 1850, 2400, 2950].map((cents, i) => ({ qty: i + 1, cents }));

@@ -8,19 +8,27 @@ const { durationText } = require('./offerService');
 
 const BAND_WORDS = Object.freeze({ day: 'en journée', evening: 'en soirée' });
 
+/** Rule 66 — the one line of a lodging voucher, with its amount left to fill: the site writes the amount the buyer types in `{amount}`. */
+const LODGING_LINE = 'Un séjour dans nos logements, d’une valeur de {amount}';
+
+/** « Temps supplémentaire : 1 h » — one line of the back, the same on the PDF, the mail and the site. */
+const extraTimeLine = (minutes) => `Temps supplémentaire : ${durationText(minutes)}`;
+
 const countOf = (qty, label) => (qty > 1 ? `${qty} × ${label}` : label);
 
 /** → the lines under « Votre bon comprend » : a lodging voucher says only its value, a composed one its session, its options and the extra time. */
 function contentLines(voucher) {
   const contents = rules.contentsOf(voucher);
-  if (contents.kind === 'lodging') return [`Un séjour dans nos logements, d’une valeur de ${rules.formatEuros(voucher.amountCents)}`];
+  if (contents.kind === 'lodging') return [LODGING_LINE.replace('{amount}', rules.formatEuros(voucher.amountCents))];
   const { resource } = contents;
   return [
     `${resource.name} : ${durationText(resource.includedMinutes)} ${BAND_WORDS[resource.band] || ''}`.trim(),
     ...contents.options.map((o) => countOf(o.qty, o.label)),
-    ...(resource.extraMinutes > 0 ? [`Temps supplémentaire : ${durationText(resource.extraMinutes)}`] : []),
+    ...(resource.extraMinutes > 0 ? [extraTimeLine(resource.extraMinutes)] : []),
     ...contents.addOns.map((o) => countOf(o.qty, o.label)),
   ];
 }
 
-module.exports = { contentLines };
+module.exports = {
+  contentLines, LODGING_LINE, extraTimeLine, countOf,
+};

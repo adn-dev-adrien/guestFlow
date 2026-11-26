@@ -55,19 +55,13 @@ test('rule 21 — after the payment, a bath voucher is drawn by its title and co
   await api.receipt.idle();
 }));
 
-test('rules 17, 21 — the WordPress block picks the session wording for a bath voucher, before and after the payment', () => {
+test('rules 17, 21, 66 — the WordPress block picks the session wording for a bath voucher: the intro, and a back that holds the contents, never an amount', () => {
   const blocks = read('includes/class-gf-blocks.php');
   const view = read('blocks/gift-voucher/view.js');
   assert.match(blocks, /'gvIntroSession'\s*=> __\('Valable %d mois à compter du paiement, pour une séance à réserver en ligne\.'/);
-  assert.match(blocks, /'gvConditionsPreviewSession'\s*=> __\(/);
-  assert.match(blocks, /'gvConditionsUntilSession'\s*=> __\(/);
   assert.match(view, /GF\.t\(isResource \? 'gvIntroSession' : 'gvIntro', months\)/);
-  assert.match(view, /isResource \? 'gvConditionsPreviewSession' : 'gvConditionsPreview'/);
-  assert.match(view, /amountCents: v\.kind === 'resource' \? null : v\.amountCents/);
-  assert.match(view, /v\.kind === 'resource' \? 'gvConditionsUntilSession' : 'gvConditionsUntil'/);
+  assert.match(view, /var lines = \(b\.lines \|\| \[\]\)\.slice\(\)/);
+  assert.match(view, /lines: voucherBack\.lines/);
   const po = read('languages/guestflow-booking-en_GB.po');
-  ['Valable %d mois à compter du paiement, pour une séance à réserver en ligne.',
-    'Valable jusqu’au %s, pour une séance à réserver en ligne. Ni repris ni échangé contre de l’argent.'].forEach((msgid) => {
-    assert.ok(po.includes(`msgid "${msgid}"`), msgid);
-  });
+  assert.ok(po.includes('msgid "Valable %d mois à compter du paiement, pour une séance à réserver en ligne."'));
 });

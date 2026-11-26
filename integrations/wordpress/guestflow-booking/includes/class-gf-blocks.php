@@ -65,6 +65,9 @@ final class GF_Blocks
         // What the two gift voucher blocks share: the proof of work, the stepper, amounts and durations.
         wp_register_script('gf-voucher-parts', GF_BOOKING_URL . 'assets/voucher-parts.js', ['gf-runtime'], $this->asset_ver('assets/voucher-parts.js'), true);
 
+        // The card that turns, front and back, of the purchase page and of the page after payment (specs/gift-voucher-campaigns.md rule 66).
+        wp_register_script('gf-voucher-card', GF_BOOKING_URL . 'assets/voucher-card.js', ['gf-runtime'], $this->asset_ver('assets/voucher-card.js'), true);
+
         foreach (self::BLOCKS as $name) {
             $view = self::VIEW_OF[$name] ?? $name;
             wp_register_script(
@@ -74,10 +77,14 @@ final class GF_Blocks
                 $this->asset_ver("blocks/{$name}/editor.js"),
                 true
             );
+            $deps = $name === 'booking' ? ['gf-runtime', 'gf-voucher-code', 'gf-pow'] : (strpos($name, 'gift-voucher') === 0 || $view === 'session-booking' ? ['gf-runtime', 'gf-voucher-code', 'gf-voucher-parts', 'gf-pow'] : ['gf-runtime']);
+            if ($name === 'gift-voucher') {
+                $deps[] = 'gf-voucher-card'; // only the purchase block draws the card
+            }
             wp_register_script(
                 "guestflow-{$name}-view",
                 GF_BOOKING_URL . "blocks/{$view}/view.js",
-                $name === 'booking' ? ['gf-runtime', 'gf-voucher-code', 'gf-pow'] : (strpos($name, 'gift-voucher') === 0 || $view === 'session-booking' ? ['gf-runtime', 'gf-voucher-code', 'gf-voucher-parts', 'gf-pow'] : ['gf-runtime']),
+                $deps,
                 $this->asset_ver("blocks/{$view}/view.js"),
                 true
             );
@@ -298,17 +305,18 @@ final class GF_Blocks
                 'gvPay'           => __('Payer %s', 'guestflow-booking'),
                 'gvPayBare'       => __('Payer', 'guestflow-booking'),
                 'gvSoon'          => __('Vente en ligne bientôt disponible.', 'guestflow-booking'),
-                'gvPreview'       => __('Aperçu du bon', 'guestflow-booking'),
-                'gvVoucher'       => __('Bon cadeau', 'guestflow-booking'),
-                'gvForLine'       => __('Pour', 'guestflow-booking'),
-                'gvFromLine'      => __('de la part de', 'guestflow-booking'),
-                'gvFromLineFirst' => __('De la part de', 'guestflow-booking'),
                 'gvCode'          => __('Code', 'guestflow-booking'),
                 'gvCodeAfterPay'  => __('délivré après le paiement', 'guestflow-booking'),
-                'gvConditionsPreview' => __('Valable %d mois à compter du paiement, sur une réservation directe, en une ou plusieurs fois. Ni repris ni échangé contre de l’argent.', 'guestflow-booking'),
-                'gvConditionsUntil' => __('Valable jusqu’au %s sur une réservation directe, en une ou plusieurs fois. Ni repris ni échangé contre de l’argent.', 'guestflow-booking'),
-                'gvConditionsPreviewSession' => __('Valable %d mois à compter du paiement, pour une séance à réserver en ligne. Ni repris ni échangé contre de l’argent.', 'guestflow-booking'),
-                'gvConditionsUntilSession' => __('Valable jusqu’au %s, pour une séance à réserver en ligne. Ni repris ni échangé contre de l’argent.', 'guestflow-booking'),
+                // Rule 66 — the voucher card that turns (the back's own words come from GuestFlow, French as the PDF).
+                'gvFront'         => __('Recto', 'guestflow-booking'),
+                'gvBack'          => __('Verso', 'guestflow-booking'),
+                'gvFaceGroup'     => __('Face du bon', 'guestflow-booking'),
+                'gvEnlarge'       => __('Agrandir', 'guestflow-booking'),
+                'gvClose'         => __('Fermer', 'guestflow-booking'),
+                'gvZoomLabel'     => __('Le bon en grand', 'guestflow-booking'),
+                'gvTurnCard'      => __('Retourner le bon', 'guestflow-booking'),
+                'gvPreviewPill'   => __('Aperçu', 'guestflow-booking'),
+                'gvSeeBack'       => __('Voir le verso du bon', 'guestflow-booking'),
                 'gvPaymentFailed' => __('Paiement non abouti. Aucun bon n’a été émis.', 'guestflow-booking'),
                 'gvLinkExpired'   => __('Le lien de paiement a expiré. Aucun paiement n’a été pris.', 'guestflow-booking'),
                 'gvRestart'       => __('Recommencer', 'guestflow-booking'),

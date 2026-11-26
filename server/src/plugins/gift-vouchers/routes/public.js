@@ -21,6 +21,7 @@ function buildPublicRouter({
   router.post('/offer/price', offer.price);
   router.get('/links/:slug', offer.link);
   router.get('/campaigns/:slug/visual', (req, res, next) => Promise.resolve(offer.visual(req, res)).catch(next));
+  router.get('/logo', (req, res, next) => Promise.resolve(offer.logo(req, res)).catch(next));
   router.post('/check', check.check);
   // « Mon bain » — the code always travels in the body (rules 23-25).
   router.post('/use', use.open);
@@ -31,6 +32,7 @@ function buildPublicRouter({
   router.post('/orders', offer.create);
   router.post('/orders/:id/pay', payStart, offer.pay);
   router.get('/orders/:id/pdf', status, offer.pdf);
+  router.get('/orders/:id/front', status, offer.front);
   router.get('/orders/:id', status, offer.status);
   return router;
 }
