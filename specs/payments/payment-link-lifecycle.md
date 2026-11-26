@@ -1264,10 +1264,12 @@ Rules are numbered for identity; new ones are appended at the end, never inserte
     par e-mail » (`POST …/payment-link/:linkId/email`) are the visit's routes onto rules 42 and 68. Test: `visit-remaining-and-payment.unit.test.js` (plugin).
 
 70. **The siblings of a link that settled their bucket are deactivated at once** (decision 2026-11-26, money audit).
-    When a payment settles a bucket, the other open links of that bucket are retired (rule 23 of the online-payment spec,
-    `cancelReason='settled'`) **and deactivated at the provider in the same pass**, through the owed-deactivation path
-    (`retryPendingCancellations({ only })`: it reads each sibling first, so one paid meanwhile meets the existing double-payment
-    handling). Best effort: when the immediate call fails the deactivation stays owed and the next pass retries it, as before.
+    When a payment settles a bucket, the other open links of that stay are retired (rule 23 of the online-payment spec,
+    `cancelReason='settled'`) **and deactivated at the provider right away**, through the owed-deactivation path
+    (`retryPendingCancellations({ only })`: it reads each sibling first, so one paid meanwhile meets the existing
+    double-payment handling). Only the paid link's own stay is concerned. The call is **not awaited** by the payment's
+    response (webhook, public status), is skipped while a pass is already running, and stops at a provider rate limit.
+    Best effort: whatever is not done stays owed and the next pass retries it, as before.
     Test: `payment-link-siblings-deactivated-at-once.unit.test.js`.
 
 ---

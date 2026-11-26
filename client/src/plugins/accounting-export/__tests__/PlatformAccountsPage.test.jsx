@@ -92,7 +92,7 @@ test("Direct row is rendered with disabled inputs + the 'Pas de commission' capt
 });
 
 // specs/settings/settings-rationalization.md rule 14 — the two accounting VAT rates are edited here, next to
-// the accounts that use them, by the admin (the accountant reads the commission rate).
+// the accounts that use them, by the admin and the accountant alike.
 test('both accounting VAT rates are editable fields, and a save sends them', async () => {
   const user = userEvent.setup();
   api.savePlatformAccounts.mockResolvedValue(SAMPLE_GET);
@@ -297,6 +297,7 @@ test('the accountant may edit the compensation account (it is a chart-of-account
   renderPage();
   const field = await screen.findByLabelText(/^Indemnités d'annulation$/);
   expect(field).not.toBeDisabled();
-  // …and so is the VAT rate on indemnities; the one on commissions is the admin's (rule 14, see PlatformAccountsPage.vat-admin-only.test.jsx).
+  // …and so are the VAT rates (rule 14).
   expect(screen.getByLabelText(/TVA sur indemnités/i)).not.toBeDisabled();
+  expect(screen.getByLabelText(/TVA déductible sur commissions/i)).not.toBeDisabled();
 });

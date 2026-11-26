@@ -64,3 +64,19 @@ test('rule 38: once undone, the complement can be perceived again through the ca
   const row = rowOf(id);
   assert.deepEqual([row.complementPaid, row.complementPaidCash, row.complementPaidDate], [1, 1, inDays(-1)]);
 });
+
+for (const cash of [false, 0, 'true', 'false', null]) {
+  test(`rule 38: complementPaidCash ${JSON.stringify(cash)} with a new date never re-dates a perceived complement`, () => {
+    const id = perceivedStay();
+    const res = mark(id, { complementPaidCash: cash, complementPaidDate: inDays(-1) });
+    const row = rowOf(id);
+    assert.equal(row.complementPaidDate, inDays(-3), `${res.statusCode} ${JSON.stringify(res.body)}`);
+    assert.equal(row.complementPaid, 1);
+  });
+}
+
+test('rule 38: same for the end-of-stay complement sent unticked-cash with a new date', () => {
+  const id = perceivedStay();
+  mark(id, { endOfStayComplementPaidCash: false, endOfStayComplementPaidDate: inDays(-1) });
+  assert.equal(rowOf(id).endOfStayComplementPaidDate, inDays(-3));
+});

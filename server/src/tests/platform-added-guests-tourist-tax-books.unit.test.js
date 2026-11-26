@@ -267,7 +267,7 @@ test('rule 12: the row holds its rate, no base of its own, and the property coun
 test('rule 12: a refunded night leaves the added row too, in amount and in person-nights', () => {
   const { db, model } = seed(OWN_ROW);
   const refund = db.prepare("INSERT INTO reservation_refunds (reservationId, refundDate, method, totalTtc) VALUES (1, ?, 'transfer', 1.2)").run(day(3)).lastInsertRowid;
-  db.prepare("INSERT INTO reservation_refund_lines (refundId, lineKey, label, bucket, quantity, amountTtc, unitPrice, vatRate) VALUES (?, 'touristTax', 'Taxe', 'touristTax', 1, 1.2, 1.2, 0)").run(refund);
+  db.prepare("INSERT INTO reservation_refund_lines (refundId, lineKey, label, bucket, quantity, amountTtc, unitPrice, vatRate) VALUES (?, 'touristTax', 'Taxe', 'touristTax', 1, 3.6, 3.6, 0)").run(refund);
   const added = addedRow(extract(model).data);
   assert.equal(added.nightsCount, 1);
   assert.equal(added.taxAmount, 1.2);

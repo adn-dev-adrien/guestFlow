@@ -82,12 +82,17 @@ test('rule 8: the ledger reads « Sans objet · acompte désactivé » and the s
   assert.ok(rowOf(id).balanceAmount > 0);
 });
 
-test('rule 9: no role-specific gating — the accountant has no route to edit a reservation', () => {
-  const res = { statusCode: 200, body: null, status(c) { this.statusCode = c; return this; }, json(b) { this.body = b; return this; } };
-  let passed = false;
-  enforceRoleAccess({ user: { roles: ['accountant'] }, method: 'PUT', path: '/reservations/1' }, res, () => { passed = true; });
-  assert.equal(passed, false);
-  assert.equal(res.statusCode, 403);
+test('rule 9: the switch needs no gating of its own — admin edits the fiche, the accountant is refused FORBIDDEN_ROLE by the role guard', () => {
+  const run = (user) => {
+    const res = { statusCode: 200, body: null, status(c) { this.statusCode = c; return this; }, json(b) { this.body = b; return this; } };
+    let passed = false;
+    enforceRoleAccess({ user, method: 'PUT', path: '/reservations/1' }, res, () => { passed = true; });
+    return { passed, res };
+  };
+  assert.equal(run({ roles: ['admin'] }).passed, true);
+  const refused = run({ roles: ['accountant'] });
+  assert.equal(refused.passed, false);
+  assert.deepEqual([refused.res.statusCode, refused.res.body], [403, { error: 'FORBIDDEN_ROLE' }]);
 });
 
 test('rule 10-11: a 0 € acompte carries no deadline, whatever the fiche posted back', async () => {

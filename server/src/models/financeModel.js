@@ -34,6 +34,19 @@ const vatRegimeModel = require('./vatRegimeModel');
 const { bookingDayOf } = require('../utils/vatRegime');
 const { touristTaxInTotal } = require('../utils/stayTouristTaxInTotal');
 
+// specs/payments/reservation-refunds.md rules 30-31 — the nights a refunded tax frees, read from the refunded AMOUNT:
+// the quantities stored on the refund lines are rounded (unit price to the cent, quantity to 4 decimals), so a full
+// refund of 11,00 € over 3 nights reads 2.9973. A night is freed once its share of the tax (rounded to the cent) is
+// wholly refunded; a full refund frees every night.
+function wholeNightsRefunded(refundedAmount, taxTotal, nights) {
+  const refunded = Number(refundedAmount || 0);
+  const total = Number(taxTotal || 0);
+  if (!(nights > 0) || !(total > 0) || !(refunded > 0)) return 0;
+  let freed = 0;
+  while (freed < nights && Math.round((freed + 1) * total / nights * 100) / 100 <= refunded + 0.005) freed += 1;
+  return freed;
+}
+
 /**
  * The payment flags « Tout solder » ticks on an operational row (specs/accounting/finance-dashboard-redesign.md rule 15): every bucket
  * still due, except what specs/payments/reservation-payment-ledger.md rule 68 (D20) keeps for the check-out — the end-of-stay
@@ -1200,7 +1213,7 @@ function createFinanceModel(database) {
           // own `taxe = nuitées × tarif` arithmetic; and what is owed to the commune depends on nights
           // occupied, not on what the operator kept. A goodwill refund too small to free a whole night
           // therefore changes nothing here.
-          const refundedTaxNights = Math.min(nightsCount, Math.max(0, Math.floor(Number(row.refundedTaxNights || 0) + 1e-9)));
+          const refundedTaxNights = wholeNightsRefunded(row.refundedTaxAmount, stored.touristTaxTotal, nightsCount);
           const declaredNights = Math.max(0, nightsCount - refundedTaxNights);
           const declaredAdultNights = Math.max(
             0,
@@ -1273,7 +1286,7 @@ function createFinanceModel(database) {
           const stored = storedById.get(Number(row.reservationId));
           const quote = quoteStoredReservation(database, stored);
           const nightsCount = Number(row.nightsCount || 0);
-          const refundedTaxNights = Math.min(nightsCount, Math.max(0, Math.floor(Number(row.refundedTaxNights || 0) + 1e-9)));
+          const refundedTaxNights = wholeNightsRefunded(row.refundedTaxAmount, stored.touristTaxTotal, nightsCount);
           const declaredNights = Math.max(0, nightsCount - refundedTaxNights);
           const wholeAddition = round2(Number(quote.touristTaxAddedGuestsAmount || 0));
           // Rule 21 — who the stored amount is for, not who is on the fiche today. Nobody (a gap of rule 5):

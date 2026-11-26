@@ -421,17 +421,22 @@ const orphanAlert = (pay, paidAt) => ({ orphan: true, paidAt: paidAt || (pay && 
 const CONFIRMING_TYPES = new Set(['deposit', 'full']);
 const CONFIRMING_EFFECTS = new Set(['converted', 'already-converted', 'deposit-marked', 'balance-marked', 'deposit-booked', 'balance-booked', 'full-booked']);
 
-// specs/payments/payment-link-lifecycle.md rule 70 — the siblings retired by a payment are deactivated at the
-// provider in the same pass, through the owed-deactivation path (it reads each one first, so a sibling that was paid
-// meanwhile meets the double-payment handling). Best effort: a failure leaves the deactivation owed, and the
-// next pass retries it.
-async function deactivateRetiredAtOnce({ retired, provider, paymentLinksModel, ...deps }) {
-  for (const link of retired || []) {
-    if (!link.providerLinkId || link.provider !== provider.id) continue;
-    try {
-      await retryPendingCancellations({ ...deps, paymentLinksModel, provider, only: link.id });
-    } catch { /* best effort — the next pass owns it */ }
-  }
+// specs/payments/payment-link-lifecycle.md rule 70 — the siblings (same stay) of a link that settled their bucket are
+// deactivated at the provider right after the payment, through the owed-deactivation path (it reads each one first, so a
+// sibling paid meanwhile meets the double-payment handling). Never awaited by the payment response (the webhook and the
+// public status must not wait on the provider); skipped while a pass is already running; stopped by a rate limit.
+// Best effort: whatever is left stays owed, and the next pass retries it.
+function deactivateSiblingsAtOnce({ retired, paidLink, provider, paymentLinksModel, ...deps }) {
+  const state = retryState.get(paymentLinksModel);
+  if (state && state.running.size > 0) return Promise.resolve();
+  const siblings = (retired || []).filter((l) => l.providerLinkId && l.provider === provider.id
+    && Number(l.reservationId) === Number(paidLink.reservationId));
+  return (async () => {
+    for (const sibling of siblings) {
+      const { stoppedBy } = await retryPendingCancellations({ ...deps, paymentLinksModel, provider, only: sibling.id });
+      if (stoppedBy) break;
+    }
+  })().catch((err) => console.error('[payments] immediate sibling deactivation failed:', err && err.message ? err.message : err));
 }
 
 // The shared effect of one PAID link: mark paid → apply the business effect → confirmation email +
@@ -472,8 +477,8 @@ async function processPaidLink({ database, devisModel, paymentLinksModel, link, 
   if (typeof paymentLinksModel.retireSettled === 'function') {
     const retiredSiblings = paymentLinksModel.retireSettled();
     if (provider) {
-      await deactivateRetiredAtOnce({
-        retired: retiredSiblings, provider, database, devisModel, paymentLinksModel, recordPayment, checkConflict, notifyConflict, sendConfirmation, notifyPaidAfterCancel, emitPluginEvent,
+      deactivateSiblingsAtOnce({
+        retired: retiredSiblings, paidLink: link, provider, database, devisModel, paymentLinksModel, recordPayment, checkConflict, notifyConflict, sendConfirmation, notifyPaidAfterCancel, emitPluginEvent,
       });
     }
   }

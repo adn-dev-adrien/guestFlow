@@ -9,7 +9,7 @@ import SaveIcon from '@mui/icons-material/Save';
 import CancelIcon from '@mui/icons-material/Cancel';
 import SyncIcon from '@mui/icons-material/Sync';
 import {
-  api, PageActionBar, ErrorAlert, LoadingState, ConfirmDialog, useDirtyFormGuard, useToast, formatPlatformLabel, useAuth, userHasRole, ADMIN,
+  api, PageActionBar, ErrorAlert, LoadingState, ConfirmDialog, useDirtyFormGuard, useToast, formatPlatformLabel,
 } from '../sdk';
 import { accountGroupsFor } from './accountGroups';
 import MollieJournalCard from './MollieJournalCard';
@@ -17,7 +17,7 @@ import MollieJournalCard from './MollieJournalCard';
 /**
  * PlatformAccountsPage — `/comptabilite/plateformes`.
  *
- * Dedicated page where admin AND accountant configure the accounting accounts (the commission VAT rate is read-only for the accountant): one « Comptes » card
+ * Dedicated page where admin AND accountant configure the accounting accounts: one « Comptes » card
  * (grouped, see accountGroups.js) + per-platform commission overrides (bottom TableCard).
  *
  * The global VAT rate applied to commissions (when a platform's "TVA déductible" Switch is ON)
@@ -42,25 +42,22 @@ function normalizeAccount(value) {
 
 export default function PlatformAccountsPage() {
   const navigate = useNavigate();
-  const { user } = useAuth();
-  // specs/settings/settings-rationalization.md rule 14 — the VAT rate on commissions is the admin's; the accountant reads it.
-  const canEditCommissionVat = userHasRole(user, ADMIN);
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [errors, setErrors] = useState({});
   // Load failures stay persistent (ErrorAlert); action feedback goes through the shared toasts
-  // (specs/design-system/ds-components.md §3.2).
+  // (specs/ds-components.md §3.2).
   const [loadError, setLoadError] = useState(false);
   const { showSuccess, showError } = useToast();
   const [savedDefaultAccount, setSavedDefaultAccount] = useState('622600');
-  // The two accounting VAT rates are edited here since specs/settings/settings-rationalization.md rule 14,
-  // next to the accounts that use them (the commission rate by the admin only). Kept as typed strings.
+  // The two accounting VAT rates are edited here since specs/settings-rationalization.md rule 14,
+  // next to the accounts that use them (admin and accountant alike). Kept as typed strings.
   const [savedVatRateCommission, setSavedVatRateCommission] = useState('20');
   const [vatRateCommission, setVatRateCommission] = useState('20');
   const [savedVatRateCompensation, setSavedVatRateCompensation] = useState('0');
-  // specs/payments/cancellation-compensation.md §3.3 rule 19 — the produit account for a platform indemnity.
+  // specs/cancellation-compensation.md §3.3 rule 19 — the produit account for a platform indemnity.
   const [savedCompensationAccount, setSavedCompensationAccount] = useState('75880000');
   const [compensationAccount, setCompensationAccount] = useState('75880000');
   const [vatRateCompensation, setVatRateCompensation] = useState('0');
@@ -70,7 +67,7 @@ export default function PlatformAccountsPage() {
   const [planRows, setPlanRows] = useState([]);
   const [plan, setPlan] = useState({});
   const [savedPlan, setSavedPlan] = useState({});
-  // « Sans TVA » in force (specs/accounting/vat-optional-mode.md rule 12g): the two VAT rates cannot apply, so they are not asked.
+  // « Sans TVA » in force (specs/vat-optional-mode.md rule 12g): the two VAT rates cannot apply, so they are not asked.
   const [notSubject, setNotSubject] = useState(false);
 
   useEffect(() => {
@@ -107,7 +104,7 @@ export default function PlatformAccountsPage() {
   }, []);
 
   // Same fields the old manual comparator watched — projected so the guard's deep-equal doesn't
-  // trip on unrelated platform metadata (specs/design-system/ds-sweep-settings.md §3.7).
+  // trip on unrelated platform metadata (specs/ds-sweep-settings.md §3.7).
   const dirtyProjection = (account, compensation, list, vatCommission, vatCompensation, accounts) => ({
     account,
     compensation,
@@ -166,7 +163,7 @@ export default function PlatformAccountsPage() {
       const payload = {
         defaultAccount,
         cancellationCompensationAccount: compensationAccount,
-        ...(canEditCommissionVat ? { vatRateCommission } : {}),
+        vatRateCommission,
         vatRateCancellationCompensation: vatRateCompensation,
         plan,
         platforms: platforms
@@ -339,7 +336,7 @@ export default function PlatformAccountsPage() {
             </CardContent>
           </Card>
 
-          {/* specs/payments/mollie-rolling-reserve-and-incoming-payments.md rules 28-29 — its own settings, saved by its own button. */}
+          {/* specs/mollie-rolling-reserve-and-incoming-payments.md rules 28-29 — its own settings, saved by its own button. */}
           <MollieJournalCard />
 
           <Card variant="outlined">
@@ -357,15 +354,15 @@ export default function PlatformAccountsPage() {
                     value={vatRateCommission}
                     onChange={(e) => handleVatChange(setVatRateCommission, 'vatRateCommission')(e.target.value)}
                     error={Boolean(errors.vatRateCommission)}
-                    helperText={errors.vatRateCommission || (canEditCommissionVat ? 'Appliquée aux plateformes cochées « TVA déductible ».' : 'Réservé à l\'administrateur')}
+                    helperText={errors.vatRateCommission || 'Appliquée aux plateformes cochées « TVA déductible ».'}
                     size="small"
                     sx={{ width: { xs: '100%', sm: 260 } }}
-                    slotProps={{ htmlInput: { inputMode: 'decimal', readOnly: !canEditCommissionVat } }}
+                    slotProps={{ htmlInput: { inputMode: 'decimal' } }}
                     disabled={saving}
                   />
                 )}
               </Box>
-              {/* Scroll-contained (specs/design-system/ds-components.md §3.1) — this was the app's only raw, unwrapped <Table>. */}
+              {/* Scroll-contained (specs/ds-components.md §3.1) — this was the app's only raw, unwrapped <Table>. */}
               <TableContainer>
               <Table size="small" sx={{ minWidth: 720 }}>
                 <TableHead>

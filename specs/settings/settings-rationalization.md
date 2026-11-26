@@ -147,13 +147,8 @@ one place.
 13. **Fixed in code — school-holiday sync:** every 60 days, 24 months ahead. The dialog and
     `GET|PUT /api/school-holidays/sync-settings` go; « Synchroniser maintenant » stays.
 14. **Moved — VAT on commissions (20 %) and on cancellation indemnities (0 %)** to « Plan comptable »,
-    next to the account numbers that use them, editable there by the admin; the accountant reads the
-    commission rate (read-only field, « Réservé à l'administrateur ») and keeps editing the account
-    numbers. A `PUT /api/accounting/platform-accounts` from an accountant whose `vatRateCommission` differs
-    from the stored value is refused 403 (« Le taux de TVA des commissions est réservé à l'administrateur. »)
-    and writes nothing. « TVA & exercice » keeps the stay VAT rate only. Tests:
-    `accounting-vat-commission-admin-only.unit.test.js` (plugin),
-    `PlatformAccountsPage.vat-admin-only.test.jsx`.
+    next to the account numbers that use them, editable there by admin and accountant. « TVA & exercice »
+    keeps the stay VAT rate only.
 15. **Hidden — early-arrival / late-departure auto-options** no longer appear in the options catalogue;
     they are edited on the property only.
 16. **Moved — public URL** from the SMTP card to « Système » (it is used by emails, OAuth callbacks and

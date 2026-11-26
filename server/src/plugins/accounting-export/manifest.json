@@ -1,7 +1,7 @@
 {
   "id": "accounting-export",
   "name": "Export comptable",
-  "version": "1.4.2",
+  "version": "1.4.1",
   "description": "Écritures, plan comptable et export pour le cabinet comptable.",
   "icon": "book",
   "surfaces": [
@@ -189,10 +189,6 @@
     ],
     "1.4.1": [
       "Un montant reçu d'avance (un bon cadeau) n'est plus compté comme un encaissement : l'écriture d'un séjour payé en partie par bon ne prend que la part réellement encaissée.",
-      "Compatible avec GuestFlow 4 (SDK 2.33)."
-    ],
-    "1.4.2": [
-      "Plan comptable : le taux de TVA des commissions est réservé à l’administrateur ; le comptable le lit et continue de modifier les numéros de compte.",
       "Compatible avec GuestFlow 4 (SDK 2.33)."
     ]
   }

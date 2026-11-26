@@ -46,9 +46,12 @@ function provider({ failCancel = false } = {}) {
   };
 }
 
-const poll = (db, links, p) => runPaymentPoll({
-  database: db, paymentLinksModel: links, provider: p, devisModel: devisModel.buildModel(db), force: true,
-});
+const settle = async () => { for (let i = 0; i < 20; i += 1) await new Promise((r) => setImmediate(r)); };
+const poll = async (db, links, p) => {
+  const out = await runPaymentPoll({ database: db, paymentLinksModel: links, provider: p, devisModel: devisModel.buildModel(db), force: true });
+  await settle();
+  return out;
+};
 
 test('rule 70: the sibling is deactivated in the same pass as the payment', async () => {
   const { db, links, paying, sibling } = seed();

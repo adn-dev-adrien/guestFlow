@@ -58,36 +58,37 @@ function seed(stay = {}) {
   return { db, model: financeModel.buildModel(db) };
 }
 
-function refundNights(db, nights) {
+function refundAmount(db, amount, method = 'transfer') {
   const { lastInsertRowid } = db.prepare(
-    "INSERT INTO reservation_refunds (reservationId, refundDate, method, totalTtc) VALUES (1, ?, 'transfer', ?)",
-  ).run(day(5), nights * 2.4);
+    'INSERT INTO reservation_refunds (reservationId, refundDate, method, totalTtc) VALUES (1, ?, ?, ?)',
+  ).run(day(5), method, amount);
   db.prepare(`INSERT INTO reservation_refund_lines (refundId, lineKey, label, bucket, quantity, unitPrice, amountTtc, vatRate)
-              VALUES (?, 'touristTax', 'Taxe de séjour', 'touristTax', ?, 2.4, ?, 0)`).run(lastInsertRowid, nights, nights * 2.4);
+              VALUES (?, 'touristTax', 'Taxe de séjour', 'touristTax', ?, 0, ?, 0)`).run(lastInsertRowid, amount, amount);
 }
 
 const extract = (model) => model.getTouristTaxExtraction({ month }).data.reservations;
 const snapshot = (rows) => rows.map((r) => [Boolean(r.addedGuestsRow), r.nightsCount, r.adultNights, r.taxAmount]);
 
+// 7,20 € over 2 nights: 3,60 € a night.
 test('rule 30-31: half a night refunded leaves both declaration rows unchanged', () => {
   const { db, model } = seed();
   const before = snapshot(extract(model));
   assert.equal(before.length, 2, 'the stay row and the added guests row');
-  refundNights(db, 0.5);
+  refundAmount(db, 1.8);
   assert.deepEqual(snapshot(extract(model)), before);
 });
 
-test('rule 30-31: 0.99 of a night is still no night', () => {
+test('rule 30-31: a night whose share is not wholly refunded is still declared', () => {
   const { db, model } = seed();
   const before = snapshot(extract(model));
-  refundNights(db, 0.99);
+  refundAmount(db, 3.59);
   assert.deepEqual(snapshot(extract(model)), before);
 });
 
 test('rule 30-31: one whole night refunded takes one night off each row', () => {
   const { db, model } = seed();
   const before = extract(model);
-  refundNights(db, 1);
+  refundAmount(db, 3.6);
   const after = extract(model);
   for (const flag of [false, true]) {
     const b = before.find((r) => Boolean(r.addedGuestsRow) === flag);
@@ -95,4 +96,32 @@ test('rule 30-31: one whole night refunded takes one night off each row', () => 
     assert.equal(a.nightsCount, b.nightsCount - 1, `added=${flag}`);
     assert.ok(a.taxAmount < b.taxAmount, `added=${flag}`);
   }
+});
+
+test('rule 30-31: a cash and a card refund summing to one night free that night', () => {
+  const { db, model } = seed();
+  const before = extract(model);
+  refundAmount(db, 1.8, 'cash');
+  refundAmount(db, 1.8, 'transfer');
+  const after = extract(model);
+  assert.equal(after.find((r) => !r.addedGuestsRow).nightsCount, before.find((r) => !r.addedGuestsRow).nightsCount - 1);
+});
+
+// 11,00 € over 3 nights: the refund lines carry rounded quantities (a full refund reads 2.9973 nights).
+function seedEleven() {
+  const ctx = seed({ endDate: day(4), touristTaxTotal: 11, touristTaxAddedGuestsAmount: 0, complementAmount: 0, platformPaidAdults: null, platformPaidGuests: null, adults: 3, touristTaxAddedGuestsAdults: null });
+  return ctx;
+}
+
+test('rule 31: the full refund of 11,00 € over 3 nights frees every night — the stay leaves the declaration', () => {
+  const { db, model } = seedEleven();
+  assert.equal(extract(model).filter((r) => !r.addedGuestsRow)[0].nightsCount, 3);
+  refundAmount(db, 11);
+  assert.deepEqual(extract(model).filter((r) => !r.addedGuestsRow), []);
+});
+
+test('rule 30: 7,33 € (two nights of 11,00 € over 3) leaves one night declared', () => {
+  const { db, model } = seedEleven();
+  refundAmount(db, 7.33);
+  assert.equal(extract(model).filter((r) => !r.addedGuestsRow)[0].nightsCount, 1);
 });
