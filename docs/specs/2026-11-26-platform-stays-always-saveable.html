@@ -1,0 +1,239 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Séjours plateforme : toujours enregistrables</title>
+<style>
+:root{--primary:#2F5D46;--primary-dark:#214131;--primary-soft:#E3ECE6;--honey:#C99038;--paper:#F8F5EF;--white:#fff;--ink:#27251F;--muted:#6E6A5E;--ok:#3E7D54;--ok-soft:#E2EFE6;--warn:#8F6A1D;--warn-soft:#F6EDD7;--err:#A8433A;--err-soft:#F6E3E0;--info:#31556E;--info-soft:#E1EAF0;--divider:rgba(60,54,36,.12);--shadow:0 3px 16px rgba(60,54,36,.09);--serif:"Source Serif 4",Georgia,serif;--sans:Inter,system-ui,-apple-system,"Segoe UI",sans-serif}
+*{box-sizing:border-box}
+body{margin:0;background:var(--paper);color:var(--ink);font:15px/1.55 var(--sans)}
+main{max-width:1100px;margin:0 auto;padding:32px 20px 80px}
+h1{font:600 2rem/1.15 var(--serif);margin:0 0 6px}
+h2{font:600 1.3rem/1.2 var(--serif);margin:44px 0 10px}
+h3{font:600 1rem/1.3 var(--sans);margin:0 0 8px}
+p{max-width:75ch}
+.lead{color:var(--muted);margin:0 0 20px}
+.card{background:var(--white);border-radius:14px;box-shadow:var(--shadow);padding:16px 20px;margin:12px 0}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+@media(max-width:860px){.grid2{grid-template-columns:1fr}}
+ul{margin:6px 0;padding-left:20px}li{margin:4px 0}
+.small{font-size:.82rem;color:var(--muted)}
+.num{font-variant-numeric:tabular-nums;white-space:nowrap}
+table{border-collapse:collapse;width:100%;font-size:.88rem}
+th,td{padding:7px 8px;border-bottom:1px solid var(--divider);text-align:left;vertical-align:top}
+th{font-weight:600;color:var(--muted);font-size:.78rem}
+td.r,th.r{text-align:right}
+.scroll{overflow-x:auto}
+.chip{display:inline-block;font-size:.75rem;font-weight:600;padding:2px 9px;border-radius:99px;background:var(--primary-soft);color:var(--primary)}
+.chip.warn{background:var(--warn-soft);color:var(--warn)}
+.chip.err{background:var(--err-soft);color:var(--err)}
+.chip.info{background:var(--info-soft);color:var(--info)}
+.stage{background:#EDE8DE;border-radius:18px;padding:18px}
+.seg{display:inline-flex;flex-wrap:wrap;background:rgba(60,54,36,.08);border-radius:10px;padding:3px;gap:2px}
+.seg button{border:0;background:none;font:500 .85rem var(--sans);padding:0 12px;min-height:40px;border-radius:8px;cursor:pointer;color:var(--ink)}
+.seg button[aria-pressed=true]{background:#fff;box-shadow:0 1px 4px rgba(60,54,36,.15);font-weight:600}
+.seg button:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid var(--primary);outline-offset:2px}
+.row{display:flex;flex-wrap:wrap;gap:12px;align-items:center;margin-bottom:12px}
+.fiche{background:#fff;border-radius:14px;box-shadow:var(--shadow);padding:16px}
+.fiche-head{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px}
+.block{background:var(--paper);border-radius:14px;padding:12px;container-type:inline-size}
+.fields{display:grid;gap:12px;grid-template-columns:1fr}
+@container (min-width:560px){.fields{grid-template-columns:1fr 1fr}}
+.f{display:grid;gap:3px}
+.f label{font-size:.78rem;font-weight:600;color:var(--muted)}
+.f input{font:15px var(--sans);padding:9px 11px;border:1px solid rgba(60,54,36,.28);border-radius:8px;min-height:44px;background:#fff;color:var(--ink);font-variant-numeric:tabular-nums;width:100%}
+.f input[aria-invalid=true]{border-color:var(--err);background:var(--err-soft)}
+.f .help{font-size:.76rem;color:var(--muted)}
+.f .help.err{color:var(--err);font-weight:500}
+.f .help.warn{color:var(--warn);font-weight:500}
+.f.hidden{display:none}
+.calc{display:flex;gap:8px;align-items:flex-end}
+.calc .f{flex:1}
+.btn{font:500 .88rem var(--sans);min-height:44px;padding:0 14px;border-radius:10px;border:1px solid var(--primary);background:#fff;color:var(--primary);cursor:pointer;white-space:nowrap}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.btn.filled{background:var(--primary);color:#fff}
+.lines{margin-top:12px;display:grid;gap:6px}
+.line{font-size:.85rem;padding:7px 10px;border-radius:10px;background:#fff;border:1px solid var(--divider)}
+.line.ok{background:var(--ok-soft);border-color:transparent;color:#245536}
+.line.warn{background:var(--warn-soft);border-color:transparent;color:#6b4f12}
+.line.err{background:var(--err-soft);border-color:transparent;color:#7d2f28}
+.entry{background:#fff;border-radius:14px;box-shadow:var(--shadow);overflow:hidden}
+.entry table td,.entry table th{padding:6px 10px}
+.entry .t{display:inline-block;font-size:.7rem;font-weight:600;padding:1px 8px;border-radius:99px;color:#fff}
+.t.client{background:#8a6a1f}.t.com{background:#9a958a}.t.prod{background:#3E7D54}.t.tva{background:#31556E}.t.tax{background:#6E6A5E}
+.entry-head{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:10px 12px;border-bottom:1px solid var(--divider);flex-wrap:wrap}
+.mono{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:.82rem}
+.diff{background:var(--err-soft)}
+.toggle{display:flex;gap:8px;align-items:center;font-size:.85rem;min-height:44px}
+.toggle input{width:20px;height:20px;accent-color:var(--primary)}
+select{font:14px var(--sans);min-height:40px;border-radius:8px;border:1px solid rgba(60,54,36,.28);padding:0 8px;background:#fff;color:var(--ink)}
+.q{background:#fff;border-radius:14px;box-shadow:var(--shadow);padding:14px 18px;margin:12px 0}
+.q h3{margin-bottom:4px}
+.q .ctx{font-size:.85rem;color:var(--muted);margin:0 0 8px}
+.opt{display:flex;gap:10px;align-items:flex-start;padding:8px 10px;border-radius:10px;cursor:pointer;border:1px solid transparent}
+.opt:hover{background:var(--paper)}
+.opt input{margin-top:4px;width:18px;height:18px;accent-color:var(--primary);flex:none}
+.opt:has(input:checked){border-color:var(--primary);background:var(--primary-soft)}
+.opt b{font-weight:600}
+.opt span.d{display:block;font-size:.83rem;color:var(--muted)}
+textarea{width:100%;min-height:170px;font:13px/1.5 ui-monospace,Menlo,monospace;border-radius:10px;border:1px solid var(--divider);padding:10px;background:#fff}
+.copied{color:var(--ok);font-weight:600;font-size:.85rem;margin-left:10px}
+@media (prefers-reduced-motion:no-preference){.seg button,.btn,.opt{transition:background-color .15s ease-out,border-color .15s ease-out}}
+.dlg{position:relative;background:#fff;border-radius:14px;box-shadow:0 12px 40px rgba(60,54,36,.25);padding:16px 18px;max-width:440px;margin:12px auto 0}
+.dlg h3{margin:0 0 6px}
+.dlg .acts{display:flex;justify-content:flex-end;gap:8px;margin-top:12px;flex-wrap:wrap}
+.btn.warnb{border-color:var(--warn);color:var(--warn)}
+.saved{margin-top:12px}
+.dates{display:grid;gap:12px;grid-template-columns:1fr}
+@container (min-width:560px){.dates{grid-template-columns:repeat(3,1fr)}}
+.cal{display:flex;gap:4px;flex-wrap:wrap;margin-top:10px}
+.cal span{display:inline-flex;flex-direction:column;align-items:center;justify-content:center;min-width:44px;min-height:44px;border-radius:8px;font-size:.75rem;background:#fff;border:1px solid var(--divider)}
+.cal span.th{background:#F3E3D3}
+.cal span.on{outline:2px solid var(--primary);outline-offset:-2px;font-weight:600}
+</style>
+</head>
+<body>
+<main>
+<h1>Séjours plateforme : toujours enregistrables</h1>
+<p class="lead">Suite de la fiche Tardy (#22301). Spec : <span class="mono">specs/reservations/platform-stays-always-saveable.md</span>.</p>
+
+<h2>Le constat</h2>
+<div class="grid2">
+  <div class="card">
+    <h3>Pourquoi Booking a vendu 3 nuits</h3>
+    <p class="small" style="margin-top:0">Tardy arrive le 08/07/2027 (saison « Haute », minimum 2 nuits) et repart le 11/07. Sa 3e nuit, le 10/07, tombe en « Très haute », où GuestFlow demande 4 nuits.</p>
+    <ul class="small">
+      <li><b>GuestFlow</b> applique le minimum le plus strict des nuits touchées : 4.</li>
+      <li><b>Booking</b> ne lit que le minimum du jour d'arrivée : 2.</li>
+    </ul>
+    <p class="small">Booking n'est donc pas mal réglé au sens strict : il lui manque une règle sur les nuits du 10/07 au 20/08 (voir « Côté Booking » plus bas).</p>
+  </div>
+  <div class="card">
+    <h3>Ce que je propose</h3>
+    <ul class="small">
+      <li>Une réservation plateforme s'enregistre <b>sans aucune question</b> sur la durée minimale ou maximale, les jours d'arrivée et de départ, ou la capacité.</li>
+      <li>La règle non respectée s'affiche en <b>information</b> sous les dates, pour corriger la plateforme.</li>
+      <li>Restent bloquants pour tout le monde : le <b>chevauchement</b> avec un autre séjour (anti-surréservation), les lits au-delà du logement, une ressource indisponible, le verrou des séjours passés.</li>
+      <li>Directes : la question « Forcer l'enregistrement » reste, mais plus quand on ne touche ni aux dates ni aux voyageurs (Q3).</li>
+    </ul>
+  </div>
+</div>
+
+<h2>Essaie la fiche</h2>
+<p>Change le canal, les dates ou les voyageurs, ou ne touche qu'au paiement, puis clique sur « Enregistrer ». Ce que tu vois est le comportement proposé, réglé par tes réponses aux questions plus bas.</p>
+<div class="stage">
+  <div class="row">
+    <div class="seg" role="group" aria-label="Canal" id="chan">
+      <button aria-pressed="true" data-v="Booking">Booking</button>
+      <button aria-pressed="false" data-v="Lodgify">Lodgify</button>
+      <button aria-pressed="false" data-v="direct">Directe</button>
+    </div>
+    <div class="seg" role="group" aria-label="Ce qui change" id="what">
+      <button aria-pressed="true" data-v="dates">Je modifie les dates</button>
+      <button aria-pressed="false" data-v="finance">Je ne touche qu'au paiement</button>
+    </div>
+  </div>
+  <div class="fiche">
+    <div class="fiche-head"><h3 style="margin:0">Granja — séjour</h3><span class="chip" id="chanChip">Booking</span></div>
+    <div class="block">
+      <div class="dates">
+        <div class="f"><label for="arr">Arrivée (juillet 2027)</label><select id="arr"><option value="6">06/07</option><option value="7">07/07</option><option value="8" selected>08/07</option><option value="9">09/07</option><option value="10">10/07</option><option value="12">12/07</option></select></div>
+        <div class="f"><label for="nights">Nuits</label><input id="nights" type="number" min="1" max="14" value="3"></div>
+        <div class="f"><label for="guests">Voyageurs (capacité 13)</label><input id="guests" type="number" min="1" max="20" value="10"></div>
+      </div>
+      <div class="cal" id="cal" aria-hidden="true"></div>
+      <div class="lines" id="notes"></div>
+    </div>
+    <div class="row" style="margin:12px 0 0;justify-content:flex-end"><button class="btn filled" id="save">Enregistrer</button></div>
+    <div id="out"></div>
+  </div>
+</div>
+
+<h2>Côté Booking (à faire à la main dans l'extranet)</h2>
+<div class="card">
+  <p class="small" style="margin-top:0">Un minimum « à partir de l'arrivée » ne suffit pas. Pour une arrivée le 08/07, 2 nuits sont permises (08 et 09/07), 3 ne le sont pas (elles touchent le 10/07) et 4 le sont de nouveau : un minimum par jour d'arrivée ne sait pas l'exprimer. Booking propose une autre restriction, la durée minimale qui s'applique à <b>tout séjour qui inclut la date</b>. C'est la règle de GuestFlow.</p>
+  <table>
+    <tr><th>Dates (nuits) à régler</th><th class="r">Durée minimale (séjour incluant la date)</th><th>Saison GuestFlow</th></tr>
+    <tr><td>du 10/07/2027 au 20/08/2027</td><td class="r num">4 nuits</td><td>« Très haute »</td></tr>
+    <tr><td>25/12/2026 et 25/12/2027</td><td class="r num">4 nuits</td><td>« Très haute »</td></tr>
+    <tr><td>tout le reste de la Granja</td><td class="r num">2 nuits</td><td>les autres saisons</td></tr>
+  </table>
+  <p class="small">L'Estiva n'a qu'un minimum d'une nuit : rien à régler. Le détail pas à pas est dans mon message.</p>
+</div>
+
+<h2>Arbitrages</h2>
+<div class="q" data-q="Q1">
+  <h3>Q1. Lodgify (compté comme vente directe) : traité comme une plateforme ?</h3>
+  <p class="ctx">La réservation a été acceptée par un système qui n'est pas GuestFlow.</p>
+  <label class="opt"><input type="radio" name="Q1" value="A" checked><span><b>A. Oui (recommandé)</b><span class="d">Tout canal autre que « Directe » s'enregistre sans question.</span></span></label>
+  <label class="opt"><input type="radio" name="Q1" value="B"><span><b>B. Non</b><span class="d">Lodgify garde la question « Forcer », comme une directe.</span></span></label>
+</div>
+<div class="q" data-q="Q2">
+  <h3>Q2. La ligne d'information sous les dates</h3>
+  <label class="opt"><input type="radio" name="Q2" value="A" checked><span><b>A. Affichée (recommandé)</b><span class="d">Elle dit quelle règle la plateforme n'a pas respectée, pour la corriger.</span></span></label>
+  <label class="opt"><input type="radio" name="Q2" value="B"><span><b>B. Rien</b><span class="d">La fiche s'enregistre sans rien dire.</span></span></label>
+</div>
+<div class="q" data-q="Q3">
+  <h3>Q3. Modifier le paiement d'une directe, sans toucher aux dates ni aux voyageurs</h3>
+  <p class="ctx">Aujourd'hui, la question « Durée minimale » revient à chaque enregistrement, même pour une simple saisie de paiement. Le chevauchement et la capacité, eux, ne sont déjà rejugés que si les dates ou les voyageurs changent.</p>
+  <label class="opt"><input type="radio" name="Q3" value="A" checked><span><b>A. Plus de question (recommandé)</b><span class="d">Les règles de durée et de jours ne sont rejugées que si les dates ou les voyageurs changent, pour tous les canaux.</span></span></label>
+  <label class="opt"><input type="radio" name="Q3" value="B"><span><b>B. La question reste</b><span class="d">Seules les plateformes en sont dispensées.</span></span></label>
+</div>
+<div class="q" data-q="GO">
+  <h3>Feu vert</h3>
+  <label class="opt"><input type="radio" name="GO" value="A" checked><span><b>A. Go</b><span class="d">J'implémente avec ces choix, PR, CI, merge.</span></span></label>
+  <label class="opt"><input type="radio" name="GO" value="B"><span><b>B. Pas encore</b><span class="d">Je précise dans le dialogue.</span></span></label>
+</div>
+<div class="card">
+  <h3>Résumé à copier dans le dialogue</h3>
+  <textarea id="sum" readonly></textarea>
+  <div class="row" style="margin-top:8px"><button class="btn filled" id="copy">Copier</button><span class="copied" id="copied" hidden>Copié</span></div>
+</div>
+</main>
+<script>
+const $=(s)=>document.querySelector(s);
+const TH=(d)=>d>=10&&d<=20+31; // 10/07 → 20/08, in "day of July" numbering
+const state={chan:'Booking',what:'dates'};
+function seg(id,key){document.querySelectorAll('#'+id+' button').forEach(b=>b.addEventListener('click',()=>{state[key]=b.dataset.v;document.querySelectorAll('#'+id+' button').forEach(x=>x.setAttribute('aria-pressed',x===b));render();}));}
+seg('chan','chan');seg('what','what');
+['arr','nights','guests'].forEach(i=>$('#'+i).addEventListener('input',()=>{state.what='dates';document.querySelectorAll('#what button').forEach(x=>x.setAttribute('aria-pressed',x.dataset.v==='dates'));render();}));
+document.querySelectorAll('input[type=radio]').forEach(r=>r.addEventListener('change',()=>{render();summary();}));
+const ans=(q)=>document.querySelector('input[name='+q+']:checked').value;
+function label(d){return d<=31?String(d).padStart(2,'0')+'/07':String(d-31).padStart(2,'0')+'/08';}
+function judge(){
+  const a=+$('#arr').value,n=Math.max(1,+$('#nights').value||1),g=+$('#guests').value||1;
+  let req=2,from=null;for(let d=a;d<a+n;d++){if(TH(d)){req=4;from=from??d;}}
+  const br=[];if(n<req)br.push({k:'min',t:`${n} nuit${n>1?'s':''} ; ces dates en demandent ${req} (« Très haute » dès le ${label(from)})`});
+  if(g>13)br.push({k:'cap',t:`${g} voyageurs pour une capacité de 13`});
+  return {a,n,g,br};
+}
+function isPlatform(){return state.chan==='Booking'||(state.chan==='Lodgify'&&ans('Q1')==='A');}
+function render(){
+  $('#chanChip').textContent=state.chan==='direct'?'Directe':state.chan;
+  const j=judge();
+  $('#cal').innerHTML=Array.from({length:14},(_,i)=>j.a-2+i).map(d=>`<span class="${TH(d)?'th':''} ${d>=j.a&&d<j.a+j.n?'on':''}">${label(d)}<small>${TH(d)?'min 4':'min 2'}</small></span>`).join('');
+  const plat=isPlatform();
+  const notes=plat&&ans('Q2')==='A'?j.br.map(b=>`<div class="line" role="status">ℹ︎ ${state.chan} a vendu ${b.t}. À corriger sur ${state.chan} pour les prochaines réservations.</div>`).join(''):'';
+  $('#notes').innerHTML=notes; $('#out').innerHTML='';
+}
+$('#save').addEventListener('click',()=>{
+  const j=judge();const plat=isPlatform();
+  const skipped=state.what==='finance'&&ans('Q3')==='A';
+  const overlap=j.a===12&&j.n>=1; // a stay already booked from 12/07
+  if(overlap){$('#out').innerHTML='<div class="saved line err" role="alert">Conflit de réservation : ces dates chevauchent le séjour du 12/07. Toujours refusé, quel que soit le canal.</div>';return;}
+  if(!j.br.length||plat||skipped){$('#out').innerHTML='<div class="saved line ok" role="status">Réservation enregistrée.'+(plat&&j.br.length&&ans('Q2')==='A'?' La règle non respectée reste affichée sous les dates.':'')+'</div>';return;}
+  const b=j.br[0];
+  $('#out').innerHTML=`<div class="dlg" role="dialog" aria-label="Confirmation"><h3>${b.k==='min'?'Durée minimale non respectée':'Capacité du logement dépassée'}</h3><p class="small" style="margin:0">${b.t.charAt(0).toUpperCase()+b.t.slice(1)}. Forcer l'enregistrement ?</p><div class="acts"><button class="btn" id="no">Annuler</button><button class="btn warnb" id="yes">Forcer l'enregistrement</button></div></div>`;
+  $('#no').onclick=()=>{$('#out').innerHTML='';};
+  $('#yes').onclick=()=>{$('#out').innerHTML='<div class="saved line ok" role="status">Réservation enregistrée (forcée).</div>';};
+});
+function summary(){
+  const t={Q1:{A:'Lodgify traité comme une plateforme',B:'Lodgify garde la question'},Q2:{A:'ligne d\'information affichée',B:'aucune ligne'},Q3:{A:'plus de question sur une saisie de paiement, tous canaux',B:'la question reste pour les directes'},GO:{A:'Go',B:'Pas encore'}};
+  $('#sum').value='Séjours plateforme toujours enregistrables — mes choix :\n'+['Q1','Q2','Q3','GO'].map(q=>`${q} ${ans(q)} — ${t[q][ans(q)]}`).join('\n');
+}
+$('#copy').addEventListener('click',async()=>{try{await navigator.clipboard.writeText($('#sum').value);}catch(e){$('#sum').select();document.execCommand('copy');}$('#copied').hidden=false;setTimeout(()=>{$('#copied').hidden=true;},1800);});
+render();summary();
+</script>
+</body>
+</html>

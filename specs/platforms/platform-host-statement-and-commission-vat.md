@@ -209,7 +209,7 @@ line. The fiche, *Suivi financier*, *Taxes de séjour* and *Comptabilité* show 
 - Platform with no commission rate → no rate check.
 - A platform switched between `platform` and `platform_reversed` after a fiche was typed → the box
   changes meaning; frozen tax is not re-read; the operator re-checks a stay not yet paid. As today.
-- Campspace is not on the cabinet's list → left on its account until she answers (§9).
+- Campspace is not on the cabinet's list → EU reverse charge on `62260300` (§9 Q-A, resolved 2026-11-26).
 
 ---
 
@@ -310,7 +310,6 @@ Server: `platform-host-statement` 19, `platform-host-statement-migration` 4, `pl
 - Splitting the sales VAT line per revenue line (GuestFlow totals per rate; the cabinet accepts it).
 
 ## 9. Open questions (for the cabinet, asked by Adrien)
-- Q-A Campspace's regime.
 - Q-B The codes she uses for 20 % sales, 5,5 % sales and a French deductible commission (defaults
   `TN`, `TR`, empty), and whether the « Code TVA » column at the end of the file suits her import.
 - Q-C The self-assessment accounts (`44566200` / `44520000` by default), and whether her `INTRACOM`
@@ -318,6 +317,7 @@ Server: `platform-host-statement` 19, `platform-host-statement-migration` 4, `pl
   and rule 15 is switched off by a setting.
 
 ### Resolved (2026-11-26, Adrien)
+- Q-A Campspace → `eu_reverse_charge` on `62260300`. Adrien had Claude decide it without the cabinet. Campspace B.V. is a Dutch company (registered office in Haarlem, KvK 67155863), so its commission is an intra-EU service, self-assessed like Airbnb's and Booking's. Its former account `62260700` had been picked by Claude on 2026-09-23 as « the next of the series », not by the cabinet. Applied in production on 2026-11-26; no Campspace stay was booked yet.
 - Q1 one definition: host amount without tax. Q2 one regime per platform. Q3 « Code TVA » column.
 - Q4 our tax in `46710000`, the gap into the accommodation. Q5 fixed at the root (fiche + GdF intake):
   the fiche adjusts its option lines by itself (rule 2), no confirmation. Q8 « Code TVA » as the last
