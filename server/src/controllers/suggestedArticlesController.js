@@ -2,9 +2,10 @@
  * Suggested articles controller — HTTP face of `utils/suggestedArticles.js` (the outside-visit spec §4.3, rules 36-37).
  *
  *   GET /api/suggested-articles?kind=&id=&customerContext=   → { suggestions: [{ articleRef, label, unitCents, max }] }
- *   GET /api/suggested-articles/catalogue?customerContext=&q=  → { articles: [{ articleRef, label, unitCents, max, category }], groups: [{ category, articles }] }   (every article sellable for the caller; `groups` = the same, grouped, for « Autre article »)
+ *   GET /api/suggested-articles/catalogue?customerContext=&q=&context=<kind>:<id>&all=1  → { articles: [{ articleRef, label, unitCents, unitLabel, max, category }], groups: [{ category, articles }] }   (every article sellable for the caller; `groups` = the same, grouped, for « Autre article »;
+ *                                                    `context` must be a context its kind lists and takes its customer from the kind (400 CONTEXT_UNKNOWN); `all=1` adds the refused ones with `sellable: false` and `reason`)
  *   GET /api/settings/suggested-articles                     → { kinds: [{ kind, label, contexts: [{ id, label, articleRefs }] }] }   (admin)
- *   PUT /api/settings/suggested-articles/:kind/:id           { articleRefs: [] } → { context }   (admin; ≤ 12, 400 ARTICLE_UNKNOWN, 404 CONTEXT_UNKNOWN)
+ *   PUT /api/settings/suggested-articles/:kind/:id           { articleRefs: [] } → { context }   (admin; ≤ 12, 400 ARTICLE_UNKNOWN, 400 ARTICLE_NEEDS_STAY, 404 CONTEXT_UNKNOWN)
  * Thin: parse, call the service, answer.
  */
 const suggestedArticles = require('../utils/suggestedArticles');
@@ -18,9 +19,15 @@ module.exports = {
   },
 
   catalogue(req, res) {
-    const { customerContext, q } = req.query || {};
+    const { customerContext, q, context, all } = req.query || {};
     if (customerContext !== undefined && !['hosted', 'external'].includes(customerContext)) return res.status(400).json({ error: 'Client inconnu.', code: 'INVALID_REQUEST' });
-    const args = { customerContext: customerContext || 'external', q: typeof q === 'string' ? q : '' };
+    let customer = customerContext || 'external';
+    if (context !== undefined) {
+      const [kind, ...rest] = String(context).split(':');
+      customer = suggestedArticles.hasContext(kind, rest.join(':')) ? suggestedArticles.customerContextOf(kind) : null;
+      if (!customer) return res.status(400).json({ error: 'Contexte inconnu.', code: 'CONTEXT_UNKNOWN' });
+    }
+    const args = { customerContext: customer, q: typeof q === 'string' ? q : '', all: all === '1' };
     return res.json({ articles: suggestedArticles.catalogue(args), groups: suggestedArticles.catalogueGroups(args) });
   },
 

@@ -22,14 +22,15 @@ vi.mock('../../../components/DialogProvider', () => ({ useToast: () => ({ showEr
 import api from '../../../api';
 import SettingsSuggestedArticlesSection from '../SettingsSuggestedArticlesSection';
 
-const art = (n, label) => ({ articleRef: `option:${n}`, label });
+const art = (n, label) => ({ articleRef: `option:${n}`, label, unitCents: 600, unitLabel: 'l’unité', reason: null });
+const catalogue = (articles) => ({ articles, groups: [{ category: 'Boissons', articles: articles.map((a) => ({ ...a, sellable: true })) }] });
 const settings = (over = {}) => ({
   kinds: [
     { kind: 'property', label: 'Logements', contexts: [] },
     {
       kind: 'resource', label: 'Ressources à l’heure', contexts: [
-        { id: '3', label: 'Bain nordique', articleRefs: ['option:1', 'option:2'], articles: [art(1, 'Bière locale'), art(2, 'Limonade')] },
-        { id: '4', label: 'Sauna', articleRefs: [], articles: [] },
+        { id: '3', label: 'Bain nordique', shownOn: ['arrival', 'site'], articleRefs: ['option:1', 'option:2'], articles: [art(1, 'Bière locale'), art(2, 'Limonade')] },
+        { id: '4', label: 'Sauna', shownOn: ['arrival'], articleRefs: [], articles: [] },
       ],
     },
   ],
@@ -43,7 +44,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   api.getSuggestedArticlesSettings.mockResolvedValue(settings());
   api.saveSuggestedArticles.mockResolvedValue({ context: {} });
-  api.getSuggestedArticlesCatalogue.mockResolvedValue({ articles: [art(1, 'Bière locale'), art(2, 'Limonade'), art(3, 'Miel du domaine')] });
+  api.getSuggestedArticlesCatalogue.mockResolvedValue(catalogue([art(1, 'Bière locale'), art(2, 'Limonade'), art(3, 'Miel du domaine')]));
 });
 
 test('rule 37 — one card per context, grouped by its kind; a kind with no context is not drawn', async () => {
@@ -51,7 +52,7 @@ test('rule 37 — one card per context, grouped by its kind; a kind with no cont
   expect(await screen.findByText('Ressources à l’heure')).toBeInTheDocument();
   expect(screen.queryByText('Logements')).toBeNull();
   const bath = await card('Ressources à l’heure · Bain nordique');
-  expect(within(bath).getAllByRole('listitem').map((li) => li.textContent.trim())).toEqual(['Bière locale', 'Limonade']);
+  expect(within(bath).getAllByRole('listitem').map((li) => li.querySelector('p').textContent.trim())).toEqual(['Bière locale', 'Limonade']);
   expect(within(await card('Ressources à l’heure · Sauna')).getByText('Aucun article proposé.')).toBeInTheDocument();
 });
 
@@ -61,7 +62,7 @@ test('rule 37 — ↑ / ↓ reorder, « Retirer » drops; the order is saved as 
   await within(bath).findByText('Limonade');
   expect(screen.getByRole('button', { name: 'Enregistrer' })).toBeDisabled();
   fireEvent.click(within(bath).getByRole('button', { name: 'Monter Limonade' }));
-  expect(within(bath).getAllByRole('listitem').map((li) => li.textContent.trim())).toEqual(['Limonade', 'Bière locale']);
+  expect(within(bath).getAllByRole('listitem').map((li) => li.querySelector('p').textContent.trim())).toEqual(['Limonade', 'Bière locale']);
   expect(within(bath).getByRole('button', { name: 'Monter Limonade' })).toBeDisabled();
   fireEvent.click(screen.getByRole('button', { name: 'Enregistrer' }));
   await waitFor(() => expect(api.saveSuggestedArticles).toHaveBeenCalledTimes(1));
@@ -80,27 +81,29 @@ test('rule 37 — « Annuler » puts the saved lists back, nothing is sent', asy
   expect(api.saveSuggestedArticles).not.toHaveBeenCalled();
 });
 
-test('rule 37 — « Ajouter un article » searches the catalogue without what the list already has; the choice joins the end of the list', async () => {
+test('rule 37 — « Ajouter des articles » searches the catalogue; the ticked article joins the end of the list and is saved with the bar', async () => {
   renderIt();
   const sauna = await card('Ressources à l’heure · Sauna');
-  fireEvent.click(await within(sauna).findByRole('button', { name: 'Ajouter un article' }));
-  fireEvent.click(await within(sauna).findByRole('button', { name: 'Miel du domaine' }));
-  expect(within(sauna).getAllByRole('listitem').map((li) => li.textContent.trim())).toEqual(['Miel du domaine']);
+  fireEvent.click(await within(sauna).findByRole('button', { name: 'Ajouter des articles' }));
+  fireEvent.click(await within(sauna).findByRole('checkbox', { name: /Miel du domaine/ }));
+  expect(within(sauna).getAllByRole('listitem').map((li) => li.querySelector('p').textContent.trim())).toEqual(['Miel du domaine']);
   fireEvent.click(screen.getByRole('button', { name: 'Enregistrer' }));
   await waitFor(() => expect(api.saveSuggestedArticles).toHaveBeenCalledWith('resource', '4', ['option:3']));
   const bathAgain = await card('Ressources à l’heure · Bain nordique');
-  fireEvent.click(within(bathAgain).getByRole('button', { name: 'Ajouter un article' }));
-  await within(bathAgain).findByRole('button', { name: 'Miel du domaine' });
-  expect(within(bathAgain).queryByRole('button', { name: 'Limonade' })).toBeNull();
+  fireEvent.click(within(bathAgain).getByRole('button', { name: 'Ajouter des articles' }));
+  expect(await within(bathAgain).findByRole('checkbox', { name: /Limonade/ })).toBeChecked();
+  expect(within(bathAgain).getByRole('checkbox', { name: /Miel du domaine/ })).not.toBeChecked();
 });
 
-test('rule 37 — twelve articles is the limit: the message shows and « Ajouter » is disabled (the server refuses a thirteenth)', async () => {
+test('rule 37 — twelve articles is the limit: the thirteenth tick is refused with « 12 articles au plus. » (the server refuses a thirteenth too)', async () => {
   const twelve = Array.from({ length: 12 }, (_, i) => art(i + 10, `Article ${i + 1}`));
-  api.getSuggestedArticlesSettings.mockResolvedValue(settings({ kinds: [{ kind: 'resource', label: 'Ressources à l’heure', contexts: [{ id: '3', label: 'Bain nordique', articleRefs: twelve.map((a) => a.articleRef), articles: twelve }] }] }));
+  api.getSuggestedArticlesSettings.mockResolvedValue(settings({ kinds: [{ kind: 'resource', label: 'Ressources à l’heure', contexts: [{ id: '3', label: 'Bain nordique', shownOn: ['arrival'], articleRefs: twelve.map((a) => a.articleRef), articles: twelve }] }] }));
   renderIt();
   const bath = await screen.findByRole('region', { name: 'Ressources à l’heure · Bain nordique' });
+  fireEvent.click(await within(bath).findByRole('button', { name: 'Ajouter des articles' }));
+  fireEvent.click(await within(bath).findByRole('checkbox', { name: /Bière locale/ }));
   expect(within(bath).getByText('12 articles au plus.')).toBeInTheDocument();
-  expect(within(bath).getByRole('button', { name: 'Ajouter un article' })).toBeDisabled();
+  expect(within(bath).getAllByRole('listitem')).toHaveLength(12);
 });
 
 test('a refused save is told with the server\'s words and keeps the draft', async () => {

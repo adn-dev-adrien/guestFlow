@@ -1,5 +1,5 @@
 /**
- * Ressources à l'heure — module per specs/plugins-phase-3c-hourly-resources.md §3.C.
+ * Ressources à l'heure — module per specs/plugins/plugins-phase-3c-hourly-resources.md §3.C.
  *
  * A resource sold by the hour (the nordic bath) is priced through the core's price-line contributor
  * (rule 11), its hours are placed on real slots at the arrival SAS (rule 12) and show on the planning
@@ -29,6 +29,7 @@ const { createOutsideOffer } = require('./outsideOffer');
 const { createHoldsModel } = require('./holdsModel');
 const { createSessionOrdersModel } = require('./sessionOrdersModel');
 const { createPublicSessionService } = require('./publicSessionService');
+const { isOfferedOnline } = require('./sessionQuote');
 const { buildPublicSessionController } = require('./publicSessionController');
 const { buildPublicSessionRouter } = require('./publicSessionRoutes');
 const { CHANNEL: ONLINE_SALES_CHANNEL, CHANNEL_LABEL: ONLINE_SALES_LABEL } = require('./sessionNotices');
@@ -46,7 +47,7 @@ const plural = (n, one, many) => (n > 1 ? `${n} ${many}` : `1 ${one}`);
 const eurosText = (amount) => `${Number(amount).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`;
 
 function register(ctx) {
-  // specs/resource-booking-pricing-and-invoicing.md rule 5 (A1) — « TVA des ventes hors séjour ».
+  // specs/resources/resource-booking-pricing-and-invoicing.md rule 5 (A1) — « TVA des ventes hors séjour ».
   ctx.settings.declare(SETTINGS);
   const standaloneVatRate = () => standaloneVatRateOf(ctx.settings);
   ctx.migrations(migrationsFor((db, row) => bookingsModel.create(db, { standaloneVatRate }).vatFor(row).rate));
@@ -63,7 +64,7 @@ function register(ctx) {
     return get;
   };
   const lineMarks = lazy(() => createLineMarksModel(ctx.db));
-  // specs/outside-booking-sas.md — the visit of an outside client: its money is the core's sale document, read and written through the visit model.
+  // specs/sas/outside-booking-sas.md — the visit of an outside client: its money is the core's sale document, read and written through the visit model.
   let visits = null;
   // Loop t1 B-3 (pricing-components rules 61, 88, outside-booking-sas rule 28) — one rate per (class, context): the rate typed on the catalogue for the
   // `resources` class wins over the plugin's setting, as the core's settings provider reads it, so a session paid in the booking dialog and one sold at
@@ -81,16 +82,17 @@ function register(ctx) {
 
   // Rules 20-21 — the sales made outside any stay, for the journal and the card batch.
   ctx.standaloneSales((window) => (hasTable(ctx.db, 'resource_bookings') ? bookings().standaloneSales(window) : []));
-  // The outside-visit spec rule 37 — the resources sold by the hour are the contexts of the generic « Proposés à l'arrivée » lists (kind `resource`); the lists
-  // themselves are the core's `suggested_articles` rows, never a setting of this plugin.
+  // The outside-visit spec rule 37 — the resources sold by the hour are the contexts of the generic « Options proposées » lists (kind `resource`); the lists
+  // themselves are the core's `suggested_articles` rows, never a setting of this plugin. Site-outside-resource-booking rule 35 — a list is shown on the site while the resource is offered there.
   ctx.suggestionContexts({
     kind: 'resource',
     label: 'Ressources à l’heure',
     list: () => (hasTable(ctx.db, 'resources')
       ? ctx.db.prepare("SELECT id, name AS label FROM resources WHERE priceType = 'per_hour' AND showsPlanningCard = 1 ORDER BY name, id").all()
       : []),
+    shownOnSite: (id) => hasTable(ctx.db, 'resources') && isOfferedOnline(ctx.db.prepare('SELECT * FROM resources WHERE id = ?').get(Number(id))),
   });
-  // specs/gift-voucher-campaigns.md rule 37 — the bath's own general terms: a draft, versions and a tab of Réglages → Conditions générales, kept like the lodging's. The first draft is seeded, never published.
+  // specs/gift-vouchers/gift-voucher-campaigns.md rule 37 — the bath's own general terms: a draft, versions and a tab of Réglages → Conditions générales, kept like the lodging's. The first draft is seeded, never published.
   ctx.termsActivity({ key: 'resource', label: 'Bain nordique et activités', seed: termsSeed });
   // Rules 18, A2 — the attachments still to join, the invoices cancelled by hand in Qonto.
   ctx.jobs.every({ name: 'resource-invoices-watch', intervalMs: 60 * 60 * 1000, bootDelayMs: 5 * 60 * 1000, run: () => invoicing().watch() });
@@ -100,7 +102,7 @@ function register(ctx) {
   ctx.priceLineContributor(hourlyContributor);
   // Rules 5, 47 of the pricing components — the same contributor, wrapped as the `hourly` family of the Articles head.
   ctx.articleFamily('hourly', createHourlyFamily(hourlyContributor));
-  // specs/options-resources-ux.md rule 19 — the evening / external rates and the schedule on the card.
+  // specs/options/options-resources-ux.md rule 19 — the evening / external rates and the schedule on the card.
   ctx.resourceCatalogueLines(buildCatalogueLines);
 
   // Rule 10 — the external bookings, the SAS picker's free slots and the planning cards, at their
@@ -113,7 +115,7 @@ function register(ctx) {
   ctx.reception([
     { method: 'POST', re: /^\/planning\/resource-cards\/done$/ },
     { method: 'GET', re: /^\/resource-bookings\/planning-events$/ },
-    // specs/outside-booking-sas.md rule 7 — the reception runs the mini SAS inside the day window; paid lines and refunds stay the administrator's (403 in the controller).
+    // specs/sas/outside-booking-sas.md rule 7 — the reception runs the mini SAS inside the day window; paid lines and refunds stay the administrator's (403 in the controller).
     { method: 'GET', re: /^\/resource-bookings\/\d+\/visit(\/articles)?$/ },
     { method: 'POST', re: /^\/resource-bookings\/\d+\/visit(\/quote|\/payment)?$/ },
     { method: 'PATCH', re: /^\/resource-bookings\/\d+\/visit\/lines\/\d+$/ },
@@ -122,7 +124,7 @@ function register(ctx) {
     { method: 'DELETE', re: /^\/resource-bookings\/\d+\/visit\/payment-link\/\d+$/ },
   ]);
 
-  // specs/guest-app.md rules 28-31 — the slots a guest books from the app, read from this planning.
+  // specs/guest-app/guest-app.md rules 28-31 — the slots a guest books from the app, read from this planning.
   const scheduler = lazy(() => createScheduler(ctx.db));
   ctx.resourceScheduler({
     slotsForStay: (args) => scheduler().slotsForStay(args),
@@ -134,7 +136,7 @@ function register(ctx) {
   ctx.slotAvailability(slotAvailability);
   ctx.articleFulfilment('hourly-slot', createBathFulfilment({ slotAvailability }));
 
-  // specs/gift-voucher-campaigns.md rules 25, 29, 53 — what another plugin may ask of the outside bookings of an hourly resource: free slots, a 15-minute hold,
+  // specs/gift-vouchers/gift-voucher-campaigns.md rules 25, 29, 53 — what another plugin may ask of the outside bookings of an hourly resource: free slots, a 15-minute hold,
   // a booking with its priced lines and its tenders. No instrument of payment is named here; the holds lapse by themselves, the job below tidies them.
   const holds = lazy(() => createHoldsModel(ctx.db));
   // Rule 23 — a session booked from the website is told to the operator: push on the shared channel and e-mail, best effort.
@@ -155,7 +157,7 @@ function register(ctx) {
   ctx.jobs.every({ name: 'resource-holds-expire', intervalMs: 60 * 1000, bootDelayMs: 90 * 1000, run: () => holds().expire() });
   ctx.pushChannel({ key: ONLINE_SALES_CHANNEL, label: ONLINE_SALES_LABEL, shared: true });
 
-  // specs/site-outside-resource-booking.md — the website's booking of a session, paid online in full: `/public/v1/sessions/**`, its paid callback and its lapse job.
+  // specs/site/site-outside-resource-booking.md — the website's booking of a session, paid online in full: `/public/v1/sessions/**`, its paid callback and its lapse job.
   const settingsModel = () => sdk.coreModule('settingsModel');
   const sessionOrders = lazy(() => createSessionOrdersModel(ctx.db));
   const publicSessions = lazy(() => createPublicSessionService({
@@ -211,7 +213,7 @@ function register(ctx) {
       if (hasTable(db, 'resource_bookings')) {
         const all = db.prepare('SELECT COUNT(*) AS n FROM resource_bookings').get().n;
         // The bookings paid for an amount. A payment recorded since 1.4.0 with a part on the books is a sale of the
-        // accounting export: the erase takes it out of every month re-exported (specs/resource-booking-pricing-and-invoicing.md
+        // accounting export: the erase takes it out of every month re-exported (specs/resources/resource-booking-pricing-and-invoicing.md
         // rule 21). A « Payé » ticked before (A4), or all in caisse interne, is in no ledger.
         const recorded = hasColumn(db, 'resource_bookings', 'paymentRecordedAt');
         const paidRows = db.prepare(`SELECT totalPrice, reservationId${recorded ? ', paymentRecordedAt, paymentTenders' : ''} FROM resource_bookings WHERE paid = 1 AND totalPrice > 0`).all();

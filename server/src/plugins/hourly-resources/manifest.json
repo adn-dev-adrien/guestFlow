@@ -1,7 +1,7 @@
 {
   "id": "hourly-resources",
   "name": "Ressources à l’heure",
-  "version": "1.11.0",
+  "version": "1.12.0",
   "description": "Louer un équipement par créneau : bain nordique, sauna.",
   "icon": "hot-tub",
   "surfaces": [
@@ -16,8 +16,13 @@
   ],
   "requires": [],
   "guestflow": ">=3.18.0",
-  "sdk": "^2.35.0",
+  "sdk": "^2.36.0",
   "changelog": {
+    "1.12.0": [
+      "La page « Bain nordique » du site propose les options de la liste « Options proposées » de la ressource, dans son ordre, avec le prix de chaque quantité et son unité, calculés par la même fonction que les options d’un bon cadeau.",
+      "Les réglages disent si la liste d’une ressource est montrée sur le site (ressource vendue en ligne) ou seulement à l’arrivée.",
+      "Demande le SDK 2.36 de GuestFlow."
+    ],
     "1.11.0": [
       "Une activité vendable hors séjour se réserve et se paie depuis le site : l’API publique propose ses créneaux, chacun avec le prix de la séance entière (chaque heure à la tranche où elle tombe, la soirée comprise), puis retient le créneau 15 minutes pendant le paiement en ligne.",
       "La séance n’existe qu’une fois le paiement confirmé par la banque ; payée après le délai, elle est réservée si le créneau est encore libre, sinon le paiement est signalé « à rembourser » et l’équipe est prévenue.",

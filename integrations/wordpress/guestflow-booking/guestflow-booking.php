@@ -3,7 +3,7 @@
  * Plugin Name:       GuestFlow Booking
  * Plugin URI:        https://github.com/adn-dev-adrien/guestFlow
  * Description:       Affiche les disponibilités, calcule des devis et envoie des demandes de réservation vers GuestFlow via son API publique. Le site ne parle qu'au proxy PHP du plugin ; la clé d'API reste côté serveur.
- * Version:           1.25.0
+ * Version:           1.26.0
  * Requires at least: 6.4
  * Requires PHP:      8.0
  * Author:            GuestFlow
@@ -15,14 +15,14 @@
  * availability, validation) lives in GuestFlow's backend; this plugin only relays
  * ready-to-render payloads and renders Gutenberg blocks. The GuestFlow API key is
  * read server-side only (wp-config constant or masked option) and is NEVER exposed
- * to the browser. See specs/wordpress-plugin.md + specs/public-api.md in the repo.
+ * to the browser. See specs/site/wordpress-plugin.md + specs/site/public-api.md in the repo.
  */
 
 if (!defined('ABSPATH')) {
     exit; // No direct access.
 }
 
-define('GF_BOOKING_VERSION', '1.25.0');
+define('GF_BOOKING_VERSION', '1.26.0');
 define('GF_BOOKING_FILE', __FILE__);
 define('GF_BOOKING_DIR', plugin_dir_path(__FILE__));
 define('GF_BOOKING_URL', plugin_dir_url(__FILE__));
@@ -30,7 +30,7 @@ define('GF_BOOKING_OPTION', 'guestflow_booking_settings');
 
 require_once GF_BOOKING_DIR . 'includes/class-gf-cache.php';
 // The language of the page being served — resolved once, used by the upstream calls, the rendered
-// strings and the locale published to the browser (specs/site-english-version.md rule 22).
+// strings and the locale published to the browser (specs/site/site-english-version.md rule 22).
 require_once GF_BOOKING_DIR . 'includes/class-gf-language.php';
 require_once GF_BOOKING_DIR . 'includes/class-gf-settings.php';
 require_once GF_BOOKING_DIR . 'includes/class-gf-api-client.php';
@@ -39,10 +39,10 @@ require_once GF_BOOKING_DIR . 'includes/class-gf-blocks.php';
 require_once GF_BOOKING_DIR . 'includes/class-gf-shortcodes.php';
 require_once GF_BOOKING_DIR . 'includes/class-gf-redirects.php';
 require_once GF_BOOKING_DIR . 'includes/class-gf-plugin.php';
-// specs/wordpress-plugin-self-update.md — native WordPress updates against the GuestFlow manifest.
+// specs/site/wordpress-plugin-self-update.md — native WordPress updates against the GuestFlow manifest.
 require_once GF_BOOKING_DIR . 'includes/class-gf-updater.php';
 
-// The permanent links of the gift voucher cards (specs/gift-voucher-campaigns.md rule 9) are rewrite rules: flushed with the plugin.
+// The permanent links of the gift voucher cards (specs/gift-vouchers/gift-voucher-campaigns.md rule 9) are rewrite rules: flushed with the plugin.
 register_activation_hook(__FILE__, ['GF_Redirects', 'activate']);
 register_deactivation_hook(__FILE__, ['GF_Redirects', 'deactivate']);
 
@@ -50,6 +50,6 @@ add_action('plugins_loaded', static function () {
     load_plugin_textdomain('guestflow-booking', false, dirname(plugin_basename(__FILE__)) . '/languages');
     GF_Plugin::instance();
     // Native WordPress updates: the plugin asks its own GuestFlow which build is the newest and
-    // lets the stock updater install it (specs/wordpress-plugin-self-update.md).
+    // lets the stock updater install it (specs/site/wordpress-plugin-self-update.md).
     GF_Updater::instance()->register();
 });

@@ -14,4 +14,7 @@ const PRICE_TYPE_LABELS = Object.freeze({
   per_hour: 'Par heure',
 });
 
-module.exports = { PRICE_TYPE_LABELS };
+// What `outsideSale` cannot say: the article's own « Vendable hors séjour » is not ticked (the gift-voucher catalogue and the suggested-articles lists read the same words).
+const NOT_SELLABLE_OUTSIDE = 'Pas marqué « vendable hors séjour » dans le catalogue.';
+
+module.exports = { PRICE_TYPE_LABELS, NOT_SELLABLE_OUTSIDE };

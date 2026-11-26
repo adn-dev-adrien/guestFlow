@@ -1076,7 +1076,8 @@
     "liveFamilies",
     "makeArticle",
     "read",
-    "unitsPerQuantity"
+    "unitsPerQuantity",
+    "NOT_SELLABLE_OUTSIDE"
   ],
   "stayClock": [
     "phaseForReservation",
@@ -1143,5 +1144,8 @@
     "recordOnStay",
     "settleAtConversion",
     "undoOnStay"
+  ],
+  "addOnPricing": [
+    "createAddOnPricing"
   ]
 }

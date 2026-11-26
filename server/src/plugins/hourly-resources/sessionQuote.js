@@ -1,8 +1,8 @@
 /**
- * The price of a session with no date, for a customer with no stay (specs/gift-voucher-campaigns.md rules 4, 5, 43-44): « 2 h in the day band »,
+ * The price of a session with no date, for a customer with no stay (specs/gift-vouchers/gift-voucher-campaigns.md rules 4, 5, 43-44): « 2 h in the day band »,
  * « 1 h in the evening band, after 2 h already covered ». The band fixes the rate pair and the clock the slot walk starts from — the day band
  * opens at `openTime`, the evening band at `hourlyEveningStart` — so the answer is the one a booking of those hours would get from
- * `priceBookingLines`: the external rate of the band, the rate of the following hours after the first one (specs/hourly-extra-hour-rates.md), whole slots. `rankOffsetMinutes` is the
+ * `priceBookingLines`: the external rate of the band, the rate of the following hours after the first one (specs/resources/hourly-extra-hour-rates.md), whole slots. `rankOffsetMinutes` is the
  * time already covered before this slice: the ranks continue from it.
  *
  *   sessionModesOf(resource)           → [{ key, band, label, rateCents, from, to, lengthMinutes, followingRateCents, followingText, slotMinutes, minimumMinutes, sellable, reason? }]
@@ -131,4 +131,7 @@ function quoteSession(config, session) {
   };
 }
 
-module.exports = { sessionModesOf, quoteSession, isBanded };
+/** Whether the website sells sessions of this resource (site-outside-resource-booking rule 1): sellable outside a stay, banded, and at least one band open. */
+const isOfferedOnline = (resource) => Boolean(resource) && Number(resource.sellableExternally) === 1 && isBanded(resource) && sessionModesOf(resource).some((mode) => mode.sellable);
+
+module.exports = { sessionModesOf, quoteSession, isBanded, isOfferedOnline };

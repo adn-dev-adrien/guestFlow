@@ -1,5 +1,5 @@
 {
-  "_doc": "What coreModule() exposed at each SDK minor since 2.0.0 (specs/plugins-phase-1-sdk.md, SDK notes). A plugin may only call a module or a name that exists at the FLOOR of its manifest `sdk` range: tests/plugins-sdk-core-module-floor.unit.test.js. Adding a module or a name to coreModules.json means recording it here under the SDK minor that ships it.",
+  "_doc": "What coreModule() exposed at each SDK minor since 2.0.0 (specs/plugins/plugins-phase-1-sdk.md, SDK notes). A plugin may only call a module or a name that exists at the FLOOR of its manifest `sdk` range: tests/plugins-sdk-core-module-floor.unit.test.js. Adding a module or a name to coreModules.json means recording it here under the SDK minor that ships it.",
   "baseline": {
     "version": "2.0.0",
     "modules": [
@@ -368,6 +368,17 @@
       "names": {
         "notificationService": [
           "notifyOperator"
+        ]
+      }
+    },
+    {
+      "version": "2.36.0",
+      "modules": [
+        "addOnPricing"
+      ],
+      "names": {
+        "articles": [
+          "NOT_SELLABLE_OUTSIDE"
         ]
       }
     }

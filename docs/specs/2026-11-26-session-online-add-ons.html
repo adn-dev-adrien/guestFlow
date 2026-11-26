@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Bain nordique — les options vendues sur le site, choisies dans GuestFlow</title>
+<style>
+:root{--paper:#F8F5EF;--white:#fff;--ink:#27251F;--soft:#6E6A5E;--line:rgba(60,54,36,.14);--fir:#2F5D46;--fir-d:#214131;--fir-tint:rgba(47,93,70,.08);--warn:#8F6A1D;--warn-soft:#F6EBD3;--err:#A8433A;--ok:#3E7D54;
+  --s-paper:#F4EFE3;--s-card:#FBF8F1;--s-line:#E3DCCB;--ocre:#A8670F;--ocre-d:#8a5409;--sapin:#2F3A26}
+*{box-sizing:border-box}[hidden]{display:none!important}
+body{margin:0;background:var(--paper);color:var(--ink);font:16px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif}
+.wrap{max-width:1120px;margin:0 auto;padding:28px 20px 60px}
+h1{font-family:Georgia,serif;font-weight:600;font-size:1.7rem;margin:0 0 6px}
+h2{font-family:Georgia,serif;font-weight:600;font-size:1.3rem;margin:36px 0 12px}
+.lead{color:var(--soft);max-width:75ch;margin:0 0 18px}
+.brief{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px;margin:0 0 10px}
+.brief div{background:#fff;border:1px solid var(--line);border-radius:10px;padding:12px 14px;font-size:.92rem}
+.brief b{display:block;font-size:.74rem;letter-spacing:.09em;text-transform:uppercase;color:var(--soft);margin-bottom:4px}
+.hint{font-size:.85rem;color:var(--soft);margin:6px 0 12px}
+.demo-bar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:0 0 12px;font-size:.9rem}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:999px;overflow:hidden;background:#fff}
+.seg button{font:inherit;border:0;background:none;padding:8px 14px;min-height:40px;cursor:pointer;color:var(--soft)}
+.seg button[aria-pressed=true]{background:var(--fir-tint);color:var(--fir);font-weight:600}
+/* ── GuestFlow ── */
+.gf{background:var(--paper);border:1px solid var(--line);border-radius:14px;overflow:hidden}
+.gf-top{background:#fff;border-bottom:1px solid var(--line);padding:10px 16px;font-family:Georgia,serif;font-weight:700;color:var(--fir)}
+.gf-bar{position:sticky;top:0;z-index:2;background:#fff;border-bottom:1px solid var(--line);padding:8px 16px;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.gf-bar .t{font-family:Georgia,serif;font-weight:600;font-size:1.2rem;margin-right:auto}
+.tabs{display:flex;gap:2px;flex-basis:100%;overflow-x:auto}
+.tabs span{padding:8px 12px;font-size:.9rem;color:var(--soft);border-bottom:2px solid transparent;white-space:nowrap}
+.tabs span.on{color:var(--fir);font-weight:600;border-color:var(--fir)}
+.ib{width:44px;height:44px;border-radius:12px;border:1px solid var(--line);background:#fff;cursor:pointer;display:grid;place-items:center;color:var(--ink)}
+.ib.save{background:var(--fir);border-color:var(--fir);color:#fff}
+.ib:disabled{opacity:.4;cursor:not-allowed}
+.ib svg{width:20px;height:20px}
+.gf-body{padding:16px;max-width:900px}
+.card{background:#fff;border-radius:14px;box-shadow:0 3px 16px rgba(60,54,36,.09);padding:16px;margin-bottom:14px}
+.card h3{font-family:Georgia,serif;font-weight:600;font-size:1.05rem;margin:0 0 2px}
+.card .sub{color:var(--soft);font-size:.875rem;margin:0 0 12px}
+.picker{border:1px solid rgba(60,54,36,.3);border-radius:10px;padding:6px 8px;min-height:52px;display:flex;flex-wrap:wrap;gap:6px;align-items:center;position:relative;cursor:text;background:#fff}
+.picker:focus-within{border-color:var(--fir);box-shadow:0 0 0 1px var(--fir)}
+.picker.err{border-color:var(--err)}
+.flabel{position:absolute;top:-9px;left:10px;background:#fff;padding:0 4px;font-size:.75rem;color:var(--soft)}
+.chip{display:inline-flex;align-items:center;gap:4px;background:rgba(60,54,36,.07);border-radius:999px;padding:4px 4px 4px 10px;font-size:.85rem}
+.chip.warn{background:var(--warn-soft);color:var(--warn)}
+.chip button{border:0;background:none;cursor:pointer;width:26px;height:26px;border-radius:50%;color:inherit;font-size:1rem}
+.picker input{border:0;outline:0;font:inherit;flex:1;min-width:140px;padding:6px 4px;font-size:16px}
+.list{border:1px solid var(--line);border-radius:10px;background:#fff;box-shadow:0 2px 10px rgba(60,54,36,.07);margin-top:6px;max-height:300px;overflow:auto}
+.opt{display:flex;gap:10px;align-items:flex-start;padding:8px 12px;cursor:pointer;min-height:44px}
+.opt:hover{background:var(--fir-tint)}
+.opt input{width:18px;height:18px;margin-top:3px;accent-color:var(--fir)}
+.opt small{display:block;color:var(--soft);font-size:.78rem}
+.opt.off{cursor:not-allowed;color:var(--soft)}
+.opt.off:hover{background:none}
+.opt .cat{font-size:.72rem;color:var(--soft);padding:8px 12px 2px;font-weight:600}
+.help{font-size:.78rem;color:var(--soft);margin:4px 12px 0}
+.help.err{color:var(--err)}
+.toast{position:fixed;left:50%;bottom:20px;transform:translateX(-50%);background:#E5EFE7;color:#2B5A3B;padding:12px 18px;border-radius:12px;font-size:.9rem;box-shadow:0 3px 16px rgba(60,54,36,.15);transition:opacity .2s ease-out}
+.row{display:flex;align-items:center;gap:8px;padding:6px 0;border-top:1px solid var(--line)}
+.row:first-of-type{border-top:0}
+.row .lbl{flex:1;min-width:0}
+.row small{display:block;color:var(--soft);font-size:.8rem}
+.row .ib{border:0;width:40px;height:40px}
+.tbtn{font:inherit;border:0;background:none;color:var(--fir);font-weight:500;padding:8px 6px;min-height:44px;cursor:pointer}
+.tbtn:disabled{color:var(--soft);cursor:not-allowed}
+.soft-chip{display:inline-block;background:#E5EFE7;color:#2B5A3B;border-radius:999px;font-size:.75rem;font-weight:600;padding:2px 10px;margin-left:8px;vertical-align:middle}
+.soft-chip.n{background:rgba(60,54,36,.07);color:var(--soft)}
+.panel{display:grid;grid-template-columns:1fr;gap:0;background:#fff;border-left:1px solid var(--line)}
+.side{display:grid;grid-template-columns:260px 1fr;gap:0}
+@media (max-width:760px){.side{grid-template-columns:1fr}.side .rlist{display:none}}
+.rlist{padding:12px}
+.rrow{padding:10px 12px;border-radius:12px;font-size:.9rem;margin-bottom:4px;background:#fff}
+.rrow.on{background:var(--fir-tint);color:var(--fir);font-weight:600}
+.sp-head{padding:12px 16px;border-bottom:1px solid var(--line);font-family:Georgia,serif;font-weight:600}
+.sp-sec{padding:12px 16px;border-bottom:1px solid var(--line)}
+.sp-sec h4{margin:0 0 10px;font-size:.95rem}
+.field{border:1px solid rgba(60,54,36,.3);border-radius:10px;padding:10px 12px;margin-bottom:14px;font-size:.92rem;position:relative}
+.field .flabel{top:-9px}
+.muted{color:var(--soft)}
+/* ── Site ── */
+.site{background:var(--s-paper);border:1px solid var(--s-line);border-radius:14px;padding:20px;font-family:-apple-system,system-ui,sans-serif}
+.site .sh{font-weight:700;margin:0 0 10px}
+.fold{border:1px solid var(--s-line);border-radius:8px;background:#fff;max-width:560px}
+.fold-head{display:flex;align-items:center;gap:10px;width:100%;border:0;background:none;font:inherit;text-align:left;padding:12px 14px;min-height:56px;cursor:pointer;color:var(--ink)}
+.fold-text{flex:1;min-width:0}
+.fold-title{display:block;font-weight:700}
+.fold-sub{display:flex;gap:6px;font-size:.85rem;color:var(--soft);min-width:0}
+.fold-sub .names{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.fold-sub .sum{white-space:nowrap;color:var(--ink);font-weight:600}
+.badge{background:var(--ocre-d);color:#fff;border-radius:999px;font-size:.75rem;min-width:22px;height:22px;display:grid;place-items:center;padding:0 6px}
+.chev{transition:transform .24s cubic-bezier(.2,0,0,1)}
+.fold[data-open=true] .chev{transform:rotate(180deg)}
+.fold-body{display:grid;grid-template-rows:0fr;transition:grid-template-rows .24s cubic-bezier(.2,0,0,1)}
+.fold[data-open=true] .fold-body{grid-template-rows:1fr}
+.fold-body>div{overflow:hidden}
+.fline{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:8px 14px;border-top:1px dashed var(--s-line)}
+.fline small{display:block;color:var(--soft);font-size:.8rem}
+.stepper{display:inline-flex;align-items:center;border:1px solid var(--s-line);border-radius:6px;background:#f3f5ef}
+.stepper button{width:44px;height:44px;border:0;background:none;font-size:1.1rem;cursor:pointer;color:var(--sapin)}
+.stepper button:disabled{opacity:.3;cursor:not-allowed}
+.stepper span{min-width:30px;text-align:center;font-weight:700}
+.foot{font-size:.8rem;color:var(--soft);padding:8px 14px 12px;margin:0;border-top:1px dashed var(--s-line)}
+.nofold{color:var(--soft);font-size:.9rem;font-style:italic}
+.cmp{font-size:.8rem;color:var(--soft);margin-top:10px}
+.cmp s{color:var(--soft)}
+/* ── Questions ── */
+fieldset{background:#fff;border:1px solid var(--line);border-radius:10px;padding:14px 18px;margin:0 0 14px}
+legend{font-weight:700;padding:0 6px}
+fieldset label{display:block;padding:6px 0;cursor:pointer}
+fieldset p{margin:4px 0 6px;color:var(--soft);font-size:.9rem}
+.out{display:flex;gap:10px;align-items:flex-start}
+textarea{flex:1;height:96px;font:13px/1.4 ui-monospace,Menlo,monospace;padding:8px;border:1px solid var(--line);border-radius:8px}
+.copy{font:inherit;background:var(--fir);color:#fff;border:0;border-radius:10px;padding:10px 16px;cursor:pointer;min-height:44px}
+ul.rules li{margin:5px 0}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+<div class="wrap">
+<h1>Bain nordique : les options du site, réglées dans GuestFlow</h1>
+<p class="lead">Une seule liste par activité, celle qui existe déjà : elle sert à l'accueil sur place et à la page « Bain nordique » du site. On améliore l'écran qui la règle pour qu'il fonctionne comme le choix des options d'une campagne de bon cadeau. Sur le site, le dépliant reste celui des bons. Coche des options dans GuestFlow, enregistre, et regarde le site changer.</p>
+
+<div class="brief">
+  <div><b>Constat</b>La liste existe déjà : Options et ressources → <i>Proposés à l'arrivée</i>, une par ressource. La page « Bain nordique » du site la lit, mais l'écran ne le dit nulle part. On y ajoute un article à la fois, et la recherche se referme après chaque ajout. Un article que le moteur refuse hors séjour (prix « par personne ») s'ajoute sans avertissement, puis disparaît du site. Le site affiche tous les prix « l'unité » et indique « N au maximum par <u>bon</u> ».</div>
+  <div><b>Ce qu'on propose</b>Le même écran avec un nouveau nom (Q1). Chaque ressource vendue en ligne y porte un badge « Sur le site ». « Ajouter des articles » ouvre une liste à cases à cocher qui reste ouverte, comme pour les campagnes. Chaque ligne montre son prix. Un article qui ne se vend pas seul est grisé et la raison est affichée. L'ordre ↑ ↓ reste celui du site. Le site prend les unités et limites des bons (« 6 € l'unité », « 2 × 12 € = 24 € », « 10 au maximum par séance »).</div>
+  <div><b>Ce qu'on ne fait pas</b>Aucune nouvelle liste ni migration : le site garde exactement ce qu'il propose aujourd'hui. Rien sur la fiche de chaque option. Pas d'option « par personne » vendue avec une séance : le moteur la refuse sans séjour, c'est un autre chantier. Une séance réservée avec un bon garde les options de sa campagne.</div>
+  <div><b>Risque</b>Faible : aucune donnée ne bouge. Un article déjà dans une liste et que le moteur refuse hors séjour est signalé, et l'enregistrement est refusé tant qu'il y reste. Aucun prix n'est calculé dans la page.</div>
+</div>
+
+<h2>1. Dans GuestFlow — Options et ressources</h2>
+<p class="hint">Essaie : « Ajouter des articles », coche plusieurs boissons, tente « Linge de toilette » (grisé), dépasse 12, réordonne, puis « Enregistrer ».</p>
+
+<div class="gf">
+  <div class="gf-top">GuestFlow</div>
+  <div class="gf-bar">
+    <span class="t">Options et ressources</span>
+    <button class="ib save" id="save" disabled aria-label="Enregistrer" title="Enregistrer"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M17 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V7l-4-4zm-5 16a3 3 0 1 1 0-6 3 3 0 0 1 0 6zm3-10H5V5h10v4z"/></svg></button>
+    <button class="ib" id="cancel" disabled aria-label="Annuler" title="Annuler"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M19 6.4 17.6 5 12 10.6 6.4 5 5 6.4 10.6 12 5 17.6 6.4 19 12 13.4 17.6 19 19 17.6 13.4 12z"/></svg></button>
+    <div class="tabs"><span>Options</span><span>Ressources</span><span class="on" id="tabName">Options proposées</span></div>
+  </div>
+  <div class="gf-body">
+    <p class="muted" style="margin:0 0 12px;font-size:.875rem" id="intro">Articles proposés à l'arrivée et, pour une activité vendue en ligne, sur sa page du site, dans l'ordre choisi.</p>
+    <div class="card">
+      <h3>Bain nordique <span class="soft-chip">Sur le site</span></h3>
+      <p class="sub">À l'arrivée et dans « Ajouter à la séance » de la page « Bain nordique ».</p>
+      <div id="picker"></div>
+    </div>
+    <div class="card">
+      <h3>Sauna <span class="soft-chip n">À l'arrivée seulement</span></h3>
+      <p class="sub">Pas vendu en ligne : la ressource n'est pas marquée « Vendable hors séjour ».</p>
+      <p class="muted" style="margin:0;font-size:.9rem">Aucun article proposé.</p>
+    </div>
+  </div>
+</div>
+
+<h2>2. Sur le site — page « Bain nordique »</h2>
+<p class="hint">Même dépliant que pour les bons cadeaux (fermé à l'arrivée, prix lus dans GuestFlow), avec « séance » à la place de « bon ». Il ne s'affiche pas quand la liste est vide.</p>
+<div class="site">
+  <p class="sh">Ajouter à la séance</p>
+  <div id="siteFold"></div>
+  <p class="cmp">Aujourd'hui sur la même page : <s>« Champagne 75 cl · 55 € l'unité »</s> pour tout article, <s>« 10 au maximum par bon »</s>.</p>
+</div>
+
+<h2>3. Arbitrages</h2>
+<form id="q">
+<p class="hint" style="margin-top:0">Tes choix du 26/11 : une seule liste, celle qui existe déjà, dans l'ordre ↑ ↓. Il reste une question.</p>
+<fieldset><legend>Q1. Le nom de l'onglet</legend>
+  <p>« Proposés à l'arrivée » ne dit pas que la liste sert aussi au site.</p>
+  <label><input type="radio" name="q1" value="Options proposées" checked> <b>« Options proposées » (recommandé)</b> : court, et vrai sur place comme en ligne.</label>
+  <label><input type="radio" name="q1" value="Proposés sur place et en ligne"> « Proposés sur place et en ligne ».</label>
+  <label><input type="radio" name="q1" value="Proposés à l'arrivée (inchangé)"> Garder « Proposés à l'arrivée » : seuls le badge et la phrase de chaque carte mentionnent le site.</label>
+</fieldset>
+<div class="out"><textarea id="sum" readonly aria-label="Résumé des choix"></textarea><button type="button" class="copy" id="copy">Copier</button></div>
+</form>
+
+<h2>Règles ajoutées à la spec</h2>
+<ul class="rules">
+  <li><b>34.</b> Une seule liste : « Ajouter à la séance » du site propose la liste d'arrivée de la ressource (<code>suggested_articles</code>), dans son ordre. Aucune autre liste n'est créée.</li>
+  <li><b>35.</b> L'écran dit où chaque liste est montrée : badge « Sur le site » quand la ressource est vendue en ligne, « À l'arrivée seulement » sinon.</li>
+  <li><b>36.</b> « Ajouter des articles » ouvre une liste à cases à cocher qui reste ouverte, avec le prix de chaque article. Un article que le moteur ne vend pas hors séjour est grisé avec la phrase de la règle 65 des bons. Déjà dans une liste, il est signalé en orange et l'enregistrement est refusé.</li>
+  <li><b>37.</b> Le site reçoit pour chaque article <code>unitLabel</code>, <code>linear</code> et <code>prices</code>, calculés par la même fonction que pour les bons. La limite s'écrit « N au maximum par séance ».</li>
+</ul>
+</div>
+
+<div class="toast" id="toast" hidden></div>
+
+<script>
+(function(){
+  var CAT=[
+    {ref:'o12',label:'Biscanna 75cl - 5°',cat:'Boissons',unit:"l’unité",p:12},
+    {ref:'o13',label:'Blonde du Pilat 75cl - 4,5°',cat:'Boissons',unit:"l’unité",p:11},
+    {ref:'o14',label:'Champagne - bouteille 75cl',cat:'Boissons',unit:"l’unité",p:55},
+    {ref:'o15',label:'Champagne - demi-bouteille 37,5cl',cat:'Boissons',unit:"l’unité",p:30},
+    {ref:'o16',label:'Jus de pomme 1L',cat:'Boissons',unit:"l’unité",p:6},
+    {ref:'o17',label:'Jus pomme-kiwi 1L',cat:'Boissons',unit:"l’unité",p:7},
+    {ref:'o18',label:'Mad Max 75cl - 5,5°',cat:'Boissons',unit:"l’unité",p:12},
+    {ref:'o20',label:'Planche S — 1-2 pers. (Apéro Solo/Duo)',cat:'Planches',unit:"l’unité",p:16},
+    {ref:'o21',label:'Planche M — 2-3 pers. (Apéro Couple)',cat:'Planches',unit:"l’unité",p:24},
+    {ref:'o22',label:'Planche L — 4 pers. (Apéro Famille)',cat:'Planches',unit:"l’unité",p:34},
+    {ref:'o23',label:'Planche XL — 6-7 pers. (Apéro Tribu)',cat:'Planches',unit:"l’unité",p:52},
+    {ref:'o24',label:'Planche XXL — 10-12 pers. (Apéro Gîte)',cat:'Planches',unit:"l’unité",p:85},
+    {ref:'o30',label:'Tapis de bain',cat:'Linge',unit:"l’unité",p:3},
+    {ref:'o31',label:'Linge de toilette',cat:'Linge',off:'Le prix « par personne » a besoin d’un séjour : il ne se vend pas seul.'},
+    {ref:'o32',label:'Petit déjeuner',cat:'Repas',off:'Le prix « par personne et par nuit » a besoin d’un séjour : il ne se vend pas seul.'},
+    {ref:'o33',label:'Animation enfants + bain nordique',cat:'Animations',off:'Le prix « progressif par participant » a besoin d’un séjour : il ne se vend pas seul.'}
+  ];
+  var MAX=12, MAXQ=10;
+  var saved=['o16','o14','o21','o31'], draft=saved.slice(), err='', open=false, query='';
+  var byRef={};CAT.forEach(function(o){byRef[o.ref]=o});
+  var eur=function(n){return n.toLocaleString('fr-FR')+' €'};
+  function el(t,a,c){var e=document.createElement(t);if(a)for(var k in a){if(k==='class')e.className=a[k];else if(k.slice(0,2)==='on')e.addEventListener(k.slice(2),a[k]);else e.setAttribute(k,a[k])}(c||[]).forEach(function(x){if(x!=null)e.appendChild(typeof x==='string'?document.createTextNode(x):x)});return e}
+  var dirty=function(){return draft.join()!==saved.join()};
+  var blocked=function(){return draft.some(function(r){return byRef[r].off})};
+  var icon=function(d){var s=document.createElementNS('http://www.w3.org/2000/svg','svg');s.setAttribute('viewBox','0 0 24 24');s.setAttribute('fill','currentColor');var p=document.createElementNS('http://www.w3.org/2000/svg','path');p.setAttribute('d',d);s.appendChild(p);return s};
+  var UP='M4 12l1.4 1.4L11 7.8V20h2V7.8l5.6 5.6L20 12l-8-8z',DOWN='M20 12l-1.4-1.4L13 16.2V4h-2v12.2l-5.6-5.6L4 12l8 8z',X='M19 6.4 17.6 5 12 10.6 6.4 5 5 6.4 10.6 12 5 17.6 6.4 19 12 13.4 17.6 19 19 17.6 13.4 12z';
+
+  function toggle(ref){
+    var i=draft.indexOf(ref);
+    if(i>=0){draft.splice(i,1);err=''}
+    else if(draft.length>=MAX){err='12 articles au plus.'}
+    else{draft.push(ref);err=''}
+    render(true);
+  }
+  function move(i,d){var j=i+d;var t=draft[i];draft[i]=draft[j];draft[j]=t;render()}
+
+  function render(keep){
+    var host=document.getElementById('picker');host.innerHTML='';
+    if(!draft.length)host.appendChild(el('p',{class:'muted',style:'margin:0;font-size:.9rem'},['Aucun article proposé.']));
+    draft.forEach(function(ref,i){
+      var o=byRef[ref];
+      var ib=function(lbl,d,dis,fn){var b=el('button',{type:'button',class:'ib','aria-label':lbl+' '+o.label,title:lbl,onclick:fn},[icon(d)]);if(dis)b.disabled=true;return b};
+      host.appendChild(el('div',{class:'row'},[
+        el('span',{class:'lbl'},[el('span',{style:'font-weight:600'},[o.label]),el('small',{style:o.off?'color:var(--warn)':''},[o.off?o.off+' Retirer pour enregistrer.':eur(o.p)+' '+o.unit])]),
+        ib('Monter',UP,i===0,function(){move(i,-1)}),ib('Descendre',DOWN,i===draft.length-1,function(){move(i,1)}),ib('Retirer de la liste',X,false,function(){toggle(ref)})
+      ]));
+    });
+    var add=el('button',{type:'button',class:'tbtn','aria-expanded':String(open),onclick:function(){open=!open;query='';err='';render(open)}},[open?'Fermer':'+ Ajouter des articles']);
+    host.appendChild(add);
+    if(err)host.appendChild(el('p',{class:'help err',role:'status',style:'margin:0 0 6px'},[err]));
+    if(open){
+      var inp=el('input',{type:'text',placeholder:'Chercher un article','aria-label':'Chercher un article',style:'font:inherit;font-size:16px;width:100%;padding:10px 12px;border:1px solid rgba(60,54,36,.3);border-radius:10px'});
+      inp.value=query;inp.addEventListener('input',function(){query=inp.value;render(true)});
+      host.appendChild(inp);
+      var list=el('div',{class:'list'});var last='';
+      var shown=CAT.filter(function(o){return !query||o.label.toLowerCase().indexOf(query.toLowerCase())>=0});
+      if(!shown.length)list.appendChild(el('p',{class:'help'},['Aucun article ne correspond.']));
+      shown.forEach(function(o){
+        if(o.cat!==last){list.appendChild(el('div',{class:'cat'},[o.cat]));last=o.cat}
+        var on=draft.indexOf(o.ref)>=0, dis=o.off&&!on;
+        var cb=el('input',{type:'checkbox',tabindex:'-1'});cb.checked=on;if(dis)cb.disabled=true;
+        list.appendChild(el('div',{class:'opt'+(dis?' off':''),role:'checkbox','aria-checked':String(on),'aria-disabled':String(!!dis),tabindex:'0',onclick:function(){if(!dis)toggle(o.ref)},onkeydown:function(e){if((e.key===' '||e.key==='Enter')&&!dis){e.preventDefault();toggle(o.ref)}}},
+          [cb,el('span',null,[o.label,el('small',{style:o.off&&on?'color:var(--warn)':''},[o.off||(eur(o.p)+' '+o.unit)])])]));
+      });
+      host.appendChild(list);
+      if(keep){inp.focus();inp.setSelectionRange(inp.value.length,inp.value.length)}
+    }
+    var s=document.getElementById('save');s.disabled=!dirty()||blocked();
+    s.title=blocked()?'Un article de la liste ne se vend pas seul : retirez-le pour enregistrer.':'Enregistrer';
+    document.getElementById('cancel').disabled=!dirty();
+  }
+
+  var qty={}, foldOpen=false;
+  function site(){
+    var host=document.getElementById('siteFold');host.innerHTML='';
+    var list=saved.map(function(r){return byRef[r]}).filter(function(o){return !o.off});
+    if(!list.length){host.appendChild(el('p',{class:'nofold'},['Liste vide : le dépliant n’est pas affiché.']));return}
+    var chosen=list.filter(function(o){return qty[o.ref]>0});
+    var total=chosen.reduce(function(s,o){return s+o.p*qty[o.ref]},0); // in the real page: the server's extrasCents
+    var cheapest=Math.min.apply(null,list.map(function(o){return o.p}));
+    var sub=chosen.length
+      ?[el('span',{class:'names'},[chosen.map(function(o){return o.label+(qty[o.ref]>1?' ×'+qty[o.ref]:'')}).join(', ')]),el('span',{class:'sum'},['+ '+eur(total)])]
+      :[el('span',{class:'names'},[list.length+(list.length>1?' disponibles':' disponible')+' · dès '+eur(cheapest)])];
+    var fold=el('div',{class:'fold','data-open':String(foldOpen)});
+    fold.appendChild(el('button',{type:'button',class:'fold-head','aria-expanded':String(foldOpen),onclick:function(){foldOpen=!foldOpen;site()}},[
+      el('span',{class:'fold-text'},[el('span',{class:'fold-title'},['Options']),el('span',{class:'fold-sub'},sub)]),
+      chosen.length?el('span',{class:'badge'},[String(chosen.length)]):null,
+      el('span',{class:'chev','aria-hidden':'true'},['▾'])]));
+    var inner=el('div');
+    list.forEach(function(o){
+      var n=qty[o.ref]||0;
+      var line=n>1?n+' × '+eur(o.p)+' = '+eur(o.p*n):(n?eur(o.p):eur(o.p)+' '+o.unit);
+      if(n>=MAXQ)line+=' · '+MAXQ+' au maximum par séance';
+      var minus=el('button',{type:'button','aria-label':'Retirer un '+o.label,onclick:function(){qty[o.ref]=n-1;site()}},['−']);if(!n)minus.disabled=true;
+      var plus=el('button',{type:'button','aria-label':'Ajouter un '+o.label,onclick:function(){qty[o.ref]=n+1;site()}},['+']);if(n>=MAXQ)plus.disabled=true;
+      inner.appendChild(el('div',{class:'fline'},[el('span',null,[o.label,el('small',null,[line])]),el('span',{class:'stepper'},[minus,el('span',null,[String(n)]),plus])]));
+    });
+    inner.appendChild(el('p',{class:'foot'},['Prix TTC, ajoutés au montant de la séance.']));
+    var body=el('div',{class:'fold-body'},[inner]);if(!foldOpen)body.setAttribute('inert','');
+    fold.appendChild(body);host.appendChild(fold);
+  }
+
+  document.getElementById('save').addEventListener('click',function(){
+    saved=draft.slice();Object.keys(qty).forEach(function(r){if(saved.indexOf(r)<0)delete qty[r]});
+    open=false;render();site();toast('Listes enregistrées.');
+  });
+  document.getElementById('cancel').addEventListener('click',function(){draft=saved.slice();err='';open=false;render()});
+  function toast(t){var x=document.getElementById('toast');x.textContent=t;x.hidden=false;clearTimeout(toast.t);toast.t=setTimeout(function(){x.hidden=true},4000)}
+
+  var form=document.getElementById('q');
+  function sum(){var f=new FormData(form);
+    document.getElementById('tabName').textContent=f.get('q1').replace(' (inchangé)','');
+    document.getElementById('sum').value='Options du bain sur le site — choix d’Adrien (26/11)\nUne seule liste (celle de l’arrivée), ordre ↑ ↓\nQ1 Nom de l’onglet : '+f.get('q1')}
+  form.addEventListener('change',sum);sum();
+  document.getElementById('copy').addEventListener('click',function(){var t=document.getElementById('sum'),b=this;t.select();
+    (navigator.clipboard?navigator.clipboard.writeText(t.value):Promise.reject()).catch(function(){document.execCommand('copy')});
+    b.textContent='Copié';setTimeout(function(){b.textContent='Copier'},1500)});
+
+  render();site();
+})();
+</script>
+</body>
+</html>
