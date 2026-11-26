@@ -335,7 +335,8 @@ brought it; and the accountant receives entries that explain every Mollie credit
       Qonto's reference> » (the export sets no maximum length; the 50-character id would drown the line).
     The balance of 46720000 at any date is then exactly the money still at Mollie (transit + reserves).
 29. The bank lines of rule 28 can be switched off (setting « Exporter les versements Mollie reçus »,
-    default on) for an accountant who books the bank from the bank feed himself — Q2.
+    default on) for an accountant who books the bank from the bank feed himself — Q2. Switched off, only the
+    bank lines go: the fee lines stay, so account 46720000 still shows what Mollie holds.
 30. The export page shows, for the exported month, the clearing account's balance at month end and its
     detail (which clients' reserves are still held), as a reconciliation aid for the accountant.
 31. A Mollie credit not reconciled at export time is listed as « Versement Mollie non rattaché » in the

@@ -1,6 +1,6 @@
 /**
  * The confirmation email fired by a confirmed online payment, gated by the confirmation template's
- * own mode (specs/emails/no-automatic-email-without-approval.md §3 rule 4, specs/settings/settings-rationalization.md
+ * own mode (specs/emails/no-automatic-email-without-approval.md §3 rule 11, specs/settings/settings-rationalization.md
  * rule 17b).
  *
  * A paid link is not an operator action: nobody read that email before it left. With the template in

@@ -2,16 +2,13 @@
 
 | Field | Value |
 |---|---|
-| **Status** | Approved |
+| **Status** | Implemented |
 | **Branch** | `feature/admin-unlock-past-reservations` _(piggybacks the existing PR per Adrien's call on 2026-06-01)_ |
 | **Created** | 2026-06-01 |
 | **Author** | Adrien |
 | **Related PR** | (same PR as `admin-unlock-past-reservations`) |
 
-> **Updated 2026-10-27 (spec review — drift only).** The code is shipped, but the Status line stays
-> `Approved`: moving it to `Implemented` requires every §3 rule to be cited by a test or declared
-> « Sans test » ([spec-rule-coverage.md](../tech/spec-rule-coverage.md) rule 14), and only rule 4 is today
-> (`pricing-deposit-disabled.unit.test.js`). That coverage pass is left to a code PR. The flag, the engine consolidation and the past-lock
+> **Updated 2026-10-27 (spec review — drift only).** The code is shipped; every §3 rule is cited by a test since 2026-11-26 (status `Implemented`). The flag, the engine consolidation and the past-lock
 > allowlist (rule 6) behave as written. Two things moved: the « unlock past reservations » toggle rule 6
 > refers to is now a per-fiche action ([settings-rationalization.md](../settings/settings-rationalization.md) rule 17a),
 > and the fiche no longer has an « Acompte » block (rule 8, §6). The switch is **« Sans acompte »**, in the

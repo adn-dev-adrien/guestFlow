@@ -34,6 +34,21 @@ const vatRegimeModel = require('./vatRegimeModel');
 const { bookingDayOf } = require('../utils/vatRegime');
 const { touristTaxInTotal } = require('../utils/stayTouristTaxInTotal');
 
+// specs/payments/reservation-refunds.md rules 30-31 — the nights a refunded tax frees, read from the refunded AMOUNT:
+// the quantities stored on the refund lines are rounded (unit price to the cent, quantity to 4 decimals), so a full
+// refund of 11,00 € over 3 nights reads 2.9973. A night is freed once its share of the tax (rounded to the cent) is
+// wholly refunded; a full refund frees every night.
+function wholeNightsRefunded(refundedQuantity, refundedAmount, nights) {
+  // A refund line counts its nights as `amount / unitPrice`, the unit price rounded to the cent
+  // (refunds/refundable.js), so a whole night can read 2.9973. The tolerance is that rounding, at most
+  // half a cent per night over the stay — never half a night.
+  const quantity = Number(refundedQuantity || 0);
+  const amount = Number(refundedAmount || 0);
+  if (!(nights > 0) || !(quantity > 0)) return 0;
+  const tolerance = amount > 0 ? (nights * 0.005 * quantity) / amount : 0;
+  return Math.min(nights, Math.floor(quantity + tolerance + 1e-9));
+}
+
 /**
  * The payment flags « Tout solder » ticks on an operational row (specs/accounting/finance-dashboard-redesign.md rule 15): every bucket
  * still due, except what specs/payments/reservation-payment-ledger.md rule 68 (D20) keeps for the check-out — the end-of-stay
@@ -440,8 +455,8 @@ function createFinanceModel(database) {
     //
     // All amounts are driven by the **encaissement** schedule (depositAmount + balanceAmount +
     // complementAmount), NEVER `finalPrice`. Rationale: `finalPrice` excludes the tourist tax
-    // and the 3rd-bucket complement, so summing it produces `totalRevenue ≠ totalCollected +
-    // totalPending` and the cards lose coherence. The encaissement amounts capture what the
+    // and the 3rd-bucket complement, so summing it produces a `totalRevenue` that no longer matches what is
+    // collected and the cards lose coherence. The encaissement amounts capture what the
     // customer actually owes (tax included where applicable) and add up by construction.
     //
     // `revenueByProperty` (added 2026-06-02) aggregates per logement so the FinancePage's
@@ -454,9 +469,6 @@ function createFinanceModel(database) {
     // specs/accounting/finance-overview-rework.md §3.2 — every revenue figure is Σ « total de séjour », a reservation
     // counted by its DEPARTURE date (endDate). The period uses the du/au range; two extra figures cover
     // the calendar year (to-date + full). « Encaissé » = the accounting total (comptaCollected).
-    // specs/accounting/finance-pending-global-remaining.md — « En attente de règlement » is GLOBAL (every finished
-    // stay, period ignored) and counts the RESTANT DÛ (Σ remainingToPay), so it equals the operational
-    // « Paiements en attente » chip and never double-counts what « Encaissé » already holds.
     // specs/pricing/booking-pace.md §3.1 — every stay that is or was on the books, with its « total de séjour »:
     // live reservations, manually cancelled ones (kept with `cancelledAt`), and those an approved iCal
     // cancellation deleted (`booking_pace_cancellations`). A cancelled stay is valued as it stood on the
@@ -673,22 +685,6 @@ function createFinanceModel(database) {
 
       const revenueByProperty = finalizeByProperty(byProperty);
 
-      // « En attente de règlement » — GLOBAL, period ignored (specs/accounting/finance-pending-global-remaining.md):
-      // every finished stay (endDate < today) not yet settled, counted for its RESTANT DÛ only
-      // (Σ remainingToPay, net of the unpaid échéances' commissions). Same predicate + amount as
-      // getOperational().pending, so the card always equals the operational tab's chip.
-      let totalPending = 0;
-      let totalPendingHt = 0;
-      const pastRows = database.prepare(`
-        SELECT * FROM reservations WHERE kind = 'reservation' AND endDate < ?${operationalScope.sql}
-      `).all(today, ...operationalScope.params);
-      for (const r of pastRows) {
-        if (isSettled(r)) continue;
-        const remaining = remainingToPay(r);
-        totalPending += remaining;
-        totalPendingHt += htOf(r, remaining, vatOf(r));
-      }
-
       // Exercise cards — the SELECTED fiscal year, independent of the du/au period. Attributed by the
       // accounting date, so a stay settled before the closing counts in the closing exercise even when
       // the guest leaves after it (specs/accounting/fiscal-year-and-nights-sold.md §3.2).
@@ -763,8 +759,6 @@ function createFinanceModel(database) {
         revenueTotalNights,                     // …and the nights sold over that same set
         totalCollected: round2(totalCollected), // accounting total (encaissé)
         totalCollectedHt: round2(totalCollectedHt),
-        totalPending:   round2(totalPending),   // Σ remainingToPay of ALL past + non-settled (global)
-        totalPendingHt: round2(totalPendingHt),
         yearToDate:     round2(yearToDate),      // Σ total-séjour, exercise start → today
         yearToDateHt:   round2(yearToDateHt),
         yearToDateNights,
@@ -1221,7 +1215,7 @@ function createFinanceModel(database) {
           // own `taxe = nuitées × tarif` arithmetic; and what is owed to the commune depends on nights
           // occupied, not on what the operator kept. A goodwill refund too small to free a whole night
           // therefore changes nothing here.
-          const refundedTaxNights = Math.min(nightsCount, Math.max(0, Math.round(Number(row.refundedTaxNights || 0))));
+          const refundedTaxNights = wholeNightsRefunded(row.refundedTaxNights, row.refundedTaxAmount, nightsCount);
           const declaredNights = Math.max(0, nightsCount - refundedTaxNights);
           const declaredAdultNights = Math.max(
             0,
@@ -1294,7 +1288,7 @@ function createFinanceModel(database) {
           const stored = storedById.get(Number(row.reservationId));
           const quote = quoteStoredReservation(database, stored);
           const nightsCount = Number(row.nightsCount || 0);
-          const refundedTaxNights = Math.min(nightsCount, Math.max(0, Math.round(Number(row.refundedTaxNights || 0))));
+          const refundedTaxNights = wholeNightsRefunded(row.refundedTaxNights, row.refundedTaxAmount, nightsCount);
           const declaredNights = Math.max(0, nightsCount - refundedTaxNights);
           const wholeAddition = round2(Number(quote.touristTaxAddedGuestsAmount || 0));
           // Rule 21 — who the stored amount is for, not who is on the fiche today. Nobody (a gap of rule 5):
