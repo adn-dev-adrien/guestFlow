@@ -77,7 +77,7 @@ function register(ctx) {
       updateClient: ctx.core.clients.update,
       suggestBeds: ctx.core.reservations.suggestBeds,
       platformCommission: ctx.core.reservations.platformCommission,
-      withholdsTouristTax: (propertyId) => ctx.core.reservations.platformWithholdsTouristTax(propertyId, 'booking'),
+      touristTaxMode: (propertyId) => ctx.core.reservations.touristTaxMode(propertyId, 'booking'),
     },
   });
 

@@ -61,14 +61,34 @@ const PLATFORM_PENALTY_ACCOUNT = '658000';
 
 // Well-known commission accounts the accountant uses. Adrien's accountant gave these by
 // email 2026-06-04; new platforms get a generic `622600` fallback until the operator
-// configures the right number on `/comptabilite/plateformes`.
+// configures the right number on `/comptabilite/plateformes`. Since 2026-11-26 (specs/platform-host-statement-and-commission-vat.md
+// rule 18) the labels are the cabinet's: the account follows the VAT regime of the platform's commission, not the platform's name.
 const COMMISSION_ACCOUNT_LABELS = {
   '622600':   'Frais commission générique',
-  '62260300': 'Frais Airbnb',
+  '62260300': 'Commissions plateformes UE',
   '62260400': 'Frais Abritel',
-  '62260500': 'Frais Gîtes de France',
-  '62260600': 'Frais Stripe',
+  '62260500': 'Commissions plateformes France',
+  '62260600': 'Commissions et frais sans TVA',
 };
+
+// specs/platform-host-statement-and-commission-vat.md rules 13-15 — the VAT regime of a platform's commission: `fr_vat` (a French platform,
+// 20 % VAT deductible: HT + `44566000`), `eu_reverse_charge` (an EU platform: the full amount, VAT self-assessed in the export) and `no_vat`
+// (the full amount). Each regime names the plan role of the account it proposes.
+const COMMISSION_REGIMES = Object.freeze(['fr_vat', 'eu_reverse_charge', 'no_vat']);
+const DEFAULT_COMMISSION_REGIME = 'no_vat';
+const REGIME_ACCOUNT_ROLES = Object.freeze({
+  fr_vat: 'commissionFrAccount',
+  eu_reverse_charge: 'commissionEuAccount',
+  no_vat: 'commissionNoVatAccount',
+});
+const REGIME_LABELS = Object.freeze({
+  fr_vat: 'France — TVA 20 % déductible',
+  eu_reverse_charge: 'UE — autoliquidation',
+  no_vat: 'Sans TVA',
+});
+
+// Rule 15 — the VAT a commission of an EU platform is assessed on by us: deducted and due for the same amount, so the entry stays balanced.
+const REVERSE_CHARGE_ACCOUNTS = Object.freeze({ DEDUCTIBLE: '44566200', DUE: '44520000' });
 
 function commissionAccountLabel(account) {
   const key = String(account || '').trim();
@@ -88,6 +108,8 @@ const ACCOUNT_LABELS = {
   [PASS_THROUGH_ACCOUNTS.TOURIST_TAX]: 'Taxe de séjour',
   [DISCOUNT_ACCOUNT]: 'Rabais accordé',
   [VAT_DEDUCTIBLE_COMMISSION_ACCOUNT]: 'TVA déductible commission',
+  [REVERSE_CHARGE_ACCOUNTS.DEDUCTIBLE]: 'TVA déductible autoliquidée',
+  [REVERSE_CHARGE_ACCOUNTS.DUE]: 'TVA due intracommunautaire',
   [DEFAULT_CANCELLATION_COMPENSATION_ACCOUNT]: "Indemnité d'annulation",
   [PLATFORM_PENALTY_ACCOUNT]: 'Pénalité plateforme',
 };
@@ -158,13 +180,27 @@ const PLAN_DEFAULTS = Object.freeze({
   discountAccount: DISCOUNT_ACCOUNT,
   tipAccount: TIP_ACCOUNT,
   platformPenaltyAccount: PLATFORM_PENALTY_ACCOUNT,
+  // Rule 14 — the account each VAT regime of a commission proposes, and rule 15 — the two accounts of the self-assessment of an EU commission,
+  // with the switch that leaves its two lines out of the export (the cabinet's `INTRACOM` code may already generate them).
+  commissionFrAccount: '62260500',
+  commissionEuAccount: '62260300',
+  commissionNoVatAccount: '62260600',
+  reverseChargeDeductibleAccount: REVERSE_CHARGE_ACCOUNTS.DEDUCTIBLE,
+  reverseChargeDueAccount: REVERSE_CHARGE_ACCOUNTS.DUE,
+  reverseChargeLines: '1',
+  // Rule 16 — the VAT code of each line, the last column of the CSV: a sale by the rate of its line, an EU commission, a French deductible one.
+  vatCodeRate10: 'TI',
+  vatCodeRate20: 'TN',
+  vatCodeRate55: 'TR',
+  vatCodeReverseCharge: 'INTRACOM',
+  vatCodeDeductible20: '',
   // The account of the drinks sold outside a stay: empty until the accountant sets it, an export holding a drink is refused meanwhile (outside-visit spec rule 43).
   drinksRevenueAccount: '',
   journalCode: SALES_JOURNAL_CODE,
 });
 const MAPPED_ROLES = Object.freeze([
   'accommodationAccount', 'complementaryAccount', 'activitiesAccount', 'vat20Account', 'vat10Account',
-  'touristTaxAccount', 'commissionVatAccount', 'discountAccount',
+  'touristTaxAccount', 'commissionVatAccount', 'discountAccount', 'reverseChargeDeductibleAccount', 'reverseChargeDueAccount',
 ]);
 
 function planMapper(plan = {}) {
@@ -198,6 +234,11 @@ module.exports = {
   COMMISSION_ACCOUNT_LABELS,
   DEFAULT_COMMISSION_ACCOUNT,
   VAT_DEDUCTIBLE_COMMISSION_ACCOUNT,
+  REVERSE_CHARGE_ACCOUNTS,
+  COMMISSION_REGIMES,
+  DEFAULT_COMMISSION_REGIME,
+  REGIME_ACCOUNT_ROLES,
+  REGIME_LABELS,
   DEFAULT_CANCELLATION_COMPENSATION_ACCOUNT,
   DISCOUNT_ACCOUNT,
   TIP_ACCOUNT,

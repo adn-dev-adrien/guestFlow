@@ -119,6 +119,9 @@ function createSynthesisExporter({ accountPlan, csvJournal, salesJson }) {
     const byRate = new Map();
     const byAccount = new Map();
     let deductible = 0;
+    // Rule 15 — the self-assessment of the EU platforms' commissions: due and deductible for the same amount.
+    let selfDue = 0;
+    let selfDeductible = 0;
     const roleOf = planMapper(plan).defaultOf;
     // Rule 36 — the name an account carries in the entries that use it (a tip names its use of the shared account).
     const labelsOf = new Map();
@@ -140,6 +143,8 @@ function createSynthesisExporter({ accountPlan, csvJournal, salesJson }) {
       const vatByRate = new Map();
       for (const line of item.lines) {
         if (line.role === 'commissionVat') deductible += cents(line.debit) - cents(line.credit);
+        if (line.role === 'commissionVatSelf') selfDeductible += cents(line.debit) - cents(line.credit);
+        if (line.role === 'commissionVatDue') selfDue += cents(line.credit) - cents(line.debit);
         if (line.role !== 'vat') continue;
         vatByRate.set(line.ratePercent, (vatByRate.get(line.ratePercent) || 0) + signedCents(line));
       }
@@ -183,6 +188,7 @@ function createSynthesisExporter({ accountPlan, csvJournal, salesJson }) {
       byAccount: accountRows,
       totals: { base: euros(totalBase), vat: euros(totalVat) },
       deductibleOnCommissions: euros(deductible),
+      selfAssessed: { due: euros(selfDue), deductible: euros(selfDeductible) },
     };
   }
 

@@ -22,6 +22,7 @@ const registry = lazy('./registry');
 const basketPayments = lazy('../../utils/basketPayments');
 const platformIntakePort = lazy('../../utils/platformIntakePort');
 const extraSalesModel = lazy('../../models/extraSalesModel');
+const platformTaxMode = lazy('../../utils/platformTaxMode');
 
 // specs/gites-de-france-mail-intake.md §4.1 — a plugin changes a reservation the way the operator's
 // « Enregistrer » does: the stored state rebuilt as the fiche's PUT body, the patch on top, then the very
@@ -184,6 +185,10 @@ module.exports = Object.freeze({
     platformCommission: (figures) => (figures && figures.basis === 'rentOnly' ? platformCommission().commissionOf(figures) : platformCommission().statementCommission(figures)),
     // specs/per-platform-tourist-tax-three-way.md — true in the `platform` mode only: the platform charges
     // the tax and remits it to the commune itself, so its payout leaves it out.
+    // SDK 2.36.0 (specs/platform-host-statement-and-commission-vat.md rules 5, 8) — the platform's tourist-tax mode, `'platform'` (the platform kept it,
+    // out of the books) | `'platform_reversed'` (paid with the transfer) | `'owner'` (collected on arrival): what the box of its statement means.
+    // `platformCommission(figures)` takes the platform's key with the figures and adds the box to the host amount only in the middle mode.
+    touristTaxMode: (propertyId, platformKey) => platformTaxMode().touristTaxModeOf(database(), platformKey),
     platformWithholdsTouristTax: (propertyId, platformKey) => pricing().isPlatformCollectingTouristTax(database(), propertyId, platformKey)
       && !pricing().isTouristTaxRemittedByOwner(database(), propertyId, platformKey),
   }),

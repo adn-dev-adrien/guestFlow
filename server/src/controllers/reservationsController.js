@@ -1274,11 +1274,21 @@ function pricingNoticesOf({ quote, body, storedRow }) {
 
 // specs/reservation-payment-ledger.md rules 58-63 — whether a platform stay was sold far from the
 // « Prix plateformes » grid of its channel. `null` for everything the check does not judge.
-// specs/platform-host-statement-and-commission-vat.md rules 7, 10-12 — what the « Paiement plateforme » block says about the statement
-// typed on the fiche, worded by the server; `null` for a direct stay or one with no statement figure yet.
+// specs/platform-host-statement-and-commission-vat.md rule 5 — the box of the statement, named by the platform's mode; none where we collect the tax.
+const STATEMENT_BOX = {
+  platform: {
+    label: 'Taxe de séjour retenue par la plateforme',
+    helper: 'Informatif : la plateforme la reverse à la commune, elle n’entre dans aucun prix.',
+  },
+  platform_reversed: {
+    label: 'Taxe de séjour versée avec le virement',
+    helper: 'Celle de GuestFlow reste la taxe déclarée ; l’écart avec ce montant va dans le logement.',
+  },
+};
+
+// Rules 7, 10-12 — what the « Paiement plateforme » block says about the statement typed on the fiche, worded by the server; `null` for a direct stay.
 function platformStatementOf({ body, quote, statementOptions }) {
   if (!isNamedChannel(body.platform)) return null;
-  const blank = (value) => value === '' || value == null;
   const figures = {
     platformGrossAmount: body.platformGrossAmount,
     platformOptionsAmount: body.platformOptionsAmount,
@@ -1287,12 +1297,14 @@ function platformStatementOf({ body, quote, statementOptions }) {
     platformCommissionAmount: body.platformCommissionAmount,
     acompteCommissionAmount: body.acompteCommissionAmount,
   };
-  if (Object.values(figures).every(blank)) return null;
   const row = platformsModel.findForStay(body.platform);
+  const mode = platformsModel.getTouristTaxCollection(body.platform);
   return {
+    mode,
+    box: STATEMENT_BOX[mode] ? { mode, ...STATEMENT_BOX[mode] } : null,
     ...statementReadout({
       figures,
-      mode: platformsModel.getTouristTaxCollection(body.platform),
+      mode,
       touristTaxGap: touristTaxGapOf(quote),
       platformLabel: row ? row.name : String(body.platform),
       commissionPercent: row ? row.commissionPercent : 0,

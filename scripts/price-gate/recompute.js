@@ -399,7 +399,7 @@ function bookingService(db, intake, stay, today, clock) {
     findReservations: () => [],
     getReservation: (rid) => app('models/reservationsModel.js').getByIdWithDetails(rid),
     clientShared: () => true,
-    core: { ...core, updateClient: () => {}, withholdsTouristTax: (propertyId) => reservations.platformWithholdsTouristTax(propertyId, 'booking') },
+    core: { ...core, updateClient: () => {}, touristTaxMode: (propertyId) => reservations.touristTaxMode(propertyId, 'booking') },
     today: () => today,
     now: () => new Date(clock()),
   });
@@ -425,7 +425,7 @@ function airbnbService(db, intake, stay, today, clock) {
     ).all(...propertyIds, startDate, endDate),
     propertyOptions: (propertyId) => app('models/optionsModel.js').listForProperty(propertyId),
     getReservation: (rid) => app('models/reservationsModel.js').getByIdWithDetails(rid),
-    core: { ...core, withholdsTouristTax: (propertyId, platform) => reservations.platformWithholdsTouristTax(propertyId, platform) },
+    core: { ...core, touristTaxMode: (propertyId, platform) => reservations.touristTaxMode(propertyId, platform) },
     today: () => today,
     now: () => new Date(clock()),
   });

@@ -9,7 +9,7 @@
  * on 2026-06-01 from the accountant's example file:
  *
  *   Jour ; Mois  ; Année ; Journal ; Pièce ; Libellé de l'écriture ; Compte ; Débit ; Crédit
- *   then a GuestFlow-specific extension: Plateforme ; Prix payé client ; Commission
+ *   then a GuestFlow-specific extension: Plateforme ; Prix payé client ; Commission ; Code TVA
  *
  * The first 9 columns are byte-aligned with the accountant's example (header `Mois ` has the
  * trailing space exactly as in the file). The trailing 3 columns are platform info, kept so
@@ -62,7 +62,7 @@ const { roundMoneyOrZero: round2 } = require('../../pricing/money');
 function createCsvJournal({ accountPlan }) {
   const {
     BUCKET_TO_ACCOUNT, REVENUE_ACCOUNTS, vatAccountForRate, buildClientAccount, PASS_THROUGH_ACCOUNTS, SALES_JOURNAL_CODE, DISCOUNT_ACCOUNT,
-    DEFAULT_CANCELLATION_COMPENSATION_ACCOUNT, TIP_ACCOUNT, PLATFORM_PENALTY_ACCOUNT, planMapper,
+    DEFAULT_CANCELLATION_COMPENSATION_ACCOUNT, TIP_ACCOUNT, PLATFORM_PENALTY_ACCOUNT, planMapper, PLAN_DEFAULTS,
   } = accountPlan;
   const { entryLines, accountOf: accountOfLine } = journalLines.create({ accountPlan });
 
@@ -76,6 +76,8 @@ function createCsvJournal({ accountPlan }) {
     'Débit', 'Crédit',
     // GuestFlow extension columns — appear only on the debit (anchor) row of each entry.
     'Plateforme', 'Prix payé client', 'Commission',
+    // The cabinet's VAT code of the line (specs/platform-host-statement-and-commission-vat.md rule 16): appended LAST, so no column moves.
+    'Code TVA',
   ];
 
   // Indices in the row tuple for the debit/credit columns — used to swap empty with the
@@ -92,6 +94,24 @@ function createCsvJournal({ accountPlan }) {
     return row;
   }
   const metaOf = (row) => (row && row[ROW_META]) || { role: 'other', ratePercent: null };
+
+  // Rule 16 — the VAT code of a line: a sale by the rate of its line, an EU commission by `vatCodeReverseCharge`, a French deductible one by
+  // `vatCodeDeductible20`; every other line has none. The codes are the plan's, the defaults the shipped ones.
+  function vatCodeOf(line, plan) {
+    const codes = { ...PLAN_DEFAULTS, ...(plan || {}) };
+    if (line.role.startsWith('revenue:')) {
+      const rate = Number(line.vatRate);
+      if (rate === 10) return codes.vatCodeRate10;
+      if (rate === 20) return codes.vatCodeRate20;
+      if (rate === 5.5) return codes.vatCodeRate55;
+      return '';
+    }
+    if (line.role === 'commission') {
+      if (line.regime === 'eu_reverse_charge') return codes.vatCodeReverseCharge;
+      if (line.regime === 'fr_vat') return codes.vatCodeDeductible20;
+    }
+    return '';
+  }
 
   // Parse 'YYYY-MM-DD' into { day, month, year } integers (no Date object → no timezone surprises).
   function splitIsoDate(iso) {
@@ -165,7 +185,7 @@ function createCsvJournal({ accountPlan }) {
       const extra = line.role === 'customer' ? anchorColumns(entry) : ['', '', ''];
       const rate = line.role.startsWith('revenue:') || line.role.startsWith('vat:') ? line.vatRate : null;
       return tagRow(zerofyMoneyColumns([
-        day, month, year, journal, piece, libelle, accountOfLine(line, clientAccount, plan), debit, credit, ...extra,
+        day, month, year, journal, piece, libelle, accountOfLine(line, clientAccount, plan), debit, credit, ...extra, vatCodeOf(line, plan),
       ]), metaRoleOf(line), rate == null ? null : rate);
     });
   }

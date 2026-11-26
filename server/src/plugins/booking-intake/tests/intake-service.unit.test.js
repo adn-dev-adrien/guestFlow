@@ -16,11 +16,11 @@ const PLACEHOLDER = {
 const FILLED = {
   ...PLACEHOLDER, firstName: 'Camille', lastName: 'Sierra', email: 'csierra.123456@guest.booking.com', phone: '06 12 34 56 78',
   platform: 'Booking', reservationNumber: '6300000001', adults: 10, checkInTime: '20:00',
-  platformGrossAmount: 721.82, platformTouristTaxAmount: 20.02, platformPayoutAmount: 606.44,
+  platformGrossAmount: 701.8, platformTouristTaxAmount: 20.02, platformPayoutAmount: 606.44,
   notes: 'Booking, 15/10 :\nEst ce possible d\'avoir 2 lits d\'appoints (nous ne sommes pas certains d\'en avoir besoin)\nDemande de lit d\'appoint: Le client a demandé un lit d\'appoint pour un bébé de adult an.',
 };
 
-function setup({ reservation = PLACEHOLDER, rows = [{ id: 22309 }], hotels = { 1: '14407976' }, updateStatus = 200, today = '2026-10-16', shared = () => false, withholds = true } = {}) {
+function setup({ reservation = PLACEHOLDER, rows = [{ id: 22309 }], hotels = { 1: '14407976' }, updateStatus = 200, today = '2026-10-16', shared = () => false, mode = 'platform' } = {}) {
   const db = new Database(':memory:');
   db.exec(TABLE_SQL);
   const intakes = buildModel(db);
@@ -43,8 +43,9 @@ function setup({ reservation = PLACEHOLDER, rows = [{ id: 22309 }], hotels = { 1
       },
       updateClient: (id, patch) => { calls.client.push({ id, patch }); return { id, ...patch }; },
       suggestBeds: (propertyId, party) => { calls.beds = { propertyId, party }; return { singleBeds: 6, doubleBeds: 4 }; },
-      platformCommission: (f) => Math.round((f.gross - f.payout - f.touristTax) * 100) / 100,
-      withholdsTouristTax: (propertyId) => { calls.taxProperty = propertyId; return withholds; },
+      // Like the core: the box adds to the host amount only for a platform that reverses the tax.
+      platformCommission: (f) => Math.round((f.gross + (mode === 'platform_reversed' ? f.touristTax : 0) - f.payout) * 100) / 100,
+      touristTaxMode: (propertyId) => { calls.taxProperty = propertyId; return mode; },
     },
   });
   return { service, intakes, calls, db, state };
@@ -111,7 +112,7 @@ test('specs/booking-extranet-intake.md rule 15: applying writes the guest, the p
   );
   assert.deepEqual(
     [patch.platformGrossAmount, patch.platformTouristTaxAmount, patch.platformPayoutAmount, patch.platformCommissionAmount],
-    [721.82, 20.02, 606.44, 95.36],
+    [701.8, 20.02, 606.44, 95.36],
   );
   assert.deepEqual([patch.singleBeds, patch.doubleBeds], [6, 4]);
   assert.deepEqual(calls.beds, { propertyId: 1, party: { adults: 10, children: 0, teens: 0 } });
@@ -271,19 +272,20 @@ test('specs/booking-extranet-intake.md rule 6: the answer carries the toast text
   assert.match(r.message, /Sous-total 701,80 € \+ taxe 25,02 € ≠ total 721,82 €/);
 });
 
-test('specs/booking-extranet-intake.md rule 31: Booking reversing the tax to us → nothing withheld, the commission is all of « Commission et frais »', () => {
-  const { service, calls } = setup({ withholds: false });
+// Amended 2026-11-26 (specs/platform-host-statement-and-commission-vat.md rules 5, 21): « Location » is the Sous-total, the box the page's tax.
+test('specs/booking-extranet-intake.md rule 31: Booking reversing the tax to us → the box is the tax paid with the transfer, the commission is all of « Commission et frais »', () => {
+  const { service, calls } = setup({ mode: 'platform_reversed' });
   service.handlePage(page);
   const { patch } = calls.reservation[0];
   assert.equal(calls.taxProperty, 1);
   assert.deepEqual(
     [patch.platformGrossAmount, patch.platformTouristTaxAmount, patch.platformPayoutAmount, patch.platformCommissionAmount],
-    [721.82, null, 606.44, 115.38],
+    [701.8, 20.02, 606.44, 115.38],
   );
 });
 
-test('specs/booking-extranet-intake.md rule 31: a fiche filled with a withheld tax Booking no longer keeps gets a proposal to clear it', () => {
-  const { service, calls, intakes } = setup({ reservation: FILLED, withholds: false });
+test('specs/booking-extranet-intake.md rule 31: a fiche filled with a tax box while the tax is collected on arrival gets a proposal to clear it', () => {
+  const { service, calls, intakes } = setup({ reservation: FILLED, mode: 'owner' });
   const r = service.handlePage(page);
   assert.equal(r.status, 'proposed');
   assert.deepEqual(calls.reservation, []);
@@ -292,6 +294,6 @@ test('specs/booking-extranet-intake.md rule 31: a fiche filled with a withheld t
 });
 
 test('specs/booking-extranet-intake.md rule 31: an empty withheld tax on both sides is the same, not a difference', () => {
-  const { service } = setup({ reservation: { ...FILLED, platformTouristTaxAmount: null }, withholds: false });
+  const { service } = setup({ reservation: { ...FILLED, platformTouristTaxAmount: null }, mode: 'owner' });
   assert.equal(service.handlePage(page).status, 'same');
 });

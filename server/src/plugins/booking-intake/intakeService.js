@@ -50,17 +50,18 @@ function createIntakeService(deps) {
     return existing && existing.trim() ? `${existing.trim()}\n\n${block}` : block;
   }
 
-  // Rule 29 — « Taxe de séjour retenue » is the tax Booking keeps to pay the commune itself. When Booking
-  // collects it and reverses it to us, the payout already holds it: nothing is withheld, and « Commission
-  // et frais » is the whole commission.
-  function withheldTouristTax(booking, reservation) {
-    return core.withholdsTouristTax(reservation.propertyId) ? booking.touristTax : null;
+  // Rules 21 and 29 of specs/platform-host-statement-and-commission-vat.md — the box is the « Taxe de séjour » of the page: the tax Booking
+  // keeps to pay the commune itself in mode `platform`, the tax it reverses with the transfer in mode `platform_reversed`; nothing when we collect it.
+  function touristTaxBox(booking, reservation) {
+    return core.touristTaxMode(reservation.propertyId) === 'owner' ? null : booking.touristTax;
   }
 
   function plan(booking, reservation) {
     const beds = core.suggestBeds(reservation.propertyId, { adults: booking.adults, children: booking.children, teens: booking.teens });
-    const withheldTax = withheldTouristTax(booking, reservation);
-    const commission = core.platformCommission({ gross: booking.total, payout: booking.payout, touristTax: withheldTax || 0 });
+    const box = touristTaxBox(booking, reservation);
+    const commission = core.platformCommission({
+      platform: 'Booking', gross: booking.subtotal, payout: booking.payout, touristTax: box || 0,
+    });
     const { guest } = booking;
     return {
       client: {
@@ -81,8 +82,9 @@ function createIntakeService(deps) {
         doubleBeds: beds.doubleBeds,
         babyBeds: booking.babies,
         ...(booking.arrivalTime ? { checkInTime: booking.arrivalTime } : {}),
-        platformGrossAmount: booking.total,
-        platformTouristTaxAmount: withheldTax,
+        platformGrossAmount: booking.subtotal,
+        platformOptionsAmount: 0,
+        platformTouristTaxAmount: box,
         platformPayoutAmount: booking.payout,
         platformCommissionAmount: commission,
         notes: notesWith(reservation.notes, booking),
@@ -107,8 +109,8 @@ function createIntakeService(deps) {
     if (booking.arrivalTime && String(reservation.checkInTime || '') !== booking.arrivalTime) {
       add('checkInTime', 'Heure d’arrivée', reservation.checkInTime, booking.arrivalTime);
     }
-    [['platformGrossAmount', 'Montant total payé par le client', booking.total],
-      ['platformTouristTaxAmount', 'Taxe de séjour retenue', withheldTouristTax(booking, reservation)],
+    [['platformGrossAmount', 'Location (relevé)', booking.subtotal],
+      ['platformTouristTaxAmount', 'Taxe de séjour (relevé)', touristTaxBox(booking, reservation)],
       ['platformPayoutAmount', 'Virement reçu', booking.payout]].forEach(([key, label, value]) => {
       if (!sameAmount(reservation[key], value)) add(key, label, reservation[key], value);
     });

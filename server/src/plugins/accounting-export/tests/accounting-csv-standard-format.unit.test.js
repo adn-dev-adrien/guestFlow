@@ -44,8 +44,8 @@ test('header line matches the standard format byte-for-byte (incl. trailing spac
   // First 9 columns must equal the standard format header exactly.
   const expectedFirst9 = "Jour;Mois ;Année;Journal;Pièce;Libellé de l'écriture;Compte;Débit;Crédit";
   assert.ok(headerLine.startsWith(expectedFirst9), `header should start with the standard 9 columns, got: ${headerLine}`);
-  // Then the 3 GuestFlow info columns.
-  assert.ok(headerLine.endsWith(';Plateforme;Prix payé client;Commission'), `header should end with the platform info columns, got: ${headerLine}`);
+  // Then the 3 GuestFlow info columns, and the VAT code of the line appended last (specs/platform-host-statement-and-commission-vat.md rule 16).
+  assert.ok(headerLine.endsWith(';Plateforme;Prix payé client;Commission;Code TVA'), `header should end with the platform info columns, got: ${headerLine}`);
 });
 
 // specs/accountant-accounting-export.md rule 18

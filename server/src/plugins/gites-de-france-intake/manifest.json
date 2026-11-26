@@ -1,7 +1,7 @@
 {
   "id": "gites-de-france-intake",
   "name": "Saisie Gîtes de France",
-  "version": "1.4.15",
+  "version": "1.4.16",
   "description": "Remplit les fiches Gîtes de France depuis le mail de réservation de la centrale.",
   "icon": "mail",
   "surfaces": [
@@ -121,6 +121,9 @@
     ],
     "1.4.15": [
       "Accueil : la ligne d’un courriel Gîtes de France dont la fiche existe est un lien vers cette fiche (SDK 2.34.0)."
+    ],
+    "1.4.16": [
+      "La fiche reçoit location et options du relevé ; l’import est refusé si les suppléments ne retombent pas sur le total des options."
     ]
   }
 }

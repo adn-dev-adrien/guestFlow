@@ -18,7 +18,8 @@ const MOLLIE_DEFAULTS = Object.freeze({
   mollieJournalCode: 'MO',
   mollieClearingAccount: '46720000',
   mollieBankAccount: '51200000',
-  mollieFeeAccount: '62780000',
+  // Rule 17 — a payment provider's fees are a commission without VAT: the account of that regime (`commissionNoVatAccount`).
+  mollieFeeAccount: '62260600',
   mollieExportBank: '1',
 });
 
@@ -65,9 +66,18 @@ function validateSwitch(value) {
   return ['0', '1'].includes(String(value).trim()) ? null : 'Doit être 0 ou 1.';
 }
 
+// Rule 16 — a VAT code of the cabinet's software: up to 10 capitals or digits, empty for « no code ».
+const VAT_CODE_KEYS = new Set(['vatCodeRate10', 'vatCodeRate20', 'vatCodeRate55', 'vatCodeReverseCharge', 'vatCodeDeductible20']);
+function validateVatCode(value) {
+  if (value != null && !isScalar(value)) return 'De 1 à 10 majuscules ou chiffres.';
+  if (value == null || String(value).trim() === '') return null;
+  return /^[A-Z0-9]{1,10}$/.test(String(value).trim()) ? null : 'De 1 à 10 majuscules ou chiffres.';
+}
+
 const validatorOf = (key) => {
   if (RATE_KEYS.has(key)) return validateRate;
-  if (key === 'mollieExportBank') return validateSwitch;
+  if (key === 'mollieExportBank' || key === 'reverseChargeLines') return validateSwitch;
+  if (VAT_CODE_KEYS.has(key)) return validateVatCode;
   return key === 'journalCode' || key === 'mollieJournalCode' ? validateJournalCode : validateAccount;
 };
 
@@ -200,7 +210,7 @@ function storeLastCsvExport(database, month, now = new Date()) {
 }
 
 module.exports = {
-  PLUGIN_ID, DEFAULTS, MOLLIE_DEFAULTS, KEYS, DECLARED, createAccountSettings, validateAccount, validateJournalCode,
+  PLUGIN_ID, DEFAULTS, MOLLIE_DEFAULTS, KEYS, DECLARED, createAccountSettings, validateAccount, validateJournalCode, validateVatCode, VAT_CODE_KEYS,
   TTC_SPLIT_KEY, TTC_SPLIT_FALLBACK, firstOfNextMonth, readTtcSplitFrom, storeTtcSplitFrom,
   STAY_CLOSING_KEY, STAY_CLOSING_FALLBACK, readStayClosingFrom, storeStayClosingFrom,
   LAST_CSV_EXPORT_KEY, readLastCsvExport, storeLastCsvExport,

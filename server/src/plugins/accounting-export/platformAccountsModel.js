@@ -6,7 +6,8 @@
  *   - the export's four account and VAT settings (./settings, in plugin_settings since
  *     specs/plugins-phase-2-hosts.md rule 19): the fallback commission account, the commission
  *     VAT rate, the cancellation-compensation produit account and its VAT rate
- *   - `platforms.commissionAccountNumber` / `hasVatOnCommission` per platform (one row per unique
+ *   - `platforms.commissionAccountNumber` / `commissionVatRegime` per platform (`hasVatOnCommission` follows the regime and is still
+ *     accepted on write for one release: `true` → `fr_vat`) (one row per unique
  *     iCal platform + the always-present `'direct'` row whose fields are server-side ignored,
  *     spec rule 18). The columns are core-declared; only this plugin reads and writes them (rule 20).
  *
@@ -16,8 +17,12 @@
  */
 
 const sdk = require('../sdk');
-const { createAccountSettings, validateAccount, validateJournalCode } = require('./settings');
-const { PLAN_DEFAULTS } = require('./accountPlan');
+const {
+  createAccountSettings, validateAccount, validateJournalCode, validateVatCode, VAT_CODE_KEYS,
+} = require('./settings');
+const {
+  PLAN_DEFAULTS, COMMISSION_REGIMES, REGIME_ACCOUNT_ROLES, REGIME_LABELS,
+} = require('./accountPlan');
 
 // specs/plugins-phase-p-productisation.md rules 27–28 — the account plan, edited on the same page.
 const PLAN_KEYS = Object.keys(PLAN_DEFAULTS);
@@ -44,6 +49,16 @@ function validateAccountNumber(value, { required = false } = {}) {
   return validateAccount(value);
 }
 
+function validatePlanValue(key, value) {
+  if (key === 'journalCode') return validateJournalCode(value);
+  if (VAT_CODE_KEYS.has(key)) return validateVatCode(value);
+  if (key === 'reverseChargeLines') return ['', '0', '1'].includes(value) ? null : 'Doit être 0 ou 1.';
+  return validateAccount(value);
+}
+
+// Rule 14 — the account a regime proposes, from the three plan roles.
+const proposalOf = (regime, stored) => String(stored[REGIME_ACCOUNT_ROLES[regime]] || PLAN_DEFAULTS[REGIME_ACCOUNT_ROLES[regime]]);
+
 function createPlatformAccountsModel(database, { platforms = sdk.coreModule('platformsModel'), settings = createAccountSettings(database) } = {}) {
   return {
     getAll() {
@@ -59,6 +74,7 @@ function createPlatformAccountsModel(database, { platforms = sdk.coreModule('pla
         name: p.name,
         commissionAccountNumber: p.commissionAccountNumber || null,
         hasVatOnCommission: Number(p.hasVatOnCommission) === 1,
+        commissionVatRegime: p.commissionVatRegime,
         isDirect: String(p.name).toLowerCase() === 'direct',
       }));
       const stored = settings.read();
@@ -69,6 +85,8 @@ function createPlatformAccountsModel(database, { platforms = sdk.coreModule('pla
         vatRateCancellationCompensation,
         // Each role with its number and the default it falls back to (the page's helper text).
         plan: PLAN_KEYS.map((key) => ({ key, value: String(stored[key]), default: String(PLAN_DEFAULTS[key]) })),
+        // Rules 13-14 — the regimes the page offers, their labels, and the account each proposes (the page shows it as the choice is made).
+        regimes: COMMISSION_REGIMES.map((regime) => ({ key: regime, label: REGIME_LABELS[regime], account: proposalOf(regime, stored) })),
         platforms: decoratedPlatforms,
       };
     },
@@ -104,7 +122,7 @@ function createPlatformAccountsModel(database, { platforms = sdk.coreModule('pla
             continue;
           }
           const value = String(raw == null ? '' : raw).trim();
-          const err = key === 'journalCode' ? validateJournalCode(value) : validateAccount(value);
+          const err = validatePlanValue(key, value);
           if (err) planErrors[key] = err;
           else plan[key] = value || String(PLAN_DEFAULTS[key]);
         }
@@ -121,6 +139,7 @@ function createPlatformAccountsModel(database, { platforms = sdk.coreModule('pla
         if (accErr) {
           perPlatformErrors.push({ id: p.id, account: accErr });
         }
+        if (p.regime != null && !COMMISSION_REGIMES.includes(p.regime)) perPlatformErrors.push({ id: p.id, regime: 'Régime de TVA inconnu.' });
       }
       if (perPlatformErrors.length > 0) errors.platforms = perPlatformErrors;
       if (Object.keys(errors).length > 0) {
@@ -137,11 +156,22 @@ function createPlatformAccountsModel(database, { platforms = sdk.coreModule('pla
           ...plan,
         });
         // 2) Per-platform rows. Direct row writes are silently ignored by platformsModel.update.
+        const stored = settings.read();
+        const before = new Map(((platforms.listAll ? platforms.listAll() : []) || []).map((row) => [Number(row.id), row]));
         for (const p of platformList) {
+          const current = before.get(Number(p.id));
+          const typed = (p.account == null || p.account === '') ? null : String(p.account).trim();
+          let account = typed;
+          // Rule 14 — choosing a regime proposes its account when the platform has none or still holds the previous regime's proposal;
+          // a typed account is never overwritten.
+          if (current && COMMISSION_REGIMES.includes(p.regime) && p.regime !== current.commissionVatRegime
+            && (typed == null || typed === proposalOf(current.commissionVatRegime, stored))) {
+            account = proposalOf(p.regime, stored);
+          }
           platforms.update({
             id: p.id,
-            commissionAccountNumber: (p.account == null || p.account === '') ? null : String(p.account).trim(),
-            hasVatOnCommission: p.hasVat === true || Number(p.hasVat) === 1 ? 1 : 0,
+            commissionAccountNumber: account,
+            ...(p.regime != null ? { commissionVatRegime: p.regime } : { hasVatOnCommission: p.hasVat === true || Number(p.hasVat) === 1 ? 1 : 0 }),
           });
         }
       });

@@ -33,8 +33,8 @@ function setup(mails) {
     core: {
       updateReservation: (id, patch, opts) => { calls.updates.push({ id, patch, opts }); return { status: 200, body: { ok: true } }; },
       suggestBeds: () => ({ singleBeds: 5, doubleBeds: 4 }),
-      platformCommission: ({ gross, payout, touristTax }) => Math.round((gross - payout - touristTax) * 100) / 100,
-      withholdsTouristTax: () => true,
+      platformCommission: ({ gross, payout, touristTax }) => Math.round((gross + touristTax - payout) * 100) / 100,
+      touristTaxMode: () => 'platform_reversed',
     },
     now: () => new Date('2026-10-25T09:00:00.000Z'),
   }));

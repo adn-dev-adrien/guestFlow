@@ -85,14 +85,9 @@ function createIntakeService(deps) {
     }
 
     const payment = paymentBlock(booking, {
-      withholds: core.withholdsTouristTax(reservation.propertyId, reservation.platform), platformCommission: core.platformCommission,
+      mode: core.touristTaxMode(reservation.propertyId, reservation.platform), platform: reservation.platform, platformCommission: core.platformCommission,
     });
     if (!payment.ok) return { error: payment.error };
-    const commission = core.platformCommission({
-      gross: payment.block.platformGrossAmount,
-      payout: payment.block.platformPayoutAmount,
-      touristTax: payment.block.platformTouristTaxAmount || 0,
-    });
 
     const beds = core.suggestBeds(reservation.propertyId, { adults: booking.adults, children: booking.children, teens: 0 });
 
@@ -113,7 +108,7 @@ function createIntakeService(deps) {
         offeredOptionIds: offered,
         notes: notesWith(stored.notes, booking, intake.receivedAt),
         ...payment.block,
-        platformCommissionAmount: commission,
+        platformCommissionAmount: payment.commission,
       },
     };
   }
@@ -248,7 +243,7 @@ function createIntakeService(deps) {
       airbnbUrl: intake.senderVerified ? booking.reservationUrl || null : null,
       taxLeftEmpty: intake.status === 'applied' && booking.code ? (() => {
         const r = getReservation(reservationId) || {};
-        return !core.withholdsTouristTax(r.propertyId, r.platform);
+        return core.touristTaxMode(r.propertyId, r.platform) === 'owner';
       })() : false,
     };
   }

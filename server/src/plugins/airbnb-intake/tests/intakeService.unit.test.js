@@ -20,7 +20,7 @@ const MAIL = { messageId: '<m1@airbnb>', receivedAt: SENT_AT, sentAt: SENT_AT, s
 
 function setup({
   reservations = [PLACEHOLDER], mails = [MAIL], listings = [[1, '1234567890123456789']],
-  autoApply = true, updateStatus = 200, withholds = true, notes = '', dates = ['2026-12-26', '2026-12-30'], now = '2026-10-25T09:00:00.000Z',
+  autoApply = true, updateStatus = 200, mode = 'platform_reversed', notes = '', dates = ['2026-12-26', '2026-12-30'], now = '2026-10-25T09:00:00.000Z',
 } = {}) {
   const db = new Database(':memory:');
   db.exec(TABLE_SQL);
@@ -50,8 +50,9 @@ function setup({
         return { status: updateStatus, clientId: own && updateStatus === 200 ? own.id : undefined, body: updateStatus === 200 ? { ok: true } : { error: 'Séjour commencé ou passé' } };
       },
       suggestBeds: () => ({ singleBeds: 5, doubleBeds: 4 }),
-      platformCommission: ({ gross, payout, touristTax }) => Math.round((gross - payout - touristTax) * 100) / 100,
-      withholdsTouristTax: () => withholds,
+      // Like the core: the box adds to the host amount only for a platform that reverses the tax.
+      platformCommission: ({ gross, payout, touristTax }) => Math.round((gross + (mode === 'platform_reversed' ? touristTax : 0) - payout) * 100) / 100,
+      touristTaxMode: () => mode,
     },
     now: () => new Date(now),
   }));
@@ -79,8 +80,9 @@ test('rule 12: an untouched iCal fiche is filled — own client, party, code, me
     platformPayoutAmount: patch.platformPayoutAmount, platformCommissionAmount: patch.platformCommissionAmount,
   }, {
     clientId: 141, reservationNumber: 'HMTEST1234', adults: 5, children: 6, teens: 0, babies: 2, babyBeds: 2, singleBeds: 5, doubleBeds: 4,
-    platformGrossAmount: 1236.26, platformTouristTaxAmount: 28.86, platformPayoutAmount: 1028.44, platformCommissionAmount: 178.96,
+    platformGrossAmount: 1154.6, platformTouristTaxAmount: 52.8, platformPayoutAmount: 1028.44, platformCommissionAmount: 178.96,
   });
+  assert.equal(patch.platformOptionsAmount, 0, 'the cleaning fee of the statement: none');
   assert.match(patch.notes, /^Airbnb, 24\/10 :\nBonjour, Nous souhaitons/);
   assert.deepEqual(patch.options, [], 'the auto-enabled cot is left to the engine');
   assert.equal('checkInTime' in patch, false, 'Airbnb prints the listing defaults, not the guest’s times');
@@ -98,13 +100,18 @@ test('rule 12: a cleaning fee at the catalogue price ticks the cleaning option, 
   await service.runPass();
   const { patch } = calls.updates[0];
   assert.deepEqual(patch.options, [{ optionId: 7, quantity: 1, inComplement: 0 }]);
-  assert.deepEqual([patch.platformTouristTaxAmount, patch.platformCommissionAmount], [39.87, 124.78]);
+  assert.deepEqual([patch.platformGrossAmount, patch.platformOptionsAmount, patch.platformTouristTaxAmount, patch.platformCommissionAmount], [805, 80, 24, 124.78]);
 });
 
-test('rule 10: outside the `platform` tax mode the withheld box is left empty', async () => {
-  const { service, calls } = setup({ withholds: false });
-  await service.runPass();
-  assert.equal(calls.updates[0].patch.platformTouristTaxAmount, null);
+// Amended 2026-11-26 (specs/platform-host-statement-and-commission-vat.md rules 5, 20): the box reads the platform's mode.
+test('rule 20: in mode `platform` the box holds the part of the taxes Airbnb kept; in `owner` mode it stays empty', async () => {
+  const kept = setup({ mode: 'platform' });
+  await kept.service.runPass();
+  assert.equal(kept.calls.updates[0].patch.platformTouristTaxAmount, 28.86);
+  assert.equal(kept.calls.updates[0].patch.platformGrossAmount, 1154.6, 'the host amount, whatever the mode');
+  const own = setup({ mode: 'owner' });
+  await own.service.runPass();
+  assert.equal(own.calls.updates[0].patch.platformTouristTaxAmount, null);
 });
 
 test('rule 13: a fiche already edited becomes a proposal, applied only from the banner', async () => {

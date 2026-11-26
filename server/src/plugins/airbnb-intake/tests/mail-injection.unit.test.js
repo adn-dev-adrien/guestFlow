@@ -113,8 +113,8 @@ function service(text, { authenticated = true } = {}) {
     core: {
       updateReservation: (id, patch) => { writes.push({ id, number: patch.reservationNumber }); return { status: 200 }; },
       suggestBeds: () => ({ singleBeds: 0, doubleBeds: 0 }),
-      platformCommission: require('../../../utils/platformCommission').computePlatformCommission,
-      withholdsTouristTax: () => true,
+      platformCommission: require('../../../utils/platformCommission').computePlatformCommission, // mode platform_reversed: the box adds to the host amount
+      touristTaxMode: () => 'platform_reversed',
     },
     now: () => new Date('2026-10-25T09:00:00Z'),
   }));

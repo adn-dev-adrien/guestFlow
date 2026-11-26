@@ -54,7 +54,7 @@ function debit(rows) {
 }
 
 // specs/accountant-accounting-export.md rule 13
-test('CSV_HEADERS match the accountant\'s example layout (9 cols) + 3 GuestFlow info cols', () => {
+test('CSV_HEADERS match the accountant\'s example layout (9 cols) + 3 GuestFlow info cols + the VAT code', () => {
   // The header `Mois ` carries a TRAILING SPACE byte-for-byte from the example file.
   assert.deepEqual(CSV_HEADERS, [
     'Jour', 'Mois ', 'Année',
@@ -63,6 +63,7 @@ test('CSV_HEADERS match the accountant\'s example layout (9 cols) + 3 GuestFlow 
     'Compte',
     'Débit', 'Crédit',
     'Plateforme', 'Prix payé client', 'Commission',
+    'Code TVA', // appended last (specs/platform-host-statement-and-commission-vat.md rule 16): no column moves
   ]);
 });
 

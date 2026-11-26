@@ -14,8 +14,9 @@ const { parseGroup } = require('../arrivalPaymentGroup');
 const { storedMoneyCollected } = require('../storedMoneySplit');
 const { parseComplementAllocation } = require('../complementAllocation');
 const { isDirectChannel } = require('../platformNameFormat');
+const { commissionRegimeOf } = require('../commissionRegime');
 const { settlementFigures, targetFigures, currentCentsOf } = require('../paymentTenders');
-const { netFirst } = require('../pricing/vat');
+const { netFirst, ttcFromNet } = require('../pricing/vat');
 const { create: createJournalLines } = require('./journalLines');
 const { isResourceKey } = require('../pricing/lineKeys');
 const { readsSaleLines } = require('../saleLinesReaders');
@@ -118,7 +119,8 @@ function buildCompensationEntry(compensation, { account, vatRatePercent }) {
 }
 
 // Resolve the commission config for one reservation. Returns null for direct bookings (no
-// platform → no commission line). Returns `{ account, hasVat }` otherwise.
+// platform → no commission line). Returns `{ account, hasVat, regime }` otherwise: `hasVat` — the commission splits into HT and
+// deductible VAT — is the `fr_vat` regime; `regime` is the one the line is booked under (`eu_reverse_charge` adds the self-assessment).
 function resolveCommissionConfig(row, commissionContext) {
   if (!commissionContext) return null;
   const platform = String(row.platform || 'direct').toLowerCase();
@@ -126,10 +128,10 @@ function resolveCommissionConfig(row, commissionContext) {
   const platformRow = commissionContext.platformByName.get(platform);
   const account = (platformRow && platformRow.commissionAccountNumber) || commissionContext.defaultAccount;
   // Under « Sans TVA » the platform's VAT on its commission is not deductible: it is a cost, booked TTC
-  // on the commission account (vat-optional-mode rule 12g), whatever the platform row says.
+  // on the commission account (vat-optional-mode rule 12g), whatever the platform row says, and nothing is self-assessed (rule 13).
   const deductible = commissionContext.salesRegime !== 'not_subject';
-  const hasVat = platformRow ? Boolean(Number(platformRow.hasVatOnCommission)) && deductible : false;
-  return { account, hasVat };
+  const regime = deductible ? commissionRegimeOf(platformRow) : 'no_vat';
+  return { account, hasVat: regime === 'fr_vat', regime };
 }
 
 // Sales + refunds + cancellation compensations of the month, in one chronological stream. Neither a
@@ -517,9 +519,14 @@ function createAccountingOutput({ accountPlan }) {
         ? netFirst(commissionTtcEntry, vatRateCommission).net
         : round2(commissionTtcEntry);
       const vat = hasVat ? round2(commissionTtcEntry - ht) : 0;
+      // Rule 15 — an EU platform's commission carries no VAT of its own: we assess it, deductible and due for the same amount.
+      const selfAssessed = commissionResolved.regime === 'eu_reverse_charge' && !(commissionContext && commissionContext.reverseChargeLines === false)
+        ? round2(ttcFromNet(ht, vatRateCommission) - ht) : 0;
       commissionLine = {
         account: commissionResolved.account,
         hasVat,
+        regime: commissionResolved.regime,
+        selfAssessed,
         ttc: round2(commissionTtcEntry),
         ht,
         vat,

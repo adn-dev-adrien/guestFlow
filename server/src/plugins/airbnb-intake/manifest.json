@@ -1,7 +1,7 @@
 {
   "id": "airbnb-intake",
   "name": "Saisie Airbnb",
-  "version": "1.1.13",
+  "version": "1.1.14",
   "description": "Remplit les fiches Airbnb depuis le mail « Réservation confirmée ».",
   "icon": "mail",
   "surfaces": [
@@ -90,6 +90,9 @@
     ],
     "1.1.13": [
       "Accueil : la ligne d’un courriel Airbnb dont la fiche existe est un lien vers cette fiche (le retour ramène à l’accueil) (SDK 2.34.0)."
+    ],
+    "1.1.14": [
+      "La fiche reçoit le relevé côté hôte : location, ménage, taxe de séjour selon le mode de la plateforme."
     ]
   }
 }

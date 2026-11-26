@@ -53,14 +53,14 @@ async function proposedIntake({ ical = false } = {}) {
       updateBody: core.reservations.updateBody,
       suggestBeds: core.reservations.suggestBeds,
       platformCommission: core.reservations.platformCommission,
-      withholdsTouristTax: () => true,
+      touristTaxMode: core.reservations.touristTaxMode,
     },
   });
   await service.runPass();
   const intake = idb.prepare('SELECT id, parsed FROM airbnb_intakes').get();
   // A fee the catalogue does not sell: every application used to add one more custom line.
   const parsed = JSON.parse(intake.parsed);
-  idb.prepare('UPDATE airbnb_intakes SET parsed = ? WHERE id = ?').run(JSON.stringify({ ...parsed, cleaningFee: 77 }), intake.id);
+  idb.prepare('UPDATE airbnb_intakes SET parsed = ? WHERE id = ?').run(JSON.stringify({ ...parsed, cleaningFee: 77, payout: Math.round((parsed.payout + 77) * 100) / 100 }), intake.id);
   const statusOf = () => idb.prepare('SELECT status FROM airbnb_intakes WHERE id = ?').get(intake.id).status;
   const set = (sql) => idb.prepare(`UPDATE airbnb_intakes SET ${sql} WHERE id = ?`).run(intake.id);
   return { id, service, intakeId: intake.id, statusOf, set };

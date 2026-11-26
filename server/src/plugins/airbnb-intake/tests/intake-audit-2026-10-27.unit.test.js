@@ -12,7 +12,7 @@ const { SUBJECT, SENT_AT, bookingMail } = require('./fixtures');
 const R = { id: 1, propertyId: 1, platform: 'Airbnb Lodge', kind: 'reservation', sourceType: 'ical', icalSyncLocked: 0, platformGrossAmount: null, cancelledAt: null };
 const MAIL = { messageId: '<a>', receivedAt: SENT_AT, sentAt: SENT_AT, subject: SUBJECT, text: bookingMail() };
 
-function setup({ mails = [MAIL], today = '2026-10-25', findReservations = () => [R], withholds = () => true } = {}) {
+function setup({ mails = [MAIL], today = '2026-10-25', findReservations = () => [R], mode = () => 'platform_reversed' } = {}) {
   const db = new Database(':memory:');
   db.exec(TABLE_SQL);
   const calls = { clients: [], updates: [], withholds: [] };
@@ -26,8 +26,8 @@ function setup({ mails = [MAIL], today = '2026-10-25', findReservations = () => 
     core: {
       updateReservation: (id, patch, opts) => { calls.updates.push(id); if (opts && opts.client) calls.clients.push(opts.client); return { status: 200, clientId: 9 }; },
       suggestBeds: () => ({ singleBeds: 1, doubleBeds: 1 }),
-      platformCommission: require('../../../utils/platformCommission').computePlatformCommission,
-      withholdsTouristTax: (propertyId, platform) => { calls.withholds.push([propertyId, platform]); return withholds(); },
+      platformCommission: require('../../../utils/platformCommission').computePlatformCommission, // mode platform_reversed: the box adds to the host amount
+      touristTaxMode: (propertyId, platform) => { calls.withholds.push([propertyId, platform]); return mode(); },
     },
     today: () => today,
   }));

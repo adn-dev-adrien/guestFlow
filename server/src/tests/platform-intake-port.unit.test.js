@@ -22,7 +22,7 @@ const AIRBNB = { platform: 'Airbnb', platformGrossAmount: 400, customOptions: [{
 const GITES = { platform: 'Gites de France', platformGrossAmount: 500, options: [{ optionId: 4, quantity: 1, inComplement: 1 }], customOptions: [], clientId: 12 };
 
 test('rule 71: the SDK surface of reservations.update is unchanged — name, arguments, the neighbours the plugins call', () => {
-  assert.deepEqual(Object.keys(core.reservations).sort(), ['fromPlatform', 'getByIdWithDetails', 'platformCommission', 'platformWithholdsTouristTax', 'suggestBeds', 'update', 'updateBody']);
+  assert.deepEqual(Object.keys(core.reservations).sort(), ['fromPlatform', 'getByIdWithDetails', 'platformCommission', 'platformWithholdsTouristTax', 'suggestBeds', 'touristTaxMode', 'update', 'updateBody']);
   assert.equal(typeof core.reservations.update, 'function');
   assert.ok(Object.isFrozen(core.reservations));
 });

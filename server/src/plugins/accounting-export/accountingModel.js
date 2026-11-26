@@ -435,7 +435,10 @@ function buildCommissionContext(accountSettings) {
   const platforms = (platformsModel.listAll ? platformsModel.listAll() : []) || [];
   const byName = new Map();
   for (const p of platforms) byName.set(String(p.name || '').toLowerCase(), p);
-  return { defaultAccount, vatRateCommission, platformByName: byName };
+  // Rule 15 — `reverseChargeLines = '0'` leaves the two self-assessment lines of an EU commission out of the export.
+  return {
+    defaultAccount, vatRateCommission, platformByName: byName, reverseChargeLines: String(accountSettings.reverseChargeLines) !== '0',
+  };
 }
 
 module.exports = {

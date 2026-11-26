@@ -4,7 +4,8 @@
  * `entryLines(entry, splitFrom)` answers what an entry books, with no account number and no CSV column:
  *   { role, side: 'debit' | 'credit', amountCents, vatRate?, vatCents?, account? }
  * `role` is `customer`, `revenue:<class>` (`accommodation`, `options`, `customOptions`, `resources`, `activities`,
- * `compensation`, `indemnity`, `discount`, `tip`, `closing`), `vat:<rate>`, `touristTax`, `commission`, `commissionVat`
+ * `compensation`, `indemnity`, `discount`, `tip`, `closing`), `vat:<rate>`, `touristTax`, `commission`, `commissionVat`, `commissionVatSelf` and
+ * `commissionVatDue` (the self-assessment of an EU platform's commission, specs/platform-host-statement-and-commission-vat.md rule 15),
  * `penalty`, or the Mollie journal's `mollieDebit` / `mollieClearing`. `account` is present only when the entry itself pins one (a configured compensation account, a platform's
  * commission account, the account a closing refund found left on the stay's books). An exporter maps the roles to its own
  * accounts and columns; the amounts, the VAT split and the rounding residue are decided here, once.
@@ -20,7 +21,7 @@ const { roundMoneyOrZero: round2, toCentsStrict } = require('../pricing/money');
 function create({ accountPlan }) {
   const {
     BUCKET_TO_ACCOUNT, REVENUE_ACCOUNTS, vatAccountForRate, PASS_THROUGH_ACCOUNTS, DEFAULT_CANCELLATION_COMPENSATION_ACCOUNT,
-    DISCOUNT_ACCOUNT, TIP_ACCOUNT, PLATFORM_PENALTY_ACCOUNT,
+    DISCOUNT_ACCOUNT, TIP_ACCOUNT, PLATFORM_PENALTY_ACCOUNT, REVERSE_CHARGE_ACCOUNTS,
   } = accountPlan;
 
   // The account a role line books on, in the engine's default plan: a line that carries its own account keeps it, a revenue
@@ -43,6 +44,8 @@ function create({ accountPlan }) {
     if (line.role.startsWith('vat:')) return vatAccountForRate(line.vatRate);
     if (line.role === 'touristTax') return PASS_THROUGH_ACCOUNTS.TOURIST_TAX;
     if (line.role === 'penalty') return PLATFORM_PENALTY_ACCOUNT;
+    if (line.role === 'commissionVatSelf') return REVERSE_CHARGE_ACCOUNTS.DEDUCTIBLE;
+    if (line.role === 'commissionVatDue') return REVERSE_CHARGE_ACCOUNTS.DUE;
     return undefined;
   }
 
@@ -79,15 +82,20 @@ function create({ accountPlan }) {
 
     const commissions = [];
     if (commission && commission.ttc > 0) {
-      if (commission.ht > 0) commissions.push({ role: 'commission', account: commission.account, amount: round2(commission.ht) });
+      if (commission.ht > 0) commissions.push({ role: 'commission', account: commission.account, amount: round2(commission.ht), regime: commission.regime });
       if (commission.hasVat && commission.vat > 0) commissions.push({ role: 'commissionVat', account: commission.vatAccount, amount: round2(commission.vat) });
       const debitResidue = round2(grossDebitTtc - round2(netDebitTtc + commissions.reduce((a, l) => a + l.amount, 0)));
       if (debitResidue !== 0 && commissions.length > 0) commissions[commissions.length - 1].amount = round2(commissions[commissions.length - 1].amount + debitResidue);
     }
 
+    // Rule 15 — an EU commission is assessed by us: the VAT is deductible and due for the same amount, so the entry stays balanced.
+    const selfAssessed = commission && commission.selfAssessed > 0 ? round2(commission.selfAssessed) : 0;
+    const selfAssessment = selfAssessed > 0 ? [line('commissionVatSelf', 'debit', selfAssessed), line('commissionVatDue', 'credit', selfAssessed)] : [];
+
     return [
       line('customer', 'debit', netDebitTtc),
-      ...commissions.map((c) => line(c.role, 'debit', c.amount, { account: c.account })),
+      ...commissions.map((c) => line(c.role, 'debit', c.amount, { account: c.account, ...(c.regime ? { regime: c.regime } : {}) })),
+      ...selfAssessment,
       ...revenue.map(revenueOf),
       ...vats.map((v) => vatOf(v, 'credit')),
       ...taxes.map((t) => line('touristTax', 'credit', t.amount)),

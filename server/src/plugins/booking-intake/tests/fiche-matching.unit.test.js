@@ -41,7 +41,7 @@ test('rule 33: several candidates are refused, nothing is written', () => {
     findReservations: () => [{ id: 1 }, { id: 2 }],
     getReservation: () => { throw new Error('must not be read'); },
     clientShared: () => false,
-    core: { updateReservation: (...a) => { writes.push(a); return { status: 200 }; }, updateClient: () => {}, suggestBeds: () => ({}), platformCommission: () => 0, withholdsTouristTax: () => true },
+    core: { updateReservation: (...a) => { writes.push(a); return { status: 200 }; }, updateClient: () => {}, suggestBeds: () => ({}), platformCommission: () => 0, touristTaxMode: () => 'platform' },
   });
   const r = service.handlePage({ hotelId: '14407976', resId: '6300000001', text: PAGE_6300000001 });
   assert.equal(r.status, 'refused');

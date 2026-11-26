@@ -13,6 +13,7 @@
 
 const db = require('../database');
 const { touristTaxModeOf } = require('../utils/platformTaxMode');
+const { COMMISSION_REGIMES, commissionRegimeOf } = require('../utils/commissionRegime');
 const {
   formatPlatformName, isDirectChannel, refreshDirectChannels, refreshChoreFreeChannels, refreshGuestContactChannels,
 } = require('../utils/platformNameFormat');
@@ -126,9 +127,20 @@ function createPlatformsModel(database) {
     return bySlug(slug) || (slug.length > 3 && slug.endsWith('com') && bySlug(slug.slice(0, -3))) || formatted;
   }
 
+  // The regime column is read apart from the statements above: a database that predates it reads the old « TVA déductible » box.
+  const withRegime = (rows) => {
+    let byId;
+    try {
+      byId = new Map(database.prepare('SELECT id, commissionVatRegime FROM platforms').all().map((r) => [r.id, r.commissionVatRegime]));
+    } catch (_) {
+      byId = new Map();
+    }
+    return rows.map((row) => ({ ...row, commissionVatRegime: commissionRegimeOf({ ...row, commissionVatRegime: byId.get(row.id) }) }));
+  };
+
   return {
     listAll() {
-      return stmts.listAll.all();
+      return withRegime(stmts.listAll.all());
     },
     // Canonical, deduped list of platform NAMES for the UI dropdowns (reservation form + iCal
     // source form). Union of the built-in well-known platforms and every name stored in the
@@ -152,7 +164,8 @@ function createPlatformsModel(database) {
     },
     findByName(name) {
       if (name == null || name === '') return null;
-      return stmts.findByName.get(String(name)) || null;
+      const row = stmts.findByName.get(String(name));
+      return row ? withRegime([row])[0] : null;
     },
     // The platform row a stay's `platform` string names, whatever its spelling (case, accents, « .com »): the one
     // its tourist-tax mode and commission settings are read from.
@@ -163,7 +176,8 @@ function createPlatformsModel(database) {
     },
     findById(id) {
       if (id == null) return null;
-      return stmts.findById.get(Number(id)) || null;
+      const row = stmts.findById.get(Number(id));
+      return row ? withRegime([row])[0] : null;
     },
     // specs/normalize-platform-names.md §3.2 rule 10 — belt-and-suspenders: format the input
     // even though the model's callers (propertyIcalModel + reservationsModel) already feed a
@@ -199,16 +213,27 @@ function createPlatformsModel(database) {
     },
     // Guard against editing the Direct row. The spec says Direct fields are server-side
     // ignored — never written. Returns the unchanged row, mirroring update()'s contract.
-    update({ id, commissionAccountNumber, hasVatOnCommission }) {
+    // `commissionVatRegime` (specs/platform-host-statement-and-commission-vat.md rule 13) wins; the old box alone still answers for one release
+    // (`true` → `fr_vat`; `false` only leaves `fr_vat`). The old column follows the regime, so a rollback reads what the operator chose.
+    update({ id, commissionAccountNumber, hasVatOnCommission, commissionVatRegime }) {
       const row = stmts.findById.get(Number(id));
       if (!row) return null;
       if (row.name === DIRECT_NAME) return row;
       const account = commissionAccountNumber == null || commissionAccountNumber === ''
         ? null
         : String(commissionAccountNumber);
-      const hasVat = hasVatOnCommission === true || Number(hasVatOnCommission) === 1 ? 1 : 0;
-      stmts.update.run(account, hasVat, Number(id));
-      return stmts.findById.get(Number(id));
+      const legacyBox = hasVatOnCommission === true || Number(hasVatOnCommission) === 1;
+      const current = commissionRegimeOf(withRegime([row])[0]);
+      let regime = current;
+      if (COMMISSION_REGIMES.includes(commissionVatRegime)) regime = commissionVatRegime;
+      else if (hasVatOnCommission !== undefined) regime = legacyBox ? 'fr_vat' : (current === 'fr_vat' ? 'no_vat' : current);
+      stmts.update.run(account, regime === 'fr_vat' ? 1 : 0, Number(id));
+      try {
+        database.prepare('UPDATE platforms SET commissionVatRegime = ? WHERE id = ?').run(regime, Number(id));
+      } catch (_) {
+        // A database that predates the column keeps the old box, written above.
+      }
+      return this.findById(id);
     },
 
     // Non-direct platforms with their commission % (specs/platform-price-from-commission.md §3.1).

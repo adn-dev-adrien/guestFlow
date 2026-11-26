@@ -203,11 +203,15 @@ test('specs/plugins-phase-2-hosts.md rule 19 — the four account and VAT settin
   controller.getSettings({ params: { id: ID } }, res);
   // …plus the account plan of specs/plugins-phase-p-productisation.md rule 27, and the Mollie journal of
   // specs/mollie-rolling-reserve-and-incoming-payments.md rule 28.
+  // …and, since specs/platform-host-statement-and-commission-vat.md rules 14-16, the regime accounts, the self-assessment and the VAT codes.
   assert.deepEqual(Object.keys(res.body).sort(), [
-    'accommodationAccount', 'activitiesAccount', 'cancellationCompensationAccount', 'commissionVatAccount',
+    'accommodationAccount', 'activitiesAccount', 'cancellationCompensationAccount', 'commissionEuAccount', 'commissionFrAccount',
+    'commissionNoVatAccount', 'commissionVatAccount',
     'complementaryAccount', 'defaultCommissionAccountNumber', 'discountAccount', 'drinksRevenueAccount', 'journalCode',
-    'mollieBankAccount', 'mollieClearingAccount', 'mollieExportBank', 'mollieFeeAccount', 'mollieJournalCode', 'platformPenaltyAccount', 'tipAccount',
-    'touristTaxAccount', 'vat10Account', 'vat20Account', 'vatRateCancellationCompensation', 'vatRateCommission',
+    'mollieBankAccount', 'mollieClearingAccount', 'mollieExportBank', 'mollieFeeAccount', 'mollieJournalCode', 'platformPenaltyAccount',
+    'reverseChargeDeductibleAccount', 'reverseChargeDueAccount', 'reverseChargeLines', 'tipAccount',
+    'touristTaxAccount', 'vat10Account', 'vat20Account', 'vatCodeDeductible20', 'vatCodeRate10', 'vatCodeRate20', 'vatCodeRate55',
+    'vatCodeReverseCharge', 'vatRateCancellationCompensation', 'vatRateCommission',
   ]);
   assert.equal(res.body.defaultCommissionAccountNumber, '62260002');
 

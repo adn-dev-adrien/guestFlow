@@ -50,6 +50,19 @@ test('rule 27: the defaults are today\'s constants', () => {
     discountAccount: DISCOUNT_ACCOUNT,
     tipAccount: TIP_ACCOUNT,
     platformPenaltyAccount: '658000',
+    // Amended 2026-11-26 (specs/platform-host-statement-and-commission-vat.md rules 14-16): the account each commission regime proposes, the two
+    // accounts of the EU self-assessment and its switch, the VAT codes of the CSV's last column.
+    commissionFrAccount: '62260500',
+    commissionEuAccount: '62260300',
+    commissionNoVatAccount: '62260600',
+    reverseChargeDeductibleAccount: '44566200',
+    reverseChargeDueAccount: '44520000',
+    reverseChargeLines: '1',
+    vatCodeRate10: 'TI',
+    vatCodeRate20: 'TN',
+    vatCodeRate55: 'TR',
+    vatCodeReverseCharge: 'INTRACOM',
+    vatCodeDeductible20: '',
     drinksRevenueAccount: '',
     journalCode: SALES_JOURNAL_CODE,
   });
