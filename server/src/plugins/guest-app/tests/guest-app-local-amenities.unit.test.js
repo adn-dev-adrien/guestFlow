@@ -234,6 +234,34 @@ test(`${SPEC} rule 2: the guest app's policy lets the map's tiles in as images, 
   assert.doesNotMatch(studioCsp().replace(/img-src[^;]*/, ''), /openstreetmap/);
 });
 
+test(`${SPEC} rule 8: « Me localiser » — the guest app's answers open geolocation to their own origin, the studio's keep the core's denial`, async () => {
+  const fs = require('fs');
+  const os = require('os');
+  const path = require('path');
+  const express = require('express');
+  const { PERMISSIONS_POLICY_VALUE } = require('../../../utils/securityConfig');
+  const { guestCsp, staticApp, studioCsp } = require('../appHosting');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'places-dist-'));
+  fs.writeFileSync(path.join(dir, 'index.html'), '<!doctype html><title>x</title>');
+  const app = express();
+  // What the core's middleware does before any web app answers.
+  app.use((req, res, next) => { res.setHeader('Permissions-Policy', PERMISSIONS_POLICY_VALUE); next(); });
+  app.use('/guest', staticApp({ dir: () => dir, csp: () => guestCsp(), geolocation: true }));
+  app.use('/studio', staticApp({ dir: () => dir, base: '/studio', csp: () => studioCsp() }));
+  const server = await new Promise((resolve) => { const s = app.listen(0, '127.0.0.1', () => resolve(s)); });
+  try {
+    const url = `http://127.0.0.1:${server.address().port}`;
+    const guest = (await fetch(`${url}/guest/`)).headers.get('permissions-policy');
+    const studio = (await fetch(`${url}/studio/`)).headers.get('permissions-policy');
+    assert.match(guest, /geolocation=\(self\)/);
+    assert.equal(guest, PERMISSIONS_POLICY_VALUE.replace('geolocation=()', 'geolocation=(self)'), 'the core list, geolocation apart');
+    assert.equal(studio, PERMISSIONS_POLICY_VALUE);
+    assert.match(studio, /geolocation=\(\)/);
+  } finally {
+    await new Promise((r) => { server.close(r); });
+  }
+});
+
 // --- Through the routes ----------------------------------------------------------------------------------------
 
 function withPlaces(name, fn) {

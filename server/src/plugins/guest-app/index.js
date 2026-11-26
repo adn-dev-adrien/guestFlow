@@ -284,6 +284,7 @@ function register(ctx) {
     host: guestHost,
     handler: hosting.staticApp({
       dir: guestDist,
+      geolocation: true,
       csp: () => hosting.guestCsp({
         frameOrigin: hosting.soliomapFrameOrigin({ soliomapUrl: ctx.settings.get('soliomapUrl'), soliomapEmbed: ctx.settings.get('soliomapEmbed') }),
       }),

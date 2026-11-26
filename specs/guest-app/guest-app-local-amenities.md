@@ -63,7 +63,10 @@ Satillieu, Saint-Romain-d'Ay and Saint-Alban-d'Ay, filters them by kind, and ope
    `https://www.google.com/maps/dir/?api=1&destination=<lat>,<lng>`, `https://waze.com/ul?ll=<lat>,<lng>&navigate=yes`.
    Built by the server from the stored coordinates, never by the client.
 8. **« Me localiser ».** A map button shows the device's position as a blue dot, after the browser's own
-   permission prompt on the first tap. The position never leaves the phone: no request carries it.
+   permission prompt on the first tap. The position never leaves the phone: no request carries it. The core sends
+   `Permissions-Policy` with `geolocation=()` on every response; the guest app's own answers (and only those) re-send the
+   same value with `geolocation=(self)`, derived from the core's header so its list is never forked. The Studio and the
+   admin keep the denial.
 9. **Offline.** The places payload is cached by the service worker like the booklet (`guest-app.md` rule 21), so
    the list, the sheets and the GPS links work without network. Without network the page shows the list, with
    « Pas de connexion : la carte ne peut pas se charger » above it; tiles are never cached by the app.
@@ -147,7 +150,7 @@ Satillieu, Saint-Romain-d'Ay and Saint-Alban-d'Ay, filters them by kind, and ope
 | plugin | `settings.js` | T | Setting `estatePosition` (`lat, lng`, default `45.16369, 4.63184`), judged by `places.js` |
 | controllers | `studioSettingsController.js` | T | `estatePosition` read and written with the Studio's other settings |
 | controllers | `bookletController.js` | T | The `places` button target follows the `places` module (every mode) |
-| plugin | `appHosting.js` | T | CSP: `img-src` adds `https://tile.openstreetmap.org` (tiles only; no script, no connect) |
+| plugin | `appHosting.js` | T | CSP: `img-src` adds `https://tile.openstreetmap.org` (tiles only; no script, no connect); the guest build's answers open `geolocation` to `self` in the core's `Permissions-Policy` (rule 8) |
 | plugin | `manifest.json` | T | Version 1.6.0 and its journal lines |
 | tests | `plugins/guest-app/tests/guest-app-local-amenities.unit.test.js` | C | §7 — the plugin's suites live in its own `tests/` folder, not `server/src/tests/` |
 
