@@ -421,6 +421,19 @@ const orphanAlert = (pay, paidAt) => ({ orphan: true, paidAt: paidAt || (pay && 
 const CONFIRMING_TYPES = new Set(['deposit', 'full']);
 const CONFIRMING_EFFECTS = new Set(['converted', 'already-converted', 'deposit-marked', 'balance-marked', 'deposit-booked', 'balance-booked', 'full-booked']);
 
+// specs/payments/payment-link-lifecycle.md rule 70 — the siblings retired by a payment are deactivated at the
+// provider in the same pass, through the owed-deactivation path (it reads each one first, so a sibling that was paid
+// meanwhile meets the double-payment handling). Best effort: a failure leaves the deactivation owed, and the
+// next pass retries it.
+async function deactivateRetiredAtOnce({ retired, provider, paymentLinksModel, ...deps }) {
+  for (const link of retired || []) {
+    if (!link.providerLinkId || link.provider !== provider.id) continue;
+    try {
+      await retryPendingCancellations({ ...deps, paymentLinksModel, provider, only: link.id });
+    } catch { /* best effort — the next pass owns it */ }
+  }
+}
+
 // The shared effect of one PAID link: mark paid → apply the business effect → confirmation email +
 // conflict notification (both best-effort). Idempotent. Returns the per-link result object.
 // `emitPluginEvent` is injectable like every other dep; by default the webhook, the on-demand poll
@@ -428,7 +441,7 @@ const CONFIRMING_EFFECTS = new Set(['converted', 'already-converted', 'deposit-m
 // once — specs/plugins/plugins-phase-1-sdk.md rule 9).
 // `retiredReason` books a withdrawn link instead (cancelled → paid, only while it still carries that reason).
 // `quietOnConflict`: a booking that lands in date conflict sends the guest no confirmation.
-async function processPaidLink({ database, devisModel, paymentLinksModel, link, paidPayment, sendConfirmation, checkConflict, notifyConflict, notifyPaidAfterCancel, recordPayment, emitPluginEvent = require('../plugins/sdk/eventBus').emit, retiredReason = null, quietOnConflict = false }) {
+async function processPaidLink({ database, devisModel, paymentLinksModel, link, paidPayment, sendConfirmation, checkConflict, notifyConflict, notifyPaidAfterCancel, recordPayment, emitPluginEvent = require('../plugins/sdk/eventBus').emit, retiredReason = null, quietOnConflict = false, provider = null }) {
   const p = paidPayment || {};
   // markPaid is atomic (UPDATE … WHERE status='open') and reports whether THIS call flipped the link.
   // The webhook, the on-demand /status poll and the cron can all observe the same paid link at once;
@@ -456,7 +469,14 @@ async function processPaidLink({ database, devisModel, paymentLinksModel, link, 
         ? doublePaymentEffect(afterDeposit.duplicateCents, { reservationId: afterDeposit.stayId, conflict: false })
         : applyPaidEffect({ database, devisModel, link, checkConflict, paidDate, paidAt, recordPayment }));
   // The link that just paid settles its bucket: every other open link of it is retired now, not at the next poll.
-  if (typeof paymentLinksModel.retireSettled === 'function') paymentLinksModel.retireSettled();
+  if (typeof paymentLinksModel.retireSettled === 'function') {
+    const retiredSiblings = paymentLinksModel.retireSettled();
+    if (provider) {
+      await deactivateRetiredAtOnce({
+        retired: retiredSiblings, provider, database, devisModel, paymentLinksModel, recordPayment, checkConflict, notifyConflict, sendConfirmation, notifyPaidAfterCancel, emitPluginEvent,
+      });
+    }
+  }
   if (effect.effect === 'double-payment') {
     // Two live links of one devis both paid: the second money is a refund, kept on the fiche's history.
     if (effect.duplicateLink) {
@@ -970,7 +990,7 @@ async function runPaymentPoll({ database, paymentLinksModel, provider, devisMode
       // Authoritative "paid" signal = the provider's payment record for the link.
       const pay = await provider.getPayment(link.providerLinkId, { origin: 'poll' });
       if (pay.paid) {
-        const res = await processPaidLink({ database, devisModel, paymentLinksModel, link, paidPayment: pay, sendConfirmation, checkConflict, notifyConflict, notifyPaidAfterCancel, recordPayment });
+        const res = await processPaidLink({ database, devisModel, paymentLinksModel, link, paidPayment: pay, sendConfirmation, checkConflict, notifyConflict, notifyPaidAfterCancel, recordPayment, provider });
         results.push(res);
         continue;
       }

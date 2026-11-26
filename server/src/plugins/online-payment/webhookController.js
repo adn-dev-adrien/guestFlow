@@ -50,7 +50,7 @@ function createWebhookController({ provider, settings, paymentLinksModel, proces
       // after that must still land (specs/payment-polling-fair-use.md rule 2).
       if (link && (link.status === 'open' || link.status === 'expired') && link.providerLinkId) {
         const pay = await provider.getPayment(link.providerLinkId, { origin: 'webhook' });
-        if (pay.paid) await process({ ...deps(), link, paidPayment: pay });
+        if (pay.paid) await process({ ...deps(), link, paidPayment: pay, provider });
       } else if (link && link.status === 'cancelled' && link.remoteCancelPendingAt && link.providerLinkId) {
         // Retired by GuestFlow, deactivation still owed: if the guest paid it anyway, settle it now.
         await retryOne({ ...deps(), provider, only: link.id });
