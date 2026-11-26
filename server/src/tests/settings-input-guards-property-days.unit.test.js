@@ -27,16 +27,24 @@ test('rule 9: with the acompte off, the hidden depositDueDays is not validated',
   assert.deepEqual(validatePropertyInput({ depositEnabled: '0', depositDueDays: 400 }), {});
 });
 
-test('rule 10: balanceDaysBefore and cancelAfterBalanceDueDays run from 0 to 60, acompte on or off', () => {
-  for (const key of ['balanceDaysBefore', 'cancelAfterBalanceDueDays']) {
+test('rule 10: balanceDaysBefore runs from 0 to 60, cancelAfterBalanceDueDays from 1 to 60, acompte on or off', () => {
+  for (const [key, min] of [['balanceDaysBefore', 0], ['cancelAfterBalanceDueDays', 1]]) {
+    const message = `Entre ${min} et 60 jours.`;
     for (const body of [{}, on]) {
-      assert.deepEqual(validatePropertyInput({ ...body, [key]: 0 }), {});
+      assert.deepEqual(validatePropertyInput({ ...body, [key]: min }), {});
       assert.deepEqual(validatePropertyInput({ ...body, [key]: 60 }), {});
-      assert.equal(validatePropertyInput({ ...body, [key]: 61 })[key], 'Entre 0 et 60 jours.');
-      assert.equal(validatePropertyInput({ ...body, [key]: -1 })[key], 'Entre 0 et 60 jours.');
+      assert.equal(validatePropertyInput({ ...body, [key]: 61 })[key], message);
+      assert.equal(validatePropertyInput({ ...body, [key]: min - 1 })[key], message);
       assert.equal(validatePropertyInput({ ...body, [key]: 1.5 })[key], 'Nombre entier de jours.');
     }
   }
+});
+
+test('rule 10: the schedule settings refuse a cancellation delay of 0 days', () => {
+  const { settingsSchema } = require('../utils/pricing/schedule');
+  const { validate } = settingsSchema.find((s) => s.key === 'cancelAfterBalanceDueDays');
+  assert.equal(validate(0), 'Au moins 1 jour.');
+  assert.equal(validate(1), null);
 });
 
 test('rule 11: a stored out-of-range value stays savable until the field is touched', () => {
@@ -118,7 +126,9 @@ test('rule 48: the model holds the bounds too — a plugin cannot store 400 days
   await model.update(1, { name: 'Le Gîte', depositEnabled: true, depositDueDays: 400, balanceDaysBefore: 90, cancelAfterBalanceDueDays: -3 });
   assert.deepEqual(delays(db), { depositDueDays: 12, balanceDaysBefore: 90, cancelAfterBalanceDueDays: 7 });
   await model.update(1, { name: 'Le Gîte', depositEnabled: true, depositDueDays: 30, balanceDaysBefore: 60, cancelAfterBalanceDueDays: 0 });
-  assert.deepEqual(delays(db), { depositDueDays: 30, balanceDaysBefore: 60, cancelAfterBalanceDueDays: 0 });
+  assert.deepEqual(delays(db), { depositDueDays: 30, balanceDaysBefore: 60, cancelAfterBalanceDueDays: 7 }, 'rule 10 — 0 days of cancellation delay is not stored');
+  await model.update(1, { name: 'Le Gîte', depositEnabled: true, cancelAfterBalanceDueDays: 1 });
+  assert.equal(delays(db).cancelAfterBalanceDueDays, 1);
   const id = (await model.create({ name: 'Neuf', depositEnabled: true, depositDueDays: 400 })).id;
   assert.equal(db.prepare('SELECT depositDueDays FROM properties WHERE id = ?').get(id).depositDueDays, 7);
 });
