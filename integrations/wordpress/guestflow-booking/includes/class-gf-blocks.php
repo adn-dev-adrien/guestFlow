@@ -14,7 +14,7 @@ final class GF_Blocks
 {
     private static ?GF_Blocks $instance = null;
     private const BLOCKS = ['calendar', 'booking', 'properties', 'gift-voucher', 'gift-voucher-use', 'session-booking'];
-    /** « Utiliser un bon cadeau » is an alias of the session tunnel (specs/site-outside-resource-booking.md rule 18): it runs that block's script. */
+    /** « Utiliser un bon cadeau » is an alias of the session tunnel (specs/site/site-outside-resource-booking.md rule 18): it runs that block's script. */
     private const VIEW_OF = ['gift-voucher-use' => 'session-booking'];
 
     public static function instance(): GF_Blocks
@@ -33,7 +33,7 @@ final class GF_Blocks
 
     /**
      * The visit's source is recorded on the page the visitor LANDS on, which is rarely a page with a
-     * booking block (specs/site-traffic-analytics.md rule 13) — hence on every public page. A site
+     * booking block (specs/site/site-traffic-analytics.md rule 13) — hence on every public page. A site
      * that does not want it returns false from the `guestflow_booking_capture_attribution` filter.
      */
     public function enqueue_attribution(): void
@@ -54,18 +54,18 @@ final class GF_Blocks
         // Runtime holder for the localized config; every block script depends on it.
         wp_register_script('gf-runtime', GF_BOOKING_URL . 'assets/runtime.js', [], $this->asset_ver('assets/runtime.js'), true);
         wp_localize_script('gf-runtime', 'GFBooking', $this->runtime_config());
-        // The proof of work of the booking request (GuestFlow specs/public-request-abuse-and-grouping.md
+        // The proof of work of the booking request (GuestFlow specs/site/public-request-abuse-and-grouping.md
         // rule 2): solved in a Web Worker (assets/pow-worker.js), this copy only as the page's fallback.
         wp_register_script('gf-pow', GF_BOOKING_URL . 'assets/pow.js', [], $this->asset_ver('assets/pow.js'), true);
 
         // The voucher code: normalisation, grouping and the check character, shared by the gift voucher
-        // block and the booking engine's code field (specs/gift-vouchers.md rules 30 and 34).
+        // block and the booking engine's code field (specs/gift-vouchers/gift-vouchers.md rules 30 and 34).
         wp_register_script('gf-voucher-code', GF_BOOKING_URL . 'assets/voucher-code.js', ['gf-runtime'], $this->asset_ver('assets/voucher-code.js'), true);
 
         // What the two gift voucher blocks share: the proof of work, the stepper, amounts and durations.
         wp_register_script('gf-voucher-parts', GF_BOOKING_URL . 'assets/voucher-parts.js', ['gf-runtime'], $this->asset_ver('assets/voucher-parts.js'), true);
 
-        // The card that turns, front and back, of the purchase page and of the page after payment (specs/gift-voucher-campaigns.md rule 66).
+        // The card that turns, front and back, of the purchase page and of the page after payment (specs/gift-vouchers/gift-voucher-campaigns.md rule 66).
         wp_register_script('gf-voucher-card', GF_BOOKING_URL . 'assets/voucher-card.js', ['gf-runtime'], $this->asset_ver('assets/voucher-card.js'), true);
 
         foreach (self::BLOCKS as $name) {
@@ -107,7 +107,7 @@ final class GF_Blocks
             'nonce'             => wp_create_nonce('wp_rest'),
             'defaultPropertyId' => (int) $s->get('default_property_id', 0),
             'bookingPageUrl'    => $s->get_booking_page_url(),
-            // specs/terms-acceptance-record.md rule 10 — the page the CGV checkbox links to.
+            // specs/reservations/terms-acceptance-record.md rule 10 — the page the CGV checkbox links to.
             'cgvPageUrl'        => esc_url_raw($s->get_cgv_page_url()),
             'configured'        => $s->is_configured(),
             // Same origin as the page, as a Worker requires.
@@ -115,7 +115,7 @@ final class GF_Blocks
             // The language the page is being read in, and the locale the browser should format
             // DATES with. Amounts are deliberately not included: rule 10 keeps « 1 234,56 € » in
             // both languages, because the quote PDF attached to the confirmation already writes it
-            // that way to English guests (specs/site-english-version.md rules 10 + 24).
+            // that way to English guests (specs/site/site-english-version.md rules 10 + 24).
             'giftVoucherPageUrl' => esc_url_raw($s->get_gift_voucher_page_url()),
             // Rule 19 — the page holding « Réserver une séance », which the purchase page links to; '' when none does.
             'sessionPageUrl'    => esc_url_raw($s->get_gift_voucher_use_page_url()),
@@ -128,7 +128,7 @@ final class GF_Blocks
                 'noAvailability'  => __('Aucune disponibilité sur cette période.', 'guestflow-booking'),
                 'blocked'         => __('Indisponible', 'guestflow-booking'),
                 'available'       => __('Disponible', 'guestflow-booking'),
-                // Real plurals in the recap (specs/wordpress-plugin.md rule 22).
+                // Real plurals in the recap (specs/site/wordpress-plugin.md rule 22).
                 'night'           => __('nuit', 'guestflow-booking'),
                 'nights'          => __('nuits', 'guestflow-booking'),
                 'from'            => __('à partir de', 'guestflow-booking'),
@@ -155,7 +155,7 @@ final class GF_Blocks
                 'sendRequest'     => __('Envoyer la demande', 'guestflow-booking'),
                 'sending'         => __('Envoi…', 'guestflow-booking'),
                 'requestSent'     => __('Demande envoyée ! Référence : %s. Nous vous recontactons rapidement.', 'guestflow-booking'),
-                // GuestFlow specs/public-request-abuse-and-grouping.md rules 2 and 13.
+                // GuestFlow specs/site/public-request-abuse-and-grouping.md rules 2 and 13.
                 'verifying'       => __('Vérification…', 'guestflow-booking'),
                 'requestUpdated'  => __('Votre demande du %s a été mise à jour.', 'guestflow-booking'),
                 'messageAdded'    => __('Votre demande du %s a déjà été transmise : votre message a été ajouté.', 'guestflow-booking'),
@@ -163,7 +163,7 @@ final class GF_Blocks
                 'bookNow'         => __('Réserver', 'guestflow-booking'),
                 'capacity'        => __('Capacité', 'guestflow-booking'),
                 'persons'         => __('personnes', 'guestflow-booking'),
-                // Online payment flow (specs/public-online-payment.md)
+                // Online payment flow (specs/site/public-online-payment.md)
                 'payOnline'       => __('Payer en ligne', 'guestflow-booking'),
                 'preparingPayment' => __('Préparation du paiement…', 'guestflow-booking'),
                 'redirectingPayment' => __('Redirection vers le paiement sécurisé…', 'guestflow-booking'),
@@ -174,21 +174,21 @@ final class GF_Blocks
                 'paymentExpired'  => __('Ce lien de paiement a expiré. Refaire la réservation depuis la page du logement.', 'guestflow-booking'),
                 'paymentConflict' => __('Paiement reçu et réservation enregistrée. Nous revenons vers vous très vite pour confirmer les détails.', 'guestflow-booking'),
                 'stayRecap'       => __('Votre séjour', 'guestflow-booking'),
-                // Online-deposit flow (specs/public-online-deposit.md)
+                // Online-deposit flow (specs/site/public-online-deposit.md)
                 'payDeposit'      => __('Payer l’acompte', 'guestflow-booking'),
                 'depositNow'      => __('Acompte à payer maintenant', 'guestflow-booking'),
                 'depositPaid'     => __('Acompte réglé', 'guestflow-booking'),
                 'balanceDueBefore' => __('Solde à régler avant le %s', 'guestflow-booking'),
                 'balanceEmailFollows' => __('Un email vous sera envoyé pour régler le solde à l’échéance.', 'guestflow-booking'),
-                // Planning-card options (specs/public-planning-options.md)
+                // Planning-card options (specs/site/public-planning-options.md)
                 'toBeScheduled'   => __('À planifier avec l’hôte.', 'guestflow-booking'),
                 'moreInfo'        => __('Plus d’infos', 'guestflow-booking'),
-                // Unified widget (specs/wp-booking-widget-redesign.md)
+                // Unified widget (specs/site/wp-booking-widget-redesign.md)
                 'selectDates'     => __('Choisissez vos dates', 'guestflow-booking'),
                 'pickArrival'     => __('Sélectionnez votre date d’arrivée', 'guestflow-booking'),
                 'pickDeparture'   => __('Sélectionnez votre date de départ', 'guestflow-booking'),
                 'rangeBlocked'    => __('Ces dates incluent une nuit indisponible. Choisissez une autre période.', 'guestflow-booking'),
-                // specs/wp-booking-widget-redesign.md §3 rules 24-28 — a complete range stays editable.
+                // specs/site/wp-booking-widget-redesign.md §3 rules 24-28 — a complete range stays editable.
                 'changeDeparture' => __('Cliquez une autre date pour changer le départ, ou l’arrivée pour recommencer.', 'guestflow-booking'),
                 'minNightsExtend' => __('Cliquez une date plus tard pour allonger le séjour.', 'guestflow-booking'),
                 'clearDates'      => __('Effacer les dates', 'guestflow-booking'),
@@ -201,36 +201,36 @@ final class GF_Blocks
                 'childrenAges'    => __('2 à 12 ans', 'guestflow-booking'),
                 'babiesAges'      => __('0 à 2 ans', 'guestflow-booking'),
                 'babyBedsLabel'   => __('Lit(s) bébé souhaité(s) ?', 'guestflow-booking'),
-                // specs/baby-bed-supplement.md §3.5 rule 17 — the cot is billed now. `babyBedsSub`
+                // specs/options/baby-bed-supplement.md §3.5 rule 17 — the cot is billed now. `babyBedsSub`
                 // stays as the fallback for a logement that does not charge for it; when the API
                 // serves a price, `babyBedsSubPriced` is filled with it (never a hardcoded amount).
                 'babyBedsSub'     => __('Selon disponibilité', 'guestflow-booking'),
                 'babyBedsSubPriced' => __('%s par lit, pour le séjour', 'guestflow-booking'),
                 'offered'         => __('Offert', 'guestflow-booking'),
-                // specs/site-extra-guest-line.md rules 3-4
+                // specs/site/site-extra-guest-line.md rules 3-4
                 'extraGuests'     => __('Personne(s) supplémentaire(s) ×%d', 'guestflow-booking'),
                 'includedGuestsNote' => __('Prix de base pour %d voyageurs, supplément au-delà', 'guestflow-booking'),
                 'checkInTime'     => __('Heure d’arrivée', 'guestflow-booking'),
                 'checkOutTime'    => __('Heure de départ', 'guestflow-booking'),
                 'participantsMax' => __('Nombre de participants', 'guestflow-booking'),
-                // Cancellation insurance block (specs/cancellation-insurance.md §6.3) — the title
+                // Cancellation insurance block (specs/payments/cancellation-insurance.md §6.3) — the title
                 // itself comes from the catalogue; this one is the fallback when it is empty.
                 'insuranceTitle'   => __('Assurance annulation', 'guestflow-booking'),
                 'insuranceYes'     => __('Oui, j’assure mon séjour', 'guestflow-booking'),
                 'insuranceNo'      => __('Non merci', 'guestflow-booking'),
                 'insuranceRequired' => __('Merci d’indiquer si vous souhaitez l’assurance annulation.', 'guestflow-booking'),
-                // CGV checkbox (specs/terms-acceptance-record.md rules 10-13).
+                // CGV checkbox (specs/reservations/terms-acceptance-record.md rules 10-13).
                 'cgvAcceptBefore' => __('J’ai lu et j’accepte les ', 'guestflow-booking'),
                 'cgvAcceptLink'   => __('conditions générales de location', 'guestflow-booking'),
                 'cgvRequired'     => __('Acceptez d’abord les conditions générales de location.', 'guestflow-booking'),
-                // Collapsible option categories (specs/option-categories.md §6.3)
+                // Collapsible option categories (specs/options/option-categories.md §6.3)
                 'showCategory'    => __('Voir les %d options', 'guestflow-booking'),
                 'showOthers'      => __('Voir les %d autres', 'guestflow-booking'),
                 'collapse'        => __('Réduire', 'guestflow-booking'),
                 'categoryAria'    => __('Catégorie %s', 'guestflow-booking'),
                 // Calendar navigation and the honeypot label: read by screen readers only, which is
                 // exactly why they stayed French through the whole translation pass — nothing on
-                // screen showed them (specs/site-english-version.md rule 49).
+                // screen showed them (specs/site/site-english-version.md rule 49).
                 'calPrevMonth'    => __('Mois précédent', 'guestflow-booking'),
                 'calNextMonth'    => __('Mois suivant', 'guestflow-booking'),
                 'calJumpToMonth'  => __('Aller à un mois', 'guestflow-booking'),
@@ -243,20 +243,20 @@ final class GF_Blocks
                 // A failed payment leaves the request recorded (rule 16).
                 'paymentRetry'    => __('Demande enregistrée (référence %s). Le paiement peut être relancé.', 'guestflow-booking'),
                 // UI/UX review 2026-10-18 — the calendar's states and its way out of a closed window
-                // (specs/wp-booking-widget-redesign.md rules 30-31).
+                // (specs/site/wp-booking-widget-redesign.md rules 30-31).
                 'legendFree'      => __('Libre', 'guestflow-booking'),
                 'legendTaken'     => __('Pris', 'guestflow-booking'),
                 'nextAvailable'   => __('Prochaine disponibilité : %s', 'guestflow-booking'),
                 'nextAvailableGo' => __('Voir', 'guestflow-booking'),
-                // Refused on the field (specs/wordpress-plugin.md rule 28). The server sends its own
+                // Refused on the field (specs/site/wordpress-plugin.md rule 28). The server sends its own
                 // sentence per field; these two are the local check and the fallback for an older server.
                 'fieldRequired'   => __('Champ requis.', 'guestflow-booking'),
                 'emailInvalid'    => __('Adresse e-mail incomplète.', 'guestflow-booking'),
-                // The sticky bar's button follows the step (specs/wp-booking-widget-redesign.md rule 32).
+                // The sticky bar's button follows the step (specs/site/wp-booking-widget-redesign.md rule 32).
                 'barPickDates'    => __('Choisir les dates', 'guestflow-booking'),
                 'barContinue'     => __('Continuer', 'guestflow-booking'),
                 'taxIncluded'     => __('taxe de séjour incluse', 'guestflow-booking'),
-                // specs/booking-drawer-friction.md — minimum stay before choosing (rules 11-12), the
+                // specs/site/booking-drawer-friction.md — minimum stay before choosing (rules 11-12), the
                 // price per person (rule 9) and the request without paying (rules 2-4).
                 'minShort'        => __('min. %d', 'guestflow-booking'),
                 'minNightsFrom'   => __('Départ à partir du %s (%d nuits minimum).', 'guestflow-booking'),
@@ -266,7 +266,7 @@ final class GF_Blocks
                 'payDepositAmount' => __('Payer l’acompte %s', 'guestflow-booking'),
                 'sendRequestNoPay' => __('Envoyer une demande sans payer', 'guestflow-booking'),
                 'requestNoPayHint' => __('Une question avant de vous engager ? Envoyez une demande : aucun paiement tant que nous n’avons pas répondu.', 'guestflow-booking'),
-                // « Bon cadeau » on the booking engine (specs/gift-vouchers.md rules 36-38).
+                // « Bon cadeau » on the booking engine (specs/gift-vouchers/gift-vouchers.md rules 36-38).
                 'voucherApply'    => __('Appliquer', 'guestflow-booking'),
                 'voucherRemove'   => __('Retirer le bon', 'guestflow-booking'),
                 'voucherLength'   => __('Le code compte %d caractères.', 'guestflow-booking'),
@@ -277,7 +277,7 @@ final class GF_Blocks
                 'voucherTooMany'  => __('Trop d’essais. Nouvelle saisie possible dans 15 minutes.', 'guestflow-booking'),
                 'payToday'        => __('À payer aujourd’hui', 'guestflow-booking'),
                 'confirmBooking'  => __('Confirmer la réservation', 'guestflow-booking'),
-                // Gift voucher tunnel (specs/gift-vouchers.md §6).
+                // Gift voucher tunnel (specs/gift-vouchers/gift-vouchers.md §6).
                 'gvTitle'         => __('Choisir son cadeau', 'guestflow-booking'),
                 'gvIntro'         => __('Un montant au choix, valable %d mois, à utiliser en une ou plusieurs fois.', 'guestflow-booking'),
                 'gvIntroSession'  => __('Valable %d mois à compter du paiement, pour une séance à réserver en ligne.', 'guestflow-booking'),
@@ -333,7 +333,7 @@ final class GF_Blocks
                 'gvCancelled'     => __('Ce bon a été annulé.', 'guestflow-booking'),
                 'gvBalance'       => __('Solde : %s', 'guestflow-booking'),
                 'gvTooMany'       => __('Trop de demandes. Réessayer dans quelques minutes.', 'guestflow-booking'),
-                // Bons cadeaux composés (specs/gift-voucher-campaigns.md rules 16-19): the choice of offer and the composed voucher.
+                // Bons cadeaux composés (specs/gift-vouchers/gift-voucher-campaigns.md rules 16-19): the choice of offer and the composed voucher.
                 'gvKindLodging'   => __('Séjours', 'guestflow-booking'),
                 'gvKindResource'  => __('Séances', 'guestflow-booking'),
                 'gvFreeAmount'    => __('Montant au choix', 'guestflow-booking'),
@@ -358,7 +358,7 @@ final class GF_Blocks
                 'gvMinShort'      => __('min', 'guestflow-booking'),
                 // « Utiliser un bon cadeau » (rules 23-32).
                 'guPaid'          => __('Paiement reçu : la confirmation arrive par mail dès que la banque l’a validé.', 'guestflow-booking'),
-                // « Réserver une séance » (specs/site-outside-resource-booking.md): the tunnel that books a session, paid online or with a voucher code.
+                // « Réserver une séance » (specs/site/site-outside-resource-booking.md): the tunnel that books a session, paid online or with a voucher code.
                 'sbTitle'         => __('Réserver une séance', 'guestflow-booking'),
                 'sbIntro'         => __('Choisissez votre créneau, puis payez en ligne ou saisissez le code de votre bon cadeau.', 'guestflow-booking'),
                 'sbNone'          => __('Aucune activité à réserver en ce moment.', 'guestflow-booking'),

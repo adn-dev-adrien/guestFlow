@@ -1,5 +1,5 @@
 /**
- * « Réserver une séance » frontend (build-free, plain ES) — specs/site-outside-resource-booking.md rules 1-19.
+ * « Réserver une séance » frontend (build-free, plain ES) — specs/site/site-outside-resource-booking.md rules 1-19.
  *
  *   ?gf_session=<ref>                  → the return page of a payment: polls GuestFlow until « Séance réservée »
  *   ?gf_use=paid                       → back from the bank after a voucher's remainder was paid

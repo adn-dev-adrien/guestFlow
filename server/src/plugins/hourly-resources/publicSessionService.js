@@ -1,5 +1,5 @@
 /**
- * The website's booking of a session outside a stay (specs/site-outside-resource-booking.md rules 1-13, 16-17, §4.4): which resources are on offer, the free starts of a duration with what
+ * The website's booking of a session outside a stay (specs/site/site-outside-resource-booking.md rules 1-13, 16-17, §4.4): which resources are on offer, the free starts of a duration with what
  * each would cost, the recap of a choice, and the confirmation — which holds the slot for 15 minutes and sends the visitor to the bank. Nothing is booked before the bank confirms (`paid`).
  *
  *   resources()                                         → [{ id, name, blurb, fromCents, minMinutes, stepMinutes, maxMinutes, maxPeople, horizonUntil, termsVersionId, addOns: [{ articleRef, label, maxQty, unitLabel, linear, prices }] }]

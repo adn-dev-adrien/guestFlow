@@ -1,5 +1,5 @@
 /**
- * The price of each step of what can be added to a voucher (specs/gift-voucher-campaigns.md rule 64) and of the extra time of a session. The add-on tables are the core's
+ * The price of each step of what can be added to a voucher (specs/gift-vouchers/gift-voucher-campaigns.md rule 64) and of the extra time of a session. The add-on tables are the core's
  * `addOnPricing` (shared with the site's session block, specs/site/site-outside-resource-booking.md rule 37); this file adds the extra time. The page reads these tables and adds nothing.
  *
  *   priced([{ articleRef, label, maxQty }]) → the same entries with `addOn`'s fields, those the engine cannot price at all left out
