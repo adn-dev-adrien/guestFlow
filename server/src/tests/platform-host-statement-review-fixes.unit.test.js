@@ -137,3 +137,24 @@ test('rules 1, 8 — a quote of a Dausque-shaped stay still closes after the fix
   const q = calculateReservationQuote({ ...DAUSQUE, db, offeredOptionIds: [], selectedOptions: [MENAGE_PAID] });
   assert.equal(q.finalPrice, 864);
 });
+
+// Shadow replay 2026-11-26 — the booking sentence of a Gîtes de France stay set to « France — TVA 20 % » read « sans TVA »:
+// the platform row a stay names came without its regime (rule 10 reads it from that row).
+test('rule 10: the platform row a stay names carries its commission VAT regime', () => {
+  const { create: createPlatformsModel } = require('../models/platformsModel');
+  const db = new Database(':memory:');
+  db.exec(`CREATE TABLE platforms (
+    id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT UNIQUE NOT NULL,
+    commissionAccountNumber TEXT, hasVatOnCommission INTEGER NOT NULL DEFAULT 0,
+    commissionPercent REAL NOT NULL DEFAULT 0, color TEXT, commissionVatRegime TEXT NOT NULL DEFAULT 'no_vat'
+  );
+  CREATE TABLE ical_sources (id INTEGER PRIMARY KEY, platformLabel TEXT);
+  CREATE TABLE reservations (id INTEGER PRIMARY KEY, platform TEXT);`);
+  db.prepare("INSERT INTO platforms (name, commissionAccountNumber, hasVatOnCommission, commissionVatRegime) VALUES ('GitesDeFrance', '62260500', 1, 'fr_vat')").run();
+  const row = createPlatformsModel(db).findForStay('GitesDeFrance');
+  assert.equal(row.commissionVatRegime, 'fr_vat');
+  assert.equal(
+    commissionBookingSentence({ db, platformRow: row, commission: 78, live: true }).replace(/\s/g, ' '),
+    '78,00 € TTC = 65,00 € HT + 13,00 € de TVA déductible · compte 62260500',
+  );
+});

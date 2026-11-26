@@ -172,7 +172,8 @@ function createPlatformsModel(database) {
     findForStay(name) {
       const slug = platformSlug(name);
       if (!slug || slug === DIRECT_NAME) return null;
-      return stmts.listAll.all().find((p) => platformSlug(p.name) === slug) || null;
+      const row = stmts.listAll.all().find((p) => platformSlug(p.name) === slug);
+      return row ? withRegime([row])[0] : null;
     },
     findById(id) {
       if (id == null) return null;
