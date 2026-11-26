@@ -193,7 +193,7 @@ test('rule 13 — a regime the page does not know is refused on its row', () => 
 test('rule 13 — under the « Sans TVA » sales regime every regime books TTC and assesses no VAT', () => {
   const row = {
     id: 1, firstName: 'Jean', lastName: 'Dupont', propertyName: 'Villa A', platform: 'Airbnb', finalPrice: 626, totalPrice: 626, touristTaxTotal: 0, touristTaxInComplement: 0,
-    clientGrossAmount: 687, depositAmount: 0, depositPaid: 0, depositPaidDate: null, balanceAmount: 626, balancePaid: 1, balancePaidDate: '2026-06-04',
+    clientGrossAmount: 687, depositAmount: 0, depositPaid: 0, depositPaidDate: null, balanceAmount: 626, balancePaid: 1, balancePaidDate: '2026-06-04', // date-literal-ok: a paid date only labels the entry; passes with the clock in 2032
     complementAmount: 0, complementPaid: 0, complementPaidDate: null,
   };
   const context = (salesRegime) => ({

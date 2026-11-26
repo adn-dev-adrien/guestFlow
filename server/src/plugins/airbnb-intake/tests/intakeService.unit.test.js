@@ -20,7 +20,7 @@ const MAIL = { messageId: '<m1@airbnb>', receivedAt: SENT_AT, sentAt: SENT_AT, s
 
 function setup({
   reservations = [PLACEHOLDER], mails = [MAIL], listings = [[1, '1234567890123456789']],
-  autoApply = true, updateStatus = 200, mode = 'platform_reversed', notes = '', dates = ['2026-12-26', '2026-12-30'], now = '2026-10-25T09:00:00.000Z',
+  autoApply = true, updateStatus = 200, mode = 'platform_reversed', notes = '', dates = ['2026-12-26', '2026-12-30'], now = '2026-10-25T09:00:00.000Z', // date-literal-ok: stay dates and an injected now, never the calendar
 } = {}) {
   const db = new Database(':memory:');
   db.exec(TABLE_SQL);

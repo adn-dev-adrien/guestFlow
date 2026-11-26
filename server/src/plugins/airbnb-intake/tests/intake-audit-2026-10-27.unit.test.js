@@ -12,7 +12,7 @@ const { SUBJECT, SENT_AT, bookingMail } = require('./fixtures');
 const R = { id: 1, propertyId: 1, platform: 'Airbnb Lodge', kind: 'reservation', sourceType: 'ical', icalSyncLocked: 0, platformGrossAmount: null, cancelledAt: null };
 const MAIL = { messageId: '<a>', receivedAt: SENT_AT, sentAt: SENT_AT, subject: SUBJECT, text: bookingMail() };
 
-function setup({ mails = [MAIL], today = '2026-10-25', findReservations = () => [R], mode = () => 'platform_reversed' } = {}) {
+function setup({ mails = [MAIL], today = '2026-10-25', findReservations = () => [R], mode = () => 'platform_reversed' } = {}) { // date-literal-ok: the intake reads this injected today, never the calendar
   const db = new Database(':memory:');
   db.exec(TABLE_SQL);
   const calls = { clients: [], updates: [], withholds: [] };

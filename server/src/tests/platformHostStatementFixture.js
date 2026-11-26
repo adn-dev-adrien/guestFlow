@@ -59,21 +59,21 @@ const LINGE = { optionId: 2, quantity: 1, inComplement: 0 };
 
 // The stays of the accountant's October review (specs/platforms/platform-host-statement-and-commission-vat.md §1), figures measured in production.
 const FRAISSE = {
-  ...STAY, startDate: '2026-10-10', endDate: '2026-10-12', adults: 13, platformPaidAdults: 10, platformPaidGuests: 10, platformPaidOccupants: 10,
+  ...STAY, startDate: '2026-10-10', endDate: '2026-10-12', adults: 13, platformPaidAdults: 10, platformPaidGuests: 10, platformPaidOccupants: 10, // date-literal-ok: measured production stays handed to the pure pricing engine; the suites pass with the clock in 2032
   selectedOptions: [MENAGE_PAID, LINGE], offeredOptionIds: [2], platform: 'Airbnb',
   platformGrossAmount: 805, platformTouristTaxAmount: 24, platformPayoutAmount: 704.22,
 };
 const DAUSQUE = {
-  ...STAY, startDate: '2026-10-01', endDate: '2026-10-03', adults: 6,
+  ...STAY, startDate: '2026-10-01', endDate: '2026-10-03', adults: 6, // date-literal-ok: measured production stays handed to the pure pricing engine; the suites pass with the clock in 2032
   selectedOptions: [MENAGE_PAID], offeredOptionIds: [1], platform: 'GitesDeFrance',
   platformGrossAmount: 864, platformTouristTaxAmount: 36, platformPayoutAmount: 786,
 };
 const TOUSSAINT = {
-  ...STAY, startDate: '2026-12-26', endDate: '2026-12-30', adults: 5, selectedOptions: [], platform: 'Airbnb',
+  ...STAY, startDate: '2026-12-26', endDate: '2026-12-30', adults: 5, selectedOptions: [], platform: 'Airbnb', // date-literal-ok: measured production stays handed to the pure pricing engine; the suites pass with the clock in 2032
   platformGrossAmount: 1154.6, platformTouristTaxAmount: 52.8, platformPayoutAmount: 1028.44,
 };
 const GILIBERT = {
-  ...STAY, startDate: '2027-01-10', endDate: '2027-01-12', adults: 11, selectedOptions: [], platform: 'Booking',
+  ...STAY, startDate: '2027-01-10', endDate: '2027-01-12', adults: 11, selectedOptions: [], platform: 'Booking', // date-literal-ok: measured production stays handed to the pure pricing engine; the suites pass with the clock in 2032
   platformGrossAmount: 690, platformTouristTaxAmount: 20.02, platformPayoutAmount: 596.58,
 };
 

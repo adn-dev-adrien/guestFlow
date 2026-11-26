@@ -20,7 +20,7 @@ const FILLED = {
   notes: 'Booking, 15/10 :\nEst ce possible d\'avoir 2 lits d\'appoints (nous ne sommes pas certains d\'en avoir besoin)\nDemande de lit d\'appoint: Le client a demandé un lit d\'appoint pour un bébé de adult an.',
 };
 
-function setup({ reservation = PLACEHOLDER, rows = [{ id: 22309 }], hotels = { 1: '14407976' }, updateStatus = 200, today = '2026-10-16', shared = () => false, mode = 'platform' } = {}) {
+function setup({ reservation = PLACEHOLDER, rows = [{ id: 22309 }], hotels = { 1: '14407976' }, updateStatus = 200, today = '2026-10-16', shared = () => false, mode = 'platform' } = {}) { // date-literal-ok: the intake reads this injected today, never the calendar
   const db = new Database(':memory:');
   db.exec(TABLE_SQL);
   const intakes = buildModel(db);
