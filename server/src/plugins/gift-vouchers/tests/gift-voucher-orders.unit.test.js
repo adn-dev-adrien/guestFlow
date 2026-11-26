@@ -52,7 +52,7 @@ async function withShop(fn, over = {}) {
   });
   const server = await fx.start(fixture);
   const order = (body = {}, { ip = IP, proof = fx.solvedProof({ ip }) } = {}) => server.call('POST', '/public/v1/gift-vouchers/orders', {
-    amountCents: 15000, recipientName: 'Marie', senderName: 'Paul', message: 'Joyeux anniversaire', email: 'paul@example.test', termsVersionId: 4, language: 'fr', ...body, ...proof,
+    amountCents: 15000, recipientFirstName: 'Marie', recipientLastName: 'Durand', senderName: 'Paul', message: 'Joyeux anniversaire', email: 'paul@example.test', termsVersionId: 4, language: 'fr', ...body, ...proof,
   }, { 'x-test-ip': ip });
   const placed = async (body) => { const res = await order(body); assert.equal(res.status, 201, JSON.stringify(res.body)); return res.body.data; };
   const pay = (id, body) => server.call('POST', `/public/v1/gift-vouchers/orders/${id}/pay`, body, { 'x-test-ip': IP });
@@ -79,7 +79,7 @@ test('rules 13, 15, 19: a valid order answers 201 { orderId, token }; the visito
   assert.equal(stored.length, 1);
   const [row] = stored;
   assert.deepEqual([row.id, row.state, row.source, row.createdBy, row.amountCents, row.language], [res.body.data.orderId, 'pending', 'site', 'public', 15000, 'fr']);
-  assert.deepEqual([row.recipientName, row.senderName, row.message, row.email], ['Marie', 'Paul', 'Joyeux anniversaire', 'paul@example.test']);
+  assert.deepEqual([row.recipientName, row.recipientFirstName, row.recipientLastName, row.senderName, row.message, row.email], ['Marie', 'Marie', 'Durand', 'Paul', 'Joyeux anniversaire', 'paul@example.test']);
   assert.deepEqual([row.termsVersionId, row.termsAcceptedAt], [null, null], 'the order’s own columns are no longer written');
   assert.deepEqual(terms.accepted.map(({ activity, versionId, subjectType, subjectRef, channel }) => [activity, versionId, subjectType, subjectRef, channel]), [['lodging', 4, 'voucherOrder', row.id, 'site']]);
   assert.match(row.visitorHash, /^[0-9a-f]{64}$/);
@@ -105,10 +105,12 @@ test('rule 15: every field is judged again — amount, texts, e-mail, terms, lan
     [{ termsVersionId: 3 }, 400, 'TERMS_OUTDATED'],
     [{ termsVersionId: 0 }, 400, 'TERMS_OUTDATED'],
     [{ termsVersionId: undefined }, 400, 'TERMS_NOT_ACCEPTED'],
-    [{ recipientName: 'x'.repeat(41) }, 400, 'FIELD_INVALID'],
+    [{ recipientFirstName: 'x'.repeat(41) }, 400, 'FIELD_INVALID'],
     [{ senderName: 'x'.repeat(41) }, 400, 'FIELD_INVALID'],
     [{ message: 'x'.repeat(201) }, 400, 'FIELD_INVALID'],
-    [{ recipientName: 42 }, 400, 'FIELD_INVALID'],
+    [{ recipientLastName: 42 }, 400, 'FIELD_INVALID'],
+    [{ recipientFirstName: '' }, 400, 'RECIPIENT_FIRST_NAME_REQUIRED'],
+    [{ recipientLastName: ' ' }, 400, 'RECIPIENT_LAST_NAME_REQUIRED'],
     [{ message: { a: 1 } }, 400, 'FIELD_INVALID'],
     [{ language: 'de' }, 400, 'FIELD_INVALID'],
   ];
@@ -116,7 +118,7 @@ test('rule 15: every field is judged again — amount, texts, e-mail, terms, lan
     const res = await order(body);
     assert.deepEqual([res.status, res.body.error.code], [status, errorCode], JSON.stringify(body));
   }
-  const edge = await order({ amountCents: 2000, recipientName: 'x'.repeat(40), message: 'x'.repeat(200) });
+  const edge = await order({ amountCents: 2000, recipientFirstName: 'x'.repeat(40), recipientLastName: 'x'.repeat(40), message: 'x'.repeat(200) });
   assert.equal(edge.status, 201, 'the bounds themselves are accepted');
   assert.equal(rows(db, 'gift_voucher_orders').length, 1);
 }));
