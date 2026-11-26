@@ -119,7 +119,8 @@ test('booking intake: activation, mapping, dashboard line, fiche filled and reco
   const stored = await (await page.request.get(`/api/reservations/${reservation.id}`, { timeout: API_TIMEOUT })).json();
   expect(stored).toMatchObject({
     platform: 'Booking', reservationNumber: ids.resId, firstName: 'Camille', lastName: 'Sierra', adults: 10, checkInTime: '20:00',
-    platformGrossAmount: 721.82, platformTouristTaxAmount: 20.02, platformPayoutAmount: 606.44, platformCommissionAmount: 95.36,
+    // specs/platforms/platform-host-statement-and-commission-vat.md rule 21 — the host amount is Booking's « Sous-total » (the tax apart).
+    platformGrossAmount: 701.8, platformTouristTaxAmount: 20.02, platformPayoutAmount: 606.44, platformCommissionAmount: 95.36,
   });
 
   // Rule 18 — Masquer hides the banner for good.
