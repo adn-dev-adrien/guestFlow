@@ -45,6 +45,8 @@ function buildController({
   lateInstallments = (today) => require('./installmentsController').lateInstallments(today),
   // specs/payments/payment-schedule-and-cancellation.md rule 60 — what cancelling now would keep, from the cancel's own figures.
   cancellationPreviewFor = (id) => require('./reservationCancellationController').previewFor(id),
+  // specs/payments/online-payment-notices.md rule 5 — the online payments recorded in the last 24 hours, one line each.
+  receivedPayments = () => require('../utils/paymentsReceived').listReceived(require('../database')),
   today: injectedToday = null,
 } = {}) {
   const resolveToday = () => injectedToday || getTodayIsoDate();
@@ -168,6 +170,16 @@ function buildController({
     newReservations(req, res) {
       const alerts = injectedReservationsModel.listNewReservations();
       return res.json({ alerts });
+    },
+
+    /**
+     * GET /api/dashboard/payments-received
+     *
+     * The online payments recorded on a stay during the last 24 hours (specs/payments/online-payment-notices.md rule 5),
+     * every word written by the server. Empty `alerts: []` → no card.
+     */
+    paymentsReceived(req, res) {
+      return res.json({ alerts: receivedPayments() });
     },
 
     /**

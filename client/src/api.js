@@ -870,6 +870,8 @@ const api = {
   // Dashboard "new iCal reservations today" — read-only notification of bookings imported via
   // iCal during the current day (specs/planning/dashboard-ical-new-reservations.md).
   getNewReservations: () => request('/dashboard/new-reservations'),
+  // The online payments recorded in the last 24 h (specs/payments/online-payment-notices.md rule 5).
+  getPaymentsReceived: () => request('/dashboard/payments-received'),
   // Stays numbered by the boot repair, listed until checked (specs/reservations/reservation-number-and-search.md rule 15).
   getRepairedReservationNumbers: () => request('/dashboard/repaired-reservation-numbers'),
   acknowledgeRepairedReservationNumber: (id) => request(`/dashboard/repaired-reservation-numbers/${id}/acknowledge`, { method: 'POST' }),

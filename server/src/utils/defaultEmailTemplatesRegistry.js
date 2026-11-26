@@ -312,6 +312,46 @@ const DATES_UNAVAILABLE_NOTICE_BODY_EN = [
   '{{senderName}}',
 ].join('\n');
 
+// specs/payments/online-payment-notices.md rules 6-7 — the receipt of a balance paid online: nothing to pay, nothing to
+// click. What the guest paid is the stay's balance; what is still due is the arrival complement, when there is one.
+const BALANCE_RECEIVED_BODY = [
+  'Bonjour {{clientFirstName}},',
+  '',
+  'Nous avons bien reçu le solde de votre séjour {{propertyWithArticle}} : {{balanceAmount}}. Merci !',
+  '',
+  'Votre séjour :',
+  '{{#if hasReservationNumber}}- N° de réservation : {{reservationNumber}}',
+  '{{/if}}- Logement : {{propertyName}}',
+  '- Arrivée : le {{arrivalDateLabel}} à partir de {{checkInLabel}}',
+  '- Départ : le {{departureDateLabel}} avant {{checkOutLabel}}',
+  '{{#if complementToCollect}}- Reste à régler sur place : {{complementAmount}}',
+  '{{else}}- Reste à payer : rien',
+  '{{/if}}',
+  'Une question d\'ici là ? Répondez simplement à ce mail{{#if hasCompanyPhone}}, ou appelez-nous au {{companyPhone}}{{/if}}.',
+  '',
+  'À très bientôt,',
+  '{{senderName}}',
+].join('\n');
+
+const BALANCE_RECEIVED_BODY_EN = [
+  'Hello {{clientFirstName}},',
+  '',
+  'We have received the balance for your stay at {{propertyWithArticle}}: {{balanceAmount}}. Thank you!',
+  '',
+  'Your stay:',
+  '{{#if hasReservationNumber}}- Reservation no.: {{reservationNumber}}',
+  '{{/if}}- Accommodation: {{propertyName}}',
+  '- Arrival: {{arrivalDateLabel}} from {{checkInLabel}}',
+  '- Departure: {{departureDateLabel}} before {{checkOutLabel}}',
+  '{{#if complementToCollect}}- Still to pay on site: {{complementAmount}}',
+  '{{else}}- Still to pay: nothing',
+  '{{/if}}',
+  'Any question until then? Simply reply to this email{{#if hasCompanyPhone}}, or call us on {{companyPhone}}{{/if}}.',
+  '',
+  'See you very soon,',
+  '{{senderName}}',
+].join('\n');
+
 const CANCELLATION_NOTICE_BODY_EN = [
   'Hello {{clientFirstName}},',
   '',
@@ -624,6 +664,18 @@ const DEFAULT_TEMPLATES = Object.freeze([
     sendMode:  'manual', // a request for money is never sent by a cron
     enabled:   true,
   }),
+  Object.freeze({
+    stableKey: 'balance_received',
+    name:      'Solde reçu',
+    subject:   'Nous avons bien reçu le solde de votre séjour {{propertyWithArticle}}',
+    body:      BALANCE_RECEIVED_BODY,
+    subjectEn: 'We have received the balance for your stay at {{propertyWithArticle}}',
+    bodyEn:    BALANCE_RECEIVED_BODY_EN,
+    anchor:    'balanceReceived', // never 'start': a rollback's date-driven queue would offer this row for every arriving stay
+    dayOffset: 0,                 // sentinel — sent when an online balance is recorded (EVENT_TRIGGERED_STABLE_KEYS)
+    sendMode:  'auto',            // the third named exception of no-automatic-email-without-approval.md rule 11: a receipt asks for nothing
+    enabled:   true,
+  }),
   // ───────────────────────────────────────────────────────────────────────────────
   // Add new default templates below. One object per template; follow the contract
   // documented at the top of this file. Re-uses any of the variables / flags listed in
@@ -635,7 +687,7 @@ const DEFAULT_TEMPLATES = Object.freeze([
 // Templates sent programmatically (on a payment event) or by an explicit host action — NOT by the
 // date-driven manual queue (emailLogModel.listPending) nor the `auto` cron. Single source of truth so
 // the model's exclusion and the senders stay in sync.
-const EVENT_TRIGGERED_STABLE_KEYS = Object.freeze(['reservation_confirmation', 'deposit_request', 'balance_request', 'full_request', 'installment_request', 'cancellation_notice', 'dates_unavailable_notice', 'visit_payment_request']);
+const EVENT_TRIGGERED_STABLE_KEYS = Object.freeze(['reservation_confirmation', 'deposit_request', 'balance_request', 'full_request', 'installment_request', 'cancellation_notice', 'dates_unavailable_notice', 'visit_payment_request', 'balance_received']);
 
 // Every template that asks a guest for money (specs/payments/payment-schedule-and-cancellation.md §1 amendment,
 // rule 44). None of them may ever carry `sendMode: 'auto'`: a dunning email is a commercial act the

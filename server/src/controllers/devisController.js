@@ -20,6 +20,8 @@ function createController(model, {
   onlinePayment = () => require('../utils/paymentProviders').summary(),
   frozenOptions = (devisId) => require('../utils/insuranceOffer').frozenOptions(require('../database'), devisId),
   frozenResources = (devisId) => require('../utils/resourceOffer').frozenResources(require('../database'), devisId),
+  // specs/payments/online-payment-notices.md rule 8 — the confirmation of a stay converted by hand, gated by its template's mode.
+  sendConfirmation = (reservationId) => require('../utils/paymentEffectDeps').buildPaymentEffectDeps().sendConfirmation(reservationId),
 } = {}) {
   // A refusal's body: its code, and the stays or closures it names (specs/payments/payment-link-lifecycle.md rules 46, 55).
   const errorBody = (result) => ({ error: result.error, ...(result.code ? { code: result.code } : {}), ...(result.field ? { field: result.field } : {}), ...(result.stays ? { stays: result.stays } : {}), ...(result.closures ? { closures: result.closures } : {}), ...(result.lines ? { lines: result.lines } : {}) });
@@ -147,11 +149,15 @@ function createController(model, {
 
   function convertToReservation(req, res) {
     const result = model.convertToReservation(req.params.id);
+    const response = respond(res, result);
     // The quote became a stay: plugins react after the response (specs/plugins/plugins-phase-1-sdk.md rule 9).
     if (result && result.ok && result.data && result.data.reservationId) {
       emitPluginEvent('reservation.created', { reservationId: result.data.reservationId });
+      // Rule 8 — a refused conversion (already converted, confirmed by a payment) never reaches here, so it sends nothing more.
+      // The mail is gated by its template's mode and never holds the response nor undoes the conversion.
+      Promise.resolve().then(() => sendConfirmation(result.data.reservationId)).catch(() => {});
     }
-    return respond(res, result);
+    return response;
   }
 
   function convertFromReservation(req, res) {

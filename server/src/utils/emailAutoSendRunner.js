@@ -21,6 +21,7 @@ const { normaliseLang, pickTemplateSide, englishMissing, ENGLISH_VERSION_MISSING
 const { registerDirectChannelSql } = require('./platformNameFormat');
 const { templateAutoSends, anyTemplateAutoSends } = require('./autoSendPolicy');
 const { SEQUENCE_STABLE_KEYS } = require('./guestEmailSequence');
+const { EVENT_TRIGGERED_STABLE_KEYS } = require('./defaultEmailTemplatesRegistry');
 const { todayIso } = require('./localDate');
 const { guestEmailMessage } = require('./guestEmailHtml');
 const { notDepartureCharge } = require('./departureChargeLines');
@@ -52,7 +53,9 @@ async function performAutoEmailPass(deps) {
   // rule 19): this legacy dayOffset pass never touches them, so a sequence email has one sender only.
   const templates = templatesModel.listEnabled()
     .filter(templateAutoSends)
-    .filter((t) => !SEQUENCE_STABLE_KEYS.includes(t.stableKey));
+    .filter((t) => !SEQUENCE_STABLE_KEYS.includes(t.stableKey))
+    // Event-triggered templates have their own sender (utils/reservationEmailSender): never a date-driven pass.
+    .filter((t) => !EVENT_TRIGGERED_STABLE_KEYS.includes(t.stableKey));
   if (templates.length === 0) {
     return { sentCount: 0, skippedCount: 0, failedCount: 0, results: [] };
   }
